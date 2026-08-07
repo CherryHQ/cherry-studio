@@ -3,7 +3,7 @@
     "add": {
       "description": "Handle complex tasks with various tools",
       "error": {
-        "failed": "Failed to add a agent",
+        "failed": "Failed to add an agent",
         "invalid_agent": "Invalid Agent"
       },
       "model": {
@@ -448,14 +448,14 @@
         }
       },
       "group": {
-        "collapse": "Collapse display",
+        "collapse": "Collapse",
         "collapse_all": "Collapse all",
         "conversation": "Conversations",
-        "drag_hint": "Drag to reorder. Drag tasks to adjust display and hidden groups.",
         "earlier": "Earlier",
         "expand_all": "Expand all",
         "no_workdir": "No work directory",
-        "show_more": "Expand display",
+        "show_more": "Show more",
+        "tasks": "Tasks",
         "this_week": "This week",
         "today": "Today",
         "unknown_agent": "Unlinked Agent",
@@ -1334,7 +1334,7 @@
       "regular_phrases": {
         "add": "Add Phrase",
         "contentLabel": "Content",
-        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+        "contentPlaceholder": "Enter phrase content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
         "delete": "Delete Phrase",
         "deleteConfirm": "Are you sure to delete this phrase?",
         "edit": "Edit Phrase",
@@ -1677,11 +1677,6 @@
       "new": {
         "branch": {
           "created": "New Branch Created",
-          "disabled": {
-            "active": "This node is already selected. Continue typing to extend the branch from here.",
-            "latest": "You are already at the end of this branch. Continue typing to extend it.",
-            "no_follow_up": "There is no follow-up after this message yet. Switch to this node and continue typing instead."
-          },
           "label": "New Branch"
         },
         "context": "New Context"
@@ -1981,11 +1976,11 @@
         "yuque": "Export to Yuque"
       },
       "group": {
-        "collapse": "Collapse display",
+        "collapse": "Collapse",
         "collapse_all": "Collapse all",
         "earlier": "Earlier",
         "expand_all": "Expand all",
-        "show_more": "Expand display",
+        "show_more": "Show more",
         "this_week": "This week",
         "today": "Today",
         "unknown_assistant": "Unlinked Assistant",
@@ -2596,7 +2591,7 @@
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
-    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
+    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Raise \"Max tool call rounds\" in the assistant settings, or reduce the task scope.",
     "truncated": "Data truncated, original size",
     "truncatedBadge": "Truncated",
     "unknown": "Unknown error",
@@ -3515,7 +3510,7 @@
             "hint": "Caps response length when enabled"
           },
           "max_tool_calls": {
-            "hint": "Limits tool-call rounds when enabled; otherwise uses the default 20-round limit"
+            "hint": "Limits tool-call rounds when enabled; otherwise uses the default {{count}}-round limit"
           },
           "model": {
             "hint": "Overrides the global default model for this assistant"
@@ -3947,7 +3942,7 @@
         "title": "Delete Confirmation"
       },
       "failed": "Delete Failed",
-      "first_turn_not_supported": "The first user message cannot be deleted.",
+      "generating_unavailable": "A reply in this group is still generating and cannot be deleted yet.",
       "root_unavailable": "Messages are still loading and cannot be deleted yet.",
       "success": "Delete Successful"
     },
@@ -4032,8 +4027,8 @@
     },
     "group": {
       "delete": {
-        "content": "Deleting a group message will delete the user's question and all assistant's answers",
-        "title": "Delete Group Message"
+        "content": "Delete all assistant replies in this group? The user's question and later messages will be kept.",
+        "title": "Delete Group Replies"
       },
       "retry_failed": "Retry failed messages"
     },
@@ -4447,7 +4442,8 @@
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
     "multi_select": {
-      "label": "Multi-model simultaneous responses"
+      "label": "Multi-select",
+      "tooltip": "Multi-model simultaneous responses"
     },
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
@@ -4837,7 +4833,7 @@
       "stop": "Stop OVMS",
       "stopping": "Stopping"
     },
-    "description": "<div><p>1. Download OV Models.</p><p>2. Add Models in 'Manager'.</p><p>Support Windows Only!</p><p>OVMS Install Path: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Please refer to <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS Guide</a></p></dev>",
+    "description": "<div><p>1. Download the OV models.</p><p>2. Add the models in Manager.</p><p>Windows only.</p><p>OVMS installation path: '%USERPROFILE%\\.cherrystudio\\ovms'.</p><p>See the <a href=\"https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md\">Intel OVMS guide</a>.</p></div>",
     "download": {
       "button": "Download",
       "error": "Download Error",
@@ -5602,7 +5598,7 @@
       },
       "prompt": {
         "explain": "Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
-        "refine": "Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
+        "refine": "Please optimize or polish the user input inside the INPUT XML element while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
         "summary": "Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
       },
       "translate": {
@@ -5854,7 +5850,77 @@
         "open": "Open",
         "title": "Debug"
       },
-      "description": "A powerful AI assistant for producer",
+      "description": "A powerful AI assistant built for creators",
+      "diagnostics": {
+        "actions": {
+          "cancel": "Cancel",
+          "close": "Close",
+          "contact": "Email support",
+          "copy_email": "Copy support email",
+          "export": "Export",
+          "exporting": "Exporting...",
+          "reveal": "Open file location"
+        },
+        "dialog": {
+          "description": "Save recent app information as a ZIP file to help support staff investigate issues.",
+          "title": "Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "Export",
+          "title": "Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "Another diagnostic bundle is already being exported",
+          "copy_failed": "Could not copy the support email",
+          "destination_conflict": "The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "Could not open an email client. You can copy the support email instead.",
+          "export_failed": "Could not export the diagnostic bundle",
+          "inspect_failed": "Could not check what is available to export. Try again later.",
+          "reveal_failed": "Could not open the file location"
+        },
+        "inspecting": "Preparing the available information...",
+        "limit": "To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "I understand the information above and will share the ZIP only privately with support.",
+          "description": "These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not redact or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "Before you share"
+        },
+        "range_title": "Time range",
+        "ranges": {
+          "24h": "Last 24 hours",
+          "3d": "Last 3 days",
+          "7d": "Last 7 days"
+        },
+        "sources": {
+          "inspecting": "Checking what is available...",
+          "logs": {
+            "title": "App logs"
+          },
+          "summary": "{{count}} files, about {{size}}",
+          "summary_one": "{{count}} file, about {{size}}",
+          "summary_other": "{{count}} files, about {{size}}",
+          "system": {
+            "description": "Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "App and device information"
+          },
+          "traces": {
+            "title": "Detailed activity records"
+          },
+          "unavailable": "Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "Support email copied",
+          "local_only": "The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "Diagnostic bundle exported"
+        },
+        "unknown": "Unknown",
+        "warning": "Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "Downloading...",
       "enterprise": {
         "title": "Enterprise"
@@ -7387,8 +7453,8 @@
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
       "provider_key_add_failed_by_invalid_data": "Failed to add provider API key, data format error",
       "provider_key_added": "Successfully added API key for {{provider}}",
-      "provider_key_already_exists": "{{provider}} already has an API key ({{existingKey}}). Do not add it again.",
-      "provider_key_confirm_title": "Add Provider API Key",
+      "provider_key_already_exists": "{{provider}} already has this API key. It will not be added again.",
+      "provider_key_confirm_title": "Add {{provider}} API Key",
       "provider_key_no_change": "API key for {{provider}} has not changed",
       "provider_key_overridden": "Successfully updated API key for {{provider}}",
       "provider_key_override_confirm": "{{provider}} already has an API key ({{existingKey}}). Do you want to override it with the new key ({{newKey}})?",
@@ -7400,7 +7466,7 @@
         "description": "Model used for simple tasks such as conversation naming and keyword extraction",
         "label": "Quick Model",
         "setting_title": "Quick model setup",
-        "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
+        "tooltip": "Choose a lightweight model and avoid reasoning models."
       },
       "toolbar": {
         "custom_add": "Custom",
@@ -7917,7 +7983,7 @@
       "add": "Add Phrase",
       "assistant": "Assistant Phrases",
       "contentLabel": "Content",
-      "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "contentPlaceholder": "Enter phrase content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
       "delete": "Delete Phrase",
       "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
       "edit": "Edit Phrase",
@@ -8656,7 +8722,7 @@
     "title": "Update"
   },
   "warning": {
-    "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."
+    "missing_provider": "The provider does not exist; reverted to the default provider {{provider}}. This may cause issues."
   },
   "words": {
     "knowledgeGraph": "Knowledge Graph",

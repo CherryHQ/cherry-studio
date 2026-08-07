@@ -1,4 +1,4 @@
-import { BaseService } from '@main/core/lifecycle/BaseService'
+import { BaseService, LifecycleManager, ServiceContainer } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -40,17 +40,33 @@ vi.mock('@logger', () => ({
   }
 }))
 
+const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 const { ClaudeCodeWarmQueryManager, createClaudeCodeWarmQuerySignature } = await import('../ClaudeCodeWarmQueryManager')
 
-function warmQuery() {
+function warmQuery(cleanup: Promise<void> = Promise.resolve()) {
+  const close = vi.fn()
   return {
     query: vi.fn(),
-    close: vi.fn()
+    close,
+    [Symbol.asyncDispose]: vi.fn(async () => {
+      close()
+      await cleanup
+    })
   }
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
 }
 
 describe('ClaudeCodeWarmQueryManager', () => {
   beforeEach(() => {
+    LifecycleManager.reset()
+    ServiceContainer.reset()
     BaseService.resetInstances()
     vi.clearAllMocks()
     vi.useFakeTimers()
@@ -81,10 +97,85 @@ describe('ClaudeCodeWarmQueryManager', () => {
     expect(consumed?.warmQuery).toBe(warm)
     expect(second).toBeUndefined()
     expect(startupMock).toHaveBeenCalledWith({
-      options: { model: 'sonnet', resume: 'sdk-1' },
+      options: { model: 'sonnet', resume: 'sdk-1', spawnClaudeCodeProcess },
       initializeTimeoutMs: undefined
     })
     expect(warm.close).not.toHaveBeenCalled()
+  })
+
+  it('preserves the host spawn wrapper on the warm startup path', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    const ignoredSpawn = vi.fn()
+    startupMock.mockResolvedValueOnce(warm)
+
+    manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet', spawnClaudeCodeProcess: ignoredSpawn } as any
+    })
+    await Promise.resolve()
+
+    expect(startupMock).toHaveBeenCalledWith({
+      options: { model: 'sonnet', spawnClaudeCodeProcess },
+      initializeTimeoutMs: undefined
+    })
+  })
+
+  it('waits for every warm cleanup in closeAll', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const firstCleanup = createDeferred<void>()
+    const secondCleanup = createDeferred<void>()
+    const firstWarm = warmQuery(firstCleanup.promise)
+    const secondWarm = warmQuery(secondCleanup.promise)
+    startupMock.mockResolvedValueOnce(firstWarm).mockResolvedValueOnce(secondWarm)
+    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+    manager.prewarm({ key: 'session-2', options: { model: 'opus' } as any })
+    await Promise.resolve()
+
+    const closing = manager.closeAll()
+    let settled = false
+    void closing.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+
+    expect(firstWarm[Symbol.asyncDispose]).toHaveBeenCalledOnce()
+    expect(secondWarm[Symbol.asyncDispose]).toHaveBeenCalledOnce()
+    firstCleanup.resolve()
+    await Promise.resolve()
+    expect(settled).toBe(false)
+
+    secondCleanup.resolve()
+    await expect(closing).resolves.toBeUndefined()
+  })
+
+  it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
+    const container = ServiceContainer.getInstance()
+    container.register(ClaudeCodeWarmQueryManager)
+
+    expect(container.getMetadata('ClaudeCodeWarmQueryManager')?.dependencies).toContain('ClaudeCodeProcessManager')
+  })
+
+  it('closes every warm entry on service stop', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+    await Promise.resolve()
+
+    await expect(manager._doStop()).resolves.toBeUndefined()
+    expect(warm[Symbol.asyncDispose]).toHaveBeenCalledOnce()
+  })
+
+  it('does not reject stop when a warm cleanup fails', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery(Promise.reject(new Error('dispose failed')))
+    startupMock.mockResolvedValueOnce(warm)
+    manager.prewarm({ key: 'session-1', options: { model: 'sonnet' } as any })
+    await Promise.resolve()
+
+    await expect(manager._doStop()).resolves.toBeUndefined()
+    expect(warm[Symbol.asyncDispose]).toHaveBeenCalledOnce()
   })
 
   it('closes a stale warm query when session options change', async () => {

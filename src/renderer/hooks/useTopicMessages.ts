@@ -169,8 +169,6 @@ export interface UseTopicMessagesResult {
   isStale: boolean
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
-  /** The topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
-  rootId: string | null
   /** Load the next (older) page of branch history. */
   loadOlder: () => void
   /** Whether older pages remain on the server. */
@@ -223,7 +221,6 @@ export function useTopicMessages(
     [pages, topicId]
   )
   const activeNodeId = pages[0]?.activeNodeId ?? null
-  const rootId = pages[0]?.rootId ?? null
 
   // On remount with stale SWR cache, SWR may expose cached data while it
   // revalidates. Track freshness per topic so the loading gate blocks stale
@@ -275,7 +272,6 @@ export function useTopicMessages(
     isStale,
     refresh,
     activeNodeId,
-    rootId,
     loadOlder: loadNext,
     hasOlder: hasNext,
     mutate: mutate

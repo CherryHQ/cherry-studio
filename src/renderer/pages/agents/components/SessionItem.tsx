@@ -8,6 +8,7 @@ import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@rende
 import {
   RESOURCE_LIST_TITLE_FADE_CLASS,
   RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
+  RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS,
   ResourceList,
   useResourceListActions,
   useResourceListRowState
@@ -289,10 +290,9 @@ const SessionItem = ({
         <ResourceList.ItemTitle
           title={sessionName}
           className={cn(
-            'text-foreground dark:text-muted-foreground dark:group-data-[selected=true]:text-foreground dark:group-focus-visible:text-foreground dark:group-hover:text-foreground',
             nameAnimationClassName,
             RESOURCE_LIST_TITLE_FADE_CLASS,
-            RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
+            pinned ? RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS : RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
             // The stream indicator is an absolute overlay (keeps no flex space),
             // so the title needs a standing yield for its dot zone; on hover the
             // overlay fades out and the actions (pin + delete) take over via
@@ -338,7 +338,7 @@ const SessionItem = ({
               aria-label={pinned ? t('agent.session.unpin.title') : t('agent.session.pin.title')}
               className={cn(pinned && 'text-foreground')}
               onClick={handleTogglePinClick}>
-              <PinIcon size={13} className={cn('size-3.25!', pinned && '-rotate-45')} />
+              <PinIcon size={14} className={cn('size-3.5!', pinned && 'fill-current')} />
             </ResourceList.ItemAction>
           </Tooltip>
         )}

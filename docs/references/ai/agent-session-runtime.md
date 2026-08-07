@@ -72,7 +72,7 @@ A live follow-up is a **steer**. Steering is queue-based, never an
 interrupt: the current turn is **never aborted** to apply a steer (a user
 Stop is now the only abort source). `enqueueUserMessage()`:
 
-1. **Live turn + a driver that can steer** — calls
+1. **Open normal user turn + a driver that can steer** — calls
    `connection.redirect({ message, systemReminder: true })`. The driver
    stashes the steer and injects it into the running turn (Claude Code
    does this via a `PreToolUse` hook, as `additionalContext` before the
@@ -80,10 +80,15 @@ Stop is now the only abort source). `enqueueUserMessage()`:
    turn, no queue entry. If the turn ends before the steer is injected
    (it called no tool after the steer arrived), the connection emits
    `steer-undelivered` and the host queues it as the next turn.
-2. **No live turn, or the driver cannot steer** — appends the message to
-   the session entry's `pendingTurns` (recording its id in
+2. **No redirect-eligible open normal turn, or a driver that cannot steer** —
+   appends the message to the session entry's `pendingTurns` (recording its id in
    `steerMessageIds` so the next turn wraps it in a steer system-reminder)
-   and schedules the next turn.
+   and schedules it once runtime ownership returns to `idle`.
+
+A receive-only autonomous generation never accepts a redirect. Follow-ups
+remain in `pendingTurns` until terminal persistence releases runtime ownership.
+A normal turn whose stream is still `unopened` is queued for the same reason;
+steering is only valid after that turn's stream is `open`.
 
 When a steer **is** injected mid-turn, the driver emits a
 `steer-boundary` just before the model's post-steer assistant message.
@@ -96,6 +101,11 @@ across a mid-flight compaction) so the continuation carries the renderer
 listeners.
 
 ## Starting the next runtime turn
+
+A queued successor may start only after the current execution reaches
+`turn-terminal` and persistence returns the runtime to `idle`.
+`startNextTurn()` rechecks that ownership before reading or shifting the queue,
+so a premature launch has no queue, database, or stream-manager side effects.
 
 When a completed runtime turn still has queued follow-ups (or a
 `steer-undelivered` requeue), `AgentSessionRuntimeService.startNextTurn()`:
@@ -111,6 +121,11 @@ When a completed runtime turn still has queued follow-ups (or a
 The runtime connection may stay on the entry. What that means is driver
 specific: Claude Code keeps its SDK query/input queue, while another
 driver could keep a websocket or reconnect per turn.
+
+If a queued successor or steer continuation cannot save its assistant
+placeholder, the host explicitly terminates the held topic stream with
+`terminateHeldTopicStream()`. Broadcasting an error alone is insufficient:
+it does not run terminal lifecycle or evict the held stream.
 
 ## Resume token persistence
 
@@ -245,6 +260,26 @@ When the idle timer expires, the runtime closes the entry:
 - prewarms Claude Code when a latest resume token is known.
 
 Service stop and destroy close all runtime entries.
+
+`ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
+through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,
+dropping it on `exit`. Both consuming services `@DependsOn` it, so it initialises first and therefore
+stops last — after their queries are closed — instead of relying on registry order.
+
+Graceful cleanup is the close path: warm handles use their async-dispose contract, live queries call
+`close()` and await `return()`, and the shared `AbortController` signals the child. Its own `onStop()`
+then synchronously sends `SIGTERM` to whatever handle is still registered — a best-effort sweep for
+children the connection and warm-query abstractions lost track of. It waits for nothing and escalates
+to nothing: shutdown can be cut short by the OS at any point, so a child that must not outlive the app
+cannot depend on this running. No process-name lookup or machine-wide kill is used.
+
+Survival past an abrupt exit is the CLI's own responsibility, and it honours it. Holding its stdin as
+a pipe is what arms this: when the app dies the write end closes and the CLI sees EOF. Measured on
+macOS arm64 with SDK 0.3.220 — `SIGKILL` on the parent leaves the CLI reparented to PID 1 and it exits
+by itself ~240ms later; closing only its stdin while the parent stays alive exits it cleanly (code 0)
+within ~2s. So the sweep above is an accelerator and a net for lost handles, never the mechanism that
+keeps a CLI from outliving the app. Never spawn the CLI with `detached` or with stdin redirected away
+from the app — either would disarm this.
 
 ## Write quiesce
 

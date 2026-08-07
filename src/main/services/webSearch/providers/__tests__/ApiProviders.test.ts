@@ -1341,6 +1341,7 @@ describe('main web search API providers', () => {
             "accept": "application/json, text/event-stream",
             "content-type": "application/json",
             "http-referer": "https://cherry-ai.com",
+            "x-api-key": "test-key",
             "x-title": "Cherry Studio",
           },
           "method": "POST",
@@ -1364,6 +1365,46 @@ describe('main web search API providers', () => {
         },
       }
     `)
+  })
+
+  it('sends the Exa API key as an x-api-key header when configured', async () => {
+    fetchMock.mockResolvedValue(createTextResponse(loadFixtureText('exa-mcp-response.txt'), 'text/event-stream'))
+
+    const provider = createProviderDriver(
+      ExaMcpProvider,
+      createProvider({
+        id: 'exa-mcp',
+        name: 'Exa MCP',
+        type: 'mcp',
+        apiKeys: ['exa-mcp-key'],
+        apiHost: 'https://mcp.exa.ai/mcp'
+      })
+    )
+
+    await provider.searchKeywords('hello', runtimeConfig)
+
+    const [, init] = fetchMock.mock.lastCall as [string, RequestInit]
+    expect(new Headers(init.headers).get('x-api-key')).toBe('exa-mcp-key')
+  })
+
+  it('omits the x-api-key header when no API key is configured', async () => {
+    fetchMock.mockResolvedValue(createTextResponse(loadFixtureText('exa-mcp-response.txt'), 'text/event-stream'))
+
+    const provider = createProviderDriver(
+      ExaMcpProvider,
+      createProvider({
+        id: 'exa-mcp',
+        name: 'Exa MCP',
+        type: 'mcp',
+        apiKeys: [],
+        apiHost: 'https://mcp.exa.ai/mcp'
+      })
+    )
+
+    await provider.searchKeywords('hello', runtimeConfig)
+
+    const [, init] = fetchMock.mock.lastCall as [string, RequestInit]
+    expect(new Headers(init.headers).get('x-api-key')).toBeNull()
   })
 
   it.each([

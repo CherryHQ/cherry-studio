@@ -34,7 +34,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
-import { hasClearContextPart } from '@shared/data/types/uiParts'
+import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
@@ -123,6 +123,11 @@ export const finishTopicRenaming = (topicId: string) => {
 // hard-capping at one large page.
 const MESSAGES_PAGE_SIZE = 200
 
+function isRenderableTopicMessage(message: SharedMessage): boolean {
+  const parts = message.data.parts ?? []
+  return !hasClearContextPart(parts) && !isBlankUserTurn({ role: message.role, status: message.status, parts })
+}
+
 /**
  * Load and return all messages for a topic.
  *
@@ -165,12 +170,12 @@ export async function getTopicMessages(
 
       const pageMessages: MessageExportView[] = []
       for (const item of response.items) {
-        if (!hasClearContextPart(item.message.data.parts)) {
+        if (isRenderableTopicMessage(item.message)) {
           pageMessages.push(convertSharedMessage(item.message, assistantId))
         }
         if (item.siblingsGroup) {
           for (const sibling of item.siblingsGroup) {
-            if (!hasClearContextPart(sibling.data.parts)) {
+            if (isRenderableTopicMessage(sibling)) {
               pageMessages.push(convertSharedMessage(sibling, assistantId))
             }
           }
@@ -506,12 +511,14 @@ export function useActiveTopic({
   passive = false
 }: UseActiveTopicOptions) {
   // Resolve the active topic by id (like `useActiveSession`) rather than scanning the
-  // loadAll `/topics` list, so first-entry restore paints from `/latest` immediately
-  // without waiting for the full topic history to paginate in. The rail keeps its own
-  // loadAll source; this hook only needs the one active row.
-  const { topic: apiActiveTopic, isLoading: isActiveTopicQueryLoading } = useTopicById(
-    passive || !activeTopicId ? undefined : activeTopicId
-  )
+  // loadAll `/topics` list. The entry route chooses the id without waiting for topic
+  // history pagination; this hook then loads only that active row while the rail keeps
+  // its own loadAll source.
+  const {
+    topic: apiActiveTopic,
+    isLoading: isActiveTopicQueryLoading,
+    error
+  } = useTopicById(passive || !activeTopicId ? undefined : activeTopicId)
   const queryTopic = useMemo<RendererTopic | undefined>(
     () =>
       activeTopicId && apiActiveTopic?.id === activeTopicId ? mapApiTopicToRendererTopic(apiActiveTopic) : undefined,
@@ -582,5 +589,5 @@ export function useActiveTopic({
   // Mirror `useActiveSession`: once the topic resolves (from the by-id query or the
   // pending fallback) we are no longer loading, even while a background revalidation runs.
   const isLoading = !activeTopic && isActiveTopicQueryLoading
-  return { activeTopic, setActiveTopic, clearActiveTopic, isLoading, topicSource }
+  return { activeTopic, setActiveTopic, clearActiveTopic, isLoading, error, topicSource }
 }
