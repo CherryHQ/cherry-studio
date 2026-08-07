@@ -13,10 +13,14 @@ import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('NotesEditor')
+// Hides the toolbar button and the slash-menu entry only. Image *paste* stays enabled: notes have
+// persisted pasted images into the user's notes folder since the module shipped, and
+// `handleImagePaste` pins those entries with `cleanupPolicy: 'manual'` for exactly this path.
+const DISABLED_RICH_EDITOR_COMMANDS = ['image', 'inlineMath'] as const
 
 interface NotesEditorProps {
   activeNodeId?: string
@@ -56,13 +60,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       userViewModeOverrideRef.current = false
       setTmpViewMode(currentViewModeRef.current)
     }, [activeNodeId])
-
-    const handleCommandsReady = useCallback((commandAPI: Pick<RichEditorRef, 'unregisterCommand'>) => {
-      const disabledCommands = ['image', 'inlineMath']
-      disabledCommands.forEach((commandId) => {
-        commandAPI.unregisterCommand(commandId)
-      })
-    }, [])
 
     if (!activeNodeId) {
       return (
@@ -112,7 +109,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               ref={editorRef}
               initialContent={currentContent}
               onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
-              onCommandsReady={handleCommandsReady}
               showToolbar={tmpViewMode === 'preview'}
               editable={tmpViewMode === 'preview'}
               autoFocus={currentContent.trim().length === 0}
@@ -124,6 +120,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               fontFamily={settings.fontFamily}
               fontSize={settings.fontSize}
               enableSpellCheck={enableSpellCheck}
+              disabledCommands={DISABLED_RICH_EDITOR_COMMANDS}
             />
           )}
         </div>
