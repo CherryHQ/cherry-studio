@@ -72,6 +72,32 @@ describe('WebviewContainer', () => {
     expect(onLoaded).not.toHaveBeenCalled()
   })
 
+  it('reports the WebView as loaded when dom-ready is the only readiness event', () => {
+    const onLoaded = vi.fn()
+    const { container } = render(
+      <WebviewContainer
+        appid="chatgpt"
+        url="https://chat.openai.com"
+        onSetRefCallback={vi.fn()}
+        onLoadedCallback={onLoaded}
+        onNavigateCallback={vi.fn()}
+      />
+    )
+    const webview = container.querySelector('webview')
+    expect(webview).not.toBeNull()
+    Object.defineProperty(webview, 'getWebContentsId', { value: () => 42 })
+
+    act(() => {
+      webview?.dispatchEvent(new Event('dom-ready'))
+      webview?.dispatchEvent(new Event('did-finish-load'))
+      webview?.dispatchEvent(new Event('ready-to-show'))
+      vi.advanceTimersByTime(100)
+    })
+
+    expect(onLoaded).toHaveBeenCalledOnce()
+    expect(onLoaded).toHaveBeenCalledWith('chatgpt')
+  })
+
   it('cancels the previous loaded callback when a new load cycle starts', () => {
     const onLoaded = vi.fn()
     const { container } = render(
