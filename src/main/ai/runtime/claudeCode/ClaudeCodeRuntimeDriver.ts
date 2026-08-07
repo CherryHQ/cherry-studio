@@ -82,17 +82,18 @@ function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
   return /^\/fast(?:\s|$)/i.test(text)
 }
 
-/**
- * The CLI reported that the resume target does not exist — deleted by its transcript cleanup, a
- * different CLAUDE_CONFIG_DIR, or a copied database. The SDK carries no typed reason for this, so
- * the discriminator is the CLI's error string, matched against the result's raw `errors` entries.
- */
-function isConversationNotFoundFailure(error: unknown): boolean {
-  return (
-    error instanceof ClaudeCodeResultError &&
-    error.subtype === 'error_during_execution' &&
-    error.errors.some((entry) => /no conversation found with session id/i.test(entry))
-  )
+type ResumeRecoveryReason = 'conversation-not-found' | 'duplicate-tool-use-id'
+
+/** The SDK has no typed execution-failure reason, so classify only its raw result error entries. */
+function getResumeRecoveryReason(error: unknown): ResumeRecoveryReason | undefined {
+  if (!(error instanceof ClaudeCodeResultError) || error.subtype !== 'error_during_execution') return undefined
+  if (error.errors.some((entry) => /no conversation found with session id/i.test(entry))) {
+    return 'conversation-not-found'
+  }
+  if (error.errors.some((entry) => /tool_use[`'"]?\s+ids?\s+must\s+be\s+unique/i.test(entry))) {
+    return 'duplicate-tool-use-id'
+  }
+  return undefined
 }
 
 function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
@@ -353,10 +354,10 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private readonly abortController = new AbortController()
   private query?: Query
   private closePromise?: Promise<void>
-  /** The exact spawn options of the live query — the stale-resume retry re-spawns from these. */
+  /** The exact spawn options of the live query — resume recovery re-spawns from these. */
   private spawnOptions?: Options
   private lastSdkUserMessage?: SDKUserMessage
-  private staleResumeRetried = false
+  private resumeRecoveryRetried = false
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
@@ -719,7 +720,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     } catch (error) {
       this.settlePendingInvocations()
-      if (this.tryRecoverFromStaleResume(error)) {
+      if (this.tryRecoverWithoutResume(error)) {
         // `await` is load-bearing: without it the finally below closes the event queue while the
         // recovered loop is still streaming.
         return await this.runQueryLoop()
@@ -748,26 +749,32 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  /**
-   * A stale persisted resume token kills the CLI before it does any work ("No conversation found").
-   * Degrade instead of failing the turn: re-spawn once WITHOUT the resume token on a fresh input
-   * queue (the dead query's iterator still holds the old one), and replay the pending user message
-   * so the turn continues on a new conversation. The recovered init reports a new session id, which
-   * the host persists on the next assistant row — the stale token heals itself after one good turn.
-   * Context from the lost conversation is gone; that is the accepted cost of the degradation.
-   */
-  private tryRecoverFromStaleResume(error: unknown): boolean {
-    if (this.staleResumeRetried || !this.resumeToken || !this.spawnOptions) return false
-    if (!isConversationNotFoundFailure(error) || this.abortController.signal.aborted) return false
-    this.staleResumeRetried = true
+  /** Rebuilds one failed resumed query without its corrupt or missing conversation history. */
+  private tryRecoverWithoutResume(error: unknown): boolean {
+    if (this.resumeRecoveryRetried || !this.resumeToken || !this.spawnOptions || this.abortController.signal.aborted) {
+      return false
+    }
+    const reason = getResumeRecoveryReason(error)
+    if (!reason) return false
+    // Error results advance `resumeToken` before throwing. The pending input's session id proves the
+    // failed request actually resumed prior history rather than merely reporting a new session id.
+    if (reason === 'duplicate-tool-use-id' && !this.lastSdkUserMessage?.session_id) return false
+    if (reason === 'duplicate-tool-use-id' && this.adapter?.hasTurnActivity === true) {
+      logger.warn('Refusing resume recovery after the turn produced non-metadata activity', {
+        sessionId: this.input.sessionId,
+        reason
+      })
+      return false
+    }
+    this.resumeRecoveryRetried = true
 
-    logger.warn('Persisted resume token no longer resolves to a CLI conversation; retrying without it', {
+    logger.warn('Recovering Claude Code conversation without its resume history', {
       sessionId: this.input.sessionId,
-      staleResumeToken: this.resumeToken
+      reason
     })
     this.resumeToken = undefined
-    // Tell the user, in the transcript itself, that the prior conversation could not be found and
-    // the reply below starts fresh. Persisted with the recovered turn like any other data part.
+    // Tell the user, in the transcript itself, that the reply below starts fresh. Persisted with the
+    // recovered turn like any other data part.
     this.eventQueue.push({
       type: 'chunk',
       chunk: { type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} }
