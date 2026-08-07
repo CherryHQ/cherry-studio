@@ -1,7 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
-import { classifyErrorByAI } from '@renderer/services/ErrorDiagnosisService'
+import { classifyErrorByAI } from '@renderer/utils/errorDiagnosis'
 import { useNavigate } from '@tanstack/react-router'
 import { useCallback, useMemo } from 'react'
 
@@ -10,8 +10,13 @@ const aiClassifyCacheKey = (message: string, language: string) => `error.classif
 
 type MessageErrorActions = Pick<MessageListActions, 'diagnoseMessageError' | 'openErrorDetail' | 'navigateErrorTarget'>
 
-export function useMessageErrorActions(): MessageErrorActions {
+interface MessageErrorActionOptions {
+  persistDiagnosis?: NonNullable<Parameters<typeof showErrorDetailPopup>[0]['onDiagnosisComplete']>
+}
+
+export function useMessageErrorActions(options: MessageErrorActionOptions = {}): MessageErrorActions {
   const navigate = useNavigate()
+  const { persistDiagnosis } = options
 
   const diagnoseMessageError = useCallback<NonNullable<MessageListActions['diagnoseMessageError']>>(
     ({ error, language }) => {
@@ -32,14 +37,18 @@ export function useMessageErrorActions(): MessageErrorActions {
     []
   )
 
-  const openErrorDetail = useCallback<NonNullable<MessageListActions['openErrorDetail']>>((input) => {
-    showErrorDetailPopup({
-      error: input.error,
-      blockId: input.partId,
-      cachedDiagnosis: input.cachedDiagnosis,
-      diagnosisContext: input.diagnosisContext
-    })
-  }, [])
+  const openErrorDetail = useCallback<NonNullable<MessageListActions['openErrorDetail']>>(
+    (input) => {
+      showErrorDetailPopup({
+        error: input.error,
+        blockId: input.partId,
+        cachedDiagnosis: input.cachedDiagnosis,
+        diagnosisContext: input.diagnosisContext,
+        onDiagnosisComplete: persistDiagnosis
+      })
+    },
+    [persistDiagnosis]
+  )
 
   const navigateErrorTarget = useCallback<NonNullable<MessageListActions['navigateErrorTarget']>>(
     (target) => {

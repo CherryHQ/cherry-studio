@@ -1,10 +1,8 @@
-import { loggerService } from '@logger'
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolLauncher, ComposerToolLauncherKind } from '@renderer/components/composer/toolLauncher'
 import type { Assistant } from '@renderer/types/assistant'
-import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
+import type { SlashCommand } from '@shared/ai/slashCommands'
 import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import type { TFunction } from 'i18next'
 import React from 'react'
 
@@ -12,8 +10,6 @@ import type { ComposerSerializedToken } from '../tokens'
 import type { ComposerToolContextValue } from './ComposerToolProvider'
 
 export { TopicType }
-
-const logger = loggerService.withContext('ComposerToolRegistry')
 
 export type ComposerToolScope = TopicType | 'quick-assistant' | 'painting'
 
@@ -56,22 +52,19 @@ export interface ToolContext {
   /** Absent in Agent Session scope — Sessions have an `agentId` (see `session`), not an assistant row. */
   assistant?: Assistant
   model: Model
-  // Resolved v2 provider for `model.providerId`. Injected by the React
-  // dispatch site (ComposerToolRuntimeHost) so sync `condition()` predicates can run
-  // v2 provider checks without a v1 Redux lookup. Undefined while loading
-  // or when the provider is unknown.
-  provider?: Provider
   // Session data for Agent Session scope (only available when scope is TopicType.Session).
   // Note: config fields (model/instructions/...) live on the parent agent — fetch via
-  // useAgent(session.agentId). agentType drives builtin slash command lookup.
+  // useAgent(session.agentId). agentType drives the builtin slash command fallback; slashCommands
+  // carries the live SDK catalog (custom commands included) when the runtime has reported it.
   session?: {
     agentId?: string
     sessionId?: string
     agentType?: string
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: string[]
-    reasoningEffort?: ThinkingOption
-    onReasoningEffortChange?: (option: ThinkingOption) => void
+    slashCommands?: SlashCommand[]
+    /** Knowledge bases statically bound to the Agent. */
+    knowledgeBaseIds?: readonly string[]
   }
 }
 
@@ -94,6 +87,17 @@ export interface ToolComposerMenuContribution<
   A extends readonly ToolActionKey[] = readonly ToolActionKey[]
 > {
   createItems: (context: ToolRenderContext<S, A>) => ComposerToolLauncher[]
+}
+
+/**
+ * Stable toolbar identity for a pinnable tool. Runtime launchers overlay model-
+ * and state-dependent behavior after they register.
+ */
+export interface ToolComposerToolbarContribution {
+  id: string
+  kind: ComposerToolLauncherKind
+  order: number
+  icon: React.ReactNode
 }
 
 export interface ToolTokenContribution<
@@ -156,42 +160,3 @@ export interface ToolDefinition<
 export const defineTool = <S extends readonly ToolStateKey[], A extends readonly ToolActionKey[]>(
   tool: ToolDefinition<S, A>
 ): ToolDefinition<S, A> => tool
-
-// Tool registry (use any for generics to accept all tool definitions)
-const toolRegistry = new Map<string, ToolDefinition<any, any>>()
-
-export const registerTool = (tool: ToolDefinition<any, any>): void => {
-  if (toolRegistry.has(tool.key)) {
-    logger.warn(`Tool with key "${tool.key}" is already registered. Overwriting.`)
-  }
-  toolRegistry.set(tool.key, tool)
-}
-
-export const getTool = (key: string): ToolDefinition<any, any> | undefined => {
-  return toolRegistry.get(key)
-}
-
-export const getAllTools = (): ToolDefinition<any, any>[] => {
-  return Array.from(toolRegistry.values())
-}
-
-export const getToolsForScope = (
-  scope: ComposerToolScope,
-  context: Omit<ToolContext, 'scope'>
-): ToolDefinition<any, any>[] => {
-  const fullContext: ToolContext = { ...context, scope }
-
-  return getAllTools().filter((tool) => {
-    // Check scope visibility
-    if (tool.visibleInScopes && !tool.visibleInScopes.includes(scope)) {
-      return false
-    }
-
-    // Check custom condition
-    if (tool.condition && !tool.condition(fullContext)) {
-      return false
-    }
-
-    return true
-  })
-}

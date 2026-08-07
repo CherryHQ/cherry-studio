@@ -6,7 +6,6 @@
  */
 
 import { promptService } from '@data/services/PromptService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreatePromptSchema,
@@ -15,6 +14,7 @@ import {
   type PromptSchemas,
   UpdatePromptSchema
 } from '@shared/data/api/schemas/prompts'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const promptHandlers: HandlersFor<PromptSchemas> = {
   '/prompts': {

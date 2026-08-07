@@ -12,7 +12,7 @@
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { FileHandle } from '@shared/types/file'
+import type { FileHandle } from '@shared/data/types/file'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'

@@ -5,7 +5,7 @@
 | Subpath | Files | Role |
 |---|---|---|
 | `src/main/ai/provider/` | `config.ts` (495), `endpoint.ts` (99), `factory.ts` (17), `constants.ts` (14) | Provider config builder, endpoint resolver, derived helpers |
-| `provider/extensions/` | `index.ts` (236) | All `ProviderExtension.create(...)` registrations |
+| `provider/extensions.ts` | (236) | All `ProviderExtension.create(...)` registrations |
 | `provider/custom/` | `aihubmix-provider.ts` (167), `newapi-provider.ts` (151) | Aggregator-provider implementations |
 | `provider/` | `listModels.ts` (559), `listModelsSchemas.ts` (232), `listModels/vertex.ts` | Per-provider model listing |
 | Tests | `__tests__/endpoint.test.ts` (307) | Resolver coverage |
@@ -57,7 +57,7 @@ SDK-specific settings shape:
 
 ### Provider extensions
 
-`provider/extensions/index.ts` registers every `@ai-sdk/*` package
+`provider/extensions.ts` registers every `@ai-sdk/*` package
 Cherry uses via `ProviderExtension.create(...)`. Each registration
 declares:
 

@@ -16,14 +16,15 @@ import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
-import type { Message, MessageRole, MessageStatus } from '@shared/data/types/message'
+import type { Message, MessageRole, MessageRuntimeStatsInput, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { eq, isNull } from 'drizzle-orm'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
+import { aiUsageRecordService, mergeMessageUsageProjection } from './AiUsageRecordService'
 import { messageService } from './MessageService'
 import { insertWithOrderKey } from './utils/orderKey'
 
@@ -75,7 +76,6 @@ export class TemporaryChatService {
       isNameManuallyEdited: false,
       assistantId: dto.assistantId,
       activeNodeId: undefined,
-      groupId: dto.groupId,
       // In-memory store has no real ordering — temp topics are scoped per
       // session and never reordered or paginated like persistent ones.
       orderKey: '',
@@ -97,7 +97,27 @@ export class TemporaryChatService {
     logger.info('Deleted temporary topic', { id })
   }
 
-  appendMessage(topicId: string, dto: CreateMessageDto): Message {
+  appendMessage(topicId: string, dto: CreateMessageDto, messageId?: string): Message {
+    return this.appendMessageWithStats(topicId, dto, undefined, messageId)
+  }
+
+  appendAssistantMessage(
+    topicId: string,
+    dto: Omit<CreateMessageDto, 'role'> & { role: 'assistant' },
+    runtimeStats: MessageRuntimeStatsInput | undefined,
+    messageId: string
+  ): Message {
+    const projection = aiUsageRecordService.getMessageUsageProjection({ kind: 'chat', id: messageId })
+    const stats = mergeMessageUsageProjection(runtimeStats, projection)
+    return this.appendMessageWithStats(topicId, dto, stats, messageId)
+  }
+
+  private appendMessageWithStats(
+    topicId: string,
+    dto: CreateMessageDto,
+    stats: Message['stats'] | undefined,
+    messageId?: string
+  ): Message {
     if (!this.topics.has(topicId)) {
       throw DataApiErrorFactory.notFound('TemporaryTopic', topicId)
     }
@@ -105,7 +125,7 @@ export class TemporaryChatService {
 
     const now = Date.now()
     const row: TemporaryMessageRow = {
-      id: uuidv7(),
+      id: messageId ?? uuidv7(),
       topicId,
       parentId: null,
       role: dto.role,
@@ -118,8 +138,8 @@ export class TemporaryChatService {
       status: dto.status ?? 'success',
       siblingsGroupId: 0,
       modelId: dto.modelId ?? null,
-      modelSnapshot: dto.modelSnapshot ?? null,
-      stats: dto.stats ?? null,
+      messageSnapshot: dto.messageSnapshot ?? null,
+      stats: stats ?? null,
       createdAt: now,
       updatedAt: now
     }
@@ -179,11 +199,9 @@ export class TemporaryChatService {
         // because the TS-side ISO strings don't match the DB's integer column.
         //
         // `orderKey` is computed via `insertWithOrderKey` so the new persisted
-        // topic lands at the tail of its `groupId` partition, matching what
-        // `topicService.create` does for normal topics. The `?? undefined`
-        // pattern used for the other fields converts `null` to `undefined`
-        // so Drizzle omits the column entirely, letting the DB default apply.
-        const groupIdForScope = topic.groupId ?? null
+        // topic lands at the tail of the global live-topic order. The
+        // `?? undefined` pattern used for optional fields converts `null` to
+        // `undefined` so Drizzle omits the column entirely.
         const assistantId = topic.assistantId ?? undefined
         insertWithOrderKey(
           tx,
@@ -191,12 +209,11 @@ export class TemporaryChatService {
           {
             id: topic.id,
             name: topic.name ?? undefined,
-            assistantId,
-            groupId: topic.groupId ?? undefined
+            assistantId
           },
           {
             pkColumn: topicTable.id,
-            scope: groupIdForScope === null ? isNull(topicTable.groupId) : eq(topicTable.groupId, groupIdForScope)
+            scope: isNull(topicTable.deletedAt)
           }
         )
 
@@ -215,7 +232,7 @@ export class TemporaryChatService {
               status: m.status,
               siblingsGroupId: 0,
               modelId: m.modelId ?? undefined,
-              modelSnapshot: m.modelSnapshot ?? undefined,
+              messageSnapshot: m.messageSnapshot ?? undefined,
               stats: m.stats ?? undefined
             })
             .run()
@@ -232,6 +249,14 @@ export class TemporaryChatService {
       this.topics.set(topicId, topic)
       this.messages.set(topicId, msgs)
       throw err
+    }
+
+    // Promotion never creates or repairs facts. Rebuild the materialized
+    // projection from the records that were captured while the chat was
+    // temporary.
+    for (const m of msgs) {
+      if (m.role !== 'assistant') continue
+      aiUsageRecordService.refreshMessageProjection({ kind: 'chat', id: m.id })
     }
 
     logger.info('Persisted temporary topic', { topicId, messageCount: msgs.length })

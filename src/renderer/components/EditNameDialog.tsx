@@ -87,8 +87,10 @@ const EditNameDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md gap-0 overflow-hidden rounded-2xl border-border/60 p-0">
-        <DialogHeader className="gap-0.5 border-border/40 border-b px-4 py-3 text-left">
+      <DialogContent
+        closeOnOverlayClick={false}
+        className="max-w-md gap-0 overflow-hidden rounded-2xl border-border-subtle p-0">
+        <DialogHeader className="gap-0.5 border-border-subtle border-b px-4 py-3 text-left">
           <DialogTitle className="leading-4">{title}</DialogTitle>
         </DialogHeader>
         <form className="flex flex-col" onSubmit={handleSubmit}>
@@ -100,7 +102,7 @@ const EditNameDialog = ({
               id={inputId}
               aria-invalid={hasAttemptedSubmit && !name.trim()}
               autoFocus
-              className="h-8 rounded-lg px-2.5 leading-4 placeholder:text-muted-foreground/70"
+              className="h-8 rounded-lg px-2.5 leading-4 placeholder:text-muted-foreground"
               placeholder={placeholder}
               value={name}
               onChange={(event) => {
@@ -113,7 +115,7 @@ const EditNameDialog = ({
               <FieldError className="leading-4">{t('common.required_field')}</FieldError>
             ) : null}
           </div>
-          <DialogFooter className="gap-2 border-border/40 border-t px-4 py-3 sm:justify-end">
+          <DialogFooter className="gap-2 border-border-subtle border-t px-4 py-3 sm:justify-end">
             <Button type="button" variant="outline" className="h-8 rounded-lg px-3" onClick={() => onOpenChange(false)}>
               {t('common.cancel')}
             </Button>

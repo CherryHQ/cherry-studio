@@ -23,9 +23,10 @@
  * ensure the sibling module is imported (a bare side-effect import is enough) so its
  * registration runs.
  */
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 
 import type { agentGlobalSkillService } from './AgentGlobalSkillService'
+import type { agentTaskService } from './AgentTaskService'
 import type { messageService } from './MessageService'
 import type { providerRegistryService } from './ProviderRegistryService'
 import type { providerService } from './ProviderService'
@@ -33,6 +34,7 @@ import type { topicService } from './TopicService'
 
 interface DataServiceMap {
   AgentGlobalSkillService: typeof agentGlobalSkillService
+  AgentTaskService: typeof agentTaskService
   MessageService: typeof messageService
   TopicService: typeof topicService
   ProviderService: typeof providerService

@@ -58,11 +58,10 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   chunkOverlap: 200,
   chunkStrategy: 'structured',
   chunkSeparator: '\\n\\n',
-  threshold: 0,
+  threshold: 0.2,
   documentCount: 6,
   status: 'completed',
   error: null,
-  searchMode: 'hybrid',
   createdAt: '2026-04-15T09:00:00+08:00',
   updatedAt: '2026-04-15T09:00:00+08:00',
   ...overrides
@@ -91,20 +90,20 @@ describe('useKnowledgeRagConfig', () => {
     ])
   })
 
-  it('builds options from configured document processors and exposes the save mutation', async () => {
+  it('marks unconfigured document processors as unavailable and exposes the save mutation', async () => {
     const base = createKnowledgeBase({
       fileProcessorId: 'paddleocr',
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual'
     })
     const { result } = renderHook(() => useKnowledgeRagConfig(base))
 
-    expect(result.current.fileProcessorOptions).toEqual([{ value: 'paddleocr', label: 'PaddleOCR' }])
-    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('mineru')
-    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('doc2x')
-    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('mistral')
-    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('tesseract')
-    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('system')
-    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('ovocr')
+    expect(result.current.fileProcessorOptions).toEqual([
+      { value: 'paddleocr', label: 'PaddleOCR', disabled: false },
+      { value: 'mineru', label: 'MinerU', disabled: true },
+      { value: 'doc2x', label: 'Doc2X', disabled: true },
+      { value: 'mistral', label: 'Mistral', disabled: true },
+      { value: 'open-mineru', label: 'Open MinerU', disabled: false }
+    ])
     expect(mockUseMutation).toHaveBeenCalledWith('PATCH', '/knowledge-bases/:id', {
       refresh: ['/knowledge-bases']
     })
@@ -119,9 +118,7 @@ describe('useKnowledgeRagConfig', () => {
         embeddingModelId: 'voyage::voyage-3-large',
         rerankModelId: null,
         documentCount: 10,
-        threshold: 0.25,
-        searchMode: 'vector',
-        hybridAlpha: null
+        threshold: 0.4
       })
     })
 
@@ -133,8 +130,48 @@ describe('useKnowledgeRagConfig', () => {
         chunkOverlap: 256,
         rerankModelId: null,
         documentCount: 10,
-        threshold: 0.25,
-        searchMode: 'vector'
+        threshold: 0.4
+      }
+    })
+  })
+
+  it('includes Open MinerU without an API key because authentication is optional', () => {
+    mockUsePreference.mockReturnValue([
+      {
+        'open-mineru': {
+          capabilities: {
+            document_to_markdown: {
+              apiHost: 'http://127.0.0.1:8000'
+            }
+          }
+        }
+      }
+    ])
+
+    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
+
+    expect(result.current.fileProcessorOptions.find((option) => option.value === 'open-mineru')).toEqual({
+      value: 'open-mineru',
+      label: 'Open MinerU',
+      disabled: false
+    })
+  })
+
+  it('includes an explicit embedding model override in the patch body', async () => {
+    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
+
+    await act(async () => {
+      await result.current.save(result.current.initialValues, {
+        embeddingModelId: 'voyage::voyage-3-large',
+        dimensions: 2048
+      })
+    })
+
+    expect(mockTrigger).toHaveBeenCalledWith({
+      params: { id: 'base-1' },
+      body: {
+        embeddingModelId: 'voyage::voyage-3-large',
+        dimensions: 2048
       }
     })
   })
@@ -148,24 +185,6 @@ describe('useKnowledgeRagConfig', () => {
     expect(mockLogger.error).toHaveBeenCalledWith('Failed to update knowledge RAG config', saveError, {
       baseId: 'base-1',
       updates: {}
-    })
-  })
-
-  it('builds a patch with only the changed search mode', async () => {
-    const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
-
-    await act(async () => {
-      await result.current.save({
-        ...result.current.initialValues,
-        searchMode: 'vector'
-      })
-    })
-
-    expect(mockTrigger).toHaveBeenCalledWith({
-      params: { id: 'base-1' },
-      body: {
-        searchMode: 'vector'
-      }
     })
   })
 })

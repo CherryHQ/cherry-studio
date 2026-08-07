@@ -24,7 +24,9 @@ export const COMMON_AGGREGATOR_PREFIXES = [
   'sf-',
   's-',
   'bai-',
-  'mm-',
+  // NOTE: `mm-` is intentionally NOT here — it's MiniMax shorthand handled by PREFIX_EXPANSIONS
+  // (`mm-m2-1` → `minimax-m2-1`). Stripping it as an aggregator prefix would run BEFORE the expansion
+  // and orphan the id (`m2-1`), so MiniMax could never claim it.
   'web-',
   // Platform aggregators
   'deepinfra-',
@@ -78,7 +80,9 @@ export const HYPHEN_VARIANT_SUFFIXES = [
   '-low',
   '-high',
   '-minimal',
-  '-medium',
+  // NOTE: `-medium` is intentionally NOT here — it's a real model-tier name (`mistral-medium`,
+  // `devstral-medium`), so stripping it as a reasoning-effort variant eats the tier and produces
+  // bogus stems (`mistral`, `devstral`).
   '-nothink',
   '-no-think',
   '-ssvip',
@@ -100,6 +104,40 @@ const PROTECTED_COMPOUND_PREFIXES = ['non', 'no', 'pre', 'anti', 'post']
 
 const PARAMETER_SIZE_PATTERN = /-(\d+(?:\.\d+)?b)(?=-|$)/i
 
+// Matches a registry-tag (OCI/Docker-style) COLON size/quant tag payload — `<size>[-<variant>][-<quant>]`
+// (`20b`, `8x7b`, `30b-a3b-q4_K_M`) or a bare quant (`q4_K_M`, `fp16`). Local runners spell a variant this
+// way (`gpt-oss:20b`, `qwen2.5:7b`), but the rule is provider-agnostic. Used to REALIGN the tag to the
+// catalog's hyphen spelling (see colonVariantTagToHyphen) so the size stays part of the id instead of
+// being dropped; a size-agnostic word tag (`:free`) or a Bedrock revision (`:0`) is intentionally
+// excluded. Tested against the suffix WITHOUT its leading colon.
+const COLON_VARIANT_TAG_PATTERN = /^(?:\d+(?:[.x]\d+)*b(?:$|[-.])|q\d|iq\d|fp16|bf16|f16)/i
+
+// Quantization markers denote the same logical model at a different precision
+// (e.g. `glm-4-5-fp8` is `glm-4-5`). Stripping them lets the resolver collapse
+// the redundant spellings a provider might return.
+export const QUANTIZATION_SUFFIXES = ['-fp8', '-fp16', '-bf16', '-awq', '-int4', '-int8', '-gguf', '-gptq']
+
+// Trailing release-date stamps (`claude-sonnet-4-5-20250929`, `gpt-4o-2024-08-06`,
+// `kimi-k2-250905`) denote the same model line. This is the SINGLE definition shared by the build
+// canonicalizer (`generate-catalog.ts`) and the runtime resolver, so a provider's dated id and the
+// catalog row collapse to the same canonical. A trailing date may be a full YYYY[-]MM[-]DD, a YYMMDD,
+// a YYMM, or an MMDD — all requiring a valid month (01-12) and day (01-31), so sizes/versions
+// (`glm-4-9b`, `qwen3-235b`) are never touched. A leading `@…` tag is also dropped (`gemini-2-0@001`).
+const DATE_SNAPSHOT_PATTERN =
+  /-20\d{2}-(?:0[1-9]|1[0-2])-(?:[0-2]\d|3[01])$|-20\d{2}(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$|-2\d(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$|-(?:0[1-9]|1[0-2])(?:[0-2]\d|3[01])$|-2\d(?:0[1-9]|1[0-2])$/
+
+// Bedrock re-lists other creators' models as cross-vendor ARNs: a leading region(s)+vendor DOTTED
+// prefix (`us.anthropic.`, `global.meta.`) and/or a vendor DASH prefix (`meta-llama`, `cohere-command`),
+// plus a trailing model revision (`…-v1:0`, `…-1:0`, `…:0`). Both the build canonicalizer and the runtime
+// resolver strip these so `us.anthropic.claude-sonnet-4-5-v1:0` folds to the same canonical id as
+// `claude-sonnet-4-5`. The `v` is optional: `openai.gpt-oss-120b-1:0` spells its revision bare, and eating
+// only the `:0` would leave a phantom `…-120b-1` id. Colon-less ids (`whisper-v3`) are never touched.
+const BEDROCK_VENDOR = 'anthropic|amazon|meta|google|mistralai|cohere|openai|ai21|microsoft|nvidia'
+const BEDROCK_DOTTED_VENDOR = `${BEDROCK_VENDOR}|deepseek|minimax|mistral|moonshot|moonshotai|qwen|writer|xai|zai`
+const BEDROCK_VENDOR_DOTTED = new RegExp(`^(?:[a-z]+\\.)*(?:${BEDROCK_DOTTED_VENDOR})\\.`)
+const BEDROCK_VENDOR_DASH = new RegExp(`^(?:${BEDROCK_VENDOR})-{1,2}`)
+const BEDROCK_REVISION_PATTERN = /(?:[-_]v?\d+)?:\d+$/i
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Functions
 // ─────────────────────────────────────────────────────────────────────────────
@@ -116,6 +154,38 @@ export function stripAggregatorPrefixes(modelId: string, additionalPrefixes: str
   }
 
   return result
+}
+
+/**
+ * Drop a leading host/org segment when the remainder is itself a real model id — no hardcoded host
+ * list, the catalog is the oracle. A host re-lists someone else's model under its own name
+ * (`databricks-gemini-3-flash` → `gemini-3-flash`, `cerebras-llama-4-scout` → `llama-4-scout`,
+ * `z-ai-glm-5-turbo` → `glm-5-turbo`, `umans-glm-5-1` → `glm-5-1`); a brand does NOT, so
+ * `deepseek-chat` / `minimax-m3` / `v0-1-5` stay (their stems `chat`/`m3`/`1-5` aren't real ids).
+ * Tries one then two leading segments. `isKnownId` decides existence (registry/index membership).
+ */
+export function stripHostReprefix(modelId: string, isKnownId: (id: string) => boolean): string {
+  const segs = modelId.split('-')
+  for (let n = 1; n <= 2 && n < segs.length; n++) {
+    const rest = segs.slice(n).join('-')
+    if (isKnownId(rest)) return rest
+  }
+  return modelId
+}
+
+/**
+ * Strip a Bedrock cross-vendor ARN's leading vendor prefix: region(s)+vendor dotted segments
+ * (`us.anthropic.claude-…` → `claude-…`) then a vendor dash prefix (`meta-llama-…` → `llama-…`).
+ * The final dotted segment must be a known Bedrock vendor, so native dotted model ids such as
+ * `flux.2-pro` and versions such as `qwen3.7` are never touched.
+ */
+export function stripBedrockVendorPrefix(modelId: string): string {
+  return modelId.replace(BEDROCK_VENDOR_DOTTED, '').replace(BEDROCK_VENDOR_DASH, '')
+}
+
+/** Strip a Bedrock ARN model revision: `claude-…-v1:0` / `…:0` → bare id (keeps `whisper-v3`, no colon). */
+export function stripBedrockRevision(modelId: string): string {
+  return modelId.replace(BEDROCK_REVISION_PATTERN, '')
 }
 
 export function expandKnownPrefixes(modelId: string): string {
@@ -156,7 +226,9 @@ export function stripVariantSuffixes(
   for (const suffix of hyphenSuffixes) {
     if (modelId.endsWith(suffix)) {
       const remaining = modelId.slice(0, -suffix.length)
-      if (PROTECTED_COMPOUND_PREFIXES.some((p) => remaining.endsWith(p))) {
+      // Only protect when the prefix is its OWN token (`...-no-think` → keep), not a substring of the
+      // last word (`volcano-free`, `pino-search`, `inferno-search` must still strip).
+      if (PROTECTED_COMPOUND_PREFIXES.some((p) => remaining === p || remaining.endsWith(`-${p}`))) {
         continue
       }
       return remaining
@@ -177,7 +249,36 @@ export function stripVariantSuffixes(
 }
 
 export function normalizeVersionSeparators(modelId: string): string {
-  return modelId.replace(/(\d)[,.p](?=\d)/g, '$1-')
+  // `,` `.` `p` `_` between digits are all version separators: 3.5 / 3,5 / 3p5 / 3_5 → 3-5
+  return modelId.replace(/(\d)[,._p](?=\d)/g, '$1-')
+}
+
+export function stripQuantization(modelId: string): string {
+  for (const suffix of QUANTIZATION_SUFFIXES) {
+    if (modelId.endsWith(suffix)) {
+      return modelId.slice(0, -suffix.length)
+    }
+  }
+  return modelId
+}
+
+export function stripDateSnapshot(modelId: string): string {
+  return modelId.replace(/@.*$/, '').replace(DATE_SNAPSHOT_PATTERN, '')
+}
+
+/**
+ * Iterate variant → quantization → date stripping to a fixpoint. A single pass is order-dependent —
+ * a trailing date shields an inner variant from the `endsWith` check (`…-thinking-2507` only exposes
+ * `-thinking` after the date is gone) — so without the loop canonicalization is not idempotent.
+ * SHARED by the build canonicalizer (`scripts/canonicalize.ts`) and the runtime resolver below.
+ */
+export function stripVariantQuantDateSuffixes(modelId: string): string {
+  let result = modelId
+  for (;;) {
+    const next = stripDateSnapshot(stripQuantization(stripVariantSuffixes(result)))
+    if (next === result) return result
+    result = next
+  }
 }
 
 export function extractParameterSize(modelId: string): string | undefined {
@@ -190,16 +291,54 @@ export function stripParameterSize(modelId: string): string {
 }
 
 /**
+ * Realign a registry-tag colon size/quant tag to the catalog's hyphen spelling: `gpt-oss:20b` →
+ * `gpt-oss-20b`, `qwen2.5:7b` → `qwen2.5-7b`. Only a size/quant LEADER is realigned (see
+ * COLON_VARIANT_TAG_PATTERN), so a word tag (`:free`) or a Bedrock revision (`:0`) is returned unchanged.
+ * This keeps the SIZE inside the id so a size-preserving match can tell a `:20b` pull apart from its
+ * `120b` sibling, instead of both collapsing to the bare family name.
+ */
+export function colonVariantTagToHyphen(modelId: string): string {
+  const colonIdx = modelId.lastIndexOf(':')
+  if (colonIdx > 0 && COLON_VARIANT_TAG_PATTERN.test(modelId.slice(colonIdx + 1))) {
+    return `${modelId.slice(0, colonIdx)}-${modelId.slice(colonIdx + 1)}`
+  }
+  return modelId
+}
+
+/**
  * Normalize a model ID to its canonical form.
  * This is the single source of truth for model ID normalization.
+ *
+ * `keepParameterSize` produces the SIZE-PRESERVING key: the parameter size is realigned from any colon
+ * tag and kept (not stripped), so `qwen2.5:7b` → `qwen2-5-7b` and `gpt-oss-20b`/`gpt-oss-120b` stay
+ * distinct. The registry loader indexes on this to resolve a registry-tagged id to its exact-size row
+ * before the default (size-agnostic) key would collapse it onto a same-family sibling.
  */
-export function normalizeModelId(modelId: string): string {
+export function normalizeModelId(modelId: string, options: { keepParameterSize?: boolean } = {}): string {
   const parts = modelId.split('/')
   let baseName = parts[parts.length - 1].toLowerCase()
   baseName = stripAggregatorPrefixes(baseName)
+  // Bedrock cross-vendor ARNs: drop the `[region.]vendor.` / `vendor-` prefix and the `…-v1:0` revision
+  // (mirrors the build canonicalizer) so `us.anthropic.claude-…-v1:0` resolves to the catalog row.
+  baseName = stripBedrockVendorPrefix(baseName)
+  baseName = stripBedrockRevision(baseName)
   baseName = expandKnownPrefixes(baseName)
-  baseName = stripVariantSuffixes(baseName)
-  baseName = stripParameterSize(baseName)
+  if (options.keepParameterSize) {
+    // Realign `:20b` → `-20b` so the size is a normal hyphen token the loop below leaves intact
+    // (stripParameterSize is skipped in this mode).
+    baseName = colonVariantTagToHyphen(baseName)
+  }
+  // Parameter size joins the fixpoint loop too: stripping `-30b` can expose a variant suffix and
+  // vice versa, so iterate the whole strip stage until stable.
+  for (;;) {
+    const stripped = stripVariantQuantDateSuffixes(baseName)
+    const next = options.keepParameterSize ? stripped : stripParameterSize(stripped)
+    if (next === baseName) break
+    baseName = next
+  }
   baseName = normalizeVersionSeparators(baseName)
+  // Underscores are an interchangeable separator (HF-style `bce-embedding-base_v1`). The catalog folds
+  // them to `-` (every base id is dash-only), so fold here too or such ids would never resolve.
+  baseName = baseName.replace(/_/g, '-')
   return baseName
 }

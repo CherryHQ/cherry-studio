@@ -3,29 +3,20 @@ import path from 'node:path'
 
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
-import { DOCUMENT_SEPARATOR } from '@main/features/knowledge/utils/indexing/chunk'
-import {
-  type MaterialFieldSource,
-  toMaterialRelativePath
-} from '@main/features/knowledge/utils/indexing/materialFields'
-import { deriveNoteSnapshotSlug } from '@main/features/knowledge/utils/sources/noteSnapshot'
-import { serializeOkfFrontmatter } from '@main/features/knowledge/utils/sources/okfFrontmatter'
-import { deriveUrlSnapshotSlug, deriveUrlSnapshotTitle } from '@main/features/knowledge/utils/sources/urlSnapshot'
 import {
   assertSafeKnowledgeRelativePath,
+  buildNoteSnapshotFile,
+  buildUrlSnapshotFile,
   collectKnowledgeReservedRelativePaths,
-  reserveImportedFileRelativePath
-} from '@main/features/knowledge/utils/storage/pathStorage'
-import {
-  type BetterSqlite3Driver,
-  openBetterSqlite3IndexDriver
-} from '@main/features/knowledge/vectorstore/indexStore/BetterSqlite3Driver'
-import { betterSqlite3VectorIndex } from '@main/features/knowledge/vectorstore/indexStore/BetterSqlite3VectorIndex'
-import { hashEmbeddingText } from '@main/features/knowledge/vectorstore/indexStore/hashing'
-import { ensureIndexMeta } from '@main/features/knowledge/vectorstore/indexStore/indexMeta'
-import { KnowledgeIndexStore } from '@main/features/knowledge/vectorstore/indexStore/KnowledgeIndexStore'
-import type { RebuildMaterialInput } from '@main/features/knowledge/vectorstore/indexStore/model'
-import { createKnowledgeIndexSchema } from '@main/features/knowledge/vectorstore/indexStore/schema'
+  createKnowledgeIndexStoreAtPath,
+  DOCUMENT_SEPARATOR,
+  hashEmbeddingText,
+  type MaterialFieldSource,
+  type RebuildMaterialEmbeddingInput,
+  type RebuildMaterialInput,
+  reserveImportedFileRelativePath,
+  toMaterialRelativePath
+} from '@main/features/knowledge'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
@@ -37,7 +28,7 @@ import {
 import { eq, inArray } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
-import type { LegacyKnowledgeVectorLoadResult } from '../utils/KnowledgeVectorSourceReader'
+import type { LegacyKnowledgeVectorBaseReader, LegacyKnowledgeVectorRow } from '../utils/KnowledgeVectorSourceReader'
 import { BaseMigrator } from './BaseMigrator'
 import {
   KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY,
@@ -48,7 +39,7 @@ import {
 const logger = loggerService.withContext('KnowledgeVectorMigrator')
 
 // Runtime vector store + material layout — source of truth:
-// src/main/features/knowledge/utils/storage/pathStorage.ts
+// src/main/features/knowledge/pathStorage.ts
 // (CHERRY_META_DIR / VECTOR_STORE_FILE / MATERIAL_ROOT_DIR). Runtime opens
 // {knowledgeBaseDir}/{baseId}/.cherry/index.sqlite by the migrated (new) base id, and resolves
 // every material's bytes at {knowledgeBaseDir}/{baseId}/raw/{relativePath}, so the migrator must
@@ -80,6 +71,15 @@ const FS_RETRY_MAX_DELAY_MS = 1500
 // overflow SQLite's bound-variable cap once a corpus accumulates enough orphaned directory items.
 // Chunk well under the cap, matching the repo convention (FileRefService / ChatMigrator use 500).
 const DEGRADE_UPDATE_CHUNK = 500
+
+// The streaming legacy-row scan decodes vectors synchronously; yield periodically so a
+// six-figure-row base does not freeze the migration UI for the whole scan.
+const STREAM_ROW_YIELD_INTERVAL = 1024
+
+// One vector point-read per pull of the streaming rebuild iterable: bounds execute()'s vector
+// residency to a constant batch instead of a whole item's vector set. Sized to the reader's
+// IN-clause batch (ROWID_BATCH_SIZE) so each pull is exactly one indexed SELECT.
+const VECTOR_STREAM_BATCH_SIZE = 500
 
 async function retryOnTransientFsLock<T>(operation: () => Promise<T>): Promise<T> {
   for (let attempt = 1; ; attempt++) {
@@ -125,48 +125,51 @@ interface MigratedKnowledgeItemForVector {
   data: KnowledgeItemData
 }
 
-/** One legacy chunk pinned to a migrated item, in legacy read order. */
-interface MigratedChunk {
-  pageContent: string
-  embedding: number[]
-}
-
-/** A migrated item's material rebuild input plus the embedding hashes it introduces. */
-interface PreparedMaterial {
-  itemId: string
-  input: RebuildMaterialInput
-}
-
 /**
- * A url or note snapshot file to materialize under the base's `raw/` material
- * root, so migrated urls/notes are real base files from day one — reindex then
- * reads them offline (a url reads its snapshot instead of re-fetching, a note
- * reads its captured content) and the material row holds the real snapshot path.
+ * A migrated url/note item whose snapshot file execute() already wrote under the base's `raw/`
+ * material root during the build (so its full fileText is never retained past that item's turn);
+ * only this row pin — the item's data with `relativePath` set — waits for the store to promote.
  */
-interface PlannedMaterialSnapshot {
+interface PlannedMaterialSnapshotPin {
   itemId: string
-  relativePath: string
-  /**
-   * The snapshot file's exact bytes: OKF frontmatter + the material's content
-   * text, for both url and note. The snapshot reader strips the frontmatter back
-   * off to round-trip the body exactly (the hash stays stable, vectors reused).
-   */
-  fileText: string
   /** The item's data with `relativePath` pinned, written back to the migrated row. */
   data: KnowledgeItemData
 }
 
+/**
+ * The per-base plan prepare() retains across the whole migration. It deliberately holds NO
+ * vectors/chunk text — only counts, per-item rowid lists and the decisions that must stay stable
+ * between prepare() and execute() (the legacy base id to re-open, and each url/note item's
+ * resolved snapshot path, whose reservation must happen exactly once). prepare() streams each
+ * base's legacy rows once (never materializing them) plus one bounded point-read per url/note
+ * item to derive its snapshot slug, and execute() re-reads one item at a time — its text whole,
+ * its vectors streamed in fixed batches through rebuildMaterial's lazy embeddings iterable — so
+ * at most ONE ITEM's text plus ONE BATCH of vectors is ever resident.
+ * (The OOM history this guards against: first every base's vectors were retained
+ * from prepare() to execute() — a 28-base corpus exhausted the V8 heap; the per-base re-read fix
+ * still loaded a whole base at once, which a single large base — six figures of chunks × high
+ * dimensions — could exhaust on its own.)
+ */
 interface PreparedBasePlan {
   baseId: string
+  legacyBaseId: string
   materialDirPath: string
   targetDbPath: string
-  materials: PreparedMaterial[]
-  materialSnapshots: PlannedMaterialSnapshot[]
+  dimensions: number
+  // Each migrated material's surviving legacy rowids: first-appearance order across items (map
+  // insertion), legacy read order within an item. Metadata only (numbers) — execute() point-reads
+  // exactly these rows back, one item at a time, instead of rescanning and regrouping the whole
+  // base. Also the progress-unit (`size`) and test/log observability surface.
+  rowidsByItemId: Map<string, number[]>
   expectedUnitCount: number
   // Distinct embedding hashes across the whole base (the embedding table is keyed
   // by hash, so identical chunk bodies — within or across materials — collapse to one row).
   expectedEmbeddingCount: number
   sourceRowCount: number
+  // Each url/note item's resolved snapshot relativePath, decided once here (reserveImportedFileRelativePath
+  // must not run twice — a second call could mint a different name and desync the store's material
+  // row from the raw/ file execute() writes). execute() reuses these verbatim instead of re-reserving.
+  snapshotRelativePathByItemId: Map<string, string>
   // Directory-expanded groups (container id → child ids) this base owns. Kept on the plan so a
   // per-base failure in execute() can degrade them (markDirectoryGroupsFullyOrphaned) the same way
   // a prepare-time skip does — otherwise an isolated base's directory children stay `completed`
@@ -193,59 +196,62 @@ function toMaterialFieldSource(item: MigratedKnowledgeItemForVector): MaterialFi
   return { id: item.id, type: item.type, data: item.data } as MaterialFieldSource
 }
 
-/** The canonical content text of a migrated material: legacy chunk bodies joined by {@link DOCUMENT_SEPARATOR}. */
-function joinMigratedChunkText(chunks: MigratedChunk[]): string {
-  return chunks.map((chunk) => chunk.pageContent).join(DOCUMENT_SEPARATOR)
-}
-
 /**
- * Assemble one material rebuild input from a migrated item's preserved legacy
- * chunks (Route A — keep the v1 split). The canonical content text is the chunk
- * bodies joined by {@link DOCUMENT_SEPARATOR}; each unit's offsets span its body
- * exactly, so the store's `content.text.slice(charStart, charEnd) === body`
- * invariant holds by construction. Vectors are reused verbatim (no re-embedding)
- * and deduped by embedding-text hash, matching the index store's hash-keyed
- * embedding table. The material's `relativePath` is resolved by the caller (a file
- * uses its stored path; a url/note uses the snapshot it materializes this run).
+ * Derive the migrated units from an item's legacy chunk bodies (Route A — keep the v1 split).
+ * The canonical content text is the bodies joined by {@link DOCUMENT_SEPARATOR}; each unit's
+ * offsets span its body exactly, so the store's `content.text.slice(charStart, charEnd) === body`
+ * invariant holds by construction.
  */
-function buildMigratedRebuildInput(
-  item: MaterialFieldSource,
-  chunks: MigratedChunk[],
-  relativePath: string
-): PreparedMaterial {
+function buildMigratedUnits(pageContents: string[]): RebuildMaterialInput['units'] {
   const units: RebuildMaterialInput['units'] = []
-  const embeddingByHash = new Map<string, number[]>()
   let cursor = 0
 
-  chunks.forEach((chunk, index) => {
+  pageContents.forEach((pageContent, index) => {
     if (index > 0) {
       cursor += DOCUMENT_SEPARATOR.length
     }
     const charStart = cursor
-    const charEnd = cursor + chunk.pageContent.length
+    const charEnd = cursor + pageContent.length
     cursor = charEnd
     units.push({ unitType: 'chunk', unitIndex: index, charStart, charEnd })
-
-    const embeddingTextHash = hashEmbeddingText(chunk.pageContent)
-    if (!embeddingByHash.has(embeddingTextHash)) {
-      embeddingByHash.set(embeddingTextHash, chunk.embedding)
-    }
   })
 
-  const input: RebuildMaterialInput = {
-    material: {
-      relativePath
-    },
-    content: {
-      text: joinMigratedChunkText(chunks)
-    },
-    units,
-    // v1 bases always carried embeddings, so a migrated base is a vector base.
-    usesEmbeddings: true,
-    embeddings: [...embeddingByHash.entries()].map(([embeddingTextHash, vector]) => ({ embeddingTextHash, vector }))
-  }
+  return units
+}
 
-  return { itemId: item.id, input }
+/**
+ * Stream one item's legacy vectors as batch-sized point-reads, reused verbatim (no re-embedding).
+ * rebuildMaterial consumes this lazily inside its write transaction — synchronous by contract, so
+ * each pull is a synchronous indexed SELECT and at most one batch of vectors is ever resident.
+ * Duplicate chunk bodies need no pre-dedup: the store's hash-keyed embedding INSERT OR IGNOREs.
+ * Drift stays fail-closed: row count / decode / dimension mismatches throw (aborting the
+ * transaction), and a pageContent changed since the text pass yields a hash no unit derives,
+ * which the store's embedding coverage check turns into a rollback.
+ */
+function* iterateLegacyEmbeddingBatches(
+  reader: LegacyKnowledgeVectorBaseReader,
+  baseId: string,
+  itemId: string,
+  rowids: number[],
+  dimensions: number
+): Generator<RebuildMaterialEmbeddingInput> {
+  for (let offset = 0; offset < rowids.length; offset += VECTOR_STREAM_BATCH_SIZE) {
+    const batch = rowids.slice(offset, offset + VECTOR_STREAM_BATCH_SIZE)
+    const rows = reader.loadRowsByRowids(batch)
+    if (rows.length !== batch.length) {
+      throw new Error(
+        `Knowledge vector base ${baseId}: legacy vector rows for item '${itemId}' changed since prepare (expected ${batch.length}, got ${rows.length})`
+      )
+    }
+    for (const row of rows) {
+      if (row.vector.status !== 'decoded' || row.vector.value.length !== dimensions) {
+        throw new Error(
+          `Knowledge vector base ${baseId}: legacy vector for item '${itemId}' changed since prepare (rowid ${row.rowid})`
+        )
+      }
+      yield { embeddingTextHash: hashEmbeddingText(row.pageContent), vector: row.vector.value }
+    }
+  }
 }
 
 export class KnowledgeVectorMigrator extends BaseMigrator {
@@ -268,11 +274,20 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   // virtual path with no raw/ file, so reindex is rejected and they would be invisible empty
   // docs; execute() degrades them to `failed`/directory_not_migrated so the UI prompts a re-add.
   private directoryItemsToDegrade = new Set<string>()
-  // Bases whose vector store never finished building at its runtime index.sqlite (the rebuild threw
-  // partway). flushBaseFailures() marks each `failed`/missing_vector_store after the loop so the UI
-  // surfaces a restore entry instead of leaving a `completed` base with a missing/partial store and
-  // forever-empty search.
+  // Bases that never finished publishing at their runtime index.sqlite — prepare() skipped one
+  // without producing a plan (markBaseUnmigrated), the rebuild threw partway, or it completed and
+  // the snapshot-pin transaction threw. flushBaseFailures() marks each `failed`/missing_vector_store
+  // after execute()'s loop so the UI surfaces a restore entry instead of leaving a `completed` base
+  // with a missing/partial store (forever-empty search) or with unpinned url/note rows (no
+  // `relativePath`, which deriveConceptId treats as an invariant violation).
   private basesToMarkFailed = new Set<string>()
+  // Migrated item rows by base, computed once in prepare() and reused by execute() to resolve each
+  // planned rowid list back to its material item without re-querying ctx.db. Metadata only (ids,
+  // types, item data) — never chunk text or embeddings.
+  private migratedItemsByBaseId = new Map<string, Map<string, MigratedKnowledgeItemForVector>>()
+  // One timestamp for every url/note snapshot this run materializes, set once in prepare() and
+  // reused by execute() so both phases stamp the same capture time.
+  private capturedAt = ''
 
   override reset(): void {
     this.sourceCount = 0
@@ -284,6 +299,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     this.executionErrors = []
     this.directoryItemsToDegrade = new Set<string>()
     this.basesToMarkFailed = new Set<string>()
+    this.migratedItemsByBaseId = new Map<string, Map<string, MigratedKnowledgeItemForVector>>()
+    this.capturedAt = ''
   }
 
   /**
@@ -335,6 +352,27 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   }
 
   /**
+   * Skip a base that reached prepare()'s per-base body still `completed` (KnowledgeMigrator's probe
+   * at order 1.8 passed) but produced no plan here, so no store is ever built for it. Leaving such a
+   * base `completed` is the SAME broken state execute()'s publish failures leave behind: nothing
+   * reconciles the row against the filesystem, so the runtime's first open silently creates a blank
+   * index.sqlite and caches it, search and the chunk list return nothing forever, and no auto-reindex
+   * exists to notice (KnowledgeVectorStoreService only logs the empty-store state). Queue the same
+   * restorable `failed`/missing_vector_store mark execute() uses — flushed by flushBaseFailures() —
+   * so the base is kept out of the runtime's open path and the UI offers the restore flow, and orphan
+   * its directory-expanded items, which will never receive their vectors either.
+   *
+   * This is reachable without any external writer: order 1.8 only probes `count(*)` plus one
+   * `length(vector)`, while prepare() here reads `pageContent`/`uniqueLoaderId`/`vector` across every
+   * row and re-resolves the legacy id remap — so a corrupt page, a transient lock, or a broken remap
+   * fails only at order 3.5.
+   */
+  private markBaseUnmigrated(baseId: string, directoryGroups: Map<string, Set<string>>): void {
+    this.basesToMarkFailed.add(baseId)
+    this.markDirectoryGroupsFullyOrphaned(directoryGroups)
+  }
+
+  /**
    * For a base that loaded: a directory child that received no chunks is an empty doc — degrade it.
    * If every child in a group is empty, the container is degraded too; a group with at least one
    * surviving child keeps its container `completed`.
@@ -376,10 +414,22 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   }
 
   private recordSkippedWarning(reason: string, message: string): void {
+    this.recordSkippedWarningBatch(reason, 1, [message])
+  }
+
+  /**
+   * Merge a locally-aggregated skip bucket (count + already-capped samples). Lets prepare()'s
+   * streaming scan defer recording until the whole base scanned without retaining one message
+   * string per rejected row — a mostly-invalid large base would otherwise hold millions of them.
+   */
+  private recordSkippedWarningBatch(reason: string, count: number, samples: string[]): void {
     const bucket = this.skippedWarnings.get(reason) ?? { count: 0, samples: [] }
-    bucket.count += 1
-    if (bucket.samples.length < SKIP_WARNING_SAMPLE_LIMIT) {
-      bucket.samples.push(message)
+    bucket.count += count
+    for (const sample of samples) {
+      if (bucket.samples.length >= SKIP_WARNING_SAMPLE_LIMIT) {
+        break
+      }
+      bucket.samples.push(sample)
     }
     this.skippedWarnings.set(reason, bucket)
   }
@@ -485,11 +535,116 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     return owners
   }
 
+  /**
+   * Combine the base loader→migrated-item map with the directory-child re-attribution pass into the
+   * final loaderTargetMap, returning conflict messages instead of recording them directly: prepare()
+   * (the only caller that logs warnings) records each message once, while execute() re-derives the
+   * identical map from the identical inputs — re-reading the legacy vectors per base rather than
+   * retaining them — without re-warning about a conflict already reported.
+   */
+  private resolveLoaderTargetMap(
+    baseId: string,
+    legacyBase: LegacyKnowledgeBaseWithLoaders | undefined,
+    baseMigratedItems: Map<string, MigratedKnowledgeItemForVector>,
+    legacyItemIdRemap: Map<string, string>,
+    baseDirectoryChildLoaderRemap: Map<string, string> | undefined
+  ): { loaderTargetMap: Map<string, MigratedKnowledgeItemForVector>; conflictWarnings: string[] } {
+    const loaderTargetMap = this.buildLoaderTargetMap(legacyBase, baseMigratedItems, legacyItemIdRemap)
+    const conflictWarnings: string[] = []
+
+    if (baseDirectoryChildLoaderRemap) {
+      const standaloneLoaderOwners = this.collectStandaloneLoaderOwners(
+        legacyBase,
+        baseMigratedItems,
+        legacyItemIdRemap
+      )
+      for (const [loaderId, owner] of standaloneLoaderOwners) {
+        loaderTargetMap.set(loaderId, owner)
+      }
+      for (const [loaderId, childItemId] of baseDirectoryChildLoaderRemap) {
+        if (standaloneLoaderOwners.has(loaderId)) {
+          conflictWarnings.push(
+            `Knowledge base ${baseId}: loader '${loaderId}' is owned by a standalone item; kept its vectors there and left the directory child to degrade`
+          )
+          continue
+        }
+        const child = baseMigratedItems.get(childItemId)
+        if (child) {
+          loaderTargetMap.set(loaderId, child)
+        }
+      }
+    }
+
+    return { loaderTargetMap, conflictWarnings }
+  }
+
+  /**
+   * Classify one legacy vector row against the resolved loader→item map: either the migrated item
+   * that owns it, or the skip reason prepare() records. Pure per-row logic (no `this` side
+   * effects) so the streaming scan applies it row by row without ever materializing a whole
+   * base's rows.
+   */
+  private classifyVectorRow(
+    baseId: string,
+    row: LegacyKnowledgeVectorRow,
+    loaderTargetMap: Map<string, MigratedKnowledgeItemForVector>,
+    dimensions: number
+  ): { status: 'ok'; target: MigratedKnowledgeItemForVector } | { status: 'skip'; reason: string; message: string } {
+    // V2 only keeps vectors that can be proven to belong to an existing
+    // migrated knowledge_item row. Unmapped legacy vectors are treated
+    // as invalid index residue and are intentionally dropped.
+    const target = loaderTargetMap.get(row.uniqueLoaderId)
+    if (!target) {
+      return {
+        status: 'skip',
+        reason: 'unmapped_loader',
+        message: `Skipped knowledge vector row in base ${baseId}: uniqueLoaderId '${row.uniqueLoaderId}' cannot be mapped to item.id`
+      }
+    }
+
+    if (!INDEXABLE_KNOWLEDGE_ITEM_TYPES.has(target.type)) {
+      return {
+        status: 'skip',
+        reason: 'non_indexable_container',
+        message: `Skipped knowledge vector row in base ${baseId}: container item '${target.id}' of type '${target.type}' is not indexable`
+      }
+    }
+
+    if (row.vector.status === 'unsupported_encoding') {
+      return {
+        status: 'skip',
+        reason: 'unsupported_vector_encoding',
+        message: `Skipped knowledge vector row in base ${baseId}: unsupported vector encoding '${row.vector.encoding}' for uniqueLoaderId '${row.uniqueLoaderId}'`
+      }
+    }
+
+    if (row.vector.status === 'missing' || row.vector.value.length === 0) {
+      return {
+        status: 'skip',
+        reason: 'missing_vector_payload',
+        message: `Skipped knowledge vector row in base ${baseId}: vector payload missing for uniqueLoaderId '${row.uniqueLoaderId}'`
+      }
+    }
+
+    // A vector whose length disagrees with the base's recorded dimensions
+    // would make the brute-force cosine scan compare mismatched lengths, so
+    // drop it rather than corrupt vector search for the whole base.
+    if (row.vector.value.length !== dimensions) {
+      return {
+        status: 'skip',
+        reason: 'dimension_mismatch',
+        message: `Skipped knowledge vector row in base ${baseId}: vector length ${row.vector.value.length} != base dimensions ${dimensions} for uniqueLoaderId '${row.uniqueLoaderId}'`
+      }
+    }
+
+    return { status: 'ok', target }
+  }
+
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
     try {
       // One timestamp for every snapshot this run materializes; it records when
       // the file was written (the migration), not a page fetch — origin says so.
-      const capturedAt = new Date().toISOString()
+      this.capturedAt = new Date().toISOString()
       const knowledgeState = ctx.sources.reduxState.getCategory<LegacyKnowledgeStateWithLoaders>('knowledge')
       const migratedBases = await ctx.db.select().from(knowledgeBaseTable)
 
@@ -510,11 +665,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         })
         .from(knowledgeItemTable)
 
-      const migratedItemsByBaseId = new Map<string, Map<string, MigratedKnowledgeItemForVector>>()
       for (const item of migratedItems) {
-        const bucket = migratedItemsByBaseId.get(item.baseId) ?? new Map<string, MigratedKnowledgeItemForVector>()
+        const bucket = this.migratedItemsByBaseId.get(item.baseId) ?? new Map<string, MigratedKnowledgeItemForVector>()
         bucket.set(item.id, item)
-        migratedItemsByBaseId.set(item.baseId, bucket)
+        this.migratedItemsByBaseId.set(item.baseId, bucket)
       }
 
       const legacyBasesById = new Map(
@@ -540,7 +694,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // virtual-path docs (markDirectoryGroupsFullyOrphaned); if the base loads, children that
         // receive no chunks are degraded individually (markEmptyDirectoryChildren). The map is
         // empty for bases without directory expansion, so the marker calls are no-ops there.
-        const directoryGroups = this.collectDirectoryGroups(base.id, migratedItemsByBaseId)
+        const directoryGroups = this.collectDirectoryGroups(base.id, this.migratedItemsByBaseId)
 
         if (base.status === 'failed' || base.embeddingModelId === null) {
           // Two distinct skip reasons collapse into this branch — attribute each to its real cause so
@@ -561,6 +715,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
               `Skipped knowledge vector base ${base.id}: already marked failed (${reason})`
             )
           }
+          // Deliberately NOT markBaseUnmigrated: unlike the skips below, neither case leaves a
+          // `completed` base behind. The `failed` half already carries its own error (overwriting it
+          // with missing_vector_store would misdirect the restore dialog), and the model-less half
+          // is only reachable as `failed` too — KnowledgeMigrator pairs `embeddingModelId = null`
+          // with `failed`/missing_embedding_model in the same row write. If that pairing ever
+          // changes (e.g. migrating a model-less v1 base as a BM25-only `completed` base), this
+          // branch has to decide what such a base's index should be, so revisit it there.
           this.markDirectoryGroupsFullyOrphaned(directoryGroups)
           continue
         }
@@ -570,7 +731,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         if (typeof dimensions !== 'number' || !Number.isInteger(dimensions) || dimensions <= 0) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: invalid dimensions`
           this.recordSkippedWarning('invalid_dimensions', warningMessage)
-          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
+          this.markBaseUnmigrated(base.id, directoryGroups)
           continue
         }
 
@@ -578,7 +739,7 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         if (!legacyBaseId) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: migrated base id cannot be mapped to legacy knowledge base id`
           this.recordSkippedWarning('unmapped_base', warningMessage)
-          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
+          this.markBaseUnmigrated(base.id, directoryGroups)
           continue
         }
 
@@ -586,61 +747,9 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         if (!legacyBase) {
           const warningMessage = `Skipped knowledge vector base ${base.id}: legacy knowledge base ${legacyBaseId} not found`
           this.recordSkippedWarning('legacy_base_missing', warningMessage)
-          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
+          this.markBaseUnmigrated(base.id, directoryGroups)
           continue
         }
-
-        // A legacy DB that exists but cannot be read (locked / corrupt) makes `loadBase` reject. That
-        // is a recoverable per-base failure, mirroring KnowledgeMigrator: its v1 folders are kept as
-        // failed tombstones and re-running migration once the DB is readable recovers them without
-        // re-embedding. Skip this base instead of letting the reject abort the whole migration.
-        let source: LegacyKnowledgeVectorLoadResult
-        try {
-          source = await ctx.sources.knowledgeVectorSource.loadBase(legacyBaseId)
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error)
-          this.recordSkippedWarning(
-            'read_error',
-            `Skipped knowledge vector base ${base.id}: legacy vector DB unreadable (${message})`
-          )
-          this.markDirectoryGroupsFullyOrphaned(directoryGroups)
-          continue
-        }
-        switch (source.status) {
-          case 'invalid_path': {
-            const warningMessage = `Skipped knowledge vector base ${base.id}: invalid legacy vector DB path`
-            this.recordSkippedWarning('invalid_path', warningMessage)
-            this.markDirectoryGroupsFullyOrphaned(directoryGroups)
-            continue
-          }
-          case 'missing': {
-            const warningMessage = `Skipped knowledge vector base ${base.id}: legacy vector DB missing`
-            this.recordSkippedWarning('missing', warningMessage)
-            this.markDirectoryGroupsFullyOrphaned(directoryGroups)
-            continue
-          }
-          case 'directory': {
-            const warningMessage = `Skipped knowledge vector base ${base.id}: legacy vector DB path is a directory`
-            this.recordSkippedWarning('directory', warningMessage)
-            this.markDirectoryGroupsFullyOrphaned(directoryGroups)
-            continue
-          }
-          case 'not_embedjs': {
-            const warningMessage = `Skipped knowledge vector base ${base.id}: legacy DB is not embedjs format`
-            this.recordSkippedWarning('not_embedjs', warningMessage)
-            this.markDirectoryGroupsFullyOrphaned(directoryGroups)
-            continue
-          }
-        }
-
-        const vectorRows = source.rows
-        this.sourceCount += vectorRows.length
-
-        const loaderTargetMap = this.buildLoaderTargetMap(
-          legacyBase,
-          migratedItemsByBaseId.get(base.id) ?? new Map<string, MigratedKnowledgeItemForVector>(),
-          legacyItemIdRemap
-        )
 
         // A v1 folder's per-file vectors were booked under the directory item's loader ids;
         // KnowledgeMigrator split that folder into per-file children and recorded each file's
@@ -648,189 +757,184 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // child (not the directory container) so the vectors land on the child material instead
         // of being dropped as a non-indexable container. The per-base scope keeps a loader id
         // shared across bases (v1 ids are path/content hashes) pointing at the right base's child.
-        const baseMigratedItems = migratedItemsByBaseId.get(base.id)
+        // A loader id can also be claimed by BOTH a directory expansion and a standalone
+        // file/url/note item the user added separately — resolveLoaderTargetMap keeps the
+        // standalone as the vector owner (see collectStandaloneLoaderOwners) and reports the
+        // conflict instead of silently stealing the standalone's vectors.
+        const baseMigratedItems =
+          this.migratedItemsByBaseId.get(base.id) ?? new Map<string, MigratedKnowledgeItemForVector>()
         const baseDirectoryChildLoaderRemap = directoryChildLoaderRemapByBase.get(base.id)
-        if (baseMigratedItems && baseDirectoryChildLoaderRemap) {
-          // A loader id can be claimed by BOTH a directory expansion and a standalone file/url/note
-          // item the user added separately — v1 loader ids are md5(path), so the same physical file
-          // added both on its own and inside a folder collides on one id. The standalone item owns a
-          // real raw/ file and is reindexable, whereas the directory child is a virtual-path doc, so
-          // keep the standalone as the vector owner: pin the loader id to it (independent of
-          // buildLoaderTargetMap's array-order last-write-wins, which may have left it on the
-          // non-indexable container) and skip the override that would otherwise steal its vectors and
-          // leave the standalone `completed` but unsearchable. The skipped directory child draws no
-          // chunks and is degraded by collectDirectoryGroups + markEmptyDirectoryChildren.
-          const standaloneLoaderOwners = this.collectStandaloneLoaderOwners(
-            legacyBase,
-            baseMigratedItems,
-            legacyItemIdRemap
-          )
-          for (const [loaderId, owner] of standaloneLoaderOwners) {
-            loaderTargetMap.set(loaderId, owner)
+        const { loaderTargetMap, conflictWarnings } = this.resolveLoaderTargetMap(
+          base.id,
+          legacyBase,
+          baseMigratedItems,
+          legacyItemIdRemap,
+          baseDirectoryChildLoaderRemap
+        )
+
+        // Stream the base's legacy rows ONCE, in rowid (legacy read) order, classifying and
+        // counting per row — never materializing the base's rows or vectors (the whole-base load
+        // this replaces OOM'd on a single large base); url/note items then get one bounded
+        // point-read each to derive their snapshot path. A read/decode failure mid-scan (locked /
+        // corrupt DB) is a recoverable per-base skip: markBaseUnmigrated leaves the base a
+        // restorable `failed`/missing_vector_store row instead of a `completed` one with no store.
+        // Recovery is the in-UI restore flow, NOT a later migration run — the migration itself still
+        // completes, so order 3.5 never runs again. Everything below accumulates locally and is
+        // recorded on `this` only after the reads complete, so a mid-scan failure leaves no partial
+        // counts behind.
+        const rowidsByItemId = new Map<string, number[]>()
+        const materialItemById = new Map<string, MaterialFieldSource>()
+        const snapshotRelativePathByItemId = new Map<string, string>()
+        const baseEmbeddingHashes = new Set<string>()
+        // Skips aggregate per reason with capped samples (recordSkippedWarningBatch merges them
+        // after the scan) — a mostly-invalid base must not retain one message per rejected row.
+        const skipsByReason = new Map<string, { count: number; samples: string[] }>()
+        let rowCount = 0
+        let expectedUnitCount = 0
+        let reader: LegacyKnowledgeVectorBaseReader | null = null
+        try {
+          const openResult = ctx.sources.knowledgeVectorSource.openBase(legacyBaseId)
+          if (openResult.status !== 'ok') {
+            switch (openResult.status) {
+              case 'invalid_path':
+                this.recordSkippedWarning(
+                  'invalid_path',
+                  `Skipped knowledge vector base ${base.id}: invalid legacy vector DB path`
+                )
+                break
+              case 'missing':
+                this.recordSkippedWarning(
+                  'missing',
+                  `Skipped knowledge vector base ${base.id}: legacy vector DB missing`
+                )
+                break
+              case 'directory':
+                this.recordSkippedWarning(
+                  'directory',
+                  `Skipped knowledge vector base ${base.id}: legacy vector DB path is a directory`
+                )
+                break
+              case 'not_embedjs':
+                this.recordSkippedWarning(
+                  'not_embedjs',
+                  `Skipped knowledge vector base ${base.id}: legacy DB is not embedjs format`
+                )
+                break
+            }
+            this.markBaseUnmigrated(base.id, directoryGroups)
+            continue
           }
-          for (const [loaderId, childItemId] of baseDirectoryChildLoaderRemap) {
-            if (standaloneLoaderOwners.has(loaderId)) {
-              this.recordSkippedWarning(
-                'directory_child_loader_conflict',
-                `Knowledge base ${base.id}: loader '${loaderId}' is owned by a standalone item; kept its vectors there and left the directory child to degrade`
-              )
+          reader = openResult.reader
+
+          for (const row of reader.iterateRows()) {
+            rowCount += 1
+            const verdict = this.classifyVectorRow(base.id, row, loaderTargetMap, dimensions)
+            if (verdict.status === 'skip') {
+              const bucket = skipsByReason.get(verdict.reason) ?? { count: 0, samples: [] }
+              bucket.count += 1
+              if (bucket.samples.length < SKIP_WARNING_SAMPLE_LIMIT) {
+                bucket.samples.push(verdict.message)
+              }
+              skipsByReason.set(verdict.reason, bucket)
+            } else {
+              const target = verdict.target
+              let rowids = rowidsByItemId.get(target.id)
+              if (!rowids) {
+                const materialItem = toMaterialFieldSource(target)
+                if (!materialItem) {
+                  // INDEXABLE_KNOWLEDGE_ITEM_TYPES already excluded container types; this is
+                  // unreachable, but keep it explicit so a future type addition fails closed.
+                  continue
+                }
+                rowids = []
+                rowidsByItemId.set(target.id, rowids)
+                materialItemById.set(target.id, materialItem)
+              }
+              rowids.push(row.rowid)
+              expectedUnitCount += 1
+              baseEmbeddingHashes.add(hashEmbeddingText(row.pageContent))
+            }
+            if (rowCount % STREAM_ROW_YIELD_INTERVAL === 0) {
+              await yieldToEventLoop()
+            }
+          }
+
+          // Resolve each url/note item's snapshot path now, exactly once (see PreparedBasePlan):
+          // a file already has a real base path, while a url/note materializes a snapshot this run
+          // and pins the row to it (so toMaterialRelativePath never falls back). The slug derives
+          // from the item's FULL joined content text (firstHeadingOrLine prefers a heading on any
+          // line), so point-read that one item's rows back through the vector-free text projection
+          // — instead of buffering every url/note item's text through the scan above.
+          // A re-run after a partial migration may find the row already pinned (and that path
+          // already reserved below); reuse it instead of minting a `name-1.md` twin.
+          //
+          // Snapshot names must dodge every path the base already occupies (copied files, their
+          // processed artifacts, other snapshots planned this run). Pass fileProcessorId so an
+          // unprocessed file's prospective `.md` artifact slot is reserved too — same invariant
+          // the runtime add path uses, so a snapshot can't later be overwritten by a
+          // reindex-produced artifact (or vice versa).
+          const reservedPaths = collectKnowledgeReservedRelativePaths([...baseMigratedItems.values()], {
+            fileProcessorId: base.fileProcessorId
+          })
+          for (const [itemId, materialItem] of materialItemById) {
+            if (materialItem.type !== 'url' && materialItem.type !== 'note') {
               continue
             }
-            const child = baseMigratedItems.get(childItemId)
-            if (child) {
-              loaderTargetMap.set(loaderId, child)
-            }
+            const rows = reader.loadTextRowsByRowids(rowidsByItemId.get(itemId) ?? [])
+            const contentText = rows.map((row) => row.pageContent).join(DOCUMENT_SEPARATOR)
+            // buildUrlSnapshotFile is the same OKF-frontmatter + slug derivation the runtime's
+            // captureUrlSnapshotFile uses, so a migrated url snapshot is byte-identical to a natively
+            // captured one (the snapshot reader strips the frontmatter to round-trip the body).
+            const snapshot =
+              materialItem.type === 'url'
+                ? buildUrlSnapshotFile(materialItem.data.url, contentText, this.capturedAt)
+                : buildNoteSnapshotFile(materialItem.data.source, contentText, this.capturedAt)
+            const relativePath =
+              materialItem.data.relativePath ??
+              reserveImportedFileRelativePath(`${snapshot.slug}.md`, false, reservedPaths)
+            snapshotRelativePathByItemId.set(itemId, relativePath)
+            await yieldToEventLoop()
           }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          this.recordSkippedWarning(
+            'read_error',
+            `Skipped knowledge vector base ${base.id}: legacy vector DB unreadable (${message})`
+          )
+          this.markBaseUnmigrated(base.id, directoryGroups)
+          continue
+        } finally {
+          reader?.close()
         }
 
-        // Group the surviving chunks by migrated item, preserving legacy read order
-        // both across items (first appearance) and within an item (chunk order).
-        const chunksByItem = new Map<string, { item: MaterialFieldSource; chunks: MigratedChunk[] }>()
-
-        for (const row of vectorRows) {
-          // V2 only keeps vectors that can be proven to belong to an existing
-          // migrated knowledge_item row. Unmapped legacy vectors are treated
-          // as invalid index residue and are intentionally dropped.
-          const target = loaderTargetMap.get(row.uniqueLoaderId)
-          if (!target) {
-            this.skippedCount += 1
-            const warningMessage = `Skipped knowledge vector row in base ${base.id}: uniqueLoaderId '${row.uniqueLoaderId}' cannot be mapped to item.id`
-            this.recordSkippedWarning('unmapped_loader', warningMessage)
-            continue
-          }
-
-          if (!INDEXABLE_KNOWLEDGE_ITEM_TYPES.has(target.type)) {
-            this.skippedCount += 1
-            const warningMessage = `Skipped knowledge vector row in base ${base.id}: container item '${target.id}' of type '${target.type}' is not indexable`
-            this.recordSkippedWarning('non_indexable_container', warningMessage)
-            continue
-          }
-
-          if (row.vector.status === 'unsupported_encoding') {
-            this.skippedCount += 1
-            const warningMessage = `Skipped knowledge vector row in base ${base.id}: unsupported vector encoding '${row.vector.encoding}' for uniqueLoaderId '${row.uniqueLoaderId}'`
-            this.recordSkippedWarning('unsupported_vector_encoding', warningMessage)
-            continue
-          }
-
-          if (row.vector.status === 'missing' || row.vector.value.length === 0) {
-            this.skippedCount += 1
-            const warningMessage = `Skipped knowledge vector row in base ${base.id}: vector payload missing for uniqueLoaderId '${row.uniqueLoaderId}'`
-            this.recordSkippedWarning('missing_vector_payload', warningMessage)
-            continue
-          }
-
-          // A vector whose length disagrees with the base's recorded dimensions
-          // would make the brute-force cosine scan compare mismatched lengths, so
-          // drop it rather than corrupt vector search for the whole base.
-          if (row.vector.value.length !== dimensions) {
-            this.skippedCount += 1
-            const warningMessage = `Skipped knowledge vector row in base ${base.id}: vector length ${row.vector.value.length} != base dimensions ${dimensions} for uniqueLoaderId '${row.uniqueLoaderId}'`
-            this.recordSkippedWarning('dimension_mismatch', warningMessage)
-            continue
-          }
-
-          const materialItem = toMaterialFieldSource(target)
-          if (!materialItem) {
-            // INDEXABLE_KNOWLEDGE_ITEM_TYPES already excluded container types; this is
-            // unreachable, but keep it explicit so a future type addition fails closed.
-            continue
-          }
-
-          const entry = chunksByItem.get(target.id) ?? { item: materialItem, chunks: [] }
-          entry.chunks.push({ pageContent: row.pageContent, embedding: row.vector.value })
-          chunksByItem.set(target.id, entry)
+        this.sourceCount += rowCount
+        for (const [reason, bucket] of skipsByReason) {
+          this.skippedCount += bucket.count
+          this.recordSkippedWarningBatch(reason, bucket.count, bucket.samples)
+        }
+        for (const conflictWarning of conflictWarnings) {
+          this.recordSkippedWarning('directory_child_loader_conflict', conflictWarning)
         }
 
         // A directory child that drew no chunks (its v1 file's vectors were absent/unmappable) is an
         // empty virtual-path doc that cannot reindex — degrade it; a fully-empty group degrades its
         // container too. Children that did receive chunks stay completed and flow through below.
-        this.markEmptyDirectoryChildren(directoryGroups, chunksByItem)
-
-        // Snapshot names must dodge every path the base already occupies (copied
-        // files, their processed artifacts, other snapshots planned this run). Pass
-        // fileProcessorId so an unprocessed file's prospective `.md` artifact slot is
-        // reserved too — same invariant the runtime add path uses, so a snapshot can't
-        // later be overwritten by a reindex-produced artifact (or vice versa).
-        const reservedPaths = collectKnowledgeReservedRelativePaths(
-          [...(migratedItemsByBaseId.get(base.id)?.values() ?? [])],
-          {
-            fileProcessorId: base.fileProcessorId
-          }
-        )
-
-        const materials: PreparedMaterial[] = []
-        const materialSnapshots: PlannedMaterialSnapshot[] = []
-        const baseEmbeddingHashes = new Set<string>()
-        let expectedUnitCount = 0
-        for (const { item, chunks } of chunksByItem.values()) {
-          // A file already has a real base path; a url/note materializes a snapshot
-          // this run and pins the row to it (so toMaterialRelativePath never falls back).
-          // A re-run after a partial migration may find the row already pinned (and that
-          // path already reserved above); reuse it instead of minting a `name-1.md` twin.
-          let relativePath: string
-          if (item.type === 'url') {
-            const contentText = joinMigratedChunkText(chunks)
-            relativePath =
-              item.data.relativePath ??
-              reserveImportedFileRelativePath(
-                `${deriveUrlSnapshotSlug(contentText, item.data.url)}.md`,
-                false,
-                reservedPaths
-              )
-            materialSnapshots.push({
-              itemId: item.id,
-              relativePath,
-              fileText:
-                serializeOkfFrontmatter({
-                  type: 'URL',
-                  title: deriveUrlSnapshotTitle(contentText, item.data.url),
-                  resource: item.data.url,
-                  timestamp: capturedAt
-                }) + contentText,
-              data: { ...item.data, relativePath }
-            })
-          } else if (item.type === 'note') {
-            const contentText = joinMigratedChunkText(chunks)
-            relativePath =
-              item.data.relativePath ??
-              reserveImportedFileRelativePath(`${deriveNoteSnapshotSlug(item.data.source)}.md`, false, reservedPaths)
-            materialSnapshots.push({
-              itemId: item.id,
-              relativePath,
-              // OKF frontmatter + content; the note reader strips it to round-trip the body.
-              fileText:
-                serializeOkfFrontmatter({
-                  type: 'Note',
-                  title: item.data.source,
-                  timestamp: capturedAt
-                }) + contentText,
-              data: { ...item.data, relativePath }
-            })
-          } else {
-            relativePath = toMaterialRelativePath(item)
-          }
-
-          const material = buildMigratedRebuildInput(item, chunks, relativePath)
-          materials.push(material)
-          expectedUnitCount += material.input.units.length
-          for (const embedding of material.input.embeddings) {
-            baseEmbeddingHashes.add(embedding.embeddingTextHash)
-          }
-        }
+        this.markEmptyDirectoryChildren(directoryGroups, rowidsByItemId)
 
         // A base is still planned even when it has no materials. In that case the
         // rebuilt V2 store is intentionally empty because none of the legacy vectors
         // could be associated with valid, indexable migrated knowledge_item rows.
         this.preparedBasePlans.push({
           baseId: base.id,
+          legacyBaseId,
           materialDirPath: path.join(ctx.paths.knowledgeBaseDir, base.id, KNOWLEDGE_MATERIAL_ROOT_DIR),
           targetDbPath: this.getRuntimeVectorStorePath(ctx.paths.knowledgeBaseDir, base.id),
-          materials,
-          materialSnapshots,
+          dimensions,
+          rowidsByItemId,
           expectedUnitCount,
           expectedEmbeddingCount: baseEmbeddingHashes.size,
-          sourceRowCount: vectorRows.length,
+          sourceRowCount: rowCount,
+          snapshotRelativePathByItemId,
           directoryGroups
         })
       }
@@ -858,8 +962,12 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
    * Persist the directory degrade set (collected in prepare() for skipped/empty bases and in
    * execute()'s per-base catch for bases that failed mid-rebuild): orphaned directory-expanded
    * items become `failed`/directory_not_migrated so the UI prompts a re-add (their virtual-path
-   * source cannot reindex). A failure here is non-fatal — the worst case is a stale `completed`
-   * row that the next migration run re-degrades — so it is recorded as a warning, never thrown.
+   * source cannot reindex). A failure here is recorded as a warning, never thrown — deliberately
+   * the opposite of flushBaseFailures. Not because it is repairable (it is not: the migration still
+   * completes, so nothing re-degrades these rows later), but because the blast radius differs. A
+   * lost degrade leaves some empty documents inside a base that otherwise works; a lost base mark
+   * leaves the WHOLE base silently unsearchable with no restore entry. Aborting an otherwise
+   * successful migration over the former is the worse trade; over the latter it is not.
    * Chunked under SQLite's bound-variable cap so a large degrade set cannot overflow the UPDATE.
    */
   private async flushDirectoryDegradations(ctx: MigrationContext): Promise<void> {
@@ -890,21 +998,33 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
   }
 
   /**
-   * Mark every base whose vector store never finished building (collected in execute()'s per-base
-   * catch when the rebuild threw before completion) as a restorable `failed` row, after wiping the
-   * partial index it left behind. Without this the base stays `completed` and the runtime mounts an
-   * empty/partial store: search and the chunk list return nothing forever, and nothing reindexes on
-   * its own (KnowledgeVectorStoreService only logs the empty-store state). `missing_vector_store` is
-   * the same restorable error prepare()'s unreadable-store branch sets, so the UI offers a re-index
-   * that rebuilds from the migrated raw/ files. Best-effort and chunked like flushDirectoryDegradations:
-   * a failed UPDATE is recorded as a warning, never thrown, so it cannot abort the surviving bases.
+   * Mark every base that never finished publishing (collected in prepare()'s skip branches via
+   * markBaseUnmigrated — no plan, so no store is ever built — and in execute()'s per-base catch,
+   * where the rebuild threw partway or it completed and the snapshot-pin transaction threw) as a
+   * restorable `failed` row. The execute-phase entries have already had the partial index they left
+   * behind wiped by the per-base catch; the prepare-phase ones never built one. Without this the
+   * base stays
+   * `completed` and is broken with no way back: a missing/partial store makes search and the chunk
+   * list return nothing forever with nothing reindexing on its own (KnowledgeVectorStoreService only
+   * logs the empty-store state), and unpinned url/note rows keep a `completed` status that makes
+   * index-documents skip them, so their snapshots are never captured either. `missing_vector_store`
+   * is the same restorable error KnowledgeMigrator sets when its own order-1.8 probe finds the
+   * legacy store unreadable, so the UI offers the restore flow either way.
+   * Chunked like flushDirectoryDegradations, and every batch is attempted before any
+   * failure surfaces — but a batch that could not be persisted is FATAL, not best-effort: the
+   * `failed` mark is the only thing standing between the user and a `completed` base with a wiped
+   * store and unpinned rows, so if it cannot be written the migration must not be recorded as
+   * completed either. Throwing here fails the migrator, the engine marks the migration failed
+   * (same app DB, same connection — a persistent write fault stops markCompleted too), and the
+   * next launch re-runs from scratch.
    */
   private async flushBaseFailures(ctx: MigrationContext): Promise<void> {
     if (this.basesToMarkFailed.size === 0) {
       return
     }
     const ids = [...this.basesToMarkFailed]
-    let failedCount = 0
+    const unpersistedBaseIds: string[] = []
+    let lastError: unknown
     for (let offset = 0; offset < ids.length; offset += DEGRADE_UPDATE_CHUNK) {
       const batch = ids.slice(offset, offset + DEGRADE_UPDATE_CHUNK)
       try {
@@ -912,18 +1032,21 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           .update(knowledgeBaseTable)
           .set({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE })
           .where(inArray(knowledgeBaseTable.id, batch))
-        failedCount += batch.length
       } catch (error) {
-        // Best-effort per batch: one failed batch must not abort the rest of the pass.
-        this.recordWarning(
-          `Failed to mark ${batch.length} knowledge base(s) failed after vector store promotion failed: ${error instanceof Error ? error.message : String(error)}`
-        )
+        // Keep attempting the remaining batches (each is an independent UPDATE), then fail below.
+        unpersistedBaseIds.push(...batch)
+        lastError = error
       }
     }
-    logger.info('Marked knowledge bases failed after vector store promotion failed', {
-      failedCount,
+    logger.info('Marked knowledge bases failed after their vector store could not be built', {
+      failedCount: ids.length - unpersistedBaseIds.length,
       totalCount: ids.length
     })
+    if (unpersistedBaseIds.length > 0) {
+      throw new Error(
+        `Failed to persist the failed status of ${unpersistedBaseIds.length} knowledge base(s) [${unpersistedBaseIds.join(', ')}] after their vector store could not be built: ${lastError instanceof Error ? lastError.message : String(lastError)}`
+      )
+    }
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
@@ -932,8 +1055,15 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
     // re-returning prepare's would double-count them).
     const prepareWarningCount = this.warnings.length
     if (this.preparedBasePlans.length === 0) {
-      // No vector plan survived prepare(); still degrade items orphaned there (a base whose only
-      // content was a directory expansion) before returning.
+      // No vector plan survived prepare(). Two things still have to be persisted: the failed mark
+      // for every base prepare() skipped, and the degrade for items orphaned there (a base whose
+      // only content was a directory expansion). Reached either because every base was skipped —
+      // the case that most needs the base flush — or because there was no knowledge data at all, in
+      // which case both sets are empty and both calls no-op. Base failures go FIRST: it is the
+      // integrity-critical write (it throws when the mark cannot be persisted, failing the migrator
+      // rather than recording a completed migration over a broken base), so it must not be able to
+      // be skipped by the best-effort degrade pass throwing ahead of it.
+      await this.flushBaseFailures(ctx)
       await this.flushDirectoryDegradations(ctx)
       return {
         success: true,
@@ -942,19 +1072,38 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
       }
     }
 
-    const totalWork = this.preparedBasePlans.reduce((sum, plan) => sum + Math.max(plan.materials.length, 1), 0)
+    const totalWork = this.preparedBasePlans.reduce((sum, plan) => sum + Math.max(plan.rowidsByItemId.size, 1), 0)
     let processedWork = 0
     let processedCount = 0
 
     for (const plan of this.preparedBasePlans) {
-      // Did the store finish building at its runtime path? Flipped true once the build + close
-      // succeeds. It gates the per-base catch: a failure BEFORE the store is complete (rebuild threw)
-      // leaves a partial/empty index that must be wiped and the base marked restorable `failed`; a
-      // failure AFTER (the snapshot-pin UPDATE) leaves a complete, searchable store that must be kept
-      // and the base left as-is.
+      // Did this base finish PUBLISHING? Flipped true only once the build, the close, AND the
+      // snapshot-pin transaction have all succeeded — publication is all-or-nothing. It gates the
+      // per-base catch: any failure before that point leaves an index that must be wiped (partial
+      // if the rebuild threw, complete-but-unpinned if the pins did) and the base marked restorable
+      // `failed`, because a `completed` base with a missing store or with url/note rows lacking
+      // `relativePath` is broken in a way nothing later repairs.
       let storePromoted = false
+      let reader: LegacyKnowledgeVectorBaseReader | null = null
 
       try {
+        // Rebuild THIS base's materials by re-reading the legacy rows ITEM BY ITEM — prepare()
+        // intentionally retained only each item's rowids (see PreparedBasePlan). Each item's turn
+        // reads its text whole (the content schema stores one text row per material) but streams
+        // its vectors in fixed batches through rebuildMaterial, so peak residency is one item's
+        // text + one vector batch — never a whole item's vector set, let alone a whole base's
+        // (whose one-shot load OOM'd on a single large base even after the per-base re-read fix).
+        const baseMigratedItems =
+          this.migratedItemsByBaseId.get(plan.baseId) ?? new Map<string, MigratedKnowledgeItemForVector>()
+
+        const openResult = ctx.sources.knowledgeVectorSource.openBase(plan.legacyBaseId)
+        if (openResult.status !== 'ok') {
+          throw new Error(
+            `Knowledge vector base ${plan.baseId}: legacy vector DB unavailable at execute time (status=${openResult.status})`
+          )
+        }
+        reader = openResult.reader
+
         await retryOnTransientFsLock(() => fs.promises.mkdir(path.dirname(plan.targetDbPath), { recursive: true }))
         // Defensive clear before building: the runtime path is normally fresh (KnowledgeMigrator mints
         // a new uuid dir per run), but wipe any stale store + WAL sidecars so a build always starts
@@ -962,10 +1111,10 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // v1 embedjs DB is untouched and a failed migration leaves v1 fully usable.
         await this.removeIndexStoreFiles(plan.targetDbPath)
 
-        // Build the store DIRECTLY at its runtime index.sqlite — no temp file, no rename. The rebuild
-        // runs the exact runtime open sequence (driver → schema → ensureIndexMeta →
-        // KnowledgeIndexStore.rebuildMaterial), so the result is byte-for-byte a store the runtime
-        // would produce.
+        // Build the store DIRECTLY at its runtime index.sqlite — no temp file, no rename. The store is
+        // opened through createKnowledgeIndexStoreAtPath — the exact factory the runtime
+        // (KnowledgeVectorStoreService) uses — so the result is byte-for-byte a store the runtime would
+        // produce.
         //
         // Why not build a temp store and rename it on? The rename was the migration's single most
         // fragile step on Windows. The index store opens index.sqlite in WAL mode, and WAL mode on Windows
@@ -984,14 +1133,82 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // fresh uuid dir, the runtime never opens a store mid-migration, and the catch below wipes a
         // partial on a caught failure. A crash-orphaned dir is never referenced by a knowledge_base row
         // so it is never mounted (it is dead disk, the same as the rename path produced).
-        const driver = openBetterSqlite3IndexDriver(plan.targetDbPath)
+        const materialSnapshotPins: PlannedMaterialSnapshotPin[] = []
+        let materialDirReady = false
+        const store = createKnowledgeIndexStoreAtPath(plan.targetDbPath, { baseId: plan.baseId })
         try {
-          createKnowledgeIndexSchema(driver)
-          ensureIndexMeta(driver, { baseId: plan.baseId })
-          const store = new KnowledgeIndexStore(driver, betterSqlite3VectorIndex)
+          for (const [itemId, rowids] of plan.rowidsByItemId) {
+            const migratedItem = baseMigratedItems.get(itemId)
+            const materialItem = migratedItem ? toMaterialFieldSource(migratedItem) : null
+            if (!materialItem) {
+              throw new Error(`Knowledge vector base ${plan.baseId}: migrated item '${itemId}' missing at execute time`)
+            }
 
-          for (const material of plan.materials) {
-            await store.rebuildMaterial(material.itemId, material.input)
+            // Text pass: point-read only the text columns of exactly the rows prepare() planned
+            // for this item — the content schema stores one whole text row per material, so the
+            // joined text is needed in full, but the vectors are NOT read here (they stream in
+            // batches inside rebuildMaterial below). A row-count drift from the planned shape
+            // means the legacy DB changed since prepare() — fail the base closed rather than
+            // write a store validate() would reject.
+            const textRows = reader.loadTextRowsByRowids(rowids)
+            if (textRows.length !== rowids.length) {
+              throw new Error(
+                `Knowledge vector base ${plan.baseId}: legacy vector rows for item '${itemId}' changed since prepare (expected ${rowids.length}, got ${textRows.length})`
+              )
+            }
+            const pageContents = textRows.map((row) => row.pageContent)
+            const contentText = pageContents.join(DOCUMENT_SEPARATOR)
+
+            let relativePath: string
+            if (materialItem.type === 'url' || materialItem.type === 'note') {
+              // prepare() decided this exactly once; reusing it here (rather than re-deriving via
+              // reserveImportedFileRelativePath) keeps the store's material row in sync with whatever
+              // path validate() and any cross-base uniqueness check already accounted for.
+              const plannedRelativePath = plan.snapshotRelativePathByItemId.get(itemId)
+              if (plannedRelativePath === undefined) {
+                throw new Error(
+                  `Knowledge vector base ${plan.baseId}: missing planned snapshot relative path for item '${itemId}'`
+                )
+              }
+              relativePath = plannedRelativePath
+              const fileText =
+                materialItem.type === 'url'
+                  ? buildUrlSnapshotFile(materialItem.data.url, contentText, this.capturedAt).fileText
+                  : buildNoteSnapshotFile(materialItem.data.source, contentText, this.capturedAt).fileText
+              // Materialize the snapshot file NOW, while this item's text is resident (overwriting a
+              // previous partial run's copy), instead of buffering every snapshot's fileText until
+              // the base finishes — that buffer regrew the base-wide peak this migrator bounds to
+              // one item. Only the tiny row pin below waits for the store to promote; a stray file
+              // from a mid-build failure is dead disk under a base marked failed. The material root
+              // may not exist yet (a url/note-only base copies no files), so ensure it first.
+              //
+              // A reused item.data.relativePath could in principle carry a traversal; guard it
+              // before writing — the same invariant every other base write enforces
+              // (getKnowledgeBaseFilePath) but which this direct join bypasses.
+              assertSafeKnowledgeRelativePath(relativePath)
+              if (!materialDirReady) {
+                await retryOnTransientFsLock(() => fs.promises.mkdir(plan.materialDirPath, { recursive: true }))
+                materialDirReady = true
+              }
+              await retryOnTransientFsLock(() =>
+                fs.promises.writeFile(path.join(plan.materialDirPath, relativePath), fileText, 'utf-8')
+              )
+              materialSnapshotPins.push({ itemId, data: { ...materialItem.data, relativePath } })
+            } else {
+              relativePath = toMaterialRelativePath(materialItem)
+            }
+
+            // Vector pass runs INSIDE the store's write transaction: rebuildMaterial pulls the
+            // iterable batch by batch, so peak vector residency is one VECTOR_STREAM_BATCH_SIZE
+            // point-read, never the item's whole vector set. v1 bases always carried embeddings,
+            // so a migrated base is a vector base.
+            store.rebuildMaterial(itemId, {
+              material: { relativePath },
+              content: { text: contentText },
+              units: buildMigratedUnits(pageContents),
+              usesEmbeddings: true,
+              embeddings: iterateLegacyEmbeddingBatches(reader, plan.baseId, itemId, rowids, plan.dimensions)
+            })
             processedWork += 1
             this.reportRebuildProgress(processedWork, totalWork)
             await yieldToEventLoop()
@@ -1000,51 +1217,47 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           // Fold the WAL back into the main db file so the committed pages are durable in index.sqlite
           // itself (the WAL is not guaranteed to be checkpointed on close); the runtime then opens a
           // self-contained store.
-          driver.execute('PRAGMA wal_checkpoint(TRUNCATE)')
+          store.checkpoint()
         } finally {
           // Close so the file handle is released (a leaked handle would block a re-run's
           // removeIndexStoreFiles and the later base-dir deletion on Windows).
-          driver.close()
+          store.close()
         }
-        // Build + close succeeded: the complete store sits at its runtime path. A later failure
-        // (snapshot-pin) leaves it present and searchable, so it must NOT be wiped or marked failed.
-        storePromoted = true
-
-        if (plan.materials.length === 0) {
+        if (plan.rowidsByItemId.size === 0) {
           processedWork += 1
           this.reportRebuildProgress(processedWork, totalWork)
           await yieldToEventLoop()
         }
 
-        // Materialize each migrated url/note snapshot file under the base's `raw/`
-        // material root (overwriting a previous partial run's copy) and pin the item
-        // row to it, so the runtime's ensure-snapshot step reads it offline at
-        // {baseDir}/raw/{relativePath} (a url instead of re-fetching the page, a note
-        // instead of re-deriving from data). The material root may not exist yet (a
-        // url/note-only base copies no files), so ensure it first.
-        if (plan.materialSnapshots.length > 0) {
-          await retryOnTransientFsLock(() => fs.promises.mkdir(plan.materialDirPath, { recursive: true }))
+        // Pin each url/note item row to the snapshot file the build loop already wrote, so the
+        // runtime's ensure-snapshot step reads it offline at {baseDir}/raw/{relativePath} (a url
+        // instead of re-fetching the page, a note instead of re-deriving from data). One
+        // transaction for the whole base, and the LAST step before the base counts as published:
+        // a partial pin would desync item rows from the store's material paths, and a zero-pin
+        // "success" would be worse still — a completed url/note with no relativePath violates the
+        // invariant deriveConceptId() guards, and nothing ever repairs it (the runtime's
+        // ensure-snapshot never runs for a completed item, and a completed migration never
+        // re-runs). So publication is all-or-nothing: pins commit, THEN the store counts as
+        // promoted.
+        if (materialSnapshotPins.length > 0) {
+          ctx.db.transaction((tx) => {
+            for (const pin of materialSnapshotPins) {
+              tx.update(knowledgeItemTable).set({ data: pin.data }).where(eq(knowledgeItemTable.id, pin.itemId)).run()
+            }
+          })
         }
-        for (const snapshot of plan.materialSnapshots) {
-          // A reused item.data.relativePath could in principle carry a traversal;
-          // guard it before writing — the same invariant every other base write
-          // enforces (getKnowledgeBaseFilePath) but which this direct join bypasses.
-          assertSafeKnowledgeRelativePath(snapshot.relativePath)
-          await retryOnTransientFsLock(() =>
-            fs.promises.writeFile(path.join(plan.materialDirPath, snapshot.relativePath), snapshot.fileText, 'utf-8')
-          )
-          await ctx.db
-            .update(knowledgeItemTable)
-            .set({ data: snapshot.data })
-            .where(eq(knowledgeItemTable.id, snapshot.itemId))
-        }
+
+        // Store built, closed, and its rows pinned: this base is published. Anything that threw
+        // before this point leaves storePromoted false, so the catch wipes the index and marks the
+        // base failed — a visible, restorable state instead of a silently broken completed one.
+        storePromoted = true
 
         this.successfulBaseIds.add(plan.baseId)
         processedCount += plan.expectedUnitCount
         logger.info('Migrated knowledge vector base as preserved-chunk concatenation', {
           baseId: plan.baseId,
-          materials: plan.materials.length,
-          materialSnapshots: plan.materialSnapshots.length,
+          materials: plan.rowidsByItemId.size,
+          materialSnapshots: materialSnapshotPins.length,
           units: plan.expectedUnitCount,
           embeddings: plan.expectedEmbeddingCount
         })
@@ -1053,11 +1266,11 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         logger.error(errorMessage, error instanceof Error ? error : new Error(String(error)))
         this.executionErrors.push(errorMessage)
 
-        // If the store never finished building, wipe the partial/empty index left at the runtime path
-        // so the runtime cannot later mount a half-built store (a complete store from a post-build
-        // snapshot-pin failure is kept — storePromoted). Cleanup must not throw past the loop: on
-        // Windows a locked index.sqlite can make rm reject even after retries, which would mask the
-        // real errorMessage and abort the whole migration.
+        // The base never reached publication (build, close, or pin threw), so wipe the index left at
+        // the runtime path — the runtime must not mount a half-built store, nor a complete one whose
+        // url/note rows were never pinned to their snapshots. Cleanup must not throw past the loop:
+        // on Windows a locked index.sqlite can make rm reject even after retries, which would mask
+        // the real errorMessage and abort the whole migration.
         if (!storePromoted) {
           try {
             await this.removeIndexStoreFiles(plan.targetDbPath)
@@ -1083,34 +1296,41 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         // allowed to succeed its children are not left `completed` with no vectors (an
         // unreindexable virtual-path orphan).
         //
-        // Mark the base itself `failed`/missing_vector_store (flushed after the loop) ONLY when its
-        // store never finished building (the rebuild threw; storePromoted still false). Leaving such a
-        // base `completed` makes the runtime mount an empty/partial store and return empty search/chunk
-        // results forever — there is NO auto-reindex (KnowledgeVectorStoreService only logs the
-        // empty-store state, it does not rebuild). A `failed` base is kept out of the runtime's open
-        // path and surfaces a restore/re-index entry, matching prepare()'s restorable
-        // unreadable-store branch. Regular file/url/note rows stay `completed`; restore re-reads them
-        // from their migrated raw/ files regardless of status, so they need no per-item degrade.
-        // If the build already completed (storePromoted) and only the snapshot-pin threw, the store
-        // is present and searchable — do not mark it failed and force a needless full re-index.
+        // Mark the base itself `failed`/missing_vector_store (flushed after the loop) whenever it did
+        // not reach publication. Leaving such a base `completed` makes the runtime mount an
+        // empty/partial store and return empty search/chunk results forever — there is NO auto-reindex
+        // (KnowledgeVectorStoreService only logs the empty-store state, it does not rebuild). The same
+        // holds for a fully built store whose pins never committed: its url/note items would stay
+        // `completed` with no `relativePath`, which deriveConceptId treats as an invariant violation,
+        // and no path repairs it (index-documents skips completed items, so ensure-snapshot never runs,
+        // and a completed migration never re-runs). A `failed` base is instead kept out of the
+        // runtime's open path and surfaces the restore flow, matching prepare()'s restorable
+        // unreadable-store branch. Restore re-adds the items into a FRESH base, so the new rows are
+        // not `completed` and do get indexed (a note re-derives its snapshot from data.content; a url
+        // re-fetches the live page, which is the one lossy case — a dead link cannot be recovered
+        // from the unpinned raw/ snapshot). Regular file rows need no per-item degrade: restore
+        // re-reads them from their migrated raw/ files regardless of status.
         this.skippedCount += plan.expectedUnitCount
         this.markDirectoryGroupsFullyOrphaned(plan.directoryGroups)
         if (!storePromoted) {
           this.basesToMarkFailed.add(plan.baseId)
         }
         continue
+      } finally {
+        reader?.close()
       }
     }
 
-    // Persist all directory degradations now: both those collected in prepare() and those added in
+    // Both flushes run after the loop, so a per-base failure does not abort the surviving bases.
+    // Mark every base that never reached publication as a restorable `failed` row. This goes first:
+    // it is the integrity-critical write (it throws when the mark cannot be persisted), so it must
+    // not be able to be skipped by the best-effort degrade pass throwing ahead of it.
+    await this.flushBaseFailures(ctx)
+    // Then persist all directory degradations: both those collected in prepare() and those added in
     // the per-base catch above for bases that failed mid-rebuild. Running it after the loop (rather
     // than before) is what lets a failed base's directory items reach `failed` once the per-base
     // skip keeps the overall migration alive.
     await this.flushDirectoryDegradations(ctx)
-    // Mark every base whose store could not be promoted as a restorable `failed` row (same deferral
-    // rationale as the degrade pass: after the loop, so a per-base promote failure does not abort
-    // the surviving bases).
-    await this.flushBaseFailures(ctx)
 
     logger.info('KnowledgeVectorMigrator.execute completed', {
       processedCount,
@@ -1149,55 +1369,53 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
         // The rebuilt store's url/note material rows reference these snapshot paths,
         // so a missing file would surface later as an unreadable material.
-        const missingSnapshots = plan.materialSnapshots.filter(
-          (snapshot) => !fs.existsSync(path.join(plan.materialDirPath, snapshot.relativePath))
+        const snapshotRelativePaths = [...plan.snapshotRelativePathByItemId.values()]
+        const missingSnapshots = snapshotRelativePaths.filter(
+          (relativePath) => !fs.existsSync(path.join(plan.materialDirPath, relativePath))
         )
         if (missingSnapshots.length > 0) {
           errors.push({
             key: `knowledge_vector_material_snapshots_${plan.baseId}`,
-            expected: plan.materialSnapshots.length,
-            actual: plan.materialSnapshots.length - missingSnapshots.length,
+            expected: snapshotRelativePaths.length,
+            actual: snapshotRelativePaths.length - missingSnapshots.length,
             message: `Missing ${missingSnapshots.length} materialized url/note snapshot files in base ${plan.baseId}: ${missingSnapshots
               .slice(0, SKIP_WARNING_SAMPLE_LIMIT)
-              .map((snapshot) => snapshot.relativePath)
               .join(', ')}`
           })
         }
 
-        // Reopen through openBetterSqlite3IndexDriver, not a bare new Database: the driver sets
-        // busy_timeout=5000, so this re-read of the just-built store waits out a transient Windows lock
-        // (Defender / indexer scanning the freshly-written file) instead of throwing SQLITE_BUSY /
-        // EACCES and failing validation for an already-correct store.
-        const driver = openBetterSqlite3IndexDriver(plan.targetDbPath)
+        // Reopen through createKnowledgeIndexStoreAtPath — the same factory the runtime and the build
+        // phase use — not a bare new Database: its driver sets busy_timeout=5000, so this re-read of the
+        // just-built store waits out a transient Windows lock (Defender / indexer scanning the
+        // freshly-written file) instead of throwing SQLITE_BUSY / EACCES and failing validation for an
+        // already-correct store. The factory's schema/meta steps are idempotent on this just-built store
+        // (create is IF NOT EXISTS, ensureIndexMeta is INSERT OR IGNORE at the current version), so the
+        // counts read below are unchanged. Only difference from a bare read: a store corrupted between
+        // build and this reopen (base_id no longer matches) makes ensureIndexMeta throw and fail
+        // validation rather than reading stale counts — a stricter, safe outcome, unreachable in this
+        // single-threaded in-process migration with no external writer.
+        const store = createKnowledgeIndexStoreAtPath(plan.targetDbPath, { baseId: plan.baseId })
         try {
-          const materialCount = this.tableCount(driver, 'material')
-          const unitCount = this.tableCount(driver, 'search_unit')
-          const embeddingCount = this.tableCount(driver, 'embedding')
-          targetCount += unitCount
+          const counts = store.describeIndexCounts()
+          targetCount += counts.units
 
-          this.pushCountMismatch(errors, plan.baseId, 'material', plan.materials.length, materialCount)
-          this.pushCountMismatch(errors, plan.baseId, 'search_unit', plan.expectedUnitCount, unitCount)
-          this.pushCountMismatch(errors, plan.baseId, 'embedding', plan.expectedEmbeddingCount, embeddingCount)
+          this.pushCountMismatch(errors, plan.baseId, 'material', plan.rowidsByItemId.size, counts.materials)
+          this.pushCountMismatch(errors, plan.baseId, 'search_unit', plan.expectedUnitCount, counts.units)
+          this.pushCountMismatch(errors, plan.baseId, 'embedding', plan.expectedEmbeddingCount, counts.embeddings)
 
           // Every unit's body search_text must resolve to a stored embedding, or that
           // unit is silently absent from vector search. This is the migration-time
           // form of the rebuild self-heal invariant (knowledge-technical-design.md §10).
-          const uncovered = driver.execute(
-            `SELECT count(*) AS count FROM search_text st
-                  LEFT JOIN embedding e ON e.embedding_text_hash = st.embedding_text_hash
-                  WHERE e.embedding_text_hash IS NULL`
-          )
-          const uncoveredCount = Number(uncovered.rows[0]?.count ?? 0)
-          if (uncoveredCount > 0) {
+          if (counts.unitsMissingEmbedding > 0) {
             errors.push({
               key: `knowledge_vector_uncovered_units_${plan.baseId}`,
               expected: 0,
-              actual: uncoveredCount,
-              message: `Found ${uncoveredCount} knowledge search_text rows without a stored embedding in base ${plan.baseId}`
+              actual: counts.unitsMissingEmbedding,
+              message: `Found ${counts.unitsMissingEmbedding} knowledge search_text rows without a stored embedding in base ${plan.baseId}`
             })
           }
         } finally {
-          driver.close()
+          store.close()
         }
       }
 
@@ -1234,11 +1452,6 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         }
       }
     }
-  }
-
-  private tableCount(driver: BetterSqlite3Driver, table: string): number {
-    const result = driver.execute(`SELECT count(*) AS count FROM ${table}`)
-    return Number(result.rows[0]?.count ?? 0)
   }
 
   private pushCountMismatch(

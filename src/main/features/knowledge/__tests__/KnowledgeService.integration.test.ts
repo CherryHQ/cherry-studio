@@ -7,7 +7,6 @@ import { BaseService } from '@main/core/lifecycle'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-  DEFAULT_KNOWLEDGE_SEARCH_MODE,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
 } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
@@ -15,13 +14,16 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getIndexStoreMock, deleteStoreMock, enqueueMock, listMock, registerHandlerMock } = vi.hoisted(() => ({
-  getIndexStoreMock: vi.fn(),
-  deleteStoreMock: vi.fn(),
-  enqueueMock: vi.fn(),
-  listMock: vi.fn(),
-  registerHandlerMock: vi.fn()
-}))
+const { getIndexStoreMock, deleteStoreMock, enqueueMock, enqueueTxMock, listMock, registerHandlerMock } = vi.hoisted(
+  () => ({
+    getIndexStoreMock: vi.fn(),
+    deleteStoreMock: vi.fn(),
+    enqueueMock: vi.fn(),
+    enqueueTxMock: vi.fn(),
+    listMock: vi.fn(),
+    registerHandlerMock: vi.fn()
+  })
+)
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -30,6 +32,7 @@ vi.mock('@application', async () => {
       cancel: vi.fn(),
       cancelMany: vi.fn(),
       enqueue: enqueueMock,
+      enqueueTx: enqueueTxMock,
       list: listMock,
       registerHandler: registerHandlerMock
     },
@@ -70,6 +73,7 @@ describe('KnowledgeService integration', () => {
     getIndexStoreMock.mockResolvedValue({})
     deleteStoreMock.mockResolvedValue(undefined)
     enqueueMock.mockResolvedValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
+    enqueueTxMock.mockReturnValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
     listMock.mockResolvedValue([])
 
     const [providerOrderKey, embeddingModelOrderKey] = generateOrderKeySequence(2)
@@ -106,9 +110,7 @@ describe('KnowledgeService integration', () => {
       fileProcessorId: null,
       chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-      threshold: null,
-      documentCount: null,
-      searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE
+      documentCount: null
     })
     await dbh.db.insert(knowledgeItemTable).values([
       {
@@ -117,7 +119,7 @@ describe('KnowledgeService integration', () => {
         groupId: null,
         type: 'note',
         data: { source: 'source-root', content: 'root content' },
-        status: 'idle',
+        status: 'processing',
         error: null
       },
       {
@@ -126,7 +128,7 @@ describe('KnowledgeService integration', () => {
         groupId: SOURCE_ROOT_ITEM_ID,
         type: 'note',
         data: { source: 'source-child', content: 'child content' },
-        status: 'idle',
+        status: 'processing',
         error: null
       }
     ])
@@ -181,7 +183,7 @@ describe('KnowledgeService integration', () => {
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
-      { baseId: restoredBase.id, itemId: restoredItems[0].id, parentJobId: null },
+      { baseId: restoredBase.id, itemId: restoredItems[0].id },
       {
         idempotencyKey: `knowledge:${restoredBase.id}:${restoredItems[0].id}:index`,
         queue: `base.${restoredBase.id}`,
@@ -207,6 +209,21 @@ describe('KnowledgeService integration', () => {
     expect(ungroupedRestoredItems.some((item) => item.baseId === restoredBase.id)).toBe(true)
   })
 
+  it('rolls back the deleting status when enqueueTx fails inside deleteItems', async () => {
+    const service = new KnowledgeService()
+    enqueueTxMock.mockImplementationOnce(() => {
+      throw new Error('enqueue failed')
+    })
+
+    await expect(service.deleteItems(SOURCE_BASE_ID, [SOURCE_ROOT_ITEM_ID])).rejects.toThrow('enqueue failed')
+
+    const [rootRow] = await dbh.db
+      .select()
+      .from(knowledgeItemTable)
+      .where(eq(knowledgeItemTable.id, SOURCE_ROOT_ITEM_ID))
+    expect(rootRow.status).toBe('processing')
+  })
+
   describe('addItems conflict resolution', () => {
     const COMPLETED_BASE_ID = '33333333-3333-4333-8333-333333333333'
     const EXISTING_NOTE_ID = '0198f3f2-7d2a-7abc-8def-123456789abc'
@@ -224,9 +241,7 @@ describe('KnowledgeService integration', () => {
         fileProcessorId: null,
         chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
         chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-        threshold: null,
-        documentCount: null,
-        searchMode: DEFAULT_KNOWLEDGE_SEARCH_MODE
+        documentCount: null
       })
       await dbh.db.insert(knowledgeItemTable).values({
         id: EXISTING_NOTE_ID,

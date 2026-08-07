@@ -1,4 +1,4 @@
-import { DataApiErrorFactory } from '@shared/data/api/apiErrors'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const configMock = vi.hoisted(() => ({
@@ -35,13 +35,23 @@ afterEach(async () => {
   vi.restoreAllMocks()
 })
 
-async function createService() {
+async function createService(options: { capturePayloads?: boolean } = {}) {
+  // The control surface is exposed by the window bootstrap (prepareWindow),
+  // not by the DataApiService constructor — mirror that ordering here.
+  const { DataApiDevtools } = await import('../utils/dataApiDevtools')
+  DataApiDevtools.exposeControlSurface()
   const { DataApiService } = await import('../DataApiService')
-  return new DataApiService()
+  const service = new DataApiService()
+  if (options.capturePayloads) {
+    window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: true })
+  }
+  return service
 }
 
 describe('DataApiService devtools instrumentation', () => {
   it('records a successful request with truncated request and response previews', async () => {
+    const service = await createService({ capturePayloads: true })
+    expect(window.__CHERRY_DATA_API_DEVTOOLS__).toBeDefined()
     request.mockImplementationOnce(async (req) => ({
       id: req.id,
       status: 200,
@@ -56,7 +66,6 @@ describe('DataApiService devtools instrumentation', () => {
       }
     }))
 
-    const service = await createService()
     const result = await service.post('/providers' as any, {
       query: { authorization: 'Bearer secret' } as any,
       body: {
@@ -94,14 +103,13 @@ describe('DataApiService devtools instrumentation', () => {
   })
 
   it('does not let devtools payload inspection block the request', async () => {
+    const service = await createService({ capturePayloads: true })
     request.mockImplementationOnce(async (req) => ({
       id: req.id,
       status: 200,
       data: { ok: true },
       metadata: { timestamp: Date.now() }
     }))
-
-    const service = await createService()
 
     await expect(
       service.post('/providers' as any, {
@@ -116,6 +124,7 @@ describe('DataApiService devtools instrumentation', () => {
   })
 
   it('records failed requests with request and error details in one entry', async () => {
+    const service = await createService({ capturePayloads: true })
     const error = DataApiErrorFactory.validation({ name: ['Required'] }, 'Invalid provider')
     request.mockImplementationOnce(async (req) => ({
       id: req.id,
@@ -127,8 +136,6 @@ describe('DataApiService devtools instrumentation', () => {
         handlerDuration: 6
       }
     }))
-
-    const service = await createService()
 
     await expect(service.get('/providers' as any)).rejects.toThrow('Invalid provider')
 
@@ -151,15 +158,7 @@ describe('DataApiService devtools instrumentation', () => {
   })
 
   it('omits error messages when payload capture is disabled', async () => {
-    const { DataApiDevtools } = await import('../utils/dataApiDevtools')
-    DataApiDevtools.recordStart({
-      requestId: 'setup',
-      method: 'GET',
-      path: '/setup',
-      retryAttempt: 0
-    })
-    window.__CHERRY_DATA_API_DEVTOOLS__?.clear()
-    window.__CHERRY_DATA_API_DEVTOOLS__?.setOptions({ capturePayloads: false })
+    const service = await createService()
 
     const error = DataApiErrorFactory.validation({ name: ['Required'] }, 'Invalid provider token=secret')
     request.mockImplementationOnce(async (req) => ({
@@ -172,8 +171,6 @@ describe('DataApiService devtools instrumentation', () => {
         handlerDuration: 6
       }
     }))
-
-    const service = await createService()
 
     await expect(service.get('/providers' as any)).rejects.toThrow('Invalid provider token=secret')
 
@@ -191,6 +188,7 @@ describe('DataApiService devtools instrumentation', () => {
   })
 
   it('records retry attempts and keeps retry request ids correlated', async () => {
+    const service = await createService({ capturePayloads: true })
     const retryableError = DataApiErrorFactory.timeout('/providers', 3000)
     request
       .mockImplementationOnce(async (req) => ({
@@ -206,7 +204,6 @@ describe('DataApiService devtools instrumentation', () => {
         metadata: { timestamp: Date.now() }
       }))
 
-    const service = await createService()
     service.configureRetry({ maxRetries: 1, retryDelay: 0 })
 
     await expect(service.get('/providers' as any)).resolves.toEqual({ ok: true })

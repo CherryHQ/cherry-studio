@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { getAppLanguage, locales } from '@main/utils/language'
+import { t } from '@main/i18n'
 import type EventEmitter from 'events'
 import http from 'http'
 import { URL } from 'url'
@@ -7,36 +7,6 @@ import { URL } from 'url'
 import type { OAuthCallbackServerOptions } from './types'
 
 const logger = loggerService.withContext('Mcp:OAuthCallbackServer')
-
-function getTranslation(key: string): string {
-  const language = getAppLanguage()
-  const localeData = locales[language]
-
-  if (!localeData) {
-    logger.warn(`No locale data found for language: ${language}`)
-    return key
-  }
-
-  const translations = localeData.translation
-  if (!translations) {
-    logger.warn(`No translations found for language: ${language}`)
-    return key
-  }
-
-  const keys = key.split('.')
-  let value = translations
-
-  for (const k of keys) {
-    if (value && typeof value === 'object' && k in value) {
-      value = value[k]
-    } else {
-      logger.warn(`Translation key not found: ${key} (failed at: ${k})`)
-      return key // fallback to key if translation not found
-    }
-  }
-
-  return typeof value === 'string' ? value : key
-}
 
 export class CallBackServer {
   private server: Promise<http.Server>
@@ -60,8 +30,8 @@ export class CallBackServer {
             // Emit the code event
             this.events.emit('auth-code-received', code)
             // Send success response to browser
-            const title = getTranslation('settings.mcp.oauth.callback.title')
-            const message = getTranslation('settings.mcp.oauth.callback.message')
+            const title = t('settings.mcp.oauth.callback.title')
+            const message = t('settings.mcp.oauth.callback.message')
 
             res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
             res.end(`

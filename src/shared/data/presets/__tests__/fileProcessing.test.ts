@@ -1,7 +1,7 @@
+import { FILE_TYPE } from '@shared/types/file'
 import { describe, expect, it } from 'vitest'
 
 import { FILE_PROCESSOR_IDS } from '../../preference/preferenceTypes'
-import { FILE_TYPE } from '../../types/file'
 import {
   FileProcessingArtifactSchema,
   FileProcessingJobOutputSchema,

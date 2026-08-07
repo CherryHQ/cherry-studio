@@ -21,11 +21,10 @@ import type { XaiProvider, XaiProviderSettings } from '@ai-sdk/xai'
 import { createXai } from '@ai-sdk/xai'
 import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
-import type { OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
+import type { OpenRouterProvider, OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { customProvider } from 'ai'
+import { customProvider, type LanguageModel } from 'ai'
 
-import type { OpenRouterSearchConfig } from '../../plugins/built-in/webSearchPlugin'
 import { createOpenAICompatibleRerankingModel } from '../openaiCompatible/rerankingModel'
 import type {
   ExtensionConfigToIdResolutionMap,
@@ -63,7 +62,7 @@ const AzureExtension = ProviderExtension.create({
   name: 'azure',
   aliases: ['azure-openai'] as const,
   supportsImageGeneration: true,
-  create: (settings) => {
+  create: (settings): ProviderV3 => {
     const provider = createAzure(settings)
     // Default to chat mode (AI SDK defaults to responses API)
     return customProvider({
@@ -133,7 +132,7 @@ const CherryInExtension = ProviderExtension.create({
     {
       suffix: 'chat',
       name: 'CherryIN Chat',
-      transform: (provider) =>
+      transform: (provider): ProviderV3 =>
         customProvider({
           fallbackProvider: {
             ...provider,
@@ -202,7 +201,7 @@ const OpenAIExtension = ProviderExtension.create({
     {
       suffix: 'chat',
       name: 'OpenAI Chat',
-      resolveModel: (provider: OpenAIProvider, modelId: string) => provider.chat(modelId),
+      resolveModel: (provider: OpenAIProvider, modelId: string): LanguageModel => provider.chat(modelId),
       toolFactories: {
         webSearch:
           (provider: OpenAIProvider) =>
@@ -219,11 +218,16 @@ const OpenRouterExtension = ProviderExtension.create({
   supportsImageGeneration: true,
   create: createOpenRouter,
   toolFactories: {
-    webSearch: () => (config: OpenRouterSearchConfig) => ({
-      providerOptions: { openrouter: config }
+    webSearch:
+      (provider: OpenRouterProvider) =>
+      (config: NonNullable<Parameters<OpenRouterProvider['tools']['webSearch']>[0]>) => ({
+        tools: { webSearch: provider.tools.webSearch(config) }
+      }),
+    urlContext: (provider: OpenRouterProvider) => () => ({
+      tools: { urlContext: provider.tools.webFetch({}) }
     })
   }
-} as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, ProviderV3, 'openrouter'>)
+} as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, OpenRouterProvider, 'openrouter'>)
 
 const XaiExtension = ProviderExtension.create({
   name: 'xai',
@@ -255,7 +259,19 @@ const XaiExtension = ProviderExtension.create({
 /**
  * 核心 provider extensions 列表
  */
-export const coreExtensions = [
+type CoreExtensions = readonly [
+  typeof OpenAIExtension,
+  typeof AnthropicExtension,
+  typeof AzureExtension,
+  typeof GoogleExtension,
+  typeof XaiExtension,
+  typeof DeepSeekExtension,
+  typeof OpenRouterExtension,
+  typeof OpenAICompatibleExtension,
+  typeof CherryInExtension
+]
+
+export const coreExtensions: CoreExtensions = [
   OpenAIExtension,
   AnthropicExtension,
   AzureExtension,
@@ -265,7 +281,7 @@ export const coreExtensions = [
   OpenRouterExtension,
   OpenAICompatibleExtension,
   CherryInExtension
-] as const
+]
 
 /**
  * 核心 Provider IDs 类型

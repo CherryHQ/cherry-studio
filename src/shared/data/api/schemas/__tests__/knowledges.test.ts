@@ -39,15 +39,14 @@ describe('Knowledge base schemas', () => {
       groupId: GROUP_ID,
       chunkSize: 800,
       chunkOverlap: 120,
-      threshold: 0.5,
-      documentCount: 5,
-      searchMode: 'hybrid',
-      hybridAlpha: 0.7
+      threshold: 0.4,
+      documentCount: 5
     })
 
     expect(result.success).toBe(true)
     if (result.success) {
       expect(result.data.groupId).toBe(GROUP_ID)
+      expect(result.data.threshold).toBe(0.4)
     }
   })
 
@@ -76,29 +75,6 @@ describe('Knowledge base schemas', () => {
     ).toBe(false)
   })
 
-  it('rejects a non-bm25 search mode without an embedding model', () => {
-    expect(
-      CreateKnowledgeBaseSchema.safeParse({
-        name: 'KB',
-        searchMode: 'hybrid'
-      }).success
-    ).toBe(false)
-
-    expect(
-      CreateKnowledgeBaseSchema.safeParse({
-        name: 'KB',
-        searchMode: 'vector'
-      }).success
-    ).toBe(false)
-
-    expect(
-      CreateKnowledgeBaseSchema.safeParse({
-        name: 'KB',
-        searchMode: 'bm25'
-      }).success
-    ).toBe(true)
-  })
-
   it('rejects blank create group ids', () => {
     expect(
       CreateKnowledgeBaseSchema.safeParse({
@@ -110,19 +86,6 @@ describe('Knowledge base schemas', () => {
     ).toBe(false)
   })
 
-  it('does not apply product defaults in create schema', () => {
-    const result = CreateKnowledgeBaseSchema.safeParse({
-      name: 'KB',
-      dimensions: 1024,
-      embeddingModelId: 'embed-model'
-    })
-
-    expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data).not.toHaveProperty('searchMode')
-    }
-  })
-
   it('rejects invalid numeric tuning fields in create schema', () => {
     const result = CreateKnowledgeBaseSchema.safeParse({
       name: 'KB',
@@ -130,12 +93,19 @@ describe('Knowledge base schemas', () => {
       embeddingModelId: 'embed-model',
       chunkSize: 0,
       chunkOverlap: -1,
-      threshold: 2,
-      documentCount: 0,
-      hybridAlpha: -0.1
+      documentCount: 0
     })
 
     expect(result.success).toBe(false)
+
+    expect(
+      CreateKnowledgeBaseSchema.safeParse({
+        name: 'KB',
+        dimensions: 1024,
+        embeddingModelId: 'embed-model',
+        threshold: 1.1
+      }).success
+    ).toBe(false)
   })
 
   it('rejects invalid create chunk relationships', () => {
@@ -168,6 +138,7 @@ describe('Knowledge base schemas', () => {
     })
 
     expect(result.success).toBe(false)
+    expect(UpdateKnowledgeBaseSchema.safeParse({ threshold: 1.1 }).success).toBe(false)
   })
 
   it('validates restore-base DTOs', () => {
@@ -182,6 +153,26 @@ describe('Knowledge base schemas', () => {
     if (result.success) {
       expect(result.data.name).toBe('Base 1_bak')
     }
+  })
+
+  it('accepts a BM25-only restore and rejects half-set embedding config', () => {
+    expect(
+      RestoreKnowledgeBaseSchema.safeParse({
+        sourceBaseId: SOURCE_KNOWLEDGE_BASE_ID,
+        name: 'Base 1 BM25',
+        dimensions: null,
+        embeddingModelId: null
+      }).success
+    ).toBe(true)
+
+    expect(
+      RestoreKnowledgeBaseSchema.safeParse({
+        sourceBaseId: SOURCE_KNOWLEDGE_BASE_ID,
+        name: 'Base 1 BM25',
+        dimensions: 3072,
+        embeddingModelId: null
+      }).success
+    ).toBe(false)
   })
 
   it('rejects extra fields in restore-base DTOs', () => {
@@ -291,9 +282,7 @@ describe('Knowledge base schemas', () => {
     const result = UpdateKnowledgeBaseSchema.safeParse({
       chunkSize: -10,
       chunkOverlap: -1,
-      threshold: 1.1,
-      documentCount: 0,
-      hybridAlpha: 2
+      documentCount: 0
     })
 
     expect(result.success).toBe(false)
@@ -312,12 +301,30 @@ describe('Knowledge base schemas', () => {
       chunkOverlap: -1,
       threshold: 2,
       documentCount: 0,
-      hybridAlpha: 2,
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
     })
 
     expect(result.success).toBe(false)
+
+    expect(
+      KnowledgeBaseSchema.safeParse({
+        id: KNOWLEDGE_BASE_ID,
+        name: 'KB',
+        dimensions: 1024,
+        embeddingModelId: 'embed-model',
+        groupId: null,
+        status: 'completed',
+        error: null,
+        chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
+        chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        threshold: -0.1,
+        createdAt: '2026-04-10T00:00:00.000Z',
+        updatedAt: '2026-04-10T00:00:00.000Z'
+      }).success
+    ).toBe(false)
   })
 
   it('accepts nullable groupId and requires persisted defaults in entity schema', () => {
@@ -333,15 +340,12 @@ describe('Knowledge base schemas', () => {
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
       chunkStrategy: 'structured',
       chunkSeparator: '\\n\\n',
-      searchMode: 'hybrid',
+      threshold: 0.5,
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
     })
 
     expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data.searchMode).toBe('hybrid')
-    }
   })
 
   it('requires completed bases to have positive dimensions and allows failed bases with unknown dimensions', () => {
@@ -356,7 +360,6 @@ describe('Knowledge base schemas', () => {
       chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
       chunkStrategy: 'structured',
       chunkSeparator: '\\n\\n',
-      searchMode: 'hybrid',
       createdAt: '2026-04-10T00:00:00.000Z',
       updatedAt: '2026-04-10T00:00:00.000Z'
     }
@@ -372,28 +375,6 @@ describe('Knowledge base schemas', () => {
     expect(KnowledgeBaseSchema.safeParse({ ...failedBase, dimensions: null }).success).toBe(true)
     expect(KnowledgeBaseSchema.safeParse({ ...failedBase, dimensions: 0 }).success).toBe(false)
     expect(KnowledgeBaseSchema.safeParse({ ...failedBase, dimensions: 768 }).success).toBe(true)
-  })
-
-  it('forces a completed base without an embedding model to use bm25 search mode', () => {
-    const bm25Base = {
-      id: KNOWLEDGE_BASE_ID,
-      name: 'KB',
-      embeddingModelId: null,
-      dimensions: null,
-      groupId: null,
-      status: 'completed',
-      error: null,
-      chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-      chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-      chunkStrategy: 'structured',
-      chunkSeparator: '\\n\\n',
-      createdAt: '2026-04-10T00:00:00.000Z',
-      updatedAt: '2026-04-10T00:00:00.000Z'
-    }
-
-    expect(KnowledgeBaseSchema.safeParse({ ...bm25Base, searchMode: 'bm25' }).success).toBe(true)
-    expect(KnowledgeBaseSchema.safeParse({ ...bm25Base, searchMode: 'hybrid' }).success).toBe(false)
-    expect(KnowledgeBaseSchema.safeParse({ ...bm25Base, searchMode: 'vector' }).success).toBe(false)
   })
 
   it('requires persisted config to be present in entity schema', () => {
@@ -420,7 +401,6 @@ describe('Knowledge base schemas', () => {
         error: null,
         chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
         chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
-        searchMode: 'hybrid',
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success
@@ -435,7 +415,7 @@ describe('Knowledge base schemas', () => {
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
-        status: 'idle',
+        status: 'processing',
         error: null,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
@@ -449,7 +429,7 @@ describe('Knowledge base schemas', () => {
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
-        status: 'idle',
+        status: 'processing',
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success
@@ -566,7 +546,6 @@ it('accepts failed knowledge bases with a null embedding model id', () => {
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     chunkStrategy: 'structured',
     chunkSeparator: '\\n\\n',
-    searchMode: 'hybrid',
     createdAt: '2026-04-10T00:00:00.000Z',
     updatedAt: '2026-04-10T00:00:00.000Z'
   })
@@ -584,7 +563,6 @@ it('rejects invalid knowledge base status error combinations', () => {
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     chunkStrategy: 'structured',
     chunkSeparator: '\\n\\n',
-    searchMode: 'hybrid' as const,
     createdAt: '2026-04-10T00:00:00.000Z',
     updatedAt: '2026-04-10T00:00:00.000Z'
   }
@@ -639,12 +617,29 @@ it('rejects invalid knowledge base status error combinations', () => {
   ).toBe(false)
 })
 
-it('rejects embedding model changes in patch schema', () => {
+it('accepts a paired embedding model + dimensions change in patch schema', () => {
+  expect(
+    UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: 'openai::text-embedding-3-small', dimensions: 1536 })
+      .success
+  ).toBe(true)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: null, dimensions: null }).success).toBe(true)
+  expect(UpdateKnowledgeBaseSchema.safeParse({}).success).toBe(true)
+})
+
+it('rejects a half-set embedding model / dimensions pair in patch schema', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: 'openai::text-embedding-3-small' }).success).toBe(
     false
   )
+  expect(UpdateKnowledgeBaseSchema.safeParse({ dimensions: 1536 }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: null }).success).toBe(false)
-  expect(UpdateKnowledgeBaseSchema.safeParse({}).success).toBe(true)
+})
+
+it('rejects a half-null embedding model / dimensions pair in patch schema even when both are provided', () => {
+  expect(UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: null, dimensions: 1536 }).success).toBe(false)
+  expect(
+    UpdateKnowledgeBaseSchema.safeParse({ embeddingModelId: 'openai::text-embedding-3-small', dimensions: null })
+      .success
+  ).toBe(false)
 })
 
 it('accepts nullable model and processor clears in patch schema', () => {
@@ -665,23 +660,19 @@ it('accepts nullable model and processor clears in patch schema', () => {
 it('rejects non-nullable optional config null clears in patch schema', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkSize: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkOverlap: null }).success).toBe(false)
-  expect(UpdateKnowledgeBaseSchema.safeParse({ searchMode: null }).success).toBe(false)
-  expect(UpdateKnowledgeBaseSchema.safeParse({ threshold: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ documentCount: null }).success).toBe(false)
-  expect(UpdateKnowledgeBaseSchema.safeParse({ hybridAlpha: null }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ chunkSize: 1024, chunkOverlap: 200 }).success).toBe(true)
   expect(
     UpdateKnowledgeBaseSchema.safeParse({
       rerankModelId: 'rerank-1',
       fileProcessorId: 'processor-1',
-      threshold: 0.5,
-      documentCount: 5,
-      hybridAlpha: 0.7
+      threshold: 0.3,
+      documentCount: 5
     }).success
   ).toBe(true)
 })
 
-it('keeps patch groupId aligned with topic semantics', () => {
+it('accepts only null or a non-blank groupId in knowledge patches', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: null }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: GROUP_ID }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: '   ' }).success).toBe(false)
@@ -700,7 +691,6 @@ describe('isCompletedKnowledgeBase', () => {
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     chunkStrategy: 'structured',
     chunkSeparator: '\\n\\n',
-    searchMode: 'hybrid',
     createdAt: '2026-04-10T00:00:00.000Z',
     updatedAt: '2026-04-10T00:00:00.000Z'
   })
@@ -713,8 +703,7 @@ describe('isCompletedKnowledgeBase', () => {
     const bm25Base = KnowledgeBaseSchema.parse({
       ...completedBase,
       embeddingModelId: null,
-      dimensions: null,
-      searchMode: 'bm25'
+      dimensions: null
     })
 
     expect(isCompletedKnowledgeBase(bm25Base)).toBe(true)
@@ -755,7 +744,6 @@ describe('isCompletedVectorKnowledgeBase', () => {
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     chunkStrategy: 'structured',
     chunkSeparator: '\\n\\n',
-    searchMode: 'hybrid',
     createdAt: '2026-04-10T00:00:00.000Z',
     updatedAt: '2026-04-10T00:00:00.000Z'
   })
@@ -768,8 +756,7 @@ describe('isCompletedVectorKnowledgeBase', () => {
     const bm25Base = KnowledgeBaseSchema.parse({
       ...vectorBase,
       embeddingModelId: null,
-      dimensions: null,
-      searchMode: 'bm25'
+      dimensions: null
     })
 
     expect(isCompletedVectorKnowledgeBase(bm25Base)).toBe(false)

@@ -1,36 +1,12 @@
-import type { Topic } from '@renderer/types/topic'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { CONTENT_TYPES, processMessageContent } from '../knowledge'
 
-// Mock modules to prevent circular dependencies during test loading
-vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
-  default: {}
-}))
-
-vi.mock('@renderer/components/chat/messages/frame/MessageMenuBar', () => ({
-  default: {}
-}))
-
-// Simple mocks
 vi.mock('@renderer/hooks/useTopic', () => ({
   getTopicMessages: vi.fn()
 }))
 
 describe('Topic Knowledge Functions', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  const createTestTopic = (): Topic => ({
-    id: 'test-topic-1',
-    assistantId: 'test-assistant',
-    name: 'Test Topic',
-    createdAt: '2023-01-01T00:00:00Z',
-    updatedAt: '2023-01-01T00:00:00Z',
-    messages: []
-  })
-
   describe('CONTENT_TYPES', () => {
     it('should have all expected content types', () => {
       expect(CONTENT_TYPES.TEXT).toBe('text')
@@ -45,36 +21,18 @@ describe('Topic Knowledge Functions', () => {
     })
   })
 
-  describe('Topic Data Structure', () => {
-    it('should create valid topic structure', () => {
-      const topic = createTestTopic()
-
-      expect(topic).toHaveProperty('id')
-      expect(topic).toHaveProperty('name')
-      expect(topic).toHaveProperty('assistantId')
-      expect(topic).toHaveProperty('createdAt')
-      expect(topic).toHaveProperty('updatedAt')
-      expect(topic).toHaveProperty('messages')
-      expect(Array.isArray(topic.messages)).toBe(true)
-    })
-  })
-
   describe('Topic Knowledge Functions Integration', () => {
     it('should be importable without circular dependencies', async () => {
       // This test verifies that the knowledge functions can be imported
       // without causing circular dependency issues
       const knowledgeModule = await import('../knowledge')
+      const knowledgeContentModule = await import('@renderer/services/knowledgeContent')
 
-      expect(knowledgeModule).toHaveProperty('analyzeTopicContent')
-      expect(knowledgeModule).toHaveProperty('processTopicContent')
+      expect(knowledgeContentModule).toHaveProperty('analyzeTopicContent')
+      expect(knowledgeContentModule).toHaveProperty('processTopicContent')
       expect(knowledgeModule).toHaveProperty('CONTENT_TYPES')
-      expect(typeof knowledgeModule.analyzeTopicContent).toBe('function')
-      expect(typeof knowledgeModule.processTopicContent).toBe('function')
-    })
-
-    it('should handle getTopicMessages mock correctly', async () => {
-      const { getTopicMessages } = await import('@renderer/hooks/useTopic')
-      expect(typeof getTopicMessages).toBe('function')
+      expect(typeof knowledgeContentModule.analyzeTopicContent).toBe('function')
+      expect(typeof knowledgeContentModule.processTopicContent).toBe('function')
     })
   })
 

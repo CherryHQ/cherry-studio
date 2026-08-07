@@ -3,13 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // i18n is only used for display strings (assistant name, error text); return
 // the defaultValue so assertions stay independent of the translation catalog.
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: vi.fn((_key: string, options?: { defaultValue?: string }) => options?.defaultValue ?? _key)
   }
 }))
 
-import { ImportService } from '../ImportService'
+import { importService } from '../ImportService'
 
 /**
  * Minimal ChatGPT export shape — enough to pass `validate()` and exercise the
@@ -49,7 +49,7 @@ function chatgptExport() {
   ])
 }
 
-describe('ImportService.importConversations', () => {
+describe('importService.importConversations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -62,10 +62,10 @@ describe('ImportService.importConversations', () => {
     vi.mocked(dataApiService.post).mockImplementation(async (path: string, options: any) => {
       const returnedId = path === '/assistants' ? nextId('asst') : path === '/topics' ? nextId('topic') : nextId('msg')
       calls.push({ path, body: options?.body, returnedId })
-      return { id: returnedId }
+      return path === '/assistants' ? { id: returnedId, name: 'ChatGPT Import', emoji: '🤖' } : { id: returnedId }
     })
 
-    const response = await ImportService.importConversations(chatgptExport())
+    const response = await importService.importConversations(chatgptExport())
 
     expect(response.success).toBe(true)
     expect(response.assistant?.id).toBe('asst_1')
@@ -86,16 +86,18 @@ describe('ImportService.importConversations', () => {
     // subsequent message's parentId equals the previous message's returned id.
     const messageCalls = calls.filter((c) => c.path.includes('/messages'))
     expect(messageCalls).toHaveLength(3)
-    expect(messageCalls[0].body.parentId).toBeNull()
-    expect(messageCalls[1].body.parentId).toBe(messageCalls[0].returnedId)
+    expect(messageCalls.map((c) => c.body.parentId)).toEqual([null, messageCalls[0].returnedId, null])
 
     // Text content is folded into a single AI SDK text part.
     expect(messageCalls[0].body.data.parts).toEqual([{ type: 'text', text: 'Hi' }])
 
-    // Assistant messages carry a model snapshot (drives the model badge); user
-    // messages do not.
-    expect(messageCalls[0].body.modelSnapshot).toBeUndefined()
-    expect(messageCalls[1].body.modelSnapshot).toMatchObject({ id: 'gpt-5', provider: 'openai' })
+    // Assistant messages freeze the producing author (with the source model
+    // nested) so the header survives rename/delete; user messages do not.
+    expect(messageCalls[0].body.messageSnapshot).toBeUndefined()
+    expect(messageCalls[1].body.messageSnapshot).toMatchObject({
+      id: 'asst_1',
+      model: { id: 'gpt-5', provider: 'openai' }
+    })
 
     // Imported messages are persisted as completed.
     expect(messageCalls.every((c) => c.body.status === 'success')).toBe(true)
@@ -107,9 +109,23 @@ describe('ImportService.importConversations', () => {
   })
 
   it('returns a failure response without creating an assistant for an unsupported format', async () => {
-    const response = await ImportService.importConversations('definitely not json')
+    const response = await importService.importConversations('definitely not json')
 
     expect(response.success).toBe(false)
     expect(vi.mocked(dataApiService.post)).not.toHaveBeenCalled()
+  })
+
+  it('returns the persistence error without reporting partial counts', async () => {
+    vi.mocked(dataApiService.post).mockRejectedValueOnce(new Error('database unavailable'))
+
+    const response = await importService.importConversations(chatgptExport())
+
+    expect(response).toMatchObject({
+      success: false,
+      topicsCount: 0,
+      messagesCount: 0,
+      error: 'database unavailable'
+    })
+    expect(vi.mocked(dataApiService.post)).toHaveBeenCalledOnce()
   })
 })

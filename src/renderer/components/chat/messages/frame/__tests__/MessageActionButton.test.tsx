@@ -2,8 +2,8 @@ import { render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@renderer/components/Buttons', () => ({
-  ActionIconButton: ({
+vi.mock('@renderer/components/ActionIconButton', () => ({
+  default: ({
     active,
     className,
     icon,

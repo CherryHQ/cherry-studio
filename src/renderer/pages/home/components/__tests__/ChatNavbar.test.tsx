@@ -20,11 +20,11 @@ vi.mock('@data/hooks/usePreference', () => ({
   usePreference: () => [preferenceMock.showSidebar, preferenceMock.setShowSidebar]
 }))
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   NavbarHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/components/Icons', () => ({
+vi.mock('@renderer/components/icons/SidebarToggleIcons', () => ({
   SidebarCollapseIcon: () => <span data-testid="collapse-icon" />,
   SidebarExpandIcon: () => <span data-testid="expand-icon" />
 }))
@@ -41,39 +41,30 @@ describe('ChatNavbar', () => {
     preferenceMock.setShowSidebar.mockClear()
   })
 
-  it('uses the conversation style without active state when the sidebar is hidden', () => {
-    render(<ChatNavbar />)
+  it('reflects sidebar visibility through the toggle state', () => {
+    const { rerender } = render(<ChatNavbar />)
 
-    const [toggle] = screen.getAllByRole('button')
+    expect(screen.getByRole('button', { name: 'navbar.show_sidebar' })).toHaveAttribute('aria-pressed', 'false')
 
-    expect(toggle).toHaveAttribute('aria-pressed', 'false')
-    expect(toggle).not.toHaveAttribute('data-active')
-    expect(toggle).toHaveClass('hover:bg-accent/60')
-  })
-
-  it('offers a new-topic button next to the toggle when the sidebar is hidden', () => {
-    render(<ChatNavbar />)
-
-    expect(screen.getByRole('button', { name: 'chat.conversation.new' })).toBeInTheDocument()
-  })
-
-  it('hides the new-topic button when the sidebar is visible', () => {
     preferenceMock.showSidebar = true
+    rerender(<ChatNavbar />)
+
+    expect(screen.getByRole('button', { name: 'navbar.hide_sidebar' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it.each([false, true])('does not render a new-topic button when sidebar visibility is %j', (showSidebar) => {
+    preferenceMock.showSidebar = showSidebar
 
     render(<ChatNavbar />)
-
     expect(screen.queryByRole('button', { name: 'chat.conversation.new' })).not.toBeInTheDocument()
   })
 
-  it('keeps the sidebar toggle inactive when the sidebar is visible', () => {
-    preferenceMock.showSidebar = true
+  it('places the conversation controls host after the sidebar toggle', () => {
+    const { container } = render(<ChatNavbar />)
 
-    render(<ChatNavbar />)
+    const toggle = screen.getByRole('button', { name: 'navbar.show_sidebar' })
+    const controls = container.querySelector('[data-conversation-topbar-controls]')
 
-    const [toggle] = screen.getAllByRole('button')
-
-    expect(toggle).toHaveAttribute('aria-pressed', 'true')
-    expect(toggle).not.toHaveAttribute('data-active')
-    expect(toggle).not.toHaveClass('bg-secondary')
+    expect(toggle.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })

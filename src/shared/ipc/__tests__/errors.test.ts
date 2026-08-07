@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { IpcError, IpcErrorCode, type SerializedIpcError } from '../errors'
+import { IpcError, IpcErrorCode, type SerializedIpcError } from '../errors/IpcError'
 
 describe('IpcError', () => {
   it('is an Error subclass carrying a string code', () => {

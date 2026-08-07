@@ -217,3 +217,14 @@ describe('QqAdapter passive reply', () => {
     expect(adapter.passiveReplies.has('group:g1:inbound-1')).toBe(false)
   })
 })
+
+describe('ChannelAdapter.sendFile default', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('rejects with the channel type for adapters that inherit the base default (QQ)', async () => {
+    const adapter = createAdapter()
+    const file = { filename: 'a.txt', data: 'eA==', media_type: 'text/plain', size: 1 }
+
+    await expect(adapter.sendFile('100', file)).rejects.toThrow('Channel type "qq" does not support sending files')
+  })
+})

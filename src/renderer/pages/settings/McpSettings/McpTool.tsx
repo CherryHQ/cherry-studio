@@ -1,6 +1,6 @@
 import type { ColumnDef } from '@cherrystudio/ui'
 import { Badge, ColFlex, DataTable, Flex, InfoTooltip, RequiredMark, Switch, Tooltip } from '@cherrystudio/ui'
-import { McpLogo } from '@renderer/components/Icons'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
 import type { McpTool } from '@renderer/types/tool'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -73,11 +73,11 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
       case 'string':
         return 'border-primary/30 bg-primary/10 text-primary'
       case 'number':
-        return 'border-success/30 bg-success/10 text-success'
+        return 'border-success-border bg-success-subtle text-success-subtle-foreground'
       case 'boolean':
         return 'border-purple-500/30 bg-purple-500/10 text-purple-600 dark:text-purple-400'
       case 'object':
-        return 'border-warning/30 bg-warning/10 text-warning'
+        return 'border-warning-border bg-warning-subtle text-warning-subtle-foreground'
       case 'array':
         return 'border-cyan-500/30 bg-cyan-500/10 text-cyan-600 dark:text-cyan-400'
       default:
@@ -96,10 +96,10 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
         <Flex className="items-center gap-2">
           {itemType && <Badge className={getTypeBadgeClass(prop.type)}>{itemType}</Badge>}
         </Flex>
-        {prop.description && <p className="m-0 text-foreground-secondary text-sm leading-5">{prop.description}</p>}
+        {prop.description && <p className="m-0 text-muted-foreground text-sm leading-5">{prop.description}</p>}
         {prop.enum && (
           <div className="mt-1">
-            <span className="text-foreground-secondary text-sm">
+            <span className="text-muted-foreground text-sm">
               {t('settings.mcp.tools.inputSchema.enum.allowedValues')}
             </span>
             <div className="mt-1 flex flex-wrap gap-1">
@@ -120,7 +120,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
           prop.items?.type === 'object' &&
           prop.items.properties && (
             <div className="mt-1">
-              <span className="text-foreground-secondary text-sm italic">items:</span>
+              <span className="text-muted-foreground text-sm italic">items:</span>
               {renderSchemaProperties(prop.items.properties, prop.items.required, depth + 1)}
             </div>
           )}
@@ -179,14 +179,16 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
         return (
           <ColFlex className="gap-1">
             <Flex className="items-center gap-1">
-              <span className="truncate font-medium text-foreground text-sm" title={tool.name}>
+              <span className="truncate text-foreground text-sm" title={tool.name}>
                 {tool.name}
               </span>
               <InfoTooltip content={`ID: ${tool.id}`} />
             </Flex>
             {tool.description && (
-              <Tooltip content={tool.description}>
-                <p className="m-0 line-clamp-1 text-[13px] text-foreground-secondary leading-5">{tool.description}</p>
+              <Tooltip content={tool.description} fullWidthTrigger>
+                <p className="m-0 line-clamp-1 block w-full min-w-0 text-[13px] text-muted-foreground leading-5">
+                  {tool.description}
+                </p>
               </Tooltip>
             )}
           </ColFlex>
@@ -214,7 +216,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
       id: 'autoApprove',
       header: () => (
         <Flex className="items-center justify-center gap-1">
-          <Zap size={14} color="red" />
+          <Zap size={14} color="var(--error)" />
           <span className="font-medium">{t('settings.mcp.tools.autoApprove.label')}</span>
         </Flex>
       ),
@@ -235,6 +237,8 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
       onExpandedRowChange={setExpandedRowKeys}
       renderExpandedRow={(tool) => renderToolProperties(tool)}
       getCanExpand={(tool) => Boolean(tool.inputSchema?.properties)}
+      className="bg-transparent [&_[data-slot=table-cell]]:bg-transparent [&_[data-slot=table-head]]:bg-transparent [&_[data-slot=table-header]]:bg-transparent [&_[data-slot=table-header]_[data-slot=table-row]]:bg-transparent"
+      rowClassName="bg-transparent"
     />
   )
 }

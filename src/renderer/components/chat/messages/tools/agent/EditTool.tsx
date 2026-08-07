@@ -1,9 +1,9 @@
+import type { EditToolInput, EditToolOutput } from '../shared/agentToolTypes'
+import { AgentToolsType } from '../shared/agentToolTypes'
+import { ClickableFilePath } from '../shared/ClickableFilePath'
+import { ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { AgentFileDiffView } from './AgentFileDiffView'
-import { ClickableFilePath } from './ClickableFilePath'
-import { ToolHeader } from './GenericTools'
-import type { EditToolInput, EditToolOutput } from './types'
-import { AgentToolsType } from './types'
 
 function EditToolChildren({ input, output }: { input?: EditToolInput; output?: EditToolOutput }) {
   const outputText = typeof output === 'string' ? output : undefined

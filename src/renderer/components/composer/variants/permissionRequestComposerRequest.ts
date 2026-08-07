@@ -1,4 +1,4 @@
-import { AgentToolsType } from '@renderer/components/chat/messages/tools/agent'
+import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import {
   APPROVAL_REQUESTED,
   buildToolResponseFromPart,

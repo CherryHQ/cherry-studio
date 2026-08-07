@@ -1,5 +1,4 @@
-import { ipcApi } from '@renderer/ipc'
-import { useIpcOn } from '@renderer/ipc/useIpcOn'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { useEffect, useState } from 'react'
 
 /**

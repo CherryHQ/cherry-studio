@@ -11,7 +11,7 @@ const { getByIdMock, ocrMock } = vi.hoisted(() => ({
   getByIdMock: vi.fn<(id: string) => Promise<{ ext: string | null }>>(),
   ocrMock: vi.fn<() => Promise<string>>()
 }))
-vi.mock('@main/core/application', () => ({
+vi.mock('@application', () => ({
   application: {
     get: (name: string) => (name === 'FileProcessingService' ? { ocrImage: ocrMock } : { getById: getByIdMock })
   }
@@ -20,13 +20,14 @@ vi.mock('@main/core/application', () => ({
 const { resolveMock } = vi.hoisted(() => ({ resolveMock: vi.fn() }))
 vi.mock('../fileProcessor', () => ({ materializeNativeFilePart: resolveMock }))
 
-const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string>>() }))
+const { extractMock } = vi.hoisted(() => ({ extractMock: vi.fn<() => Promise<string | null>>() }))
 vi.mock('../attachmentTextExtraction', () => ({
   extractDocumentText: extractMock,
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
 import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
+import { toModelMessages } from '../messageRules'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
@@ -81,11 +82,70 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(out.parts)[0]).toBe('Attached file "a.png":\nocr body')
   })
 
+  it('falls back to the native image when OCR finds no text', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockResolvedValueOnce('   ')
+    resolveMock.mockImplementation(async (p) => p)
+    const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
+    expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(1)
+    expect(resolveMock).toHaveBeenCalled()
+    expect(extractMock).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the native image when OCR is unconfigured or fails', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
+    resolveMock.mockImplementation(async (p) => p)
+    const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
+    expect(out.parts.filter((p) => p.type === 'file')).toHaveLength(1)
+    expect(resolveMock).toHaveBeenCalled()
+  })
+
+  it('only forwards OCR fallback images through the full non-vision conversion pipeline', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: 'png' })
+    ocrMock.mockResolvedValueOnce('   ')
+    resolveMock.mockImplementation(async (part) => ({ ...part, url: 'data:image/png;base64,AA' }))
+    const legacy = {
+      type: 'file',
+      url: 'file:///x/legacy.png',
+      mediaType: 'image/png',
+      filename: 'legacy.png'
+    } as CherryMessagePart
+
+    const prepared = await run([fileWithEntry('e1', 'fallback.png', 'image/png'), legacy], NONE)
+    const model = await toModelMessages(prepared, { image: false, video: false, audio: false })
+
+    expect(resolveMock).toHaveBeenCalledTimes(2)
+    expect(prepared[0].parts).toEqual([
+      expect.objectContaining({ type: 'file', filename: 'fallback.png', url: 'data:image/png;base64,AA' }),
+      { type: 'text', text: '[image attachment omitted: this model does not accept image input]' }
+    ])
+    expect(JSON.stringify(model)).toContain('data:image/png;base64,AA')
+    expect(JSON.stringify(model)).toContain('image attachment omitted')
+    expect(JSON.stringify(model)).not.toContain('legacy.png')
+  })
+
   it('inlines extracted text for office docs', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'docx' })
     extractMock.mockResolvedValueOnce('word body')
     const [out] = await run([fileWithEntry('e1', 'a.docx', 'application/octet-stream')], ALL)
     expect(textOf(out.parts)[0]).toBe('Attached file "a.docx":\nword body')
+  })
+
+  it('inlines extracted text for an extensionless text file', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: null })
+    extractMock.mockResolvedValueOnce('license body')
+    const [out] = await run([fileWithEntry('e1', 'LICENSE', 'application/octet-stream')], NONE)
+    expect(textOf(out.parts)[0]).toBe('Attached file "LICENSE":\nlicense body')
+  })
+
+  it('keeps an extensionless binary file unsupported', async () => {
+    getByIdMock.mockResolvedValueOnce({ ext: null })
+    extractMock.mockResolvedValueOnce(null)
+    const [out] = await run([fileWithEntry('e1', 'payload', 'application/octet-stream')], NONE)
+    expect(textOf(out.parts)[0]).toBe(
+      'Attached file "payload":\nCannot read the attached file "payload" as text (unsupported file type).'
+    )
   })
 
   it('keeps a native PDF inline, extracts text for a non-native one', async () => {
@@ -148,10 +208,10 @@ describe('prepareChatMessages — routing', () => {
     expect(text).not.toContain('read_file')
   })
 
-  it('degrades a failed attachment to a note instead of rejecting the whole request', async () => {
-    // Default-config trigger: non-vision image + OCR not configured → ocr throws.
+  it('degrades to a note when both OCR and the native image fallback fail', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
+    resolveMock.mockResolvedValueOnce(null)
     const [out] = await run([fileWithEntry('e1', 'a.png', 'image/png')], NONE)
     expect(textOf(out.parts)[0]).toBe('Attached file "a.png": [could not read this file].')
   })

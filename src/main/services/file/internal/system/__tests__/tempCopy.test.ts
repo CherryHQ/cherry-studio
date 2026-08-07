@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -22,7 +22,7 @@ const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
 const { withTempCopy } = await import('../tempCopy')
 const { createInternal } = await import('../../entry/create')
-const { exists } = await import('@main/utils/file/fs')
+const { exists } = await import('@main/utils/file')
 
 import type { FileManagerDeps } from '../../deps'
 
@@ -62,7 +62,8 @@ describe('internal/system/tempCopy', () => {
         onDanglingStateChanged: vi.fn(() => ({ dispose: () => {} })),
         clear: vi.fn()
       },
-      versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() }
+      versionCache: { get: vi.fn(), set: vi.fn(), invalidate: vi.fn(), clear: vi.fn() },
+      contentWriteLock: {} as FileManagerDeps['contentWriteLock']
     }
   })
 
@@ -72,7 +73,13 @@ describe('internal/system/tempCopy', () => {
   })
 
   it('runs fn with a tmp path that contains a copy of the source content', async () => {
-    const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x42]), name: 'a', ext: 'bin' })
+    const e = await createInternal(deps, {
+      source: 'bytes',
+      data: new Uint8Array([0x42]),
+      name: 'a',
+      ext: 'bin',
+      cleanupPolicy: 'manual'
+    })
     const seen: string[] = []
     const result = await withTempCopy(deps, e.id, async (tmpPath) => {
       seen.push(tmpPath)
@@ -82,11 +89,17 @@ describe('internal/system/tempCopy', () => {
     })
     expect(result).toBe(seen[0].length)
     // tmp path is cleaned up
-    expect(await exists(seen[0] as FilePath)).toBe(false)
+    expect(await exists(seen[0] as AbsoluteFilePath)).toBe(false)
   })
 
   it('cleans up tmp dir even when fn throws', async () => {
-    const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'a', ext: 'bin' })
+    const e = await createInternal(deps, {
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'a',
+      ext: 'bin',
+      cleanupPolicy: 'manual'
+    })
     let seenPath = ''
     await expect(
       withTempCopy(deps, e.id, async (tmpPath) => {
@@ -94,11 +107,17 @@ describe('internal/system/tempCopy', () => {
         throw new Error('library failed')
       })
     ).rejects.toThrow(/library failed/)
-    expect(await exists(seenPath as FilePath)).toBe(false)
+    expect(await exists(seenPath as AbsoluteFilePath)).toBe(false)
   })
 
   it('writes by the library to the tmp copy do not affect the source', async () => {
-    const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'a', ext: 'bin' })
+    const e = await createInternal(deps, {
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'a',
+      ext: 'bin',
+      cleanupPolicy: 'manual'
+    })
     const sourcePhysical = path.join(filesDir, `${e.id}.bin`)
     await withTempCopy(deps, e.id, async (tmpPath) => {
       await writeFile(tmpPath, new Uint8Array([0xff, 0xff, 0xff]))
@@ -112,10 +131,16 @@ describe('internal/system/tempCopy', () => {
     // let the cleanup error replace fn's. With the try/catch wrapper, fn's
     // error must propagate while cleanup's failure surfaces only through
     // loggerService.
-    const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'a', ext: 'bin' })
+    const e = await createInternal(deps, {
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'a',
+      ext: 'bin',
+      cleanupPolicy: 'manual'
+    })
     const fnErr = new Error('library failed')
     const cleanupErr = Object.assign(new Error('EBUSY: dir held by external process'), { code: 'EBUSY' })
-    const fsModule = await import('@main/utils/file/fs')
+    const fsModule = await import('@main/utils/file')
     vi.spyOn(fsModule, 'removeDir').mockRejectedValueOnce(cleanupErr)
 
     await expect(
@@ -133,9 +158,15 @@ describe('internal/system/tempCopy', () => {
   it('logs cleanup failure but still resolves with fn result on the happy path', async () => {
     // The cleanup failure must not flip a successful fn outcome to a
     // rejection — caller already got its result; the leak is a side effect.
-    const e = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0x01]), name: 'a', ext: 'bin' })
+    const e = await createInternal(deps, {
+      source: 'bytes',
+      data: new Uint8Array([0x01]),
+      name: 'a',
+      ext: 'bin',
+      cleanupPolicy: 'manual'
+    })
     const cleanupErr = Object.assign(new Error('EACCES'), { code: 'EACCES' })
-    const fsModule = await import('@main/utils/file/fs')
+    const fsModule = await import('@main/utils/file')
     vi.spyOn(fsModule, 'removeDir').mockRejectedValueOnce(cleanupErr)
 
     const result = await withTempCopy(deps, e.id, async () => 'ok')

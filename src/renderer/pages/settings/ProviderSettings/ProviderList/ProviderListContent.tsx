@@ -226,13 +226,13 @@ export default function ProviderListContent({
 
   return (
     <Scrollbar ref={scrollerRef} className={providerListClasses.scroller}>
-      {hasResults ? (
-        <div className={providerListClasses.sectionStack}>
+      <div className={providerListClasses.sectionStack}>
+        {hasResults ? (
           <section className={providerListClasses.section}>{hasAnyGroup ? renderGrouped() : renderFlat()}</section>
-        </div>
-      ) : (
-        <div className={providerListClasses.emptyState}>{t('common.no_results')}</div>
-      )}
+        ) : (
+          <div className={providerListClasses.emptyState}>{t('common.no_results')}</div>
+        )}
+      </div>
     </Scrollbar>
   )
 }

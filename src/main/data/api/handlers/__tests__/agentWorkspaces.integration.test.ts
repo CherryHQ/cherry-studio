@@ -61,7 +61,7 @@ describe('agentWorkspaceHandlers integration', () => {
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
         params: { workspaceId: workspace.id }
       } as never)
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ deletedIds: expect.arrayContaining([first.id, second.id]) })
 
     expect(await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspace.id))).toEqual([])
     expect(

@@ -37,10 +37,11 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
         // Cherry-owned directories (eligible for auto-ensure)
         'feature.files.data': '/mock/userData/Data/Files',
         'feature.notes.data': '/mock/userData/Data/Notes',
+        'feature.agents.system_workspaces': '/mock/userData/Data/Agents/system',
         'cherry.bin': '/mock/home/.cherrystudio/bin',
         // Cherry-owned files (auto-ensure dirname only)
         'feature.copilot.token_file': '/mock/home/.cherrystudio/config/.copilot_token',
-        'app.database.file': '/mock/userData/cherrystudio.sqlite',
+        'app.database.file': '/mock/userData/Data/cherrystudio.sqlite',
         // NO_ENSURE — exact key entries (build artifacts)
         'app.exe_file': '/mock/install/CherryStudio',
         'app.extra_resources': '/mock/resources',
@@ -51,14 +52,15 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
   }
 })
 
+// The `@application` alias resolves directly to `Application.ts`, so the
+// global `vi.mock('@application')` in tests/main.setup.ts would otherwise
+// intercept the deep `Application.ts` import below and hand back the stub
+// singleton (no real `getInstance` / `getPath`). Unmock it here so this suite
+// exercises the REAL Application class.
+vi.unmock('@application')
+
 import { Application } from '@main/core/application/Application'
 import { buildPathRegistry } from '@main/core/paths/pathRegistry'
-
-// Bypass the global mock of '@application' (which exports a stub
-// `application` proxy with a no-op bootstrap) by importing the real
-// Application class directly via its file path. The global mock only
-// intercepts the directory/index path, leaving `Application.ts` reachable
-// via the `@main/*` alias.
 
 describe('Application.getPath', () => {
   const app = Application.getInstance()
@@ -145,7 +147,7 @@ describe('Application.getPath', () => {
     it('mkdirs path.dirname(base) for a key whose name ends with ".file"', () => {
       app.getPath('app.database.file')
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/userData', { recursive: true })
+      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/userData/Data', { recursive: true })
     })
 
     it('does not mkdir for keys in the NO_ENSURE exact list (app.exe_file)', () => {
@@ -155,6 +157,11 @@ describe('Application.getPath', () => {
 
     it('does not mkdir for keys in the NO_ENSURE exact list (app.extra_resources)', () => {
       app.getPath('app.extra_resources')
+      expect(fs.mkdirSync).not.toHaveBeenCalled()
+    })
+
+    it('does not mkdir the system-workspace root while a DataApi service only resolves its path', () => {
+      expect(app.getPath('feature.agents.system_workspaces')).toBe('/mock/userData/Data/Agents/system')
       expect(fs.mkdirSync).not.toHaveBeenCalled()
     })
 

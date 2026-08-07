@@ -1,5 +1,6 @@
-export { canonicalizeAbsolutePath } from './canonicalize'
+export { type CanonicalFilePath, CanonicalFilePathSchema, canonicalizeFilePath } from './canonicalize'
 export {
+  archiveExts,
   audioExts,
   codeLangExts,
   customTextExts,
@@ -30,4 +31,4 @@ export {
   type TreeNodeStats,
   type TreeRootPath
 } from './tree'
-export { fileUrlToPath, isDangerExt, toFileUrl, toSafeFileUrl } from './url'
+export { fileUrlToPath, isDangerExt, normalizeExt, toFileUrl, toSafeFileUrl } from './url'

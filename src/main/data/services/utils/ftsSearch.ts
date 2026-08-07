@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { stripMarkdownFormatting } from '@main/utils/searchSnippet'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
+import type { CursorPaginationResponse } from '@shared/data/api/types'
 import { buildKeywordRegexes, type KeywordMatchMode, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import { type SQL, sql } from 'drizzle-orm'
 

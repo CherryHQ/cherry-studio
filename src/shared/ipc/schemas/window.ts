@@ -34,7 +34,21 @@ export const windowRequestSchemas = {
   'window.is_full_screen': defineRoute({ input: z.void(), output: z.boolean() }),
   // The init data WindowManager stored for the caller window; its shape varies per
   // window type, so it is opaque (unknown) and the consumer casts (see useWindowInitData).
-  'window.get_init_data': defineRoute({ input: z.void(), output: z.unknown() })
+  'window.get_init_data': defineRoute({ input: z.void(), output: z.unknown() }),
+
+  // window.sub.* — the caller sub-window pins itself. The handler re-checks that
+  // ctx.senderId resolves to a SubWindow-type window (main window is rejected) and
+  // returns whether the pin was applied.
+  'window.sub.set_always_on_top': defineRoute({ input: z.boolean(), output: z.boolean() }),
+
+  // window.main.* — DIRECTED at the main-window singleton (handler resolves it via
+  // MainWindowService, ignoring the caller), not the sender's own window.
+  'window.main.set_minimum_size': defineRoute({
+    input: z.object({ width: z.number(), height: z.number() }),
+    output: z.void()
+  }),
+  'window.main.reset_minimum_size': defineRoute({ input: z.void(), output: z.void() }),
+  'window.main.reload': defineRoute({ input: z.void(), output: z.void() })
 }
 
 // ── Event: main→renderer pushes (pure types, never parsed) ──

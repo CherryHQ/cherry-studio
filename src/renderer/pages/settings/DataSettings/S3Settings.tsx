@@ -4,16 +4,24 @@ import AppLogo from '@renderer/assets/images/logo.png'
 import { S3BackupManager } from '@renderer/components/S3BackupManager'
 import { S3BackupModal, useS3BackupModal } from '@renderer/components/S3Modals'
 import Selector from '@renderer/components/Selector'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingHelpText,
+  SettingRow,
+  SettingRowTitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
+import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useTheme } from '@renderer/hooks/useTheme'
-import { getBackupSyncState, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
 import { FolderOpen, RefreshCw, Save } from 'lucide-react'
 import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingGroup, SettingHelpText, SettingRow, SettingRowTitle, SettingTitle } from '..'
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const S3Settings: FC = () => {
   const [, setS3AutoSync] = usePreference('data.backup.s3.auto_sync')
@@ -34,16 +42,14 @@ const S3Settings: FC = () => {
 
   const { openSmartMiniApp } = useMiniAppPopup()
 
-  const { s3Sync } = getBackupSyncState()
+  const s3Sync = useBackupSyncState('s3')
 
   const onSyncIntervalChange = async (value: number) => {
-    void setS3SyncInterval(value)
+    await setS3SyncInterval(value)
     if (value === 0) {
       await setS3AutoSync(false)
-      stopAutoSync('s3')
     } else {
       await setS3AutoSync(true)
-      void startAutoSync(false, 's3')
     }
   }
 
@@ -60,17 +66,11 @@ const S3Settings: FC = () => {
     void setS3MaxBackups(value)
   }
 
-  const onSkipBackupFilesChange = (value: boolean) => {
-    void setS3SkipBackupFile(value)
-  }
-
   const renderSyncStatus = () => {
     if (!s3Endpoint) return null
 
     if (!s3Sync?.lastSyncTime && !s3Sync?.syncing && !s3Sync?.lastSyncError) {
-      return (
-        <span style={{ color: 'var(--color-foreground-secondary)' }}>{t('settings.data.s3.syncStatus.noSync')}</span>
-      )
+      return <span style={{ color: SYNC_STATUS_COLOR }}>{t('settings.data.s3.syncStatus.noSync')}</span>
     }
 
     return (
@@ -79,11 +79,11 @@ const S3Settings: FC = () => {
         {!s3Sync?.syncing && s3Sync?.lastSyncError && (
           <WarnTooltip
             content={t('settings.data.s3.syncStatus.error', { message: s3Sync.lastSyncError })}
-            iconProps={{ style: { color: 'red' } }}
+            iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
         {s3Sync?.lastSyncTime && (
-          <span style={{ color: 'var(--color-foreground-secondary)' }}>
+          <span style={{ color: SYNC_STATUS_COLOR }}>
             {t('settings.data.s3.syncStatus.lastSync', { time: dayjs(s3Sync.lastSyncTime).format('HH:mm:ss') })}
           </span>
         )}
@@ -246,7 +246,7 @@ const S3Settings: FC = () => {
       <SettingDivider />
       <SettingRow>
         <SettingRowTitle>{t('settings.data.s3.skipBackupFile.label')}</SettingRowTitle>
-        <Switch checked={s3SkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
+        <Switch checked={s3SkipBackupFile} onCheckedChange={(value) => void setS3SkipBackupFile(value)} />
       </SettingRow>
       <SettingRow>
         <SettingHelpText>{t('settings.data.s3.skipBackupFile.help')}</SettingHelpText>

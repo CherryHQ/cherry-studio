@@ -1,6 +1,8 @@
 import '@testing-library/jest-dom/vitest'
 
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -12,16 +14,15 @@ import WebSearchButton from '../WebSearchButton'
 const mocks = vi.hoisted(() => ({
   updateAssistant: vi.fn(),
   navigate: vi.fn(),
-  confirm: vi.fn(),
-  toastWarning: vi.fn(),
   assistant: undefined as any,
-  model: undefined as Model | undefined
+  model: undefined as Model | undefined,
+  provider: undefined as any,
+  providerLookupId: undefined as string | undefined
 }))
 
 const launcherApi: ToolLauncherApi = {
   registerLaunchers: vi.fn(() => vi.fn())
 }
-
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
 
@@ -35,8 +36,8 @@ vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => mocks.navigate
 }))
 
-vi.mock('@renderer/components/Buttons', () => ({
-  ActionIconButton: ({
+vi.mock('@renderer/components/ActionIconButton', () => ({
+  default: ({
     icon,
     ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; icon: React.ReactNode }) => {
@@ -51,7 +52,11 @@ vi.mock('@renderer/components/Buttons', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Tooltip: ({ children }: React.HTMLAttributes<HTMLDivElement>) => <>{children}</>
+  Tooltip: ({ children, content }: React.HTMLAttributes<HTMLDivElement> & { content?: React.ReactNode }) => (
+    <div data-testid="tooltip" data-content={String(content)}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/hooks/useAssistant', () => ({
@@ -62,6 +67,13 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   })
 }))
 
+vi.mock('@renderer/hooks/useProvider', () => ({
+  useProviderById: (providerId?: string) => {
+    mocks.providerLookupId = providerId
+    return { provider: mocks.provider }
+  }
+}))
+
 vi.mock('@renderer/utils/api', () => ({
   splitApiKeyString: (value: string) => value.split(',').map((item) => item.trim())
 }))
@@ -69,28 +81,31 @@ vi.mock('@renderer/utils/api', () => ({
 vi.mock('@renderer/utils/model', () => {
   const isFunctionCallingModel = (model?: Model) =>
     model?.capabilities.includes(MODEL_CAPABILITY.FUNCTION_CALL) ?? false
-  const isOpenRouterBuiltInWebSearchModel = () => false
-  const isWebSearchModel = (model?: Model) => model?.capabilities.includes(MODEL_CAPABILITY.WEB_SEARCH) ?? false
-  // Mirror the real reconcile composition over the mocked predicates above.
-  const hasModelBuiltinWebSearch = (model?: Model) => isWebSearchModel(model) || isOpenRouterBuiltInWebSearchModel()
-  const canModelUseAssistantWebSearch = (model?: Model) =>
-    hasModelBuiltinWebSearch(model) || isFunctionCallingModel(model)
+  const isServerToolModelEligible = (model?: Model) => model?.apiModelId?.startsWith('claude-') ?? false
+  // Mirror the real reconcile composition, including provider-wide search.
+  const hasModelBuiltinWebSearch = (
+    model?: Model,
+    provider?: { serverTools?: Array<{ id: string; modelScope: string }> }
+  ) => {
+    const tool = provider?.serverTools?.find(({ id }) => id === 'web-search')
+    return tool?.modelScope === 'all-chat-models' || (!!tool && isServerToolModelEligible(model))
+  }
+  const canModelUseAssistantWebSearch = (
+    model?: Model,
+    provider?: { serverTools?: Array<{ id: string; modelScope: string }> }
+  ) => hasModelBuiltinWebSearch(model, provider) || isFunctionCallingModel(model)
 
   return {
     canModelUseAssistantWebSearch,
-    getThinkModelType: () => 'default',
     hasModelBuiltinWebSearch,
     isFunctionCallingModel,
     isGemini3Model: () => false,
     isGeminiModel: () => false,
     isGPT5SeriesReasoningModel: () => false,
-    isOpenRouterBuiltInWebSearchModel,
     isOpenAIWebSearchModel: () => false,
     isSupportedReasoningEffortModel: () => false,
     isSupportedThinkingTokenModel: () => false,
-    isWebSearchModel,
-    MODEL_SUPPORTED_OPTIONS: { default: ['none'] },
-    MODEL_SUPPORTED_REASONING_EFFORT: { default: ['none'] }
+    isServerToolModelEligible
   }
 })
 
@@ -125,9 +140,11 @@ describe('WebSearchButton', () => {
       id: 'assistant-1',
       name: 'Assistant',
       settings: {
-        enableWebSearch: false
+        enableWebSearch: false,
+        // Lives in `settings` — `getEffectiveMcpMode` reads it there, and its
+        // fallback is `manual`, which would predict function-tool signals.
+        mcpMode: 'disabled'
       },
-      mcpMode: 'disabled',
       mcpServers: []
     }
     mocks.model = {
@@ -140,34 +157,59 @@ describe('WebSearchButton', () => {
       isEnabled: true,
       isHidden: false
     }
+    mocks.provider = undefined
+    mocks.providerLookupId = undefined
     MockUsePreferenceUtils.resetMocks()
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', true)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.provider_overrides', {})
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', null)
     MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_fetch_urls_provider', null)
-    Object.assign(window, {
-      modal: {
-        ...window.modal,
-        confirm: mocks.confirm
-      },
-      toast: {
-        ...window.toast,
-        warning: mocks.toastWarning
-      }
-    })
   })
 
-  it('opens web search settings and does not update the assistant when external providers are missing', () => {
+  it('reads only the current model provider', () => {
+    const view = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    expect(mocks.providerLookupId).toBe('anthropic')
+
+    mocks.model = undefined
+    view.unmount()
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.input.web_search.label' }))
+    expect(mocks.providerLookupId).toBeUndefined()
+  })
 
-    expect(mocks.confirm).toHaveBeenCalledWith(
+  it('opens web search settings and restores trigger focus when external providers are missing', () => {
+    vi.mocked(popup.confirm).mockResolvedValue(false)
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    const button = screen.getByRole('button', { name: 'chat.input.web_search.label' })
+    fireEvent.click(button)
+
+    expect(popup.confirm).toHaveBeenCalledWith(
       expect.objectContaining({
         title: 'settings.tool.websearch.search_provider',
         content: 'settings.tool.websearch.search_provider_placeholder'
       })
     )
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls[0][0]
+    confirmOptions.focusOnClose?.()
+
+    expect(button).toHaveFocus()
     expect(mocks.updateAssistant).not.toHaveBeenCalled()
+  })
+
+  it('does not restore trigger focus after confirming the missing-provider navigation', async () => {
+    vi.mocked(popup.confirm).mockResolvedValue(true)
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    const button = screen.getByRole('button', { name: 'chat.input.web_search.label' })
+    fireEvent.click(button)
+
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls[0][0]
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalledWith({ to: '/settings/websearch' }))
+    confirmOptions.focusOnClose?.()
+
+    expect(button).not.toHaveFocus()
   })
 
   it('disables web search when the configured provider cannot be consumed by the current model', async () => {
@@ -187,7 +229,7 @@ describe('WebSearchButton', () => {
 
     fireEvent.click(button)
 
-    expect(mocks.toastWarning).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
     expect(mocks.updateAssistant).not.toHaveBeenCalled()
   })
 
@@ -205,6 +247,37 @@ describe('WebSearchButton', () => {
     await waitFor(() => expect(mocks.updateAssistant).toHaveBeenCalledWith({ settings: { enableWebSearch: true } }))
   })
 
+  // Both routes render the same globe, and the preference that picks between them lives in settings,
+  // so the tooltip is the only place the user can see which side will serve the request.
+  it('names the serving side in the tooltip', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
+    mocks.model = { ...mocks.model!, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+
+    const { unmount } = render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.client')
+    unmount()
+
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.client_tools_preferred', false)
+    mocks.provider = { id: 'gemini', serverTools: [{ id: 'web-search', modelScope: 'model-dependent' }] }
+    mocks.model = { ...mocks.model, providerId: 'gemini', apiModelId: 'gemini-2.5-pro' } as Model
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+    expect(screen.getByTestId('tooltip')).toHaveAttribute('data-content', 'chat.input.web_search.route.builtin')
+  })
+
+  // The pinned toolbar renders the registered launcher, not the button, and falls back to `label`
+  // when the launcher carries no tooltip — which is how the globe kept showing the plain label.
+  it('carries the serving side on the registered launcher too', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.web_search.default_search_keywords_provider', 'exa-mcp')
+    mocks.model = { ...mocks.model!, capabilities: [MODEL_CAPABILITY.FUNCTION_CALL] }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
+    const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls.at(-1)![0]
+    expect(webSearchLauncher.tooltip).toBe('chat.input.web_search.route.client')
+  })
+
   it('registers web search only for the plus menu', async () => {
     render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
 
@@ -215,5 +288,31 @@ describe('WebSearchButton', () => {
       id: 'web-search',
       sources: ['popover']
     })
+  })
+
+  it('restores composer focus after the missing-provider confirmation closes from the tool menu', async () => {
+    vi.mocked(popup.confirm).mockResolvedValue(false)
+    const inputAdapter = {
+      getText: vi.fn(() => ''),
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+
+    render(<WebSearchButton assistantId="assistant-1" launcher={launcherApi} />)
+
+    await waitFor(() => expect(launcherApi.registerLaunchers).toHaveBeenCalled())
+    const [webSearchLauncher] = vi.mocked(launcherApi.registerLaunchers).mock.calls[0][0]
+
+    webSearchLauncher.action?.({
+      inputAdapter,
+      quickPanel: {} as never,
+      source: 'popover'
+    })
+
+    const confirmOptions = vi.mocked(popup.confirm).mock.calls[0][0]
+    confirmOptions.focusOnClose?.()
+
+    expect(inputAdapter.focus).toHaveBeenCalledTimes(1)
   })
 })

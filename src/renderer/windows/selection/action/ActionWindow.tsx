@@ -1,12 +1,11 @@
 import { Button, Slider, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import SelectionActionIcon from '@renderer/components/selection/SelectionActionIcon'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
-import i18n from '@renderer/i18n'
 import { ipcApi } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
-import { defaultLanguage } from '@shared/utils/languages'
 import Droplet from 'lucide-react/dist/esm/icons/droplet'
 import Minus from 'lucide-react/dist/esm/icons/minus'
 import Pin from 'lucide-react/dist/esm/icons/pin'
@@ -15,7 +14,6 @@ import type { ComponentProps, FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import SelectionActionIcon from '../SelectionActionIcon'
 import ActionGeneral from './components/ActionGeneral'
 import ActionTranslate from './components/ActionTranslate'
 
@@ -42,8 +40,6 @@ const ActionWindow: FC = () => {
  * the next action happens to be the same type as the previous one.
  */
 const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action }) => {
-  const [language] = usePreference('app.language')
-  const [customCss] = usePreference('ui.custom_css')
   const { t } = useTranslation()
 
   const [isAutoClose] = usePreference('feature.selection.auto_close')
@@ -105,24 +101,6 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
   useEffect(() => {
     shouldCloseWhenBlur.current = isAutoClose && !isPinned
   }, [isAutoClose, isPinned])
-
-  useEffect(() => {
-    void i18n.changeLanguage(language || navigator.language || defaultLanguage)
-  }, [language])
-
-  useEffect(() => {
-    let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
-    if (customCssElement) {
-      customCssElement.remove()
-    }
-
-    if (customCss) {
-      customCssElement = document.createElement('style')
-      customCssElement.id = 'user-defined-custom-css'
-      customCssElement.textContent = customCss
-      document.head.appendChild(customCssElement)
-    }
-  }, [customCss])
 
   useEffect(() => {
     // Register the scroll listener exactly once on mount. The content DOM node
@@ -222,17 +200,18 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
 
   return (
     <div
-      className="relative m-0.5 flex h-[calc(100%-6px)] w-[calc(100%-6px)] flex-col overflow-hidden rounded-lg border border-border bg-background shadow-[0_0_2px_var(--color-border)]"
+      data-ui="selection.action"
+      className="relative m-0.5 flex h-[calc(100%-6px)] w-[calc(100%-6px)] flex-col overflow-hidden rounded-lg border border-border bg-popover shadow-[0_0_2px_var(--border)]"
       style={{ opacity: opacity / 100 }}>
       <div
         className={cn(
           'flex h-8 flex-row items-center px-2 transition-colors duration-300 [-webkit-app-region:drag]',
           isWindowFocus ? 'bg-muted' : 'bg-secondary'
         )}
-        style={isMac ? { paddingLeft: '70px' } : {}}>
+        style={isMac ? { paddingLeft: '78px' } : {}}>
         {action.icon && (
           <div className="ml-1 flex items-center justify-center">
-            <SelectionActionIcon name={action.icon} size={16} className="text-foreground" fallback={() => null} />
+            <SelectionActionIcon name={action.icon} size={14} className="text-foreground" fallback={() => null} />
           </div>
         )}
         <div className="ml-2 flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-foreground text-sm">
@@ -244,11 +223,8 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
             placement="bottom">
             <WindowButton
               onClick={togglePin}
-              className={isPinned ? 'bg-primary/10 text-primary hover:bg-primary/10' : ''}>
-              <Pin
-                size={14}
-                className={isPinned ? 'rotate-45 text-primary transition-transform' : 'transition-transform'}
-              />
+              className={isPinned ? 'bg-accent text-accent-foreground hover:bg-accent' : ''}>
+              <Pin className={cn('size-[13px] transition-transform', isPinned && 'rotate-45 text-accent-foreground')} />
             </WindowButton>
           </Tooltip>
           <Tooltip
@@ -257,13 +233,14 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
             isOpen={showOpacitySlider ? false : undefined}>
             <WindowButton
               onClick={() => setShowOpacitySlider(!showOpacitySlider)}
-              className={showOpacitySlider ? 'bg-primary/10 text-primary hover:bg-primary/10' : 'pb-0.5'}>
-              <Droplet size={14} />
+              className={showOpacitySlider ? 'bg-accent text-accent-foreground hover:bg-accent' : 'pb-0.5'}>
+              <Droplet className="size-[13px]" />
             </WindowButton>
           </Tooltip>
           {showOpacitySlider && (
             <div className="absolute top-full left-10 z-[80] mt-2 flex h-[120px] items-center justify-center rounded bg-popover px-2 pt-4 pb-3 opacity-100! shadow-md">
               <Slider
+                className="data-[orientation=vertical]:min-h-0"
                 orientation="vertical"
                 min={20}
                 max={100}
@@ -278,10 +255,10 @@ const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action })
           {!isMac && (
             <>
               <WindowButton onClick={handleMinimize}>
-                <Minus size={16} />
+                <Minus className="size-3.5" />
               </WindowButton>
-              <WindowButton onClick={handleClose} className="hover:bg-error-base hover:text-white">
-                <X size={16} />
+              <WindowButton onClick={handleClose} className="hover:bg-destructive hover:text-destructive-foreground">
+                <X className="size-3.5" />
               </WindowButton>
             </>
           )}
@@ -305,7 +282,7 @@ const WindowButton: FC<ComponentProps<typeof Button>> = ({ className, ...props }
     variant="ghost"
     size="icon-sm"
     className={cn(
-      'size-6 rounded border-0 bg-transparent p-0 text-icon shadow-none transition-colors hover:bg-accent hover:text-accent-foreground',
+      'size-6 rounded border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-accent-foreground',
       className
     )}
     {...props}

@@ -110,16 +110,15 @@ describe('ProviderApiOptionsDrawer', () => {
     isSystemProviderMock.mockReturnValue(false)
   })
 
-  it('patches apiFeatures when an option changes', () => {
+  it('patches only the toggled apiFeatures key (delta, not a full snapshot)', () => {
     render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
 
     fireEvent.click(screen.getByLabelText('settings.provider.api.options.developer_role.label'))
 
+    // Echoing the merged runtime snapshot would mark every baseline value as
+    // a user override; main shallow-merges the stored delta instead.
     expect(updateProviderMock).toHaveBeenCalledWith({
-      apiFeatures: {
-        ...provider.apiFeatures,
-        developerRole: true
-      }
+      apiFeatures: { developerRole: true }
     })
   })
 
@@ -141,6 +140,18 @@ describe('ProviderApiOptionsDrawer', () => {
         }
       }
     })
+  })
+
+  it('shows default Anthropic cache values when cacheControl is unset', () => {
+    useProviderMock.mockReturnValue({
+      provider: { ...provider, settings: { ...provider.settings, cacheControl: undefined } },
+      updateProvider: updateProviderMock
+    })
+
+    render(<ProviderApiOptionsDrawer providerId="openai" open onClose={vi.fn()} />)
+
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.token_threshold')).toHaveValue(1024)
+    expect(screen.getByLabelText('settings.provider.api.options.anthropic_cache.cache_last_n')).toHaveValue(2)
   })
 
   it('only renders array content for non OpenAI providers without anthropic cache support', () => {

@@ -1,14 +1,15 @@
 import { dataApiService } from '@data/DataApiService'
 import type * as RendererConstantModule from '@renderer/utils/platform'
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
+import type { ConcreteApiPaths } from '@shared/data/api/types'
 import type { BranchMessagesResponse } from '@shared/data/types/message'
 import { act, renderHook, waitFor } from '@testing-library/react'
-import React from 'react'
 import type { Cache } from 'swr'
-import useSWR, { SWRConfig, unstable_serialize, useSWRConfig } from 'swr'
+import useSWR, { unstable_serialize, useSWRConfig } from 'swr'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 import useSWRInfinite, { unstable_serialize as unstable_serialize_infinite } from 'swr/infinite'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+import { createSWRTestWrapper as makeWrapper } from './testUtils'
 
 // Tests exercise the real implementation; the global renderer setup otherwise
 // replaces this module with a mock for consuming components.
@@ -26,7 +27,10 @@ import {
   __testing,
   useInfiniteFlatItems,
   useInfiniteQuery,
+  useInvalidateCache,
+  useMutation,
   usePaginatedQuery,
+  useQuery,
   useReadCache,
   useWriteCache
 } from '../useDataApi'
@@ -177,11 +181,6 @@ describe('buildSWRKey cache-key equivalence', () => {
     const keyFromTemplate = buildSWRKey(resolveTemplate('/providers/:providerId', { providerId: 'abc' }))
     const keyFromConcrete = buildSWRKey('/providers/abc')
     expect(keyFromTemplate).toEqual(keyFromConcrete)
-    expect(keyFromTemplate).toMatchInlineSnapshot(`
-      [
-        "/providers/abc",
-      ]
-    `)
   })
 
   it('produces identical keys when query is provided', () => {
@@ -189,14 +188,6 @@ describe('buildSWRKey cache-key equivalence', () => {
     const keyFromTemplate = buildSWRKey(resolveTemplate('/providers/:providerId', { providerId: 'abc' }), query)
     const keyFromConcrete = buildSWRKey('/providers/abc', query)
     expect(keyFromTemplate).toEqual(keyFromConcrete)
-    expect(keyFromTemplate).toMatchInlineSnapshot(`
-      [
-        "/providers/abc",
-        {
-          "limit": 10,
-        },
-      ]
-    `)
   })
 
   it('omits query slot when query is empty', () => {
@@ -219,25 +210,6 @@ describe('buildSWRKey cache-key equivalence', () => {
 // query folding, and no-revalidation semantics end-to-end without involving
 // DataApiService or network layers.
 // ============================================================================
-
-/**
- * Build a fresh SWRConfig-wrapped harness. Each test gets its own cache so
- * state never bleeds across tests.
- */
-function makeWrapper(initial?: Array<[unknown[], unknown]>) {
-  const cache = new Map<string, { data?: unknown }>()
-  for (const [key, value] of initial ?? []) {
-    cache.set(unstable_serialize(key), { data: value })
-  }
-  const provider = () => cache
-  const Wrapper = ({ children }: { children: React.ReactNode }) =>
-    React.createElement(
-      SWRConfig,
-      { value: { provider, dedupingInterval: 0, revalidateOnFocus: false, revalidateOnReconnect: false } },
-      children
-    )
-  return { Wrapper, cache }
-}
 
 const PATH = '/providers' as ConcreteApiPaths
 
@@ -482,6 +454,64 @@ describe('invalidatePathPatterns with live useSWRInfinite', () => {
     })
 
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+  })
+
+  // Pins both directions of the fix's root cause on a two-page source whose
+  // second page holds a since-renamed item:
+  //   - revalidateAll: true  → every loaded page revalidates, so page 2 refreshes (the fix)
+  //   - revalidateAll: false → SWR Infinite revalidates only page 0, so page 2
+  //     stays stale (the bug the fix addresses)
+  // Asserting the negative is what proves the fix is load-bearing, not incidental.
+  it.each([
+    { revalidateAll: true, label: 'revalidates page 2 so a renamed item on it refreshes' },
+    { revalidateAll: false, label: 'leaves page 2 stale so a renamed item on it does not refresh' }
+  ])('$label (revalidateAll=$revalidateAll)', async ({ revalidateAll }) => {
+    const { Wrapper, cache } = makeWrapper()
+    let secondPageName = 'Old name'
+    const fetcher = vi.fn(async ([, query]: [string, { cursor?: string }]) =>
+      query.cursor === 'page-2'
+        ? { items: [{ id: 'old-topic', name: secondPageName }], nextCursor: null }
+        : { items: [{ id: 'recent-topic', name: 'Recent topic' }], nextCursor: 'page-2' }
+    )
+    const pagedGetKey = (_pageIndex: number, previousPageData: { nextCursor?: string | null } | null) => {
+      if (previousPageData && !previousPageData.nextCursor) return null
+      return ['/topics', { limit: 1, ...(previousPageData?.nextCursor ? { cursor: previousPageData.nextCursor } : {}) }]
+    }
+    const callsForCursor = (cursor?: string) =>
+      fetcher.mock.calls.filter(([key]) => (key as [string, { cursor?: string }])[1].cursor === cursor).length
+
+    const { result } = renderHook(() => useSWRInfinite(pagedGetKey, fetcher, { revalidateAll }), {
+      wrapper: Wrapper
+    })
+    await waitFor(() => expect(result.current.data).toHaveLength(1))
+
+    await act(async () => {
+      await result.current.setSize(2)
+    })
+    await waitFor(() => expect(result.current.data).toHaveLength(2))
+    expect(result.current.data?.[1]?.items[0]?.name).toBe('Old name')
+
+    secondPageName = 'New name'
+    const firstPageCallsBefore = callsForCursor(undefined)
+    const secondPageCallsBefore = callsForCursor('page-2')
+    const { result: cfg } = renderHook(() => useSWRConfig(), { wrapper: Wrapper })
+
+    await act(async () => {
+      await invalidatePathPatterns(cache as unknown as Cache, cfg.current.mutate, ['/topics'])
+    })
+
+    // Page 0 always revalidates. Waiting on it settles the cache so the page-2
+    // assertions below read a final state rather than racing a pending fetch.
+    await waitFor(() => expect(callsForCursor(undefined)).toBe(firstPageCallsBefore + 1))
+    expect(result.current.data).toHaveLength(2)
+
+    if (revalidateAll) {
+      await waitFor(() => expect(result.current.data?.[1]?.items[0]?.name).toBe('New name'))
+      expect(callsForCursor('page-2')).toBe(secondPageCallsBefore + 1)
+    } else {
+      expect(callsForCursor('page-2')).toBe(secondPageCallsBefore)
+      expect(result.current.data?.[1]?.items[0]?.name).toBe('Old name')
+    }
   })
 
   it('does not refetch when path does not match', async () => {
@@ -742,12 +772,16 @@ describe('useInfiniteQuery integration', () => {
     expect(result.current.pages).toBe(firstRef)
   })
 
-  it('passes swrOptions through to useSWRInfinite', async () => {
-    // Sanity-check that `swrOptions` reach `useSWRInfinite` by setting
-    // `revalidateFirstPage: false` and verifying `refresh()` does NOT refetch
-    // page 1 when only one page is loaded.
+  it('does not revalidate the first page while pagination grows when explicitly disabled', async () => {
     const getSpy = spyGet()
-    getSpy.mockResolvedValueOnce({ items: [], nextCursor: undefined, activeNodeId: null } as never)
+    const cursors: Array<string | null> = []
+    getSpy.mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
+      const cursor = opts.query?.cursor ?? null
+      cursors.push(cursor)
+      if (cursor === null) return { items: [], nextCursor: 'c1', activeNodeId: null }
+      if (cursor === 'c1') return { items: [], nextCursor: 'c2', activeNodeId: null }
+      return { items: [], nextCursor: undefined, activeNodeId: null }
+    }) as never)
 
     const { Wrapper } = makeWrapper()
     const { result } = renderHook(
@@ -760,7 +794,12 @@ describe('useInfiniteQuery integration', () => {
     )
 
     await waitFor(() => expect(result.current.pages).toHaveLength(1))
-    expect(getSpy).toHaveBeenCalledTimes(1)
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(3))
+
+    expect(cursors).toEqual([null, 'c1', 'c2'])
   })
 })
 
@@ -851,5 +890,250 @@ describe('usePaginatedQuery reset-on-query-change', () => {
     rerender()
     rerender()
     expect(result.current.page).toBe(2)
+  })
+})
+
+describe('useMutation trigger identity & option freshness', () => {
+  // Stable trigger identity is an official contract of the data-hook layer
+  // (issue 16696): consumers routinely place `trigger` in dependency arrays,
+  // and identity churn cascades into re-render loops downstream. Options are
+  // read through a ref, so memoization must NOT stale the option callbacks.
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  function spyPost() {
+    return vi.spyOn(dataApiService, 'post').mockResolvedValue({ id: 'created' } as never)
+  }
+
+  it('returns a trigger with stable identity across rerenders despite inline options', () => {
+    const { Wrapper } = makeWrapper()
+    // Options object is written inline — a fresh identity every render, the
+    // exact consumer shape that drove the issue-16696 composer crash.
+    const { result, rerender } = renderHook(
+      () => useMutation('POST', '/topics', { refresh: ['/topics'], onSuccess: () => {} }),
+      { wrapper: Wrapper }
+    )
+    const first = result.current.trigger
+    rerender()
+    rerender()
+    expect(result.current.trigger).toBe(first)
+  })
+
+  it('keeps trigger identity when options content changes across rerenders', () => {
+    const { Wrapper } = makeWrapper()
+    const firstCb = vi.fn()
+    const secondCb = vi.fn()
+    const { result, rerender } = renderHook(({ cb }) => useMutation('POST', '/topics', { onSuccess: cb }), {
+      wrapper: Wrapper,
+      initialProps: { cb: firstCb }
+    })
+    const first = result.current.trigger
+    rerender({ cb: secondCb })
+    expect(result.current.trigger).toBe(first)
+  })
+
+  it('a trigger captured before a rerender still sees the latest onSuccess', async () => {
+    spyPost()
+    const { Wrapper } = makeWrapper()
+    const firstCb = vi.fn()
+    const secondCb = vi.fn()
+    const { result, rerender } = renderHook(({ cb }) => useMutation('POST', '/topics', { onSuccess: cb }), {
+      wrapper: Wrapper,
+      initialProps: { cb: firstCb }
+    })
+    const captured = result.current.trigger
+    rerender({ cb: secondCb })
+
+    await act(async () => {
+      await captured({ body: { name: 't' } as never })
+    })
+
+    expect(secondCb).toHaveBeenCalledTimes(1)
+    expect(secondCb).toHaveBeenCalledWith({ id: 'created' })
+    expect(firstCb).not.toHaveBeenCalled()
+    expect(dataApiService.post).toHaveBeenCalledTimes(1)
+  })
+
+  it('a trigger captured before a rerender still uses the latest refresh option', async () => {
+    spyPost()
+    const { Wrapper } = makeWrapper()
+    // Returning [] keeps the test surgical: the callback identity is observed
+    // without kicking off actual cache invalidation.
+    const firstRefresh = vi.fn(() => [])
+    const secondRefresh = vi.fn(() => [])
+    const { result, rerender } = renderHook(({ refresh }) => useMutation('POST', '/topics', { refresh }), {
+      wrapper: Wrapper,
+      initialProps: { refresh: firstRefresh }
+    })
+    const captured = result.current.trigger
+    rerender({ refresh: secondRefresh })
+
+    await act(async () => {
+      await captured({ body: { name: 't' } as never })
+    })
+
+    expect(secondRefresh).toHaveBeenCalledTimes(1)
+    expect(firstRefresh).not.toHaveBeenCalled()
+  })
+
+  it('keeps trigger identity on template paths with function-form refresh (crash-site shape)', () => {
+    const { Wrapper } = makeWrapper()
+    // Mirrors useUpdateAgent (useAgent.ts), the consumer that crashed in
+    // classic layout: template path + inline function-form refresh.
+    const { result, rerender } = renderHook(
+      () =>
+        useMutation('PATCH', '/agents/:agentId', {
+          refresh: ({ args }) => ['/agents', `/agents/${args?.params?.agentId}`]
+        }),
+      { wrapper: Wrapper }
+    )
+    const first = result.current.trigger
+    rerender()
+    rerender()
+    expect(result.current.trigger).toBe(first)
+  })
+})
+
+describe('useInvalidateCache identity', () => {
+  it('returns an invalidate function with stable identity across rerenders', () => {
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(() => useInvalidateCache(), { wrapper: Wrapper })
+    const first = result.current
+    rerender()
+    expect(result.current).toBe(first)
+  })
+})
+
+describe('useQuery refetch identity', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('returns a refetch with stable identity across rerenders', async () => {
+    vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [], total: 0, page: 1 } as never)
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(() => useQuery('/assistants'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const first = result.current.refetch
+    rerender()
+    expect(result.current.refetch).toBe(first)
+  })
+})
+
+describe('useInfiniteQuery function identity', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('keeps loadNext/refresh/reset identity across plain rerenders', async () => {
+    vi.spyOn(dataApiService, 'get').mockResolvedValue({
+      items: [],
+      nextCursor: 'c1',
+      activeNodeId: null
+    } as never)
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(
+      () => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }),
+      { wrapper: Wrapper }
+    )
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const firstLoad = result.current.loadNext
+    const firstRefresh = result.current.refresh
+    const firstReset = result.current.reset
+    rerender()
+    rerender()
+    expect(result.current.loadNext).toBe(firstLoad)
+    expect(result.current.refresh).toBe(firstRefresh)
+    expect(result.current.reset).toBe(firstReset)
+  })
+})
+
+describe('usePaginatedQuery identity', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  // total=30 + default limit=10 → 3 pages.
+  function spyOffsetGet() {
+    return vi.spyOn(dataApiService, 'get').mockResolvedValue({ items: [], total: 30, page: 1 } as never)
+  }
+
+  it('keeps nextPage/prevPage/reset identity across plain rerenders', async () => {
+    spyOffsetGet()
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(() => usePaginatedQuery('/assistants'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    const firstNext = result.current.nextPage
+    const firstPrev = result.current.prevPage
+    const firstReset = result.current.reset
+    rerender()
+    rerender()
+    expect(result.current.nextPage).toBe(firstNext)
+    expect(result.current.prevPage).toBe(firstPrev)
+    expect(result.current.reset).toBe(firstReset)
+  })
+
+  it('still clamps navigation at both boundaries after memoization', async () => {
+    // Guards the moved-bug hazard of memoizing the navigators: the
+    // hasNext/hasPrev closures must stay fresh, or clamping breaks.
+    spyOffsetGet()
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => usePaginatedQuery('/assistants'), { wrapper: Wrapper })
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    // prevPage at the first page must not go below 1
+    await act(async () => {
+      result.current.prevPage()
+    })
+    expect(result.current.page).toBe(1)
+
+    await act(async () => {
+      result.current.nextPage()
+    })
+    await waitFor(() => expect(result.current.page).toBe(2))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    // prevPage off-boundary must actually decrement — pins the guard's
+    // liveness (a frozen hasPrev closure would leave this a permanent no-op)
+    await act(async () => {
+      result.current.prevPage()
+    })
+    await waitFor(() => expect(result.current.page).toBe(1))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    await act(async () => {
+      result.current.nextPage()
+    })
+    await waitFor(() => expect(result.current.page).toBe(2))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    await act(async () => {
+      result.current.nextPage()
+    })
+    await waitFor(() => expect(result.current.page).toBe(3))
+    await waitFor(() => expect(result.current.isLoading).toBe(false))
+
+    // nextPage at the last page must clamp
+    await act(async () => {
+      result.current.nextPage()
+    })
+    await new Promise((r) => setTimeout(r, 30))
+    expect(result.current.page).toBe(3)
+  })
+
+  it('returns a stable empty items array while data is undefined', () => {
+    const { Wrapper } = makeWrapper()
+    const { result, rerender } = renderHook(() => usePaginatedQuery('/assistants', { enabled: false }), {
+      wrapper: Wrapper
+    })
+    const first = result.current.items
+    rerender()
+    expect(result.current.items).toBe(first)
+    expect(first).toEqual([])
   })
 })

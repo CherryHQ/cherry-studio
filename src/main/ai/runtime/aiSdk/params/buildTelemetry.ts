@@ -1,4 +1,4 @@
-import { application } from '@main/core/application'
+import { application } from '@application'
 import { trace } from '@opentelemetry/api'
 import type { TelemetrySettings } from 'ai'
 

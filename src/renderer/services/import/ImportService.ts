@@ -1,19 +1,23 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import i18n from '@renderer/i18n'
+import i18n from '@renderer/i18n/resolver'
 import type { Message } from '@renderer/types/newMessage'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
 
-import { availableImporters } from './importers'
+import { ChatgptImporter } from './importers/ChatgptImporter'
 import type { ConversationImporter, ImportResponse, ImportResult } from './types'
 
 const logger = loggerService.withContext('ImportService')
 
+// Every conversation importer the service registers on construction. Add new
+// importers here as they are implemented.
+const availableImporters = [new ChatgptImporter()]
+
 /**
  * Main import service that manages all conversation importers
  */
-class ImportServiceClass {
+class ImportService {
   private importers: Map<string, ConversationImporter> = new Map()
 
   constructor() {
@@ -110,7 +114,7 @@ class ImportServiceClass {
       const assistant = await dataApiService.post('/assistants', { body: dto })
 
       const result = await importer.parse(fileContent, assistant.id)
-      await this.persistImport(result)
+      await this.persistImport(result, assistant)
 
       logger.info(
         `Import completed: ${result.topics.length} conversations, ${result.messages.length} messages imported`
@@ -144,10 +148,16 @@ class ImportServiceClass {
 
   /**
    * Builds a v2 create-message DTO from a parsed v1 message. Imported messages
-   * are historical, so they are persisted as `success`; the source model is
-   * captured as `modelSnapshot` for the renderer badge.
+   * are historical, so they are persisted as `success`. For assistant rows the
+   * producing author (the import's assistant, owning the source model) is frozen
+   * into `messageSnapshot` so the header survives later rename/delete.
    */
-  private toMessageDto(message: Message, blockContent: Map<string, string>, parentId: string | null): CreateMessageDto {
+  private toMessageDto(
+    message: Message,
+    blockContent: Map<string, string>,
+    parentId: string | null,
+    assistant: { id: string; name: string; emoji: string }
+  ): CreateMessageDto {
     const text = message.blocks.map((id) => blockContent.get(id) ?? '').join('\n\n')
 
     const dto: CreateMessageDto = {
@@ -157,12 +167,17 @@ class ImportServiceClass {
       status: 'success'
     }
 
-    if (message.model) {
-      dto.modelSnapshot = {
-        id: message.model.id,
-        name: message.model.name,
-        provider: message.model.provider,
-        group: message.model.group
+    if (message.role === 'assistant' && message.model) {
+      dto.messageSnapshot = {
+        id: assistant.id,
+        name: assistant.name,
+        emoji: assistant.emoji,
+        model: {
+          id: message.model.id,
+          name: message.model.name,
+          provider: message.model.provider,
+          ...(message.model.group ? { group: message.model.group } : {})
+        }
       }
     }
 
@@ -173,7 +188,10 @@ class ImportServiceClass {
    * Persists the import result via DataApi. Messages chain by parent id into
    * a single linear branch under each topic.
    */
-  private async persistImport(result: ImportResult): Promise<void> {
+  private async persistImport(
+    result: ImportResult,
+    assistant: { id: string; name: string; emoji: string }
+  ): Promise<void> {
     const { topics, blocks, messages } = result
     const blockContent = new Map(blocks.map((block) => [block.id, block.content]))
 
@@ -185,7 +203,7 @@ class ImportServiceClass {
       let parentId: string | null = null
       for (const message of topic.messages) {
         const created = await dataApiService.post(`/topics/${createdTopic.id}/messages`, {
-          body: this.toMessageDto(message, blockContent, parentId)
+          body: this.toMessageDto(message, blockContent, parentId, assistant)
         })
         parentId = created.id
       }
@@ -196,7 +214,7 @@ class ImportServiceClass {
 }
 
 // Export singleton instance
-export const ImportService = new ImportServiceClass()
+export const importService = new ImportService()
 
 // Export for backward compatibility
-export const importChatGPTConversations = (fileContent: string) => ImportService.importChatGPTConversations(fileContent)
+export const importChatGPTConversations = (fileContent: string) => importService.importChatGPTConversations(fileContent)

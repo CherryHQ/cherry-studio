@@ -3,10 +3,13 @@
  *
  * Single source of truth shared by the AI-SDK builtin tools (`kb_search` /
  * `kb_list`) and the Claude Code in-process MCP bridge. `allowedIds` scopes
- * which bases are reachable: in the AI-SDK path it is the assistant's
- * `knowledgeBaseIds`; an empty array means "no scope" (all user bases),
- * which is what the Claude Code agent path passes since agents have no
- * per-assistant knowledge scope.
+ * which bases are reachable: in the AI-SDK path it is the scope resolved by
+ * `resolveKnowledgeBaseScope` (the assistant's own bound bases are a ceiling the
+ * composer's per-turn selection may narrow but never widen; with no binding that
+ * selection defines the scope alone). The Claude Code path applies the same rule
+ * to Agent bindings and per-turn selection, and hides/rejects the kb_* tools when
+ * the effective scope is empty.
+ * At this shared core boundary, an empty array still means "no scope" (all user bases).
  *
  * `searchKnowledge` never throws: an infrastructure failure (every targeted
  * base errored) returns `{ error }` so it is distinguishable from "ran fine,
@@ -19,8 +22,9 @@
 
 import { basename } from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { application } from '@main/core/application'
+import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
 import type {
   KbGrepOutput,
   KbListOutput,
@@ -31,7 +35,7 @@ import type {
   KbSearchOutput,
   KbTreeOutput
 } from '@shared/ai/builtinTools'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type {
   KnowledgeAddItemInput,
   KnowledgeBase,
@@ -74,7 +78,7 @@ Use this when:
 - The question references topics likely covered in stored documents
 - Specific factual lookup that isn't general knowledge
 
-Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite sources by [id] in your final answer.`
+Workflow: call kb_list first to discover available bases and their contents, then call this tool with the chosen baseIds. You may call this multiple times with refined queries or different baseIds if the first results are insufficient. Cite: append [cite:id] immediately after each statement a result supports, using the result's exact \`id\` field.`
 
 export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
 
@@ -86,7 +90,9 @@ export const KNOWLEDGE_READ_DESCRIPTION = `Read a single knowledge base document
 
 Pass the \`conceptId\` and \`baseId\` from a kb_search hit (or a kb_list outline). Two modes, selected by \`pattern\`:
 - Omit \`pattern\` to read the document text: kb_search returns short matching chunks, kb_read returns the whole document (or a slice) so you can quote it accurately and read the surrounding context. Long documents come back in capped slices — when \`totalChars\` exceeds the returned \`charEnd\`, call again with \`charStart\` set to that \`charEnd\` to page on.
-- Pass a \`pattern\` (a regular expression) to grep instead: locate exact text — a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet. For meaning-based search across documents, use kb_search.`
+- Pass a \`pattern\` (a regular expression) to grep instead: locate exact text — a number, code symbol, term, or quote — when semantic search is too fuzzy. Returns each match's line, character offsets, and a snippet. For meaning-based search across documents, use kb_search.
+
+Cite: append [cite:id] immediately after each statement this document supports, using the result's exact \`id\` field.`
 
 export const KNOWLEDGE_MANAGE_DESCRIPTION = `Modify a knowledge base: add a new source, or delete / re-index existing documents. Destructive — every call modifies the base and is gated behind user approval.
 
@@ -143,7 +149,7 @@ function isConceptLookupError(output: object): output is KnowledgeLookupError {
 export async function searchKnowledge(
   query: string,
   baseIds: string[],
-  allowedIds: string[]
+  allowedIds: readonly string[]
 ): Promise<KnowledgeSearchResultOrError> {
   const targetIds = allowedIds.length > 0 ? baseIds.filter((id) => allowedIds.includes(id)) : baseIds
 
@@ -160,7 +166,10 @@ export async function searchKnowledge(
   const perBase = await Promise.all(
     targetIds.map(async (baseId) => {
       try {
-        return { ok: true as const, results: await knowledgeService.search(baseId, query) }
+        const results = await knowledgeService.search(baseId, query)
+        // Tag each hit with the base it came from: the flatMap below loses the closure, and
+        // `conceptId` alone is only unique within one base.
+        return { ok: true as const, results: results.map((result) => ({ result, baseId })) }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         logger.warn('KnowledgeService.search failed', { baseId, query, error: message })
@@ -177,21 +186,24 @@ export async function searchKnowledge(
   }
 
   const merged = perBase.flatMap((r) => (r.ok ? r.results : []))
-  const dedupedByContent = new Map<string, KnowledgeSearchResult>()
-  for (const result of merged) {
-    const existing = dedupedByContent.get(result.pageContent)
-    if (!existing || result.score > existing.score) {
-      dedupedByContent.set(result.pageContent, result)
+  const dedupedByContent = new Map<string, { result: KnowledgeSearchResult; baseId: string }>()
+  for (const hit of merged) {
+    const existing = dedupedByContent.get(hit.result.pageContent)
+    if (!existing || hit.result.score > existing.result.score) {
+      dedupedByContent.set(hit.result.pageContent, hit)
     }
   }
-  const sorted = [...dedupedByContent.values()].sort((a, b) => b.score - a.score)
+  const sorted = [...dedupedByContent.values()].sort((a, b) => b.result.score - a.result.score)
 
-  return sorted.map((result, index) => ({
-    id: index + 1,
-    // Provenance so the model can follow a hit with kb_read. conceptId
+  const prefix = newCitePrefix()
+  return sorted.map(({ result, baseId }, index) => ({
+    id: citeId(prefix, index),
+    // Provenance so the model can follow a hit with kb_read. baseId pairs with
+    // conceptId to identify the document (conceptId is base-relative). conceptId
     // is absent only for a not-yet-indexed snapshot (no relativePath); title is
     // always set. type is the item kind (file / url / note); `?.` keeps the map
     // resilient to a result without metadata (none in production).
+    baseId,
     conceptId: result.conceptId,
     title: result.title,
     type: result.metadata?.itemType,
@@ -228,7 +240,7 @@ async function readConcept(
   baseId: string,
   conceptId: string,
   range: { charStart?: number; charEnd?: number },
-  allowedIds: string[]
+  allowedIds: readonly string[]
 ): Promise<KnowledgeReadResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
     logger.warn('kb_read targeted a base outside the assistant scope', { baseId, allowedIds })
@@ -237,6 +249,10 @@ async function readConcept(
   try {
     const result = await application.get('KnowledgeService').readConcept(baseId, conceptId, range)
     return {
+      // One slice, one source — index 0 yields the call's only cite id.
+      id: citeId(newCitePrefix(), 0),
+      // Pairs with the base-relative conceptId to identify the document globally.
+      baseId,
       conceptId: result.conceptId,
       title: result.title,
       type: result.itemType,
@@ -279,7 +295,7 @@ async function grepConcept(
   baseId: string,
   conceptId: string,
   options: { pattern: string; ignoreCase?: boolean; maxMatches?: number },
-  allowedIds: string[]
+  allowedIds: readonly string[]
 ): Promise<KnowledgeGrepResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
     logger.warn('kb_read (grep mode) targeted a base outside the assistant scope', { baseId, allowedIds })
@@ -288,6 +304,10 @@ async function grepConcept(
   try {
     const result = await application.get('KnowledgeService').grepConcept(baseId, conceptId, options)
     return {
+      // Every match is in this one document, so the call yields a single cite id.
+      id: citeId(newCitePrefix(), 0),
+      // Pairs with the base-relative conceptId to identify the document globally.
+      baseId,
       conceptId: result.conceptId,
       title: result.title,
       type: result.itemType,
@@ -304,7 +324,10 @@ async function grepConcept(
  * One tool with two modes (see KNOWLEDGE_READ_DESCRIPTION); both cores above share the `{ error }`
  * contract, so this only routes by the presence of `pattern`. (`!= null` also covers undefined.)
  */
-export async function readOrGrepConcept(input: KbReadInput, allowedIds: string[]): Promise<KnowledgeReadResultOrError> {
+export async function readOrGrepConcept(
+  input: KbReadInput,
+  allowedIds: readonly string[]
+): Promise<KnowledgeReadResultOrError> {
   if (input.pattern != null) {
     return grepConcept(
       input.baseId,
@@ -366,7 +389,11 @@ function conceptLookupError(
  * throws: an out-of-scope base or a service error returns `{ error }`; a missing
  * base maps to a clear "not found" message. `allowedIds` scopes reachable bases.
  */
-function readTree(baseId: string, options: { maxDepth?: number }, allowedIds: string[]): KnowledgeTreeResultOrError {
+function readTree(
+  baseId: string,
+  options: { maxDepth?: number },
+  allowedIds: readonly string[]
+): KnowledgeTreeResultOrError {
   if (allowedIds.length > 0 && !allowedIds.includes(baseId)) {
     logger.warn('kb_list (outline mode) targeted a base outside the assistant scope', { baseId, allowedIds })
     return { error: `Knowledge base "${baseId}" is not available to this assistant.` }
@@ -398,14 +425,14 @@ function readTree(baseId: string, options: { maxDepth?: number }, allowedIds: st
 /**
  * kb_list dispatch: list the user's bases, or — when a `baseId` is supplied — outline that one
  * base's structure. One tool with two modes (see KNOWLEDGE_LIST_DESCRIPTION); both cores share the
- * `{ error }` contract, so this only routes by the presence of `baseId`. (`!= null` also covers
- * undefined; strict callers pass null for "no baseId", MCP callers omit it.)
+ * `{ error }` contract, so this only routes by the presence of `baseId`. AI-SDK adapters normalize
+ * their strict-schema sentinels before calling this core; MCP callers omit unused fields directly.
  */
 export async function listOrOutlineKnowledge(
-  input: { query?: string | null; groupId?: string | null; baseId?: string | null; maxDepth?: number | null },
-  allowedIds: string[]
+  input: { query?: string; groupId?: string; baseId?: string; maxDepth?: number },
+  allowedIds: readonly string[]
 ): Promise<KnowledgeListResultOrError> {
-  if (input.baseId != null) {
+  if (input.baseId) {
     return readTree(input.baseId, { maxDepth: input.maxDepth ?? undefined }, allowedIds)
   }
   return listKnowledgeBases(input.query, input.groupId, allowedIds)
@@ -414,16 +441,16 @@ export async function listOrOutlineKnowledge(
 /** Longest a derived note title (its first line) may be before it is truncated. */
 const NOTE_TITLE_MAX_CHARS = 80
 
-/** kb_manage input shape shared by both callers: MCP omits an unused field, AI-SDK strict passes null. */
+/** kb_manage input shape shared after AI-SDK strict sentinels have been normalized. */
 type ManageKnowledgeInput = {
   baseId: string
   action: 'add' | 'delete' | 'refresh'
-  type?: 'file' | 'url' | 'note' | null
-  path?: string | null
-  url?: string | null
-  content?: string | null
-  title?: string | null
-  conceptIds?: string[] | null
+  type?: 'file' | 'url' | 'note'
+  path?: string
+  url?: string
+  content?: string
+  title?: string
+  conceptIds?: string[]
 }
 
 /**
@@ -437,7 +464,7 @@ type ManageKnowledgeInput = {
  */
 export async function manageKnowledge(
   input: ManageKnowledgeInput,
-  allowedIds: string[]
+  allowedIds: readonly string[]
 ): Promise<KnowledgeManageResultOrError> {
   if (allowedIds.length > 0 && !allowedIds.includes(input.baseId)) {
     logger.warn('kb_manage targeted a base outside the assistant scope', { baseId: input.baseId, allowedIds })
@@ -564,7 +591,7 @@ function deriveNoteSource(content: string, title?: string | null): string {
 async function listKnowledgeBases(
   query: string | null | undefined,
   groupId: string | null | undefined,
-  allowedIds: string[]
+  allowedIds: readonly string[]
 ): Promise<KnowledgeListResultOrError> {
   try {
     const knowledgeService = application.get('KnowledgeService')

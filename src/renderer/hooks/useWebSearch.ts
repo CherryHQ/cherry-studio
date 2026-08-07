@@ -1,5 +1,6 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { splitApiKeyString } from '@renderer/utils/api'
 import type {
   PreferenceDefaultScopeType,
@@ -22,6 +23,7 @@ export type WebSearchBasicAuthPatch = {
 
 type WebSearchPreferenceSnapshot = Pick<
   PreferenceDefaultScopeType,
+  | 'chat.web_search.client_tools_preferred'
   | 'chat.web_search.exclude_domains'
   | 'chat.web_search.max_results'
   | 'chat.web_search.compression.method'
@@ -29,6 +31,7 @@ type WebSearchPreferenceSnapshot = Pick<
 >
 
 const WEB_SEARCH_SETTINGS_PREFERENCE_KEYS = {
+  clientToolsPreferred: 'chat.web_search.client_tools_preferred',
   excludeDomains: 'chat.web_search.exclude_domains',
   maxResults: 'chat.web_search.max_results',
   compressionMethod: 'chat.web_search.compression.method',
@@ -40,6 +43,7 @@ type WebSearchPreferenceValues = {
 }
 
 type WebSearchSettingsState = {
+  clientToolsPreferred: boolean
   maxResults: number
   excludeDomains: string[]
   compressionConfig: {
@@ -50,6 +54,7 @@ type WebSearchSettingsState = {
 
 function buildWebSearchSettingsState(preferences: WebSearchPreferenceValues): WebSearchSettingsState {
   return {
+    clientToolsPreferred: preferences.clientToolsPreferred,
     maxResults: Math.max(1, preferences.maxResults),
     excludeDomains: preferences.excludeDomains,
     compressionConfig: {
@@ -202,7 +207,7 @@ export const useSyncZhipuWebSearchApiKeys = () => {
 
       void setApiKeys('zhipu', splitApiKeyString(apiKey)).catch((error) => {
         logger.error('Failed to sync Zhipu web search API keys', error as Error)
-        window.toast.error(t('settings.tool.websearch.errors.zhipu_sync_failed'))
+        toast.error(t('settings.tool.websearch.errors.zhipu_sync_failed'))
       })
     },
     [setApiKeys, t]
@@ -210,6 +215,7 @@ export const useSyncZhipuWebSearchApiKeys = () => {
 }
 
 export const useWebSearchSettings = (): WebSearchSettingsState & {
+  setClientToolsPreferred: (value: boolean) => Promise<void>
   setExcludeDomains: (value: string[]) => Promise<void>
   setMaxResults: (value: number) => Promise<void>
   setCompressionConfig: (config: WebSearchSettingsState['compressionConfig']) => Promise<void>
@@ -220,6 +226,9 @@ export const useWebSearchSettings = (): WebSearchSettingsState & {
 
   return {
     ...state,
+    setClientToolsPreferred: (value) => {
+      return setPreferences({ clientToolsPreferred: value })
+    },
     setExcludeDomains: (value) => {
       return setPreferences({ excludeDomains: value })
     },

@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import type { Topic } from '@renderer/types/topic'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type {
@@ -98,6 +99,7 @@ const FILTER_TYPES: Record<GlobalSearchFilter, EntitySearchType[]> = {
 
 const INTERNAL_ROUTE_PREFIXES = ['/app/', '/settings']
 const COARSE_ENTITY_ROUTE_PATHS = new Set(['/app/chat', '/app/agents'])
+const LEGACY_ROUTE_PATHS = new Set(['/app/library'])
 
 export function getGlobalSearchTypes(filter: GlobalSearchFilter): EntitySearchType[] {
   return FILTER_TYPES[filter]
@@ -138,33 +140,68 @@ export function areGlobalSearchRecentEntriesEqual(a: GlobalSearchRecentEntry, b:
   }
 }
 
+function getRoutePathname(url: string) {
+  return new URL(url, 'https://www.cherry-ai.com').pathname
+}
+
+function isLegacyRouteRecentEntry(entry: GlobalSearchRecentEntry) {
+  return entry.kind === 'route' && LEGACY_ROUTE_PATHS.has(getRoutePathname(entry.url))
+}
+
+export function sanitizeGlobalSearchRecentEntries(
+  entries: readonly GlobalSearchRecentEntry[]
+): GlobalSearchRecentEntry[] {
+  const next = entries.filter((entry) => !isLegacyRouteRecentEntry(entry))
+  return next.length === entries.length ? (entries as GlobalSearchRecentEntry[]) : next
+}
+
 export function upsertGlobalSearchRecentEntry(
   entries: readonly GlobalSearchRecentEntry[],
   entry: GlobalSearchRecentEntry
 ): GlobalSearchRecentEntry[] {
+  const current = sanitizeGlobalSearchRecentEntries(entries)
+  if (isLegacyRouteRecentEntry(entry)) return current
+
   const entryId = getGlobalSearchRecentEntryId(entry)
-  const rest = entries.filter((candidate) => getGlobalSearchRecentEntryId(candidate) !== entryId)
+  const rest = current.filter((candidate) => getGlobalSearchRecentEntryId(candidate) !== entryId)
   const next = [entry, ...rest]
     .sort((a, b) => b.lastAccessTime - a.lastAccessTime)
     .slice(0, GLOBAL_SEARCH_RECENT_ITEM_LIMIT)
 
   if (
-    next.length === entries.length &&
+    next.length === current.length &&
     next.every((candidate, index) => {
-      const previous = entries[index]
+      const previous = current[index]
       return previous && areGlobalSearchRecentEntriesEqual(previous, candidate)
     })
   ) {
-    return entries as GlobalSearchRecentEntry[]
+    return current
   }
 
   return next
 }
 
+/**
+ * Records a visit into the persisted recent list.
+ *
+ * Imperative on purpose: the three call sites (app shell route visit, chat topic
+ * activation, agent session activation) only ever WRITE this key — taking
+ * `usePersistCache` just for its setter would subscribe them to every recent-list
+ * change and rerender them for a value they never read. The functional updater
+ * resolves against the latest persisted value, and `upsertGlobalSearchRecentEntry`
+ * returns the same reference when nothing changes, so `setPersist`'s isEqual
+ * short-circuit drops the no-op write.
+ */
+export function recordGlobalSearchRecentEntry(entry: GlobalSearchRecentEntry): void {
+  cacheService.setPersist('ui.global_search.recent_items', (prev) => upsertGlobalSearchRecentEntry(prev, entry))
+}
+
 export function getDisplayGlobalSearchRecentEntries(
   entries: readonly GlobalSearchRecentEntry[]
 ): GlobalSearchRecentEntry[] {
-  return [...entries].sort((a, b) => b.lastAccessTime - a.lastAccessTime).slice(0, GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT)
+  return [...sanitizeGlobalSearchRecentEntries(entries)]
+    .sort((a, b) => b.lastAccessTime - a.lastAccessTime)
+    .slice(0, GLOBAL_SEARCH_DISPLAY_RECENT_LIMIT)
 }
 
 export function createRecentRouteEntryFromTab(
@@ -175,6 +212,7 @@ export function createRecentRouteEntryFromTab(
   if (!lastAccessTime) return null
 
   const pathname = new URL(tab.url, 'https://www.cherry-ai.com').pathname
+  if (LEGACY_ROUTE_PATHS.has(pathname)) return null
   if (COARSE_ENTITY_ROUTE_PATHS.has(pathname)) return null
 
   if (!INTERNAL_ROUTE_PREFIXES.some((prefix) => pathname === prefix.slice(0, -1) || pathname.startsWith(prefix))) {

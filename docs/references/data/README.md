@@ -14,7 +14,7 @@ This is the main entry point for Cherry Studio's data management documentation. 
 ### Usage Guides (Code Examples)
 - [Cache Usage](./cache-usage.md) - useCache hooks, CacheService examples
 - [Preference Usage](./preference-usage.md) - usePreference hook, PreferenceService examples
-- [DataApi in Renderer](./data-api-in-renderer.md) - useQuery/useMutation, DataApiService
+- [DataApi in Renderer](./data-api-in-renderer.md) - useQuery/useMutation, DataApiService, data change notifications
 - [DataApi in Main](./data-api-in-main.md) - Handlers, Services patterns
 
 ### Reference Guides (Coding Standards)
@@ -92,7 +92,7 @@ Use BootConfigService when:
 - Accessed through PreferenceService (`BootConfig.*` prefix) after lifecycle starts
 
 ```typescript
-// Early boot (src/main/index.ts) — direct access, only option at this stage
+// Early boot (src/main/main.ts) — direct access, only option at this stage
 import { bootConfigService } from '@main/data/bootConfig'
 if (bootConfigService.get('app.disable_hardware_acceleration')) {
   app.disableHardwareAcceleration()
@@ -127,7 +127,8 @@ const [searchResults, setSearchResults] = useCache('search.results', [])
 const [sidebarCollapsed, setSidebarCollapsed] = useSharedCache('ui.sidebar.collapsed', false)
 
 // Good: Recent items (nice to have, not critical)
-const [recentSearches, setRecentSearches] = usePersistCache('search.recent', [])
+// `usePersistCache` takes no initValue — Persist seeds every key from the schema on load
+const [recentSearches, setRecentSearches] = usePersistCache('search.recent')
 ```
 
 ### PreferenceService - User Preferences

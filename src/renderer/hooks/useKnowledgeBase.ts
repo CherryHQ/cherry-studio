@@ -21,15 +21,19 @@ const normalizeError = (error: unknown): Error => {
   return new Error(String(error))
 }
 
-export type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
+export type CreateKnowledgeBaseInput = Pick<
+  CreateKnowledgeBaseDto,
+  'name' | 'groupId' | 'embeddingModelId' | 'dimensions'
+>
 export type RestoreKnowledgeBaseInput = Pick<
   RestoreKnowledgeBaseDto,
   'sourceBaseId' | 'name' | 'embeddingModelId' | 'dimensions'
 >
 
-export const useKnowledgeBases = () => {
+export const useKnowledgeBases = (options: { enabled?: boolean } = {}) => {
   const { data, isLoading, error, refetch } = useQuery('/knowledge-bases', {
-    query: KNOWLEDGE_V2_BASES_QUERY
+    query: KNOWLEDGE_V2_BASES_QUERY,
+    ...(options.enabled !== undefined && { enabled: options.enabled })
   })
 
   const bases = useMemo(() => data?.items ?? [], [data])
@@ -53,22 +57,24 @@ export const useCreateKnowledgeBase = () => {
 
       const name = input.name.trim()
       const groupId = input.groupId?.trim()
+      const embeddingModelId = input.embeddingModelId?.trim()
 
       if (!name) {
         throw new Error('Knowledge base name is required')
       }
 
-      // The embedding model is optional: a base created without one is BM25-only
-      // and gets its model later from the RAG settings. Configure it there, not here.
-      const body: {
-        name: string
-        groupId?: string
-      } = {
+      const body: CreateKnowledgeBaseInput = {
         name
       }
 
       if (groupId) {
         body.groupId = groupId
+      }
+
+      // Embedding is optional; when present the schema requires its dimensions alongside it.
+      if (embeddingModelId) {
+        body.embeddingModelId = embeddingModelId
+        body.dimensions = input.dimensions
       }
 
       setIsCreating(true)
@@ -118,7 +124,7 @@ export const useRestoreKnowledgeBase = () => {
 
       const sourceBaseId = input.sourceBaseId.trim()
       const name = input.name?.trim()
-      const embeddingModelId = input.embeddingModelId?.trim()
+      const embeddingModelId = input.embeddingModelId?.trim() || null
       const dimensions = input.dimensions
 
       if (!sourceBaseId) {
@@ -129,12 +135,12 @@ export const useRestoreKnowledgeBase = () => {
         throw new Error('Knowledge base name is required')
       }
 
-      if (!embeddingModelId) {
-        throw new Error('Knowledge base embedding model is required')
+      if (dimensions !== null && (!Number.isInteger(dimensions) || dimensions <= 0)) {
+        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
       }
 
-      if (!Number.isInteger(dimensions) || dimensions <= 0) {
-        throw new Error(`Knowledge base dimensions must be a positive integer, received "${input.dimensions}"`)
+      if ((embeddingModelId === null) !== (dimensions === null)) {
+        throw new Error('Knowledge base embedding model and dimensions must be provided together')
       }
 
       setIsRestoring(true)
@@ -177,6 +183,76 @@ export const useRestoreKnowledgeBase = () => {
     restoreBase,
     isRestoring,
     restoreError
+  }
+}
+
+export const useEnableKnowledgeBaseEmbedding = () => {
+  const [isEnabling, setIsEnabling] = useState(false)
+  const [enableError, setEnableError] = useState<Error | undefined>()
+  const invalidateCache = useInvalidateCache()
+
+  const enableEmbedding = useCallback(
+    async (baseId: string, patch: UpdateKnowledgeBaseDto) => {
+      setEnableError(undefined)
+
+      const trimmedBaseId = baseId.trim()
+      const embeddingModelId = patch.embeddingModelId?.trim()
+      const dimensions = patch.dimensions
+
+      if (!trimmedBaseId) {
+        throw new Error('Knowledge base id is required')
+      }
+
+      if (!embeddingModelId) {
+        throw new Error('Knowledge base embedding model is required')
+      }
+
+      if (!Number.isInteger(dimensions) || (dimensions as number) <= 0) {
+        throw new Error(`Knowledge base dimensions must be a positive integer, received "${dimensions}"`)
+      }
+
+      setIsEnabling(true)
+
+      try {
+        const result = await ipcApi.request('knowledge.enable_embedding_model', {
+          baseId: trimmedBaseId,
+          patch: { ...patch, embeddingModelId, dimensions }
+        })
+
+        try {
+          // Also invalidate the item list: enabling embedding flips every existing item back to
+          // processing/embedding server-side, but the item list's own polling already stopped
+          // once they last reached a terminal status (see useKnowledgeItems' hasNonTerminalItem) —
+          // without this, the UI keeps showing the stale "completed" badges from the BM25-only run.
+          await invalidateCache([`/knowledge-bases/${trimmedBaseId}/items`, '/knowledge-bases'])
+        } catch (invalidateError) {
+          logger.error(
+            'Failed to refresh knowledge base list after enabling embedding',
+            normalizeError(invalidateError),
+            { baseId: trimmedBaseId }
+          )
+        }
+
+        setIsEnabling(false)
+        return result
+      } catch (error) {
+        const normalizedError = normalizeError(error)
+        logger.error('Failed to enable knowledge base embedding', normalizedError, {
+          baseId: trimmedBaseId,
+          embeddingModelId
+        })
+        setEnableError(normalizedError)
+        setIsEnabling(false)
+        throw normalizedError
+      }
+    },
+    [invalidateCache]
+  )
+
+  return {
+    enableEmbedding,
+    isEnabling,
+    enableError
   }
 }
 
@@ -238,9 +314,9 @@ export const useDeleteKnowledgeBase = () => {
       }
 
       try {
-        await invalidateCache('/knowledge-bases')
+        await invalidateCache(['/knowledge-bases', '/agents', '/agents/*', '/assistants', '/assistants/*'])
       } catch (invalidateError) {
-        logger.error('Failed to refresh knowledge base list after delete', normalizeError(invalidateError), {
+        logger.error('Failed to refresh dependent data after knowledge base delete', normalizeError(invalidateError), {
           baseId
         })
       }

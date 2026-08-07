@@ -1,7 +1,7 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import type { ComponentPropsWithoutRef } from 'react'
 
-import { SkeletonSpan } from '../agent/GenericTools'
+import { SkeletonSpan } from './GenericTools'
 
 /**
  * Format argument value for display in table
@@ -62,11 +62,11 @@ export function ToolArgsTable({
 }
 
 export const ArgsSection = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('py-2 font-(--font-family-mono,monospace) text-xs leading-normal', className)} {...props} />
+  <div className={cn('font-(family-name:--code-font-family) py-2 text-xs leading-normal', className)} {...props} />
 )
 
 export const ArgsSectionTitle = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-2 font-semibold text-[11px] text-foreground-muted uppercase', className)} {...props} />
+  <div className={cn('mb-2 font-semibold text-[11px] text-foreground-tertiary uppercase', className)} {...props} />
 )
 
 export const ArgsTable = ({ className, ...props }: ComponentPropsWithoutRef<'table'>) => (

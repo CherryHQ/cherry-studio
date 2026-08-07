@@ -1,8 +1,9 @@
+import { toast } from '@renderer/services/toast'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import PermissionRequestComposer, { type PermissionRequestComposerRequest } from '../PermissionRequestComposer'
 
@@ -15,11 +16,17 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
-        'agent.toolPermission.pending': 'Waiting for approval',
+        'agent.toolPermission.pending': 'Waiting for confirmation',
         'agent.toolPermission.button.allow': 'Allow',
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
         'agent.toolPermission.waiting': 'Waiting for tool permission decision...',
+        'message.processing': 'Processing',
+        'message.tools.activity.checking': 'Checking',
+        'message.tools.activity.projectChecks': 'project checks',
+        'message.tools.activity.relatedContent': 'related content',
+        'message.tools.activity.searching': 'Searching',
+        'message.tools.activity.usingExtension': 'Bringing in an extension',
         'message.tools.labels.mcpServerTool': 'MCP Server Tool',
         'message.tools.labels.tool': 'Tool',
         'message.tools.sections.input': 'Input'
@@ -76,10 +83,6 @@ function makeRequest(overrides: Partial<PermissionRequestComposerRequest> = {}):
 }
 
 describe('PermissionRequestComposer', () => {
-  beforeEach(() => {
-    window.toast = { error: vi.fn() } as any
-  })
-
   it('marks the root panel as a composer viewport inset target', () => {
     const { container } = render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 
@@ -95,7 +98,7 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    expect(screen.getByText('Allow tool call?')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Processing' })).toBeInTheDocument()
     expect(screen.getByText('Allow CustomTool to run focused tests?')).toBeInTheDocument()
     expect(screen.queryByText('Tool input preview')).not.toBeInTheDocument()
 
@@ -147,7 +150,7 @@ describe('PermissionRequestComposer', () => {
       />
     )
 
-    expect(screen.getByText('lookup_docs')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Bringing in an extension' })).toBeInTheDocument()
     expect(screen.getByText('Search project documentation.')).toBeInTheDocument()
     expect(screen.getByTestId('permission-preview')).not.toHaveClass('overflow-y-auto')
     expect(screen.getByTestId('permission-mcp-args-scroll')).toHaveClass('max-h-60', 'overflow-y-auto')
@@ -191,11 +194,37 @@ describe('PermissionRequestComposer', () => {
     expect(screen.queryByTestId('permission-builtin-body-scroll')).not.toBeInTheDocument()
   })
 
-  it('hides the request title when it only repeats the tool name', () => {
+  it('uses the streaming tool icon and semantic title for the approval header', () => {
+    render(
+      <PermissionRequestComposer
+        request={makeRequest({
+          title: 'Bash',
+          toolResponse: {
+            id: 'bash-call-1',
+            toolCallId: 'bash-call-1',
+            status: 'pending',
+            arguments: { command: 'pnpm test' },
+            tool: {
+              id: 'Bash',
+              name: 'Bash',
+              type: 'builtin'
+            }
+          }
+        })}
+        onRespond={vi.fn()}
+      />
+    )
+
+    const heading = screen.getByRole('heading', { name: 'Checking project checks' })
+    expect(heading.querySelector('.lucide-square-terminal')).toBeInTheDocument()
+    expect(screen.queryByText('Allow tool call?')).not.toBeInTheDocument()
+  })
+
+  it('hides the request subtitle when it only repeats the tool name', () => {
     render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 
-    expect(screen.getByText('Allow tool call?')).toBeInTheDocument()
-    expect(screen.getAllByText('CustomTool')).toHaveLength(1)
+    const heading = screen.getByRole('heading', { name: 'Processing' })
+    expect(heading.parentElement?.children).toHaveLength(1)
   })
 
   it('disables actions while a response is submitting', async () => {
@@ -216,9 +245,7 @@ describe('PermissionRequestComposer', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
 
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
-    await waitFor(() =>
-      expect(window.toast.error).toHaveBeenCalledWith('Failed to send your decision. Please try again.')
-    )
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Failed to send your decision. Please try again.'))
     expect(screen.getByRole('button', { name: 'Allow' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Deny' })).not.toBeDisabled()
   })

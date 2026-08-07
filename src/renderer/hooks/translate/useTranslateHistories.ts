@@ -1,5 +1,6 @@
 import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { TRANSLATE_HISTORY_DEFAULT_LIMIT } from '@shared/data/api/schemas/translate'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -56,7 +57,7 @@ export const useTranslateHistories = ({
     if (error && !toastedRef.current) {
       toastedRef.current = true
       logger.error('Failed to load translate histories', error)
-      window.toast?.error(t('translate.history.error.load'))
+      toast.error(t('translate.history.error.load'))
     }
   }, [error, t])
 

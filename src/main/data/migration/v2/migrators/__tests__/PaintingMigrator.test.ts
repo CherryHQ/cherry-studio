@@ -18,7 +18,7 @@
 import { fileEntryTable } from '@data/db/schemas/file'
 import { paintingFileRefTable } from '@data/db/schemas/fileRelations'
 import { paintingTable } from '@data/db/schemas/painting'
-import { paintingFileRefSchema, paintingSourceType } from '@shared/data/types/file/ref'
+import { paintingFileRefSchema, paintingSourceType } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
@@ -127,6 +127,32 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     // The post-migration check the engine runs must pass.
     const fkCheck = dbh.sqlite.pragma('foreign_key_check')
     expect(fkCheck).toHaveLength(0)
+  })
+
+  it('flips cleanup_policy to delete_when_unreferenced for referenced files and leaves unreferenced files as manual', async () => {
+    await seedInternalFile(dbh, FILE_PRESENT_OUTPUT_ID)
+    // Present in file_entry but never referenced by any painting.
+    await seedInternalFile(dbh, FILE_PRESENT_INPUT_ID)
+
+    const migrator = new PaintingMigrator()
+    const ctx = makeCtx(dbh, {
+      openai_image_generate: [
+        {
+          id: PAINTING_OUTPUT_ID,
+          providerId: 'openai',
+          prompt: 'a fox',
+          files: [{ id: FILE_PRESENT_OUTPUT_ID }]
+        }
+      ]
+    })
+
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: 1 })
+
+    const entries = await dbh.db.select().from(fileEntryTable)
+    const byId = new Map(entries.map((e) => [e.id, e.cleanupPolicy]))
+    expect(byId.get(FILE_PRESENT_OUTPUT_ID)).toBe('delete_when_unreferenced')
+    expect(byId.get(FILE_PRESENT_INPUT_ID)).toBe('manual')
   })
 
   it('drops file ids absent from file_entry, counts them, and still migrates paintings', async () => {
@@ -279,6 +305,14 @@ describe('PaintingMigrator painting_file_ref integration', () => {
     const refRows = await dbh.db.select().from(paintingFileRefTable)
     expect(refRows).toHaveLength(FILE_COUNT)
     expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(0)
+
+    // Every referenced entry must flip to auto — the >500-id chunked UPDATE in
+    // markEntriesAutoCleanup must cover all 1200. A chunk off-by-one would leave
+    // some referenced files stuck on 'manual' (never reclaimed) and go unnoticed.
+    const autoCount = dbh.sqlite
+      .prepare(`SELECT COUNT(*) AS c FROM file_entry WHERE cleanup_policy = 'delete_when_unreferenced'`)
+      .get() as { c: number }
+    expect(autoCount.c).toBe(FILE_COUNT)
 
     const fkCheck = dbh.sqlite.pragma('foreign_key_check')
     expect(fkCheck).toHaveLength(0)

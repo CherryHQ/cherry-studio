@@ -1,6 +1,8 @@
 import '@testing-library/jest-dom/vitest'
 
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -8,9 +10,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { WebSearchApiKeyList } from '../components/WebSearchApiKeyList'
 import type * as WebSearchApiKeyListHook from '../hooks/useWebSearchApiKeyList'
 
-const toastErrorMock = vi.fn()
-const toastWarningMock = vi.fn()
-const confirmMock = vi.fn()
 const updateListItemMock = vi.fn()
 const removeListItemMock = vi.fn()
 const addPendingKeyMock = vi.fn()
@@ -53,18 +52,6 @@ vi.mock('../hooks/useWebSearchApiKeyList', async (importOriginal) => ({
 describe('WebSearchApiKeyList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.assign(window, {
-      toast: {
-        ...window.toast,
-        error: toastErrorMock,
-        warning: toastWarningMock
-      },
-      modal: {
-        ...window.modal,
-        confirm: confirmMock
-      }
-    })
-    confirmMock.mockResolvedValue(true)
     updateListItemMock.mockResolvedValue({ isValid: true })
     removeListItemMock.mockResolvedValue(undefined)
     mocks.useWebSearchApiKeyList.mockReturnValue({
@@ -98,7 +85,7 @@ describe('WebSearchApiKeyList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.errors.save_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.websearch.errors.save_failed')
     })
   })
 
@@ -113,9 +100,9 @@ describe('WebSearchApiKeyList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.save' }))
 
     await waitFor(() => {
-      expect(toastWarningMock).toHaveBeenCalledWith('settings.provider.api.key.error.duplicate')
+      expect(toast.warning).toHaveBeenCalledWith('settings.provider.api.key.error.duplicate')
     })
-    expect(toastErrorMock).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
   })
 
   it('shows a save-failed toast when deleting a key rejects', async () => {
@@ -125,7 +112,7 @@ describe('WebSearchApiKeyList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
 
     await waitFor(() => {
-      expect(toastErrorMock).toHaveBeenCalledWith('settings.tool.websearch.errors.save_failed')
+      expect(toast.error).toHaveBeenCalledWith('settings.tool.websearch.errors.save_failed')
     })
   })
 
@@ -167,17 +154,17 @@ describe('WebSearchApiKeyList', () => {
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
 
     expect(removeListItemMock).toHaveBeenCalledOnce()
-    expect(confirmMock).not.toHaveBeenCalled()
+    expect(popup.confirm).not.toHaveBeenCalled()
   })
 
   it('does not remove a key when delete confirmation is cancelled', async () => {
-    confirmMock.mockResolvedValueOnce(false)
+    vi.mocked(popup.confirm).mockImplementationOnce(async () => false)
     render(<WebSearchApiKeyList providerId="tavily" />)
 
     fireEvent.click(screen.getByRole('button', { name: 'common.delete' }))
 
     await waitFor(() => {
-      expect(confirmMock).toHaveBeenCalledOnce()
+      expect(popup.confirm).toHaveBeenCalledOnce()
     })
     expect(removeListItemMock).not.toHaveBeenCalled()
   })

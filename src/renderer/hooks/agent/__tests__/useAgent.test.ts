@@ -1,29 +1,26 @@
 import { useQuery } from '@data/hooks/useDataApi'
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
-import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { toast } from '@renderer/services/toast'
+import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAgent, useAgents, useUpdateAgent } from '../useAgent'
+
+const { ipcRequestMock } = vi.hoisted(() => ({ ipcRequestMock: vi.fn() }))
+const invalidateSpy = vi.fn(async () => {})
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    request: ipcRequestMock,
+    on: vi.fn(() => () => undefined)
+  }
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key
   })
 }))
-
-vi.mock('@data/hooks/useCache', () => ({
-  useCache: vi.fn().mockReturnValue(['agent-1', vi.fn()])
-}))
-
-const mockToast = {
-  success: vi.fn(),
-  error: vi.fn()
-}
-vi.stubGlobal('window', {
-  toast: mockToast,
-  api: {}
-})
 
 describe('useAgent', () => {
   beforeEach(() => {
@@ -39,6 +36,7 @@ describe('useAgent', () => {
 
     expect(result.current.agent).toBeUndefined()
     expect(mockUseQuery).toHaveBeenCalledWith('/agents/:agentId', expect.objectContaining({ enabled: false }))
+    expect(mockUseQuery).not.toHaveBeenCalledWith('/mcp-servers', expect.anything())
   })
 
   it('fetches agent when id is provided', () => {
@@ -58,6 +56,7 @@ describe('useAgent', () => {
 
     expect(result.current.agent).toBeDefined()
     expect(result.current.agent?.id).toBe('agent-1')
+    expect(result.current.agent).not.toHaveProperty('tools')
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith(
       '/agents/:agentId',
@@ -66,6 +65,7 @@ describe('useAgent', () => {
         swrOptions: expect.objectContaining({ keepPreviousData: false })
       })
     )
+    expect(mockUseQuery).not.toHaveBeenCalledWith('/mcp-servers', expect.anything())
   })
 
   it('parses configuration through AgentConfigurationSchema preserving known and unknown fields', () => {
@@ -74,7 +74,7 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      configuration: { avatar: '🤖' },
+      configuration: { avatar: '🤖', reasoning_effort: 'high' },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
@@ -84,6 +84,7 @@ describe('useAgent', () => {
 
     // Known field preserved; optional fields not explicitly set remain undefined
     expect(result.current.agent?.configuration?.avatar).toBe('🤖')
+    expect(result.current.agent?.configuration?.reasoning_effort).toBe('high')
     expect(result.current.agent?.configuration?.permission_mode).toBeUndefined()
     expect(result.current.agent?.configuration?.max_turns).toBeUndefined()
   })
@@ -94,9 +95,9 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      // permission_mode/'invalid' fails enum check; env_vars/null fails record check.
+      // permission_mode/reasoning_effort 'invalid' fail enum checks; env_vars/null fails record check.
       // max_turns/200 is well-typed and must survive.
-      configuration: { permission_mode: 'invalid', env_vars: null, max_turns: 200 },
+      configuration: { permission_mode: 'invalid', reasoning_effort: 'invalid', env_vars: null, max_turns: 200 },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
@@ -132,8 +133,8 @@ describe('useAgent', () => {
 describe('useAgents', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
-    MockCacheUtils.resetMocks()
     vi.clearAllMocks()
+    mockUseInvalidateCache.mockReturnValue(invalidateSpy)
   })
 
   describe('agents list', () => {
@@ -161,32 +162,31 @@ describe('useAgents', () => {
   })
 
   describe('addAgent', () => {
-    it('calls createTrigger and shows success toast', async () => {
+    it('creates through IpcApi, invalidates the DataApi list, and shows success toast', async () => {
       const mockAgent = { id: 'new-agent', name: 'New Agent', model: 'anthropic::claude-3' }
-      const mockTrigger = vi.fn().mockResolvedValue(mockAgent)
-      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agents', mockTrigger)
+      ipcRequestMock.mockResolvedValue(mockAgent)
       MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
 
       const { result } = renderHook(() => useAgents())
-      const addResult = await act(async () =>
-        result.current.addAgent({
-          name: 'New Agent',
-          model: 'anthropic::claude-3',
-          type: 'claude-code'
-        })
-      )
+      const form = {
+        name: 'New Agent',
+        model: 'anthropic::claude-3' as const,
+        type: 'claude-code' as const
+      }
+      const addResult = await act(async () => result.current.addAgent(form))
 
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.create', form)
+      expect(invalidateSpy).toHaveBeenCalledWith('/agents')
       expect(addResult.success).toBe(true)
       if (addResult.success) {
         expect(addResult.data).toEqual(mockAgent)
       }
-      expect(mockToast.success).toHaveBeenCalledWith('common.add_success')
+      expect(toast.success).toHaveBeenCalledWith('common.add_success')
     })
 
-    it('returns failure result when createTrigger throws', async () => {
+    it('returns failure result when IpcApi creation throws', async () => {
       const error = new Error('Create failed')
-      const mockTrigger = vi.fn().mockRejectedValue(error)
-      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agents', mockTrigger)
+      ipcRequestMock.mockRejectedValue(error)
       MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
 
       const { result } = renderHook(() => useAgents())
@@ -198,8 +198,29 @@ describe('useAgents', () => {
         })
       )
 
+      expect(invalidateSpy).not.toHaveBeenCalled()
       expect(addResult.success).toBe(false)
-      expect(mockToast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
+    })
+
+    it('returns the committed Agent when list invalidation fails', async () => {
+      const mockAgent = { id: 'new-agent', name: 'New Agent', model: 'anthropic::claude-3' }
+      ipcRequestMock.mockResolvedValue(mockAgent)
+      invalidateSpy.mockRejectedValueOnce(new Error('revalidation failed'))
+      MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
+
+      const { result } = renderHook(() => useAgents())
+      const addResult = await act(async () =>
+        result.current.addAgent({
+          name: 'New Agent',
+          model: 'anthropic::claude-3',
+          type: 'claude-code'
+        })
+      )
+
+      expect(addResult).toEqual({ success: true, data: mockAgent })
+      expect(toast.success).toHaveBeenCalledWith('common.add_success')
+      expect(toast.error).not.toHaveBeenCalled()
     })
   })
 
@@ -222,7 +243,7 @@ describe('useAgents', () => {
       await act(async () => result.current.deleteAgent('agent-1'))
 
       expect(mockTrigger).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
-      expect(mockToast.success).toHaveBeenCalledWith('common.delete_success')
+      expect(toast.success).toHaveBeenCalledWith('common.delete_success')
     })
 
     it('shows error toast when deleteTrigger throws', async () => {
@@ -233,7 +254,7 @@ describe('useAgents', () => {
       const { result } = renderHook(() => useAgents())
       await act(async () => result.current.deleteAgent('agent-1'))
 
-      expect(mockToast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
     })
   })
 })
@@ -264,7 +285,7 @@ describe('useUpdateAgent', () => {
       expect(mockTrigger).toHaveBeenCalledWith({ params: { agentId: 'agent-1' }, body: { name: 'Updated' } })
       expect(updated).toBeDefined()
       expect(updated?.id).toBe('agent-1')
-      expect(mockToast.success).toHaveBeenCalledWith(expect.objectContaining({ key: 'update-agent' }))
+      expect(toast.success).toHaveBeenCalledWith(expect.objectContaining({ key: 'update-agent' }))
     })
 
     it('does not show success toast when showSuccessToast is false', async () => {
@@ -283,7 +304,7 @@ describe('useUpdateAgent', () => {
       const { result } = renderHook(() => useUpdateAgent())
       await act(async () => result.current.updateAgent({ id: 'agent-1', name: 'Updated' }, { showSuccessToast: false }))
 
-      expect(mockToast.success).not.toHaveBeenCalled()
+      expect(toast.success).not.toHaveBeenCalled()
     })
 
     it('shows error toast and returns undefined on failure', async () => {
@@ -294,25 +315,61 @@ describe('useUpdateAgent', () => {
       const updated = await act(async () => result.current.updateAgent({ id: 'agent-1', name: 'Fail' }))
 
       expect(updated).toBeUndefined()
-      expect(mockToast.error).toHaveBeenCalled()
+      expect(toast.error).toHaveBeenCalled()
     })
   })
 
   describe('updateModel', () => {
-    it('delegates to updateAgent with model field', async () => {
+    it('sends the model and pending reasoning selection as a narrow patch', async () => {
       const mockTrigger = vi.fn().mockResolvedValue({
         id: 'agent-1',
         name: 'A',
         model: 'anthropic::new-model',
         type: 'claude-code',
-        configuration: {},
+        configuration: { avatar: '🤖', reasoning_effort: 'default' },
         createdAt: '',
         updatedAt: ''
       })
       MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
 
       const { result } = renderHook(() => useUpdateAgent())
-      await act(async () => result.current.updateModel('agent-1', 'anthropic::new-model'))
+      const updated = await act(async () =>
+        result.current.updateModel({
+          agentId: 'agent-1',
+          modelId: 'anthropic::new-model',
+          reasoningEffort: 'high'
+        })
+      )
+
+      expect(mockTrigger).toHaveBeenCalledWith({
+        params: { agentId: 'agent-1' },
+        body: {
+          model: 'anthropic::new-model',
+          configuration: { reasoning_effort: 'high' }
+        }
+      })
+      expect(updated?.model).toBe('anthropic::new-model')
+    })
+
+    it('does not send configuration when only the model changed', async () => {
+      const mockTrigger = vi.fn().mockResolvedValue({
+        id: 'agent-1',
+        name: 'A',
+        model: 'anthropic::new-model',
+        type: 'claude-code',
+        configuration: { avatar: '🤖', reasoning_effort: 'default' },
+        createdAt: '',
+        updatedAt: ''
+      })
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
+
+      const { result } = renderHook(() => useUpdateAgent())
+      await act(async () =>
+        result.current.updateModel({
+          agentId: 'agent-1',
+          modelId: 'anthropic::new-model'
+        })
+      )
 
       expect(mockTrigger).toHaveBeenCalledWith({
         params: { agentId: 'agent-1' },

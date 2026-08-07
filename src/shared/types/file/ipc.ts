@@ -20,6 +20,14 @@
  * inferred `InputFor` / `OutputFor`) as consumers migrate to IpcApi. Do not add
  * new File IPC surface here except temporary legacy-preload compatibility notes.
  *
+ * **Contracts here may be stale.** Because this file is slated for deletion once
+ * the migration completes, individual method signatures below are NOT kept in
+ * lockstep with the routes as they move to IpcApi — a method may already resolve
+ * through `file.get_metadata` & friends with a different (e.g. nullable) shape
+ * than what its JSDoc/type here still declares. For any migrated route, the
+ * schema in `src/shared/ipc/schemas/file.ts` and its handler are authoritative;
+ * treat the declarations here as historical intent, not the live contract.
+ *
  * ## Unified access via FileHandle
  *
  * Most operations accept `FileHandle` (tagged union) so consumers don't have
@@ -33,20 +41,26 @@
  * enrichment queries, etc.) take `FileEntryId` directly.
  */
 
-import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
+import type {
+  CleanupPolicy,
+  ContentHash,
+  DanglingState,
+  FileEntry,
+  FileEntryId,
+  FileHandle
+} from '@shared/data/types/file'
 
-import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, UrlString } from './common'
-import type { FileHandle } from './handle'
+import type {
+  AbsoluteFilePath,
+  Base64String,
+  DirectoryListOptions,
+  FileVersion,
+  PhysicalFileMetadata,
+  UrlString
+} from './common'
 import type { OrphanReport } from './sweep'
 
-export type { DirectoryListOptions, FilePath } from './common'
-
-// ─── Version ───
-
-export interface FileVersion {
-  mtime: number
-  size: number
-}
+export type { AbsoluteFilePath, DirectoryListOptions, FileVersion } from './common'
 
 export interface ReadResult<T> {
   content: T
@@ -82,17 +96,32 @@ export interface ReadResult<T> {
  * UX names, where the caller has a legitimate choice).
  *
  * See `file-arch-problems-response.md` for the full rationale (extension of A-7).
+ *
+ * TODO(file-ipc types): this union hand-mirrors `createInternalEntryInputSchema`
+ * (`src/shared/ipc/schemas/file.ts`) and so re-declares the shared `cleanupPolicy`
+ * per branch. What used to block collapsing it into
+ * `z.infer<typeof createInternalEntryInputSchema>` is gone: `path` was already
+ * fine, and `url` / `data` no longer widen to plain `string` now that
+ * `UrlStringSchema` / `Base64StringSchema` carry `UrlString` / `Base64String`.
+ * What is left is to confirm the remaining fields (`name`, `ext`) infer to the
+ * same types this union declares, then delete it and let `cleanupPolicy` live in
+ * one place. Deferred to the File IPC → IpcApi migration (see the matching TODO
+ * in `schemas/file.ts`). Until then, keep the two in sync by hand.
  */
 export type CreateInternalEntryIpcParams =
   | {
       /** Copy the file at `path` into Cherry storage. `name` / `ext` derived from basename+extname. */
       source: 'path'
-      path: FilePath
+      path: AbsoluteFilePath
+      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      cleanupPolicy: CleanupPolicy
     }
   | {
       /** Download the URL into Cherry storage. `name` / `ext` derived from URL tail, Content-Disposition, and Content-Type. */
       source: 'url'
       url: UrlString
+      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      cleanupPolicy: CleanupPolicy
     }
   | {
       /** Decode `data:<mime>;base64,...` and write into Cherry storage. `ext` derived from mime; caller may override the UX display name. */
@@ -100,6 +129,8 @@ export type CreateInternalEntryIpcParams =
       data: Base64String
       /** Optional display name override. If omitted, FileManager synthesizes one (e.g. `Pasted Image 2026-04-21`). */
       name?: string
+      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      cleanupPolicy: CleanupPolicy
     }
   | {
       /** Write raw bytes into Cherry storage. No derivation possible — caller is the sole authority for `name` and `ext`. */
@@ -109,6 +140,8 @@ export type CreateInternalEntryIpcParams =
       name: string
       /** File extension without leading dot (e.g. `'pdf'`), or `null` for extensionless. */
       ext: string | null
+      /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+      cleanupPolicy: CleanupPolicy
     }
 
 /**
@@ -119,46 +152,33 @@ export type CreateInternalEntryIpcParams =
  * `getMetadata`. External entries cannot be trashed, so no "restore" branch
  * is possible.
  *
- * ## Canonicalization stays on the main side (by design)
+ * ## Canonicalization
  *
- * `externalPath` is intentionally typed as raw `FilePath` rather than
- * `CanonicalExternalPath`. The asymmetry is deliberate:
+ * `externalPath` is typed as `AbsoluteFilePath` at this IPC boundary — shape-validated
+ * only (absolute form, no null bytes; see `AbsoluteFilePathSchema`), NOT canonicalized.
+ * Canonicalization into the stored `CanonicalFilePath` form (byte-faithful
+ * lexical cleanup: resolve segments, strip trailing separator, drive-letter
+ * upcase — NOT Unicode-normalized) happens inside `ensureExternalEntry`, via
+ * `canonicalizeFilePath()` (`@shared/utils/file/canonicalize`) — not at IPC
+ * parse time.
  *
- * - **Renderer has no canonicalize use case.** It never compares paths
- *   for dedup (the DB-level `UNIQUE(externalPath)` index does that
- *   after `ensureExternalEntry`), never derives a canonical projection,
- *   and never uses paths as join keys. Every path the renderer holds
- *   either flows back to main (for an IPC call) or feeds a system API
- *   that itself accepts arbitrary user paths.
- * - **Canonicalization implementation is main-only.**
- *   `canonicalizeExternalPath` (`src/main/services/file/utils/pathResolver.ts`)
- *   depends on main-only modules (realpath / NFC / case-fold). Asking the
- *   renderer to canonicalize would either duplicate that logic or
- *   require an extra IPC hop per call — no upside for either choice.
- * - **The brand is already protected by a project rule, not by JSDoc.**
- *   `fileEntry.ts` makes the construction discipline explicit: only the
- *   `canonicalizeExternalPath` factory may produce `CanonicalExternalPath`;
- *   production code MUST NEVER `as`-cast into the brand. Code that
- *   bypasses the gate violates the rule, not just an inline comment —
- *   PR review catches it the same way it catches any other rule break.
+ * The two gates are not the same set, so passing this boundary does NOT
+ * guarantee the entry can be created: a UNC `externalPath` is a valid
+ * `AbsoluteFilePath` and is accepted here, then rejected by
+ * `canonicalizeFilePath()` inside `ensureExternalEntry`. UNC files can be read
+ * and copied into internal entries; they cannot become external ones.
  *
- * **Why not extend the brand to the IPC boundary** (e.g. a `RawExternalPath`
- * brand on the param): the renderer would have to `as`-cast `string →
- * RawExternalPath` at the call site, which is itself a violation of the
- * same "no production `as`-cast into brands" rule. The proposal therefore
- * trades one boundary's discipline for another's, without adding actual
- * enforcement; meanwhile dev / test ergonomics get worse at every call
- * site. The four current main consumers (FileManager.ensureExternalEntry,
- * FileManager.rename, `internal/entry/rename.ts`, `internal/entry/create.ts`)
- * already canonicalize before any DB lookup, and Phase 2 consumers join
- * that pattern via code review at the same sites.
- *
- * Skipping canonicalization silently misses entries on case-insensitive
- * filesystems and after symlink resolution — which is why the gate exists
- * at all.
+ * What stays main-only is the **disambiguation** step beyond canonicalization:
+ * `ensureExternalEntry` additionally runs `fs.realpath` to resolve
+ * case-insensitive-filesystem collisions (see `internal/entry/create.ts`),
+ * which depends on main-only FS APIs. Skipping that disambiguation silently
+ * misses entries on case-insensitive filesystems and after symlink
+ * resolution — which is why it stays a main-side concern.
  */
 export type EnsureExternalEntryIpcParams = {
-  externalPath: FilePath
+  externalPath: AbsoluteFilePath
+  /** Cleanup intent for the new entry — see docs/references/file/file-entry-cleanup.md §4.1. */
+  cleanupPolicy: CleanupPolicy
 }
 
 /** Params for resolving the absolute filesystem path of a single FileEntry. */
@@ -228,9 +248,9 @@ export interface BatchCreateResult {
  * underlying IPC channel is registered. Renderer code calling a method whose
  * channel is not yet registered will type-check but fail at runtime.
  *
- * | Files page IpcApi — wired | Legacy preload — still wired | Type-only / future |
+ * | IpcApi — wired | Legacy preload — still wired | Type-only / future |
  * |---|---|---|
- * | `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, path-handle `getMetadata`, `runSweep` | everything else |
+ * | binary `read`, `batchCreateInternalEntries`, `batchGetMetadata`, `batchGetPhysicalPaths`, `batchGetDanglingStates`, `batchTrash`, `batchRestore`, `batchPermanentDelete`, entry `rename`, entry `open`, entry `showInFolder`, `getMetadata` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, handle `permanentDelete`, `runSweep` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -298,7 +318,9 @@ export interface FileIpcApi {
    *   `name` / `ext` are projections of `externalPath` and `size` is not
    *   stored for external; live values come from `getMetadata`).
    * - No existing entry → insert a new row after a one-shot `fs.stat` that
-   *   verifies the path exists and seeds DanglingCache.
+   *   seeds DanglingCache. The stat is a best-effort presence probe, not an
+   *   existence gate: `ENOENT`/`ENOTDIR` create a *dangling* entry (absent
+   *   file, allowed by design); only a genuine FS fault (e.g. `EACCES`) throws.
    *
    * Idempotent by design — callers holding an `externalPath` can invoke this
    * freely without pre-checking. The global unique index
@@ -326,7 +348,8 @@ export interface FileIpcApi {
 
   // ─── C. Read / Metadata (accepts FileHandle) ───
   //
-  // Section status: all `@phase 2`.
+  // Section status: the binary `read` option and selected metadata operations
+  // are wired through IpcApi; the remaining shapes are still `@phase 2`.
 
   /**
    * Read content as text
@@ -340,7 +363,7 @@ export interface FileIpcApi {
   read(handle: FileHandle, options: { encoding: 'base64' }): Promise<ReadResult<string>>
   /**
    * Read content as binary
-   * @phase 2 — not yet wired
+   * @phase 2 — wired as IpcApi route `file.read`.
    */
   read(handle: FileHandle, options: { encoding: 'binary' }): Promise<ReadResult<Uint8Array>>
 
@@ -354,9 +377,10 @@ export interface FileIpcApi {
    *
    * Side effect: updates DanglingCache based on stat outcome (external only).
    *
-   * @phase 2 — path-handle branch wired (`IpcChannel.File_GetMetadata` →
-   * `FileManager.registerIpcHandlers`, direct `fs.stat`); the entry-id branch
-   * is still `@phase 2` (not yet wired).
+   * @phase 2 — wired as IpcApi route `file.get_metadata` (handler in
+   * `src/main/ipc/handlers/file.ts`). Both branches resolve — path handles via
+   * `getMetadataByPath`, entry handles via `FileManager.getMetadata` — sharing
+   * `buildPhysicalFileMetadata`, so `type` is content-derived for either.
    */
   getMetadata(handle: FileHandle): Promise<PhysicalFileMetadata>
 
@@ -393,10 +417,10 @@ export interface FileIpcApi {
   getVersion(handle: FileHandle): Promise<FileVersion>
 
   /**
-   * Compute xxhash-h64 of file content.
+   * Compute a tagged XXH3-64 hash of file content.
    * @phase 2 — not yet wired
    */
-  getContentHash(handle: FileHandle): Promise<string>
+  getContentHash(handle: FileHandle): Promise<ContentHash>
 
   // ─── D. Write (accepts FileHandle; both branches land in ops' atomic write) ───
   //
@@ -411,18 +435,20 @@ export interface FileIpcApi {
   /**
    * Optimistic-concurrency write. Throws StaleVersionError on version mismatch.
    *
-   * `expectedContentHash` (xxhash-h64 hex) is optional and only consulted on
+   * `expectedContentHash` (tagged XXH3-64) is optional and only consulted on
    * second-precision filesystems (FAT32 / SMB / NFS) where the observed mtime
    * truncates to whole seconds — see `FileVersion` JSDoc for the full
    * fallback contract.
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — wired through the generic `file.write_if_unchanged` IpcApi
+   * route. Entry handles use FileManager's managed commit protocol; path
+   * handles use the guarded path-only OCC primitive.
    */
   writeIfUnchanged(
     handle: FileHandle,
     data: string | Uint8Array,
     expectedVersion: FileVersion,
-    expectedContentHash?: string
+    expectedContentHash?: ContentHash
   ): Promise<FileVersion>
 
   // ─── E. Trash / Delete ───
@@ -543,13 +569,7 @@ export interface FileIpcApi {
    * List contents of an arbitrary directory.
    * @phase 2 — not yet wired
    */
-  listDirectory(dirPath: FilePath, options?: DirectoryListOptions): Promise<string[]>
-
-  /**
-   * Check if a directory is non-empty.
-   * @phase 2 — not yet wired
-   */
-  isNotEmptyDir(dirPath: FilePath): Promise<boolean>
+  listDirectory(dirPath: AbsoluteFilePath, options?: DirectoryListOptions): Promise<string[]>
 
   // ─── J. Entry Enrichment (FileEntryId only; FS / main-side compute) ───
   //
@@ -559,7 +579,7 @@ export interface FileIpcApi {
   //
   // For the `file://` URL that used to be served via `includeUrl`, callers
   // now compose it in-process via the shared `toSafeFileUrl(path, ext)` helper
-  // in `@shared/utils/file/url` — a pure formatting layer over the `FilePath`
+  // in `@shared/utils/file/url` — a pure formatting layer over the `AbsoluteFilePath`
   // returned by `getPhysicalPath`, so it needs no IPC of its own.
   //
   // Each method has a single-item and a batch form. Prefer the batch form when
@@ -620,11 +640,11 @@ export interface FileIpcApi {
    *   through File IPC so version / dangling / FS invariants stay consistent.
    *
    * Enforced **by convention** (code review gate); the type system cannot
-   * prevent a renderer from misusing a `FilePath` string.
+   * prevent a renderer from misusing an `AbsoluteFilePath` string.
    *
    * @phase 2 — wired in Batch 0 (`IpcChannel.File_GetPhysicalPath` → `FileManager.registerIpcHandlers`)
    */
-  getPhysicalPath(params: { id: FileEntryId }): Promise<FilePath>
+  getPhysicalPath(params: { id: FileEntryId }): Promise<AbsoluteFilePath>
 
   /**
    * Batch form of `getPhysicalPath`. Each requested id appears in the result
@@ -632,21 +652,27 @@ export interface FileIpcApi {
    *
    * @phase 2 — wired for Files page as IpcApi route `file.batch_get_physical_paths`.
    */
-  batchGetPhysicalPaths(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, FilePath>>
+  batchGetPhysicalPaths(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, AbsoluteFilePath>>
 
   // ─── K. Orphan Sweep ───
   //
-  // User-triggered cleanup pass. There is no startup auto-run; the cleanup UI
-  // is the only consumer.
+  // On-demand "report everything" pass. Reclamation itself is unattended —
+  // the entry cleanup and the FS orphan sweep both run from FileManager's idle
+  // tick; this channel exists for a cleanup UI that has no caller yet.
 
   /**
-   * Run both the FS-level orphan sweep (architecture §10) and the DB-level
-   * temp-session ref prune / entry report (§7 Layer 3) concurrently. Returns
-   * once both settle, with the umbrella discriminated outcome surfaced through
-   * the report's `outcome` field (`'completed'` / `'partial'` / `'failed'`).
+   * Run the scan-based entry cleanup pass, then both the FS-level orphan
+   * sweep (architecture §10) and the DB-level zero-ref entry
+   * report (§7 Layer 3) concurrently. Returns once all three settle, with the
+   * umbrella discriminated outcome surfaced through the report's `outcome`
+   * field (`'completed'` / `'partial'` / `'aborted'` / `'failed'`); the cleanup pass's own
+   * outcome rides in `entryCleanup` without affecting it.
    *
    * DB failures dominate as `failed`; FS-side partial/aborted/failed outcomes
    * degrade the umbrella report to `partial` via `fsSweepIssue`.
+   *
+   * Caller-initiated maintenance; no user-facing UI triggers it (the entry
+   * cleanup it wraps is silent — see file-entry-cleanup.md's Decision note).
    *
    * @phase 2 — wired in Batch 0 (`IpcChannel.File_RunSweep` →
    * `FileManager.registerIpcHandlers`)

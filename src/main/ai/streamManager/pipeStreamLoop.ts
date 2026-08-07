@@ -31,8 +31,8 @@ export interface PipeStreamLoopResult {
   finalMessage?: CherryUIMessage
   /** First in-stream error chunk's `errorText`. */
   streamErrorText?: string
-  /** Thrown error from broadcast loop or pre-stream setup. */
-  threw?: unknown
+  /** Thrown error from broadcast loop or pre-stream setup. Wrapped so `undefined` remains distinguishable from no error. */
+  threw?: { error: unknown }
   /** Captured before accumulator drain. */
   broadcastCompletedAt: number
 }
@@ -60,7 +60,7 @@ export async function pipeStreamLoop(
   else signal.addEventListener('abort', onAbort, { once: true })
 
   let streamErrorText: string | undefined
-  let threw: unknown
+  let threw: { error: unknown } | undefined
   let broadcastCompletedAt: number
 
   try {
@@ -71,8 +71,8 @@ export async function pipeStreamLoop(
       options.onChunk(value)
     }
     broadcastCompletedAt = performance.now()
-  } catch (err) {
-    threw = err
+  } catch (error) {
+    threw = { error }
     broadcastCompletedAt = performance.now()
   } finally {
     signal.removeEventListener('abort', onAbort)

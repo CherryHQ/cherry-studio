@@ -18,8 +18,8 @@ export const SettingContainer = ({
 )
 
 // Canonical settings page container — mirrors the model service (Provider Settings) detail column:
-// outer px-6 py-4 + inner mx-auto max-w-3xl. Use for "simple right-content" settings pages.
-// Pages with their own internal split layout (Data / Integration / MCP / WebSearch / FileProcessing / Channels)
+// outer p-6 + inner mx-auto max-w-3xl. Use for "simple right-content" settings pages.
+// Pages with their own internal split layout (Data / Integration / MCP / Channels)
 // keep SettingContainer instead. See DESIGN.md §4 "Settings Page Content Container".
 export const SettingsContentColumn = ({
   className,
@@ -30,24 +30,21 @@ export const SettingsContentColumn = ({
 }: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode; innerClassName?: string }) => (
   <div
     data-theme-mode={theme}
-    className={cn(
-      'flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4 pt-3 [&::-webkit-scrollbar]:hidden',
-      className
-    )}
+    className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden', className)}
     {...rest}>
     <div className={cn('mx-auto w-full max-w-3xl', innerClassName)}>{children}</div>
   </div>
 )
 
-// Body variant for pages that handle their own Scrollbar (e.g. CommonSettings, ShortcutSettings).
-// Renders the same two-layer structure (outer px-6 py-4, inner mx-auto max-w-3xl) without owning the scroll.
+// Body variant for pages that handle their own Scrollbar (e.g. ShortcutSettings).
+// Renders the same two-layer structure (outer p-6, inner mx-auto max-w-3xl) without owning the scroll.
 export const SettingsContentBody = ({
   className,
   innerClassName,
   children,
   ...rest
 }: React.ComponentPropsWithoutRef<'div'> & { innerClassName?: string }) => (
-  <div className={cn('flex min-h-full w-full flex-col px-6 py-4 pt-3', className)} {...rest}>
+  <div className={cn('flex min-h-full w-full flex-col p-6', className)} {...rest}>
     <div className={cn('mx-auto w-full max-w-3xl', innerClassName)}>{children}</div>
   </div>
 )
@@ -64,11 +61,11 @@ export const SettingSubtitle = ({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & { ref?: React.RefObject<HTMLDivElement | null> }) => (
-  <div ref={ref} className={cn('select-none font-bold text-foreground text-sm', className)} {...props} />
+  <div ref={ref} className={cn('select-none font-semibold text-foreground text-sm', className)} {...props} />
 )
 
 export const SettingDescription = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mt-2.5 text-foreground-muted text-xs', className)} {...props} />
+  <div className={cn('mt-2.5 text-muted-foreground text-xs', className)} {...props} />
 )
 
 export const SettingRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -87,11 +84,11 @@ export const SettingHelpTextRow = ({ className, ...props }: React.ComponentProps
 )
 
 export const SettingHelpText = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('text-[11px] text-foreground/40', className)} {...props} />
+  <div className={cn('text-[11px] text-muted-foreground', className)} {...props} />
 )
 
 export const SettingHelpLink = ({ className, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
-  <a className={cn('cursor-pointer text-[11px] text-primary hover:underline', className)} {...props} />
+  <a className={cn('cursor-pointer text-[11px] text-link hover:underline', className)} {...props} />
 )
 
 export const SettingTitleExternalLink = ({
@@ -103,19 +100,30 @@ export const SettingTitleExternalLink = ({
   <a
     target={target}
     rel={rel}
-    className={cn('inline-flex items-center text-primary hover:underline', className)}
+    className={cn('inline-flex items-center text-link hover:underline', className)}
     {...props}
   />
 )
 
 export const SettingGroup = ({
   className,
+  style,
   theme,
+  variant = 'card',
   ...props
-}: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode }) => (
+}: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode; variant?: 'card' | 'plain' }) => (
   <div
     data-theme-mode={theme}
-    className={cn('mt-2 border-border/60 border-t pt-3 first:mt-0 first:border-t-0 first:pt-0', className)}
+    style={{
+      backgroundColor: variant === 'card' ? 'var(--settings-group-background, var(--card))' : undefined,
+      ...style
+    }}
+    className={cn(
+      variant === 'card'
+        ? 'mt-4 rounded-xl border border-border bg-card p-4 first:mt-0'
+        : 'mt-2 border-border-subtle border-t pt-3 first:mt-0 first:border-t-0 first:pt-0',
+      className
+    )}
     {...props}
   />
 )

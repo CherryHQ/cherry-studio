@@ -28,7 +28,7 @@ vi.mock('node:fs', async () => {
   }
 })
 
-import { handleExportStage, handleParseStage } from '../document-to-markdown/handler'
+import { handleExportStage, handleParseStage } from '../documentToMarkdown/handler'
 import { uploadFile } from '../utils'
 
 const { getExportResultMock, getParseStatusMock, triggerExportTaskMock } = vi.hoisted(() => ({

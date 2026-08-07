@@ -1,19 +1,24 @@
+import { MessageEditingProvider } from '@renderer/components/chat/editing/MessageEditingContext'
+import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { ChatLayoutModeProvider } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   RefreshProvider,
   TranslationOverlayProvider,
   TranslationOverlaySetterProvider
-} from '@renderer/components/chat/messages/blocks'
-import { MessageEditingProvider } from '@renderer/components/chat/messages/editing/MessageEditingContext'
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
+} from '@renderer/components/chat/messages/blocks/MessagePartsContext'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
+import { ConversationGreeting } from '@renderer/components/chat/shell/ConversationGreeting'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import type {
+  ChatComposerResolvedContext,
+  ChatConversationControlsChangeHandler
+} from '@renderer/components/composer/variants/ChatComposer'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
 import { useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +38,10 @@ interface Props {
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   clearBranchDraft?: () => void
   getBranchDraftAnchorId?: () => string | null
+  onStartBranchDraft?: MessageListActions['startMessageBranch']
+  assistantContext?: ChatComposerResolvedContext
+  providers?: Provider[]
+  onConversationControlsChange?: ChatConversationControlsChangeHandler
 }
 
 /**
@@ -54,15 +63,19 @@ const ChatContent: FC<Props> = ({
   onLocateMessageHandled,
   onBranchLiveStateChange,
   clearBranchDraft,
-  getBranchDraftAnchorId
+  getBranchDraftAnchorId,
+  onStartBranchDraft,
+  assistantContext,
+  providers,
+  onConversationControlsChange
 }) => {
   const {
     uiMessages,
     siblingsMap,
     isLoading: isHistoryLoading,
+    isStale: isHistoryStale,
     refresh,
     activeNodeId,
-    rootId,
     loadOlder,
     hasOlder,
     mutate: messagesCacheMutate
@@ -79,13 +92,17 @@ const ChatContent: FC<Props> = ({
       onBranchLiveStateChange={onBranchLiveStateChange}
       clearBranchDraft={clearBranchDraft}
       getBranchDraftAnchorId={getBranchDraftAnchorId}
+      onStartBranchDraft={onStartBranchDraft}
+      assistantContext={assistantContext}
+      providers={providers}
+      onConversationControlsChange={onConversationControlsChange}
       isHistoryLoading={isHistoryLoading}
+      isHistoryStale={isHistoryStale}
       initialMessages={uiMessages}
       uiMessages={uiMessages}
       siblingsMap={siblingsMap}
       refresh={refresh}
       activeNodeId={activeNodeId}
-      rootId={rootId}
       loadOlder={loadOlder}
       hasOlder={hasOlder}
       messagesCacheMutate={messagesCacheMutate}
@@ -99,6 +116,7 @@ const ChatContent: FC<Props> = ({
 
 interface InnerProps extends Props {
   isHistoryLoading: boolean
+  isHistoryStale: boolean
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
   /** One-time seed for `useChat(messages:)` — consumed on mount only. */
   initialMessages: CherryUIMessage[]
@@ -107,7 +125,6 @@ interface InnerProps extends Props {
   siblingsMap: ReturnType<typeof useTopicMessages>['siblingsMap']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
-  rootId: string | null
   loadOlder: () => void
   hasOlder: boolean
   messagesCacheMutate: ReturnType<typeof useTopicMessages>['mutate']
@@ -123,18 +140,23 @@ const ChatContentInner: FC<InnerProps> = ({
   onBranchLiveStateChange,
   clearBranchDraft,
   getBranchDraftAnchorId,
+  onStartBranchDraft,
+  assistantContext,
+  providers,
+  onConversationControlsChange,
   isHistoryLoading,
+  isHistoryStale,
   initialMessages,
   uiMessages,
   siblingsMap,
   refresh,
   activeNodeId,
-  rootId,
   loadOlder,
   hasOlder,
   messagesCacheMutate
 }) => {
   const { t } = useTranslation()
+  const assistant = assistantContext?.assistant
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
   const runtime = useChatRuntimeState({
     topic,
@@ -143,12 +165,13 @@ const ChatContentInner: FC<InnerProps> = ({
     uiMessages,
     refresh,
     activeNodeId,
-    rootId,
     messagesCacheMutate,
+    assistant,
     onBranchLiveStateChange,
     clearBranchDraft,
     getBranchDraftAnchorId
   })
+  const locateRuntimeMessage = runtime.locateMessage
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
 
   useEffect(() => {
@@ -160,7 +183,7 @@ const ChatContentInner: FC<InnerProps> = ({
     if (uiMessages.some((message) => message.id === locateMessageId)) {
       locateLoadRequestRef.current = undefined
       window.requestAnimationFrame(() => {
-        void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + locateMessageId, true)
+        locateRuntimeMessage(locateMessageId, true)
       })
       onLocateMessageHandled?.()
       return
@@ -179,19 +202,32 @@ const ChatContentInner: FC<InnerProps> = ({
       locateLoadRequestRef.current = undefined
       onLocateMessageHandled?.()
     }
-  }, [hasOlder, isHistoryLoading, loadOlder, locateMessageId, onLocateMessageHandled, uiMessages])
+  }, [hasOlder, isHistoryLoading, loadOlder, locateMessageId, locateRuntimeMessage, onLocateMessageHandled, uiMessages])
 
+  const isEmptyConversation = !isHistoryLoading && runtime.messages.length === 0
   const main = (
-    <ChatMain
-      key={topic.id}
-      topic={topic}
-      messages={runtime.messages}
-      partsByMessageId={runtime.partsByMessageId}
-      isInitialLoading={isHistoryLoading}
-      loadOlder={loadOlder}
-      hasOlder={hasOlder}
-      openCitationsPanel={onOpenCitationsPanel}
-    />
+    <div className="relative flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      {isEmptyConversation && (
+        <div className="pointer-events-none absolute inset-0 z-10">
+          <ConversationGreeting avatar={assistant?.emoji} title={t('chat.home.welcome_title')} />
+        </div>
+      )}
+      <ChatMain
+        key={topic.id}
+        topic={topic}
+        assistant={assistant}
+        messages={runtime.messages}
+        partsByMessageId={runtime.partsByMessageId}
+        streamingLayers={runtime.streamingLayers}
+        onBindRuntime={runtime.bindMessageListRuntime}
+        isInitialLoading={isHistoryLoading}
+        isMessagesStale={isHistoryStale}
+        loadOlder={loadOlder}
+        hasOlder={hasOlder}
+        openCitationsPanel={onOpenCitationsPanel}
+        onStartBranchDraft={onStartBranchDraft}
+      />
+    </div>
   )
   const composer = runtime.shouldRenderHomeComposer ? (
     <ChatComposerSlot
@@ -200,6 +236,9 @@ const ChatContentInner: FC<InnerProps> = ({
       onSend={runtime.sendMessage}
       onNewTopic={onNewTopic}
       composerContext={runtime.composerContext}
+      assistantContext={assistantContext}
+      providers={providers}
+      onConversationControlsChange={onConversationControlsChange}
     />
   ) : (
     <ChatComposerSlot
@@ -210,6 +249,9 @@ const ChatContentInner: FC<InnerProps> = ({
       onCreateEmptyTopic={onCreateEmptyTopic}
       sendDisabled={isHistoryLoading}
       composerContext={runtime.composerContext}
+      assistantContext={assistantContext}
+      providers={providers}
+      onConversationControlsChange={onConversationControlsChange}
     />
   )
   const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'
@@ -222,12 +264,7 @@ const ChatContentInner: FC<InnerProps> = ({
             <TranslationOverlayProvider value={runtime.translationOverlay}>
               <MessageEditingProvider>
                 <ChatLayoutModeProvider>
-                  <ConversationStageCenter
-                    placement={placement}
-                    main={main}
-                    composer={composer}
-                    homeWelcomeText={t('chat.home.welcome_title')}
-                  />
+                  <ConversationStageCenter placement={placement} main={main} composer={composer} />
                 </ChatLayoutModeProvider>
               </MessageEditingProvider>
             </TranslationOverlayProvider>

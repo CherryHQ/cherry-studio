@@ -23,6 +23,8 @@ export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighli
   const processingRef = useRef(false)
   const latestRequestedContentRef = useRef<string | null>(null)
   const tokenLinesCountRef = useRef(0)
+  // 每次 resetHighlight() 递增，用于丢弃 reset 之前起飞、reset 之后才返回的旧异步高亮结果
+  const generationRef = useRef(0)
   const shikiThemeRef = useRef(activeShikiTheme)
 
   useEffect(() => {
@@ -45,6 +47,7 @@ export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighli
       if (processingRef.current) return
 
       processingRef.current = true
+      const generation = generationRef.current
 
       try {
         // 循环处理，确保会处理最新内容
@@ -54,6 +57,9 @@ export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighli
 
           // 传入完整内容，让 ShikiStreamService 检测变化并处理增量高亮
           const result = await highlightStreamingCode(contentToProcess, language, callerId)
+
+          // 本次请求进行中若发生过 resetHighlight()，丢弃这次的旧结果，避免把已释放的 token state 写回
+          if (generationRef.current !== generation) break
 
           // 如有结果，更新 tokenLines
           if (result.lines.length > 0 || result.recall !== 0) {
@@ -72,6 +78,7 @@ export const useCodeHighlight = ({ rawLines, language, callerId }: UseCodeHighli
   )
 
   const resetHighlight = useCallback(() => {
+    generationRef.current += 1
     cleanupTokenizers(callerId)
     setTokenLines([])
   }, [callerId, cleanupTokenizers])

@@ -1,25 +1,29 @@
 import { bearer } from '@elysia/bearer'
 import { cors } from '@elysia/cors'
 import { node } from '@elysia/node'
-import { openapi } from '@elysia/openapi'
 import { loggerService } from '@logger'
-import { DataApiError } from '@shared/data/api'
+import { DataApiError } from '@shared/data/api/errors'
 import { Elysia } from 'elysia'
 import { v4 as uuidv4 } from 'uuid'
-import * as z from 'zod'
 
 import { gatewayErrorHandler } from './errors'
 import { authorizeApiRequest } from './middleware/auth'
+import {
+  buildOpenApiDocument,
+  DOC_DESCRIPTIONS,
+  DOC_TAGS,
+  OPENAPI_PATH,
+  renderDocsPage,
+  resolveDocsLanguage
+} from './openapiDocs'
 import { chatRoutes } from './routes/chat'
+import { geminiRoutes } from './routes/gemini'
 import { knowledgeRoutes } from './routes/knowledge'
 import { messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
 import { responsesRoutes } from './routes/responses'
 
 const logger = loggerService.withContext('ApiGateway')
-
-/** Path under which OpenAPI docs (UI) and JSON spec (`${OPENAPI_PATH}/json`) are served. */
-export const OPENAPI_PATH = '/openapi' as const
 
 /**
  * Protected `/v1` API routes. The auth guard is `scoped` so it propagates to
@@ -45,14 +49,26 @@ const v1Routes = new Elysia({ prefix: '/v1' })
   .use(modelsRoutes)
   .use(knowledgeRoutes)
 
+/** Where the gateway listens; used to render an absolute OpenAPI server URL. */
+interface BuildAppOptions {
+  host?: string
+  port?: number
+}
+
 /**
  * Build the Elysia application (Node adapter). Assembles CORS, OpenAPI docs,
  * request logging + `X-Request-ID`, error handling, public info routes, and the
  * protected API route plugins.
  *
+ * `host`/`port` default to the `feature.api_gateway.*` preference defaults so the
+ * integration tests can call `buildApp()` with no arguments; `server.ts` passes
+ * the live preference values. They populate the OpenAPI `servers` URL so Scalar
+ * renders copyable absolute curl examples (e.g. `curl http://127.0.0.1:23333/health`)
+ * instead of relative paths.
+ *
  * Exported for both the runtime server (`server.ts`) and the integration tests.
  */
-export function buildApp() {
+export function buildApp({ host = '127.0.0.1', port = 23333 }: BuildAppOptions = {}) {
   const app = new Elysia({ adapter: node() })
     .use(
       cors({
@@ -66,21 +82,6 @@ export function buildApp() {
         // reflecting the requested headers is the correct, maintenance-free choice.
         allowedHeaders: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-      })
-    )
-    .use(
-      openapi({
-        path: OPENAPI_PATH,
-        provider: 'scalar',
-        mapJsonSchema: { zod: z.toJSONSchema },
-        documentation: {
-          info: {
-            title: 'Cherry Studio API',
-            version: '1.0.0',
-            description:
-              'OpenAI- and Anthropic-compatible HTTP API for Cherry Studio, plus Cherry-specific endpoints (models, knowledge bases)'
-          }
-        }
       })
     )
     // Stamp a request id and record the start time for latency logging.
@@ -102,6 +103,25 @@ export function buildApp() {
     // the handler's `code` is typed to include `'DATA_API'`.
     .error({ DATA_API: DataApiError })
     .onError(gatewayErrorHandler)
+    // OpenAPI spec, generated from the live route table and localized per
+    // request — `?lang=` picks the language, defaulting to the app's own. Hidden
+    // from the spec it serves: the docs routes are not part of the API.
+    .get(
+      `${OPENAPI_PATH}/json`,
+      ({ request }) => buildOpenApiDocument(app, resolveDocsLanguage(new URL(request.url)), `http://${host}:${port}`),
+      { detail: { hide: true } }
+    )
+    // OpenAPI docs UI (Scalar), pointed at the spec for the same language.
+    .get(
+      OPENAPI_PATH,
+      ({ request }) => {
+        const url = new URL(request.url)
+        const lang = resolveDocsLanguage(url)
+        const html = renderDocsPage(lang, `${url.origin}${OPENAPI_PATH}/json?lang=${lang}`)
+        return new Response(html, { headers: { 'content-type': 'text/html; charset=utf8' } })
+      },
+      { detail: { hide: true } }
+    )
     // Public health check (no authentication).
     .get(
       '/health',
@@ -110,7 +130,7 @@ export function buildApp() {
         timestamp: new Date().toISOString(),
         version: process.env.npm_package_version || '1.0.0'
       }),
-      { detail: { tags: ['Health'], summary: 'Health check endpoint' } }
+      { detail: { tags: [DOC_TAGS.cherry], summary: 'Health', description: DOC_DESCRIPTIONS.health } }
     )
     // Public API information.
     .get(
@@ -124,12 +144,20 @@ export function buildApp() {
           docs_json: `GET ${OPENAPI_PATH}/json`,
           chat_completions: 'POST /v1/chat/completions',
           messages: 'POST /v1/messages',
+          generate_content: 'POST /v1beta/models/{model}:generateContent',
           knowledge_bases: 'GET /v1/knowledge-bases',
           knowledge_search: 'POST /v1/knowledge-bases/search'
         }
       }),
-      { detail: { tags: ['General'], summary: 'API information' } }
+      { detail: { tags: [DOC_TAGS.cherry], summary: 'API Info', description: DOC_DESCRIPTIONS.info } }
     )
+    // Gemini routes carry their own self-contained (`local`) auth guard and are
+    // mounted BEFORE `v1Routes` on purpose: `v1Routes`' `scoped` guard exports to
+    // the app scope and would otherwise intercept `/v1beta` requests (its guard
+    // reads only `x-api-key`/Bearer, so it would 401 the Gemini `x-goog-api-key` /
+    // `?key=` credentials). Registering `/v1beta` first keeps it out of that guard's
+    // reach; the `local` gemini guard does not leak back onto `/v1`.
+    .use(geminiRoutes)
     .use(v1Routes)
 
   return app

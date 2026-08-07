@@ -16,6 +16,11 @@ vi.mock('@renderer/utils/style', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Scrollbar: ({ children, ref, ...props }: React.ComponentProps<'div'> & { ref?: React.Ref<HTMLDivElement> }) => (
+    <div ref={ref} {...props}>
+      {children}
+    </div>
+  ),
   NormalTooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>
 }))
 
@@ -31,12 +36,13 @@ const baseProps = () => ({
 })
 
 describe('TranslateOutputPane', () => {
-  it('shows translated length and a copy button in the output pane footer', () => {
+  it('shows translated content, length, and a copy button', () => {
     const props = baseProps()
     props.translatedContent = 'partial output'
 
     render(<TranslateOutputPane {...props} />)
 
+    expect(screen.getByText('partial output')).toBeInTheDocument()
     expect(screen.getByText('14')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.copy' })).toBeEnabled()
   })
@@ -50,7 +56,7 @@ describe('TranslateOutputPane', () => {
     expect(screen.getByText('translate.processing')).toBeInTheDocument()
   })
 
-  it('shows an export-to-notes button below copy and calls it for translated content', () => {
+  it('shows an export-to-notes button in the bottom-right footer and calls it for translated content', () => {
     const props = baseProps()
     props.translatedContent = 'translated output'
 
@@ -58,6 +64,7 @@ describe('TranslateOutputPane', () => {
 
     const buttons = screen.getAllByRole('button')
     expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual(['common.copy', 'notes.save'])
+    expect(screen.getByRole('button', { name: 'notes.save' })).toHaveClass('ml-auto')
 
     fireEvent.click(screen.getByRole('button', { name: 'notes.save' }))
 

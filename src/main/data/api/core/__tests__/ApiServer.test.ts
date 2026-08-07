@@ -252,7 +252,7 @@ describe('ApiServer devtools timing metadata', () => {
   it('does not add handler duration when middleware short-circuits in development mode', async () => {
     vi.resetModules()
     process.env.NODE_ENV = 'development'
-    const { DataApiErrorFactory } = await import('@shared/data/api/apiErrors')
+    const { DataApiErrorFactory } = await import('@shared/data/api/errors')
     const { ApiServer: DevApiServer } = await import('../ApiServer')
     const handler = vi.fn(async () => ({ ok: true }))
     const server = new (DevApiServer as any)({

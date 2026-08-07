@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-06-24T07:22:09.467Z
+ * Generated at: 2026-08-05T12:21:26.538Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -17,6 +17,10 @@ export const ELECTRON_STORE_MAPPINGS = [
   {
     originalKey: 'ZoomFactor',
     targetKey: 'app.zoom_factor'
+  },
+  {
+    originalKey: 'clientId',
+    targetKey: 'app.user.id'
   }
 ] as const
 
@@ -111,10 +115,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'app.user.name'
     },
     {
-      originalKey: 'userId',
-      targetKey: 'app.user.id'
-    },
-    {
       originalKey: 'showMessageDivider',
       targetKey: 'chat.message.show_divider'
     },
@@ -149,6 +149,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'fontSize',
       targetKey: 'chat.message.font_size'
+    },
+    {
+      originalKey: 'topicPosition',
+      targetKey: 'topic.tab.position'
     },
     {
       originalKey: 'assistantIconType',
@@ -311,10 +315,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'topic.naming.enabled'
     },
     {
-      originalKey: 'customCss',
-      targetKey: 'ui.custom_css'
-    },
-    {
       originalKey: 'topicNamingPrompt',
       targetKey: 'topic.naming_prompt'
     },
@@ -443,6 +443,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'feature.mini_app.region'
     },
     {
+      originalKey: 'privacyPolicyVersion',
+      targetKey: 'app.privacy.policy_version'
+    },
+    {
       originalKey: 'enableSpellCheck',
       targetKey: 'app.spell_check.enabled'
     },
@@ -493,10 +497,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'exportMenuOptions.plain_text',
       targetKey: 'data.export.menus.plain_text'
-    },
-    {
-      originalKey: 'exportMenuOptions.notes',
-      targetKey: 'data.export.menus.notes'
     },
     {
       originalKey: 'notification.assistant',
@@ -765,6 +765,10 @@ export const DEXIE_SETTINGS_MAPPINGS: ReadonlyArray<{ originalKey: string; targe
     targetKey: 'feature.translate.auto_detection_method'
   },
   {
+    originalKey: 'image://avatar',
+    targetKey: 'app.user.avatar'
+  },
+  {
     originalKey: 'translate:markdown:enabled',
     targetKey: 'feature.translate.page.enable_markdown'
   },
@@ -794,12 +798,12 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 
 /**
  * 映射统计:
- * - ElectronStore项: 1
- * - Redux Store项: 175
+ * - ElectronStore项: 2
+ * - Redux Store项: 174
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
- * - DexieSettings项: 4
+ * - DexieSettings项: 5
  * - localStorage项: 0
- * - 总配置项: 180
+ * - 总配置项: 181
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

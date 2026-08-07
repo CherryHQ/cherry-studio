@@ -3,9 +3,9 @@
  */
 
 import { agentGlobalSkillService as skillService } from '@data/services/AgentGlobalSkillService'
-import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import { ListSkillsQuerySchema, type SkillSchemas } from '@shared/data/api/schemas/skills'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const skillHandlers: HandlersFor<SkillSchemas> = {
   '/skills': {

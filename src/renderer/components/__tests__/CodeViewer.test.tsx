@@ -8,6 +8,7 @@ import CodeViewer from '../CodeViewer'
 
 const mocks = vi.hoisted(() => ({
   highlightLines: vi.fn(),
+  resetHighlight: vi.fn(),
   measureElement: vi.fn(),
   useVirtualizer: vi.fn((options: { count: number }) => ({
     getTotalSize: () => options.count * 20,
@@ -32,7 +33,8 @@ vi.mock('@renderer/hooks/useCodeHighlight', () => ({
         htmlStyle: {}
       }
     ]),
-    highlightLines: mocks.highlightLines
+    highlightLines: mocks.highlightLines,
+    resetHighlight: mocks.resetHighlight
   })
 }))
 
@@ -107,5 +109,34 @@ describe('CodeViewer', () => {
     )
 
     expect(scroller.scrollTop).toBe(100)
+  })
+
+  it('does not request syntax highlighting when highlighting is disabled', () => {
+    render(<CodeViewer value="line 1\nline 2" language="typescript" options={{ highlight: false }} />)
+
+    expect(mocks.highlightLines).not.toHaveBeenCalled()
+    expect(mocks.resetHighlight).not.toHaveBeenCalled()
+  })
+
+  it('clears highlighting resources when highlighting is disabled after being enabled', () => {
+    const { rerender } = render(<CodeViewer value="line 1" language="typescript" options={{ highlight: true }} />)
+
+    rerender(<CodeViewer value="line 1\nline 2" language="typescript" options={{ highlight: false }} />)
+
+    expect(mocks.resetHighlight).toHaveBeenCalled()
+  })
+
+  it('renders code at full opacity while highlighting is disabled, not dimmed', () => {
+    const { container } = render(
+      <CodeViewer value="const a = 1" language="typescript" options={{ highlight: false }} />
+    )
+
+    const tokenSpans = container.querySelectorAll('.line-content > span')
+    expect(tokenSpans.length).toBeGreaterThan(0)
+    tokenSpans.forEach((span) => {
+      expect((span as HTMLElement).style.opacity).not.toBe('0.35')
+    })
+    // The un-highlighted fallback renders the raw text at full opacity
+    expect(Array.from(tokenSpans).some((span) => (span as HTMLElement).style.opacity === '1')).toBe(true)
   })
 })

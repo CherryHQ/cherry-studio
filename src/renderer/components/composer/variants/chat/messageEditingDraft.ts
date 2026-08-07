@@ -9,7 +9,7 @@ import {
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
-import { getFileTypeByExt } from '@shared/utils/file/fileType'
+import { getFileTypeByExt } from '@shared/utils/file'
 
 import { type ComposerSerializedToken, isComposerDraftTokenKind } from '../../tokens'
 import { chatComposerTokenId, getComposerTokenIds } from '../chatComposerTokens'
@@ -56,18 +56,22 @@ function createEditableAttachment(
   index: number,
   fileTokenSourceId: string
 ): ComposerAttachment | null {
-  const path = part.url
-  if (!path) return null
+  const url = part.url
+  if (!url) return null
 
-  const name = part.filename || path.split(/[\\/]/).pop() || `attachment-${index + 1}`
-  const ext = getFileExtension(name || path, part.mediaType)
+  const name = part.filename || url.split(/[\\/]/).pop() || `attachment-${index + 1}`
+  const ext = getFileExtension(name || url, part.mediaType)
   const type = part.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : getFileTypeByExt(ext)
 
   return {
     fileTokenSourceId,
     name,
     origin_name: name,
-    path,
+    // The stored part carries a `file://` URL, not a filesystem path. Leave the
+    // path absent rather than smuggling a URL through a path-typed field: the
+    // edit flow re-sends the original part verbatim, so nothing downstream
+    // needs it.
+    path: undefined,
     size: 0,
     ext,
     type

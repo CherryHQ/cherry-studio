@@ -6,9 +6,9 @@
  */
 
 import { jobService } from '@data/services/JobService'
-import { DataApiErrorFactory } from '@shared/data/api'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { type JobSchemas, ListJobsQuerySchema } from '@shared/data/api/schemas/jobs'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const jobHandlers: HandlersFor<JobSchemas> = {
   '/jobs': {
@@ -19,6 +19,7 @@ export const jobHandlers: HandlersFor<JobSchemas> = {
         queue: parsed.queue,
         type: parsed.type,
         scheduleId: parsed.scheduleId,
+        parentId: parsed.parentId,
         limit: parsed.limit,
         offset: parsed.offset
       })

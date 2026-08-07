@@ -1,0 +1,135 @@
+{
+  "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Cherry Studio 內建使用顧問。診斷問題、引導操作、收錄 FAQ、提交 Bug/需求、搜尋和建立 Skills"
+      }
+    },
+    "session": {
+      "workspace_status": {
+        "inaccessible": "工作區路徑無法存取：{{path}}",
+        "missing": "工作區路徑不存在：{{path}}",
+        "not_directory": "工作區路徑不是目錄：{{path}}"
+      }
+    }
+  },
+  "apiGateway": {
+    "docs": {
+      "description": "與 OpenAI、Anthropic、Gemini 相容的 Cherry Studio HTTP API，另含 Cherry 專有介面（模型、知識庫）",
+      "language_switcher_label": "文件語言",
+      "operations": {
+        "chat_completions": "建立一次對話補全。請求與回應格式與 OpenAI Chat Completions 一致；設定 `stream: true` 可串流輸出。",
+        "count_tokens": "估算一組 Anthropic 格式訊息所佔用的輸入 token 數量。",
+        "generate_content": "透過 Gemini 的 `generateContent` 方法產生內容。請求與回應格式與 Gemini API 一致；`streamGenerateContent` 走同一路徑。",
+        "get_knowledge_base": "依 ID 取得單一知識庫。",
+        "health": "服務健康狀態、目前時間與版本號。無需驗證。",
+        "info": "API 名稱、版本與主要端點列表。無需驗證。",
+        "list_knowledge_bases": "列出目前 Cherry Studio 實例中的知識庫。",
+        "list_models": "以 OpenAI models 格式列出此閘道可用的模型。",
+        "messages": "建立一則訊息。請求與回應格式與 Anthropic Messages 一致；設定 `stream: true` 可串流輸出。",
+        "responses": "建立一次回應。請求與回應格式與 OpenAI Responses 一致。",
+        "search_knowledge_bases": "在一個或多個知識庫中檢索，回傳相符的文件片段。"
+      },
+      "tags": {
+        "anthropic": "相容 Anthropic 的介面。將 Anthropic SDK 的 base URL 指向本閘道即可使用。",
+        "cherry": "Cherry Studio 自有介面：知識庫、服務資訊與健康檢查。",
+        "gemini": "相容 Gemini 的介面，與上游一樣掛在 `/v1beta` 之下。",
+        "openai": "相容 OpenAI 的介面。將 OpenAI SDK 的 base URL 指向本閘道即可使用。"
+      }
+    }
+  },
+  "appMenu": {
+    "about": "關於",
+    "close": "關閉視窗",
+    "copy": "複製",
+    "cut": "剪下",
+    "delete": "刪除",
+    "documentation": "文件",
+    "edit": "編輯",
+    "feedback": "回饋",
+    "file": "檔案",
+    "forceReload": "強制重新載入",
+    "front": "全部置於頂層",
+    "help": "幫助",
+    "hide": "隱藏",
+    "hideOthers": "隱藏其他",
+    "minimize": "最小化",
+    "paste": "貼上",
+    "quit": "結束",
+    "redo": "重做",
+    "releases": "版本發布",
+    "reload": "重新載入",
+    "resetZoom": "實際大小",
+    "selectAll": "全選",
+    "services": "服務",
+    "toggleDevTools": "切換開發者工具",
+    "toggleFullscreen": "切換全螢幕",
+    "undo": "復原",
+    "unhide": "全部顯示",
+    "view": "檢視",
+    "website": "網站",
+    "window": "視窗",
+    "zoom": "縮放",
+    "zoomIn": "放大",
+    "zoomOut": "縮小"
+  },
+  "common": {
+    "copy": "複製",
+    "cut": "剪下",
+    "inspect": "檢查",
+    "paste": "貼上"
+  },
+  "dialog": {
+    "all_files": "所有檔案",
+    "data_reset": {
+      "cancel": "取消",
+      "confirm": "重設並重新啟動",
+      "message": "這將清除聊天、助手、知識庫、檔案和設定，然後重新啟動應用程式。此操作無法復原，是否繼續？",
+      "title": "重設應用程式資料"
+    },
+    "diagnostic_bundle": {
+      "title": "[to be translated]:Save diagnostic bundle",
+      "zip_filter": "[to be translated]:ZIP archive"
+    },
+    "html_files": "HTML 檔案",
+    "open_file": "開啟檔案",
+    "pdf_files": "PDF 檔案",
+    "png_image": "PNG 影像",
+    "save_as_html": "儲存為 HTML",
+    "save_as_pdf": "儲存為 PDF",
+    "save_file": "儲存檔案",
+    "select_folder": "選擇資料夾",
+    "word_document": "Word 文件"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Cherry Studio 目前使用的 OpenClaw 與產生的設定不相容。請升級 OpenClaw。{{details}}",
+      "external_config_invalid": "OpenClaw 拒絕了 Cherry Studio 管理的供應商區段以外的設定。請修正該設定或升級 OpenClaw。{{details}}",
+      "more_issues": "另有 {{count}} 個問題",
+      "preflight_failed": "Cherry Studio 無法驗證 OpenClaw 設定。"
+    }
+  },
+  "paintings": {
+    "generate_failed": "無法生成圖片",
+    "image_mix_failed": "無法混合圖片"
+  },
+  "selection": {
+    "name": "劃詞助手"
+  },
+  "settings": {
+    "mcp": {
+      "oauth": {
+        "callback": {
+          "message": "關閉此頁面後即可回到 Cherry Studio",
+          "title": "認證成功"
+        }
+      }
+    },
+    "title": "設定"
+  },
+  "tray": {
+    "quit": "結束",
+    "show_quick_assistant": "快捷助手",
+    "show_window": "顯示視窗"
+  }
+}

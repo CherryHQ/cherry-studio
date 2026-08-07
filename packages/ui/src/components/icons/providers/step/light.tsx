@@ -5,25 +5,37 @@ const StepLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="9 9 102 102" {...props}>
-      <g clipPath={`url(#${iconId}-steplight__a)`}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+      <mask
+        id={`${iconId}-steplight__a`}
+        width={65}
+        height={65}
+        x={27}
+        y={28}
+        maskUnits="userSpaceOnUse"
+        style={{
+          maskType: 'luminance'
+        }}>
+        <path fill="#fff" d="M92 28H27V93H92V28Z" />
+      </mask>
+      <g mask={`url(#${iconId}-steplight__a)`}>
         <mask
           id={`${iconId}-steplight__b`}
-          width={86}
-          height={86}
-          x={17}
-          y={17}
+          width={65}
+          height={65}
+          x={27}
+          y={28}
           maskUnits="userSpaceOnUse"
           style={{
             maskType: 'luminance'
           }}>
-          <path fill="#fff" d="M103 17H17V103H103V17Z" />
+          <path fill="#fff" d="M92 28H27V93H92V28Z" />
         </mask>
         <g mask={`url(#${iconId}-steplight__b)`}>
           <path
             fill={`url(#${iconId}-steplight__c)`}
             fillRule="evenodd"
-            d="M95.8763 17H99.5743V20.3218H103V23.7904H99.5743V30.545H95.8763V23.794H89.1468V20.3182H95.8763V17ZM26.3167 61.3294V23.7008H29.7889V61.333H26.3131L26.3167 61.3294ZM63.6657 63.6944H102.903V66.9839H80.6579V101.309H63.6657V63.6908V63.6944ZM37.1706 28.9433V73.2189H17V89.3798H54.2165V45.6667H91.7447L91.734 28.9397L37.1706 28.9433Z"
+            d="M86.6158 28H89.4108V30.5107H92V33.1323H89.4108V38.2375H86.6158V33.135H81.5296V30.5079H86.6158V28ZM34.0417 61.5048V33.0646H36.666V61.5075H34.039L34.0417 61.5048ZM62.2706 63.2923H91.9267V65.7785H75.1135V91.7219H62.2706V63.2896V63.2923ZM42.2452 37.0269V70.491H27V82.7057H55.1287V49.6667H83.4931L83.485 37.0242L42.2452 37.0269Z"
             clipRule="evenodd"
           />
         </g>
@@ -31,17 +43,14 @@ const StepLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       <defs>
         <linearGradient
           id={`${iconId}-steplight__c`}
-          x1={22.898}
-          x2={82.725}
-          y1={23.866}
-          y2={96.159}
+          x1={31.458}
+          x2={76.676}
+          y1={33.189}
+          y2={87.83}
           gradientUnits="userSpaceOnUse">
           <stop stopColor="#01A9FF" />
           <stop offset={1} stopColor="#0160FF" />
         </linearGradient>
-        <clipPath id={`${iconId}-steplight__a`}>
-          <path fill="#fff" d="M0 0H86V86H0z" transform="translate(17 17)" />
-        </clipPath>
       </defs>
     </svg>
   )

@@ -84,6 +84,7 @@ export function createComposerSuggestionQuickPanelItem(
     icon: item.icon,
     suffix: item.suffix,
     filterText: item.filterText,
+    searchAliases: item.searchAliases,
     isSelected: item.selected,
     isMenu: item.isMenu,
     disabled: item.disabled,

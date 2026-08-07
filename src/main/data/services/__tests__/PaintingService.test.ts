@@ -46,6 +46,8 @@ describe('PaintingService', () => {
       providerId,
       modelId,
       name: modelId,
+      capabilities: [],
+      supportsStreaming: true,
       orderKey: modelOrderKey
     })
     return uniqueModelId

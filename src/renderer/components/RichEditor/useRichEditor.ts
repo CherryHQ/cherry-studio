@@ -1,4 +1,4 @@
-import 'katex/dist/katex.min.css'
+import '@renderer/assets/styles/vendor/katex.css'
 
 import { loggerService } from '@logger'
 import type { FormattingState } from '@renderer/components/RichEditor/types'
@@ -33,6 +33,8 @@ export interface UseRichEditorOptions {
   placeholder?: string
   /** Whether the editor is editable */
   editable?: boolean
+  /** Whether to focus the end of the document when the editor mounts or becomes editable */
+  autoFocus?: boolean
   /** Whether to enable table of contents functionality */
   enableTableOfContents?: boolean
   /** Whether to enable spell check */
@@ -88,6 +90,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     onPaste,
     placeholder = '',
     editable = true,
+    autoFocus = true,
     enableSpellCheck = false,
     onShowTableActionMenu,
     scrollParent
@@ -299,7 +302,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           const { $from } = selection
           const atStartOfLine = $from.parentOffset === 0
           const inEmptyParagraph = $from.parent.type.name === 'paragraph' && $from.parent.textContent === ''
-          const hasMultipleLines = text.includes('\n')
+          const hasMultipleLines = /[\r\n]/.test(text)
 
           if (!atStartOfLine && !inEmptyParagraph && !hasMultipleLines) {
             // Inline paste inside a non-empty block: parse the markdown so markers like **bold** /
@@ -355,6 +358,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     },
     onCreate: ({ editor: currentEditor }) => {
       migrateMathStrings(currentEditor)
+      if (!autoFocus) return
       try {
         currentEditor.commands.focus('end')
       } catch (error) {
@@ -398,16 +402,32 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         const arrayBuffer = await blobToArrayBuffer(processedFile)
         const buffer = new Uint8Array(arrayBuffer)
 
-        // Save image to local storage
-        const fileMetadata = await window.api.file.savePastedImage(buffer, extension)
+        const entry = await window.api.file.createInternalEntry({
+          source: 'bytes',
+          data: buffer,
+          name: 'Pasted Image',
+          ext: extension.replace(/^\./, ''),
+          // `manual`, unlike the chat/painting paste paths that use
+          // `delete_when_unreferenced`. The reference here is a `file://` URL
+          // written into the note's markdown — user-owned text in a user-chosen
+          // folder (`feature.notes.path`), which Cherry is not the only writer of.
+          // A ref row could therefore never be released soundly: removing the
+          // image from the note never reaches us, and copying the markdown into
+          // a second note creates a reference we never saw. So the entry is
+          // pinned instead, and reclaiming note images stays a question for a
+          // content scan over the notes tree, not a ref table.
+          cleanupPolicy: 'manual'
+        })
+        const physicalPath = await window.api.file.getPhysicalPath({ id: entry.id })
 
         // Insert image into editor using local file path
         if (editor && !editor.isDestroyed) {
-          const imageUrl = `file://${fileMetadata.path}`
-          editor.chain().focus().setImage({ src: imageUrl, alt: fileMetadata.origin_name }).run()
+          const imageUrl = `file://${physicalPath}`
+          const alt = `${entry.name}${entry.ext ? `.${entry.ext}` : ''}`
+          editor.chain().focus().setImage({ src: imageUrl, alt }).run()
         }
 
-        logger.info('Image pasted and saved:', fileMetadata)
+        logger.info('Image pasted and saved:', { id: entry.id })
       } catch (error) {
         logger.error('Failed to handle image paste:', error as Error)
       }
@@ -418,7 +438,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
   useEffect(() => {
     if (editor && !editor.isDestroyed) {
       editor.setEditable(editable)
-      if (editable) {
+      if (editable && autoFocus) {
         try {
           setTimeout(() => {
             if (editor && !editor.isDestroyed) {
@@ -433,7 +453,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         }
       }
     }
-  }, [editor, editable])
+  }, [editor, editable, autoFocus])
 
   // Link editor callbacks (after editor is defined)
   const handleLinkSave = useCallback(
@@ -551,14 +571,6 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     },
     [editor, onShowTableActionMenu]
   )
-
-  useEffect(() => {
-    return () => {
-      if (editor && !editor.isDestroyed) {
-        editor.destroy()
-      }
-    }
-  }, [editor])
 
   const formattingState = useEditorState({
     editor,

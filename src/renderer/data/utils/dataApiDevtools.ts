@@ -1,5 +1,5 @@
 import { isDev } from '@renderer/utils/platform'
-import type { DataResponse, HttpMethod } from '@shared/data/api/apiTypes'
+import type { DataResponse, HttpMethod } from '@shared/data/api/types'
 
 type DataApiDevtoolsRequestState = 'pending' | 'success' | 'error' | 'retry'
 
@@ -34,6 +34,8 @@ interface DataApiDevtoolsEvent {
 
 interface DataApiDevtoolsGlobal {
   snapshot: () => DataApiDevtoolsEvent[]
+  snapshotSummary: () => DataApiDevtoolsEvent[]
+  getEvent: (requestId: string) => DataApiDevtoolsEvent | undefined
   clear: () => void
   setOptions: (options: Partial<DataApiDevtoolsOptions>) => DataApiDevtoolsOptions
 }
@@ -48,7 +50,7 @@ declare global {
 }
 
 const DEFAULT_OPTIONS: DataApiDevtoolsOptions = {
-  capturePayloads: true
+  capturePayloads: false
 }
 
 const MAX_ENTRIES = 500
@@ -83,6 +85,28 @@ function safeRecord(record: () => void): void {
 
 function snapshotEvents(): DataApiDevtoolsEvent[] {
   return [...events]
+}
+
+function snapshotSummaryEvents(): DataApiDevtoolsEvent[] {
+  return events.map((event) => ({
+    id: event.id,
+    state: event.state,
+    timestamp: event.timestamp,
+    completedAt: event.completedAt,
+    requestId: event.requestId,
+    method: event.method,
+    path: event.path,
+    status: event.status,
+    retryAttempt: event.retryAttempt,
+    clientDuration: event.clientDuration,
+    mainDuration: event.mainDuration,
+    handlerDuration: event.handlerDuration,
+    error: event.error
+  }))
+}
+
+function getEvent(requestId: string): DataApiDevtoolsEvent | undefined {
+  return eventIndex.get(requestId)
 }
 
 function clearEvents(): void {
@@ -204,9 +228,15 @@ function installGlobal(): void {
 
   window.__CHERRY_DATA_API_DEVTOOLS__ = {
     snapshot: snapshotEvents,
+    snapshotSummary: snapshotSummaryEvents,
+    getEvent,
     clear: clearEvents,
     setOptions: setDevtoolsOptions
   }
+}
+
+function exposeControlSurface(): void {
+  installGlobal()
 }
 
 function recordStart(input: {
@@ -235,12 +265,15 @@ function recordStart(input: {
 
 function recordSuccess(input: { requestId: string; method: HttpMethod; path: string; response: DataResponse }): void {
   safeRecord(() => {
+    // Stop client timing before payload preview generation so DevTools work is
+    // never attributed to the DataApi request itself.
+    const clientDuration = consumeClientDuration(input.requestId)
     upsertEvent(input, {
       state: 'success',
       completedAt: Date.now(),
       status: input.response.status,
       response: sanitizeValue(input.response.data),
-      clientDuration: consumeClientDuration(input.requestId),
+      clientDuration,
       mainDuration: input.response.metadata?.duration,
       handlerDuration: input.response.metadata?.handlerDuration
     })
@@ -289,6 +322,7 @@ function recordRetry(input: {
 }
 
 export const DataApiDevtools = {
+  exposeControlSurface,
   recordStart,
   recordSuccess,
   recordError,

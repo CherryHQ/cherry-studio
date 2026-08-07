@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rename, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rename, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -11,14 +11,17 @@ import { tryTestRipgrepPath } from './ripgrepTestUtils'
 // Production resolves ripgrep via BinaryManager (`getBinaryPath('rg')`), which
 // reads cherry.bin / mise shims — neither is populated under vitest. Point it
 // at the test ripgrep binary so the underlying directory scan spawns a real ripgrep.
-vi.mock('@main/utils/process', async () => {
+vi.mock('@main/utils/binaryResolver', async () => {
   const { tryTestRipgrepPath: tryPath } = await import('./ripgrepTestUtils')
   const resolvedRgPath = tryPath() ?? '/nonexistent/rg'
   return {
-    getBinaryExecutionEnv: () => ({}),
     getBinaryPath: async (name?: string) => (name === 'rg' ? resolvedRgPath : (name ?? ''))
   }
 })
+
+vi.mock('@main/utils/binaryEnv', () => ({
+  getBinaryExecutionEnv: () => ({})
+}))
 
 const ripgrepAvailable = tryTestRipgrepPath() !== null
 
@@ -183,6 +186,39 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
     await rm(tmp, { recursive: true, force: true })
   })
 
+  it('ignores hidden files after an allowed missing root appears and observes visible artifacts', async () => {
+    const root = path.join(tmp, 'system-workspace')
+    const builder = await createDirectoryTree(root, { watchMissingRoot: true })
+    try {
+      expect(builder.root.children).toEqual({})
+
+      const events: TreeMutationEvent[] = []
+      const subscription = builder.onMutation((event) => events.push(event))
+      const addedPromise = waitForEvent(
+        builder,
+        (event) => event.type === 'added' && event.path.endsWith('/artifact.md')
+      )
+      await mkdir(root)
+      await mkdir(path.join(root, '.claude'))
+      await writeFile(path.join(root, '.claude', 'plugins.json'), '{}')
+      await mkdir(path.join(root, 'output'))
+      await writeFile(path.join(root, 'output', '.result.json'), '{}')
+      await writeFile(path.join(root, 'artifact.md'), '# Artifact')
+
+      await addedPromise
+      subscription.dispose()
+      expect(events.some((event) => 'path' in event && event.path.includes('/.claude'))).toBe(false)
+      expect(events.some((event) => 'path' in event && event.path.endsWith('/.result.json'))).toBe(false)
+      expect(builder.getNode(path.join(root, '.claude'))).toBeNull()
+      expect(builder.getNode(path.join(root, '.claude', 'plugins.json'))).toBeNull()
+      expect(builder.getNode(path.join(root, 'output'))).not.toBeNull()
+      expect(builder.getNode(path.join(root, 'output', '.result.json'))).toBeNull()
+      expect(builder.getNode(path.join(root, 'artifact.md'))).not.toBeNull()
+    } finally {
+      await builder.disposeAsync()
+    }
+  })
+
   it('emits "added" when a new matching file appears on disk', async () => {
     const builder = await createDirectoryTree(tmp, { extensions: ['.md'], withStats: true })
     try {
@@ -280,17 +316,18 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
   })
 
   it('emits "updated" with refreshed stats when a tracked file is modified', async () => {
-    await writeFile(path.join(tmp, 'note.md'), 'first')
+    const notePath = path.join(tmp, 'note.md')
+    await writeFile(notePath, 'first')
+    const oldTimestamp = new Date(Date.now() - 2000)
+    await utimes(notePath, oldTimestamp, oldTimestamp)
     const builder = await createDirectoryTree(tmp, { extensions: ['.md'], withStats: true })
     try {
       const before = builder.getNode(path.join(tmp, 'note.md'))
       expect(before?.stats).toBeDefined()
       const beforeMtime = before?.stats?.mtime
 
-      // Sleep ≥1s so mtime granularity (1s on HFS+/some FSes) actually moves.
-      await new Promise((resolve) => setTimeout(resolve, 1100))
       const updatedPromise = waitForEvent(builder, (e) => e.type === 'updated' && e.path.endsWith('/note.md'))
-      await writeFile(path.join(tmp, 'note.md'), 'second')
+      await writeFile(notePath, 'second')
       const ev = await updatedPromise
 
       // The mutation carries fresh stats AND the in-memory node is mutated
@@ -360,6 +397,33 @@ describe.skipIf(!ripgrepAvailable)('createDirectoryTree — watcher mutations', 
       expect(suppressed).toEqual([])
 
       sub.dispose()
+    } finally {
+      await builder.disposeAsync()
+    }
+  })
+
+  it('rename() removes a visible node when its new path is hidden', async () => {
+    const visiblePath = path.join(tmp, 'visible.md')
+    const hiddenPath = path.join(tmp, '.visible.md')
+    const normalizedVisiblePath = visiblePath.replace(/\\/g, '/')
+    await writeFile(visiblePath, 'x')
+    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
+    try {
+      const events: TreeMutationEvent[] = []
+      const subscription = builder.onMutation((event) => events.push(event))
+
+      const applied = builder.rename(visiblePath, hiddenPath)
+
+      expect(applied).toBe(true)
+      expect(builder.getNode(visiblePath)).toBeNull()
+      expect(builder.getNode(hiddenPath)).toBeNull()
+      expect(events).toContainEqual({ type: 'removed', path: normalizedVisiblePath })
+
+      await rename(visiblePath, hiddenPath)
+      await new Promise((resolve) => setTimeout(resolve, 350))
+      expect(builder.getNode(hiddenPath)).toBeNull()
+
+      subscription.dispose()
     } finally {
       await builder.disposeAsync()
     }

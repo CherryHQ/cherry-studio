@@ -5,13 +5,17 @@
  * Handles messages, tools, and special content types (images, thinking, tool results).
  */
 
+import { createHash } from 'node:crypto'
+
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
+  ImageBlockParam,
   MessageCreateParams,
   Tool as AnthropicTool,
   ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
@@ -21,6 +25,20 @@ import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
 import { mapAnthropicThinkingToProviderOptions } from './providerOptionsMapper'
 
 const MAGIC_STRING = 'skip_thought_signature_validator'
+const RESPONSES_TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/
+const RESPONSES_TOOL_NAME_MAX_LENGTH = 64
+const TOOL_NAME_HASH_LENGTH = 12
+
+function isResponsesCompatibleToolName(name: string): boolean {
+  return name.length <= RESPONSES_TOOL_NAME_MAX_LENGTH && RESPONSES_TOOL_NAME_PATTERN.test(name)
+}
+
+function buildResponsesToolName(name: string, attempt: number): string {
+  const sanitized = Array.from(name, (char) => (RESPONSES_TOOL_NAME_PATTERN.test(char) ? char : '_')).join('') || '_'
+  const hash = createHash('sha1').update(`${name}\0${attempt}`).digest('hex').slice(0, TOOL_NAME_HASH_LENGTH)
+  const prefixLength = RESPONSES_TOOL_NAME_MAX_LENGTH - hash.length - 1
+  return `${sanitized.slice(0, prefixLength)}_${hash}`
+}
 
 /** Match the branch's `isGemini3ModelId`: a gemini-3 family model id. */
 function isGemini3ModelId(modelId?: string): boolean {
@@ -40,27 +58,58 @@ function sanitizeJson(value: unknown): JSONValue {
   return JSON.parse(JSON.stringify(value))
 }
 
+/** An Anthropic image block as a `file` UI part (undefined for unknown sources). */
+function imageBlockToFilePart(source: ImageBlockParam['source']): FileUIPart | undefined {
+  if (source.type === 'base64') {
+    return { type: 'file', mediaType: source.media_type, url: `data:${source.media_type};base64,${source.data}` }
+  }
+  if (source.type === 'url') {
+    return { type: 'file', mediaType: 'image/png', url: source.url }
+  }
+  return undefined
+}
+
+/** A tool_result split into the model-visible string output and relocated user parts. */
+interface ToolResultConversion {
+  output: string
+  relocatedParts: Array<TextUIPart | FileUIPart>
+}
+
+function toolResultImageAnchor(toolCallId: string, index: number): string {
+  return `[tool-result attachment call_id=${JSON.stringify(toolCallId)} image=${index}]`
+}
+
 /**
- * Flatten Anthropic tool_result content into a plain string output for the
- * `dynamic-tool` UI part. `convertToModelMessages` re-wraps it into a tool
- * result model message.
+ * Convert Anthropic tool_result content for the `dynamic-tool` UI part.
+ *
+ * Image blocks cannot ride inside the tool output: `convertToModelMessages`
+ * only supports string/JSON tool outputs there, and OpenAI-style protocols have
+ * no image tool content at all — inlining base64 blows up the prompt (#17078).
+ * Instead each image becomes a `file` part relocated into the user message that
+ * carried the tool_result (every protocol accepts user images), and the output
+ * keeps a placeholder pointing at it.
  */
-function toolResultToOutput(content: NonNullable<ToolResultBlockParam['content']>): string {
-  if (typeof content === 'string') return content
-  const parts: string[] = []
+function toolResultToOutput(
+  toolCallId: string,
+  content: NonNullable<ToolResultBlockParam['content']>
+): ToolResultConversion {
+  if (typeof content === 'string') return { output: content, relocatedParts: [] }
+  const lines: string[] = []
+  const relocatedParts: Array<TextUIPart | FileUIPart> = []
+  let imageIndex = 0
   for (const block of content) {
     if (block.type === 'text') {
-      parts.push(block.text)
+      lines.push(block.text)
     } else if (block.type === 'image') {
-      const source = block.source
-      if (source.type === 'base64') {
-        parts.push(`data:${source.media_type};base64,${source.data}`)
-      } else if (source.type === 'url') {
-        parts.push(source.url)
+      const file = imageBlockToFilePart(block.source)
+      if (file) {
+        const anchor = toolResultImageAnchor(toolCallId, ++imageIndex)
+        lines.push(`${anchor} (${file.mediaType}): attached in the following user message`)
+        relocatedParts.push({ type: 'text', text: anchor }, file)
       }
     }
   }
-  return parts.join('\n')
+  return { output: lines.join('\n'), relocatedParts }
 }
 
 /**
@@ -79,6 +128,9 @@ export interface ReasoningCache {
 export class AnthropicMessageConverter implements IMessageConverter<MessageCreateParams> {
   private googleReasoningCache?: ReasoningCache
   private openRouterReasoningCache?: ReasoningCache
+  private mappedTools?: MessageCreateParams['tools']
+  private readonly providerToolNames = new Map<string, string>()
+  private readonly clientToolNames = new Map<string, string>()
 
   constructor(options?: { googleReasoningCache?: ReasoningCache; openRouterReasoningCache?: ReasoningCache }) {
     this.googleReasoningCache = options?.googleReasoningCache
@@ -94,6 +146,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * message upgrades the part to `output-available` so history stays coherent.
    */
   toUIMessages(params: MessageCreateParams): CherryUIMessage[] {
+    this.prepareToolNames(params.tools)
     const messages: CherryUIMessage[] = []
 
     // System message
@@ -110,16 +163,19 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       }
     }
 
-    // tool_use id → name (for tool_result parts) and tool_use id → result output.
+    // tool_use id → name (for tool_result parts) and tool_use id → result conversion.
     const toolCallIdToName = new Map<string, string>()
-    const toolResultOutputs = new Map<string, string>()
+    const toolResults = new Map<string, ToolResultConversion>()
     for (const msg of params.messages) {
       if (!Array.isArray(msg.content)) continue
       for (const block of msg.content) {
         if (block.type === 'tool_use') {
           toolCallIdToName.set(block.id, block.name)
         } else if (block.type === 'tool_result') {
-          toolResultOutputs.set(block.tool_use_id, block.content ? toolResultToOutput(block.content) : '')
+          toolResults.set(
+            block.tool_use_id,
+            block.content ? toolResultToOutput(block.tool_use_id, block.content) : { output: '', relocatedParts: [] }
+          )
         }
       }
     }
@@ -148,36 +204,32 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
           const part: ReasoningUIPart = { type: 'reasoning', text: block.data }
           parts.push(part)
         } else if (block.type === 'image') {
-          const source = block.source
-          const url =
-            source.type === 'base64'
-              ? `data:${source.media_type};base64,${source.data}`
-              : source.type === 'url'
-                ? source.url
-                : undefined
-          if (url) {
-            const part: FileUIPart = {
-              type: 'file',
-              mediaType: source.type === 'base64' ? source.media_type : 'image/png',
-              url
-            }
+          const part = imageBlockToFilePart(block.source)
+          if (part) {
             parts.push(part)
           }
         } else if (block.type === 'tool_use') {
+          const toolName = this.toProviderToolName(block.name)
           const callProviderMetadata = this.buildToolCallProviderOptions(params.model, block.name, block.id)
-          const hasResult = toolResultOutputs.has(block.id)
+          const result = toolResults.get(block.id)
           const base = {
             type: 'dynamic-tool' as const,
-            toolName: block.name,
+            toolName,
             toolCallId: block.id,
             ...(callProviderMetadata ? { callProviderMetadata } : {})
           }
-          const part: DynamicToolUIPart = hasResult
-            ? { ...base, state: 'output-available', input: block.input, output: toolResultOutputs.get(block.id) }
+          const part: DynamicToolUIPart = result
+            ? { ...base, state: 'output-available', input: block.input, output: result.output }
             : { ...base, state: 'input-available', input: block.input }
           parts.push(part)
+        } else if (block.type === 'tool_result') {
+          // The string output is absorbed into the matching tool_use part above;
+          // relocated images surface here with call-id anchors for parallel results.
+          const relocatedParts = toolResults.get(block.tool_use_id)?.relocatedParts
+          if (relocatedParts?.length) {
+            parts.push(...relocatedParts)
+          }
         }
-        // tool_result blocks are absorbed into their matching tool_use part above.
       }
 
       if (parts.length > 0) {
@@ -215,6 +267,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
   toAiSdkTools(params: MessageCreateParams): ToolSet | undefined {
     const tools = params.tools
     if (!tools || tools.length === 0) return undefined
+    this.prepareToolNames(tools)
 
     const aiSdkTools: ToolSet = {}
     for (const anthropicTool of tools) {
@@ -225,12 +278,66 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
 
       const aiTool = tool({
         description: toolDef.description || '',
-        inputSchema: zodSchema(schema)
+        inputSchema: zodSchema(schema),
+        // The gateway forwards arbitrary Anthropic/MCP schemas. They do not satisfy
+        // Responses strict-mode's all-properties-required contract, so match the
+        // Codex client's dynamic-tool behavior and opt out explicitly.
+        strict: false
       })
 
-      aiSdkTools[toolDef.name] = aiTool
+      aiSdkTools[this.toProviderToolName(toolDef.name)] = aiTool
     }
     return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined
+  }
+
+  /** Restore the client-visible identity after the target model calls a normalized tool. */
+  toClientToolName(toolName: string): string {
+    return this.clientToolNames.get(toolName) ?? toolName
+  }
+
+  private prepareToolNames(tools: MessageCreateParams['tools']): void {
+    if (tools === this.mappedTools) return
+
+    this.mappedTools = tools
+    this.providerToolNames.clear()
+    this.clientToolNames.clear()
+
+    const names = [
+      ...new Set(
+        (tools ?? []).flatMap((toolDef) =>
+          'name' in toolDef && typeof toolDef.name === 'string' ? [toolDef.name] : []
+        )
+      )
+    ]
+
+    for (const name of names.filter(isResponsesCompatibleToolName)) {
+      this.providerToolNames.set(name, name)
+      this.clientToolNames.set(name, name)
+    }
+    for (const name of names.filter((candidate) => !isResponsesCompatibleToolName(candidate)).sort()) {
+      this.registerProviderToolName(name)
+    }
+  }
+
+  private toProviderToolName(toolName: string): string {
+    return this.providerToolNames.get(toolName) ?? this.registerProviderToolName(toolName)
+  }
+
+  private registerProviderToolName(toolName: string): string {
+    if (isResponsesCompatibleToolName(toolName) && !this.clientToolNames.has(toolName)) {
+      this.providerToolNames.set(toolName, toolName)
+      this.clientToolNames.set(toolName, toolName)
+      return toolName
+    }
+
+    let attempt = 0
+    let providerToolName = buildResponsesToolName(toolName, attempt)
+    while (this.clientToolNames.has(providerToolName)) {
+      providerToolName = buildResponsesToolName(toolName, ++attempt)
+    }
+    this.providerToolNames.set(toolName, providerToolName)
+    this.clientToolNames.set(providerToolName, toolName)
+    return providerToolName
   }
 
   /**
@@ -250,8 +357,19 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * Extract provider-specific options from Anthropic params
    * Maps thinking configuration to provider-specific parameters
    */
-  extractProviderOptions(provider: Provider, params: MessageCreateParams): ProviderOptions | undefined {
-    return mapAnthropicThinkingToProviderOptions(provider, params.thinking)
+  extractProviderOptions(
+    provider: Provider,
+    model: Model,
+    params: MessageCreateParams,
+    maxOutputTokens?: number
+  ): ProviderOptions | undefined {
+    return mapAnthropicThinkingToProviderOptions(
+      provider,
+      model,
+      params.thinking,
+      params.output_config?.effort,
+      maxOutputTokens
+    )
   }
 }
 

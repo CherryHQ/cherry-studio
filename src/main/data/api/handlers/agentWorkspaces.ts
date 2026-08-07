@@ -1,13 +1,13 @@
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
-import { toDataApiError } from '@shared/data/api'
-import { type HandlersFor, SuccessStatus } from '@shared/data/api/apiTypes'
+import { toDataApiError } from '@shared/data/api/errors'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   type AgentWorkspaceSchemas,
   CreateAgentWorkspaceSchema,
   UpdateAgentWorkspaceSchema
 } from '@shared/data/api/schemas/agentWorkspaces'
+import { type HandlersFor, SuccessStatus } from '@shared/data/api/types'
 
 export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
   '/agent-workspaces': {
@@ -35,8 +35,7 @@ export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
       return agentWorkspaceService.update(params.workspaceId, parsed.data)
     },
     DELETE: async ({ params }) => {
-      agentSessionService.deleteWorkspaceCascade(params.workspaceId)
-      return undefined
+      return agentSessionService.deleteWorkspaceCascade(params.workspaceId)
     }
   },
 

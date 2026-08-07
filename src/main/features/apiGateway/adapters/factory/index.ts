@@ -1,1 +1,0 @@
-export { StreamAdapterFactory } from './StreamAdapterFactory'

@@ -591,6 +591,11 @@ export class WindowManager extends BaseService {
     }
   }
 
+  /** Get a window's registered type by ID (O(1) lookup; undefined if unknown/closed). */
+  public getWindowType(windowId: string): WindowType | undefined {
+    return this.windows.get(windowId)?.type
+  }
+
   /** Get all live BrowserWindow instances of a specific type (skips destroyed) */
   public getWindowsByType(type: WindowType): BrowserWindow[] {
     const windowIds = this.windowsByType.get(type)
@@ -640,12 +645,17 @@ export class WindowManager extends BaseService {
 
   /**
    * Broadcast an IPC message to all managed windows.
-   * Skips destroyed windows automatically.
+   * Skips destroyed windows automatically. Send failures are isolated per
+   * window — one window's `send()` throwing must not abort delivery to the
+   * remaining windows.
    */
   public broadcast(channel: string, ...args: unknown[]): void {
-    for (const managed of this.windows.values()) {
-      if (!managed.window.isDestroyed()) {
+    for (const [id, managed] of this.windows) {
+      if (managed.window.isDestroyed()) continue
+      try {
         managed.window.webContents.send(channel, ...args)
+      } catch (error) {
+        logger.warn(`broadcast to window '${id}' failed on channel '${channel}'`, error as Error)
       }
     }
   }
@@ -674,6 +684,10 @@ export class WindowManager extends BaseService {
   /** Retrieve initialization data for a window */
   public getInitData(windowId: string): unknown | null {
     return this.initDataStore.get(windowId) ?? null
+  }
+
+  public clearInitData(windowId: string): void {
+    this.initDataStore.delete(windowId)
   }
 
   /**
@@ -1333,7 +1347,7 @@ export class WindowManager extends BaseService {
     // Resolve preload path. `metadata.preload` mirrors `htmlPath`'s three-state
     // encoding: omitted → default file, non-empty string → that file, empty
     // string → no preload (for nodeIntegration:true cases).
-    const preloadName = metadata.preload ?? 'index.js'
+    const preloadName = metadata.preload ?? 'preload.js'
     const preloadPath = preloadName ? join(__dirname, '../preload/', preloadName) : undefined
 
     // 1. Create BrowserWindow
@@ -1565,8 +1579,8 @@ export class WindowManager extends BaseService {
     //   treat FullscreenChanged as the source of truth (the green button defaults
     //   to native fullscreen, which fires reliably).
     // - HTML5 element.requestFullscreen() and macOS setSimpleFullScreen() are
-    //   intentionally NOT bridged here: useFullscreen / useFullScreenNotice
-    //   semantics is OS-level native fullscreen only.
+    //   intentionally NOT bridged here: the renderer's fullscreen handling
+    //   (useWindowRuntime) is OS-level native fullscreen only.
     window.on('maximize', () => {
       application.get('IpcApiService').send(windowId, 'window.maximized_changed', true)
     })

@@ -1,5 +1,4 @@
 import type { RefObject } from 'react'
-import React from 'react'
 
 /**
  * 处理滚动同步
@@ -29,13 +28,16 @@ export const handleScrollSync = (
  * 创建输入区域滚动处理函数
  */
 export const createInputScrollHandler = (
+  sourceRef: RefObject<HTMLElement | null>,
   targetRef: RefObject<HTMLDivElement | null>,
   isProgrammaticScrollRef: RefObject<boolean>,
   isScrollSyncEnabled: boolean
 ) => {
-  return (e: React.UIEvent<HTMLTextAreaElement>) => {
-    if (!isScrollSyncEnabled || !targetRef.current || isProgrammaticScrollRef.current) return
-    handleScrollSync(e.currentTarget, targetRef.current, isProgrammaticScrollRef)
+  return () => {
+    const sourceEl = sourceRef.current
+    const targetEl = targetRef.current
+    if (!isScrollSyncEnabled || !sourceEl || !targetEl || isProgrammaticScrollRef.current) return
+    handleScrollSync(sourceEl, targetEl, isProgrammaticScrollRef)
   }
 }
 
@@ -43,13 +45,15 @@ export const createInputScrollHandler = (
  * 创建输出区域滚动处理函数
  */
 export const createOutputScrollHandler = (
-  textAreaRef: RefObject<HTMLTextAreaElement | null>,
+  sourceRef: RefObject<HTMLDivElement | null>,
+  targetRef: RefObject<HTMLDivElement | null>,
   isProgrammaticScrollRef: RefObject<boolean>,
   isScrollSyncEnabled: boolean
 ) => {
-  return (e: React.UIEvent<HTMLDivElement>) => {
-    const inputEl = textAreaRef.current
-    if (!isScrollSyncEnabled || !inputEl || isProgrammaticScrollRef.current) return
-    handleScrollSync(e.currentTarget, inputEl, isProgrammaticScrollRef)
+  return () => {
+    const sourceEl = sourceRef.current
+    const targetEl = targetRef.current
+    if (!isScrollSyncEnabled || !sourceEl || !targetEl || isProgrammaticScrollRef.current) return
+    handleScrollSync(sourceEl, targetEl, isProgrammaticScrollRef)
   }
 }

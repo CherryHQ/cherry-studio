@@ -25,10 +25,12 @@ import { createUniqueModelId, isUniqueModelId, parseUniqueModelId, type UniqueMo
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { isQwenMTModel } from '@shared/utils/model'
 
-import { PersistenceListener } from '../../ai/streamManager/listeners/PersistenceListener'
-import { WebContentsListener } from '../../ai/streamManager/listeners/WebContentsListener'
-import { TranslationBackend } from '../../ai/streamManager/persistence/backends/TranslationBackend'
-import type { StreamListener } from '../../ai/streamManager/types'
+import {
+  PersistenceListener,
+  type StreamListener,
+  TranslationBackend,
+  WebContentsListener
+} from '../../ai/streamManager'
 
 const logger = loggerService.withContext('TranslateService')
 
@@ -125,7 +127,13 @@ export class TranslateService {
     listeners.push(wcListener)
 
     const streamManager = application.get('AiStreamManager')
-    streamManager.streamPrompt({ streamId: req.streamId, uniqueModelId, prompt: content, listener: listeners })
+    streamManager.streamPrompt({
+      streamId: req.streamId,
+      uniqueModelId,
+      prompt: content,
+      listener: listeners,
+      reasoningEffort: 'none'
+    })
 
     logger.debug('translate stream opened', {
       streamId: req.streamId,

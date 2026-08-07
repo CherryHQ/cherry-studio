@@ -7,6 +7,7 @@
  * - {@link useMutation} - Perform POST/PUT/PATCH/DELETE operations
  * - {@link useInfiniteQuery} - Cursor-based infinite scrolling
  * - {@link usePaginatedQuery} - Offset-based pagination with navigation
+ * - {@link useDataChange} - Subscribe to DataApi data change notifications
  * - {@link useInvalidateCache} - Manual cache invalidation
  * - {@link useReadCache} - Non-reactive cache peek (single sanctioned home for `unstable_serialize`)
  * - {@link useWriteCache} - Write to a cache key without revalidating (optimistic overlay)
@@ -43,14 +44,14 @@ import type {
   QueryParamsForPath,
   ResponseForPath,
   TemplateApiPaths
-} from '@shared/data/api/apiPaths'
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
+} from '@shared/data/api/paths'
+import type { ConcreteApiPaths, DataApiDataChangeEffect, GetMethodApiPaths } from '@shared/data/api/types'
 import {
   type CursorPaginationResponse,
   type InferPaginationMode,
   type OffsetPaginationResponse,
   type PaginationResponse
-} from '@shared/data/api/apiTypes'
+} from '@shared/data/api/types'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Cache, KeyedMutator, ScopedMutator, SWRConfiguration } from 'swr'
 import useSWR, { preload, unstable_serialize, useSWRConfig } from 'swr'
@@ -82,6 +83,9 @@ const DEFAULT_SWR_OPTIONS = {
   shouldRetryOnError: false,
   keepPreviousData: true
 } as const
+
+/** Stable empty-array constant so `items` identity doesn't churn while data is undefined. */
+const EMPTY_ITEMS: readonly never[] = Object.freeze([])
 
 // ============================================================================
 // Hook Result Types
@@ -194,7 +198,9 @@ export type RefreshOption<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' 
 
 /**
  * useMutation result type
- * @property trigger - Execute the mutation with optional params, body, query
+ * @property trigger - Execute the mutation with optional params, body, query.
+ *   Identity is stable across renders (like SWR's own trigger), so it is safe
+ *   to list in useCallback/useEffect dependency arrays.
  * @property isLoading - True while the mutation is in progress
  * @property error - Error object if the last mutation failed
  */
@@ -239,7 +245,7 @@ export interface UseInfiniteQueryResult<TResponse> {
 
 /**
  * usePaginatedQuery result type (offset-based pagination)
- * @property items - Items on the current page
+ * @property items - Items on the current page (read-only — copy before sorting/mutating)
  * @property total - Total number of items across all pages
  * @property page - Current page number (1-indexed)
  * @property isLoading - True during initial load
@@ -253,7 +259,7 @@ export interface UseInfiniteQueryResult<TResponse> {
  * @property reset - Reset to page 1
  */
 export interface UsePaginatedQueryResult<T> {
-  items: T[]
+  items: readonly T[]
   total: number
   page: number
   isLoading: boolean
@@ -405,6 +411,12 @@ export function useQuery<TPath extends ApiPath>(
  * 4. If `optimisticData` was set, the mutated cache key is re-validated.
  * A thrown `refresh` callback is caught and logged; it does not cause the
  * `trigger` promise to reject or skip `onSuccess`.
+ *
+ * @remarks
+ * The returned `trigger` is memoized and reads options through a ref: passing
+ * a fresh inline options object does not change trigger identity, and trigger
+ * always sees the latest `onSuccess` / `onError` / `refresh` / `optimisticData`
+ * at call time.
  */
 export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT' | 'DELETE' | 'PATCH'>(
   method: TMethod,
@@ -478,94 +490,101 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
     ...options?.swrOptions
   })
 
-  const trigger = async (data?: TriggerArgs<TPath, TMethod>): Promise<ResponseForPath<TPath, TMethod>> => {
-    const opts = optionsRef.current
-    // Capture args in this call's closure so concurrent triggers don't clobber
-    // each other's refresh context (refs would race on overlapping awaits).
-    const capturedArgs = data
-    const paramsRecord = capturedArgs?.params as Record<string, string | number> | undefined
-    const resolvedPath = resolveTemplate(path, paramsRecord)
-    const hasOptimisticData = opts?.optimisticData !== undefined
+  // Memoized so the returned `trigger` keeps a stable identity across renders
+  // (an official contract of this layer — see the hook's @remarks). Latest
+  // options are read via `optionsRef` at call time, so a stable identity does
+  // not stale the option callbacks.
+  const trigger = useCallback(
+    async (data?: TriggerArgs<TPath, TMethod>): Promise<ResponseForPath<TPath, TMethod>> => {
+      const opts = optionsRef.current
+      // Capture args in this call's closure so concurrent triggers don't clobber
+      // each other's refresh context (refs would race on overlapping awaits).
+      const capturedArgs = data
+      const paramsRecord = capturedArgs?.params as Record<string, string | number> | undefined
+      const resolvedPath = resolveTemplate(path, paramsRecord)
+      const hasOptimisticData = opts?.optimisticData !== undefined
 
-    // Dev-mode: warn when a single template-hook instance is trigger'd with
-    // different params while a previous call is still in-flight. We check the
-    // ref rather than SWR's `isMutating` because React state updates lag a
-    // render — synchronous bursts (e.g. `Promise.all([trigger(a), trigger(b)])`)
-    // would see stale `isMutating === false` in both closures and the warning
-    // would never fire. The ref is updated synchronously on trigger entry.
-    if (isDev && paramsRecord) {
-      const prev = inFlightParamsRef.current
-      if (prev && JSON.stringify(prev) !== JSON.stringify(paramsRecord)) {
-        logger.warn(
-          `Concurrent trigger on template useMutation: ${method} ${String(path)}. ` +
-            `In-flight params=${JSON.stringify(prev)}, new params=${JSON.stringify(paramsRecord)}. ` +
-            `isMutating/error state will be shared between the two calls. ` +
-            `Use per-row hook instances with concrete paths (e.g. useMutation('${method}', providerPath(id))) for parallel writes.`
-        )
-      }
-    }
-    inFlightParamsRef.current = paramsRecord ?? null
-
-    // Apply optimistic update if optimisticData is provided
-    if (hasOptimisticData) {
-      await globalMutate([resolvedPath], opts.optimisticData, false)
-    }
-
-    try {
-      const result = await swrTrigger({
-        params: paramsRecord,
-        body: capturedArgs?.body,
-        query: capturedArgs?.query
-      } as {
-        params?: Record<string, string | number>
-        body?: BodyForPath<TPath, TMethod>
-        query?: QueryParamsForPath<TPath, TMethod>
-      })
-
-      // Run refresh after the mutation resolves. We do this in `trigger`
-      // itself (not SWR's onSuccess) so args/result are closure-captured
-      // and tied to this specific call.
-      //
-      // Refresh is an after-success side effect, not part of the mutation's
-      // success contract. If a user-provided function-form refresh throws
-      // (e.g. dereferences a missing arg), or if SWR revalidation surfaces
-      // an error, we must NOT propagate it — the server-side mutation has
-      // already succeeded and the caller's `await trigger()` must resolve
-      // accordingly. Log and continue instead.
-      const refreshOpt = opts?.refresh
-      if (refreshOpt) {
-        try {
-          const keys = typeof refreshOpt === 'function' ? refreshOpt({ args: capturedArgs, result }) : refreshOpt
-          if (keys.length > 0) {
-            await invalidatePathPatterns(cache, globalMutate, keys)
-          }
-        } catch (refreshErr) {
-          logger.warn(`Refresh failed after successful ${method} ${String(path)}; cache may be stale`, {
-            error: refreshErr
-          })
+      // Dev-mode: warn when a single template-hook instance is trigger'd with
+      // different params while a previous call is still in-flight. We check the
+      // ref rather than SWR's `isMutating` because React state updates lag a
+      // render — synchronous bursts (e.g. `Promise.all([trigger(a), trigger(b)])`)
+      // would see stale `isMutating === false` in both closures and the warning
+      // would never fire. The ref is updated synchronously on trigger entry.
+      if (isDev && paramsRecord) {
+        const prev = inFlightParamsRef.current
+        if (prev && JSON.stringify(prev) !== JSON.stringify(paramsRecord)) {
+          logger.warn(
+            `Concurrent trigger on template useMutation: ${method} ${String(path)}. ` +
+              `In-flight params=${JSON.stringify(prev)}, new params=${JSON.stringify(paramsRecord)}. ` +
+              `isMutating/error state will be shared between the two calls. ` +
+              `Use per-row hook instances with concrete paths (e.g. useMutation('${method}', providerPath(id))) for parallel writes.`
+          )
         }
       }
+      inFlightParamsRef.current = paramsRecord ?? null
 
-      opts?.onSuccess?.(result)
-
-      // Revalidate after optimistic update completes
+      // Apply optimistic update if optimisticData is provided
       if (hasOptimisticData) {
-        await globalMutate([resolvedPath])
+        await globalMutate([resolvedPath], opts.optimisticData, false)
       }
 
-      return result
-    } catch (err) {
-      // Rollback optimistic update on error
-      if (hasOptimisticData) {
-        await globalMutate([resolvedPath])
+      try {
+        const result = await swrTrigger({
+          params: paramsRecord,
+          body: capturedArgs?.body,
+          query: capturedArgs?.query
+        } as {
+          params?: Record<string, string | number>
+          body?: BodyForPath<TPath, TMethod>
+          query?: QueryParamsForPath<TPath, TMethod>
+        })
+
+        // Run refresh after the mutation resolves. We do this in `trigger`
+        // itself (not SWR's onSuccess) so args/result are closure-captured
+        // and tied to this specific call.
+        //
+        // Refresh is an after-success side effect, not part of the mutation's
+        // success contract. If a user-provided function-form refresh throws
+        // (e.g. dereferences a missing arg), or if SWR revalidation surfaces
+        // an error, we must NOT propagate it — the server-side mutation has
+        // already succeeded and the caller's `await trigger()` must resolve
+        // accordingly. Log and continue instead.
+        const refreshOpt = opts?.refresh
+        if (refreshOpt) {
+          try {
+            const keys = typeof refreshOpt === 'function' ? refreshOpt({ args: capturedArgs, result }) : refreshOpt
+            if (keys.length > 0) {
+              await invalidatePathPatterns(cache, globalMutate, keys)
+            }
+          } catch (refreshErr) {
+            logger.warn(`Refresh failed after successful ${method} ${String(path)}; cache may be stale`, {
+              error: refreshErr
+            })
+          }
+        }
+
+        opts?.onSuccess?.(result)
+
+        // Revalidate after optimistic update completes
+        if (hasOptimisticData) {
+          await globalMutate([resolvedPath])
+        }
+
+        return result
+      } catch (err) {
+        // Rollback optimistic update on error
+        if (hasOptimisticData) {
+          await globalMutate([resolvedPath])
+        }
+        throw err
+      } finally {
+        if (inFlightParamsRef.current === paramsRecord) {
+          inFlightParamsRef.current = null
+        }
       }
-      throw err
-    } finally {
-      if (inFlightParamsRef.current === paramsRecord) {
-        inFlightParamsRef.current = null
-      }
-    }
-  }
+    },
+    [cache, globalMutate, method, path, swrTrigger]
+  )
 
   return {
     trigger,
@@ -606,15 +625,18 @@ export function useMutation<TPath extends ApiPath, TMethod extends 'POST' | 'PUT
 export function useInvalidateCache() {
   const { mutate, cache } = useSWRConfig()
 
-  const invalidate = async (keys?: string | string[] | boolean): Promise<void> => {
-    if (keys === true || keys === undefined) {
-      await mutate(() => true)
-      return
-    }
-    if (keys === false) return
-    const patterns = typeof keys === 'string' ? [keys] : keys
-    await invalidatePathPatterns(cache, mutate, patterns)
-  }
+  const invalidate = useCallback(
+    async (keys?: string | string[] | boolean): Promise<void> => {
+      if (keys === true || keys === undefined) {
+        await mutate(() => true)
+        return
+      }
+      if (keys === false) return
+      const patterns = typeof keys === 'string' ? [keys] : keys
+      await invalidatePathPatterns(cache, mutate, patterns)
+    },
+    [cache, mutate]
+  )
 
   return invalidate
 }
@@ -1035,28 +1057,31 @@ export function usePaginatedQuery<TPath extends ApiPath>(
   // alias to recover item-type precision (TS won't unwrap generic constraints
   // for property access alone).
   const paginatedData = data as OffsetPaginationResponse<InferPaginatedItem<TPath>> | undefined
-  const items = paginatedData?.items || []
+  const items = paginatedData?.items ?? EMPTY_ITEMS
   const total = paginatedData?.total || 0
   const totalPages = Math.ceil(total / limit)
 
   const hasNext = currentPage < totalPages
   const hasPrev = currentPage > 1
 
-  const nextPage = () => {
+  // Memoized on the gating booleans (not `[]`): the guards must stay fresh or
+  // navigation would run past the page bounds. Identity changes only when
+  // page availability actually flips.
+  const nextPage = useCallback(() => {
     if (hasNext) {
       setCurrentPage((prev) => prev + 1)
     }
-  }
+  }, [hasNext])
 
-  const prevPage = () => {
+  const prevPage = useCallback(() => {
     if (hasPrev) {
       setCurrentPage((prev) => prev - 1)
     }
-  }
+  }, [hasPrev])
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setCurrentPage(1)
-  }
+  }, [])
 
   return {
     items,
@@ -1072,6 +1097,54 @@ export function usePaginatedQuery<TPath extends ApiPath>(
     refresh: refetch,
     reset
   }
+}
+
+// ============================================================================
+// Data Change Subscription Hook
+// ============================================================================
+
+/**
+ * Subscribe to DataApi data change notifications for the component's lifetime.
+ *
+ * Thin React binding over {@link DataApiService.onDataChanged}: subscribes on
+ * mount, unsubscribes on unmount, and always invokes the LATEST `listener`
+ * (safe to pass an inline closure — re-renders do not resubscribe).
+ *
+ * The listener receives, for each notification, the entries matching any of
+ * the subscribed endpoints merged into one call. Everything below the
+ * endpoint is consumer policy: dimension/entityIds filtering, choosing
+ * revalidate / rebuild / ignore, and idempotency towards echoes of this
+ * window's own writes.
+ *
+ * @example
+ * // Conservative list convergence: any signal → refetch
+ * useDataChange('/topics', () => refetch())
+ *
+ * @example
+ * // By-ID surface: filter with entityIds (absent = no claim → act)
+ * useDataChange('/topics/:id', (effects) => {
+ *   if (effects.some((e) => !e.entityIds || e.entityIds.includes(myId))) mutate()
+ * })
+ */
+export function useDataChange(
+  endpoints: GetMethodApiPaths | GetMethodApiPaths[],
+  listener: (effects: DataApiDataChangeEffect[]) => void
+): void {
+  const listenerRef = useRef(listener)
+  useEffect(() => {
+    listenerRef.current = listener
+  })
+
+  // Value-stable key: a fresh inline array with the same endpoints must not
+  // resubscribe. NUL-joined — schema template paths are literals that cannot
+  // contain '\0', so the key is collision-free.
+  const endpointsKey = Array.isArray(endpoints) ? endpoints.join('\0') : endpoints
+  useEffect(() => {
+    // An empty endpoints array yields an empty key — nothing to subscribe to.
+    if (endpointsKey === '') return
+    const endpointList = endpointsKey.split('\0') as GetMethodApiPaths[]
+    return dataApiService.onDataChanged(endpointList, (effects) => listenerRef.current(effects))
+  }, [endpointsKey])
 }
 
 // ============================================================================

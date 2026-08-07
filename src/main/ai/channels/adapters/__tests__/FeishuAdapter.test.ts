@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const registrationMocks = vi.hoisted(() => ({
+  begin: vi.fn(),
+  poll: vi.fn()
+}))
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({ info: vi.fn(), error: vi.fn(), warn: vi.fn(), debug: vi.fn(), silly: vi.fn() })
@@ -22,6 +27,11 @@ vi.mock('../../../../../MainWindowService', () => ({
   }
 }))
 
+vi.mock('../feishu/FeishuAppRegistration', () => ({
+  registrationBegin: registrationMocks.begin,
+  registrationPoll: registrationMocks.poll
+}))
+
 const mockImCreate = vi.fn().mockResolvedValue({ code: 0, data: { message_id: 'msg-1' } })
 const mockImUpdate = vi.fn().mockResolvedValue({ code: 0 })
 const mockCardCreate = vi.fn().mockResolvedValue({ code: 0, data: { card_id: 'card-1' } })
@@ -31,12 +41,21 @@ const mockElementContent = vi.fn().mockResolvedValue({ code: 0 })
 const mockMessageResourceGet = vi.fn()
 const mockReactionCreate = vi.fn().mockResolvedValue({ code: 0, data: { reaction_id: 'rx-1' } })
 const mockReactionDelete = vi.fn().mockResolvedValue({ code: 0 })
+// The SDK unwraps upload responses to the inner data object (not a {code,data} envelope).
+const mockFileCreate = vi.fn().mockResolvedValue({ file_key: 'file-1' })
+const mockImageCreate = vi.fn().mockResolvedValue({ image_key: 'img-1' })
 
 const mockClient = {
   im: {
     message: {
       create: mockImCreate,
       update: mockImUpdate
+    },
+    file: {
+      create: mockFileCreate
+    },
+    image: {
+      create: mockImageCreate
     },
     messageResource: {
       get: mockMessageResourceGet
@@ -93,7 +112,11 @@ describe('FeishuAdapter', () => {
     mockMessageResourceGet.mockReset()
     mockReactionCreate.mockClear().mockResolvedValue({ code: 0, data: { reaction_id: 'rx-1' } })
     mockReactionDelete.mockClear().mockResolvedValue({ code: 0 })
+    mockFileCreate.mockClear().mockResolvedValue({ file_key: 'file-1' })
+    mockImageCreate.mockClear().mockResolvedValue({ image_key: 'img-1' })
     mockWsStart.mockClear().mockResolvedValue(undefined)
+    registrationMocks.begin.mockReset().mockRejectedValue(new Error('Registration unavailable'))
+    registrationMocks.poll.mockReset()
     capturedEventHandlers = {}
   })
 
@@ -132,6 +155,92 @@ describe('FeishuAdapter', () => {
     // checkReady() returns false → performConnect runs in background,
     // starts registration flow instead of WebSocket
     expect(mockWsStart).not.toHaveBeenCalled()
+  })
+
+  it('emits a QR code and credentials when registration completes', async () => {
+    registrationMocks.begin.mockResolvedValue({
+      deviceCode: 'device-code',
+      verificationUri: 'https://accounts.feishu.cn/device/qr',
+      interval: 1,
+      expiresIn: 600
+    })
+    registrationMocks.poll.mockResolvedValue({
+      appId: 'new-app-id',
+      appSecret: 'new-app-secret'
+    })
+    const adapter = createAdapter({ app_id: '', app_secret: '' })
+    const onQr = vi.fn()
+    const onCredentials = vi.fn()
+    adapter.on('qr', onQr)
+    adapter.on('credentials', onCredentials)
+
+    await adapter.connect()
+
+    await vi.waitFor(() => {
+      expect(onQr).toHaveBeenCalledWith('https://accounts.feishu.cn/device/qr')
+      expect(onCredentials).toHaveBeenCalledWith({
+        appId: 'new-app-id',
+        appSecret: 'new-app-secret'
+      })
+    })
+  })
+
+  it('does not emit a QR code when disconnected before registration begins', async () => {
+    let resolveBegin!: (value: {
+      deviceCode: string
+      verificationUri: string
+      interval: number
+      expiresIn: number
+    }) => void
+    registrationMocks.begin.mockReturnValue(
+      new Promise((resolve) => {
+        resolveBegin = resolve
+      })
+    )
+    const adapter = createAdapter({ app_id: '', app_secret: '' })
+    const onQr = vi.fn()
+    adapter.on('qr', onQr)
+
+    await adapter.connect()
+    await adapter.disconnect()
+    resolveBegin({
+      deviceCode: 'device-code',
+      verificationUri: 'https://accounts.feishu.cn/device/qr',
+      interval: 1,
+      expiresIn: 600
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(onQr).not.toHaveBeenCalled()
+    expect(registrationMocks.poll).not.toHaveBeenCalled()
+  })
+
+  it('does not emit credentials when disconnected during registration polling', async () => {
+    let resolvePoll!: (value: { appId: string; appSecret: string }) => void
+    registrationMocks.begin.mockResolvedValue({
+      deviceCode: 'device-code',
+      verificationUri: 'https://accounts.feishu.cn/device/qr',
+      interval: 1,
+      expiresIn: 600
+    })
+    registrationMocks.poll.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePoll = resolve
+      })
+    )
+    const adapter = createAdapter({ app_id: '', app_secret: '' })
+    const onCredentials = vi.fn()
+    adapter.on('credentials', onCredentials)
+
+    await adapter.connect()
+    await vi.waitFor(() => expect(registrationMocks.poll).toHaveBeenCalledOnce())
+    await adapter.disconnect()
+    resolvePoll({ appId: 'new-app-id', appSecret: 'new-app-secret' })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(onCredentials).not.toHaveBeenCalled()
   })
 
   it('sendMessage() sends post-type message via SDK', async () => {
@@ -175,6 +284,78 @@ describe('FeishuAdapter', () => {
     await expect(adapter.sendMessage('oc_123', 'Hello Feishu')).rejects.toThrow(
       'Send Feishu message failed: permission denied'
     )
+  })
+
+  it('sendFile() uploads a generic file then posts a file message', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const data = Buffer.from('pdf-bytes').toString('base64')
+    await adapter.sendFile('oc_123', {
+      filename: 'report.pdf',
+      data,
+      media_type: 'application/pdf',
+      size: 9
+    })
+
+    expect(mockFileCreate).toHaveBeenCalledWith({
+      data: { file_type: 'stream', file_name: 'report.pdf', file: expect.any(Buffer) }
+    })
+    expect(mockImCreate).toHaveBeenCalledWith({
+      params: { receive_id_type: 'chat_id' },
+      data: { receive_id: 'oc_123', msg_type: 'file', content: JSON.stringify({ file_key: 'file-1' }) }
+    })
+  })
+
+  it('sendFile() uploads images via the image API and posts an image message', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+
+    const data = Buffer.from('png-bytes').toString('base64')
+    await adapter.sendFile('oc_123', { filename: 'chart.png', data, media_type: 'image/png', size: 9 })
+
+    expect(mockImageCreate).toHaveBeenCalledWith({ data: { image_type: 'message', image: expect.any(Buffer) } })
+    expect(mockFileCreate).not.toHaveBeenCalled()
+    expect(mockImCreate).toHaveBeenCalledWith({
+      params: { receive_id_type: 'chat_id' },
+      data: { receive_id: 'oc_123', msg_type: 'image', content: JSON.stringify({ image_key: 'img-1' }) }
+    })
+  })
+
+  it('sendFile() throws when the upload returns no file_key', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    mockFileCreate.mockResolvedValueOnce(null)
+
+    await expect(
+      adapter.sendFile('oc_123', { filename: 'a.bin', data: '', media_type: 'application/octet-stream', size: 0 })
+    ).rejects.toThrow('(no file_key)')
+    expect(mockImCreate).not.toHaveBeenCalled()
+  })
+
+  it('sendFile() throws when the image upload returns no image_key', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    mockImageCreate.mockResolvedValueOnce(null)
+
+    const data = Buffer.from('png-bytes').toString('base64')
+    await expect(
+      adapter.sendFile('oc_123', { filename: 'chart.png', data, media_type: 'image/png', size: 9 })
+    ).rejects.toThrow('(no image_key)')
+    expect(mockImCreate).not.toHaveBeenCalled()
+  })
+
+  it('sendFile() propagates a failure when the message post fails after a successful upload', async () => {
+    const adapter = createAdapter()
+    await adapter.connect()
+    mockImCreate.mockRejectedValueOnce(new Error('permission denied'))
+
+    const data = Buffer.from('pdf-bytes').toString('base64')
+    await expect(
+      adapter.sendFile('oc_123', { filename: 'report.pdf', data, media_type: 'application/pdf', size: 9 })
+    ).rejects.toThrow('permission denied')
+    // Upload succeeded; the failure is on the message post, so the upload was still attempted.
+    expect(mockFileCreate).toHaveBeenCalled()
   })
 
   it('onTextUpdate() creates streaming card and updates content via CardKit', async () => {

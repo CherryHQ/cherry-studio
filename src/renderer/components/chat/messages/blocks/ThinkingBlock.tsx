@@ -1,11 +1,27 @@
 import { type MarkdownSource } from '@cherrystudio/ui'
 import { type CSSProperties, memo, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import BeatLoader from 'react-spinners/BeatLoader'
 
 import ChatMarkdown from '../markdown/ChatMarkdown'
 import { useMessageRenderConfig } from '../MessageListProvider'
 import ThinkingEffect from './ThinkingEffect'
+import { normalizeThinkingPreview, scanThinkingPreview, type ThinkingPreviewScanState } from './thinkingPreview'
+import { useMinimumDisplayDuration } from './useMinimumDisplayDuration'
 import { useScrollAnchor } from './useScrollAnchor'
+
+// This content treatment stays owner-local because the nearest readable shared role shifts it beyond the 90% gate.
+const THINKING_MUTED_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const THINKING_SECONDARY_COLOR = 'var(--muted-foreground)'
+const THINKING_PREVIEW_MIN_DURATION_MS = 1000
+
+function getThinkingPreviewKey(preview: string): string {
+  return preview
+}
+
+function shouldBypassThinkingPreviewStabilization(currentPreview: string): boolean {
+  return !currentPreview
+}
 
 interface Props {
   /** Stable ID for heading prefix and block identity tracking */
@@ -14,15 +30,17 @@ interface Props {
   content: string
   /** Whether this block is currently streaming */
   isStreaming: boolean
-  /** Thinking duration in milliseconds */
-  thinkingMs: number
-  /** Live estimated reasoning tokens for the current thinking block. */
-  thoughtsTokens?: number
-  /** Thinking start timestamp in epoch ms */
-  startedAt?: number
+  /** Whether to expose a one-line content preview in the title row */
+  showTitlePreview?: boolean
 }
 
-const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, thoughtsTokens, startedAt }) => {
+interface ThinkingBlockContentProps {
+  id: string
+  content: string
+  isStreaming: boolean
+}
+
+export const ThinkingBlockContent = memo(({ id, content, isStreaming }: ThinkingBlockContentProps) => {
   const block = useMemo<MarkdownSource>(
     () => ({
       id,
@@ -31,12 +49,54 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, 
     }),
     [id, content, isStreaming]
   )
-  const { messageFont, fontSize, thoughtAutoCollapse } = useMessageRenderConfig()
+  const { messageFont, fontSize } = useMessageRenderConfig()
+
+  if (!content) return null
+
+  return (
+    <div
+      className="relative [&_.markdown>p:only-child]:mb-0!"
+      style={
+        {
+          '--markdown-foreground': THINKING_MUTED_COLOR,
+          color: THINKING_MUTED_COLOR,
+          fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
+          fontSize
+        } as CSSProperties
+      }>
+      <ChatMarkdown block={block} />
+    </div>
+  )
+})
+ThinkingBlockContent.displayName = 'ThinkingBlockContent'
+
+const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePreview = false }) => {
+  const { thoughtAutoCollapse } = useMessageRenderConfig()
   const [isExpanded, setIsExpanded] = useState(false)
   const contentId = useId()
+  const thinkingPreviewScanStateRef = useRef<ThinkingPreviewScanState | undefined>(undefined)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
 
   const isThinking = isStreaming
+  const previewText = useMemo(
+    () => (!isThinking && showTitlePreview ? normalizeThinkingPreview(content ?? '') : ''),
+    [content, isThinking, showTitlePreview]
+  )
+  const thinkingPreviewScanResult = useMemo(
+    () => (isThinking ? scanThinkingPreview(content ?? '', thinkingPreviewScanStateRef.current) : undefined),
+    [content, isThinking]
+  )
+  const nextStreamingPreview = thinkingPreviewScanResult?.preview ?? ''
+  const streamingPreviewText = useMinimumDisplayDuration(nextStreamingPreview, {
+    enabled: isThinking,
+    getKey: getThinkingPreviewKey,
+    minimumDurationMs: THINKING_PREVIEW_MIN_DURATION_MS,
+    shouldBypass: shouldBypassThinkingPreviewStabilization
+  })
+
+  useEffect(() => {
+    thinkingPreviewScanStateRef.current = thinkingPreviewScanResult?.state
+  }, [thinkingPreviewScanResult])
 
   useEffect(() => {
     if (thoughtAutoCollapse) {
@@ -49,139 +109,73 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, thinkingMs, 
   }
 
   return (
-    <div ref={anchorRef} className="message-thought-container group/thought mb-0.5 max-w-full">
+    <div
+      ref={anchorRef}
+      data-ui="part:message-reasoning"
+      className="message-thought-container group/thought mb-0.5 max-w-full">
       <div
         role="button"
         tabIndex={0}
         aria-expanded={isExpanded}
         aria-controls={contentId}
-        className="w-full rounded border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2"
-        onClick={() => withScrollAnchor(() => setIsExpanded((expanded) => !expanded))}
+        className="w-full rounded border-0 bg-transparent p-0 text-left focus-visible:bg-accent/50 focus-visible:outline-none"
+        onClick={() =>
+          withScrollAnchor(() => setIsExpanded((expanded) => !expanded), { enterReadingMode: !isExpanded })
+        }
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget) return
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
-            withScrollAnchor(() => setIsExpanded((expanded) => !expanded))
+            withScrollAnchor(() => setIsExpanded((expanded) => !expanded), { enterReadingMode: !isExpanded })
           }
         }}>
         <ThinkingEffect
-          expanded={isExpanded}
-          isThinking={isThinking}
-          thinkingTimeText={
-            <ThinkingTimeSeconds
-              blockThinkingTime={thinkingMs}
-              isThinking={isThinking}
-              startedAt={startedAt}
-              thoughtsTokens={thoughtsTokens}
-            />
+          thinkingTimeText={<ThinkingTimeSeconds isThinking={isThinking} />}
+          trailing={
+            isThinking ? (
+              <>
+                <span
+                  aria-hidden="true"
+                  className="flex shrink-0 items-center text-foreground-tertiary"
+                  data-testid="thinking-loading-indicator">
+                  <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
+                </span>
+                {streamingPreviewText && (
+                  <span
+                    aria-hidden="true"
+                    className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-[13px] leading-5"
+                    style={{ color: THINKING_MUTED_COLOR }}>
+                    {streamingPreviewText}
+                  </span>
+                )}
+              </>
+            ) : showTitlePreview && previewText ? (
+              <span
+                aria-hidden="true"
+                className="min-w-0 flex-1 truncate whitespace-nowrap text-[13px] leading-5"
+                style={{ color: THINKING_MUTED_COLOR }}>
+                {previewText}
+              </span>
+            ) : null
           }
         />
       </div>
       <div
         id={contentId}
         hidden={!isExpanded}
-        className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] text-foreground-secondary leading-5">
-        <div
-          className="relative text-foreground-muted [&_.markdown>p:only-child]:mb-0!"
-          style={
-            {
-              '--color-text': 'var(--color-foreground-muted)',
-              '--color-text-light': 'var(--color-foreground-muted)',
-              fontFamily: messageFont === 'serif' ? 'var(--font-family-serif)' : 'var(--font-family)',
-              fontSize
-            } as CSSProperties
-          }>
-          <ChatMarkdown block={block} />
-        </div>
+        className="mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] leading-5"
+        style={{ color: THINKING_SECONDARY_COLOR }}>
+        <ThinkingBlockContent id={id} content={content} isStreaming={isStreaming} />
       </div>
     </div>
   )
 }
 
-const normalizeThinkingTime = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
-const normalizeThoughtsTokens = (value?: number) =>
-  typeof value === 'number' && Number.isFinite(value) && value > 0 ? Math.round(value) : undefined
+const ThinkingTimeSeconds = memo(({ isThinking }: { isThinking: boolean }) => {
+  const { t } = useTranslation()
 
-const ThinkingTimeSeconds = memo(
-  ({
-    blockThinkingTime,
-    isThinking,
-    startedAt,
-    thoughtsTokens
-  }: {
-    blockThinkingTime: number
-    isThinking: boolean
-    startedAt?: number
-    thoughtsTokens?: number
-  }) => {
-    const { t } = useTranslation()
-
-    const safeStartedAt = typeof startedAt === 'number' && Number.isFinite(startedAt) ? startedAt : undefined
-
-    const [displayTime, setDisplayTime] = useState(() => {
-      if (!isThinking) return normalizeThinkingTime(blockThinkingTime)
-      if (safeStartedAt !== undefined) {
-        return Math.max(0, Date.now() - safeStartedAt)
-      }
-      return 0
-    })
-
-    const timer = useRef<NodeJS.Timeout | null>(null)
-
-    useEffect(() => {
-      if (isThinking) {
-        if (safeStartedAt !== undefined) {
-          setDisplayTime(Math.max(0, Date.now() - safeStartedAt))
-        }
-        if (!timer.current) {
-          timer.current = setInterval(() => {
-            if (safeStartedAt !== undefined) {
-              setDisplayTime(Math.max(0, Date.now() - safeStartedAt))
-            } else {
-              setDisplayTime((prev) => prev + 100)
-            }
-          }, 100)
-        }
-      } else {
-        if (timer.current) {
-          clearInterval(timer.current)
-          timer.current = null
-        }
-        const normalized = normalizeThinkingTime(blockThinkingTime)
-        setDisplayTime(normalized)
-      }
-
-      return () => {
-        if (timer.current) {
-          clearInterval(timer.current)
-          timer.current = null
-        }
-      }
-    }, [isThinking, blockThinkingTime, safeStartedAt])
-
-    const thinkingTimeSeconds = useMemo(() => {
-      const safeTime = normalizeThinkingTime(displayTime)
-      return ((safeTime < 100 ? 100 : safeTime) / 1000).toFixed(1)
-    }, [displayTime])
-
-    const statusText =
-      !isThinking && normalizeThinkingTime(blockThinkingTime) <= 0
-        ? t('common.reasoning_content')
-        : isThinking
-          ? t('chat.thinking', {
-              seconds: thinkingTimeSeconds
-            })
-          : t('chat.deeply_thought', {
-              seconds: thinkingTimeSeconds
-            })
-
-    const normalizedTokens = normalizeThoughtsTokens(thoughtsTokens)
-    if (!normalizedTokens) return statusText
-
-    return `${statusText} · ${t('chat.thinking_tokens', {
-      tokens: new Intl.NumberFormat().format(normalizedTokens)
-    })}`
-  }
-)
+  if (isThinking) return t('message.tools.placeholder.thinking')
+  return t('common.reasoning_content')
+})
 
 export default memo(ThinkingBlock)

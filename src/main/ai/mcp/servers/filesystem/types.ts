@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { getBinaryExecutionEnv, getBinaryPath } from '@main/utils/process'
+import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
+import { getBinaryPath } from '@main/utils/binaryResolver'
 import { spawn } from 'child_process'
 import fs from 'fs/promises'
 import os from 'os'

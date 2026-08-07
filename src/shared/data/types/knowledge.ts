@@ -1,6 +1,6 @@
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import * as z from 'zod'
 
-import { AbsolutePathSchema } from './file'
 import { GroupIdSchema } from './group'
 
 /**
@@ -62,11 +62,6 @@ export const KNOWLEDGE_ITEM_STATUSES = [
 export const KnowledgeItemStatusSchema = z.enum(KNOWLEDGE_ITEM_STATUSES)
 export type KnowledgeItemStatus = z.infer<typeof KnowledgeItemStatusSchema>
 
-export const KNOWLEDGE_SEARCH_MODES = ['vector', 'bm25', 'hybrid'] as const
-export const KnowledgeSearchModeSchema = z.enum(KNOWLEDGE_SEARCH_MODES)
-export type KnowledgeSearchMode = z.infer<typeof KnowledgeSearchModeSchema>
-export const DEFAULT_KNOWLEDGE_SEARCH_MODE: KnowledgeSearchMode = 'hybrid'
-
 export const KNOWLEDGE_SEARCH_SCORE_KINDS = ['relevance', 'ranking'] as const
 export const KnowledgeSearchScoreKindSchema = z.enum(KNOWLEDGE_SEARCH_SCORE_KINDS)
 export type KnowledgeSearchScoreKind = z.infer<typeof KnowledgeSearchScoreKindSchema>
@@ -79,7 +74,7 @@ export const DEFAULT_KNOWLEDGE_BASE_STATUS: KnowledgeBaseStatus = 'completed'
 // user_model, so the base needs a new embedding model on restore.
 // `missing_vector_store`: the embedding model resolved, but the per-base legacy vector store
 // was missing/empty/locked so its dimensions could not be determined. The base (name, model,
-// config, idle items) is kept as a restorable `failed` row instead of being dropped, so the
+// config, unindexed items) is kept as a restorable `failed` row instead of being dropped, so the
 // user can re-index it — a transient lock is recoverable by re-running rather than a data loss.
 export const KNOWLEDGE_BASE_ERROR_CODES = ['missing_embedding_model', 'missing_vector_store'] as const
 export const KnowledgeBaseErrorCodeSchema = z.enum(KNOWLEDGE_BASE_ERROR_CODES)
@@ -92,7 +87,7 @@ export const KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE: KnowledgeBaseErrorCode =
  * - `directory_not_migrated`: a v1-indexed `directory` whose container-level vectors could not
  *   be re-attributed to per-file children (unreadable legacy sources, or no migratable vectors).
  * - `indexing_interrupted`: an indexing job was abandoned by an app quit / restart, so the item
- *   was parked at `failed` instead of silently resumed (see KnowledgeService.recoverInterruptedItems).
+ *   was parked at `failed` instead of silently resumed (see KnowledgeIngestionService.recoverInterruptedItems).
  * Modeled as a zod enum (the same shape as the base error codes above) so the renderer's
  * code → i18n switch in `error.ts` stays exhaustive-checkable and the code ↔ translator-key
  * triple is tied together. Codes are localized by the UI; any other value is a free-form message.
@@ -112,7 +107,6 @@ export type KnowledgeChunkStrategy = z.infer<typeof KnowledgeChunkStrategySchema
 export const KnowledgeChunkSeparatorSchema = z.string()
 export const KnowledgeThresholdSchema = z.number().min(0).max(1)
 export const KnowledgeDocumentCountSchema = z.number().int().positive()
-export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
 export const KnowledgeBaseIdSchema = z.uuidv4()
 export const KnowledgeItemIdSchema = z.uuidv7()
 export const KnowledgeBaseGroupIdInputSchema = z.string().trim().pipe(GroupIdSchema)
@@ -146,13 +140,18 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   chunkSeparator: KnowledgeChunkSeparatorSchema,
   threshold: KnowledgeThresholdSchema.optional(),
   documentCount: KnowledgeDocumentCountSchema.optional(),
-  searchMode: KnowledgeSearchModeSchema,
-  hybridAlpha: KnowledgeHybridAlphaSchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
 
-export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value, ctx) => {
+/**
+ * Cross-field invariants for a knowledge base row, shared by the read-side entity
+ * schema and the pre-write candidate schema so a rule is defined exactly once.
+ */
+function refineKnowledgeBaseInvariants(
+  value: Omit<z.infer<typeof KnowledgeBaseEntitySchema>, 'id' | 'createdAt' | 'updatedAt'>,
+  ctx: z.RefinementCtx
+): void {
   if (value.status === 'completed') {
     if (value.error !== null) {
       ctx.addIssue({
@@ -169,16 +168,6 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
         code: 'custom',
         path: ['dimensions'],
         message: 'Embedding model and dimensions must be set together'
-      })
-    }
-
-    // Vector and hybrid retrieval both need an embedding model. A BM25-only base
-    // (no embedding model) can only search lexically.
-    if (value.embeddingModelId === null && value.searchMode !== 'bm25') {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['searchMode'],
-        message: 'A knowledge base without an embedding model must use bm25 search mode'
       })
     }
   }
@@ -199,15 +188,28 @@ export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine((value,
     })
   }
 
-  if (value.hybridAlpha != null && value.searchMode !== 'hybrid') {
+  if (value.chunkStrategy === 'delimiter' && !value.chunkSeparator) {
     ctx.addIssue({
       code: 'custom',
-      path: ['hybridAlpha'],
-      message: 'Hybrid alpha requires hybrid search mode'
+      path: ['chunkSeparator'],
+      message: 'Separator is required when chunk strategy is delimiter'
     })
   }
-})
+}
+
+export const KnowledgeBaseSchema = KnowledgeBaseEntitySchema.superRefine(refineKnowledgeBaseInvariants)
 export type KnowledgeBase = z.infer<typeof KnowledgeBaseSchema>
+
+/**
+ * The full row about to be inserted/updated, validated against the same
+ * invariants as the read-side schema before it ever reaches the DB CHECK
+ * constraints — `id`/`createdAt`/`updatedAt` don't exist yet at write time.
+ */
+export const KnowledgeBaseWriteSchema = KnowledgeBaseEntitySchema.omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+}).superRefine(refineKnowledgeBaseInvariants)
 
 /**
  * A knowledge base that has finished setup and is ready for runtime operations
@@ -262,7 +264,7 @@ const KnowledgeItemSharedSchema = z.strictObject({
  */
 export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
   // relativePath / indexedRelativePath are always produced by main-side helpers
-  // (copyFileIntoKnowledgeBaseAt, toKnowledgeRelativePath, ...), never raw caller
+  // (copyFileIntoKnowledgeBaseAt, toMaterialRelativePath, ...), never raw caller
   // input. The base-relative, POSIX-normalized, no-traversal invariant is
   // enforced imperatively by assertSafeKnowledgeRelativePath at the filesystem
   // boundary (getKnowledgeBaseFilePath). This schema only validates shape, so a
@@ -567,9 +569,7 @@ const KnowledgeBaseRuntimeConfigSchema = z.strictObject({
   chunkStrategy: KnowledgeChunkStrategySchema.optional(),
   chunkSeparator: KnowledgeChunkSeparatorSchema.optional(),
   threshold: KnowledgeThresholdSchema.optional(),
-  documentCount: KnowledgeDocumentCountSchema.optional(),
-  searchMode: KnowledgeSearchModeSchema.optional(),
-  hybridAlpha: KnowledgeHybridAlphaSchema.optional()
+  documentCount: KnowledgeDocumentCountSchema.optional()
 })
 
 const refineRuntimeConfig = (value: z.infer<typeof KnowledgeBaseRuntimeConfigSchema>, ctx: z.RefinementCtx): void => {
@@ -580,16 +580,6 @@ const refineRuntimeConfig = (value: z.infer<typeof KnowledgeBaseRuntimeConfigSch
       code: 'custom',
       path: ['dimensions'],
       message: 'Embedding model and dimensions must be provided together'
-    })
-  }
-
-  // A non-bm25 mode requested without an embedding model is invalid: vector and
-  // hybrid retrieval both need embeddings, so a BM25-only base must search lexically.
-  if (value.embeddingModelId == null && value.searchMode != null && value.searchMode !== 'bm25') {
-    ctx.addIssue({
-      code: 'custom',
-      path: ['searchMode'],
-      message: 'A knowledge base without an embedding model must use bm25 search mode'
     })
   }
 
@@ -620,16 +610,16 @@ export const CreateKnowledgeBaseSchema = KnowledgeBaseRuntimeConfigSchema.extend
 }).superRefine(refineRuntimeConfig)
 export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 
-export const RestoreKnowledgeBaseSchema = z.strictObject({
-  sourceBaseId: z.string().trim().pipe(KnowledgeBaseIdSchema),
-  name: z.string().trim().min(1),
-  // Dimensions must be the resolved embedding vector size for embeddingModelId.
-  // Automatic callers should fill this from AI Core dimension detection; manual
-  // callers are responsible for confirming the value matches the selected model.
-  // Restore validates shape only and does not probe the model again server-side.
-  dimensions: z.number().int().positive(),
-  embeddingModelId: z.string().trim().min(1)
-})
+export const RestoreKnowledgeBaseSchema = z
+  .strictObject({
+    sourceBaseId: z.string().trim().pipe(KnowledgeBaseIdSchema),
+    name: z.string().trim().min(1),
+    // A vector restore supplies the resolved model and vector size; a BM25-only
+    // restore supplies null for both. The renderer probes dimensions when needed.
+    dimensions: z.number().int().positive().nullable(),
+    embeddingModelId: z.string().trim().min(1).nullable()
+  })
+  .superRefine(refineRuntimeConfig)
 export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
 
 // Restore is a partial operation: root items whose source is genuinely gone are skipped rather
@@ -675,11 +665,11 @@ export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [
 export type CreateKnowledgeItemDto = z.infer<typeof CreateKnowledgeItemSchema>
 
 const RuntimeFileItemDataSchema = KnowledgeItemSharedSchema.extend({
-  path: AbsolutePathSchema.describe('Absolute source path selected by the user before Knowledge copies it.'),
+  path: AbsoluteFilePathSchema.describe('Absolute source path selected by the user before Knowledge copies it.'),
   // Restore-only: absolute path to an already-produced processor artifact (e.g. MinerU
   // Markdown) in the source base. When present, Knowledge copies it in alongside the
   // source file and indexes from it directly, skipping the file processor.
-  indexedPath: AbsolutePathSchema.optional().describe(
+  indexedPath: AbsoluteFilePathSchema.optional().describe(
     'Absolute path to an already-processed artifact to copy in and index from, skipping the file processor.'
   )
 })
@@ -690,7 +680,7 @@ const RuntimeUrlItemDataSchema = KnowledgeItemSharedSchema.extend({
   // When present, Knowledge copies it in and pins the item to it so the first index
   // reads the snapshot offline instead of re-fetching the (possibly changed or dead)
   // live page. Omitted by a normal add, which captures lazily on first index.
-  snapshotPath: AbsolutePathSchema.optional().describe(
+  snapshotPath: AbsoluteFilePathSchema.optional().describe(
     'Absolute path to a captured URL snapshot markdown to copy in, skipping the live re-fetch.'
   )
 })

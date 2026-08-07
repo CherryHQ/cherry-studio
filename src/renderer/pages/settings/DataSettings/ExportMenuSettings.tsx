@@ -1,10 +1,16 @@
 import { Switch } from '@cherrystudio/ui'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
+import {
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingSubtitle,
+  SettingTitle
+} from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-
-import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '..'
 const ExportMenuOptions: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -33,6 +39,9 @@ const ExportMenuOptions: FC = () => {
       <SettingTitle>{t('settings.data.export_menu.title')}</SettingTitle>
       <SettingDivider />
 
+      <SettingSubtitle className="py-3">{t('settings.data.export_menu.categories.file')}</SettingSubtitle>
+      <SettingDivider />
+
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.image')}</SettingRowTitle>
         <Switch checked={exportMenuOptions.image} onCheckedChange={(checked) => handleToggleOption('image', checked)} />
@@ -58,6 +67,15 @@ const ExportMenuOptions: FC = () => {
       <SettingDivider />
 
       <SettingRow>
+        <SettingRowTitle>{t('settings.data.export_menu.docx')}</SettingRowTitle>
+        <Switch checked={exportMenuOptions.docx} onCheckedChange={(checked) => handleToggleOption('docx', checked)} />
+      </SettingRow>
+      <SettingDivider />
+
+      <SettingSubtitle className="py-3">{t('settings.data.export_menu.categories.apps')}</SettingSubtitle>
+      <SettingDivider />
+
+      <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.notion')}</SettingRowTitle>
         <Switch
           checked={exportMenuOptions.notion}
@@ -73,19 +91,19 @@ const ExportMenuOptions: FC = () => {
       <SettingDivider />
 
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.joplin')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.export_menu.obsidian')}</SettingRowTitle>
         <Switch
-          checked={exportMenuOptions.joplin}
-          onCheckedChange={(checked) => handleToggleOption('joplin', checked)}
+          checked={exportMenuOptions.obsidian}
+          onCheckedChange={(checked) => handleToggleOption('obsidian', checked)}
         />
       </SettingRow>
       <SettingDivider />
 
       <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.obsidian')}</SettingRowTitle>
+        <SettingRowTitle>{t('settings.data.export_menu.joplin')}</SettingRowTitle>
         <Switch
-          checked={exportMenuOptions.obsidian}
-          onCheckedChange={(checked) => handleToggleOption('obsidian', checked)}
+          checked={exportMenuOptions.joplin}
+          onCheckedChange={(checked) => handleToggleOption('joplin', checked)}
         />
       </SettingRow>
       <SettingDivider />
@@ -99,10 +117,7 @@ const ExportMenuOptions: FC = () => {
       </SettingRow>
       <SettingDivider />
 
-      <SettingRow>
-        <SettingRowTitle>{t('settings.data.export_menu.docx')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.docx} onCheckedChange={(checked) => handleToggleOption('docx', checked)} />
-      </SettingRow>
+      <SettingSubtitle className="py-3">{t('settings.data.export_menu.categories.copy')}</SettingSubtitle>
       <SettingDivider />
 
       <SettingRow>

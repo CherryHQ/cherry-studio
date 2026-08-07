@@ -12,36 +12,19 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../im
  *   - `size` comes from AI SDK `input.size` (canonicalGenerate's
  *     POSITIONAL_RENAME routes `params.size → aiSdkParams.imageSize → AI SDK
  *     options.size → input.size`).
- *   - `num_inference_steps` comes from the providerOptions bag — either
- *     camelCase `numInferenceSteps` (canonical) or `num_inference_steps`
- *     (snake_case via `buildImageProviderOptions`'s default branch). Read
- *     both for forward/backward compatibility.
- *   - `rng_seed` is OVMS's bespoke wire name for seed. Source from the bag
- *     under any of `rngSeed` / `seed` (camelCase) or `rng_seed`
- *     (snake_case from `buildImageProviderOptions`).
+ *   - `num_inference_steps` comes from the providerOptions bag. OVMS rides the
+ *     in-SDK path, so its bag is the WireProfile diffusion profile's snake_case
+ *     wire body — the profile wire-names `numInferenceSteps → num_inference_steps`
+ *     and `passthroughExtras` strips the camelCase twin, so the bag carries the
+ *     snake form only.
+ *   - `rng_seed` is OVMS's bespoke wire name for seed; sourced from the native
+ *     `input.seed`.
  */
 
 export const DEFAULT_OVMS_BASE_URL = 'http://localhost:8000'
 
 export interface OvmsTransportSettings {
   baseURL?: string
-}
-
-function readNumber(bag: Record<string, unknown>, ...keys: string[]): number | undefined {
-  for (const key of keys) {
-    const value = bag[key]
-    if (typeof value === 'number') return value
-    if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value)) return Number(value)
-  }
-  return undefined
-}
-
-function readString(bag: Record<string, unknown>, ...keys: string[]): string | undefined {
-  for (const key of keys) {
-    const value = bag[key]
-    if (typeof value === 'string' && value !== '') return value
-  }
-  return undefined
 }
 
 class OvmsTransport implements ImageGenerationTransport {
@@ -54,12 +37,15 @@ class OvmsTransport implements ImageGenerationTransport {
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const bag = input.providerParams ?? {}
 
+    // OVMS is the in-SDK (createImageGenerationModel) path, so its bag is the
+    // WireProfile diffusion profile's snake_case wire body (camelCase twin
+    // stripped by passthroughExtras). Native size/seed come from `input.*`.
     const requestBody = {
       model: input.modelId,
       prompt: input.prompt ?? '',
-      size: input.size ?? readString(bag, 'size') ?? '512x512',
-      num_inference_steps: readNumber(bag, 'numInferenceSteps', 'num_inference_steps') ?? 4,
-      rng_seed: readNumber(bag, 'rngSeed', 'rng_seed', 'seed') ?? input.seed ?? 0
+      size: input.size ?? '512x512',
+      num_inference_steps: typeof bag.num_inference_steps === 'number' ? bag.num_inference_steps : 4,
+      rng_seed: input.seed ?? 0
     }
 
     const response = await fetch(`${this.baseURL}/images/generations`, {

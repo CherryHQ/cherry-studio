@@ -1,10 +1,10 @@
 import { useOptionalMessageListActions } from '../../MessageListProvider'
+import { AgentToolsType, type ToolInput, type ToolOutput } from '../shared/agentToolTypes'
+import { type ToolStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
-import { type ToolStatus, ToolStatusIndicator } from './GenericTools'
 import { isValidAgentToolsType, renderTool } from './toolRendererRegistry'
-import { AgentToolsType, type ToolInput, type ToolOutput } from './types'
 import { UnknownToolRenderer } from './UnknownToolRenderer'
 
 function shouldShowHeaderErrorText(toolName: string | undefined, renderedItem: ToolDisclosureItem) {
@@ -73,17 +73,18 @@ export function AgentToolCallCard({
     ...renderedItem,
     label: (
       <AgentToolDisclosureLabel
-        label={renderedItem.label}
-        trailing={
-          status &&
-          (status !== 'done' || hasError) && (
-            <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
-          )
+        label={
+          <div className="flex min-w-0 items-center gap-1.5">
+            <div className="min-w-0">{renderedItem.label}</div>
+            {status && (status !== 'done' || hasError) && (
+              <ToolStatusIndicator status={status} hasError={hasError} errorText={errorText} />
+            )}
+          </div>
         }
       />
     ),
     classNames: {
-      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-foreground-secondary'
+      header: 'min-h-7 px-0 py-0.5 font-normal text-[13px] leading-5 text-muted-foreground'
     }
   }
   const canShowInlineDetails =
@@ -92,9 +93,11 @@ export function AgentToolCallCard({
   return (
     <AgentToolDisclosure
       className="w-full max-w-full rounded-none border-0 bg-transparent"
+      defaultActiveKey={isStreaming && toolName === AgentToolsType.Workflow ? [String(renderedItem.key)] : []}
       isStreaming={isStreaming}
       item={toolContentItem}
       onOpenDetails={openToolFlow}
+      stateId={toolCallId}
       showInlineDetails={canShowInlineDetails}
     />
   )

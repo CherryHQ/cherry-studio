@@ -1,4 +1,4 @@
-import { SuccessStatus } from '@shared/data/api/apiTypes'
+import { SuccessStatus } from '@shared/data/api/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -120,13 +120,14 @@ describe('agentWorkspaceHandlers', () => {
   })
 
   it('delegates workspace deletion cascade to AgentSessionService', async () => {
-    deleteWorkspaceCascadeMock.mockReturnValueOnce(undefined)
+    const result = { deletedIds: ['session-1'] }
+    deleteWorkspaceCascadeMock.mockReturnValueOnce(result)
 
     await expect(
       agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
         params: { workspaceId: workspace.id }
       } as never)
-    ).resolves.toBeUndefined()
+    ).resolves.toBe(result)
 
     expect(deleteWorkspaceCascadeMock).toHaveBeenCalledWith(workspace.id)
   })

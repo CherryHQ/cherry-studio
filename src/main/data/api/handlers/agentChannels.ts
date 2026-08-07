@@ -1,7 +1,6 @@
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
-import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
+import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import {
   ActiveAgentChannelConfigSchemasByType,
   AgentChannelListQuerySchema,
@@ -9,6 +8,7 @@ import {
   CreateAgentChannelSchema,
   UpdateAgentChannelSchema
 } from '@shared/data/api/schemas/agentChannels'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const agentChannelHandlers: HandlersFor<AgentChannelSchemas> = {
   '/agent-channels': {

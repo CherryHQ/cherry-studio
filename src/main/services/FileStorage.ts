@@ -1,22 +1,41 @@
+/**
+ * @deprecated LEGACY v1 CODE — being migrated to `FileManager`
+ * (`src/main/services/file/FileManager.ts`). This file will be DELETED once
+ * the migration is complete.
+ *
+ * Do NOT add new features or new call sites here — route new file
+ * functionality through `FileManager` instead. Existing consumers should be
+ * migrated off this module as part of the ongoing migration.
+ */
+/* eslint-disable filepath-brand/no-as-filepath -- v1 raw-path regime: every
+ * public method here takes a bare `string` path straight from legacy IPC or an
+ * Electron dialog, with no validation layer of its own. Introducing
+ * `AbsoluteFilePathSchema.parse()` would add new throw sites to a module that is
+ * already `@deprecated` and slated for deletion, changing v1 behavior instead of
+ * migrating it. The casts only feed `getFileType`, which reads the extension. */
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
-import { checkName, getFileType as getFileTypeByExt, getName, readTextFileWithAutoEncoding } from '@main/utils/file'
-import { t } from '@main/utils/language'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
-import type { FileType } from '@shared/types/file'
-import { FILE_TYPE } from '@shared/types/file'
-import { KB, MB } from '@shared/utils/constants'
+import { t } from '@main/i18n'
+import { assertOutsideManagedStorageMutation } from '@main/services/file'
+import { getFileType } from '@main/utils/file'
+import {
+  checkName,
+  getFileType as getFileTypeByExt,
+  getName,
+  readTextFileWithAutoEncoding
+} from '@main/utils/legacyFile'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { MB } from '@shared/utils/constants'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { documentExts, imageExts } from '@shared/utils/file'
-import chardet from 'chardet'
 import * as crypto from 'crypto'
 import type { OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from 'electron'
 import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
-import { isBinaryFile } from 'isbinaryfile'
 import officeParser from 'officeparser'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
@@ -30,13 +49,17 @@ function resolveHomeRelativeFilePath(filePath: string): string {
   return path.join(application.getPath('sys.home'), filePath.slice(2))
 }
 
+function normalizeTrashPath(filePath: string): string {
+  return process.platform === 'win32' ? path.win32.normalize(filePath) : path.posix.normalize(filePath)
+}
+
 class FileStorage {
   // TODO(v2): Lazy getter is a workaround, not a fix.
   //
   // The real problem is that `FileStorage` is exported as a top-level
   // singleton at the bottom of this file
   // (`export const fileStorage = new FileStorage()`). That singleton is
-  // instantiated during the static import graph of `src/main/index.ts`
+  // instantiated during the static import graph of `src/main/main.ts`
   // (via both `ipc.ts` and the `ApiGatewayService → ApiGateway → routes
   // → KnowledgeService` chain), BEFORE `application.bootstrap()` runs
   // and builds the path registry. The previous shape used field
@@ -95,7 +118,7 @@ class FileStorage {
         if (originalHash === storedHash) {
           const ext = path.extname(file)
           const id = path.basename(file, ext)
-          const type = await this.getFileType(filePath)
+          const type = await getFileType(filePath as AbsoluteFilePath)
 
           return {
             id,
@@ -113,13 +136,6 @@ class FileStorage {
     }
 
     return null
-  }
-
-  public getFileType = async (filePath: string): Promise<FileType> => {
-    const ext = path.extname(filePath)
-    const fileType = getFileTypeByExt(ext)
-
-    return fileType === FILE_TYPE.OTHER && (await this._isTextFile(filePath)) ? FILE_TYPE.TEXT : fileType
   }
 
   public selectFile = async (
@@ -141,7 +157,7 @@ class FileStorage {
     const fileMetadataPromises = result.filePaths.map(async (filePath) => {
       const stats = fs.statSync(filePath)
       const ext = path.extname(filePath)
-      const fileType = await this.getFileType(filePath)
+      const fileType = await getFileType(filePath as AbsoluteFilePath)
 
       return {
         id: uuidv4(),
@@ -207,7 +223,7 @@ class FileStorage {
     }
 
     const stats = await fs.promises.stat(destPath)
-    const fileType = await this.getFileType(destPath)
+    const fileType = await getFileType(destPath as AbsoluteFilePath)
 
     const fileMetadata: FileMetadata = {
       id: uuid,
@@ -232,7 +248,7 @@ class FileStorage {
     }
 
     const stats = fs.statSync(filePath)
-    const fileType = await this.getFileType(filePath)
+    const fileType = await getFileType(filePath as AbsoluteFilePath)
 
     return {
       id: uuidv4(),
@@ -264,12 +280,16 @@ class FileStorage {
 
   public deleteExternalFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<void> => {
     try {
-      if (!fs.existsSync(filePath)) {
+      if (!filePath) return
+
+      const nativePath = normalizeTrashPath(filePath)
+      await assertOutsideManagedStorageMutation(nativePath)
+      if (!fs.existsSync(nativePath)) {
         return
       }
 
-      await shell.trashItem(filePath)
-      logger.debug(`External file moved to trash successfully: ${filePath}`)
+      await shell.trashItem(nativePath)
+      logger.debug(`External file moved to trash successfully: ${nativePath}`)
     } catch (error) {
       logger.error('Failed to delete external file:', error as Error)
       throw error
@@ -278,12 +298,16 @@ class FileStorage {
 
   public deleteExternalDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<void> => {
     try {
-      if (!fs.existsSync(dirPath)) {
+      if (!dirPath) return
+
+      const nativePath = normalizeTrashPath(dirPath)
+      await assertOutsideManagedStorageMutation(nativePath)
+      if (!fs.existsSync(nativePath)) {
         return
       }
 
-      await shell.trashItem(dirPath)
-      logger.debug(`External directory moved to trash successfully: ${dirPath}`)
+      await shell.trashItem(nativePath)
+      logger.debug(`External directory moved to trash successfully: ${nativePath}`)
     } catch (error) {
       logger.error('Failed to delete external directory:', error as Error)
       throw error
@@ -292,6 +316,7 @@ class FileStorage {
 
   public moveFile = async (_: Electron.IpcMainInvokeEvent, filePath: string, newPath: string): Promise<void> => {
     try {
+      await assertOutsideManagedStorageMutation(filePath, newPath)
       if (!fs.existsSync(filePath)) {
         throw new Error(`Source file does not exist: ${filePath}`)
       }
@@ -313,6 +338,7 @@ class FileStorage {
 
   public moveDir = async (_: Electron.IpcMainInvokeEvent, dirPath: string, newDirPath: string): Promise<void> => {
     try {
+      await assertOutsideManagedStorageMutation(dirPath, newDirPath)
       if (!fs.existsSync(dirPath)) {
         throw new Error(`Source directory does not exist: ${dirPath}`)
       }
@@ -340,6 +366,7 @@ class FileStorage {
 
       const dirPath = path.dirname(filePath)
       const newFilePath = path.join(dirPath, newName + '.md')
+      await assertOutsideManagedStorageMutation(filePath, newFilePath)
 
       // 如果目标文件已存在，抛出错误
       if (fs.existsSync(newFilePath)) {
@@ -363,6 +390,7 @@ class FileStorage {
 
       const parentDir = path.dirname(dirPath)
       const newDirPath = path.join(parentDir, newName)
+      await assertOutsideManagedStorageMutation(dirPath, newDirPath)
 
       // 如果目标目录已存在，抛出错误
       if (fs.existsSync(newDirPath)) {
@@ -503,6 +531,7 @@ class FileStorage {
     filePath: string,
     data: Uint8Array | string
   ): Promise<void> => {
+    await assertOutsideManagedStorageMutation(filePath)
     await fs.promises.writeFile(filePath, data)
   }
 
@@ -523,6 +552,7 @@ class FileStorage {
 
   public mkdir = async (_: Electron.IpcMainInvokeEvent, dirPath: string): Promise<string> => {
     try {
+      await assertOutsideManagedStorageMutation(dirPath)
       logger.debug(`Attempting to create directory: ${dirPath}`)
       await fs.promises.mkdir(dirPath, { recursive: true })
       return dirPath
@@ -590,78 +620,6 @@ class FileStorage {
     } catch (error) {
       logger.error('Failed to save base64 image:', error as Error)
       throw error
-    }
-  }
-
-  public savePastedImage = async (
-    _: Electron.IpcMainInvokeEvent,
-    imageData: Uint8Array | Buffer,
-    extension?: string
-  ): Promise<FileMetadata> => {
-    try {
-      const uuid = uuidv4()
-      const ext = extension || '.png'
-      const destPath = path.join(this.storageDir, uuid + ext)
-
-      logger.debug('Saving pasted image:', {
-        storageDir: this.storageDir,
-        destPath,
-        bufferSize: imageData.length
-      })
-
-      // 确保目录存在
-      if (!fs.existsSync(this.storageDir)) {
-        fs.mkdirSync(this.storageDir, { recursive: true })
-      }
-
-      // 确保 imageData 是 Buffer
-      const buffer = Buffer.isBuffer(imageData) ? imageData : Buffer.from(imageData)
-
-      // 如果图片大于1MB，进行压缩处理
-      if (buffer.length > MB) {
-        await this.compressImageBuffer(buffer, destPath, ext)
-      } else {
-        await fs.promises.writeFile(destPath, buffer)
-      }
-
-      const stats = await fs.promises.stat(destPath)
-
-      return {
-        id: uuid,
-        origin_name: `pasted_image_${uuid}${ext}`,
-        name: uuid + ext,
-        path: destPath,
-        created_at: new Date().toISOString(),
-        size: stats.size,
-        ext: ext.slice(1),
-        type: getFileTypeByExt(ext),
-        count: 1
-      }
-    } catch (error) {
-      logger.error('Failed to save pasted image:', error as Error)
-      throw error
-    }
-  }
-
-  private async compressImageBuffer(imageBuffer: Buffer, destPath: string, ext: string): Promise<void> {
-    try {
-      // 创建临时文件
-      const tempPath = path.join(this.tempDir, `temp_${uuidv4()}${ext}`)
-      await fs.promises.writeFile(tempPath, imageBuffer)
-
-      // 使用现有的压缩方法
-      await this.compressImage(tempPath, destPath)
-
-      // 清理临时文件
-      try {
-        await fs.promises.unlink(tempPath)
-      } catch (error) {
-        logger.warn('Failed to cleanup temp file:', error as Error)
-      }
-    } catch (error) {
-      logger.error('Image buffer compression failed, saving original:', error as Error)
-      // 压缩失败时保存原始文件
-      await fs.promises.writeFile(destPath, imageBuffer)
     }
   }
 
@@ -833,6 +791,7 @@ class FileStorage {
         return null
       }
 
+      await assertOutsideManagedStorageMutation(result.filePath)
       writeFileSync(result.filePath, content, { encoding: 'utf-8' })
 
       return result.filePath
@@ -850,6 +809,7 @@ class FileStorage {
       })
 
       if (filePath) {
+        await assertOutsideManagedStorageMutation(filePath)
         const parseResult = parseDataUrl(data)
         fs.writeFileSync(filePath, parseResult?.data ?? data, 'base64')
         return true
@@ -923,7 +883,7 @@ class FileStorage {
       await fs.promises.writeFile(destPath, buffer)
 
       const stats = await fs.promises.stat(destPath)
-      const fileType = await this.getFileType(destPath)
+      const fileType = await getFileType(destPath as AbsoluteFilePath)
 
       return {
         id: uuid,
@@ -1006,47 +966,6 @@ class FileStorage {
     return path.join(this.storageDir, file.id + file.ext)
   }
 
-  public isTextFile = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
-    return this._isTextFile(filePath)
-  }
-
-  private _isTextFile = async (filePath: string): Promise<boolean> => {
-    try {
-      const isBinary = await isBinaryFile(filePath)
-      if (isBinary) {
-        return false
-      }
-
-      const length = 8 * KB
-      const fileHandle = await fs.promises.open(filePath, 'r')
-      const buffer = Buffer.alloc(length)
-      const { bytesRead } = await fileHandle.read(buffer, 0, length, 0)
-      await fileHandle.close()
-
-      const sampleBuffer = buffer.subarray(0, bytesRead)
-      const matches = chardet.analyse(sampleBuffer)
-
-      // 如果检测到的编码置信度较高，认为是文本文件
-      if (matches.length > 0 && matches[0].confidence > 0.8) {
-        return true
-      }
-
-      return false
-    } catch (error) {
-      logger.error('Failed to check if file is text:', error as Error)
-      return false
-    }
-  }
-
-  public isDirectory = async (_: Electron.IpcMainInvokeEvent, filePath: string): Promise<boolean> => {
-    try {
-      const stat = await fs.promises.stat(filePath)
-      return stat.isDirectory()
-    } catch {
-      return false
-    }
-  }
-
   public showInFolder = async (_: Electron.IpcMainInvokeEvent, path: string): Promise<void> => {
     const resolvedPath = resolveHomeRelativeFilePath(path)
     if (!fs.existsSync(resolvedPath)) {
@@ -1079,6 +998,7 @@ class FileStorage {
       logger.info('Starting batch upload', { fileCount: filePaths.length, targetPath })
 
       const basePath = path.resolve(targetPath)
+      await assertOutsideManagedStorageMutation(basePath)
       const MARKDOWN_EXTS = ['.md', '.markdown']
 
       // Filter markdown files

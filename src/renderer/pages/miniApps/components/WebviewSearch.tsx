@@ -1,5 +1,7 @@
 import { Button, Input } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useIpcOn } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { WebviewTag } from 'electron'
 import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import type { FC } from 'react'
@@ -122,7 +124,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         target.findInPage(text, options)
       } catch (error) {
         logger.error('findInPage failed', { error })
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       }
     },
     [getUsableWebview, resetSearchState, stopSearch, t]
@@ -179,53 +181,36 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
     }
   }, [activeWebview, handleFoundInPage, stopFindOnWebview])
 
-  useEffect(() => {
-    if (!activeWebview) return
-    if (!isWebviewReady) return
-    const onFindShortcut = window.api?.webview?.onFindShortcut
-    if (!onFindShortcut) return
-
+  useIpcOn('webview.search_hotkey_pressed', ({ webviewId, key, control, meta, shift }) => {
     let webContentsId: number | undefined
     try {
-      webContentsId = activeWebview.getWebContentsId?.()
+      webContentsId = activeWebview?.getWebContentsId?.()
     } catch (error) {
       logger.debug('WebviewSearch: getWebContentsId failed', { appId, error })
       return
     }
+    if (!webContentsId || webviewId !== webContentsId) return
 
-    if (!webContentsId) {
-      logger.warn('WebviewSearch: missing webContentsId', { appId })
+    if ((control || meta) && key === 'f') {
+      openSearch()
       return
     }
 
-    const unsubscribe = onFindShortcut(({ webviewId, key, control, meta, shift }) => {
-      if (webviewId !== webContentsId) return
+    if (!isVisible) return
 
-      if ((control || meta) && key === 'f') {
-        openSearch()
-        return
-      }
-
-      if (!isVisible) return
-
-      if (key === 'escape') {
-        closeSearch()
-        return
-      }
-
-      if (key === 'enter') {
-        if (shift) {
-          goToPrevious()
-        } else {
-          goToNext()
-        }
-      }
-    })
-
-    return () => {
-      unsubscribe?.()
+    if (key === 'escape') {
+      closeSearch()
+      return
     }
-  }, [appId, activeWebview, closeSearch, goToNext, goToPrevious, isVisible, isWebviewReady, openSearch])
+
+    if (key === 'enter') {
+      if (shift) {
+        goToPrevious()
+      } else {
+        goToNext()
+      }
+    }
+  })
 
   useEffect(() => {
     if (!isVisible) return
@@ -321,7 +306,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         className="h-8 w-60 border-0 bg-transparent px-2 py-0 shadow-none focus-visible:border-transparent focus-visible:ring-0"
       />
       <span
-        className="min-w-11 text-center text-foreground-secondary text-sm tabular-nums"
+        className="min-w-11 text-center text-muted-foreground text-sm tabular-nums"
         title={noResultTitle}
         role="status"
         aria-live="polite"
@@ -336,7 +321,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         onClick={goToPrevious}
         disabled={disableNavigation}
         aria-label={t('common.previous_match')}
-        className="text-foreground-secondary shadow-none hover:text-foreground">
+        className="text-muted-foreground shadow-none hover:text-foreground">
         <ChevronUp size={16} />
       </Button>
       <Button
@@ -346,7 +331,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         onClick={goToNext}
         disabled={disableNavigation}
         aria-label={t('common.next_match')}
-        className="text-foreground-secondary shadow-none hover:text-foreground">
+        className="text-muted-foreground shadow-none hover:text-foreground">
         <ChevronDown size={16} />
       </Button>
       <div className="h-4 w-px bg-border" />
@@ -356,7 +341,7 @@ const WebviewSearch: FC<WebviewSearchProps> = ({ webviewRef, isWebviewReady, app
         size="icon-sm"
         onClick={closeSearch}
         aria-label={t('common.close')}
-        className="text-foreground-secondary shadow-none hover:text-foreground">
+        className="text-muted-foreground shadow-none hover:text-foreground">
         <X size={16} />
       </Button>
     </div>

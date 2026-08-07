@@ -2,11 +2,23 @@ import type { SVGProps } from 'react'
 
 import type { IconComponent } from '../../types'
 const ApplicationLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="1 1 30 30" {...props}>
-    <rect width={12} height={12} x={2} y={2} fill="#2BA471" rx={3} />
-    <rect width={12} height={12} x={18} y={2} fill="#1B8A5A" rx={3} />
-    <rect width={12} height={12} x={2} y={18} fill="#2BA471" rx={3} />
-    <circle cx={24} cy={24} r={6} fill="#0E5C3A" />
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 120 120" {...props}>
+    <path
+      fill="#2BA471"
+      d="M48.8929 27H34.9643C31.118 27 28 30.118 28 33.9643V47.8929C28 51.7391 31.118 54.8571 34.9643 54.8571H48.8929C52.7391 54.8571 55.8571 51.7391 55.8571 47.8929V33.9643C55.8571 30.118 52.7391 27 48.8929 27Z"
+    />
+    <path
+      fill="#1B8A5A"
+      d="M86.0357 27H72.1072C68.2609 27 65.1429 30.118 65.1429 33.9643V47.8929C65.1429 51.7391 68.2609 54.8571 72.1072 54.8571H86.0357C89.882 54.8571 93 51.7391 93 47.8929V33.9643C93 30.118 89.882 27 86.0357 27Z"
+    />
+    <path
+      fill="#2BA471"
+      d="M48.8929 64.1429H34.9643C31.118 64.1429 28 67.2609 28 71.1072V85.0357C28 88.882 31.118 92 34.9643 92H48.8929C52.7391 92 55.8571 88.882 55.8571 85.0357V71.1072C55.8571 67.2609 52.7391 64.1429 48.8929 64.1429Z"
+    />
+    <path
+      fill="#0E5C3A"
+      d="M79.0715 92C86.764 92 93 85.764 93 78.0715C93 70.3789 86.764 64.1429 79.0715 64.1429C71.3789 64.1429 65.1429 70.3789 65.1429 78.0715C65.1429 85.764 71.3789 92 79.0715 92Z"
+    />
   </svg>
 )
 export { ApplicationLight }

@@ -320,6 +320,37 @@ describe('GroupedSortableVirtualList', () => {
     )
   })
 
+  it('uses cached active data after virtualization clears the drag event data', () => {
+    const onDragEnd = renderList()
+
+    startDragging('item:a')
+
+    const dragAfterSourceUnmount = {
+      active: { data: { current: {} }, id: 'item:a' },
+      over: { data: dataFor('sortable', 'item:c'), id: 'item:c' }
+    }
+
+    act(() => {
+      dndMocks.onDragOver?.(dragAfterSourceUnmount)
+    })
+
+    expect(screen.getByText('Item Gamma').parentElement?.querySelector('[data-drop-indicator]')).toBeInTheDocument()
+
+    act(() => {
+      dndMocks.onDragEnd?.(dragAfterSourceUnmount)
+    })
+
+    expect(onDragEnd).toHaveBeenCalledWith(
+      expect.objectContaining({
+        activeId: 'a',
+        overId: 'c',
+        sourceGroupId: 'first',
+        targetGroupId: 'second',
+        type: 'item'
+      })
+    )
+  })
+
   it('can emit group drag payloads when group dragging is enabled', () => {
     const onDragEnd = renderList(vi.fn(), { dragCapabilities: { groups: true }, canDragGroup: () => true })
 

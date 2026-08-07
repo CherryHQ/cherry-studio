@@ -3,7 +3,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 
 import { CdpBrowserController } from './controller'
-import { toolDefinitions, toolHandlers } from './tools'
+import { toolDefinitions, toolHandlers } from './tools/registry'
 
 export class BrowserServer {
   public mcpServer: McpServer
@@ -46,7 +46,7 @@ export class BrowserServer {
     // Clean up browser controller when the MCP server connection closes
     // (triggered by McpRuntimeService.onStop() → client.close())
     this.server.onclose = () => {
-      void this.controller.reset()
+      void this.controller.dispose()
     }
   }
 }

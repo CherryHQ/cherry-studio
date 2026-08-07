@@ -23,7 +23,7 @@ const mockDispatchStreamRequest = vi.fn(
   }
 )
 
-vi.mock('../context', () => ({
+vi.mock('../context/dispatch', () => ({
   dispatchStreamRequest: mockDispatchStreamRequest
 }))
 

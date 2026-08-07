@@ -53,7 +53,9 @@ The migrator handles potential data inconsistencies from the old system:
 
 | Issue | Detection | Handling |
 |-------|-----------|----------|
-| **Duplicate message ID** | Same ID appears in multiple topics | Generate new UUID, update parentId refs, log warning |
+| **Duplicate message ID** | Same ID appears within or across topics | Assign globally unique IDs before tree construction, remap same-topic references to the nearest earlier occurrence, and log a warning |
+| **Forward `askId`** | A response points to a message appearing later in the source array | Treat it as unresolved and use the chronological fallback; parent edges may only target previously processed messages |
+| **Disconnected/cyclic message graph** | A migrated message is not reachable from a virtual topic root | Fail migration validation before marking the migration complete |
 | **TopicId mismatch** | `message.topicId` ≠ parent `topic.id` | Use correct parent topic.id (silent fix) |
 | **Missing blocks** | Block ID not found in `message_blocks` | Skip missing block (silent) |
 | **Invalid topic** | Topic missing required `id` field | Skip entire topic |
@@ -64,7 +66,7 @@ The migrator handles potential data inconsistencies from the old system:
 | **Orphan assistantId** | `topic.assistantId` (post-remap) not in `validAssistantIds` | Same NULL fallback as above; `orphanedAssistantTopics` counter increments and a warning is logged. |
 | **Empty topic name** | Both Dexie and Redux have empty `name` (ancient bug) | Use fallback "Unnamed Topic" |
 | **Missing topic timestamps** | Both Dexie and Redux miss `createdAt` / `updatedAt` | Derive from messages: `createdAt = min(message.createdAt)`, `updatedAt = max(message.createdAt)`. If no message has a parseable `createdAt`, falls through to `parseTimestamp()`'s `Date.now()` fallback (logged as a warning). |
-| **Message with no blocks** | `blocks` array is empty after resolution | Skip message, re-link children to parent's parent |
+| **Message with no blocks** | `blocks` array is empty after resolution | Keep legacy `type: 'clear'` messages as context boundaries, store them as hidden `data-clear` parts, and skip/re-link other empty messages |
 | **Topic where all messages are skipped** | All messages dropped (no blocks) | Keep topic, set `activeNodeId` to null. Distinct from the "empty source topic" case above (which is dropped). |
 
 ## Field Mappings
@@ -82,7 +84,6 @@ Topic data is merged from Dexie + Redux before transformation:
 | (from Assistant) | `assistantMeta` | Generated from assistant entity |
 | Redux: `prompt` | `prompt` | Merged from Redux |
 | (computed) | `activeNodeId` | Smart selection: original active → foldSelected → last migrated |
-| (none) | `groupId` | null (new field) |
 | (none) | `sortOrder` | 0 (new field) |
 | Redux: `pinned` | `isPinned` | Merged from Redux, renamed |
 | (none) | `pinnedOrder` | 0 (new field) |
@@ -99,7 +100,7 @@ Topic data is merged from Dexie + Redux before transformation:
 | (computed) | `parentId` | From tree building algorithm |
 | (from parent topic) | `topicId` | Uses parent topic.id for consistency |
 | `role` | `role` | Direct copy |
-| `blocks` + `mentions` + citations | `data` | Complex transformation |
+| `blocks` + `mentions` + citations + clear `type` | `data` | Complex transformation; converts legacy `type: 'clear'` to a hidden `data-clear` part |
 | (extracted) | `searchableText` | Extracted from text blocks |
 | `status` | `status` | Normalized to success/error/paused |
 | (computed) | `siblingsGroupId` | From multi-model detection |
@@ -110,7 +111,7 @@ Topic data is merged from Dexie + Redux before transformation:
 | `createdAt` | `createdAt` | ISO string → timestamp |
 | `updatedAt` | `updatedAt` | ISO string → timestamp |
 
-**Dropped fields**: `type`, `useful`, `enabledMCPs`, `agentSessionId`, `traceId` (span detail files are not part of the v1 chat migration source set), `providerMetadata`, `multiModelMessageStyle`, `askId` (replaced by parentId), `foldSelected` (replaced by siblingsGroupId)
+**Dropped fields**: `type` after converting `clear` to `data-clear`, `useful`, `enabledMCPs`, `agentSessionId`, `traceId` (span detail files are not part of the v1 chat migration source set), `providerMetadata`, `multiModelMessageStyle`, `askId` (replaced by parentId), `foldSelected` (replaced by siblingsGroupId)
 
 ### Block Type Mapping
 

@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -139,6 +140,7 @@ vi.mock('@cherrystudio/ui', async () => {
     }) => {
       const { open } = React.use(DialogContext)
       const dialogProps = { ...props }
+      delete dialogProps.closeOnOverlayClick
       delete dialogProps.showCloseButton
 
       return open ? (
@@ -171,6 +173,7 @@ vi.mock('react-i18next', () => {
       'common.cancel': '取消',
       'common.close': '关闭',
       'common.delete': '删除',
+      'common.select_all': '全选',
       'knowledge.data_source.add_dialog.conflict_dialog.title': '存在同名数据源',
       'knowledge.data_source.add_dialog.conflict_dialog.description': `有 ${options?.count ?? 0} 个数据源与知识库中已存在的项目同名，请选择处理方式。`,
       'knowledge.data_source.add_dialog.conflict_dialog.keep_all': '全部保留',
@@ -224,7 +227,6 @@ describe('AddKnowledgeItemDialog', () => {
         readExternal: mockReadExternal
       }
     }
-    ;(window as any).toast = { success: vi.fn(), error: vi.fn(), warning: vi.fn() }
   })
 
   const setPendingAddSource = (pendingAddSource: 'file' | 'note' | 'directory' | 'url') => {
@@ -265,7 +267,7 @@ describe('AddKnowledgeItemDialog', () => {
       await waitFor(() => {
         expect(onOpenChange).toHaveBeenCalledWith(false)
       })
-      expect(window.toast.error).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
     })
 
     it('closes without submitting when the picker is cancelled', async () => {
@@ -289,7 +291,7 @@ describe('AddKnowledgeItemDialog', () => {
           'detect'
         )
       })
-      expect(window.toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
     it('submits page-level pending files without opening the picker', async () => {
@@ -303,7 +305,7 @@ describe('AddKnowledgeItemDialog', () => {
         )
       })
       expect(mockFileSelect).not.toHaveBeenCalled()
-      expect(window.toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
+      expect(toast.warning).toHaveBeenCalledWith('已跳过 1 个不支持的文件')
     })
 
     it('warns and skips submit when the pick exceeds the per-batch limit', async () => {
@@ -313,7 +315,7 @@ describe('AddKnowledgeItemDialog', () => {
       render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
 
       await waitFor(() => {
-        expect(window.toast.warning).toHaveBeenCalledWith('单次最多添加 20 个数据源，请减少选择后重试')
+        expect(toast.warning).toHaveBeenCalledWith('单次最多添加 20 个数据源，请减少选择后重试')
       })
       expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
       await waitFor(() => {
@@ -330,7 +332,7 @@ describe('AddKnowledgeItemDialog', () => {
         expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
       })
       expect(mockSubmitKnowledgeItems.mock.calls[0][0]).toHaveLength(20)
-      expect(window.toast.warning).not.toHaveBeenCalled()
+      expect(toast.warning).not.toHaveBeenCalled()
     })
 
     it('toasts and closes when the submit rejects (no panel to fall back to)', async () => {
@@ -340,7 +342,7 @@ describe('AddKnowledgeItemDialog', () => {
       render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
 
       await waitFor(() => {
-        expect(window.toast.error).toHaveBeenCalledWith('添加数据源失败: create failed')
+        expect(toast.error).toHaveBeenCalledWith('添加数据源失败: create failed')
       })
       await waitFor(() => {
         expect(onOpenChange).toHaveBeenCalledWith(false)
@@ -394,10 +396,33 @@ describe('AddKnowledgeItemDialog', () => {
       expect(screen.getByText('Ideas')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
 
-      fireEvent.click(screen.getAllByRole('checkbox')[0])
+      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
 
       expect(screen.getByText('已选 1 个笔记')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+    })
+
+    it('selects and deselects every note from the list header', () => {
+      setPendingAddSource('note')
+      mockProjectNotesTree.mockReturnValue([
+        createNoteNode('Meeting notes', '/notes/Meeting notes.md'),
+        createNoteNode('Ideas', '/notes/Ideas.md')
+      ])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      const selectAll = screen.getByRole('checkbox', { name: '全选' })
+      fireEvent.click(selectAll)
+
+      expect(screen.getByText('已选 2 个笔记')).toBeInTheDocument()
+      expect(screen.getByRole('checkbox', { name: /Meeting notes/ })).toBeChecked()
+      expect(screen.getByRole('checkbox', { name: /Ideas/ })).toBeChecked()
+
+      fireEvent.click(selectAll)
+
+      expect(screen.queryByText('已选 2 个笔记')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+      expect(screen.getByRole('checkbox', { name: /Meeting notes/ })).not.toBeChecked()
+      expect(screen.getByRole('checkbox', { name: /Ideas/ })).not.toBeChecked()
     })
 
     it('submits note source body through the generic hook', async () => {
@@ -406,7 +431,7 @@ describe('AddKnowledgeItemDialog', () => {
       mockReadExternal.mockResolvedValueOnce('# Meeting\n\nbody')
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      fireEvent.click(screen.getByRole('checkbox'))
+      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
       await waitFor(() => {
@@ -425,7 +450,7 @@ describe('AddKnowledgeItemDialog', () => {
       mockProjectNotesTree.mockReturnValue(notes)
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      screen.getAllByRole('checkbox').forEach((checkbox) => fireEvent.click(checkbox))
+      fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
       const alert = await screen.findByRole('alert')
@@ -449,7 +474,7 @@ describe('AddKnowledgeItemDialog', () => {
       mockReadExternal.mockRejectedValueOnce(new Error('ENOENT'))
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      fireEvent.click(screen.getByRole('checkbox'))
+      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
       const alert = await screen.findByRole('alert')
@@ -463,6 +488,7 @@ describe('AddKnowledgeItemDialog', () => {
       setPendingAddSource('url')
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
+      expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'sm')
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
       fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
         target: { value: 'https://example.com' }
@@ -500,7 +526,7 @@ describe('AddKnowledgeItemDialog', () => {
 
       const alert = await screen.findByRole('alert')
       expect(alert).toHaveTextContent('添加数据源失败: create failed')
-      expect(window.toast.error).not.toHaveBeenCalled()
+      expect(toast.error).not.toHaveBeenCalled()
       expect(onOpenChange).not.toHaveBeenCalledWith(false)
     })
   })

@@ -1,2 +1,3 @@
-// Re-export FileSystemServer to maintain existing import pattern
-export { default, FileSystemServer } from './server'
+export { resolveFilesystemBaseDir } from './config'
+export { FileSystemServer } from './server'
+export { validatePath } from './types'

@@ -1,24 +1,27 @@
+import type * as CherryStudioUi from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import type { SerializedTreeNode } from '@shared/utils/file/tree'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type * as ChatPrimitives from '@renderer/components/chat/primitives'
+import { useFileEditSession } from '@renderer/hooks/useFileEditSession'
+import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { createFilePathHandle, type SerializedTreeNode } from '@shared/utils/file'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type React from 'react'
-import { type PropsWithChildren, useState } from 'react'
+import { type PropsWithChildren, useEffect, useRef, useState } from 'react'
+import { SWRConfig } from 'swr'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ArtifactPane, {
-  ARTIFACT_FILE_TREE_DEFAULT_WIDTH,
+  ARTIFACT_PREVIEW_MAX_SIZE_BYTES,
   ArtifactPaneView,
+  getArtifactPaneSelectionPath,
   resolveArtifactPaneFileSelection
 } from '../ArtifactPane'
-import { useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
+import { ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS, useArtifactFileTreeModel } from '../useArtifactFileTreeModel'
 
-/**
- * Mimics the agent right-pane: a parent that owns the lifted tree model and
- * renders `ArtifactPaneView` into one of two mutually-exclusive slots (the
- * docked `Shell.Host` vs the `Shell.MaximizedOverlay`). Toggling `maximized`
- * remounts the view across slots while the model-owning parent survives.
- */
-function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
+/** Mimics the agent pane's single Viewport while its docked/maximized layout changes. */
+function PersistentArtifactPaneHarness({ workspacePath }: { workspacePath: string }) {
   const [maximized, setMaximized] = useState(false)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
@@ -34,13 +37,14 @@ function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
   })
   const view = (
     <ArtifactPaneView
+      headerVariant="pane"
+      paneTitle="Files"
+      paneActions={<button type="button">Panel action</button>}
       workspacePath={workspacePath}
       enableFileSearch
       model={model}
       selectedFile={selectedFile}
       onSelectedFileChange={setSelectedFile}
-      treeOpen
-      onTreeOpenChange={() => {}}
       searchKeyword={searchKeyword}
       onSearchKeywordChange={setSearchKeyword}
     />
@@ -50,36 +54,97 @@ function MaximizeSwapHarness({ workspacePath }: { workspacePath: string }) {
       <button type="button" data-testid="toggle-max" onClick={() => setMaximized((value) => !value)}>
         toggle
       </button>
-      {!maximized && <div data-testid="host-slot">{view}</div>}
-      {maximized && <div data-testid="overlay-slot">{view}</div>}
+      <div data-testid={maximized ? 'maximized-layout' : 'docked-layout'}>{view}</div>
     </div>
   )
 }
+
+function EditablePaneInner({ workspacePath }: { workspacePath: string }) {
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [editMode, setEditMode] = useState<'preview' | 'edit'>('preview')
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() => new Set())
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const model = useArtifactFileTreeModel({
+    workspacePath,
+    treeOpen: true,
+    expandedIds,
+    searchKeyword,
+    enableFileSearch: true,
+    selectedFile,
+    onExpandedIdsChange: setExpandedIds
+  })
+  const editPath =
+    editMode === 'edit' && selectedFile
+      ? getArtifactPaneSelectionPath({ workspacePath, filePath: selectedFile })
+      : undefined
+  const fileSession = useFileEditSession(editPath ? createFilePathHandle(editPath) : undefined)
+
+  return (
+    <ArtifactPaneView
+      workspacePath={workspacePath}
+      enableFileSearch
+      model={model}
+      selectedFile={selectedFile}
+      onSelectedFileChange={(file) => {
+        setEditMode('preview')
+        setSelectedFile(file)
+      }}
+      searchKeyword={searchKeyword}
+      onSearchKeywordChange={setSearchKeyword}
+      fileSession={fileSession}
+      editMode={editMode}
+      onEditModeChange={setEditMode}
+    />
+  )
+}
+
+// A fresh SWR cache per render so file content never bleeds across tests.
+function EditablePaneHarness({ workspacePath }: { workspacePath: string }) {
+  return (
+    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+      <EditablePaneInner workspacePath={workspacePath} />
+    </SWRConfig>
+  )
+}
+
+it('watches an allowed missing workspace without limiting discovery depth', () => {
+  expect(ARTIFACT_MISSING_WORKSPACE_TREE_OPTIONS).toEqual({ watchMissingRoot: true })
+})
 
 const mocks = vi.hoisted(() => ({
   treeCreate: vi.fn(),
   treeDispose: vi.fn(),
   treeOnMutation: vi.fn(),
-  fsRead: vi.fn(),
+  ipcRequest: vi.fn(),
   fsReadText: vi.fn(),
-  isTextFile: vi.fn(),
   isDirectory: vi.fn(),
   listDirectory: vi.fn(),
   listDirectoryEntries: vi.fn(),
   getMetadata: vi.fn(),
+  openPath: vi.fn(),
+  showInFolder: vi.fn(),
+  windowOpen: vi.fn(),
+  toastError: vi.fn(),
+  externalApps: [] as Array<{
+    id: 'vscode' | 'cursor' | 'zed'
+    name: string
+    protocol: string
+    tags: string[]
+    path: string
+  }>,
   createObjectURL: vi.fn(),
   revokeObjectURL: vi.fn(),
-  pdfPreviewPanelProps: [] as Array<{
-    fileName: string
+  filePreviewProps: [] as Array<{
     filePath: string
     refreshKey: number
+    type?: string
   }>,
-  pdfPreviewPanelModuleLoadCount: 0,
-  artifactFileTreeWidth: null as number | null,
-  setArtifactFileTreeWidth: vi.fn((width: number) => {
-    mocks.artifactFileTreeWidth = width
-  }),
-  nextTreeId: 0
+  nextTreeId: 0,
+  useRealCodeEditor: false,
+  codeEditorRef: null as null | {
+    getContent?: () => string
+    insertText?: (text: string) => boolean
+  }
 }))
 
 /**
@@ -170,16 +235,89 @@ function mockWorkspaceTree(workspacePath: string, paths: readonly string[]): voi
   mocks.treeCreate.mockResolvedValueOnce({ treeId, snapshot })
 }
 
-vi.mock('@cherrystudio/ui', async () => {
+function binaryReadResult(content: Uint8Array) {
+  return {
+    content,
+    mime: 'text/plain',
+    version: { mtime: 1, size: content.byteLength }
+  }
+}
+
+vi.mock('@renderer/hooks/useCodeStyle', () => ({
+  useCodeStyle: () => ({ activeCmTheme: 'light' })
+}))
+
+vi.mock('@cherrystudio/ui', async (importActual) => {
+  const actual = await importActual<typeof CherryStudioUi>()
+  const RealCodeEditor = actual.CodeEditor
+
   return {
     Button: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'button'>>) => (
       <button type="button" {...props}>
         {children}
       </button>
     ),
-    ButtonGroup: ({ children, ...props }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'>>) => (
-      <div {...props}>{children}</div>
-    ),
+    ButtonGroup: ({
+      children,
+      ...props
+    }: PropsWithChildren<React.ComponentPropsWithoutRef<'div'> & { attached?: boolean }>) => {
+      const domProps = { ...props }
+      delete domProps.attached
+      return <div {...domProps}>{children}</div>
+    },
+    CodeEditor: (props: React.ComponentProps<typeof RealCodeEditor>) => {
+      const ref = useRef<NonNullable<typeof mocks.codeEditorRef>>(null)
+      useEffect(() => {
+        mocks.codeEditorRef = ref.current
+      })
+
+      if (mocks.useRealCodeEditor) return <RealCodeEditor {...props} ref={ref} />
+
+      return (
+        <textarea
+          data-testid="code-editor"
+          data-font-size={props.fontSize}
+          readOnly={props.editable === false}
+          value={props.value}
+          onChange={(event) => props.onChange?.(event.currentTarget.value)}
+        />
+      )
+    },
+    ConfirmDialog: ({
+      cancelText,
+      confirmText,
+      description,
+      onConfirm,
+      onOpenChange,
+      open,
+      title
+    }: {
+      cancelText?: string
+      confirmText?: string
+      description?: React.ReactNode
+      onConfirm?: () => void | Promise<void>
+      onOpenChange?: (open: boolean) => void
+      open?: boolean
+      title: React.ReactNode
+    }) =>
+      open ? (
+        <div role="dialog">
+          <div>{title}</div>
+          <div>{description}</div>
+          <button type="button" onClick={() => onOpenChange?.(false)}>
+            {cancelText}
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              void Promise.resolve(onConfirm?.()).then(() => {
+                onOpenChange?.(false)
+              })
+            }>
+            {confirmText}
+          </button>
+        </div>
+      ) : null,
     MenuItem: ({
       label,
       icon,
@@ -213,6 +351,32 @@ vi.mock('@cherrystudio/ui', async () => {
     Markdown: ({ id, children }: { id: string; children: string }) => (
       <div data-testid="markdown" data-md-id={id}>
         {children}
+      </div>
+    ),
+    ImagePreviewTrigger: ({
+      item,
+      alt,
+      className,
+      onError
+    }: {
+      item: { id: string; src: string; alt?: string; title?: string }
+      alt?: string
+      className?: string
+      onError?: () => void
+    }) => (
+      <img
+        data-testid="image-preview"
+        data-src={item.src}
+        src={item.src}
+        alt={alt}
+        className={className}
+        onError={onError}
+      />
+    ),
+    EmptyState: ({ title, description }: { title: string; description?: string }) => (
+      <div data-testid="empty-state">
+        <span>{title}</span>
+        <span>{description}</span>
       </div>
     )
   }
@@ -254,7 +418,8 @@ vi.mock('motion/react', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
+vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
+  ...(await importActual<typeof ChatPrimitives>()),
   EmptyState: ({ title, description }: { title: string; description?: string }) => (
     <div data-testid="empty-state">
       <span>{title}</span>
@@ -264,6 +429,21 @@ vi.mock('@renderer/components/chat', () => ({
   LoadingState: ({ rows }: { rows?: number }) => <div data-testid="loading-state" data-rows={rows} />
 }))
 
+vi.mock('@renderer/components/FilePreview', () => ({
+  FilePreview: (props: { filePath: string; refreshKey: number; type?: string }) => {
+    mocks.filePreviewProps.push(props)
+    return (
+      <div
+        data-testid="file-preview"
+        data-file-path={props.filePath}
+        data-refresh-key={props.refreshKey}
+        data-preview-type={props.type}>
+        {props.filePath}
+      </div>
+    )
+  }
+}))
+
 vi.mock('@renderer/components/FileTree', () => ({
   FileTree: ({
     nodes,
@@ -271,6 +451,7 @@ vi.mock('@renderer/components/FileTree', () => ({
     onExpandedChange,
     selectedId,
     onSelectedChange,
+    getMenuItems,
     ...props
   }: {
     nodes: MockFileTreeNode[]
@@ -278,8 +459,18 @@ vi.mock('@renderer/components/FileTree', () => ({
     onExpandedChange?: (ids: ReadonlySet<string>) => void
     selectedId?: string | null
     onSelectedChange?: (id: string | null) => void
+    getMenuItems?: (
+      node: MockFileTreeNode
+    ) => ReadonlyArray<
+      { type: 'item'; id: string; label: string; icon?: React.ReactNode; onSelect: () => void } | { type: 'separator' }
+    >
+    searchToolbar?: React.ReactNode
+    searchClearLabel?: string
+    searchKeyword?: string
+    onSearchKeywordChange?: (keyword: string) => void
     truncateLabels?: boolean
   }) => {
+    const [menuNode, setMenuNode] = useState<MockFileTreeNode | null>(null)
     const renderNode = (node: MockFileTreeNode) => (
       <div key={node.id}>
         <button
@@ -288,6 +479,10 @@ vi.mock('@renderer/components/FileTree', () => ({
           data-kind={node.kind}
           data-expanded={String(expandedIds?.has(node.id) ?? false)}
           data-selected={String(selectedId === node.id)}
+          onContextMenu={(event) => {
+            event.preventDefault()
+            setMenuNode(node)
+          }}
           onClick={() => {
             if (node.kind === 'folder') {
               const next = new Set(expandedIds ?? [])
@@ -306,7 +501,30 @@ vi.mock('@renderer/components/FileTree', () => ({
 
     return (
       <div data-testid="file-tree" data-truncate-labels={String(props.truncateLabels)}>
+        {props.searchToolbar ? <div data-testid="file-tree-search-toolbar">{props.searchToolbar}</div> : null}
+        {props.searchKeyword ? (
+          <button
+            type="button"
+            aria-label={props.searchClearLabel ?? 'Clear search'}
+            onClick={() => props.onSearchKeywordChange?.('')}>
+            clear
+          </button>
+        ) : null}
         {nodes.map(renderNode)}
+        {menuNode ? (
+          <div role="menu" data-testid="file-tree-context-menu">
+            {getMenuItems?.(menuNode).map((item, index) =>
+              item.type === 'item' ? (
+                <button key={item.id} type="button" role="menuitem" onClick={item.onSelect}>
+                  {item.icon ? <span data-testid={`menuitem-icon-${item.id}`}>{item.icon}</span> : null}
+                  {item.label}
+                </button>
+              ) : (
+                <hr key={`separator-${index}`} />
+              )
+            )}
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -327,34 +545,8 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   )
 }))
 
-vi.mock('../PdfPreviewPanel', () => {
-  mocks.pdfPreviewPanelModuleLoadCount += 1
-
-  return {
-    default: (props: { fileName: string; filePath: string; refreshKey: number }) => {
-      mocks.pdfPreviewPanelProps.push(props)
-
-      return (
-        <div
-          data-testid="pdf-preview-panel"
-          data-file-name={props.fileName}
-          data-file-path={props.filePath}
-          data-refresh-key={props.refreshKey}
-        />
-      )
-    }
-  }
-})
-
-vi.mock('@data/hooks/useCache', () => ({
-  usePersistCache: (key: string) =>
-    key === 'ui.chat.artifact_pane.file_tree.width'
-      ? [mocks.artifactFileTreeWidth, mocks.setArtifactFileTreeWidth]
-      : [null, vi.fn()]
-}))
-
-vi.mock('@renderer/components/Icons/SvgIcon', () => ({
-  FinderIcon: (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" {...props} />
+vi.mock('@renderer/components/icons/SvgIcon', () => ({
+  FinderIcon: (props: React.SVGProps<SVGSVGElement>) => <svg aria-hidden="true" data-testid="finder-icon" {...props} />
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -363,7 +555,26 @@ vi.mock('@renderer/utils/platform', () => ({
 }))
 
 vi.mock('@renderer/hooks/useExternalApps', () => ({
-  useExternalApps: () => ({ data: [] })
+  useExternalApps: () => ({ data: mocks.externalApps })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: {
+    // `useIsTextFile` / `useFileSize` read live metadata through `file.get_metadata`; route it to the
+    // existing `getMetadata` mock so per-test size/type overrides keep driving the preview gates, and
+    // `mocks.ipcRequest` stays reserved for the read/write routes its per-test queues expect.
+    request: (route: string, input: unknown) =>
+      route === 'file.get_metadata' ? mocks.getMetadata(input) : mocks.ipcRequest(route, input)
+  }
+}))
+
+vi.mock('@renderer/utils/editor', () => ({
+  buildEditorUrl: (app: { id: string }, path: string) => `editor://${app.id}${path}`,
+  getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
+}))
+
+vi.mock('@renderer/components/icons/EditorIcon', () => ({
+  getEditorIcon: (app: { id: string }) => <span aria-hidden="true">{app.id}</span>
 }))
 
 vi.mock('react-i18next', () => ({
@@ -381,9 +592,11 @@ vi.mock('react-i18next', () => ({
 describe('ArtifactPane', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.artifactFileTreeWidth = null
-    mocks.pdfPreviewPanelProps.length = 0
+    mocks.ipcRequest.mockReset()
+    mocks.filePreviewProps.length = 0
     mocks.nextTreeId = 0
+    mocks.useRealCodeEditor = false
+    mocks.codeEditorRef = null
     // Default: every test gets an empty tree unless it queues a fixture
     // via `mockWorkspaceTree(...)` (which calls `mockResolvedValueOnce`).
     mocks.treeCreate.mockResolvedValue({
@@ -398,25 +611,26 @@ describe('ArtifactPane', () => {
     mocks.treeOnMutation.mockImplementation(() => () => {})
     mocks.listDirectory.mockResolvedValue([])
     mocks.listDirectoryEntries.mockResolvedValue([])
+    mocks.openPath.mockResolvedValue(undefined)
+    mocks.showInFolder.mockResolvedValue(undefined)
+    mocks.externalApps = []
     mocks.isDirectory.mockResolvedValue(false)
-    // Default: tests select text files; override per-test for binary cases.
-    mocks.isTextFile.mockResolvedValue(true)
-    // Default: tests use tiny files; override per-test to exercise the size gate.
-    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024 })
+    // Default: tiny text files. `getMetadata().type` drives text detection
+    // (via useIsTextFile) and `.size` drives the size gate — override per-test
+    // for binary / large-file cases.
+    mocks.getMetadata.mockResolvedValue({ kind: 'file', size: 1024, type: 'text' })
     mocks.createObjectURL.mockReturnValue('blob:fake-url')
     Object.defineProperty(window, 'api', {
       configurable: true,
       value: {
         file: {
-          openPath: vi.fn(),
-          isTextFile: mocks.isTextFile,
+          openPath: mocks.openPath,
+          showInFolder: mocks.showInFolder,
           isDirectory: mocks.isDirectory,
           listDirectory: mocks.listDirectory,
-          listDirectoryEntries: mocks.listDirectoryEntries,
-          getMetadata: mocks.getMetadata
+          listDirectoryEntries: mocks.listDirectoryEntries
         },
         fs: {
-          read: mocks.fsRead,
           readText: mocks.fsReadText
         },
         tree: {
@@ -425,6 +639,14 @@ describe('ArtifactPane', () => {
           onMutation: mocks.treeOnMutation
         }
       }
+    })
+    Object.defineProperty(window, 'open', {
+      configurable: true,
+      value: mocks.windowOpen
+    })
+    Object.defineProperty(window, 'toast', {
+      configurable: true,
+      value: { error: mocks.toastError }
     })
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
@@ -457,6 +679,10 @@ describe('ArtifactPane', () => {
     })
   })
 
+  it('rejects a workspace-relative artifact when the workspace path is relative', () => {
+    expect(resolveArtifactPaneFileSelection('relative/workspace', 'report.md')).toBeNull()
+  })
+
   it('re-roots a workspace-relative path that escapes via ".." so the tree root and previewed file agree', () => {
     // Out-of-workspace previews are intentional (the agent creates files outside the workspace), but a
     // `..`-escaping path must re-root like the absolute branch — otherwise the tree shows the workspace
@@ -471,19 +697,16 @@ describe('ArtifactPane', () => {
     })
   })
 
-  it('does not load the PDF preview panel module for non-PDF selections', async () => {
+  it('delegates selected files to the canonical file preview', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
-    mocks.fsReadText.mockResolvedValue('# Hello')
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
 
-    await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Hello'))
-    expect(mocks.pdfPreviewPanelModuleLoadCount).toBe(0)
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/README.md')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-preview-type', 'artifact')
   })
 
   it('shows the ready empty state when no workspace path is available', () => {
@@ -494,44 +717,89 @@ describe('ArtifactPane', () => {
     expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.empty.description')
   })
 
+  it('shows a localized invalid-path state without requesting the filesystem', async () => {
+    render(
+      <ArtifactPane
+        workspacePath="relative/workspace"
+        previewFileSelection={{ workspacePath: 'relative/workspace', filePath: 'report.md' }}
+      />
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.invalid_path.title')
+    )
+    expect(screen.getByTestId('empty-state')).toHaveTextContent(
+      'agent.preview_pane.tree_error.invalid_path.description'
+    )
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Open in Finder' })).not.toBeInTheDocument()
+    expect(mocks.treeCreate).not.toHaveBeenCalled()
+    expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
+  })
+
   it('requests the workspace tree from DirectoryTreeBuilder', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md', 'src/index.ts'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    expect(mocks.treeCreate).not.toHaveBeenCalled()
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
 
     await waitFor(() =>
       expect(mocks.treeCreate).toHaveBeenCalledWith('/tmp/workspace', expect.objectContaining({ maxDepth: 3 }))
     )
   })
 
-  it('keeps a single workspace tree across a Host↔Overlay maximize swap', async () => {
+  it('keeps a single workspace tree across Viewport layout changes', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
 
-    render(<MaximizeSwapHarness workspacePath="/tmp/workspace" />)
+    render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
 
     await waitFor(() => expect(mocks.treeCreate).toHaveBeenCalledTimes(1))
-    expect(screen.getByTestId('host-slot')).toBeInTheDocument()
+    expect(screen.getByTestId('docked-layout')).toBeInTheDocument()
 
-    // Maximize: the view unmounts from the host slot and remounts in the
-    // overlay slot. The model lives in the surviving parent, so the tree is
-    // neither recreated nor disposed (this is the freeze the fix removes).
+    // Layout changes around the stable Viewport; the artifact subtree keeps
+    // its identity and its directory-tree subscription.
     await act(async () => {
       fireEvent.click(screen.getByTestId('toggle-max'))
     })
-    await waitFor(() => expect(screen.getByTestId('overlay-slot')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('maximized-layout')).toBeInTheDocument())
 
     // Minimize back to the docked slot.
     await act(async () => {
       fireEvent.click(screen.getByTestId('toggle-max'))
     })
-    await waitFor(() => expect(screen.getByTestId('host-slot')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByTestId('docked-layout')).toBeInTheDocument())
 
     expect(mocks.treeCreate).toHaveBeenCalledTimes(1)
     expect(mocks.treeDispose).not.toHaveBeenCalled()
+  })
+
+  it('uses one pane header for the file tree and selected-file preview', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.fsReadText.mockResolvedValue('# Header')
+
+    render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header')).toHaveClass('bg-card')
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
+    expect(screen.queryByRole('button', { name: 'agent.preview_pane.close' })).toBeNull()
+    expect(screen.queryByTestId('file-tree-search-toolbar')).toBeNull()
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(screen.getAllByTestId('artifact-pane-header')).toHaveLength(1)
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('README.md')
+    expect(overlay.firstElementChild).not.toHaveClass('h-10')
+    expect(
+      within(screen.getByTestId('artifact-pane-header')).getByRole('button', { name: 'Open in Finder' })
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
+    expect(screen.getByTestId('artifact-pane-header-title')).toHaveTextContent('Files')
   })
 
   it('loads deeper directory children when folders are expanded', async () => {
@@ -544,8 +812,6 @@ describe('ArtifactPane', () => {
       .mockResolvedValueOnce([{ path: '/tmp/workspace/src/deep/file.ts', isDirectory: false }])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
@@ -583,9 +849,7 @@ describe('ArtifactPane', () => {
       })
     )
 
-    const { rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
+    const { rerender } = render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
@@ -596,7 +860,7 @@ describe('ArtifactPane', () => {
       )
     )
 
-    rerender(<ArtifactPane workspacePath="/tmp/other-workspace" />)
+    rerender(<PersistentArtifactPaneHarness workspacePath="/tmp/other-workspace" />)
     await waitFor(() => expect(screen.getByTestId('tree-node-src/other.ts')).toBeInTheDocument())
 
     await act(async () => {
@@ -606,6 +870,33 @@ describe('ArtifactPane', () => {
     expect(screen.queryByTestId('tree-node-src/stale.ts')).not.toBeInTheDocument()
   })
 
+  it('clears loaded lazy directory children after the workspace changes', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mockWorkspaceTree('/tmp/workspace/src', [])
+    mockWorkspaceTree('/tmp/other-workspace', ['src/other.ts'])
+    mockWorkspaceTree('/tmp/other-workspace/src', [])
+    mocks.listDirectoryEntries
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+      .mockResolvedValueOnce([{ path: '/tmp/other-workspace/src/fresh.md', isDirectory: false }])
+
+    const { rerender } = render(<PersistentArtifactPaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
+
+    rerender(<PersistentArtifactPaneHarness workspacePath="/tmp/other-workspace" />)
+
+    await waitFor(() =>
+      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
+        '/tmp/other-workspace/src',
+        expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
+      )
+    )
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/fresh.md')).toBeInTheDocument())
+    expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
+  })
+
   it('reloads lazy directory children when the file tree is refreshed', async () => {
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
     mocks.listDirectoryEntries
@@ -613,8 +904,6 @@ describe('ArtifactPane', () => {
       .mockResolvedValueOnce([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
@@ -624,6 +913,192 @@ describe('ArtifactPane', () => {
 
     await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
     expect(screen.queryByTestId('tree-node-src/old.md')).not.toBeInTheDocument()
+  })
+
+  it('opens file previews in an overlay and clears selection when closed', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.fsReadText.mockResolvedValue('# Overlay')
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(overlay).toHaveTextContent('README.md')
+    expect(overlay.firstElementChild).toHaveClass('h-10', 'pl-3', 'pr-2')
+    expect(overlay.firstElementChild).not.toHaveClass('px-3')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/README.md')
+    expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'true')
+
+    const openButton = within(overlay).getByRole('button', { name: 'Open in Finder' })
+    const refreshButton = within(overlay).getByRole('button', { name: 'agent.preview_pane.refresh' })
+    const closeButton = within(overlay).getByRole('button', { name: 'agent.preview_pane.close' })
+    expect(refreshButton).toBeInTheDocument()
+    expect(closeButton).toBeInTheDocument()
+    expect(openButton.compareDocumentPosition(refreshButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(refreshButton.compareDocumentPosition(closeButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    fireEvent.click(openButton)
+    await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/README.md'))
+
+    fireEvent.click(within(overlay).getByRole('button', { name: 'agent.preview_pane.close' }))
+
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
+    expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'false')
+  })
+
+  it('renders an external preview selection even when no workspace tree is available', async () => {
+    render(
+      <ArtifactPane
+        previewFileSelection={{
+          workspacePath: '/Users/suyao/Desktop',
+          filePath: '记忆商人.md'
+        }}
+      />
+    )
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    expect(overlay).toHaveTextContent('记忆商人.md')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-file-path', '/Users/suyao/Desktop/记忆商人.md')
+    expect(mocks.treeCreate).not.toHaveBeenCalled()
+
+    fireEvent.click(within(overlay).getByRole('button', { name: 'Open in Finder' }))
+    await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/Users/suyao/Desktop/记忆商人.md'))
+  })
+
+  it('clears the standalone preview overlay when the watcher reports the selected file was removed', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.fsReadText.mockResolvedValue('# Overlay')
+    let pushMutation: ((payload: { treeId: string; event: { type: 'removed'; path: string } }) => void) | undefined
+    mocks.treeOnMutation.mockImplementation((cb) => {
+      pushMutation = cb as typeof pushMutation
+      return () => {
+        pushMutation = undefined
+      }
+    })
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    await waitFor(() => expect(screen.getByTestId('artifact-file-preview-overlay')).toHaveTextContent('README.md'))
+
+    await waitFor(() => expect(pushMutation).toBeDefined())
+    act(() => {
+      pushMutation?.({ treeId: 'tree-1', event: { type: 'removed', path: '/tmp/workspace/README.md' } })
+    })
+
+    await waitFor(() => expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument())
+    expect(screen.queryByTestId('markdown')).not.toBeInTheDocument()
+  })
+
+  it('focuses the preview overlay after file-tree selection and closes it with Escape', async () => {
+    const user = userEvent.setup()
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.fsReadText.mockResolvedValue('# Overlay')
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-README.md'))
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+
+    await waitFor(() => expect(overlay).toHaveFocus())
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument()
+    expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'false')
+  })
+
+  it('shows refresh and root external-open controls in the overlay file-tree search row', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('file-tree-search-toolbar')).toBeInTheDocument())
+
+    const toolbar = screen.getByTestId('file-tree-search-toolbar')
+    expect(within(toolbar).getByRole('button', { name: 'agent.preview_pane.refresh' })).toBeInTheDocument()
+    expect(within(toolbar).getByRole('button', { name: 'Open in Finder' })).toBeInTheDocument()
+  })
+
+  it('refreshes the overlay file tree and the selected file preview', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+    mocks.listDirectoryEntries
+      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/old.md', isDirectory: false }])
+      .mockResolvedValueOnce([
+        { path: '/tmp/workspace/src/old.md', isDirectory: false },
+        { path: '/tmp/workspace/src/new.md', isDirectory: false }
+      ])
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src'))
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByTestId('tree-node-src/old.md'))
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-refresh-key', '0')
+
+    fireEvent.click(
+      within(screen.getByTestId('artifact-file-preview-overlay')).getByRole('button', {
+        name: 'agent.preview_pane.refresh'
+      })
+    )
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/new.md')).toBeInTheDocument())
+    expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument()
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-refresh-key', '1')
+  })
+
+  it('opens file-tree node context menu targets from workspace-relative paths', async () => {
+    mocks.externalApps = [
+      {
+        id: 'vscode',
+        name: 'VS Code',
+        protocol: 'vscode://',
+        tags: ['code-editor'],
+        path: '/Applications/Visual Studio Code.app'
+      }
+    ]
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.contextMenu(screen.getByTestId('tree-node-__workspace_root__'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Finder' }))
+    await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/workspace'))
+
+    fireEvent.contextMenu(screen.getByTestId('tree-node-src'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'VS Code' }))
+    expect(mocks.windowOpen).toHaveBeenCalledWith('editor://vscode/tmp/workspace/src')
+
+    fireEvent.contextMenu(screen.getByTestId('tree-node-src/index.ts'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'agent.preview_pane.default_app' }))
+    await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/workspace/src/index.ts'))
+
+    fireEvent.contextMenu(screen.getByTestId('tree-node-src/index.ts'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Finder' }))
+    await waitFor(() => expect(mocks.showInFolder).toHaveBeenCalledWith('/tmp/workspace/src/index.ts'))
+  })
+
+  it('uses the Finder icon for file-manager context menu actions on macOS', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
+
+    fireEvent.contextMenu(screen.getByTestId('tree-node-__workspace_root__'))
+    expect(within(screen.getByRole('menuitem', { name: 'Finder' })).getByTestId('finder-icon')).toBeInTheDocument()
+
+    fireEvent.contextMenu(screen.getByTestId('tree-node-src/index.ts'))
+    expect(within(screen.getByRole('menuitem', { name: 'Finder' })).getByTestId('finder-icon')).toBeInTheDocument()
   })
 
   it('keeps the selected lazy file while expanded directories are refreshing', async () => {
@@ -636,24 +1111,24 @@ describe('ArtifactPane', () => {
           resolveReload = resolve
         })
       )
-    mocks.fsReadText.mockResolvedValue('# Old')
-
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
     await waitFor(() => expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src/old.md'))
-    await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Old'))
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/src/old.md')
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+    fireEvent.click(
+      within(screen.getByTestId('artifact-file-preview-overlay')).getByRole('button', {
+        name: 'agent.preview_pane.refresh'
+      })
+    )
     await waitFor(() => expect(mocks.listDirectoryEntries).toHaveBeenCalledTimes(2))
 
     expect(screen.getByTestId('tree-node-src/old.md')).toBeInTheDocument()
-    expect(screen.getByTestId('markdown')).toHaveTextContent('# Old')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-refresh-key', '1')
 
     await act(async () => {
       resolveReload([{ path: '/tmp/workspace/src/new.md', isDirectory: false }])
@@ -681,8 +1156,6 @@ describe('ArtifactPane', () => {
     })
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
@@ -730,8 +1203,6 @@ describe('ArtifactPane', () => {
     })
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
@@ -764,9 +1235,7 @@ describe('ArtifactPane', () => {
     mocks.listDirectoryEntries.mockResolvedValueOnce([
       { path: '/tmp/workspace/src/feature/deep-result.ts', isDirectory: false }
     ])
-    mocks.fsReadText.mockResolvedValue('export const value = 1')
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" fileTreeOpen enableFileSearch fileTreeSearchKeyword="deep" />)
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch fileTreeSearchKeyword="deep" />)
 
     await waitFor(() =>
       expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
@@ -778,8 +1247,10 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(screen.getByTestId('tree-node-src/feature/deep-result.ts'))
 
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/src/feature/deep-result.ts'))
-    expect(screen.getByTestId('code-viewer')).toHaveTextContent('export const value = 1')
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute(
+      'data-file-path',
+      '/tmp/workspace/src/feature/deep-result.ts'
+    )
   })
 
   it('keeps a selected search-only deep file when search is cleared', async () => {
@@ -787,30 +1258,33 @@ describe('ArtifactPane', () => {
     mocks.listDirectoryEntries.mockResolvedValueOnce([
       { path: '/tmp/workspace/src/feature/deep-result.ts', isDirectory: false }
     ])
-    mocks.fsReadText.mockResolvedValue('export const value = 1')
-
     const { rerender } = render(
-      <ArtifactPane workspacePath="/tmp/workspace" fileTreeOpen enableFileSearch fileTreeSearchKeyword="deep" />
+      <ArtifactPane workspacePath="/tmp/workspace" enableFileSearch fileTreeSearchKeyword="deep" />
     )
 
     await waitFor(() => expect(screen.getByTestId('tree-node-src/feature/deep-result.ts')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-src/feature/deep-result.ts'))
 
-    await waitFor(() => expect(screen.getByTestId('code-viewer')).toHaveTextContent('export const value = 1'))
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute(
+      'data-file-path',
+      '/tmp/workspace/src/feature/deep-result.ts'
+    )
 
-    rerender(<ArtifactPane workspacePath="/tmp/workspace" fileTreeOpen enableFileSearch fileTreeSearchKeyword="" />)
+    rerender(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch fileTreeSearchKeyword="" />)
 
     expect(screen.queryByTestId('tree-node-src/feature/deep-result.ts')).not.toBeInTheDocument()
-    expect(screen.getByTestId('code-viewer')).toHaveTextContent('export const value = 1')
-    expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/src/feature/deep-result.ts')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute(
+      'data-file-path',
+      '/tmp/workspace/src/feature/deep-result.ts'
+    )
   })
 
   it('debounces deep file search requests', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.listDirectoryEntries.mockResolvedValue([])
 
-    render(<ArtifactPane workspacePath="/tmp/workspace" fileTreeOpen enableFileSearch fileTreeSearchKeyword="deep" />)
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch fileTreeSearchKeyword="deep" />)
 
     await new Promise((resolve) => setTimeout(resolve, 100))
     expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
@@ -823,99 +1297,20 @@ describe('ArtifactPane', () => {
     )
   })
 
-  it('drops pending lazy directory results when the file tree closes', async () => {
-    let resolveListDirectory: (entries: Array<{ path: string; isDirectory: boolean }>) => void = () => undefined
-    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mockWorkspaceTree('/tmp/workspace/src', [])
-    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mocks.listDirectoryEntries
-      .mockReturnValueOnce(
-        new Promise<Array<{ path: string; isDirectory: boolean }>>((resolve) => {
-          resolveListDirectory = resolve
-        })
-      )
-      .mockResolvedValueOnce([{ path: '/tmp/workspace/src/fresh.ts', isDirectory: false }])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    const fileTreeButton = screen.getByRole('button', { name: 'agent.preview_pane.file_tree' })
-    fireEvent.click(fileTreeButton)
-    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-src'))
-    await waitFor(() =>
-      expect(mocks.listDirectoryEntries).toHaveBeenCalledWith(
-        '/tmp/workspace/src',
-        expect.objectContaining({ recursive: false, includeFiles: true, includeDirectories: true })
-      )
-    )
-
-    fireEvent.click(fileTreeButton)
-    await waitFor(() => expect(screen.queryByTestId('file-tree')).not.toBeInTheDocument())
-
-    await act(async () => {
-      resolveListDirectory([{ path: '/tmp/workspace/src/stale.ts', isDirectory: false }])
-    })
-
-    fireEvent.click(fileTreeButton)
-    await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
-
-    await waitFor(() => expect(screen.getByTestId('tree-node-src/fresh.ts')).toBeInTheDocument())
-    expect(screen.queryByTestId('tree-node-src/stale.ts')).not.toBeInTheDocument()
-  })
-
-  it('logs and displays directory listing errors', async () => {
+  it('logs directory listing errors and displays a localized load-error state', async () => {
     const error = new Error('Permission denied')
     const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
     mocks.treeCreate.mockRejectedValueOnce(error)
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-
-    await waitFor(() => expect(screen.getByText('Permission denied')).toBeInTheDocument())
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('common.error')
+    await waitFor(() =>
+      expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.load_error.title')
+    )
+    expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.tree_error.load_error.description')
+    expect(screen.queryByText('Permission denied')).not.toBeInTheDocument()
     expect(screen.getByTestId('empty-state')).not.toHaveTextContent('agent.preview_pane.empty.title')
     expect(errorSpy).toHaveBeenCalledWith('Failed to create directory tree for /tmp/workspace', error)
-  })
-
-  it('renders header tool buttons without a close button or view-mode toggle', () => {
-    render(<ArtifactPane onToggleMaximized={vi.fn()} />)
-
-    for (const label of ['agent.preview_pane.file_tree', 'agent.preview_pane.refresh', 'agent.preview_pane.maximize']) {
-      expect(screen.getByRole('button', { name: label })).toBeInTheDocument()
-    }
-    expect(screen.queryByRole('button', { name: 'agent.preview_pane.preview' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'agent.preview_pane.code' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'agent.preview_pane.close' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('tab')).not.toBeInTheDocument()
-  })
-
-  it('uses the minimize action while maximized', () => {
-    const onToggleMaximized = vi.fn()
-
-    const { container } = render(<ArtifactPane maximized onToggleMaximized={onToggleMaximized} />)
-
-    const minimizeButton = screen.getByRole('button', { name: 'agent.preview_pane.minimize' })
-    expect(container.firstElementChild).toHaveClass('rounded-lg', 'border', 'border-border-subtle', 'shadow-sm')
-    expect(minimizeButton).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByRole('button', { name: 'agent.preview_pane.maximize' })).not.toBeInTheDocument()
-
-    fireEvent.click(minimizeButton)
-
-    expect(onToggleMaximized).toHaveBeenCalledTimes(1)
-  })
-
-  it('renders the workspace opener between refresh and maximize when a workspace path exists', () => {
-    render(<ArtifactPane workspacePath="/tmp/workspace" onToggleMaximized={vi.fn()} />)
-
-    const refreshButton = screen.getByRole('button', { name: 'agent.preview_pane.refresh' })
-    const openButton = screen.getByRole('button', { name: 'Open in Finder' })
-    const maximizeButton = screen.getByRole('button', { name: 'agent.preview_pane.maximize' })
-    const toolbarButtons = screen.getAllByRole('button')
-
-    expect(toolbarButtons.indexOf(openButton)).toBe(toolbarButtons.indexOf(refreshButton) + 1)
-    expect(toolbarButtons.indexOf(maximizeButton)).toBe(toolbarButtons.indexOf(openButton) + 1)
   })
 
   it('does not render the workspace opener without a workspace path', () => {
@@ -924,449 +1319,42 @@ describe('ArtifactPane', () => {
     expect(screen.queryByRole('button', { name: 'Open in Finder' })).not.toBeInTheDocument()
   })
 
-  it('starts with the file tree collapsed', () => {
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    const folderButton = screen.getByRole('button', { name: 'agent.preview_pane.file_tree' })
-
-    expect(mocks.treeCreate).not.toHaveBeenCalled()
-    expect(folderButton).toHaveAttribute('aria-pressed', 'false')
-    expect(folderButton.querySelector('.lucide-folder')).toBeInTheDocument()
-    expect(folderButton.querySelector('.lucide-folder-open')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('file-tree')).not.toBeInTheDocument()
-  })
-
-  it('keeps the toolbar inside the right content column', () => {
-    const { container } = render(<ArtifactPane />)
-
-    const root = container.firstElementChild
-    const body = root?.firstElementChild
-    const content = body?.querySelector('section')
-    const toolbar = content?.firstElementChild
-    const preview = content?.children.item(1)
-
-    expect(root).toHaveClass('h-full', 'min-h-0', 'overflow-hidden')
-    expect(root).not.toHaveClass('rounded-2xl', 'border-frame-border', 'shadow-sm')
-    expect(body).toHaveClass('min-h-0', 'overflow-hidden')
-    expect(toolbar).toHaveClass('h-(--navbar-height)')
-    expect(toolbar).toContainElement(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    expect(content).toHaveClass('min-h-0', 'min-w-0')
-    expect(preview).toHaveClass('min-h-0', 'min-w-0', 'overflow-auto')
-  })
-
-  it('toggles the file tree when the folder button is clicked', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    const folderButton = screen.getByRole('button', { name: 'agent.preview_pane.file_tree' })
-
-    expect(folderButton).toHaveAttribute('aria-pressed', 'false')
-    expect(folderButton.querySelector('.lucide-folder')).toBeInTheDocument()
-    expect(folderButton.querySelector('.lucide-folder-open')).not.toBeInTheDocument()
-
-    fireEvent.click(folderButton)
-    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
-    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-initial-width', '0')
-    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-initial-opacity', '0')
-    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute(
-      'data-animate-width',
-      String(ARTIFACT_FILE_TREE_DEFAULT_WIDTH)
-    )
-    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-animate-opacity', '1')
-    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-exit-width', '0')
-    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-exit-opacity', '0')
-    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-has-transition', 'true')
-    expect(screen.getByTestId('file-tree')).toHaveAttribute('data-truncate-labels', 'undefined')
-    expect(screen.getByTestId('tree-node-__workspace_root__')).toHaveTextContent('workspace')
-    expect(screen.getByTestId('tree-node-README.md')).toHaveTextContent('README.md')
-    expect(folderButton).toHaveAttribute('aria-pressed', 'true')
-    expect(folderButton.querySelector('.lucide-folder-open')).toBeInTheDocument()
-    expect(folderButton.querySelector('.lucide-folder')).not.toBeInTheDocument()
-
-    fireEvent.click(folderButton)
-    await waitFor(() => expect(screen.queryByTestId('file-tree')).not.toBeInTheDocument())
-    expect(folderButton).toHaveAttribute('aria-pressed', 'false')
-    expect(folderButton.querySelector('.lucide-folder')).toBeInTheDocument()
-    expect(folderButton.querySelector('.lucide-folder-open')).not.toBeInTheDocument()
-  })
-
-  it('renders a right-edge resize handle for the file tree', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
-
-    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
-    const scrollRegion = container.querySelector('[data-artifact-file-tree-scroll-region]')
-
-    expect(handle).toBeInTheDocument()
-    expect(handle).toHaveClass('right-0', 'cursor-col-resize')
-    expect(scrollRegion).toHaveClass('overflow-y-auto', 'overflow-x-hidden')
-  })
-
-  it('clamps dragged file tree width from the default artifact pane width and cleans document resize styles', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
-
-    const pane = container.querySelector('[data-artifact-file-tree-pane]')
-    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
-
-    if (!pane || !handle) {
-      throw new Error('Expected artifact file tree pane and resize handle')
-    }
-
-    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, ARTIFACT_FILE_TREE_DEFAULT_WIDTH, 500))
-
-    fireEvent.mouseDown(handle, { clientX: 260 })
-    expect(document.body.style.cursor).toBe('col-resize')
-    expect(document.body.style.userSelect).toBe('none')
-    expect(pane).toHaveAttribute('data-resizing', 'true')
-    expect(screen.getByTestId('artifact-file-tree-motion-pane')).toHaveAttribute('data-has-transition', 'true')
-
-    fireEvent.mouseMove(document, { clientX: 250 })
-    fireEvent.mouseMove(document, { clientX: 180 })
-    fireEvent.mouseMove(document, { clientX: 500 })
-
-    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(1, 150)
-    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(2, 80)
-    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(3, 320)
-
-    fireEvent.mouseUp(document)
-
-    expect(document.body.style.cursor).toBe('')
-    expect(document.body.style.userSelect).toBe('')
-    expect(pane).not.toHaveAttribute('data-resizing')
-  })
-
-  it('cleans the file tree resize state on window blur', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
-
-    const pane = container.querySelector('[data-artifact-file-tree-pane]')
-    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
-
-    if (!pane || !handle) {
-      throw new Error('Expected artifact file tree pane and resize handle')
-    }
-
-    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, ARTIFACT_FILE_TREE_DEFAULT_WIDTH, 500))
-
-    fireEvent.mouseDown(handle, { clientX: 260 })
-    fireEvent.mouseMove(document, { clientX: 250 })
-    expect(pane).toHaveAttribute('data-resizing', 'true')
-    expect(document.body.style.cursor).toBe('col-resize')
-    expect(mocks.setArtifactFileTreeWidth).toHaveBeenCalledTimes(1)
-
-    fireEvent.blur(window)
-
-    expect(document.body.style.cursor).toBe('')
-    expect(document.body.style.userSelect).toBe('')
-    expect(pane).not.toHaveAttribute('data-resizing')
-
-    fireEvent.mouseMove(document, { clientX: 500 })
-
-    expect(mocks.setArtifactFileTreeWidth).toHaveBeenCalledTimes(1)
-  })
-
-  it('clamps dragged file tree width from the measured artifact pane width', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
-
-    const root = container.firstElementChild
-    const pane = container.querySelector('[data-artifact-file-tree-pane]')
-    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
-
-    if (!root || !pane || !handle) {
-      throw new Error('Expected artifact root, file tree pane, and resize handle')
-    }
-
-    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 500, 500))
-    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, ARTIFACT_FILE_TREE_DEFAULT_WIDTH, 500))
-
-    fireEvent.mouseDown(handle, { clientX: 260 })
-    fireEvent.mouseMove(document, { clientX: 50 })
-    fireEvent.mouseMove(document, { clientX: 600 })
-    fireEvent.mouseUp(document)
-
-    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(1, 80)
-    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(2, 360)
-  })
-
-  it('keeps a non-zero minimum file tree width for narrow artifact panes', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
-
-    const root = container.firstElementChild
-    const pane = container.querySelector('[data-artifact-file-tree-pane]')
-    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
-
-    if (!root || !pane || !handle) {
-      throw new Error('Expected artifact root, file tree pane, and resize handle')
-    }
-
-    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 360, 500))
-    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, ARTIFACT_FILE_TREE_DEFAULT_WIDTH, 500))
-
-    fireEvent.mouseDown(handle, { clientX: 260 })
-    fireEvent.mouseMove(document, { clientX: 50 })
-    fireEvent.mouseUp(document)
-
-    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(1, 80)
-  })
-
-  it('caps the minimum file tree width for large artifact panes', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('file-tree')).toBeInTheDocument())
-
-    const root = container.firstElementChild
-    const pane = container.querySelector('[data-artifact-file-tree-pane]')
-    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
-
-    if (!root || !pane || !handle) {
-      throw new Error('Expected artifact root, file tree pane, and resize handle')
-    }
-
-    vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 720, 500))
-    vi.spyOn(pane, 'getBoundingClientRect').mockReturnValue(new DOMRect(100, 0, ARTIFACT_FILE_TREE_DEFAULT_WIDTH, 500))
-
-    fireEvent.mouseDown(handle, { clientX: 260 })
-    fireEvent.mouseMove(document, { clientX: 50 })
-    fireEvent.mouseMove(document, { clientX: 800 })
-    fireEvent.mouseUp(document)
-
-    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(1, 80)
-    expect(mocks.setArtifactFileTreeWidth).toHaveBeenNthCalledWith(2, 580)
-  })
-
-  it('disables HTML iframe pointer events while resizing the file tree', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['index.html'])
-    mocks.fsReadText.mockResolvedValue('<!doctype html><html><body><h1>Hello</h1></body></html>')
-
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-index.html')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-index.html'))
-    await waitFor(() => expect(container.querySelector('iframe[title="index.html"]')).not.toBeNull())
-
-    const pane = container.querySelector('[data-artifact-file-tree-pane]')
-    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
-    const rightPane = container.querySelector('[data-artifact-right-pane]')
-
-    if (!pane || !handle || !rightPane) {
-      throw new Error('Expected artifact panes and resize handle')
-    }
-
-    fireEvent.mouseDown(handle, { clientX: 260 })
-
-    expect(document.body.style.cursor).toBe('col-resize')
-    expect(document.body.style.userSelect).toBe('none')
-    expect(pane).toHaveAttribute('data-resizing', 'true')
-    expect(rightPane).toHaveClass('pointer-events-none')
-
-    fireEvent.mouseUp(document)
-
-    expect(document.body.style.cursor).toBe('')
-    expect(document.body.style.userSelect).toBe('')
-    expect(rightPane).not.toHaveClass('pointer-events-none')
-  })
-
-  it('disables PDF preview panel pointer events while resizing the file tree', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
-
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
-    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
-
-    const pane = container.querySelector('[data-artifact-file-tree-pane]')
-    const handle = container.querySelector('[data-artifact-file-tree-resize-handle]')
-    const rightPane = container.querySelector('[data-artifact-right-pane]')
-
-    if (!pane || !handle || !rightPane) {
-      throw new Error('Expected artifact panes and resize handle')
-    }
-
-    fireEvent.mouseDown(handle, { clientX: 260 })
-
-    expect(pane).toHaveAttribute('data-resizing', 'true')
-    expect(rightPane).toHaveClass('pointer-events-none')
-
-    fireEvent.mouseUp(document)
-
-    expect(rightPane).not.toHaveClass('pointer-events-none')
-  })
-
-  it('renders markdown files through the shared Markdown component', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-    mocks.fsReadText.mockResolvedValue('# Hello')
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-README.md'))
-
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/README.md'))
-    expect(screen.getByTestId('markdown')).toHaveTextContent('# Hello')
-    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
-  })
-
-  it('supports controlled selected file state', async () => {
-    const onSelectedFileChange = vi.fn()
-    mockWorkspaceTree('/tmp/workspace', ['README.md', 'src/index.ts'])
-    mocks.fsReadText.mockResolvedValue('# Controlled')
-
-    render(
-      <ArtifactPane
-        workspacePath="/tmp/workspace"
-        selectedFile="README.md"
-        onSelectedFileChange={onSelectedFileChange}
-      />
-    )
-
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/README.md'))
-    expect(screen.getByTestId('markdown')).toHaveTextContent('# Controlled')
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
-    expect(screen.getByTestId('tree-node-README.md')).toHaveAttribute('data-selected', 'true')
-
-    fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
-
-    expect(onSelectedFileChange).toHaveBeenCalledWith('src/index.ts')
-  })
-
-  it('renders text file previews without wrapping so horizontal overflow can scroll', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
-    mocks.fsReadText.mockResolvedValue('const value = "a very long line";')
-
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-src/index.ts')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
-
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/src/index.ts'))
-    expect(screen.getByTestId('code-viewer')).toHaveTextContent('const value = "a very long line";')
-    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'TypeScript')
-    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-wrapped', 'false')
-    expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-auto')
-  })
-
-  it('renders HTML previews in an iframe with Popup-aligned sandbox, file base, and hidden outer overflow', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['index.html'])
-    mocks.fsReadText.mockResolvedValue(
-      '<!doctype html><html><head><title>Hello</title></head><body><a href="about.html">About</a></body></html>'
-    )
-
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-index.html')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-index.html'))
-
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/index.html'))
-    const iframe = container.querySelector('iframe')
-    expect(iframe).not.toBeNull()
-    const srcDoc = iframe?.getAttribute('srcdoc') ?? ''
-    expect(srcDoc).toContain('<base href="file:///tmp/workspace/index.html">')
-    expect(srcDoc).toContain('<a href="about.html">About</a>')
-    expect(iframe).toHaveAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms')
-    expect(iframe).toHaveAttribute('title', 'index.html')
-    expect(iframe).toHaveClass('h-full', 'w-full', 'border-0', 'bg-background')
-    expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-hidden')
-  })
-
-  it('keeps empty HTML previews blank without showing the Popup empty text', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['empty.html'])
-    mocks.fsReadText.mockResolvedValue('   ')
-
-    const { container } = render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-empty.html')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-empty.html'))
-
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/empty.html'))
-    expect(container.querySelector('iframe')).toBeNull()
-    expect(screen.queryByText('html_artifacts.empty_preview')).not.toBeInTheDocument()
-    expect(container.querySelector('section')?.children.item(1)).toHaveClass('overflow-hidden')
-  })
-
   it('does not read content when a folder node is selected', async () => {
     mockWorkspaceTree('/tmp/workspace', ['src/index.ts'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-__workspace_root__')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-__workspace_root__'))
     fireEvent.click(screen.getByTestId('tree-node-src'))
 
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
   })
 
   it('keeps returned directory entries as folders with real child files', async () => {
     mockWorkspaceTree('/tmp/workspace', ['src', 'src/index.ts'])
-    mocks.fsReadText.mockResolvedValue('export {}')
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
 
     expect(screen.getByTestId('tree-node-src')).toHaveAttribute('data-kind', 'folder')
     expect(screen.getByTestId('tree-node-src/index.ts')).toHaveAttribute('data-kind', 'file')
 
     fireEvent.click(screen.getByTestId('tree-node-src'))
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    expect(mocks.ipcRequest).not.toHaveBeenCalled()
     expect(mocks.fsReadText).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
 
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/src/index.ts'))
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/src/index.ts')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-preview-type', 'artifact')
   })
 
   it('renders absolute file paths under the workspace root as relative children', async () => {
     mockWorkspaceTree('/Users/me/dev', ['/Users/me/dev/test.md'])
 
     render(<ArtifactPane workspacePath="/Users/me/dev" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-test.md')).toBeInTheDocument())
 
     expect(screen.getByTestId('tree-node-__workspace_root__')).toHaveTextContent('dev')
@@ -1375,11 +1363,8 @@ describe('ArtifactPane', () => {
 
   it('keeps absolute directory entries as relative folders with real child files', async () => {
     mockWorkspaceTree('/Users/me/dev', ['/Users/me/dev/src', '/Users/me/dev/src/index.ts'])
-    mocks.fsReadText.mockResolvedValue('export {}')
 
     render(<ArtifactPane workspacePath="/Users/me/dev" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-src')).toBeInTheDocument())
 
     expect(screen.getByTestId('tree-node-src')).toHaveAttribute('data-kind', 'folder')
@@ -1388,249 +1373,209 @@ describe('ArtifactPane', () => {
 
     fireEvent.click(screen.getByTestId('tree-node-src/index.ts'))
 
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/Users/me/dev/src/index.ts'))
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-file-path', '/Users/me/dev/src/index.ts')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-preview-type', 'artifact')
   })
 
-  it('renders PDF files with PdfPreviewPanel using the selected file path', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
+  it('autosaves an oversized in-memory draft — the size cap gates loading for edit, not writing', async () => {
+    const oversizedDraft = '你'.repeat(Math.floor(ARTIFACT_PREVIEW_MAX_SIZE_BYTES / 3) + 1)
+    const oversizedDraftBytes = new Blob([oversizedDraft]).size
+    expect(oversizedDraftBytes).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
+    let diskSize = 1024
+    let resolveOversizedMetadata!: (value: { kind: 'file'; size: number; type: string }) => void
+    mocks.getMetadata.mockImplementation(() =>
+      diskSize > ARTIFACT_PREVIEW_MAX_SIZE_BYTES
+        ? new Promise((resolve) => {
+            resolveOversizedMetadata = resolve
+          })
+        : Promise.resolve({ kind: 'file', size: diskSize, type: 'text' })
+    )
+    mockWorkspaceTree('/tmp/workspace', ['draft.md'])
+    mocks.fsReadText.mockResolvedValue('# small')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
+      .mockImplementationOnce(async () => {
+        diskSize = oversizedDraftBytes
+        return { mtime: 2, size: oversizedDraftBytes }
+      })
+    mocks.useRealCodeEditor = true
 
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-draft.md'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    await waitFor(() => expect(mocks.codeEditorRef).not.toBeNull())
+    act(() => {
+      expect(mocks.codeEditorRef?.insertText?.(oversizedDraft)).toBe(true)
+    })
 
-    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
+    // The debounced autosave persists the large draft; the size cap only blocks
+    // loading an already-oversized file into the editor.
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()), {
+      timeout: 3000
+    })
+    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
+    if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
+    expect((writeCall[1] as { data: Uint8Array }).data.byteLength).toBeGreaterThan(ARTIFACT_PREVIEW_MAX_SIZE_BYTES)
 
-    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
-    expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-file-path', '/tmp/workspace/paper.pdf')
-    expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-file-name', 'paper.pdf')
-    expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-refresh-key', '0')
-    expect(mocks.fsRead).not.toHaveBeenCalled()
+    // The active session stays editable even though the saved file is now too
+    // large to reopen. Switching to Preview delegates the saved file back to
+    // FilePreview while the edit-size metadata refresh is still pending.
+    await waitFor(() => expect(mocks.getMetadata.mock.calls.length).toBeGreaterThanOrEqual(3))
+    expect(mocks.codeEditorRef).not.toBeNull()
+    mocks.fsReadText.mockClear()
+    fireEvent.click(within(overlay).getByRole('button', { name: 'common.preview' }))
+
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/draft.md')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-preview-type', 'artifact')
     expect(mocks.fsReadText).not.toHaveBeenCalled()
-    expect(mocks.createObjectURL).not.toHaveBeenCalled()
-    expect(mocks.pdfPreviewPanelProps.at(-1)).toEqual({
-      filePath: '/tmp/workspace/paper.pdf',
-      fileName: 'paper.pdf',
-      refreshKey: 0
+
+    await act(async () => {
+      resolveOversizedMetadata({ kind: 'file', size: oversizedDraftBytes, type: 'text' })
     })
   })
 
-  it('passes the PDF layout refresh key to PdfPreviewPanel', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
+  it('keeps the editor writable and disables discard while a failed save retry is running', async () => {
+    let resolveRetry!: (value: { mtime: number; size: number }) => void
+    mockWorkspaceTree('/tmp/workspace', ['draft.md'])
+    mocks.fsReadText.mockResolvedValue('# small')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('# small')))
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockImplementationOnce(() => new Promise((resolve) => (resolveRetry = resolve)))
+      .mockResolvedValueOnce({ mtime: 3, size: 12 })
 
-    const { rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutRefreshKey={0} />)
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-draft.md')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-draft.md'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    const editor = await within(overlay).findByTestId('code-editor')
+    fireEvent.change(editor, { target: { value: 'unsaved' } })
 
-    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
-
-    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-refresh-key', '0'))
-
-    rerender(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutRefreshKey={1} />)
-
-    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-refresh-key', '1'))
-    expect(mocks.pdfPreviewPanelProps.at(-1)).toEqual({
-      filePath: '/tmp/workspace/paper.pdf',
-      fileName: 'paper.pdf',
-      refreshKey: 1
-    })
-    expect(mocks.createObjectURL).not.toHaveBeenCalled()
-  })
-
-  it('shows loading instead of mounting the selected PDF while PDF layout is pending', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
-
-    const { rerender } = render(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutPending />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
-
-    expect(screen.getByTestId('loading-state')).toBeInTheDocument()
-    expect(screen.queryByTestId('pdf-preview-panel')).not.toBeInTheDocument()
-
-    rerender(<ArtifactPane workspacePath="/tmp/workspace" pdfLayoutRefreshKey={1} />)
-
-    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
-    expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-refresh-key', '1')
-    expect(screen.queryByTestId('loading-state')).not.toBeInTheDocument()
-  })
-
-  it('does not read files the buffer sniff classifies as binary', async () => {
-    mocks.isTextFile.mockResolvedValueOnce(false)
-    mockWorkspaceTree('/tmp/workspace', ['image.png'])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-image.png')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-image.png'))
-
-    await waitFor(() => expect(screen.getByText('agent.preview_pane.code_unavailable')).toBeInTheDocument())
-    expect(mocks.fsReadText).not.toHaveBeenCalled()
-  })
-
-  it('does not read unknown extensions when the sniff says binary', async () => {
-    mocks.isTextFile.mockResolvedValueOnce(false)
-    mockWorkspaceTree('/tmp/workspace', ['archive.custom'])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-archive.custom')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-archive.custom'))
-
-    await waitFor(() => expect(screen.getByText('agent.preview_pane.code_unavailable')).toBeInTheDocument())
-    expect(mocks.fsReadText).not.toHaveBeenCalled()
-  })
-
-  it('shows the file-unavailable state when the size sniff fails (missing/moved file)', async () => {
-    mocks.getMetadata.mockRejectedValueOnce(new Error('ENOENT: no such file'))
-    mockWorkspaceTree('/tmp/workspace', ['gone.ts'])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-gone.ts')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-gone.ts'))
-
-    await waitFor(() => expect(screen.getByText('agent.preview_pane.unavailable.title')).toBeInTheDocument())
-    expect(mocks.fsReadText).not.toHaveBeenCalled()
-  })
-
-  it('shows the file-unavailable state when reading text content fails', async () => {
-    mocks.fsReadText.mockRejectedValueOnce(new Error('EACCES: permission denied'))
-    mockWorkspaceTree('/tmp/workspace', ['locked.ts'])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-locked.ts')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-locked.ts'))
+    const alert = await within(overlay).findByRole('alert', undefined, { timeout: 3000 })
+    fireEvent.click(within(alert).getByRole('button', { name: 'common.retry' }))
 
     await waitFor(() =>
-      expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.unavailable.title')
+      expect(within(alert).getByRole('button', { name: 'agent.preview_pane.edit.discard' })).toBeDisabled()
     )
-    expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.unavailable.description')
-    expect(screen.queryByTestId('code-viewer')).not.toBeInTheDocument()
+    expect(editor).not.toHaveAttribute('readonly')
+    fireEvent.change(editor, { target: { value: 'queued edit' } })
+    expect(editor).toHaveValue('queued edit')
+
+    await act(async () => {
+      resolveRetry({ mtime: 2, size: 7 })
+    })
+    await waitFor(() =>
+      expect(mocks.ipcRequest.mock.calls.filter(([route]) => route === 'file.write_if_unchanged')).toHaveLength(3)
+    )
   })
 
-  it('reads unknown extensions when the sniff says text', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['notes.log'])
-    mocks.fsReadText.mockResolvedValue('boot at 12:00')
+  it('edits at 14px and preserves UTF-8 BOM and CRLF when saving', async () => {
+    const encoded = new TextEncoder().encode('first\r\nsecond\r\n')
+    const source = new Uint8Array(encoded.length + 3)
+    source.set([0xef, 0xbb, 0xbf])
+    source.set(encoded, 3)
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\r\nsecond\r\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(source))
+      .mockResolvedValueOnce({ mtime: 2, size: source.byteLength })
+    mocks.useRealCodeEditor = true
 
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-notes.log')).toBeInTheDocument())
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
 
-    fireEvent.click(screen.getByTestId('tree-node-notes.log'))
+    await waitFor(() => expect(mocks.codeEditorRef).not.toBeNull())
+    expect(document.querySelector('.code-editor')).toHaveStyle({ fontSize: '14px' })
+    expect(mocks.codeEditorRef?.getContent?.()).toBe('first\nsecond\n')
 
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/notes.log'))
-    expect(screen.getByTestId('code-viewer')).toHaveTextContent('boot at 12:00')
-  })
+    act(() => {
+      expect(mocks.codeEditorRef?.insertText?.('changed\ncontent\n')).toBe(true)
+    })
 
-  it('skips preview and readText for text files above the 2 MB size cap', async () => {
-    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 3 * 1024 * 1024 })
-    mockWorkspaceTree('/tmp/workspace', ['huge.json'])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-huge.json')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-huge.json'))
-
-    await waitFor(() => expect(screen.getByText('agent.preview_pane.too_large.title')).toBeInTheDocument())
-    expect(mocks.fsReadText).not.toHaveBeenCalled()
-  })
-
-  it('still renders PDFs above the 2 MB size cap', async () => {
-    mocks.getMetadata.mockResolvedValueOnce({ kind: 'file', size: 50 * 1024 * 1024 })
-    mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
-
-    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
-    expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
-  })
-
-  it.each(['report.xlsx', 'report.xlsm', 'proposal.docx', 'legacy.doc', 'legacy.xls', 'slides.ppt', 'slides.pptx'])(
-    'shows the Office document state for %s without reading source content',
-    async (fileName) => {
-      mockWorkspaceTree('/tmp/workspace', [fileName])
-
-      render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-      fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-      await waitFor(() => expect(screen.getByTestId(`tree-node-${fileName}`)).toBeInTheDocument())
-
-      fireEvent.click(screen.getByTestId(`tree-node-${fileName}`))
-
-      await waitFor(() => expect(screen.getByText(`unsupported ${fileName.split('.').pop()}`)).toBeInTheDocument())
-      expect(screen.getByText('agent.preview_pane.office.description')).toBeInTheDocument()
-      expect(screen.queryByText('agent.preview_pane.code_unavailable')).not.toBeInTheDocument()
-      expect(screen.queryByText('agent.preview_pane.too_large.title')).not.toBeInTheDocument()
-      expect(screen.queryByTestId('pdf-preview-panel')).not.toBeInTheDocument()
-      expect(mocks.fsRead).not.toHaveBeenCalled()
-      expect(mocks.fsReadText).not.toHaveBeenCalled()
-      expect(mocks.isTextFile).not.toHaveBeenCalledWith(`/tmp/workspace/${fileName}`)
+    // Autosave (debounced) writes without a manual save button.
+    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('file.write_if_unchanged', expect.anything()), {
+      timeout: 3000
+    })
+    const writeCall = mocks.ipcRequest.mock.calls.find(([route]) => route === 'file.write_if_unchanged')
+    if (!writeCall) throw new Error('Expected a file.write_if_unchanged request')
+    const writeInput = writeCall[1] as {
+      data: Uint8Array
+      expectedVersion: { mtime: number; size: number }
+      handle: { kind: 'path'; path: string }
     }
-  )
-
-  it('renders non-markdown text files through CodeViewer with the resolved language', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['config.json'])
-    mocks.fsReadText.mockResolvedValue('{"enabled":true}')
-
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-config.json')).toBeInTheDocument())
-
-    fireEvent.click(screen.getByTestId('tree-node-config.json'))
-
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledWith('/tmp/workspace/config.json'))
-    expect(screen.getByTestId('code-viewer')).toHaveAttribute('data-language', 'JSON')
-    expect(screen.getByTestId('code-viewer')).toHaveTextContent('{"enabled":true}')
+    expect(writeInput.handle).toEqual({ kind: 'path', path: '/tmp/workspace/notes.txt' })
+    expect(writeInput.expectedVersion).toEqual({ mtime: 1, size: source.byteLength })
+    const written = writeInput.data
+    expect(Array.from(written.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf])
+    const writtenText = new TextDecoder().decode(written.slice(3))
+    expect(writtenText).toContain('changed\r\ncontent\r\n')
+    expect(writtenText).toContain('first\r\nsecond\r\n')
+    expect(writtenText.replace(/\r\n/g, '')).not.toContain('\n')
   })
 
-  it('re-reads the selected text file when refresh is clicked', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-    mocks.fsReadText.mockResolvedValueOnce('# Before').mockResolvedValueOnce('# After')
+  it('keeps a failed agent draft visible and supports quick discard', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+      .mockRejectedValueOnce(new Error('disk full'))
 
-    render(<ArtifactPane workspacePath="/tmp/workspace" />)
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
-    await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'unsaved draft\n' } })
 
-    fireEvent.click(screen.getByTestId('tree-node-README.md'))
-    await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Before'))
+    const saveFailure = await screen.findByRole('alert', {}, { timeout: 3000 })
+    expect(saveFailure).toHaveTextContent('agent.preview_pane.edit.save_failed')
+    expect(screen.getByTestId('code-editor')).toHaveValue('unsaved draft\n')
 
-    // The watcher keeps the tree current; the refresh button now only
-    // re-pulls the active file's content (the FS scan stays a one-shot).
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+    fireEvent.click(within(saveFailure).getByRole('button', { name: 'agent.preview_pane.edit.discard' }))
 
-    await waitFor(() => expect(mocks.fsReadText).toHaveBeenCalledTimes(2))
-    expect(mocks.fsReadText).toHaveBeenLastCalledWith('/tmp/workspace/README.md')
-    expect(screen.getByTestId('markdown')).toHaveTextContent('# After')
-    expect(mocks.treeCreate).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(screen.getByTestId('code-editor')).toHaveValue('first\n'))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('clears the selected file when the watcher reports the file was removed', async () => {
-    mockWorkspaceTree('/tmp/workspace', ['README.md'])
-    mocks.fsReadText.mockResolvedValueOnce('# Before')
+  it('offers to reload the latest file after a stale write is rejected', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['notes.txt'])
+    mocks.fsReadText.mockResolvedValue('first\n')
+    mocks.ipcRequest
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('first\n')))
+      .mockRejectedValueOnce(new IpcError(fileErrorCodes.STALE_VERSION, 'stale'))
+      // First read verifies the stale write really diverged; second serves the reload.
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
+      .mockResolvedValueOnce(binaryReadResult(new TextEncoder().encode('external\n')))
 
+    render(<EditablePaneHarness workspacePath="/tmp/workspace" />)
+    await waitFor(() => expect(screen.getByTestId('tree-node-notes.txt')).toBeInTheDocument())
+    fireEvent.click(screen.getByTestId('tree-node-notes.txt'))
+
+    const overlay = await screen.findByTestId('artifact-file-preview-overlay')
+    fireEvent.click(await within(overlay).findByRole('button', { name: 'common.edit' }))
+    fireEvent.change(await screen.findByTestId('code-editor'), { target: { value: 'draft\n' } })
+
+    // Autosave hits the stale-version guard and opens the reload dialog.
+    const conflictDialog = await screen.findByRole('dialog', {}, { timeout: 3000 })
+    expect(conflictDialog).toHaveTextContent('agent.preview_pane.edit.conflict.title')
+    fireEvent.click(within(conflictDialog).getByRole('button', { name: 'agent.preview_pane.edit.conflict.reload' }))
+
+    await waitFor(() => expect(screen.getByTestId('code-editor')).toHaveValue('external\n'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('clears the preview overlay when the watcher reports the file was removed', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
     // Capture the live mutation listener so the test can push a `removed`
     // event the way the main-side builder would.
     let pushMutation: ((payload: { treeId: string; event: { type: 'removed'; path: string } }) => void) | undefined
@@ -1642,39 +1587,35 @@ describe('ArtifactPane', () => {
     })
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-README.md'))
-    await waitFor(() => expect(screen.getByTestId('markdown')).toHaveTextContent('# Before'))
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-file-path', '/tmp/workspace/README.md')
 
     await waitFor(() => expect(pushMutation).toBeDefined())
     act(() => {
       pushMutation?.({ treeId: 'tree-1', event: { type: 'removed', path: '/tmp/workspace/README.md' } })
     })
 
-    await waitFor(() => expect(screen.getByTestId('empty-state')).toHaveTextContent('agent.preview_pane.select_file'))
-    expect(screen.queryByTestId('markdown')).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByTestId('artifact-file-preview-overlay')).not.toBeInTheDocument())
+    expect(screen.queryByTestId('file-preview')).not.toBeInTheDocument()
   })
 
-  it('refresh does not re-read content for non-source-viewable selections (e.g. PDF)', async () => {
+  it('refreshes every selected file through the canonical preview contract', async () => {
     mockWorkspaceTree('/tmp/workspace', ['paper.pdf'])
 
     render(<ArtifactPane workspacePath="/tmp/workspace" />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.file_tree' }))
     await waitFor(() => expect(screen.getByTestId('tree-node-paper.pdf')).toBeInTheDocument())
 
     fireEvent.click(screen.getByTestId('tree-node-paper.pdf'))
-    await waitFor(() => expect(screen.getByTestId('pdf-preview-panel')).toBeInTheDocument())
+    expect(await screen.findByTestId('file-preview')).toHaveAttribute('data-refresh-key', '0')
 
-    fireEvent.click(screen.getByRole('button', { name: 'agent.preview_pane.refresh' }))
+    fireEvent.click(
+      within(screen.getByTestId('artifact-file-preview-overlay')).getByRole('button', {
+        name: 'agent.preview_pane.refresh'
+      })
+    )
 
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-    expect(mocks.fsReadText).not.toHaveBeenCalled()
-    expect(mocks.createObjectURL).not.toHaveBeenCalled()
-    expect(mocks.revokeObjectURL).not.toHaveBeenCalled()
-    expect(screen.getByTestId('pdf-preview-panel')).toHaveAttribute('data-refresh-key', '0')
+    expect(screen.getByTestId('file-preview')).toHaveAttribute('data-refresh-key', '1')
   })
 })

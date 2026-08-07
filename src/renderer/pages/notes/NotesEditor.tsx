@@ -1,12 +1,15 @@
 import { EmptyState, SpaceBetweenRowFlex, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import ActionIconButton from '@renderer/components/Buttons/ActionIconButton'
-import CodeEditor, { type CodeEditorHandles } from '@renderer/components/CodeEditor'
-import RichEditor from '@renderer/components/RichEditor'
+import ActionIconButton from '@renderer/components/ActionIconButton'
+import { CodeEditor, type CodeEditorHandles } from '@renderer/components/CodeEditor'
+import RichEditor from '@renderer/components/RichEditor/RichEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
@@ -29,6 +32,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
   ({ activeNodeId, currentContent, contentLoadError, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
+    const { activeCmTheme } = useCodeStyle()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
@@ -62,20 +66,19 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     if (!activeNodeId) {
       return (
-        <div className="flex h-full w-full flex-1 items-center justify-center">
-          <EmptyState preset="no-note" title={t('notes.empty')} compact />
+        <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
+          <EmptyState preset="no-note" title={t('notes.empty')} />
         </div>
       )
     }
 
     if (contentLoadError) {
       return (
-        <div className="flex h-full w-full flex-1 items-center justify-center">
+        <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
           <EmptyState
             preset="no-note"
             title={t('notes.load_failed')}
             description={t('notes.load_failed_description')}
-            compact
           />
         </div>
       )
@@ -83,7 +86,9 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     return (
       <>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
+        <div
+          data-ui="notes.editor"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
           {tmpViewMode === 'source' ? (
             <div className={`h-full ${settings.isFullWidth ? 'w-full' : 'mx-auto w-[60%]'}`}>
               <CodeEditor
@@ -93,6 +98,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 onChange={onMarkdownChange}
                 className="h-full"
                 expanded={false}
+                height="100%"
+                theme={activeCmTheme}
                 fontSize={settings.fontSize}
                 style={{
                   height: '100%'
@@ -108,6 +115,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               onCommandsReady={handleCommandsReady}
               showToolbar={tmpViewMode === 'preview'}
               editable={tmpViewMode === 'preview'}
+              autoFocus={currentContent.trim().length === 0}
               showTableOfContents={settings.showTableOfContents}
               enableContentSearch
               className="notes-rich-editor rounded-none! [&_.ToolbarWrapper]:rounded-none!"
@@ -133,11 +141,11 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                       const newValue = !enableSpellCheck
                       void setEnableSpellCheck(newValue).catch((error) => {
                         logger.error('Failed to update spell check preference', error as Error)
-                        window.toast.error(t('notes.settings.save_failed'))
+                        toast.error(t('notes.settings.save_failed'))
                       })
-                      void window.api.setEnableSpellCheck(newValue).catch((error) => {
+                      void ipcApi.request('app.set_spell_check_enabled', newValue).catch((error) => {
                         logger.error('Failed to update spell check runtime state', error as Error)
-                        window.toast.error(t('notes.settings.save_failed'))
+                        toast.error(t('notes.settings.save_failed'))
                       })
                     }}
                     icon={<SpellCheck size={18} />}

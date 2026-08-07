@@ -3,7 +3,7 @@
  * location and would therefore leak across agent sessions.
  *
  * The agent runtime keeps the user's real HOME (so the launched CLIs read their
- * config/creds — see process.ts `getBinaryExecutionEnv`), which means a global
+ * config/creds — see binaryEnv.ts `getBinaryExecutionEnv`), which means a global
  * install lands in `~/.bun`, `~/.local/share/uv`, etc. — shared by every agent
  * and polluting the user's machine. Project-local installs (cwd `node_modules` /
  * `.venv`, isolated per workspace) and ephemeral runners (`bun x` / `uvx`) are
@@ -45,6 +45,34 @@ const RULES: Array<{ test: (seg: string) => boolean; reason: string }> = [
   {
     test: (s) => /\buv\s+pip\s+install\b/.test(s) && /(?:^|\s)--system(?:\s|$)/.test(s),
     reason: 'uv pip install --system'
+  },
+  {
+    // BinaryManager is the sole owner of Cherry's isolated mise state.
+    test: (s) =>
+      /\bmise\s+(?:(?:use|install|uninstall|remove|rm|prune|upgrade|update|reshim|trust|untrust)\b|plugins?\s+(?:install|uninstall|update)\b|settings?\s+(?:set|unset)\b)/.test(
+        s
+      ),
+    reason: 'direct mise mutation (use cli_search / cli_install)'
+  },
+  {
+    test: (s) => /\bcargo\s+install\b/.test(s),
+    reason: 'cargo install (persistent user tool)'
+  },
+  {
+    test: (s) => /\bgo\s+install\b/.test(s),
+    reason: 'go install (persistent user tool)'
+  },
+  {
+    test: (s) => /\bgem\s+install\b/.test(s),
+    reason: 'gem install (persistent user tool)'
+  },
+  {
+    test: (s) => /\b(?:brew|apt(?:-get)?|dnf|yum)\s+install\b/.test(s),
+    reason: 'system package-manager install'
+  },
+  {
+    test: (s) => /\bdotnet\s+tool\s+install\b/.test(s) && GLOBAL_FLAG.test(s),
+    reason: 'dotnet tool install --global'
   }
 ]
 

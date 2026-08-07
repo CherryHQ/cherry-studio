@@ -1,4 +1,4 @@
-import ChannelsSettings from '@renderer/pages/settings/ChannelsSettings'
+import ChannelsSettings from '@renderer/pages/settings/ChannelsSettings/ChannelsSettings'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/settings/channels')({

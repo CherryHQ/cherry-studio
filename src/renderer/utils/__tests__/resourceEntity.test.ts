@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { findLatestUpdated, isUntouchedSinceCreation } from '../resourceEntity'
+import { findLatestUpdated, isUntouchedSinceCreation, pickNeighbourAfterRemoval } from '../resourceEntity'
 
 describe('resourceEntity', () => {
   describe('isUntouchedSinceCreation', () => {
@@ -64,6 +64,25 @@ describe('resourceEntity', () => {
       const first = { id: 'first', updatedAt: '2024-01-01T00:00:00.000Z' }
       const second = { id: 'second', updatedAt: '2024-01-01T00:00:00.000Z' }
       expect(findLatestUpdated([first, second])).toBe(first)
+    })
+  })
+
+  describe('pickNeighbourAfterRemoval', () => {
+    const list = [{ id: 'a' }, { id: 'b' }, { id: 'c' }]
+
+    it('picks the next row in display order', () => {
+      expect(pickNeighbourAfterRemoval(list, 'a')).toEqual({ id: 'b' })
+      expect(pickNeighbourAfterRemoval(list, 'b')).toEqual({ id: 'c' })
+    })
+
+    it('picks the previous row when the removed row was last', () => {
+      expect(pickNeighbourAfterRemoval(list, 'c')).toEqual({ id: 'b' })
+    })
+
+    it('returns undefined when the id is absent or it was the only row', () => {
+      expect(pickNeighbourAfterRemoval(list, 'missing')).toBeUndefined()
+      expect(pickNeighbourAfterRemoval([{ id: 'only' }], 'only')).toBeUndefined()
+      expect(pickNeighbourAfterRemoval([], 'a')).toBeUndefined()
     })
   })
 })

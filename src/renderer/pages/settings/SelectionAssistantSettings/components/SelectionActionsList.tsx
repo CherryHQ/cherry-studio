@@ -1,11 +1,12 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { DragDropContext } from '@hello-pangea/dnd'
+import SelectionToolbarView from '@renderer/components/selection/SelectionToolbarView'
+import { SettingDivider, SettingGroup } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 
-import { SettingDivider, SettingGroup } from '../..'
 import { useActionItems } from '../hooks/useSettingsActionsList'
 import ActionsList from './ActionsList'
 import ActionsListDivider from './ActionsListDivider'
@@ -45,6 +46,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
   } = useActionItems(actionItems, setActionItems)
 
   const { theme } = useTheme()
+  const [isCompact] = usePreference('feature.selection.compact')
 
   if (!actionItems || actionItems.length === 0) {
     setActionItems(DefaultPreferences.default['feature.selection.action_items'])
@@ -62,7 +64,13 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
       <SettingDivider />
 
       <div className="my-6 flex items-center justify-center">
-        <SelectionToolbar demo />
+        <SelectionToolbarView
+          actionItems={actionItems?.filter((item) => item.enabled) ?? []}
+          isCompact={isCompact}
+          handleAction={() => {}}
+          copyIconStatus="normal"
+          copyIconAnimation="none"
+        />
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>

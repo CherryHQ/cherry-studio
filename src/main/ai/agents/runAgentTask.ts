@@ -1,29 +1,45 @@
 /**
  * Business logic for `agent.task` jobs — owned by `agentTaskJobHandler`.
  *
- * Each fire creates a fresh agent session. Per-fire sessions are recorded in
- * `job.output.sessionId` for audit only — there is no cross-fire session
- * reuse pointer on the schedule. Scheduled tasks are discrete background
- * invocations (heartbeat, periodic summary, polling), not conversations, so
- * carrying context across fires would only stuff the model's window with
- * stale state. Persistent agent memory belongs in workspace files
+ * By default each fire creates a fresh agent session: scheduled tasks are
+ * discrete background invocations (heartbeat, periodic summary, polling), not
+ * conversations, so carrying context across fires would only stuff the model's
+ * window with stale state. Persistent agent memory belongs in workspace files
  * (`heartbeat.md`, agent memory) instead of session history.
+ *
+ * A task may opt into `reuseSession`, which binds one sticky session through a
+ * constrained session→schedule relation and continues it on every
+ * fire. That session grows unbounded by design — reset it by disabling and
+ * saving, then enabling and saving. Rotate automatically only if unbounded
+ * growth turns out to bite in practice.
+ *
+ * Because a sticky session is reachable by the user (the run log links to it),
+ * a reusing fire stands down when that session already has a turn in flight.
+ * Admission is enforced under the stream manager's per-topic dispatch lock.
+ *
+ * Either way the session used by a fire is recorded in `job.output.sessionId`
+ * for the run log; the reuse pointer is read from the constrained relation,
+ * never from there (job rows are GC'd).
  */
 
+import { application } from '@application'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import {
+  normalizeTaskSessionReuseRevision,
+  readTaskSessionReuse,
+  type TaskSessionReuse
+} from '@data/services/AgentTaskService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
-import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
+import { readHeartbeat } from '@main/ai/agents/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
-import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
-import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
-import { application } from '@main/core/application'
+import { ChannelAdapterListener, startAgentSessionRun, type StreamListener } from '@main/ai/streamManager'
 import type { JobContext } from '@main/core/job/types'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 
 const logger = loggerService.withContext('runAgentTask')
@@ -36,11 +52,14 @@ export type AgentTaskInput = {
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+  /** Reuse-config epoch captured when this job was enqueued. */
+  reuseRevision: number
 }
 
 export type AgentTaskOutput = {
-  /** Session created for this fire. Persisted to `jobTable.output` purely as
-   *  an audit trail — the task scheduler never reads this back for continuity. */
+  /** Session this fire ran in — created fresh, or the sticky one under
+   *  `reuseSession`. Persisted to `jobTable.output` purely as an audit trail;
+   *  continuity is driven by the schedule's reuse pointer, never by this. */
   sessionId: string | null
   /** First 200 chars of the assistant reply, or a status marker for skipped runs. */
   result: string
@@ -63,6 +82,62 @@ function makeRunSignal(
   )
   const signal = AbortSignal.any([outerSignal, timeoutController.signal])
   return { signal, dispose: () => clearTimeout(timer) }
+}
+
+/**
+ * Load the sticky session for a reusing task, or `null` when it can no longer
+ * be used — deleted, or (defensively) re-owned by a different agent. Callers
+ * treat `null` as "rebind a fresh one" rather than an error: a user deleting
+ * the session must not break the schedule.
+ */
+function loadReusableSession(taskScheduleId: string, agentId: string) {
+  const session = agentSessionService.getByTaskScheduleId(taskScheduleId)
+  if (!session) return null
+  if (session.agentId !== agentId) {
+    logger.warn('Reuse session belongs to another agent — rebinding', { taskScheduleId, agentId })
+    return null
+  }
+  return session
+}
+
+/**
+ * Resolve the session this fire runs in. A reused session keeps its own
+ * workspace, so the task's `workspace` field only applies when creating one —
+ * system for regular tasks (the picker defaults there), the validated user
+ * workspace for heartbeats.
+ *
+ * Admission is checked atomically under `startAgentSessionRun`'s topic lock, after this
+ * read-side resolution step, so an interactive turn cannot slip through between check and start.
+ */
+function resolveTaskSession(params: {
+  reuse: TaskSessionReuse
+  reuseBinding: { scheduleId: string; reuseRevision: number } | null
+  agentId: string
+  name: string
+  workspace: AgentSessionWorkspaceSource
+}): ReturnType<typeof agentSessionService.create> {
+  const { reuse, reuseBinding, agentId, name, workspace } = params
+
+  if (reuse.enabled && reuseBinding) {
+    const existing = loadReusableSession(reuseBinding.scheduleId, agentId)
+    if (existing) {
+      return existing
+    }
+    logger.info('Reuse session unavailable — creating a new one', {
+      scheduleId: reuseBinding?.scheduleId
+    })
+  }
+
+  const session = agentSessionService.create({ agentId, name, workspace })
+  if (reuse.enabled && reuseBinding) {
+    application.get('AgentJobsService').bindTaskSessionReuse({
+      ...reuseBinding,
+      sessionId: session.id,
+      agentId,
+      workspace
+    })
+  }
+  return session
 }
 
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
@@ -135,19 +210,24 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     ].join('\n')
   }
 
-  // Always create a fresh session per fire. Scheduled tasks are discrete
-  // invocations; cross-fire session reuse would only carry stale model
-  // context. Persistent state lives in workspace files (heartbeat.md, etc.).
-  // The session inherits the workspace bound on the task at creation time —
-  // system for regular tasks (the picker defaults there), the validated user
-  // workspace for heartbeats.
-  const session = agentSessionService.create({
+  const expectedReuseRevision = normalizeTaskSessionReuseRevision(ctx.input.reuseRevision)
+  const currentReuse = readTaskSessionReuse(scheduleSnapshot?.metadata)
+  // A queued job captures the reuse epoch at enqueue time. It must not attach
+  // to a sticky session selected by a newer task configuration.
+  const reuseIsCurrent =
+    scheduleSnapshot?.type === 'agent.task' && currentReuse.enabled && currentReuse.revision === expectedReuseRevision
+  const reuseBinding = reuseIsCurrent && scheduleId ? { scheduleId, reuseRevision: expectedReuseRevision } : null
+  let session = resolveTaskSession({
+    reuse: reuseIsCurrent ? currentReuse : { enabled: false, revision: expectedReuseRevision },
+    reuseBinding,
     agentId,
     name: taskName ?? 'Scheduled task',
     workspace
   })
-
-  const subscribedChannels = scheduleId ? agentChannelService.getSubscribedChannels(scheduleId) : []
+  // Guards legacy rows and races that data hygiene cannot catch.
+  const subscribedChannels = scheduleId
+    ? agentChannelService.getSubscribedChannels(scheduleId).filter((channel) => channel.agentId === agentId)
+    : []
 
   const channelManager = application.get('ChannelManager')
   const channelListeners: StreamListener[] = subscribedChannels.flatMap((ch) => {
@@ -167,7 +247,30 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     resolveExecution = resolve
     rejectExecution = reject
   })
+  let topicId = buildAgentSessionTopicId(session.id)
   let accumulatedText = ''
+  let completionActive = true
+  const complete = (settle: () => void) => {
+    if (!completionActive) return
+    completionActive = false
+    // `startRuntimeTurn` carries ordinary listeners into a queued successor. Remove this fire's
+    // task/channel listeners synchronously, before the later runtime terminal listener can launch it.
+    for (const listener of channelListeners) application.get('AiStreamManager').removeListener(topicId, listener.id)
+    application.get('AiStreamManager').removeListener(topicId, `agent-task:${scheduleId ?? ctx.jobId}`)
+    settle()
+  }
+  const fanOutTerminalToChannels = (invoke: (listener: StreamListener) => void | Promise<void>) => {
+    for (const listener of channelListeners) {
+      if (!listener.isAlive()) continue
+      try {
+        void Promise.resolve(invoke(listener)).catch((error) => {
+          logger.warn('Task channel terminal listener failed', { scheduleId, error })
+        })
+      } catch (error) {
+        logger.warn('Task channel terminal listener threw', { scheduleId, error })
+      }
+    }
+  }
   const sentinel: StreamListener = {
     id: `agent-task:${scheduleId ?? ctx.jobId}`,
     onChunk(chunk) {
@@ -176,57 +279,87 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
       // result was always the `'Completed'` fallback.
       if (chunk.type === 'text-delta') accumulatedText += chunk.delta
     },
-    onDone() {
-      resolveExecution(accumulatedText.trim())
+    onDone(result) {
+      complete(() => resolveExecution(accumulatedText.trim()))
+      fanOutTerminalToChannels((listener) => listener.onDone(result))
     },
-    onPaused() {
+    onPaused(result) {
       if (runSignal.aborted) {
         const reason = runSignal.reason
-        rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
+        complete(() => rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))))
+        fanOutTerminalToChannels((listener) => listener.onPaused(result))
         return
       }
-      resolveExecution(accumulatedText.trim())
+      complete(() => resolveExecution(accumulatedText.trim()))
+      fanOutTerminalToChannels((listener) => listener.onPaused(result))
     },
     onError(result) {
-      rejectExecution(new Error(result.error.message ?? 'Execution failed'))
+      complete(() => rejectExecution(new Error(result.error.message ?? 'Execution failed')))
+      fanOutTerminalToChannels((listener) => listener.onError(result))
     },
-    // Keep `true`: the manager prunes a listener whose `isAlive()` is false BEFORE
-    // firing its terminal callback, so gating on `runSignal` here would make an
-    // aborted run's terminal event never settle `executionDone`. Abort is handled
-    // explicitly via `onRunAbort` below.
-    isAlive: () => true
+    // Terminal dispatch calls this before every event. `complete()` is only reached by that
+    // terminal callback, then removes the listener synchronously before a queued successor starts.
+    isAlive: () => completionActive
   }
 
-  const topicId = buildAgentSessionTopicId(session.id)
   // On JobManager cancel or per-task timeout, stop the upstream run: the execution's
   // own controller never sees `runSignal`, so abort the live stream and settle
   // `executionDone` here — otherwise the handler promise leaks until the JobManager's
   // force-finalize timeout.
   const onRunAbort = () => {
+    if (!completionActive) return
+    completionActive = false
+    for (const listener of channelListeners) application.get('AiStreamManager').removeListener(topicId, listener.id)
+    application.get('AiStreamManager').removeListener(topicId, sentinel.id)
     const reason = runSignal.reason
     application
       .get('AiStreamManager')
       .abort(topicId, reason instanceof Error ? reason.message : String(reason ?? 'task-aborted'))
     rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
   }
-  if (runSignal.aborted) onRunAbort()
-  else runSignal.addEventListener('abort', onRunAbort, { once: true })
-
   let runError: Error | null = null
   let resultText = ''
   try {
-    await startAgentSessionRun({
-      sessionId: session.id,
-      userParts: [{ type: 'text', text: effectivePrompt }],
-      listeners: [sentinel, ...channelListeners]
-    })
+    let rebound = false
+    while (true) {
+      const started = await startAgentSessionRun({
+        sessionId: session.id,
+        userParts: [{ type: 'text', text: effectivePrompt }],
+        listeners: [sentinel, ...channelListeners],
+        headless: true,
+        requireIdle: { expectedAgentId: agentId }
+      })
+      if (started.mode === 'started') break
+      if (runSignal.aborted) {
+        completionActive = false
+        const reason = runSignal.reason
+        throw reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))
+      }
+      if (started.reason === 'busy') {
+        completionActive = false
+        return { sessionId: session.id, result: 'Skipped (session busy)' }
+      }
+      if (rebound) throw new Error(`Agent session ${session.id} became invalid while starting task`)
+      rebound = true
+      session = agentSessionService.create({ agentId, name: taskName ?? 'Scheduled task', workspace })
+      topicId = buildAgentSessionTopicId(session.id)
+      if (reuseBinding) {
+        application.get('AgentJobsService').bindTaskSessionReuse({
+          ...reuseBinding,
+          sessionId: session.id,
+          agentId,
+          workspace
+        })
+      }
+    }
+
+    // Do not arm topic-level cancellation before admission. While this call waits for the
+    // dispatch lock, the topic may legitimately belong to a user's live turn; aborting there
+    // would kill exactly the stream that `requireIdle` is meant to stand down from.
+    if (runSignal.aborted) onRunAbort()
+    else runSignal.addEventListener('abort', onRunAbort, { once: true })
 
     resultText = await executionDone
-
-    if (runSignal.aborted) {
-      const reason = runSignal.reason
-      throw reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted'))
-    }
   } catch (err) {
     runError = err instanceof Error ? err : new Error(String(err))
     if (!runSignal.aborted && subscribedChannels.length > 0) {

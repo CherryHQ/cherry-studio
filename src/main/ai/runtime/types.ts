@@ -1,12 +1,42 @@
+import type { LanguageModelV3ToolApprovalRequest } from '@ai-sdk/provider'
+import type { AiUsageCredentialReceipt, SourceSnapshot } from '@data/services/AiUsageRecordService'
+import type { AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
+import type { AgentSessionBackgroundTasks } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
+import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AiUsagePricingSnapshot } from '@shared/data/types/aiUsageRecord'
+import type { MessageSnapshot } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
+import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { UIMessageChunk } from 'ai'
 
 export type AiRuntimeCapability = 'agent-session' | 'chat-turn' | 'generate-text' | 'embed' | 'image'
+
+/**
+ * Agent-session usage has exactly one capture owner per runtime route.
+ * Direct/external SDK routes emit per-assistant-message invocation records;
+ * gateway routes are captured by the normal provider-call middleware.
+ */
+export type AgentSessionUsageCapture =
+  | {
+      owner: 'agent-sdk'
+      credentialReceipt: AiUsageCredentialReceipt
+      providerId: string
+      providerName: string | null
+      source: SourceSnapshot | null
+      frozenModels: ReadonlyArray<{
+        modelId: string
+        modelName: string | null
+        aliases: readonly string[]
+        pricingSnapshot: AiUsagePricingSnapshot | null
+      }>
+    }
+  | { owner: 'provider-calls' }
 
 export interface AiRuntimeDriver {
   readonly type: string
@@ -26,8 +56,20 @@ export interface AgentRuntimeConnectInput {
   sessionId: string
   agentId: string
   modelId: UniqueModelId
+  /** Canonical reasoning selection frozen for this connection's turn. */
+  reasoningEffort?: ReasoningEffortOption
+  /** Per-turn composer knowledge selection; static Agent bindings still take precedence. */
+  knowledgeBaseIds?: readonly string[]
+  /** Whether this connection's turn requests Fast processing. */
+  fastMode?: boolean
   resumeToken?: string
   trace?: AgentRuntimeTraceContext
+  /**
+   * Synchronous host hook fired when a pending steer is actually injected. The host uses this
+   * before the SDK can issue its next provider request to reserve the continuation correlation;
+   * the later `steer-boundary` event still owns the visible A1 -> A2 message roll.
+   */
+  onSteerInjected?: (inputs: AgentRuntimeUserInput[]) => void
 }
 
 export interface AgentRuntimeUserInput {
@@ -35,14 +77,51 @@ export interface AgentRuntimeUserInput {
   /** True when this message arrived mid-turn (a steer) — the driver wraps it in a system-reminder
    *  so the model treats it as a redirect rather than a fresh prompt (invariant 7). */
   systemReminder?: boolean
+  /** Host-owned message attributes that must survive the driver round-trip (`redirect` →
+   *  `steer-boundary`/`steer-undelivered`). Opaque to drivers. */
+  headless?: boolean
+  messageSnapshot?: MessageSnapshot
 }
 
-export type AgentRuntimePolicyUpdate =
-  | { type: 'permission-mode'; permissionMode: AgentPermissionMode | undefined }
-  | { type: 'tool-policy'; agent: Pick<AgentEntity, 'mcps' | 'disabledTools' | 'configuration'> }
+/**
+ * Runtime-neutral approval request. Drivers emit this instead of writing directly to a live
+ * renderer stream: the host can append it to the current turn or persist an independent
+ * interaction message when the requesting agent outlives that turn.
+ */
+export interface AgentRuntimeToolApprovalRequest {
+  approvalId: string
+  toolCallId: string
+  toolName: string
+  input: Record<string, unknown>
+  presentation: 'stream' | 'message'
+  providerMetadata?: LanguageModelV3ToolApprovalRequest['providerMetadata']
+}
 
 export type AgentRuntimeEvent =
   | { type: 'chunk'; chunk: UIMessageChunk }
+  | { type: 'tool-approval-request'; request: AgentRuntimeToolApprovalRequest }
+  | {
+      type: 'usage'
+      invocation: {
+        requestId: string
+        model: string
+        /** Frozen when the provider invocation is first observed; never inferred later from host turn state. */
+        messageAssociation: 'current-turn' | 'stateless'
+        usage?: {
+          inputTokens: number
+          outputTokens: number
+          totalTokens: number
+          noCacheTokens: number
+          cacheReadTokens: number
+          cacheWriteTokens: number
+        }
+        metrics?: {
+          timeFirstTokenMs?: number
+          timeCompletionMs?: number
+          timeThinkingMs?: number
+        }
+      }
+    }
   | { type: 'resume-token'; token: string }
   | { type: 'turn-complete' }
   /** Steers stashed via `redirect()` that the turn ended before injecting — the host queues them
@@ -56,27 +135,91 @@ export type AgentRuntimeEvent =
   | { type: 'compaction-start'; trigger?: AgentSessionCompactionTrigger }
   | { type: 'compaction-complete'; anchor?: AgentSessionCompactionAnchorData }
   | { type: 'compaction-error'; error: string }
+  /** The SDK is backing off before retrying a failed API request (`system/api_retry`). Ephemeral
+   *  session status — the host surfaces it in the message stream and clears it when content resumes,
+   *  the turn ends/errors/cancels, or the connection closes. Never persisted as conversation content. */
+  | { type: 'api-retry'; retry: AgentSessionApiRetryInfo }
   | { type: 'context-usage'; usage: AgentSessionContextUsage }
+  /** The SDK pushed a fresh slash-command catalog mid-session (`system / commands_changed`) — e.g.
+   *  skills discovered as the agent works in a subdirectory. `supportedCommands()` is captured at
+   *  init and never reflects this, so the host REPLACES its cached list from `commands`. */
+  | { type: 'supported-commands'; commands: AgentSessionSlashCommand[] }
+  /** Live background work after a membership change. REPLACE semantics — the payload is the full set. */
+  | { type: 'background-tasks'; tasks: AgentSessionBackgroundTasks }
+  /** Whether work outliving the current turn still needs this connection kept alive. `false` is a
+   *  runtime-quiescence boundary: all trailing lifecycle output and autonomous generation for that
+   *  work have drained. This does not block host-admitted user turns unless a rebuild is required. */
+  | { type: 'background-work-state'; active: boolean }
+  /** Task lifecycle that arrived with no turn stream to carry it; the host keeps the latest per task. */
+  | { type: 'background-task-event'; data: AgentTaskEventPartData }
+  /** Parented subagent content that outlived its spawning turn. The host patches these chunks onto
+   *  the persisted assistant message that owns `rootToolCallId`; they never open a new main turn. */
+  | { type: 'background-flow-chunk'; rootToolCallId: string; chunk: UIMessageChunk }
+  /** Runtime-generated content started without a host-admitted user turn. `started` atomically
+   *  transfers generation ownership and asks the host to open a receive-only transcript turn;
+   *  `finished` releases ownership after the SDK result, independently from turn completion. */
+  | { type: 'autonomous-turn-state'; state: 'started' | 'finished' }
   | { type: 'error'; error: unknown }
+
+/**
+ * Verdict of {@link AgentRuntimeConnection.reconcile}.
+ * - `current`: connection matches the desired config.
+ * - `patched`: live-appliable facts were hot-patched; the connection is now current.
+ * - `rebuild`: spawn-frozen config is stale — the host reconnects at a safe boundary (any live
+ *   patches were still applied first).
+ * - `invalid`: the desired config can no longer be derived (agent/session/model deleted) — close.
+ * - `failed`: a live patch failed — fail closed; the connection may be enforcing the OLD policy.
+ */
+export type AgentRuntimeReconcileResult = 'current' | 'patched' | 'rebuild' | 'invalid' | 'failed'
 
 export interface AgentRuntimeConnection {
   readonly events: AsyncIterable<AgentRuntimeEvent>
+  /** Refresh per-turn observability metadata without changing spawn-fixed connection configuration. */
+  refreshTraceContext?(context: AgentRuntimeTraceContext): void | Promise<void>
+  /** Connection-route-owned usage capture policy and non-secret credential receipt. */
+  readonly usageCapture?: AgentSessionUsageCapture
   send(input: AgentRuntimeUserInput): void | Promise<void>
   /**
    * Inject a mid-turn user message (steer) into the running turn without aborting it. Returns true
    * when the message was stashed for injection (a turn is live) — the host then folds it into the
    * current turn instead of opening a new one; if the turn ends before it is injected the connection
-   * emits `steer-undelivered`. Returns false when there is no live turn to steer, so the host queues
-   * the message as the next turn. Omitted ⇒ no native steer ⇒ host always queues.
+   * emits `steer-undelivered`. Returns false when there is no live turn or the message cannot be
+   * injected by this driver, so the host queues it as the next turn. Omitted ⇒ no native steer ⇒
+   * host always queues.
    */
   redirect?(input: AgentRuntimeUserInput): boolean
-  applyPolicyUpdate?(update: AgentRuntimePolicyUpdate): Promise<boolean> | boolean
+  /**
+   * Re-derive the session's desired config and reconcile the running connection against it.
+   * Live-appliable tool-policy facts are patched in place before the rebuild verdict, except for
+   * permission-mode changes: those stay frozen for an active turn and apply at the next turn
+   * boundary. Serialized per connection, concurrent push/pull reconciles queue instead of
+   * interleaving SDK and snapshot writes.
+   *
+   * The input is the config the connection should serve right now (a live turn's frozen model,
+   * reasoning, and knowledge selection, or the agent's latest model with defaults) — the same
+   * pinning the host uses for `connect`.
+   */
+  // ponytail: single driver — make optional with a capability fallback when a 2nd connection type ships
+  reconcile(input: {
+    modelId: UniqueModelId
+    reasoningEffort?: ReasoningEffortOption
+    knowledgeBaseIds?: readonly string[]
+    fastMode?: boolean
+  }): Promise<AgentRuntimeReconcileResult>
   /**
    * Read the live context-window usage for this connection's session. Returns null when the
    * underlying runtime can't report it (no query yet, or a driver that doesn't support it).
    * Optional ⇒ the host treats the runtime as unable to report usage.
    */
   getContextUsage?(): Promise<AgentSessionContextUsage | null>
+  /**
+   * Read this session's available slash command catalog (`query.supportedCommands()`), including
+   * any custom project/user commands the SDK discovered. Returns null when the runtime can't report
+   * it (no query yet, or a driver that doesn't support it). Optional ⇒ the host falls back to the
+   * static builtin list.
+   */
+  getSupportedCommands?(): Promise<AgentSessionSlashCommand[] | null>
+  stopTask?(taskId: string): Promise<boolean>
   close(): void | Promise<void>
 }
 

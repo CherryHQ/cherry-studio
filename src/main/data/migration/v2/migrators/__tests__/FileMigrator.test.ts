@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 
 import { FileEntrySchema } from '@shared/data/types/file'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { loggerWarnMock } = vi.hoisted(() => ({
@@ -25,7 +25,7 @@ vi.mock('node:fs', async () => {
 })
 
 import { FileMigrator } from '../FileMigrator'
-import { getAllMigrators } from '../index'
+import { getAllMigrators } from '../migratorRegistry'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -785,12 +785,15 @@ describe('FileMigrator write/read validation invariant', () => {
     const prepared = (m as any).preparedEntries as Array<Record<string, unknown>>
     expect(prepared).toHaveLength(3)
     for (const e of prepared) {
+      expect(e.contentHash).toBeNull()
       const probe = FileEntrySchema.safeParse({
         id: e.id,
         origin: 'internal',
         name: e.name,
         ext: e.ext,
+        cleanupPolicy: e.cleanupPolicy,
         size: e.size,
+        contentHash: e.contentHash,
         createdAt: e.createdAt,
         updatedAt: e.updatedAt
       })

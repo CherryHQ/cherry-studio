@@ -1,50 +1,28 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import HtmlArtifactsCard from '../HtmlArtifactsCard'
 
 const mocks = vi.hoisted(() => ({
   createTempFile: vi.fn(),
-  error: vi.fn(),
-  HtmlArtifactsPopup: vi.fn(({ open }) => (open ? <div data-testid="html-artifacts-popup" /> : null)),
+  HtmlArtifactsPopup: vi.fn(({ open, title }: { open: boolean; title: string }) =>
+    open ? <div role="dialog" aria-label={title} /> : null
+  ),
   loadHtmlArtifactsPopup: vi.fn(),
-  loggerError: vi.fn(),
   openPath: vi.fn(),
   save: vi.fn(),
-  success: vi.fn(),
+  t: (key: string, fallback?: string) => fallback ?? key,
   write: vi.fn()
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: any) => (
-    <button type="button" {...props}>
-      {children}
-    </button>
-  )
-}))
-
-vi.mock('@cherrystudio/ui/lib/utils', () => ({
-  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      error: mocks.loggerError,
-      info: vi.fn(),
-      warn: vi.fn()
-    })
-  }
-}))
-
-vi.mock('@renderer/utils/error', () => ({
-  formatErrorMessageWithPrefix: vi.fn((error, prefix) => `${prefix}: ${(error as Error).message}`)
-}))
+vi.mock('@cherrystudio/ui', async (importOriginal) => importOriginal<typeof CherryStudioUi>())
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({
-    t: (key: string, fallback?: string) => fallback ?? key
-  })
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+  useTranslation: () => ({ t: mocks.t })
 }))
 
 vi.mock('../HtmlArtifactsPopup', () => {
@@ -77,83 +55,75 @@ describe('HtmlArtifactsCard', () => {
         }
       }
     })
-
-    Object.defineProperty(window, 'toast', {
-      configurable: true,
-      writable: true,
-      value: {
-        error: mocks.error,
-        success: mocks.success
-      }
-    })
   })
 
   it('opens the generated HTML file through the file API', async () => {
+    const user = userEvent.setup()
     render(<HtmlArtifactsCard html={html} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.artifacts.button.openExternal' }))
+    await user.click(screen.getByRole('button', { name: 'chat.artifacts.button.openExternal' }))
 
     await waitFor(() => expect(mocks.openPath).toHaveBeenCalledWith('/tmp/artifacts-preview.html'))
     expect(mocks.createTempFile).toHaveBeenCalledWith('artifacts-preview.html')
     expect(mocks.write).toHaveBeenCalledWith('/tmp/artifacts-preview.html', html)
-    expect(mocks.error).not.toHaveBeenCalled()
   })
 
-  it('shows an error when opening the generated HTML file fails', async () => {
+  it('reports a failure to open the generated file', async () => {
+    const user = userEvent.setup()
     mocks.openPath.mockRejectedValueOnce(new Error('open failed'))
-
     render(<HtmlArtifactsCard html={html} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.artifacts.button.openExternal' }))
+    await user.click(screen.getByRole('button', { name: 'chat.artifacts.button.openExternal' }))
 
     await waitFor(() =>
-      expect(mocks.error).toHaveBeenCalledWith('chat.artifacts.preview.openExternal.error.content: open failed')
+      expect(toast.error).toHaveBeenCalledWith('chat.artifacts.preview.openExternal.error.content: open failed')
     )
-    expect(mocks.loggerError).toHaveBeenCalledWith('Failed to open HTML artifact externally', expect.any(Error))
   })
 
-  it('downloads the HTML artifact', async () => {
+  it('downloads the HTML artifact with its document title', async () => {
+    const user = userEvent.setup()
     render(<HtmlArtifactsCard html={html} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'code_block.download.label' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.download.label' }))
 
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith('Sample-Page.html', html))
-    expect(mocks.success).toHaveBeenCalledWith('message.download.success')
-    expect(mocks.error).not.toHaveBeenCalled()
+    expect(toast.success).toHaveBeenCalledWith('message.download.success')
   })
 
-  it('shows an error when downloading the HTML artifact fails', async () => {
+  it('reports a failed HTML download', async () => {
+    const user = userEvent.setup()
     mocks.save.mockRejectedValueOnce(new Error('save failed'))
-
     render(<HtmlArtifactsCard html={html} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'code_block.download.label' }))
+    await user.click(screen.getByRole('button', { name: 'code_block.download.label' }))
 
-    await waitFor(() => expect(mocks.error).toHaveBeenCalledWith('message.download.failed: save failed'))
-    expect(mocks.success).not.toHaveBeenCalled()
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('message.download.failed: save failed'))
   })
 
-  it('loads and mounts the popup only after preview opens', async () => {
-    const onSave = vi.fn()
-
-    render(<HtmlArtifactsCard html={html} onSave={onSave} editable={false} />)
+  it('opens the titled artifact preview', async () => {
+    const user = userEvent.setup()
+    render(<HtmlArtifactsCard html={html} />)
 
     expect(mocks.loadHtmlArtifactsPopup).not.toHaveBeenCalled()
-    expect(screen.queryByTestId('html-artifacts-popup')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'chat.artifacts.button.preview: Sample Page' }))
 
-    fireEvent.click(screen.getByRole('button', { name: 'chat.artifacts.button.preview' }))
+    expect(await screen.findByRole('dialog', { name: 'Sample Page' })).toBeInTheDocument()
+    expect(mocks.loadHtmlArtifactsPopup).toHaveBeenCalledOnce()
+  })
 
-    expect(await screen.findByTestId('html-artifacts-popup')).toBeInTheDocument()
-    expect(mocks.loadHtmlArtifactsPopup).toHaveBeenCalledTimes(1)
-    expect(mocks.HtmlArtifactsPopup).toHaveBeenCalledWith(
-      expect.objectContaining({
-        editable: false,
-        html,
-        onSave,
-        open: true,
-        title: 'Sample Page'
-      }),
-      undefined
+  it('uses a localized accessible name when the document has no title', () => {
+    render(<HtmlArtifactsCard html="<main>Page</main>" />)
+
+    expect(screen.getByRole('button', { name: 'chat.artifacts.button.preview: common.html_preview' })).toHaveAttribute(
+      'title',
+      'common.html_preview'
     )
+  })
+
+  it('keeps the selector that isolates the card from Markdown code styling', () => {
+    const { container } = render(<HtmlArtifactsCard html={html} />)
+
+    // `markdown.css` treats this maintained selector as a semantic boundary.
+    expect(container.firstElementChild).toHaveClass('special-preview', 'font-[var(--font-family-body)]')
   })
 })

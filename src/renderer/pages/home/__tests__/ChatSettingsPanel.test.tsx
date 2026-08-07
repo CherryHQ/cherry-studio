@@ -24,7 +24,8 @@ vi.mock('@data/hooks/usePreference', () => ({
   }
 }))
 
-vi.mock('@data/hooks/useDataApi', () => ({
+vi.mock('@data/hooks/useDataApi', async () => ({
+  ...(await import('@test-mocks/renderer/useDataApi')).MockUseDataApi,
   useInvalidateCache: () => renderCounters.invalidateCache
 }))
 
@@ -53,9 +54,8 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/components/chat', () => ({
-  OverlayHost: ({ children }: PropsWithChildren) => <div>{children}</div>,
-  ConversationShell: ({
+vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
+  default: ({
     topBar,
     topRightTool,
     sidePanel,
@@ -84,11 +84,11 @@ vi.mock('@renderer/components/chat', () => ({
   )
 }))
 
-vi.mock('@renderer/components/ContentSearch', () => ({
-  ContentSearch: () => <div data-testid="content-search" />
+vi.mock('@renderer/components/FindBar', () => ({
+  FindBar: () => <div data-testid="content-search" />
 }))
 
-vi.mock('@renderer/components/Popups/PromptPopup', () => ({
+vi.mock('@renderer/components/popups/PromptPopup', () => ({
   default: { show: vi.fn() }
 }))
 
@@ -121,29 +121,19 @@ vi.mock('../components/ChatNavbar', () => ({
 }))
 
 vi.mock('../components/TopicRightPane', () => {
-  const TopicRightPane = Object.assign(({ children }: PropsWithChildren) => <div>{children}</div>, {
-    Shortcuts: ({ topicId }: { topicId?: string }) => (
-      <button type="button" data-topic-id={topicId ?? ''}>
-        branch shortcuts
-      </button>
-    ),
-    Toggle: ({ disabled }: { disabled?: boolean }) => (
-      <button type="button" disabled={disabled}>
-        branch toggle
-      </button>
-    ),
-    Host: ({
+  const TopicRightPane = {
+    Scope: ({ children }: PropsWithChildren) => <div>{children}</div>,
+    Shortcuts: () => <button type="button">branch shortcuts</button>,
+    Viewport: ({
       onLocateMessage,
       onCancelBranchDraft,
-      onStartBranchDraft,
-      topicId
+      onStartBranchDraft
     }: {
       onLocateMessage?: (messageId: string) => void
       onCancelBranchDraft?: (nextActiveNodeId?: string | null) => void
       onStartBranchDraft?: (messageId: string) => void | Promise<void>
-      topicId: string
     }) => (
-      <div data-testid="topic-right-pane-host" data-topic-id={topicId}>
+      <div data-testid="topic-right-pane-viewport">
         <button type="button" onClick={() => onLocateMessage?.('message-x')}>
           locate branch message
         </button>
@@ -154,21 +144,8 @@ vi.mock('../components/TopicRightPane', () => {
           cancel branch draft to next
         </button>
       </div>
-    ),
-    MaximizedOverlay: ({
-      onStartBranchDraft,
-      topicId
-    }: {
-      onStartBranchDraft?: (messageId: string) => void | Promise<void>
-      topicId: string
-    }) => (
-      <div data-testid="topic-right-pane-overlay" data-topic-id={topicId}>
-        <button type="button" onClick={() => void onStartBranchDraft?.('assistant-overlay')}>
-          start overlay branch draft
-        </button>
-      </div>
     )
-  })
+  }
 
   return {
     TopicRightPane,
@@ -232,6 +209,10 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
   )
 }))
 
+function renderChat(activeTopic: Topic) {
+  return render(<Chat activeTopic={activeTopic} />)
+}
+
 describe('Chat panels', () => {
   const activeTopic: Topic = {
     id: 'topic-1',
@@ -255,13 +236,12 @@ describe('Chat panels', () => {
   })
 
   it('opens and closes the citations panel from chat content', () => {
-    render(<Chat activeTopic={activeTopic} />)
+    renderChat(activeTopic)
 
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'false')
     expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'branch toggle' })).toBeInTheDocument()
-    expect(screen.getByTestId('topic-right-pane-host')).toHaveAttribute('data-topic-id', 'topic-1')
-    expect(screen.getByTestId('topic-right-pane-overlay')).toHaveAttribute('data-topic-id', 'topic-1')
+    expect(screen.getByRole('button', { name: 'branch shortcuts' })).toBeInTheDocument()
+    expect(screen.getByTestId('topic-right-pane-viewport')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'open citations' }))
     expect(screen.getByTestId('citations-panel')).toHaveAttribute('data-open', 'true')
@@ -274,16 +254,15 @@ describe('Chat panels', () => {
   it('keeps navbar and branch pane actions visible for an empty persisted topic', () => {
     const emptyTopic = { ...activeTopic, id: 'empty-topic', name: '' }
 
-    render(<Chat activeTopic={emptyTopic} />)
+    renderChat(emptyTopic)
 
     expect(screen.getByTestId('chat-navbar')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'branch toggle' })).not.toBeDisabled()
-    expect(screen.getByTestId('topic-right-pane-host')).toHaveAttribute('data-topic-id', 'empty-topic')
-    expect(screen.getByTestId('topic-right-pane-overlay')).toHaveAttribute('data-topic-id', 'empty-topic')
+    expect(screen.getByRole('button', { name: 'branch shortcuts' })).not.toBeDisabled()
+    expect(screen.getByTestId('topic-right-pane-viewport')).toBeInTheDocument()
   })
 
   it('does not re-render the chat shell when branch live state changes', () => {
-    render(<Chat activeTopic={activeTopic} />)
+    renderChat(activeTopic)
 
     const initialNavbarRenders = renderCounters.navbar
     const initialChatContentRenders = renderCounters.chatContent
@@ -300,7 +279,7 @@ describe('Chat panels', () => {
   })
 
   it('passes branch-panel locate requests to chat content and clears them after handling', () => {
-    render(<Chat activeTopic={activeTopic} />)
+    renderChat(activeTopic)
 
     expect(screen.getByTestId('chat-content-locate-message-id')).toHaveTextContent('')
 
@@ -314,7 +293,7 @@ describe('Chat panels', () => {
   })
 
   it('starts a branch draft from the right pane without re-rendering chat content', async () => {
-    render(<Chat activeTopic={activeTopic} />)
+    renderChat(activeTopic)
 
     const initialNavbarRenders = renderCounters.navbar
     const initialChatContentRenders = renderCounters.chatContent
@@ -349,7 +328,7 @@ describe('Chat panels', () => {
   })
 
   it('cancels a branch draft into active-only live state and updates the send anchor override', async () => {
-    render(<Chat activeTopic={activeTopic} />)
+    renderChat(activeTopic)
 
     fireEvent.click(screen.getByRole('button', { name: 'start branch draft' }))
 

@@ -1,27 +1,19 @@
 import '@testing-library/jest-dom/vitest'
 
+import { toast } from '@renderer/services/toast'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import ImageViewer, { getImageBlobFromSource, saveImageFromSource } from '../ImageViewer'
+import ImageViewer from '../ImageViewer'
 
 const mocks = vi.hoisted(() => ({
-  convertImageToPng: vi.fn(),
   fetch: vi.fn(),
   fsRead: vi.fn(),
-  fileSave: vi.fn(),
-  toast: {
-    error: vi.fn(),
-    success: vi.fn()
-  },
   clipboard: {
     write: vi.fn(),
     writeText: vi.fn()
-  }
-}))
-
-vi.mock('@renderer/utils/image', () => ({
-  convertImageToPng: mocks.convertImageToPng
+  },
+  saveImage: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -42,27 +34,28 @@ describe('ImageViewer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
 
-    mocks.convertImageToPng.mockImplementation(async (blob: Blob) => blob)
     mocks.fetch.mockResolvedValue({
       blob: async () => new Blob(['remote'], { type: 'image/webp' })
     })
     mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3]))
+    mocks.saveImage.mockResolvedValue(true)
 
     Object.assign(window, {
-      api: { file: { save: mocks.fileSave }, fs: { read: mocks.fsRead } },
-      toast: mocks.toast
+      api: { file: { saveImage: mocks.saveImage }, fs: { read: mocks.fsRead } }
     })
     Object.assign(navigator, { clipboard: mocks.clipboard })
     vi.stubGlobal('ClipboardItem', MockClipboardItem)
     vi.stubGlobal('fetch', mocks.fetch)
   })
 
-  it('opens the shared preview dialog when clicked', () => {
+  it('opens the shared preview dialog with the save-as toolbar action', () => {
     render(<ImageViewer src="https://example.com/image.png" alt="Example image" />)
 
     fireEvent.click(screen.getByRole('img', { name: 'Example image' }))
 
     expect(screen.getByTestId('image-preview-dialog')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'preview.save_as' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'preview.copy.image' })).not.toBeInTheDocument()
   })
 
   it('respects preview=false', () => {
@@ -82,96 +75,40 @@ describe('ImageViewer', () => {
     await waitFor(() => {
       expect(mocks.clipboard.writeText).toHaveBeenCalledWith('https://example.com/image.png')
     })
-    expect(mocks.toast.success).toHaveBeenCalledWith('message.copy.success')
+    expect(toast.success).toHaveBeenCalledWith('message.copy.success')
   })
 
   it('copies image data from the context menu', async () => {
     render(<ImageViewer src="data:image/png;base64,aGVsbG8=" alt="Example image" />)
 
     fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
-    fireEvent.click(screen.getByRole('button', { name: 'common.copy' }))
+    fireEvent.click(screen.getByRole('button', { name: 'preview.copy.image' }))
 
     await waitFor(() => {
-      expect(mocks.convertImageToPng).toHaveBeenCalled()
+      expect(mocks.clipboard.write).toHaveBeenCalledWith([expect.any(MockClipboardItem)])
     })
-    expect(mocks.clipboard.write).toHaveBeenCalledWith([expect.any(MockClipboardItem)])
-    expect(mocks.toast.success).toHaveBeenCalledWith('message.copy.success')
+    expect(toast.success).toHaveBeenCalledWith('message.copy.success')
   })
 
-  it('shows download success after the image is saved from the context menu', async () => {
-    let resolveSave: (path: string) => void = () => {}
-    mocks.fileSave.mockReturnValue(new Promise<string>((resolve) => (resolveSave = resolve)))
-
+  it('saves image data from the context menu with the existing file save flow', async () => {
     render(<ImageViewer src="data:image/png;base64,aGVsbG8=" alt="Example image" />)
 
     fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
-    fireEvent.click(screen.getByRole('button', { name: 'common.download' }))
+    fireEvent.click(screen.getByRole('button', { name: 'preview.save_as' }))
 
     await waitFor(() => {
-      expect(mocks.fileSave).toHaveBeenCalledWith('image.png', expect.any(Uint8Array))
+      expect(mocks.saveImage).toHaveBeenCalledWith('Example image', 'data:image/png;base64,aGVsbG8=')
     })
-    expect(mocks.toast.success).not.toHaveBeenCalled()
-
-    resolveSave('/tmp/image.png')
-
-    await waitFor(() => {
-      expect(mocks.toast.success).toHaveBeenCalledWith('message.download.success')
-    })
+    expect(toast.success).toHaveBeenCalledWith('common.saved')
   })
 
-  it('shows download failure when saving the image fails from the context menu', async () => {
-    mocks.fileSave.mockRejectedValue(new Error('save failed'))
+  it('does not expose a download action in the preview toolbar or context menu', () => {
+    render(<ImageViewer src="https://example.com/image.png" alt="Example image" />)
 
-    render(<ImageViewer src="data:image/png;base64,aGVsbG8=" alt="Example image" />)
+    fireEvent.click(screen.getByRole('img', { name: 'Example image' }))
+    expect(screen.queryByRole('button', { name: 'common.download' })).not.toBeInTheDocument()
 
-    fireEvent.contextMenu(screen.getByRole('img', { name: 'Example image' }))
-    fireEvent.click(screen.getByRole('button', { name: 'common.download' }))
-
-    await waitFor(() => {
-      expect(mocks.toast.error).toHaveBeenCalledWith('message.download.failed')
-    })
-    expect(mocks.toast.success).not.toHaveBeenCalled()
-  })
-
-  it('saves non-base64 inline image data URLs', async () => {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="100%"><text>hello</text></svg>'
-    mocks.fileSave.mockResolvedValue('/tmp/vector.svg')
-
-    await saveImageFromSource(`data:image/svg+xml,${svg}`)
-
-    expect(mocks.fileSave).toHaveBeenCalledWith('image.svg', expect.any(Uint8Array))
-    const bytes = mocks.fileSave.mock.calls[0][1] as Uint8Array
-    expect(new TextDecoder().decode(bytes)).toBe(svg)
-    expect(mocks.fetch).not.toHaveBeenCalled()
-  })
-
-  it('sanitizes decoded URL filenames before showing the save dialog', async () => {
-    mocks.fileSave.mockResolvedValue('/tmp/evil.png')
-
-    await saveImageFromSource('https://example.com/images/%2Ftmp%2Fevil%5Cname.png')
-
-    expect(mocks.fileSave).toHaveBeenCalledWith('_tmp_evil_name.png', expect.any(Uint8Array))
-  })
-
-  it('reads image blobs from data URLs', async () => {
-    const blob = await getImageBlobFromSource('data:image/png;base64,aGVsbG8=')
-
-    expect(blob.type).toBe('image/png')
-    expect(mocks.fetch).not.toHaveBeenCalled()
-    expect(mocks.fsRead).not.toHaveBeenCalled()
-  })
-
-  it('reads image blobs from file URLs', async () => {
-    const blob = await getImageBlobFromSource('file:///tmp/example.png')
-
-    expect(mocks.fsRead).toHaveBeenCalledWith('file:///tmp/example.png')
-    expect(blob.type).toBe('image/png')
-  })
-
-  it('reads image blobs from remote URLs', async () => {
-    const blob = await getImageBlobFromSource('https://example.com/image.webp')
-
-    expect(mocks.fetch).toHaveBeenCalledWith('https://example.com/image.webp')
-    expect(blob.type).toBe('image/webp')
+    fireEvent.contextMenu(screen.getAllByRole('img', { name: 'Example image' })[0])
+    expect(screen.queryByRole('button', { name: 'common.download' })).not.toBeInTheDocument()
   })
 })

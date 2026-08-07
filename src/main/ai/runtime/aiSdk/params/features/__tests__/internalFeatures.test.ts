@@ -7,6 +7,7 @@
  */
 
 import type { Assistant } from '@shared/data/types/assistant'
+import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
@@ -17,36 +18,49 @@ vi.mock('@cherrystudio/ai-core/built-in/plugins', () => ({
 
 import { collectFromFeatures } from '../../collectFromFeatures'
 import type { RequestScope } from '../../scope'
-import { INTERNAL_FEATURES } from '../index'
+import { INTERNAL_FEATURES } from '../internalFeatures'
 
 function makeScope(overrides: {
   provider: Partial<Provider>
   model: Partial<Model>
   assistant?: Partial<Assistant>
   capabilities?: Record<string, unknown>
+  webToolRoutes?: RequestScope['webToolRoutes']
   mcpToolIds?: string[]
   topicId?: string
   endpointType?: string
   aiSdkProviderId?: string
+  reasoning?: RequestScope['reasoning']
+  request?: Partial<RequestScope['request']>
 }): RequestScope {
   return {
-    request: { mcpToolIds: [] } as never,
+    request: (overrides.request ?? { mcpToolIds: [] }) as never,
     signal: undefined,
     registry: {} as never,
     assistant: overrides.assistant as Assistant | undefined,
     model: { id: 'openai::m1', name: 'M1', ...overrides.model } as Model,
     provider: { id: 'openai', settings: {}, ...overrides.provider } as Provider,
     capabilities: overrides.capabilities as never,
-    sdkConfig: { providerId: 'openai' as never, providerSettings: {} as never, modelId: 'm1' },
+    webToolRoutes: overrides.webToolRoutes,
+    sdkConfig: {
+      providerId: 'openai' as never,
+      providerOptionsKey: 'openai',
+      providerSettings: {} as never,
+      modelId: 'm1'
+    },
     endpointType: overrides.endpointType as never,
     aiSdkProviderId: (overrides.aiSdkProviderId ?? 'openai-compatible') as never,
+    reasoningProfile: { format: 'none', wire: { disabled: true } },
+    reasoning: overrides.reasoning ?? { kind: 'omit', selection: 'default', emissions: [] },
     requestContext: {
       requestId: 'req-1',
       topicId: overrides.topicId,
       assistant: overrides.assistant as Assistant | undefined,
       abortSignal: new AbortController().signal
     },
-    mcpToolIds: new Set(overrides.mcpToolIds ?? [])
+    mcpToolIds: new Set(overrides.mcpToolIds ?? []),
+    contextSettings: DEFAULT_CONTEXT_SETTINGS,
+    compressionModel: null
   }
 }
 
@@ -54,26 +68,83 @@ function activeNames(scope: RequestScope): string[] {
   return collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.map((p) => (p as { name: string }).name)
 }
 
+async function qwenUserText(scope: RequestScope): Promise<string> {
+  const plugin = collectFromFeatures(scope, INTERNAL_FEATURES).modelAdapters.find(
+    (candidate) => (candidate as { name?: string }).name === 'qwen-thinking'
+  ) as any
+  const context = { middlewares: [] as any[] }
+  plugin.configureContext(context)
+  const result = await context.middlewares[0].transformParams({
+    params: { prompt: [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }] }
+  })
+  return result.prompt[0].content[0].text
+}
+
 describe('INTERNAL_FEATURES — decision matrix', () => {
-  it('produces nothing when there is no assistant and the resolver picks an "anthropic" adapter (no inline-tag extraction)', () => {
-    expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual(
-      []
-    )
+  it('bare anthropic scope (no assistant): only the always-on features activate (pdf-compatibility was removed)', () => {
+    expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual([
+      'context-build',
+      'tool-schema-compatibility'
+    ])
   })
 
-  it('model-params activates whenever an assistant is present', () => {
-    expect(activeNames(makeScope({ provider: {}, model: {}, assistant: { id: 'a' } }))).toContain('model-params')
-    expect(activeNames(makeScope({ provider: {}, model: {} }))).not.toContain('model-params')
-  })
-
-  it('reasoning-extraction activates for OpenAI-family resolved adapters', () => {
-    // Match against `scope.aiSdkProviderId`, not `provider.id` — that's the
-    // resolved adapter the SDK call actually hits.
-    expect(activeNames(makeScope({ provider: { id: 'openai' }, model: {}, aiSdkProviderId: 'openai-chat' }))).toContain(
-      'reasoning-extraction'
-    )
+  it('reasoning-extraction activates only for the openai-chat wire', () => {
     expect(
-      activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))
+      activeNames(
+        makeScope({
+          provider: { id: 'openai' },
+          model: {},
+          aiSdkProviderId: 'openai-chat',
+          endpointType: 'openai-chat-completions'
+        })
+      )
+    ).toContain('reasoning-extraction')
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'openai' },
+          model: {},
+          aiSdkProviderId: 'openai',
+          endpointType: 'openai-responses'
+        })
+      )
+    ).not.toContain('reasoning-extraction')
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'anthropic' },
+          model: {},
+          aiSdkProviderId: 'anthropic',
+          endpointType: 'anthropic-messages'
+        })
+      )
+    ).not.toContain('reasoning-extraction')
+  })
+
+  it('reasoning-extraction activates on the openai-chat wire even for a bespoke-family gateway', () => {
+    // A gateway's compat route (aiSdkProviderId off the openai-family whitelist, e.g. `aihubmix`) still
+    // rides the chat-completions wire, which has no native reasoning field — so an inline `<think>` must
+    // be extracted. Gated on the wire, not the provider whitelist.
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'aihubmix' },
+          model: {},
+          aiSdkProviderId: 'aihubmix',
+          endpointType: 'openai-chat-completions'
+        })
+      )
+    ).toContain('reasoning-extraction')
+    // Same gateway on a native-reasoning wire is NOT extracted (reasoning arrives structured).
+    expect(
+      activeNames(
+        makeScope({
+          provider: { id: 'aihubmix' },
+          model: {},
+          aiSdkProviderId: 'aihubmix',
+          endpointType: 'anthropic-messages'
+        })
+      )
     ).not.toContain('reasoning-extraction')
   })
 
@@ -86,14 +157,11 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     )
   })
 
-  it('anthropic-cache activates only when endpoint is anthropic-messages AND cacheControl is enabled with a threshold', () => {
-    // Both conditions required after the endpoint-aware refactor: the
-    // request must be heading to an anthropic-messages endpoint, AND
-    // cacheControl must be opted in with a positive threshold.
+  it('anthropic-cache activates by default on anthropic-messages and respects explicit opt-out', () => {
     expect(
       activeNames(
         makeScope({
-          provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+          provider: { id: 'anthropic', settings: {} } as never,
           model: {},
           endpointType: 'anthropic-messages',
           aiSdkProviderId: 'anthropic'
@@ -104,7 +172,7 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(
       activeNames(
         makeScope({
-          provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+          provider: { id: 'anthropic', settings: {} } as never,
           model: {},
           endpointType: 'openai-chat-completions',
           aiSdkProviderId: 'openai-chat'
@@ -112,11 +180,10 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
       )
     ).not.toContain('anthropic-cache')
 
-    // Threshold of 0 still disables, regardless of endpoint.
     expect(
       activeNames(
         makeScope({
-          provider: { settings: { cacheControl: { enabled: true, tokenThreshold: 0 } } } as never,
+          provider: { settings: { cacheControl: { enabled: false, tokenThreshold: 1024 } } } as never,
           model: {},
           endpointType: 'anthropic-messages',
           aiSdkProviderId: 'anthropic'
@@ -135,42 +202,93 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     ).not.toContain('no-think')
   })
 
-  it('provider-tool plugins activate based on capability flags', () => {
+  it('provider-tool plugins activate from the finalized web-tool routes', () => {
     expect(
       activeNames(
         makeScope({
           provider: {},
           model: {},
-          capabilities: { enableWebSearch: true, webSearchPluginConfig: { provider: 'anthropic' } }
+          webToolRoutes: { webSearch: 'server', webFetch: 'none' },
+          capabilities: { webSearchPluginConfig: { provider: 'anthropic' } }
         })
       )
     ).toContain('provider-tool-webSearch')
-    expect(activeNames(makeScope({ provider: {}, model: {}, capabilities: { enableUrlContext: true } }))).toContain(
-      'provider-tool-urlContext'
-    )
+    expect(
+      activeNames(
+        makeScope({
+          provider: {},
+          model: {},
+          webToolRoutes: { webSearch: 'server', webFetch: 'none' }
+        })
+      )
+    ).not.toContain('provider-tool-webSearch')
+    expect(
+      activeNames(makeScope({ provider: {}, model: {}, webToolRoutes: { webSearch: 'none', webFetch: 'server' } }))
+    ).toContain('provider-tool-urlContext')
+    // Client-side routing adds no provider tool; only the always-on features remain.
+    expect(
+      activeNames(makeScope({ provider: {}, model: {}, webToolRoutes: { webSearch: 'client', webFetch: 'client' } }))
+    ).toEqual(['context-build', 'tool-schema-compatibility'])
   })
 
-  it('model-params is the first active feature for a plain assistant scope', () => {
-    const names = activeNames(
-      makeScope({
-        provider: {},
-        model: {},
-        assistant: { id: 'a' },
-        capabilities: {}
-      })
-    )
-    expect(names[0]).toBe('model-params')
+  it('drives the Qwen suffix from the resolved request snapshot instead of persisted assistant settings', async () => {
+    const base: Parameters<typeof makeScope>[0] = {
+      provider: { id: 'nvidia' },
+      model: {
+        id: 'nvidia::qwen3-32b',
+        providerId: 'nvidia',
+        reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
+      },
+      assistant: { id: 'a', settings: { reasoning_effort: 'high' } as Assistant['settings'] }
+    }
+
+    expect(activeNames(makeScope(base))).not.toContain('qwen-thinking')
+    expect(
+      await qwenUserText(
+        makeScope({
+          ...base,
+          reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
+        })
+      )
+    ).toBe('hello /no_think')
+    expect(
+      await qwenUserText(
+        makeScope({
+          ...base,
+          assistant: { id: 'a', settings: { reasoning_effort: 'none' } as Assistant['settings'] },
+          reasoning: { kind: 'auto', selection: 'auto', emissions: [{ target: 'enable_thinking', value: true }] }
+        })
+      )
+    ).toBe('hello /think')
+  })
+
+  it('qwen-thinking applies to assistant-less requests with an explicit reasoning selection (translate)', async () => {
+    const base: Parameters<typeof makeScope>[0] = {
+      provider: { id: 'nvidia' },
+      model: {
+        id: 'nvidia::qwen3-32b',
+        providerId: 'nvidia',
+        reasoning: { selectableEfforts: ['none', 'auto'], thinkingTokenLimits: { min: 1024, max: 38_912 } }
+      },
+      request: { reasoningEffort: 'none' },
+      reasoning: { kind: 'off', selection: 'none', emissions: [{ target: 'enable_thinking', value: false }] }
+    }
+
+    expect(await qwenUserText(makeScope(base))).toBe('hello /no_think')
+    // Without the explicit request selection, assistant-less scopes stay inactive.
+    expect(activeNames(makeScope({ ...base, request: undefined }))).not.toContain('qwen-thinking')
   })
 
   // params-core-2: the documented hard invariant `reasoning-extraction` < `simulate-streaming`.
-  // Both gate predicates hold for an OpenAI-family adapter with streamOutput === false; a
+  // Both gate predicates hold for the OpenAI chat wire with streamOutput === false; a
   // reorder of INTERNAL_FEATURES would otherwise pass unnoticed.
-  it('orders reasoning-extraction before simulate-streaming (OpenAI-family, non-streaming)', () => {
+  it('orders reasoning-extraction before simulate-streaming (OpenAI chat wire, non-streaming)', () => {
     const names = activeNames(
       makeScope({
         provider: { id: 'openai' },
         model: {},
         aiSdkProviderId: 'openai-chat',
+        endpointType: 'openai-chat-completions',
         capabilities: { streamOutput: false }
       })
     )
@@ -191,5 +309,20 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(reasoning).toBeGreaterThanOrEqual(0)
     expect(simulate).toBeGreaterThanOrEqual(0)
     expect(reasoning).toBeLessThan(simulate)
+  })
+
+  // The documented hard invariant `context-build` < `anthropic-cache`:
+  // truncation must rewrite tool results before cache markers are placed.
+  it('orders context-build before anthropic-cache', () => {
+    const names = activeNames(
+      makeScope({
+        provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+        model: {},
+        endpointType: 'anthropic-messages',
+        aiSdkProviderId: 'anthropic'
+      })
+    )
+    expect(names.indexOf('context-build')).toBeGreaterThan(-1)
+    expect(names.indexOf('context-build')).toBeLessThan(names.indexOf('anthropic-cache'))
   })
 })

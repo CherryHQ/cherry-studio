@@ -5,7 +5,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerRegistryService } from '@data/services/ProviderRegistryService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { ErrorCode } from '@shared/data/api'
+import { ErrorCode } from '@shared/data/api/errors'
 import { AddProviderApiKeySchema, ReplaceProviderApiKeysSchema } from '@shared/data/api/schemas/providers'
 import { CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -346,18 +346,64 @@ describe('ProviderService API keys', () => {
     ])
   })
 
-  it('rotates enabled API keys and tolerates missing cached lastUsedKeyId', async () => {
+  it('rotates enabled API keys while returning the exact safe identity selected for each request', async () => {
     await seedProvider()
 
-    expect(providerService.getRotatedApiKey('openai')).toBe('sk-a')
+    const first = providerService.resolveApiKey('openai')
+    expect(first).toEqual({
+      value: 'sk-a',
+      apiKeySelection: {
+        attribution: 'explicit',
+        id: 'key-a',
+        label: 'A',
+        masked: expect.stringContaining('****')
+      }
+    })
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-a')
 
-    expect(providerService.getRotatedApiKey('openai')).toBe('sk-b')
+    const second = providerService.resolveApiKey('openai')
+    expect(second).toEqual({
+      value: 'sk-b',
+      apiKeySelection: {
+        attribution: 'explicit',
+        id: 'key-b',
+        label: 'B',
+        masked: expect.stringContaining('****')
+      }
+    })
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-b')
+    expect(first.apiKeySelection).toMatchObject({ id: 'key-a' })
 
     MockMainCacheServiceUtils.setCacheValue('settings.provider.openai.last_used_key_id', 'deleted-key')
     expect(providerService.getRotatedApiKey('openai')).toBe('sk-a')
     expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBe('key-a')
+  })
+
+  it('matches an explicit override to its stored identity without advancing rotation', async () => {
+    await seedProvider()
+
+    const resolved = providerService.resolveApiKey('openai', 'sk-b')
+
+    expect(resolved).toEqual({
+      value: 'sk-b',
+      apiKeySelection: {
+        attribution: 'matched',
+        id: 'key-b',
+        label: 'B',
+        masked: expect.stringContaining('****')
+      }
+    })
+    expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBeUndefined()
+  })
+
+  it('marks an unmatched explicit override as unknown without guessing a stored key', async () => {
+    await seedProvider()
+
+    expect(providerService.resolveApiKey('openai', 'sk-external')).toEqual({
+      value: 'sk-external',
+      apiKeySelection: { attribution: 'unknown' }
+    })
+    expect(MockMainCacheServiceUtils.getCacheValue('settings.provider.openai.last_used_key_id')).toBeUndefined()
   })
 
   it('returns the only enabled key or an empty string when rotation has no usable keys', async () => {

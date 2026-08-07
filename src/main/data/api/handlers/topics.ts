@@ -10,7 +10,6 @@
  */
 
 import { topicService } from '@data/services/TopicService'
-import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateTopicSchema,
@@ -21,6 +20,7 @@ import {
   type TopicSchemas,
   UpdateTopicSchema
 } from '@shared/data/api/schemas/topics'
+import type { HandlersFor } from '@shared/data/api/types'
 
 export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
@@ -37,6 +37,12 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     DELETE: async ({ query }) => {
       const parsed = DeleteTopicsQuerySchema.parse(query)
       return topicService.deleteByIds(parsed.ids)
+    }
+  },
+
+  '/topics/latest': {
+    GET: async () => {
+      return { topic: topicService.getLatestUpdated() }
     }
   },
 

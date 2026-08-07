@@ -1,59 +1,51 @@
+import type { Citation } from '@renderer/types/message'
 import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import Link from '../Link'
 
-const mocks = vi.hoisted(() => ({
-  parseJSON: vi.fn(),
-  findCitationInChildren: vi.fn(),
-  Favicon: ({ hostname, alt }: { hostname: string; alt: string }) => (
-    <span data-testid="favicon" data-hostname={hostname} data-alt={alt} />
-  ),
-  CitationTooltip: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="citation-tooltip">{children}</div>
-  ),
-  CitationSchema: {
-    safeParse: vi.fn((input: any) => ({ success: !!input, data: input }))
-  },
-  Hyperlink: ({ children, href }: { children: React.ReactNode; href: string }) => (
-    <div data-testid="hyperlink" data-href={href}>
-      {children}
-    </div>
-  )
+const mocks = vi.hoisted(() => {
+  const navigateToRoute = vi.fn()
+
+  return {
+    navigateToRoute,
+    messageListActions: { navigateToRoute },
+    findCitationInChildren: vi.fn(),
+    Favicon: ({ hostname, alt }: { hostname: string; alt: string }) => (
+      <span data-testid="favicon" data-hostname={hostname} data-alt={alt} />
+    ),
+    CitationTooltip: ({ children }: { children: React.ReactNode }) => (
+      <div data-testid="citation-tooltip">{children}</div>
+    ),
+    Hyperlink: ({ children, href }: { children: React.ReactNode; href: string }) => (
+      <div data-testid="hyperlink" data-href={href}>
+        {children}
+      </div>
+    )
+  }
+})
+
+vi.mock('@renderer/utils/markdown', () => ({ findCitationInChildren: mocks.findCitationInChildren }))
+vi.mock('@renderer/components/icons/FallbackFavicon', () => ({ __esModule: true, default: mocks.Favicon }))
+vi.mock('../CitationTooltip', () => ({ default: mocks.CitationTooltip }))
+vi.mock('../Hyperlink', () => ({ default: mocks.Hyperlink }))
+vi.mock('../../MessageListProvider', () => ({
+  useOptionalMessageListActions: () => mocks.messageListActions
 }))
 
-vi.mock('@renderer/utils/json', () => ({
-  parseJSON: mocks.parseJSON
-}))
-
-vi.mock('@renderer/utils/markdown', () => ({
-  findCitationInChildren: mocks.findCitationInChildren
-}))
-
-vi.mock('@renderer/components/Icons/FallbackFavicon', () => ({
-  __esModule: true,
-  default: mocks.Favicon
-}))
-
-vi.mock('../CitationTooltip', () => ({
-  default: mocks.CitationTooltip,
-  CitationSchema: mocks.CitationSchema
-}))
-
-vi.mock('../Hyperlink', () => ({
-  default: mocks.Hyperlink
-}))
+const supNode = { children: [{ tagName: 'sup' }] } as never
+const CitationSup = ({ children }: { children?: React.ReactNode }) => <sup>{children}</sup>
+const citation: Citation = {
+  number: 1,
+  type: 'websearch',
+  url: 'https://example.com',
+  title: 'Example'
+}
 
 describe('Link', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('should match snapshot', () => {
-    const { container } = render(<Link href="https://example.com">Example</Link>)
-    expect(container).toMatchSnapshot()
-  })
+  beforeEach(() => vi.clearAllMocks())
 
   it('should render internal anchor as span.link and no <a>', () => {
     const { container } = render(<Link href="#section-1">Go to section</Link>)
@@ -62,41 +54,44 @@ describe('Link', () => {
     expect(screen.getByText('Go to section')).toBeInTheDocument()
   })
 
-  it('should wrap with CitationTooltip when children include <sup> and citation data exists', () => {
-    mocks.findCitationInChildren.mockReturnValue('{"title":"ref"}')
-    mocks.parseJSON.mockReturnValue({ title: 'ref' })
+  it('renders a Cherry Studio route link as an in-app navigation entry', async () => {
+    const user = userEvent.setup()
+    render(<Link href="/app/paintings?source=assistant">打开画图功能</Link>)
 
+    expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button'))
+    expect(mocks.navigateToRoute).toHaveBeenCalledWith({
+      path: '/app/paintings',
+      query: { source: 'assistant' }
+    })
+  })
+
+  it('uses trusted registry data when the opaque id and href agree', () => {
+    mocks.findCitationInChildren.mockReturnValue('1')
     const onParentClick = vi.fn()
     const { container } = render(
       <div onClick={onParentClick}>
-        <Link href="https://example.com">
-          <span>ref</span>
-          <sup>1</sup>
+        <Link href="https://example.com" node={supNode} citationRegistry={new Map([[1, citation]])}>
+          <CitationSup>1</CitationSup>
         </Link>
       </div>
     )
 
     expect(screen.getByTestId('citation-tooltip')).toBeInTheDocument()
-
+    expect(screen.queryByTestId('favicon')).toBeNull()
     const anchor = container.querySelector('a') as HTMLAnchorElement
     expect(anchor).not.toBeNull()
     expect(anchor.getAttribute('target')).toBe('_blank')
     expect(anchor.getAttribute('rel')).toBe('noreferrer')
-    expect(anchor).toHaveClass('text-primary')
-    expect(anchor).not.toHaveClass('inline-flex')
-
     fireEvent.click(anchor)
     expect(onParentClick).not.toHaveBeenCalled()
   })
 
-  it('should fall back to Hyperlink when <sup> exists but citation data is null', () => {
-    mocks.findCitationInChildren.mockReturnValue('{"title":"ref"}')
-    mocks.parseJSON.mockReturnValue(null)
-
+  it('does not trust an opaque id without a current-message registry entry', () => {
+    mocks.findCitationInChildren.mockReturnValue('1')
     render(
-      <Link href="https://example.com">
-        <span>text</span>
-        <sup>1</sup>
+      <Link href="https://example.com" node={supNode}>
+        <CitationSup>1</CitationSup>
       </Link>
     )
 
@@ -104,10 +99,31 @@ describe('Link', () => {
     expect(screen.queryByTestId('citation-tooltip')).toBeNull()
   })
 
-  it('should render normal external link inside Hyperlink when not a citation', () => {
-    mocks.findCitationInChildren.mockReturnValue(undefined)
-    mocks.parseJSON.mockReturnValue(undefined)
+  it('rejects a citation tooltip when the anchor href disagrees with the registry', () => {
+    mocks.findCitationInChildren.mockReturnValue('1')
+    render(
+      <Link href="https://attacker.example" node={supNode} citationRegistry={new Map([[1, citation]])}>
+        <CitationSup>1</CitationSup>
+      </Link>
+    )
 
+    expect(screen.getByTestId('hyperlink')).toHaveAttribute('data-href', 'https://attacker.example')
+    expect(screen.queryByTestId('citation-tooltip')).toBeNull()
+  })
+
+  it('compares normalized URL forms for generated citation links', () => {
+    mocks.findCitationInChildren.mockReturnValue('1')
+    const piped = { ...citation, url: 'https://example.com/path?a=1|b=2' }
+    render(
+      <Link href="https://example.com/path?a=1%7Cb=2" node={supNode} citationRegistry={new Map([[1, piped]])}>
+        <CitationSup>1</CitationSup>
+      </Link>
+    )
+    expect(screen.getByTestId('citation-tooltip')).toBeInTheDocument()
+  })
+
+  it('renders normal external links inside Hyperlink with a favicon', () => {
+    mocks.findCitationInChildren.mockReturnValue(undefined)
     const { container } = render(<Link href="https://domain.com/path">Open</Link>)
 
     const wrapper = screen.getByTestId('hyperlink')
@@ -118,13 +134,10 @@ describe('Link', () => {
     expect(anchor.getAttribute('href')).toBe('https://domain.com/path')
     expect(anchor.getAttribute('target')).toBe('_blank')
     expect(anchor.getAttribute('rel')).toBe('noreferrer')
-    expect(anchor).toHaveClass('text-primary', 'hover:underline')
-    expect(anchor).not.toHaveClass('inline-flex')
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')
-    expect(screen.getByTestId('favicon').parentElement).toHaveClass('markdown-link-favicon', 'mr-1')
   })
 
-  it('should not inject another favicon when children already include one', () => {
+  it('does not inject another favicon when children already include one', () => {
     const ExistingFavicon = mocks.Favicon
     render(
       <Link href="https://domain.com/path" className="flex items-center gap-2">
@@ -134,22 +147,5 @@ describe('Link', () => {
     )
 
     expect(screen.getAllByTestId('favicon')).toHaveLength(1)
-    expect(screen.getByRole('link')).toHaveClass('text-primary', 'flex', 'gap-2')
-    expect(screen.getByRole('link')).not.toHaveClass('hover:underline')
-  })
-
-  it('should omit empty href for citation link (no href attribute when href="")', () => {
-    mocks.findCitationInChildren.mockReturnValue('{"title":"ref"}')
-    mocks.parseJSON.mockReturnValue({ title: 'ref' })
-
-    const { container } = render(
-      <Link href="">
-        text<sup>2</sup>
-      </Link>
-    )
-
-    const anchor = container.querySelector('a') as HTMLAnchorElement
-    expect(anchor).not.toBeNull()
-    expect(anchor.hasAttribute('href')).toBe(false)
   })
 })

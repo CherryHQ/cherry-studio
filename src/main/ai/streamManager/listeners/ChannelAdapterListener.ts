@@ -1,6 +1,5 @@
 import { loggerService } from '@logger'
-import type { ChannelAdapter } from '@main/ai/channels/ChannelAdapter'
-import { sanitizeChannelOutput } from '@main/ai/channels/security'
+import { type ChannelAdapter, sanitizeChannelOutput } from '@main/ai/channels'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 

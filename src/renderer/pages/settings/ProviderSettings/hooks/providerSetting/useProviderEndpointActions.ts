@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
-import { PROVIDER_URLS } from '@renderer/pages/settings/ProviderSettings/providerUrls'
+import { toast } from '@renderer/services/toast'
 import { validateApiHost } from '@renderer/utils/api'
-import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api'
+import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isVertexProvider } from '@shared/utils/provider'
@@ -9,7 +9,7 @@ import { debounce, trim } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { PatchProvider, SyncProviderModels } from './types'
+import type { PatchProvider } from './types'
 
 const logger = loggerService.withContext('ProviderSettings:EndpointActions')
 
@@ -46,8 +46,9 @@ interface UseProviderEndpointActionsParams {
   anthropicApiHost: string
   setAnthropicApiHost: (value: string) => void
   apiVersion: string
+  /** Registry factory-default host for the primary endpoint; '' when none. */
+  defaultApiHost: string
   patchProvider: PatchProvider
-  syncProviderModels: SyncProviderModels
 }
 
 /** Persists endpoint drafts through the provider data API. */
@@ -60,11 +61,10 @@ export function useProviderEndpointActions({
   anthropicApiHost,
   setAnthropicApiHost,
   apiVersion,
-  patchProvider,
-  syncProviderModels
+  defaultApiHost,
+  patchProvider
 }: UseProviderEndpointActionsParams) {
   const { t } = useTranslation()
-  const providerConfig = provider ? PROVIDER_URLS[provider.id as keyof typeof PROVIDER_URLS] : undefined
   const lastPersistedApiHostRef = useRef(trim(providerApiHost))
 
   useEffect(() => {
@@ -83,18 +83,6 @@ export function useProviderEndpointActions({
       }
     },
     [primaryEndpoint, provider]
-  )
-
-  const syncProviderModelsInBackground = useCallback(
-    (nextProvider: Provider) => {
-      void syncProviderModels().catch((error) => {
-        logger.error('Silent provider model sync failed after endpoint update', {
-          providerId: nextProvider.id,
-          error
-        })
-      })
-    },
-    [syncProviderModels]
   )
 
   const persistApiHostDraft = useCallback(
@@ -170,7 +158,7 @@ export function useProviderEndpointActions({
         const trimmedApiHost = trim(raw)
         if (!validateApiHost(trimmedApiHost)) {
           setApiHost(providerApiHost)
-          window.toast.error(t('settings.provider.api_host_no_valid'))
+          toast.error(t('settings.provider.api_host_no_valid'))
           return false
         }
 
@@ -193,11 +181,10 @@ export function useProviderEndpointActions({
           lastPersistedApiHostRef.current = trimmedApiHost
         }
 
-        syncProviderModelsInBackground({ ...provider, endpointConfigs: nextEndpointConfigs })
         return true
       } catch (error) {
         logger.error('Failed to commit provider API host', { providerId: provider?.id, error })
-        window.toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
         return false
       }
     },
@@ -209,7 +196,6 @@ export function useProviderEndpointActions({
       provider,
       providerApiHost,
       setApiHost,
-      syncProviderModelsInBackground,
       t
     ]
   )
@@ -233,7 +219,6 @@ export function useProviderEndpointActions({
           }
           await patchProvider({ endpointConfigs: nextEndpointConfigs })
           setAnthropicApiHost(trimmedHost)
-          syncProviderModelsInBackground({ ...provider, endpointConfigs: nextEndpointConfigs })
           return true
         }
 
@@ -241,15 +226,14 @@ export function useProviderEndpointActions({
         delete nextConfigs[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
         await patchProvider({ endpointConfigs: nextConfigs })
         setAnthropicApiHost('')
-        syncProviderModelsInBackground({ ...provider, endpointConfigs: nextConfigs })
         return true
       } catch (error) {
         logger.error('Failed to commit Anthropic API host', { providerId: provider?.id, error })
-        window.toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+        toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
         return false
       }
     },
-    [anthropicApiHost, patchProvider, provider, setAnthropicApiHost, syncProviderModelsInBackground, t]
+    [anthropicApiHost, patchProvider, provider, setAnthropicApiHost, t]
   )
 
   const commitApiVersion = useCallback(async (): Promise<boolean> => {
@@ -267,7 +251,7 @@ export function useProviderEndpointActions({
       return true
     } catch (error) {
       logger.error('Failed to commit API version', { providerId: provider.id, error })
-      window.toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+      toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
       return false
     }
   }, [apiVersion, patchProvider, provider, t])
@@ -277,7 +261,7 @@ export function useProviderEndpointActions({
       return false
     }
 
-    const nextBaseUrl = providerConfig?.api?.url ?? ''
+    const nextBaseUrl = defaultApiHost
     const nextEndpointConfigs = {
       ...provider.endpointConfigs,
       [primaryEndpoint]: {
@@ -289,22 +273,13 @@ export function useProviderEndpointActions({
     setApiHost(nextBaseUrl)
     try {
       await patchProvider({ endpointConfigs: nextEndpointConfigs })
-      syncProviderModelsInBackground({ ...provider, endpointConfigs: nextEndpointConfigs })
       return true
     } catch (error) {
       logger.error('Failed to reset provider API host', { providerId: provider.id, error })
-      window.toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
+      toast.error(getEndpointActionErrorMessage(error, t('settings.provider.save_failed')))
       return false
     }
-  }, [
-    patchProvider,
-    primaryEndpoint,
-    provider,
-    providerConfig?.api?.url,
-    setApiHost,
-    syncProviderModelsInBackground,
-    t
-  ])
+  }, [defaultApiHost, patchProvider, primaryEndpoint, provider, setApiHost, t])
 
   return {
     commitApiHost,

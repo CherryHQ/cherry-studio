@@ -35,6 +35,46 @@ describe('toolResponse adapter', () => {
     expect(response.response).toBe('ok')
   })
 
+  it('keeps structured MCP arrays bare for dedicated tool renderers', () => {
+    const results = [{ id: 1, title: 'Cherry Studio', url: 'https://example.com', content: 'result' }]
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-search',
+      toolName: 'web_search',
+      state: 'output-available',
+      input: { query: 'Cherry Studio' },
+      output: {
+        content: results,
+        metadata: { serverName: 'cherry-tools', serverId: 'cherry-tools', type: 'mcp' }
+      }
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.response).toEqual(results)
+  })
+
+  it('preserves MCP content arrays as CallToolResult-shaped responses', () => {
+    const content = [
+      { type: 'text', text: 'QR code generated' },
+      { type: 'image', data: 'iVBORw0KGgo=', mimeType: 'image/png' }
+    ]
+    const output = {
+      content,
+      metadata: { serverName: 'cherry-tools', serverId: 'cherry-tools', type: 'mcp' }
+    }
+    const part = {
+      type: 'dynamic-tool',
+      toolCallId: 'call-image',
+      toolName: 'config',
+      state: 'output-available',
+      input: {},
+      output
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.response).toBe(output)
+  })
+
   it('parses the cherry-tools wire name into server + tool (no metadata path)', () => {
     // Real production shape (from the agent_session_message table): a dynamic-tool part whose
     // toolName is the full `mcp__cherry-tools__web_search`, with NO output metadata. The single-
@@ -130,6 +170,21 @@ describe('toolResponse adapter', () => {
     expect(response?.status).toBe('pending')
     expect(response?.tool.type).toBe('provider')
     expect(response?.tool.name).toBe('CustomTool')
+  })
+
+  it('marks provider-executed Responses tools as provider tools', () => {
+    const part = {
+      type: 'tool-webSearch',
+      toolCallId: 'provider-search',
+      state: 'output-available',
+      input: {},
+      output: { action: { type: 'search' } },
+      providerExecuted: true
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.tool.type).toBe('provider')
+    expect(response?.tool.name).toBe('webSearch')
   })
 
   it('keeps migrated agent dynamic-tool calls without metadata on the provider renderer path', () => {

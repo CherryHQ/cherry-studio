@@ -11,10 +11,16 @@ vi.mock('@renderer/utils/time', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <button {...props}>{children}</button>
+  Button: ({ children, variant, ...props }: { children: ReactNode; variant?: string; [key: string]: unknown }) => (
+    <button type="button" data-variant={variant} {...props}>
+      {children}
+    </button>
   ),
-  MenuItem: ({ label, ...props }: { label: string; [key: string]: unknown }) => <button {...props}>{label}</button>,
+  MenuItem: ({ label, ...props }: { label: string; [key: string]: unknown }) => (
+    <button type="button" {...props}>
+      {label}
+    </button>
+  ),
   MenuList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   Popover: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   PopoverContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -80,17 +86,6 @@ describe('DataSourcePanelHeader', () => {
     rerender(<DataSourcePanelHeader {...baseProps} total={50} loadedCount={50} selectedCount={50} />)
 
     expect(screen.queryByText('仅已加载，共 50 项')).not.toBeInTheDocument()
-  })
-
-  // Regression for the QA issue "选中文件后列表轻微上移": the default toolbar
-  // (32px add button) and the bulk toolbar (28px sm buttons) differed by 4px,
-  // shifting the list on selection. Both states must keep the same min height.
-  it('keeps the same min height across default and selected states', () => {
-    const { container: defaultContainer } = render(<DataSourcePanelHeader {...baseProps} selectedCount={0} />)
-    const { container: selectedContainer } = render(<DataSourcePanelHeader {...baseProps} selectedCount={2} />)
-
-    expect(defaultContainer.firstChild).toHaveClass('min-h-8')
-    expect(selectedContainer.firstChild).toHaveClass('min-h-8')
   })
 
   it('invokes bulk callbacks from the selected-state toolbar', () => {

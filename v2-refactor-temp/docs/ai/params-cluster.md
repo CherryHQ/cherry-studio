@@ -5,7 +5,7 @@
 | Subpath | Files | Role |
 |---|---|---|
 | `runtime/aiSdk/params/` | `buildAgentParams.ts` (222), `feature.ts` (24), `scope.ts` (44), `capabilities.ts` (128), `assembleSystemPrompt.ts`, `collectFromFeatures.ts`, `composeHooks.ts`, `buildTelemetry.ts` | The orchestrator + scope + feature interface |
-| `runtime/aiSdk/params/features/` | `index.ts` + 16 feature files (~50 LOC each) | The internal `RequestFeature` set |
+| `runtime/aiSdk/params/features/` | `internalFeatures.ts` + 16 feature files (~50 LOC each) | The internal `RequestFeature` set |
 | Tests | `params/__tests__/`, `params/features/__tests__/` | Per-file coverage |
 
 ## Intent
@@ -37,7 +37,7 @@ Each feature contributes plugins (AI SDK middlewares) and/or hooks
 
 ### `INTERNAL_FEATURES` list (order matters)
 
-Listed in `features/index.ts`. Mirrors the prior `PluginBuilder.buildPlugins`
+Listed in `features/internalFeatures.ts`. Mirrors the prior `PluginBuilder.buildPlugins`
 ordering — important pairs:
 
 - `pdfCompatibilityFeature` before `anthropicCacheFeature` (cache marker
@@ -65,7 +65,6 @@ the internal set.
 | `skipGeminiThoughtSignature` | Drop Gemini's `thoughtSignature` from history when the model doesn't accept it back |
 | `providerWebSearch` | Activate the provider's built-in web search tool via `toolFactories` |
 | `providerUrlContext` | Activate the provider's URL-context tool |
-| `promptToolUse` | XML-prompt fallback for tool use when the model doesn't support function calling |
 
 Each file averages ~50 LOC; the gate and the contribution are short.
 
@@ -125,8 +124,5 @@ Assembles `AgentOptions` (per-request AI SDK settings). Notable bits:
 
 ## Follow-ups (out of scope)
 
-- Some features still consult `assistant?.settings?.toolUseMode === 'prompt'`
-  outside of `RequestScope.capabilities` — folding into `capabilities` is a
-  cleanup pass.
 - See also [Present-tense consumers only](../../../) memory: don't add
   feature-level config fields without a real call site.

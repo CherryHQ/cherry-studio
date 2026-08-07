@@ -1,11 +1,11 @@
 import path from 'node:path'
 
-import { IpcError } from '@shared/ipc/errors'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
-import type { FilePath } from '@shared/types/file'
-import { isDangerExt, normalizeExt } from '@shared/utils/file/url'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { isDangerExt, normalizeExt } from '@shared/utils/file'
 
-function getEffectivePathExt(physicalPath: FilePath): string | null {
+function getEffectivePathExt(physicalPath: AbsoluteFilePath): string | null {
   const fallbackPath = physicalPath.replace(/[\s.]+$/, '')
   return normalizeExt(path.extname(fallbackPath))
 }
@@ -23,6 +23,6 @@ function assertSafeExtForDefaultOpen(ext: string | null): void {
   )
 }
 
-export function assertSafePathForDefaultOpen(physicalPath: FilePath): void {
+export function assertSafePathForDefaultOpen(physicalPath: AbsoluteFilePath): void {
   assertSafeExtForDefaultOpen(getEffectivePathExt(physicalPath))
 }

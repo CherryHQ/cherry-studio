@@ -20,6 +20,118 @@ vi.mock('@data/services/McpServerService', () => ({
   }
 }))
 
+const shellEnvMock = vi.hoisted(() => ({
+  getShellEnv: vi.fn().mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
+}))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: shellEnvMock.getShellEnv
+}))
+
+const commandResolverMock = vi.hoisted(() => ({
+  findCommandInShellEnv: vi.fn().mockResolvedValue('C:\\Tools\\npx.exe')
+}))
+vi.mock('@main/utils/commandResolver', () => ({
+  findCommandInShellEnv: commandResolverMock.findCommandInShellEnv
+}))
+
+// Mock the MCP SDK transports + Client so we can drive the transport-fallback path without
+// a real network server. SSE connect throws a 405 (mirrors the issue); streamableHttp succeeds.
+const mcpSdkMock = vi.hoisted(() => {
+  class SseError extends Error {
+    code: number
+    constructor(code: number, message: string) {
+      super(`SSE error: ${message}`)
+      this.code = code
+    }
+  }
+  class SSEClientTransport {
+    kind = 'sse' as const
+    close = vi.fn().mockResolvedValue(undefined)
+    constructor(url: unknown, opts?: unknown) {
+      void url
+      void opts
+    }
+  }
+  class StreamableHTTPClientTransport {
+    kind = 'streamableHttp' as const
+    close = vi.fn().mockResolvedValue(undefined)
+    constructor(url: unknown, opts?: unknown) {
+      void url
+      void opts
+    }
+  }
+  const clients: Array<{ connectCalls: Array<{ kind: string }>; close: ReturnType<typeof vi.fn> }> = []
+  class Client {
+    setNotificationHandler = vi.fn()
+    _transport: { kind: string } | undefined = undefined
+    close = vi.fn().mockImplementation(async () => {
+      this._transport = undefined
+    })
+    ping = vi.fn().mockResolvedValue(true)
+    connectCalls: Array<{ kind: string }> = []
+    constructor() {
+      clients.push(this)
+    }
+    async connect(transport: { kind: string }) {
+      // Mirror MCP SDK Protocol.connect: _transport is set before start() runs, and a failed
+      // start() leaves it set. This is what makes the fallback retry fail unless client.close()
+      // resets it — the test would not catch that regression otherwise.
+      if (this._transport) {
+        throw new Error('Already connected to a transport. Call close() before connecting to a new transport')
+      }
+      this._transport = transport
+      this.connectCalls.push({ kind: transport.kind })
+      if (transport.kind === 'sse') {
+        throw new SseError(405, 'Non-200 status code (405)')
+      }
+      if (mcpSdkMock.state.failStreamable) {
+        throw new StreamableHTTPError(mcpSdkMock.state.failStreamableCode ?? 503, 'boom')
+      }
+    }
+  }
+  class StreamableHTTPError extends Error {
+    code: number
+    constructor(code: number, message?: string) {
+      super(message ?? 'boom')
+      this.code = code
+    }
+  }
+  const stdioTransports: Array<{ env?: Record<string, string> }> = []
+  class StdioClientTransport {
+    kind = 'stdio' as const
+    stderr = null
+    constructor(params: { env?: Record<string, string> }) {
+      stdioTransports.push(params)
+    }
+  }
+  return {
+    SseError,
+    SSEClientTransport,
+    StreamableHTTPClientTransport,
+    Client,
+    StreamableHTTPError,
+    StdioClientTransport,
+    stdioTransports,
+    clients,
+    state: { failStreamable: false, failStreamableCode: 503 }
+  }
+})
+
+vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
+  SseError: mcpSdkMock.SseError,
+  SSEClientTransport: mcpSdkMock.SSEClientTransport
+}))
+vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
+  StreamableHTTPClientTransport: mcpSdkMock.StreamableHTTPClientTransport,
+  StreamableHTTPError: mcpSdkMock.StreamableHTTPError
+}))
+vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
+  Client: mcpSdkMock.Client
+}))
+vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
+  StdioClientTransport: mcpSdkMock.StdioClientTransport
+}))
+
 const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
   '../McpRuntimeService'
 )
@@ -45,6 +157,57 @@ function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void
   })
   return { promise, resolve }
 }
+
+describe('McpRuntimeService stdio environment', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpSdkMock.stdioTransports.length = 0
+    shellEnvMock.getShellEnv.mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
+  })
+
+  it('canonicalizes a mixed-case Windows Path key to PATH before crossing the MCP SDK boundary', async () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+
+    const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
+    expect(Object.keys(transportEnv ?? {}).filter((key) => key.toLowerCase() === 'path')).toEqual(['PATH'])
+    expect(transportEnv?.PATH).toBe('C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows')
+    platformSpy.mockRestore()
+  })
+
+  it('preserves distinct PATH key casing on POSIX', async () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    shellEnvMock.getShellEnv.mockResolvedValue({ PATH: '/shell/bin', Path: 'shell-metadata' })
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      env: { Path: 'server-metadata' },
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+
+    const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
+    expect(transportEnv?.PATH).toBe('/shell/bin')
+    expect(transportEnv?.Path).toBe('server-metadata')
+    platformSpy.mockRestore()
+  })
+})
 
 describe('McpRuntimeService.setServerStatus', () => {
   beforeEach(() => {
@@ -263,5 +426,63 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
 
     expect(mcpCatalogMock.clearSharedToolsCache).toHaveBeenCalledWith('server-1')
     expect(mcpCatalogMock.refreshTools).toHaveBeenCalledWith('server-1')
+  })
+})
+
+describe('McpRuntimeService transport fallback (issue #16891)', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpSdkMock.state.failStreamable = false
+    mcpSdkMock.state.failStreamableCode = 503
+  })
+
+  function urlServer(type: 'sse' | 'streamableHttp'): McpServer {
+    return {
+      id: 'sse-server',
+      name: 'actuarymcp',
+      type,
+      baseUrl: 'https://mcp.actuary.meridianbridgegroup.com/mcp',
+      isActive: true
+    } as unknown as McpServer
+  }
+
+  type MockClient = InstanceType<typeof mcpSdkMock.Client>
+
+  it('falls back to Streamable HTTP when an sse-typed server rejects the SSE GET with 405', async () => {
+    const service = new McpRuntimeService()
+    const client = (await (service as any).getOrCreateClient(urlServer('sse'))) as unknown as MockClient
+
+    // SSE attempt (405) then Streamable HTTP attempt (success) — exactly two connect calls.
+    expect(client.connectCalls.map((c) => c.kind)).toEqual(['sse', 'streamableHttp'])
+  })
+
+  it('connects on the first try for a correctly configured streamableHttp server (no fallback)', async () => {
+    const service = new McpRuntimeService()
+    const client = (await (service as any).getOrCreateClient(urlServer('streamableHttp'))) as unknown as MockClient
+
+    expect(client.connectCalls.map((c) => c.kind)).toEqual(['streamableHttp'])
+  })
+
+  it('propagates the error when both transports fail', async () => {
+    // Force the Streamable HTTP attempt to also fail (5xx) so the fallback exhausts both candidates.
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableCode = 503
+
+    const service = new McpRuntimeService()
+    await expect((service as any).getOrCreateClient(urlServer('sse'))).rejects.toThrow()
+  })
+
+  it('does NOT fall back when a streamableHttp server returns 401 (auth must surface, not SSE)', async () => {
+    // A 401 from the Streamable HTTP transport is an auth/permission error, not a transport
+    // mismatch — it must not be masked by falling back to the SSE transport.
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableCode = 401
+
+    const service = new McpRuntimeService()
+    await expect((service as any).getOrCreateClient(urlServer('streamableHttp'))).rejects.toThrow()
+
+    // The only connect attempt is the configured streamableHttp one — no SSE fallback happened.
+    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
   })
 })

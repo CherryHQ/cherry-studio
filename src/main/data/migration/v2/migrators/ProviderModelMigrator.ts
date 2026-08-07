@@ -9,36 +9,78 @@
  */
 
 import { application } from '@application'
-import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
-import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
+import {
+  ENDPOINT_TYPE,
+  type EndpointType,
+  type ProtoModelConfig,
+  type ProtoProviderConfig
+} from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
-import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
+import type { InsertUserProviderRow, StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { ensureCherryAiDefaultProviderAndModelTx } from '@data/db/seeding/seeders/cherryaiDefaultModelSeeder'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
-import { applyUserOverlay } from '@data/services/ModelService'
-import { extractReasoningFormatTypes, mergePresetModel } from '@data/services/ProviderRegistryService'
+import {
+  diffApiFeatures,
+  matchesModelPricingBaseline,
+  synthesizePresetFromOverride
+} from '@data/services/ProviderRegistryService'
 import { generateOrderKeySequenceBetween } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
-import type { Provider as LegacyProvider } from '@main/data/migration/v2/legacyTypes'
+import type { Model as LegacyModel, Provider as LegacyProvider } from '@main/data/migration/legacyTypes'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
+import { providerLogoRef } from '@shared/data/types/file'
 import { createUniqueModelId, isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
-import type { ApiFeatures, EndpointConfig } from '@shared/data/types/provider'
+import type { ApiFeatures } from '@shared/data/types/provider'
 import { desc, eq, ne, sql } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
-import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
+import {
+  buildProviderApiKeys,
+  type OldLlmSettings,
+  transformModel,
+  transformProvider
+} from './mappings/ProviderModelMappings'
+import v1ProviderModelBaselineJson from './mappings/v1-provider-model-baseline.json'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
+import {
+  type EntityImageRef,
+  insertPreparedImageEntryTx,
+  insertPreparedImageRefTx,
+  prepareBase64ImageFileEntry,
+  type PreparedEntityImageFile,
+  unlinkPreparedImages
+} from './utils/logoMigration'
+import { recoverV1ProviderLogoIconKey } from './utils/providerLogoCompat'
 
 const logger = loggerService.withContext('ProviderModelMigrator')
 
 const BATCH_SIZE = 100
 const RETIRED_PROVIDER_IDS = new Set(['cephalon', 'tokenflux'])
+/** Defaults materialized for non-system providers by final-v1 migrations 127, 129, and 132. */
+const V1_CUSTOM_PROVIDER_API_FEATURES_BASELINE = {
+  arrayContent: true,
+  streamOptions: true,
+  developerRole: false
+} satisfies ApiFeatures
+
+function inferCherryInEndpointTypes(modelId: string): EndpointType[] {
+  const normalizedModelId = modelId.trim().toLowerCase()
+  if (normalizedModelId.startsWith('anthropic/')) {
+    return [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+  }
+  if (normalizedModelId.startsWith('google/')) {
+    return [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+  }
+  return [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+}
 
 const PROVIDER_MODEL_MIGRATION_ERROR_IDS = {
   prepare: 'provider_model_prepare_failed',
@@ -47,6 +89,35 @@ const PROVIDER_MODEL_MIGRATION_ERROR_IDS = {
 } as const
 
 type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
+
+interface V1ModelBaseline {
+  id: string
+  name?: string
+  description?: string
+  group?: string
+  capabilities?: LegacyModel['capabilities']
+  endpoint_type?: LegacyModel['endpoint_type']
+  supported_endpoint_types?: LegacyModel['supported_endpoint_types']
+  supported_text_delta?: boolean
+  pricing?: LegacyModel['pricing']
+}
+
+interface V1ProviderBaseline {
+  type: LegacyProvider['type']
+  apiHost?: string
+  anthropicApiHost?: string
+  isNotSupportArrayContent: boolean
+  isNotSupportDeveloperRole: boolean
+  isNotSupportStreamOptions: boolean
+  models: Record<string, V1ModelBaseline>
+}
+
+interface V1ProviderModelBaseline {
+  sourceRevision: string
+  providers: Record<string, V1ProviderBaseline>
+}
+
+const V1_PROVIDER_MODEL_BASELINE = v1ProviderModelBaselineJson as V1ProviderModelBaseline
 
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
@@ -64,6 +135,11 @@ function formatPhaseError(errorId: string, error: Error): string {
 interface LlmState {
   providers?: LegacyProvider[]
   settings?: OldLlmSettings
+}
+
+/** The provider logo slot for a given providerId (mirrors ProviderService). */
+function providerLogoSlot(providerId: string) {
+  return { sourceType: providerLogoRef.sourceType, sourceId: providerId, role: 'logo' }
 }
 
 function createModelId(providerId: string, modelId: string): UniqueModelId | null {
@@ -166,101 +242,163 @@ export class ProviderModelMigrator extends BaseMigrator {
     return this.loader
   }
 
-  /**
-   * Enrich a legacy-mapped provider row with registry preset baseline.
-   *
-   * `transformProvider` only derives from legacy data, so migrated rows for
-   * system providers (those present in providers.json) miss the registry
-   * baseline that fresh installs get from `PresetProviderSeeder`. Specifically
-   * this fills in non-default endpoint configs (e.g. OPENAI_RESPONSES baseUrl
-   * + reasoningFormat), `defaultChatEndpoint` precision, and `apiFeatures`
-   * defaults (e.g. providers that explicitly don't support `serviceTier`).
-   * Legacy fields win — they capture user customization from v1.
-   */
-  private enrichProviderRow(row: NewUserProviderInput, legacy: LegacyProvider): NewUserProviderInput {
-    const preset = this.getLoader()
-      .loadProviders()
-      .find((p) => p.id === legacy.id)
-    if (!preset) return row
+  private resolveEffectivePresetProvider(row: NewUserProviderInput): ProtoProviderConfig | null {
+    if (row.presetProviderId === null) return null
 
-    const presetEndpointConfigs = buildRuntimeEndpointConfigs(preset.endpointConfigs) as Partial<
-      Record<EndpointType, EndpointConfig>
-    > | null
-    const userEndpointConfigs = row.endpointConfigs ?? null
-    const allEndpointKeys = new Set([
-      ...Object.keys(presetEndpointConfigs ?? {}),
-      ...Object.keys(userEndpointConfigs ?? {})
-    ])
-    const mergedEndpointConfigs: Partial<Record<EndpointType, EndpointConfig>> = {}
-    for (const k of allEndpointKeys) {
-      const ep = k as EndpointType
-      const merged: EndpointConfig = {
-        ...presetEndpointConfigs?.[ep],
-        ...userEndpointConfigs?.[ep]
-      }
-      const presetFamily = presetEndpointConfigs?.[ep]?.adapterFamily
-      if (presetFamily) merged.adapterFamily = presetFamily
-      mergedEndpointConfigs[ep] = merged
-    }
+    const providers = this.getLoader().loadProviders()
+    return (
+      providers.find((provider) => provider.id === row.providerId) ??
+      providers.find((provider) => provider.id === row.presetProviderId) ??
+      null
+    )
+  }
 
-    const presetApiFeatures = (preset.apiFeatures ?? null) as ApiFeatures | null
-    const mergedApiFeatures = presetApiFeatures || row.apiFeatures ? { ...presetApiFeatures, ...row.apiFeatures } : null
+  private getV1ProviderBaseline(providerId: string): LegacyProvider | null {
+    const baseline = V1_PROVIDER_MODEL_BASELINE.providers[providerId]
+    if (!baseline) return null
 
     return {
-      ...row,
-      endpointConfigs: Object.keys(mergedEndpointConfigs).length > 0 ? mergedEndpointConfigs : null,
-      defaultChatEndpoint: row.defaultChatEndpoint ?? preset.defaultChatEndpoint ?? null,
-      apiFeatures: mergedApiFeatures
+      id: providerId,
+      type: baseline.type,
+      name: providerId,
+      apiKey: '',
+      apiHost: baseline.apiHost ?? '',
+      anthropicApiHost: baseline.anthropicApiHost,
+      isNotSupportArrayContent: baseline.isNotSupportArrayContent,
+      isNotSupportDeveloperRole: baseline.isNotSupportDeveloperRole,
+      isNotSupportStreamOptions: baseline.isNotSupportStreamOptions,
+      models: Object.values(baseline.models).map((model) => ({
+        ...model,
+        provider: providerId,
+        name: model.name ?? model.id,
+        group: model.group ?? ''
+      }))
     }
   }
 
   /**
-   * Enrich a legacy-mapped model row with registry preset data.
+   * Project a legacy provider snapshot into a sparse row delta.
    *
-   * Legacy v1 rows leave registry-derived fields (modalities, contextWindow,
-   * limits, etc.) null. Without enrichment, migrated users end up with
-   * skeleton model rows. Composes `mergePresetModel` (registry preset →
-   * override) with `applyUserOverlay` (user fields win) — the same chain
-   * `ModelService.create` uses for new models.
+   * Ownership is compared with the pinned final-v1 defaults, never with the
+   * current registry: comparing with today's registry cannot distinguish a
+   * historical default from a user edit. Unlinked custom providers remain
+   * row-owned; preset-linked custom providers use the final-v1 custom API
+   * feature defaults. If the pinned baseline lacks a provider, preserve its
+   * mapped values conservatively and log the gap rather than silently
+   * discarding legacy data.
    */
-  private enrichModelRow(
+  private projectProviderDeltaRow(row: NewUserProviderInput, legacy: LegacyProvider): NewUserProviderInput {
+    const preset = this.resolveEffectivePresetProvider(row)
+    if (!preset) return row
+
+    const v1Provider = this.getV1ProviderBaseline(preset.id)
+    if (!v1Provider) {
+      logger.warn('Final-v1 provider baseline missing; preserving mapped provider values', {
+        providerId: row.providerId,
+        presetProviderId: preset.id,
+        baselineRevision: V1_PROVIDER_MODEL_BASELINE.sourceRevision
+      })
+    }
+    const v1Row = v1Provider ? transformProvider(v1Provider, {}) : null
+    const apiFeaturesBaseline = legacy.isSystem === true ? v1Row?.apiFeatures : V1_CUSTOM_PROVIDER_API_FEATURES_BASELINE
+
+    const endpointConfigs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> = {}
+    for (const [key, config] of Object.entries(row.endpointConfigs ?? {})) {
+      const endpointType = key as EndpointType
+      const v1Config = v1Row?.endpointConfigs?.[endpointType]
+      if (config?.baseUrl !== undefined && config.baseUrl !== v1Config?.baseUrl) {
+        endpointConfigs[endpointType] = { baseUrl: config.baseUrl }
+      } else if (!v1Config) {
+        endpointConfigs[endpointType] = {}
+      }
+    }
+
+    return {
+      ...row,
+      endpointConfigs: Object.keys(endpointConfigs).length > 0 ? endpointConfigs : null,
+      defaultChatEndpoint:
+        v1Row && row.defaultChatEndpoint === v1Row.defaultChatEndpoint ? null : row.defaultChatEndpoint,
+      apiFeatures: apiFeaturesBaseline ? diffApiFeatures(row.apiFeatures, apiFeaturesBaseline) : row.apiFeatures
+    }
+  }
+
+  /**
+   * Project a legacy model snapshot into sparse preset deltas.
+   *
+   * Registry matching follows the runtime path: a provider preset enables its
+   * provider-model override, while global model matching remains available to
+   * fully custom providers. Provider-exclusive models are synthesized only from
+   * a valid preset provider's override. User ownership is then compared with the
+   * pinned final-v1 provider/model snapshot. For a model absent from that
+   * snapshot, only `capabilities[].isUserSelected` is provable provenance; all
+   * other fields inherit the current registry.
+   */
+  private projectModelDeltaRow(
     row: Omit<InsertUserModelRow, 'orderKey'>,
-    providerRow: InsertUserProviderRow
+    providerRow: InsertUserProviderRow,
+    legacy: LegacyModel
   ): Omit<InsertUserModelRow, 'orderKey'> {
+    const presetProvider = this.resolveEffectivePresetProvider(providerRow)
+    const endpointTypes =
+      row.endpointTypes ?? (presetProvider?.id === 'cherryin' ? inferCherryInEndpointTypes(row.modelId) : null)
     const loader = this.getLoader()
-    const presetModel = loader.findModel(row.modelId)
-    if (!presetModel) return row
+    const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, row.modelId) : null
+    const presetModel: ProtoModelConfig | null =
+      loader.findModel(registryOverride?.modelId ?? row.modelId) ??
+      (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
+    if (!presetModel) return endpointTypes === row.endpointTypes ? row : { ...row, endpointTypes }
 
-    const registryOverride = loader.findOverride(row.providerId, row.modelId)
-    const reasoningFormatTypes = extractReasoningFormatTypes(providerRow.endpointConfigs)
-    const defaultChatEndpoint = providerRow.defaultChatEndpoint ?? undefined
+    const hasExplicitCapabilitySelection =
+      legacy.capabilities?.some(
+        (capability) => capability.type !== 'web_search' && capability.isUserSelected !== undefined
+      ) ?? false
+    if (!presetProvider) {
+      return {
+        ...row,
+        presetModelId: presetModel.id,
+        capabilities: hasExplicitCapabilitySelection ? row.capabilities : null,
+        inputModalities: null,
+        outputModalities: null,
+        contextWindow: null,
+        maxInputTokens: null,
+        maxOutputTokens: null,
+        reasoning: null,
+        parameters: null
+      }
+    }
 
-    const baseline = mergePresetModel(
-      presetModel,
-      registryOverride,
-      row.providerId,
-      reasoningFormatTypes,
-      defaultChatEndpoint
-    )
-
-    const overlayName = row.name && row.name !== row.modelId ? row.name : null
-    const merged = applyUserOverlay(baseline, { ...row, name: overlayName })
+    const v1Model = V1_PROVIDER_MODEL_BASELINE.providers[presetProvider.id]?.models[row.modelId]
+    const v1Row = v1Model
+      ? transformModel(
+          {
+            ...v1Model,
+            provider: row.providerId,
+            name: v1Model.name ?? v1Model.id,
+            group: v1Model.group ?? ''
+          },
+          row.providerId
+        )
+      : null
+    const endpointTypesAreV1Delta = v1Row ? !isEqual(endpointTypes, v1Row.endpointTypes) : false
+    const endpointTypesNeedFallback = endpointTypes !== null && !isEqual(endpointTypes, registryOverride?.endpointTypes)
 
     return {
       ...row,
       presetModelId: presetModel.id,
-      name: merged.name,
-      description: merged.description ?? null,
-      capabilities: merged.capabilities as ModelCapability[],
-      inputModalities: (merged.inputModalities ?? null) as Modality[] | null,
-      outputModalities: (merged.outputModalities ?? null) as Modality[] | null,
-      endpointTypes: (merged.endpointTypes ?? null) as EndpointType[] | null,
-      contextWindow: merged.contextWindow ?? null,
-      maxInputTokens: merged.maxInputTokens ?? null,
-      maxOutputTokens: merged.maxOutputTokens ?? null,
-      supportsStreaming: merged.supportsStreaming,
-      reasoning: merged.reasoning ?? null,
-      pricing: merged.pricing ?? row.pricing
+      name: v1Row && row.name !== v1Row.name ? row.name : null,
+      description: v1Row && row.description !== v1Row.description ? row.description : null,
+      group: v1Row && row.group !== v1Row.group ? row.group : null,
+      capabilities: hasExplicitCapabilitySelection ? row.capabilities : null,
+      inputModalities: null,
+      outputModalities: null,
+      endpointTypes: endpointTypesAreV1Delta || endpointTypesNeedFallback ? endpointTypes : null,
+      contextWindow: null,
+      maxInputTokens: null,
+      maxOutputTokens: null,
+      supportsStreaming: v1Row && row.supportsStreaming !== v1Row.supportsStreaming ? row.supportsStreaming : null,
+      reasoning: null,
+      parameters: null,
+      pricing: v1Row && !matchesModelPricingBaseline(row.pricing, v1Row.pricing ?? undefined) ? row.pricing : null
     }
   }
 
@@ -397,13 +535,52 @@ export class ProviderModelMigrator extends BaseMigrator {
     let processedProviders = 0
     let processedModels = 0
 
+    const providerLogoFiles: PreparedEntityImageFile<EntityImageRef>[] = []
     try {
+      const providerRowsWithoutOrderKey: NewUserProviderInput[] = []
+      for (const provider of this.providers) {
+        const row = this.projectProviderDeltaRow(transformProvider(provider, this.settings), provider)
+        // v1 stored custom provider logos in Dexie settings under `image://provider-{id}`:
+        // either a base64 data URL (an uploaded logo, or a small built-in logo vite inlined)
+        // or a built-in-logo asset value from ProviderLogoPicker (`PROVIDER_LOGO_MAP[pickedId]`
+        // — a hashed bundle path for logos over vite's 4 KB inline limit, never an `icon:` ref).
+        // A data URL is promoted to an on-disk WebP file_entry referenced by the logo ref row
+        // (the single source of truth, logoKey nulled). A non-`data:` value is a stale build
+        // asset that no longer exists in v2 and is not a valid v2 icon ref; writing it onto
+        // logoKey verbatim renders a broken image (`ProviderAvatar` treats it as an image URL),
+        // and for a custom provider — whose id doesn't resolve in the icon catalog — that is the
+        // only logo it has. So recover the picked brand from the asset name and re-express it as
+        // a v2 `icon:<catalogKey>` ref; an unrecognized value drops to null (bundled icon by id
+        // for built-in providers, initials for custom ones).
+        const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
+        const logoFile = logo
+          ? await prepareBase64ImageFileEntry(
+              ctx.paths.filesDataDir,
+              providerLogoSlot(provider.id),
+              logo,
+              // Ref-backed slot (`provider_logo`), same as the live `bindLogoImage`
+              // path: reclaim when the provider is deleted or its logo replaced.
+              'delete_when_unreferenced'
+            )
+          : null
+        if (logoFile) {
+          providerLogoFiles.push(logoFile)
+          providerRowsWithoutOrderKey.push({ ...row, logoKey: null })
+        } else {
+          providerRowsWithoutOrderKey.push({ ...row, logoKey: logo ? recoverV1ProviderLogoIconKey(logo) : null })
+        }
+      }
+
       ctx.db.transaction((tx) => {
         ensureCherryAiDefaultProviderAndModelTx(tx)
 
-        const providerRowsWithoutOrderKey = this.providers.map((provider) =>
-          this.enrichProviderRow(transformProvider(provider, this.settings), provider)
-        )
+        // Insert file_entries before the ref rows (their `file_entry_id` FK
+        // needs them); the ref rows themselves go in after the owner rows exist
+        // (their `source_id` FK needs the provider), below.
+        for (const logoFile of providerLogoFiles) {
+          insertPreparedImageEntryTx(tx, logoFile)
+        }
+
         const [lastProvider] = tx
           .select({ orderKey: userProviderTable.orderKey })
           .from(userProviderTable)
@@ -430,7 +607,7 @@ export class ProviderModelMigrator extends BaseMigrator {
           // cleaned list directly here.
           const modelRows = assignOrderKeysByScope(
             (provider.models ?? []).map((model) =>
-              this.enrichModelRow(transformModel(model, provider.id), providerRow)
+              this.projectModelDeltaRow(transformModel(model, provider.id), providerRow, model)
             ),
             (model) => model.providerId
           )
@@ -450,6 +627,12 @@ export class ProviderModelMigrator extends BaseMigrator {
           )
         }
 
+        // Owner rows now exist — insert the logo ref rows (their `source_id` FK
+        // references `user_provider.provider_id`).
+        for (const logoFile of providerLogoFiles) {
+          insertPreparedImageRefTx(tx, logoFile)
+        }
+
         const pinRows = assignOrderKeysInSequence(
           this.pinnedModelIds.map((entityId) => ({
             entityType: 'model' as const,
@@ -460,6 +643,11 @@ export class ProviderModelMigrator extends BaseMigrator {
           tx.insert(pinTable).values(pinRows).onConflictDoNothing().run()
         }
       })
+
+      // Self-check the logo ref table's FKs (fileEntryId → file_entry, sourceId →
+      // user_provider) now that both sides are inserted — FK enforcement is off during
+      // migration, so this catches referential errors early (v2-migration-guide.md).
+      this.assertOwnedForeignKeys(ctx.db, [providerLogoFileRefTable])
 
       logger.info('Execute completed', {
         processedProviders,
@@ -472,6 +660,8 @@ export class ProviderModelMigrator extends BaseMigrator {
         processedCount: processedProviders
       }
     } catch (error) {
+      // Unlink any logo WebP written before the tx failed — no orphans on retry.
+      await unlinkPreparedImages(providerLogoFiles)
       const phaseError = createPhaseError(
         `Provider/model execution failed after ${processedProviders} provider(s)`,
         error
@@ -533,6 +723,12 @@ export class ProviderModelMigrator extends BaseMigrator {
       for (const provider of sampleProviders) {
         const sourceProvider = this.providers.find((item) => item.id === provider.providerId)
         if (sourceProvider?.apiKey && (!provider.apiKeys || provider.apiKeys.length === 0)) {
+          if (buildProviderApiKeys(sourceProvider, this.settings).length === 0) {
+            logger.warn('Legacy provider API key contained no migratable entries; continuing without API keys', {
+              providerId: provider.providerId
+            })
+            continue
+          }
           errors.push({
             key: `missing_api_key_${provider.providerId}`,
             message: `Provider ${provider.providerId} should include migrated API keys`

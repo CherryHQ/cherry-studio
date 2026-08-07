@@ -31,6 +31,8 @@ export type PreferenceShortcutType = {
 /** Global menu presentation mode: native system menus or Cherry custom menus. */
 export type MenuPresentationMode = 'native' | 'cherry'
 
+export type OnboardingProviderSetupStatus = 'pending' | 'completed' | 'skipped'
+
 export enum SelectionTriggerMode {
   Selected = 'selected',
   Ctrlkey = 'ctrlkey',
@@ -84,20 +86,42 @@ export type AssistantTabSortType = 'tags' | 'list'
 
 export type TopicDisplayMode = 'time' | 'assistant'
 
+export type TopicTabPosition = 'left' | 'right'
+
 export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
 
-export type SidebarFavorite =
-  | 'assistants'
-  | 'agents'
-  | 'store'
-  | 'paintings'
-  | 'translate'
-  | 'mini_app'
-  | 'knowledge'
-  | 'files'
-  | 'code_tools'
-  | 'notes'
-  | 'openclaw'
+export const SIDEBAR_FAVORITES = [
+  'assistants',
+  'agents',
+  'paintings',
+  'translate',
+  'mini_app',
+  'knowledge',
+  'files',
+  'code_tools',
+  'notes',
+  'openclaw'
+] as const
+
+export type SidebarFavorite = (typeof SIDEBAR_FAVORITES)[number]
+
+/**
+ * Group-ready sidebar storage contract.
+ *
+ * Leaf items are stored as tagged objects, not bare ids. Keep the `type` values,
+ * id semantics, and one ordered heterogeneous top-level array stable: a future
+ * `group` variant can then be added as another top-level item without migrating
+ * existing flat `SidebarFavoriteItem[]` values.
+ */
+export type SidebarFavoriteItem =
+  | {
+      type: 'app'
+      id: SidebarFavorite
+    }
+  | {
+      type: 'mini_app'
+      id: string
+    }
 
 export type AssistantIconType = 'model' | 'emoji' | 'none'
 
@@ -112,9 +136,6 @@ export enum UpgradeChannel {
 }
 
 export type ChatMessageStyle = 'plain' | 'bubble'
-
-/** Chat resource-list layout: 'classic' = entity rail + right resource panel, 'modern' = single sidebar. */
-export type ChatLayoutMode = 'classic' | 'modern'
 
 export type ChatMessageNavigationMode = 'none' | 'buttons' | 'anchor'
 
@@ -226,6 +247,10 @@ export interface WebSearchProvider {
   /** Capability API settings (user override merged into preset capabilities) */
   capabilities: Array<{
     feature: WebSearchCapability
+    /** Whether this capability requires a configured HTTP(S) endpoint. */
+    requiresApiHost?: boolean
+    /** Whether this capability requires at least one configured API key. */
+    requiresApiKey?: boolean
     /** Can be empty for self-hosted or hostless providers; resolve and validate via resolveProviderApiHost. */
     apiHost?: string
   }>
@@ -241,32 +266,50 @@ export interface WebSearchProvider {
 // CodeCLI Types
 // ============================================================================
 
+import type { UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
 export const CODE_CLI_IDS = Object.values(CodeCli) as unknown as readonly [
-  'qwen-code',
   'claude-code',
-  'gemini-cli',
   'openai-codex',
+  'opencode',
+  'openclaw',
+  'gemini-cli',
+  'qwen-code',
+  'kimi-code',
   'qoder-cli',
-  'github-copilot-cli',
-  'kimi-cli',
-  'opencode'
+  'github-copilot-cli'
 ]
 
 export type CodeCliId = (typeof CODE_CLI_IDS)[number]
 
-export type CodeCliOverride = {
-  enabled?: boolean
-  modelId?: string | null
-  envVars?: string
-  /** Terminal app name — should match `TerminalApp` enum values */
-  terminal?: string
-  currentDirectory?: string
-  directories?: string[]
+/** A per-tool provider entry, keyed by providerId in `CodeCliToolState.providers`. */
+export interface CliProviderConfig {
+  /**
+   * Unique model id ("providerId::modelId"), or null for the two legal
+   * model-less states: the own-login placeholder and a Claude detailed-models
+   * config with no common model.
+   */
+  modelId: UniqueModelId | null
+  /** User-edited tool-specific config blob. */
+  config?: Record<string, unknown>
+  /** Sort order in the provider list (lower = first). */
+  sortIndex?: number
 }
 
-export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>
+/** Per-CLI-tool state: per-provider configs (keyed by providerId) + the active one. */
+export interface CodeCliToolState {
+  providers: Record<string, CliProviderConfig>
+  /** Currently enabled providerId (single-select). */
+  current: string | null
+  /** Terminal app — an id from `code_cli.get_available_terminals`. */
+  terminal?: string
+  /** Working directory for this CLI tool (shared across all its providers). */
+  directory?: string
+}
+
+/** Preference value for `feature.code_cli.configs`. */
+export type CodeCliConfigs = Partial<Record<CodeCliId, CodeCliToolState>>
 
 // ============================================================================
 // WebSearch Compression Types (v2 - Flattened)
@@ -294,6 +337,7 @@ export const FILE_PROCESSOR_IDS = [
   'tesseract',
   'system',
   'paddleocr',
+  'local-paddleocr',
   'ovocr',
   'mineru',
   'doc2x',
@@ -327,17 +371,18 @@ export type MiniAppRegion = 'CN' | 'Global'
 
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
 
-export type ManagedBinary = {
+/** User-configurable settings for BinaryManager's isolated mise install environment. */
+export type BinaryInstallSettings = {
+  githubMirror: string
+  githubToken: string
+  npmRegistry: string
+  pipIndexUrl: string
+  verifySignatures: boolean
+}
+
+/** A user-added custom tool definition persisted in the BinaryManager custom registry. */
+export type CustomToolDefinition = {
   name: string
   tool: string
-  version?: string
-}
-
-export interface ToolInstallState {
-  tool: string
-  version: string
-}
-
-export interface BinaryState {
-  tools: Record<string, ToolInstallState>
+  requestedVersion?: string
 }

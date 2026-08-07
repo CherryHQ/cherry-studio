@@ -1,12 +1,13 @@
+import { cacheService } from '@data/CacheService'
+import { useSharedCacheValue } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
-import { LogoAvatar } from '@renderer/components/Icons'
-import { getMiniAppsLogo } from '@renderer/components/Icons/miniAppsLogo'
-import { useCurrentTab, useCurrentTabId } from '@renderer/hooks/tab'
+import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
+import { useCurrentTab, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
-import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
+import { toTransientMiniApp, useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { getWebviewLoaded, onWebviewStateChange, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
-import { DataApiError, ErrorCode } from '@shared/data/api'
+import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import { useParams } from '@tanstack/react-router'
 import type { WebviewTag } from 'electron'
@@ -20,6 +21,7 @@ import MinimalToolbar from './components/MinimalToolbar'
 import WebviewSearch from './components/WebviewSearch'
 
 const logger = loggerService.withContext('MiniAppPage')
+const MINI_APP_LOADING_COLOR = 'var(--muted-foreground)'
 
 // currentTab.url is always the app-relative route written by openTab(`/app/mini-app/<id>`),
 // never an absolute or live webview URL, so a direct compare is enough.
@@ -32,19 +34,27 @@ const MiniAppPage: FC = () => {
   const { appId } = useParams({ strict: false })
   const currentTabId = useCurrentTabId()
   const currentTab = useCurrentTab()
+  const isActiveTab = useIsActiveTab()
   const tabsContext = useOptionalTabsContext()
   const updateTab = tabsContext?.updateTab
   const { openMiniAppKeepAlive } = useMiniAppPopup()
   const { allApps, openedKeepAliveMiniApps, isLoading, error } = useMiniApps()
+
+  // Authoritative descriptor for a transient app (no database row, opened via openSmartMiniApp).
+  // Every window's keep-alive entry is only a local snapshot of this cross-window value.
+  const transientDescriptor = useSharedCacheValue(`mini_app.transient_descriptor.${appId ?? ''}` as const)
 
   // Find the app from all available apps (including transient ones in the keep-alive list)
   const app = useMemo((): MiniApp | null => {
     if (!appId) return null
     const found = allApps.find((a) => a.appId === appId)
     if (found) return found
-    // Fall back to the keep-alive list — covers temporary apps opened via openSmartMiniApp
-    return openedKeepAliveMiniApps.find((a) => a.appId === appId) ?? null
-  }, [appId, allApps, openedKeepAliveMiniApps])
+    // Prefer the shared transient descriptor over a window-local keep-alive snapshot.
+    // Reopening OpenClaw republishes its live URL; detached windows must observe it too.
+    if (transientDescriptor) return toTransientMiniApp(transientDescriptor)
+    const cached = openedKeepAliveMiniApps.find((a) => a.appId === appId)
+    return cached ?? null
+  }, [appId, allApps, openedKeepAliveMiniApps, transientDescriptor])
 
   const displayName = useMemo(() => {
     if (!app) return null
@@ -54,25 +64,35 @@ const MiniAppPage: FC = () => {
   useEffect(() => {
     if (!app || !displayName || !currentTabId || !currentTab || !updateTab) return
     if (!isMiniAppTabUrl(currentTab.url, app.appId)) return
-    if (currentTab.title === displayName && currentTab.icon === app.logo) return
+    // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
+    const tabIcon = app.logoSrc ?? app.logo
+    if (currentTab.title === displayName && currentTab.icon === tabIcon) return
 
     updateTab(currentTabId, {
       title: displayName,
-      icon: app.logo
+      icon: tabIcon
     })
   }, [app, currentTab, currentTabId, displayName, updateTab])
 
   useEffect(() => {
+    // Only the active tab drives the keep-alive pool. `openMiniAppKeepAlive`
+    // mutates *global* state — `currentMiniAppId` and the LRU order of the
+    // shared keep-alive list. Background mini-app pages stay mounted (React 19
+    // Activity keep-alive), so without this guard two mounted pages — e.g. a
+    // pinned mini-app tab plus the one just opened — would each keep claiming
+    // `currentMiniAppId` and reordering themselves to the tail, ping-ponging the
+    // shared state into an infinite render loop (Maximum update depth). Each app
+    // still registers itself when it becomes active and, being kept alive, stays
+    // in the pool afterward.
+    if (!isActiveTab) return
     if (isLoading) return
     if (error) {
       logger.error('Failed to load mini apps', error instanceof Error ? error : new Error(String(error)))
       return
     }
     if (!app) return
-    // Ensure the keep-alive pool picks up this app and currentMiniAppId stays
-    // in sync with the route-changed appId.
     openMiniAppKeepAlive(app)
-  }, [app, openMiniAppKeepAlive, isLoading, error])
+  }, [isActiveTab, app, openMiniAppKeepAlive, isLoading, error])
 
   // -------------- Tab Shell logic --------------
   // Hooks must be called before any return, so define them early with null-checks inside
@@ -83,10 +103,26 @@ const MiniAppPage: FC = () => {
   // loading mask flashes over a still-alive webview every time the user
   // switches back to the mini-app, looking like a reload.
   const [isReady, setIsReady] = useState<boolean>(() => (appId ? getWebviewLoaded(appId) : false))
+
+  // The shared cache syncs from Main asynchronously and does not block renderer startup,
+  // so in a window that just opened — exactly the detached-tab case — the descriptor is
+  // not readable on the first render. Hold the not-found verdict until it is, or the
+  // window flashes "app not found" before resolving. Mirrors useApiGateway.
+  const [sharedCacheReady, setSharedCacheReady] = useState(() => cacheService.isSharedCacheReady())
+  useEffect(() => {
+    if (sharedCacheReady) return
+    return cacheService.onSharedCacheReady(() => setSharedCacheReady(true))
+  }, [sharedCacheReady])
   const [currentUrl, setCurrentUrl] = useState<string | null>(app?.url ?? null)
 
   // Get the webview element from the pool (avoid re-running on openedKeepAliveMiniApps.length changes)
   const webviewCleanupRef = useRef<(() => void) | null>(null)
+
+  const detachWebview = useCallback(() => {
+    webviewCleanupRef.current?.()
+    webviewCleanupRef.current = null
+    webviewRef.current = null
+  }, [])
 
   const attachWebview = useCallback(() => {
     if (!app) return true // No app — stop monitoring
@@ -96,6 +132,7 @@ const MiniAppPage: FC = () => {
 
     if (webviewRef.current === el) return true // Already attached
 
+    detachWebview()
     webviewRef.current = el
     const handleInPageNav = (e: any) => setCurrentUrl(e.url)
     el.addEventListener('did-navigate-in-page', handleInPageNav)
@@ -103,13 +140,16 @@ const MiniAppPage: FC = () => {
       el.removeEventListener('did-navigate-in-page', handleInPageNav)
     }
     return true
-  }, [app])
+  }, [app, detachWebview])
 
   useEffect(() => {
-    if (!app) return
+    if (!app || !isReady) {
+      detachWebview()
+      return
+    }
 
     // Try immediate attachment first
-    if (attachWebview()) return () => webviewCleanupRef.current?.()
+    if (attachWebview()) return detachWebview
 
     // If not yet created, observe DOM changes (lightweight + auto-disconnect)
     const observer = new MutationObserver(() => {
@@ -121,38 +161,28 @@ const MiniAppPage: FC = () => {
 
     return () => {
       observer.disconnect()
-      webviewCleanupRef.current?.()
+      detachWebview()
     }
-  }, [app, attachWebview])
+  }, [app, attachWebview, detachWebview, isReady])
 
-  // Event-driven wait for load completion (replaces fixed 150ms polling)
+  // Keep local readiness synchronized across load, LRU eviction, and recreation.
   useEffect(() => {
-    if (!app) return
-    if (getWebviewLoaded(app.appId)) {
-      // Already loaded
-      if (!isReady) setIsReady(true)
+    if (!app) {
+      setIsReady(false)
       return
     }
-    let mounted = true
-    const unsubscribe = onWebviewStateChange(app.appId, (loaded) => {
-      if (!mounted) return
-      if (loaded) {
-        setIsReady(true)
-        unsubscribe()
-      }
-    })
-    return () => {
-      mounted = false
-      unsubscribe()
-    }
-  }, [app, isReady])
+
+    const unsubscribe = onWebviewStateChange(app.appId, setIsReady)
+    setIsReady(getWebviewLoaded(app.appId))
+    return unsubscribe
+  }, [app])
 
   // While loading, show a loading indicator instead of returning null
   if (isLoading) {
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
-          <BeatLoader color="var(--color-text-2)" size={8} />
+          <BeatLoader color={MINI_APP_LOADING_COLOR} size={8} />
         </div>
       </div>
     )
@@ -164,7 +194,7 @@ const MiniAppPage: FC = () => {
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
-          <div className="text-[14px] text-foreground-secondary">
+          <div className="text-[14px] text-muted-foreground">
             {t(isNotFound ? 'miniApp.error.not_found' : 'miniApp.error.load_failed')}
           </div>
         </div>
@@ -173,25 +203,30 @@ const MiniAppPage: FC = () => {
   }
 
   // appId in the URL doesn't match any known app — render a not-found state
-  // instead of redirecting away, so the user sees what happened.
+  // instead of redirecting away, so the user sees what happened. A transient app
+  // can still arrive with the shared-cache hydration, so keep loading until then.
   if (!app) {
     return (
       <div className="pointer-events-none relative z-3 flex h-full w-full flex-col *:pointer-events-auto">
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
-          <div className="text-[14px] text-foreground-secondary">{t('miniApp.error.not_found')}</div>
+          {sharedCacheReady ? (
+            <div className="text-[14px] text-muted-foreground">{t('miniApp.error.not_found')}</div>
+          ) : (
+            <BeatLoader color={MINI_APP_LOADING_COLOR} size={8} />
+          )}
         </div>
       </div>
     )
   }
 
   const handleReload = () => {
-    if (!app) return
-    if (webviewRef.current) {
-      setWebviewLoaded(app.appId, false)
-      setIsReady(false)
-      webviewRef.current.src = app.url
-      setCurrentUrl(app.url)
-    }
+    if (!app || !isReady || !getWebviewLoaded(app.appId)) return
+    const webview = webviewRef.current
+    if (!webview?.isConnected) return
+
+    setWebviewLoaded(app.appId, false)
+    setIsReady(false)
+    webview.reload()
   }
 
   const handleOpenDevTools = () => {
@@ -213,8 +248,8 @@ const MiniAppPage: FC = () => {
       <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.appId} />
       {!isReady && (
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
-          <LogoAvatar logo={getMiniAppsLogo(app.logo) ?? app.logo} size={60} />
-          <BeatLoader color="var(--color-text-2)" size={8} style={{ marginTop: 12 }} />
+          <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={60} />
+          <BeatLoader color={MINI_APP_LOADING_COLOR} size={8} style={{ marginTop: 12 }} />
         </div>
       )}
     </div>

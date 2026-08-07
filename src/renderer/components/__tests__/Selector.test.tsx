@@ -19,7 +19,7 @@ vi.mock('@renderer/i18n/label', () => ({
   getProviderLabel: (id: string) => id
 }))
 
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: {
     t: (key: string) => key
   }

@@ -1,15 +1,21 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mocks } = vi.hoisted(() => ({
+const { cacheState, mocks, updateState } = vi.hoisted(() => ({
+  cacheState: { sidebarWidth: 50 },
   mocks: {
     openSettingsTab: vi.fn(),
     showSearchPopup: vi.fn(),
-    toggleTheme: vi.fn()
+    showUpdatePopup: vi.fn()
+  },
+  updateState: {
+    available: false,
+    downloaded: false,
+    info: null as { version: string } | null
   }
 }))
 
@@ -22,24 +28,46 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Button: ({
+    children,
+    type = 'button',
+    ...props
+  }: React.ComponentProps<'button'> & { variant?: string; size?: string }) => {
+    const { variant, size, ...buttonProps } = props
+    void variant
+    void size
+
+    return (
+      <button data-slot="button" type={type} {...buttonProps}>
+        {children}
+      </button>
+    )
+  },
   Tooltip: ({ children }: { children: React.ReactNode }) => children,
   Kbd: ({ children }: { children?: React.ReactNode }) => children
 }))
 
-vi.mock('@data/hooks/usePreference', () => ({
-  usePreference: (key: string) => {
-    if (key === 'app.use_system_title_bar') return [false]
-    return [undefined]
+vi.mock('@data/hooks/useCache', () => ({
+  usePersistCache: () => [cacheState.sidebarWidth, vi.fn()]
+}))
+
+vi.mock('@renderer/hooks/useAppUpdateState', () => ({
+  useAppUpdateState: () => ({ appUpdateState: updateState, updateAppUpdateState: vi.fn() })
+}))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openSettingsTab: mocks.openSettingsTab
+}))
+
+vi.mock('@renderer/components/GlobalSearch/GlobalSearchPopup', () => ({
+  default: {
+    show: mocks.showSearchPopup
   }
 }))
 
-vi.mock('@renderer/hooks/useTheme', () => ({
-  useTheme: () => ({ settedTheme: 'light', toggleTheme: mocks.toggleTheme })
-}))
-
-vi.mock('@renderer/components/Popups/SearchPopup', () => ({
+vi.mock('@renderer/components/UpdateDialogPopup', () => ({
   default: {
-    show: mocks.showSearchPopup
+    show: mocks.showUpdatePopup
   }
 }))
 
@@ -47,22 +75,19 @@ vi.mock('@renderer/components/command', () => ({
   CommandTooltip: ({ children }: { children: React.ReactNode }) => children
 }))
 
-vi.mock('@renderer/i18n/label', () => ({
-  getThemeModeLabelKey: () => 'Light'
-}))
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
         'globalSearch.open': 'Open global search',
+        'settings.about.updateAvailable': 'Found new version',
         'settings.title': 'Settings'
       })[key] ?? key
   })
 }))
 
 vi.mock('../../WindowControls', () => ({
-  default: () => null
+  WindowControls: () => null
 }))
 
 import { ShellTabBarActions, SidebarShellActions } from '../ShellTabBarActions'
@@ -70,6 +95,10 @@ import { ShellTabBarActions, SidebarShellActions } from '../ShellTabBarActions'
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  cacheState.sidebarWidth = 50
+  updateState.available = false
+  updateState.downloaded = false
+  updateState.info = null
 })
 
 describe('ShellTabBarActions', () => {
@@ -87,24 +116,92 @@ describe('ShellTabBarActions', () => {
 
     await user.click(screen.getByRole('button', { name: 'Open global search' }))
 
+    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveAttribute('data-slot', 'button')
+    expect(screen.getByRole('button', { name: 'Open global search' })).toHaveClass(
+      'text-muted-foreground',
+      'dark:text-muted-foreground'
+    )
     expect(mocks.showSearchPopup).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps theme and settings actions out of the tab bar', () => {
+  it('shows a ready update and opens its dialog directly', async () => {
+    const user = userEvent.setup()
+    updateState.available = true
+    updateState.downloaded = true
+    updateState.info = { version: '2.0.0' }
+
+    render(<ShellTabBarActions />)
+
+    const updateButton = screen.getByRole('button', { name: 'Found new version' })
+    expect(updateButton.querySelector('svg')).toHaveClass('text-success')
+
+    await user.click(updateButton)
+
+    await waitFor(() => {
+      expect(mocks.showUpdatePopup).toHaveBeenCalledWith({ releaseInfo: updateState.info })
+    })
+  })
+
+  it('keeps the update action hidden until the update is ready to install', () => {
+    updateState.available = true
+    updateState.info = { version: '2.0.0' }
+
+    render(<ShellTabBarActions />)
+
+    expect(screen.queryByRole('button', { name: 'Found new version' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the update action at the left of the action group', () => {
+    cacheState.sidebarWidth = 0
+    updateState.available = true
+    updateState.downloaded = true
+    updateState.info = { version: '2.0.0' }
+
+    render(<ShellTabBarActions />)
+
+    expect(screen.getAllByRole('button').map((button) => button.getAttribute('aria-label'))).toEqual([
+      'Found new version',
+      'Settings',
+      'Open global search'
+    ])
+  })
+
+  it('uses its natural width in the header flex layout with one right padding', () => {
+    const { container } = render(<ShellTabBarActions />)
+    const actionArea = container.firstElementChild
+
+    expect(actionArea).toHaveClass('shrink-0')
+    expect(actionArea).not.toHaveClass('absolute')
+    expect(actionArea?.firstElementChild).toHaveClass('pr-2')
+  })
+
+  it('keeps theme and settings actions out of the tab bar while the sidebar is visible', () => {
     render(<ShellTabBarActions />)
 
     expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /settings/i })).not.toBeInTheDocument()
   })
 
-  it('toggles theme from the sidebar icon footer action', async () => {
+  it('opens settings from the tab bar when the sidebar is hidden', async () => {
     const user = userEvent.setup()
+    cacheState.sidebarWidth = 0
 
+    render(<ShellTabBarActions />)
+
+    await user.click(screen.getByRole('button', { name: /settings/i }))
+
+    expect(mocks.openSettingsTab).toHaveBeenCalledWith('/settings/provider')
+  })
+
+  it('does not render the theme toggle in the sidebar footer action', () => {
     render(<SidebarShellActions layout="icon" onSettingsClick={mocks.openSettingsTab} />)
 
-    await user.click(screen.getByRole('button', { name: 'Light' }))
-
-    expect(mocks.toggleTheme).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass(
+      'text-muted-foreground',
+      'dark:text-muted-foreground'
+    )
   })
 
   it('opens the settings tab from the sidebar footer action', async () => {
@@ -120,7 +217,10 @@ describe('ShellTabBarActions', () => {
   it('renders sidebar full footer actions with visible labels', () => {
     render(<SidebarShellActions layout="full" onSettingsClick={mocks.openSettingsTab} />)
 
-    expect(screen.getByRole('button', { name: 'Light' })).toHaveTextContent('Light')
+    expect(screen.queryByRole('button', { name: 'Light' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveAttribute('data-slot', 'button')
+    expect(screen.getByRole('button', { name: /settings/i })).toHaveClass('justify-start', 'text-foreground')
+    expect(screen.getByRole('button', { name: /settings/i })).not.toHaveClass('text-muted-foreground')
     expect(screen.getByRole('button', { name: /settings/i })).toHaveTextContent('Settings')
   })
 })

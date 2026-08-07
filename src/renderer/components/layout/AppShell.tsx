@@ -1,46 +1,121 @@
-import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useTabs } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
+import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
-import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
-import { useCallback, useEffect, useMemo } from 'react'
+import { isSettingsPath } from '@shared/data/types/settingsPath'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Sidebar from '../app/Sidebar'
-import { createRecentRouteEntryFromTab, upsertGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
+import { createRecentRouteEntryFromTab, recordGlobalSearchRecentEntry } from '../GlobalSearch/globalSearchGroups'
+import GlobalSearchPopup from '../GlobalSearch/GlobalSearchPopup'
 import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
-import SearchPopup from '../Popups/SearchPopup'
+import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, reorderTabs, pinTab, unpinTab, detachTab, openTab } =
-    useTabs()
-  const [, setRecentItems] = usePersistCache('ui.global_search.recent_items')
+  const {
+    tabs,
+    activeTabId,
+    setActiveTab,
+    closeTab,
+    closeTabs,
+    updateTab,
+    reorderTabs,
+    pinTab,
+    unpinTab,
+    detachTab,
+    openTab
+  } = useTabs()
   const activeTab = useMemo(() => tabs.find((tab) => tab.id === activeTabId), [activeTabId, tabs])
+  const isSettingsTabActive = isSettingsPath(activeTab?.url)
+  const previousWorkspaceTabIdRef = useRef<string | undefined>(undefined)
+  if (activeTab && !isSettingsTabActive) {
+    previousWorkspaceTabIdRef.current = activeTab.id
+  } else if (isSettingsTabActive && !previousWorkspaceTabIdRef.current) {
+    previousWorkspaceTabIdRef.current = tabs.reduce<(typeof tabs)[number] | undefined>((latest, tab) => {
+      if (isSettingsPath(tab.url)) return latest
+      return !latest || (tab.lastAccessTime ?? 0) > (latest.lastAccessTime ?? 0) ? tab : latest
+    }, undefined)?.id
+  }
+  const tabBarTabs = useMemo(
+    () => (isSettingsTabActive && activeTab ? [activeTab] : tabs),
+    [activeTab, isSettingsTabActive, tabs]
+  )
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const handleCloseTab = useCallback(
+    (id: string) => {
+      const tab = tabs.find((candidate) => candidate.id === id)
+      if (isSettingsPath(tab?.url)) {
+        closeTabs([id], previousWorkspaceTabIdRef.current)
+        return
+      }
+      closeTab(id)
+    },
+    [closeTab, closeTabs, tabs]
+  )
+
+  const handleDetachTab = useCallback(
+    (id: string) => {
+      const tab = tabs.find((candidate) => candidate.id === id)
+      detachTab(id)
+      if (isSettingsPath(tab?.url) && previousWorkspaceTabIdRef.current) {
+        setActiveTab(previousWorkspaceTabIdRef.current)
+      }
+    },
+    [detachTab, setActiveTab, tabs]
+  )
 
   const handleOpenGlobalSearch = useCallback(() => {
-    void SearchPopup.show()
-  }, [])
+    if (isSettingsTabActive) return
+    void GlobalSearchPopup.show()
+  }, [isSettingsTabActive])
 
   useCommandHandler('app.search', handleOpenGlobalSearch)
 
-  const recordRouteVisit = useCallback(
-    (tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
-      if (!tab) return
+  useEffect(() => {
+    if (isSettingsTabActive) {
+      GlobalSearchPopup.hide()
+    }
+  }, [isSettingsTabActive])
 
-      const entry = createRecentRouteEntryFromTab(tab, lastAccessTime)
-      if (!entry) return
+  useEffect(() => {
+    if (!isMac) return
 
-      // Functional update resolves against the latest persisted value; upsert
-      // returns the same reference when nothing changes, so the CacheService
-      // isEqual short-circuit drops the no-op write.
-      setRecentItems((prev) => upsertGlobalSearchRecentEntry(prev, entry))
-    },
-    [setRecentItems]
-  )
+    let cancelled = false
+    void ipcApi
+      .request('window.is_full_screen')
+      .then((value) => {
+        if (!cancelled) {
+          setIsFullscreen(value)
+        }
+      })
+      .catch(() => undefined)
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useIpcOn('window.fullscreen_changed', (value) => {
+    if (isMac) {
+      setIsFullscreen(value)
+    }
+  })
+
+  const recordRouteVisit = useCallback((tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
+    if (!tab) return
+
+    const entry = createRecentRouteEntryFromTab(tab, lastAccessTime)
+    if (!entry) return
+
+    recordGlobalSearchRecentEntry(entry)
+  }, [])
 
   useEffect(() => {
     recordRouteVisit(activeTab)
@@ -63,7 +138,7 @@ export const AppShell = () => {
           title: getDefaultRouteTitle(url),
           icon: undefined,
           lastAccessTime: Date.now(),
-          metadata: clearTabInstanceMetadata(tab?.metadata)
+          metadata: undefined
         }
     updateTab(tabId, patch)
 
@@ -72,50 +147,94 @@ export const AppShell = () => {
     }
   }
 
+  const tabBar = (
+    <AppShellTabBar
+      tabs={tabBarTabs}
+      activeTabId={activeTabId}
+      isFullscreen={isFullscreen}
+      isFocusedTab={isSettingsTabActive}
+      setActiveTab={setActiveTab}
+      closeTab={handleCloseTab}
+      closeTabs={closeTabs}
+      reorderTabs={reorderTabs}
+      pinTab={pinTab}
+      unpinTab={unpinTab}
+      detachTab={handleDetachTab}
+      openTab={openTab}
+    />
+  )
+
+  const contentArea = (
+    <div className={cn('flex min-h-0 min-w-0 flex-1 flex-col pb-2', isSettingsTabActive ? 'px-2' : 'pr-2')}>
+      <main
+        data-ui="app.content"
+        className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
+        {/* Route Tabs: Only render non-dormant tabs */}
+        <ResourceViewSourceProvider>
+          {tabs
+            .filter((t) => t.type === 'route' && !t.isDormant)
+            .map((tab) => (
+              <TabRouter
+                key={tab.id}
+                tab={tab}
+                isActive={tab.id === activeTabId}
+                onUrlChange={(url) => handleUrlChange(tab.id, url)}
+              />
+            ))}
+        </ResourceViewSourceProvider>
+
+        {/* MiniApp keep-alive WebView pool — global, shared across modes */}
+        <MiniAppTabsPool />
+      </main>
+    </div>
+  )
+
+  const contentColumn = (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      {tabBar}
+      {contentArea}
+    </div>
+  )
+
+  if (!isMac) {
+    return (
+      <div
+        className={cn(
+          'flex h-screen w-screen flex-row overflow-hidden text-foreground',
+          isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
+        )}>
+        {!isSettingsTabActive && <Sidebar />}
+        {contentColumn}
+      </div>
+    )
+  }
+
   return (
     <div
       className={cn(
-        'flex h-screen w-screen flex-col overflow-hidden text-foreground',
+        'relative flex h-screen w-screen flex-row overflow-hidden text-foreground',
         isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar'
       )}>
-      {/* Zone 1: Tab Bar (spans full width) */}
-      <AppShellTabBar
-        tabs={tabs}
-        activeTabId={activeTabId}
-        setActiveTab={setActiveTab}
-        closeTab={closeTab}
-        reorderTabs={reorderTabs}
-        pinTab={pinTab}
-        unpinTab={unpinTab}
-        detachTab={detachTab}
-        openTab={openTab}
-      />
-
-      {/* Zone 2: Main Area (Sidebar + Content) */}
-      <div className="flex h-full min-h-0 w-full flex-1 flex-row overflow-hidden">
-        {/* Zone 2a: Sidebar */}
-        <Sidebar />
-
-        {/* Zone 2b: Content Area - Multi MemoryRouter Architecture */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col pr-2 pb-2">
-          <main className="relative min-h-0 flex-1 overflow-hidden rounded-[12px] border-[0.5px] border-border bg-background">
-            {/* Route Tabs: Only render non-dormant tabs */}
-            {tabs
-              .filter((t) => t.type === 'route' && !t.isDormant)
-              .map((tab) => (
-                <TabRouter
-                  key={tab.id}
-                  tab={tab}
-                  isActive={tab.id === activeTabId}
-                  onUrlChange={(url) => handleUrlChange(tab.id, url)}
-                />
-              ))}
-
-            {/* MiniApp keep-alive WebView pool — global, shared across modes */}
-            <MiniAppTabsPool />
-          </main>
+      {!isFullscreen && (
+        <div
+          aria-hidden="true"
+          data-testid="macos-traffic-light-drag-region"
+          className="pointer-events-none absolute top-0 left-0 h-11 w-[env(titlebar-area-x)] [-webkit-app-region:drag]"
+        />
+      )}
+      {!isSettingsTabActive && (
+        <div className="flex h-full min-h-0 shrink-0 flex-col [&>#app-sidebar]:min-h-0 [&>#app-sidebar]:flex-1">
+          {!isFullscreen && (
+            <div
+              aria-hidden="true"
+              data-testid="macos-traffic-light-spacer"
+              className="h-11 shrink-0 [-webkit-app-region:drag]"
+            />
+          )}
+          <Sidebar />
         </div>
-      </div>
+      )}
+      {contentColumn}
     </div>
   )
 }

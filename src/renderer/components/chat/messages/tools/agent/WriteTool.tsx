@@ -1,10 +1,10 @@
 import CodeViewer from '@renderer/components/CodeViewer'
 import { getLanguageByFilePath } from '@renderer/utils/codeLanguage'
 
+import { AgentToolsType, type WriteToolInput, type WriteToolOutput } from '../shared/agentToolTypes'
+import { ClickableFilePath } from '../shared/ClickableFilePath'
+import { SkeletonValue, ToolHeader } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
-import { ClickableFilePath } from './ClickableFilePath'
-import { SkeletonValue, ToolHeader } from './GenericTools'
-import { AgentToolsType, type WriteToolInput, type WriteToolOutput } from './types'
 
 export function WriteTool({
   input,

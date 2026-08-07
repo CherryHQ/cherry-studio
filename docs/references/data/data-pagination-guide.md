@@ -47,7 +47,7 @@ Each layer has an authoritative doc — this guide is the map.
 
 ### Request parameters
 
-These four composable param interfaces live in `src/shared/data/api/apiTypes.ts`
+These four composable param interfaces live in `src/shared/data/api/types.ts`
 (see [api-types.md § Pagination Types](./api-types.md#pagination-types) for the
 full table):
 

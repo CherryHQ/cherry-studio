@@ -115,7 +115,7 @@ function PageSidePanel({
             initial={{ x: side === 'right' ? '100%' : '-100%' }}
             animate={{ x: 0 }}
             exit={{ x: side === 'right' ? '100%' : '-100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 350 }}
+            transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
             data-slot="page-side-panel"
             className={cn(
               isScopedPortal ? 'absolute' : 'fixed',

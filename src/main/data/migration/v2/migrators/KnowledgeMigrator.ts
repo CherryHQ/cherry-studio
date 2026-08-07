@@ -9,20 +9,17 @@ import { type InsertUserModelRow, userModelTable } from '@data/db/schemas/userMo
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
-import {
-  needsProcessedArtifactReservation,
-  reserveImportedFileRelativePath
-} from '@main/features/knowledge/utils/storage/pathStorage'
-import { sanitizeFilename } from '@main/utils/file'
-import { copy, ensureDir } from '@main/utils/file/fs'
+import { needsProcessedArtifactReservation, reserveImportedFileRelativePath } from '@main/features/knowledge'
+import { copy, ensureDir } from '@main/utils/file'
+import { sanitizeFilename } from '@main/utils/legacyFile'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE
 } from '@shared/data/types/knowledge'
-import { UNIQUE_MODEL_ID_SEPARATOR, type UniqueModelId } from '@shared/data/types/model'
-import type { FilePath } from '@shared/types/file'
+import type { FileMetadata } from '@shared/data/types/legacyFile'
+import { MODEL_CAPABILITY, UNIQUE_MODEL_ID_SEPARATOR, type UniqueModelId } from '@shared/data/types/model'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import Database from 'better-sqlite3'
 import { eq, sql } from 'drizzle-orm'
 
@@ -335,13 +332,15 @@ export class KnowledgeMigrator extends BaseMigrator {
 
   /**
    * Read the legacy vector DB's `uniqueLoaderId → source` map (via the shared
-   * {@link KnowledgeVectorSourceReader}, so directory expansion and vector migration consume
-   * the exact same load + path resolution) so a `directory` item can be expanded into per-file
-   * children (each file's loader id resolves to its source path). The discriminated `kind`
-   * distinguishes a (recoverable) read failure from a successful read — a thrown read is
-   * `read_error` (so the caller can warn precisely); a missing DB / directory / non-embedjs /
-   * zero rows is a `loaded` read with an empty `sources` map. Both keep the directory tombstone.
-   * Best-effort: failures are caught, never thrown.
+   * {@link KnowledgeVectorSourceReader}'s column-projected `loadBaseLoaderSources`, so directory
+   * expansion and vector migration share the exact same path resolution + loader set without
+   * this map-building pass having to read and float32-decode the whole base's vectors — that
+   * synchronous decode froze the migration UI and risked OOM on large folders) so a `directory`
+   * item can be expanded into per-file children (each file's loader id resolves to its source
+   * path). The discriminated `kind` distinguishes a (recoverable) read failure from a successful
+   * read — a thrown read is `read_error` (so the caller can warn precisely); a missing DB /
+   * directory / non-embedjs / zero rows is a `loaded` read with an empty `sources` map. Both keep
+   * the directory tombstone. Best-effort: failures are caught, never thrown.
    */
   private async loadLoaderSourceMap(
     baseId: string,
@@ -349,7 +348,7 @@ export class KnowledgeMigrator extends BaseMigrator {
   ): Promise<LoaderSourceMapResult> {
     const sources = new Map<string, string>()
     try {
-      const result = await vectorSource.loadBase(baseId)
+      const result = await vectorSource.loadBaseLoaderSources(baseId)
       if (result.status !== 'ok') {
         return { kind: 'loaded', sources }
       }
@@ -609,7 +608,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         // A resolved embedding model whose per-base legacy vector store is missing/empty/locked
         // yields dimensions===null. We must NOT drop the base (that loses the library with no
         // recoverable row): keep it as a `failed` row, like the dangling-model branch below, so
-        // the name/model/config/idle items survive and the UI offers a restore/re-index entry.
+        // the name/model/config/unindexed items survive and the UI offers a restore/re-index entry.
         // `vectorsWillMigrate` also gates directory expansion: a base whose vectors will not
         // migrate must not expand folders into `completed` children that would be empty shells.
         const vectorStoreUnresolved = embeddingResolution.kind === 'resolved' && resolvedDimensions.dimensions === null
@@ -792,7 +791,7 @@ export class KnowledgeMigrator extends BaseMigrator {
    * `providerId`/`modelId` are split from the UniqueModelId (`providerId::modelId`) rather than
    * the legacy `{ provider, id }` fields so a pre-composed legacy id resolves to the same
    * provider prefix the rest of the migration validated against. The row is intentionally minimal
-   * (capabilities default to `[]`, timestamps/orderKey are filled at insert time); the runtime
+   * but complete (timestamps/orderKey are filled at insert time); the runtime
    * embedding call only needs the provider + modelId, and the base's vector dimensions live on
    * the base row, not here. Dedup is by UniqueModelId so several bases sharing one orphan model
    * resurrect it once; the id is also added to `validModelIds` so later bases see it as resolved.
@@ -818,7 +817,15 @@ export class KnowledgeMigrator extends BaseMigrator {
         typeof legacyModel?.name === 'string' && legacyModel.name.trim() !== '' ? legacyModel.name.trim() : modelId
       const group =
         typeof legacyModel?.group === 'string' && legacyModel.group.trim() !== '' ? legacyModel.group.trim() : null
-      this.resurrectedEmbeddingModels.set(uniqueModelId, { id: uniqueModelId, providerId, modelId, name, group })
+      this.resurrectedEmbeddingModels.set(uniqueModelId, {
+        id: uniqueModelId,
+        providerId,
+        modelId,
+        name,
+        group,
+        capabilities: [MODEL_CAPABILITY.EMBEDDING],
+        supportsStreaming: true
+      })
       this.recordWarning(
         `Knowledge base embedding model ${uniqueModelId} was missing from user_model but its provider survived; re-created it so the base keeps its vectors instead of requiring a re-index`
       )
@@ -1054,8 +1061,8 @@ export class KnowledgeMigrator extends BaseMigrator {
 
       const destPath = path.join(ctx.paths.knowledgeBaseDir, baseId, 'raw', relativePath)
       try {
-        await ensureDir(path.dirname(destPath) as FilePath)
-        await copy(sourcePath as FilePath, destPath as FilePath)
+        await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(destPath)))
+        await copy(AbsoluteFilePathSchema.parse(sourcePath), AbsoluteFilePathSchema.parse(destPath))
       } catch (error) {
         this.recordWarning(
           `Failed to copy knowledge file for item ${item.id} (${sourcePath} → ${destPath}): ${

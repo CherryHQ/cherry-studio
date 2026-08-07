@@ -1,26 +1,23 @@
 export {
+  type AbsoluteFilePath,
+  AbsoluteFilePathSchema,
   type Base64String,
+  Base64StringSchema,
   type DirectoryEntry,
   type DirectoryListOptions,
   FILE_TYPE,
   type FileContent,
-  type FilePath,
   type FileType,
   FileTypeSchema,
   type FileUrlString,
+  type FileVersion,
+  FileVersionSchema,
   type PhysicalFileMetadata,
   PhysicalFileMetadataSchema,
   SafeExtSchema,
-  type UrlString
+  type UrlString,
+  UrlStringSchema
 } from './common'
-export {
-  type FileEntryHandle,
-  FileEntryHandleSchema,
-  type FileHandle,
-  FileHandleSchema,
-  type FilePathHandle,
-  FilePathHandleSchema
-} from './handle'
 export { type FileInfo, FileInfoSchema } from './info'
 export {
   type BatchCreateResult,
@@ -29,8 +26,8 @@ export {
   type EnsureExternalEntryIpcParams,
   type FileFilter,
   type FileIpcApi,
-  type FileVersion,
   type GetPhysicalPathIpcParams,
   type PermanentDeleteIpcParams,
   type ReadResult
 } from './ipc'
+export { type EntryCleanupSummary, type OrphanReport, type OrphanReportCounts } from './sweep'

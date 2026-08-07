@@ -7,9 +7,9 @@
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
-import type { DbType } from '@data/db/types'
+import type { DbOrTx, DbType } from '@data/db/types'
 import { loggerService } from '@logger'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { KnowledgeItemListResponse, ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeItemDto,
@@ -19,18 +19,17 @@ import {
   type KnowledgeItemStatus,
   type KnowledgeItemType
 } from '@shared/data/types/knowledge'
-import { and, eq, inArray, isNull, ne, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, lt, ne, or, type SQL, sql } from 'drizzle-orm'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
-import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeItemService')
 const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
 /**
  * Item statuses that mean "indexing is in progress" — the item is being driven
- * by a job and is neither finished (completed/failed), idle (never started), nor
- * being deleted. Used to find items stranded by an interrupted job on boot.
+ * by a job and is neither finished (completed/failed) nor being deleted. Used to
+ * find items stranded by an interrupted job on boot.
  */
 const KNOWLEDGE_ITEM_IN_FLIGHT_STATUSES = [
   'preparing',
@@ -46,6 +45,12 @@ type KnowledgeItemRowLike = Omit<KnowledgeItemRow, 'data'> & {
 
 type FailedKnowledgeItemStatusUpdate = {
   error: string
+}
+
+type KnowledgeItemListCursor = {
+  directoryRank: number
+  createdAt: number
+  id: string
 }
 
 type KnowledgeItemsByBaseOptions = {
@@ -78,6 +83,29 @@ function rowToKnowledgeItem(row: KnowledgeItemRowLike): KnowledgeItem {
   })
 }
 
+function encodeKnowledgeItemListCursor(cursor: KnowledgeItemListCursor): string {
+  return Buffer.from(JSON.stringify(cursor)).toString('base64url')
+}
+
+function decodeKnowledgeItemListCursor(raw: string | undefined): KnowledgeItemListCursor | null {
+  if (!raw) return null
+  try {
+    const value = JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')) as Partial<KnowledgeItemListCursor>
+    if (
+      (value.directoryRank !== 0 && value.directoryRank !== 1) ||
+      !Number.isFinite(value.createdAt) ||
+      typeof value.id !== 'string' ||
+      value.id.length === 0
+    ) {
+      throw new Error('Invalid knowledge item cursor fields')
+    }
+    return value as KnowledgeItemListCursor
+  } catch {
+    logger.warn('Knowledge item cursor is unparseable; falling back to the first page', { cursor: raw })
+    return null
+  }
+}
+
 export class KnowledgeItemService {
   private get db() {
     const dbService = application.get('DbService')
@@ -99,20 +127,31 @@ export class KnowledgeItemService {
       )
     }
 
-    // Keyset pagination over `(createdAt DESC, id ASC)`. One direction spec drives both the WHERE
-    // predicate and the matching ORDER BY (via the shared util) so the two can't silently drift.
-    const ordering = keysetOrdering(knowledgeItemTable.createdAt, knowledgeItemTable.id, { major: 'desc', tie: 'asc' })
+    // Keep directory rows in one leading band, then preserve the existing newest-first order
+    // within directories and non-directories. The cursor carries all three sort components so
+    // pagination cannot surface a later-page directory after an earlier-page file.
+    const directoryRank = sql<number>`case when ${knowledgeItemTable.type} = 'directory' then 0 else 1 end`
     const conditions = [...filterConditions]
-    const cursor = decodeListCursor(query.cursor, asNumericKey, 'knowledge-item')
+    const cursor = decodeKnowledgeItemListCursor(query.cursor)
     if (cursor) {
-      conditions.push(ordering.where(cursor))
+      conditions.push(
+        or(
+          gt(directoryRank, cursor.directoryRank),
+          and(eq(directoryRank, cursor.directoryRank), lt(knowledgeItemTable.createdAt, cursor.createdAt)),
+          and(
+            eq(directoryRank, cursor.directoryRank),
+            eq(knowledgeItemTable.createdAt, cursor.createdAt),
+            gt(knowledgeItemTable.id, cursor.id)
+          )
+        )!
+      )
     }
 
     const rows = this.db
       .select()
       .from(knowledgeItemTable)
       .where(and(...conditions))
-      .orderBy(...ordering.orderBy)
+      .orderBy(asc(directoryRank), desc(knowledgeItemTable.createdAt), asc(knowledgeItemTable.id))
       .limit(limit + 1)
       .all()
     const [{ count }] = this.db
@@ -128,7 +167,11 @@ export class KnowledgeItemService {
       total: count,
       nextCursor:
         rows.length > limit
-          ? encodeCursor(pageRows[pageRows.length - 1].createdAt, pageRows[pageRows.length - 1].id)
+          ? encodeKnowledgeItemListCursor({
+              directoryRank: pageRows[pageRows.length - 1].type === 'directory' ? 0 : 1,
+              createdAt: pageRows[pageRows.length - 1].createdAt,
+              id: pageRows[pageRows.length - 1].id
+            })
           : undefined
     }
   }
@@ -218,7 +261,7 @@ export class KnowledgeItemService {
    * A single UPDATE covers leaves and their ancestor containers together: a
    * container with an in-flight descendant is itself in-flight
    * (`reconcileContainers` keeps it `processing` while any child is active), so
-   * failing every in-flight row leaves no completed/idle container pointing at a
+   * failing every in-flight row leaves no completed container pointing at a
    * failed child — the rollup invariant holds without a separate reconcile pass.
    *
    * @returns the number of items marked failed.
@@ -245,7 +288,9 @@ export class KnowledgeItemService {
     return updatedRows.length
   }
 
-  create(baseId: string, item: CreateKnowledgeItemDto): KnowledgeItem {
+  /** Create an item already in its active status (`preparing` for a directory container, `processing` for a leaf) and reconcile its parent container so an add into an already-completed directory pulls it back into an active status. */
+  createActive(baseId: string, item: CreateKnowledgeItemDto): KnowledgeItem {
+    const status: KnowledgeItemStatus = item.type === 'directory' ? 'preparing' : 'processing'
     const dbService = application.get('DbService')
     const row = dbService.withWriteTx((tx) => {
       this.validateGroupOwnerTx(tx, baseId, item.groupId)
@@ -259,7 +304,7 @@ export class KnowledgeItemService {
               groupId: item.groupId ?? null,
               type: item.type,
               data: item.data,
-              status: 'idle',
+              status,
               error: null
             })
             .returning()
@@ -286,10 +331,18 @@ export class KnowledgeItemService {
         throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Knowledge item create result missing')
       }
 
+      // Roll the new child up into its ancestor containers in the SAME transaction
+      // as the INSERT: an add into an already-completed directory must atomically
+      // pull it back to an active status. Splitting these into two transactions
+      // could leave a committed active child the caller never observed — its
+      // rollback would miss the row while still deleting the source file it just
+      // copied, stranding a DB record that points at a nonexistent file.
+      this.reconcileContainersTx(tx, baseId, [insertedRow.id, insertedRow.groupId])
+
       return insertedRow
     })
 
-    logger.info('Created knowledge item', { baseId, id: row.id, type: row.type })
+    logger.info('Created active knowledge item', { baseId, id: row.id, type: row.type, status })
     return rowToKnowledgeItem(row)
   }
 
@@ -356,6 +409,23 @@ export class KnowledgeItemService {
     status: 'deleting' | 'failed',
     update: FailedKnowledgeItemStatusUpdate | undefined = undefined
   ): string[] {
+    if (status === 'failed') {
+      return this.applySubtreeStatusTx(this.db, baseId, rootIds, status, update as FailedKnowledgeItemStatusUpdate)
+    }
+    return this.applySubtreeStatusTx(this.db, baseId, rootIds, status)
+  }
+
+  setSubtreeStatusTx(tx: DbOrTx, baseId: string, rootIds: string[], status: 'deleting'): string[] {
+    return this.applySubtreeStatusTx(tx, baseId, rootIds, status)
+  }
+
+  private applySubtreeStatusTx(
+    tx: DbOrTx,
+    baseId: string,
+    rootIds: string[],
+    status: 'deleting' | 'failed',
+    update: FailedKnowledgeItemStatusUpdate | undefined = undefined
+  ): string[] {
     const error = status === 'failed' ? update?.error.trim() : null
 
     if (status === 'failed' && !error) {
@@ -369,8 +439,7 @@ export class KnowledgeItemService {
       return []
     }
 
-    const db = application.get('DbService').getDb()
-    const updatedRows = db.all<{ id: string; groupId: string | null }>(sql`
+    const updatedRows = tx.all<{ id: string; groupId: string | null }>(sql`
         WITH RECURSIVE subtree AS (
           SELECT id
           FROM knowledge_item
@@ -508,7 +577,7 @@ export class KnowledgeItemService {
     }
 
     const dbService = application.get('DbService')
-    const { item, startContainerIds } = dbService.withWriteTx((tx) => {
+    const { item, startContainerIds, blocked } = dbService.withWriteTx((tx) => {
       const [existingRow] = tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1).all()
 
       if (!existingRow) {
@@ -518,7 +587,8 @@ export class KnowledgeItemService {
       if (existingRow.status === 'deleting' && status !== 'deleting') {
         return {
           item: rowToKnowledgeItem(existingRow),
-          startContainerIds: []
+          startContainerIds: [],
+          blocked: true
         }
       }
 
@@ -541,12 +611,17 @@ export class KnowledgeItemService {
         startContainerIds:
           status === 'failed' && updatedRow.type === 'directory'
             ? [existingRow.groupId]
-            : [updatedRow.id, existingRow.groupId]
+            : [updatedRow.id, existingRow.groupId],
+        blocked: false
       }
     })
 
-    this.reconcileContainers(item.baseId, startContainerIds)
-    logger.info('Updated knowledge item status', { id, status })
+    if (blocked) {
+      logger.warn('Skipped status update for deleting item', { id, attemptedStatus: status })
+    } else {
+      this.reconcileContainers(item.baseId, startContainerIds)
+      logger.info('Updated knowledge item status', { id, status })
+    }
     return item
   }
 
@@ -630,72 +705,79 @@ export class KnowledgeItemService {
   }
 
   private reconcileContainers(baseId: string, startContainerIds: Array<string | null | undefined>): void {
-    const dbService = application.get('DbService')
-    dbService.withWriteTx((tx) => {
-      const queue = [...new Set(startContainerIds.filter((id): id is string => Boolean(id)))]
-      const visited = new Set<string>()
+    application.get('DbService').withWriteTx((tx) => this.reconcileContainersTx(tx, baseId, startContainerIds))
+  }
 
-      while (queue.length > 0) {
-        const containerId = queue.shift()
-        if (!containerId || visited.has(containerId)) {
-          continue
+  /**
+   * Ancestor container rollup on a caller-supplied transaction, so it can commit
+   * atomically with the write that changed a child's status (see `createActive`).
+   * Walks up from each start container, recomputing its status from its immediate
+   * children.
+   */
+  private reconcileContainersTx(tx: DbOrTx, baseId: string, startContainerIds: Array<string | null | undefined>): void {
+    const queue = [...new Set(startContainerIds.filter((id): id is string => Boolean(id)))]
+    const visited = new Set<string>()
+
+    while (queue.length > 0) {
+      const containerId = queue.shift()
+      if (!containerId || visited.has(containerId)) {
+        continue
+      }
+      visited.add(containerId)
+
+      const [containerRow] = tx
+        .select()
+        .from(knowledgeItemTable)
+        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
+        .limit(1)
+        .all()
+
+      if (!containerRow || containerRow.type !== 'directory') {
+        continue
+      }
+
+      if (containerRow.status === 'deleting') {
+        continue
+      }
+
+      if (containerRow.status === 'preparing') {
+        if (containerRow.groupId) {
+          queue.push(containerRow.groupId)
         }
-        visited.add(containerId)
+        continue
+      }
 
-        const [containerRow] = tx
-          .select()
-          .from(knowledgeItemTable)
-          .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
-          .limit(1)
-          .all()
+      const [stats] = tx
+        .select({
+          activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'deleting') then 1 else 0 end)`,
+          failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' then 1 else 0 end)`
+        })
+        .from(knowledgeItemTable)
+        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, containerId)))
+        .all()
 
-        if (!containerRow || containerRow.type !== 'directory') {
-          continue
-        }
-
-        if (containerRow.status === 'deleting') {
-          continue
-        }
-
-        if (containerRow.status === 'preparing') {
-          if (containerRow.groupId) {
-            queue.push(containerRow.groupId)
-          }
-          continue
-        }
-
-        const [stats] = tx
-          .select({
-            activeCount: sql<number>`sum(case when ${knowledgeItemTable.status} not in ('completed', 'failed', 'deleting') then 1 else 0 end)`,
-            failedCount: sql<number>`sum(case when ${knowledgeItemTable.status} = 'failed' then 1 else 0 end)`
-          })
-          .from(knowledgeItemTable)
-          .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.groupId, containerId)))
-          .all()
-
-        if (Number(stats?.activeCount ?? 0) > 0) {
-          tx.update(knowledgeItemTable)
-            .set({ status: 'processing', error: null })
-            .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
-            .run()
-
-          if (containerRow.groupId) {
-            queue.push(containerRow.groupId)
-          }
-          continue
-        }
-
-        const nextStatus: KnowledgeItemStatus = Number(stats?.failedCount ?? 0) > 0 ? 'failed' : 'completed'
+      if (Number(stats?.activeCount ?? 0) > 0) {
         tx.update(knowledgeItemTable)
-          .set({ status: nextStatus, error: nextStatus === 'failed' ? CONTAINER_CHILD_FAILURE_ERROR : null })
+          .set({ status: 'processing', error: null })
           .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
           .run()
 
         if (containerRow.groupId) {
           queue.push(containerRow.groupId)
         }
+        continue
       }
-    })
+
+      const nextStatus: KnowledgeItemStatus = Number(stats?.failedCount ?? 0) > 0 ? 'failed' : 'completed'
+      tx.update(knowledgeItemTable)
+        .set({ status: nextStatus, error: nextStatus === 'failed' ? CONTAINER_CHILD_FAILURE_ERROR : null })
+        .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, containerId)))
+        .run()
+
+      if (containerRow.groupId) {
+        queue.push(containerRow.groupId)
+      }
+    }
   }
 
   delete(id: string): void {

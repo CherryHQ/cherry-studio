@@ -1,11 +1,10 @@
 import { CircularProgress, Flex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
-import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { McpToolResponse } from '@renderer/types/mcpTool'
-import { Check, ShieldCheck, Wrench } from 'lucide-react'
+import { ShieldCheck } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { ComponentPropsWithoutRef, FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
@@ -16,9 +15,9 @@ import {
   useOptionalMessageListActions,
   useOptionalMessageListUi
 } from '../../MessageListProvider'
-import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../agent/GenericTools'
 import { useToolApproval } from '../hooks/useToolApproval'
 import { ArgKey, ArgsSection, ArgsSectionTitle, ArgsTable, ArgValue, ResponseSection } from '../shared/ArgsTable'
+import { getEffectiveStatus, SkeletonSpan, ToolStatusIndicator, TruncatedIndicator } from '../shared/GenericTools'
 import { ToolDisclosure, type ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { truncateOutput } from '../shared/truncateOutput'
 
@@ -26,7 +25,6 @@ interface Props {
   toolResponse: McpToolResponse
 }
 
-const logger = loggerService.withContext('MessageTools')
 const TOOL_RESPONSE_RENDER_DELAY_MS = 40
 const TOOL_ARGS_RENDER_DELAY_MS = 120
 const TOOL_RESPONSE_HIGHLIGHT_DELAY_MS = 220
@@ -34,6 +32,7 @@ const MAX_ARG_STRING_PARSE_LENGTH = 20000
 const MAX_ARG_VALUE_LENGTH = 4000
 const MAX_ARG_OBJECT_KEYS = 24
 const MAX_ARG_ARRAY_ITEMS = 24
+const logger = loggerService.withContext('MessageTools')
 
 const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const [activeKeys, setActiveKeys] = useState<string[]>([])
@@ -52,7 +51,6 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
   const { id, tool, status, response, partialArguments } = toolResponse
   const approval = useToolApproval(toolResponse, tool)
   const autoApproved = isToolAutoApproved?.(tool) ?? false
-  const isPending = status === 'pending'
   const isDone = status === 'done'
   const isError = status === 'error'
   const isStreaming = status === 'streaming'
@@ -81,6 +79,10 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
     return null
   }
 
+  const handleCollapseChange = (keys: string | string[]) => {
+    setActiveKeys(Array.isArray(keys) ? keys : [keys])
+  }
+
   const copyContent = (content: string, toolId: string) => {
     if (!copyText) return
     Promise.resolve(copyText(content, { successMessage: t('message.copied') }))
@@ -92,10 +94,6 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
         logger.error('Failed to copy tool response:', error as Error)
         notifyError?.(t('message.copy.failed'))
       })
-  }
-
-  const handleCollapseChange = (keys: string | string[]) => {
-    setActiveKeys(Array.isArray(keys) ? keys : [keys])
   }
 
   // Format tool responses for collapse items
@@ -110,9 +108,6 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
       key: id,
       label: (
         <MessageTitleLabel>
-          <StatusIconColumn>
-            <Wrench size={15} />
-          </StatusIconColumn>
           <TitleContent>
             <ToolName className="min-w-0 items-center gap-1">
               <span className="truncate">
@@ -127,26 +122,26 @@ const MessageMcpTool: FC<Props> = ({ toolResponse }) => {
               )}
               {autoApproved && (
                 <Tooltip content={t('message.tools.autoApproveEnabled')}>
-                  <ShieldCheck size={13} color="var(--status-color-success)" />
-                </Tooltip>
-              )}
-              {!isPending && copyText && (
-                <Tooltip content={t('common.copy')} delay={500}>
-                  <ActionButton
-                    className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      copyContent(JSON.stringify(result, null, 2), id)
-                    }}
-                    aria-label={t('common.copy')}>
-                    {!copiedMap[id] && <CopyIcon size={13} />}
-                    {copiedMap[id] && <Check size={13} color="var(--status-color-success)" />}
-                  </ActionButton>
+                  <span
+                    aria-label={t('message.tools.autoApproveEnabled')}
+                    className="flex h-5 items-center text-success">
+                    <ShieldCheck aria-hidden="true" size={13} strokeWidth={1.8} />
+                  </span>
                 </Tooltip>
               )}
             </TitleActions>
           </TitleContent>
         </MessageTitleLabel>
+      ),
+      extra: (isDone || isError) && copyText && (
+        <Tooltip content={t('common.copy')} delay={500}>
+          <ActionButton
+            className="message-action-button invisible opacity-0 transition-opacity duration-150 focus-visible:visible focus-visible:opacity-100 group-hover/tool:visible group-hover/tool:opacity-100"
+            onClick={() => copyContent(JSON.stringify(result, null, 2), id)}
+            aria-label={t('common.copy')}>
+            {copiedMap[id] ? t('common.copied') : t('common.copy')}
+          </ActionButton>
+        </Tooltip>
       ),
       children: (
         <ToolResponseContainer
@@ -191,8 +186,10 @@ type ExtractedContent = {
 const extractPreviewContent = (response: unknown): ExtractedContent => {
   if (!response) return { text: '', images: [] }
 
-  const result = CallToolResultSchema.safeParse(response)
-  if (result.success) {
+  const hasMcpContent =
+    typeof response === 'object' && response !== null && Object.prototype.hasOwnProperty.call(response, 'content')
+  const result = hasMcpContent ? CallToolResultSchema.safeParse(response) : null
+  if (result?.success) {
     const contents = result.data.content
     if (contents.length === 0) return { text: '', images: [] }
 
@@ -437,7 +434,7 @@ const ExpandedToolResponseContent: FC<{
 const CollapseContainer = ({ className, ...props }: ComponentPropsWithoutRef<typeof ToolDisclosure>) => (
   <ToolDisclosure
     className={[
-      'border-none [--status-color-error:var(--color-foreground-secondary)] [--status-color-invoking:var(--color-primary)] [--status-color-success:var(--color-primary,green)] [--status-color-warning:var(--color-warning,#faad14)]',
+      'border-none [--status-color-error:var(--muted-foreground)] [--status-color-invoking:var(--primary)] [--status-color-success:var(--primary)] [--status-color-warning:var(--warning)]',
       className
     ]
       .filter(Boolean)
@@ -475,22 +472,10 @@ const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
   />
 )
 
-const StatusIconColumn = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div
-    className={[
-      'items-left justify-left flex h-5 w-4 shrink-0 items-center text-foreground-muted transition-colors duration-150 group-hover/tool:text-foreground-secondary',
-      className
-    ]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
-)
-
 const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>) => (
   <Flex
     className={[
-      'min-w-0 max-w-full shrink overflow-hidden font-normal text-[13px] text-foreground-secondary transition-colors duration-150 group-hover/tool:text-foreground',
+      'min-w-0 max-w-full shrink overflow-hidden font-normal text-[13px] text-muted-foreground transition-colors duration-150 group-hover/tool:text-foreground',
       className
     ]
       .filter(Boolean)
@@ -503,11 +488,11 @@ const TitleActions = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
   <div className={['flex shrink-0 items-center gap-1.5', className].filter(Boolean).join(' ')} {...props} />
 )
 
-const ActionButton = ({ className, ...props }: ComponentPropsWithoutRef<'button'>) => (
+const ActionButton = ({ className, type = 'button', ...props }: ComponentPropsWithoutRef<'button'>) => (
   <button
-    type="button"
+    type={type}
     className={[
-      'flex size-5 cursor-pointer items-center justify-center gap-1 rounded border-none bg-transparent p-0 text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-(--color-accent) hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-(--color-primary) focus-visible:outline-2 focus-visible:outline-offset-2 [&.confirm-button:hover]:bg-(--color-primary-soft) [&.confirm-button:hover]:text-(--color-primary) [&.confirm-button]:text-(--color-primary) [&_.iconfont]:text-[13px]',
+      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-muted-foreground opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-none',
       className
     ]
       .filter(Boolean)

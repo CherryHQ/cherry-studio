@@ -1,7 +1,7 @@
 import type { ExportableMessage } from '@renderer/types/messageExport'
 import { markdownToPlainText } from '@renderer/utils/markdown'
 import { getComposerTextFromMessage } from '@renderer/utils/message/composerTokens'
-import { getNamingTextContent } from '@renderer/utils/message/find'
+import { getNamingTextContent, getToolCitationExport } from '@renderer/utils/message/find'
 
 /**
  * 从消息内容中提取标题，限制长度并处理换行和标点符号。用于导出功能。
@@ -90,19 +90,29 @@ export const processCitations = (content: string, mode: 'remove' | 'normalize' =
 }
 
 const formatMessageAsPlainText = (message: ExportableMessage): string => {
-  const roleText = message.role === 'user' ? 'User:' : 'Assistant:'
-  // Copy path: use the gated text (drops error/translation) so copying an
-  // errored or translated message yields the clean answer, not an error dump.
-  // Full-fidelity export keeps `getMainTextContent`.
-  const content = getComposerTextFromMessage(message, getNamingTextContent(message))
-  const plainTextContent = markdownToPlainText(content).trim()
+  // Assistant/agent rows lead with the frozen producing author (survives rename/delete), like the header.
+  const author = 'messageSnapshot' in message ? message.messageSnapshot : undefined
+  const roleText = message.role === 'user' ? 'User:' : `${author?.name ?? 'Assistant'}:`
+  const plainTextContent = markdownToPlainText(copyableTextContent(message)).trim()
   return `${roleText}\n${plainTextContent}`
 }
 
-export const messageToPlainText = (message: ExportableMessage): string => {
-  // Copy path — gated, see `formatMessageAsPlainText`.
+/**
+ * The message text a copy yields. Uses the gated text (drops error/translation) so
+ * copying an errored or translated message gives the clean answer, not an error
+ * dump — full-fidelity export keeps `getMainTextContent` instead.
+ *
+ * `[cite:id]` markers are resolved to plain `[N]` before `markdownToPlainText`
+ * runs: left in, `remove-markdown` mangles a chain of them down to a bare
+ * `cite:<id>` and the internal id ends up on the clipboard.
+ */
+const copyableTextContent = (message: ExportableMessage): string => {
   const content = getComposerTextFromMessage(message, getNamingTextContent(message))
-  return markdownToPlainText(content).trim()
+  return getToolCitationExport(message, content).content
+}
+
+export const messageToPlainText = (message: ExportableMessage): string => {
+  return markdownToPlainText(copyableTextContent(message)).trim()
 }
 
 export const messagesToPlainText = (messages: ExportableMessage[]): string => {

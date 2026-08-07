@@ -1,5 +1,6 @@
 import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
@@ -8,7 +9,7 @@ import type { FC } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { usePartsMap } from '../blocks'
+import { usePartsMap } from '../blocks/MessagePartsContext'
 import { useMessageListActions } from '../MessageListProvider'
 import type { MessageListItem } from '../types'
 import MessageGroupModelList from './MessageGroupModelList'
@@ -34,12 +35,19 @@ const MessageGroupMenuBar: FC<Props> = ({
   const { t } = useTranslation()
   const partsMap = usePartsMap()
   const actions = useMessageListActions()
+  const groupMessageIds = messages.map((message) => message.id)
+
+  const deleteAvailability = groupMessageIds
+    .map((messageId) => actions.getMessageDeleteAvailability?.(messageId))
+    .find((availability) => availability?.enabled === false)
+  const isDeleteDisabled = deleteAvailability?.enabled === false
+  const deleteDisabledReason =
+    deleteAvailability?.enabled === false ? getMessageDeleteUnavailableText(deleteAvailability.reason, t) : undefined
 
   const handleDeleteGroup = async () => {
-    const parentId = messages[0]?.parentId
-    if (!parentId || !actions.deleteMessageGroupWithConfirm) return
+    if (groupMessageIds.length === 0 || !actions.deleteMessageGroupWithConfirm || isDeleteDisabled) return
 
-    await actions.deleteMessageGroupWithConfirm(parentId)
+    await actions.deleteMessageGroupWithConfirm(groupMessageIds)
   }
 
   const isFailedMessage = (m: MessageListItem) => {
@@ -51,16 +59,11 @@ const MessageGroupMenuBar: FC<Props> = ({
     return isError || noContent
   }
 
-  const isTransmittingMessage = (m: MessageListItem) => {
-    if (m.role !== 'assistant') return false
-    return m.status === 'pending'
-  }
-
   const hasFailedMessages =
-    !!actions.regenerateMessage && messages.some((m) => isFailedMessage(m) && !isTransmittingMessage(m))
+    !!actions.regenerateMessage && messages.some((m) => isFailedMessage(m) && m.status !== 'pending')
 
   const handleRetryAll = async () => {
-    const candidates = messages.filter((m) => isFailedMessage(m) && !isTransmittingMessage(m))
+    const candidates = messages.filter((m) => isFailedMessage(m) && m.status !== 'pending')
     let failedCount = 0
     let lastError: unknown
 
@@ -131,9 +134,16 @@ const MessageGroupMenuBar: FC<Props> = ({
           </Tooltip>
         )}
         {actions.deleteMessageGroupWithConfirm && (
-          <Button variant="ghost" size="sm" onClick={handleDeleteGroup} className="size-7 min-w-7 p-0">
-            <Trash2 size={14} color="var(--color-error-base)" />
-          </Button>
+          <Tooltip content={deleteDisabledReason ?? t('common.delete')}>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={isDeleteDisabled}
+              onClick={handleDeleteGroup}
+              className="size-7 min-w-7 p-0">
+              <Trash2 size={14} className="text-error" />
+            </Button>
+          </Tooltip>
         )}
       </ActionContainer>
     </GroupMenuBar>

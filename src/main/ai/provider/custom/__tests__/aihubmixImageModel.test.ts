@@ -15,13 +15,7 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-vi.mock('i18next', () => ({
-  default: { t: (key: string) => key }
-}))
-
-vi.mock('@renderer/i18n', () => ({
-  default: { t: (key: string) => key }
-}))
+vi.mock('@main/i18n', () => ({ t: (key: string) => key }))
 
 import { createAihubmixImageModel } from '../aihubmix/aihubmixImageModel'
 

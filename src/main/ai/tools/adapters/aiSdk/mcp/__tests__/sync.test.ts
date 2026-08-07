@@ -15,7 +15,7 @@ vi.mock('@application', async () => {
   } as Record<string, unknown>)
 })
 
-vi.mock('@main/core/application', async () => {
+vi.mock('@application', async () => {
   return {
     application: {
       get: (name: string) => {

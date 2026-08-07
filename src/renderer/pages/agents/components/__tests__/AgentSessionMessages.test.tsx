@@ -34,7 +34,7 @@ vi.mock('../../messages/agentMessageListAdapter', () => ({
   useAgentMessageListProviderValue: useAgentMessageListProviderValueMock
 }))
 
-// The mount effect fires ipcApi.request('ai.prewarm_agent_session' / 'ai.close_agent_session_warm');
+// The mount effect fires ipcApi.request('ai.agent.session.prewarm' / 'ai.agent.session.close_warm');
 // a static mock keeps it from crashing (this suite doesn't assert on the warm-up calls).
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn().mockResolvedValue(undefined), on: vi.fn(() => () => {}) }
@@ -63,6 +63,39 @@ describe('AgentSessionMessages', () => {
           name: 'Blank avatar agent',
           avatar: '🤖'
         }
+      })
+    )
+  })
+
+  it('anchors background status to the latest assistant with content instead of an empty pending placeholder', () => {
+    const settledAssistant = {
+      id: 'assistant-settled',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Main answer' }]
+    }
+    const pendingAssistant = {
+      id: 'assistant-pending',
+      role: 'assistant',
+      parts: []
+    }
+
+    render(
+      <AgentSessionMessages
+        agentId="agent-1"
+        sessionId="session-1"
+        messages={[settledAssistant, { id: 'user-follow-up', role: 'user', parts: [] }, pendingAssistant] as any}
+        partsByMessageId={{
+          'assistant-settled': [{ type: 'text', text: 'Main answer' }] as any
+        }}
+        isLoading={false}
+      />
+    )
+
+    expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageTail: expect.objectContaining({
+          messageId: 'assistant-settled'
+        })
       })
     )
   })

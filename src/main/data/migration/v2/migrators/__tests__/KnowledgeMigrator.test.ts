@@ -751,7 +751,6 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.preparedBases).toHaveLength(1)
     expect(migrator.preparedBases[0].embeddingModelId).toBe('silicon::BAAI/bge-m3')
     expect(migrator.preparedBases[0].rerankModelId).toBe('silicon::Qwen/Qwen3-Reranker-8B')
-    expect(migrator.preparedBases[0].searchMode).toBe('hybrid')
     expect(migrator.skippedCount).toBe(0)
   })
 
@@ -1519,10 +1518,11 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
   it('loadLoaderSourceMap returns kind=loaded with the loader→source map when the legacy vectors are readable', async () => {
     const migrator = new KnowledgeMigrator() as any
-    // Delegates to the shared KnowledgeVectorSourceReader so directory expansion and vector
-    // migration consume the exact same load result and path resolution.
+    // Delegates to the shared KnowledgeVectorSourceReader's column-projected loadBaseLoaderSources
+    // so directory expansion and vector migration share the same path resolution + loader set,
+    // without this pass reading/decoding the vectors themselves.
     const vectorSource = {
-      loadBase: vi.fn().mockResolvedValue({
+      loadBaseLoaderSources: vi.fn().mockResolvedValue({
         status: 'ok',
         dbPath: '/mock/userData/Data/KnowledgeBase/kb-ok',
         rows: [
@@ -1541,13 +1541,13 @@ describe('KnowledgeMigrator dimensions resolution', () => {
       ['loader-a', '/docs/a.md'],
       ['loader-b', '/docs/b.md']
     ])
-    expect(vectorSource.loadBase).toHaveBeenCalledWith('kb-ok')
+    expect(vectorSource.loadBaseLoaderSources).toHaveBeenCalledWith('kb-ok')
   })
 
   it('loadLoaderSourceMap returns kind=loaded with an empty map when the legacy vector DB is missing or not embedjs', async () => {
     const migrator = new KnowledgeMigrator() as any
     for (const status of ['missing', 'invalid_path', 'directory', 'not_embedjs'] as const) {
-      const vectorSource = { loadBase: vi.fn().mockResolvedValue({ status, dbPath: '/x' }) }
+      const vectorSource = { loadBaseLoaderSources: vi.fn().mockResolvedValue({ status, dbPath: '/x' }) }
       const result = await migrator.loadLoaderSourceMap('kb-x', vectorSource)
       expect(result).toEqual({ kind: 'loaded', sources: new Map() })
     }
@@ -1555,7 +1555,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
   it('loadLoaderSourceMap returns kind=loaded with an empty map when the legacy vectors table has no usable rows', async () => {
     const migrator = new KnowledgeMigrator() as any
-    const vectorSource = { loadBase: vi.fn().mockResolvedValue({ status: 'ok', dbPath: '/x', rows: [] }) }
+    const vectorSource = { loadBaseLoaderSources: vi.fn().mockResolvedValue({ status: 'ok', dbPath: '/x', rows: [] }) }
 
     const result = await migrator.loadLoaderSourceMap('kb-empty', vectorSource)
     expect(result.kind).toBe('loaded')
@@ -1564,7 +1564,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
   it('loadLoaderSourceMap returns kind=read_error and logs (does not report) when the read throws', async () => {
     const migrator = new KnowledgeMigrator() as any
-    const vectorSource = { loadBase: vi.fn().mockRejectedValue(new Error('database is locked')) }
+    const vectorSource = { loadBaseLoaderSources: vi.fn().mockRejectedValue(new Error('database is locked')) }
 
     const result = await migrator.loadLoaderSourceMap('kb-read-error', vectorSource)
     expect(result.kind).toBe('read_error')
@@ -1932,7 +1932,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { content: 'n1' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-2',
@@ -1940,7 +1940,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { content: 'n2' },
-        status: 'idle'
+        status: 'processing'
       }
     ]
 
@@ -2049,7 +2049,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { source: 'n1', content: 'n1' },
-        status: 'idle',
+        status: 'processing',
         error: null
       }
     ]
@@ -2125,10 +2125,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         fileProcessorId: null,
         chunkSize: 1024,
         chunkOverlap: 200,
-        threshold: null,
         documentCount: null,
-        searchMode: 'hybrid',
-        hybridAlpha: null,
         createdAt: 1775114958369,
         updatedAt: 1775114958369
       }
@@ -2140,7 +2137,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { source: 'note', content: 'note' },
-        status: 'idle',
+        status: 'processing',
         error: null,
         createdAt: 1775114958369,
         updatedAt: 1775114958369
@@ -2175,7 +2172,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         expect.objectContaining({
           id: 'item-1',
           baseId: 'kb-missing-model',
-          status: 'idle'
+          status: 'processing'
         })
       ]
     ])
@@ -2204,7 +2201,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { content: 'n1' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-2',
@@ -2212,7 +2209,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { content: 'n2' },
-        status: 'idle'
+        status: 'processing'
       }
     ]
 
@@ -2368,7 +2365,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'file',
         data: { source: '/tmp/a.pdf', relativePath: 'a.pdf' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-b',
@@ -2376,7 +2373,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'file',
         data: { source: '/tmp/b.pdf', relativePath: 'b.pdf', indexedRelativePath: 'b.md' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-note',
@@ -2384,7 +2381,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'note',
         data: { source: 'some note', content: 'some note' },
-        status: 'idle'
+        status: 'processing'
       }
     ]
 
@@ -2419,7 +2416,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'file',
         data: { source: '/tmp/ok.pdf', relativePath: 'ok.pdf' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-skipped-file-entry',
@@ -2427,7 +2424,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'file',
         data: { source: '/tmp/bad.xyz', relativePath: 'bad.xyz' },
-        status: 'idle'
+        status: 'processing'
       }
     ]
     migrator.legacyItemIdRemap = new Map([

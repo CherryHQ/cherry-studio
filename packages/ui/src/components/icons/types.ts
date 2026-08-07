@@ -40,11 +40,6 @@ export interface IconMeta {
   colorScheme?: 'mono' | 'color'
 }
 
-/** Generated catalog entry: metadata + component reference */
-export interface CatalogEntry extends IconMeta {
-  component: CompoundIcon
-}
-
 /** Icon component props */
 export interface IconProps extends SVGProps<SVGSVGElement> {
   /** Icon ID matching a catalog entry. e.g. "openai", "anthropic" */

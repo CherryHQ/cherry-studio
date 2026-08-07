@@ -5,9 +5,10 @@
  * end-to-end. Each step is pure and preserves element references when it changes nothing.
  */
 
-import { convertToModelMessages, type ModelMessage, type UIMessage } from 'ai'
+import { convertToModelMessages, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
 import { ALL_MEDIA, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
+import { renderPersistedToolOutputs } from './persistedOutputRendering'
 
 /** A string/array `content` → a flat parts array (`[]` for an empty string). */
 function contentToParts(content: unknown): unknown[] {
@@ -66,12 +67,18 @@ export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelM
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
- * strip media the model can't accept → convert, dropping incomplete tool calls that
+ * render persisted tool-output envelopes back into their <persisted-output> markers →
+ * strip unsupported audio/video → convert, dropping incomplete tool calls that
  * would otherwise dangle without a result → merge adjacent same-role turns left by
  * drops → placeholder any turn that still converted to empty content. See #16195.
  */
-export async function toModelMessages(messages: UIMessage[], caps?: MediaCapabilities): Promise<ModelMessage[]> {
-  const shaped = stripUnsupportedMedia(messages, caps ?? ALL_MEDIA)
-  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true })
+export async function toModelMessages(
+  messages: UIMessage[],
+  caps?: MediaCapabilities,
+  tools?: ToolSet
+): Promise<ModelMessage[]> {
+  const rendered = renderPersistedToolOutputs(messages)
+  const shaped = stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)
+  const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(model))
 }

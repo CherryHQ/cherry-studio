@@ -16,25 +16,42 @@
  * `Response`. The Elysia route handlers return this `Response` directly.
  */
 
-import { providerService } from '@data/services/ProviderService'
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { SseListener } from '@main/ai/streamManager'
-import type { StreamListener } from '@main/ai/streamManager/types'
-import type { CallOverrides } from '@main/ai/types/requests'
-import { application } from '@main/core/application'
-import { isManagedCherryAiDefaultModel } from '@shared/data/presets/cherryai'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { SseListener, type StreamListener } from '@main/ai/streamManager'
+import type { CallOverrides } from '@main/ai/types'
+import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
 import type { Provider } from '@shared/data/types/provider'
+import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
+import { appendInternalAgentContinuation } from './utils/agentContinuation'
+import { resolveGatewayModelAddress } from './utils/models'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
 const GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000
+
+type StartupState = 'pending' | 'committed' | 'abandoned' | 'failed'
+
+const STARTUP_COMMIT_CHUNK_TYPES: ReadonlySet<UIMessageChunk['type']> = new Set([
+  'text-start',
+  'text-delta',
+  'text-end',
+  'reasoning-start',
+  'reasoning-delta',
+  'reasoning-end',
+  'tool-input-available',
+  'finish'
+])
+
+function isStartupCommitChunk(chunk: UIMessageChunk): boolean {
+  return STARTUP_COMMIT_CHUNK_TYPES.has(chunk.type)
+}
 
 /**
  * Terminal error for a stream that paused without finishing — the 20-minute idle
@@ -61,6 +78,8 @@ type InputParams = InputParamsMap[InputFormat]
 export interface MessageConfig {
   provider?: Provider
   modelId?: string
+  /** Internal Agent-session hint carried by the Claude Code SDK gateway route. */
+  fastMode?: boolean
   /**
    * The loosely-validated gateway request body. Routes validate only the fields
    * the gateway needs (`model`, `messages`/`input`, …) and pass the rest through,
@@ -68,10 +87,24 @@ export interface MessageConfig {
    * below — the converters parse the full payload defensively.
    */
   params: unknown
+  /**
+   * Explicit `"providerId:modelId"` addressing. The OpenAI/Anthropic dialects
+   * carry the model in the body (`params.model`); Gemini carries it in the URL
+   * path, so its route passes it here to override the body lookup.
+   */
+  modelString?: string
+  /**
+   * Explicit streaming flag. The OpenAI/Anthropic dialects signal streaming via
+   * `params.stream`; Gemini signals it via the `:streamGenerateContent` method,
+   * so its route passes the resolved flag here.
+   */
+  streaming?: boolean
   inputFormat?: InputFormat
   outputFormat?: OutputFormat
   /** Request abort signal (`context.request.signal`); aborts the upstream stream on client disconnect. */
   signal?: AbortSignal
+  /** Raw request headers used only to validate Cherry-internal usage correlation. */
+  requestHeaders?: Headers
   onError?: (error: unknown) => void
   onComplete?: () => void
 }
@@ -85,23 +118,38 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   // Trust boundary: narrow the loosely-validated body to the format's SDK type once.
   const params = config.params as InputParams
 
-  // 1. Resolve model: the request `model` is "providerId:modelId" (split on FIRST ':').
-  const modelString = 'model' in params ? (params as { model?: string }).model : undefined
-  if (!modelString || typeof modelString !== 'string') {
-    throw new Error('Request is missing a "model" field')
+  // Client-addressing mistakes are 400s, not 500s. Notably gemini-cli's internal
+  // utility calls (chat compression, classification) hardcode bare `gemini-*-flash-lite`
+  // model names that can never carry the gateway's providerId prefix — those requests
+  // fail here by design (gemini-cli swallows them silently) and must not read as
+  // gateway server errors in the logs.
+  const asClientError = (error: unknown): Error & { status: number } => {
+    const err = (error instanceof Error ? error : new Error(String(error))) as Error & { status: number }
+    err.status = 400
+    return err
   }
-  const sepIdx = modelString.indexOf(':')
-  if (sepIdx <= 0 || sepIdx >= modelString.length - 1) {
-    throw new Error(`Invalid model format: "${modelString}". Expected "providerId:modelId".`)
-  }
-  const providerId = modelString.slice(0, sepIdx)
-  const modelId = modelString.slice(sepIdx + 1)
-  if (isManagedCherryAiDefaultModel(providerId, modelId)) {
-    throw new Error('CherryAI managed default model is not available through the API gateway')
-  }
-  const uniqueModelId = createUniqueModelId(providerId, modelId)
 
-  const isStreaming = 'stream' in params && (params as { stream?: boolean }).stream === true
+  // 1. Resolve the external "providerId:apiModelId" address from Gemini's URL-path
+  // override or the request body, then map it to the internal model id.
+  const modelString = config.modelString ?? ('model' in params ? (params as { model?: string }).model : undefined)
+  if (!modelString || typeof modelString !== 'string') {
+    throw asClientError(new Error('Request is missing a "model" field'))
+  }
+  let resolvedAddress: ReturnType<typeof resolveGatewayModelAddress>
+  try {
+    resolvedAddress = resolveGatewayModelAddress(modelString)
+  } catch (error) {
+    throw asClientError(error)
+  }
+  const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
+
+  const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
+  const usageContext = config.requestHeaders
+    ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders)
+    : undefined
+  const isInternalAgentRequest =
+    config.requestHeaders !== undefined &&
+    application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     providerId,
@@ -110,127 +158,202 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     outputFormat
   })
 
+  const provider: Provider = config.provider ?? resolvedProvider
+  const shouldNormalizeAgentContinuation = inputFormat === 'anthropic' && isInternalAgentRequest
+
   // 2. Build converter and extract messages / tools / sampling / provider options.
   const converter = MessageConverterFactory.create(inputFormat, {
     googleReasoningCache,
     openRouterReasoningCache
   })
 
-  const messages = converter.toUIMessages(params)
+  const convertedMessages = converter.toUIMessages(params)
+  const messages = shouldNormalizeAgentContinuation
+    ? appendInternalAgentContinuation(convertedMessages)
+    : convertedMessages
   const tools = converter.toAiSdkTools?.(params)
   const streamOptions = converter.extractStreamOptions(params)
 
-  // Provider options (reasoning/thinking) need a Provider; load it from the data
-  // layer. Best-effort — if unavailable, proceed without provider options.
-  let provider: Provider | undefined = config.provider
-  if (!provider) {
-    try {
-      provider = providerService.getByProviderId(providerId)
-    } catch {
-      provider = undefined
-    }
-  }
-  const providerOptions = provider ? converter.extractProviderOptions(provider, params) : undefined
+  // Provider options (reasoning/thinking) use the same enabled provider resolved above.
+  const extractedProviderOptions =
+    converter.extractProviderOptions(provider, model, params, streamOptions.maxOutputTokens) ?? {}
+  const providerOptions = applyFastModeToProviderOptions(
+    provider,
+    model,
+    extractedProviderOptions,
+    config.fastMode === true
+  )
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {
     ...streamOptions,
     ...(tools ? { tools } : {}),
-    ...(providerOptions ? { providerOptions } : {})
+    ...(Object.keys(providerOptions).length > 0 ? { providerOptions } : {})
   }
 
   // 4. Adapter + formatter translate UIMessageChunk → output format.
   const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, {
-    model: `${providerId}:${modelId}`
+    model: `${providerId}:${modelId}`,
+    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   })
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
 
   const streamId = `gateway-${uuidv4()}`
+  if (messages !== convertedMessages) {
+    logger.info('Appended assistant-tail continuation for internal agent request', { providerId, modelId, streamId })
+  }
   const aiStreamManager = application.get('AiStreamManager')
 
   if (isStreaming) {
-    // Streaming: stream the adapter's formatted SSE frames out of a ReadableStream.
+    // Do not commit the HTTP response until the provider has produced a meaningful
+    // chunk. Adapters can emit protocol scaffolding for AI SDK `start` chunks.
     const encoder = new TextEncoder()
-    let closed = false
+    let startupState: StartupState = 'pending'
+    let resolveStartup!: () => void
+    let rejectStartup!: (error: unknown) => void
+    const startup = new Promise<void>((resolve, reject) => {
+      resolveStartup = resolve
+      rejectStartup = reject
+    })
+    const bufferedFrames: Uint8Array[] = []
+    let abortStream: (() => void) | undefined
 
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
+        let closed = false
+
+        const commit = () => {
+          if (startupState !== 'pending') return
+          startupState = 'committed'
+          for (const frame of bufferedFrames) controller.enqueue(frame)
+          bufferedFrames.length = 0
+          resolveStartup()
+        }
+        const fail = (error: unknown) => {
+          if (startupState !== 'pending') return
+          startupState = 'failed'
+          bufferedFrames.length = 0
+          rejectStartup(error)
+        }
+        const abandon = () => {
+          if (startupState !== 'pending') return
+          startupState = 'abandoned'
+          bufferedFrames.length = 0
+          resolveStartup()
+        }
         const safeClose = () => {
           if (closed) return
           closed = true
+          signal?.removeEventListener('abort', onAbort)
           try {
             controller.close()
           } catch {
             // already closed
           }
         }
+        const complete = () => {
+          commit()
+          safeClose()
+          logger.info('Message completed', { providerId, modelId, streaming: true })
+          onComplete?.()
+        }
+        const write = (data: string) => {
+          if (closed) return
+          const frame = encoder.encode(data)
+          if (startupState === 'pending') bufferedFrames.push(frame)
+          else if (startupState === 'committed') controller.enqueue(frame)
+        }
 
         const onAbort = () => {
+          abandon()
           aiStreamManager.abort(streamId, 'gateway client disconnected')
           safeClose()
         }
+        abortStream = onAbort
+
         if (signal) {
           if (signal.aborted) onAbort()
           else signal.addEventListener('abort', onAbort, { once: true })
         }
 
-        const listener: StreamListener = new SseListener(
-          (data) => {
-            if (closed) return
-            controller.enqueue(encoder.encode(data))
+        const sseListener = new SseListener(write, complete, () => !closed, {
+          id: `gateway:${streamId}`,
+          // Commit before transforming a semantic chunk: adapter output for `start`
+          // is protocol scaffolding, not proof that the provider has started.
+          formatChunk: (chunk) => {
+            if (isStartupCommitChunk(chunk)) commit()
+            return adapter.transformChunk(chunk).map((event) => formatter.formatEvent(event))
           },
-          () => {
-            safeClose()
-            logger.info('Message completed', { providerId, modelId, streaming: true })
-            onComplete?.()
+          formatDone: () =>
+            adapter
+              .finalizeEvents()
+              .map((event) => formatter.formatEvent(event))
+              .join('') + formatter.formatDone(),
+          formatPaused: () => {
+            logger.warn('Gateway stream paused before completion; emitting truncation error frame', {
+              providerId,
+              modelId,
+              streamId
+            })
+            return buildStreamErrorFrame(outputFormat, streamInterruptedError())
           },
-          () => !closed,
-          {
-            id: `gateway:${streamId}`,
-            // Stateful: each UIMessageChunk → 0..N formatted SSE frames (named event:/data:).
-            formatChunk: (chunk) => adapter.transformChunk(chunk).map((event) => formatter.formatEvent(event)),
-            // Terminal: flush the adapter's closing events (e.g. message_stop) + the format's done marker.
-            formatDone: () =>
-              adapter
-                .finalizeEvents()
-                .map((event) => formatter.formatEvent(event))
-                .join('') + formatter.formatDone(),
-            // Pause = idle-timeout / mid-stream abort (never a clean finish). Emit a
-            // dialect error frame so the client can tell a truncation from completion.
-            // (Skipped when the client itself disconnected — `closed` is already set.)
-            formatPaused: () => {
-              logger.warn('Gateway stream paused before completion; emitting truncation error frame', {
-                providerId,
-                modelId,
-                streamId
-              })
-              return buildStreamErrorFrame(outputFormat, streamInterruptedError())
-            },
-            // Project the error into the per-dialect, isDev-gated envelope — never the
-            // raw SerializedError (which would leak stack / url / request+response bodies).
-            formatError: (error) => {
-              onError?.(error)
-              return buildStreamErrorFrame(outputFormat, error)
-            }
+          formatError: (error) => {
+            onError?.(error)
+            return buildStreamErrorFrame(outputFormat, error)
           }
-        )
-
-        aiStreamManager.streamPrompt({
-          streamId,
-          uniqueModelId,
-          messages,
-          listener,
-          callOverrides,
-          idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
         })
+        const listener: StreamListener = {
+          id: sseListener.id,
+          onChunk: (chunk) => sseListener.onChunk(chunk),
+          onDone: (result) => sseListener.onDone(result),
+          onPaused: (result) => {
+            if (startupState === 'pending') {
+              fail(streamInterruptedError())
+              complete()
+              return
+            }
+            return sseListener.onPaused(result)
+          },
+          onError: (result) => {
+            if (startupState !== 'pending') return sseListener.onError(result)
+
+            fail(result.error)
+            try {
+              onError?.(result.error)
+            } finally {
+              complete()
+            }
+          },
+          isAlive: () => sseListener.isAlive()
+        }
+
+        if (closed) return
+        try {
+          aiStreamManager.streamPrompt({
+            streamId,
+            uniqueModelId,
+            messages,
+            listener,
+            callOverrides,
+            contextOwner: 'caller',
+            ...(usageContext ? { usageContext } : {}),
+            idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
+          })
+        } catch (error) {
+          fail(error)
+          try {
+            onError?.(error)
+          } finally {
+            safeClose()
+          }
+        }
       },
       cancel() {
-        closed = true
-        aiStreamManager.abort(streamId, 'gateway client disconnected')
+        abortStream?.()
       }
     })
 
-    return new Response(stream, {
+    const response = new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -238,6 +361,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
         'X-Accel-Buffering': 'no'
       }
     })
+    await startup
+    return response
   }
 
   // Non-streaming: drive the adapter to accumulate state; respond with JSON at the end.
@@ -293,6 +418,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       messages,
       listener,
       callOverrides,
+      contextOwner: 'caller',
+      ...(usageContext ? { usageContext } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })
 

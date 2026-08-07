@@ -1,6 +1,8 @@
 import type * as RendererConstantModule from '@renderer/utils/platform'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { shouldShowLanguageOptions, supportsLanguageConfig } from '../utils/fileProcessingMeta'
+
 const platformMock = vi.hoisted(() => ({
   isWin: false
 }))
@@ -19,35 +21,23 @@ vi.mock('@renderer/utils/platform', async (importOriginal) => {
 describe('fileProcessingMeta language options', () => {
   beforeEach(() => {
     platformMock.isWin = false
-    vi.resetModules()
   })
 
-  it('identifies processors that support language configuration', async () => {
-    const { supportsLanguageConfig } = await import('../utils/fileProcessingMeta')
-
+  it('identifies processors that support language configuration', () => {
     expect(supportsLanguageConfig('system')).toBe(true)
     expect(supportsLanguageConfig('tesseract')).toBe(true)
     expect(supportsLanguageConfig('mistral')).toBe(false)
   })
 
-  it('shows Tesseract language options on every platform', async () => {
-    const { shouldShowLanguageOptions } = await import('../utils/fileProcessingMeta')
-
+  it('shows Tesseract language options on every platform', () => {
     expect(shouldShowLanguageOptions('tesseract')).toBe(true)
   })
 
-  it('shows System OCR language options on Windows only', async () => {
+  it('shows System OCR language options on Windows only', () => {
     platformMock.isWin = true
-    const { shouldShowLanguageOptions } = await import('../utils/fileProcessingMeta')
-
     expect(shouldShowLanguageOptions('system')).toBe(true)
 
-    vi.resetModules()
     platformMock.isWin = false
-    const { shouldShowLanguageOptions: shouldShowLanguageOptionsOnNonWindows } = await import(
-      '../utils/fileProcessingMeta'
-    )
-
-    expect(shouldShowLanguageOptionsOnNonWindows('system')).toBe(false)
+    expect(shouldShowLanguageOptions('system')).toBe(false)
   })
 })

@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,10 +20,16 @@ const state = vi.hoisted(() => ({
   stopChat: vi.fn(),
   setMessages: vi.fn(),
   resetExecutionMessages: vi.fn(),
+  clearExecutionMessages: vi.fn(),
   resetTemporaryTopic: vi.fn()
 }))
 
 import HomeWindow from '../HomeWindow'
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: vi.fn(), on: vi.fn(() => () => {}) },
+  useIpcOn: vi.fn()
+}))
 
 vi.mock('@ai-sdk/react', () => ({
   useChat: () => ({
@@ -71,16 +77,20 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({ liveAssistants: state.liveAssistants, reset: state.resetExecutionMessages })
+  useExecutionOverlay: () => ({
+    liveAssistants: state.liveAssistants,
+    reset: state.resetExecutionMessages,
+    clear: state.clearExecutionMessages
+  })
 }))
 
-vi.mock('@renderer/i18n', () => ({
+vi.mock('@renderer/i18n/resolver', () => ({
   default: { changeLanguage: vi.fn() }
 }))
 
-// Stub the chat message barrel so this lightweight window (which only projects messages)
-// doesn't pull the whole message-rendering package into the test.
-vi.mock('@renderer/components/chat/messages', () => ({
+// Stub the message-list projection helper so this lightweight window (which only projects
+// messages) doesn't pull the whole message-rendering package into the test.
+vi.mock('@renderer/components/chat/messages/utils/messageListItem', () => ({
   toMessageListItem: (message: unknown) => message
 }))
 
@@ -92,7 +102,15 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../components/InputBar', () => ({
-  default: ({ placeholder }: { placeholder: string }) => <input data-testid="quick-input" placeholder={placeholder} />
+  default: ({
+    text,
+    placeholder,
+    handleChange
+  }: {
+    text: string
+    placeholder: string
+    handleChange: (event: React.ChangeEvent<HTMLInputElement>) => void
+  }) => <input data-testid="quick-input" value={text} placeholder={placeholder} onChange={handleChange} />
 }))
 
 vi.mock('../components/FeatureMenus', () => ({
@@ -111,7 +129,8 @@ vi.mock('../components/Footer', () => ({
 }))
 
 vi.mock('../components/ClipboardPreview', () => ({
-  default: () => <div data-testid="clipboard-preview" />
+  default: ({ clipboardText }: { clipboardText: string }) =>
+    clipboardText ? <div data-testid="clipboard-preview">{clipboardText}</div> : null
 }))
 
 vi.mock('../../chat/ChatWindow', () => ({
@@ -129,20 +148,22 @@ describe('HomeWindow', () => {
     state.stopChat.mockClear()
     state.setMessages.mockClear()
     state.resetExecutionMessages.mockClear()
+    state.clearExecutionMessages.mockClear()
     state.resetTemporaryTopic.mockClear()
-    ;(window.electron.ipcRenderer as any).removeAllListeners = vi.fn()
-    ;(window as any).api = {
-      ...window.api,
-      quickAssistant: {
-        setPin: vi.fn(),
-        hide: vi.fn()
-      }
-    }
   })
 
   it('renders the input surface in model-only quick assistant mode', () => {
     render(<HomeWindow draggable={false} />)
 
     expect(screen.getByTestId('quick-input')).toHaveAttribute('placeholder', 'Ask Qwen')
+  })
+
+  it('keeps typed input out of the clipboard preview', () => {
+    render(<HomeWindow draggable={false} />)
+
+    fireEvent.change(screen.getByTestId('quick-input'), { target: { value: 'hello' } })
+
+    expect(screen.getByTestId('quick-input')).toHaveValue('hello')
+    expect(screen.queryByTestId('clipboard-preview')).not.toBeInTheDocument()
   })
 })

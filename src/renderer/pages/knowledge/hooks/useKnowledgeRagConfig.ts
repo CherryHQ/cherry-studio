@@ -8,7 +8,8 @@ import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { KnowledgeRagConfigFormValues } from '../types'
-import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues, normalizeKnowledgeError } from '../utils'
+import { normalizeKnowledgeError } from '../utils/error'
+import { buildKnowledgeRagConfigPatch, createKnowledgeRagConfigFormValues } from '../utils/rag'
 
 const logger = loggerService.withContext('useKnowledgeRagConfig')
 
@@ -18,13 +19,8 @@ const KNOWLEDGE_V2_FILE_PROCESSORS = PRESETS_FILE_PROCESSORS.filter((preset) =>
   )
 )
 
-type FileProcessorApiKeyState = {
-  type: (typeof PRESETS_FILE_PROCESSORS)[number]['type']
-  apiKeys?: readonly string[]
-}
-
-const hasConfiguredApiKey = (processor: FileProcessorApiKeyState) =>
-  processor.type !== 'api' || processor.apiKeys?.some((key) => key.trim().length > 0) === true
+const canSelectFileProcessor = (processor: (typeof PRESETS_FILE_PROCESSORS)[number], apiKeys?: readonly string[]) =>
+  processor.id === 'open-mineru' || processor.type !== 'api' || apiKeys?.some((key) => key.trim().length > 0) === true
 
 export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   const { t } = useTranslation()
@@ -35,24 +31,26 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
 
   const initialValues = useMemo(() => createKnowledgeRagConfigFormValues(base), [base])
 
-  const fileProcessorOptions = useMemo(() => {
-    return KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => {
-      const override = fileProcessorOverrides[processor.id]
-
-      return {
-        ...processor,
-        apiKeys: override?.apiKeys
-      }
-    })
-      .filter(hasConfiguredApiKey)
-      .map((processor) => ({
+  const fileProcessorOptions = useMemo(
+    () =>
+      KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => ({
         value: processor.id,
-        label: t(getFileProcessorLabelKey(processor.id))
-      }))
-  }, [fileProcessorOverrides, t])
+        label: t(getFileProcessorLabelKey(processor.id)),
+        disabled: !canSelectFileProcessor(processor, fileProcessorOverrides[processor.id]?.apiKeys)
+      })),
+    [fileProcessorOverrides, t]
+  )
 
-  const save = async (values: KnowledgeRagConfigFormValues) => {
+  const save = async (
+    values: KnowledgeRagConfigFormValues,
+    embeddingModelOverride?: { embeddingModelId: string | null; dimensions: number | null }
+  ) => {
     const patch = buildKnowledgeRagConfigPatch(initialValues, values)
+
+    if (embeddingModelOverride) {
+      patch.embeddingModelId = embeddingModelOverride.embeddingModelId
+      patch.dimensions = embeddingModelOverride.dimensions
+    }
 
     try {
       return await trigger({

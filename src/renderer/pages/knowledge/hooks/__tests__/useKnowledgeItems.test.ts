@@ -40,6 +40,27 @@ const makeItem = (overrides: Partial<KnowledgeItem> = {}): KnowledgeItem =>
     ...overrides
   }) as KnowledgeItem
 
+const createQueryResult = (
+  overrides: Partial<{
+    pages: KnowledgeItemListResponse[]
+    isLoading: boolean
+    isRefreshing: boolean
+    error: Error | undefined
+    hasNext: boolean
+    loadNext: ReturnType<typeof vi.fn>
+    refresh: ReturnType<typeof vi.fn>
+  }> = {}
+) => ({
+  pages: [{ items: [makeItem()], total: 1, nextCursor: undefined }],
+  isLoading: false,
+  isRefreshing: false,
+  error: undefined as Error | undefined,
+  hasNext: false,
+  loadNext: vi.fn(),
+  refresh: vi.fn(),
+  ...overrides
+})
+
 describe('useKnowledgeItems', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -50,15 +71,14 @@ describe('useKnowledgeItems', () => {
     const refresh = vi.fn()
     const loadNext = vi.fn()
 
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items, total: 7, nextCursor: 'cursor-1' }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: true,
-      loadNext,
-      refresh
-    })
+    mockUseInfiniteQuery.mockReturnValue(
+      createQueryResult({
+        pages: [{ items, total: 7, nextCursor: 'cursor-1' }],
+        hasNext: true,
+        loadNext,
+        refresh
+      })
+    )
 
     const { result } = renderHook(() => useKnowledgeItems('base-1'))
 
@@ -72,18 +92,27 @@ describe('useKnowledgeItems', () => {
     expect(result.current.refresh).toBe(refresh)
   })
 
+  it("lists a directory's children by passing its id as the query groupId (drill-down)", () => {
+    mockUseInfiniteQuery.mockReturnValue(createQueryResult())
+
+    renderHook(() => useKnowledgeItems('base-1', 'directory-1'))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith(
+      '/knowledge-bases/:id/items',
+      expect.objectContaining({ query: { groupId: 'directory-1' } })
+    )
+  })
+
   it('does not flag isLoadingMore during background polling', () => {
     // Regression guard: isLoadingMore used to be `isRefreshing && pages.length > 0`, so a poll in
     // flight blocked a scroll-to-bottom. It must now reflect ONLY a real in-flight load-more.
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: [makeItem()], total: 1, nextCursor: 'cursor-1' }],
-      isLoading: false,
-      isRefreshing: true,
-      error: undefined,
-      hasNext: true,
-      loadNext: vi.fn(),
-      refresh: vi.fn()
-    })
+    mockUseInfiniteQuery.mockReturnValue(
+      createQueryResult({
+        isRefreshing: true,
+        hasNext: true,
+        pages: [{ items: [makeItem()], total: 1, nextCursor: 'cursor-1' }]
+      })
+    )
 
     const { result } = renderHook(() => useKnowledgeItems('base-1'))
 
@@ -92,15 +121,13 @@ describe('useKnowledgeItems', () => {
 
   it('loadMore triggers loadNext, flags an in-flight load-more, and dedupes a second call', () => {
     const loadNext = vi.fn()
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: [makeItem()], total: 5, nextCursor: 'cursor-1' }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: true,
-      loadNext,
-      refresh: vi.fn()
-    })
+    mockUseInfiniteQuery.mockReturnValue(
+      createQueryResult({
+        pages: [{ items: [makeItem()], total: 5, nextCursor: 'cursor-1' }],
+        hasNext: true,
+        loadNext
+      })
+    )
 
     const { result } = renderHook(() => useKnowledgeItems('base-1'))
 
@@ -116,15 +143,11 @@ describe('useKnowledgeItems', () => {
 
   it('clears the in-flight flag once the requested page lands and allows the next load-more', () => {
     const loadNext = vi.fn()
-    let queryResult = {
+    let queryResult = createQueryResult({
       pages: [{ items: [makeItem()], total: 5, nextCursor: 'cursor-1' }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined as Error | undefined,
       hasNext: true,
-      loadNext,
-      refresh: vi.fn()
-    }
+      loadNext
+    })
     mockUseInfiniteQuery.mockImplementation(() => queryResult)
 
     const { result, rerender } = renderHook(() => useKnowledgeItems('base-1'))
@@ -153,15 +176,11 @@ describe('useKnowledgeItems', () => {
     // the previous base used to leak in and wedge `loadMore` for the new base, because the
     // land/end/error clear can't fire when the new base loaded fewer pages and still has a next.
     const loadNext = vi.fn()
-    let queryResult = {
+    let queryResult = createQueryResult({
       pages: [{ items: [makeItem()], total: 5, nextCursor: 'cursor-1' }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined as Error | undefined,
       hasNext: true,
-      loadNext,
-      refresh: vi.fn()
-    }
+      loadNext
+    })
     mockUseInfiniteQuery.mockImplementation(() => queryResult)
 
     const { result, rerender } = renderHook(({ baseId }) => useKnowledgeItems(baseId), {
@@ -190,15 +209,11 @@ describe('useKnowledgeItems', () => {
     // The `|| error` reset branch lets a failed load-more be retried. pages don't grow and
     // hasNext stays true, so ONLY the error branch can settle the stuck in-flight flag.
     const loadNext = vi.fn()
-    let queryResult = {
+    let queryResult = createQueryResult({
       pages: [{ items: [makeItem()], total: 5, nextCursor: 'cursor-1' }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined as Error | undefined,
       hasNext: true,
-      loadNext,
-      refresh: vi.fn()
-    }
+      loadNext
+    })
     mockUseInfiniteQuery.mockImplementation(() => queryResult)
 
     const { result, rerender } = renderHook(() => useKnowledgeItems('base-1'))
@@ -223,15 +238,12 @@ describe('useKnowledgeItems', () => {
 
   it('does not load more when there is no next page', () => {
     const loadNext = vi.fn()
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: [makeItem()], total: 1, nextCursor: undefined }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext,
-      refresh: vi.fn()
-    })
+    mockUseInfiniteQuery.mockReturnValue(
+      createQueryResult({
+        pages: [{ items: [makeItem()], total: 1, nextCursor: undefined }],
+        loadNext
+      })
+    )
 
     const { result } = renderHook(() => useKnowledgeItems('base-1'))
 
@@ -242,15 +254,12 @@ describe('useKnowledgeItems', () => {
 
   it('does not enable the query before a knowledge base is selected', () => {
     const error = new Error('disabled')
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [],
-      isLoading: false,
-      isRefreshing: false,
-      error,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn()
-    })
+    mockUseInfiniteQuery.mockReturnValue(
+      createQueryResult({
+        pages: [],
+        error
+      })
+    )
 
     const { result } = renderHook(() => useKnowledgeItems(''))
 
@@ -262,15 +271,7 @@ describe('useKnowledgeItems', () => {
   })
 
   it('polls while any returned item is non-terminal and stops when all terminal', () => {
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn()
-    })
+    mockUseInfiniteQuery.mockReturnValue(createQueryResult({ pages: [] }))
 
     renderHook(() => useKnowledgeItems('base-1'))
 
@@ -303,15 +304,11 @@ describe('useKnowledgeItems', () => {
   it('revalidates every loaded page while any item is non-terminal so later-page rows refresh', () => {
     // Otherwise polling only revalidates page 0 and a non-terminal row on a later page stays stale
     // forever while the interval spins endlessly.
-    mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: [makeItem({ id: 'busy', status: 'embedding' })], total: 1, nextCursor: undefined }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn()
-    })
+    mockUseInfiniteQuery.mockReturnValue(
+      createQueryResult({
+        pages: [{ items: [makeItem({ id: 'busy', status: 'embedding' })], total: 1, nextCursor: undefined }]
+      })
+    )
 
     renderHook(() => useKnowledgeItems('base-1'))
 
@@ -324,15 +321,9 @@ describe('useKnowledgeItems', () => {
     // Start processing so the effect promotes revalidateAll, then finish: the reset back to false
     // is what keeps a later scroll-to-bottom a single fetch. (A static all-terminal render would
     // pass vacuously off the initial useState(false), so drive the real true -> false transition.)
-    let queryResult = {
-      pages: [{ items: [makeItem({ id: 'busy', status: 'embedding' })], total: 1, nextCursor: undefined }],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined as Error | undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn()
-    }
+    let queryResult = createQueryResult({
+      pages: [{ items: [makeItem({ id: 'busy', status: 'embedding' })], total: 1, nextCursor: undefined }]
+    })
     mockUseInfiniteQuery.mockImplementation(() => queryResult)
 
     const { rerender } = renderHook(() => useKnowledgeItems('base-1'))

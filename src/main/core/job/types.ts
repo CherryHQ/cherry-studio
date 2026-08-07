@@ -22,6 +22,8 @@ export interface JobContext<TPayload = unknown> {
   jobId: string
   input: TPayload
   attempt: number
+  /** Row-level parent job id (`opts.parentId` at enqueue), or null for root jobs. */
+  parentId: string | null
   signal: AbortSignal
   /** Read-only view of jobTable.metadata at the start of this attempt. */
   metadata: Readonly<Record<string, unknown>>
@@ -50,14 +52,20 @@ export interface JobMissEvent {
   lastFireAt: number | null
 }
 
-export interface JobSettledEvent {
+export interface JobSettledEvent<TPayload = unknown> {
   jobId: string
   type: string
   scheduleId: string | null
+  /** Row-level parent job id (`opts.parentId` at enqueue), or null for root jobs. */
+  parentId: string | null
   status: Extract<JobStatus, 'completed' | 'failed' | 'cancelled'>
+  /** The job's persisted input payload, typed via the handler's registration. */
+  readonly input: TPayload
   output?: unknown
   error: JobError | null
   attempt: number
+  /** Final metadata value — includes every `patchMetadata` merge applied during execution. */
+  metadata: Readonly<Record<string, unknown>>
 }
 
 export interface JobHandler<TPayload = unknown> {
@@ -84,8 +92,13 @@ export interface JobHandler<TPayload = unknown> {
   execute(ctx: JobContext<TPayload>): Promise<unknown>
   /** Optional. Called when a schedule fire was missed. */
   onMissed?(event: JobMissEvent): void | Promise<void>
-  /** Optional. Called when the job reaches a terminal state. Errors are caught + logged. */
-  onSettled?(event: JobSettledEvent): void | Promise<void>
+  /**
+   * Optional. Called when the job reaches a terminal state. Errors are caught + logged.
+   * MUST stay a method-shorthand declaration (like `execute`): methods are bivariant
+   * under strictFunctionTypes, which lets a `JobHandler<Payload>` assign to the
+   * type-erased `JobHandler` — a property-style arrow signature would reject it.
+   */
+  onSettled?(event: JobSettledEvent<TPayload>): void | Promise<void>
 }
 
 /** Strongly-typed handler for a registered job type. */

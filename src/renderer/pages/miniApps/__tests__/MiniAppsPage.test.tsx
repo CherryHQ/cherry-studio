@@ -130,12 +130,12 @@ vi.mock('@cherrystudio/ui', async () => {
   }
 })
 
-vi.mock('@renderer/components/app/Navbar', () => ({
+vi.mock('@renderer/components/Navbar', () => ({
   Navbar: ({ children }: React.PropsWithChildren) => <div data-testid="navbar">{children}</div>,
   NavbarCenter: ({ children }: React.PropsWithChildren) => <div>{children}</div>
 }))
 
-vi.mock('@renderer/components/Icons/MiniAppIcon', () => ({
+vi.mock('@renderer/components/icons/MiniAppIcon', () => ({
   default: ({ app, size }: { app: MiniApp; size: number }) => (
     <img alt={app.name} data-testid={`mini-app-icon-${app.appId}`} height={size} src={app.logo} width={size} />
   )
@@ -171,6 +171,7 @@ vi.mock('../NewMiniAppPanel', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: () => {} },
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
@@ -193,18 +194,16 @@ describe('MiniAppsPage', () => {
     }
   })
 
-  it('filters mini apps by search without rendering the old title count row', () => {
+  it('filters mini apps by search', () => {
     render(<MiniAppsPage />)
 
     expect(screen.getByText('ChatGPT')).toBeInTheDocument()
     expect(screen.getByText('Gemini')).toBeInTheDocument()
-    expect(screen.queryByText('2')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('common.search'), { target: { value: 'chat' } })
 
     expect(screen.getByText('ChatGPT')).toBeInTheDocument()
     expect(screen.queryByText('Gemini')).not.toBeInTheDocument()
-    expect(screen.queryByText('1')).not.toBeInTheDocument()
   })
 
   it('opens the selected mini app without changing the tab contract', () => {

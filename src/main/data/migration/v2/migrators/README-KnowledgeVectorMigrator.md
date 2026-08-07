@@ -9,7 +9,7 @@
 | Migrated knowledge base identities and dimensions | SQLite `knowledge_base` | `knowledge_base` table |
 | Migrated knowledge item identities | SQLite `knowledge_item` | `knowledge_item` table |
 | Legacy loader metadata | Redux `knowledge.bases[].items[]` | `ReduxStateReader.getCategory('knowledge')` |
-| Legacy chunk vectors | Per-base legacy vector DB | `ctx.sources.knowledgeVectorSource.loadBase(base.id)` |
+| Legacy chunk vectors | Per-base legacy vector DB | `ctx.sources.knowledgeVectorSource.openBase(base.id)` (streaming) |
 
 The source reader is initialized by `MigrationContext` with `ctx.paths.knowledgeBaseDir`. It must read from the migration-resolved v1 userData path, not from the v2 path registry or `app.getPath()`. `KnowledgeVectorMigrator` itself should continue to use the reader abstraction instead of constructing vector DB paths inline.
 
@@ -17,10 +17,11 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 
 - Per-base 7-table index store at the migrated base's runtime path:
   `{knowledgeBaseDir}/{migratedBaseId}/.cherry/index.sqlite`
-- Built through the exact runtime open sequence — `openBetterSqlite3IndexDriver` →
-  `createKnowledgeIndexSchema` → `ensureIndexMeta` → `KnowledgeIndexStore.rebuildMaterial` —
-  so the migrated store is byte-for-byte one the runtime would produce. One `material`
-  per migrated item; its legacy chunks become that material's `search_unit`s.
+- Built through `createKnowledgeIndexStoreAtPath` — the same factory the runtime
+  (`KnowledgeVectorStoreService`) opens its stores with (driver → schema → `ensureIndexMeta` →
+  `KnowledgeIndexStore`) — then `KnowledgeIndexStore.rebuildMaterial` per item, so the migrated
+  store is byte-for-byte one the runtime would produce. One `material` per migrated item; its
+  legacy chunks become that material's `search_unit`s.
 
 ## Key Transformations
 
@@ -55,10 +56,11 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
      re-chunks with the live splitter and converges. The migration is logged per base.
 
 4. Embedding reuse (no re-embedding)
-   - Legacy `vector` payloads are decoded from `F32_BLOB` to `number[]` and written through
-     `encodeVectorBlob` (raw little-endian float32) into the `embedding` table, keyed by the
-     body's `embedding_text_hash`. The bytes are identical to the runtime encoding, so no
-     re-embedding happens and the store is engine-portable.
+   - Legacy `vector` payloads are decoded from `F32_BLOB` to `Float32Array` (end to end — half
+     the resident size of `number[]`) and written through `encodeVectorBlob` (raw little-endian
+     float32) into the `embedding` table, keyed by the body's `embedding_text_hash`. The bytes
+     are identical to the runtime encoding, so no re-embedding happens and the store is
+     engine-portable.
    - Identical chunk bodies (within or across materials) collapse to one `embedding` row.
    - Unsupported vector encodings are skipped under `unsupported_vector_encoding`, separate from truly missing payloads.
    - A vector whose length disagrees with the base's recorded `dimensions` is skipped under `dimension_mismatch` rather than corrupting the brute-force cosine scan for the whole base.
@@ -73,6 +75,44 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
      `index.sqlite` on a `base_id` mismatch. Build-contract snapshots (embedding model,
      dimensions, chunker config hash) are intentionally not stored — a model/dimension change
      creates a new base and a chunker change rebuilds the derived index.
+
+## Memory Contract
+
+At most ONE ITEM's text plus ONE BATCH of vectors is ever resident. `prepare()` streams each
+base's legacy rows once (`openBase().reader.iterateRows()`), retaining only per-item rowid lists,
+counts, per-reason skip tallies (capped samples — never one message per rejected row) and each
+url/note item's reserved snapshot path, derived by point-reading that one item's rows back after
+the scan (`PreparedBasePlan` deliberately holds no vectors or chunk text).
+
+The rowid lists are the one deliberately retained per-chunk structure, and they **do** grow linearly
+with the migration's total chunk count. Only their per-chunk cost is measured: one JS number per
+chunk in a packed SMI array — 10.5 B/chunk at 1M chunks and 8.0 B/chunk at 10M (`node --expose-gc`,
+heap delta around building `Map<string, number[]>`). What that costs against a real corpus is a
+**typical-corpus estimate, not an upper bound the code enforces** — the migrator only requires
+`dimensions` to be a positive integer, and nothing constrains `pageContent` length or a base's chunk
+count. On an ordinary corpus a chunk occupies ≥5 KB in the legacy DB (a 4 KB float32 vector at 1024
+dims + ~1 KB text), putting the plan at roughly 1/500 of the legacy file's size on disk: a 100 MB
+plan would imply a ~50 GB v1 vector DB, and exhausting V8's 4 GB old-space would take ~400M chunks
+(~2 TB source), against a heaviest observed corpus of ~75k chunks ≈ 0.7 MB of plan. A corpus of very
+low dimensions and very short chunks shifts that ratio, so the retained plan is an accepted
+trade — it buys per-item re-reads of the legacy DB instead of a second full scan — justified by v1's
+one-chunk-per-embedding-call indexing never having produced anything near that scale, not by a
+code-checked limit.
+
+`execute()` re-reads
+one item at a time: its text whole through the vector-free column projection
+(`loadTextRowsByRowids` — the content schema stores one text row per material, so the joined text
+is irreducible without a schema change), and its vectors in fixed ≤500-rowid point-read batches
+(`loadRowsByRowids`) pulled lazily by `rebuildMaterial`'s `Iterable` embeddings input inside its
+write transaction. url/note snapshot files are written during that item's turn, never buffered
+base-wide, and decoded vectors stay `Float32Array` end to end (half the resident size of
+`number[]`). The OOM history behind this: retaining every base's materials across
+prepare→execute peaked at the sum of all bases' vectors (a 28-base corpus exhausted the V8 heap),
+and the follow-up per-base re-read still loaded a whole base at once — which one large base (six
+figures of chunks × high dimensions) could exhaust on its own, crash-looping the migration since it
+restarts from scratch on every relaunch. The OOM regression guard test pins the exact
+`PreparedBasePlan` key set and each phase's read shape (prepare streams; execute reads text via
+the projection and vectors in ≤500-rowid batches — a 501-chunk item must arrive as 500 + 1).
 
 ## File-Safety Contract
 
@@ -99,6 +139,16 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
   EBUSY-survivable retries) before (re)building, and the WAL is folded back into the
   main file via `PRAGMA wal_checkpoint(TRUNCATE)` so the runtime opens a
   self-contained store.
+- A base is **published all-or-nothing**, and pinning its url/note rows to their snapshots is the
+  last step of publication — the store counts as promoted only after that transaction commits.
+  Anything that throws earlier (build, close, or the pin transaction) wipes the index and marks the
+  base restorable-`failed`. Zero pins must not be credited as a success: a `completed` url/note item
+  with no `relativePath` is the invariant violation `deriveConceptId` guards, and nothing repairs it
+  — `index-documents` skips `completed` items so ensure-snapshot never re-captures, and a completed
+  migration never re-runs. A `failed` base instead surfaces the restore flow, which re-adds the items
+  into a fresh base whose rows are not `completed` and therefore do get indexed. That recovery is
+  lossy for one case only: a url item re-fetches its live page rather than re-reading the `raw/`
+  snapshot this migrator wrote but never pinned, so a since-dead link is not recoverable.
 - The v1 legacy embedjs DB (`{knowledgeBaseDir}/{legacyBaseId}`) is **never**
   moved or deleted. Each migrated base gets a new uuid, so the rebuilt V2 store
   lives under a different path (`{migratedBaseId}/.cherry/index.sqlite`) and never
@@ -110,14 +160,19 @@ The source reader is initialized by `MigrationContext` with `ctx.paths.knowledge
 
 ## IMPORTANT: Current Limitations
 
-- A single base's execution failure is **non-fatal**, not a whole-migration abort. When one base's
-  vector store cannot be rebuilt, that base is skipped, marked a restorable
+- A single base's failure is **non-fatal**, not a whole-migration abort. When one base's vector
+  store cannot be rebuilt — whether `prepare()` could not read/map its legacy source at all, or
+  `execute()` failed mid-rebuild or mid-publish — that base is skipped, marked a restorable
   `failed`/`missing_vector_store` row (so the UI surfaces a re-index entry), and the failure is
   surfaced as a warning — `execute()` still returns `success: true` and the remaining bases migrate.
   This keeps a per-base migration error from blocking the user out of the app: the failed base is
   recovered in-UI rather than by re-running the whole migration. The migration only fails as a whole
   on a structural/integrity error (a migrator throwing, or `validate()`'s reconciliation failing),
-  never on per-base data that could not be migrated.
+  never on per-base data that could not be migrated. **One exception:** if the base's own
+  `failed`/`missing_vector_store` mark cannot be written to the application DB, the migrator throws
+  and the whole migration fails. That mark is the only thing keeping the base out of the runtime's
+  open path, so a migration recorded as `completed` without it would leave the base permanently
+  unsearchable with no way back; failing instead lets the next launch re-run from scratch.
 - After a successful migration the v1 legacy vector DBs (and the copied legacy
   upload files) remain on disk as orphans; disk space is not reclaimed. Reclaiming
   it is intentionally left to a separate future cleanup step gated on the user
@@ -139,11 +194,24 @@ Per successful base, the rebuilt store's row counts must match what was prepared
 - Bases missing from migrated `knowledge_base`
 - Bases marked `failed` or with `embeddingModelId = null`
 - Bases with invalid `dimensions`
-- Bases whose legacy DB file is missing, resolves to a directory, or does not contain a `vectors` table
+- Bases whose legacy DB file is missing, resolves to a directory, does not contain a `vectors` table, or becomes unreadable mid-scan
+- Bases whose migrated id cannot be mapped back to a legacy knowledge base id
+- Bases whose remapped legacy id is absent from the legacy Redux state
 - Vector rows whose `uniqueLoaderId` cannot be mapped to a migrated `knowledge_item.id`
 - Vector rows mapped to non-indexable container item types such as `directory`, **only in the fallback path** (unreadable legacy sources, or an embedded file with no migratable vectors); the normal path re-attributes them to per-file children instead
 - Vector rows with missing or empty `vector` payloads
 - Vector rows whose `vector` payload exists but is exposed through an unsupported runtime encoding
 - Vector rows whose `vector` length disagrees with the base's recorded `dimensions`
 
-If every legacy vector row under one base is skipped, the rebuilt V2 store for that base is expected to be empty (schema + `meta` row only). This is intentional: only vectors that can be proven to belong to migrated `knowledge_item` rows remain valid in V2.
+A skipped **base** produces no store at all, which is not the same as an empty one. Every base-level
+skip above is therefore marked restorable `failed`/`missing_vector_store` in `execute()`'s flush
+rather than left `completed`, with two exceptions: a base with no migrated `knowledge_base` row at
+all (`prepare()` iterates the migrated rows, so there is nothing to mark), and a base that is
+already `failed` (it carries its own error — e.g. `missing_embedding_model` — which must not be
+overwritten). The reason for marking is that nothing reconciles a `knowledge_base` row against the
+filesystem: a `completed` base with no store gets a blank `index.sqlite` created and cached on its
+first runtime open and returns empty search results forever, with no failed badge and no restore
+entry. Recovery is the in-UI restore flow (which re-adds the items into a fresh base and re-embeds
+them), not a migration re-run — the migration itself still completes.
+
+If every legacy vector **row** under one base is skipped, the base is still planned and its rebuilt V2 store is expected to be empty (schema + `meta` row only). This is intentional: only vectors that can be proven to belong to migrated `knowledge_item` rows remain valid in V2.

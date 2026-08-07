@@ -1,23 +1,35 @@
 import { useQuery } from '@data/hooks/useDataApi'
-import type { MessageListActions, MessageListState } from '@renderer/components/chat/messages/types'
-import { useAttachment } from '@renderer/hooks/useAttachment'
+import { loggerService } from '@logger'
+import type {
+  MessageListActions,
+  MessageListState,
+  MessageStreamingLayers
+} from '@renderer/components/chat/messages/types'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
+import { ipcApi } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
 import type { FileMetadata } from '@renderer/types/file'
 import type { McpTool } from '@renderer/types/tool'
-import { buildEditorUrl } from '@renderer/utils/editorUtils'
+import { buildEditorUrl } from '@renderer/utils/editor'
 import { parseFileTypes } from '@renderer/utils/file'
 import { safeOpen } from '@renderer/utils/file/safeOpen'
+import type { FileHandle } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { FileHandle, FilePath } from '@shared/types/file'
-import type { McpProgressEvent } from '@shared/types/mcp'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFileEntryHandle, createFilePathHandle, toSafeFileUrl } from '@shared/utils/file'
 import dayjs from 'dayjs'
 import type { TFunction } from 'i18next'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAttachment } from './useAttachment'
 import { type MessagePlatformActions, useMessagePlatformActions } from './useMessagePlatformActions'
+
+const logger = loggerService.withContext('useMessageLeafCapabilities')
+
+// `getFileView` runs on every message render; dedupe the warn per offending
+// path so a bad attachment path can't flood the log across rerenders/streams.
+const warnedFileViewPaths = new Set<string>()
 
 type MessageLeafActions = Pick<
   MessageListActions,
@@ -28,6 +40,7 @@ type MessageLeafState = Pick<MessageListState, 'getFileView' | 'isToolAutoApprov
 
 interface MessageLeafCapabilitiesParams {
   partsByMessageId: Record<string, CherryMessagePart[]>
+  streamingLayers?: MessageStreamingLayers
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -53,10 +66,14 @@ function isMcpToolPart(part: CherryMessagePart): boolean {
 function fileMetadataToHandle(file: FileMetadata): FileHandle {
   if (file.path) {
     try {
-      return createFilePathHandle(file.path as FilePath)
+      return createFilePathHandle(AbsoluteFilePathSchema.parse(file.path))
     } catch {
       // Fall back to the entry id for legacy FileMetadata whose path is not an
       // absolute filesystem path. The IPC schema is still the authority.
+      logger.debug('fileMetadataToHandle: falling back to entry id for non-absolute path', {
+        fileId: file.id,
+        path: file.path
+      })
     }
   }
 
@@ -93,15 +110,27 @@ function formatMessageAttachmentFileName(file: FileMetadata, t: TFunction): stri
 }
 
 export function useMessageLeafCapabilities({
-  partsByMessageId
+  partsByMessageId,
+  streamingLayers
 }: MessageLeafCapabilitiesParams): MessageLeafActions & MessageLeafState {
   const { t } = useTranslation()
   const { preview } = useAttachment()
   const platformActions = useMessagePlatformActions()
-  const hasMcpToolParts = useMemo(
-    () => Object.values(partsByMessageId).some((parts) => parts.some(isMcpToolPart)),
-    [partsByMessageId]
+  const historyPartsByMessageId = streamingLayers?.historyPartsByMessageId
+  const historyHasMcpToolParts = useMemo(
+    () =>
+      historyPartsByMessageId
+        ? Object.values(historyPartsByMessageId).some((parts) => parts.some(isMcpToolPart))
+        : false,
+    [historyPartsByMessageId]
   )
+  const hasMcpToolParts = useMemo(() => {
+    if (!streamingLayers) {
+      return Object.values(partsByMessageId).some((parts) => parts.some(isMcpToolPart))
+    }
+    if (historyHasMcpToolParts) return true
+    return streamingLayers.liveMessageIds.some((messageId) => partsByMessageId[messageId]?.some(isMcpToolPart))
+  }, [historyHasMcpToolParts, partsByMessageId, streamingLayers])
   const { data: mcpServersData } = useQuery('/mcp-servers', { enabled: hasMcpToolParts })
   const { data: externalApps } = useExternalApps()
   const mcpServers = useMemo(() => mcpServersData?.items ?? [], [mcpServersData])
@@ -114,7 +143,7 @@ export function useMessageLeafCapabilities({
     async (file) => {
       const fileType = parseFileTypes(file.type)
       if (fileType === null) {
-        window.modal.error({ content: t('files.preview.error'), centered: true })
+        void popup.error({ content: t('files.preview.error'), centered: true })
         return
       }
 
@@ -126,7 +155,7 @@ export function useMessageLeafCapabilities({
       try {
         await safeOpen(fileMetadataToHandle(file))
       } catch {
-        window.modal.error({ content: t('files.preview.error'), centered: true })
+        void popup.error({ content: t('files.preview.error'), centered: true })
       }
     },
     [preview, t]
@@ -134,9 +163,14 @@ export function useMessageLeafCapabilities({
 
   const getFileView = useCallback<NonNullable<MessageListState['getFileView']>>(
     (file) => {
+      const parsedPath = file.path ? AbsoluteFilePathSchema.safeParse(file.path) : undefined
+      if (parsedPath && !parsedPath.success && file.path && !warnedFileViewPaths.has(file.path)) {
+        warnedFileViewPaths.add(file.path)
+        logger.warn('getFileView: non-canonical/invalid attachment path', { fileId: file.id, path: file.path })
+      }
       return {
         displayName: formatMessageAttachmentFileName(file, t),
-        previewUrl: file.path ? toSafeFileUrl(file.path as FilePath, file.ext || null) : undefined
+        previewUrl: parsedPath?.success ? toSafeFileUrl(parsedPath.data, file.ext || null) : undefined
       }
     },
     [t]
@@ -148,14 +182,11 @@ export function useMessageLeafCapabilities({
 
   const subscribeToolProgress = useCallback<NonNullable<MessageListActions['subscribeToolProgress']>>(
     (toolId, onProgress) => {
-      const removeListener = window.electron.ipcRenderer.on(
-        IpcChannel.Mcp_Progress,
-        (_event: Electron.IpcRendererEvent, data: McpProgressEvent) => {
-          if (data.callId === toolId) {
-            onProgress(data.progress)
-          }
+      const removeListener = ipcApi.on('mcp.tool.call_progress', (data) => {
+        if (data.callId === toolId) {
+          onProgress(data.progress)
         }
-      )
+      })
 
       return removeListener
     },

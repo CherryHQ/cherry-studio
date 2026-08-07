@@ -5,16 +5,14 @@ import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
 
 /**
- * Standalone window title bar for detached pages that DON'T render their own window chrome
- * (mini-apps, settings, files, …). Chat/agent pages merge the same chrome into their navbar
- * via ConversationShell, so this is only used for the rest. Provides the OS drag region +
- * macOS traffic-light inset + conversation title + pin / back-to-main controls — without it
- * a non-chat/agent sub-window has no draggable region.
+ * Standalone title bar shared by every detached page. It owns the OS drag region, macOS
+ * traffic-light inset, current route title, and window-level pin / back-to-main controls.
+ * Page navbars render below it unchanged from their embedded layout.
  */
 export const SubWindowTitleBar = () => (
   <header
     className={cn(
-      'relative flex w-full shrink-0 select-none items-center gap-2 border-border/50 border-b bg-background [-webkit-app-region:drag]',
+      'relative flex w-full shrink-0 select-none items-center gap-2 border-border-subtle border-b bg-background [-webkit-app-region:drag]',
       TITLE_BAR_HEIGHT_CLASS,
       // Reserve the top-right corner for the OS window controls overlay (0px on macOS).
       'pr-[calc(0.5rem+var(--window-controls-width,0px))]',

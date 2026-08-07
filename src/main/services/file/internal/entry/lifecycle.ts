@@ -17,7 +17,7 @@
 
 import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
-import { remove as fsRemove } from '@main/utils/file/fs'
+import { remove as fsRemove } from '@main/utils/file'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { BatchMutationResult } from '@shared/types/file'
 
@@ -52,7 +52,7 @@ function permanentDeleteTx(deps: FileManagerDeps, tx: DbOrTx, id: FileEntryId): 
   return entry
 }
 
-async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntry): Promise<void> {
+export async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntry): Promise<{ unlinkFailed: boolean }> {
   const physical = entry.origin === 'internal' ? resolvePhysicalPath(entry) : undefined
   deps.versionCache.invalidate(entry.id)
   if (entry.origin === 'external') {
@@ -72,8 +72,10 @@ async function cleanupDeletedEntry(deps: FileManagerDeps, entry: FileEntry): Pro
         physical,
         err
       })
+      return { unlinkFailed: true }
     }
   }
+  return { unlinkFailed: false }
 }
 
 export async function permanentDelete(deps: FileManagerDeps, id: FileEntryId): Promise<void> {
@@ -126,4 +128,30 @@ export async function batchPermanentDelete(
     await cleanupDeletedEntry(deps, entry)
   }
   return result
+}
+
+export async function emptyTrash(deps: FileManagerDeps): Promise<BatchMutationResult> {
+  const deletedEntries: FileEntry[] = []
+  const succeeded: FileEntryId[] = []
+  const failed: BatchMutationResult['failed'] = []
+
+  deps.fileEntryService.withWriteTx((tx) => {
+    const entries = deps.fileEntryService.findManyTx(tx, { origin: 'internal', inTrash: true })
+    for (const entry of entries) {
+      try {
+        const deletedEntry = permanentDeleteTx(deps, tx, entry.id)
+        deletedEntries.push(deletedEntry)
+        succeeded.push(entry.id)
+      } catch (err) {
+        logger.warn('batch op item failed', { id: entry.id, err })
+        failed.push({ id: entry.id, error: (err as Error).message })
+      }
+    }
+  })
+
+  for (const entry of deletedEntries) {
+    await cleanupDeletedEntry(deps, entry)
+  }
+
+  return { succeeded, failed }
 }

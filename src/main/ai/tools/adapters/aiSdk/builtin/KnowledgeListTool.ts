@@ -10,8 +10,9 @@
  * Both modes live in the shared `knowledgeLookup` core so the Claude Code MCP bridge runs identical
  * logic; this file is just the AI-SDK `tool()` wrapper.
  *
- * Scope: when `assistant.knowledgeBaseIds` is non-empty, only those bases are reachable; when empty,
- * all user bases are.
+ * Scope: when the effective scope (the assistant's static binding narrowed by the composer's per-turn
+ * selection, or that selection alone when there is no binding — see `resolveKnowledgeBaseScope`) is
+ * non-empty, only those bases are reachable. The tool is not exposed when that scope is empty.
  */
 
 import {
@@ -38,6 +39,17 @@ export { KB_LIST_TOOL_NAME }
 // `{ error }`, so the output is a three-way union.
 const knowledgeListResultSchema = z.union([kbListOutputSchema, kbTreeOutputSchema, knowledgeLookupErrorSchema])
 
+function normalizeStrictInput(input: z.infer<typeof kbListStrictInputSchema>) {
+  // The model-facing strict schema uses primitive sentinels for Gemini/OpenAI compatibility.
+  // Keep that provider concern at the adapter boundary; the shared core receives normal optionals.
+  return {
+    query: input.query || undefined,
+    groupId: input.groupId || undefined,
+    baseId: input.baseId || undefined,
+    maxDepth: input.maxDepth < 0 ? undefined : input.maxDepth
+  }
+}
+
 const kbListTool = tool({
   description: KNOWLEDGE_LIST_DESCRIPTION,
   inputSchema: kbListStrictInputSchema,
@@ -45,9 +57,9 @@ const kbListTool = tool({
   strict: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
-    return listOrOutlineKnowledge(input, request.assistant?.knowledgeBaseIds ?? [])
+    return listOrOutlineKnowledge(normalizeStrictInput(input), request.knowledgeBaseIds ?? [])
   },
-  toModelOutput: ({ input, output }) => knowledgeListModelOutput(output, input)
+  toModelOutput: ({ input, output }) => knowledgeListModelOutput(output, normalizeStrictInput(input))
 })
 
 export function createKbListToolEntry(): ToolEntry {
@@ -58,9 +70,9 @@ export function createKbListToolEntry(): ToolEntry {
     defer: 'never',
     tool: kbListTool,
     // Discovery entry point, always inlined (defer: 'never') — but gated identically to kb_search /
-    // kb_read / kb_manage: a base must exist AND be bound to this assistant. Listing every base while
-    // none are bound (no kb_read / kb_search to act on them) is a discovery dead-end and widens the
-    // per-assistant scope, so kb_list shares the siblings' gate.
-    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.assistant?.knowledgeBaseIds?.length ?? 0) > 0
+    // kb_read / kb_manage: a base must exist AND be in scope (bound to this assistant, or selected
+    // this turn). Listing every base while none are in scope (no kb_read / kb_search to act on them)
+    // is a discovery dead-end and widens the scope, so kb_list shares the siblings' gate.
+    applies: (scope) => scope.hasAnyKnowledgeBase === true && (scope.knowledgeBaseIds?.length ?? 0) > 0
   }
 }

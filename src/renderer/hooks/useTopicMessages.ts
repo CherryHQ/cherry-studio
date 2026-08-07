@@ -13,6 +13,7 @@
  * lookup that can lag behind `useChat.state.messages` during streaming.
  */
 
+import { usePreference } from '@data/hooks/usePreference'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import type {
@@ -24,7 +25,13 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
+// Baseline page size when the anchor rail is off — no reason to load more.
 const PAGE_SIZE = 50
+
+// Sized so one page (~75 turns) fills the anchor rail's visible capacity on a
+// typical full-height window (~73 ticks at 10px pitch) — the rail then shows a
+// complete strip on entry instead of visibly growing as older pages stream in.
+const ANCHOR_RAIL_PAGE_SIZE = 150
 
 interface DisplayBranchMessage {
   message: SharedMessage
@@ -158,10 +165,9 @@ export interface UseTopicMessagesResult {
    */
   siblingsMap: Record<string, SharedMessage[]>
   isLoading: boolean
+  isStale: boolean
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
-  /** The topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
-  rootId: string | null
   /** Load the next (older) page of branch history. */
   loadOlder: () => void
   /** Whether older pages remain on the server. */
@@ -180,10 +186,14 @@ export function useTopicMessages(
 ): UseTopicMessagesResult {
   const enabled = options?.enabled !== false
   const fetchOnMount = options?.fetchOnMount ?? enabled
+  const [messageNavigation] = usePreference('chat.message.navigation_mode')
+  // `limit` is part of the SWR infinite key, so toggling the preference
+  // mid-session swaps to a fresh cache entry instead of mixing page sizes.
+  const pageSize = messageNavigation === 'anchor' ? ANCHOR_RAIL_PAGE_SIZE : PAGE_SIZE
   const { pages, isLoading, isRefreshing, mutate, loadNext, hasNext } = useInfiniteQuery('/topics/:topicId/messages', {
     params: { topicId },
     query: { includeSiblings: true },
-    limit: PAGE_SIZE,
+    limit: pageSize,
     enabled,
     swrOptions: {
       dedupingInterval: 0,
@@ -210,7 +220,6 @@ export function useTopicMessages(
     [pages, topicId]
   )
   const activeNodeId = pages[0]?.activeNodeId ?? null
-  const rootId = pages[0]?.rootId ?? null
 
   // On remount with stale SWR cache, SWR may expose cached data while it
   // revalidates. Track freshness per topic so the loading gate blocks stale
@@ -232,7 +241,7 @@ export function useTopicMessages(
 
   const projectionCacheRef = useRef<WeakMap<SharedMessage, CherryUIMessage>>(new WeakMap())
   const uiMessages = useMemo<CherryUIMessage[]>(
-    () => projectPagesToUI(branchItems, projectionCacheRef.current),
+    () => projectBranchMessagesToUI(branchItems, projectionCacheRef.current),
     [branchItems]
   )
 
@@ -250,16 +259,18 @@ export function useTopicMessages(
       .slice()
       .reverse()
       .flatMap((p) => p.items)
-    return projectPagesToUI(allItems, projectionCacheRef.current)
+    return projectBranchMessagesToUI(allItems, projectionCacheRef.current)
   }, [mutate, enabled])
+
+  const isStale = enabled && (readyTopicId !== topicId || !pagesBelongToTopic)
 
   return {
     uiMessages,
     siblingsMap,
-    isLoading: enabled && (isLoading || readyTopicId !== topicId || !pagesBelongToTopic),
+    isLoading: enabled && (isLoading || isStale),
+    isStale,
     refresh,
     activeNodeId,
-    rootId,
     loadOlder: loadNext,
     hasOlder: hasNext,
     mutate: mutate
@@ -271,9 +282,9 @@ export function useTopicMessages(
  * reusing the per-row WeakMap so a stable shared message keeps its
  * projection identity across re-renders.
  */
-function projectPagesToUI(
+export function projectBranchMessagesToUI(
   branchItems: BranchMessage[],
-  cache: WeakMap<SharedMessage, CherryUIMessage>
+  cache: WeakMap<SharedMessage, CherryUIMessage> = new WeakMap()
 ): CherryUIMessage[] {
   return flattenBranchMessages(branchItems).map(({ message, isActiveBranch }) => {
     const cached = cache.get(message)

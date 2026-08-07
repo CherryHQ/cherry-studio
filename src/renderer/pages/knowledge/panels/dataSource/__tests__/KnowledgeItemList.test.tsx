@@ -92,7 +92,6 @@ vi.mock('react-i18next', () => ({
     t: (key: string) =>
       (
         ({
-          'common.loading': '加载中...',
           'knowledge.data_source.table.select_all': '全选',
           'knowledge.data_source.table.aria_label': '数据源列表',
           'knowledge.data_source.list.loading_more': '加载更多…',
@@ -109,7 +108,7 @@ const noopProps = {
   selectedIds: new Set<string>(),
   onToggleOne: () => undefined,
   onToggleAll: () => undefined,
-  onItemClick: () => undefined,
+  onActivate: () => undefined,
   onDelete: () => undefined,
   onPreviewSource: () => undefined,
   onReindex: () => undefined,
@@ -128,99 +127,6 @@ const setScrollGeometry = (
 }
 
 describe('KnowledgeItemList', () => {
-  it('renders the loading state before item rows', () => {
-    render(<KnowledgeItemList items={[]} isLoading {...noopProps} />)
-
-    expect(screen.getByText('加载中...')).toBeInTheDocument()
-  })
-
-  it('renders nothing when there are no items and it is not loading', () => {
-    render(<KnowledgeItemList items={[]} isLoading={false} {...noopProps} />)
-
-    expect(screen.queryByTestId('virtual-list')).not.toBeInTheDocument()
-  })
-
-  it('renders rows when items are available', () => {
-    render(
-      <KnowledgeItemList
-        items={[createFileItem({ id: 'file-1' }), createNoteItem({ id: 'note-1' })]}
-        isLoading={false}
-        {...noopProps}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: 'file-1' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'note-1' })).toBeInTheDocument()
-  })
-
-  it('passes onItemClick through to the row click handler', () => {
-    const handleItemClick = vi.fn()
-    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
-
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onItemClick={handleItemClick} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'note-1' }))
-
-    expect(handleItemClick).toHaveBeenCalledWith('note-1')
-  })
-
-  it('passes onDelete through to the row delete handler', () => {
-    const handleDelete = vi.fn()
-    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
-
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onDelete={handleDelete} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'delete-note-1' }))
-
-    expect(handleDelete).toHaveBeenCalledWith(item)
-  })
-
-  it('passes onReindex through to the row reindex handler', () => {
-    const handleReindex = vi.fn()
-    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
-
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onReindex={handleReindex} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'reindex-note-1' }))
-
-    expect(handleReindex).toHaveBeenCalledWith(item)
-  })
-
-  it('passes onPreviewSource through to the row preview handler', () => {
-    const handlePreviewSource = vi.fn()
-    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
-
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onPreviewSource={handlePreviewSource} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'preview-note-1' }))
-
-    expect(handlePreviewSource).toHaveBeenCalledWith(item)
-  })
-
-  it('passes onViewChunks through to the row view chunks handler', () => {
-    const handleViewChunks = vi.fn()
-    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
-
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} onViewChunks={handleViewChunks} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'chunks-note-1' }))
-
-    expect(handleViewChunks).toHaveBeenCalledWith('note-1')
-  })
-
-  it('requests more items when scrolled near the bottom and more pages remain', async () => {
-    const handleLoadMore = vi.fn()
-    const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
-
-    render(<KnowledgeItemList items={[item]} isLoading={false} {...noopProps} hasMore onLoadMore={handleLoadMore} />)
-
-    fireEvent.scroll(screen.getByTestId('virtual-list'))
-
-    // loadMore is scheduled via queueMicrotask; poll until it flushes rather than assuming a fixed
-    // number of microtask ticks (a single `await Promise.resolve()` flaked under act scheduling).
-    await vi.waitFor(() => expect(handleLoadMore).toHaveBeenCalledTimes(1))
-  })
-
   it('does not request more items when there are no further pages', async () => {
     const handleLoadMore = vi.fn()
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })

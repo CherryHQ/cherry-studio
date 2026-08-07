@@ -1,5 +1,5 @@
 import { Scrollbar } from '@cherrystudio/ui'
-import type { MessageListItem } from '@renderer/components/chat/messages'
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import type { Assistant } from '@renderer/types/assistant'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'

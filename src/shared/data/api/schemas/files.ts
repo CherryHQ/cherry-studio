@@ -8,17 +8,17 @@
  * - MUST NOT consult FS-state caches (`danglingCache.check`, `versionCache`)
  * - MUST return a **fixed shape per endpoint** — no opt-in flags that toggle extra fields
  *
- * SQL aggregation (JOIN / GROUP BY / COUNT) stays in the DB layer. Temp-session refs are
- * the narrow exception: they are main-memory CacheService state by design and are included
- * by the ref endpoints so a temp attachment is not reported as orphan during the session.
+ * SQL aggregation (JOIN / GROUP BY / COUNT) stays in the DB layer, over the persistent
+ * association tables registered in `persistentFileRefTablesBySourceType`.
  * Anything that requires FS IO or main-side path computation lives in **File IPC** (see
  * `src/shared/types/file/ipc.ts`).
  *
  * Endpoints:
  * - `GET /files/entries`            — FileEntry list (fixed shape)
  * - `GET /files/entries/:id`        — Single entry lookup (fixed shape)
+ * - `GET /files/entries/by-content-hash` — Active internal exact-hash candidates
  * - `GET /files/entries/stats`      — Pure-SQL aggregate counts for sidebar filters
- * - `GET /files/entries/ref-counts` — Ref-count aggregation for a batch of ids (persistent SQL refs + temp-session cache refs)
+ * - `GET /files/entries/ref-counts` — Ref-count aggregation for a batch of ids (persistent SQL refs)
  * - `GET /files/entries/:id/refs`   — File references for a specific entry
  * - `GET /files/refs`               — File references filtered by business source
  *
@@ -31,10 +31,10 @@
  *
  * | Former opt-in       | Current home                                                           |
  * |---------------------|------------------------------------------------------------------------|
- * | `includeRefCount`   | `GET /files/entries/ref-counts?entryIds=...` (DataApi; persistent refs + temp-session cache refs) |
+ * | `includeRefCount`   | `GET /files/entries/ref-counts?entryIds=...` (DataApi; persistent refs)                          |
  * | `includeDangling`   | File IPC `getDanglingState` / `batchGetDanglingStates` (FS-backed)     |
  * | `includePath`       | File IPC `getPhysicalPath` / `batchGetPhysicalPaths` (main resolver)   |
- * | `includeUrl`        | Shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/url`, composed in-process from the `FilePath` returned by `getPhysicalPath` (no dedicated IPC) |
+ * | `includeUrl`        | Shared pure helper `toSafeFileUrl(path, ext)` in `@shared/utils/file/url`, composed in-process from the `AbsoluteFilePath` returned by `getPhysicalPath` (no dedicated IPC) |
  *
  * Renderers compose data by fetching the entry list here, then calling the relevant
  * batch IPC methods with the retrieved ids. Wrap the two-step pattern in a dedicated
@@ -49,15 +49,21 @@
  * call File IPC `getMetadata(id)` which performs a single `fs.stat`.
  */
 
-import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/types'
 import type { FileEntry, FileEntryId, FileRef } from '@shared/data/types/file'
-import { FileEntryIdSchema, FileEntryOriginSchema, FileRefSourceTypeSchema } from '@shared/data/types/file'
+import {
+  ContentHashSchema,
+  FileEntryIdSchema,
+  FileEntryOriginSchema,
+  FileRefSourceTypeSchema
+} from '@shared/data/types/file'
 import * as z from 'zod'
 
 /**
  * Per-entry reference-count record produced by `GET /files/entries/ref-counts`.
  *
- * Ref aggregation across persistent association tables plus CacheService-backed temp-session refs.
+ * Ref aggregation across the persistent association tables registered in
+ * `persistentFileRefTablesBySourceType`.
  * Entries with zero refs are still returned with `refCount = 0` so the renderer can
  * safely map by id without special-casing missing keys.
  */
@@ -95,6 +101,9 @@ export const ListFilesQuerySchema = z
   )
 export type ListFilesQueryParams = z.input<typeof ListFilesQuerySchema> & CursorPaginationParams
 export type ListFilesQuery = z.output<typeof ListFilesQuerySchema>
+
+export const ContentHashQuerySchema = z.strictObject({ contentHash: ContentHashSchema })
+export type ContentHashQueryParams = z.input<typeof ContentHashQuerySchema>
 
 export interface FileEntryListResponse extends CursorPaginationResponse<FileEntry> {
   total: number
@@ -179,6 +188,14 @@ export type FileSchemas = {
     }
   }
 
+  /** Active internal entries with an exact tagged content hash, oldest first. */
+  '/files/entries/by-content-hash': {
+    GET: {
+      query: ContentHashQueryParams
+      response: FileEntry[]
+    }
+  }
+
   /**
    * Aggregate counts for the file sidebar.
    *
@@ -198,8 +215,8 @@ export type FileSchemas = {
   /**
    * Batch ref-count aggregation for a set of entry ids.
    *
-   * Counts persistent SQL association-table refs (`COUNT(*) ... GROUP BY fileEntryId`)
-   * and then merges CacheService-backed temp-session refs. Each requested id appears
+   * Counts persistent SQL association-table refs (`COUNT(*) ... GROUP BY fileEntryId`).
+   * Each requested id appears
    * in the response — entries with zero refs return `refCount = 0` rather than being omitted.
    *
    * @example GET /files/entries/ref-counts?entryIds=abc123,def456
@@ -232,8 +249,8 @@ export type FileSchemas = {
    * (`z.strictObject` — neither is optional), so the URL always carries the
    * full source key even though the path stays a plain `/files/refs`.
    *
-   * Ref write operations are NOT exposed via DataApi. Persistent refs are
-   * owned by business services; temp-session refs are main-process only.
+   * Ref write operations are NOT exposed via DataApi — persistent refs are
+   * owned by their business services.
    *
    * @example GET /files/refs?sourceType=chat_message&sourceId=msg1
    */

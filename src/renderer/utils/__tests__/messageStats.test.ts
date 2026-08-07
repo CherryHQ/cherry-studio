@@ -1,24 +1,44 @@
 import type { MessageStats } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import { statsToMetrics, statsToUsage } from '../messageStats'
+import { getCacheTokenStats, statsToMetrics, statsToUsage } from '../messageStats'
 
 describe('statsToUsage', () => {
   it('projects all token fields and keeps required fields defaulted to 0 when missing', () => {
     const stats: MessageStats = {
-      promptTokens: 30,
-      completionTokens: 12,
+      inputTokens: 30,
+      outputTokens: 12,
       totalTokens: 42,
-      thoughtsTokens: 3,
-      cost: 0.000123
+      outputTokenDetails: { reasoningTokens: 3 }
     }
 
     expect(statsToUsage(stats)).toEqual({
       prompt_tokens: 30,
       completion_tokens: 12,
       total_tokens: 42,
-      thoughts_tokens: 3,
-      cost: 0.000123
+      thoughts_tokens: 3
+    })
+  })
+
+  it('projects cache breakdown without projecting record-owned cost', () => {
+    const stats: MessageStats = {
+      inputTokens: 100,
+      outputTokens: 50,
+      totalTokens: 900,
+      inputTokenDetails: { noCacheTokens: 100, cacheReadTokens: 700, cacheWriteTokens: 100 },
+      costs: [
+        {
+          currency: 'USD',
+          amount: 0.0042,
+          providerReportedRequestCount: 0,
+          computedRequestCount: 1
+        }
+      ]
+    }
+
+    expect(statsToUsage(stats)).toMatchObject({
+      cache_read_tokens: 700,
+      cache_write_tokens: 100
     })
   })
 
@@ -37,19 +57,35 @@ describe('statsToUsage', () => {
     expect(result).not.toHaveProperty('thoughts_tokens')
     expect(result).not.toHaveProperty('cost')
   })
+})
 
-  it('keeps cost=0 (OpenRouter can legitimately report a free request)', () => {
-    // Guard against `stats.cost !== undefined` becoming `if (stats.cost)`
-    // by accident — OpenRouter's free-tier calls report cost: 0 and
-    // swallowing that would hide a real value.
-    expect(statsToUsage({ cost: 0 })).toMatchObject({ cost: 0 })
+describe('getCacheTokenStats', () => {
+  it('computes cache hit rate and saved input tokens for one message', () => {
+    expect(
+      getCacheTokenStats({ inputTokenDetails: { noCacheTokens: 10, cacheReadTokens: 70, cacheWriteTokens: 20 } })
+    ).toEqual({
+      noCacheTokens: 10,
+      cacheReadTokens: 70,
+      cacheWriteTokens: 20,
+      totalInputTokens: 100,
+      hitRate: 0.7,
+      savedInputTokens: 70
+    })
+  })
+
+  it('returns undefined when no cache counters exist', () => {
+    expect(getCacheTokenStats({ inputTokens: 10 })).toBeUndefined()
+  })
+
+  it('returns undefined when only non-cache input tokens exist', () => {
+    expect(getCacheTokenStats({ inputTokenDetails: { noCacheTokens: 100 } })).toBeUndefined()
   })
 })
 
 describe('statsToMetrics', () => {
   it('projects all timing fields and completion tokens', () => {
     const stats: MessageStats = {
-      completionTokens: 12,
+      outputTokens: 12,
       timeCompletionMs: 1501,
       timeFirstTokenMs: 250,
       timeThinkingMs: 400

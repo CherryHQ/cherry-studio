@@ -1,3 +1,5 @@
+import { clampSurrogateBoundary } from './text'
+
 const FIRST_USER_MESSAGE_TITLE_MAX_LENGTH = 50
 
 export function sanitizeConversationTitle(title: string): string {
@@ -7,7 +9,9 @@ export function sanitizeConversationTitle(title: string): string {
 export function truncateFirstUserMessageTitleSource(text: string): string {
   const normalized = text.trim().replace(/\s+/g, ' ')
   if (normalized.length <= FIRST_USER_MESSAGE_TITLE_MAX_LENGTH) return normalized
-  return normalized.slice(0, FIRST_USER_MESSAGE_TITLE_MAX_LENGTH).trim()
+  // Clamp the cut so it can't land between an emoji's surrogate halves and
+  // persist a lone surrogate as the title.
+  return normalized.slice(0, clampSurrogateBoundary(normalized, FIRST_USER_MESSAGE_TITLE_MAX_LENGTH)).trim()
 }
 
 export function buildFirstUserMessageTitle(userText: string): string {

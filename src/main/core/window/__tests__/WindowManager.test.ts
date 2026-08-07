@@ -249,6 +249,15 @@ vi.mock('../windowRegistry', () => {
       htmlPath: 'windows/default/index.html',
       windowOptions: {}
     },
+    // Consumer-loaded: empty htmlPath → WM skips loadWindowContent; the domain
+    // service loads content itself after open() (see "content loading" tests).
+    consumerLoaded: {
+      type: 'consumerLoaded',
+      lifecycle: 'default',
+      showMode: 'manual',
+      htmlPath: '',
+      windowOptions: {}
+    },
     singleton: {
       type: 'singleton',
       lifecycle: 'singleton',
@@ -400,6 +409,27 @@ describe('WindowManager', () => {
       wm.close(id)
 
       expect(win.destroy).toHaveBeenCalled()
+    })
+  })
+
+  // ─── Content loading (htmlPath contract) ───────────────
+
+  describe('content loading (htmlPath)', () => {
+    it('loads the registry htmlPath on create (production path → loadFile)', () => {
+      const id = wm.open('default' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+
+      expect(win.loadFile).toHaveBeenCalledTimes(1)
+    })
+
+    it('skips content loading when htmlPath is empty (consumer-loaded window)', () => {
+      const id = wm.open('consumerLoaded' as never)
+      const win = wm.getWindow(id) as unknown as MockBrowserWindow
+
+      // Empty htmlPath = domain service owns loading; WM must not loadFile/loadURL.
+      expect(win).toBeDefined()
+      expect(win.loadFile).not.toHaveBeenCalled()
+      expect(win.loadURL).not.toHaveBeenCalled()
     })
   })
 
@@ -1403,6 +1433,12 @@ describe('WindowManager', () => {
       expect(info?.createdAt).toBeGreaterThan(0)
     })
 
+    it('getWindowType() returns the window type by id, undefined for an unknown id', () => {
+      const id = wm.open('singleton' as never)
+      expect(wm.getWindowType(id)).toBe('singleton')
+      expect(wm.getWindowType('no-such-window')).toBeUndefined()
+    })
+
     it('getWindowInfosByType() returns serializable info filtered by type', () => {
       wm.open('default' as never)
       wm.open('default' as never)
@@ -1442,6 +1478,13 @@ describe('WindowManager', () => {
 
     it('returns null for missing init data', () => {
       const id = wm.open('default' as never)
+      expect(wm.getInitData(id)).toBeNull()
+    })
+
+    it('clears init data', () => {
+      const id = wm.open('default' as never)
+      wm.setInitData(id, { key: 'value' })
+      wm.clearInitData(id)
       expect(wm.getInitData(id)).toBeNull()
     })
 
@@ -1568,6 +1611,17 @@ describe('WindowManager', () => {
       wm.broadcast('test-channel')
 
       expect(createdWindows[0].webContents.send).not.toHaveBeenCalled()
+    })
+
+    it('isolates a failing send so remaining windows still receive', () => {
+      wm.open('default' as never)
+      wm.open('singleton' as never)
+      createdWindows[0].webContents.send.mockImplementationOnce(() => {
+        throw new Error('renderer gone')
+      })
+
+      expect(() => wm.broadcast('test-channel', 'data')).not.toThrow()
+      expect(createdWindows[1].webContents.send).toHaveBeenCalledWith('test-channel', 'data')
     })
   })
 

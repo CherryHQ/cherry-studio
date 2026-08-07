@@ -5,20 +5,28 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   EmptyState,
-  Input
+  PageHeader,
+  Scrollbar
 } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { FilePreview } from '@renderer/components/FilePreview'
 import { ipcApi } from '@renderer/ipc'
-import { safeOpen } from '@renderer/utils/file/safeOpen'
+import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
+import { toast } from '@renderer/services/toast'
+import { normalizeFilePreviewPath } from '@renderer/utils/filePreview'
 import { isMac } from '@renderer/utils/platform'
 import type { FileEntry, FileEntryId } from '@shared/data/types/file'
 import type { OutputFor } from '@shared/ipc/types'
-import type { FilePath, FileType } from '@shared/types/file'
-import { createFileEntryHandle, getFileTypeByExt } from '@shared/utils/file'
-import { toSafeFileUrl } from '@shared/utils/file/url'
-import { Trash2, Upload, X } from 'lucide-react'
+import type { AbsoluteFilePath, FileType } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { createFileEntryHandle, getFileTypeByExt, toSafeFileUrl } from '@shared/utils/file'
+import { ArrowLeft, MoreHorizontal, Trash2, Upload } from 'lucide-react'
 import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -27,7 +35,7 @@ import type { FileItem } from './fileDisplay'
 import { formatFileSize } from './fileDisplay'
 import { FileGrid } from './FileGrid'
 import type { SortDir, SortKey } from './FileList'
-import { FileList } from './FileList'
+import { FileList, FileListHeader } from './FileList'
 import type { SidebarFilter } from './FileSidebar'
 import { FileSidebar } from './FileSidebar'
 
@@ -42,6 +50,12 @@ type BatchCreateInternalEntriesResult = OutputFor<'file.batch_create_internal_en
 type FileBatchMutationResult = OutputFor<'file.batch_trash'>
 type FileBatchRoute = 'file.batch_get_metadata' | 'file.batch_get_physical_paths' | 'file.batch_get_dangling_states'
 type FileBatchMutationRoute = 'file.batch_trash' | 'file.batch_restore' | 'file.batch_permanent_delete'
+
+interface EmbeddedFilePreview {
+  fileName: string
+  filePath: AbsoluteFilePath
+  refreshKey: number
+}
 
 // Renderer-side chunk size for splitting large id lists into multiple IPC calls.
 // This is a batching knob, not the schema cap itself; it only needs to stay at
@@ -109,8 +123,10 @@ async function requestBatchedFileMutation(
   }
 }
 
-async function requestBatchedInternalEntryCreates(paths: readonly string[]): Promise<BatchCreateInternalEntriesResult> {
-  const chunks: string[][] = []
+async function requestBatchedInternalEntryCreates(
+  paths: readonly AbsoluteFilePath[]
+): Promise<BatchCreateInternalEntriesResult> {
+  const chunks: AbsoluteFilePath[][] = []
   for (let i = 0; i < paths.length; i += FILE_IPC_CREATE_BATCH_SIZE) {
     chunks.push(paths.slice(i, i + FILE_IPC_CREATE_BATCH_SIZE))
   }
@@ -118,7 +134,12 @@ async function requestBatchedInternalEntryCreates(paths: readonly string[]): Pro
   const results = await Promise.all(
     chunks.map((chunk) =>
       ipcApi.request('file.batch_create_internal_entries', {
-        items: chunk.map((path) => ({ source: 'path' as const, path }))
+        items: chunk.map((path) => ({
+          source: 'path' as const,
+          path,
+          // Files-page upload = add-to-library: 'manual' keeps zero-ref uploads out of GC (spec §4.1)
+          cleanupPolicy: 'manual' as const
+        }))
       })
     )
   )
@@ -149,12 +170,16 @@ function stripCurrentExtension(name: string, format: string): string {
   return name.toLowerCase().endsWith(suffix.toLowerCase()) ? name.slice(0, -suffix.length) : name
 }
 
+function canStartInlineRename(file: FileItem | undefined): file is FileItem {
+  return Boolean(file && !file.trashed && !file.isMissing)
+}
+
 function toFileItem(
   entry: FileEntry,
   metadataById: FileMetadataById,
   physicalPathById: PhysicalPathById,
   danglingStateById: DanglingStateById
-): FileItem | null {
+): FileItem {
   const metadata = metadataById[entry.id]
   const format = entry.ext ?? ''
   const type = getFileTypeByExt(format)
@@ -180,13 +205,11 @@ function toFileItem(
   const originFields = entry.origin === 'external' ? { origin: 'external' as const } : { origin: 'internal' as const }
 
   if (type === 'image') {
-    if (!physicalPath && !isMissing) return null
-
     return {
       ...base,
       ...originFields,
       type,
-      previewUrl: physicalPath ? toSafeFileUrl(physicalPath as FilePath, entry.ext) : undefined
+      previewUrl: physicalPath ? toSafeFileUrl(physicalPath, entry.ext) : undefined
     }
   }
 
@@ -209,14 +232,14 @@ function reportMutationFailures(
   message: string
 ): void {
   if (warnMutationFailures(action, result)) {
-    window.toast?.error(message)
+    toast.error(message)
   }
 }
 
 function reportImportFailures(result: { failed: Array<{ sourceRef: string; error: string }> }, message: string): void {
   if (result.failed.length > 0) {
     logger.warn('file import partially failed', { failed: result.failed })
-    window.toast?.error(message)
+    toast.error(message)
   }
 }
 
@@ -225,41 +248,54 @@ function shouldIgnoreFileShortcut(event: KeyboardEvent): boolean {
   const target = event.target
   if (!(target instanceof HTMLElement)) return false
   if (target.isContentEditable) return true
+  if (target.closest('[data-file-selection-checkbox]')) return false
 
   return Boolean(target.closest('a[href], button, input, select, textarea, [role="button"], [role="menuitem"]'))
 }
 
-// ─── Batch Action Bar ───
+// ─── Toolbar + Action Bar ───
 
-const BatchBar = memo(function BatchBar({
-  selectedLabel,
-  deleteLabel,
-  onDelete,
-  onClear
+const FileToolbar = memo(function FileToolbar({
+  isTrash,
+  selectedCount,
+  batchDeleteLabel,
+  onBatchDelete,
+  onBatchRestore
 }: {
-  selectedLabel: string
-  deleteLabel: string
-  onDelete: () => void
-  onClear: () => void
+  isTrash: boolean
+  selectedCount: number
+  batchDeleteLabel: string
+  onBatchDelete: () => void
+  onBatchRestore: () => void
 }) {
+  const { t } = useTranslation()
+
   return (
-    <div className="flex items-center gap-2 border-border/30 border-b bg-accent/50 px-4 py-1.5">
-      <span className="font-medium text-muted-foreground text-xs">{selectedLabel}</span>
-      <div className="flex-1" />
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onDelete}
-        className="flex items-center gap-1 rounded-md px-2 py-[3px] text-destructive/60 text-xs transition-colors hover:bg-destructive/[0.08]">
-        <Trash2 size={10} />
-        <span>{deleteLabel}</span>
-      </Button>
-      <Button
-        variant="ghost"
-        onClick={onClear}
-        className="flex h-5 w-5 items-center justify-center rounded-md p-0 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-foreground">
-        <X size={10} />
-      </Button>
+    <div className="flex h-7 shrink-0 items-center gap-1">
+      <span className="text-muted-foreground text-xs">
+        {t('files.footer_selected_count', { count: selectedCount })}
+      </span>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
+            aria-label={t('files.actions')}>
+            <MoreHorizontal size={14} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="min-w-36">
+          {isTrash && (
+            <DropdownMenuItem onSelect={onBatchRestore}>
+              {t('files.restore')} ({selectedCount})
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem variant="destructive" onSelect={onBatchDelete}>
+            {batchDeleteLabel} ({selectedCount})
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 })
@@ -268,6 +304,11 @@ const BatchBar = memo(function BatchBar({
 
 function FilesPage() {
   const { t } = useTranslation()
+  const [embeddedPreview, setEmbeddedPreview] = useState<EmbeddedFilePreview | null>(null)
+  // Guards the async open flow: each open bumps the token, and stale physical-path
+  // resolutions (success or failure) are ignored so a slower earlier click can never
+  // overwrite — or error over — the file the user most recently opened.
+  const openRequestTokenRef = useRef(0)
   const [metadataById, setMetadataById] = useState<FileMetadataById>({})
   const [physicalPathById, setPhysicalPathById] = useState<PhysicalPathById>({})
   const [danglingStateById, setDanglingStateById] = useState<DanglingStateById>({})
@@ -278,8 +319,6 @@ function FilesPage() {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [dragOver, setDragOver] = useState(false)
   const [renamingId, setRenamingId] = useState<string | null>(null)
-  const [renameDialogFile, setRenameDialogFile] = useState<FileItem | null>(null)
-  const [renameDialogText, setRenameDialogText] = useState('')
   const [pendingPermanentDeleteIds, setPendingPermanentDeleteIds] = useState<Set<string> | null>(null)
   const contentScrollRef = useRef<HTMLDivElement | null>(null)
   const pendingLoadMoreRef = useRef(false)
@@ -400,14 +439,9 @@ function FilesPage() {
     }
   }, [displayEntries, isFilesLoading, isFilesRefreshing])
 
-  const files = useMemo(
-    () =>
-      displayEntries.flatMap((entry) => {
-        const file = toFileItem(entry, metadataById, physicalPathById, danglingStateById)
-        return file ? [file] : []
-      }),
-    [displayEntries, metadataById, physicalPathById, danglingStateById]
-  )
+  const files = useMemo(() => {
+    return displayEntries.map((entry) => toFileItem(entry, metadataById, physicalPathById, danglingStateById))
+  }, [displayEntries, danglingStateById, metadataById, physicalPathById])
 
   const refetchFiles = useCallback(async () => {
     resetActiveFiles()
@@ -416,6 +450,21 @@ function FilesPage() {
   }, [refetchFileStats, refreshActiveFiles, refreshTrashedFiles, resetActiveFiles, resetTrashedFiles])
 
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
+  const showUploadButton = filter.kind === 'library' && filter.value === 'all'
+  const isImageGrid = filter.kind === 'type' && filter.value === 'image'
+  const activeFilterLabel =
+    filter.kind === 'library'
+      ? t(filter.value === 'all' ? 'files.all' : 'files.trash')
+      : t(
+          {
+            audio: 'files.audio',
+            document: 'files.document',
+            image: 'files.image',
+            other: 'files.other',
+            text: 'files.text',
+            video: 'files.video'
+          }[filter.value]
+        )
   const hasMoreCurrentFiles = isTrash ? hasMoreTrashedFiles : hasMoreActiveFiles
   const isLoadingMoreActiveFiles = isActiveFilesRefreshing && activeFilePages.length > 0
   const isLoadingMoreTrashedFiles = isTrashedFilesRefreshing && trashedFilePages.length > 0
@@ -437,28 +486,26 @@ function FilesPage() {
     })
   }, [])
 
-  const handleContentScroll = useCallback(
-    (e: React.UIEvent<HTMLDivElement>) => {
-      const el = e.currentTarget
-      if (
-        hasMoreCurrentFiles &&
-        !isLoadingMoreCurrentFiles &&
-        !pendingLoadMoreRef.current &&
-        el.scrollHeight - el.scrollTop - el.clientHeight < 160
-      ) {
-        const loadMoreFiles = isTrash ? loadMoreTrashedFiles : loadMoreActiveFiles
-        requestLoadMore(loadMoreFiles)
-      }
-    },
-    [
-      hasMoreCurrentFiles,
-      isLoadingMoreCurrentFiles,
-      isTrash,
-      loadMoreActiveFiles,
-      loadMoreTrashedFiles,
-      requestLoadMore
-    ]
-  )
+  const handleContentScroll = useCallback(() => {
+    const el = contentScrollRef.current
+    if (!el) return
+    if (
+      hasMoreCurrentFiles &&
+      !isLoadingMoreCurrentFiles &&
+      !pendingLoadMoreRef.current &&
+      el.scrollHeight - el.scrollTop - el.clientHeight < 160
+    ) {
+      const loadMoreFiles = isTrash ? loadMoreTrashedFiles : loadMoreActiveFiles
+      requestLoadMore(loadMoreFiles)
+    }
+  }, [
+    hasMoreCurrentFiles,
+    isLoadingMoreCurrentFiles,
+    isTrash,
+    loadMoreActiveFiles,
+    loadMoreTrashedFiles,
+    requestLoadMore
+  ])
 
   const maybeFillClientFilteredViewport = useCallback(() => {
     // Type filters are applied client-side over the loaded active pages.
@@ -487,9 +534,33 @@ function FilesPage() {
 
   const handleOpen = useCallback(
     (file: FileItem) => {
-      void safeOpen(createFileEntryHandle(file.id)).catch(() => {
-        window.toast?.error(t('files.preview.error'))
-      })
+      const requestToken = ++openRequestTokenRef.current
+      void requestBatchedFileRecords('file.batch_get_physical_paths', [file.id])
+        .then((physicalPaths) => {
+          if (openRequestTokenRef.current !== requestToken) return
+          const filePath = physicalPaths[file.id]
+          if (!filePath) throw new Error(`Physical path is unavailable for file ${file.id}`)
+          const normalizedPath = normalizeFilePreviewPath(filePath)
+          if (file.type === 'image') {
+            void ImagePreviewService.show(toSafeFileUrl(normalizedPath, file.format)).catch((error: unknown) => {
+              const normalized = error instanceof Error ? error : new Error(String(error))
+              logger.error('Failed to open image preview', normalized)
+              toast.error(t('files.preview.error'))
+            })
+            return
+          }
+          setEmbeddedPreview((current) => ({
+            fileName: file.name,
+            filePath: normalizedPath,
+            refreshKey: current?.filePath === normalizedPath ? current.refreshKey + 1 : 0
+          }))
+        })
+        .catch((error: unknown) => {
+          if (openRequestTokenRef.current !== requestToken) return
+          const normalized = error instanceof Error ? error : new Error(String(error))
+          logger.error('Failed to open file preview', normalized)
+          toast.error(t('files.preview.error'))
+        })
     },
     [t]
   )
@@ -501,7 +572,7 @@ function FilesPage() {
   }, [])
 
   const handleImportPaths = useCallback(
-    async (paths: string[]) => {
+    async (paths: AbsoluteFilePath[]) => {
       if (paths.length === 0) return
 
       try {
@@ -510,11 +581,29 @@ function FilesPage() {
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to import files', error as Error)
-        window.toast?.error(t('files.error.import_failed'))
+        toast.error(t('files.error.import_failed'))
       }
     },
     [refetchFiles, t]
   )
+
+  const handleUploadClick = useCallback(async () => {
+    try {
+      const selected = await window.api.file.select({
+        properties: ['openFile', 'multiSelections'],
+        filters: [{ name: t('files.all'), extensions: ['*'] }]
+      })
+      if (!selected || selected.length === 0) return
+
+      const paths = selected
+        .map((file) => AbsoluteFilePathSchema.safeParse(file.path).data)
+        .filter((path): path is AbsoluteFilePath => Boolean(path))
+      await handleImportPaths(paths)
+    } catch (error) {
+      logger.error('Failed to select files for import', error as Error)
+      toast.error(t('files.error.import_failed'))
+    }
+  }, [handleImportPaths, t])
 
   const filteredFiles = useMemo(() => {
     let result = files
@@ -551,11 +640,6 @@ function FilesPage() {
     return counts
   }, [activeFilesTotal, fileStats, trashedFilesTotal])
 
-  const footerFileCount = useMemo(() => {
-    if (filter.kind === 'library') return filter.value === 'trash' ? fileCounts.trash : fileCounts.all
-    return fileCounts[`type_${filter.value}`] ?? filteredFiles.length
-  }, [fileCounts, filter, filteredFiles.length])
-
   const selectedFiles = useMemo(() => files.filter((file) => selectedIds.has(file.id)), [files, selectedIds])
   const batchDeleteLabel = useMemo(() => {
     if (isTrash) return t('files.permanent_delete')
@@ -566,25 +650,32 @@ function FilesPage() {
     return t('files.delete.label')
   }, [isTrash, selectedFiles, t])
 
-  const handleSelect = useCallback((id: string, multi: boolean) => {
+  const handleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
-      if (multi) {
-        const next = new Set(prev)
-        next.has(id) ? next.delete(id) : next.add(id)
-        return next
-      }
-      return prev.has(id) && prev.size === 1 ? new Set() : new Set([id])
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
     })
   }, [])
 
-  const handleContextMenuOpen = useCallback(
-    (id: string) => {
-      // Right-click selects the item if it isn't already selected; an already-
-      // selected item (including one in a multi-selection) is left untouched.
-      if (!selectedIds.has(id)) setSelectedIds(new Set([id]))
+  const handleSelectAllVisible = useCallback(
+    (checked: boolean) => {
+      setSelectedIds((prev) => {
+        if (checked) return new Set([...prev, ...filteredFiles.map((file) => file.id)])
+
+        const visibleIds = new Set(filteredFiles.map((file) => file.id))
+        return new Set([...prev].filter((id) => !visibleIds.has(id)))
+      })
     },
-    [selectedIds]
+    [filteredFiles]
   )
+
+  const visibleSelectionState = useMemo(() => {
+    if (filteredFiles.length === 0) return false
+    const selectedVisibleCount = filteredFiles.filter((file) => selectedIds.has(file.id)).length
+    if (selectedVisibleCount === 0) return false
+    return selectedVisibleCount === filteredFiles.length ? true : 'indeterminate'
+  }, [filteredFiles, selectedIds])
 
   const performDelete = useCallback(
     async (targetIds: Set<string>) => {
@@ -610,7 +701,7 @@ function FilesPage() {
           const trashFailed = warnMutationFailures('file trash', trashResult)
           const removeFailed = warnMutationFailures('file remove external entries', removeResult)
           if (trashFailed || removeFailed) {
-            window.toast?.error(t('files.error.delete_partial_failed'))
+            toast.error(t('files.error.delete_partial_failed'))
           }
         }
 
@@ -618,7 +709,7 @@ function FilesPage() {
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to delete files', error as Error)
-        window.toast?.error(t('files.error.delete_failed'))
+        toast.error(t('files.error.delete_failed'))
       }
     },
     [files, isTrash, refetchFiles, t]
@@ -640,13 +731,34 @@ function FilesPage() {
     [files, isTrash, performDelete, selectedIds]
   )
 
+  const emptyTrash = useCallback(async () => {
+    try {
+      const result = await ipcApi.request('file.empty_trash')
+      reportMutationFailures('file empty trash', result, t('files.error.delete_partial_failed'))
+      setSelectedIds(new Set())
+      await refetchFiles()
+    } catch (error) {
+      logger.error('Failed to empty trash', error as Error)
+      toast.error(t('files.error.delete_failed'))
+    }
+  }, [refetchFiles, t])
+
   const handlePermanentDeleteConfirm = useCallback(() => {
     const ids = pendingPermanentDeleteIds
     if (!ids) return
 
     setPendingPermanentDeleteIds(null)
+    if (ids.size === 0) {
+      void emptyTrash()
+      return
+    }
     void performDelete(ids)
-  }, [pendingPermanentDeleteIds, performDelete])
+  }, [emptyTrash, pendingPermanentDeleteIds, performDelete])
+
+  const handleEmptyTrash = useCallback(() => {
+    if (!isTrash || filteredFiles.length === 0) return
+    setPendingPermanentDeleteIds(new Set())
+  }, [filteredFiles, isTrash])
 
   const handleRestore = useCallback(
     async (ids: Set<string>) => {
@@ -657,7 +769,7 @@ function FilesPage() {
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to restore files', error as Error)
-        window.toast?.error(t('files.error.restore_failed'))
+        toast.error(t('files.error.restore_failed'))
       }
     },
     [refetchFiles, t]
@@ -687,7 +799,7 @@ function FilesPage() {
         await refetchFiles()
       } catch (error) {
         logger.error('Failed to rename file', error as Error)
-        window.toast?.error(t('files.error.rename_failed'))
+        toast.error(t('files.error.rename_failed'))
         setRenamingId(null)
       }
     },
@@ -695,34 +807,8 @@ function FilesPage() {
   )
 
   const startInlineRename = useCallback((id: string) => {
-    setRenameDialogFile(null)
     setRenamingId(id)
   }, [])
-
-  const startGridRename = useCallback(
-    (id: string) => {
-      const file = files.find((item) => item.id === id)
-      if (!file) return
-
-      setRenamingId(null)
-      setRenameDialogFile(file)
-      setRenameDialogText(file.name)
-    },
-    [files]
-  )
-
-  const renameDialogBaseName = renameDialogFile
-    ? stripCurrentExtension(renameDialogText, renameDialogFile.format).trim()
-    : ''
-
-  const handleRenameDialogConfirm = useCallback(() => {
-    const file = renameDialogFile
-    const name = renameDialogText.trim()
-    if (!file || !renameDialogBaseName) return
-
-    setRenameDialogFile(null)
-    void handleRename(file.id, name)
-  }, [handleRename, renameDialogBaseName, renameDialogFile, renameDialogText])
 
   const listMenuActions = useMemo<FileContextMenuActions>(
     () => ({
@@ -732,16 +818,6 @@ function FilesPage() {
       onShowInFolder: handleShowInFolder
     }),
     [handleDelete, handleRestore, handleShowInFolder, startInlineRename]
-  )
-
-  const gridMenuActions = useMemo<FileContextMenuActions>(
-    () => ({
-      onRename: startGridRename,
-      onDelete: (id) => handleDelete(new Set([id])),
-      onRestore: (id) => void handleRestore(new Set([id])),
-      onShowInFolder: handleShowInFolder
-    }),
-    [handleDelete, handleRestore, handleShowInFolder, startGridRename]
   )
 
   const handleSort = useCallback(
@@ -754,192 +830,234 @@ function FilesPage() {
     },
     [sortKey]
   )
+  const isEmptyTrashConfirm = pendingPermanentDeleteIds?.size === 0
+  const permanentDeleteConfirmCount = isEmptyTrashConfirm ? fileCounts.trash : (pendingPermanentDeleteIds?.size ?? 0)
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (renamingId || shouldIgnoreFileShortcut(e)) return
+      if (embeddedPreview || renamingId || shouldIgnoreFileShortcut(e)) return
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
         e.preventDefault()
         handleDelete()
       }
       if ((e.key === 'F2' || (isMac && e.key === 'Enter')) && selectedIds.size === 1) {
         e.preventDefault()
-        if (filter.kind === 'type' && filter.value === 'image') startGridRename([...selectedIds][0])
-        else startInlineRename([...selectedIds][0])
+        const selectedId = [...selectedIds][0]
+        const selectedFile = files.find((file) => file.id === selectedId)
+        if (!canStartInlineRename(selectedFile)) return
+
+        startInlineRename(selectedFile.id)
       }
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [selectedIds, filter, handleDelete, renamingId, startGridRename, startInlineRename])
+  }, [embeddedPreview, files, selectedIds, handleDelete, renamingId, startInlineRename])
 
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden">
-      <FileSidebar
-        filter={filter}
-        onFilterChange={(f) => {
-          setFilter(f)
-          setSelectedIds(new Set())
-          setRenamingId(null)
-          setRenameDialogFile(null)
-          setPendingPermanentDeleteIds(null)
-        }}
-        fileCounts={fileCounts}
-      />
+    <div data-ui="files.view" className="relative flex min-h-0 flex-1 overflow-hidden">
+      <div className={`flex min-h-0 min-w-0 flex-1 overflow-hidden ${embeddedPreview ? 'invisible' : ''}`}>
+        <FileSidebar
+          filter={filter}
+          onFilterChange={(f) => {
+            setFilter(f)
+            setSelectedIds(new Set())
+            setRenamingId(null)
+            setPendingPermanentDeleteIds(null)
+          }}
+          fileCounts={fileCounts}
+        />
 
-      <Dialog
-        open={renameDialogFile !== null}
-        onOpenChange={(open) => {
-          if (!open) setRenameDialogFile(null)
-        }}>
-        <DialogContent aria-describedby={undefined} className="max-w-sm rounded-xl">
-          <DialogHeader>
-            <DialogTitle>{t('common.rename')}</DialogTitle>
-          </DialogHeader>
-          <Input
-            autoFocus
-            aria-label={t('common.rename')}
-            value={renameDialogText}
-            onChange={(event) => setRenameDialogText(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') handleRenameDialogConfirm()
-              if (event.key === 'Escape') setRenameDialogFile(null)
-            }}
-            className="h-9 rounded-md border-input bg-background"
-          />
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setRenameDialogFile(null)}>
-              {t('common.cancel')}
-            </Button>
-            <Button size="sm" disabled={!renameDialogBaseName} onClick={handleRenameDialogConfirm}>
-              {t('common.save')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog
-        open={pendingPermanentDeleteIds !== null}
-        onOpenChange={(open) => {
-          if (!open) setPendingPermanentDeleteIds(null)
-        }}>
-        <DialogContent aria-describedby={undefined} className="max-w-sm rounded-xl">
-          <DialogHeader>
-            <DialogTitle>{t('files.permanent_delete_confirm.title')}</DialogTitle>
-          </DialogHeader>
-          <p className="text-muted-foreground text-sm">
-            {t('files.permanent_delete_confirm.description', { count: pendingPermanentDeleteIds?.size ?? 0 })}
-          </p>
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setPendingPermanentDeleteIds(null)}>
-              {t('common.cancel')}
-            </Button>
-            <Button variant="destructive" size="sm" onClick={handlePermanentDeleteConfirm}>
-              {t('files.permanent_delete')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <div
-        className={`relative flex min-w-0 flex-1 flex-col transition-colors ${dragOver ? 'bg-accent/25' : ''}`}
-        onDragOver={(e) => {
-          e.preventDefault()
-          setDragOver(true)
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setDragOver(false)
-          const paths = Array.from(e.dataTransfer.files)
-            .map((file) => window.api.file.getPathForFile(file))
-            .filter((path): path is string => Boolean(path))
-          void handleImportPaths(paths)
-        }}>
-        {selectedIds.size > 1 && (
-          <BatchBar
-            selectedLabel={t('files.selected_count', { count: selectedIds.size })}
-            deleteLabel={batchDeleteLabel}
-            onDelete={() => handleDelete()}
-            onClear={() => setSelectedIds(new Set())}
-          />
-        )}
-
-        {dragOver && (
-          <div className="pointer-events-none absolute inset-0 z-50 m-2 flex items-center justify-center rounded-lg border-2 border-border/50 border-dashed bg-accent/25">
-            <div className="text-center">
-              <Upload size={28} className="mx-auto mb-2 text-muted-foreground/40" />
-              <p className="text-muted-foreground/40 text-xs">{t('files.drag_upload')}</p>
-            </div>
-          </div>
-        )}
+        <Dialog
+          open={pendingPermanentDeleteIds !== null}
+          onOpenChange={(open) => {
+            if (!open) setPendingPermanentDeleteIds(null)
+          }}>
+          <DialogContent aria-describedby={undefined} className="max-w-sm rounded-xl">
+            <DialogHeader>
+              <DialogTitle>{t('files.permanent_delete_confirm.title')}</DialogTitle>
+            </DialogHeader>
+            <p className="text-muted-foreground text-sm">
+              {t('files.permanent_delete_confirm.description', { count: permanentDeleteConfirmCount })}
+            </p>
+            <DialogFooter>
+              <Button variant="outline" size="sm" onClick={() => setPendingPermanentDeleteIds(null)}>
+                {t('common.cancel')}
+              </Button>
+              <Button variant="destructive" size="sm" onClick={handlePermanentDeleteConfirm}>
+                {isEmptyTrashConfirm ? t('files.empty_trash') : t('files.permanent_delete')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         <div
-          ref={contentScrollRef}
-          className="relative flex-1 overflow-y-auto"
-          onScroll={handleContentScroll}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) {
-              setSelectedIds(new Set())
-              setRenamingId(null)
+          data-ui="files.content"
+          className={`relative flex min-w-0 flex-1 flex-col transition-colors ${dragOver ? 'bg-accent/25' : ''}`}
+          onDragOver={(e) => {
+            e.preventDefault()
+            if (isTrash) {
+              setDragOver(false)
+              return
             }
+            setDragOver(true)
+          }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            setDragOver(false)
+            if (isTrash) return
+            const paths = Array.from(e.dataTransfer.files)
+              .map((file) => AbsoluteFilePathSchema.safeParse(window.api.file.getPathForFile(file)).data)
+              .filter((path): path is AbsoluteFilePath => Boolean(path))
+            void handleImportPaths(paths)
           }}>
-          {filteredFiles.length === 0 ? (
-            <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
-              {!isFilesLoading && files.filter((f) => !f.trashed).length === 0 ? (
-                <EmptyState preset="no-file" />
-              ) : (
-                <EmptyState
-                  preset="no-result"
-                  title={t('files.empty.no_match_title')}
-                  description={t('files.empty.no_match_description')}
-                />
-              )}
+          <PageHeader
+            title={activeFilterLabel}
+            className="relative mb-0 h-9 pb-1 after:pointer-events-none after:absolute after:right-3 after:bottom-0 after:left-3 after:border-border after:border-b after:content-['']"
+            action={
+              <div className="flex shrink-0 items-center gap-2">
+                {!isImageGrid && selectedIds.size > 0 && (
+                  <FileToolbar
+                    isTrash={isTrash}
+                    selectedCount={selectedIds.size}
+                    batchDeleteLabel={batchDeleteLabel}
+                    onBatchDelete={() => handleDelete()}
+                    onBatchRestore={() => void handleRestore(new Set(selectedIds))}
+                  />
+                )}
+                {isTrash ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={filteredFiles.length === 0}
+                    onClick={handleEmptyTrash}
+                    className="-translate-y-px h-7 px-2.5 text-muted-foreground text-xs hover:text-destructive">
+                    <Trash2 className="size-3.5" />
+                    {t('files.empty_trash')}
+                  </Button>
+                ) : showUploadButton ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleUploadClick()}
+                    className="-translate-y-px h-7 gap-1.5 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground">
+                    <Upload className="size-3.5 translate-y-px" />
+                    <span>{t('files.upload')}</span>
+                  </Button>
+                ) : null}
+              </div>
+            }
+          />
+
+          {dragOver && (
+            <div className="pointer-events-none absolute inset-0 z-50 m-2 flex items-center justify-center rounded-lg border-2 border-border-strong border-dashed bg-accent/25">
+              <div className="text-center">
+                <Upload size={28} className="mx-auto mb-2 text-muted-foreground" />
+                <p className="text-muted-foreground text-xs">{t('files.drag_upload')}</p>
+              </div>
             </div>
-          ) : filter.kind === 'type' && filter.value === 'image' ? (
-            <FileGrid
-              files={filteredFiles}
-              selectedIds={selectedIds}
-              onSelect={handleSelect}
-              onContextMenuOpen={handleContextMenuOpen}
-              onOpen={handleOpen}
-              onDelete={(id) => handleDelete(new Set([id]))}
-              isTrash={isTrash}
-              menuActions={gridMenuActions}
-              renamingId={renamingId}
-              onRenameConfirm={(id, name) => void handleRename(id, name)}
-              onRenameCancel={() => setRenamingId(null)}
-            />
-          ) : (
-            <FileList
-              files={filteredFiles}
-              selectedIds={selectedIds}
-              onSelect={handleSelect}
-              onContextMenuOpen={handleContextMenuOpen}
-              onOpen={handleOpen}
-              isTrash={isTrash}
-              menuActions={listMenuActions}
+          )}
+
+          {!isImageGrid && filteredFiles.length > 0 && (
+            <FileListHeader
+              visibleSelectionState={visibleSelectionState}
+              onSelectAll={handleSelectAllVisible}
               sortKey={sortKey}
               sortDir={sortDir}
               onSort={handleSort}
-              renamingId={renamingId}
-              onRenameConfirm={(id, name) => void handleRename(id, name)}
-              onRenameCancel={() => setRenamingId(null)}
             />
           )}
-        </div>
 
-        <div className="flex items-center gap-3 border-border/15 border-t px-4 py-1">
-          <span className="text-muted-foreground/40 text-xs">
-            {t('files.footer_count', { count: footerFileCount })}
-          </span>
-          {selectedIds.size > 0 && (
-            <span className="text-muted-foreground/40 text-xs">
-              {t('files.footer_selected_count', { count: selectedIds.size })}
-            </span>
-          )}
-          <div className="flex-1" />
+          <Scrollbar
+            ref={contentScrollRef}
+            className="relative flex-1"
+            onScroll={handleContentScroll}
+            onClick={(e) => {
+              if (e.target === e.currentTarget) {
+                setSelectedIds(new Set())
+                setRenamingId(null)
+              }
+            }}>
+            {filteredFiles.length === 0 ? (
+              // While the first load is in flight, show loading feedback instead of
+              // an empty state — otherwise the no-result state flashes before the
+              // list arrives.
+              isFilesLoading ? (
+                <div className="flex h-full flex-1 items-center justify-center text-muted-foreground text-sm">
+                  {t('common.loading')}
+                </div>
+              ) : (
+                <div className="flex h-full flex-1 flex-col items-center justify-center px-6">
+                  {isTrash || files.filter((f) => !f.trashed).length === 0 ? (
+                    <EmptyState title={t('files.empty.title')} />
+                  ) : (
+                    <EmptyState preset="no-result" title={t('files.empty.no_match_title')} />
+                  )}
+                </div>
+              )
+            ) : (
+              <>
+                {isImageGrid ? (
+                  <FileGrid
+                    files={filteredFiles}
+                    scrollRef={contentScrollRef}
+                    onLayoutChange={maybeFillClientFilteredViewport}
+                    onOpen={handleOpen}
+                    onDelete={(id) => handleDelete(new Set([id]))}
+                    isTrash={isTrash}
+                    menuActions={listMenuActions}
+                    renamingId={renamingId}
+                    onRenameConfirm={(id, name) => void handleRename(id, name)}
+                    onRenameCancel={() => setRenamingId(null)}
+                  />
+                ) : (
+                  <FileList
+                    files={filteredFiles}
+                    scrollRef={contentScrollRef}
+                    selectedIds={selectedIds}
+                    onSelect={handleSelect}
+                    onOpen={handleOpen}
+                    isTrash={isTrash}
+                    menuActions={listMenuActions}
+                    onDelete={(id) => handleDelete(new Set([id]))}
+                    onRestore={(id) => void handleRestore(new Set([id]))}
+                    onRename={startInlineRename}
+                    onShowInFolder={handleShowInFolder}
+                    renamingId={renamingId}
+                    onRenameConfirm={(id, name) => void handleRename(id, name)}
+                    onRenameCancel={() => setRenamingId(null)}
+                  />
+                )}
+              </>
+            )}
+          </Scrollbar>
         </div>
       </div>
+
+      {embeddedPreview && (
+        <section
+          aria-label={embeddedPreview.fileName}
+          className="absolute inset-0 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden">
+          <FilePreview
+            filePath={embeddedPreview.filePath}
+            refreshKey={embeddedPreview.refreshKey}
+            header={
+              <>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={t('common.back')}
+                  className="size-6 min-h-6 min-w-6 rounded p-0 text-muted-foreground shadow-none hover:bg-accent hover:text-foreground"
+                  onClick={() => setEmbeddedPreview(null)}>
+                  <ArrowLeft className="size-3.5" />
+                </Button>
+                <span className="min-w-0 flex-1 truncate text-foreground text-sm">{embeddedPreview.fileName}</span>
+              </>
+            }
+          />
+        </section>
+      )}
     </div>
   )
 }

@@ -1,9 +1,10 @@
 import { cn } from '@renderer/utils/style'
-import { ChevronDown } from 'lucide-react'
-import { type KeyboardEvent, type ReactNode, useId, useState } from 'react'
+import { type KeyboardEvent, type ReactNode, useId } from 'react'
 
+import { useScrollAnchor } from '../../blocks/useScrollAnchor'
+import { useMessageDisclosureState } from '../../hooks/useMessageDisclosureState'
+import { StreamingContext } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
-import { StreamingContext } from './GenericTools'
 
 export function AgentToolDisclosureLabel({
   label,
@@ -30,6 +31,7 @@ export function AgentToolDisclosure({
   isStreaming = false,
   item,
   onOpenDetails,
+  stateId,
   showInlineDetails = true
 }: {
   className?: string
@@ -37,16 +39,21 @@ export function AgentToolDisclosure({
   isStreaming?: boolean
   item: ToolDisclosureItem
   onOpenDetails?: () => void
+  stateId?: string
   showInlineDetails?: boolean
 }) {
   const contentId = useId()
   const itemKey = String(item.key)
   const canExpand = showInlineDetails && item.children !== undefined && item.children !== null
   const isInteractive = canExpand || !!onOpenDetails
-  const [isExpanded, setIsExpanded] = useState(() => defaultActiveKey.includes(itemKey))
+  const [isExpanded, setIsExpanded] = useMessageDisclosureState(
+    stateId ? `agent-tool:${stateId}` : undefined,
+    defaultActiveKey.includes(itemKey)
+  )
+  const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
   const toggleExpanded = () => {
     if (!canExpand) return
-    setIsExpanded((expanded) => !expanded)
+    withScrollAnchor(() => setIsExpanded((current) => !current), { enterReadingMode: !isExpanded })
   }
   const openOrToggle = () => {
     if (onOpenDetails) {
@@ -65,6 +72,7 @@ export function AgentToolDisclosure({
   return (
     <StreamingContext value={isStreaming}>
       <div
+        ref={anchorRef}
         className={cn(
           'w-full overflow-hidden rounded-[7px] border border-border bg-background',
           className,
@@ -77,22 +85,12 @@ export function AgentToolDisclosure({
           aria-expanded={canExpand ? isExpanded : undefined}
           aria-controls={canExpand ? contentId : undefined}
           className={cn(
-            'flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left font-semibold text-foreground/90 text-sm leading-4 outline-none hover:no-underline focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50',
+            'flex w-fit items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left font-semibold text-foreground text-sm leading-4 outline-none hover:no-underline focus-visible:bg-accent/50 disabled:pointer-events-none disabled:opacity-50',
             item.classNames?.header
           )}
           onClick={isInteractive ? openOrToggle : undefined}
           onKeyDown={handleHeaderKeyDown}>
           {item.label}
-          {canExpand && (
-            <ChevronDown
-              aria-hidden="true"
-              size={16}
-              className={cn(
-                'ml-auto shrink-0 text-foreground-muted opacity-70 transition-transform duration-200',
-                isExpanded && 'rotate-180'
-              )}
-            />
-          )}
         </div>
         {canExpand && (
           <div
@@ -100,7 +98,7 @@ export function AgentToolDisclosure({
             data-testid={`collapse-content-${item.key}`}
             hidden={!isExpanded}
             className={cn(
-              'mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] text-foreground-secondary leading-5',
+              'mt-1.5 max-h-96 overflow-auto rounded-xl bg-muted px-4 py-3 text-[13px] text-muted-foreground leading-5',
               item.classNames?.body
             )}>
             {item.children}

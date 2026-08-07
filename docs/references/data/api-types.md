@@ -6,24 +6,22 @@ This directory contains the type definitions and utilities for Cherry Studio's D
 
 ```
 src/shared/data/api/
-├── index.ts           # Barrel export for infrastructure types
-├── apiTypes.ts        # Core request/response types and API utilities
-├── apiPaths.ts        # Path template literal type utilities
-├── apiErrors.ts       # Error handling: ErrorCode, DataApiError class, factory
+├── types.ts           # Core request/response types and API utilities
+├── paths.ts           # Path template literal type utilities
+├── errors.ts          # Error handling: ErrorCode, DataApiError class, factory
 └── schemas/
-    ├── index.ts       # Schema composition (merges all domain schemas)
-    └── test.ts        # Test API schema and DTOs
+    ├── apiSchemas.ts  # Schema composition (merges all domain schemas)
+    └── *.ts           # Domain-specific schemas
 ```
 
 ## File Responsibilities
 
 | File | Purpose |
 |------|---------|
-| `apiTypes.ts` | Core types (`DataRequest`, `DataResponse`, `ApiClient`) and schema utilities |
-| `apiPaths.ts` | Template literal types for path resolution (`/items/:id` → `/items/${string}`) |
-| `apiErrors.ts` | `ErrorCode` enum, `DataApiError` class, `DataApiErrorFactory`, retryability config |
-| `index.ts` | Unified export of infrastructure types (not domain DTOs) |
-| `schemas/index.ts` | Composes all domain schemas into `ApiSchemas` using intersection types |
+| `types.ts` | Core types (`DataRequest`, `DataResponse`, `ApiClient`) and schema utilities |
+| `paths.ts` | Template literal types for path resolution (`/items/:id` → `/items/${string}`) |
+| `errors.ts` | `ErrorCode` enum, `DataApiError` class, `DataApiErrorFactory`, retryability config |
+| `schemas/apiSchemas.ts` | Composes all domain schemas into `ApiSchemas` using intersection types |
 | `schemas/*.ts` | Domain-specific API definitions and DTOs |
 
 ## Schema File Organization
@@ -40,9 +38,9 @@ When a route's URL parent and returned entity disagree, the entity wins.
 
 ## Import Conventions
 
-### Infrastructure Types (via barrel export)
+### Infrastructure Types (direct module imports)
 
-Use the barrel export for common API infrastructure:
+Import infrastructure directly from its module — there is no barrel. Core types, pagination, and query params live in `types`; errors live in `errors`; path utilities live in `paths`:
 
 ```typescript
 import type {
@@ -58,18 +56,12 @@ import type {
   // Query parameter types
   SortParams,
   SearchParams
-} from '@shared/data/api'
+} from '@shared/data/api/types'
 
-import {
-  ErrorCode,
-  DataApiError,
-  DataApiErrorFactory,
-  isDataApiError,
-  toDataApiError,
-  // Pagination type guards
-  isOffsetPaginationResponse,
-  isCursorPaginationResponse
-} from '@shared/data/api'
+// Pagination type guards also live in `types`
+import { isOffsetPaginationResponse, isCursorPaginationResponse } from '@shared/data/api/types'
+
+import { ErrorCode, DataApiError, DataApiErrorFactory, isDataApiError, toDataApiError } from '@shared/data/api/errors'
 ```
 
 ### Domain DTOs (directly from schema files)
@@ -78,10 +70,10 @@ Import domain-specific types directly from their schema files:
 
 ```typescript
 // Topic domain
-import type { Topic, CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topic'
+import type { Topic, CreateTopicDto, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 
 // Message domain
-import type { Message, CreateMessageDto } from '@shared/data/api/schemas/message'
+import type { Message, CreateMessageDto } from '@shared/data/api/schemas/messages'
 ```
 
 ## Pagination Types
@@ -157,17 +149,17 @@ export type TopicSchemas = {
 }
 ```
 
-**Validation**: Schemas are validated at composition level via `AssertValidSchemas` in `schemas/index.ts`:
+**Validation**: Schemas are validated at composition level via `AssertValidSchemas` in `schemas/apiSchemas.ts`:
 - Ensures only valid HTTP methods (GET, POST, PUT, DELETE, PATCH)
 - Requires `response` field for each endpoint
 - Invalid schemas cause TypeScript errors at the composition point
 
 > **Design Guidelines**: Before creating new schemas, review the [API Design Guidelines](./api-design-guidelines.md) for path naming, HTTP methods, and error handling conventions.
 
-2. Register in `schemas/index.ts`:
+2. Register in `schemas/apiSchemas.ts`:
 
 ```typescript
-import type { TopicSchemas } from './topic'
+import type { TopicSchemas } from './topics'
 
 // AssertValidSchemas provides fallback validation even if ValidateSchema is forgotten
 export type ApiSchemas = AssertValidSchemas<TopicSchemas & MessageSchemas>
@@ -224,7 +216,7 @@ import {
   ErrorCode,
   isDataApiError,
   toDataApiError
-} from '@shared/data/api'
+} from '@shared/data/api/errors'
 
 // Create errors using the factory (recommended)
 throw DataApiErrorFactory.notFound('Topic', id)

@@ -4,8 +4,7 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import { normalizeWorkspacePath } from '@main/utils/agentWorkspacePath'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AGENT_WORKSPACE_TYPE,
@@ -45,6 +44,32 @@ function normalizeWorkspaceName(rawName: string): string {
 }
 
 export class AgentWorkspaceService {
+  buildSystemWorkspacePath(systemWorkspacesRoot: string, sessionId: string, createdAt: number): string {
+    if (!sessionId || sessionId === '.' || sessionId === '..' || /[\\/]/.test(sessionId)) {
+      throw new Error(`Invalid agent session id for system workspace: ${sessionId}`)
+    }
+    const date = new Date(createdAt)
+    const year = String(date.getUTCFullYear()).padStart(4, '0')
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    return path.join(systemWorkspacesRoot, `${year}-${month}-${day}`, sessionId)
+  }
+
+  private normalizeWorkspacePath(rawPath: string): string {
+    const trimmed = rawPath.trim()
+    if (!trimmed) {
+      throw DataApiErrorFactory.validation({ path: ['Workspace path is required'] })
+    }
+    if (!path.isAbsolute(trimmed)) {
+      throw DataApiErrorFactory.validation({ path: ['Workspace path must be absolute'] })
+    }
+    const normalized = path.normalize(trimmed)
+    const root = path.parse(normalized).root
+    let end = normalized.length
+    while (end > root.length && /[\\/]/.test(normalized[end - 1])) end -= 1
+    return normalized.slice(0, end)
+  }
+
   list(options: AgentWorkspaceLookupOptions = {}): AgentWorkspaceEntity[] {
     const db = application.get('DbService').getDb()
     const rows = db
@@ -81,7 +106,7 @@ export class AgentWorkspaceService {
   }
 
   findOrCreateByPathResult(rawPath: string, options: { name?: string } = {}): FindOrCreateAgentWorkspaceResult {
-    const workspacePath = normalizeWorkspacePath(rawPath)
+    const workspacePath = this.normalizeWorkspacePath(rawPath)
     const result = withSqliteErrors(
       () =>
         application
@@ -96,7 +121,7 @@ export class AgentWorkspaceService {
   }
 
   findOrCreateByPathTx(tx: DbOrTx, rawPath: string, options: { name?: string } = {}): AgentWorkspaceEntity {
-    const workspacePath = normalizeWorkspacePath(rawPath)
+    const workspacePath = this.normalizeWorkspacePath(rawPath)
     const result = withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
       ...defaultHandlersFor('Workspace', workspacePath),
       unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
@@ -135,9 +160,13 @@ export class AgentWorkspaceService {
     return { row, created: true }
   }
 
-  createSystemWorkspaceForSessionTx(tx: DbOrTx, input: { sessionId: string }): AgentWorkspaceEntity {
-    const workspacePath = normalizeWorkspacePath(
-      path.join(application.getPath('feature.agents.workspaces'), input.sessionId)
+  createSystemWorkspaceForSessionTx(tx: DbOrTx, input: { sessionId: string; createdAt: number }): AgentWorkspaceEntity {
+    const workspacePath = this.normalizeWorkspacePath(
+      this.buildSystemWorkspacePath(
+        application.getPath('feature.agents.system_workspaces'),
+        input.sessionId,
+        input.createdAt
+      )
     )
     const row = withSqliteErrors(
       () =>

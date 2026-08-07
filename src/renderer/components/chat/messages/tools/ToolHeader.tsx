@@ -1,6 +1,7 @@
 import { Flex, Tooltip } from '@cherrystudio/ui'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { McpTool } from '@renderer/types/tool'
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import {
   Bot,
   DoorOpen,
@@ -11,20 +12,22 @@ import {
   Globe,
   ListTodo,
   NotebookPen,
-  PencilRuler,
   Search,
   Send,
   ShieldCheck,
   Terminal,
+  ToolCase,
+  Workflow as WorkflowIcon,
   Wrench
 } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
 import { useOptionalMessageListUi } from '../MessageListProvider'
-import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './agent/GenericTools'
-import { AgentToolsType } from './agent/types'
+import { AgentToolsType } from './shared/agentToolTypes'
+import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
 
 type Translate = (key: string, options?: Record<string, string>) => string
 export interface ToolActivity {
@@ -46,16 +49,12 @@ export interface ToolHeaderProps {
   status?: ToolStatus
   hasError?: boolean
   showStatus?: boolean // default true
+  shimmer?: boolean
 
   // Style variant
   variant?: 'standalone' | 'collapse-label'
 }
 
-/**
- * Per-tool chat-header display: icon + (optional) i18n label key. Table-driven (replaces the
- * former icon/label switches). Tools absent here fall back to a generic wrench icon + the raw
- * tool name.
- */
 export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string }> = {
   [AgentToolsType.Agent]: { icon: <Bot size={14} /> },
   [AgentToolsType.Read]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.readFile' },
@@ -75,6 +74,7 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.Edit]: { icon: <FileEdit size={14} />, labelKey: 'message.tools.labels.edit' },
   [AgentToolsType.MultiEdit]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.multiEdit' },
   [AgentToolsType.WebSearch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' },
+  [PROVIDER_WEB_SEARCH_TOOL_NAME]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' },
   [AgentToolsType.WebFetch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webFetch' },
   [AgentToolsType.NotebookEdit]: { icon: <NotebookPen size={14} />, labelKey: 'message.tools.labels.notebookEdit' },
   [AgentToolsType.TodoWrite]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.todoWrite' },
@@ -84,7 +84,8 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.TeamDelete]: { icon: <Bot size={14} /> },
   [AgentToolsType.EnterWorktree]: { icon: <DoorOpen size={14} /> },
   [AgentToolsType.ExitWorktree]: { icon: <DoorOpen size={14} /> },
-  [AgentToolsType.Skill]: { icon: <PencilRuler size={14} />, labelKey: 'message.tools.labels.skill' }
+  [AgentToolsType.Workflow]: { icon: <WorkflowIcon size={14} />, labelKey: 'message.tools.labels.workflow' },
+  [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' }
 }
 
 const getAgentToolIcon = (toolName: string): ReactNode => TOOL_HEADER_UI[toolName]?.icon ?? <Wrench size={14} />
@@ -109,19 +110,8 @@ function getTaskIdTarget(args: unknown, t: Translate): string | undefined {
   return taskId ? t('message.tools.activity.taskId', { id: taskId }) : undefined
 }
 
-function getFileName(filePath: string | undefined): string | undefined {
-  if (!filePath) return undefined
-  return filePath.split('/').filter(Boolean).pop() ?? filePath
-}
-
-function getReadableUrlTarget(url: string | undefined, t: Translate): string | undefined {
-  if (!url) return undefined
-  try {
-    const parsed = new URL(url)
-    return parsed.hostname || t('message.tools.activity.webPage')
-  } catch {
-    return t('message.tools.activity.webPage')
-  }
+function getReadableUrlTarget(t: Translate): string {
+  return t('message.tools.activity.webPage')
 }
 
 function getReadableFileGroup(text: string | undefined, t: Translate): string | undefined {
@@ -153,10 +143,47 @@ function getReadableFileGroup(text: string | undefined, t: Translate): string | 
 }
 
 function getReadablePathTarget(filePath: string | undefined, t: Translate): string | undefined {
-  return getFileName(filePath) ?? getReadableFileGroup(filePath, t)
+  return getReadableFileGroup(filePath, t) ?? (filePath ? t('message.tools.activity.file') : undefined)
 }
 
 const SEARCH_PATTERN_META_RE = /[\\^$.*+?()[\]{}|]/
+const COMMAND_PREVIEW_MAX_LENGTH = 160
+
+function normalizeCommandPreview(command: string): string {
+  return command.replace(/\s+/g, ' ').trim()
+}
+
+function truncateCommandPreview(command: string): string {
+  const normalized = normalizeCommandPreview(command)
+  if (normalized.length <= COMMAND_PREVIEW_MAX_LENGTH) return normalized
+
+  const maxContentLength = COMMAND_PREVIEW_MAX_LENGTH - 1
+  const prefix = normalized.slice(0, maxContentLength)
+  const separatorIndex = Math.max(
+    prefix.lastIndexOf(' && '),
+    prefix.lastIndexOf(' || '),
+    prefix.lastIndexOf(' ; '),
+    prefix.lastIndexOf(' | ')
+  )
+  if (separatorIndex > 0) return `${prefix.slice(0, separatorIndex).trimEnd()}…`
+
+  const whitespaceIndex = prefix.lastIndexOf(' ')
+  if (whitespaceIndex > 0) return `${prefix.slice(0, whitespaceIndex).trimEnd()}…`
+
+  return `${prefix}…`
+}
+
+function getCommandPreview(toolName: string, args: unknown): { text: string; fullText: string } | undefined {
+  if (toolName !== AgentToolsType.Bash && toolName !== AgentToolsType.BashOutput) return undefined
+
+  const command = getStringArg(args, 'command')
+  if (!command) return undefined
+
+  return {
+    text: truncateCommandPreview(command),
+    fullText: normalizeCommandPreview(command)
+  }
+}
 
 function getReadableSearchTarget(value: string | undefined, t: Translate): string {
   const text = value?.trim()
@@ -165,12 +192,6 @@ function getReadableSearchTarget(value: string | undefined, t: Translate): strin
   if (fileGroup) return fileGroup
   if (SEARCH_PATTERN_META_RE.test(text) || text.length > 48) return t('message.tools.activity.relatedContent')
   return text
-}
-
-function getFirstShellWord(command: string | undefined): string | undefined {
-  const firstWord = command?.trim().match(/^[\w./-]+/)?.[0]
-  if (!firstWord) return undefined
-  return firstWord.split('/').pop()
 }
 
 function getShellWords(command: string | undefined): string[] {
@@ -188,26 +209,16 @@ function getCommandPathTarget(command: string | undefined, t: Translate): string
   return getReadablePathTarget(firstPath, t) ?? t('message.tools.activity.file')
 }
 
-function getPackageTarget(command: string | undefined, t: Translate): string {
-  if (!command) return t('message.tools.activity.projectDependencies')
-  const match = command.match(
-    /\b(?:npm|pnpm|yarn|bun|pip3?|poetry|uv|cargo|go|brew)\s+(?:install|add|get)\s+([^;&|]+)/i
-  )
-  if (!match?.[1]) return t('message.tools.activity.projectDependencies')
-  const packages = match[1]
-    .split(/\s+/)
-    .filter((value) => value && !value.startsWith('-'))
-    .slice(0, 3)
-    .join(' ')
-  return packages || t('message.tools.activity.projectDependencies')
-}
-
 function getDownloadedTarget(command: string | undefined, t: Translate): string {
   const url = command?.match(/https?:\/\/[^\s'")]+/i)?.[0]
   if (!url) return t('message.tools.activity.file')
   try {
     const parsed = new URL(url)
-    return parsed.pathname.split('/').filter(Boolean).pop() || parsed.hostname
+    const fileName = parsed.pathname.split('/').filter(Boolean).pop()
+    if (/\.(?:zip|tar|tgz|gz|bz2|xz|7z|rar)$/i.test(fileName ?? '')) {
+      return t('message.tools.activity.archive')
+    }
+    return getReadableFileGroup(fileName, t) ?? t('message.tools.activity.file')
   } catch {
     return t('message.tools.activity.file')
   }
@@ -230,6 +241,7 @@ function getActivityLabels(active: boolean, t: Translate) {
         move: t('message.tools.activity.moving'),
         open: t('message.tools.activity.opening'),
         search: t('message.tools.activity.searching'),
+        start: t('message.tools.activity.starting'),
         switch: t('message.tools.activity.switching'),
         sync: t('message.tools.activity.syncing'),
         upload: t('message.tools.activity.uploading'),
@@ -251,6 +263,7 @@ function getActivityLabels(active: boolean, t: Translate) {
         move: t('message.tools.activity.move'),
         open: t('message.tools.activity.open'),
         search: t('message.tools.activity.search'),
+        start: t('message.tools.activity.start'),
         switch: t('message.tools.activity.switch'),
         sync: t('message.tools.activity.sync'),
         upload: t('message.tools.activity.upload'),
@@ -266,10 +279,13 @@ function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolA
   const labels = getActivityLabels(active, t)
 
   if (/\b(?:npm|pnpm|yarn|bun|pip3?|poetry|uv|cargo|go|brew)\s+(?:install|add|get)\b/.test(text)) {
-    return { label: labels.install, description: getPackageTarget(command, t) }
+    return { label: labels.install, description: t('message.tools.activity.projectDependencies') }
   }
   if (/\b(?:npm|pnpm|yarn|bun|pip3?|poetry|uv|cargo|brew)\s+(?:remove|uninstall|rm)\b/.test(text)) {
     return { label: labels.delete, description: t('message.tools.activity.projectDependencies') }
+  }
+  if (/\b(?:npm|pnpm|yarn|bun|pip3?|poetry|uv|cargo|go|brew)\s+(?:list|ls|outdated|update|upgrade)\b/.test(text)) {
+    return { label: labels.view, description: t('message.tools.activity.projectDependencies') }
   }
   if (/\b(?:curl|wget)\b/.test(text)) {
     return { label: labels.download, description: getDownloadedTarget(command, t) }
@@ -289,8 +305,11 @@ function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolA
     return { label: labels.write, description: t('message.tools.activity.projectChanges') }
   if (/\bgit\s+push\b/.test(text))
     return { label: labels.upload, description: t('message.tools.activity.projectChanges') }
-  if (/\bgh\s+(?:pr|issue|run|workflow|repo)\b/.test(text)) {
+  if (/\bgh\s+(?:api|auth|pr|issue|run|workflow|repo)\b/.test(text)) {
     return { label: labels.view, description: t('message.tools.activity.codeHostInfo') }
+  }
+  if (/\bgit\s+(?:remote|rev-parse|tag|ls-files|submodule)\b/.test(text)) {
+    return { label: labels.view, description: t('message.tools.activity.repository') }
   }
   if (/\b(?:cp|rsync)\b/.test(text)) return { label: labels.copy, description: getCommandPathTarget(command, t) }
   if (/\bmv\b/.test(text)) return { label: labels.move, description: getCommandPathTarget(command, t) }
@@ -298,10 +317,18 @@ function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolA
   if (/\bmkdir\b/.test(text)) return { label: labels.create, description: t('message.tools.activity.folder') }
   if (/\btouch\b/.test(text)) return { label: labels.create, description: getCommandPathTarget(command, t) }
   if (/\b(?:unzip|tar)\b/.test(text)) return { label: labels.extract, description: t('message.tools.activity.archive') }
-  if (/\b(?:open|xdg-open|start)\b/.test(text))
-    return { label: labels.open, description: getCommandPathTarget(command, t) }
   if (
-    /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:build|compile|package)\b|\b(?:vite|tsup|rollup|webpack|electron-builder)\b/.test(
+    /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:dev|start|serve)\b|\b(?:cargo|go)\s+run\b|\b(?:vite|next|nuxt|electron-vite)\s+(?:dev|serve)\b|\bdocker\s+compose\s+up\b/.test(
+      text
+    )
+  ) {
+    return { label: labels.start, description: t('message.tools.activity.projectTask') }
+  }
+  if (/\b(?:open|xdg-open)\b/.test(text) || /^\s*start\b/i.test(command ?? '')) {
+    return { label: labels.open, description: getCommandPathTarget(command, t) }
+  }
+  if (
+    /\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:build|compile|package)\b|\b(?:vite|next|nuxt|electron-vite)\s+build\b|\b(?:tsup|rollup|webpack|electron-builder)\b/.test(
       text
     )
   ) {
@@ -315,9 +342,16 @@ function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolA
     return { label: labels.check, description: t('message.tools.activity.projectChecks') }
   }
   if (/(\brg\b|\bgrep\b|\bag\b|\bfd\b|\bfind\b|\blocate\b)/.test(text)) {
-    return { label: labels.search, description: getReadableSearchTarget(description ?? command, t) }
+    return {
+      label: labels.search,
+      description: description ? getReadableSearchTarget(description, t) : t('message.tools.activity.relatedContent')
+    }
   }
   if (/\bpwd\b/.test(text)) return { label: labels.view, description: t('message.tools.activity.currentFolder') }
+  if (/\bcd\b/.test(text)) return { label: labels.switch, description: t('message.tools.activity.folder') }
+  if (/\b(?:env|printenv|uname|sw_vers|which|where)\b|\bcommand\s+-v\b|\b[\w.-]+\s+(?:--version|-v)\b/.test(text)) {
+    return { label: labels.view, description: t('message.tools.activity.environmentInfo') }
+  }
   if (/(\bcat\b|\bhead\b|\btail\b|\bless\b|\bmore\b|\bsed\s+-n\b|\bawk\b|\bwc\b|\bstat\b|\bdu\b)/.test(text)) {
     return { label: labels.view, description: getCommandPathTarget(command, t) }
   }
@@ -330,12 +364,9 @@ function getCommandActivity(args: unknown, active: boolean, t: Translate): ToolA
   if (/(\bls\b|\btree\b|\blist\b)/.test(text))
     return { label: labels.view, description: t('message.tools.activity.fileList') }
 
-  const shellWord = getFirstShellWord(command)
   return {
     label: labels.execute,
-    description: shellWord
-      ? t('message.tools.activity.commandName', { name: shellWord })
-      : t('message.tools.activity.projectTask')
+    description: t('message.tools.activity.projectTask')
   }
 }
 
@@ -355,6 +386,11 @@ export function getReadableToolActivity(
         label: labels.handle,
         description:
           getStringArg(args, 'description') ?? getStringArg(args, 'prompt') ?? t('message.tools.activity.assistantTask')
+      }
+    case AgentToolsType.Workflow:
+      return {
+        label: active ? t('message.tools.workflow.orchestrating') : t('message.tools.workflow.started'),
+        description: getStringArg(args, 'name') ?? t('message.tools.workflow.workflow')
       }
     case AgentToolsType.TaskCreate:
       return {
@@ -411,24 +447,19 @@ export function getReadableToolActivity(
         description: getReadablePathTarget(getStringArg(args, 'file_path') ?? getStringArg(args, 'notebook_path'), t)
       }
     case AgentToolsType.WebSearch:
-      return { label: labels.search, description: getStringArg(args, 'query') ?? t('message.tools.activity.webSearch') }
+    case PROVIDER_WEB_SEARCH_TOOL_NAME:
+      return { label: labels.search, description: getReadableSearchTarget(getStringArg(args, 'query'), t) }
     case AgentToolsType.WebFetch:
       return {
         label: labels.view,
-        description: getReadableUrlTarget(getStringArg(args, 'url'), t) ?? t('message.tools.activity.webPage')
+        description: getReadableUrlTarget(t)
       }
     case AgentToolsType.TodoWrite:
       return { label: labels.modify, description: t('message.tools.activity.taskList') }
     case AgentToolsType.Skill:
-      return {
-        label: labels.handle,
-        description: getStringArg(args, 'skill') ?? t('message.tools.activity.assistantTask')
-      }
+      return { label: labels.handle, description: t('message.tools.activity.assistantTask') }
     case AgentToolsType.ToolSearch:
-      return {
-        label: labels.search,
-        description: getStringArg(args, 'query') ?? t('message.tools.activity.availableFeatures')
-      }
+      return { label: labels.search, description: t('message.tools.activity.availableFeatures') }
     case AgentToolsType.ListMcpResources:
     case AgentToolsType.ReadMcpResource:
       return { label: labels.view, description: t('message.tools.activity.availableResources') }
@@ -497,26 +528,29 @@ const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>
   />
 )
 
+const DESCRIPTION_CLASS =
+  'inline-block min-w-0 max-w-full shrink truncate font-normal text-[13px] text-muted-foreground'
+
 const Description = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
-  <span
-    className={[
-      'inline-block min-w-0 max-w-full shrink truncate font-normal text-[13px] text-foreground-secondary',
-      className
-    ]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
+  <span className={[DESCRIPTION_CLASS, className].filter(Boolean).join(' ')} {...props} />
 )
 
+const STATS_CLASS = 'shrink-0 whitespace-nowrap font-normal text-[13px] text-muted-foreground'
+
 const Stats = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
-  <span
-    className={['shrink-0 whitespace-nowrap font-normal text-[13px] text-foreground-secondary', className]
-      .filter(Boolean)
-      .join(' ')}
-    {...props}
-  />
+  <span className={[STATS_CLASS, className].filter(Boolean).join(' ')} {...props} />
 )
+
+const CommandPreview = ({ fullText, text }: { fullText: string; text: string }) => {
+  return (
+    <code
+      data-testid="tool-command-preview"
+      title={fullText}
+      className="hidden min-w-0 max-w-[clamp(6rem,42vw,32rem)] shrink-[2] truncate rounded bg-background-subtle px-1.5 py-0.5 font-['Menlo','Monaco','Courier_New',monospace] text-[12px] text-muted-foreground leading-4 sm:block">
+      {text}
+    </code>
+  )
+}
 
 const StatusWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div className={['ml-auto flex shrink-0 items-center', className].filter(Boolean).join(' ')} {...props} />
@@ -525,8 +559,9 @@ const StatusWrapper = ({ className, ...props }: ComponentPropsWithoutRef<'div'>)
 function getToolNameClassName(variant: ToolHeaderProps['variant']): string {
   return [
     'items-center gap-1.5',
-    variant === 'collapse-label' && 'font-normal text-foreground-secondary [&_.tool-icon]:text-foreground-muted',
-    variant === 'standalone' && 'font-medium text-foreground [&_.tool-icon]:text-(--color-primary)'
+    variant === 'collapse-label' &&
+      'font-normal text-muted-foreground group-hover/tool-group-trigger:text-foreground [&_.tool-icon]:text-foreground-tertiary',
+    variant === 'standalone' && 'font-medium text-foreground [&_.tool-icon]:text-primary'
   ]
     .filter(Boolean)
     .join(' ')
@@ -545,6 +580,7 @@ interface McpToolHeaderProps {
   showStatus: boolean
   status?: ToolStatus
   hasError: boolean
+  shimmer: boolean
   Container: typeof HeaderContainer
   variant: ToolHeaderProps['variant']
 }
@@ -556,6 +592,7 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
   showStatus,
   status,
   hasError,
+  shimmer,
   Container,
   variant
 }) => {
@@ -563,18 +600,25 @@ const McpToolHeader: FC<McpToolHeaderProps> = ({
   const { isToolAutoApproved } = useOptionalMessageListUi() ?? {}
   const autoApproved = isToolAutoApproved?.(tool) ?? false
   const isIconBreathing = variant === 'collapse-label' && isActiveStatus(status)
+
   return (
     <Container>
       <ToolName className={getToolNameClassName(variant)}>
         <span className={getToolIconClassName(isIconBreathing)}>
           <Wrench size={14} />
         </span>
-        <span className="name min-w-0 max-w-full truncate">
-          {tool.serverName} : {tool.name}
-        </span>
+        {shimmer ? (
+          <PlaceholderShimmerText className="name min-w-0 max-w-full truncate">
+            {tool.serverName} : {tool.name}
+          </PlaceholderShimmerText>
+        ) : (
+          <span className="name min-w-0 max-w-full truncate">
+            {tool.serverName} : {tool.name}
+          </span>
+        )}
         {autoApproved && (
           <Tooltip content={t('message.tools.autoApproveEnabled')}>
-            <ShieldCheck size={14} color="var(--color-primary)" />
+            <ShieldCheck size={14} color="var(--primary)" />
           </Tooltip>
         )}
       </ToolName>
@@ -602,6 +646,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   status: propStatus,
   hasError: propHasError,
   showStatus = true,
+  shimmer = false,
   variant = 'standalone'
 }) => {
   const { t } = useTranslation()
@@ -617,6 +662,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   const activity = getReadableToolActivity(toolName, args, isStreaming || isActiveStatus(status), t)
   const displayLabel = propLabel ?? activity?.label ?? getAgentToolLabel(toolName, t)
   const description = params ?? activity?.description ?? getToolDescription(toolName, args, t)
+  const commandPreview = getCommandPreview(toolName, args)
   const isIconBreathing = variant === 'collapse-label' && isActiveStatus(status)
 
   const Container = variant === 'standalone' ? HeaderContainer : LabelContainer
@@ -630,6 +676,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
         showStatus={showStatus}
         status={status}
         hasError={hasError}
+        shimmer={shimmer}
         Container={Container}
         variant={variant}
       />
@@ -639,10 +686,17 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   return (
     <Container>
       <ToolName className={getToolNameClassName(variant)}>
-        <span className={getToolIconClassName(isIconBreathing)}>{propIcon || getAgentToolIcon(toolName)}</span>
-        <span className="name min-w-0 max-w-full truncate">{displayLabel}</span>
+        {variant !== 'collapse-label' && (
+          <span className={getToolIconClassName(isIconBreathing)}>{propIcon || getAgentToolIcon(toolName)}</span>
+        )}
+        {shimmer ? (
+          <PlaceholderShimmerText className="name min-w-0 max-w-full truncate">{displayLabel}</PlaceholderShimmerText>
+        ) : (
+          <span className="name min-w-0 max-w-full truncate">{displayLabel}</span>
+        )}
       </ToolName>
       {description && <Description>{description}</Description>}
+      {commandPreview && <CommandPreview text={commandPreview.text} fullText={commandPreview.fullText} />}
       {stats && <Stats>{stats}</Stats>}
       {showStatus && status && (
         <StatusWrapper>

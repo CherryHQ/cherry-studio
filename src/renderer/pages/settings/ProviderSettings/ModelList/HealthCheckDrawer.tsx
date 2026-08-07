@@ -9,6 +9,7 @@ import {
   SegmentedControl,
   Tooltip
 } from '@cherrystudio/ui'
+import { useIcon } from '@cherrystudio/ui/icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import type {
   ModelHealthCheckGenerationOutput,
@@ -17,7 +18,7 @@ import type {
 } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { maskApiKey } from '@renderer/utils/api'
-import { getModelLogo } from '@renderer/utils/model'
+import { getModelLogoRef } from '@renderer/utils/model'
 import { cn } from '@renderer/utils/style'
 import { CheckCircle2, Info, Loader2, XCircle } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
@@ -36,6 +37,17 @@ interface HealthCheckDrawerProps {
   onClose: () => void
   onResetRun: () => void
   onStart: (config: { apiKeys: string[]; isConcurrent: boolean; timeout: number }) => Promise<void>
+}
+
+function HealthCheckModelAvatar({ model }: { model: ModelWithStatus['model'] }) {
+  const Icon = useIcon(getModelLogoRef(model))
+  return Icon ? (
+    <Icon.Avatar size={22} />
+  ) : (
+    <Avatar className="size-5.5 shrink-0 rounded-md text-[10px]">
+      <AvatarFallback className="rounded-md">{model.name?.[0]?.toUpperCase()}</AvatarFallback>
+    </Avatar>
+  )
 }
 
 export default function HealthCheckDrawer({
@@ -169,9 +181,7 @@ export default function HealthCheckDrawer({
           {isChecking ? (
             <div className="px-4 pt-3 pb-2">
               <div className="mb-2 flex items-center justify-between gap-3">
-                <span className="font-medium text-[13px] text-foreground/85">
-                  {t('settings.models.check.pipeline_heading')}
-                </span>
+                <span className="text-[13px] text-foreground">{t('settings.models.check.pipeline_heading')}</span>
                 <span className={drawerClasses.healthProgressMeta}>
                   {t('settings.models.check.progress_count', {
                     done: progressStats.done,
@@ -191,21 +201,21 @@ export default function HealthCheckDrawer({
           ) : null}
 
           {!isChecking && showPipeline ? (
-            <div className="mx-4 mt-3 mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border-muted bg-muted/50 px-3.5 py-2.5">
+            <div className="mx-4 mt-3 mb-2 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-border-subtle bg-muted/50 px-3.5 py-2.5">
               <div className="flex shrink-0 items-center gap-1.5">
                 <div className="flex size-3.5 items-center justify-center rounded-full bg-muted">
-                  <CheckCircle2 size={9} className="text-foreground-muted" />
+                  <CheckCircle2 size={9} className="text-foreground-tertiary" />
                 </div>
-                <span className="text-foreground-muted text-xs">
+                <span className="text-foreground-tertiary text-xs">
                   {t('settings.models.check.outcome_success_short', { count: successCount })}
                 </span>
               </div>
               {failCount > 0 ? (
                 <div className="flex shrink-0 items-center gap-1.5">
-                  <div className="flex size-3.5 items-center justify-center rounded-full bg-destructive/12">
-                    <XCircle size={9} className="text-destructive" />
+                  <div className="flex size-3.5 items-center justify-center rounded-full bg-error-subtle">
+                    <XCircle size={9} className="text-error" />
                   </div>
-                  <span className="text-destructive/80 text-xs">
+                  <span className="text-error text-xs">
                     {t('settings.models.check.outcome_fail_short', { count: failCount })}
                   </span>
                 </div>
@@ -213,24 +223,23 @@ export default function HealthCheckDrawer({
               {skippedCount > 0 ? (
                 <div className="flex shrink-0 items-center gap-1.5">
                   <div className="flex size-3.5 items-center justify-center rounded-full bg-muted">
-                    <Info size={9} className="text-foreground-muted" />
+                    <Info size={9} className="text-foreground-tertiary" />
                   </div>
-                  <span className="text-foreground-muted text-xs">
+                  <span className="text-foreground-tertiary text-xs">
                     {t('settings.models.check.outcome_skipped_short', { count: skippedCount })}
                   </span>
                 </div>
               ) : null}
-              <span className="ml-auto shrink-0 text-muted-foreground/60 text-xs">
+              <span className="ml-auto shrink-0 text-foreground-tertiary text-xs">
                 {t('settings.models.check.outcome_total', { count: modelStatuses.length })}
               </span>
             </div>
           ) : null}
 
           <Scrollbar className="min-h-0 flex-1 px-2 pb-0">
-            <ul className="divide-y divide-border-muted pt-1 pb-0">
+            <ul className="divide-y divide-border-subtle pt-1 pb-0">
               {modelStatuses.map((row) => {
                 const { model, checking, status, latency, error } = row
-                const Icon = getModelLogo(model)
                 const pending = !checking && status === HealthStatus.NOT_CHECKED
 
                 let statusCell: ReactNode
@@ -238,7 +247,7 @@ export default function HealthCheckDrawer({
 
                 if (row.kind === 'skipped') {
                   const skipReasonText = getSkipReasonText(row.skipReason)
-                  statusCell = <Info className="size-4 shrink-0 text-muted-foreground/70" aria-hidden />
+                  statusCell = <Info className="size-4 shrink-0 text-foreground-tertiary" aria-hidden />
                   rightCell = (
                     <Tooltip
                       content={
@@ -250,7 +259,7 @@ export default function HealthCheckDrawer({
                       classNames={{
                         placeholder: 'block min-w-0 w-full max-w-full overflow-hidden'
                       }}>
-                      <span className="block w-full min-w-0 cursor-default truncate text-end text-[12px] text-muted-foreground/80">
+                      <span className="block w-full min-w-0 cursor-default truncate text-end text-[12px] text-foreground-tertiary">
                         {t('settings.models.check.status_skipped')}
                       </span>
                     </Tooltip>
@@ -266,21 +275,21 @@ export default function HealthCheckDrawer({
                   statusCell = (
                     <span className="mx-auto block size-1.5 shrink-0 rounded-full bg-muted-foreground/35" aria-hidden />
                   )
-                  rightCell = <span className="shrink-0 text-[12px] text-muted-foreground/50" />
+                  rightCell = <span className="shrink-0 text-[12px] text-foreground-tertiary" />
                 } else if (status === HealthStatus.SUCCESS) {
-                  statusCell = <CheckCircle2 className="size-4 shrink-0 text-muted-foreground/70" aria-hidden />
+                  statusCell = <CheckCircle2 className="size-4 shrink-0 text-foreground-tertiary" aria-hidden />
                   rightCell =
                     latency != null ? (
-                      <span className="shrink-0 text-[12px] text-muted-foreground/80 tabular-nums">
+                      <span className="shrink-0 text-[12px] text-foreground-tertiary tabular-nums">
                         {Math.round(latency)}ms
                       </span>
                     ) : (
-                      <span className="shrink-0 text-[12px] text-muted-foreground/80">
+                      <span className="shrink-0 text-[12px] text-foreground-tertiary">
                         {t('settings.models.check.passed')}
                       </span>
                     )
                 } else {
-                  statusCell = <XCircle className="size-4 shrink-0 text-destructive/85" aria-hidden />
+                  statusCell = <XCircle className="size-4 shrink-0 text-error" aria-hidden />
                   const errText = healthCheckErrorToDisplayString(error)
                   rightCell =
                     errText !== '' ? (
@@ -294,14 +303,12 @@ export default function HealthCheckDrawer({
                         classNames={{
                           placeholder: 'block min-w-0 w-full max-w-full overflow-hidden'
                         }}>
-                        <span className="block w-full min-w-0 cursor-default truncate text-end text-[12px] text-destructive/85">
+                        <span className="block w-full min-w-0 cursor-default truncate text-end text-[12px] text-error">
                           {errText}
                         </span>
                       </Tooltip>
                     ) : (
-                      <span className="shrink-0 text-[12px] text-destructive/85">
-                        {t('settings.models.check.failed')}
-                      </span>
+                      <span className="shrink-0 text-[12px] text-error">{t('settings.models.check.failed')}</span>
                     )
                 }
 
@@ -310,19 +317,11 @@ export default function HealthCheckDrawer({
                     key={model.id}
                     className={cn(
                       'flex min-h-11 min-w-0 items-center gap-3 rounded-lg px-2 py-2.5',
-                      status === HealthStatus.FAILED ? 'bg-destructive/[0.03]' : ''
+                      status === HealthStatus.FAILED ? 'bg-error-subtle' : ''
                     )}>
                     <div className="flex w-5 shrink-0 justify-center">{statusCell}</div>
-                    {Icon ? (
-                      <Icon.Avatar size={22} />
-                    ) : (
-                      <Avatar className="size-5.5 shrink-0 rounded-md text-[10px]">
-                        <AvatarFallback className="rounded-md">{model.name?.[0]?.toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                    )}
-                    <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-foreground/85">
-                      {model.name}
-                    </span>
+                    <HealthCheckModelAvatar model={model} />
+                    <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-foreground">{model.name}</span>
                     <div
                       className={cn(
                         'min-w-0 text-end',
@@ -344,7 +343,7 @@ export default function HealthCheckDrawer({
         <>
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-foreground text-sm">{t('settings.models.check.use_all_keys')}</span>
+              <span className="text-foreground text-sm">{t('settings.models.check.use_all_keys')}</span>
               <SegmentedControl
                 size="sm"
                 value={keyCheckMode}
@@ -357,9 +356,7 @@ export default function HealthCheckDrawer({
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-foreground text-sm">
-                {t('settings.models.check.enable_concurrent')}
-              </span>
+              <span className="text-foreground text-sm">{t('settings.models.check.enable_concurrent')}</span>
               <SegmentedControl
                 size="sm"
                 value={isConcurrent ? 'on' : 'off'}
@@ -372,7 +369,7 @@ export default function HealthCheckDrawer({
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-foreground text-sm">{t('settings.models.check.timeout')}</span>
+              <span className="text-foreground text-sm">{t('settings.models.check.timeout')}</span>
               <div className="flex w-28 items-center gap-2">
                 <Input
                   type="number"
@@ -381,16 +378,14 @@ export default function HealthCheckDrawer({
                   value={String(timeoutSeconds)}
                   onChange={(event) => setTimeoutSeconds(Math.min(60, Math.max(5, Number(event.target.value) || 15)))}
                 />
-                <span className="text-foreground-muted text-xs">s</span>
+                <span className="text-foreground-tertiary text-xs">s</span>
               </div>
             </div>
           </div>
 
           {keyCheckMode === 'single' && hasMultipleKeys ? (
-            <div className="space-y-3 rounded-xl border border-border-muted bg-muted/20 p-4">
-              <div className="font-medium text-[13px] text-foreground/85">
-                {t('settings.models.check.select_api_key')}
-              </div>
+            <div className="space-y-3 rounded-xl border border-border-subtle bg-muted/20 p-4">
+              <div className="text-[13px] text-foreground">{t('settings.models.check.select_api_key')}</div>
               <RadioGroup
                 value={String(selectedKeyIndex)}
                 onValueChange={(value) => setSelectedKeyIndex(Number(value))}>
@@ -399,7 +394,7 @@ export default function HealthCheckDrawer({
                     key={`${key}-${index}`}
                     className="flex cursor-pointer items-center gap-3 rounded-lg border border-transparent px-2 py-1.5 hover:bg-accent/30">
                     <RadioGroupItem value={String(index)} size="sm" />
-                    <span className="truncate font-mono text-[12px] text-foreground/70">{maskApiKey(key)}</span>
+                    <span className="truncate font-mono text-[12px] text-muted-foreground">{maskApiKey(key)}</span>
                   </label>
                 ))}
               </RadioGroup>

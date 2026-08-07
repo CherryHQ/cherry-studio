@@ -1,6 +1,8 @@
 import { Button } from '@cherrystudio/ui'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
-import { MessageContent, MessageContentProvider, toMessageListItem } from '@renderer/components/chat/messages'
+import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
+import { MessageContentProvider } from '@renderer/components/chat/messages/MessageContentProvider'
+import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { toAgentSessionUIMessage } from '@renderer/hooks/useAgentSessionParts'
 import { type Topic, TopicType } from '@renderer/types/topic'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
@@ -117,7 +119,8 @@ function highlightTextNode(textNode: Text, regex: RegExp) {
 
     const mark = document.createElement('mark')
     mark.dataset.globalSearchPreviewHighlight = 'true'
-    mark.className = 'rounded-[3px] bg-yellow-200/80 px-0.5 text-inherit dark:bg-yellow-500/35'
+    mark.className =
+      'rounded-[3px] [background-color:var(--highlight-accent)] px-0.5 [color:var(--highlight-foreground)]'
     mark.textContent = match[0]
     fragment.append(mark)
     cursor = match.index + match[0].length
@@ -207,7 +210,10 @@ export function GlobalSearchMessagePreviewPanel({
     loadNext: loadNextSessionPage
   } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
-    query: { messageId: target.sourceType === 'session' ? target.messageId : undefined },
+    query: {
+      messageId: target.sourceType === 'session' ? target.messageId : undefined,
+      deferToolOutputs: true
+    },
     limit: PREVIEW_PAGE_SIZE,
     enabled: target.sourceType === 'session'
   })
@@ -356,7 +362,7 @@ export function GlobalSearchMessagePreviewPanel({
               {error && (
                 <div
                   role="alert"
-                  className="rounded-lg border border-error-border bg-error-bg px-3 py-2 text-error-text text-xs leading-4">
+                  className="rounded-lg border border-error-border bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs leading-4">
                   {t('globalSearch.error')}
                 </div>
               )}
@@ -377,8 +383,8 @@ export function GlobalSearchMessagePreviewPanel({
                     openPreviewMessage(message.id)
                   }}
                   className={cn(
-                    '-mx-3 w-[calc(100%+1.5rem)] cursor-pointer rounded-xl px-3 py-2 text-left transition-colors hover:bg-muted/35 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-                    message.id === activeMessageId && 'bg-accent/55 ring-1 ring-border-active'
+                    '-mx-3 w-[calc(100%+1.5rem)] cursor-pointer rounded-xl border border-transparent px-3 py-2 text-left transition-colors hover:bg-muted/35 focus-visible:bg-muted/35 focus-visible:outline-none',
+                    message.id === activeMessageId && 'border-border-selected bg-accent/55'
                   )}>
                   <div className="mb-1 font-medium text-muted-foreground text-xs">
                     {t(getMessageRoleLabelKey(message.role))}

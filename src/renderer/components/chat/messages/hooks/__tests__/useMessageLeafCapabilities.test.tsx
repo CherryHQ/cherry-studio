@@ -5,13 +5,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useMessageLeafCapabilities } from '../useMessageLeafCapabilities'
 
-const { mockUseExternalApps, mockPreview, mockSafeOpen } = vi.hoisted(() => ({
-  mockUseExternalApps: vi.fn(() => ({ data: [] })),
-  mockPreview: vi.fn(),
-  mockSafeOpen: vi.fn()
+// Keep t() returning raw keys: the renderer setup now initializes real i18n, but
+// these assertions embed key strings in the expected display names.
+vi.mock('react-i18next', () => ({
+  initReactI18next: { type: '3rdParty', init: vi.fn() },
+  useTranslation: () => ({ t: (key: string) => key })
 }))
 
-vi.mock('@renderer/hooks/useAttachment', () => ({
+const { mockUseExternalApps, mockPreview, mockSafeOpen, mockLoggerWarn, mockLoggerDebug } = vi.hoisted(() => ({
+  mockUseExternalApps: vi.fn(() => ({ data: [] })),
+  mockPreview: vi.fn(),
+  mockSafeOpen: vi.fn(),
+  mockLoggerWarn: vi.fn(),
+  mockLoggerDebug: vi.fn()
+}))
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({ warn: mockLoggerWarn, debug: mockLoggerDebug })
+  }
+}))
+
+vi.mock('../useAttachment', () => ({
   useAttachment: () => ({ preview: mockPreview })
 }))
 
@@ -140,6 +155,10 @@ describe('useMessageLeafCapabilities', () => {
     await result.current.openFile?.(file)
 
     expect(mockSafeOpen).toHaveBeenCalledWith({ kind: 'entry', entryId: '019606a0-0000-7000-8000-000000000001' })
+    expect(mockLoggerDebug).toHaveBeenCalledWith(
+      'fileMetadataToHandle: falling back to entry id for non-absolute path',
+      expect.objectContaining({ path: 'relative/legacy.pdf' })
+    )
   })
 
   it('projects file display data for shared attachment renderers', () => {
@@ -171,6 +190,32 @@ describe('useMessageLeafCapabilities', () => {
       displayName: 'file.pdf',
       previewUrl: 'file:///tmp'
     })
+  })
+
+  it('omits the preview url without throwing when the shared attachment path is not absolute', () => {
+    const { result } = renderHook(() => useMessageLeafCapabilities({ partsByMessageId: {} }))
+
+    const file: FileMetadata = {
+      id: 'file-1',
+      type: FILE_TYPE.DOCUMENT,
+      ext: '.pdf',
+      path: 'relative/legacy.pdf',
+      origin_name: 'file.pdf',
+      name: 'stored-file.pdf',
+      size: 100,
+      created_at: '2026-01-01T00:00:00.000Z',
+      count: 1
+    }
+
+    expect(() => result.current.getFileView?.(file)).not.toThrow()
+    expect(result.current.getFileView?.(file)).toEqual({
+      displayName: 'file.pdf',
+      previewUrl: undefined
+    })
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      'getFileView: non-canonical/invalid attachment path',
+      expect.objectContaining({ path: 'relative/legacy.pdf' })
+    )
   })
 
   it('keeps legacy pasted temp-file display behavior local to message attachments', () => {

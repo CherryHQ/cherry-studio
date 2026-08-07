@@ -1,4 +1,4 @@
-import { ResetIcon } from '@renderer/components/Icons'
+import ResetIcon from '@renderer/components/icons/ResetIcon'
 import { classNames } from '@renderer/utils/style'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Scan, ZoomIn, ZoomOut } from 'lucide-react'
 import { memo, useCallback } from 'react'
