@@ -3,7 +3,7 @@ import WebviewContainer from '@renderer/components/MiniApp/WebviewContainer'
 import { useTabs } from '@renderer/hooks/tab'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { cn } from '@renderer/utils/style'
-import { getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
+import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import type { WebviewTag } from 'electron'
 import React, { useEffect, useMemo, useRef } from 'react'
 
@@ -19,9 +19,11 @@ import React, { useEffect, useMemo, useRef } from 'react'
  *  - All other webviews stay mounted but display:none (keep-alive)
  */
 const logger = loggerService.withContext('MiniAppTabsPool')
+const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
 
 const MiniAppTabsPool: React.FC = () => {
-  const { openedKeepAliveMiniApps, currentMiniAppId } = useMiniApps()
+  const { openedKeepAliveMiniApps, currentMiniAppId, setOpenedKeepAliveMiniApps, setCurrentMiniAppId, setMiniAppShow } =
+    useMiniApps()
   // Read the active tab's URL from the v2 tabs cache. We can't use the
   // `@tanstack/react-router` `useLocation` here — the Pool sits above the
   // per-tab MemoryRouter, with no Router context.
@@ -29,6 +31,22 @@ const MiniAppTabsPool: React.FC = () => {
 
   // webview refs (pool-internal, used to control show/hide)
   const webviewRefs = useRef<Map<string, WebviewTag | null>>(new Map())
+
+  const tabMiniAppIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const tab of tabs) {
+      if (!tab.url.startsWith(MINI_APP_ROUTE_PREFIX)) continue
+      const id = tab.url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0]
+      if (id) ids.add(id)
+    }
+    return ids
+  }, [tabs])
+
+  const activeTabMiniAppId = useMemo(() => {
+    const url = tabs.find((t) => t.id === activeTabId)?.url
+    if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return null
+    return url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0] || null
+  }, [tabs, activeTabId])
 
   // Show only when the active tab's URL points at a specific miniapp detail.
   const shouldShow = useMemo(() => {
@@ -61,6 +79,33 @@ const MiniAppTabsPool: React.FC = () => {
     // reference, but URL edits to an opened app still reach WebviewContainer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appMetadataSignature])
+
+  useEffect(() => {
+    const orphanedApps = openedKeepAliveMiniApps.filter((app) => !tabMiniAppIds.has(app.appId))
+    if (orphanedApps.length === 0) return
+
+    setOpenedKeepAliveMiniApps((prev) => prev.filter((app) => tabMiniAppIds.has(app.appId)))
+    for (const app of orphanedApps) clearWebviewState(app.appId)
+
+    if (!orphanedApps.some((app) => app.appId === currentMiniAppId)) return
+
+    if (activeTabMiniAppId && openedKeepAliveMiniApps.some((app) => app.appId === activeTabMiniAppId)) {
+      setCurrentMiniAppId(activeTabMiniAppId)
+      setMiniAppShow(true)
+      return
+    }
+
+    setCurrentMiniAppId('')
+    setMiniAppShow(false)
+  }, [
+    activeTabMiniAppId,
+    currentMiniAppId,
+    openedKeepAliveMiniApps,
+    setCurrentMiniAppId,
+    setMiniAppShow,
+    setOpenedKeepAliveMiniApps,
+    tabMiniAppIds
+  ])
 
   /** 设置 ref 回调 */
   const handleSetRef = (appid: string, el: WebviewTag | null) => {
