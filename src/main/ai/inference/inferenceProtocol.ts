@@ -1,3 +1,5 @@
+import type { ProxyRoutingSnapshot } from '@main/services/proxy/proxyRouting'
+
 /**
  * Process-agnostic message protocol for the inference host.
  *
@@ -24,13 +26,15 @@ export interface InferenceModelSource {
 export interface InferenceInitMessage {
   type: 'init'
   /** transformers.js cache dir (resolved from an Electron path in the main process). */
-  cacheDir: string
+  cacheDir?: string
   /** App root, used by the worker to resolve `@huggingface/transformers`. */
   appPath: string
   /** Absolute path to the downloaded onnxruntime-node native binding — set as
    * `CHERRY_ONNXRUNTIME_BINDING_PATH` in the worker's own env before its first lazy
    * require of `@huggingface/transformers`/`ppu-paddle-ocr` (see OnnxRuntimeBinaryService). */
   onnxRuntimeBindingPath: string
+  /** ProxyService-owned routing decision; the worker never parses proxy or bypass config. */
+  proxyRouting: ProxyRoutingSnapshot
 }
 
 /** Load (downloading if absent) the embedding pipeline; emits progress. */

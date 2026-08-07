@@ -977,11 +977,13 @@ interface IFileUploadService {
 
 ---
 
-## 10. Orphan Sweep (scheduled FS pass + on-demand report)
+## 10. Orphan Sweep (scheduled/user-triggered FS pass + on-demand report)
 
 ### 10.1 Positioning
 
-The **FS-level pass** (§10) runs unattended from `FileManager.fileSweepTick` — the same idle-gated tick as the entry cleanup, concurrently with it, behind a 7-day floor. That is what reclaims orphan blobs in production. The **DB-level report pass** (§7 Layer 3) has no scheduled trigger and runs only inside the `runSweep` umbrella, which is reachable solely via the `File_RunSweep` IPC channel — a channel with no renderer caller today. FileManager exposes a single `runSweep()` maintenance method: it first runs the entry-cleanup pass (auto-run separately on init/interval — see [file-entry-cleanup.md §5](./file-entry-cleanup.md#5-cleanup-pass-reaper)), then runs the FS-level pass and the DB-level report pass concurrently, folding the cleanup pass's own summary into `counts.entryCleanup`, and returns a single `OrphanReport` once all three settle. The FS and DB passes each begin with a `hasPendingRestore()` guard (`src/main/data/db/restore/restoreJournal.ts`): while a staged backup restore awaits promotion, the sweep stands aside with `outcome: 'aborted', abortReason: 'pending-restore'` — a staged restore's blobs are on disk but not yet referenced by the live DB, which is exactly what the sweep would otherwise reclaim. (No user-facing UI calls `runSweep` — the entry cleanup it wraps is silent, and the cleanup mechanism has no user surface; see file-entry-cleanup.md's Decision note.)
+The **FS-level pass** (§10) runs unattended from `FileManager.fileSweepTick` — the same idle-gated tick as the entry cleanup, concurrently with it, behind a 7-day floor. The cache-cleanup UI also reaches the FS planner directly through `CacheCleanupService`: size inspection calls `FileManager.inspectOrphanFiles()` without deleting, and confirmed cleanup calls `FileManager.cleanupOrphanFiles()`. These explicit user actions do not wait for the scheduler's 7-day floor, and they do not run the entry-cleanup or DB-report passes. They still retain the FS sweep's `hasPendingRestore()` stand-aside, 5-minute freshness gate (§10.3), and safety threshold (§10.4).
+
+The **DB-level report pass** (§7 Layer 3) has no scheduled or cache-cleanup trigger. It runs only inside the `runSweep()` maintenance umbrella, which first runs the entry-cleanup pass (auto-run separately on init/interval — see [file-entry-cleanup.md §5](./file-entry-cleanup.md#5-cleanup-pass-reaper)), then runs the FS-level pass and the DB-level report pass concurrently, folds the cleanup pass's summary into `counts.entryCleanup`, and returns a single `OrphanReport`. `runSweep()` is reachable through the `File_RunSweep` IPC channel, which has no renderer caller today. The FS and DB passes each begin with a `hasPendingRestore()` guard (`src/main/data/db/restore/restoreJournal.ts`): while a staged backup restore awaits promotion, the sweep stands aside with `outcome: 'aborted', abortReason: 'pending-restore'` because the restore's blobs are on disk but not yet referenced by the live DB.
 
 ```typescript
 protected override async onInit(): Promise<void> {
@@ -1018,9 +1020,10 @@ async runSweep(): Promise<OrphanReport> {
 }
 ```
 
-**Rationale for the split (scheduled FS pass, on-demand report)**:
-- The FS pass performs *reclamation*, and the entry-cleanup pass manufactures its input on every run (`unlinkFailures`, plus crash residue between row-delete and unlink). Reclamation cannot wait on a caller that does not exist, so it rides the idle tick — but behind a coarse floor, because an orphan blob costs disk, never correctness.
-- The DB pass only *reports*. A report with no consumer has nothing to do, so it stays on demand; when a cleanup UI appears it invokes `runSweep` and gets both halves plus the entry-cleanup summary in one `OrphanReport`.
+**Rationale for the split (scheduled/user-triggered FS pass, on-demand report)**:
+- The FS pass performs *reclamation*, and the entry-cleanup pass manufactures its input on every run (`unlinkFailures`, plus crash residue between row-delete and unlink). The idle tick guarantees eventual reclamation without a user action, behind a coarse 7-day floor because an orphan blob costs disk, never correctness.
+- The cache-cleanup UI needs an immediate preview and explicit cleanup action, so it calls the FS-only `inspectOrphanFiles()` / `cleanupOrphanFiles()` path. This bypasses the scheduler cadence and its `fileSweepInFlight` gate, and it does not stamp `lastFileSweepAt`; direct requests may therefore overlap a scheduled pass or another direct request without delaying the next scheduled pass. Pending-restore stand-aside, the freshness gate, and the safety threshold still apply.
+- The DB pass only *reports*. A report with no consumer has nothing to do, so it stays available only through the broader `runSweep()` umbrella; the cache-cleanup UI does not invoke it or the entry-cleanup pass.
 - No persistent state machine. Each invocation runs end-to-end and returns its own report; FileManager no longer holds `lastDbSweepReport` / `lastDbSweepRanAt`. UIs that want "last scan" timing should hold the previously-returned `OrphanReport.lastRunAt` themselves.
 
 **A note on `initVersionCache`**: an earlier draft of this section bundled a synchronous `initVersionCache()` call into `onInit`. It didn't survive implementation — version cache is per-FileManager-instance and constructs at field-init time (no boot step), so there is no separate init call to make. `registerIpcHandlers()` *did* survive and is the convention used across lifecycle services for the same reason it surfaces in [lifecycle-migration-guide.md](../lifecycle/lifecycle-migration-guide.md): keeps `onInit` a narrow init→register sequence and gives a single spot for Phase 2 channels to land.
@@ -1130,7 +1133,7 @@ The DB-side sweep emits a parallel record under `event: 'orphan-sweep'`. Its cur
 
 The entry-cleanup pass (§7.1, [file-entry-cleanup.md §5.6](./file-entry-cleanup.md#56-failure-handling--observability)) emits a third, independent record under `event: 'file-entry-cleanup'` — `info` on `completed` and on `'skipped'` (the pending-staged-restore stand-aside), `error` on `failed` (it has no `aborted` outcome; the volume abort was removed, spec §5.3) — covering candidate/deleted/`gonePinned`/`failed` counts and skip/unlink-failure breakdowns for the `delete_when_unreferenced` reclaim path. It fires on its own triggers (init, idle-gated interval) in addition to running as the first of `runSweep`'s three passes (§10.1).
 
-These three records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — at most three records per user-triggered sweep run is a trivial volume for log aggregation.
+These three records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — `runSweep()` emits at most three records, while direct `inspectOrphanFiles()` and `cleanupOrphanFiles()` each emit only the FS-sweep record.
 
 ### 10.6 DanglingCache Initialization
 

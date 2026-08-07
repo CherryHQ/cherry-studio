@@ -287,7 +287,7 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
     await flushLaunch()
     expect(entry.runtimeState.launch.kind).toBe('suppressed')
 
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
     hold.dispose()
     await flushLaunch()
 
