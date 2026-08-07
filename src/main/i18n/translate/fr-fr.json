@@ -22,10 +22,13 @@
         "count_tokens": "Estime le nombre de tokens d'entrée consommés par un ensemble de messages au format Anthropic.",
         "generate_content": "Génère du contenu via la méthode `generateContent` de Gemini. Les corps de requête et de réponse suivent le format de l'API Gemini ; `streamGenerateContent` est servi sur le même chemin.",
         "get_knowledge_base": "Récupère une base de connaissances par son ID.",
+        "get_mcp_server": "[to be translated]:Get an MCP server's details and its tool list.",
         "health": "État du service, heure actuelle et version. Aucune authentification requise.",
         "info": "Nom et version de l'API ainsi que ses principaux endpoints. Aucune authentification requise.",
         "list_knowledge_bases": "Liste les bases de connaissances disponibles dans cette instance de Cherry Studio.",
+        "list_mcp_servers": "[to be translated]:List the MCP servers enabled in Cherry Studio, each with the URL to connect to it.",
         "list_models": "Liste les modèles disponibles via cette passerelle, au format models d'OpenAI.",
+        "mcp_proxy": "[to be translated]:Model Context Protocol endpoint for an MCP server (Streamable HTTP). Point any MCP client at this URL to use the server through Cherry Studio.",
         "messages": "Crée un message. Les corps de requête et de réponse suivent le format Anthropic Messages ; avec `stream: true`, la sortie est incrémentale.",
         "responses": "Crée une réponse. Les corps de requête et de réponse suivent le format OpenAI Responses.",
         "search_knowledge_bases": "Recherche dans une ou plusieurs bases de connaissances et renvoie les fragments de documents correspondants."

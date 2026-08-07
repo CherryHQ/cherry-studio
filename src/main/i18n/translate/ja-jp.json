@@ -22,10 +22,13 @@
         "count_tokens": "Anthropic 形式のメッセージが消費する入力トークン数を見積もります。",
         "generate_content": "Gemini の `generateContent` メソッドでコンテンツを生成します。リクエストとレスポンスの形式は Gemini API と同じで、`streamGenerateContent` も同じパスで提供されます。",
         "get_knowledge_base": "ID を指定してナレッジベースを 1 件取得します。",
+        "get_mcp_server": "[to be translated]:Get an MCP server's details and its tool list.",
         "health": "サービスの稼働状態、現在時刻、バージョンを返します。認証は不要です。",
         "info": "API の名称・バージョンと主要なエンドポイントを返します。認証は不要です。",
         "list_knowledge_bases": "この Cherry Studio で利用できるナレッジベースの一覧を返します。",
+        "list_mcp_servers": "[to be translated]:List the MCP servers enabled in Cherry Studio, each with the URL to connect to it.",
         "list_models": "このゲートウェイで利用できるモデルを OpenAI の models 形式で一覧表示します。",
+        "mcp_proxy": "[to be translated]:Model Context Protocol endpoint for an MCP server (Streamable HTTP). Point any MCP client at this URL to use the server through Cherry Studio.",
         "messages": "メッセージを作成します。リクエストとレスポンスの形式は Anthropic Messages と同じで、`stream: true` を指定すると逐次出力になります。",
         "responses": "レスポンスを作成します。リクエストとレスポンスの形式は OpenAI Responses と同じです。",
         "search_knowledge_bases": "1 つ以上のナレッジベースを検索し、該当するドキュメントの断片を返します。"

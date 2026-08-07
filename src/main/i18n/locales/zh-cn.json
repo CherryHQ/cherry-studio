@@ -22,10 +22,13 @@
         "count_tokens": "估算一组 Anthropic 格式消息占用的输入 token 数量。",
         "generate_content": "通过 Gemini 的 `generateContent` 方法生成内容。请求与响应格式与 Gemini API 一致；`streamGenerateContent` 走同一路径。",
         "get_knowledge_base": "按 ID 获取单个知识库。",
+        "get_mcp_server": "获取指定 MCP 服务器的详情及其工具列表。",
         "health": "服务健康状态、当前时间与版本号。无需鉴权。",
         "info": "API 名称、版本与主要端点列表。无需鉴权。",
         "list_knowledge_bases": "列出当前 Cherry Studio 实例中的知识库。",
+        "list_mcp_servers": "列出 Cherry Studio 中已启用的 MCP 服务器，并给出各自的连接地址。",
         "list_models": "以 OpenAI models 格式列出该网关可用的模型。",
+        "mcp_proxy": "指定 MCP 服务器的 Model Context Protocol 端点（Streamable HTTP）。将任意 MCP 客户端指向该地址，即可通过 Cherry Studio 使用该服务器。",
         "messages": "创建一条消息。请求与响应格式与 Anthropic Messages 一致；设置 `stream: true` 可流式输出。",
         "responses": "创建一次响应。请求与响应格式与 OpenAI Responses 一致。",
         "search_knowledge_bases": "在一个或多个知识库中检索，返回匹配的文档片段。"
