@@ -57,6 +57,13 @@ export const CreateMessageSchema = z.strictObject({
 })
 export type CreateMessageDto = z.infer<typeof CreateMessageSchema>
 
+/** DTO for reserving a new empty branch below an assistant message. */
+export const ReserveBranchSchema = z.strictObject({
+  /** Whether the new reserved branch becomes the topic's selected node. */
+  activate: z.boolean().optional()
+})
+export type ReserveBranchDto = z.infer<typeof ReserveBranchSchema>
+
 /**
  * DTO for updating an existing message
  */
@@ -143,7 +150,9 @@ export type BranchMessagesQueryParams = z.infer<typeof BranchMessagesQuerySchema
  */
 export const DeleteMessageQuerySchema = z.strictObject({
   cascade: z.boolean().optional(),
-  activeNodeStrategy: ActiveNodeStrategySchema.optional()
+  activeNodeStrategy: ActiveNodeStrategySchema.optional(),
+  /** Reject deletion unless the target is an awaiting-input user leaf. */
+  awaitingInputOnly: z.boolean().optional()
 })
 export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
 
@@ -253,7 +262,7 @@ export type MessageSchemas = {
       params: { id: string }
       response: Message
     }
-    /** Update a message (content, move to new parent, etc.) */
+    /** Update a message (content, move to new parent, etc.). */
     PATCH: {
       params: { id: string }
       body: UpdateMessageDto
@@ -265,6 +274,7 @@ export type MessageSchemas = {
      * - cascade=false: reparents children to grandparent
      * - activeNodeStrategy='parent' (default): sets activeNodeId to parent if affected
      * - activeNodeStrategy='clear': sets activeNodeId to null if affected
+     * - awaitingInputOnly=true: rejects unless the target is an awaiting-input user leaf
      */
     DELETE: {
       params: { id: string }
@@ -290,6 +300,18 @@ export type MessageSchemas = {
     POST: {
       params: { id: string }
       body: MessageData
+      response: Message
+    }
+  }
+
+  /**
+   * Branch collection below an assistant message. Every POST creates a distinct,
+   * persisted empty user leaf; multiple reservations below one anchor are valid.
+   */
+  '/messages/:id/branches': {
+    POST: {
+      params: { id: string }
+      body: ReserveBranchDto
       response: Message
     }
   }

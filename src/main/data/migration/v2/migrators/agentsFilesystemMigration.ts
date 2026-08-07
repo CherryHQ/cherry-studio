@@ -1,20 +1,6 @@
 import { createHash, type Hash, randomUUID } from 'node:crypto'
 import { type BigIntStats, constants, createReadStream } from 'node:fs'
-import {
-  copyFile,
-  cp,
-  link,
-  lstat,
-  mkdir,
-  readdir,
-  readlink,
-  realpath,
-  rename,
-  rmdir,
-  stat,
-  symlink,
-  unlink
-} from 'node:fs/promises'
+import { copyFile, cp, link, lstat, mkdir, readdir, readlink, realpath, rename, rmdir, unlink } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -185,21 +171,9 @@ function createClaudeConfigProgressTracker(
 
 interface CopyEntryResult {
   copied: boolean
+  skipped?: boolean
   fileCount: number
   byteCount: number
-}
-
-function canonicalIdentityEntryName(name: string): string | undefined {
-  switch (name.toLowerCase()) {
-    case 'soul.md':
-      return 'SOUL.md'
-    case 'user.md':
-      return 'USER.md'
-    case 'memory':
-      return 'memory'
-    default:
-      return undefined
-  }
 }
 
 async function lstatIfExists(targetPath: string) {
@@ -301,53 +275,20 @@ async function findCaseInsensitiveEntry(dir: string, name: string): Promise<stri
   return match ? path.join(dir, match) : undefined
 }
 
-async function materializeIdentityEntry(
-  sourcePath: string,
-  destinationPath: string,
-  sourceWorkspaceRoot: string,
-  visitedRealPaths = new Set<string>()
-): Promise<boolean> {
+async function materializeIdentityEntry(sourcePath: string, destinationPath: string): Promise<boolean> {
   const sourceStat = await lstat(sourcePath)
   if (sourceStat.isSymbolicLink()) {
-    let resolved: string
-    try {
-      resolved = await realpath(sourcePath)
-    } catch (error) {
-      logger.warn('Skipping unresolved identity symlink during agent migration', { sourcePath, error })
-      return false
-    }
-    const realWorkspaceRoot = await realpath(sourceWorkspaceRoot)
-    if (!isPathInsideOrEqual(resolved, realWorkspaceRoot) || resolved === realWorkspaceRoot) {
-      logger.warn('Skipping identity symlink that points outside the legacy workspace', {
-        sourcePath,
-        resolved
-      })
-      return false
-    }
-    if (visitedRealPaths.has(resolved)) {
-      logger.warn('Skipping cyclic identity symlink during agent migration', { sourcePath, resolved })
-      return false
-    }
-    visitedRealPaths.add(resolved)
-    const copied = await materializeIdentityEntry(resolved, destinationPath, sourceWorkspaceRoot, visitedRealPaths)
-    visitedRealPaths.delete(resolved)
-    return copied
+    logger.warn('Skipping identity symlink during Agent migration', { sourcePath })
+    return false
   }
 
   if (sourceStat.isDirectory()) {
     await mkdir(destinationPath)
 
-    let complete = true
     for (const entry of await readdir(sourcePath)) {
-      const copied = await materializeIdentityEntry(
-        path.join(sourcePath, entry),
-        path.join(destinationPath, entry),
-        sourceWorkspaceRoot,
-        visitedRealPaths
-      )
-      complete = copied && complete
+      await materializeIdentityEntry(path.join(sourcePath, entry), path.join(destinationPath, entry))
     }
-    return complete
+    return true
   }
 
   if (!sourceStat.isFile()) {
@@ -359,12 +300,8 @@ async function materializeIdentityEntry(
   return true
 }
 
-async function copyIdentityEntry(
-  sourcePath: string,
-  destinationPath: string,
-  sourceWorkspaceRoot: string
-): Promise<CopyEntryResult | undefined> {
-  const sourceSnapshot = await identityCopySourceSnapshot(sourcePath, sourceWorkspaceRoot)
+async function copyIdentityEntry(sourcePath: string, destinationPath: string): Promise<CopyEntryResult | undefined> {
+  const sourceSnapshot = await identityCopySourceSnapshot(sourcePath)
   if (!sourceSnapshot) return undefined
 
   const existingDestination = await filesystemEntrySnapshot(destinationPath)
@@ -387,7 +324,7 @@ async function copyIdentityEntry(
   const stagingPath = path.join(path.dirname(destinationPath), `${stagingPrefix}${randomUUID()}`)
 
   try {
-    if (!(await materializeIdentityEntry(sourcePath, stagingPath, sourceWorkspaceRoot))) {
+    if (!(await materializeIdentityEntry(sourcePath, stagingPath))) {
       throw new Error(`Legacy Agent identity changed while being copied: ${sourcePath}`)
     }
 
@@ -445,24 +382,9 @@ async function copyIdentityFromWorkspace(
   const sourceStat = await lstatIfExists(sourceWorkspacePath)
   if (!sourceStat) return { fileCount: 0, byteCount: 0 }
 
-  let effectiveWorkspacePath = sourceWorkspacePath
   if (sourceStat.isSymbolicLink()) {
-    try {
-      effectiveWorkspacePath = await realpath(sourceWorkspacePath)
-      const resolvedStat = await lstat(effectiveWorkspacePath)
-      if (!resolvedStat.isDirectory() || resolvedStat.isSymbolicLink()) {
-        logger.warn('Skipping identity copy from symlinked legacy workspace whose target is not a real directory', {
-          sourceWorkspacePath,
-          effectiveWorkspacePath
-        })
-        return { fileCount: 0, byteCount: 0 }
-      }
-      // A symlinked v1 root is an external user workspace. Read identity from
-      // its resolved target without modifying the user-owned workspace.
-    } catch (error) {
-      logger.warn('Skipping unresolved symlinked legacy workspace root', { sourceWorkspacePath, error })
-      return { fileCount: 0, byteCount: 0 }
-    }
+    logger.warn('Skipping symlinked legacy workspace root during Agent migration', { sourceWorkspacePath })
+    return { fileCount: 0, byteCount: 0 }
   } else if (!sourceStat.isDirectory()) {
     return { fileCount: 0, byteCount: 0 }
   }
@@ -471,10 +393,10 @@ async function copyIdentityFromWorkspace(
   let byteCount = 0
   for (const name of ['SOUL.md', 'USER.md', 'memory']) {
     if (claimedIdentityEntries.has(name)) continue
-    const sourcePath = await findCaseInsensitiveEntry(effectiveWorkspacePath, name)
+    const sourcePath = await findCaseInsensitiveEntry(sourceWorkspacePath, name)
     if (!sourcePath) continue
     const destinationPath = path.join(agentDataPath, name)
-    const result = await copyIdentityEntry(sourcePath, destinationPath, effectiveWorkspacePath)
+    const result = await copyIdentityEntry(sourcePath, destinationPath)
     if (result) {
       claimedIdentityEntries.add(name)
       fileCount += result.fileCount
@@ -530,7 +452,11 @@ export async function copyLegacyClaudeConfig(
 
   const sourceStat = await lstatIfExists(sourcePath)
   if (!sourceStat) return false
-  if (!sourceStat.isDirectory() || sourceStat.isSymbolicLink()) {
+  if (sourceStat.isSymbolicLink()) {
+    logger.warn('Skipping symlinked legacy Claude config root during Agent migration', { sourcePath })
+    return false
+  }
+  if (!sourceStat.isDirectory()) {
     throw new Error(`Legacy Claude config source is not a directory: ${sourcePath}`)
   }
 
@@ -1003,67 +929,6 @@ export async function copyLegacyClaudeSessionData(input: {
   })
 }
 
-function migratedLinkTarget(
-  sourceLinkPath: string,
-  destinationLinkPath: string,
-  linkTarget: string,
-  sourceWorkspaceRoot: string,
-  destinationWorkspaceRoot: string,
-  agentDataPath: string
-): string {
-  const sourceTarget = path.isAbsolute(linkTarget)
-    ? path.normalize(linkTarget)
-    : path.resolve(path.dirname(sourceLinkPath), linkTarget)
-  let migratedTarget = sourceTarget
-  if (isPathInsideOrEqual(sourceTarget, sourceWorkspaceRoot)) {
-    const relativeTarget = path.relative(sourceWorkspaceRoot, sourceTarget)
-    const [firstSegment, ...remainingSegments] = relativeTarget.split(path.sep)
-    const identityEntryName = canonicalIdentityEntryName(firstSegment)
-    migratedTarget = identityEntryName
-      ? path.join(agentDataPath, identityEntryName, ...remainingSegments)
-      : path.join(destinationWorkspaceRoot, relativeTarget)
-  }
-
-  if (path.isAbsolute(linkTarget)) return migratedTarget
-  const relativeTarget = path.relative(path.dirname(destinationLinkPath), migratedTarget)
-  return path.isAbsolute(relativeTarget) ? migratedTarget : relativeTarget || '.'
-}
-
-type WorkspaceLinkType = 'dir' | 'file'
-
-async function workspaceLinkType(sourcePath: string): Promise<WorkspaceLinkType> {
-  try {
-    return (await stat(sourcePath)).isDirectory() ? 'dir' : 'file'
-  } catch {
-    // Dangling links retain their text and use the file default on Windows.
-    return 'file'
-  }
-}
-
-function copiedWorkspaceLinkTarget(
-  migratedTarget: string,
-  finalDestinationPath: string,
-  linkType: WorkspaceLinkType
-): string {
-  if (!isWin || linkType !== 'dir') return migratedTarget
-  return path.resolve(path.dirname(finalDestinationPath), migratedTarget)
-}
-
-async function createWorkspaceLink(linkTarget: string, linkPath: string, linkType: WorkspaceLinkType): Promise<void> {
-  if (!isWin || linkType !== 'dir') {
-    await symlink(linkTarget, linkPath, linkType)
-    return
-  }
-
-  try {
-    await symlink(linkTarget, linkPath, 'junction')
-  } catch {
-    // Junctions avoid Windows symlink privileges but cannot represent every
-    // directory target, including network shares. Preserve those as dir links.
-    await symlink(linkTarget, linkPath, 'dir')
-  }
-}
-
 type FilesystemEntryKind = 'directory' | 'file' | 'symlink'
 
 interface FilesystemEntrySnapshot {
@@ -1078,24 +943,11 @@ interface CopySourceSnapshot {
   copiedFingerprint: string
   fileCount: number
   byteCount: number
-  destinationIndependent: boolean
 }
 
 interface WorkspaceSourceSnapshot {
-  sourcePath: string
-  kind: FilesystemEntryKind
-  copiedFingerprint?: string
-  linkTarget?: string
-  linkType?: WorkspaceLinkType
-  children: Array<{ name: string; snapshot: WorkspaceSourceSnapshot }>
-  hasSymlinks: boolean
-  fileCount: number
-  byteCount: number
-}
-
-interface WorkspaceDestinationSnapshot {
+  kind: Exclude<FilesystemEntryKind, 'symlink'>
   copiedFingerprint: string
-  linkType?: WorkspaceLinkType
   fileCount: number
   byteCount: number
 }
@@ -1247,12 +1099,7 @@ async function filesystemEntryStatsWithQueue(
   return { fileCount, byteCount }
 }
 
-async function identityCopySourceSnapshot(
-  targetPath: string,
-  sourceWorkspaceRoot: string,
-  visitedRealPaths = new Set<string>(),
-  realWorkspaceRoot?: string
-): Promise<CopySourceSnapshot | undefined> {
+async function identityCopySourceSnapshot(targetPath: string): Promise<CopySourceSnapshot | undefined> {
   const targetStat = await lstatBigIntIfExists(targetPath)
   if (!targetStat) return undefined
 
@@ -1260,37 +1107,13 @@ async function identityCopySourceSnapshot(
   const copiedHash = createHash('sha256')
 
   if (kind === 'symlink') {
-    let resolved: string
-    try {
-      resolved = await realpath(targetPath)
-    } catch {
-      return undefined
-    }
-    const workspaceRoot = realWorkspaceRoot ?? (await realpath(sourceWorkspaceRoot))
-    if (!isPathInsideOrEqual(resolved, workspaceRoot) || resolved === workspaceRoot || visitedRealPaths.has(resolved)) {
-      return undefined
-    }
-    visitedRealPaths.add(resolved)
-    const resolvedSnapshot = await identityCopySourceSnapshot(
-      resolved,
-      sourceWorkspaceRoot,
-      visitedRealPaths,
-      workspaceRoot
-    )
-    visitedRealPaths.delete(resolved)
-    if (!resolvedSnapshot) return undefined
-    return {
-      copiedFingerprint: resolvedSnapshot.copiedFingerprint,
-      fileCount: resolvedSnapshot.fileCount,
-      byteCount: resolvedSnapshot.byteCount,
-      destinationIndependent: true
-    }
+    logger.warn('Skipping identity symlink while snapshotting Agent migration source', { targetPath })
+    return undefined
   }
 
   updateFingerprintField(copiedHash, kind)
   let fileCount = 0
   let byteCount = 0
-  let destinationIndependent = true
   if (kind === 'file') {
     fileCount = 1
     byteCount = Number(targetStat.size)
@@ -1301,26 +1124,24 @@ async function identityCopySourceSnapshot(
     const entries = await readdir(targetPath)
     entries.sort()
     for (const entry of entries) {
-      const childSnapshot = await identityCopySourceSnapshot(
-        path.join(targetPath, entry),
-        sourceWorkspaceRoot,
-        visitedRealPaths,
-        realWorkspaceRoot
-      )
-      if (!childSnapshot) return undefined
+      const childPath = path.join(targetPath, entry)
+      const childSnapshot = await identityCopySourceSnapshot(childPath)
+      if (!childSnapshot) {
+        const childStat = await lstatBigIntIfExists(childPath)
+        if (childStat?.isSymbolicLink()) continue
+        throw new Error(`Legacy Agent identity source changed while being scanned: ${childPath}`)
+      }
       updateFingerprintField(copiedHash, entry)
       updateFingerprintField(copiedHash, childSnapshot.copiedFingerprint)
       fileCount += childSnapshot.fileCount
       byteCount += childSnapshot.byteCount
-      destinationIndependent = destinationIndependent && childSnapshot.destinationIndependent
     }
   }
 
   return {
     copiedFingerprint: copiedHash.digest('hex'),
     fileCount,
-    byteCount,
-    destinationIndependent
+    byteCount
   }
 }
 
@@ -1338,20 +1159,8 @@ async function workspaceSourceSnapshotWithQueue(
 
   const kind = filesystemEntryKind(sourceStat)
   if (kind === 'symlink') {
-    const { linkTarget, linkType } = await queueFilesystemOperation(queue, async () => ({
-      linkTarget: await readlink(sourcePath),
-      linkType: await workspaceLinkType(sourcePath)
-    }))
-    return {
-      sourcePath,
-      kind,
-      linkTarget,
-      linkType,
-      children: [],
-      hasSymlinks: true,
-      fileCount: 0,
-      byteCount: 0
-    }
+    logger.warn('Skipping workspace symlink while snapshotting Agent migration source', { sourcePath })
+    return undefined
   }
 
   const copiedHash = createHash('sha256')
@@ -1364,23 +1173,20 @@ async function workspaceSourceSnapshotWithQueue(
     })
     const copiedFingerprint = copiedHash.digest('hex')
     return {
-      sourcePath,
       kind,
       copiedFingerprint,
-      children: [],
-      hasSymlinks: false,
       fileCount: 1,
       byteCount: Number(sourceStat.size)
     }
   }
 
-  const children: WorkspaceSourceSnapshot['children'] = []
-  let hasSymlinks = false
   let fileCount = 0
   let byteCount = 0
   const entries = await queueFilesystemOperation(queue, () => readdir(sourcePath))
   entries.sort()
-  const childSnapshots: Array<{ name: string; snapshot: WorkspaceSourceSnapshot }> = new Array(entries.length)
+  const childSnapshots: Array<{ name: string; snapshot: WorkspaceSourceSnapshot } | undefined> = new Array(
+    entries.length
+  )
   await processFilesystemEntriesWithWorkers(
     entries,
     scheduler,
@@ -1388,6 +1194,8 @@ async function workspaceSourceSnapshotWithQueue(
       const childPath = path.join(sourcePath, entry)
       const snapshot = await workspaceSourceSnapshotWithQueue(childPath, queue, scheduler)
       if (!snapshot) {
+        const childStat = await queueFilesystemOperation(queue, () => lstatBigIntIfExists(childPath))
+        if (childStat?.isSymbolicLink()) return undefined
         throw new Error(`Agent migration fingerprint source disappeared: ${childPath}`)
       }
       return { name: entry, snapshot }
@@ -1397,90 +1205,19 @@ async function workspaceSourceSnapshotWithQueue(
     }
   )
   for (const child of childSnapshots) {
+    if (!child) continue
     const { name: entry, snapshot: childSnapshot } = child
-    children.push({ name: entry, snapshot: childSnapshot })
-    if (childSnapshot.copiedFingerprint !== undefined) {
-      updateFingerprintField(copiedHash, entry)
-      updateFingerprintField(copiedHash, childSnapshot.copiedFingerprint)
-    }
-    hasSymlinks = hasSymlinks || childSnapshot.hasSymlinks
+    updateFingerprintField(copiedHash, entry)
+    updateFingerprintField(copiedHash, childSnapshot.copiedFingerprint)
     fileCount += childSnapshot.fileCount
     byteCount += childSnapshot.byteCount
   }
 
   return {
-    sourcePath,
     kind,
-    copiedFingerprint: hasSymlinks ? undefined : copiedHash.digest('hex'),
-    children,
-    hasSymlinks,
+    copiedFingerprint: copiedHash.digest('hex'),
     fileCount,
     byteCount
-  }
-}
-
-function workspaceDestinationFingerprint(
-  sourceSnapshot: WorkspaceSourceSnapshot,
-  finalDestinationPath: string,
-  sourceWorkspaceRoot: string,
-  destinationWorkspaceRoot: string,
-  agentDataPath: string
-): string {
-  if (sourceSnapshot.copiedFingerprint !== undefined) return sourceSnapshot.copiedFingerprint
-
-  const copiedHash = createHash('sha256')
-  updateFingerprintField(copiedHash, sourceSnapshot.kind)
-  if (sourceSnapshot.kind === 'symlink') {
-    const linkType = sourceSnapshot.linkType!
-    const copiedLinkTarget = copiedWorkspaceLinkTarget(
-      migratedLinkTarget(
-        sourceSnapshot.sourcePath,
-        finalDestinationPath,
-        sourceSnapshot.linkTarget!,
-        sourceWorkspaceRoot,
-        destinationWorkspaceRoot,
-        agentDataPath
-      ),
-      finalDestinationPath,
-      linkType
-    )
-    updateFingerprintField(copiedHash, copiedLinkTarget)
-  } else {
-    for (const child of sourceSnapshot.children) {
-      updateFingerprintField(copiedHash, child.name)
-      updateFingerprintField(
-        copiedHash,
-        workspaceDestinationFingerprint(
-          child.snapshot,
-          path.join(finalDestinationPath, child.name),
-          sourceWorkspaceRoot,
-          destinationWorkspaceRoot,
-          agentDataPath
-        )
-      )
-    }
-  }
-  return copiedHash.digest('hex')
-}
-
-function workspaceDestinationSnapshot(
-  sourceSnapshot: WorkspaceSourceSnapshot,
-  finalDestinationPath: string,
-  sourceWorkspaceRoot: string,
-  destinationWorkspaceRoot: string,
-  agentDataPath: string
-): WorkspaceDestinationSnapshot {
-  return {
-    copiedFingerprint: workspaceDestinationFingerprint(
-      sourceSnapshot,
-      finalDestinationPath,
-      sourceWorkspaceRoot,
-      destinationWorkspaceRoot,
-      agentDataPath
-    ),
-    linkType: sourceSnapshot.linkType,
-    fileCount: sourceSnapshot.fileCount,
-    byteCount: sourceSnapshot.byteCount
   }
 }
 
@@ -1496,17 +1233,8 @@ async function requiredFilesystemEntrySnapshot(
   return snapshot
 }
 
-async function publishStagedWorkspaceEntry(
-  stagingPath: string,
-  destinationPath: string,
-  sourceLinkType?: WorkspaceLinkType
-): Promise<void> {
+async function publishStagedWorkspaceEntry(stagingPath: string, destinationPath: string): Promise<void> {
   const stagingStat = await lstat(stagingPath)
-  if (stagingStat.isSymbolicLink()) {
-    const linkType = sourceLinkType ?? (await workspaceLinkType(stagingPath))
-    await createWorkspaceLink(await readlink(stagingPath), destinationPath, linkType)
-    return
-  }
   if (stagingStat.isFile()) {
     // A hard-link publish is atomic and fails if the target appears concurrently.
     // The staging entry is on the same managed volume and is unlinked in `finally`.
@@ -1533,21 +1261,18 @@ interface PendingWorkspacePublication {
   stagingPath: string
   destinationPath: string
   copiedFingerprint: string
-  sourceLinkType?: WorkspaceLinkType
 }
 
 async function sourceSnapshotForWorkspaceEntry(
   context: WorkspaceCopyContext,
   sourcePath: string
-): Promise<WorkspaceSourceSnapshot> {
+): Promise<WorkspaceSourceSnapshot | undefined> {
   const sourceKey = path.resolve(sourcePath)
   const cachedSnapshot = context.sourceSnapshots.get(sourceKey)
   if (cachedSnapshot) return cachedSnapshot
 
   const sourceSnapshot = await workspaceSourceSnapshot(sourcePath)
-  if (!sourceSnapshot) {
-    throw new Error(`Agent migration fingerprint source disappeared: ${sourcePath}`)
-  }
+  if (!sourceSnapshot) return undefined
   context.sourceSnapshots.set(sourceKey, sourceSnapshot)
   return sourceSnapshot
 }
@@ -1557,8 +1282,8 @@ async function sourceSnapshotForWorkspaceEntry(
  * COPYFILE_FICLONE uses copy-on-write where the volume supports it and
  * otherwise performs a regular kernel copy. The first private staging entry
  * becomes the reusable source for later Sessions, so migration never needs an
- * additional full-size template. Links are materialized separately for each
- * Session before the complete private staging tree is fingerprinted.
+ * additional full-size template. Symlinks are discarded before the complete
+ * private staging tree is fingerprinted.
  */
 async function cloneWorkspaceRegularContent(sourcePath: string, destinationPath: string): Promise<void> {
   await cloneWorkspaceRegularContentWithQueue(
@@ -1582,6 +1307,7 @@ async function cloneWorkspaceRegularContentWithQueue(
 
   const kind = filesystemEntryKind(sourceStat)
   if (kind === 'symlink') {
+    logger.warn('Skipping workspace symlink while copying Agent migration source', { sourcePath })
     return
   }
   if (kind === 'file') {
@@ -1604,63 +1330,15 @@ async function cloneWorkspaceRegularContentWithQueue(
   }
 }
 
-async function materializeWorkspaceLinks(
-  sourceSnapshot: WorkspaceSourceSnapshot,
-  stagingPath: string,
-  finalDestinationPath: string,
-  sourceWorkspaceRoot: string,
-  destinationWorkspaceRoot: string,
-  agentDataPath: string
-): Promise<void> {
-  if (!sourceSnapshot.hasSymlinks) return
-
-  if (sourceSnapshot.kind === 'symlink') {
-    const linkType = sourceSnapshot.linkType!
-    const migratedTarget = migratedLinkTarget(
-      sourceSnapshot.sourcePath,
-      finalDestinationPath,
-      sourceSnapshot.linkTarget!,
-      sourceWorkspaceRoot,
-      destinationWorkspaceRoot,
-      agentDataPath
-    )
-    await createWorkspaceLink(
-      copiedWorkspaceLinkTarget(migratedTarget, finalDestinationPath, linkType),
-      stagingPath,
-      linkType
-    )
-    return
-  }
-
-  for (const child of sourceSnapshot.children) {
-    if (!child.snapshot.hasSymlinks) continue
-    await materializeWorkspaceLinks(
-      child.snapshot,
-      path.join(stagingPath, child.name),
-      path.join(finalDestinationPath, child.name),
-      sourceWorkspaceRoot,
-      destinationWorkspaceRoot,
-      agentDataPath
-    )
-  }
-}
-
 async function copyWorkspaceEntry(
   context: WorkspaceCopyContext,
   sourcePath: string,
   destinationPath: string,
-  sourceWorkspaceRoot: string,
-  destinationWorkspaceRoot: string,
-  agentDataPath: string
+  destinationWorkspaceRoot: string
 ): Promise<CopyEntryResult> {
   const sourceTree = await sourceSnapshotForWorkspaceEntry(context, sourcePath)
-  const sourceSnapshot = workspaceDestinationSnapshot(
-    sourceTree,
-    destinationPath,
-    sourceWorkspaceRoot,
-    destinationWorkspaceRoot,
-    agentDataPath
-  )
+  if (!sourceTree) return { copied: false, skipped: true, fileCount: 0, byteCount: 0 }
+  const sourceSnapshot = sourceTree
 
   const existingDestination = await filesystemEntrySnapshot(destinationPath)
   if (existingDestination) {
@@ -1685,23 +1363,13 @@ async function copyWorkspaceEntry(
   try {
     const sourceKey = path.resolve(sourcePath)
     const reusableStagingPath = context.reusableStagingPaths.get(sourceKey)
-    if (sourceTree.kind !== 'symlink') {
-      await cloneWorkspaceRegularContent(reusableStagingPath ?? sourcePath, stagingPath)
-    }
-    await materializeWorkspaceLinks(
-      sourceTree,
-      stagingPath,
-      destinationPath,
-      sourceWorkspaceRoot,
-      destinationWorkspaceRoot,
-      agentDataPath
-    )
+    await cloneWorkspaceRegularContent(reusableStagingPath ?? sourcePath, stagingPath)
 
     const stagingSnapshot = await requiredFilesystemEntrySnapshot(stagingPath)
     if (stagingSnapshot.fingerprint !== sourceSnapshot.copiedFingerprint) {
       throw new Error(`Legacy Agent workspace copy verification failed: ${sourcePath}`)
     }
-    if (sourceTree.kind !== 'symlink' && !reusableStagingPath) {
+    if (!reusableStagingPath) {
       context.reusableStagingPaths.set(sourceKey, stagingPath)
     }
 
@@ -1711,8 +1379,7 @@ async function copyWorkspaceEntry(
       sourcePath,
       stagingPath,
       destinationPath,
-      copiedFingerprint: sourceSnapshot.copiedFingerprint,
-      sourceLinkType: sourceSnapshot.linkType
+      copiedFingerprint: sourceSnapshot.copiedFingerprint
     })
     pendingPublication = true
     return {
@@ -1731,8 +1398,7 @@ async function copyOrdinaryWorkspaceContent(
   context: WorkspaceCopyContext,
   agentsDataRoot: string,
   sourceWorkspacePath: string,
-  destinationWorkspacePath: string,
-  agentDataPath: string
+  destinationWorkspacePath: string
 ): Promise<{ copiedEntries: number; reusedEntries: number; fileCount: number; byteCount: number }> {
   const sourceStat = await lstatIfExists(sourceWorkspacePath)
   if (!sourceStat?.isDirectory() || sourceStat.isSymbolicLink()) {
@@ -1753,10 +1419,9 @@ async function copyOrdinaryWorkspaceContent(
       context,
       path.join(sourceWorkspacePath, entry),
       destinationPath,
-      sourceWorkspacePath,
-      destinationWorkspacePath,
-      agentDataPath
+      destinationWorkspacePath
     )
+    if (result.skipped) continue
     if (result.copied) copiedEntries++
     else reusedEntries++
     fileCount += result.fileCount
@@ -1786,11 +1451,7 @@ async function publishPreparedWorkspaceEntries(
     }
 
     try {
-      await publishStagedWorkspaceEntry(
-        publication.stagingPath,
-        publication.destinationPath,
-        publication.sourceLinkType
-      )
+      await publishStagedWorkspaceEntry(publication.stagingPath, publication.destinationPath)
       publishedEntries++
     } catch (error) {
       const racedDestinationSnapshot = await filesystemEntrySnapshot(publication.destinationPath)
@@ -2116,8 +1777,7 @@ export async function stageLegacyAgentFiles(input: {
         workspaceCopyContext,
         input.agentsDataRoot,
         contentSession.sourceWorkspacePath,
-        contentSession.systemWorkspacePath,
-        agentDataPath
+        contentSession.systemWorkspacePath
       )
       copiedWorkspaceEntries += workspaceStats.copiedEntries
       reusedWorkspaceEntries += workspaceStats.reusedEntries

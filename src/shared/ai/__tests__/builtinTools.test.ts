@@ -15,6 +15,9 @@ import {
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
+  TO_MARKDOWN_DESCRIPTION,
+  TO_MARKDOWN_SUPPORTED_EXTENSIONS,
+  toMarkdownInputSchema,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME,
   webFetchInputSchema
@@ -171,6 +174,36 @@ describe('builtin tool contracts', () => {
 
   it('lets the MCP kb_read path omit mode-specific fields', () => {
     expect(kbReadInputSchema.safeParse({ baseId: 'kb-1', conceptId: 'docs/intro.md' }).success).toBe(true)
+  })
+
+  it('advertises the exact to_markdown input boundary and supported extensions', () => {
+    expect(Object.keys(toMarkdownInputSchema.shape)).toEqual(['path'])
+    expect(TO_MARKDOWN_SUPPORTED_EXTENSIONS.split(', ')).toEqual([
+      '.doc',
+      '.docx',
+      '.docm',
+      '.ppt',
+      '.pps',
+      '.pot',
+      '.pptx',
+      '.pptm',
+      '.ppsx',
+      '.ppsm',
+      '.xls',
+      '.xlsx',
+      '.xlsm',
+      '.xlsb',
+      '.odt',
+      '.ods',
+      '.odp',
+      '.rtf',
+      '.epub',
+      '.csv',
+      '.pdf'
+    ])
+    expect(toMarkdownInputSchema.shape.path.description).toContain(TO_MARKDOWN_SUPPORTED_EXTENSIONS)
+    expect(TO_MARKDOWN_DESCRIPTION).toContain(TO_MARKDOWN_SUPPORTED_EXTENSIONS)
+    expect(TO_MARKDOWN_DESCRIPTION).toContain('OCR')
   })
 
   it('validates final report artifacts', () => {

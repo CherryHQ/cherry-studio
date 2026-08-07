@@ -96,7 +96,13 @@ export type { DerivedReasoningFields } from './utils/reasoningControls'
 export { deriveLegacyReasoningFields } from './utils/reasoningControls'
 
 // Model ID normalization utilities
-export { normalizeModelId } from './utils/normalize'
+export {
+  normalizeModelId,
+  stripBedrockDottedVendorPrefix,
+  stripBedrockRevision,
+  stripDateSnapshot,
+  stripVariantQuantDateSuffixes
+} from './utils/normalize'
 
 // Pure lookup and transformation utilities (no fs dependency)
 export type { ModelLookupResult, PersistedEndpointConfig } from './registry-utils'

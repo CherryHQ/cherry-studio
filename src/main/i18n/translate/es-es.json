@@ -2,14 +2,14 @@
   "agent": {
     "builtin": {
       "cherry_assistant": {
-        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Asesor integrado de Cherry Studio. Diagnostica problemas, guía las operaciones, recopila preguntas frecuentes, envía errores o solicitudes de funciones y busca o crea habilidades"
       }
     },
     "session": {
       "workspace_status": {
         "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
         "missing": "La ruta del espacio de trabajo no existe: {{path}}",
-        "not_directory": "La ruta del espacio de trabajo no es un directorio: {{path}}"
+        "not_directory": "La ruta del espacio de trabajo no es una carpeta: {{path}}"
       }
     }
   },
@@ -88,8 +88,8 @@
       "title": "Restablecer datos de la aplicación"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "Guardar paquete de diagnóstico",
+      "zip_filter": "Archivo ZIP"
     },
     "html_files": "Archivos HTML",
     "open_file": "Abrir archivo",
