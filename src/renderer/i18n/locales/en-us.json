@@ -6668,6 +6668,7 @@
         "notice": {
           "downloadFailed": "Download failed. Check your connection and try again.",
           "inUse": "Still used by a knowledge base; the weights were kept.",
+          "incompleteCache": "Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "Remove failed. Check the logs for details."
         },
         "ocr": {

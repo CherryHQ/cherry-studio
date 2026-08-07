@@ -6668,6 +6668,7 @@
         "notice": {
           "downloadFailed": "下载失败，请检查网络后重试。",
           "inUse": "该模型仍被知识库使用，已保留权重。",
+          "incompleteCache": "模型文件不完整，请重新下载修复。",
           "removeFailed": "删除失败，请查看日志。"
         },
         "ocr": {
