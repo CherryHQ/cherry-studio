@@ -161,6 +161,23 @@ describe('buildSystemPrompt — current workspace', () => {
     expect(text).not.toContain('"/workspace/project-a"')
   })
 
+  it('appends root-scoped AGENTS.md instructions alongside the native Claude Code project context', async () => {
+    const result = await buildSystemPrompt(
+      makeSession(),
+      makeAgent(),
+      '/workspace/project-a',
+      false,
+      '/data/Agents/agent-1',
+      [],
+      [],
+      '## Workspace Instructions (AGENTS.md)\n\nRoot repository rules.'
+    )
+
+    const text = expectClaudeCodePreset(result)
+    expect(text).toContain('## Workspace Instructions (AGENTS.md)')
+    expect(text).toContain('Root repository rules.')
+  })
+
   it('does not duplicate the preset-owned workspace context for the built-in assistant', async () => {
     const agent = makeAgent({
       instructions: 'Assistant instructions.',
@@ -261,7 +278,9 @@ describe('buildSystemPrompt — Agent System Prompt authority', () => {
 
     expect(text).toContain('1. Platform and runtime safety constraints')
     expect(text).toContain('2. Agent System Prompt (`agent.instructions`)')
-    expect(text).toContain('3. Workspace Instructions (`system.md`, when present)')
+    expect(text).toContain(
+      '3. Workspace Instructions (`system.md`, `CLAUDE.md`, and scoped `AGENTS.md` files, when present)'
+    )
     expect(text).toContain('4. Agent Persona (`SOUL.md`)')
     expect(text).toContain('WORKSPACE_ROLE: You are the workspace reviewer.')
     expect(text).toContain('SOUL_ROLE: You are the friendly historian.')
