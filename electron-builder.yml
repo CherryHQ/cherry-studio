@@ -156,44 +156,140 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0 - A New AI Workspace, from Chat to Getting Work Done
+    Cherry Studio 2.0.1 - Refinements and Fixes
 
-    ✨ New Interface, New Experience
-    - Upgraded interactions and visual design make chats, roles, projects, and tasks clearer and easier to organize
-    - Built for multitasking, with multi-window and split-view layouts for switching between work and reviewing progress and deliverables
+    ✨ New Features
+    - [Agent] Built-in document conversion for workspace files
+    - [Chat] Show the generating model's identity on single replies
+    - [Chat] Assistant picker keeps the create row visible while searching
+    - [Chat] Permission mode submenu indicator in the composer
+    - [Tab Bar] Chrome-style divider between adjacent tabs
+    - [Tab Bar] Settings opens as a focused tab that can be detached to a window
+    - [Assistant] Drag to reorder conversation sidebar assistant groups
+    - [Settings] Privacy-focused diagnostic bundle export in About
+    - [Models] DeepSeek V4 Flash built-in web search
+    - [Providers] Embedding endpoint type for NEWAPI model configuration
+    - [Provider Settings] Persist provider filter across visits and restarts
 
-    🤖 More Powerful Agents
-    - Supports both OpenAI and Anthropic endpoints, reuses Claude and Codex subscriptions, and works with more models
-    - The core Agent runtime is built in, greatly reducing dependency installation and environment setup
-    - Complete research, documents, presentations, data analysis, and coding faster, with one-click previews of results
-
-    🛠️ More Tool Upgrades
-    - Agents can read and maintain knowledge bases, helping your knowledge grow continuously like a Wiki
-    - Code tools are upgraded to Code Mate, with one-click model service configuration for Claude Code, Codex, and more
-    - Image generation dynamically shows the parameters available for each model, making results easier to control
+    🐛 Bug Fixes
+    - [Chat] Preserve conversation branches when deleting messages
+    - [Chat] Restore missing assistant names and avatars in migrated conversations
+    - [Chat] Restore default reasoning effort option after selecting a level
+    - [Chat] Prevent reference context leaks in collapsed message previews
+    - [Chat] Fix Exa web search not sending the configured API key
+    - [Chat] Fix chats failing with HTTP 400 when attaching files
+    - [Chat] Fix Gemini tool calls failing via OpenAI-compatible endpoints
+    - [Chat] Fix model selector crash when a capability filter is active
+    - [Chat] Fix model selector rebuilding model lists and causing slowdowns
+    - [Chat] Fix nested scroll regions affecting the chat viewport position
+    - [Chat] Fix right-click copying of rendered math formulas to preserve TeX
+    - [Chat] Fix Claude Code requests through the API Gateway failing with Responses API providers
+    - [Chat] Fix Claude Agent sessions on no-prefill Claude models
+    - [Chat] Fix Claude Code MCP servers failing to start on Windows when Node provides npx.cmd
+    - [Chat] Fix Claude Code Agent system prompts being overwritten by Cherry Studio instructions
+    - [Chat] Fix DeepSeek V4 model routing and OpenCode Go model API protocols
+    - [Chat] Fix Agent requests failing with HTTP 400 after gateway conversion
+    - [Chat] Fix Exa web search crashing on non-string queries
+    - [Chat] Fix translating button contrast on Windows
+    - [Tab Bar] Fix assistant and agent conversation tabs reverting their titles or losing identity
+    - [Sidebar] Normalize mini-app icons and conversation list typography and selection states
+    - [Sidebar] Fix OpenClaw dashboards staying blank or unresponsive after a gateway restart
+    - [Models] Fix missing Kimi model avatars for custom providers using K3 IDs
+    - [Models] Clarify the multi-select control with a localized button
+    - [Models] Add left/right scroll controls when model type categories overflow
+    - [Models] Fix new painting drafts not applying the default painting model
+    - [Models] Fix migration of TokenFlux painting history
+    - [Agent] Restore context usage indicator for Gateway-routed agent models
+    - [Agent] Restore normal Cherry Assistant agent capabilities
+    - [Agent] Hide disabled MCP tools from agents
+    - [Agent] Fix agent follow-ups being lost while background tasks report results
+    - [Agent] Fix localhost/loopback gateway connections bypassing configured proxies
+    - [Agent] Fix agent-session turn ordering during reconnects
+    - [Agent] Hide the prompt variable help popover in the agent prompt editor
+    - [Agent] Keep agent edit dialogs open after save failures
+    - [Migration] Fix crashes and out-of-memory failures during v1→v2 migration
+    - [Migration] Fix Agent v2 migration failing when a legacy workspace shares the Agent data path
+    - [Migration] Fix agent filesystem migration failing on cloud-storage metadata churn
+    - [Migration] Fix v2 migration failures caused by unusable legacy API keys
+    - [Notes] Fix empty notes retaining content from the previously selected note
+    - [Notes] Fix pasted markdown tables and code blocks rendering as plain text
+    - [Code] Fix custom code fonts being ignored in conversation code blocks
+    - [Code] Fix provider enabling before CLI installation
+    - [Settings] Fix AI error diagnosis using the default assistant model instead of the free Qwen model
+    - [Skills] Raise imported skill ZIP entry limit from 1,000 to 2,000
+    - [Tasks] Fix scheduled task deletion showing a misleading load failure
+    - [Export] Clarify Export menu grouping and preserve per-message local file saving
+    - [Profile] Allow WebP avatar uploads
 
     ⚡ Performance
-    - A fully upgraded data foundation stays responsive even with extensive history
-    - Smoother scrolling in very long conversations, while large-folder imports no longer block the interface
+    - [Agent] Improve conversation loading responsiveness and avoid unrelated session row updates
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0 - 全新 AI 工作台，从对话到完成任务
+    Cherry Studio 2.0.1 - 体验优化与问题修复
 
-    ✨ 全新界面，全新体验
-    - 交互与视觉全面升级，更清晰简约，让聊天、角色、项目和任务更容易组织
-    - 面向多任务协作，支持多窗口与分屏布局，灵活切换，随时查看进度和产物
+    ✨ 新功能
+    - [Agent] 内置工作区文档格式转换
+    - [Chat] 单模型回复显示当前生成模型的头像与名称
+    - [Chat] 助手选择器在搜索时保持创建行可见
+    - [Chat] 输入框权限模式显示子菜单指示
+    - [Tab Bar] 相邻标签页之间绘制 Chrome 风格分割线
+    - [Tab Bar] 设置作为独立标签页打开，可分离为单独窗口
+    - [Assistant] 侧边栏助手分组支持拖拽排序
+    - [Settings] 关于页新增隐私优先的本地诊断包导出
+    - [Models] DeepSeek V4 Flash 内置联网搜索
+    - [Providers] NEWAPI 模型配置新增 embedding 端点类型
+    - [Provider Settings] 服务商筛选在切换页面和重启后保持
 
-    🤖 Agent 能力强化
-    - 同时兼容 OpenAI 与 Anthropic 端点，可复用 Claude 和 Codex 订阅，支持更多模型
-    - Agent 核心运行环境内置，大幅减少依赖安装和环境配置
-    - 更快完成信息收集、文档撰写、PPT、数据分析和代码开发，一键预览成果
-
-    🛠️ 更多工具升级
-    - Agent 可读取和维护知识库，让知识像 Wiki 一样持续积累
-    - 代码工具升级为 Code Mate，可将模型服务一键配置到 Claude Code、Codex 等编程工具
-    - 绘图根据不同生图模型动态显示可用参数，更容易控制生成结果
+    🐛 问题修复
+    - [Chat] 删除消息时正确保留对话分支
+    - [Chat] 恢复迁移后对话中缺失的助手名称和头像
+    - [Chat] 恢复选择推理强度后的"跟随模型默认"选项
+    - [Chat] 修复折叠消息预览中引用上下文泄露的问题
+    - [Chat] 修复 Exa 联网搜索未发送已配置 API Key 的问题
+    - [Chat] 修复附件上传导致 400 错误的问题
+    - [Chat] 修复通过 OpenAI 兼容端点调用 Gemini 工具失败的问题
+    - [Chat] 修复在能力筛选激活时选择模型崩溃的问题
+    - [Chat] 修复模型选择器重复重建模型列表导致的卡顿
+    - [Chat] 修复嵌套滚动区域影响外层聊天视口位置的问题
+    - [Chat] 修复右键复制数学公式时丢失 TeX 源码的问题
+    - [Chat] 修复通过 API Gateway 调用 Claude Code 在 Responses API 服务商下失败的问题
+    - [Chat] 修复无 prefill 的 Claude 模型上 Agent 会话异常的问题
+    - [Chat] 修复 Windows 上 Node 提供 npx.cmd 时 Claude Code MCP 服务器启动失败
+    - [Chat] 修复 Claude Code Agent 系统提示被 Cherry Studio 指令覆盖的问题
+    - [Chat] 修复 DeepSeek V4 模型路由和 OpenCode Go 模型 API 协议
+    - [Chat] 修复网关转换后 Agent 请求返回 HTTP 400 的问题
+    - [Chat] 修复 Exa 联网搜索在非字符串查询时崩溃的问题
+    - [Chat] 修复翻译按钮在 Windows 上的对比度
+    - [Tab Bar] 修复助手和 Agent 对话标签页标题回退或身份丢失的问题
+    - [Sidebar] 统一小程序图标和会话列表的字号字重与选中态
+    - [Sidebar] 修复 OpenClaw 仪表盘在网关重启后空白或无响应的问题
+    - [Models] 修复自定义服务商使用 K3 模型 ID 时 Kimi 头像缺失
+    - [Models] 用本地化按钮明确多选控件
+    - [Models] 模型类型分类溢出时增加左右滚动控件
+    - [Models] 修复新绘画草稿未应用默认绘画模型的问题
+    - [Models] 修复 TokenFlux 绘画历史迁移丢失的问题
+    - [Agent] 恢复网关路由 Agent 模型的上下文用量指示
+    - [Agent] 恢复 Cherry Assistant 正常的 Agent 能力
+    - [Agent] 不再将已禁用的 MCP 工具暴露给 Agent
+    - [Agent] 修复后台任务回报期间 Agent 追问消息丢失的问题
+    - [Agent] 修复 localhost/环回网关绕过已配置代理的问题
+    - [Agent] 修复重连时 Agent 会话回合顺序错乱的问题
+    - [Agent] 隐藏 Agent 提示词编辑器中的系统变量帮助弹窗
+    - [Agent] 修复保存失败时 Agent 编辑对话框异常关闭的问题
+    - [Migration] 修复 v1→v2 迁移过程中的崩溃和内存溢出问题
+    - [Migration] 修复旧工作区与 Agent 数据路径重叠时 Agent v2 迁移失败
+    - [Migration] 修复云存储元数据变化导致 Agent 文件系统迁移失败
+    - [Migration] 修复旧 API Key 不可用导致 v2 迁移失败
+    - [Notes] 修复空笔记残留上一个笔记内容的问题
+    - [Notes] 修复粘贴的 Markdown 表格和代码块被渲染为纯文本的问题
+    - [Code] 修复对话代码块忽略自定义代码字体的问题
+    - [Code] 修复 CLI 安装前无法启用服务商的问题
+    - [Settings] 修复 AI 错误诊断使用默认助手模型而非免费 Qwen 模型的问题
+    - [Skills] 导入技能 ZIP 条目上限从 1,000 提升到 2,000
+    - [Tasks] 修复定时任务删除后显示误导性加载失败的问题
+    - [Export] 厘清导出菜单分组并保留单条消息本地保存
+    - [Profile] 支持 WebP 头像上传
 
     ⚡ 性能优化
-    - 数据底座全面升级，历史记录再多也能保持流畅
-    - 优化超长对话滚动和大文件夹导入，不再阻塞界面操作
+    - [Agent] 提升 Agent 对话加载响应速度，避免无关会话行的额外更新
     <!--LANG:END-->
