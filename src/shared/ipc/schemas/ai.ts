@@ -197,6 +197,7 @@ export const aiRequestSchemas = {
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
+          targetMode: z.enum(['active-path', 'reserved-branch']).optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           fastMode: z.boolean().optional()
         }),

@@ -8,8 +8,9 @@ import { type ChannelEventSchemas, channelRequestSchemas } from './channel'
 import { cherryinRequestSchemas } from './cherryin'
 import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
+import { diagnosticsRequestSchemas } from './diagnostics'
 import { exportRequestSchemas } from './export'
-import { fileRequestSchemas } from './file'
+import { type FileEventSchemas, fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
 import { type LocalModelEventSchemas, localModelRequestSchemas } from './localModel'
@@ -50,6 +51,7 @@ export const ipcRequestSchemas = {
   ...cherryinRequestSchemas,
   ...citationRequestSchemas,
   ...codeCliRequestSchemas,
+  ...diagnosticsRequestSchemas,
   ...exportRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
@@ -90,6 +92,7 @@ export type IpcEventSchemas = AiEventSchemas &
   BackupEventSchemas &
   BinaryEventSchemas &
   ChannelEventSchemas &
+  FileEventSchemas &
   LocalModelEventSchemas &
   McpEventSchemas &
   NavigationEventSchemas &
