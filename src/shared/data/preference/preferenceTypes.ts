@@ -341,6 +341,7 @@ export const FILE_PROCESSOR_IDS = [
   'system',
   'paddleocr',
   'local-paddleocr',
+  'local-document',
   'ovocr',
   'mineru',
   'doc2x',

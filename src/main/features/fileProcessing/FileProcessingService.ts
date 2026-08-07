@@ -10,7 +10,7 @@ import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/file
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { ocrImageToText } from './ocrImageToText'
 import { processorRegistry } from './processors/registry'
-import { backgroundJobHandler } from './tasks/backgroundJobHandler'
+import { backgroundJobHandler, localBackgroundJobHandler } from './tasks/backgroundJobHandler'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
 import { remotePollJobHandler } from './tasks/remotePollJobHandler'
 import type { FileProcessingJobPayload } from './tasks/shared'
@@ -27,6 +27,7 @@ export class FileProcessingService extends BaseService {
     // startup recovery sweep sees them when re-dispatching non-terminal jobs.
     const jobManager = application.get('JobManager')
     jobManager.registerHandler('file-processing.background', backgroundJobHandler)
+    jobManager.registerHandler('file-processing.background-local', localBackgroundJobHandler)
     jobManager.registerHandler('file-processing.remote-poll', remotePollJobHandler)
     logger.info('File processing service initialized')
   }
@@ -41,8 +42,9 @@ export class FileProcessingService extends BaseService {
    * processor/config/version.
    *
    * The handler.mode field on the capability handler determines the JobRegistry
-   * type to enqueue under (background vs remote-poll). This is a synchronous
-   * lookup — no `await prepare()` is needed at enqueue time.
+   * type to enqueue under (background vs remote-poll), and for background the
+   * processor's `runtime` picks the local or remote half. Both are synchronous
+   * lookups — no `await prepare()` is needed at enqueue time.
    */
   async startJob(
     input: StartFileProcessingJobInput,
@@ -68,7 +70,12 @@ export class FileProcessingService extends BaseService {
       ...(context ? { context } : {})
     }
 
-    const type = handler.mode === 'background' ? 'file-processing.background' : 'file-processing.remote-poll'
+    const type =
+      handler.mode === 'remote-poll'
+        ? 'file-processing.remote-poll'
+        : processorRegistry[config.id].runtime === 'local'
+          ? 'file-processing.background-local'
+          : 'file-processing.background'
     const jobManager = application.get('JobManager')
     const handle = jobManager.enqueue(type, payload, options.parentId ? { parentId: options.parentId } : {})
 
@@ -96,9 +103,16 @@ export class FileProcessingService extends BaseService {
     return ocrImageToText(file, signal)
   }
 
+  /**
+   * Processors this machine could run — the settings pages list exactly these.
+   *
+   * Filters on platform support only. A processor whose local model is not
+   * downloaded yet still belongs in the list: hiding it strands the user, since
+   * its settings entry is where the download button lives.
+   */
   listAvailableProcessors(): ListAvailableFileProcessorsResult {
     const processorIds = Object.entries(processorRegistry)
-      .filter(([, processor]) => processor.isAvailable())
+      .filter(([, processor]) => processor.isSupported())
       .map(([processorId]) => processorId as FileProcessorId)
     return ListAvailableFileProcessorsResultSchema.parse({ processorIds })
   }

@@ -11,6 +11,7 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { FileProcessorIcon } from '@renderer/components/icons/FileProcessorIcon'
 import {
   SettingGroup,
   SettingHelpLink,
@@ -24,6 +25,7 @@ import { toast } from '@renderer/services/toast'
 import { formatApiKeys, joinApiKeyString, splitApiKeyString, validateApiHost } from '@renderer/utils/api'
 import { cn } from '@renderer/utils/style'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import { FILE_PROCESSOR_LOCAL_MODEL } from '@shared/data/presets/fileProcessing'
 import { List, SquareCheckBig } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -39,9 +41,9 @@ import {
   supportsLanguageConfig
 } from '../utils/fileProcessingMeta'
 import { FileProcessingApiKeyListPopup } from './FileProcessingApiKeyList'
+import { LocalModelRequirement } from './LocalModelRequirement'
 import { PaddleOcrDeploymentInfo } from './PaddleOcrDeploymentInfo'
 import { PaddleOcrModelSettings } from './PaddleOcrModelSettings'
-import { ProcessorAvatar } from './ProcessorAvatar'
 import { TesseractLanguagePacks } from './TesseractLanguagePacks'
 
 const logger = loggerService.withContext('ProcessorPanel')
@@ -89,11 +91,12 @@ export function ProcessorPanel({
   const featureTitle = t(featureTitleKey)
   const showApiSettings = supportsApiSettings(processor)
   const showLanguageOptions = shouldShowLanguageOptions(processor.id)
+  const requiredLocalModel = FILE_PROCESSOR_LOCAL_MODEL[processor.id]
   const hasProcessorDetails =
     showApiSettings ||
     processor.id === 'paddleocr' ||
-    processor.id === 'local-paddleocr' ||
     processor.id === 'system' ||
+    Boolean(requiredLocalModel) ||
     showLanguageOptions
 
   const [apiKeysInput, setApiKeysInput] = useState(() => joinApiKeyString(processor.apiKeys ?? []))
@@ -238,7 +241,7 @@ export function ProcessorPanel({
             {entries.map((item) => (
               <SelectItem key={item.key} value={item.processor.id}>
                 <div className="flex items-center gap-2">
-                  <ProcessorAvatar processorId={item.processor.id} />
+                  <FileProcessorIcon processorId={item.processor.id} />
                   <span>{t(getProcessorNameKey(item.processor.id))}</span>
                 </div>
               </SelectItem>
@@ -309,18 +312,8 @@ export function ProcessorPanel({
 
       {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}
 
-      {processor.id === 'local-paddleocr' ? (
-        <div className="flex flex-col gap-3 border-border-subtle border-t pt-4">
-          <SettingRow className="items-start justify-start gap-2 py-1">
-            <SquareCheckBig size={13} className="mt-0.5 shrink-0 text-success" />
-            <div className="min-w-0 flex-1">
-              <SettingRowTitle className="text-success text-xs">
-                {t('settings.tool.file_processing.processors.local_paddleocr.status.local')}
-              </SettingRowTitle>
-              <SettingHelpText className="mt-1 text-xs">{t(getProcessorDescriptionKey(processor.id))}</SettingHelpText>
-            </div>
-          </SettingRow>
-        </div>
+      {requiredLocalModel ? (
+        <LocalModelRequirement model={requiredLocalModel} description={t(getProcessorDescriptionKey(processor.id))} />
       ) : null}
 
       {processor.id === 'system' ? (

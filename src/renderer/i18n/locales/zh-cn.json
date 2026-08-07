@@ -3214,7 +3214,6 @@
       "updated_at": "更新于 {{time}}"
     },
     "name_required": "知识库名称为必填项",
-    "not_set": "未设置",
     "provider_not_found": "未找到服务商",
     "rag": {
       "chunk_overlap": "重叠大小",
@@ -3229,12 +3228,13 @@
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
       "document_count": "Top K",
-      "download_local_embedding": "下载本地模型",
       "download_local_embedding_failed": "本地嵌入模型下载失败",
+      "download_local_model": "下载本地模型",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型选择",
       "file_processing": "文档处理",
       "file_processing_hint": "文档预处理将在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量",
+      "file_processing_none": "不使用",
       "hints": {
         "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
         "chunk_separator": "切分文本所用的分隔符（转义形式）。开启智能分段时作为额外切分点；关闭后仅按此分隔符切分。",
@@ -3248,6 +3248,7 @@
       },
       "processor": "处理服务商",
       "processor_not_configured": "未配置",
+      "processor_not_downloaded": "未下载",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
       "reset_action": "恢复默认",
@@ -8266,8 +8267,12 @@
             "description": "高级文件还原引擎。",
             "name": "Doc2x"
           },
+          "local_document": {
+            "description": "完全在本机将 PDF 转换为 Markdown。带文本层的文档直接解析，扫描版回退到本地 OCR 模型。",
+            "name": "本地文档解析"
+          },
           "local_paddleocr": {
-            "description": "在本地进程内运行的 PaddleOCR（PP-OCRv6 中等模型），完全离线、无需 API Key，识别在后台线程进行不阻塞界面。首次使用请先在「环境依赖」中下载模型（约 140MB）。",
+            "description": "在本地进程内运行的 PaddleOCR（PP-OCRv6 中等模型），完全离线、无需 API Key，识别在后台线程进行不阻塞界面。",
             "name": "本地 PaddleOCR",
             "status": {
               "local": "完全本地离线运行"

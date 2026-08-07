@@ -4,7 +4,16 @@ import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  openSettingsTab: vi.fn()
+  openSettingsTab: vi.fn(),
+  showDownloadPopup: vi.fn<(params: Record<string, unknown>) => Promise<boolean>>(),
+  localModel: {
+    status: 'ready' as 'not_downloaded' | 'downloading' | 'ready' | 'error' | 'unsupported',
+    isStatusResolved: true,
+    percent: 0,
+    download: vi.fn<() => Promise<boolean>>(),
+    cancel: vi.fn(),
+    remove: vi.fn()
+  }
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -15,15 +24,23 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
   openSettingsTab: mocks.openSettingsTab
 }))
 
+vi.mock('@renderer/components/popups/LocalModelDownloadPopup', () => ({
+  default: { show: mocks.showDownloadPopup }
+}))
+vi.mock('@renderer/hooks/useLocalModel', () => ({ useLocalModel: () => mocks.localModel }))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
+        'common.cancel': 'Cancel',
         'common.go_to_settings': 'Go to settings',
-        'knowledge.not_set': 'Not set',
         'knowledge.rag.file_processing': 'File processing',
         'knowledge.rag.file_processing_hint': 'Choose a document processor',
-        'knowledge.rag.processor_not_configured': 'Not configured'
+        'knowledge.rag.file_processing_none': "Don't use",
+        'knowledge.rag.processor_not_downloaded': 'Not downloaded',
+        'settings.dependencies.localModels.download': 'Download',
+        'settings.dependencies.localModels.ocr.subtitle': 'PaddleOCR PP-OCRv6 · ~140 MB'
       })[key] ?? key
   })
 }))
@@ -40,13 +57,17 @@ beforeAll(() => {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.localModel.status = 'ready'
+  mocks.localModel.isStatusResolved = true
 })
 
 const options = [
   { value: 'paddleocr', label: 'PaddleOCR', disabled: false },
-  { value: 'doc2x', label: 'Doc2X', disabled: true },
+  { value: 'doc2x', label: 'Doc2X', disabled: true, statusLabel: 'Not configured' },
   { value: 'mineru', label: 'MinerU', disabled: false }
 ]
+
+const LOCAL_OPTION = { value: 'local-document', label: 'Local document', disabled: false }
 
 const renderSection = (onFileProcessorChange = vi.fn()) => {
   render(
@@ -56,6 +77,18 @@ const renderSection = (onFileProcessorChange = vi.fn()) => {
       onFileProcessorChange={onFileProcessorChange}
     />
   )
+  return onFileProcessorChange
+}
+
+const renderWithLocalProcessor = (onFileProcessorChange = vi.fn()) => {
+  render(
+    <FileProcessingSection
+      fileProcessorId={null}
+      fileProcessorOptions={[...options, LOCAL_OPTION]}
+      onFileProcessorChange={onFileProcessorChange}
+    />
+  )
+  fireEvent.click(screen.getByRole('button', { name: 'File processing' }))
   return onFileProcessorChange
 }
 
@@ -84,11 +117,29 @@ describe('FileProcessingSection', () => {
     expect(onFileProcessorChange).toHaveBeenCalledWith('paddleocr')
   })
 
+  it('renders an icon for every processor, falling back when one has no logo', () => {
+    const onFileProcessorChange = vi.fn()
+    render(
+      <FileProcessingSection
+        fileProcessorId="local-document"
+        fileProcessorOptions={[LOCAL_OPTION, { value: 'not-a-real-processor', label: 'Unmapped', disabled: false }]}
+        onFileProcessorChange={onFileProcessorChange}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'File processing' }))
+
+    // A missing logo used to throw on `Logo.Avatar` and take the whole panel down.
+    expect(screen.getAllByTestId('processor-icon-local-document')[0].querySelector('img')).toBeInTheDocument()
+    expect(screen.getByTestId('processor-icon-not-a-real-processor').querySelector('svg')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Local document' })).toBeInTheDocument()
+  })
+
   it('clears the selection and opens document processing settings from the footer', () => {
     const onFileProcessorChange = renderSection()
 
     fireEvent.click(screen.getByRole('button', { name: 'File processing' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Not set' }))
+    fireEvent.click(screen.getByRole('button', { name: "Don't use" }))
     expect(onFileProcessorChange).toHaveBeenCalledWith(null)
 
     fireEvent.click(screen.getByRole('button', { name: 'File processing' }))
@@ -118,5 +169,68 @@ describe('FileProcessingSection', () => {
 
     await user.keyboard('{ArrowDown}{Enter}')
     expect(onFileProcessorChange).toHaveBeenCalledWith('mineru')
+  })
+
+  describe('local model processors', () => {
+    // Hiding the row is what stranded users before: the download it needs is
+    // only reachable by selecting it.
+    it('stays selectable while its model is missing and says so', async () => {
+      mocks.localModel.status = 'not_downloaded'
+      mocks.showDownloadPopup.mockResolvedValue(true)
+      const onFileProcessorChange = renderWithLocalProcessor()
+
+      const option = screen.getByRole('option', { name: /Local document/ })
+      expect(option).not.toHaveAttribute('aria-disabled', 'true')
+      expect(screen.getByText('Not downloaded')).toBeInTheDocument()
+
+      fireEvent.click(option)
+
+      await waitFor(() => expect(mocks.showDownloadPopup).toHaveBeenCalled())
+      expect(mocks.showDownloadPopup.mock.calls[0][0]).toMatchObject({
+        model: 'ocr',
+        description: 'PaddleOCR PP-OCRv6 · ~140 MB'
+      })
+      await waitFor(() => expect(onFileProcessorChange).toHaveBeenCalledWith('local-document'))
+    })
+
+    // The dialog resolves false for a decline, a mid-download cancel and a download
+    // the user gave up on — all three must leave the processor unselected, since it
+    // cannot run without the model.
+    it('leaves the selection alone unless the model actually arrives', async () => {
+      mocks.localModel.status = 'not_downloaded'
+      mocks.showDownloadPopup.mockResolvedValue(false)
+      const onFileProcessorChange = renderWithLocalProcessor()
+
+      fireEvent.click(screen.getByRole('option', { name: /Local document/ }))
+
+      await waitFor(() => expect(mocks.showDownloadPopup).toHaveBeenCalled())
+      expect(onFileProcessorChange).not.toHaveBeenCalled()
+    })
+
+    it('selects without prompting once the model is ready', () => {
+      const onFileProcessorChange = renderWithLocalProcessor()
+
+      expect(screen.queryByText('Not downloaded')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('option', { name: 'Local document' }))
+
+      expect(mocks.showDownloadPopup).not.toHaveBeenCalled()
+      expect(onFileProcessorChange).toHaveBeenCalledWith('local-document')
+    })
+
+    it('drops the processor entirely when the platform cannot run it', () => {
+      mocks.localModel.status = 'unsupported'
+      renderWithLocalProcessor()
+
+      expect(screen.queryByRole('option', { name: /Local document/ })).not.toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'PaddleOCR' })).toBeInTheDocument()
+    })
+
+    it('holds back the status label until the probe answers', () => {
+      mocks.localModel.status = 'not_downloaded'
+      mocks.localModel.isStatusResolved = false
+      renderWithLocalProcessor()
+
+      expect(screen.queryByText('Not downloaded')).not.toBeInTheDocument()
+    })
   })
 })

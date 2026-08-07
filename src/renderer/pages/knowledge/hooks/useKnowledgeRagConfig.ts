@@ -33,11 +33,16 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
 
   const fileProcessorOptions = useMemo(
     () =>
-      KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => ({
-        value: processor.id,
-        label: t(getFileProcessorLabelKey(processor.id)),
-        disabled: !canSelectFileProcessor(processor, fileProcessorOverrides[processor.id]?.apiKeys)
-      })),
+      KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => {
+        const disabled = !canSelectFileProcessor(processor, fileProcessorOverrides[processor.id]?.apiKeys)
+
+        return {
+          value: processor.id,
+          label: t(getFileProcessorLabelKey(processor.id)),
+          disabled,
+          statusLabel: disabled ? t('knowledge.rag.processor_not_configured') : undefined
+        }
+      }),
     [fileProcessorOverrides, t]
   )
 

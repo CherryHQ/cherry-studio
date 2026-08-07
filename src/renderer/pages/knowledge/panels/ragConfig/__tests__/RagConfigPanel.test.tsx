@@ -14,7 +14,13 @@ const mockEnableEmbedding = vi.fn()
 // embedMany goes through ipcApi.request('ai.embedding.embed_many', …) now (Main IPC).
 const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
+  ipcApi: {
+    // FileProcessingSection probes the local OCR model on mount; answering it here
+    // keeps that call out of the embedMany spy the embedding assertions read.
+    request: (route: string, input: unknown) =>
+      route === 'local_model.get_status' ? Promise.resolve({ status: 'ready' }) : mockEmbedMany(input)
+  },
+  useIpcOn: () => {}
 }))
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
