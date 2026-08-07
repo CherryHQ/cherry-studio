@@ -165,9 +165,26 @@ describe('ModelListSyncDrawer', () => {
 
     expect(screen.getByText('OpenAI common.models')).toBeInTheDocument()
     expect(screen.getAllByTestId('model-icon')).not.toHaveLength(0)
-    expect(screen.getByText('gpt-5')).toBeInTheDocument()
-    expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
-    expect(screen.getByText('legacy-model')).toBeInTheDocument()
+    expect(screen.getByText('GPT 5')).toBeInTheDocument()
+    expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
+    expect(screen.getByText('Legacy Model')).toBeInTheDocument()
+  })
+
+  // The raw api id moved out of a visible subtitle line into the title's tooltip, so it must stay
+  // reachable without a mouse: a focusable title (which opens the tooltip on focus) described by an
+  // off-screen copy of the id. Names can collide — the id is what disambiguates them.
+  it('keeps each raw api model id reachable by keyboard and screen reader', () => {
+    renderDrawer()
+
+    for (const [name, apiModelId] of [
+      ['GPT 5', 'gpt-5'],
+      ['Claude Sonnet', 'claude-sonnet'],
+      ['Legacy Model', 'legacy-model']
+    ]) {
+      const title = screen.getByText(name)
+      expect(title).toHaveAttribute('tabindex', '0')
+      expect(document.getElementById(title.getAttribute('aria-describedby')!)).toHaveTextContent(apiModelId)
+    }
   })
 
   it('renders a fallback group for models without explicit groups', () => {
@@ -185,24 +202,24 @@ describe('ModelListSyncDrawer', () => {
       target: { value: 'claude' }
     })
 
-    expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
-    expect(screen.getByText('claude-sonnet')).toBeInTheDocument()
-    expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
+    expect(screen.queryByText('GPT 5')).not.toBeInTheDocument()
+    expect(screen.getByText('Claude Sonnet')).toBeInTheDocument()
+    expect(screen.queryByText('Legacy Model')).not.toBeInTheDocument()
   })
 
   it('shows search matches inside collapsed groups and restores the collapsed state after search', () => {
     renderDrawer()
 
     fireEvent.click(screen.getByText('legacy').closest('button')!)
-    expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
+    expect(screen.queryByText('Legacy Model')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder'), {
       target: { value: 'legacy' }
     })
-    expect(screen.getByText('legacy-model')).toBeInTheDocument()
+    expect(screen.getByText('Legacy Model')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
-    expect(screen.queryByText('legacy-model')).not.toBeInTheDocument()
+    expect(screen.queryByText('Legacy Model')).not.toBeInTheDocument()
   })
 
   it('clears model search', () => {
@@ -211,12 +228,12 @@ describe('ModelListSyncDrawer', () => {
     fireEvent.change(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder'), {
       target: { value: 'legacy' }
     })
-    expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
+    expect(screen.queryByText('GPT 5')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
 
     expect(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder')).toHaveValue('')
-    expect(screen.getByText('gpt-5')).toBeInTheDocument()
+    expect(screen.getByText('GPT 5')).toBeInTheDocument()
   })
 
   it('adds all filtered models that are not already local', () => {
@@ -353,7 +370,7 @@ describe('ModelListSyncDrawer', () => {
 
     expect(screen.queryByText('settings.models.manage.sync_pull_failed')).not.toBeInTheDocument()
     expect(screen.getByPlaceholderText('settings.models.manage.search_models_placeholder')).toBeInTheDocument()
-    expect(screen.getByText('gpt-5')).toBeInTheDocument()
+    expect(screen.getByText('GPT 5')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'settings.models.manage.sync_pull_failed' }))
 
@@ -383,10 +400,10 @@ describe('ModelListSyncDrawer', () => {
     await user.click(staleTab)
 
     await waitFor(() => {
-      expect(screen.queryByText('gpt-5')).not.toBeInTheDocument()
+      expect(screen.queryByText('GPT 5')).not.toBeInTheDocument()
     })
-    expect(screen.getByText('legacy-model')).toBeInTheDocument()
-    expect(screen.queryByText('claude-sonnet')).not.toBeInTheDocument()
+    expect(screen.getByText('Legacy Model')).toBeInTheDocument()
+    expect(screen.queryByText('Claude Sonnet')).not.toBeInTheDocument()
   })
 
   it('keeps search available and disables bulk action while applying', () => {

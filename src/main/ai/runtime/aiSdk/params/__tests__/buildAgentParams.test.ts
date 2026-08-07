@@ -1172,11 +1172,15 @@ describe('resolveToolCallLimit', () => {
 
   it('retains the effective default cap for assistant-less and disabled-limit requests', () => {
     expect(resolveToolCallLimit(undefined)).toBe(20)
-    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(100)
   })
 
   it('falls back when the configured limit is outside the supported range', () => {
-    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 101 } }))).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 1001 } }))).toBe(100)
+  })
+
+  it('accepts a limit above the previous 100-round ceiling', () => {
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 500 } }))).toBe(500)
   })
 })
 

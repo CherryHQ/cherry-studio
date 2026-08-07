@@ -396,7 +396,7 @@ describe('Sidebar resize handle', () => {
   })
 
   it('renders apps and direct mini app icons together in one full docked list', () => {
-    const { container } = render(
+    render(
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
@@ -413,15 +413,11 @@ describe('Sidebar resize handle', () => {
 
     expect(screen.getByText('Chat')).toBeInTheDocument()
     expect(screen.getByText('Qwen')).toBeInTheDocument()
-    expect(container.querySelector('[data-testid="resolved-mini-app-logo-avatar"]')).not.toBeInTheDocument()
-    expect(container.querySelector('[data-testid="resolved-mini-app-logo"]')).toHaveStyle({
-      width: '16px',
-      height: '16px'
-    })
+    expect(screen.getByLabelText('Qwen')).toBeInTheDocument()
   })
 
   it('gives docked mini apps the shared icon-row button sizing and hover styles', () => {
-    const { container } = render(
+    render(
       <Sidebar
         width={SIDEBAR_ICON_WIDTH}
         setWidth={vi.fn()}
@@ -436,10 +432,8 @@ describe('Sidebar resize handle', () => {
       />
     )
 
-    const miniAppLogo = container.querySelector('[data-testid="resolved-mini-app-logo"]')
-    const dockedMiniAppButton = miniAppLogo?.closest('button')
+    const dockedMiniAppButton = screen.getByRole('button', { name: 'Qwen' })
 
-    expect(miniAppLogo).toHaveStyle({ width: '22px', height: '22px' })
     expect(dockedMiniAppButton).toHaveClass('h-9', 'w-9')
     expect(dockedMiniAppButton).toHaveClass('hover:bg-accent/60', 'hover:text-foreground')
   })

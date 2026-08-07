@@ -1157,7 +1157,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       expect(config.providerId).toBe('newapi')
       const settings = config.providerSettings as Record<string, unknown>
-      expect(settings.baseURL).toBe('https://api.newapi.com/anthropic')
+      expect(settings.baseURL).toBe('https://api.newapi.com/anthropic/v1')
     })
 
     it('falls back to default endpoint baseURL when anthropic endpointConfig has no baseUrl', async () => {
@@ -1177,6 +1177,96 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
 
       const settings = config.providerSettings as Record<string, unknown>
       expect(settings.baseURL).toBe('https://api.newapi.com/v1')
+    })
+
+    // A `/v1beta` typed for Gemini must not reach the chat route as `/v1beta/chat/completions`.
+    it.each([
+      ['https://api.newapi.com', 'https://api.newapi.com/v1'],
+      ['https://api.newapi.com/v1', 'https://api.newapi.com/v1'],
+      ['https://api.newapi.com/v1beta', 'https://api.newapi.com/v1']
+    ])('re-derives the chat baseURL of %s as %s', async (baseUrl, expected) => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl, adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+    })
+
+    // The Anthropic SDK appends `/messages`, so the baseURL must carry `/v1` — a version-less host
+    // would request `/messages` at the root, which NewAPI does not serve.
+    it.each([
+      ['https://api.newapi.com', 'https://api.newapi.com/v1'],
+      ['https://api.newapi.com/v1', 'https://api.newapi.com/v1'],
+      ['https://api.newapi.com#', 'https://api.newapi.com']
+    ])('resolves the anthropic baseURL of %s to %s', async (baseUrl, expected) => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.newapi.com', adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl, adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+    })
+
+    // One self-hosted host serves every protocol, so the `/v1` a user types belongs to the OpenAI
+    // route — Gemini still needs `/v1beta` rather than inheriting it.
+    it.each([
+      ['https://api.newapi.com', 'https://api.newapi.com/v1beta'],
+      ['https://api.newapi.com/v1', 'https://api.newapi.com/v1beta'],
+      ['https://gw.example.com/newapi/v1', 'https://gw.example.com/newapi/v1beta']
+    ])('resolves the gemini baseURL to /v1beta for a single host %s', async (baseUrl, expected) => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl, adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
+    })
+
+    // Every endpoint must reach the NewAPI adapter: the plain `google` / `openai` adapters read the
+    // host verbatim, which is how a `/v1` host produced `/v1/…:generateContent` and `/responses`.
+    it.each([
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'https://api.newapi.com/v1'],
+      [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'https://api.newapi.com/v1'],
+      [ENDPOINT_TYPE.OPENAI_RESPONSES, 'https://api.newapi.com/v1'],
+      [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'https://api.newapi.com/v1beta']
+    ])('routes %s through the newapi adapter with baseURL %s', async (endpointType, expected) => {
+      const provider = makeProvider({
+        id: 'my-newapi',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.newapi.com/v1', adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'newapi' },
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'newapi' }
+        }
+      })
+      const model = makeModel({ endpointTypes: [endpointType] })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('newapi')
+      expect((config.providerSettings as Record<string, unknown>).baseURL).toBe(expected)
     })
   })
 })

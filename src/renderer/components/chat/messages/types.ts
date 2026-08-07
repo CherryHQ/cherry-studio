@@ -403,8 +403,8 @@ export interface MessageListActions {
   deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
-  deleteMessageGroup?: (parentId: string) => void | Promise<void>
-  deleteMessageGroupWithConfirm?: (parentId: string) => void | Promise<void>
+  deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>
+  deleteMessageGroupWithConfirm?: (messageIds: readonly string[]) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
 }
 

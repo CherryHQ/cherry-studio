@@ -8,7 +8,7 @@
       },
       "model": {
         "supported_providers": "Unterstützte Anbieter",
-        "tooltip": "Derzeit sind für die Agent-Funktion nur Modelle verfügbar, die Anthropic-Endpunkte unterstützen.",
+        "tooltip": "Die meisten Chatmodelle sind für Agenten verfügbar. Gemini-Anbieter werden derzeit noch nicht unterstützt.",
         "view_providers": "Unterstützte Anbieter anzeigen"
       },
       "title": "Agent hinzufügen",
@@ -19,7 +19,7 @@
     "askUserQuestion": {
       "answered": "beantwortet",
       "close": "Schließen",
-      "customPlaceholder": "Gib deine Antwort ein...",
+      "customPlaceholder": "Geben Sie Ihre Antwort ein...",
       "loading": "Fragen werden geladen...",
       "multiSelect": "Mehrfachauswahl",
       "next": "Weiter",
@@ -38,7 +38,7 @@
     },
     "channels": {
       "add": "Hinzufügen",
-      "bindAgent": "Bind-Agent",
+      "bindAgent": "Agenten verknüpfen",
       "chatIdsAutoTrackHint": "Wenn es leer bleibt, verfolgt das System automatisch: Sie müssen dem Bot auf der Plattform zuerst eine Nachricht senden, dann zeichnet das System die Chat-ID für zukünftige Benachrichtigungen auf.",
       "comingSoon": "Demnächst verfügbar",
       "connected": "Verbunden",
@@ -50,13 +50,13 @@
       "disconnected": "Getrennt",
       "discord": {
         "botToken": "Bot-Token",
-        "botTokenPlaceholder": "Gib dein Discord-Bot-Token ein",
+        "botTokenPlaceholder": "Geben Sie Ihr Discord-Bot-Token ein",
         "channelIds": "Erlaubte Kanal-IDs",
         "channelIdsHint": "Format: channel:id oder dm:id. Leer lassen, um alle zuzulassen.",
         "channelIdsPlaceholder": "channel:123456789, dm:987654321",
         "description": "Nachrichten über einen Discord-Bot über WebSocket-Gateway empfangen und darauf reagieren.",
         "title": "Discord",
-        "whoamiTip": "💡 Tipp: Sende /whoami an den Bot, um deine Kanal-ID im richtigen Format zu erhalten."
+        "whoamiTip": "💡 Tipp: Senden Sie /whoami an den Bot, um Ihre Kanal-ID im richtigen Format zu erhalten."
       },
       "error": "Fehler",
       "feishu": {
@@ -77,7 +77,7 @@
         "loginHint": "Keine Anmeldeinformationen konfiguriert. Aktivieren Sie den Kanal, um die QR-Code-Registrierung zu starten, oder geben Sie App-ID und App-Secret manuell ein.",
         "qrExpired": "QR-Code abgelaufen. Bitte versuchen Sie es erneut, indem Sie den Kanal wechseln.",
         "qrHint": "Warten auf QR-Code-Scan...",
-        "qrScanHint": "Öffne Feishu auf deinem Handy und scanne den QR-Code, um eine Bot-App zu erstellen.",
+        "qrScanHint": "Öffnen Sie Feishu auf Ihrem Mobiltelefon und scannen Sie den QR-Code, um eine Bot-App zu erstellen.",
         "qrTitle": "Feishu-QR-Registrierung",
         "title": "Feishu",
         "verificationToken": "Verifizierungstoken",
@@ -105,7 +105,7 @@
         "permissionMode": "Kanalberechtigungsmodus",
         "permissionModeHint": "Überschreibe den Berechtigungsmodus des Agenten für Nachrichten aus diesem Kanal. „Vererben“ verwendet die Standardeinstellung des Agenten."
       },
-      "selectAgent": "Wählen Sie einen Agenten zum Binden aus",
+      "selectAgent": "Wählen Sie einen Agenten zum Verknüpfen aus",
       "slack": {
         "appToken": "App-Level-Token",
         "appTokenPlaceholder": "xapp-...",
@@ -116,7 +116,7 @@
         "channelIdsPlaceholder": "C01234567, D89012345",
         "description": "Nachrichten über einen Slack-Bot im Socket-Mode empfangen und darauf reagieren.",
         "title": "Slack",
-        "whoamiTip": "💡 Tipp: Sende /whoami an den Bot, um die Kanal-ID zu erhalten."
+        "whoamiTip": "💡 Tipp: Senden Sie /whoami an den Bot, um Ihre Kanal-ID zu erhalten."
       },
       "tab": "Kanäle",
       "telegram": {
@@ -138,12 +138,12 @@
         "connected": "Verbunden",
         "description": "Nachrichten über WeChat mit der iLink Bot API empfangen und beantworten.",
         "disconnected": "Getrennt",
-        "loginHint": "Die erste Anmeldung erfordert das Scannen eines QR-Codes. Überprüfe die App-Logs für die Anmelde-URL.",
+        "loginHint": "Bei der ersten Anmeldung muss ein QR-Code gescannt werden. Die Anmelde-URL finden Sie in den App-Protokollen.",
         "qrExpired": "QR-Code abgelaufen. Bitte versuchen Sie es erneut, indem Sie den Kanal wechseln.",
         "qrHint": "Öffnen Sie WeChat auf Ihrem Telefon, scannen Sie den QR-Code, um sich anzumelden.",
         "qrTitle": "WeChat-QR-Login",
         "title": "WeChat",
-        "whoamiTip": "Tipp: Sende /whoami in WeChat, um die ID eines Benutzers zu erhalten."
+        "whoamiTip": "Tipp: Senden Sie /whoami in WeChat, um die ID eines Benutzers zu erhalten."
       }
     },
     "composer": {
@@ -179,7 +179,7 @@
       "customPath": "Benutzerdefinierter Pfad: {{path}}",
       "error": {
         "description": "Git Bash ist erforderlich, um Agents unter Windows auszuführen. Der Agent kann ohne es nicht funktionieren. Bitte installieren Sie Git für Windows von",
-        "recheck": "Überprüfe die Git Bash-Installation erneut",
+        "recheck": "Git-Bash-Installation erneut prüfen",
         "required": "Git Bash-Pfad ist unter Windows erforderlich",
         "title": "Git Bash erforderlich"
       },
@@ -195,7 +195,7 @@
       },
       "placeholder": "Wählen Sie den Pfad zu bash.exe",
       "success": "Git Bash erfolgreich erkannt!",
-      "tooltip": "Git Bash ist erforderlich, um Agenten unter Windows auszuführen. Installiere es von git-scm.com, falls es nicht verfügbar ist."
+      "tooltip": "Git Bash ist erforderlich, um Agenten unter Windows auszuführen. Installieren Sie es von git-scm.com, falls es nicht verfügbar ist."
     },
     "home": {
       "welcome_title": "Wovon sollen wir heute sprechen?"
@@ -204,7 +204,7 @@
       "type": "Agent-Symbol"
     },
     "input": {
-      "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen"
+      "placeholder": "Geben Sie eine Nachricht ein. Senden Sie sie mit {{key}}. Geben Sie / ein, um Pfade oder Befehle zu suchen, oder @ für Dateien und Sitzungen."
     },
     "list": {
       "error": {
@@ -215,7 +215,7 @@
       "title": "Agenten verwalten"
     },
     "pin": {
-      "title": "Pin-Agent"
+      "title": "Agenten anheften"
     },
     "preview_pane": {
       "close": "Vorschau schließen",
@@ -242,7 +242,7 @@
         "unsupported": "Diese Datei kann hier in der Vorschau angezeigt, aber nicht sicher bearbeitet werden. Die Bearbeitung unterstützt UTF-8-Textdateien mit konsistenten LF- oder CRLF-Zeilenenden."
       },
       "empty": {
-        "description": "Beginne den Chat mit mit dem Agenten; generierter Code und Live-Vorschauen erscheinen hier.",
+        "description": "Beginnen Sie den Chat mit dem Agenten; generierter Code und Live-Vorschauen erscheinen hier.",
         "title": "Bereit"
       },
       "excel": {
@@ -338,15 +338,15 @@
         "no_subagents": "Keine Unteragenten",
         "shell_tasks": "Hintergrundbefehle",
         "subagents": "Unteragenten",
-        "workflows": "Workflows"
+        "workflows": "Arbeitsabläufe"
       },
       "status": {
         "activity": "Aktivität",
         "agent": "Agent",
         "context": "Kontext",
         "no_tasks": "Keine aktiven Aufgaben",
-        "run_task_live_one": "{{count}} live",
-        "run_task_live_other": "{{count}} live",
+        "run_task_live_one": "{{count}} aktiv",
+        "run_task_live_other": "{{count}} aktiv",
         "run_tasks": "Unteraufgaben",
         "selected_tool": "Ausgewähltes Werkzeug",
         "stop_run_task": "Aufgabe beenden",
@@ -369,13 +369,13 @@
     },
     "server": {
       "error": {
-        "not_running": "API server is enabled but not running properly."
+        "not_running": "Das API-Gateway ist aktiviert, läuft aber nicht ordnungsgemäß."
       }
     },
     "session": {
       "accessible_paths": {
         "add": "Verzeichnis hinzufügen",
-        "default_hint": "Standard: {{path}}",
+        "default_hint": "Wenn nichts angegeben wird, wird automatisch ein Standardarbeitsbereich erstellt.",
         "duplicate": "Dieses Verzeichnis wurde bereits hinzugefügt.",
         "empty": "Bitte wählen Sie mindestens ein Verzeichnis aus, auf das der Agent zugreifen kann.",
         "error": {
@@ -432,7 +432,7 @@
         "title": "Sitzung bearbeiten"
       },
       "empty": {
-        "description": "Aufgaben werden hier erscheinen, nachdem du eine gestartet hast.",
+        "description": "Aufgaben werden hier angezeigt, nachdem Sie eine gestartet haben.",
         "title": "Noch keine Aufgaben"
       },
       "file_manager": {
@@ -451,7 +451,6 @@
         "collapse": "Anzeige einklappen",
         "collapse_all": "Alle einklappen",
         "conversation": "Gespräche",
-        "drag_hint": "Ziehen zum Neuanordnen. Ziehen Sie Aufgaben, um angezeigte und ausgeblendete Gruppen anzupassen.",
         "earlier": "Früher",
         "expand_all": "Alle erweitern",
         "no_workdir": "Kein Arbeitsverzeichnis",
@@ -562,7 +561,7 @@
           "uninstall": "Sind Sie sicher, dass Sie dieses Plugin deinstallieren möchten?"
         },
         "empty": {
-          "available": "Keine Plugins gefunden, die deinen Filtern entsprechen. Versuche, deine Such- oder Kategoriefilter anzupassen."
+          "available": "Keine Plugins entsprechen Ihren Filtern. Passen Sie die Such- oder Kategoriefilter an."
         },
         "error": {
           "install": "Fehler beim Installieren des Plugins",
@@ -575,10 +574,10 @@
         },
         "install": {
           "button": "Installieren",
-          "title": "Install Plugins"
+          "title": "Plugins installieren"
         },
         "installed": {
-          "empty": "Noch keine Plugins installiert. Durchsuche verfügbare Plugins, um loszulegen.",
+          "empty": "Noch keine Plugins installiert. Durchsuchen Sie die verfügbaren Plugins, um zu beginnen.",
           "title": "Installierte Plugins"
         },
         "installing": "Wird installiert...",
@@ -588,7 +587,7 @@
           "format_hint": "Unterstützt Plugin-Pakete (.claude-plugin/plugin.json)",
           "hint": "Ziehen Sie das Plugin-ZIP hierher oder klicken Sie zum Auswählen",
           "invalid_format": "Bitte laden Sie eine ZIP-Datei hoch",
-          "partial_success": "Plugin „{{name}}“ teilweise installiert: {{installed}} installiert, {{failed}} fehlgeschlagen",
+          "partial_success": "{{installed}} Komponenten installiert, {{failed}} fehlgeschlagen",
           "select_folder": "Ordner auswählen",
           "select_folder_title": "Plugin-Ordner auswählen",
           "success": "Plugin „{{name}}“ erfolgreich installiert ({{count}} Komponenten)",
@@ -624,7 +623,7 @@
         "addMore": "Skills verwalten",
         "builtin": "Integriert",
         "noFilterResults": "Keine übereinstimmenden Fähigkeiten",
-        "noSkills": "Keine Skills installiert. Installiere Skills über Einstellungen > Skills.",
+        "noSkills": "Keine Fähigkeiten installiert. Installieren Sie Fähigkeiten unter Einstellungen > Fähigkeiten.",
         "searchPlaceholder": "Suchfähigkeiten...",
         "tab": "Fähigkeiten",
         "title": "Installierte Fertigkeiten"
@@ -693,7 +692,7 @@
           "tab": "MCP",
           "title": "MCP-Server"
         },
-        "tab": "Tools",
+        "tab": "Werkzeuge",
         "tools": {
           "title": "Vorab genehmigte Tools"
         }
@@ -714,7 +713,7 @@
       "channels": {
         "label": "An Kanäle senden",
         "noActiveChatIds": "Die ausgewählten Kanäle verfügen über keine verfügbaren Empfänger (Chat-ID). Aufgabenergebnisse werden möglicherweise nicht zugestellt. Bitte senden Sie dem Bot zunächst eine Nachricht auf der Plattform.",
-        "placeholder": "Wähle Kanäle, um Ergebnisse zu erhalten"
+        "placeholder": "Wählen Sie Kanäle aus, um Ergebnisse zu erhalten"
       },
       "cronPlaceholder": "z.B. 0 9 * * * (täglich um 9 Uhr)",
       "delete": {
@@ -949,7 +948,7 @@
         "deny": "Ablehnen",
         "run": "Laufen"
       },
-      "confirmation": "Bist du sicher, dass du dieses Claude-Tool ausführen möchtest?",
+      "confirmation": "Sind Sie sicher, dass Sie dieses Claude-Tool ausführen möchten?",
       "defaultDenyMessage": "Der Benutzer hat die Berechtigung für dieses Tool verweigert.",
       "defaultDescription": "Führt Code oder Systemaktionen in Ihrer Umgebung aus. Vergewissern Sie sich, dass der Befehl sicher aussieht, bevor Sie ihn ausführen.",
       "error": {
@@ -958,9 +957,9 @@
       "executing": "Ausführen...",
       "expired": "Abgelaufen",
       "inputPreview": "Vorschau der Werkzeugeingabe",
-      "pending": "Ausstehend ({{seconds}}s)",
+      "pending": "Warten auf Bestätigung",
       "pendingBadge": "Ausstehend",
-      "permissionExpired": "Berechtigungsanfrage abgelaufen. Warte auf neue Anweisungen...",
+      "permissionExpired": "Berechtigungsanfrage abgelaufen. Warten auf neue Anweisungen...",
       "requiresElevatedPermissions": "Dieses Tool erfordert erhöhte Berechtigungen.",
       "suggestion": {
         "permissionUpdateMultiple": "Das Genehmigen kann mehrere Sitzungsberechtigungen aktualisieren, wenn Sie sich entschieden haben, dieses Tool immer zuzulassen.",
@@ -980,7 +979,7 @@
           "label": "Gedächtnis"
         },
         "Bash": {
-          "description": "Führt Shell-Befehle in deiner Umgebung aus",
+          "description": "Führt Shell-Befehle in Ihrer Umgebung aus",
           "label": "Bash"
         },
         "CherryConfig": {
@@ -989,7 +988,7 @@
         },
         "CherryCron": {
           "description": "Verwaltet den In-App-Planer",
-          "label": "Scheduler"
+          "label": "Planer"
         },
         "CherryGenerateImage": {
           "description": "Erzeugt ein Bild aus einem Textprompt unter Verwendung Ihres konfigurierten Malmodells",
@@ -1118,7 +1117,7 @@
     },
     "messages": {
       "apiKeyRegenerated": "API-Schlüssel wurde neu generiert",
-      "notEnabled": "API server is not enabled.",
+      "notEnabled": "Starten Sie das Gateway, bevor Sie eine Verbindung mit dieser Adresse herstellen.",
       "operationFailed": "API-Server-Operation fehlgeschlagen:",
       "restartError": "API-Server-Neustart fehlgeschlagen:",
       "restartFailed": "API-Server-Neustart fehlgeschlagen:",
@@ -1138,7 +1137,7 @@
     "abbr": "Assistent",
     "clear": {
       "content": "Das Leeren von Themen löscht alle Themen und Dateien unter dem Assistenten. Möchten Sie fortfahren?",
-      "menu_title": "Lösche alle Assistenten-Konversationen",
+      "menu_title": "Themen leeren",
       "success_title": "{{count}} Themen gelöscht",
       "title": "Themen leeren"
     },
@@ -1169,7 +1168,7 @@
       "showByList": "Listenansicht"
     },
     "pin": {
-      "title": "Pin-Assistent"
+      "title": "Assistenten anheften"
     },
     "presets": {
       "add": {
@@ -1334,7 +1333,7 @@
       "regular_phrases": {
         "add": "Phrase hinzufügen",
         "contentLabel": "Inhalt",
-        "contentPlaceholder": "Bitte geben Sie den Phraseninhalt ein, unterstützen Sie die Verwendung von Variablen und drücken Sie die Tab-Taste, um schnell zur zu ändernden Variable zu springen. Beispiel:  \nHilf mir, eine Route von ${from} nach ${to} zu planen und sende sie an ${email}.",
+        "contentPlaceholder": "Geben Sie den Inhalt der Phrase ein. Unterstützt ${variables}; drücken Sie die Tabulatortaste, um zwischen Variablen zu wechseln. Beispiel:\nHelfen Sie mir, eine Route von ${from} nach ${to} zu planen und senden Sie sie an ${email}.",
         "delete": "Ausdruck löschen",
         "deleteConfirm": "Sind Sie sicher, dass Sie diese Phrase löschen möchten?",
         "edit": "Ausdruck bearbeiten",
@@ -1413,7 +1412,7 @@
     },
     "alerts": {
       "create_agent": "Erstellen Sie einen Agenten, um loszulegen.",
-      "create_session": "Erstelle eine Sitzung",
+      "create_session": "Sitzung erstellen",
       "select_agent": "Wählen Sie einen Agenten"
     },
     "artifacts": {
@@ -1447,7 +1446,7 @@
     "deeply_thought": "Tiefgehend nachgedacht ({{seconds}} Sekunden)",
     "default": {
       "description": "Hallo, ich bin der Standardassistent. Sie können sofort mit mir chatten",
-      "name": "Standardassistent",
+      "name": "Cherry-Assistent",
       "topic": {
         "name": "Standardthema"
       }
@@ -1470,7 +1469,7 @@
       "cancel_editing": "Bearbeitung abbrechen",
       "clear": {
         "content": "Möchten Sie wirklich alle Nachrichten der aktuellen Sitzung löschen?",
-        "label": "Nachrichten leeren {{Command}}",
+        "label": "Leeren",
         "title": "Nachrichten leeren"
       },
       "collapse": "Einklappen",
@@ -1502,7 +1501,7 @@
       "knowledge_base_unavailable": "Wählen Sie ein werkzeugfähiges Modell",
       "locate_editing_message": "Ursprüngliche Nachricht finden",
       "new": {
-        "context": "Kontext löschen {{Command}}"
+        "context": "Kontext löschen"
       },
       "new_session": "Neue Sitzung {{Command}}",
       "new_topic": "Neues Thema {{Command}}",
@@ -1514,8 +1513,8 @@
         "title": "Referenzhinweis"
       },
       "paste_text_file": "In die Eingabe einfügen",
-      "pasted_text_file_name": "Pasted text.txt",
-      "pause": "Pause",
+      "pasted_text_file_name": "Eingefügter Text.txt",
+      "pause": "Pausieren",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
       "reference_panel": {
@@ -1526,7 +1525,7 @@
             "description": "Keine Sitzungen entsprechen Ihrer Suche",
             "label": "Keine Sitzungen gefunden"
           },
-          "title": "Sessions"
+          "title": "Sitzungen"
         },
         "topic": {
           "no_results": {
@@ -1680,7 +1679,7 @@
           "disabled": {
             "active": "Dieser Knoten ist bereits ausgewählt. Tippen Sie weiter, um den Zweig von hier aus zu erweitern.",
             "latest": "Sie sind bereits am Ende dieses Zweigs. Tippen Sie weiter, um ihn zu erweitern.",
-            "no_follow_up": "Es gibt noch keine Nachfolge nach dieser Nachricht. Wechsle zu diesem Knoten und tippe stattdessen weiter."
+            "no_follow_up": "Nach dieser Nachricht gibt es noch keine Fortsetzung. Wechseln Sie zu diesem Knoten und schreiben Sie dort weiter."
           },
           "label": "Branch"
         },
@@ -1824,7 +1823,7 @@
             "save_failed": "Thema speichern fehlgeschlagen, bitte überprüfen Sie die Wissensdatenbank-Konfiguration"
           },
           "loading": "Themeninhalt wird analysiert...",
-          "menu_title": "Im Wissensbasis speichern",
+          "menu_title": "In der Wissensdatenbank speichern",
           "select": {
             "content": {
               "label": "Zu speichernde Inhaltstypen auswählen",
@@ -1926,7 +1925,7 @@
         "title_tip": "Tipp: Doppelklicken Sie auf den Themennamen, um ihn direkt umzubenennen"
       },
       "empty": {
-        "description": "Erstelle einen Chat, und er bleibt hier, damit du später mit seinem Kontext weitermachen kannst.",
+        "description": "Erstellen Sie einen Chat. Er bleibt hier gespeichert, damit Sie den Kontext später fortsetzen können.",
         "title": "Noch keine Chats"
       },
       "export": {
@@ -2013,14 +2012,14 @@
           "placeholder": "Ziel auswählen",
           "success": "{{count}} Thema(s) verschoben"
         },
-        "pinned": "Angepinnte Themen",
+        "pinned": "Angeheftete Unterhaltungen",
         "selected_count": "{{count}} ausgewählt",
         "title": "Themen verwalten",
         "unpinned": "Losgelöste Themen"
       },
       "move_to": "Verschieben nach",
       "new": "Neues Gespräch starten",
-      "pin": "Thema anheften",
+      "pin": "Unterhaltung anheften",
       "prompt": {
         "edit": {
           "title": "Themen-Prompt bearbeiten"
@@ -2062,7 +2061,7 @@
         "effort_level_hint": "Anstrengungsniveau",
         "enable_teammates": "Teammates aktivieren",
         "enable_tool_search": "Tool-Suche aktivieren",
-        "fable_model": "Fabel",
+        "fable_model": "Fable",
         "haiku_model": "Haiku",
         "hide_attribution": "KI-Kennzeichnung ausblenden",
         "max_context_tokens_hint": "Maximale Kontext-Token",
@@ -2076,7 +2075,7 @@
         "permissions_deny": "Verweigern (durch Komma getrennt)",
         "permissions_hint": "Tool-Muster vorab genehmigen oder ablehnen. Unterstützt Wildcards wie Read(secrets-*/config.json).",
         "role_column": "Rolle",
-        "sonnet_model": "Sonett",
+        "sonnet_model": "Sonnet",
         "subagent_model": "Unteragent"
       },
       "codex": {
@@ -2189,8 +2188,8 @@
     "env_vars_help": "Benutzerdefinierte Umgebungsvariablen eingeben (eine pro Zeile, Format: KEY=value)",
     "environment_variables": "Umgebungsvariablen",
     "folder_placeholder": "Arbeitsverzeichnis auswählen",
-    "format_json": "Format",
-    "hero_tagline": "Wähle ein CLI-Tool zur Konfiguration",
+    "format_json": "Formatieren",
+    "hero_tagline": "Wählen Sie ein CLI-Werkzeug zur Konfiguration aus",
     "install": "Installieren",
     "install_bun": "Bun installieren",
     "install_error": "Die Installation ist fehlgeschlagen",
@@ -2224,7 +2223,7 @@
     "move_provider_to_top": "Anbieter nach oben verschieben",
     "no_matching_providers": "Keine passenden Anbieter",
     "no_model_for_provider": "Kein Modell für diesen Anbieter verfügbar",
-    "no_providers_description": "Aktiviere einen unterstützten Anbieter unter Einstellungen → Modell-Service",
+    "no_providers_description": "Aktivieren Sie unter Einstellungen → Modelldienste einen unterstützten Anbieter",
     "no_providers_title": "Keine aktivierten Anbieter",
     "no_tools": "Keine Tools verfügbar",
     "not_installed": "Nicht installiert",
@@ -2248,7 +2247,7 @@
     "tool_parameters": "Parametereinstellungen",
     "up_to_date": "Aktuell",
     "update_options": "Update-Optionen",
-    "upgrade": "Upgrade",
+    "upgrade": "Aktualisieren",
     "upgrade_error": "Upgrade fehlgeschlagen",
     "upgrade_success": "Upgrade erfolgreich",
     "working_directory": "Arbeitsverzeichnis",
@@ -2295,7 +2294,7 @@
     }
   },
   "common": {
-    "about": "About",
+    "about": "Über",
     "add": "Hinzufügen",
     "add_success": "Erfolgreich hinzugefügt",
     "advanced_settings": "Erweiterte Einstellungen",
@@ -2369,7 +2368,7 @@
     "ignore": "Ignorieren",
     "image_preview": "Bildvorschau",
     "image_url": "Bild-URL",
-    "image_url_or_upload": "Gib Bild-URL ein oder lade Datei hoch",
+    "image_url_or_upload": "Geben Sie eine Bild-URL ein oder laden Sie eine Datei hoch",
     "invalid_value": "Ungültiger Wert",
     "knowledge_base": "Wissensdatenbank",
     "language": "Sprache",
@@ -2460,7 +2459,7 @@
       "objects": "Objekte",
       "people_body": "Menschen & Körper",
       "recent": "Häufig verwendet",
-      "smileys_emotion": "Smileys & Emotion",
+      "smileys_emotion": "Smileys und Emotionen",
       "symbols": "Symbole",
       "travel_places": "Reisen & Orte"
     },
@@ -2503,7 +2502,7 @@
       },
       "insufficient_balance": "Bitte gehen Sie zu <provider>{{provider}}</provider> zum Aufladen",
       "no_api_key": "Sie haben keinen API-Schlüssel konfiguriert. Bitte gehen Sie zu <provider>{{provider}}</provider>, um einen API-Schlüssel zu erhalten",
-      "quota_exceeded": "Ihr kostenloses Kontingent für heute ist aufgebraucht. Bitte gehen Sie zu <provider>{{provider}}</provider>, um einen API-Schlüssel zu erhalten und konfigurieren Sie ihn, um fortzufahren",
+      "quota_exceeded": "Ihr tägliches kostenloses Kontingent von {{quota}} ist aufgebraucht. Rufen Sie <provider>{{provider}}</provider> auf, beziehen Sie einen API-Schlüssel und konfigurieren Sie ihn, um den Dienst weiter zu nutzen.",
       "response": "Ein Fehler ist aufgetreten. Falls kein API-Schlüssel konfiguriert ist, gehen Sie bitte zu Einstellungen > Modellanbieter, um einen Schlüssel zu konfigurieren"
     },
     "content": "Inhalt",
@@ -2545,7 +2544,7 @@
       "400": "Anfragefehler. Bitte überprüfen Sie die Anfrageparameter. Falls Modelleinstellungen geändert wurden, setzen Sie diese auf Standardwerte zurück",
       "401": "Authentifizierung fehlgeschlagen. Bitte überprüfen Sie, ob der API-Schlüssel korrekt ist",
       "402": "Zahlung erforderlich. Ihr Kontoguthaben oder Kontingent ist aufgebraucht - bitte auf der Website des Anbieters aufladen oder zu einem anderen Anbieter wechseln",
-      "403": "Zugriff verweigert. Bitte übersetzen Sie die spezifische Fehlermeldung für Details oder kontaktieren Sie den Dienstanbieter",
+      "403": "Zugriff verweigert. Prüfen Sie die genaue Fehlermeldung oder wenden Sie sich an den Anbieter",
       "404": "Modell existiert nicht oder Anfragepfad ist fehlerhaft",
       "429": "Anfragelimit überschritten. Bitte versuchen Sie es später erneut",
       "500": "Serverfehler. Bitte versuchen Sie es später erneut",
@@ -2676,7 +2675,7 @@
     "pdf": {
       "too_large": {
         "action": "Mit Standard-App öffnen",
-        "description": "PDF-Dateien, die größer als {{limit}} MiB sind, können nicht in der Vorschau angezeigt werden.",
+        "description": "Ein Teil dieser PDF-Datei ist zu groß, um sicher in der App angezeigt zu werden.",
         "open_error": "Konnte diese Datei nicht öffnen",
         "title": "Die Datei ist zu groß"
       }
@@ -3003,9 +3002,9 @@
       "title": "Neue Wissensdatenbank"
     },
     "context": {
-      "delete": "Wissensbasis löschen",
+      "delete": "Wissensdatenbank löschen",
       "delete_confirm_description": "Diese Wissensdatenbank kann nach dem Löschen nicht wiederhergestellt werden.",
-      "delete_confirm_title": "Wissensbasis löschen?",
+      "delete_confirm_title": "Wissensdatenbank löschen?",
       "move_to": "Verschieben nach",
       "rename": "Umbenennen"
     },
@@ -3027,8 +3026,8 @@
           "selected_notes": "{{count}} Notizen ausgewählt"
         },
         "note": {
-          "description": "Wählen Sie vorhandene Notizen als Wissensbasisquellen aus",
-          "empty_description": "Auswählbare Notizen erscheinen hier, nachdem die echte Notizenliste verbunden wurde. Verwenden Sie bis dahin Dateien, Ordner, URLs oder Sitemaps.",
+          "description": "Wählen Sie vorhandene Notizen als Quellen für die Wissensdatenbank aus",
+          "empty_description": "Erstellen Sie in der Notizfunktion Notizen und kehren Sie anschließend hierher zurück, um sie auszuwählen.",
           "empty_title": "Notizen sind noch nicht verbunden",
           "loading": "Notizen werden geladen…"
         },
@@ -3044,13 +3043,13 @@
         },
         "submit": {
           "error": "Fehler beim Hinzufügen der Datenquelle",
-          "success": "Datenquelle zur Wissensbasis hinzugefügt"
+          "success": "Datenquelle zur Wissensdatenbank hinzugefügt"
         },
         "title": "Datenquelle hinzufügen",
         "too_many_sources": "Sie können maximal {{count}} Quellen gleichzeitig hinzufügen. Reduzieren Sie Ihre Auswahl und versuchen Sie es erneut.",
         "unsupported_files_skipped": "{{count}} nicht unterstützte Datei(en) übersprungen",
         "url": {
-          "description": "Gib eine Webseiten-URL ein:",
+          "description": "Geben Sie die URL einer Webseite ein:",
           "help": "Der Seitentext wird automatisch abgerufen, in Blöcke unterteilt und indiziert.",
           "input_label": "Webseiten-URL",
           "placeholder": "https://docs.cherry-ai.com/",
@@ -3129,26 +3128,26 @@
     },
     "dimensions_auto_set": "Embedding-Dimensionen automatisch setzen",
     "dimensions_size_placeholder": "Leer lassen, um nicht zu setzen",
-    "embedding_model": "Einbettungsmodell",
-    "embedding_model_required": "Ein Einbettungsmodell für die Wissensbasis ist erforderlich",
+    "embedding_model": "Embedding-Modell",
+    "embedding_model_required": "Für die Wissensdatenbank ist ein Embedding-Modell erforderlich",
     "empty": "Keine Wissensdatenbanken",
-    "empty_action": "Wissensbasis erstellen",
-    "empty_description": "Sie haben noch keine Wissensdatenbanken. Erstellen Sie eine, um Ihre Dokumente zu organisieren und durchzusuchen.",
+    "empty_action": "Wissensdatenbank erstellen",
+    "empty_description": "Bauen Sie Ihr Wissen mit KI auf",
     "error": {
       "directory_not_migrated": "Ordnermigration fehlgeschlagen. Bitte löschen Sie ihn und laden Sie ihn erneut hoch.",
-      "failed_base_unknown": "Diese Wissensbasis ist während der Migration fehlgeschlagen. Erstellen Sie sie neu und wählen Sie ein neues Einbettungsmodell.",
+      "failed_base_unknown": "Bei der Migration dieser Wissensdatenbank ist ein Fehler aufgetreten. Erstellen Sie sie neu und wählen Sie ein neues Embedding-Modell.",
       "failed_to_create": "Fehler beim Erstellen der Wissensdatenbank",
       "failed_to_delete": "Fehler beim Löschen der Wissensdatenbank",
       "failed_to_edit": "Bearbeitung der Wissensdatenbank fehlgeschlagen",
       "failed_to_move": "Fehler beim Verschieben der Wissensdatenbank",
       "indexing_interrupted": "Die Indizierung wurde unterbrochen, weil die App geschlossen wurde. Indizieren Sie dieses Element erneut, um den Vorgang abzuschließen.",
-      "missing_embedding_model": "Das Embedding-Modell, das von dieser Wissensbasis verwendet wurde, wurde während der Migration nicht gefunden. Erstellen Sie die Wissensbasis neu und wählen Sie ein neues Embedding-Modell.",
-      "missing_vector_store": "Der Vektorspeicher dieser Wissensbasis konnte während der Migration nicht gelesen werden (fehlend, leer oder gesperrt). Die Wissensbasis wurde beibehalten; reindizieren Sie sie, um sie wiederherzustellen.",
+      "missing_embedding_model": "Das Embedding-Modell dieser Wissensdatenbank wurde während der Migration nicht gefunden. Erstellen Sie die Wissensdatenbank neu und wählen Sie ein neues Embedding-Modell.",
+      "missing_vector_store": "Der Vektorspeicher dieser Wissensdatenbank konnte während der Migration nicht gelesen werden (fehlend, leer oder gesperrt). Die Wissensdatenbank wurde beibehalten; indizieren Sie sie neu, um sie wiederherzustellen.",
       "model_invalid": "Kein Modell ausgewählt"
     },
     "groups": {
       "add": "Neue Gruppe",
-      "create_base_here": "Erstelle hier",
+      "create_base_here": "Hier erstellen",
       "default": "Standard",
       "delete": "Gruppe löschen",
       "delete_confirm_description": "Wissensdatenbanken in dieser Gruppe werden nach dem Löschen in „Nicht gruppiert“ verschoben.",
@@ -3168,7 +3167,7 @@
       "data_sources_count": "{{count}} Quellen",
       "updated_at": "Aktualisiert {{time}}"
     },
-    "name_required": "Wissensbasis-Name ist erforderlich",
+    "name_required": "Der Name der Wissensdatenbank ist erforderlich",
     "not_set": "Nicht festgelegt",
     "provider_not_found": "Anbieter nicht gefunden",
     "rag": {
@@ -3185,8 +3184,8 @@
       "default_separator": "Auto (empfohlen)",
       "document_count": "Dokumentanzahl",
       "download_local_embedding": "Lokales Modell herunterladen",
-      "download_local_embedding_failed": "Fehler beim Herunterladen des lokalen Einbettungsmodells",
-      "embedding_model": "Einbettungsmodell",
+      "download_local_embedding_failed": "Das lokale Embedding-Modell konnte nicht heruntergeladen werden",
+      "embedding_model": "Embedding-Modell",
       "embedding_model_select": "Modellauswahl",
       "file_processing": "Dateiverarbeitung",
       "file_processing_hint": "Die Dateiverarbeitung läuft automatisch während des Dokumentenimports. Die Wahl des richtigen Anbieters kann die Qualität der Dokumentenanalyse verbessern.",
@@ -3204,12 +3203,12 @@
       "processor": "Verarbeitungsanbieter",
       "processor_not_configured": "Nicht konfiguriert",
       "rerank_disabled": "Deaktiviert",
-      "rerank_model": "Rerank-Modell",
+      "rerank_model": "Reranking-Modell",
       "reset_action": "Standardeinstellungen wiederherstellen",
       "reset_defaults": "Standards zurücksetzen",
       "retrieval": "Abrufeinstellungen",
       "save_action": "Speichern",
-      "saved": "G",
+      "saved": "Gespeichert",
       "separator_rule": "Trennregel",
       "smart_chunking": "Intelligentes Chunking",
       "threshold": "Ähnlichkeitsschwelle",
@@ -3236,9 +3235,9 @@
       "submit": "Suchen",
       "top_score": "Oben: {{score}}"
     },
-    "rename_title": "Wissensbasis umbenennen",
+    "rename_title": "Wissensdatenbank umbenennen",
     "restore": {
-      "action": "Wissensbasis neu aufbauen",
+      "action": "Wissensdatenbank neu aufbauen",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Fehler beim Wiederaufbau der Wissensdatenbank",
       "skipped_missing_sources_one": "{{count}} Element übersprungen, dessen Quelle nicht mehr existiert",
@@ -3311,7 +3310,7 @@
       "browse_label": "Assistentenkategorien",
       "empty_description": "Diese Kategorie hat noch keine Assistenten-Voreinstellungen.",
       "empty_title": "Keine Assistenten zum Hinzufügen",
-      "go_to_chat": "Gehe zum Chat",
+      "go_to_chat": "Zum Chat",
       "mine": "Mein",
       "no_match_description": "Versuchen Sie ein anderes Suchschlüsselwort.",
       "no_match_title": "Keine passenden Assistenten",
@@ -3382,7 +3381,7 @@
           "name": {
             "hint": "In der Bibliothek und in den Sitzungslisten angezeigt",
             "label": "Agentenname",
-            "placeholder": "Gib dem Agenten einen Namen"
+            "placeholder": "Geben Sie dem Agenten einen Namen"
           },
           "permission_mode": {
             "label": "Berechtigungsmodus",
@@ -3500,7 +3499,7 @@
           },
           "name": {
             "hint": "In der Bibliothek und in den Assistentenauswahlmenüs angezeigt",
-            "placeholder": "Gib dem Assistenten einen Namen"
+            "placeholder": "Geben Sie dem Assistenten einen Namen"
           },
           "stream_output": {
             "hint": "Zeigt Antworten an, während sie generiert werden"
@@ -3552,7 +3551,7 @@
             "no_skills": "Keine Fähigkeiten installiert",
             "search": "Suchfähigkeiten"
           },
-          "description_placeholder": "Beschreibe, wofür es ist...",
+          "description_placeholder": "Beschreiben Sie den Verwendungszweck...",
           "guided_progress": "Geführte Einrichtung · Schritt {{current}} von {{total}}",
           "name_placeholder": "Geben Sie einen Namen ein",
           "next": "Nächste",
@@ -3580,7 +3579,7 @@
         }
       },
       "knowledge": {
-        "add": "Wissensbasis hinzufügen",
+        "add": "Wissensdatenbank hinzufügen",
         "create_first": "Offenes Wissen zur Erstellung eines",
         "desc": "Verknüpfen Sie eine oder mehrere Wissensdatenbanken; relevante Auszüge werden während des Chats abgerufen",
         "doc_count": "{{count}} Dokumente",
@@ -3595,7 +3594,7 @@
         "title": "Wissensdatenbanken"
       },
       "prompt": {
-        "copy_variable": "Kopiere {{variable}}",
+        "copy_variable": "Variable {{variable}} kopieren",
         "create_title": "Neue Aufforderung",
         "dblclick_hint": "Doppelklicken Sie auf die Vorschau, um zum Bearbeiten zurückzukehren",
         "desc": "Die Systemaufforderung wird als eröffnender Kontext des Assistenten gesendet.",
@@ -3611,11 +3610,11 @@
           }
         },
         "generate": "Prompt generieren",
-        "generate_failed_description": "Prüfe oder ändere das Standardmodell und versuche es erneut.",
+        "generate_failed_description": "Prüfen oder ändern Sie das Standardmodell und versuchen Sie es erneut.",
         "generate_failed_title": "Prompt konnte nicht generiert werden",
         "insert_variable": "Variable einfügen",
         "label": "Systemaufforderung",
-        "placeholder": "Gib Anweisungen für den Assistenten ein, etwa Antwortstil, Rolle oder Hintergrundinformationen",
+        "placeholder": "Geben Sie Anweisungen für den Assistenten ein, etwa zum Antwortstil, zur Rolle oder zu Hintergrundinformationen",
         "polish": "Polnischer Prompt",
         "polish_failed_description": "Überprüfen oder ändern Sie das Standardmodell und versuchen Sie es erneut.",
         "polish_failed_title": "Fehler beim Polieren des Prompts",
@@ -3694,7 +3693,7 @@
     },
     "create_menu": {
       "create": "Neuer {{type}}",
-      "import": "Import {{type}}"
+      "import": "{{type}} importieren"
     },
     "delete": {
       "agent": {
@@ -3764,7 +3763,7 @@
         "drop_hint": "ZIP-Datei oder Ordner hier ablegen oder klicken, um eine ZIP-Datei auszuwählen",
         "formats": "Unterstützt .zip-Dateien und Verzeichnisse, die SKILL.md enthalten"
       },
-      "subtitle": "Installiere eine Fähigkeit aus einer ZIP-Datei oder einem Verzeichnis",
+      "subtitle": "Installieren Sie eine Fähigkeit aus einer ZIP-Datei oder einem Verzeichnis",
       "title": "Import-Fähigkeit"
     },
     "no_match": "Keine übereinstimmenden Ergebnisse",
@@ -3787,7 +3786,7 @@
     },
     "skill_detail": {
       "created_at": "Erstellt",
-      "delete_description": "Entferne diese Fähigkeit und ihre gesamte Konfiguration. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "delete_description": "Entfernen Sie diese Fähigkeit und ihre gesamte Konfiguration. Diese Aktion kann nicht rückgängig gemacht werden.",
       "delete_title": "Fähigkeit löschen",
       "description": "Beschreibung",
       "file_preview": "Dateivorschau",
@@ -3818,7 +3817,7 @@
       "empty_title": "Keine Fähigkeiten zum Importieren verfügbar",
       "enable_success": "Aktiviert {{name}}",
       "enabled": "Aktiviert",
-      "import": "Import",
+      "import": "Importieren",
       "import_success": "Importierte {{name}}",
       "imported": "Importiert",
       "search_placeholder": "Systemfähigkeiten durchsuchen...",
@@ -3872,7 +3871,7 @@
       "import": {
         "error": "Import fehlgeschlagen"
       },
-      "imported": "Erfolgreich importiert"
+      "imported": "{{count}} Assistenten erfolgreich importiert"
     },
     "api": {
       "check": {
@@ -3925,7 +3924,7 @@
         "title": "Löschen bestätigen"
       },
       "failed": "Löschen fehlgeschlagen",
-      "first_turn_not_supported": "Die erste Benutzernachricht kann nicht gelöscht werden.",
+      "generating_unavailable": "Eine Antwort in dieser Gruppe wird noch generiert und kann noch nicht gelöscht werden.",
       "root_unavailable": "Nachrichten werden noch geladen und können noch nicht gelöscht werden.",
       "success": "Erfolgreich gelöscht"
     },
@@ -4010,8 +4009,8 @@
     },
     "group": {
       "delete": {
-        "content": "Das Löschen einer Gruppennachricht löscht die Benutzerfrage und alle Antworten der Assistenten",
-        "title": "Gruppennachricht löschen"
+        "content": "Alle Assistentenantworten in dieser Gruppe löschen? Die Benutzerfrage und nachfolgenden Nachrichten bleiben erhalten.",
+        "title": "Gruppenantworten löschen"
       },
       "retry_failed": "Fehlgeschlagene Nachricht wiederholen"
     },
@@ -4114,86 +4113,86 @@
       "aborted": "Tool-Aufruf abgebrochen",
       "activity": {
         "analyze": "Analysieren",
-        "analyzing": "Analysieren",
+        "analyzing": "Genauere Analyse",
         "archive": "Archiv",
-        "assistantTask": "Aufgabe",
+        "assistantTask": "Assistentenaufgabe",
         "availableFeatures": "verfügbare Funktionen",
         "availableResources": "verfügbare Ressourcen",
-        "branch": "Code-Zweig",
+        "branch": "Projektversion",
         "build": "Erstellen",
-        "building": "Gebäude",
+        "building": "Wird erstellt",
         "calendar": "Kalender",
         "check": "Prüfen",
-        "checking": "Überprüfung",
-        "codeFiles": "Code-Dateien",
-        "codeHostInfo": "Code-Hosting-Information",
-        "configFiles": "Projektdokumente und Konfigurationsdateien",
+        "checking": "Wird einzeln geprüft",
+        "codeFiles": "Codedateien",
+        "codeHostInfo": "Informationen zum Remote-Repository",
+        "configFiles": "Projektdokumentation und Konfiguration",
         "copy": "Kopieren",
-        "copying": "Kopieren",
+        "copying": "Wird kopiert",
         "create": "Erstellen",
-        "creating": "Erstellen",
+        "creating": "Wird erstellt",
         "currentFolder": "aktueller Ordner",
         "data": "Daten",
         "delete": "Löschen",
-        "deleting": "Löschen",
+        "deleting": "Wird sorgfältig gelöscht",
         "documentFiles": "Dokumentdateien",
         "download": "Herunterladen",
-        "downloading": "Herunterladen",
+        "downloading": "Wird heruntergeladen",
         "email": "E-Mail",
-        "environmentInfo": "Umgebungsinformationen",
-        "executeCommand": "Befehl ausführen",
-        "executingCommand": "Befehl ausführen",
-        "extensionFailed": "Die Erweiterung ist fehlgeschlagen",
-        "extract": "Extrahieren",
-        "extracting": "Extrahieren",
+        "environmentInfo": "Informationen zur Laufzeitumgebung",
+        "executeCommand": "Ausführen",
+        "executingCommand": "Wird ausgeführt",
+        "extensionFailed": "Erweiterung fehlgeschlagen",
+        "extract": "Entpacken",
+        "extracting": "Wird entpackt",
         "file": "Datei",
         "fileList": "Dateiliste",
         "folder": "Ordner",
-        "handle": "Griff",
-        "handling": "Handhabung",
+        "handle": "Verarbeiten",
+        "handling": "Wird verarbeitet",
         "imageFiles": "Bilddateien",
         "install": "Installieren",
-        "installing": "Installieren",
-        "matchingFiles": "übereinstimmende Dateien",
+        "installing": "Wird installiert",
+        "matchingFiles": "passende Dateien",
         "modify": "Ändern",
-        "modifying": "Ändern",
-        "move": "Bewegen",
-        "moving": "Umzug",
-        "open": "Offen",
-        "opening": "Eröffnung",
+        "modifying": "Wird überarbeitet",
+        "move": "Verschieben",
+        "moving": "Wird verschoben",
+        "open": "Öffnen",
+        "opening": "Wird geöffnet",
         "plan": "Ausführungsplan",
         "projectChanges": "Projektänderungen",
         "projectChecks": "Projektprüfungen",
         "projectDependencies": "Projektabhängigkeiten",
         "projectFiles": "Projektdateien",
-        "projectRootFiles": "Projekt-Stammdateien",
+        "projectRootFiles": "Dateien im Projektstamm",
         "projectTask": "Projektaufgabe",
-        "relatedContent": "verwandte Inhalte",
-        "repository": "Code-Repository",
-        "search": "Finde",
-        "searching": "Finden",
+        "relatedContent": "zugehörige Inhalte",
+        "repository": "Projektinhalt",
+        "search": "Suchen",
+        "searching": "Suche läuft",
         "send": "Senden",
-        "sending": "Senden",
-        "start": "Start",
-        "starting": "Beginn",
-        "switch": "Schalter",
-        "switching": "Umschalten",
+        "sending": "Wird gesendet",
+        "start": "Starten",
+        "starting": "Wird gestartet",
+        "switch": "Wechseln",
+        "switching": "Wechsel läuft",
         "sync": "Synchronisieren",
-        "syncing": "Synchronisierung",
+        "syncing": "Wird synchronisiert",
         "taskId": "Aufgabe {{id}}",
         "taskList": "Aufgabenliste",
-        "translationFiles": "Übersetzungsdateien",
+        "translationFiles": "Sprachdateien",
         "upload": "Hochladen",
-        "uploading": "Hochladen",
-        "usedExtension": "Hat eine Erweiterung verwendet",
-        "usingExtension": "Mit einer Erweiterung",
-        "view": "Ansicht",
-        "viewing": "Anzeigen",
+        "uploading": "Wird hochgeladen",
+        "usedExtension": "Erweiterung verwendet",
+        "usingExtension": "Erweiterung wird hinzugezogen",
+        "view": "Anzeigen",
+        "viewing": "Wird geprüft",
         "webPage": "Webseite",
-        "webSearch": "Webinhalt",
+        "webSearch": "Webinhalte",
         "workspace": "Arbeitsbereich",
-        "write": "Speichern",
-        "writing": "Speichern"
+        "write": "Schreiben",
+        "writing": "Wird geschrieben"
       },
       "agent_background": "Im Hintergrund ausführen",
       "approvalRequired": "Das Tool \"{{tool}}\" erfordert eine Genehmigung",
@@ -4241,7 +4240,7 @@
         },
         "generating": "Antwort schreiben",
         "preparing": "Antwort vorbereiten",
-        "thinking": "Denken",
+        "thinking": "Lassen Sie mich darüber nachdenken",
         "usingTools": "Arbeit an der Aufgabe"
       },
       "preview": "Vorschau",
@@ -4336,7 +4335,7 @@
       "load_failed": "Fehler beim Laden der App",
       "not_found": "App nicht gefunden"
     },
-    "hide_failed": "Failed to hide mini-app",
+    "hide_failed": "Mini-App konnte nicht ausgeblendet werden",
     "pin_failed": "Fehler beim Anheften der Mini-App",
     "popup": {
       "devtools": "Entwicklertools",
@@ -4349,13 +4348,13 @@
     },
     "remove_from_launchpad": "Aus Launchpad entfernen",
     "remove_from_sidebar": "Aus Seitenleiste entfernen",
-    "reorder_failed": "Failed to reorder mini-apps",
+    "reorder_failed": "Mini-Apps konnten nicht neu angeordnet werden",
     "shortcut": {
       "failed": "Fehlgeschlagen: {{message}}",
       "html_saved": "HTML gespeichert unter: {{path}}",
       "pdf_saved": "PDF gespeichert unter: {{path}}"
     },
-    "show_failed": "Failed to show mini-app",
+    "show_failed": "Mini-App konnte nicht eingeblendet werden",
     "sidebar": {
       "hide": {
         "title": "Ausblenden"
@@ -4367,34 +4366,34 @@
   },
   "miniApps": {
     "ant-ling": "Ant Ling",
-    "baichuan": "Baixiaoying",
-    "baidu-ai-search": "Baidu AI Suche",
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI Search",
     "chatglm": "ChatGLM",
-    "dangbei": "Dangbei AI",
+    "dangbei": "Dangbei",
     "doubao": "Doubao",
     "hailuo": "Hailuo",
     "ima": "ima",
-    "metaso": "Metaso AI-Suche",
-    "minimax-agent": "MiniMax Agent CN",
-    "minimax-global": "MiniMax Agent",
+    "metaso": "Metaso",
+    "minimax-agent": "Minimax Agent CN",
+    "minimax-global": "Minimax Agent",
     "nami-ai": "Nami AI",
     "qwen": "Qwen",
     "sensechat": "SenseChat",
-    "stepfun": "StepFun AI",
-    "tencent-yuanbao": "Tencent Yuanbao",
-    "tiangong-ai": "Tiangong AI",
-    "update_partial_failure_generic": "Some mini-apps failed to update",
+    "stepfun": "Stepfun",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "update_partial_failure_generic": "Einige Mini-Apps konnten nicht aktualisiert werden",
     "wanzhi": "Wanzhi",
-    "wenxin": "Wenxin Yiyan",
-    "wps-copilot": "WPS Lingxi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
     "xiaoyi": "Xiaoyi",
-    "zhihu": "Zhihu Zhida"
+    "zhihu": "Zhihu"
   },
   "models": {
     "action": {
       "configure_custom": "Benutzerdefinierte Modelle konfigurieren",
       "pin": "Dieses Modell anheften",
-      "unpin": "Modell lösen"
+      "unpin": "Anheften des Modells aufheben"
     },
     "add_parameter": "Parameter hinzufügen",
     "all": "Alle",
@@ -4425,7 +4424,8 @@
     "invalid_model": "Ungültiges Modell",
     "json_parse_error": "Ungültiges JSON-Format",
     "multi_select": {
-      "label": "Multi-Modell-Parallelität (schließt sich gegenseitig mit Multi-Assistent aus)"
+      "label": "Mehrfachauswahl",
+      "tooltip": "Gleichzeitige Antworten mehrerer Modelle"
     },
     "no_matches": "Keine verfügbaren Modelle",
     "parameter_name": "Parametername",
@@ -4447,9 +4447,9 @@
       "price": "Preis"
     },
     "reasoning": "Reasoning",
-    "rerank_model": "Rerank-Modell",
-    "rerank_model_not_support_provider": "Rerank-Modell unterstützt derzeit diesen Anbieter nicht ({{provider}})",
-    "rerank_model_support_provider": "Rerank-Modell unterstützt derzeit nur bestimmte Anbieter ({{provider}})",
+    "rerank_model": "Reranking-Modell",
+    "rerank_model_not_support_provider": "Das Reranking-Modell unterstützt diesen Anbieter derzeit nicht ({{provider}})",
+    "rerank_model_support_provider": "Das Reranking-Modell unterstützt derzeit nur bestimmte Anbieter ({{provider}})",
     "rerank_model_tooltip": "In Einstellungen -> Modelldienste auf Verwalten klicken zum Hinzufügen",
     "search": {
       "placeholder": "Modelle durchsuchen...",
@@ -4466,10 +4466,10 @@
       "audio": "Audio",
       "embedding": "Embedding",
       "free": "Kostenlos",
-      "function_calling": "Tools",
+      "function_calling": "Werkzeuge",
       "image": "Bild",
       "reasoning": "Reasoning",
-      "rerank": "Rerank",
+      "rerank": "Reranking",
       "select": "Modelltyp",
       "speech": "Sprache",
       "text": "Text",
@@ -4567,7 +4567,7 @@
       "content": "Inhalt",
       "found_results": "{{count}} Ergebnisse gefunden (Name: {{nameCount}}, Inhalt: {{contentCount}})",
       "more_matches": " Treffer",
-      "searching": "Searching...",
+      "searching": "Wird gesucht...",
       "show_less": "Weniger anzeigen"
     },
     "settings": {
@@ -4588,7 +4588,7 @@
       },
       "display": {
         "compress_content": "Spaltenbreite reduzieren",
-        "compress_content_description": "Aktiviert begrenzt die Anzahl der Zeichen pro Zeile, wodurch weniger Inhalt auf dem Bildschirm angezeigt wird",
+        "compress_content_description": "Wenn diese Option aktiviert ist, wird die Anzahl der Zeichen pro Zeile begrenzt. Dadurch wird weniger Inhalt auf dem Bildschirm angezeigt, längere Absätze sind jedoch besser lesbar.",
         "default_font": "Standardschrift",
         "font_size": "Schriftgröße",
         "font_size_description": "Schriftgröße anpassen für besseres Leseerlebnis (10-30px)",
@@ -4644,7 +4644,7 @@
     "upload_folder": "Ordner hochladen",
     "upload_partial_failed": "{{uploaded}} Notizen hochgeladen, {{failed}} fehlgeschlagen",
     "upload_success": "Notizen erfolgreich hochgeladen",
-    "uploading_files": "Lade {{count}} Dateien hoch..."
+    "uploading_files": "{{count}} Dateien werden hochgeladen..."
   },
   "notification": {
     "assistant": "Assistenten-Antwort",
@@ -4745,19 +4745,19 @@
       "title": "Modellkonfiguration"
     },
     "node_missing": {
-      "description": "OpenClaw benötigt Node.js 22+. Bitte installiere zuerst Node.js und klicke dann erneut auf Installieren.",
+      "description": "OpenClaw benötigt Node.js 22 oder höher. Installieren Sie zuerst Node.js und klicken Sie dann erneut auf „Installieren“.",
       "download_button": "Node.js herunterladen",
       "hint": "macOS: brew install node | Windows: LTS-Version von nodejs.org herunterladen",
       "title": "Node.js erforderlich"
     },
     "node_version_low": {
-      "description": "OpenClaw erfordert Node.js 22.0 oder höher. Deine aktuelle Version ist v{{version}}. Bitte aktualisiere Node.js zuerst.",
+      "description": "OpenClaw erfordert Node.js 22.0 oder höher. Ihre aktuelle Version ist v{{version}}. Aktualisieren Sie zuerst Node.js.",
       "hint": "nvm: nvm install 22 && nvm use 22 | mise: mise use node@22",
       "title": "Node.js-Version zu niedrig"
     },
     "not_installed": {
       "description": "OpenClaw ist nicht auf Ihrem System installiert. Bitte installieren Sie es zuerst, um diese Funktion nutzen zu können.",
-      "install_button": "Installiere OpenClaw",
+      "install_button": "OpenClaw installieren",
       "install_guide_title": "Installationsanleitung",
       "macos_linux_title": "macOS / Linux",
       "refresh": "Aktualisieren",
@@ -4815,7 +4815,7 @@
       "stop": "OVMS stoppen",
       "stopping": "Wird gestoppt"
     },
-    "description": "<div><p>1. OV-Modell herunterladen.</p><p>2. Modell in 'Manager' hinzufügen.</p><p>Nur Windows unterstützt!</p><p>OVMS-Installationspfad: '%USERPROFILE%\\.cherrystudio\\ovms'.</p><p>Siehe <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS-Anleitung</a></p></dev>",
+    "description": "<div><p>1. Laden Sie die OV-Modelle herunter.</p><p>2. Fügen Sie die Modelle in der Verwaltung hinzu.</p><p>Nur unter Windows verfügbar.</p><p>OVMS-Installationspfad: '%USERPROFILE%\\.cherrystudio\\ovms'.</p><p>Weitere Informationen finden Sie in der <a href=\"https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md\">Intel-OVMS-Anleitung</a>.</p></div>",
     "download": {
       "button": "Herunterladen",
       "error": "Auswahl fehlgeschlagen",
@@ -4851,8 +4851,8 @@
       "install_code_103": "OVMS Runtime herunterladen fehlgeschlagen",
       "install_code_104": "OVMS Runtime entpacken fehlgeschlagen",
       "install_code_105": "OVMS Runtime bereinigen fehlgeschlagen",
-      "install_code_106": "Failed to create run.bat",
-      "install_code_110": "Failed to clean up old OVMS runtime",
+      "install_code_106": "run.bat konnte nicht erstellt werden",
+      "install_code_110": "Die alte OVMS-Laufzeitumgebung konnte nicht bereinigt werden",
       "run": "OVMS ausführen fehlgeschlagen:",
       "stop": "OVMS stoppen fehlgeschlagen:"
     },
@@ -4866,7 +4866,7 @@
     "title": "Intel OVMS"
   },
   "paintings": {
-    "add_image": "Add image",
+    "add_image": "Bild hinzufügen",
     "aspect_ratio": "Seitenverhältnis",
     "aspect_ratios": {
       "landscape": "Querformat",
@@ -4947,10 +4947,10 @@
     },
     "generate_failed": "Fehler beim Generieren des Bildes",
     "generated_image": "Generiertes Bild",
-    "generating": "Wird generiert...",
+    "generating": "Das Bild wird erstellt. Verlassen Sie diese Seite nicht.",
     "go_to_settings": "Zu Einstellungen",
     "guidance_scale": "Guidance-Skala",
-    "guidance_scale_tip": "Classifier-free Guidance. Kontrolliert, wie genau das Modell dem Prompt folgt",
+    "guidance_scale_tip": "Classifier-Free Guidance ({{min}}–{{max}}). Legt fest, wie eng sich das Modell bei der Suche nach einem passenden Bild an Ihren Prompt hält",
     "image": {
       "size": "Bildgröße"
     },
@@ -4965,7 +4965,7 @@
     },
     "image_weight": "Bildgewicht",
     "inference_steps": "Inference-Schritte",
-    "inference_steps_tip": "Anzahl der auszuführenden Inference-Schritte. Mehr Schritte bedeuten höhere Qualität, aber längere Dauer",
+    "inference_steps_tip": "Anzahl der Inferenzschritte ({{min}}–{{max}}). Mehr Schritte liefern eine höhere Qualität, dauern aber länger",
     "input_image": "Eingabebild",
     "input_image_limit_exceeded": "Zu viele Referenzbilder für das ausgewählte Modell. Entfernen Sie einige Bilder und versuchen Sie es erneut.",
     "input_parameters": "Eingabeparameter",
@@ -4990,7 +4990,7 @@
     "negative_prompt_tip": "Beschreiben Sie, was nicht im Bild erscheinen soll",
     "no_image_generation_model": "Kein Bildgenerierungsmodell verfügbar. Bitte fügen Sie ein Modell hinzu und setzen Sie den Endpunkttyp auf {{endpoint_type}}",
     "number_images": "Generierungsanzahl",
-    "number_images_tip": "Anzahl der Bilder pro Generierung (1-4)",
+    "number_images_tip": "Anzahl der zu generierenden Bilder ({{min}}–{{max}})",
     "operation_failed": "Vorgang fehlgeschlagen, bitte versuchen Sie es später erneut",
     "output_compression": "Ausgabekomprimierung",
     "paint_course": "Tutorial",
@@ -5019,8 +5019,8 @@
     "prompt_placeholder": "Beschreiben Sie das gewünschte Bild, z.B.: Ein ruhiger See bei Sonnenuntergang mit Bergen in der Ferne",
     "prompt_placeholder_edit": "Geben Sie Ihre Bildbeschreibung ein. Text zum Rendern in \"Anführungszeichen\" setzen",
     "prompt_placeholder_en": "Geben Sie \"englische\" Bildbeschreibung ein, derzeit nur englische Prompts unterstützt",
-    "prompt_placeholder_upload": "Describe the image you want, or upload one to edit",
-    "prompt_placeholder_upload_required": "Upload an image to edit, then describe the changes",
+    "prompt_placeholder_upload": "Beschreiben Sie das gewünschte Bild oder laden Sie ein Bild zur Bearbeitung hoch",
+    "prompt_placeholder_upload_required": "Laden Sie ein Bild zur Bearbeitung hoch und beschreiben Sie anschließend die Änderungen",
     "prompt_required": "Bitte geben Sie eine Eingabeaufforderung ein",
     "proxy_required": "Öffnen Sie Proxy und aktivieren Sie \"TUN-Modus\", um generierte Bilder anzuzeigen, oder kopieren Sie in Browser. Direkte Verbindung wird später unterstützt",
     "quality": "Qualität",
@@ -5055,9 +5055,9 @@
     "seed_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren",
     "select_model": "Modell auswählen",
     "showcase": {
-      "caption": "Wähle eine Vorlage aus und passe anschließend den Prompt unten an.",
+      "caption": "Wählen Sie eine Vorlage aus und passen Sie anschließend den Prompt unten an.",
       "styles_label": "Prompt-Vorlagen",
-      "title": "Raum für dein nächstes Meisterwerk."
+      "title": "Platz für Ihr nächstes Meisterwerk."
     },
     "style_options": {
       "anime": "Anime",
@@ -5147,7 +5147,7 @@
     },
     "install": "Installieren",
     "install_plugins_from_browser": "Durchsuche verfügbare Plugins, um loszulegen",
-    "installing": "Installiere…",
+    "installing": "Wird installiert…",
     "manage_skills": "Fähigkeiten verwalten",
     "name": "Name",
     "no_description": "Keine Beschreibung verfügbar",
@@ -5220,29 +5220,29 @@
   },
   "provider": {
     "302ai": "302.AI",
-    "ai-gateway": "KI-Gateway",
+    "ai-gateway": "Vercel AI Gateway",
     "aihubmix": "AiHubMix",
-    "aionly": "Einzige KI (AiOnly)",
+    "aionly": "AiOnly",
     "alayanew": "Alaya NeW",
     "anthropic": "Anthropic",
     "aws-bedrock": "AWS Bedrock",
     "azure-openai": "Azure OpenAI",
     "baichuan": "Baichuan",
-    "baidu-cloud": "Baidu Cloud Qianfan",
+    "baidu-cloud": "Baidu Cloud",
     "burncloud": "BurnCloud",
     "cerebras": "Cerebras AI",
     "cherryai": "CherryAI",
     "cherryin": "CherryIN",
     "claude-code": "Claude Code",
     "copilot": "GitHub Copilot",
-    "dashscope": "Alibaba Cloud Bailian",
+    "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
     "dmxapi": "DMXAPI",
     "doc2x": "Doc2X",
-    "doubao": "Volcano Engine",
+    "doubao": "Volcengine",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
-    "gitee-ai": "Modellkraft Arche",
+    "gitee-ai": "Gitee AI",
     "github": "GitHub Models",
     "gpustack": "GPUStack",
     "grok": "Grok",
@@ -5251,21 +5251,21 @@
     "huggingface": "Hugging Face",
     "hunyuan": "Tencent Hunyuan",
     "hyperbolic": "Hyperbolic",
-    "infini": "Infini-AI",
+    "infini": "Infini",
     "jina": "Jina",
-    "lanyun": "Lanyun Technologie",
+    "lanyun": "LANYUN",
     "lmstudio": "LM Studio",
     "local-embedding": "Lokale Modelle",
-    "longcat": "Meißner Riesenhamster",
+    "longcat": "LongCat AI",
     "mimo": "Xiaomi MiMo",
     "mineru": "MinerU",
     "minimax": "MiniMax CN",
     "minimax-global": "MiniMax",
     "mistral": "Mistral",
     "modelscope": "ModelScope",
-    "moonshot": "Moonshot AI",
+    "moonshot": "Moonshot",
     "new-api": "New API",
-    "nvidia": "NVIDIA",
+    "nvidia": "Nvidia",
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
@@ -5280,8 +5280,8 @@
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
-    "ppio": "PPIO Cloud",
-    "qiniu": "Qiniu Cloud KI-Inferenz",
+    "ppio": "PPIO",
+    "qiniu": "Qiniu AI",
     "qwenlm": "QwenLM",
     "radeon-cloud": "AMD GPU Cloud",
     "silicon": "SiliconFlow",
@@ -5294,11 +5294,11 @@
     "tokenhub": "TokenHub",
     "vertexai": "Vertex AI",
     "voyageai": "Voyage AI",
-    "xirang": "China Telecom Cloud Xirang",
-    "yi": "01.AI",
+    "xirang": "State Cloud Xirang",
+    "yi": "Yi",
     "zai": "Z.ai",
-    "zhinao": "360 Zhinao",
-    "zhipu": "Zhipu AI"
+    "zhinao": "360AI",
+    "zhipu": "BigModel"
   },
   "quickAssistant": {
     "alert": {
@@ -5579,9 +5579,9 @@
         "translate": "Übersetzen"
       },
       "prompt": {
-        "explain": "Bitte erklären Sie den folgenden Inhalt. Anforderungen: Antworten Sie auf Deutsch; geben Sie keine Erklärung zu dieser Aufforderung, sondern antworten Sie direkt.",
-        "refine": "Bitte optimieren oder überarbeiten Sie die im XML-Tag <INPUT> eingeschlossene Nutzereingabe, wobei die Bedeutung und Integrität des ursprünglichen Inhalts erhalten bleiben sollen. Anforderungen: Ihre Ausgabe sollte in derselben Sprache wie die Nutzereingabe erfolgen; geben Sie keine Erklärung zu dieser Aufforderung an, sondern liefern Sie direkt die Antwort; geben Sie keine XML-Tags aus, sondern geben Sie den optimierten Inhalt direkt aus:\n\n<INPUT>{{text}}</INPUT>",
-        "summary": "Bitte fasse den folgenden Inhalt zusammen. Anforderungen: Antworte auf {{language}}; gib keine Erklärung zu dieser Aufforderung, sondern antworte direkt."
+        "explain": "Bitte erklären Sie den folgenden Inhalt. Anforderungen: Antworten Sie auf {{language}}; erklären Sie diesen Prompt nicht, sondern geben Sie direkt die Antwort aus: \n\n",
+        "refine": "Bitte optimieren oder überarbeiten Sie die Nutzereingabe innerhalb des XML-Elements INPUT, ohne Bedeutung oder Vollständigkeit des ursprünglichen Inhalts zu verändern. Anforderungen: Geben Sie die Antwort in derselben Sprache wie die Nutzereingabe aus; erklären Sie diesen Prompt nicht, sondern geben Sie direkt die Antwort aus; geben Sie keine XML-Tags aus, sondern nur den optimierten Inhalt:\n\n<INPUT>{{text}}</INPUT>",
+        "summary": "Bitte fassen Sie den folgenden Inhalt zusammen. Anforderungen: Antworten Sie auf {{language}}; erklären Sie diesen Prompt nicht, sondern geben Sie direkt die Antwort aus: \n\n"
       },
       "translate": {
         "error": {
@@ -5597,8 +5597,8 @@
         "original_copy": "Original kopieren",
         "original_hide": "Original ausblenden",
         "original_show": "Original anzeigen",
-        "pin": "Anpinnen",
-        "pinned": "Angepinnt",
+        "pin": "Im Vordergrund halten",
+        "pinned": "Im Vordergrund",
         "r_regenerate": "R Neu generieren"
       }
     },
@@ -5625,11 +5625,11 @@
           "title": "Filterliste"
         },
         "filter_mode": {
-          "blacklist": "Blacklist",
+          "blacklist": "Sperrliste",
           "default": "Schließen",
-          "description": "Kann Textauswahl-Assistent auf bestimmte Apps beschränken (Whitelist) oder ausschließen (Blacklist)",
+          "description": "Kann den Textauswahl-Assistenten auf bestimmte Apps beschränken (Positivliste) oder Apps ausschließen (Sperrliste)",
           "title": "App-Filter",
-          "whitelist": "Whitelist"
+          "whitelist": "Positivliste"
         },
         "title": "Erweitert"
       },
@@ -5697,21 +5697,21 @@
           "description": "Im Kompaktmodus nur Symbole anzeigen, keinen Text",
           "title": "Kompaktmodus"
         },
-        "title": "Toolbar",
+        "title": "Werkzeugleiste",
         "trigger_mode": {
           "ctrlkey": "Ctrl-Taste",
           "ctrlkey_note": "Nach der Texterfassung die Ctrl-Taste länger drücken, um die Toolbar anzuzeigen",
-          "description": "Methode zum Auslösen und Anzeigen der Toolbar nach Textauswahl",
+          "description": "Methode zum Auslösen und Anzeigen der Werkzeugleiste nach einer Textauswahl",
           "description_note": {
             "linux": "Wenn Sie Modifikatortasten mit Tools wie xmodmap oder xremap neu zugeordnet haben, kann dies dazu führen, dass einige Anwendungen keine Textauswahl mehr ermöglichen.",
             "mac": "Wenn die ⌘-Taste per Shortcut- oder Key-Mapping-Tool umbelegt wurde, kann die Texterfassung in manchen Apps fehlschlagen.",
             "windows": "Wenige Apps unterstützen Textauswahl mit Ctrl. Bei Neubelegung von Ctrl (z.B. mit AHK) funktioniert Textauswahl möglicherweise nicht."
           },
           "selected": "Textauswahl",
-          "selected_note": "Toolbar sofort nach Textauswahl anzeigen",
-          "shortcut": "Shortcut",
-          "shortcut_link": "Zu Shortcut-Einstellungen",
-          "shortcut_note": "Nach Textauswahl Shortcut für Toolbar verwenden. Bitte in Shortcut-Einstellungen konfigurieren.",
+          "selected_note": "Werkzeugleiste sofort nach der Textauswahl anzeigen",
+          "shortcut": "Tastenkürzel",
+          "shortcut_link": "Zu den Tastenkürzeleinstellungen",
+          "shortcut_note": "Nach der Textauswahl ein Tastenkürzel für die Werkzeugleiste verwenden. Konfigurieren Sie es in den Tastenkürzeleinstellungen.",
           "title": "Texterfassungsmethode"
         }
       },
@@ -5793,7 +5793,7 @@
     },
     "common": {
       "edit": "Bearbeiten",
-      "pin": "Stift",
+      "pin": "Anheften",
       "pinned_title": "Angepinnt",
       "sort": {
         "asc": "Ältester",
@@ -5835,73 +5835,73 @@
       "description": "Ein KI-Assistent für Kreative",
       "diagnostics": {
         "actions": {
-          "cancel": "[to be translated]:Cancel",
-          "close": "[to be translated]:Close",
-          "contact": "[to be translated]:Email support",
-          "copy_email": "[to be translated]:Copy support email",
-          "export": "[to be translated]:Export",
-          "exporting": "[to be translated]:Exporting...",
-          "reveal": "[to be translated]:Open file location"
+          "cancel": "Abbrechen",
+          "close": "Schließen",
+          "contact": "E-Mail an den Support",
+          "copy_email": "Support-E-Mail-Adresse kopieren",
+          "export": "Exportieren",
+          "exporting": "Wird exportiert...",
+          "reveal": "Dateispeicherort öffnen"
         },
         "dialog": {
-          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
-          "title": "[to be translated]:Export diagnostic bundle"
+          "description": "Speichern Sie aktuelle App-Informationen als ZIP-Datei, damit der Support Probleme untersuchen kann.",
+          "title": "Diagnosepaket exportieren"
         },
         "entry": {
-          "button": "[to be translated]:Export",
-          "title": "[to be translated]:Diagnostic bundle"
+          "button": "Exportieren",
+          "title": "Diagnosepaket"
         },
         "errors": {
-          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
-          "copy_failed": "[to be translated]:Could not copy the support email",
-          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
-          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
-          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
-          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
-          "reveal_failed": "[to be translated]:Could not open the file location"
+          "busy": "Ein anderes Diagnosepaket wird bereits exportiert",
+          "copy_failed": "Die Support-E-Mail-Adresse konnte nicht kopiert werden",
+          "destination_conflict": "Der ausgewählte Speicherort steht in Konflikt mit den Diagnosedaten. Wählen Sie einen anderen Ordner.",
+          "email_client_failed": "Es konnte kein E-Mail-Programm geöffnet werden. Sie können stattdessen die Support-E-Mail-Adresse kopieren.",
+          "export_failed": "Das Diagnosepaket konnte nicht exportiert werden",
+          "inspect_failed": "Die für den Export verfügbaren Daten konnten nicht geprüft werden. Versuchen Sie es später erneut.",
+          "reveal_failed": "Der Dateispeicherort konnte nicht geöffnet werden"
         },
-        "inspecting": "[to be translated]:Preparing the available information...",
-        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "inspecting": "Verfügbare Informationen werden vorbereitet...",
+        "limit": "Damit die ZIP-Datei handlich bleibt, sind Protokolle und detaillierte Aufzeichnungen auf {{size}} begrenzt. Neuere Informationen werden bevorzugt berücksichtigt.",
         "mail": {
-          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
-          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+          "body": "Bitte helfen Sie bei der Untersuchung dieses Problems mit Cherry Studio.\n\nDiagnosepaket-ID: {{bundleId}}\nVersion: {{version}}\nPlattform: {{platform}}\nZeitraum: {{range}}\nDatei: {{fileName}}\n\nBitte hängen Sie die ZIP-Datei an diese E-Mail an. Das Paket wurde lokal gespeichert und nicht automatisch hochgeladen.",
+          "subject": "Cherry-Studio-Diagnose {{bundleId}}"
         },
         "privacy": {
-          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
-          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
-          "title": "[to be translated]:Before you share"
+          "consent": "Ich habe die Informationen oben verstanden und werde die ZIP-Datei nur privat an den Support weitergeben.",
+          "description": "Diese Aufzeichnungen können Ihre Eingaben, Dateispeicherorte, Anfrage- und Antwortinhalte sowie Informationen zu Dienstverbindungen enthalten. Cherry Studio schwärzt diese Daten nicht und lädt sie nicht automatisch hoch. Geben Sie die ZIP-Datei nur an den Support weiter und veröffentlichen Sie sie niemals auf GitHub oder anderen öffentlichen Websites.",
+          "title": "Vor dem Teilen"
         },
-        "range_title": "[to be translated]:Time range",
+        "range_title": "Zeitraum",
         "ranges": {
-          "24h": "[to be translated]:Last 24 hours",
-          "3d": "[to be translated]:Last 3 days",
-          "7d": "[to be translated]:Last 7 days"
+          "24h": "Letzte 24 Stunden",
+          "3d": "Letzte 3 Tage",
+          "7d": "Letzte 7 Tage"
         },
         "sources": {
-          "inspecting": "[to be translated]:Checking what is available...",
+          "inspecting": "Verfügbare Daten werden geprüft...",
           "logs": {
-            "title": "[to be translated]:App logs"
+            "title": "App-Protokolle"
           },
-          "summary": "[to be translated]:{{count}} files, about {{size}}",
-          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
-          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "summary": "{{count}} Dateien, etwa {{size}}",
+          "summary_one": "{{count}} Datei, etwa {{size}}",
+          "summary_other": "{{count}} Dateien, etwa {{size}}",
           "system": {
-            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
-            "title": "[to be translated]:App and device information"
+            "description": "Enthält Angaben zur App, zum System und zum Gerät. Kürzliche Abstürze: {{crashCount}}. Absturzdateien werden nicht erfasst.",
+            "title": "App- und Geräteinformationen"
           },
           "traces": {
-            "title": "[to be translated]:Detailed activity records"
+            "title": "Detaillierte Aktivitätsprotokolle"
           },
-          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+          "unavailable": "Für diesen Zeitraum sind keine Daten zum Exportieren verfügbar"
         },
         "success": {
-          "email_copied": "[to be translated]:Support email copied",
-          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
-          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
-          "title": "[to be translated]:Diagnostic bundle exported"
+          "email_copied": "Support-E-Mail-Adresse kopiert",
+          "local_only": "Die Datei wurde nur auf Ihrem Computer gespeichert und nicht hochgeladen. Hängen Sie die ZIP-Datei manuell an Ihre E-Mail an den Support an.",
+          "summary": "Dateigröße {{size}} · {{included}} Dateien erfasst · {{omitted}} Dateien nicht erfasst",
+          "title": "Diagnosepaket exportiert"
         },
-        "unknown": "[to be translated]:Unknown",
-        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+        "unknown": "Unbekannt",
+        "warning": "Einige Diagnoseinformationen waren nicht verfügbar. Das exportierte Paket ist möglicherweise unvollständig."
       },
       "downloading": "Update wird heruntergeladen...",
       "enterprise": {
@@ -5919,7 +5919,7 @@
           "title": "Wählen Sie einen Feedback-Kanal"
         },
         "github": {
-          "description": "Erstelle einen Fehlerbericht oder eine Funktionsanfrage auf GitHub.",
+          "description": "Erstellen Sie einen Fehlerbericht oder eine Funktionsanfrage auf GitHub.",
           "title": "GitHub Issue"
         },
         "recommended": "Empfohlen",
@@ -5995,7 +5995,7 @@
         "path_changed_without_copy": "Pfad erfolgreich geändert",
         "restart_notice": "Anwendung kann mehrmals neu starten um Änderungen anzuwenden",
         "select": "Verzeichnis ändern",
-        "select_error": "Datenverzeichnis-Änderung fehlgeschlagen",
+        "select_error": "Das ausgewählte Verzeichnis wird möglicherweise von einer anderen Cherry-Studio-Instanz verwendet. Schließen Sie andere Instanzen und versuchen Sie es erneut. Wenn keine weitere Instanz ausgeführt wird, entfernen Sie die veralteten Dateien SingletonLock und SingletonSocket aus diesem Verzeichnis.",
         "select_error_in_app_path": "Neuer Pfad identisch mit Installationspfad, bitte anderen wählen",
         "select_error_protected_path": "Der ausgewählte Pfad ist durch das Betriebssystem oder Cherry Studio geschützt. Bitte wählen Sie einen anderen Ordner.",
         "select_error_root_path": "Neuer Pfad darf nicht Root-Verzeichnis sein",
@@ -6016,11 +6016,41 @@
         "skip_file_data_title": "Kompaktes Backup"
       },
       "clear_cache": {
+        "approximately": "Ca. {{size}}",
         "button": "Cache löschen",
-        "confirm": "Cache leeren entfernt alle zwischengespeicherten Daten inkl. Mini-App-Daten. Nicht wiederherstellbar. Fortfahren?",
+        "calculating": "Wird berechnet…",
         "error": "Cache-Löschen fehlgeschlagen",
+        "legacy_warning": {
+          "confirm": "Trotzdem auswählen",
+          "description": "Nach Abschluss der Bereinigung werden die in dieser Option enthaltenen v1-Daten dauerhaft gelöscht. Ohne Sicherung können diese Daten nicht wiederhergestellt werden.",
+          "message": "v1-Daten werden dauerhaft gelöscht",
+          "title": "Verbleibende v1-Daten auswählen?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Verbleibende v1-Daten, einschließlich alter Chatverläufe und Einstellungen. Das Löschen kann nicht rückgängig gemacht werden.",
+            "title": "Verbleibende Daten aus v1"
+          },
+          "normal_cache": {
+            "description": "Entfernt Cache- und temporäre Dateien, die bei der Nutzung der App entstehen, um Speicherplatz freizugeben. Chatverläufe und Einstellungen werden nicht gelöscht.",
+            "title": "App-Cache"
+          },
+          "orphaned_data": {
+            "description": "Entfernt nicht mehr verwendete Dateien, verbliebene Wissensdatenbanken und temporäre Backup-Wiederherstellungsdateien.",
+            "title": "Übrig gebliebene Dateien und Wissensdatenbanken"
+          },
+          "site_data": {
+            "description": "Cookies und Website-Speicher, die von Websites und Mini-Apps verwendet werden. Möglicherweise werden Sie von Websites abgemeldet.",
+            "title": "Website- und Mini-App-Daten"
+          }
+        },
+        "partial_success": "Bereinigung abgeschlossen, einige Elemente konnten jedoch nicht gelöscht werden",
+        "selected_total": "Ausgewählte Elemente gesamt",
         "success": "Cache erfolgreich geleert",
-        "title": "Cache löschen"
+        "title": "Cache löschen",
+        "total_partial": "{{size}} erfasst; einige Größen sind unbekannt",
+        "unavailable": "Berechnung nicht möglich",
+        "waiting_for_legacy_database": "Warten auf die Freigabe der alten Datenbank. Schließen Sie andere Cherry-Studio-Fenster; die Bereinigung wird fortgesetzt, sobald deren Verbindungen geschlossen sind."
       },
       "data": {
         "title": "Datenverzeichnis"
@@ -6041,12 +6071,16 @@
         "third_party": "Drittanbieter-Verbindungen"
       },
       "export_menu": {
+        "categories": {
+          "apps": "Drittanbieter-Apps",
+          "copy": "Kopieren",
+          "file": "Dateiexport"
+        },
         "docx": "Als Word exportieren",
         "image": "Als Bild exportieren",
         "joplin": "Nach Joplin exportieren",
         "markdown": "Als Markdown exportieren",
-        "markdown_reason": "Als Markdown exportieren (mit Denken)",
-        "notes": "In Notizen exportieren",
+        "markdown_reason": "Als Markdown exportieren (mit Denkprozess)",
         "notion": "Nach Notion exportieren",
         "obsidian": "Nach Obsidian exportieren",
         "plain_text": "Als reinen Text kopieren",
@@ -6210,8 +6244,8 @@
           "fail": "Verbindung fehlgeschlagen, bitte API-Schlüssel und Database ID prüfen",
           "success": "Erfolgreich verbunden"
         },
-        "database_id": "Notion Database ID",
-        "database_id_placeholder": "Bitte Notion Database ID eingeben",
+        "database_id": "Notion-Datenbank-ID",
+        "database_id_placeholder": "Geben Sie die Notion-Datenbank-ID ein",
         "export_reasoning": {
           "help": "Nach Aktivierung wird beim Export nach Notion die Gedankenkette eingeschlossen.",
           "title": "Gedankenkette beim Export einschließen"
@@ -6284,8 +6318,8 @@
       },
       "s3": {
         "accessKeyId": {
-          "label": "Access Key ID",
-          "placeholder": "Access Key ID"
+          "label": "Zugriffsschlüssel-ID",
+          "placeholder": "Zugriffsschlüssel-ID"
         },
         "autoSync": {
           "hour": "Alle {{count}} Stunden",
@@ -6388,8 +6422,8 @@
           "placeholder": "z. B.: /cherry-studio"
         },
         "secretAccessKey": {
-          "label": "Secret Access Key",
-          "placeholder": "Secret Access Key"
+          "label": "Geheimer Zugriffsschlüssel",
+          "placeholder": "Geheimer Zugriffsschlüssel"
         },
         "skipBackupFile": {
           "help": "Nach Aktivierung werden beim Backup Dateidaten übersprungen, nur Konfiguration gesichert. Reduziert Backup-Größe erheblich",
@@ -6430,6 +6464,23 @@
         "token_placeholder": "Bitte SiYuan-Token eingeben"
       },
       "title": "Dateneinstellungen",
+      "v1_remigration": {
+        "acknowledgement": "Ich verstehe das Risiko und möchte fortfahren.",
+        "back": "Zurück",
+        "backup_acknowledgement": "Ich habe meine Daten gesichert",
+        "backup_button": "Jetzt vollständige Sicherung erstellen",
+        "backup_message": "Sichern Sie alle aktuellen Daten, bevor Sie fortfahren. Beim Fortfahren werden Ihre aktuellen v2-Daten dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.",
+        "button": "Migration erneut ausführen",
+        "confirm": "Migration erneut ausführen",
+        "confirm_countdown": "Migration erneut ausführen ({{seconds}} s)",
+        "dialog_title": "v1-Datenmigration erneut ausführen",
+        "error": "Die erneute v1-Datenmigration konnte nicht gestartet werden",
+        "final_confirmation": "Möchten Sie die aktuellen v2-Daten wirklich löschen und die v1-Datenmigration erneut ausführen?",
+        "final_message": "Ihre aktuellen v2-Daten werden dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.",
+        "final_retained": "Ihre ursprünglichen v1-Daten bleiben erhalten und werden nach dem Neustart erneut importiert.",
+        "next": "Weiter",
+        "title": "v1-Datenmigration erneut ausführen"
+      },
       "webdav": {
         "autoSync": {
           "label": "Automatisches Backup",
@@ -6527,19 +6578,19 @@
         "repo_url": "Wissensdatenbank-URL",
         "repo_url_placeholder": "https://www.yuque.com/username/xxx",
         "title": "Yuque-Konfiguration",
-        "token": "Yuque Token",
+        "token": "Yuque-Token",
         "token_placeholder": "Bitte Yuque-Token eingeben"
       }
     },
     "dependencies": {
-      "addTool": "Add Tool",
-      "addToolDescription": "Add a tool using a mise tool key (e.g., github:sharkdp/fd, uv, bun).",
+      "addTool": "Werkzeug hinzufügen",
+      "addToolDescription": "Fügen Sie mit einem mise-Werkzeugschlüssel ein Werkzeug hinzu (z. B. github:sharkdp/fd, uv oder bun).",
       "checkUpdates": "Auf Updates prüfen",
-      "coreDepsMissing": "Core dependencies not installed",
+      "coreDepsMissing": "Kernabhängigkeiten sind nicht installiert",
       "description": "Verwalten Sie binäre Tools und Laufzeitabhängigkeiten, die von der App benötigt werden.",
-      "duplicateName": "A tool with the same name already exists",
-      "fieldVersion": "Version (optional, defaults to latest)",
-      "installError": "Failed to install tool",
+      "duplicateName": "Ein Werkzeug mit diesem Namen ist bereits vorhanden",
+      "fieldVersion": "Version (optional, standardmäßig die neueste)",
+      "installError": "Werkzeug konnte nicht installiert werden",
       "installErrorHint": "Der Installationsbefehl ist fehlgeschlagen. Kopieren Sie das untenstehende Protokoll zur Fehlerbehebung oder teilen Sie es, um Hilfe zu erhalten.",
       "installSettings": {
         "description": "Feinabstimmung der Installation gebündelter CLI-Tools. Alle Felder sind optional – lassen Sie sie leer, um die Standardeinstellungen beizubehalten.",
@@ -6583,7 +6634,7 @@
           "label": "Werkzeugsignaturen überprüfen"
         }
       },
-      "installing": "Installiere...",
+      "installing": "Wird installiert...",
       "installingHint": "Die erste Installation kann eine Laufzeitumgebung herunterladen und einige Minuten dauern",
       "invalidTool": "Ungültiger Tool-Name oder Schlüssel",
       "localModels": {
@@ -6596,7 +6647,7 @@
         },
         "notice": {
           "downloadFailed": "Download fehlgeschlagen. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
-          "inUse": "Wird weiterhin von einer Wissensbasis verwendet; die Gewichte wurden beibehalten.",
+          "inUse": "Wird weiterhin von einer Wissensdatenbank verwendet; die Gewichte wurden beibehalten.",
           "removeFailed": "Entfernen fehlgeschlagen. Überprüfen Sie die Protokolle für Details."
         },
         "ocr": {
@@ -6612,47 +6663,47 @@
         "unsupported": "Lokale Modelle werden auf dieser Plattform nicht unterstützt."
       },
       "notInstalled": "Nicht installiert",
-      "openBinariesDir": "Open binaries directory",
-      "remove": "Remove tool",
-      "removeConfirmMessage": "Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
-      "removeConfirmTitle": "Remove Tool",
-      "removeDefinitionOnlyConfirmMessage": "Cherry konnte \"{{name}}\" nicht sicher bereinigen. Wenn nur die Definition entfernt wird, wird die Karte ausgeblendet, aber ihre Backend-Dateien bleiben installiert. Fortfahren?",
+      "openBinariesDir": "Ordner mit Binärdateien öffnen",
+      "remove": "Werkzeug entfernen",
+      "removeConfirmMessage": "„{{name}}“ aus Cherry Studio entfernen? Die portable Definition wird gelöscht. Cherry bereinigt außerdem eine exakt passende, von mise verwaltete Kopie, sofern vorhanden. Systemeigene und mitgelieferte ausführbare Dateien werden niemals verändert.",
+      "removeConfirmTitle": "Werkzeug entfernen",
+      "removeDefinitionOnlyConfirmMessage": "Cherry konnte \"{{name}}\" nicht sicher bereinigen: {{details}} Wenn nur die Definition entfernt wird, wird die Karte ausgeblendet, die Backend-Dateien bleiben jedoch installiert. Fortfahren?",
       "removeDefinitionOnlyConfirmTitle": "Nur Definition entfernen?",
       "removeDefinitionOnlyDependents": "Installierte Tools hängen davon ab: {{dependents}}.",
       "removeError": "Fehler beim Entfernen des Tools",
       "removeErrorHint": "Der Bereinigungsbefehl ist fehlgeschlagen. Kopieren Sie das untenstehende Protokoll zur Fehlerbehebung oder teilen Sie es, um Hilfe zu erhalten.",
-      "removeRuntimeConfirmMessage": "Sind Sie sicher, dass Sie \"{{name}}\" entfernen möchten? Die Deinstallation dieser Runtime könnte npm- oder pip-Tools beschädigen, die von ihr abhängen.",
-      "runtimeDependency": "Laufzeit",
-      "runtimeDependencyHint": "Laufzeit für npm/pip-Tools",
-      "searchFailed": "Search failed, check logs",
-      "searchRegistry": "Search mise registry...",
+      "removeRuntimeConfirmMessage": "Sind Sie sicher, dass Sie „{{name}}“ entfernen möchten? Die Deinstallation dieser Laufzeitumgebung könnte davon abhängige npm- oder pip-Werkzeuge beschädigen.",
+      "runtimeDependency": "Laufzeitumgebung",
+      "runtimeDependencyHint": "Laufzeitumgebung für npm-/pip-Werkzeuge",
+      "searchFailed": "Suche fehlgeschlagen; prüfen Sie die Protokolle",
+      "searchRegistry": "mise-Registry durchsuchen...",
       "source": {
-        "bundled": "bundled",
+        "bundled": "Mitgeliefert",
         "system": "System"
       },
       "title": "Umgebungsabhängigkeiten",
       "tools": {
-        "bun": "JavaScript runtime used by MCP services and related toolchains.",
-        "claude": "Anthropic's agentic coding tool for the terminal.",
-        "codex": "OpenAI's open-source coding agent that can read, edit, and execute code in your local repository.",
-        "fd": "Fast file finder, alternative to find.",
-        "gh": "GitHub CLI for repository and workflow management.",
-        "hermes": "Self-improving AI coding agent by Nous Research that creates skills from experience and persists knowledge across sessions.",
-        "lark-cli": "Official Lark/Feishu CLI covering Messenger, Docs, Base, Sheets, Calendar, and more with 200+ commands and AI Agent skills.",
-        "ntn": "Official Notion CLI for authentication, Workers management, and full Notion API access from the terminal.",
-        "openclaw": "Cross-platform personal AI assistant with chat, voice, canvas, camera, and screen capture capabilities.",
-        "opencode": "Open-source AI coding agent supporting 75+ models with GitHub Actions integration for automated workflows.",
-        "pi": "AI agent toolkit with coding agent CLI, unified LLM API, TUI/web UI, and Slack bot.",
-        "rg": "Fast text search tool (ripgrep), alternative to grep.",
-        "rtk": "CLI proxy that reduces LLM token consumption by compressing terminal output before it reaches the AI context window.",
-        "uv": "Python package manager for MCP services and dependency installation."
+        "bun": "JavaScript-Laufzeitumgebung für MCP-Dienste und zugehörige Werkzeugketten.",
+        "claude": "Anthropics agentenbasiertes Programmierwerkzeug für das Terminal.",
+        "codex": "OpenAIs quelloffener Programmieragent, der Code in Ihrem lokalen Repository lesen, bearbeiten und ausführen kann.",
+        "fd": "Schnelle Dateisuche, eine Alternative zu find.",
+        "gh": "GitHub-CLI zur Verwaltung von Repositories und Workflows.",
+        "hermes": "Selbstlernender KI-Programmieragent von Nous Research, der aus Erfahrungen Fähigkeiten erstellt und Wissen sitzungsübergreifend speichert.",
+        "lark-cli": "Offizielle Lark-/Feishu-CLI für Messenger, Docs, Base, Sheets, Calendar und mehr mit über 200 Befehlen und Fähigkeiten für KI-Agenten.",
+        "ntn": "Offizielle Notion-CLI für Authentifizierung, Worker-Verwaltung und vollständigen Notion-API-Zugriff über das Terminal.",
+        "openclaw": "Plattformübergreifender persönlicher KI-Assistent mit Chat, Sprache, Canvas, Kamera und Bildschirmaufnahme.",
+        "opencode": "Quelloffener KI-Programmieragent mit Unterstützung für über 75 Modelle und GitHub-Actions-Integration für automatisierte Workflows.",
+        "pi": "Werkzeugsatz für KI-Agenten mit Programmieragent-CLI, einheitlicher LLM-API, TUI/Weboberfläche und Slack-Bot.",
+        "rg": "Schnelle Textsuche (ripgrep), eine Alternative zu grep.",
+        "rtk": "CLI-Proxy, der den LLM-Tokenverbrauch reduziert, indem er die Terminalausgabe vor der Übergabe an den KI-Kontext komprimiert.",
+        "uv": "Python-Paketmanager für MCP-Dienste und die Installation von Abhängigkeiten."
       },
       "uninstall": "Deinstallieren",
       "uninstallConfirmMessage": "Sind Sie sicher, dass Sie \"{{name}}\" deinstallieren möchten? Die Backend-Kopie von Cherry Studio wird gelöscht.",
-      "uninstallConfirmTitle": "Deinstallations-Tool",
+      "uninstallConfirmTitle": "Werkzeug deinstallieren",
       "uninstallFailed": "Fehler beim Deinstallieren des Tools",
       "uninstallSuccess": "Tool deinstalliert",
-      "update": "Update to latest version",
+      "update": "Auf die neueste Version aktualisieren",
       "updateCheckFailed": "Aktualisierungsprüfung fehlgeschlagen",
       "updateCheckSuccess": "Versionsprüfung abgeschlossen",
       "viewErrorDetails": "Details anzeigen"
@@ -6736,7 +6787,7 @@
         "reset": "Avatar zurücksetzen"
       },
       "backup": {
-        "button": "Backup",
+        "button": "Sichern",
         "title": "Datensicherung und -wiederherstellung"
       },
       "common": {
@@ -6865,7 +6916,7 @@
           "placeholder": "MCP-Server-JSON-Konfiguration einfügen",
           "selectDxtFile": "DXT-Datei auswählen",
           "selectMcpbFile": "MCPB-Datei auswählen",
-          "tooltip": "Konfigurations-JSON von MCP-Servers kopieren (Vorzugsweise NPX oder UVX-Konfigurationen verwenden) und in das Eingabefeld einfügen"
+          "tooltip": "Kopieren Sie die Konfigurations-JSON (vorzugsweise\n NPX- oder UVX-Konfigurationen) von der Einführungsseite des MCP-Servers und fügen Sie sie in das Eingabefeld ein"
         },
         "label": "Server hinzufügen"
       },
@@ -6879,11 +6930,11 @@
       "builtinServersDescriptions": {
         "brave_search": "MCP-Server-Implementierung mit Brave-Search-API, die sowohl Web- als auch lokale Suchfunktionen bietet. BRAVE_API_KEY-Umgebungsvariable muss konfiguriert werden",
         "browser": "Steuert ein headless Electron-Fenster über das Chrome DevTools Protocol. Tools: URL öffnen, einzeiligen JS ausführen, Sitzung zurücksetzen.",
-        "didi_mcp": "An integrated Didi MCP server implementation that provides ride-hailing services including map search, price estimation, order management, and driver tracking. Only available in mainland China. Requires the DIDI_API_KEY environment variable to be configured.",
+        "didi_mcp": "DiDi-MCP-Server mit Fahrdiensten wie Kartensuche, Preisschätzung, Auftragsverwaltung und Fahrerortung. Nur auf dem chinesischen Festland verfügbar. Die Umgebungsvariable DIDI_API_KEY muss konfiguriert sein.",
         "dify_knowledge": "MCP-Server-Implementierung von Dify, die einen einfachen API-Zugriff auf Dify bietet. Dify Key muss konfiguriert werden",
         "fetch": "MCP-Server zum Abrufen von Webseiteninhalten",
         "filesystem": "MCP-Server für Dateisystemoperationen (Node.js), der den Zugriff auf bestimmte Verzeichnisse ermöglicht",
-        "flomo": "Verbinde dich mit flomo, um Notizen und Ideen schnell per KI zu erfassen. Eine Autorisierung des flomo-Kontos ist erforderlich.",
+        "flomo": "Verbinden Sie flomo, um Notizen und Ideen schnell per KI zu erfassen. Eine Autorisierung des flomo-Kontos ist erforderlich.",
         "mcp_auto_install": "MCP-Service automatisch installieren (Beta-Version)",
         "memory": "MCP-Server mit persistenter Erinnerungsbasis auf lokalem Wissensgraphen, der Informationen über verschiedene Dialoge hinweg speichert. MEMORY_FILE_PATH-Umgebungsvariable muss konfiguriert werden",
         "no": "Keine Beschreibung",
@@ -6941,7 +6992,7 @@
       "jsonSaveError": "JSON-Konfiguration speichern fehlgeschlagen",
       "jsonSaveSuccess": "JSON-Konfiguration erfolgreich gespeichert",
       "lanyun": {
-        "description": "Lanyun Technology Cloud Platform MCP Service",
+        "description": "MCP-Dienst der Cloudplattform von Lanyun Technology",
         "name": "Lanyun Technology"
       },
       "logoUrl": "Logo-URL",
@@ -7046,7 +7097,7 @@
       "serverSingular": "Server",
       "servers": "MCP-Server",
       "shortTitle": "MCP",
-      "sse": "Server-Sende-Ereignisse (sse)",
+      "sse": "Server-Sent Events (SSE)",
       "startError": "Start fehlgeschlagen",
       "stdio": "Standard-Eingabe / -Ausgabe (stdio)",
       "streamableHttp": "Streaming-HTTP (streamableHttp)",
@@ -7072,7 +7123,7 @@
         "general": "Allgemein",
         "prompts": "Hinweis",
         "resources": "Ressourcen",
-        "tools": "Tools"
+        "tools": "Werkzeuge"
       },
       "tags": "Tags",
       "tagsPlaceholder": "Tag eingeben",
@@ -7083,7 +7134,7 @@
         "autoApprove": {
           "label": "Automatische Genehmigung",
           "tooltip": {
-            "confirm": "MCP-Tool ausführen?",
+            "confirm": "Sind Sie sicher, dass Sie dieses MCP-Werkzeug ausführen möchten?",
             "disabled": "Manuelle Genehmigung vor Tool-Ausführung erforderlich",
             "enabled": "Tool wird automatisch ohne Genehmigung ausgeführt",
             "howToEnable": "Tool muss aktiviert sein für Auto-Genehmigung"
@@ -7106,7 +7157,7 @@
         "inMemory": "Integriert",
         "sse": "SSE",
         "stdio": "STDIO",
-        "streamableHttp": "Streaming"
+        "streamableHttp": "Streamable HTTP"
       },
       "updateError": "Server-Update fehlgeschlagen",
       "updateSuccess": "Server erfolgreich aktualisiert",
@@ -7115,7 +7166,7 @@
     },
     "menuGroups": {
       "automation": "Effizienz",
-      "capabilities": "Tools",
+      "capabilities": "Werkzeuge",
       "models": "Modelle",
       "personal": "Präferenzen",
       "quickAccess": "Schneller Zugriff",
@@ -7187,7 +7238,7 @@
       },
       "disabled": "Ausgeblendete Mini-Apps",
       "display_title": "Mini-App-Anzeigeeinstellungen",
-      "empty": "Klicke auf das Ausblenden-Symbol bei einer App links, und sie wird hierher verschoben",
+      "empty": "Klicken Sie links bei einer App auf das Ausblenden-Symbol, um sie hierher zu verschieben",
       "group": {
         "display": "Anzeigeverwaltung",
         "preferences": "Einstellungen"
@@ -7285,17 +7336,17 @@
       },
       "api_key": "API-Schlüssel",
       "base_url": "Basis-URL",
-      "bulk_disable": "Disable all",
-      "bulk_enable": "Enable all",
+      "bulk_disable": "Alle deaktivieren",
+      "bulk_enable": "Alle aktivieren",
       "check": {
         "all": "Alle",
-        "all_models_passed": "Alle Modelle Test bestanden",
+        "all_models_passed": "Alle Modelltests bestanden",
         "button_caption": "Gesundheitscheck",
-        "disabled": "Schließen",
+        "disabled": "Deaktiviert",
         "disclaimer": "Gesundheitscheck erfordert Anfragen. Vorsichtig verwenden. Pay-per-use-Modelle können zusätzliche Kosten verursachen.",
-        "drawer_result_hint": "Results remain here until you close the drawer or run the check again.",
+        "drawer_result_hint": "Die Ergebnisse bleiben hier, bis Sie den Bereich schließen oder die Prüfung erneut ausführen.",
         "enable_concurrent": "Parallele Erkennung",
-        "enabled": "Einschalten",
+        "enabled": "Aktiviert",
         "failed": "Fehlgeschlagen",
         "failed_to_start": "Fehler beim Start der Gesundheitsprüfung",
         "generation_output_audio": "Audio",
@@ -7303,29 +7354,29 @@
         "generation_output_video": "ein Video",
         "keys_status_count": "Erfolgreich: {{count_passed}} Schlüssel, Fehlgeschlagen: {{count_failed}} Schlüssel",
         "model_button_caption": "Alle Modelle prüfen",
-        "model_status_failed": "{{count}} Modelle vollständig nicht zugänglich",
-        "model_status_partial": "{{count}} Modelle mit einigen Schlüsseln nicht zugänglich",
-        "model_status_passed": "{{count}} Modelle bestanden die Gesundheitscheck",
+        "model_status_failed": "{{count}} Modelle sind vollständig nicht erreichbar",
+        "model_status_partial": "{{count}} Modelle sind mit einigen Schlüsseln nicht erreichbar",
+        "model_status_passed": "{{count}} Modelle haben die Gesundheitsprüfung bestanden",
         "model_status_summary": "{{provider}}: {{summary}}",
         "no_api_keys": "API-Schlüssel nicht gefunden, bitte zuerst API-Schlüssel hinzufügen",
         "no_results": "Keine Ergebnisse",
-        "outcome_fail_short": "{{count}} failed",
+        "outcome_fail_short": "{{count}} fehlgeschlagen",
         "outcome_skipped_short": "{{count}} übersprungen",
-        "outcome_success_short": "{{count}} passed",
-        "outcome_total": "{{count}} total",
-        "passed": "Durch",
-        "pipeline_heading": "Detection progress",
+        "outcome_success_short": "{{count}} bestanden",
+        "outcome_total": "{{count}} insgesamt",
+        "passed": "Bestanden",
+        "pipeline_heading": "Prüffortschritt",
         "progress_count": "{{done}} / {{total}}",
-        "progress_current": "Checking: {{name}}",
-        "progress_hint": "You can close this panel; the check continues in the background.",
-        "progress_title": "Running health check",
-        "retry": "Check again",
+        "progress_current": "Wird geprüft: {{name}}",
+        "progress_hint": "Sie können diesen Bereich schließen; die Prüfung wird im Hintergrund fortgesetzt.",
+        "progress_title": "Gesundheitsprüfung wird ausgeführt",
+        "retry": "Erneut prüfen",
         "select_api_key": "API-Schlüssel auswählen: ",
         "single": "Einzeln",
         "skip_reason_generation_cost": "Der Health-Check dieses Modells würde {{output}} erzeugen und Kontingent verbrauchen, daher wird er standardmäßig übersprungen.",
         "skip_reason_unsupported_probe": "Dieser Modelltyp verfügt noch über keine kostengünstige Health-Check-Option, daher wird er standardmäßig übersprungen.",
-        "start": "Start",
-        "status_checking": "Checking…",
+        "start": "Prüfung starten",
+        "status_checking": "Wird geprüft…",
         "status_skipped": "Übersprungen",
         "timeout": "Timeout",
         "title": "Modell-Gesundheitscheck",
@@ -7341,13 +7392,15 @@
       "expand_all": "Alle ausklappen",
       "filter": {
         "clear": "Modellfilter löschen",
-        "label": "Modelle filtern"
+        "label": "Modelle filtern",
+        "scroll_left": "Modelltypen nach links scrollen",
+        "scroll_right": "Modelltypen nach rechts scrollen"
       },
       "group_disable": "Diese Gruppe deaktivieren",
       "group_enable": "Diese Gruppe aktivieren",
       "list_title": "Modelle",
       "manage": {
-        "add_custom_model": "Add custom model",
+        "add_custom_model": "Benutzerdefiniertes Modell hinzufügen",
         "add_listed": {
           "confirm": "Alle Modelle zur Liste hinzufügen?",
           "label": "Alle Modelle hinzufügen"
@@ -7357,83 +7410,83 @@
         "clean_stale_models": "Ungültige Modelle bereinigen",
         "clean_stale_success": "{{count}} ungültige(s) Modell(e) bereinigt",
         "default_model_cannot_remove": "Das Standardmodell kann nicht gelöscht werden.",
-        "drawer_title": "Model management",
-        "fetch_deselect_all_add": "Deselect all",
-        "fetch_deselect_all_remove": "Deselect all",
+        "drawer_title": "Modellverwaltung",
+        "fetch_deselect_all_add": "Auswahl aufheben",
+        "fetch_deselect_all_remove": "Auswahl aufheben",
         "fetch_list": "Modellliste abrufen",
         "fetch_ok": "OK",
-        "fetch_removed_hint": "These models no longer exist on the provider API. Check to remove them from your list.",
-        "fetch_result_title": "Pull result",
-        "fetch_select_all_add": "Select all to add",
-        "fetch_select_all_remove": "Select all to remove",
-        "fetch_summary_add": "Add {{selected}}/{{total}} models",
-        "fetch_summary_remove": "Remove {{selected}}/{{total}} models",
-        "fetch_up_to_date": "Your model list is up to date",
-        "fetch_up_to_date_hint": "No new or removed models were found.",
-        "filter_add_all": "Add all in view",
-        "filter_remove_all": "Remove from provider",
-        "footer_done": "Done",
+        "fetch_removed_hint": "Diese Modelle sind nicht mehr über die Anbieter-API verfügbar. Wählen Sie sie aus, um sie aus Ihrer Liste zu entfernen.",
+        "fetch_result_title": "Abrufsergebnis",
+        "fetch_select_all_add": "Alle zum Hinzufügen auswählen",
+        "fetch_select_all_remove": "Alle zum Entfernen auswählen",
+        "fetch_summary_add": "{{selected}}/{{total}} Modelle hinzufügen",
+        "fetch_summary_remove": "{{selected}}/{{total}} Modelle entfernen",
+        "fetch_up_to_date": "Ihre Modellliste ist auf dem neuesten Stand",
+        "fetch_up_to_date_hint": "Es wurden keine neuen oder entfernten Modelle gefunden.",
+        "filter_add_all": "Alle sichtbaren hinzufügen",
+        "filter_remove_all": "Vom Anbieter entfernen",
+        "footer_done": "Fertig",
         "large_group_hidden": "Zeige {{count}} weitere Modelle",
-        "model_in_use_by_knowledge_base": "Dieses Modell wird von einer Wissensbasis verwendet und kann nicht gelöscht werden.",
-        "operation_failed": "Model operation failed.",
+        "model_in_use_by_knowledge_base": "Dieses Modell wird von einer Wissensdatenbank verwendet und kann nicht gelöscht werden.",
+        "operation_failed": "Modellvorgang fehlgeschlagen.",
         "refetch_list": "Modellliste erneut abrufen",
-        "reload_catalog": "Refresh list",
+        "reload_catalog": "Liste aktualisieren",
         "remove_listed": "Alle Modelle entfernen",
         "remove_model": "Modell entfernen",
         "remove_skipped_default_in_use": "{{count}} Standardmodell(e) übersprungen",
         "remove_whole_group": "Gesamte Gruppe entfernen",
-        "search_models_placeholder": "Search models…",
-        "select_none": "Select none",
+        "search_models_placeholder": "Modelle suchen…",
+        "select_none": "Auswahl aufheben",
         "stale_badge": "Ungültig",
         "stale_filter": "Ungültig",
-        "status_all": "All",
-        "status_disabled": "Disabled",
-        "status_enabled": "Enabled",
-        "sync_added_description": "New upstream models that can be added to this provider.",
-        "sync_added_metric": "{{count}} new models",
-        "sync_added_section": "New models",
-        "sync_apply_changes": "Apply changes",
+        "status_all": "Alle",
+        "status_disabled": "Deaktiviert",
+        "status_enabled": "Aktiviert",
+        "sync_added_description": "Neue vorgelagerte Modelle, die diesem Anbieter hinzugefügt werden können.",
+        "sync_added_metric": "{{count}} neue Modelle",
+        "sync_added_section": "Neue Modelle",
+        "sync_apply_changes": "Änderungen anwenden",
         "sync_apply_default_in_use": "Einige Modelle sind als Standardmodell in Gebrauch und können nicht entfernt werden.",
-        "sync_apply_result": "Added {{added}}, deprecated {{deprecated}}, deleted {{deleted}}.",
-        "sync_empty_added": "No new upstream models were found.",
-        "sync_empty_missing": "No unavailable local models were found.",
-        "sync_impact_section": "Reference impact",
-        "sync_impact_summary": "{{models}} impacted models, {{references}} strong references",
-        "sync_missing_description": "Local models that no longer exist in the latest upstream list.",
-        "sync_missing_metric": "{{count}} unavailable models",
-        "sync_missing_section": "Unavailable models",
-        "sync_no_references": "No strong references",
-        "sync_pick_delete": "Delete",
-        "sync_pick_deprecate": "Mark deprecated",
-        "sync_preview_description": "Review upstream model changes before updating your local model list.",
-        "sync_preview_summary": "Pull preview",
-        "sync_pull_failed": "Failed to pull models.",
-        "sync_reference_assistants": "Assistants {{count}}",
-        "sync_reference_knowledge": "Knowledge bases {{count}}",
-        "sync_reference_preferences": "Preferences {{count}}",
-        "sync_references": "Strong references {{count}}",
-        "sync_replacement": "Suggested replacement: {{model}}",
-        "sync_selected_metric": "{{count}} selected",
-        "sync_selected_summary": "{{selected}} / {{total}} selected",
-        "sync_switch_to_delete": "Delete instead",
-        "sync_switch_to_deprecate": "Mark deprecated instead",
-        "sync_will_deprecate": "Will be marked deprecated"
+        "sync_apply_result": "{{added}} hinzugefügt, {{deprecated}} als veraltet markiert, {{deleted}} gelöscht.",
+        "sync_empty_added": "Es wurden keine neuen vorgelagerten Modelle gefunden.",
+        "sync_empty_missing": "Es wurden keine nicht verfügbaren lokalen Modelle gefunden.",
+        "sync_impact_section": "Auswirkungen auf Referenzen",
+        "sync_impact_summary": "{{models}} betroffene Modelle, {{references}} starke Referenzen",
+        "sync_missing_description": "Lokale Modelle, die nicht mehr in der aktuellen vorgelagerten Liste enthalten sind.",
+        "sync_missing_metric": "{{count}} nicht verfügbare Modelle",
+        "sync_missing_section": "Nicht verfügbare Modelle",
+        "sync_no_references": "Keine starken Referenzen",
+        "sync_pick_delete": "Löschen",
+        "sync_pick_deprecate": "Als veraltet markieren",
+        "sync_preview_description": "Prüfen Sie die vorgelagerten Modelländerungen, bevor Sie Ihre lokale Modellliste aktualisieren.",
+        "sync_preview_summary": "Abrufvorschau",
+        "sync_pull_failed": "Modelle konnten nicht abgerufen werden.",
+        "sync_reference_assistants": "Assistenten {{count}}",
+        "sync_reference_knowledge": "Wissensdatenbanken {{count}}",
+        "sync_reference_preferences": "Einstellungen {{count}}",
+        "sync_references": "Starke Referenzen {{count}}",
+        "sync_replacement": "Vorgeschlagener Ersatz: {{model}}",
+        "sync_selected_metric": "{{count}} ausgewählt",
+        "sync_selected_summary": "{{selected}} / {{total}} ausgewählt",
+        "sync_switch_to_delete": "Stattdessen löschen",
+        "sync_switch_to_deprecate": "Stattdessen als veraltet markieren",
+        "sync_will_deprecate": "Wird als veraltet markiert"
       },
       "more_actions": "Weitere Aktionen für die Modellliste",
       "not_enabled_models": "Deaktiviert",
       "painting_model": "Malermodell",
       "painting_model_description": "Modell für die Bildgenerierung",
-      "provider_id": "Dienstanbieter-ID",
+      "provider_id": "Anbieter-ID",
       "provider_key_add_confirm": "API-Schlüssel für {{provider}} hinzufügen?",
-      "provider_key_add_failed_by_empty_data": "API-Schlüssel für Dienstanbieter hinzufügen fehlgeschlagen, Daten sind leer",
-      "provider_key_add_failed_by_invalid_data": "API-Schlüssel für Dienstanbieter hinzufügen fehlgeschlagen, Datenformat ist falsch",
+      "provider_key_add_failed_by_empty_data": "Der API-Schlüssel für den Anbieter konnte nicht hinzugefügt werden, da die Daten leer sind",
+      "provider_key_add_failed_by_invalid_data": "Der API-Schlüssel für den Anbieter konnte aufgrund eines ungültigen Datenformats nicht hinzugefügt werden",
       "provider_key_added": "API-Schlüssel für {{provider}} erfolgreich hinzugefügt",
       "provider_key_already_exists": "{{provider}} hat bereits denselben API-Schlüssel, der nicht erneut hinzugefügt wird",
       "provider_key_confirm_title": "API-Schlüssel für {{provider}} hinzufügen",
       "provider_key_no_change": "{{provider}} hat keine API-Schlüssel-Änderungen",
       "provider_key_overridden": "API-Schlüssel für {{provider}} erfolgreich aktualisiert",
-      "provider_key_override_confirm": "{{provider}} hat bereits denselben API-Schlüssel, der überschrieben wird?",
-      "provider_name": "Dienstanbietername",
+      "provider_key_override_confirm": "{{provider}} hat bereits einen API-Schlüssel ({{existingKey}}). Möchten Sie ihn durch den neuen Schlüssel ({{newKey}}) ersetzen?",
+      "provider_name": "Anbietername",
       "quick_assistant_default_tag": "Standard",
       "quick_assistant_model": "Schnellassistent-Modell",
       "quick_assistant_selection": "Assistent auswählen",
@@ -7445,8 +7498,8 @@
       },
       "toolbar": {
         "custom_add": "Benutzerdefiniert",
-        "filter_close": "Close filter",
-        "filter_open": "Filter by capability",
+        "filter_close": "Filter schließen",
+        "filter_open": "Nach Funktion filtern",
         "pull_short": "Modellliste abrufen"
       },
       "topic_naming": {
@@ -7473,7 +7526,7 @@
     "no_provider_selected": "Kein Anbieter ausgewählt",
     "notification": {
       "assistant": "Assistenten-Nachrichten",
-      "backup": "Backup",
+      "backup": "Sicherung",
       "knowledge_embed": "Wissensdatenbank",
       "title": "Benachrichtigungen"
     },
@@ -7521,7 +7574,7 @@
     "prompts": {
       "add": "Prompt hinzufügen",
       "contentLabel": "Inhalt",
-      "contentPlaceholder": "Gib Eingabeaufforderungsinhalt ein. Unterstützt ${Variablen}; drücke Tab, um zwischen Variablen zu springen. Beispiel:\nHilf mir, eine Route von ${from} nach ${to} zu planen und sende sie an ${email}.",
+      "contentPlaceholder": "Geben Sie den Prompt-Inhalt ein. Unterstützt ${variables}; drücken Sie die Tabulatortaste, um zwischen Variablen zu wechseln. Beispiel:\nHelfen Sie mir, eine Route von ${from} nach ${to} zu planen und senden Sie sie an ${email}.",
       "delete": "Prompt löschen",
       "deleteConfirm": "Der Prompt wird dauerhaft gelöscht. Fortfahren?",
       "edit": "Prompt bearbeiten",
@@ -7583,20 +7636,20 @@
             "label": "Unterstützt Array-Format für message content"
           },
           "developer_role": {
-            "help": "Unterstützt Developer Message",
+            "help": "Unterstützt der Anbieter Nachrichten mit der Rolle „developer“?",
             "label": "Unterstützt Developer Message"
           },
           "enable_thinking": {
-            "help": "Unterstützt enable_thinking",
+            "help": "Unterstützt der Anbieter die Steuerung des Reasonings von Modellen wie Qwen3 über den Parameter enable_thinking?",
             "label": "Unterstützt enable_thinking"
           },
           "label": "API-Einstellungen",
           "service_tier": {
-            "help": "Unterstützt service_tier",
+            "help": "Legt fest, ob der Anbieter die Konfiguration des Parameters service_tier unterstützt. Wenn diese Option aktiviert ist, kann der Parameter in den Dienststufeneinstellungen der Chatseite angepasst werden. Nur für OpenAI-Modelle.",
             "label": "Unterstützt service_tier"
           },
           "stream_options": {
-            "help": "Unterstützt stream_options",
+            "help": "Unterstützt der Anbieter den Parameter stream_options?",
             "label": "Unterstützt stream_options"
           },
           "verbosity": {
@@ -7615,7 +7668,7 @@
       "api_host_no_valid": "API-Adresse ist ungültig",
       "api_host_placeholder": "Nicht konfiguriert",
       "api_host_preview": "Vorschau: {{url}}",
-      "api_host_tooltip": "Nur bei Anbietern, die ein OpenAI-kompatibles Endpunkt anbieten. Eine / am Ende ignoriert automatisch hinzugefügtes v1, ein # am Ende erzwingt die Verwendung der ursprünglichen Adresse.",
+      "api_host_tooltip": "Nur überschreiben, wenn Ihr Anbieter einen benutzerdefinierten OpenAI-kompatiblen Endpunkt erfordert.",
       "api_key": {
         "copy": "Kopieren",
         "enabled_suffix": "aktiviert",
@@ -7623,10 +7676,10 @@
         "label": "API-Schlüssel",
         "label_placeholder": "Beschriftung",
         "list_description": "Verwalten Sie mehrere API-Schlüssel für diesen Anbieter",
-        "placeholder": "Verwenden Sie Kommas, um mehrere Schlüssel zu trennen",
+        "placeholder": "API-Schlüssel eingeben",
         "save_failed": "API-Schlüssel konnten nicht gespeichert werden",
         "show_key": "Schlüssel anzeigen",
-        "tip": "Mehrere Schlüssel durch Komma oder Leerzeichen trennen",
+        "tip": "Fügen Sie jeweils nur einen API-Schlüssel hinzu",
         "unnamed": "API-Schlüssel"
       },
       "api_version": "API-Version",
@@ -7701,10 +7754,10 @@
         "sign_in_button": "Mit ChatGPT anmelden",
         "sign_in_failed": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
         "sign_in_success": "Angemeldet bei OpenAI Codex",
-        "signing_in": "Warte auf Browser…"
+        "signing_in": "Warten auf den Browser…"
       },
       "copilot": {
-        "add_request_header": "Add header",
+        "add_request_header": "Header hinzufügen",
         "auth_failed": "Github Copilot-Authentifizierung fehlgeschlagen",
         "auth_success": "Github Copilot-Authentifizierung erfolgreich",
         "auth_success_title": "Authentifizierung erfolgreich",
@@ -7718,10 +7771,10 @@
         "description_detail": "GitHub Copilot ist ein auf AI basierender Code-Assistent, der nur mit einem gültigen GitHub Copilot-Abonnement verwendet werden kann",
         "expand": "Ausklappen",
         "header_field_name": "Header",
-        "header_field_value": "Value",
-        "header_name_placeholder": "Header name",
-        "header_value_placeholder": "Header value",
-        "headers_description": "Custom request headers (JSON format)",
+        "header_field_value": "Wert",
+        "header_name_placeholder": "Header-Name",
+        "header_value_placeholder": "Header-Wert",
+        "headers_description": "Benutzerdefinierte Anfrage-Header (JSON-Format)",
         "headers_json_placeholder": "{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSON-Formatfehler",
         "login": "Bei GitHub anmelden",
@@ -7802,7 +7855,7 @@
         "sign_in_button": "Mit xAI anmelden",
         "sign_in_failed": "Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.",
         "sign_in_success": "Bei Grok CLI angemeldet",
-        "signing_in": "Warte auf Browser…"
+        "signing_in": "Warten auf den Browser…"
       },
       "image_endpoints": {
         "image_edit_base_url": {
@@ -7820,7 +7873,7 @@
         "add": "Endpunkt hinzufügen",
         "anthropic": "Anthropic Nachrichten",
         "gemini": "Google Gemini",
-        "openai_chat": "OpenAI Chat Completions",
+        "openai_chat": "OpenAI",
         "openai_responses": "OpenAI-Antworten",
         "toggle": "Weitere Endpunkte"
       },
@@ -7836,28 +7889,28 @@
         "balance_error": "Fehler beim Abrufen des Guthabens",
         "button": "Mit {{provider}}-Konto anmelden",
         "cherryIn": {
-          "description": "Melden Sie sich mit Ihrem selbst gehosteten New-API-Server über OAuth 2.0 (PKCE) an.",
+          "description": "Melden Sie sich über OAuth 2.0 bei CherryIN an.",
           "logged_in": "Über OAuth angemeldet",
           "login_button": "Mit CherryIN autorisieren",
           "logout_button": "Abmelden",
           "not_logged_in": "Nicht angemeldet",
-          "register_account": "Create account",
-          "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
-          "tagline": "After you sign in, you can use all model services",
+          "register_account": "Konto erstellen",
+          "service_attribution": "Dieser Dienst wird von <link>open.cherryin.ai</link> bereitgestellt",
+          "tagline": "Nach der Anmeldung können Sie alle Modelldienste verwenden",
           "title": "OAuth-Anmeldung",
-          "use_api_key": "Use API key instead"
+          "use_api_key": "Stattdessen API-Schlüssel verwenden"
         },
         "connect": "Verbinde {{provider}}",
         "description": "Dienst wird von <website>{{provider}}</website> bereitgestellt",
         "error": "Authentifizierung fehlgeschlagen",
         "logged_in": "Angemeldet",
         "logout": "Abmelden",
-        "logout_confirm": "Bist du sicher, dass du dich abmelden willst?",
+        "logout_confirm": "Sind Sie sicher, dass Sie sich abmelden möchten?",
         "logout_success": "Erfolgreich abgemeldet",
         "logout_warning": "Lokal abgemeldet, aber die Server-Token-Widerrufung ist möglicherweise fehlgeschlagen",
         "official_website": "Offizielle Website",
         "provided_by": "Bereitgestellt von",
-        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into German.",
+        "provided_by_suffix": "",
         "requests": "Anfragen",
         "topup": "Aufladen",
         "usage_title": "Verwendung",
@@ -7958,7 +8011,7 @@
       "add": "Phrase hinzufügen",
       "assistant": "Assistent-Phrasen",
       "contentLabel": "Inhalt",
-      "contentPlaceholder": "Bitte geben Sie den Phraseninhalt ein, unterstützen Sie die Verwendung von Variablen und drücken Sie Tab, um schnell zur zu ändernden Variable zu springen. Zum Beispiel:  \nHilf mir, eine Route von ${from} nach ${to} zu planen und sende sie an ${email}.",
+      "contentPlaceholder": "Geben Sie den Inhalt der Phrase ein. Unterstützt ${variables}; drücken Sie die Tabulatortaste, um zwischen Variablen zu wechseln. Beispiel:\nHelfen Sie mir, eine Route von ${from} nach ${to} zu planen und senden Sie sie an ${email}.",
       "delete": "Phrase löschen",
       "deleteConfirm": "Der Ausdruck kann nach dem Löschen nicht wiederhergestellt werden, fortfahren?",
       "edit": "Phrase bearbeiten",
@@ -8047,12 +8100,12 @@
       "search_message": "Nachricht suchen",
       "search_message_in_chat": "In aktuellem Chat suchen",
       "search_placeholder": "Suchverknüpfungen...",
-      "select_model": "Select Model",
+      "select_model": "Modell auswählen",
       "selection_assistant_select_text": "Textauswahl-Assistent: Text erfassen",
       "selection_assistant_toggle": "Textauswahl-Assistent umschalten",
       "show_app": "App anzeigen/ausblenden",
       "show_settings": "Einstellungen öffnen",
-      "title": "Shortcut",
+      "title": "Tastenkürzel",
       "toggle_left_sidebar": "Linke Seitenleiste umschalten",
       "toggle_new_context": "Kontext löschen",
       "toggle_right_sidebar": "Rechte Seitenleiste umschalten",
@@ -8070,10 +8123,10 @@
       "batchUninstallSuccess": "{{count}} Fähigkeiten deinstalliert",
       "builtin": "Integriert",
       "confirmBatchUninstall": "Sind Sie sicher, dass Sie {{count}} ausgewählte Fähigkeiten deinstallieren möchten?",
-      "confirmUninstall": "Bist du sicher, dass du diese Fähigkeit deinstallieren möchtest?",
+      "confirmUninstall": "Sind Sie sicher, dass Sie diese Fähigkeit deinstallieren möchten?",
       "directory": "Verzeichnis",
       "dropHint": "Oder ziehen Sie eine ZIP-Datei oder einen Ordner hierher.",
-      "emptyDesc": "Installiere Fähigkeiten aus ZIP, Verzeichnis oder suche in Online-Registries, um die Agenten-Fähigkeiten zu erweitern.",
+      "emptyDesc": "Installieren Sie Fähigkeiten aus einer ZIP-Datei oder einem Verzeichnis oder suchen Sie in Online-Registrys, um die Fähigkeiten von Agenten zu erweitern.",
       "emptyTip": "Tipp: Sie können auch einen Agenten bitten, Fähigkeiten für Sie zu installieren.",
       "emptyTitle": "Keine Fähigkeit ausgewählt",
       "filterPlaceholder": "Filter Fähigkeiten...",
@@ -8136,7 +8189,7 @@
           },
           "image_to_text": {
             "title": "OCR",
-            "tooltip": "Zum Erkennen von Text in Bildern für die Übersetzungsfunktion"
+            "tooltip": "Dient zum Erkennen von Text in Bildern"
           }
         },
         "fields": {
@@ -8260,7 +8313,7 @@
         "provider_description": {
           "bocha": "Chinesische KI-Such-API mit Echtzeit-Web- und strukturierten Ergebnissen.",
           "exa": "Neural Search-API für KI-Anwendungen, optimiert für die semantische Webabfrage.",
-          "exa_mcp": "Stelle Exa-Suche Agenten über den Exa MCP Server zur Verfügung.",
+          "exa_mcp": "Stellt Agenten die Exa-Suche über den Exa-MCP-Server zur Verfügung.",
           "fetch": "Integrierter URL-Abruf-Provider. Ruft Webseiteninhalte von einer URL ab, um Suchergebnisse zu erweitern.",
           "firecrawl": "Firecrawl Crawler- und Suchdienst, optimiert zur Umwandlung von Websites in Markdown.",
           "jina": "Jina Reader-Such- und Lese-APIs zum Abrufen von sauberem Webinhalt.",
@@ -8322,7 +8375,7 @@
           }
         },
         "langCode": {
-          "help": "Format: [Sprache+Region], z. B. de-de",
+          "help": "Format [Sprache+Region]: 2–3 Kleinbuchstaben, Bindestrich, 2–3 Kleinbuchstaben",
           "label": "Sprachcode",
           "placeholder": "de-de"
         },
@@ -8346,9 +8399,9 @@
       "title": "Übersetzungseinstellungen"
     },
     "tray": {
-      "onclose": "Bei Schließen ins Tray minimieren",
-      "show": "Tray-Symbol anzeigen",
-      "title": "Tray"
+      "onclose": "Beim Schließen in den Infobereich minimieren",
+      "show": "Symbol im Infobereich anzeigen",
+      "title": "Infobereich"
     },
     "usage": {
       "cards": {
@@ -8372,9 +8425,9 @@
         "unattributedSource": "Unzugeordnete Quelle"
       },
       "chart": {
-        "bar": "Bar",
-        "line": "Zeile",
-        "pie": "Kuchen",
+        "bar": "Balken",
+        "line": "Linie",
+        "pie": "Kreis",
         "stack": "Stapel"
       },
       "currency": "Währung",
@@ -8391,16 +8444,16 @@
         "groupBy": "Gruppieren nach",
         "loadMore": "Mehr laden",
         "loading": "Wird geladen...",
-        "metric": "Metrisch",
+        "metric": "Metrik",
         "noBreakdown": "Keine Aufschlüsselung der Daten",
         "noBreakdownDescription": "Versuchen Sie ein breiteres Fenster oder einen anderen Anbieter.",
         "noEntries": "Keine Einträge",
         "noEntriesDescription": "Probieren Sie ein breiteres Fenster oder einen anderen Anbieter aus.",
-        "rollup": "Rollup",
+        "rollup": "Zusammenfassung",
         "selectedDate": "Ausgewähltes Datum: {{date}}",
         "shareLabel": "Teilen",
         "title": "Erkunden",
-        "top": "Spitze",
+        "top": "Höchste",
         "totalEntries_one": "{{count}} Eintrag",
         "totalEntries_other": "{{count}} Einträge"
       },
@@ -8467,7 +8520,7 @@
   "subWindow": {
     "back_to_main": "Zurück zum Hauptfenster",
     "pin": "Immer oben halten",
-    "unpin": "Abbrechen Immer im Vordergrund"
+    "unpin": "Nicht mehr im Vordergrund halten"
   },
   "tab": {
     "close": "Tab schließen",
@@ -8477,7 +8530,7 @@
     "new": "Neuer Tab",
     "open_in_new_window": "In neuem Fenster öffnen",
     "pin": "Tab anheften",
-    "unpin": "Tab lösen"
+    "unpin": "Anheften des Tabs aufheben"
   },
   "title": {
     "apps": "Mini-Apps",
@@ -8505,7 +8558,7 @@
     "model": "Modell",
     "name": "Knotenname",
     "noTraceList": "Keine Spurinformationen gefunden",
-    "operation": "Operation",
+    "operation": "Vorgang",
     "outputs": "Ausgaben",
     "pollError": "Abfrage fehlgeschlagen",
     "reasoningTokens": "Schlussfolgerung",

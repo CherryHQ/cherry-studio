@@ -17,8 +17,12 @@ import { modelSupportsCliTool } from '../utils/modelSupport'
  * provider list, the model filter handed to the edit panel's `ModelSelector`,
  * and a display-name resolver for the provider list.
  */
-export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[]) {
-  const { models: allModels } = useModels({ enabled: true })
+export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[], isProvidersLoading = false) {
+  const { models: allModels, isLoading: isModelsLoading } = useModels({ enabled: true })
+  // `gatewayModelsById` is built from both queries, and each yields an empty list while in flight —
+  // indistinguishable from "no routable model exists". Expose the combined flag so callers that
+  // resolve gateway addresses can wait instead of reading a cold map as an answer.
+  const isGatewayModelsLoading = isModelsLoading || isProvidersLoading
   const modelById = useMemo(() => new Map(allModels.map((m) => [m.id, m])), [allModels])
   const gatewayProviderIds = useMemo(
     () =>
@@ -72,7 +76,11 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
       // (fable-role) detailed model instead of hiding the model entirely.
       const modelId =
         toolId === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(config)
-          ? getClaudeContextModelId(provider.id, config)
+          ? getClaudeContextModelId(
+              provider.id,
+              config,
+              isApiGatewayProviderId(provider.id) ? gatewayModelsById : undefined
+            )
           : providerConfig?.modelId
       let modelName: string | undefined
       if (modelId && isUniqueModelId(modelId)) {
@@ -85,7 +93,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
         modelName
       }
     },
-    [modelById]
+    [gatewayModelsById, modelById]
   )
 
   const resolveProviderMeta = useCallback(
@@ -99,6 +107,7 @@ export function useConfigMetadata(selectedCliTool: CodeCli, providers: Provider[
     makeModelFilter,
     resolveProviderMeta,
     resolveProviderMetaForTool,
-    gatewayModelsById
+    gatewayModelsById,
+    isGatewayModelsLoading
   }
 }
