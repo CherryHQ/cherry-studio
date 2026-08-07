@@ -2985,6 +2985,28 @@
       "title": "导入 ChatGPT 对话",
       "untitled_conversation": "未命名对话"
     },
+    "claude": {
+      "assistant_name": "Claude 导入",
+      "button": "选择文件",
+      "description": "导入文字、思考过程和工具调用，不包含图片和附件",
+      "error": {
+        "invalid_json": "无效的 JSON 文件格式",
+        "no_conversations": "文件中未找到任何对话",
+        "no_valid_conversations": "没有可导入的有效对话",
+        "unknown": "导入失败，请检查文件格式"
+      },
+      "help": {
+        "step1": "1. 登录 Claude，进入设置 > 隐私 > 导出数据",
+        "step2": "2. 等待邮件接收导出文件",
+        "step3": "3. 解压下载的文件，找到 conversations.json",
+        "title": "如何导出 Claude 对话？"
+      },
+      "importing": "正在导入对话...",
+      "selecting": "正在选择文件...",
+      "success": "成功导入 {{topics}} 个对话，共 {{messages}} 条消息",
+      "title": "导入 Claude 对话",
+      "untitled_conversation": "未命名对话"
+    },
     "confirm": {
       "button": "选择导入文件",
       "label": "确定要导入外部数据吗？"
@@ -6013,11 +6035,41 @@
         "skip_file_data_title": "精简备份"
       },
       "clear_cache": {
+        "approximately": "约 {{size}}",
         "button": "清除缓存",
-        "confirm": "清除缓存将删除应用缓存的数据，包括小程序数据。此操作不可恢复，是否继续？",
+        "calculating": "计算中…",
         "error": "清除缓存失败",
+        "legacy_warning": {
+          "confirm": "仍要选择",
+          "description": "清理完成后，此选项包含的 v1 版本数据将被永久删除。如果没有备份，这些数据将无法恢复。",
+          "message": "v1 版本数据将被永久删除",
+          "title": "确认选择 v1 版本遗留数据？"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "v1 版本遗留数据，包括旧的对话记录和设置。清理后无法恢复。",
+            "title": "v1 版本遗留数据"
+          },
+          "normal_cache": {
+            "description": "清理应用使用过程中产生的缓存和临时文件，释放存储空间，不会删除聊天记录和设置。",
+            "title": "应用缓存"
+          },
+          "orphaned_data": {
+            "description": "清理不再使用的文件、知识库残留和备份恢复临时文件。",
+            "title": "残留文件与知识库"
+          },
+          "site_data": {
+            "description": "网站与小程序使用的 Cookie 和站点存储；清理后可能需要重新登录网站。",
+            "title": "网站与小程序数据"
+          }
+        },
+        "partial_success": "清理已完成，但部分项目未能清除",
+        "selected_total": "所选项目总计",
         "success": "缓存清除成功",
-        "title": "清除缓存"
+        "title": "清除缓存",
+        "total_partial": "已统计 {{size}}，部分大小未知",
+        "unavailable": "无法统计",
+        "waiting_for_legacy_database": "正在等待旧版数据库释放。请关闭其他 Cherry Studio 窗口，连接关闭后将继续清理。"
       },
       "data": {
         "title": "数据目录"
@@ -6060,6 +6112,7 @@
       "import_settings": {
         "button": "导入文件",
         "chatgpt": "导入 ChatGPT 数据",
+        "claude": "导入 Claude 数据",
         "title": "导入外部应用数据"
       },
       "joplin": {
