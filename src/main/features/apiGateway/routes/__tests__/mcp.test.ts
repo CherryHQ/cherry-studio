@@ -193,6 +193,21 @@ describe('/v1/mcps', () => {
     expect(res.status).toBe(404)
   })
 
+  // Stateless offers no SSE stream and no session to terminate. Must not reach the
+  // transport: its GET branch opens a stream regardless, which the per-request teardown
+  // then closes, so the client would get a dead stream rather than a refusal.
+  it.each(['GET', 'DELETE'])('%s /v1/mcps/:id/mcp → 405', async (method) => {
+    const res = await app.handle(
+      new Request(`http://localhost/v1/mcps/server-1/mcp`, {
+        method,
+        headers: { 'x-api-key': 'test-key', accept: 'text/event-stream' }
+      })
+    )
+    expect(res.status).toBe(405)
+    expect(res.headers.get('allow')).toBe('POST')
+    expect((await res.json()).error).toMatchObject({ code: -32000, message: 'Method not allowed.' })
+  })
+
   it('documents the endpoints in the OpenAPI spec', async () => {
     const spec = await (await get(app, '/openapi/json', {})).json()
     expect(Object.keys(spec.paths)).toEqual(expect.arrayContaining(['/v1/mcps/', '/v1/mcps/{server_id}']))
