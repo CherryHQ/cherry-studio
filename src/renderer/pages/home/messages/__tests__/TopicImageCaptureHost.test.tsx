@@ -130,4 +130,21 @@ describe('TopicImageCaptureHost', () => {
     ])
     expect(messages.map((message) => message.metadata?.isActiveBranch)).toEqual([true, true, false])
   })
+
+  it('omits persisted empty user messages from the captured conversation', async () => {
+    const visibleUser = createMessage('user-visible', 'user', '2026-01-01T00:00:00.000Z')
+    const awaitingInput = createMessage('user-awaiting-input', 'user', '2026-01-01T00:00:01.000Z', {
+      parentId: 'assistant-anchor',
+      data: { parts: [] }
+    })
+
+    dataApiGetMock.mockResolvedValueOnce({
+      items: [{ message: visibleUser }, { message: awaitingInput }],
+      nextCursor: undefined
+    })
+
+    const messages = await getTopicImageCaptureMessages('topic-a')
+
+    expect(messages.map((message) => message.id)).toEqual(['user-visible'])
+  })
 })
