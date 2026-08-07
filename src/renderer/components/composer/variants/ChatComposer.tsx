@@ -966,7 +966,7 @@ const ChatComposerInner = ({
   ])
 
   const persistFinalDraft = useEffectEvent(() => {
-    if (isInputHistoryActive || !isKnowledgeBaseDraftHydrated || !isMentionedModelDraftHydrated) return
+    if (isInputHistoryActive) return
     const savedDraft = savedDraftBeforeEditingRef.current
     if (editingMessage && !savedDraft) return
     const draft = savedDraft ? { text: savedDraft.text, tokens: savedDraft.draftTokens } : surfaceGetDraftRef.current()
@@ -975,7 +975,8 @@ const ChatComposerInner = ({
       tokens: draft.tokens,
       files: savedDraft?.files ?? filesRef.current,
       knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current,
-      mentionedModelIds: (savedDraft?.mentionedModels ?? mentionedModelsRef.current).map((model) => model.id),
+      mentionedModelIds:
+        savedDraft?.mentionedModels.map((model) => model.id) ?? mentionedModelDraftRef.current.mentionedModelIds,
       modelMultiSelectMode: mentionedModelDraftRef.current.modelMultiSelectMode
     })
   })

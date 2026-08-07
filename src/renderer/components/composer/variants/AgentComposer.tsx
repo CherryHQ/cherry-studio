@@ -896,11 +896,9 @@ const AgentComposerInner = ({
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
-  const skipDraftCacheWriteForHistoryPreviewRef = useRef(false)
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
       const nextDraftTokens = getAgentDraftTokens(historyDraft.tokens)
-      skipDraftCacheWriteForHistoryPreviewRef.current = options.source === 'history'
       actionsRef.current.replaceDraft(historyDraft)
       setText(historyDraft.text)
       setDraftTokens(nextDraftTokens)
@@ -935,7 +933,6 @@ const AgentComposerInner = ({
     (nextText: string) => {
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
-      skipDraftCacheWriteForHistoryPreviewRef.current = false
       setText(nextText)
     },
     [resetHistoryIndex, setText]
@@ -984,13 +981,9 @@ const AgentComposerInner = ({
 
   const persistedOnceRef = useRef(false)
   useEffect(() => {
-    if (!draftPersistenceEnabled || !isKnowledgeBaseDraftHydrated) return
+    if (!draftPersistenceEnabled || isInputHistoryActive || !isKnowledgeBaseDraftHydrated) return
     if (!persistedOnceRef.current) {
       persistedOnceRef.current = true
-      return
-    }
-    if (skipDraftCacheWriteForHistoryPreviewRef.current) {
-      skipDraftCacheWriteForHistoryPreviewRef.current = false
       return
     }
 
@@ -1023,6 +1016,7 @@ const AgentComposerInner = ({
     draftPersistenceEnabled,
     draftTokens,
     files,
+    isInputHistoryActive,
     isKnowledgeBaseDraftHydrated,
     selectableKnowledgeBases,
     selectedKnowledgeBasesInScope,
@@ -1032,7 +1026,7 @@ const AgentComposerInner = ({
   ])
 
   const persistFinalDraft = useEffectEvent(() => {
-    if (!draftPersistenceEnabled || isInputHistoryActive || !isKnowledgeBaseDraftHydrated) return
+    if (!draftPersistenceEnabled || isInputHistoryActive) return
     writeAgentDraftCache(draftCacheKey, {
       text,
       tokens: draftTokensRef.current,

@@ -1969,18 +1969,32 @@ describe('AgentComposer', () => {
     })
   })
 
-  it('does not overwrite the persisted agent draft while previewing input history', async () => {
+  it('does not overwrite the persisted agent draft when dependencies change during input history preview', async () => {
     seedInputHistory(['history entry'])
-    vi.mocked(cacheService.get).mockReturnValue({
-      text: 'long in-progress agent draft',
-      tokens: []
+    const draftCacheKey = 'agent.composer_draft.session_session-1'
+    const drafts = new Map<string, unknown>([
+      [
+        draftCacheKey,
+        {
+          text: 'long in-progress agent draft',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: [],
+          workspaceKey: 'workspace-1\0/workspace',
+          agentId: 'agent-1'
+        }
+      ]
+    ])
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+      drafts.set(key, value)
     })
     mocks.getDraft.mockImplementation(() => ({
       text: mocks.surfaceProps?.text ?? '',
       tokens: []
     }))
 
-    render(
+    const view = render(
       <AgentComposer
         agentId="agent-1"
         sessionId="session-1"
@@ -1996,11 +2010,28 @@ describe('AgentComposer', () => {
     })
     await waitFor(() => expect(mocks.surfaceProps?.text).toBe('history entry'))
 
+    mocks.files = [file]
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
     expect(cacheService.set).not.toHaveBeenCalledWith(
-      'agent.composer_draft.session_session-1',
+      draftCacheKey,
       expect.objectContaining({ text: 'history entry' }),
       expect.any(Number)
     )
+
+    act(() => {
+      expect(mocks.surfaceProps?.onInputHistoryNavigate?.('down')).toBe(true)
+    })
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('long in-progress agent draft'))
+    expect(drafts.get(draftCacheKey)).toMatchObject({ text: 'long in-progress agent draft' })
   })
 
   it('cancels the delayed post-send clear when recalling input history', async () => {
@@ -3191,6 +3222,56 @@ describe('AgentComposer', () => {
       expect.objectContaining({ knowledgeBaseIds: [] }),
       expect.any(Number)
     )
+  })
+
+  it('persists the latest agent draft when the session changes before knowledge bases finish loading', async () => {
+    const draftCacheKey = 'agent.composer_draft.session_session-1'
+    const drafts = new Map<string, unknown>([
+      [
+        draftCacheKey,
+        {
+          text: 'cached agent draft',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: ['pending-kb'],
+          workspaceKey: 'workspace-1\0/workspace',
+          agentId: 'agent-1'
+        }
+      ]
+    ])
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+      drafts.set(key, value)
+    })
+    mocks.knowledgeBasesLoading = true
+
+    const view = render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    act(() => mocks.surfaceProps?.onTextChange('latest agent draft'))
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('latest agent draft'))
+
+    view.rerender(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-2"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    expect(drafts.get(draftCacheKey)).toMatchObject({
+      text: 'latest agent draft',
+      knowledgeBaseIds: ['pending-kb']
+    })
   })
 
   it('seeds cached files before managed file tokens reconcile', () => {

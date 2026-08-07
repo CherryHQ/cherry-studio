@@ -2810,6 +2810,43 @@ describe('ChatComposer', () => {
     )
   })
 
+  it('persists the latest chat draft when the topic changes before tools finish loading', async () => {
+    const draftCacheKey = 'chat.composer_draft.topic-1'
+    const drafts = new Map<string, unknown>([
+      [
+        draftCacheKey,
+        {
+          text: 'cached chat draft',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: ['pending-kb'],
+          mentionedModelIds: [modelB.id],
+          modelMultiSelectMode: true
+        }
+      ]
+    ])
+    vi.mocked(cacheService.get).mockImplementation((key: string) => drafts.get(key))
+    vi.mocked(cacheService.set).mockImplementation((key: string, value: unknown) => {
+      drafts.set(key, value)
+    })
+    mocks.knowledgeBasesLoading = true
+    mocks.modelPending = true
+    const topicTwo = { ...topic, id: 'topic-2' }
+    const view = render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    act(() => mocks.surfaceProps?.onTextChange('latest chat draft'))
+    await waitFor(() => expect(mocks.surfaceProps?.text).toBe('latest chat draft'))
+
+    view.rerender(<ChatHomeComposer topic={topicTwo} onSend={vi.fn()} />)
+
+    expect(drafts.get(draftCacheKey)).toMatchObject({
+      text: 'latest chat draft',
+      knowledgeBaseIds: ['pending-kb'],
+      mentionedModelIds: [modelB.id],
+      modelMultiSelectMode: true
+    })
+  })
+
   it('keeps unresolved cached knowledge ids through ordinary text edits', async () => {
     vi.mocked(cacheService.get).mockReturnValue({
       text: 'cached draft',
