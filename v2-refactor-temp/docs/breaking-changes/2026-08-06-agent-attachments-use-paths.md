@@ -2,13 +2,15 @@
 title: Agent document attachments are read from local paths
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#18027'
 date: 2026-08-06
 ---
 
 ## What changed
 
-Agent sessions now send non-image attachments to the Agent as durable local file paths instead of automatically extracting PDF, HTML, and text content into the prompt. Uploaded copies remain attached to the message until that message is deleted or edited to remove them.
+Agent sessions now send non-image attachments to the Agent as durable local file paths instead of automatically extracting PDF, Office (Word / Excel / PowerPoint), HTML, and text content into the prompt. Uploaded copies remain attached to the message until that message is deleted or edited to remove them.
+
+The `to_markdown` document tool accepts those attachment paths in addition to workspace paths. Its authorization is unchanged in spirit: the session workspace, the agent data directory, and the files attached to the current session — every other local path is still rejected.
 
 ## Why this matters to the user
 

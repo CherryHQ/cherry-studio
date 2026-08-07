@@ -540,7 +540,7 @@ export const toMarkdownInputSchema = z.object({
     .min(1)
     .max(4096)
     .describe(
-      `Required local source path. Relative paths resolve from the session workspace; absolute paths may reference any readable local file. Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}.`
+      `Required local source path. Relative paths resolve from the session workspace; absolute paths must be an attachment announced with this session or live under the agent data directory. Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}.`
     )
 })
 
