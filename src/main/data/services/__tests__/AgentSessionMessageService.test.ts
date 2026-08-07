@@ -58,6 +58,19 @@ describe('AgentSessionMessageService', () => {
     vi.restoreAllMocks()
   })
 
+  it('reports message existence per session', async () => {
+    await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)
+
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'hi' }] } }
+    })
+
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(true)
+    expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
+  })
+
   describe('findPendingAssistantMessageIds + markMessagesError (boot reconcile)', () => {
     it('finds only pending assistant rows and resolves them to error', async () => {
       const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'

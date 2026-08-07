@@ -207,6 +207,22 @@ export class AgentSessionMessageService {
   }
 
   /**
+   * Lightweight existence check used to distinguish an untouched session's
+   * initial turn without loading a potentially large message payload.
+   */
+  hasSessionMessages(sessionId: string): boolean {
+    const database = application.get('DbService').getDb()
+    return (
+      database
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(eq(sessionMessagesTable.sessionId, sessionId))
+        .limit(1)
+        .all().length > 0
+    )
+  }
+
+  /**
    * Cursor-paginated message read. Walks newest-first; an absent cursor
    * returns the most recent page, each `nextCursor` walks one page older.
    * Cursor wire format: `<createdAtMs>:<id>` — composite (createdAt, id) so

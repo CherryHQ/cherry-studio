@@ -6,7 +6,7 @@ import type { TopicStreamStatus } from '@shared/ai/transport'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import type { ComponentProps, ReactNode } from 'react'
+import { Activity, type ComponentProps, type ReactNode } from 'react'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -998,6 +998,56 @@ describe('Sessions', () => {
     // force would flip displayMode back to the stored 'agent' and enable it.
     expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: false })
     expect(pinMocks.usePins).not.toHaveBeenCalledWith('agent', { enabled: true })
+  })
+
+  it('keeps right-panel group expansion across an <Activity> hide/show and resets it when the agent filter changes', () => {
+    // Two agents, each with a today + an earlier session, so the time buckets
+    // render headers under either filter.
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
+        createSession({ id: 'session-a-old', name: 'Alpha older', orderKey: 'b', updatedAt: EARLIER_SESSION_ISO }),
+        createSession({ agentId: 'agent-b', id: 'session-b', name: 'Beta session', orderKey: 'c' }),
+        createSession({
+          agentId: 'agent-b',
+          id: 'session-b-old',
+          name: 'Beta older',
+          orderKey: 'd',
+          updatedAt: EARLIER_SESSION_ISO
+        })
+      ]
+    })
+
+    const view = render(
+      <Activity mode="visible">
+        <SessionsForTest agentIdFilter="agent-a" presentation="right-panel" />
+      </Activity>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Today' }))
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
+
+    // Tab switch (hidden→visible with the same filter): effects re-run but the
+    // user's collapsed state must survive.
+    view.rerender(
+      <Activity mode="hidden">
+        <SessionsForTest agentIdFilter="agent-a" presentation="right-panel" />
+      </Activity>
+    )
+    view.rerender(
+      <Activity mode="visible">
+        <SessionsForTest agentIdFilter="agent-a" presentation="right-panel" />
+      </Activity>
+    )
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'false')
+
+    // Actual filter change: the stale per-agent collapsed state must reset.
+    view.rerender(
+      <Activity mode="visible">
+        <SessionsForTest agentIdFilter="agent-b" presentation="right-panel" />
+      </Activity>
+    )
+    expect(screen.getByRole('button', { name: 'Today' })).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('shows fifty sessions in left-panel time groups and expands the remaining items', () => {

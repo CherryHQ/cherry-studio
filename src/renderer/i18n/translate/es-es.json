@@ -6020,11 +6020,41 @@
         "skip_file_data_title": "Copia de seguridad reducida"
       },
       "clear_cache": {
+        "approximately": "Aprox. {{size}}",
         "button": "Limpiar caché",
-        "confirm": "Limpiar caché eliminará los datos de la caché de la aplicación, incluyendo los datos de las aplicaciones mini. Esta acción no se puede deshacer, ¿desea continuar?",
+        "calculating": "Calculando…",
         "error": "Error al limpiar la caché",
+        "legacy_warning": {
+          "confirm": "Seleccionar de todos modos",
+          "description": "Cuando finalice la limpieza, los datos de v1 incluidos en esta opción se eliminarán permanentemente. Sin una copia de seguridad, no podrán recuperarse.",
+          "message": "Los datos de v1 se eliminarán permanentemente",
+          "title": "¿Seleccionar los datos residuales de v1?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Datos residuales de v1, incluidos los historiales de conversaciones antiguos y la configuración. No se pueden recuperar después de eliminarlos.",
+            "title": "Datos residuales de v1"
+          },
+          "normal_cache": {
+            "description": "Limpia la caché y los archivos temporales generados al usar la aplicación para liberar espacio de almacenamiento. No elimina el historial de conversaciones ni la configuración.",
+            "title": "Caché de la aplicación"
+          },
+          "orphaned_data": {
+            "description": "Elimina archivos sin uso, bases de conocimiento residuales y archivos temporales de restauración.",
+            "title": "Archivos y bases de conocimiento residuales"
+          },
+          "site_data": {
+            "description": "Cookies y almacenamiento de sitios web utilizados por sitios web y miniaplicaciones. Es posible que se cierre tu sesión en los sitios web.",
+            "title": "Datos de sitios web y miniaplicaciones"
+          }
+        },
+        "partial_success": "La limpieza ha finalizado, pero no se pudieron borrar algunos elementos",
+        "selected_total": "Total seleccionado",
         "success": "Caché limpia con éxito",
-        "title": "Limpiar caché"
+        "title": "Limpiar caché",
+        "total_partial": "Tamaño contabilizado: {{size}}; algunos tamaños son desconocidos",
+        "unavailable": "No se puede calcular",
+        "waiting_for_legacy_database": "Esperando a que se libere la base de datos antigua. Cierra las demás ventanas de Cherry Studio; la limpieza continuará cuando se cierren sus conexiones."
       },
       "data": {
         "title": "Carpeta de datos"
@@ -6438,6 +6468,23 @@
         "token_placeholder": "Por favor ingrese el token de Siyuan Notas"
       },
       "title": "Configuración de datos",
+      "v1_remigration": {
+        "acknowledgement": "Entiendo el riesgo y quiero continuar.",
+        "back": "Atrás",
+        "backup_acknowledgement": "He realizado una copia de seguridad de mis datos",
+        "backup_button": "Crear una copia de seguridad completa ahora",
+        "backup_message": "Haz una copia de seguridad de todos los datos actuales antes de continuar. Al continuar, tus datos v2 actuales se eliminarán permanentemente y esta acción no se puede deshacer.",
+        "button": "Repetir migración",
+        "confirm": "Repetir migración",
+        "confirm_countdown": "Repetir migración ({{seconds}} s)",
+        "dialog_title": "Repetir la migración de datos de v1",
+        "error": "No se pudo volver a iniciar la migración de datos de v1",
+        "final_confirmation": "Confirma que quieres eliminar los datos v2 actuales y repetir la migración de datos de v1.",
+        "final_message": "Tus datos v2 actuales se eliminarán permanentemente. Esta acción no se puede deshacer.",
+        "final_retained": "Tus datos v1 originales se conservarán y se importarán de nuevo después de reiniciar.",
+        "next": "Siguiente",
+        "title": "Repetir la migración de datos de v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Sincronización automática",

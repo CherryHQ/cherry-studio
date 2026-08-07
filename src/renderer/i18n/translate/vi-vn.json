@@ -6020,11 +6020,41 @@
         "skip_file_data_title": "Sao lưu mỏng"
       },
       "clear_cache": {
+        "approximately": "Khoảng {{size}}",
         "button": "Xóa bộ nhớ đệm",
-        "confirm": "Xóa bộ nhớ cache sẽ xóa dữ liệu cache của ứng dụng, bao gồm cả dữ liệu minapp. Hành động này không thể hoàn tác, bạn có muốn tiếp tục?",
+        "calculating": "Đang tính…",
         "error": "Lỗi khi xóa bộ nhớ cache",
+        "legacy_warning": {
+          "confirm": "Vẫn chọn",
+          "description": "Sau khi dọn dẹp hoàn tất, dữ liệu v1 trong mục này sẽ bị xóa vĩnh viễn. Nếu không có bản sao lưu, dữ liệu này sẽ không thể khôi phục.",
+          "message": "Dữ liệu v1 sẽ bị xóa vĩnh viễn",
+          "title": "Chọn dữ liệu v1 còn sót lại?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Dữ liệu v1 còn sót lại, bao gồm lịch sử trò chuyện cũ và các cài đặt. Không thể khôi phục sau khi xóa.",
+            "title": "Dữ liệu v1 còn sót lại"
+          },
+          "normal_cache": {
+            "description": "Xóa bộ nhớ đệm và các tệp tạm thời được tạo trong quá trình sử dụng ứng dụng để giải phóng dung lượng. Lịch sử trò chuyện và cài đặt sẽ không bị xóa.",
+            "title": "Bộ nhớ đệm ứng dụng"
+          },
+          "orphaned_data": {
+            "description": "Xóa các tệp không còn sử dụng, cơ sở kiến thức còn sót lại và tệp khôi phục tạm thời.",
+            "title": "Tệp và cơ sở kiến thức còn sót lại"
+          },
+          "site_data": {
+            "description": "Cookie và bộ nhớ trang web được các trang web và ứng dụng nhỏ sử dụng. Bạn có thể bị đăng xuất khỏi các trang web.",
+            "title": "Dữ liệu trang web và ứng dụng nhỏ"
+          }
+        },
+        "partial_success": "Đã dọn dẹp xong nhưng không thể xóa một số mục",
+        "selected_total": "Tổng mục đã chọn",
         "success": "Bộ nhớ đệm đã được xóa",
-        "title": "Xóa bộ nhớ đệm"
+        "title": "Xóa bộ nhớ đệm",
+        "total_partial": "Đã tính {{size}}; chưa xác định được một số kích thước",
+        "unavailable": "Không thể tính",
+        "waiting_for_legacy_database": "Đang chờ cơ sở dữ liệu cũ được giải phóng. Hãy đóng các cửa sổ Cherry Studio khác; quá trình dọn dẹp sẽ tiếp tục sau khi các kết nối của chúng đóng."
       },
       "data": {
         "title": "Thư mục dữ liệu"
@@ -6438,6 +6468,23 @@
         "token_placeholder": "Vui lòng nhập mã thông báo Siyuan Note"
       },
       "title": "Cài đặt dữ liệu",
+      "v1_remigration": {
+        "acknowledgement": "Tôi hiểu rủi ro và muốn tiếp tục.",
+        "back": "Quay lại",
+        "backup_acknowledgement": "Tôi đã sao lưu dữ liệu",
+        "backup_button": "Sao lưu toàn bộ dữ liệu ngay",
+        "backup_message": "Hãy sao lưu toàn bộ dữ liệu hiện tại trước khi tiếp tục. Nếu tiếp tục, dữ liệu v2 hiện tại sẽ bị xóa vĩnh viễn và không thể hoàn tác.",
+        "button": "Chạy lại quá trình di chuyển",
+        "confirm": "Chạy lại quá trình di chuyển",
+        "confirm_countdown": "Chạy lại quá trình di chuyển ({{seconds}} giây)",
+        "dialog_title": "Chạy lại quá trình di chuyển dữ liệu v1",
+        "error": "Không thể chạy lại quá trình di chuyển dữ liệu v1",
+        "final_confirmation": "Xác nhận rằng bạn muốn xóa dữ liệu v2 hiện tại và chạy lại quá trình di chuyển dữ liệu v1.",
+        "final_message": "Dữ liệu v2 hiện tại sẽ bị xóa vĩnh viễn. Thao tác này không thể hoàn tác.",
+        "final_retained": "Dữ liệu v1 gốc sẽ được giữ lại và nhập lại sau khi khởi động lại.",
+        "next": "Tiếp theo",
+        "title": "Chạy lại quá trình di chuyển dữ liệu v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Sao lưu tự động",

@@ -6020,11 +6020,41 @@
         "skip_file_data_title": "Sauvegarde réduite"
       },
       "clear_cache": {
+        "approximately": "Environ {{size}}",
         "button": "Effacer le cache",
-        "confirm": "L'effacement du cache supprimera les données du cache de l'application, y compris les données des mini-programmes. Cette action ne peut pas être annulée, voulez-vous continuer ?",
+        "calculating": "Calcul en cours…",
         "error": "Échec de l'effacement du cache",
+        "legacy_warning": {
+          "confirm": "Sélectionner quand même",
+          "description": "Une fois le nettoyage terminé, les données de la v1 incluses dans cette option seront définitivement supprimées. Sans sauvegarde, elles ne pourront pas être récupérées.",
+          "message": "Les données de la v1 seront définitivement supprimées",
+          "title": "Sélectionner les données résiduelles de la v1 ?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Données résiduelles de la v1, notamment les anciens historiques de conversation et les paramètres. Leur suppression est irréversible.",
+            "title": "Données résiduelles de la v1"
+          },
+          "normal_cache": {
+            "description": "Supprime le cache et les fichiers temporaires créés lors de l’utilisation de l’application afin de libérer de l’espace. L’historique des conversations et les paramètres ne sont pas supprimés.",
+            "title": "Cache de l’application"
+          },
+          "orphaned_data": {
+            "description": "Supprime les fichiers inutilisés, les bases de connaissances résiduelles et les fichiers temporaires de restauration.",
+            "title": "Fichiers et bases de connaissances résiduels"
+          },
+          "site_data": {
+            "description": "Cookies et stockage de site utilisés par les sites web et les mini-apps. Vous devrez peut-être vous reconnecter à certains sites.",
+            "title": "Données des sites web et mini-apps"
+          }
+        },
+        "partial_success": "Nettoyage terminé, mais certains éléments n’ont pas pu être supprimés",
+        "selected_total": "Total sélectionné",
         "success": "Le cache a été effacé avec succès",
-        "title": "Effacer le cache"
+        "title": "Effacer le cache",
+        "total_partial": "Taille comptabilisée : {{size}} ; certaines tailles sont inconnues",
+        "unavailable": "Calcul impossible",
+        "waiting_for_legacy_database": "En attente de la libération de l’ancienne base de données. Fermez les autres fenêtres de Cherry Studio ; le nettoyage reprendra une fois leurs connexions fermées."
       },
       "data": {
         "title": "Répertoire des données"
@@ -6438,6 +6468,23 @@
         "token_placeholder": "Saisissez le jeton Siyuan Note"
       },
       "title": "Paramètres des données",
+      "v1_remigration": {
+        "acknowledgement": "Je comprends le risque et souhaite continuer.",
+        "back": "Retour",
+        "backup_acknowledgement": "J’ai sauvegardé mes données",
+        "backup_button": "Créer une sauvegarde complète maintenant",
+        "backup_message": "Sauvegardez toutes vos données actuelles avant de continuer. Si vous continuez, vos données v2 actuelles seront définitivement supprimées. Cette action est irréversible.",
+        "button": "Relancer la migration",
+        "confirm": "Relancer la migration",
+        "confirm_countdown": "Relancer la migration ({{seconds}} s)",
+        "dialog_title": "Relancer la migration des données v1",
+        "error": "Impossible de relancer la migration des données v1",
+        "final_confirmation": "Confirmez que vous souhaitez supprimer les données v2 actuelles et relancer la migration des données v1.",
+        "final_message": "Vos données v2 actuelles seront définitivement supprimées. Cette action est irréversible.",
+        "final_retained": "Vos données v1 d’origine seront conservées et réimportées après le redémarrage.",
+        "next": "Suivant",
+        "title": "Relancer la migration des données v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Synchronisation automatique",

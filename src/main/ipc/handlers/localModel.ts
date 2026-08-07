@@ -43,7 +43,7 @@ async function cleanupSharedRuntimeAfterInterruptedDownload(model: LocalModelKin
  * the download. `download` resolves only when the download finishes.
  */
 export const localModelHandlers: IpcHandlersFor<typeof localModelRequestSchemas> = {
-  'local_model.get_status': async ({ model }) => ({ status: serviceFor(model).getStatus() }),
+  'local_model.get_status': async ({ model }) => serviceFor(model).getStatusInfo(),
   'local_model.download': async ({ model }) => {
     try {
       const result = await serviceFor(model).download()
@@ -52,9 +52,9 @@ export const localModelHandlers: IpcHandlersFor<typeof localModelRequestSchemas>
       }
       return { result }
     } catch (error) {
-      // The service already dropped its own partial weights (cleanupAfterError)
-      // before rejecting; also drop the shared onnxruntime binary so a failed
-      // download leaves no footprint.
+      // Drop the shared onnxruntime binary so a half-installed runtime doesn't read as
+      // ready. The model weights are deliberately left alone — a failed download never
+      // writes partials, so whatever is on disk is a complete earlier download.
       await cleanupSharedRuntimeAfterInterruptedDownload(model)
       throw error
     }

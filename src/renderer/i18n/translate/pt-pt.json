@@ -6020,11 +6020,41 @@
         "skip_file_data_title": "Backup simplificado"
       },
       "clear_cache": {
+        "approximately": "Aprox. {{size}}",
         "button": "Limpar cache",
-        "confirm": "Limpar a cache eliminará os dados em cache da aplicação, incluindo os dados das miniaplicações. Esta ação não pode ser anulada. Pretende continuar?",
+        "calculating": "A calcular…",
         "error": "Falha ao limpar cache",
+        "legacy_warning": {
+          "confirm": "Selecionar mesmo assim",
+          "description": "Após a conclusão da limpeza, os dados da v1 incluídos nesta opção serão eliminados permanentemente. Sem uma cópia de segurança, não poderão ser recuperados.",
+          "message": "Os dados da v1 serão eliminados permanentemente",
+          "title": "Selecionar os dados residuais da v1?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Dados residuais da v1, incluindo históricos de conversas antigos e definições. A eliminação é irreversível.",
+            "title": "Dados residuais da v1"
+          },
+          "normal_cache": {
+            "description": "Limpa a cache e os ficheiros temporários criados durante a utilização da aplicação para libertar espaço de armazenamento. O histórico de conversas e as definições não são eliminados.",
+            "title": "Cache da aplicação"
+          },
+          "orphaned_data": {
+            "description": "Remove ficheiros não utilizados, bases de conhecimento residuais e ficheiros temporários de restauro.",
+            "title": "Ficheiros e bases de conhecimento residuais"
+          },
+          "site_data": {
+            "description": "Cookies e armazenamento de sites utilizados por sites e miniaplicações. Poderá terminar a sessão nos sites.",
+            "title": "Dados de sites e miniaplicações"
+          }
+        },
+        "partial_success": "A limpeza terminou, mas não foi possível eliminar alguns itens",
+        "selected_total": "Total selecionado",
         "success": "Cache limpo com sucesso",
-        "title": "Limpar cache"
+        "title": "Limpar cache",
+        "total_partial": "Tamanho contabilizado: {{size}}; alguns tamanhos são desconhecidos",
+        "unavailable": "Não foi possível calcular",
+        "waiting_for_legacy_database": "A aguardar que a base de dados antiga seja libertada. Feche as outras janelas do Cherry Studio; a limpeza continuará quando as respetivas ligações forem fechadas."
       },
       "data": {
         "title": "Pasta de dados"
@@ -6438,6 +6468,23 @@
         "token_placeholder": "Por favor, introduza o token do Siyuan Notebook"
       },
       "title": "Configurações de dados",
+      "v1_remigration": {
+        "acknowledgement": "Compreendo o risco e pretendo continuar.",
+        "back": "Voltar",
+        "backup_acknowledgement": "Já fiz uma cópia de segurança dos meus dados",
+        "backup_button": "Criar agora uma cópia de segurança completa",
+        "backup_message": "Faça uma cópia de segurança de todos os dados atuais antes de continuar. Se continuar, os dados v2 atuais serão eliminados permanentemente e esta ação não pode ser anulada.",
+        "button": "Repetir migração",
+        "confirm": "Repetir migração",
+        "confirm_countdown": "Repetir migração ({{seconds}} s)",
+        "dialog_title": "Repetir a migração dos dados v1",
+        "error": "Não foi possível reiniciar a migração dos dados v1",
+        "final_confirmation": "Confirme que pretende eliminar os dados v2 atuais e repetir a migração dos dados v1.",
+        "final_message": "Os dados v2 atuais serão eliminados permanentemente. Esta ação não pode ser anulada.",
+        "final_retained": "Os dados v1 originais serão mantidos e novamente importados após reiniciar.",
+        "next": "Seguinte",
+        "title": "Repetir a migração dos dados v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Backup automático",
