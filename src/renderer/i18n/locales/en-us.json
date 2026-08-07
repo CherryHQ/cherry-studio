@@ -1677,11 +1677,6 @@
       "new": {
         "branch": {
           "created": "New Branch Created",
-          "disabled": {
-            "active": "This node is already selected. Continue typing to extend the branch from here.",
-            "latest": "You are already at the end of this branch. Continue typing to extend it.",
-            "no_follow_up": "There is no follow-up after this message yet. Switch to this node and continue typing instead."
-          },
           "label": "New Branch"
         },
         "context": "New Context"
@@ -2596,7 +2591,7 @@
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
-    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
+    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Raise \"Max tool call rounds\" in the assistant settings, or reduce the task scope.",
     "truncated": "Data truncated, original size",
     "truncatedBadge": "Truncated",
     "unknown": "Unknown error",
@@ -3493,7 +3488,7 @@
             "hint": "Caps response length when enabled"
           },
           "max_tool_calls": {
-            "hint": "Limits tool-call rounds when enabled; otherwise uses the default 20-round limit"
+            "hint": "Limits tool-call rounds when enabled; otherwise uses the default {{count}}-round limit"
           },
           "model": {
             "hint": "Overrides the global default model for this assistant"
