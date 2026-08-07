@@ -1,6 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
-import { ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
+import { ProgressNotificationSchema, ToolListChangedNotificationSchema } from '@modelcontextprotocol/sdk/types.js'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   onToolsCacheUpdated: vi.fn(),
   onToolsCacheUpdatedDispose: vi.fn(),
   listPrompts: vi.fn(),
-  getPrompt: vi.fn()
+  getPrompt: vi.fn(),
+  callTool: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -85,9 +86,47 @@ describe('createMcpBridgeServer', () => {
           onToolsCacheUpdated: mocks.onToolsCacheUpdated,
           listPrompts: mocks.listPrompts
         }
-      if (name === 'McpRuntimeService') return { getPrompt: mocks.getPrompt }
+      if (name === 'McpRuntimeService') return { getPrompt: mocks.getPrompt, callTool: mocks.callTool }
       throw new Error(`Unexpected application.get(${name})`)
     })
+  })
+
+  it('relays upstream tool progress to a client that supplied a progressToken', async () => {
+    mocks.listTools.mockReturnValue([searchTool()])
+    // Emit two progress ticks from "upstream" before resolving the call.
+    mocks.callTool.mockImplementation(async ({ onProgress }: { onProgress?: (p: unknown) => void }) => {
+      onProgress?.({ progress: 1, total: 2 })
+      onProgress?.({ progress: 2, total: 2 })
+      return { content: [{ type: 'text', text: 'done' }] }
+    })
+
+    const client = await connectClient(createMcpBridgeServer('server-1'))
+    const seen: { progress: number; total?: number }[] = []
+    client.setNotificationHandler(ProgressNotificationSchema, async (notification) => {
+      seen.push({ progress: notification.params.progress, total: notification.params.total })
+    })
+
+    const result = await client.callTool({ name: 'search', arguments: {} }, undefined, {
+      onprogress: () => {}
+    })
+
+    expect(result.content).toEqual([{ type: 'text', text: 'done' }])
+    expect(seen).toEqual([
+      { progress: 1, total: 2 },
+      { progress: 2, total: 2 }
+    ])
+  })
+
+  it('omits the progress listener when the client sent no progressToken', async () => {
+    mocks.listTools.mockReturnValue([searchTool()])
+    mocks.callTool.mockResolvedValue({ content: [{ type: 'text', text: 'done' }] })
+
+    const client = await connectClient(createMcpBridgeServer('server-1'))
+    await client.callTool({ name: 'search', arguments: {} })
+
+    // No token means no address to send notifications to, so the runtime must not be
+    // handed a listener at all.
+    expect(mocks.callTool).toHaveBeenCalledWith(expect.objectContaining({ onProgress: undefined }))
   })
 
   it('uses a request-captured server snapshot without re-reading the edited database row', () => {
