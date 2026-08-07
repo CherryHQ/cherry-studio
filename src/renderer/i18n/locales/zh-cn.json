@@ -97,8 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "输入您的 QQ 机器人 Client Secret",
         "description": "通过 QQ 机器人官方 API 接收和回复消息。",
-        "mentionOnlyLabel": "仅 @ 消息",
         "mentionOnlyHint": "开启后机器人只在被 @ 时回复。关闭后可在 QQ 开放平台开启「接收所有消息」，让机器人处理群内每一条消息。",
+        "mentionOnlyLabel": "仅 @ 消息",
         "title": "QQ",
         "whoamiTip": "💡 提示：发送 /whoami 给机器人即可获取正确格式的会话 ID。"
       },

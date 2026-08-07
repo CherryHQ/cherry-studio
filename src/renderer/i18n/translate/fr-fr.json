@@ -97,6 +97,8 @@
         "clientSecret": "Secret client",
         "clientSecretPlaceholder": "Entrez votre Client Secret QQ Bot",
         "description": "Recevoir et répondre aux messages via l'API officielle QQ Bot.",
+        "mentionOnlyHint": "[to be translated]:When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
+        "mentionOnlyLabel": "[to be translated]:@Mention only",
         "title": "QQ",
         "whoamiTip": "💡 Astuce : Envoyez /whoami au bot pour obtenir votre ID de chat au bon format."
       },
@@ -2988,6 +2990,28 @@
       "title": "Importer les conversations de ChatGPT",
       "untitled_conversation": "Conversation sans titre"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "Sélectionner le fichier à importer",
       "label": "Êtes-vous sûr de vouloir importer des données externes ?"
@@ -3026,10 +3050,20 @@
           "selected_notes": "{{count}} notes sélectionnées"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "Sélectionner des notes existantes comme sources de base de connaissances",
           "empty_description": "Créez des notes dans la fonctionnalité Notes, puis revenez ici pour les sélectionner.",
           "empty_title": "Les notes ne sont pas encore connectées",
-          "loading": "Chargement des notes…"
+          "loading": "Chargement des notes…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Prend en charge les formats PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3288,6 +3322,7 @@
   },
   "launchpad": {
     "apps": "Applications",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "Mini-apps",
     "miniApps": "Mini-applications",
     "pin_to_sidebar": "Épingler à la barre latérale",
@@ -6091,6 +6126,7 @@
       "import_settings": {
         "button": "Importer le fichier JSON",
         "chatgpt": "Importer depuis ChatGPT",
+        "claude": "[to be translated]:Import from Claude",
         "title": "Importer des données d'applications externes"
       },
       "joplin": {
@@ -6646,6 +6682,7 @@
         "notice": {
           "downloadFailed": "Échec du téléchargement. Vérifiez votre connexion et réessayez.",
           "inUse": "Toujours utilisé par une base de connaissances ; les poids ont été conservés.",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "La suppression a échoué. Consultez les journaux pour plus de détails."
         },
         "ocr": {

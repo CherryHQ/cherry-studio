@@ -97,6 +97,8 @@
         "clientSecret": "Bí mật khách hàng",
         "clientSecretPlaceholder": "Nhập client secret của QQ Bot của bạn",
         "description": "Nhận và phản hồi tin nhắn qua API chính thức của QQ Bot.",
+        "mentionOnlyHint": "[to be translated]:When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
+        "mentionOnlyLabel": "[to be translated]:@Mention only",
         "title": "QQ",
         "whoamiTip": "💡 Mẹo: Gửi /whoami cho bot để lấy ID cuộc trò chuyện của bạn ở định dạng chính xác."
       },
@@ -2988,6 +2990,28 @@
       "title": "Nhập các cuộc trò chuyện từ ChatGPT",
       "untitled_conversation": "Cuộc trò chuyện chưa có tiêu đề"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "Chọn Tập tin Nhập",
       "label": "Bạn có chắc chắn muốn nhập dữ liệu từ bên ngoài không?"
@@ -3026,10 +3050,20 @@
           "selected_notes": "{{count}} ghi chú được chọn"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "Chọn các ghi chú hiện có làm nguồn cơ sở tri thức",
           "empty_description": "Các ghi chú có thể chọn sẽ xuất hiện ở đây sau khi danh sách ghi chú thực tế được kết nối. Hiện tại, hãy sử dụng tệp, thư mục, URL hoặc sơ đồ trang web.",
           "empty_title": "Các ghi chú chưa được kết nối",
-          "loading": "Đang tải ghi chú…"
+          "loading": "Đang tải ghi chú…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Hỗ trợ PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3288,6 +3322,7 @@
   },
   "launchpad": {
     "apps": "Ứng dụng",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "Mini-app",
     "miniApps": "Mini-app",
     "pin_to_sidebar": "Ghim vào thanh bên",
@@ -6091,6 +6126,7 @@
       "import_settings": {
         "button": "Nhập tệp Json",
         "chatgpt": "Nhập từ ChatGPT",
+        "claude": "[to be translated]:Import from Claude",
         "title": "Nhập dữ liệu ứng dụng từ bên ngoài"
       },
       "joplin": {
@@ -6646,6 +6682,7 @@
         "notice": {
           "downloadFailed": "Tải xuống thất bại. Kiểm tra kết nối của bạn và thử lại.",
           "inUse": "Vẫn được sử dụng bởi một cơ sở tri thức; các trọng số đã được giữ lại.",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "Xóa không thành công. Kiểm tra nhật ký để biết chi tiết."
         },
         "ocr": {
