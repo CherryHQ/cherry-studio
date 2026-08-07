@@ -842,5 +842,53 @@ describe('ProviderRegistryService', () => {
 
       expect(result.reasoningProfile.format).toBe('openai-chat')
     })
+
+    it('resolves a self-hosted reasoning format from a custom provider endpoint config', async () => {
+      setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'custom-relay',
+        presetProviderId: null,
+        name: 'Custom Relay',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://relay.example/v1',
+            reasoningFormat: { type: 'self-hosted' }
+          }
+        } as never,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const result = providerRegistryService.lookupModel('custom-relay', 'qwen3-5')
+
+      expect(result.reasoningProfile.format).toBe('self-hosted')
+      expect(result.reasoningProfile.wire.auto?.operations).toEqual([
+        { target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: true } },
+        { target: 'chat_template_kwargs.thinking_budget', value: { source: 'budget' } }
+      ])
+      expect(result.reasoningProfile.wire.off?.operations).toEqual([
+        { target: 'chat_template_kwargs.enable_thinking', value: { source: 'literal', value: false } }
+      ])
+    })
+
+    it('keeps the default openai-chat format when a custom provider has no reasoningFormat', async () => {
+      setupRegistryData()
+      await dbh.db.insert(userProviderTable).values({
+        providerId: 'custom-relay',
+        presetProviderId: null,
+        name: 'Custom Relay',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://relay.example/v1'
+          }
+        } as never,
+        orderKey: generateOrderKeyBetween(null, null)
+      })
+
+      const result = providerRegistryService.lookupModel('custom-relay', 'qwen3-5')
+
+      expect(result.reasoningProfile.format).toBe('openai-chat')
+    })
   })
 })

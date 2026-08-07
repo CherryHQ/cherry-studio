@@ -139,12 +139,22 @@ describe('buildPersistedEndpointConfigs', () => {
     expect(result!['openai-chat-completions'].baseUrl).toBe('https://api.openai.com/v1')
   })
 
-  it('does not persist a reasoning profile by itself', () => {
+  it('persists a reasoning format by itself', () => {
     const result = buildPersistedEndpointConfigs({
       'openai-chat-completions': { reasoningFormat: { type: 'openai-chat' } }
     } as Record<string, RegistryEndpointConfig>)
 
-    expect(result).toBeNull()
+    expect(result).not.toBeNull()
+    expect(result!['openai-chat-completions'].reasoningFormat).toEqual({ type: 'openai-chat' })
+  })
+
+  it('persists a self-hosted reasoning format for a custom endpoint', () => {
+    const result = buildPersistedEndpointConfigs({
+      'openai-chat-completions': { reasoningFormat: { type: 'self-hosted' } }
+    } as Record<string, RegistryEndpointConfig>)
+
+    expect(result).not.toBeNull()
+    expect(result!['openai-chat-completions'].reasoningFormat).toEqual({ type: 'self-hosted' })
   })
 
   it('all fields present', () => {
