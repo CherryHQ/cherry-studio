@@ -7899,6 +7899,10 @@
           "title": "每日 10 美元免費 API 額度"
         }
       },
+      "reasoning_format": "[to be translated]:Reasoning Format",
+      "reasoning_format_default": "[to be translated]:Default",
+      "reasoning_format_help": "[to be translated]:Select Self-hosted when serving a reasoning model through vLLM or SGLang, so thinking is toggled via the chat_template_kwargs of the OpenAI-compatible endpoint.",
+      "reasoning_format_self_hosted": "[to be translated]:Self-hosted (vLLM / SGLang)",
       "remove_duplicate_keys": "移除重複金鑰",
       "remove_invalid_keys": "刪除無效金鑰",
       "reorder_failed": "調整供應商順序失敗",
