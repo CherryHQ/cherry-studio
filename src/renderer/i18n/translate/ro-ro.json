@@ -147,7 +147,6 @@
       }
     },
     "composer": {
-      "background_running_few": "{{count}} sarcini de fundal în execuție",
       "background_running_one": "{{count}} sarcină de fundal în execuție",
       "background_running_other": "{{count}} sarcini de fundal în execuție"
     },
@@ -262,7 +261,6 @@
         }
       },
       "file_tree": "Arbore de fișiere",
-      "items_few": "{{count}} elemente",
       "items_one": "{{count}} element",
       "items_other": "{{count}} elemente",
       "maximize": "Maximizați",
@@ -347,7 +345,6 @@
         "agent": "Agent",
         "context": "Context",
         "no_tasks": "Nicio sarcină activă",
-        "run_task_live_few": "{{count}} active",
         "run_task_live_one": "{{count}} activă",
         "run_task_live_other": "{{count}} active",
         "run_tasks": "Subtask-uri",
@@ -356,7 +353,6 @@
         "stop_run_task_failed": "Nu s-a putut opri sarcina",
         "task_count": "{{completed}} / {{total}} finalizat",
         "tasks": "Sarcini",
-        "tool_uses_few": "{{count}} apeluri de instrumente",
         "tool_uses_one": "{{count}} apel de instrument",
         "tool_uses_other": "{{count}} apeluri de instrumente",
         "tools_active": "Activ",
@@ -459,13 +455,13 @@
         "expand_all": "Extinde tot",
         "no_workdir": "Niciun director de lucru",
         "show_more": "Extinde afișarea",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "Săptămâna aceasta",
         "today": "Astăzi",
         "unknown_agent": "Agent necunoscut",
         "unknown_agent_tip": "Aceasta este o grup de sesiuni istoric fără un agent, nu un agent real. Este doar pentru vizualizare și nu poate continua să ruleze.",
         "yesterday": "Ieri"
       },
-      "label_few": "Sesiuni",
       "label_one": "Sesiune",
       "label_other": "Sesiuni",
       "list": {
@@ -1010,6 +1006,10 @@
         "CherryNotify": {
           "description": "Trimite o notificare printr-un canal conectat",
           "label": "Notificare"
+        },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
+          "label": "[to be translated]:Document to Markdown"
         },
         "CherryWebFetch": {
           "description": "Preia și citește o pagină web",
@@ -1681,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Ramură nouă creată",
-          "disabled": {
-            "active": "Acest nod este deja selectat. Continuați să tastați pentru a extinde ramura de aici.",
-            "latest": "Ești deja la sfârșitul acestei ramuri. Continuă să tastezi pentru a o extinde.",
-            "no_follow_up": "Nu există încă un mesaj de continuare după acest mesaj. Comută la acest nod și continuă să scrii în schimb."
-          },
           "label": "Ramură nouă"
         },
         "context": "Context nou"
@@ -2175,7 +2170,6 @@
     "config_json_hint": "Lipește sau editează codul JSON brut; acesta rămâne sincronizat cu câmpurile de mai sus",
     "configure": "Configurare",
     "configuring_provider": "Configurează {{provider}}",
-    "count_few": "{{count}} elemente",
     "count_one": "{{count}} element",
     "count_other": "{{count}} elemente",
     "current_config": "Curent",
@@ -2305,13 +2299,11 @@
     "add_success": "Adăugat cu succes",
     "advanced_settings": "Setări avansate",
     "agent": "Agent",
-    "agent_few": "Agenți",
     "agent_one": "Agent",
     "agent_other": "Agenți",
     "all": "Tot",
     "and": "și",
     "assistant": "Asistent",
-    "assistant_few": "Asistenți",
     "assistant_one": "Asistent",
     "assistant_other": "Asistenți",
     "avatar": "Avatar",
@@ -3248,7 +3240,6 @@
       "action": "Reconstruiește baza de cunoștințe",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Nu s-a reușit reconstruirea bazei de cunoștințe",
-      "skipped_missing_sources_few": "S-au omis {{count}} elemente ale căror surse nu mai există",
       "skipped_missing_sources_one": "S-a omis {{count}} element a cărui sursă nu mai există",
       "skipped_missing_sources_other": "S-au omis {{count}} elemente ale căror surse nu mai există",
       "submit": "Reconstrui",
@@ -4225,6 +4216,8 @@
         "taskOutput": "Vezi rezultatul sarcinii",
         "taskStop": "Oprește sarcina",
         "taskUpdate": "Actualizează sarcina",
+        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "Totul Scrie",
         "tool": "Unelte",
         "webFetch": "Preluare web",
@@ -4275,22 +4268,18 @@
       "thinkingHeader": "Se analizează",
       "truncated": "Ieșire trunchiată (original: {{size}})",
       "units": {
-        "done_few": "{{count}} finalizate",
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
         "done_one": "{{count}} finalizat",
         "done_other": "{{count}} finalizate",
-        "file_few": "{{count}} fișiere",
         "file_one": "{{count}} fișier",
         "file_other": "{{count}} fișiere",
-        "item_few": "{{count}} elemente",
         "item_one": "{{count}} element",
         "item_other": "{{count}} elemente",
-        "line_few": "{{count}} linii",
         "line_one": "{{count}} linie",
         "line_other": "{{count}} linii",
-        "plan_few": "{{count}} planuri",
         "plan_one": "{{count}} plan",
         "plan_other": "{{count}} planuri",
-        "result_few": "{{count}} rezultate",
         "result_one": "{{count}} rezultat",
         "result_other": "{{count}} rezultate"
       },
@@ -5166,12 +5155,10 @@
     "search_placeholder": "Caută pluginuri...",
     "search_placeholder_skills": "Abilități de căutare...",
     "showing_results": "Se afișează {{count}} plugin",
-    "showing_results_few": "Se afișează {{count}} pluginuri",
     "showing_results_one": "Se afișează {{count}} plugin",
     "showing_results_other": "Se afișează {{count}} pluginuri",
     "showing_results_plural": "Se afișează {{count}} pluginuri",
     "showing_results_skills": "Afișare {{count}} abilitate",
-    "showing_results_skills_few": "Se afișează {{count}} abilități",
     "showing_results_skills_one": "Se afișează {{count}} abilitate",
     "showing_results_skills_other": "Se afișează {{count}} abilități",
     "showing_results_skills_plural": "Afișare {{count}} abilități",
@@ -5894,7 +5881,6 @@
             "title": "Jurnalele aplicației"
           },
           "summary": "{{count}} fișiere, aproximativ {{size}}",
-          "summary_few": "{{count}} fișiere, aproximativ {{size}}",
           "summary_one": "{{count}} fișier, aproximativ {{size}}",
           "summary_other": "{{count}} fișiere, aproximativ {{size}}",
           "system": {
@@ -6100,7 +6086,6 @@
         "title": "Setări meniu export",
         "yuque": "Exportă în Yuque"
       },
-      "hour_interval_few": "{{count}} ore",
       "hour_interval_one": "{{count}} oră",
       "hour_interval_other": "{{count}} ore",
       "import_settings": {
@@ -6190,7 +6175,6 @@
           "select_error_write_permission": "Noua cale nu are permisiuni de scriere",
           "select_title": "Selectează directorul de backup"
         },
-        "hour_interval_few": "{{count}} ore",
         "hour_interval_one": "{{count}} oră",
         "hour_interval_other": "{{count}} ore",
         "lastSync": "Ultimul backup",
@@ -6198,7 +6182,6 @@
           "label": "Backup-uri maxime",
           "unlimited": "Nelimitat"
         },
-        "minute_interval_few": "{{count}} minute",
         "minute_interval_one": "{{count}} minut",
         "minute_interval_other": "{{count}} minute",
         "noSync": "Se așteaptă următorul backup",
@@ -6246,7 +6229,6 @@
           "title": "Folosește modelul rapid pentru a numi titlul mesajului exportat"
         }
       },
-      "minute_interval_few": "{{count}} minute",
       "minute_interval_one": "{{count}} minut",
       "minute_interval_other": "{{count}} minute",
       "notion": {
@@ -6556,12 +6538,10 @@
           "label": "Gazdă WebDAV",
           "placeholder": "http://localhost:8080"
         },
-        "hour_interval_few": "{{count}} ore",
         "hour_interval_one": "{{count}} oră",
         "hour_interval_other": "{{count}} ore",
         "lastSync": "Ultimul backup",
         "maxBackups": "Backup-uri maxime",
-        "minute_interval_few": "{{count}} minute",
         "minute_interval_one": "{{count}} minut",
         "minute_interval_other": "{{count}} minute",
         "noSync": "Se așteaptă următorul backup",
@@ -8472,7 +8452,6 @@
         "shareLabel": "Distribuie",
         "title": "Explorează",
         "top": "Vârf",
-        "totalEntries_few": "{{count}} intrări",
         "totalEntries_one": "{{count}} intrare",
         "totalEntries_other": "{{count}} intrări"
       },
@@ -8514,7 +8493,6 @@
       "title": "Analiza utilizării",
       "tooltip": {
         "cost": "Cost {{value}}",
-        "requests_few": "{{count}} cereri",
         "requests_one": "{{count}} cerere",
         "requests_other": "{{count}} cereri",
         "tokens": "{{value}} jetoane"
