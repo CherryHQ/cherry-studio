@@ -415,12 +415,12 @@ describe('runDataReset', () => {
     expect(fsCtl.commits.at(-1)).toMatchObject({ status: 'completed', operation: 'full_reset' })
   })
 
-  it('removes only current v2 migration targets, then records a supported v1 source version', async () => {
+  it('removes only current v2 migration targets without modifying version history', async () => {
     stubAll(pendingMarker({ operation: 'v1_remigration' }))
-    seedRawVersionLog(
+    const versionLog =
       '1.7.21|mac|prod|unpackaged|install|2026-08-05T13:34:28.984Z\n' +
-        '2.0.0|mac|prod|packaged|install|2026-08-05T14:01:04.323Z\n'
-    )
+      '2.0.0|mac|prod|packaged|install|2026-08-05T14:01:04.323Z\n'
+    seedRawVersionLog(versionLog)
     await runReset()
 
     expect(rmSyncMock.mock.calls.map(([target]) => target)).toEqual([
@@ -429,46 +429,16 @@ describe('runDataReset', () => {
       CLAUDE_ROOT,
       DATABASE_FILE
     ])
-    expect(appendFileSyncMock).toHaveBeenCalledOnce()
-    expect(appendFileSyncMock).toHaveBeenCalledWith(
-      VERSION_LOG_FILE,
-      expect.stringMatching(
-        /^1\.9\.13\|(win|mac|linux|unknown)\|(prod|dev)\|(packaged|unpackaged)\|(install|portable)\|.+\n$/
-      ),
-      'utf8'
-    )
-    expect(rmSyncMock.mock.invocationCallOrder.at(-1)).toBeLessThan(appendFileSyncMock.mock.invocationCallOrder[0])
-    expect(appendFileSyncMock.mock.invocationCallOrder[0]).toBeLessThan(renameSyncMock.mock.invocationCallOrder.at(-1)!)
-
-    const { checkUpgradePathCompatibility, readPreviousVersion } = await import(
-      '@main/data/migration/v2/core/versionPolicy'
-    )
-    const previousVersion = readPreviousVersion(VERSION_LOG_FILE, '2.0.0')
-    expect(previousVersion).toBe('1.9.13')
-    expect(
-      checkUpgradePathCompatibility({ currentAppVersion: '2.0.0', previousVersion, versionLogExists: true })
-    ).toEqual({ outcome: 'pass' })
+    expect(appendFileSyncMock).not.toHaveBeenCalled()
+    expect(fsCtl.files.get(VERSION_LOG_FILE)).toBe(versionLog)
 
     expect(rmSyncMock).not.toHaveBeenCalledWith(APP_TEMP, expect.anything())
-    expect(fsCtl.commits.at(-1)).toMatchObject({ status: 'completed', operation: 'v1_remigration' })
+    expect(fsCtl.commits.at(-1)).toMatchObject({
+      status: 'completed',
+      operation: 'v1_remigration'
+    })
     expect(markerExists()).toBe(false)
     expect(applicationMock.relaunch).toHaveBeenCalledTimes(1)
-  })
-
-  it('keeps remigration pending when the supported version record cannot be written', async () => {
-    stubAll(pendingMarker({ operation: 'v1_remigration' }))
-    appendFileSyncMock.mockImplementation(() => {
-      throw new Error('ENOSPC: no space left on device')
-    })
-
-    await runReset()
-
-    expect(rmSyncMock).toHaveBeenCalledWith(DATABASE_FILE, expect.anything())
-    expect(readStoredMarker()).toMatchObject({ status: 'pending', operation: 'v1_remigration', attempts: 1 })
-    expect(fsCtl.commits.map((commit) => commit?.status)).toEqual(['pending'])
-    expect(showErrorBoxMock).toHaveBeenCalledWith('Migration Reset Failed', expect.any(String))
-    expect(applicationMock.forceExit).toHaveBeenCalledWith(1)
-    expect(applicationMock.relaunch).not.toHaveBeenCalled()
   })
 
   it('keeps a failed remigration pending, refuses to boot, and retries on the next launch', async () => {

@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { SHUTDOWN_TIMEOUT_MS } from '@main/core/lifecycle'
 // Preboot dialogs cannot use PreferenceService-backed translations.
 import { t } from '@main/i18n'
-import { app, dialog, session } from 'electron'
+import { dialog, session } from 'electron'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('DataReset')
@@ -69,7 +69,6 @@ const RM_OPTIONS = { recursive: true, force: true, maxRetries: 3, retryDelay: 10
 
 const dataResetOperationSchema = z.enum(['full_reset', 'v1_remigration'])
 type DataResetOperation = z.infer<typeof dataResetOperationSchema>
-const V1_REMIGRATION_SOURCE_VERSION = '1.9.13'
 
 /**
  * Strict on-disk marker schema. `pending` binds authorization to a canonical
@@ -371,21 +370,6 @@ export function runDataReset(): void {
       return
     }
 
-    if (operation === 'v1_remigration') {
-      try {
-        appendV1RemigrationVersionRecord()
-      } catch (error) {
-        logger.error('Failed to prepare version history for v1 remigration — keeping the marker', error as Error)
-        showDataResetError(
-          'Migration Reset Failed',
-          'Cherry Studio removed the current v2 data but could not prepare the v1 migration. ' +
-            'The app will quit and keep the pending request so it can retry on the next launch.\n\n' +
-            'Please check disk space and file permissions, then start Cherry Studio again.'
-        )
-        return
-      }
-    }
-
     // Commit terminal state before removing the marker.
     try {
       writeMarker({ version: 1, status: 'completed', completedAt: new Date().toISOString(), operation })
@@ -425,32 +409,6 @@ export function runDataReset(): void {
         'Please check disk space and file permissions, then start Cherry Studio again.'
     )
   }
-}
-
-/** Records a supported v1 source version so the existing upgrade gate admits the explicit remigration. */
-function appendV1RemigrationVersionRecord(): void {
-  let os: 'win' | 'mac' | 'linux' | 'unknown'
-  switch (process.platform) {
-    case 'win32':
-      os = 'win'
-      break
-    case 'darwin':
-      os = 'mac'
-      break
-    case 'linux':
-      os = 'linux'
-      break
-    default:
-      os = 'unknown'
-  }
-
-  const environment = import.meta.env.MODE === 'production' ? 'prod' : 'dev'
-  const packaged = app.isPackaged ? 'packaged' : 'unpackaged'
-  const mode = process.env.PORTABLE_EXECUTABLE_DIR !== undefined ? 'portable' : 'install'
-  const record = [V1_REMIGRATION_SOURCE_VERSION, os, environment, packaged, mode, new Date().toISOString()].join('|')
-
-  fs.appendFileSync(application.getPath('feature.version_log.file'), `${record}\n`, 'utf8')
-  logger.info('Recorded v1 remigration source version', { version: V1_REMIGRATION_SOURCE_VERSION })
 }
 
 /** Removes only current v2 state while preserving every source consumed by v1 migration. */
