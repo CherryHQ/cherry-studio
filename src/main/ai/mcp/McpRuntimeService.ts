@@ -9,7 +9,7 @@ import { createInMemoryMcpServer } from '@main/ai/mcp/servers/factory'
 import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { getBinaryPath, isBinaryExists } from '@main/utils/binaryResolver'
-import { findCommandInShellEnv } from '@main/utils/commandResolver'
+import { findExecutableInEnv } from '@main/utils/commandResolver'
 import { defaultAppHeaders } from '@main/utils/http'
 import { removeEnvProxy } from '@main/utils/processRunner'
 import { getShellEnv } from '@main/utils/shellEnv'
@@ -525,7 +525,7 @@ export class McpRuntimeService extends BaseService {
 
             if (effectiveCommand === 'npx') {
               // First, check if npx is available in user's shell environment
-              const npxPath = await findCommandInShellEnv('npx', loginShellEnv)
+              const npxPath = await findExecutableInEnv('npx')
 
               if (npxPath) {
                 // Use system npx
@@ -575,7 +575,7 @@ export class McpRuntimeService extends BaseService {
               }
             } else if (effectiveCommand === 'uvx' || effectiveCommand === 'uv') {
               // First, check if uvx/uv is available in user's shell environment
-              const uvPath = await findCommandInShellEnv(effectiveCommand, loginShellEnv)
+              const uvPath = await findExecutableInEnv(effectiveCommand)
 
               if (uvPath) {
                 // Use system uvx/uv
