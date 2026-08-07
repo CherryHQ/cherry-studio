@@ -11,6 +11,9 @@ import * as z from 'zod'
  * place is a compile error in the other.
  */
 
+/** Maximum tool-result text carried into one citation preview. */
+export const CITATION_SNIPPET_MAX_CHARS = 300
+
 // ── kb_list ──────────────────────────────────────────────────────
 
 export const KB_LIST_TOOL_NAME = 'kb_list'

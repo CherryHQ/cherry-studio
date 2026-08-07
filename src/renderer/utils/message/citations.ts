@@ -27,6 +27,7 @@ import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import { mapCitationMarksToTags, mapMarkdownOutsideCode, normalizeCitationMarks } from '@renderer/utils/citation'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import {
+  CITATION_SNIPPET_MAX_CHARS,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   kbGrepOutputSchema,
@@ -75,8 +76,6 @@ const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
  * but the tooltip only ever shows a snippet. Truncate here so the full slice is not carried
  * through the render path and re-serialized into every `<sup data-citation>` tag.
  */
-const KNOWLEDGE_SNIPPET_MAX_CHARS = 300
-
 type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -116,7 +115,9 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
     if (part.type !== 'dynamic-tool') return rawName
 
     const partMetadata = readCherryMeta(part)?.tool
-    const outputMetadata = extractOutputMetadata((toolPart as { output?: unknown }).output).metadata
+    const outputMetadata = extractOutputMetadata(
+      unwrapCitableOutput((toolPart as { output?: unknown }).output)
+    ).metadata
     const belongsToCherryTools = (metadata: ToolMetadata | typeof partMetadata | undefined) =>
       metadata?.serverId === CHERRY_TOOLS_MCP_SERVER || metadata?.serverName === CHERRY_TOOLS_MCP_SERVER
     return belongsToCherryTools(partMetadata) || belongsToCherryTools(outputMetadata) ? rawName : null
@@ -152,8 +153,8 @@ function unwrapCitableOutput(output: unknown): unknown {
 
 function toSnippet(content: string): string {
   const trimmed = content.trim()
-  if (trimmed.length <= KNOWLEDGE_SNIPPET_MAX_CHARS) return trimmed
-  return `${trimmed.slice(0, KNOWLEDGE_SNIPPET_MAX_CHARS)}…`
+  if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
+  return `${trimmed.slice(0, CITATION_SNIPPET_MAX_CHARS)}…`
 }
 
 /**

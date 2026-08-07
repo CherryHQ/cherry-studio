@@ -6,6 +6,7 @@ import { DEFAULT_TIMEOUT } from '@main/ai/constants'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { shouldDeferToolOutput } from '@main/data/messageOutputProjection'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
@@ -16,7 +17,6 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
-import { shouldDeferToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'

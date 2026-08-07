@@ -2,8 +2,8 @@
  * Agent session message domain API handlers.
  */
 
+import { projectMessagePartsForRenderer } from '@data/messageOutputProjection'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { projectMessagePartsForRenderer } from '@shared/ai/transport'
 import { toDataApiError } from '@shared/data/api/errors'
 import {
   type AgentSessionMessageEntity,
@@ -17,7 +17,7 @@ import type { HandlersFor } from '@shared/data/api/types'
 function projectMessageForRenderer(message: AgentSessionMessageEntity, sessionId: string): AgentSessionMessageEntity {
   if (message.role !== 'assistant' || !message.data.parts) return message
 
-  // Inline because `data/` must not import from `ai/` (main-process-architecture §3).
+  // Keep the response projection data-owned: `data/` must not import from the `ai/` business tier.
   const topicId = `agent-session:${sessionId}`
   const parts = projectMessagePartsForRenderer(message.data.parts, topicId, message.id)
   if (parts === message.data.parts) return message

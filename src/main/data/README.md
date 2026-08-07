@@ -24,6 +24,7 @@ src/main/data/
 ├── migration/                 # Data migration system
 ├── CacheService.ts            # Cache management
 ├── DataApiService.ts          # API coordination
+├── messageOutputProjection.ts # Renderer-bound message tool-output projection
 ├── PreferenceService.ts       # User preferences
 └── dataApiDataChange.ts       # DataApi data change notification (post-commit broadcast)
 ```

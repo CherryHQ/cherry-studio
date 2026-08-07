@@ -737,7 +737,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       toolCallId: 'mcp-search',
       output: {
         content: results,
-        metadata: { type: 'mcp', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+        metadata: { type: 'mcp', name: 'web_search', serverName: 'cherry-tools', serverId: 'cherry-tools' }
       }
     })
   })
