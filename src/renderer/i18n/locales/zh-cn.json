@@ -1007,6 +1007,10 @@
           "description": "通过已连接的频道发送通知",
           "label": "通知"
         },
+        "CherryToMarkdown": {
+          "description": "转成 Markdown，智能体更好读",
+          "label": "文件转为 Markdown"
+        },
         "CherryWebFetch": {
           "description": "抓取并读取网页",
           "label": "网页抓取"
@@ -4218,6 +4222,8 @@
         "taskOutput": "查看任务输出",
         "taskStop": "停止任务",
         "taskUpdate": "更新任务",
+        "toMarkdown": "转为 Markdown",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "待办写入",
         "tool": "工具",
         "webFetch": "网页获取",
@@ -4268,6 +4274,8 @@
       "thinkingHeader": "思路梳理",
       "truncated": "输出已截断（原始大小：{{size}}）",
       "units": {
+        "char_one": "{{count}} 字符",
+        "char_other": "{{count}} 字符",
         "done_one": "{{count}} 项完成",
         "done_other": "{{count}} 项完成",
         "file_one": "{{count}} 个文件",

@@ -147,7 +147,6 @@
       }
     },
     "composer": {
-      "background_running_many": "{{count}} tarefas em segundo plano em execução",
       "background_running_one": "{{count}} tarefa em segundo plano em execução",
       "background_running_other": "{{count}} tarefas em segundo plano em execução"
     },
@@ -262,7 +261,6 @@
         }
       },
       "file_tree": "Árvore de ficheiros",
-      "items_many": "{{count}} itens",
       "items_one": "{{count}} item",
       "items_other": "{{count}} itens",
       "maximize": "Maximizar",
@@ -347,7 +345,6 @@
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sem tarefas ativas",
-        "run_task_live_many": "{{count}} ao vivo",
         "run_task_live_one": "{{count}} ao vivo",
         "run_task_live_other": "{{count}} ao vivo",
         "run_tasks": "Subtarefas",
@@ -356,7 +353,6 @@
         "stop_run_task_failed": "Falha ao parar a tarefa",
         "task_count": "{{completed}} / {{total}} concluído",
         "tasks": "Tarefas",
-        "tool_uses_many": "{{count}} chamadas de ferramenta",
         "tool_uses_one": "{{count}} chamada de ferramenta",
         "tool_uses_other": "{{count}} chamadas de ferramenta",
         "tools_active": "Ativo",
@@ -459,13 +455,13 @@
         "expand_all": "Expandir tudo",
         "no_workdir": "Sem pasta de trabalho",
         "show_more": "Expandir exibição",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_agent": "Agente desconhecido",
         "unknown_agent_tip": "Este é um grupo de sessão histórico sem agente, não um agente real. É somente para visualização e não pode continuar em execução.",
         "yesterday": "Ontem"
       },
-      "label_many": "Sessões",
       "label_one": "Sessão",
       "label_other": "Sessões",
       "list": {
@@ -1010,6 +1006,10 @@
         "CherryNotify": {
           "description": "Envia uma notificação através de um canal conectado",
           "label": "Notificar"
+        },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
+          "label": "[to be translated]:Document to Markdown"
         },
         "CherryWebFetch": {
           "description": "Obtém e lê uma página Web",
@@ -1681,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Nova ramificação criada",
-          "disabled": {
-            "active": "Este nó já está selecionado. Continue a escrever para estender o ramo a partir daqui.",
-            "latest": "Já está no fim deste ramo. Continue a escrever para o prolongar.",
-            "no_follow_up": "Não há resposta após esta mensagem ainda. Mude para este nó e continue a escrever."
-          },
           "label": "Ramificação"
         },
         "context": "Limpar contexto"
@@ -2175,7 +2170,6 @@
     "config_json_hint": "Cole ou edite JSON bruto; ele permanece sincronizado com os campos acima",
     "configure": "Configurar",
     "configuring_provider": "Configurar {{provider}}",
-    "count_many": "{{count}} itens",
     "count_one": "{{count}} item",
     "count_other": "{{count}} itens",
     "current_config": "Atual",
@@ -2305,13 +2299,11 @@
     "add_success": "Adicionado com sucesso",
     "advanced_settings": "Configurações Avançadas",
     "agent": "Agente",
-    "agent_many": "Agentes",
     "agent_one": "Agente",
     "agent_other": "Agentes",
     "all": "Todos",
     "and": "e",
     "assistant": "Assistente",
-    "assistant_many": "Assistentes",
     "assistant_one": "Assistente",
     "assistant_other": "Assistentes",
     "avatar": "Avatar",
@@ -3248,7 +3240,6 @@
       "action": "Reconstruir base de conhecimento",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Falha ao reconstruir a base de conhecimento",
-      "skipped_missing_sources_many": "Ignorados {{count}} itens cuja fonte já não existe",
       "skipped_missing_sources_one": "Ignorou {{count}} item cuja fonte já não existe",
       "skipped_missing_sources_other": "Ignorados {{count}} itens cuja fonte já não existe",
       "submit": "Reconstruir",
@@ -4231,6 +4222,8 @@
         "taskOutput": "Ver saída da tarefa",
         "taskStop": "Parar tarefa",
         "taskUpdate": "Atualizar tarefa",
+        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "Fazer Escrever",
         "tool": "Ferramenta",
         "webFetch": "Obter página Web",
@@ -4281,22 +4274,18 @@
       "thinkingHeader": "A pensar",
       "truncated": "Saída truncada (original: {{size}})",
       "units": {
-        "done_many": "{{count}} Concluído",
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
         "done_one": "{{count}} Concluído",
         "done_other": "{{count}} Concluído",
-        "file_many": "{{count}} ficheiros",
         "file_one": "{{count}} ficheiro",
         "file_other": "{{count}} ficheiros",
-        "item_many": "{{count}} itens",
         "item_one": "{{count}} item",
         "item_other": "{{count}} itens",
-        "line_many": "{{count}} linhas",
         "line_one": "{{count}} linha",
         "line_other": "{{count}} linhas",
-        "plan_many": "{{count}} planos",
         "plan_one": "{{count}} plano",
         "plan_other": "{{count}} planos",
-        "result_many": "{{count}} resultados",
         "result_one": "{{count}} resultado",
         "result_other": "{{count}} resultados"
       },
@@ -5172,12 +5161,10 @@
     "search_placeholder": "Pesquisar plugin...",
     "search_placeholder_skills": "Pesquisar competências...",
     "showing_results": "Exibir {{count}} extensões",
-    "showing_results_many": "Exibir {{count}} extensões",
     "showing_results_one": "Mostrar {{count}} extensões",
     "showing_results_other": "Exibir {{count}} extensões",
     "showing_results_plural": "Exibir {{count}} extensões",
     "showing_results_skills": "A apresentar {{count}} competência",
-    "showing_results_skills_many": "A apresentar {{count}} competências",
     "showing_results_skills_one": "A apresentar {{count}} competência",
     "showing_results_skills_other": "A apresentar {{count}} competências",
     "showing_results_skills_plural": "A apresentar {{count}} competências",
@@ -5900,7 +5887,6 @@
             "title": "Registos da aplicação"
           },
           "summary": "{{count}} ficheiros, cerca de {{size}}",
-          "summary_many": "{{count}} ficheiros, cerca de {{size}}",
           "summary_one": "{{count}} ficheiro, cerca de {{size}}",
           "summary_other": "{{count}} ficheiros, cerca de {{size}}",
           "system": {
@@ -6076,7 +6062,6 @@
         "title": "Exportar Configurações do Menu",
         "yuque": "Exportar para Yuque"
       },
-      "hour_interval_many": "{{count}} horas",
       "hour_interval_one": "{{count}} hora",
       "hour_interval_other": "{{count}} horas",
       "import_settings": {
@@ -6166,7 +6151,6 @@
           "select_error_write_permission": "O novo caminho não possui permissão de escrita",
           "select_title": "Selecionar pasta de backup"
         },
-        "hour_interval_many": "{{count}} horas",
         "hour_interval_one": "{{count}} hora",
         "hour_interval_other": "{{count}} horas",
         "lastSync": "Último backup",
@@ -6174,7 +6158,6 @@
           "label": "Número máximo de backups",
           "unlimited": "Ilimitado"
         },
-        "minute_interval_many": "{{count}} minutos",
         "minute_interval_one": "{{count}} minuto",
         "minute_interval_other": "{{count}} minutos",
         "noSync": "A aguardar próximo backup",
@@ -6222,7 +6205,6 @@
           "title": "Usar modelo rápido para nomear o título das mensagens exportadas"
         }
       },
-      "minute_interval_many": "{{count}} minutos",
       "minute_interval_one": "{{count}} minuto",
       "minute_interval_other": "{{count}} minutos",
       "notion": {
@@ -6515,12 +6497,10 @@
           "label": "Endereço WebDAV",
           "placeholder": "http://localhost:8080"
         },
-        "hour_interval_many": "{{count}} horas",
         "hour_interval_one": "{{count}} hora",
         "hour_interval_other": "{{count}} horas",
         "lastSync": "Último backup",
         "maxBackups": "Número máximo de backups",
-        "minute_interval_many": "{{count}} minutos",
         "minute_interval_one": "{{count}} minuto",
         "minute_interval_other": "{{count}} minutos",
         "noSync": "A aguardar próximo backup",
@@ -8431,7 +8411,6 @@
         "shareLabel": "Partilhar",
         "title": "Explorar",
         "top": "Topo",
-        "totalEntries_many": "{{count}} entradas",
         "totalEntries_one": "{{count}} entrada",
         "totalEntries_other": "{{count}} entradas"
       },
@@ -8473,7 +8452,6 @@
       "title": "Análise de Uso",
       "tooltip": {
         "cost": "Custo {{value}}",
-        "requests_many": "{{count}} pedidos",
         "requests_one": "{{count}} pedido",
         "requests_other": "{{count}} pedidos",
         "tokens": "{{value}} tokens"

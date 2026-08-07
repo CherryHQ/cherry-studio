@@ -1007,6 +1007,10 @@
           "description": "Sends a notification through a connected channel",
           "label": "Notify"
         },
+        "CherryToMarkdown": {
+          "description": "Markdown is easier for the agent to read",
+          "label": "File to Markdown"
+        },
         "CherryWebFetch": {
           "description": "Fetches and reads a web page",
           "label": "Web Fetch"
@@ -4218,6 +4222,8 @@
         "taskOutput": "View task output",
         "taskStop": "Stop task",
         "taskUpdate": "Update task",
+        "toMarkdown": "To Markdown",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Todo Write",
         "tool": "Tool",
         "webFetch": "Web Fetch",
@@ -4268,6 +4274,8 @@
       "thinkingHeader": "Thinking it through",
       "truncated": "Output truncated (original: {{size}})",
       "units": {
+        "char_one": "{{count}} char",
+        "char_other": "{{count}} chars",
         "done_one": "{{count}} Done",
         "done_other": "{{count}} Done",
         "file_one": "{{count}} file",

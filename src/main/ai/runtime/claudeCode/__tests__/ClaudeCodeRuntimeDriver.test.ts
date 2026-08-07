@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   getModelByKey: vi.fn(),
   applicationGet: vi.fn(),
   getPhysicalPath: vi.fn(),
+  probeReadable: vi.fn(),
   consumeWarmQuery: vi.fn(),
   prepareTrace: vi.fn(),
   refreshTraceContext: vi.fn(),
@@ -55,6 +56,10 @@ vi.mock('@main/ai/messages/attachmentRouting', () => ({
 
 vi.mock('@main/ai/messages/fileProcessor', () => ({
   materializeNativeFilePart: mocks.materializeNativeFilePart
+}))
+
+vi.mock('@main/utils/file', () => ({
+  probeReadable: mocks.probeReadable
 }))
 
 vi.mock('../settingsBuilder', async (importActual) => ({
@@ -295,6 +300,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
     mocks.getPhysicalPath.mockImplementation((id: string) => `/managed/${id}`)
+    mocks.probeReadable.mockResolvedValue('readable')
     mocks.prepareTrace.mockResolvedValue(undefined)
     mocks.collectFileAttachments.mockReturnValue([])
     mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
@@ -493,7 +499,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/spec.pdf'
+              text: 'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": /tmp/spec.pdf'
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -540,7 +546,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         message: {
           role: 'user',
           content:
-            'inspect this archive\n\nAttached files (read them with your tools using these absolute paths):\n- /managed/entry-archive'
+            'inspect this archive\n\nAttached files (read them with your tools using these absolute paths):\n- "BUNDLE.ZIP": /managed/entry-archive'
         }
       },
       done: false
@@ -722,7 +728,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- /managed/entry-bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png'
+              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png'
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -775,8 +781,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content:
-            'inspect this\n\nAttached files (read them with your tools using these absolute paths):\n- /managed/entry-1'
+          content: `inspect this\n\nAttached files (read them with your tools using these absolute paths):\n- ${JSON.stringify(filename)}: /managed/entry-1`
         }
       },
       done: false
@@ -784,6 +789,98 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(mocks.getPhysicalPath).toHaveBeenCalledWith('entry-1')
     expect(mocks.prepareChatMessages).not.toHaveBeenCalled()
     expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it.each([
+    [
+      'the entry row is gone',
+      () =>
+        mocks.getPhysicalPath.mockImplementationOnce(() => {
+          throw new Error('not found')
+        })
+    ],
+    ['the resolved path no longer exists', () => mocks.probeReadable.mockResolvedValueOnce('missing')]
+  ])('reports an attachment as unavailable when %s', async (_label, arrange) => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    arrange()
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect this' },
+            {
+              type: 'file',
+              url: 'file:///stale/location/gone.pdf',
+              mediaType: 'application/pdf',
+              filename: 'gone.pdf',
+              providerMetadata: { cherry: { fileEntryId: 'entry-gone' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: { message: { role: 'user', content: 'inspect this\n\nUnavailable attachments: gone.pdf' } },
+      done: false
+    })
+    void connection.close()
+  })
+
+  it('still announces a path whose readability cannot be verified', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    // EACCES / a stalled network volume must not be treated as deletion.
+    mocks.probeReadable.mockResolvedValueOnce('unverifiable')
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect this' },
+            {
+              type: 'file',
+              url: 'file:///stale/location/slow.pdf',
+              mediaType: 'application/pdf',
+              filename: 'slow.pdf',
+              providerMetadata: { cherry: { fileEntryId: 'entry-slow' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content:
+            'inspect this\n\nAttached files (read them with your tools using these absolute paths):\n- "slow.pdf": /managed/entry-slow'
+        }
+      },
+      done: false
+    })
     void connection.close()
   })
 
@@ -841,7 +938,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content: `summarize this\n\nAttached files (read them with your tools using these absolute paths):\n- /managed/entry-secret\n- /managed/entry-archive-secret\n\nAttachment manifest:\n- "spec.pdf" (handle: ${handle})\n- "BUNDLE.ZIP" (handle: ${archiveHandle})`
+          content: `summarize this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": /managed/entry-secret\n- "BUNDLE.ZIP": /managed/entry-archive-secret\n\nAttachment manifest:\n- "spec.pdf" (handle: ${handle})\n- "BUNDLE.ZIP" (handle: ${archiveHandle})`
         }
       },
       done: false
@@ -896,7 +993,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content: `inspect this archive\n\nAttached files (read them with your tools using these absolute paths):\n- /managed/entry-archive-secret\n\nAttachment manifest:\n- "BUNDLE.ZIP" (handle: ${archiveHandle})`
+          content: `inspect this archive\n\nAttached files (read them with your tools using these absolute paths):\n- "BUNDLE.ZIP": /managed/entry-archive-secret\n\nAttachment manifest:\n- "BUNDLE.ZIP" (handle: ${archiveHandle})`
         }
       },
       done: false
@@ -997,7 +1094,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         message: {
           role: 'user',
           content:
-            'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/pixel.png'
+            'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": /tmp/pixel.png'
         }
       },
       done: false
