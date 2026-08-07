@@ -2,6 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { formatErrorDetails } from '../errorDetails'
 
+const loaded = vi.hoisted(() => vi.fn())
+
+vi.mock('zod', () => {
+  loaded('zod')
+  return {}
+})
+
+vi.mock('ai', () => {
+  loaded('ai')
+  return {}
+})
+
+vi.mock('axios', () => {
+  loaded('axios')
+  return {}
+})
+
 describe('formatErrorDetails', () => {
   it('returns the message directly when the error has one', () => {
     expect(formatErrorDetails(new Error('Test error'))).toBe('Test error')
@@ -39,24 +56,12 @@ describe('formatErrorDetails', () => {
 // B6: errorDetails sits on every window's fatal-fallback path (incl. the lightest
 // selection toolbar), so it must never statically reach the heavy error bucket.
 describe('errorDetails light import graph (B6)', () => {
-  const HEAVY_DEPS = ['zod', 'ai', 'axios']
-  let loaded: ReturnType<typeof vi.fn>
-
   beforeEach(() => {
     vi.resetModules()
-    loaded = vi.fn()
-    for (const dep of HEAVY_DEPS) {
-      vi.doMock(dep, () => {
-        loaded(dep)
-        return {}
-      })
-    }
+    loaded.mockClear()
   })
 
   afterEach(() => {
-    for (const dep of HEAVY_DEPS) {
-      vi.doUnmock(dep)
-    }
     vi.resetModules()
   })
 
@@ -69,9 +74,7 @@ describe('errorDetails light import graph (B6)', () => {
   it('probe control: a static heavy-dependency graph activates the interception layer', async () => {
     await import('./fixtures/errorDetailsHeavyProbe')
 
-    // Any single probe firing proves the doMock interception layer is alive. Even this
-    // static probe can miss an optimized dependency under CI load, so per-dependency
-    // assertions would turn an optimizer race into a red push.
+    // Any single probe firing proves the hoisted interception layer is alive.
     expect(loaded).toHaveBeenCalled()
   })
 })

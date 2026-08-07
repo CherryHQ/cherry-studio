@@ -101,6 +101,35 @@ describe('createAgent', () => {
     )
   })
 
+  // ToolLoopAgent holds its settings for the whole loop and never enters the
+  // per-request plugin pipeline, so a transformParams-only plugin (how
+  // provider-native tools are injected) would otherwise be silently inert here.
+  it('should run transformParams over the agent settings', async () => {
+    const nativeTool = { type: 'provider', id: 'openai.web_search', args: {} }
+    const toolInjectingPlugin = definePlugin({
+      name: 'test-tool-plugin',
+      transformParams: async (params: any) => ({
+        ...params,
+        tools: { ...params.tools, webSearch: nativeTool }
+      })
+    })
+
+    const agent = await createAgent({
+      providerId: 'openai',
+      providerSettings: mockProviderConfigs.openai,
+      modelId: 'gpt-4',
+      plugins: [toolInjectingPlugin],
+      agentSettings: {
+        tools: { existing: { description: 'x', inputSchema: {} } as never }
+      }
+    })
+
+    expect((agent as unknown as { settings: { tools: Record<string, unknown> } }).settings.tools).toMatchObject({
+      existing: expect.anything(),
+      webSearch: nativeTool
+    })
+  })
+
   it('should throw when provider is not registered', async () => {
     const { extensionRegistry } = await import('../../providers')
     vi.mocked(extensionRegistry.has).mockReturnValue(false)

@@ -31,6 +31,23 @@ function siblingNode(
 }
 
 describe('buildTopicMessageFlowGraph', () => {
+  it('preserves clear markers as explicit graph nodes', () => {
+    const tree: TreeResponse = {
+      nodes: [
+        treeNode({ id: 'user-1', hasChildren: true }),
+        treeNode({ id: 'clear-1', parentId: 'user-1', isContextBoundary: true })
+      ],
+      siblingsGroups: [],
+      activeNodeId: 'clear-1',
+      rootId: 'vroot'
+    }
+
+    const graph = buildTopicMessageFlowGraph(tree)
+
+    expect(graph.nodes.find((node) => node.id === 'clear-1')?.data.isContextBoundary).toBe(true)
+    expect(graph.edges.map((edge) => [edge.source, edge.target])).toContainEqual(['user-1', 'clear-1'])
+  })
+
   it('builds nodes and edges for a linear tree', () => {
     const tree: TreeResponse = {
       nodes: [

@@ -77,13 +77,18 @@ export async function findCommandInShellEnv(
 
         if (code === 0 && output.trim()) {
           const paths = output.trim().split(/\r?\n/)
-          // Only accept .exe files on Windows - .cmd/.bat files cannot be executed
-          // with spawn({ shell: false }) which is used by MCP SDK's StdioClientTransport
+          // Prefer native executables, but accept .cmd launchers such as the npx shim
+          // installed by Node.js. StdioClientTransport uses cross-spawn, which resolves
+          // Windows command shims while keeping shell execution disabled.
           const exePath = paths.find((p) => p.toLowerCase().endsWith('.exe'))
-          if (exePath) {
-            safeResolve(exePath)
+          const cmdPath = paths.find((p) => p.toLowerCase().endsWith('.cmd'))
+          const commandPath = exePath ?? cmdPath
+          if (commandPath) {
+            safeResolve(commandPath)
           } else {
-            logger.debug(`Command '${command}' found but not as .exe (${paths[0]}), treating as not found`)
+            logger.debug(
+              `Command '${command}' found without a supported extension (${paths[0]}), treating as not found`
+            )
             safeResolve(null)
           }
         } else {
@@ -246,9 +251,9 @@ const MISE_TIMEOUT_MS = 5000
 /**
  * Find an executable via `mise which <name>` on Windows.
  *
- * When Node.js is installed through mise, the shims are `.cmd` files that
- * `findCommandInShellEnv` rejects (it only accepts `.exe`), and `mise activate`
- * may not be visible in the registry-based PATH used by `getWindowsEnvironment`.
+ * When Node.js is installed through mise, resolving the real binary avoids
+ * depending on a shim that may not be visible in the registry-based PATH used
+ * by `getWindowsEnvironment`.
  *
  * This function locates `mise.exe` via `where.exe` and asks it directly for
  * the real binary path, bypassing shim/PATH issues entirely.

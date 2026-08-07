@@ -1,5 +1,8 @@
+import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
+import { userModelTable } from '@data/db/schemas/userModel'
+import { userProviderTable } from '@data/db/schemas/userProvider'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
 import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -124,8 +127,7 @@ describe('TemporaryChatService', () => {
         role: 'assistant',
         data: mainText('world'),
         modelId: 'mdl-1',
-        messageSnapshot: snapshot,
-        stats: { totalTokens: 42 }
+        messageSnapshot: snapshot
       })
       expect(msg.parentId).toBeNull()
       expect(msg.siblingsGroupId).toBe(0)
@@ -133,8 +135,20 @@ describe('TemporaryChatService', () => {
       expect(msg.topicId).toBe(topic.id)
       expect(msg.modelId).toBe('mdl-1')
       expect(msg.messageSnapshot).toEqual(snapshot)
-      expect(msg.stats).toEqual({ totalTokens: 42 })
+      expect(msg.stats).toBeNull()
       expect(typeof msg.createdAt).toBe('string')
+    })
+
+    it('uses a caller-provided stable message id', () => {
+      const topic = service.createTopic({ name: 'T' })
+      const msg = service.appendMessage(
+        topic.id,
+        { role: 'assistant', data: mainText('world') },
+        'assistant-message-id'
+      )
+
+      expect(msg.id).toBe('assistant-message-id')
+      expect(service.listMessages(topic.id)[0].id).toBe('assistant-message-id')
     })
   })
 
@@ -206,6 +220,141 @@ describe('TemporaryChatService', () => {
 
     it('unknown topicId → notFound', () => {
       expect(() => service.persist('no-such-id')).toThrow(/not found/i)
+    })
+
+    it('rebuilds an assistant projection from an existing invocation without creating another record', async () => {
+      // message.modelId is an FK to user_model — seed the chain.
+      await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' })
+      await dbh.db.insert(userModelTable).values({
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        presetModelId: 'gpt-4o',
+        name: 'gpt-4o',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'a0'
+      })
+
+      const topic = service.createTopic({ name: 'billed' })
+      service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
+      const assistant = service.appendAssistantMessage(
+        topic.id,
+        {
+          role: 'assistant',
+          data: mainText('yo'),
+          modelId: 'openai::gpt-4o'
+        },
+        undefined,
+        'assistant-message-id'
+      )
+
+      // Simulate the generation-time invocation fact. Promotion only rebuilds
+      // the message projection; it does not mutate or duplicate the record.
+      await dbh.db.insert(aiUsageRecordTable).values({
+        requestId: 'temporary-provider-call',
+        recordKind: 'invocation',
+        requestCount: 1,
+        messageKind: 'chat',
+        messageId: assistant.id,
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        modality: 'language',
+        apiKeyAttribution: 'unknown',
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        createdAt: Date.now()
+      })
+
+      service.persist(topic.id)
+
+      const rows = await dbh.db.select().from(aiUsageRecordTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        requestId: 'temporary-provider-call',
+        messageKind: 'chat',
+        messageId: assistant.id,
+        providerId: 'openai',
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15
+      })
+      expect(dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id)).get()?.stats).toMatchObject({
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        requestCount: 1
+      })
+    })
+
+    it('keeps the provider-reported cost when the temporary chat is kept', async () => {
+      await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: 'a0' })
+      await dbh.db.insert(userModelTable).values({
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        presetModelId: 'gpt-4o',
+        name: 'gpt-4o',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: 'a0',
+        // Local pricing would compute 3 USD for this usage — the provider billed 0.9.
+        pricing: {
+          input: { perMillionTokens: 3, currency: 'USD' },
+          output: { perMillionTokens: 15, currency: 'USD' }
+        }
+      })
+
+      const topic = service.createTopic({ name: 'billed-by-provider' })
+      const assistant = service.appendAssistantMessage(
+        topic.id,
+        {
+          role: 'assistant',
+          data: mainText('yo'),
+          modelId: 'openai::gpt-4o'
+        },
+        undefined,
+        'provider-billed-message'
+      )
+
+      // Generation-time request record for the same message id.
+      await dbh.db.insert(aiUsageRecordTable).values({
+        requestId: 'temporary-provider-cost',
+        recordKind: 'invocation',
+        requestCount: 1,
+        messageKind: 'chat',
+        messageId: assistant.id,
+        providerId: 'openai',
+        modelId: 'gpt-4o',
+        modality: 'language',
+        apiKeyAttribution: 'unknown',
+        inputTokens: 1_000_000,
+        totalTokens: 1_000_000,
+        cost: 0.9,
+        costCurrency: 'USD',
+        costSource: 'provider',
+        createdAt: Date.now()
+      })
+
+      service.persist(topic.id)
+
+      const rows = await dbh.db.select().from(aiUsageRecordTable)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toMatchObject({
+        requestId: 'temporary-provider-cost',
+        cost: 0.9,
+        costCurrency: 'USD',
+        costSource: 'provider'
+      })
+      expect(dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id)).get()?.stats?.costs).toEqual([
+        {
+          currency: 'USD',
+          amount: 0.9,
+          providerReportedRequestCount: 1,
+          computedRequestCount: 0
+        }
+      ])
     })
 
     it('persisted topic has a non-empty fractional-indexing orderKey', async () => {

@@ -6,6 +6,7 @@
 import type { Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { getRawModelId } from '@shared/utils/model'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 import { type AppProviderId, appProviderIds } from '../types'
@@ -19,6 +20,21 @@ export interface ResolvedEndpoint {
   baseUrl: string
   /** Provider-options namespace selected by a multi-backend gateway route. */
   providerOptionsKey?: string
+}
+
+/**
+ * The model id as it must appear on the wire.
+ *
+ * Gemini's `/models` listing names models `models/<id>`; the prefix is stripped at
+ * ingestion today, but rows synced before that still carry it. Both forms build the
+ * same request URL, so the difference is invisible — except that `@ai-sdk/google`
+ * matches its feature allowlists (googleSearch, urlContext, code execution, …)
+ * against the id EXACTLY, so a prefixed id silently drops those tools from the
+ * request. Normalise once here rather than teaching every consumer about it.
+ */
+export function resolveWireModelId(model: Model, endpointType: EndpointType | undefined): string {
+  const rawId = getRawModelId(model)
+  return endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT ? rawId.replace(/^models\//, '') : rawId
 }
 
 /**

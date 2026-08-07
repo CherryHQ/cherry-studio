@@ -68,7 +68,7 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
     <div className="mt-2 pt-2">
       {resources.length > 0 ? (
         <>
-          <h3 className="mb-2 font-medium text-foreground-secondary text-sm">
+          <h3 className="mb-2 font-medium text-muted-foreground text-sm">
             {t('settings.mcp.resources.availableResources') || 'Available Resources'}
           </h3>
           <Accordion type="multiple">
@@ -80,7 +80,7 @@ const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
                       <span className="truncate text-foreground text-sm">{`${resource.name} (${resource.uri})`}</span>
                     </Flex>
                     {resource.description && (
-                      <span className="mt-1 text-[13px] text-foreground-secondary leading-5">
+                      <span className="mt-1 text-[13px] text-muted-foreground leading-5">
                         {resource.description.length > 100
                           ? `${resource.description.substring(0, 100)}...`
                           : resource.description}

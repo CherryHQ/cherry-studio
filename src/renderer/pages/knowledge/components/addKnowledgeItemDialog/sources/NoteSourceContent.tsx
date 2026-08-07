@@ -2,7 +2,7 @@ import { Checkbox } from '@cherrystudio/ui'
 import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { projectNotesTree } from '@renderer/services/NotesService'
-import type { NotesTreeNode } from '@renderer/types/note'
+import { flattenTreeToFiles } from '@renderer/services/NotesTreeService'
 import { NotebookPen } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,22 +12,10 @@ import type { NoteItem } from '../types'
 interface NoteSourceContentProps {
   selectedNotes: NoteItem[]
   onToggle: (note: NoteItem) => void
+  onSelectionChange: (notes: NoteItem[]) => void
 }
 
-/** Flatten the notes tree to its markdown files; folders only carry structure here. */
-function collectNoteFiles(nodes: NotesTreeNode[]): NotesTreeNode[] {
-  const files: NotesTreeNode[] = []
-  for (const node of nodes) {
-    if (node.type === 'file') {
-      files.push(node)
-    } else if (node.children) {
-      files.push(...collectNoteFiles(node.children))
-    }
-  }
-  return files
-}
-
-const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) => {
+const NoteSourceContent = ({ selectedNotes, onToggle, onSelectionChange }: NoteSourceContentProps) => {
   const { t } = useTranslation()
   const { notesPath } = useNotesSettings()
   const { root, isLoading, error } = useDirectoryTree(notesPath || undefined)
@@ -36,15 +24,17 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
     if (!root || !notesPath) {
       return []
     }
-    return collectNoteFiles(projectNotesTree(root, notesPath))
+    return flattenTreeToFiles(projectNotesTree(root, notesPath))
   }, [root, notesPath])
 
   const selectedPaths = useMemo(() => new Set(selectedNotes.map((note) => note.externalPath)), [selectedNotes])
+  const allNotesSelected = noteFiles.every((note) => selectedPaths.has(note.externalPath))
+  const someNotesSelected = noteFiles.some((note) => selectedPaths.has(note.externalPath))
 
   const renderBody = () => {
     if (isLoading) {
       return (
-        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center text-foreground-muted text-xs leading-4">
+        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center text-foreground-tertiary text-xs leading-4">
           {t('knowledge.data_source.add_dialog.note.loading')}
         </div>
       )
@@ -54,7 +44,7 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
     // is not told to "create some notes" when the real problem is a read failure.
     if (error) {
       return (
-        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center rounded-md border border-error-border bg-error-bg p-4 text-center text-error-text text-xs leading-4">
+        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center rounded-md border border-error-border bg-error-subtle p-4 text-center text-error-subtle-foreground text-xs leading-4">
           {t('notes.tree_load_failed')}
         </div>
       )
@@ -62,9 +52,9 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
 
     if (noteFiles.length === 0) {
       return (
-        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center rounded-md border border-border-muted border-dashed p-4 text-center text-foreground-muted">
+        <div className="flex min-h-24 min-w-0 flex-1 items-center justify-center rounded-md border border-border-subtle border-dashed p-4 text-center text-foreground-tertiary">
           <div className="flex min-w-0 flex-col items-center gap-2.5">
-            <div className="flex size-8 items-center justify-center rounded-full bg-accent text-foreground-muted">
+            <div className="flex size-8 items-center justify-center rounded-full bg-accent text-foreground-tertiary">
               <NotebookPen className="size-4" />
             </div>
             <div className="min-w-0 space-y-1">
@@ -93,11 +83,13 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
                 checked={selectedPaths.has(note.externalPath)}
                 onCheckedChange={() => onToggle({ name: note.name, externalPath: note.externalPath })}
               />
-              <NotebookPen className="size-3.5 shrink-0 text-foreground-muted" />
+              <NotebookPen className="size-3.5 shrink-0 text-foreground-tertiary" />
               <span className="min-w-0 truncate text-foreground text-xs leading-4" title={note.name}>
                 {note.name}
               </span>
-              <span className="min-w-0 max-w-60 truncate text-foreground-muted text-xs leading-4" title={note.treePath}>
+              <span
+                className="min-w-0 max-w-60 truncate text-foreground-tertiary text-xs leading-4"
+                title={note.treePath}>
                 {note.treePath}
               </span>
             </label>
@@ -109,9 +101,28 @@ const NoteSourceContent = ({ selectedNotes, onToggle }: NoteSourceContentProps) 
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-      <p className="text-foreground-muted text-xs leading-4">
-        {t('knowledge.data_source.add_dialog.note.description')}
-      </p>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-muted-foreground text-xs leading-4">
+          {t('knowledge.data_source.add_dialog.note.description')}
+        </p>
+        {noteFiles.length > 0 && (
+          <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-foreground text-xs leading-4">
+            <Checkbox
+              size="sm"
+              checked={allNotesSelected ? true : someNotesSelected ? 'indeterminate' : false}
+              onCheckedChange={(checked) =>
+                onSelectionChange(
+                  checked === true
+                    ? noteFiles.map((note) => ({ name: note.name, externalPath: note.externalPath }))
+                    : []
+                )
+              }
+              aria-label={t('common.select_all')}
+            />
+            <span>{t('common.select_all')}</span>
+          </label>
+        )}
+      </div>
       {renderBody()}
     </div>
   )

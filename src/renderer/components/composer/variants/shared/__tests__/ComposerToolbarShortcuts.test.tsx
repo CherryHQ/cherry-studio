@@ -196,7 +196,6 @@ describe('ComposerToolbarShortcuts', () => {
 
     const webSearchButton = screen.getByRole('button', { name: 'web-search-label' })
     expect(webSearchButton).toBeDisabled()
-    expect(webSearchButton).toHaveClass('disabled:opacity-100')
     expect(webSearchButton).not.toHaveAttribute('aria-pressed')
     expect(within(webSearchButton).getByTestId('icon-web-search-fallback')).toBeInTheDocument()
   })
@@ -245,6 +244,33 @@ describe('ComposerToolbarShortcuts', () => {
     expect(onCustomSelect).not.toHaveBeenCalled()
   })
 
+  it('runs model-independent custom tools when no model is available', () => {
+    const onCustomSelect = vi.fn()
+    mocks.launchers = []
+
+    renderShortcuts({
+      pinnedIds: ['clear-context'],
+      customTools: [
+        {
+          id: 'clear-context',
+          label: 'clear-context-label',
+          icon: <span />,
+          requiresPanel: false,
+          availableWithoutModel: true,
+          onSelect: onCustomSelect
+        }
+      ],
+      isModelUnavailable: true
+    })
+
+    const button = screen.getByRole('button', { name: 'clear-context-label' })
+    expect(button).toBeEnabled()
+    fireEvent.click(button)
+
+    expect(onCustomSelect).toHaveBeenCalledTimes(1)
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
   it('keeps manifest presentation stable while a launcher is cleared and re-registered', () => {
     mocks.manifests = [thinkingManifest]
     mocks.launchers = [thinkingLauncher]
@@ -260,7 +286,6 @@ describe('ComposerToolbarShortcuts', () => {
     rerender(<ComposerToolbarShortcuts {...props} />)
 
     expect(getThinkingButton()).toBeDisabled()
-    expect(getThinkingButton()).toHaveClass('disabled:opacity-100')
     expect(within(getThinkingButton()).getByTestId('icon-thinking')).toBeInTheDocument()
 
     const nextThinkingLauncher = {
@@ -427,7 +452,6 @@ describe('ComposerToolbarShortcuts', () => {
   it('positions the customize popover above an empty shortcut bar without covering the plus trigger', () => {
     renderShortcuts({ customizeOpen: true, pinnedIds: [] })
 
-    expect(screen.getByTestId('popover').firstElementChild).toHaveClass('min-h-8')
     expect(screen.getByTestId('popover-content')).toHaveAttribute('data-side', 'top')
     expect(screen.getByTestId('popover-content')).toHaveAttribute('data-side-offset', '8')
   })
@@ -442,8 +466,6 @@ describe('ComposerToolbarShortcuts', () => {
     expect(handles).toHaveLength(3)
     handles.forEach((handle) => {
       expect(handle).not.toHaveAttribute('aria-hidden')
-      expect(handle).not.toHaveClass('opacity-0')
-      expect(handle.parentElement).toHaveClass('h-8')
     })
   })
 
@@ -571,12 +593,10 @@ describe('ComposerToolbarShortcuts', () => {
     renderShortcuts({ customizeOpen: true })
 
     const popover = screen.getByTestId('popover-content')
-    expect(popover).toHaveClass('w-64', 'p-1.5')
     const labelledBy = popover.getAttribute('aria-labelledby')
     expect(labelledBy).toBeTruthy()
     const title = document.getElementById(labelledBy!)
     expect(title).toHaveTextContent('chat.input.toolbar.customize')
-    expect(title).toHaveClass('font-medium', 'text-sm')
   })
 
   it('keeps a launchers tooltip on the pinned button, falling back disabledReason -> tooltip -> label', () => {

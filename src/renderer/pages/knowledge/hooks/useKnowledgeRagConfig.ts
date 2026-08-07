@@ -19,16 +19,8 @@ const KNOWLEDGE_V2_FILE_PROCESSORS = PRESETS_FILE_PROCESSORS.filter((preset) =>
   )
 )
 
-type FileProcessorSelectionState = {
-  id: (typeof PRESETS_FILE_PROCESSORS)[number]['id']
-  type: (typeof PRESETS_FILE_PROCESSORS)[number]['type']
-  apiKeys?: readonly string[]
-}
-
-const canSelectFileProcessor = (processor: FileProcessorSelectionState) =>
-  processor.id === 'open-mineru' ||
-  processor.type !== 'api' ||
-  processor.apiKeys?.some((key) => key.trim().length > 0) === true
+const canSelectFileProcessor = (processor: (typeof PRESETS_FILE_PROCESSORS)[number], apiKeys?: readonly string[]) =>
+  processor.id === 'open-mineru' || processor.type !== 'api' || apiKeys?.some((key) => key.trim().length > 0) === true
 
 export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   const { t } = useTranslation()
@@ -39,21 +31,15 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
 
   const initialValues = useMemo(() => createKnowledgeRagConfigFormValues(base), [base])
 
-  const fileProcessorOptions = useMemo(() => {
-    return KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => {
-      const override = fileProcessorOverrides[processor.id]
-
-      return {
-        ...processor,
-        apiKeys: override?.apiKeys
-      }
-    })
-      .filter(canSelectFileProcessor)
-      .map((processor) => ({
+  const fileProcessorOptions = useMemo(
+    () =>
+      KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => ({
         value: processor.id,
-        label: t(getFileProcessorLabelKey(processor.id))
-      }))
-  }, [fileProcessorOverrides, t])
+        label: t(getFileProcessorLabelKey(processor.id)),
+        disabled: !canSelectFileProcessor(processor, fileProcessorOverrides[processor.id]?.apiKeys)
+      })),
+    [fileProcessorOverrides, t]
+  )
 
   const save = async (
     values: KnowledgeRagConfigFormValues,

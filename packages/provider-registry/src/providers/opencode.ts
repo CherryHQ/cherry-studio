@@ -40,7 +40,7 @@ const chatEffortModels: Array<{ modelId: string; values: ReasoningEffort[] }> = 
   { modelId: 'deepseek-v4-flash', values: ['high', 'max'] },
   { modelId: 'deepseek-v4-pro', values: ['high', 'max'] },
   { modelId: 'glm-5-2', values: ['high', 'max'] },
-  { modelId: 'grok-4-5', values: ['low', 'medium', 'high'] },
+  { modelId: 'hy3', values: ['none', 'low', 'high'] },
   { modelId: 'kimi-k3', values: ['max'] }
 ]
 
@@ -50,7 +50,8 @@ const qwenBudgetModels = [
   { max: 81_920, modelId: 'qwen3-5-plus' },
   { max: 81_920, modelId: 'qwen3-6-plus' },
   { max: 262_144, modelId: 'qwen3-7-max' },
-  { max: 262_144, modelId: 'qwen3-7-plus' }
+  { max: 262_144, modelId: 'qwen3-7-plus' },
+  { max: 262_144, modelId: 'qwen3-8-max' }
 ]
 
 const endpointOverrides: Partial<ProviderModelOverride>[] = [
@@ -68,6 +69,23 @@ const endpointOverrides: Partial<ProviderModelOverride>[] = [
       'openai-chat-completions': { support: effortSupport(values) }
     }
   })),
+  // models.dev routes Zen Go's Grok 4.5 through `@ai-sdk/openai` (Responses); the Go endpoint table
+  // still prints chat/completions, so Chat stays selectable behind the Responses default (#17860).
+  {
+    modelId: 'grok-4-5',
+    endpointTypes: ['openai-responses' as const, 'openai-chat-completions' as const],
+    reasoningContracts: {
+      'openai-responses': { support: effortSupport(['low', 'medium', 'high']) },
+      'openai-chat-completions': { support: effortSupport(['low', 'medium', 'high']) }
+    }
+  },
+  {
+    modelId: 'gpt-5-6-luna',
+    endpointTypes: ['openai-responses' as const],
+    reasoningContracts: {
+      'openai-responses': { support: effortSupport(['none', 'low', 'medium', 'high', 'xhigh', 'max']) }
+    }
+  },
   ...anthropicFixedModels.map((modelId) => ({
     modelId,
     endpointTypes: ['anthropic-messages' as const],
@@ -112,6 +130,11 @@ export default defineProvider({
       baseUrl: 'https://opencode.ai/zen/go/v1',
       modelsApiUrls: { default: 'https://opencode.ai/zen/go/v1/models' },
       reasoningFormat: { type: 'openai-chat' }
+    },
+    'openai-responses': {
+      adapterFamily: 'openai',
+      baseUrl: 'https://opencode.ai/zen/go/v1',
+      reasoningFormat: { type: 'openai-responses' }
     }
   },
   metadata: {

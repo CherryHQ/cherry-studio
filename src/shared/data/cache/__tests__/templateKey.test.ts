@@ -86,10 +86,14 @@ describe('findMatchingSharedCacheSchemaKey', () => {
     expect(findMatchingSharedCacheSchemaKey('ocr.provider.last_used_key.mistral')).toBe(
       'ocr.provider.last_used_key.${providerId}'
     )
+    expect(findMatchingSharedCacheSchemaKey('agent.session.flow_parts.session-1.message-1')).toBe(
+      'agent.session.flow_parts.${sessionId}.${messageId}'
+    )
   })
 
   it('returns undefined when the key matches nothing', () => {
     expect(findMatchingSharedCacheSchemaKey('unknown.key')).toBeUndefined()
     expect(findMatchingSharedCacheSchemaKey('web_search.provider.last_used_key.')).toBeUndefined()
+    expect(findMatchingSharedCacheSchemaKey('agent.session.flow_parts.session-1')).toBeUndefined()
   })
 })

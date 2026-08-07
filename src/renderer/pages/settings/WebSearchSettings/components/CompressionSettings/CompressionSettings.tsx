@@ -1,4 +1,4 @@
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@cherrystudio/ui'
+import { SegmentedControl } from '@cherrystudio/ui'
 import { SettingRow, SettingRowTitle } from '@renderer/components/SettingsPrimitives'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { useWebSearchPersist } from '@renderer/pages/settings/WebSearchSettings/hooks/useWebSearchPersist'
@@ -7,16 +7,16 @@ import { useTranslation } from 'react-i18next'
 
 import CutoffSettings from './CutoffSettings'
 
-const settingRowClassName = 'items-center justify-between gap-6 py-1'
+const settingRowClassName = 'min-h-8 items-center justify-between gap-3'
 const settingLabelClassName = 'min-w-0 flex-1'
-const selectTriggerClassName = 'h-8 w-56 text-sm'
+type CompressionMethod = 'none' | 'cutoff'
 
 const CompressionSettings = () => {
   const { t } = useTranslation()
   const { compressionConfig, updateCompressionConfig } = useWebSearchSettings()
   const persist = useWebSearchPersist()
 
-  const handleCompressionMethodChange = (value: 'none' | 'cutoff') => {
+  const handleCompressionMethodChange = (value: CompressionMethod) => {
     void persist(
       () =>
         updateCompressionConfig({
@@ -29,7 +29,7 @@ const CompressionSettings = () => {
     )
   }
 
-  const compressionMethodOptions = [
+  const compressionMethodOptions: Array<{ value: CompressionMethod; label: string }> = [
     { value: 'none', label: t('settings.tool.websearch.compression.method.none') },
     { value: 'cutoff', label: t('settings.tool.websearch.compression.method.cutoff') }
   ]
@@ -40,18 +40,14 @@ const CompressionSettings = () => {
         <SettingRowTitle className={settingLabelClassName}>
           {t('settings.tool.websearch.compression.method.label')}
         </SettingRowTitle>
-        <Select value={compressionConfig?.method || 'none'} onValueChange={handleCompressionMethodChange}>
-          <SelectTrigger size="sm" className={selectTriggerClassName}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {compressionMethodOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SegmentedControl<CompressionMethod>
+          size="sm"
+          className="h-8 shrink-0 [&_[role=radio]]:h-6.5"
+          aria-label={t('settings.tool.websearch.compression.method.label')}
+          value={compressionConfig?.method || 'none'}
+          options={compressionMethodOptions}
+          onValueChange={handleCompressionMethodChange}
+        />
       </SettingRow>
       {compressionConfig?.method === 'cutoff' && <CutoffSettings />}
     </>

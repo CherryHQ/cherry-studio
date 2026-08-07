@@ -1,6 +1,6 @@
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import { setInlineFilePathHomePath } from '@renderer/utils/filePath'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,6 +18,7 @@ vi.mock('react-i18next', async (importOriginal) => ({
       if (key === 'common.copy') return 'Copy'
       if (key === 'chat.input.tools.open_file') return 'Open File'
       if (key === 'chat.input.tools.open_file_error') return 'Failed to open file'
+      if (key === 'chat.input.tools.open_with') return 'Open with'
       if (key === 'chat.input.tools.file_not_found') return 'File not found'
       if (key === 'agent.session.file_manager.finder') return 'Finder'
       return key
@@ -120,7 +121,7 @@ describe('MessageReportArtifacts', () => {
     expect(screen.queryByText('- Draft')).toBeNull()
   })
 
-  it('previews on card click and opens externally from the side button', async () => {
+  it('previews on card click and opens externally from the open-with menu', async () => {
     const openArtifactFile = vi.fn().mockResolvedValue(undefined)
     const openPath = vi.fn().mockResolvedValue(undefined)
 
@@ -146,7 +147,8 @@ describe('MessageReportArtifacts', () => {
       expect(openArtifactFile).toHaveBeenCalledWith('dist/report.md')
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open File report.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open with report.md' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open File' }))
     await waitFor(() => {
       expect(openPath).toHaveBeenCalledWith('dist/report.md')
     })
@@ -179,7 +181,8 @@ describe('MessageReportArtifacts', () => {
       expect(openArtifactFile).toHaveBeenCalledWith('/Users/alice/Desktop/report.html')
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Open File report.html' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open with report.html' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Open File' }))
     await waitFor(() => {
       expect(openPath).toHaveBeenCalledWith('/Users/alice/Desktop/report.html')
     })
@@ -212,13 +215,14 @@ describe('MessageReportArtifacts', () => {
     expect(previewButton).not.toBeDisabled()
 
     const openContextMenu = () => fireEvent.contextMenu(screen.getByText('report.md'))
+    const contextMenu = () => within(screen.getByTestId('context-menu-content'))
 
     openContextMenu()
-    fireEvent.click(screen.getByRole('button', { name: 'Open File' }))
+    fireEvent.click(contextMenu().getByRole('button', { name: 'Open File' }))
     openContextMenu()
-    fireEvent.click(screen.getByRole('button', { name: 'Finder' }))
+    fireEvent.click(contextMenu().getByRole('button', { name: 'Finder' }))
     openContextMenu()
-    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+    fireEvent.click(contextMenu().getByRole('button', { name: 'Copy' }))
 
     await waitFor(() => {
       expect(openPath).toHaveBeenCalledWith('dist/report.md')

@@ -72,6 +72,18 @@ describe('getComposerTokenClipboardText', () => {
       )
     ).toBe('/Users/jd/Notes/Project Notes')
   })
+
+  it('returns the original URL for link tokens', () => {
+    expect(
+      getComposerTokenClipboardText(
+        token({
+          kind: 'link',
+          label: 'example.com/docs',
+          promptText: 'https://example.com/docs'
+        })
+      )
+    ).toBe('https://example.com/docs')
+  })
 })
 
 describe('replaceComposerTokenPromptText', () => {

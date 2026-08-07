@@ -126,9 +126,11 @@ All three streaming endpoints are thin route wrappers that call
    SSE string).
 5. **Drive the stream.** With `streamId = "gateway-<uuid>"`, call
    `AiStreamManager.streamPrompt({ streamId, uniqueModelId, messages, listener,
-   callOverrides, idleTimeoutMs })`. This uses the **`promptStreamLifecycle`** —
-   no status broadcast, no attach/reconnect, no persistence; the stream evicts
-   immediately at terminal.
+   callOverrides, contextOwner: 'caller', idleTimeoutMs })`. Caller ownership
+   keeps externally managed history out of Cherry's context-build and in-loop
+   compaction middleware. This uses the **`promptStreamLifecycle`** — no status
+   broadcast, no attach/reconnect, no persistence; the stream evicts immediately
+   at terminal.
    - **Streaming**: an `SseListener` with a push-API `formatChunk` /
      `formatDone` / `formatPaused` / `formatError` pipes the adapter's events
      through the formatter into a `text/event-stream` `ReadableStream`. The
@@ -313,7 +315,11 @@ streaming `buildStreamErrorFrame`.
 - **Equal, non-persisting subscriber.** The gateway uses
   `promptStreamLifecycle` — its turns are not persisted, not broadcast as topic
   status, and not attachable. It shares the exact same `AiStreamManager` engine
-  as the renderer and IM channels; nothing special-cases it upstream.
+  as the renderer and IM channels.
+- **Caller-owned history.** Gateway clients own their context. The gateway sets
+  `contextOwner: 'caller'`, so Cherry does not truncate tool results, prune or
+  window messages, or run summary compaction. Protocol conversion and provider
+  serialization still run normally.
 - **Assistant-agnostic.** No assistant/topic context. Sampling, client tools,
   and provider options ride as per-request `CallOverrides`.
 - **Main owns running state.** `feature.api_gateway.running` in the Shared Cache is

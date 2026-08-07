@@ -221,7 +221,9 @@ The SDK image model is one of: a custom `ImageModelV3` (e.g.
 
 ### 4. Transport delivery (async / bespoke wire shape)
 
-When `resolveImageTransport(provider, model, settings)` ([`.../custom/imageTransportRegistry.ts`](../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / OVMS / DMXAPI-custom families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`) so it survives a restart.
+When `resolveImageTransport(provider, model, settings)` ([`.../custom/imageTransportRegistry.ts`](../../../src/main/ai/provider/custom/imageTransportRegistry.ts)) returns a transport (DashScope / PPIO / ModelScope / OVMS / DMXAPI-custom families), the request runs on the job system (`generateImageViaJob` → `JobManager` → `imageGenerationJobHandler`), which owns the submit/poll loop, queueing and cancellation.
+
+The job is deliberately **not** restart-durable (`recovery: 'abandon'`): its only consumer is the in-process awaiter in `generateImageViaJob`, and the payload records no consumer identity, so a job resumed after a restart would have nobody to hand its result to. Non-terminal jobs are cancelled at startup instead of resumed.
 
 Unlike the SDK path (whose bag IS the body), a transport builds its **own** per-model
 envelope, so it receives the **canonical camelCase params directly** — native

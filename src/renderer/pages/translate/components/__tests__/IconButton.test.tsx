@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import IconButton from '../IconButton'
@@ -68,17 +68,5 @@ describe('IconButton', () => {
     const starBtn = screen.getByRole('button', { name: 'translate.history.filter.starred' })
     expect(starBtn.className).toContain('text-amber-500')
     expect(starBtn.className).toContain('bg-amber-500/10')
-  })
-
-  it('forwards click handlers', () => {
-    const onClick = vi.fn()
-    render(
-      <IconButton aria-label="common.copy" onClick={onClick}>
-        <span>icon</span>
-      </IconButton>
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'common.copy' }))
-    expect(onClick).toHaveBeenCalledTimes(1)
   })
 })

@@ -1,4 +1,5 @@
 import { KNOWLEDGE_ITEM_ERROR_INDEXING_INTERRUPTED } from '@shared/data/types/knowledge'
+import { MockMainCacheServiceExport } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -13,7 +14,7 @@ import {
   deleteKnowledgeItemFilesBestEffortMock,
   deleteMaterialsMock,
   FILE_ITEM_ID,
-  getJobMock,
+  ingestionService,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
@@ -21,13 +22,12 @@ import {
   listMock,
   loggerWarnMock,
   probeKnowledgeSourcePathMock,
-  scheduleItemMock,
-  workflowService
+  scheduleItemMock
 } from './jobHandlerTestUtils'
 
 describe('reindex-subtree job handler', () => {
   it('clears old artifacts, resets selected roots, and schedules selected roots', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1')
     const child = createNoteItem('note-1', 'dir-1')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
@@ -49,8 +49,31 @@ describe('reindex-subtree job handler', () => {
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done', totalFiles: 1 })
   })
 
+  it('clears stale directory copy progress before marking the directory as preparing', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
+    const root = createDirectoryItem('dir-1')
+    const child = createNoteItem('note-1', 'dir-1')
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
+        if (options.leafOnly) return [child]
+        if (options.includeRoots) return [root, child]
+        return [child]
+      }
+    )
+    MockMainCacheServiceExport.cacheService.setShared('knowledge.item.directory_copy_progress.dir-1', 100)
+
+    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job'))
+
+    expect(MockMainCacheServiceExport.cacheService.deleteShared).toHaveBeenCalledWith(
+      'knowledge.item.directory_copy_progress.dir-1'
+    )
+    expect(MockMainCacheServiceExport.cacheService.deleteShared.mock.invocationCallOrder[0]).toBeLessThan(
+      knowledgeItemUpdateStatusMock.mock.invocationCallOrder[0]
+    )
+  })
+
   it('routes container descendant cleanup through best-effort delete before deleting rows', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1')
     const child = createNoteItem('note-1', 'dir-1')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
@@ -75,7 +98,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('skips deleting subtrees before reset', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1', 'deleting')
     const child = createNoteItem('note-1', 'dir-1', 'deleting')
     const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job')
@@ -93,7 +116,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('skips reset when the subtree becomes deleting inside the mutation lock', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1')
     const child = createNoteItem('note-1', 'dir-1')
     const deletingChild = createNoteItem('note-1', 'dir-1', 'deleting')
@@ -110,7 +133,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('leaves a root untouched when its source vanished before the mutation lock', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1')
     const child = createNoteItem('note-1', 'dir-1')
     const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job')
@@ -140,7 +163,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('reindexes only the roots whose source still exists', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const presentRoot = createDirectoryItem('dir-1')
     const presentChild = createNoteItem('note-1', 'dir-1')
     const missingRoot = createDirectoryItem('dir-2')
@@ -176,7 +199,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('clears old artifacts for selected leaf roots', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createNoteItem('note-1')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
       (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
@@ -194,7 +217,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('marks only unscheduled reset roots failed when rescheduling fails', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const firstRoot = createDirectoryItem('dir-1')
     const secondRoot = createDirectoryItem('dir-2')
     const firstChild = createNoteItem('note-1', 'dir-1')
@@ -220,7 +243,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('never fails a left-untouched missing-source root when rescheduling a rebuildable root fails', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const presentRoot = createDirectoryItem('dir-1')
     const presentChild = createNoteItem('note-1', 'dir-1')
     const missingRoot = createDirectoryItem('dir-2')
@@ -255,7 +278,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('stores the localized interruption code when a shutdown abort interrupts rescheduling', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     const root = createDirectoryItem('dir-1')
     const child = createNoteItem('note-1', 'dir-1')
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
@@ -285,14 +308,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('onSettled marks active roots without follow-up jobs failed', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
-    getJobMock.mockResolvedValue(
-      createJobSnapshot({
-        id: 'reindex-job',
-        type: 'knowledge.reindex-subtree',
-        input: { baseId: 'kb-1', rootItemIds: ['dir-1', 'note-1'] }
-      })
-    )
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     listMock.mockResolvedValue([])
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([
       createDirectoryItem('dir-1', 'preparing'),
@@ -317,14 +333,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('onSettled stores the localized interruption code when the reindex job was cancelled', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
-    getJobMock.mockResolvedValue(
-      createJobSnapshot({
-        id: 'reindex-job',
-        type: 'knowledge.reindex-subtree',
-        input: { baseId: 'kb-1', rootItemIds: ['dir-1', 'note-1'] }
-      })
-    )
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     listMock.mockResolvedValue([])
     knowledgeItemGetSubtreeItemsMock.mockReturnValue([
       createDirectoryItem('dir-1', 'preparing'),
@@ -351,14 +360,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('onSettled skips deleting roots and roots with follow-up jobs', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
-    getJobMock.mockResolvedValue(
-      createJobSnapshot({
-        id: 'reindex-job',
-        type: 'knowledge.reindex-subtree',
-        input: { baseId: 'kb-1', rootItemIds: ['dir-1', 'note-1'] }
-      })
-    )
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     listMock.mockResolvedValue([
       createJobSnapshot({
         id: 'prepare-dir-1',
@@ -388,14 +390,7 @@ describe('reindex-subtree job handler', () => {
   })
 
   it('onSettled treats file-processing check jobs as follow-up jobs', async () => {
-    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
-    getJobMock.mockResolvedValue(
-      createJobSnapshot({
-        id: 'reindex-job',
-        type: 'knowledge.reindex-subtree',
-        input: { baseId: 'kb-1', rootItemIds: [FILE_ITEM_ID] }
-      })
-    )
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, ingestionService)
     listMock.mockResolvedValue([
       createJobSnapshot({
         id: 'check-file-1',
@@ -407,7 +402,7 @@ describe('reindex-subtree job handler', () => {
           fileProcessingJobId: 'fp-job-1',
           pollRound: 0,
           firstScheduledAt: 1779811200000,
-          parentJobId: 'reindex-job'
+          processedRelativePath: 'source.md'
         }
       })
     ])

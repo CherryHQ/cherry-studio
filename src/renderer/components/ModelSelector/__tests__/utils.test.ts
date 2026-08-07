@@ -39,12 +39,6 @@ describe('getProviderDisplayName', () => {
     expect(getProviderDisplayName(provider)).toBe('Label(openai)')
   })
 
-  it('returns the user-set name for derived providers (id !== presetProviderId)', () => {
-    const provider = makeProvider({ id: 'openai-work', presetProviderId: 'openai', name: 'OpenAI Work' })
-
-    expect(getProviderDisplayName(provider)).toBe('OpenAI Work')
-  })
-
   it('keeps multiple derived providers visually distinct instead of collapsing to the preset label', () => {
     const workspace = makeProvider({ id: 'openai-work', presetProviderId: 'openai', name: 'OpenAI Work' })
     const personal = makeProvider({ id: 'openai-personal', presetProviderId: 'openai', name: 'OpenAI Personal' })

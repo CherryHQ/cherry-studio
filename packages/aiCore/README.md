@@ -16,7 +16,7 @@ Cherry Studio AI Core 是一个基于 Vercel AI SDK 的统一 AI Provider 接口
 - **生命周期钩子**：支持请求全生命周期的扩展点
 - **流转换支持**：基于 AI SDK 的 `experimental_transform` 实现流处理
 - **插件分类**：First、Sequential、Parallel 三种钩子类型，满足不同场景
-- **内置插件**：webSearch、logging、toolUse 等开箱即用的功能
+- **内置插件**：webSearch、providerTool 等开箱即用的功能
 
 ### 🌐 统一多 Provider 接口
 

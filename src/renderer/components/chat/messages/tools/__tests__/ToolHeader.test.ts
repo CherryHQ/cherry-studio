@@ -1,3 +1,4 @@
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import { render, screen } from '@testing-library/react'
 import React from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -49,7 +50,10 @@ const translations: Record<string, string> = {
   'message.tools.labels.taskList': 'List tasks',
   'message.tools.labels.taskOutput': 'View task output',
   'message.tools.labels.taskStop': 'Stop task',
-  'message.tools.labels.taskUpdate': 'Update task'
+  'message.tools.labels.taskUpdate': 'Update task',
+  'message.tools.workflow.orchestrating': 'Orchestrating workflow',
+  'message.tools.workflow.started': 'Started workflow',
+  'message.tools.workflow.workflow': 'workflow'
 }
 
 const t = (key: string, options?: Record<string, string>) => {
@@ -135,6 +139,13 @@ describe('getReadableToolActivity', () => {
     })
   })
 
+  it('describes provider-executed web search as a web lookup', () => {
+    expect(getReadableToolActivity(PROVIDER_WEB_SEARCH_TOOL_NAME, {}, false, t)).toEqual({
+      label: 'message.tools.activity.search',
+      description: 'related content'
+    })
+  })
+
   it('hides internal skill names and tool search queries', () => {
     expect(getReadableToolActivity(AgentToolsType.Skill, { skill: 'cherry-code-review' }, true, t)).toEqual({
       label: 'Handling',
@@ -196,6 +207,17 @@ describe('getReadableToolActivity', () => {
     expect(getReadableToolActivity(AgentToolsType.TaskUpdate, { taskId: '1' }, false, t)).toEqual({
       label: 'Update task',
       description: 'Task 1'
+    })
+  })
+
+  it('describes Workflow as orchestration instead of a generic tool call', () => {
+    expect(getReadableToolActivity(AgentToolsType.Workflow, { name: 'review-pr' }, true, t)).toEqual({
+      label: 'Orchestrating workflow',
+      description: 'review-pr'
+    })
+    expect(getReadableToolActivity(AgentToolsType.Workflow, {}, false, t)).toEqual({
+      label: 'Started workflow',
+      description: 'workflow'
     })
   })
 })
@@ -266,21 +288,6 @@ describe('ToolHeader', () => {
     expect(commandPreview.querySelector('span')).toBeNull()
   })
 
-  it('uses a plain neutral style for command previews', () => {
-    render(
-      React.createElement(ToolHeader, {
-        args: { command: 'gh pr view 16600 --json title' },
-        status: 'invoking',
-        toolName: AgentToolsType.Bash,
-        variant: 'collapse-label'
-      })
-    )
-
-    const commandPreview = screen.getByTestId('tool-command-preview')
-    expect(commandPreview).toHaveClass('bg-background-subtle', 'text-foreground-secondary')
-    expect(commandPreview.querySelector('span')).toBeNull()
-  })
-
   it('truncates long bash command information in tool call labels', () => {
     const command = `node scripts/generate-report.js --input ${'very-long-segment/'.repeat(16)}report.json --format markdown --include-details`
 
@@ -297,11 +304,6 @@ describe('ToolHeader', () => {
     expect(commandPreview.textContent?.length).toBeLessThanOrEqual(160)
     expect(commandPreview).toHaveTextContent(/…$/)
     expect(commandPreview).toHaveAttribute('title', command)
-    expect(commandPreview).toHaveClass('truncate')
-    expect(commandPreview).toHaveClass('hidden')
-    expect(commandPreview).toHaveClass('sm:block')
-    expect(commandPreview.className).toContain('max-w-[clamp(6rem,42vw,32rem)]')
-    expect(commandPreview.className).toContain('shrink-[2]')
     expect(commandPreview.querySelector('span')).toBeNull()
   })
 

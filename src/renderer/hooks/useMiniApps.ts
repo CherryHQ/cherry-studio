@@ -147,8 +147,9 @@ async function settleAndInvalidate(
   return fulfilled.map((r) => r.value)
 }
 
-export const useMiniApps = () => {
-  const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps')
+export const useMiniApps = (options: { enabled?: boolean } = {}) => {
+  const queryEnabled = options.enabled ?? true
+  const { data, isLoading, error, mutate: refetch } = useQuery('/mini-apps', { enabled: queryEnabled })
   const rawApps: MiniApp[] = useMemo(() => data ?? [], [data])
 
   // Partition by status in single pass (js-combine-iterations)
@@ -179,7 +180,7 @@ export const useMiniApps = () => {
 
   // Auto-detect region once per session
   useEffect(() => {
-    if (miniAppRegionSetting !== 'auto' || detectedRegion) return
+    if (!queryEnabled || miniAppRegionSetting !== 'auto' || detectedRegion) return
     let cancelled = false
     detectUserRegion()
       .then((region) => {
@@ -197,7 +198,7 @@ export const useMiniApps = () => {
     return () => {
       cancelled = true
     }
-  }, [miniAppRegionSetting, detectedRegion, setDetectedRegion])
+  }, [detectedRegion, miniAppRegionSetting, queryEnabled, setDetectedRegion])
 
   // === Region-filtered views ===
   // Include pinned apps so they remain visible in the grid when pinned to launchpad/sidebar

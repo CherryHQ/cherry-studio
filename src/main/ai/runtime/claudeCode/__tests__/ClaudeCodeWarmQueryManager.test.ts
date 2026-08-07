@@ -1,11 +1,25 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { deriveRootSpanId } from '@shared/data/types/trace'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { startupMock, buildWarmRequestMock, applicationGetMock, traceModeEnabledMock } = vi.hoisted(() => ({
+const {
+  startupMock,
+  buildWarmRequestMock,
+  applicationGetMock,
+  traceModeEnabledMock,
+  prepareTraceMock,
+  ensureTraceIdMock
+} = vi.hoisted(() => ({
   startupMock: vi.fn(),
   buildWarmRequestMock: vi.fn(),
   applicationGetMock: vi.fn(),
-  traceModeEnabledMock: vi.fn()
+  traceModeEnabledMock: vi.fn(),
+  prepareTraceMock: vi.fn(),
+  ensureTraceIdMock: vi.fn()
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { ensureTraceId: ensureTraceIdMock }
 }))
 
 vi.mock('@application', () => ({
@@ -41,7 +55,9 @@ describe('ClaudeCodeWarmQueryManager', () => {
     vi.clearAllMocks()
     vi.useFakeTimers()
     applicationGetMock.mockImplementation((name: string) => {
-      if (name === 'ClaudeCodeTraceBridgeService') return { isTraceModeEnabled: traceModeEnabledMock }
+      if (name === 'ClaudeCodeTraceBridgeService') {
+        return { isTraceModeEnabled: traceModeEnabledMock, prepareTrace: prepareTraceMock }
+      }
       throw new Error(`Unexpected application.get(${name})`)
     })
     traceModeEnabledMock.mockReturnValue(false)
@@ -62,7 +78,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
     const second = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
 
-    expect(consumed).toBe(warm)
+    expect(consumed?.warmQuery).toBe(warm)
     expect(second).toBeUndefined()
     expect(startupMock).toHaveBeenCalledWith({
       options: { model: 'sonnet', resume: 'sdk-1' },
@@ -84,7 +100,7 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'opus', resume: 'sdk-1' } as any })
 
     expect(stale.close).toHaveBeenCalledOnce()
-    expect(consumed).toBe(current)
+    expect(consumed?.warmQuery).toBe(current)
   })
 
   it('uses the same signature with or without abortController', () => {
@@ -120,6 +136,40 @@ describe('ClaudeCodeWarmQueryManager', () => {
     } as any)
 
     expect(keyA).toBe(keyB)
+  })
+
+  it('hashes custom headers in the signature without retaining their raw values', () => {
+    const tenantA = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      env: { ANTHROPIC_CUSTOM_HEADERS: 'X-Tenant-Token: tenant-secret-a' }
+    } as any)
+    const tenantB = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      env: { ANTHROPIC_CUSTOM_HEADERS: 'X-Tenant-Token: tenant-secret-b' }
+    } as any)
+
+    expect(tenantA).not.toBe(tenantB)
+    expect(tenantA).not.toContain('tenant-secret-a')
+  })
+
+  // The driver has no trace branch around `consume`: a traced turn simply asks with the OTEL env
+  // merged in, and this divergence is what keeps it off a query parked without tracing. Telemetry
+  // env is fixed at spawn, so reusing such a park would silently produce an untraced turn.
+  it('changes the signature when Claude Code trace env is present', () => {
+    const traceless = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      env: { ANTHROPIC_BASE_URL: 'https://api.example.com' }
+    } as any)
+    const traced = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      env: {
+        ANTHROPIC_BASE_URL: 'https://api.example.com',
+        CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+        TRACEPARENT: `00-${'0'.repeat(32)}-${'1'.repeat(16)}-01`
+      }
+    } as any)
+
+    expect(traced).not.toBe(traceless)
   })
 
   it('does not mutate the caller env when stripping credentials for the signature', () => {
@@ -162,8 +212,49 @@ describe('ClaudeCodeWarmQueryManager', () => {
       credentialsFingerprint: 'set-1'
     })
 
-    expect(consumed).toBe(warm)
+    expect(consumed?.warmQuery).toBe(warm)
     expect(warm.close).not.toHaveBeenCalled()
+  })
+
+  it('returns the receipt captured by the warm process instead of the separately rotated consume request', async () => {
+    const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    startupMock.mockResolvedValueOnce(warm)
+
+    manager.prewarm({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-a' } } as any,
+      credentialsFingerprint: 'set-1',
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'key-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }]
+      }
+    })
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: { model: 'sonnet', env: { ANTHROPIC_API_KEY: 'key-b' } } as any,
+      credentialsFingerprint: 'set-1',
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-b', masked: 'key-***' },
+        providerId: 'anthropic',
+        providerName: 'Anthropic',
+        source: null,
+        frozenModels: [{ modelId: 'sonnet', modelName: 'Sonnet', pricingSnapshot: null, aliases: ['sonnet'] }]
+      }
+    })
+
+    expect(consumed).toMatchObject({
+      warmQuery: warm,
+      usageCapture: {
+        owner: 'agent-sdk',
+        credentialReceipt: { attribution: 'explicit', id: 'key-a' }
+      }
+    })
   })
 
   it('discards a warm query when the enabled key set changed between park and consume', async () => {
@@ -235,17 +326,51 @@ describe('ClaudeCodeWarmQueryManager', () => {
     const consumed = await manager.consume({ key: 'session-1', options: { model: 'sonnet', resume: 'sdk-1' } as any })
 
     expect(buildWarmRequestMock).toHaveBeenCalledWith('session-1')
-    expect(consumed).toBe(warm)
+    expect(consumed?.warmQuery).toBe(warm)
   })
 
-  it('does not prewarm agent sessions while Claude Code trace mode is enabled', async () => {
+  // Telemetry env is fixed at spawn and is part of the warm signature, so the park is only reusable
+  // by a traced turn if it was spawned with the very env that turn will ask with.
+  it('bakes the session trace env into the park so a traced turn can consume it', async () => {
     traceModeEnabledMock.mockReturnValue(true)
+    const traceId = '0'.repeat(31) + 'a'
+    ensureTraceIdMock.mockReturnValue(traceId)
+    const traceEnv = {
+      CLAUDE_CODE_ENABLE_TELEMETRY: '1',
+      TRACEPARENT: `00-${traceId}-${deriveRootSpanId(traceId)}-01`
+    }
+    prepareTraceMock.mockResolvedValue(traceEnv)
     const manager = new ClaudeCodeWarmQueryManager()
+    const warm = warmQuery()
+    buildWarmRequestMock.mockResolvedValueOnce({
+      key: 'session-1',
+      options: { model: 'sonnet', resume: 'sdk-1', env: { ANTHROPIC_BASE_URL: 'https://api.example.com' } }
+    })
+    startupMock.mockResolvedValueOnce(warm)
 
     await manager.prewarmAgentSession('session-1')
 
-    expect(buildWarmRequestMock).not.toHaveBeenCalled()
-    expect(startupMock).not.toHaveBeenCalled()
+    expect(prepareTraceMock).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 'session-1', traceId, rootSpanId: deriveRootSpanId(traceId) })
+    )
+    expect(startupMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          env: { ANTHROPIC_BASE_URL: 'https://api.example.com', ...traceEnv }
+        })
+      })
+    )
+
+    // What the driver asks with for a traced turn: same options, trace env merged.
+    const consumed = await manager.consume({
+      key: 'session-1',
+      options: {
+        model: 'sonnet',
+        resume: 'sdk-1',
+        env: { ANTHROPIC_BASE_URL: 'https://api.example.com', ...traceEnv }
+      } as any
+    })
+    expect(consumed?.warmQuery).toBe(warm)
   })
 
   // sessionId validation (empty / non-string) now lives in the IpcApi router's zod parse of

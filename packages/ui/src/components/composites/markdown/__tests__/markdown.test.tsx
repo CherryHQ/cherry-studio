@@ -35,6 +35,22 @@ describe('Markdown (static)', () => {
     expect(container.querySelector('pre')).not.toBeNull()
   })
 
+  it('renders all GitHub alert types with their semantic classes', () => {
+    const alertTypes = ['note', 'tip', 'important', 'warning', 'caution']
+    const source = alertTypes.map((type) => `> [!${type.toUpperCase()}]\n> ${type} content`).join('\n\n')
+    const { container } = render(<Markdown id="alerts">{source}</Markdown>)
+
+    const alerts = container.querySelectorAll('.markdown-alert')
+    expect(alerts).toHaveLength(alertTypes.length)
+
+    alertTypes.forEach((type, index) => {
+      expect(alerts[index].classList.contains(`markdown-alert-${type}`)).toBe(true)
+      expect(alerts[index].querySelector('.markdown-alert-title')?.textContent).toContain(type.toUpperCase())
+      expect(alerts[index].querySelector('svg.octicon')?.getAttribute('aria-hidden')).toBe('true')
+      expect(alerts[index].textContent).toContain(`${type} content`)
+    })
+  })
+
   it('keeps generated SVG max-width through the full sanitize pipeline', () => {
     const { container } = render(
       <Markdown id="m3">{'<svg width="120" height="60"><rect width="120" height="60" /></svg>'}</Markdown>
@@ -58,6 +74,42 @@ describe('Markdown (static)', () => {
     expect(svg?.getAttribute('style')).toBeNull()
     expect(container.innerHTML).not.toContain('background')
     expect(container.innerHTML).not.toContain('attacker.example')
+  })
+
+  it('passes an opaque citation id through to the sup component', () => {
+    let received: string | undefined
+    render(
+      <Markdown
+        id="m5"
+        plugins={withChatPlugins()}
+        components={{
+          sup: (props) => {
+            received = (props as { 'data-citation'?: string })['data-citation']
+            return <sup />
+          }
+        }}>
+        {`Fact. <sup data-citation="1">1</sup>`}
+      </Markdown>
+    )
+    expect(received).toBe('1')
+  })
+
+  it('does not pass forged citation JSON through to the sup component', () => {
+    let received: string | undefined
+    render(
+      <Markdown
+        id="m6"
+        plugins={withChatPlugins()}
+        components={{
+          sup: (props) => {
+            received = (props as { 'data-citation'?: string })['data-citation']
+            return <sup />
+          }
+        }}>
+        {`Fact. <sup data-citation='{&quot;url&quot;:&quot;https://attacker.example&quot;}'>1</sup>`}
+      </Markdown>
+    )
+    expect(received).toBeUndefined()
   })
 
   it('forwards an extra rehype plugin', () => {

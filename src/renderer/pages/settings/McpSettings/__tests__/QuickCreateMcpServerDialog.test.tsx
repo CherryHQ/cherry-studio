@@ -130,7 +130,7 @@ describe('QuickCreateMcpServerDialog', () => {
     const commandInput = screen.getByLabelText('settings.mcp.command')
     await user.type(commandInput, 'npx')
     await user.click(screen.getByText('settings.mcp.addServer.advanced'))
-    await user.click(screen.getByRole('radio', { name: '淘宝 NPM Mirror' }))
+    await user.click(screen.getByRole('radio', { name: 'settings.mcp.registryOptions.npmTaobao' }))
     expect(screen.getByTestId('radio-group')).toHaveAttribute('data-value', 'https://registry.npmmirror.com')
 
     await user.clear(commandInput)

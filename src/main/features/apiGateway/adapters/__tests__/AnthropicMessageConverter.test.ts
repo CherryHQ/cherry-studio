@@ -1,4 +1,5 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
+import { asSchema } from 'ai'
 import { describe, expect, it, vi } from 'vitest'
 
 import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
@@ -218,6 +219,36 @@ describe('AnthropicMessageConverter.toAiSdkTools', () => {
 
   it('returns undefined when there are no tools', () => {
     expect(converter.toAiSdkTools(params({}))).toBeUndefined()
+  })
+
+  it('normalizes Responses-incompatible names and marks forwarded schemas non-strict', () => {
+    const clientToolName = 'mcp__calendar__events.list'
+    const request = params({
+      messages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'call_1', name: clientToolName, input: {} }]
+        }
+      ],
+      tools: [
+        {
+          name: clientToolName,
+          description: 'List calendar events',
+          input_schema: { type: 'object', properties: {}, required: null }
+        }
+      ] as MessageCreateParams['tools']
+    })
+
+    const messages = converter.toUIMessages(request)
+    const providerToolName = (messages[0].parts[0] as { toolName: string }).toolName
+    const tools = converter.toAiSdkTools(request)
+    const forwardedTool = tools?.[providerToolName]
+
+    expect(providerToolName).not.toBe(clientToolName)
+    expect(providerToolName).toMatch(/^[A-Za-z0-9_-]{1,64}$/)
+    expect(forwardedTool?.strict).toBe(false)
+    expect((asSchema(forwardedTool!.inputSchema).jsonSchema as { required?: unknown }).required).not.toBeNull()
+    expect(converter.toClientToolName(providerToolName)).toBe(clientToolName)
   })
 })
 

@@ -57,3 +57,17 @@ export const MiniAppSchema = z.object({
 })
 
 export type MiniApp = z.infer<typeof MiniAppSchema>
+
+/**
+ * The subset needed to rebuild a *transient* mini app — one opened via
+ * `openSmartMiniApp` (OpenClaw's dashboard, the S3 help page, the release notes).
+ * Those rows never reach the database, so no window can resolve
+ * `/app/mini-app/<id>` for them through DataApi; they are published instead to the
+ * shared cache under `mini_app.transient_descriptor.<appId>`, which every window
+ * reads (see `MiniAppPage`).
+ *
+ * Deliberately not `MiniApp`: `status` / `orderKey` / `presetMiniAppId` are
+ * ownership facts of each window's own keep-alive cache, reconstructed there by
+ * `toTransientMiniApp`.
+ */
+export type TransientMiniApp = Pick<MiniApp, 'appId' | 'name' | 'url' | 'logo' | 'logoSrc'>

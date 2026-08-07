@@ -23,23 +23,23 @@ describe('useComposerToolbarPinnedTools', () => {
 
   it('exposes the preference value and persists updates', async () => {
     const setPreference = vi.fn().mockResolvedValue(undefined)
-    MockUsePreferenceUtils.mockPreferenceReturn('chat.input.toolbar.pinned_tools', ['thinking'], setPreference)
+    MockUsePreferenceUtils.mockPreferenceReturn('chat.input.toolbar.pinned_tools', ['web-search'], setPreference)
 
     const { result } = renderHook(() => useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools'))
 
-    expect(result.current.pinnedIds).toEqual(['thinking'])
+    expect(result.current.pinnedIds).toEqual(['web-search'])
 
     act(() => {
-      result.current.setPinnedIds(['thinking', 'web-search'])
+      result.current.setPinnedIds([])
     })
 
-    expect(setPreference).toHaveBeenCalledWith(['thinking', 'web-search'])
+    expect(setPreference).toHaveBeenCalledWith([])
   })
 
   it('resets to the preference default and reports whether the list is already default', () => {
     const setPreference = vi.fn().mockResolvedValue(undefined)
     // getDefaultValue includes the persistent new-conversation action first.
-    MockUsePreferenceUtils.mockPreferenceReturn('chat.input.toolbar.pinned_tools', ['thinking'], setPreference)
+    MockUsePreferenceUtils.mockPreferenceReturn('chat.input.toolbar.pinned_tools', [], setPreference)
 
     const { result } = renderHook(() => useComposerToolbarPinnedTools('chat.input.toolbar.pinned_tools'))
 
@@ -48,13 +48,12 @@ describe('useComposerToolbarPinnedTools', () => {
     act(() => {
       result.current.resetPinnedIds()
     })
-    expect(setPreference).toHaveBeenCalledWith(['composer:new-conversation', 'thinking', 'web-search'])
+    expect(setPreference).toHaveBeenCalledWith(['composer:new-conversation', 'web-search'])
   })
 
   it('reports isDefault when the pinned list equals the default', () => {
     MockUsePreferenceUtils.mockPreferenceReturn('chat.input.toolbar.pinned_tools', [
       'composer:new-conversation',
-      'thinking',
       'web-search'
     ])
 
@@ -65,7 +64,7 @@ describe('useComposerToolbarPinnedTools', () => {
 
   it('surfaces a toast when persisting fails', async () => {
     const setPreference = vi.fn().mockRejectedValue(new Error('persist failed'))
-    MockUsePreferenceUtils.mockPreferenceReturn('agent.input.toolbar.pinned_tools', ['thinking'], setPreference)
+    MockUsePreferenceUtils.mockPreferenceReturn('agent.input.toolbar.pinned_tools', ['skills'], setPreference)
 
     const { result } = renderHook(() => useComposerToolbarPinnedTools('agent.input.toolbar.pinned_tools'))
 

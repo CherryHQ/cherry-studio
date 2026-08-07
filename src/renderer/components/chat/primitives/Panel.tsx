@@ -53,7 +53,7 @@ export function Panel({
         <div
           data-slot="chat-panel-header"
           className={cn(
-            'flex min-w-0 items-start justify-between gap-3 border-border/60 border-b p-3',
+            'flex min-w-0 items-start justify-between gap-3 border-border-subtle border-b p-3',
             headerClassName
           )}>
           <div className="min-w-0">
@@ -67,7 +67,7 @@ export function Panel({
         {children}
       </div>
       {footer && (
-        <div data-slot="chat-panel-footer" className={cn('border-border/60 border-t p-3', footerClassName)}>
+        <div data-slot="chat-panel-footer" className={cn('border-border-subtle border-t p-3', footerClassName)}>
           {footer}
         </div>
       )}

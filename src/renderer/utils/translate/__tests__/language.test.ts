@@ -1,7 +1,8 @@
+import type { TranslateBidirectionalPair } from '@shared/data/preference/preferenceTypes'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import { describe, expect, it } from 'vitest'
 
-import { pickBidirectionalTarget, shouldPersistDirectTarget } from '../language'
+import { determineTargetLanguage, pickBidirectionalTarget } from '../language'
 
 const lang = (langCode: string, value: string): TranslateLanguage =>
   ({
@@ -15,31 +16,43 @@ const lang = (langCode: string, value: string): TranslateLanguage =>
 const english = lang('en-us', 'English')
 const chinese = lang('zh-cn', 'Chinese')
 const japanese = lang('ja-jp', 'Japanese')
+const bidirectionalPair = ['en-us', 'zh-cn'] satisfies TranslateBidirectionalPair
 
 describe('translate bidirectional helpers', () => {
   describe('pickBidirectionalTarget', () => {
-    it('uses the override target when one is provided', () => {
-      expect(pickBidirectionalTarget('en-us', chinese, english, japanese)).toBe(japanese)
-    })
-
-    it('uses alter when detected source equals preferred', () => {
-      expect(pickBidirectionalTarget('zh-cn', chinese, english)).toBe(english)
-    })
-
-    it('uses preferred when detected source equals alter', () => {
-      expect(pickBidirectionalTarget('en-us', chinese, english)).toBe(chinese)
-    })
-
-    it('uses preferred when detected source is unknown', () => {
-      expect(pickBidirectionalTarget('unknown', chinese, english)).toBe(chinese)
+    it.each([
+      ['uses the override target when one is provided', 'en-us', japanese, japanese],
+      ['uses alter when detected source equals preferred', 'zh-cn', undefined, english],
+      ['uses preferred when detected source equals alter', 'en-us', undefined, chinese],
+      ['uses preferred when detected source is unknown', 'unknown', undefined, chinese]
+    ] as const)('%s', (_name, sourceLanguage, overrideTarget, expectedTarget) => {
+      expect(pickBidirectionalTarget(sourceLanguage, chinese, english, overrideTarget)).toBe(expectedTarget)
     })
   })
 
-  describe('shouldPersistDirectTarget', () => {
-    it('persists a direct target only when it differs from both saved slots', () => {
-      expect(shouldPersistDirectTarget(japanese, chinese, english)).toBe(true)
-      expect(shouldPersistDirectTarget(chinese, chinese, english)).toBe(false)
-      expect(shouldPersistDirectTarget(english, chinese, english)).toBe(false)
+  describe('determineTargetLanguage', () => {
+    it.each([
+      ['uses the selected target in direct mode', 'zh-cn', 'ja-jp', false, { success: true, language: 'ja-jp' }],
+      [
+        'rejects the same language in direct mode',
+        'en-us',
+        'en-us',
+        false,
+        { success: false, errorType: 'same_language' }
+      ],
+      ['maps the first pair member to the second', 'en-us', 'ja-jp', true, { success: true, language: 'zh-cn' }],
+      ['maps the second pair member to the first', 'zh-cn', 'ja-jp', true, { success: true, language: 'en-us' }],
+      [
+        'rejects a detected language outside the pair',
+        'ja-jp',
+        'en-us',
+        true,
+        { success: false, errorType: 'not_in_pair' }
+      ]
+    ] as const)('%s', (_name, sourceLanguage, targetLanguage, isBidirectional, expected) => {
+      expect(determineTargetLanguage(sourceLanguage, targetLanguage, isBidirectional, bidirectionalPair)).toEqual(
+        expected
+      )
     })
   })
 })

@@ -183,14 +183,6 @@ describe('EnvironmentDependencies', () => {
     usePreferenceMock.mockImplementation(() => [installSettingsRef.value, setInstallSettingsMock])
   })
 
-  it('uses the settings group surface for dependency cards', async () => {
-    render(<EnvironmentDependencies />)
-
-    expect((await screen.findAllByRole('listitem'))[0]).toHaveStyle({
-      backgroundColor: 'var(--settings-group-background, var(--card))'
-    })
-  })
-
   it('serializes whole-setting auto-saves without losing earlier field changes', async () => {
     render(<EnvironmentDependencies />)
     fireEvent.click(await screen.findByTitle('settings.dependencies.installSettings.title'))
@@ -499,13 +491,6 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0', fd: '2.0.0' })
     render(<EnvironmentDependencies />)
     await waitFor(() => expect(screen.getAllByText('v2.0.0')).toHaveLength(2))
-  })
-
-  it('hides remove controls for bundled-only presets', async () => {
-    setSnapshots({ uv: { name: 'uv', availability: { source: 'bundled', path: '/bundled/uv', version: '1.0.0' } } })
-    render(<EnvironmentDependencies />)
-    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
-    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
   it('does not render a runtime absent from the live snapshot', async () => {

@@ -1,180 +1,100 @@
-# CodeBlockView Component Structure
+# Code Block Rendering
 
 ## Overview
 
-CodeBlockView is the core component in Cherry Studio for displaying and manipulating code blocks. It supports multiple view modes and visual previews for special languages, providing rich interactive tools.
+Code block rendering has two separate responsibilities:
+
+- `CodeBlock` classifies Markdown content and routes inline code, file paths, HTML artifacts, and ordinary fenced code.
+- `CodeBlockView` owns the workbench for ordinary fenced code and special-language previews.
+
+HTML artifacts keep their own preview, security, and consent pipeline. They are not modes of `CodeBlockView`.
 
 ## Component Structure
 
 ```mermaid
 graph TD
-    A[CodeBlockView] --> B[CodeToolbar]
-    A --> C[SourceView]
-    A --> D[SpecialView]
-    A --> E[StatusBar]
+    A[ChatMarkdown] --> B[Stable renderer map]
+    B --> C[CodeBlock classifier]
+    C --> D[Inline code or file path]
+    C --> E[HTML artifact pipeline]
+    C --> F[CodeBlockView workbench]
 
-    B --> F[CodeToolButton]
+    F --> G[Header]
+    F --> H[CodeToolbar]
+    F --> I[Content surface]
+    F --> J[Execution status]
 
-    C --> G[CodeEditor / CodeViewer]
+    H --> K[Tool hooks]
+    H --> L[CodeToolButton]
 
-    D --> H[MermaidPreview]
-    D --> I[PlantUmlPreview]
-    D --> J[SvgPreview]
-    D --> K[GraphvizPreview]
-
-    F --> L[useCopyTool]
-    F --> M[useDownloadTool]
-    F --> N[useViewSourceTool]
-    F --> O[useSplitViewTool]
-    F --> P[useRunTool]
-    F --> Q[useExpandTool]
-    F --> R[useWrapTool]
-    F --> S[useSaveTool]
+    I --> M[CodeViewer]
+    I --> N[CodeEditor]
+    I --> O[Special preview]
 ```
 
-## Core Concepts
+## Stable Markdown Renderers
 
-### View Types
+The chat Markdown component map is defined at module scope. Renderer functions read the current block ID, citation
+registry, inline HTML mode, and streaming state from one memoized render context.
 
-- **preview**: Preview view, where non-source code is displayed as special views
-- **edit**: Edit view
+Changing streaming state therefore updates renderer props without creating new React component types. Existing code,
+table, link, and image nodes keep their identity across stream updates.
 
-### View Modes
+## View State
 
-- **source**: Source code view mode
-- **special**: Special view mode (Mermaid, PlantUML, SVG)
-- **split**: Split view mode (source code and special view displayed side by side)
+`ViewMode` represents user-visible content selection:
 
-### Special View Languages
+- `source`: read-only source in `CodeViewer`
+- `edit`: editable source in `CodeEditor`
+- `special`: Mermaid, PlantUML, SVG, or Graphviz preview
+- `split`: special preview and source side by side
 
-- mermaid
-- plantuml
-- svg
-- dot
-- graphviz
+Initial behavior preserves the existing editor preference:
 
-## Component Details
+- Ordinary code that is already settled starts in `edit` when editing is enabled.
+- Ordinary code that starts streaming uses `source` and stays on the same Viewer when the stream settles.
+- Special languages start in `special`.
 
-### CodeBlockView Main Component
+Entering split mode remembers the previous mode. A split entered from edit keeps the Editor on the source side; other
+split paths use the Viewer.
 
-Main responsibilities:
+## Streaming Behavior
 
-1. Managing view mode state
-2. Coordinating the display of source code view and special view
-3. Managing toolbar tools
-4. Handling code execution state
+`isStreaming` controls only streaming-specific behavior:
 
-### Subcomponents
+| State | Viewer highlighting | Collapsed auto-scroll | Enter edit |
+|---|---|---|---|
+| streaming | disabled | enabled while pinned to the bottom | unavailable |
+| settled | enabled in place | disabled | available when editing is enabled |
 
-#### CodeToolbar
+Changing `isStreaming` must not select a different content component. A Viewer created for a stream receives the final
+content and highlighting option in place.
 
-- Toolbar displayed at the top-right corner of the code block
-- Contains core and quick tools
-- Dynamically displays relevant tools based on context
-
-#### CodeEditor/CodeViewer Source View
-
-- Editable code editor or read-only code viewer
-- Uses either component based on settings
-- Supports syntax highlighting for multiple programming languages
-
-#### Special View Components
-
-- **MermaidPreview**: Mermaid diagram preview
-- **PlantUmlPreview**: PlantUML diagram preview
-- **SvgPreview**: SVG image preview
-- **GraphvizPreview**: Graphviz diagram preview
-
-All special view components share a common architecture for consistent user experience and functionality. For detailed information about these components and their implementation, see [Image Preview Components Documentation](./image-preview.md).
-
-#### StatusBar
-
-- Displays Python code execution results
-- Can show both text and image results
+Special previews retain an enabled source/preview toggle while streaming. After settling, editable code can enter edit
+mode without requiring the preview component to change during the stream transition.
 
 ## Tool System
 
-CodeBlockView uses a hook-based tool system:
+The existing tool hooks register copy, download, edit/source, split, run, expand, wrap, and save actions with
+`CodeToolbar`. `CodeToolbar` owns only its overflow state, and `CodeToolButton` owns only its child-menu state.
 
-```mermaid
-graph TD
-    A[CodeBlockView] --> B[useCopyTool]
-    A --> C[useDownloadTool]
-    A --> D[useViewSourceTool]
-    A --> E[useSplitViewTool]
-    A --> F[useRunTool]
-    A --> G[useExpandTool]
-    A --> H[useWrapTool]
-    A --> I[useSaveTool]
+Copy, download, and run callbacks read the latest streamed source from a ref. Their identities therefore remain stable
+as source chunks arrive, so the registration effects do not cycle for every chunk. Copy actions return an explicit
+success result so failed clipboard operations do not show success feedback.
 
-    B --> J[ToolManager]
-    C --> J
-    D --> J
-    E --> J
-    F --> J
-    G --> J
-    H --> J
-    I --> J
+## Content Surfaces
 
-    J --> K[CodeToolbar]
-```
+### CodeViewer
 
-Each tool hook is responsible for registering specific function tool buttons to the tool manager, which then passes these tools to the CodeToolbar component for rendering.
+`CodeViewer` is the source surface for active streams. The same instance receives growing content, enables highlighting
+when settled, and retains its caller ID, virtualizer, selection state, and DOM.
 
-### Tool Types
+### CodeEditor
 
-- **core**: Core tools, always displayed in the toolbar
-- **quick**: Quick tools, displayed in a dropdown menu when there are more than one
+Existing settled code may start in `CodeEditor` when the editor preference is enabled. Code that started streaming
+enters the Editor only through the edit action, avoiding a Viewer-to-Editor replacement at stream completion.
 
-### Tool List
+### Special Previews
 
-1. **Copy**: Copy code or image
-2. **Download**: Download code or image
-3. **View Source**: Switch between special view and source code view
-4. **Split View**: Toggle split view mode
-5. **Run**: Run Python code
-6. **Expand/Collapse**: Control code block expansion/collapse
-7. **Wrap**: Control automatic line wrapping
-8. **Save**: Save edited code
-
-## State Management
-
-CodeBlockView manages the following states through React hooks:
-
-1. **viewMode**: Current view mode ('source' | 'special' | 'split')
-2. **isRunning**: Python code execution status
-3. **executionResult**: Python code execution result
-4. **tools**: Toolbar tool list
-5. **expandOverride/unwrapOverride**: User override settings for expand/wrap
-6. **sourceScrollHeight**: Source code view scroll height
-
-## Interaction Flow
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant CB as CodeBlockView
-    participant CT as CodeToolbar
-    participant SV as SpecialView
-    participant SE as SourceEditor
-
-    U->>CB: View code block
-    CB->>CB: Initialize state
-    CB->>CT: Register tools
-    CB->>SV: Render special view (if applicable)
-    CB->>SE: Render source view
-    U->>CT: Click tool button
-    CT->>CB: Trigger tool callback
-    CB->>CB: Update state
-    CB->>CT: Re-register tools (if needed)
-```
-
-## Special Handling
-
-### HTML Code Blocks
-
-HTML code blocks are specially handled using the HtmlArtifactsCard component.
-
-### Python Code Execution
-
-Supports executing Python code and displaying results using Pyodide to run Python code in the browser.
+The special-language map lazy-loads Mermaid, PlantUML, SVG, and Graphviz previews. Preview selection and split mode are
+user-driven and do not depend on streaming completion.

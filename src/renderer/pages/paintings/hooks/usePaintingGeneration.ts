@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils/uuid'
+import type { FileEntry } from '@shared/data/types/file'
 import type { PaintingMode } from '@shared/data/types/painting'
 import { useCallback, useEffect, useRef } from 'react'
 
@@ -54,87 +55,96 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
     [onPaintingChange]
   )
 
-  const generate = useCallback(async () => {
-    // The in-memory draft is the source of truth for this whole flow.
-    // DB writes are bookkeeping for the frozen receipt (prompt + file ids);
-    // they're not consulted again to rebuild the live painting. That keeps
-    // form-only fields — `mode`, `params`, `inputFiles` — intact end to end
-    // without re-stitching them after each persist call.
-    const shouldCreate = hasOutput(painting) || !painting.persistedAt
-    const targetPainting: PaintingData = shouldCreate
-      ? { ...painting, id: uuid(), files: hasOutput(painting) ? [] : painting.files }
-      : { ...painting }
+  const generate = useCallback(
+    async (inputFiles: FileEntry[]) => {
+      // The in-memory draft is the source of truth for this whole flow.
+      // DB writes are bookkeeping for the frozen receipt (prompt + file ids);
+      // they're not consulted again to rebuild the live painting. That keeps
+      // form-only fields — `mode`, `params`, `inputFiles` — intact end to end
+      // without re-stitching them after each persist call.
+      //
+      // Inputs are materialized to FileEntry[] at send (usePaintingComposerInputFiles)
+      // and passed in here; inject them so the pre-generate persist
+      // (painting_file_ref role='input') and the pipeline's byte read both see the
+      // current draft inputs — nothing was persisted for them during the draft window.
+      const base: PaintingData = { ...painting, inputFiles }
+      const shouldCreate = hasOutput(base) || !base.persistedAt
+      const targetPainting: PaintingData = shouldCreate
+        ? { ...base, id: uuid(), files: hasOutput(base) ? [] : base.files }
+        : { ...base }
 
-    try {
-      const persisted = shouldCreate
-        ? await createPainting(
-            paintingDataToCreateDto(targetPainting as PaintingData & { providerId: string; mode: PaintingMode })
-          )
-        : await updatePainting(targetPainting.id, paintingDataToUpdateDto(targetPainting))
-      targetPainting.persistedAt = persisted.createdAt
-    } catch (error) {
-      presentPaintingGenerateError(error)
-      return
-    }
-
-    const generationState: PaintingGenerationState = {
-      generationStatus: 'running',
-      generationTaskId: null,
-      generationError: null,
-      generationProgress: 0
-    }
-    const controller = new AbortController()
-    const cacheKey = `painting.generation.${targetPainting.id}` as const
-
-    // Generation state (running/failed/canceled, taskId, progress) is the
-    // page's in-memory state plus a Memory-cache mirror keyed by paintingId.
-    // The cache mirror outlives this component's unmount, so navigating away
-    // and back rehydrates the running spinner.
-    const pushGenerationState = (updates: Partial<PaintingGenerationState>) => {
-      Object.assign(generationState, updates, { generationStatus: 'running' as const })
-      cacheService.set(cacheKey, paintingGenerationStateToCache(generationState))
-      applyIfVisible({ ...targetPainting, ...generationState } as PaintingData)
-    }
-
-    visibleIdRef.current = targetPainting.id
-    onPaintingChange({ ...targetPainting, ...generationState } as PaintingData)
-    registerPaintingAbortController(targetPainting.id, controller)
-    pushGenerationState(generationState)
-
-    try {
-      const generatedFiles = await paintingGenerate({
-        painting: targetPainting,
-        provider,
-        tab: 'default',
-        abortController: controller
-      })
-      await updatePainting(targetPainting.id, {
-        files: {
-          output: generatedFiles.map((file) => file.id),
-          input: targetPainting.inputFiles?.map((entry) => entry.id) ?? []
-        }
-      })
-      cacheService.set(cacheKey, null)
-      // Merge the freshly-generated output into the in-memory draft; do not
-      // re-read from the DB record (which would drop params / mode again).
-      applyIfVisible({ ...targetPainting, files: generatedFiles } as PaintingData)
-      await refresh()
-    } catch (error) {
-      const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
-      const failedState: PaintingGenerationState = {
-        ...generationState,
-        generationStatus: isCanceled ? 'canceled' : 'failed',
-        generationError: isCanceled ? null : error instanceof Error ? error.message : String(error)
-      }
-      cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
-      applyIfVisible({ ...targetPainting, ...failedState } as PaintingData)
-      if (!isCanceled) {
+      try {
+        const persisted = shouldCreate
+          ? await createPainting(
+              paintingDataToCreateDto(targetPainting as PaintingData & { providerId: string; mode: PaintingMode })
+            )
+          : await updatePainting(targetPainting.id, paintingDataToUpdateDto(targetPainting))
+        targetPainting.persistedAt = persisted.createdAt
+      } catch (error) {
         presentPaintingGenerateError(error)
+        return
       }
-    } finally {
-      clearPaintingAbortController(targetPainting.id, controller)
-    }
-  }, [applyIfVisible, createPainting, painting, provider, refresh, onPaintingChange, updatePainting])
+
+      const generationState: PaintingGenerationState = {
+        generationStatus: 'running',
+        generationTaskId: null,
+        generationError: null,
+        generationProgress: 0
+      }
+      const controller = new AbortController()
+      const cacheKey = `painting.generation.${targetPainting.id}` as const
+
+      // Generation state (running/failed/canceled, taskId, progress) is the
+      // page's in-memory state plus a Memory-cache mirror keyed by paintingId.
+      // The cache mirror outlives this component's unmount, so navigating away
+      // and back rehydrates the running spinner.
+      const pushGenerationState = (updates: Partial<PaintingGenerationState>) => {
+        Object.assign(generationState, updates, { generationStatus: 'running' as const })
+        cacheService.set(cacheKey, paintingGenerationStateToCache(generationState))
+        applyIfVisible({ ...targetPainting, ...generationState } as PaintingData)
+      }
+
+      visibleIdRef.current = targetPainting.id
+      onPaintingChange({ ...targetPainting, ...generationState } as PaintingData)
+      registerPaintingAbortController(targetPainting.id, controller)
+      pushGenerationState(generationState)
+
+      try {
+        const generatedFiles = await paintingGenerate({
+          painting: targetPainting,
+          provider,
+          tab: 'default',
+          abortController: controller
+        })
+        await updatePainting(targetPainting.id, {
+          files: {
+            output: generatedFiles.map((file) => file.id),
+            input: targetPainting.inputFiles?.map((entry) => entry.id) ?? []
+          }
+        })
+        cacheService.set(cacheKey, null)
+        // Merge the freshly-generated output into the in-memory draft; do not
+        // re-read from the DB record (which would drop params / mode again).
+        applyIfVisible({ ...targetPainting, files: generatedFiles } as PaintingData)
+        await refresh()
+      } catch (error) {
+        const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
+        const failedState: PaintingGenerationState = {
+          ...generationState,
+          generationStatus: isCanceled ? 'canceled' : 'failed',
+          generationError: isCanceled ? null : error instanceof Error ? error.message : String(error)
+        }
+        cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
+        applyIfVisible({ ...targetPainting, ...failedState } as PaintingData)
+        if (!isCanceled) {
+          presentPaintingGenerateError(error)
+        }
+      } finally {
+        clearPaintingAbortController(targetPainting.id, controller)
+      }
+    },
+    [applyIfVisible, createPainting, painting, provider, refresh, onPaintingChange, updatePainting]
+  )
 
   const cancel = useCallback((paintingId: string) => {
     abortPaintingGeneration(paintingId)

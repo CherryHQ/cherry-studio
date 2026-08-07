@@ -25,7 +25,6 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       --color-text: #5f6368;
       --color-text-active: #202124;
       --color-separator: #c4c7cc;
-      --shadow-url-focus: 0 1px 6px rgba(32,33,36,0.28);
       --window-close-hover: #e81123;
     }
 
@@ -42,7 +41,6 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       --color-text: #9aa0a6;
       --color-text-active: #e8eaed;
       --color-separator: #3c3d41;
-      --shadow-url-focus: 0 1px 6px rgba(0,0,0,0.5);
       --window-close-hover: #e81123;
     }
 
@@ -228,11 +226,10 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       padding: 0 16px;
       height: 36px;
       -webkit-app-region: no-drag;
-      transition: background 0.2s, box-shadow 0.2s;
+      transition: background 0.2s;
     }
     #url-container:focus-within {
       background: var(--bg-url-focus);
-      box-shadow: var(--shadow-url-focus);
     }
     #url-input {
       flex: 1;

@@ -10,6 +10,7 @@ import {
   getPartParentToolCallId,
   stripPartParentToolMetadata
 } from '@renderer/components/chat/messages/tools/toolParentMetadata'
+import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTasks'
 import { REPORT_ARTIFACTS_TOOL_NAME, reportArtifactsInputSchema } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
@@ -40,6 +41,10 @@ export interface AgentToolFlowProjection {
   partsByMessageId: Record<string, CherryMessagePart[]>
 }
 
+/**
+ * An item on the main agent's own plan, written via `TaskCreate` / `TaskUpdate` / `TaskList`.
+ * Completion is meaningful here, so this is the only list with a done/total ratio.
+ */
 export interface AgentStatusTask {
   id: string
   title: string
@@ -47,11 +52,25 @@ export interface AgentStatusTask {
   activeText?: string
 }
 
-/** A sub-agent spawned via the `Agent`/`Task` tool, derived from the message stream. */
-export interface AgentSubagent {
-  toolCallId: string
-  name: string
-  status: 'running' | 'done' | 'error'
+/**
+ * A process the run spawned — a subagent, shell or workflow — reported through the SDK's task
+ * lifecycle events. It either runs or it settles; a done/total ratio over these would be
+ * meaningless, which is why they are kept apart from the plan above.
+ */
+export interface AgentRunTask {
+  id: string
+  toolUseId?: string
+  title: string
+  status: 'pending' | 'in_progress' | 'completed' | 'stopped' | 'error'
+  activeText?: string
+  /** SDK task type, e.g. 'subagent' | 'shell' | 'local_workflow'. */
+  taskType?: string
+  subagentType?: string
+  workflowName?: string
+  summary?: string
+  lastToolName?: string
+  outputFile?: string
+  usage?: AgentTaskEventPartData['usage']
 }
 
 /** A final deliverable file the agent declared via the `report_artifacts` tool. */
@@ -62,11 +81,22 @@ export interface AgentArtifactFile {
   description?: string
 }
 
+/**
+ * Ground truth for "is this run task actually still running". A row's own events cannot answer it:
+ * an interrupted turn, a crash or an app restart leaves the last event at `in_progress` forever.
+ */
+export interface AgentRunLiveness {
+  /** Assistant message ids whose own turn is still pending. */
+  activeMessageIds: ReadonlySet<string>
+  /** Task ids whose per-task lifecycle edge says they detached into the background. */
+  liveBackgroundTaskIds: ReadonlySet<string>
+}
+
 export interface AgentRightPaneStatus {
   tasks: AgentStatusTask[]
   completedTaskCount: number
   totalTaskCount: number
-  subagents: AgentSubagent[]
+  runTasks: AgentRunTask[]
   artifacts: AgentArtifactFile[]
 }
 
@@ -375,37 +405,48 @@ function getNextTaskOrdinalId(taskMap: Map<string, AgentStatusTask>): string | u
   return undefined
 }
 
-function applyAgentTaskEvent(taskMap: Map<string, AgentStatusTask>, data: AgentTaskEventPartData): void {
-  const existing = taskMap.get(data.taskId)
-  const title = data.title?.trim() || data.summary?.trim() || data.description?.trim() || existing?.title
+const RUN_TASK_TERMINAL_STATUSES = new Set<AgentRunTask['status']>(['completed', 'stopped', 'error'])
+
+function applyAgentTaskEvent(
+  runTaskMap: Map<string, AgentRunTask>,
+  data: AgentTaskEventPartData,
+  originMessageId?: string,
+  originMessageIds?: Map<string, string>
+): void {
+  const existing = runTaskMap.get(data.taskId)
+  // A completion's summary is prose, not a name — it must never become the row title.
+  const title = existing?.title || data.title?.trim() || data.description?.trim()
   if (!title) return
 
-  taskMap.set(data.taskId, {
+  // Events reach this map from two orderings (message parts, then the late-event cache), so a stale
+  // pre-completion event can apply after the completion did. A settled task never resurrects.
+  const incoming = data.status ?? existing?.status ?? 'pending'
+  const status =
+    existing && RUN_TASK_TERMINAL_STATUSES.has(existing.status) && !RUN_TASK_TERMINAL_STATUSES.has(incoming)
+      ? existing.status
+      : incoming
+
+  runTaskMap.set(data.taskId, {
     id: data.taskId,
+    toolUseId: data.toolUseId ?? existing?.toolUseId,
     title,
     activeText: data.activeText ?? data.description ?? existing?.activeText,
-    status: data.status ?? existing?.status ?? 'pending'
+    status,
+    taskType: data.taskType ?? existing?.taskType,
+    subagentType: data.subagentType ?? existing?.subagentType,
+    workflowName: data.workflowName ?? existing?.workflowName,
+    summary: data.summary ?? existing?.summary,
+    lastToolName: data.lastToolName ?? existing?.lastToolName,
+    outputFile: data.outputFile ?? existing?.outputFile,
+    usage: data.usage ?? existing?.usage
   })
+  if (originMessageId && !originMessageIds?.has(data.taskId)) {
+    originMessageIds?.set(data.taskId, originMessageId)
+  }
 }
 
 function isReportArtifactsTool(toolName: string | undefined): boolean {
   return toolName === REPORT_ARTIFACTS_TOOL_NAME || (toolName?.endsWith(`__${REPORT_ARTIFACTS_TOOL_NAME}`) ?? false)
-}
-
-function getSubagentName(input: unknown, fallback: string): string {
-  if (isRecord(input)) {
-    const description = typeof input.description === 'string' ? input.description.trim() : ''
-    if (description) return description
-    const name = typeof input.name === 'string' ? input.name.trim() : ''
-    if (name) return name
-  }
-  return fallback
-}
-
-function getSubagentStatus(state: string | undefined): AgentSubagent['status'] {
-  if (state === 'output-error' || state === 'output-denied') return 'error'
-  if (isTerminalToolState(state)) return 'done'
-  return 'running'
 }
 
 function getPathBasename(path: string): string {
@@ -418,32 +459,33 @@ function getPathBasename(path: string): string {
 
 export function buildAgentRightPaneStatus(
   messages: CherryUIMessage[],
-  partsByMessageId: Record<string, CherryMessagePart[]>
+  partsByMessageId: Record<string, CherryMessagePart[]>,
+  /**
+   * Latest per-task lifecycle edge for the current CLI process. Applied last by task id so a
+   * background task's completion settles the row the transcript parts built.
+   */
+  lateTaskEvents: AgentSessionTaskEvents = {},
+  /** Omitted means "trust the events" — production always passes it. */
+  liveness?: AgentRunLiveness
 ): AgentRightPaneStatus {
   const taskMap = new Map<string, AgentStatusTask>()
-  const subagentByCallId = new Map<string, AgentSubagent>()
+  const runTaskMap = new Map<string, AgentRunTask>()
+  const runTaskOriginMessageIds = new Map<string, string>()
   const artifactByPath = new Map<string, AgentArtifactFile>()
 
   for (const message of messages) {
     const parts = partsByMessageId[message.id] ?? ((message.parts ?? []) as CherryMessagePart[])
     parts.forEach((part, partIndex) => {
       if (isDataUIPart(part) && part.type === 'data-agent-task-event') {
-        applyAgentTaskEvent(taskMap, part.data)
+        applyAgentTaskEvent(runTaskMap, part.data, message.id, runTaskOriginMessageIds)
       }
 
       if (!isToolUIPart(part)) return
-      const state = getToolPartState(part)
       const fallbackId = getToolCallId(part) ?? `${message.id}-${partIndex}`
       applyTaskToolPart(taskMap, part, fallbackId)
 
       const toolName = getToolNameFromPart(part)
-      if (toolName === AgentToolsType.Agent || toolName === AgentToolsType.Task) {
-        subagentByCallId.set(fallbackId, {
-          toolCallId: fallbackId,
-          name: getSubagentName(getToolPartInput(part), toolName),
-          status: getSubagentStatus(state)
-        })
-      } else if (isReportArtifactsTool(toolName)) {
+      if (isReportArtifactsTool(toolName)) {
         const parsed = reportArtifactsInputSchema.safeParse(getToolPartInput(part))
         if (parsed.success) {
           for (const artifact of parsed.data.artifacts) {
@@ -461,6 +503,34 @@ export function buildAgentRightPaneStatus(
     })
   }
 
+  for (const data of Object.values(lateTaskEvents)) {
+    applyAgentTaskEvent(runTaskMap, data)
+  }
+
+  // A run only settles if its completion event arrives; an interrupted turn, a crashed CLI or an
+  // app restart means it never will. Foreground liveness belongs to the originating assistant row,
+  // while background liveness comes only from the SDK's per-task edge surface.
+  if (liveness) {
+    for (const [id, task] of runTaskMap) {
+      if (RUN_TASK_TERMINAL_STATUSES.has(task.status)) continue
+      const originMessageId = runTaskOriginMessageIds.get(id)
+      if (
+        (originMessageId && liveness.activeMessageIds.has(originMessageId)) ||
+        liveness.liveBackgroundTaskIds.has(id)
+      ) {
+        continue
+      }
+      runTaskMap.set(id, { ...task, status: 'pending', activeText: undefined })
+    }
+  }
+
+  // The SDK's task tools share one id space with spawned runs, so `TaskList` output can echo a
+  // running subagent back into the plan. The runs section owns those ids; keep the plan to items
+  // that are only ever plan.
+  for (const id of runTaskMap.keys()) {
+    taskMap.delete(id)
+  }
+
   const tasks = Array.from(taskMap.values())
   const completedTaskCount = tasks.filter((task) => task.status === 'completed').length
 
@@ -468,7 +538,7 @@ export function buildAgentRightPaneStatus(
     tasks,
     completedTaskCount,
     totalTaskCount: tasks.length,
-    subagents: Array.from(subagentByCallId.values()),
+    runTasks: Array.from(runTaskMap.values()),
     artifacts: Array.from(artifactByPath.values())
   }
 }

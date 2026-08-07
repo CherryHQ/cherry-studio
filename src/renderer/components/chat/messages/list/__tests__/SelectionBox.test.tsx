@@ -111,6 +111,61 @@ describe('SelectionBox', () => {
     scrollContainer.remove()
   })
 
+  it('deselects messages that leave the drag rectangle when it shrinks', () => {
+    const scrollContainer = document.createElement('div')
+    scrollContainer.getBoundingClientRect = vi.fn(() => createRect({ left: 0, top: 0, width: 300, height: 400 }))
+
+    const firstMessage = createMessageElement({
+      checked: false,
+      rect: { left: 10, top: 10, width: 100, height: 40 }
+    })
+    const secondMessage = createMessageElement({
+      checked: false,
+      rect: { left: 10, top: 60, width: 100, height: 40 }
+    })
+    const thirdMessage = createMessageElement({
+      checked: false,
+      rect: { left: 10, top: 110, width: 100, height: 40 }
+    })
+
+    scrollContainer.append(firstMessage, secondMessage, thirdMessage)
+    document.body.appendChild(scrollContainer)
+
+    const messageElements = new Map([
+      ['first', firstMessage],
+      ['second', secondMessage],
+      ['third', thirdMessage]
+    ])
+    const selectedMessageIds = new Set<string>()
+    const handleSelectMessage = vi.fn((messageId: string, selected: boolean) => {
+      if (selected) {
+        selectedMessageIds.add(messageId)
+      } else {
+        selectedMessageIds.delete(messageId)
+      }
+    })
+
+    const view = render(
+      <SelectionBox
+        isMultiSelectMode
+        scrollContainerRef={{ current: scrollContainer }}
+        messageElements={messageElements}
+        handleSelectMessage={handleSelectMessage}
+      />
+    )
+
+    fireEvent.mouseDown(scrollContainer, { clientX: 0, clientY: 0 })
+    fireEvent.mouseMove(window, { clientX: 20, clientY: 20 })
+    fireEvent.mouseMove(window, { clientX: 130, clientY: 155 })
+    fireEvent.mouseMove(window, { clientX: 130, clientY: 55 })
+
+    expect([...selectedMessageIds]).toEqual(['first'])
+
+    fireEvent.mouseUp(window)
+    view.unmount()
+    scrollContainer.remove()
+  })
+
   it('does not start drag selection from the checkbox control', () => {
     const scrollContainer = document.createElement('div')
     scrollContainer.getBoundingClientRect = vi.fn(() => createRect({ left: 0, top: 0, width: 300, height: 400 }))

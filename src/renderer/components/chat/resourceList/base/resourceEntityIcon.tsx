@@ -49,7 +49,9 @@ export function renderAssistantEntityIcon(
   if (iconType === 'none') return undefined
 
   const modelAvatarModel = buildModelAvatarModel(assistant.modelId ?? fallbackModelId, assistant.modelName)
-  if (iconType === 'model' && modelAvatarModel) return <ModelAvatar model={modelAvatarModel} size={24} />
+  if (iconType === 'model' && modelAvatarModel) {
+    return <ModelAvatar model={modelAvatarModel} size={24} className="border border-border-subtle" />
+  }
 
   return renderFallbackAssistantIcon(assistant.emoji)
 }

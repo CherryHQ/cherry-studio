@@ -70,9 +70,9 @@ export function useConfigEditPanelBodyProps({
 
   const unknownCliConfigModelHint: ReactNode =
     isForeignDraft && draft.connection ? (
-      <div className="rounded-lg border border-warning/30 bg-warning/10 px-3 py-2">
-        <div className="font-medium text-warning text-xs">{t('code.cli_config.unknown_provider')}</div>
-        <div className="mt-1 truncate font-mono text-[11px] text-muted-foreground">
+      <div className="rounded-lg border border-warning-border bg-warning-subtle px-3 py-2 text-warning-subtle-foreground">
+        <div className="font-medium text-xs">{t('code.cli_config.unknown_provider')}</div>
+        <div className="mt-1 truncate font-mono text-[11px]">
           {draft.connection.model || t('code.cli_config.unknown_model')}
         </div>
       </div>

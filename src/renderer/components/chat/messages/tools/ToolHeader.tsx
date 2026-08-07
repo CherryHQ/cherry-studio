@@ -1,6 +1,7 @@
 import { Flex, Tooltip } from '@cherrystudio/ui'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { McpTool } from '@renderer/types/tool'
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import {
   Bot,
   DoorOpen,
@@ -16,6 +17,7 @@ import {
   ShieldCheck,
   Terminal,
   ToolCase,
+  Workflow as WorkflowIcon,
   Wrench
 } from 'lucide-react'
 import type { ComponentPropsWithoutRef, FC, ReactNode } from 'react'
@@ -72,6 +74,7 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.Edit]: { icon: <FileEdit size={14} />, labelKey: 'message.tools.labels.edit' },
   [AgentToolsType.MultiEdit]: { icon: <FileText size={14} />, labelKey: 'message.tools.labels.multiEdit' },
   [AgentToolsType.WebSearch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' },
+  [PROVIDER_WEB_SEARCH_TOOL_NAME]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webSearch' },
   [AgentToolsType.WebFetch]: { icon: <Globe size={14} />, labelKey: 'message.tools.labels.webFetch' },
   [AgentToolsType.NotebookEdit]: { icon: <NotebookPen size={14} />, labelKey: 'message.tools.labels.notebookEdit' },
   [AgentToolsType.TodoWrite]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.todoWrite' },
@@ -81,6 +84,7 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.TeamDelete]: { icon: <Bot size={14} /> },
   [AgentToolsType.EnterWorktree]: { icon: <DoorOpen size={14} /> },
   [AgentToolsType.ExitWorktree]: { icon: <DoorOpen size={14} /> },
+  [AgentToolsType.Workflow]: { icon: <WorkflowIcon size={14} />, labelKey: 'message.tools.labels.workflow' },
   [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' }
 }
 
@@ -383,6 +387,11 @@ export function getReadableToolActivity(
         description:
           getStringArg(args, 'description') ?? getStringArg(args, 'prompt') ?? t('message.tools.activity.assistantTask')
       }
+    case AgentToolsType.Workflow:
+      return {
+        label: active ? t('message.tools.workflow.orchestrating') : t('message.tools.workflow.started'),
+        description: getStringArg(args, 'name') ?? t('message.tools.workflow.workflow')
+      }
     case AgentToolsType.TaskCreate:
       return {
         label: t('message.tools.labels.taskCreate'),
@@ -438,6 +447,7 @@ export function getReadableToolActivity(
         description: getReadablePathTarget(getStringArg(args, 'file_path') ?? getStringArg(args, 'notebook_path'), t)
       }
     case AgentToolsType.WebSearch:
+    case PROVIDER_WEB_SEARCH_TOOL_NAME:
       return { label: labels.search, description: getReadableSearchTarget(getStringArg(args, 'query'), t) }
     case AgentToolsType.WebFetch:
       return {
@@ -519,13 +529,13 @@ const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<typeof Flex>
 )
 
 const DESCRIPTION_CLASS =
-  'inline-block min-w-0 max-w-full shrink truncate font-normal text-[13px] text-foreground-secondary'
+  'inline-block min-w-0 max-w-full shrink truncate font-normal text-[13px] text-muted-foreground'
 
 const Description = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span className={[DESCRIPTION_CLASS, className].filter(Boolean).join(' ')} {...props} />
 )
 
-const STATS_CLASS = 'shrink-0 whitespace-nowrap font-normal text-[13px] text-foreground-secondary'
+const STATS_CLASS = 'shrink-0 whitespace-nowrap font-normal text-[13px] text-muted-foreground'
 
 const Stats = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span className={[STATS_CLASS, className].filter(Boolean).join(' ')} {...props} />
@@ -536,7 +546,7 @@ const CommandPreview = ({ fullText, text }: { fullText: string; text: string }) 
     <code
       data-testid="tool-command-preview"
       title={fullText}
-      className="hidden min-w-0 max-w-[clamp(6rem,42vw,32rem)] shrink-[2] truncate rounded bg-background-subtle px-1.5 py-0.5 font-['Menlo','Monaco','Courier_New',monospace] text-[12px] text-foreground-secondary leading-4 sm:block">
+      className="hidden min-w-0 max-w-[clamp(6rem,42vw,32rem)] shrink-[2] truncate rounded bg-background-subtle px-1.5 py-0.5 font-['Menlo','Monaco','Courier_New',monospace] text-[12px] text-muted-foreground leading-4 sm:block">
       {text}
     </code>
   )
@@ -550,7 +560,7 @@ function getToolNameClassName(variant: ToolHeaderProps['variant']): string {
   return [
     'items-center gap-1.5',
     variant === 'collapse-label' &&
-      'font-normal text-foreground-secondary group-hover/tool-group-trigger:text-foreground [&_.tool-icon]:text-foreground-muted',
+      'font-normal text-muted-foreground group-hover/tool-group-trigger:text-foreground [&_.tool-icon]:text-foreground-tertiary',
     variant === 'standalone' && 'font-medium text-foreground [&_.tool-icon]:text-primary'
   ]
     .filter(Boolean)

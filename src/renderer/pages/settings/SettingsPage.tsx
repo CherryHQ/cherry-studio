@@ -13,6 +13,7 @@ import {
 import { cn } from '@renderer/utils/style'
 import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
+  Activity,
   Bell,
   CalendarClock,
   Cloud,
@@ -51,7 +52,7 @@ const SettingsPage: FC = () => {
       data-ui="settings.view"
       className={cn(
         'flex min-h-0 flex-1 flex-col dark:[--settings-group-background:var(--background-subtle)]',
-        isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
       )}>
       <div className="flex min-h-0 flex-1 flex-row">
         <div
@@ -159,6 +160,14 @@ const SettingsPage: FC = () => {
                 label={t('settings.data.title')}
                 active={isActive('/settings/data')}
                 onClick={() => go('/settings/data')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Activity />}
+                label={t('settings.usage.title')}
+                active={isActive('/settings/usage')}
+                onClick={() => go('/settings/usage')}
               />
               <MenuDivider className={settingsSubmenuDividerClassName} />
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.automation')}</div>

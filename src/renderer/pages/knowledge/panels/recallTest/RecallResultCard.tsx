@@ -42,24 +42,24 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
   }
 
   return (
-    <div className="group/chunk rounded-md border border-border-subtle bg-background transition-all hover:border-border-hover">
+    <div className="group/chunk rounded-md border border-border-subtle bg-background transition-all hover:border-border-strong">
       <div className="flex items-center gap-2 px-3 py-2">
-        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-background-subtle text-foreground-muted text-xs leading-4">
+        <span className="flex size-5 shrink-0 items-center justify-center rounded bg-background-subtle text-foreground-tertiary text-xs leading-4">
           {index + 1}
         </span>
         <div className="flex min-w-0 flex-1 items-center gap-1">
-          <FileText className="size-3.5 shrink-0 text-foreground-muted" />
-          <span className="truncate text-foreground-muted text-xs leading-4">{item.sourceName}</span>
-          <span className="shrink-0 text-foreground-muted text-xs leading-3">#{item.chunkIndex}</span>
+          <FileText className="size-3.5 shrink-0 text-foreground-tertiary" />
+          <span className="truncate text-foreground-tertiary text-xs leading-4">{item.sourceName}</span>
+          <span className="shrink-0 text-foreground-tertiary text-xs leading-3">#{item.chunkIndex}</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <span className="w-16 text-right text-foreground-muted text-xs tabular-nums leading-4">{scoreLabel}</span>
+          <span className="w-16 text-right text-foreground-tertiary text-xs tabular-nums leading-4">{scoreLabel}</span>
         </div>
         <Button
           type="button"
           variant="ghost"
           aria-label={t('knowledge.recall.copy')}
-          className={`size-5 min-h-5 shrink-0 rounded p-0 shadow-none transition-all hover:bg-accent hover:text-foreground group-hover/chunk:opacity-100 ${copied ? 'text-success opacity-100' : 'text-foreground-muted opacity-0'}`}
+          className={`size-5 min-h-5 shrink-0 rounded p-0 shadow-none transition-all hover:bg-accent hover:text-foreground group-hover/chunk:opacity-100 ${copied ? 'text-success opacity-100' : 'text-muted-foreground opacity-0'}`}
           onClick={() => void copyContent()}>
           {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
         </Button>
@@ -67,14 +67,14 @@ const RecallResultCard = ({ item, index }: RecallResultCardProps) => {
           type="button"
           variant="ghost"
           aria-label={t(isExpanded ? 'knowledge.recall.collapse' : 'knowledge.recall.expand')}
-          className="size-5 min-h-5 shrink-0 rounded p-0 text-foreground-muted shadow-none transition-all hover:bg-accent hover:text-foreground"
+          className="size-5 min-h-5 shrink-0 rounded p-0 text-muted-foreground shadow-none transition-all hover:bg-accent hover:text-foreground"
           onClick={() => setIsExpanded((current) => !current)}>
           {isExpanded ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
         </Button>
       </div>
       <div className="min-w-0 overflow-hidden px-3 pb-3">
         <p
-          className={`wrap-anywhere min-w-0 whitespace-normal text-foreground-secondary text-sm leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
+          className={`wrap-anywhere min-w-0 whitespace-normal text-muted-foreground text-sm leading-relaxed ${isExpanded ? '' : 'line-clamp-2'}`}>
           {item.content}
         </p>
       </div>

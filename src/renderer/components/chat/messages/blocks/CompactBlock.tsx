@@ -29,7 +29,9 @@ const CompactBlock: React.FC<Props> = ({ id, content, compactedContent }) => {
         type="single"
         collapsible
         value={activeKey}
-        onValueChange={(value) => withScrollAnchor(() => setActiveKey(value))}>
+        onValueChange={(value) =>
+          withScrollAnchor(() => setActiveKey(value), { enterReadingMode: value === 'summary' })
+        }>
         <AccordionItem value="summary" className="rounded-lg border-0">
           <AccordionTrigger className="[&>svg]:hidden">
             <div className="flex items-center gap-2">
@@ -39,7 +41,7 @@ const CompactBlock: React.FC<Props> = ({ id, content, compactedContent }) => {
             <ChevronDown size={16} />
           </AccordionTrigger>
           <AccordionContent>
-            <div className="py-2 text-foreground-secondary text-sm leading-relaxed">
+            <div className="py-2 text-muted-foreground text-sm leading-relaxed">
               <ChatMarkdown block={markdownSource} />
             </div>
           </AccordionContent>
@@ -48,9 +50,7 @@ const CompactBlock: React.FC<Props> = ({ id, content, compactedContent }) => {
 
       {compactedContent && (
         <div className="mt-2">
-          <div className="whitespace-pre-wrap text-foreground-secondary text-sm leading-relaxed">
-            {compactedContent}
-          </div>
+          <div className="whitespace-pre-wrap text-muted-foreground text-sm leading-relaxed">{compactedContent}</div>
         </div>
       )}
     </div>

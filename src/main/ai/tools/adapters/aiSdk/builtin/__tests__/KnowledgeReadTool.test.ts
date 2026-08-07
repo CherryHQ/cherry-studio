@@ -116,6 +116,10 @@ describe('kb_read', () => {
 
     expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', { charStart: 0, charEnd: 11 })
     expect(result).toEqual({
+      // One slice, one source: the call mints a single citation id the model echoes as `[cite:id]`.
+      id: expect.stringMatching(/^[0-9a-f]{8}-1$/),
+      // Pairs with the base-relative conceptId to identify the document globally.
+      baseId: 'kb-1',
       conceptId: 'docs/intro.md',
       title: 'intro.md',
       type: 'file',
@@ -222,6 +226,9 @@ describe('kb_read', () => {
       // read mode must NOT run when a pattern is present (pattern routes to grepConcept).
       expect(readConcept).not.toHaveBeenCalled()
       expect(result).toEqual({
+        // Every match is in this one document, so the whole grep result is a single source.
+        id: expect.stringMatching(/^[0-9a-f]{8}-1$/),
+        baseId: 'kb-1',
         conceptId: 'docs/intro.md',
         title: 'intro.md',
         type: 'note',

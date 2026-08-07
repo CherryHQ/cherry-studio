@@ -10,7 +10,7 @@ const baseProps = {
   viewBox: '0 0 24 24',
   fill: 'none',
   stroke: 'currentColor',
-  strokeWidth: 2,
+  strokeWidth: 1.8,
   strokeLinecap: 'round',
   strokeLinejoin: 'round',
   'aria-hidden': true
@@ -20,9 +20,9 @@ export default function NewConversationIcon({ size = 24, className, ...props }: 
   return (
     <svg width={size} height={size} {...baseProps} {...props} className={cn('new-conversation-icon', className)}>
       <g transform="translate(12 12) scale(1.1) translate(-12 -12)">
-        <path vectorEffect="non-scaling-stroke" d="M13 4H6a2 2 0 0 0-2 2v13l4-3h10a2 2 0 0 0 2-2v-3" />
-        <path vectorEffect="non-scaling-stroke" d="M18 3.5v5" />
-        <path vectorEffect="non-scaling-stroke" d="M15.5 6h5" />
+        <path d="M13 4H6a2 2 0 0 0-2 2v13l4-3h10a2 2 0 0 0 2-2v-3" />
+        <path d="M18 3.5v5" />
+        <path d="M15.5 6h5" />
       </g>
     </svg>
   )

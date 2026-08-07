@@ -68,7 +68,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-accent/40 hover:text-foreground"
+                    className="size-7 shrink-0 rounded-lg p-0 text-muted-foreground shadow-none hover:bg-accent/40 hover:text-foreground"
                     aria-label={t('settings.provider.api.options.label')}
                     onClick={() => setApiOptionsOpen(true)}>
                     <Bolt className="size-3.5" aria-hidden />

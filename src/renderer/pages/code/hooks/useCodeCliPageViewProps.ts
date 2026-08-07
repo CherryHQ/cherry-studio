@@ -170,7 +170,6 @@ export function useCodeCliPageViewProps(): CodeCliPageViewProps {
   const configPanel = useConfigPanelController({
     selectedCliTool,
     toolName,
-    isToolInstalled: versionStatus.installed,
     currentProviderId,
     providerConfigs,
     upsertProviderConfig,

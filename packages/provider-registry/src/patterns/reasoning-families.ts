@@ -18,7 +18,7 @@
  * the generated artifact); the bound convenience API lives in
  * `reasoning-heuristics.ts`.
  */
-import type { ReasoningControl, ReasoningFamilyRule } from '../schemas/model'
+import type { ReasoningControl, ReasoningFamilyRule, ReasoningWireDialect } from '../schemas/model'
 
 /** Lowercase and strip a namespace prefix (`deepseek/deepseek-r1` → `deepseek-r1`). */
 function baseName(rawModelId: string): string {
@@ -64,6 +64,24 @@ export function matchReasoningControls(
   if (budgetRule?.budget) controls.push({ kind: 'budget', min: budgetRule.budget.min, max: budgetRule.budget.max })
   if (vocabularyRule?.toggle) controls.push({ kind: 'toggle' })
   return controls.length ? controls : undefined
+}
+
+/**
+ * Native-protocol dialect for a model generation — the first rule declaring
+ * `wireDialect` whose pattern matches. Tests the lowercased, namespace-stripped
+ * id (like the vocabulary part), so callers must pass the RAW upstream id:
+ * generation-era patterns are written in the vendor's own dotted form
+ * (`gemini-3.1-flash`), which the hyphenated catalog id would not match.
+ */
+export function matchWireDialect(
+  rawModelId: string,
+  rules: readonly ReasoningFamilyRule[]
+): ReasoningWireDialect | undefined {
+  const id = baseName(rawModelId)
+  for (const rule of rules) {
+    if (rule.wireDialect && ruleRegex(rule.pattern).test(id)) return rule.wireDialect
+  }
+  return undefined
 }
 
 /** Return the first matching vocabulary rule's explicit toggle policy. */

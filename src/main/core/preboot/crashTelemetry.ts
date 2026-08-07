@@ -43,14 +43,14 @@ function startCrashReporter(): void {
 }
 
 /**
- * In production, install last-resort handlers for `uncaughtException` and
- * `unhandledRejection`. In dev, leave both unset so errors propagate to the
- * terminal with their full, unswallowed stack traces.
+ * In production, observe uncaught exceptions without suppressing Node's
+ * default exit, and log unhandled rejections. In dev, leave both unset so
+ * errors propagate to the terminal with their full, unswallowed stack traces.
  */
 function installProcessErrorHandlers(): void {
   if (isDev) return
 
-  process.on('uncaughtException', (error) => {
+  process.on('uncaughtExceptionMonitor', (error) => {
     logger.error('Uncaught Exception:', error)
   })
 
@@ -76,6 +76,12 @@ function installProcessErrorHandlers(): void {
  */
 function hardenWebContents(): void {
   app.on('web-contents-created', (_, webContents) => {
+    // Owns every session's single `onHeadersReceived` slot: Electron keeps ONE
+    // listener per session, so a later registration elsewhere would silently
+    // replace this one — and with it the call-stack collection below. Nothing
+    // else may call `webRequest.onHeadersReceived`; if a second consumer ever
+    // appears, introduce a per-session coordinator instead (same doctrine as
+    // `ai/utils/customFetch.ts` for the `onBeforeSendHeaders` slot).
     webContents.session.webRequest.onHeadersReceived((details, callback) => {
       callback({
         responseHeaders: {

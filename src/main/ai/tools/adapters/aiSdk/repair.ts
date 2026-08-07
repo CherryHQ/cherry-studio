@@ -1,4 +1,4 @@
-import { generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
+import { type AiPlugin, generateText as aiCoreGenerateText } from '@cherrystudio/ai-core'
 import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { loggerService } from '@logger'
 import {
@@ -23,6 +23,8 @@ export interface AiRepairContext<T extends AppProviderId = AppProviderId> {
   providerSettings: AppProviderSettingsMap[T]
   /** Same model id as the main request. */
   modelId: string
+  /** Reuse the request's usage middleware so repair is its own invocation. */
+  getUsagePlugins?: () => AiPlugin[]
 }
 
 export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>): ToolCallRepairFunction<ToolSet> {
@@ -48,11 +50,16 @@ export function createAiRepair<T extends AppProviderId>(ctx: AiRepairContext<T>)
 
     let repaired: unknown
     try {
-      const result = await aiCoreGenerateText<AppProviderSettingsMap, T>(ctx.providerId, ctx.providerSettings, {
-        model: ctx.modelId,
-        prompt,
-        output: Output.object({ schema: jsonSchema(schemaJson) })
-      })
+      const result = await aiCoreGenerateText<AppProviderSettingsMap, T>(
+        ctx.providerId,
+        ctx.providerSettings,
+        {
+          model: ctx.modelId,
+          prompt,
+          output: Output.object({ schema: jsonSchema(schemaJson) })
+        },
+        ctx.getUsagePlugins?.()
+      )
       repaired = result.output
     } catch (err) {
       logger.warn('AI repair generateText failed', err as Error, {

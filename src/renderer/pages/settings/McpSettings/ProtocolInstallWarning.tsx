@@ -1,29 +1,53 @@
-import React from 'react'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import { useTranslation } from 'react-i18next'
+
+import { getCommandPreview } from './utils'
+
+type PreviewServer = Pick<McpServer, 'baseUrl' | 'command' | 'args' | 'env' | 'headers'>
+
+interface McpServerConfigPreviewProps {
+  server: PreviewServer
+}
+
+const formatKeyValues = (values: Record<string, string> | undefined, separator: string) =>
+  Object.entries(values ?? {})
+    .map(([key, value]) => `${key}${separator}${value}`)
+    .join('\n')
+
+const PreviewField = ({ label, value }: { label: string; value: string }) =>
+  value ? (
+    <div className="space-y-1">
+      <div className="font-semibold">{label}</div>
+      <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-2">{value}</pre>
+    </div>
+  ) : null
+
+export const McpServerConfigPreview = ({ server }: McpServerConfigPreviewProps) => {
+  const { t } = useTranslation()
+  const connectionPreview = server.baseUrl ?? getCommandPreview(server)
+
+  return (
+    <div className="space-y-3">
+      <PreviewField
+        label={server.baseUrl ? t('settings.mcp.url') : t('settings.mcp.command')}
+        value={connectionPreview}
+      />
+      <PreviewField label={t('settings.mcp.env')} value={formatKeyValues(server.env, '=')} />
+      <PreviewField label={t('settings.mcp.headers')} value={formatKeyValues(server.headers, ': ')} />
+    </div>
+  )
+}
 
 interface ProtocolInstallWarningContentProps {
   message: string
-  commandLabel: string
-  commandPreview: string
+  server: PreviewServer
 }
 
-/**
- * Warning content component for protocol-installed MCP servers
- * Displays a security warning and the command that will be executed
- */
-const ProtocolInstallWarningContent: React.FC<ProtocolInstallWarningContentProps> = ({
-  message,
-  commandLabel,
-  commandPreview
-}) => {
+const ProtocolInstallWarningContent = ({ message, server }: ProtocolInstallWarningContentProps) => {
   return (
     <div className="space-y-3 text-left">
       <p>{message}</p>
-      {commandPreview && (
-        <div className="space-y-1">
-          <div className="font-semibold">{commandLabel}</div>
-          <pre className="whitespace-pre-wrap break-all rounded-md bg-muted p-2">{commandPreview}</pre>
-        </div>
-      )}
+      <McpServerConfigPreview server={server} />
     </div>
   )
 }

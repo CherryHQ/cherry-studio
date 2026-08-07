@@ -24,6 +24,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
       <DialogContent
+        data-ui="app.search"
         showCloseButton={false}
         onOpenAutoFocus={(event) => event.preventDefault()}
         overlayClassName="z-1001 bg-black/50 backdrop-blur-[8px]"

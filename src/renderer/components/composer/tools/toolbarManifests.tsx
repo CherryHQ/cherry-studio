@@ -1,4 +1,3 @@
-import { MdiLightbulbQuestion } from '@renderer/components/icons/SvgIcon'
 import type { TFunction } from 'i18next'
 import { FileSearch, Globe, Image, Paperclip, Pointer, Zap } from 'lucide-react'
 
@@ -55,17 +54,6 @@ export const KNOWLEDGE_BASE_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition 
     icon: <FileSearch />
   },
   label: (t) => t('chat.input.knowledge_base'),
-  visibleInScopes: [TopicType.Chat]
-}
-
-export const THINKING_TOOLBAR_MANIFEST: ComposerToolbarManifestDefinition = {
-  toolbar: {
-    id: 'thinking',
-    kind: 'group',
-    order: 60,
-    icon: <MdiLightbulbQuestion className="icon" width={18} height={18} style={{ marginTop: -2 }} />
-  },
-  label: (t) => t('assistants.settings.reasoning_effort.label'),
   visibleInScopes: [TopicType.Chat, TopicType.Session]
 }
 
@@ -96,7 +84,6 @@ const COMPOSER_TOOLBAR_MANIFESTS: ComposerToolbarManifestDefinition[] = [
   GENERATE_IMAGE_TOOLBAR_MANIFEST,
   WEB_SEARCH_TOOLBAR_MANIFEST,
   KNOWLEDGE_BASE_TOOLBAR_MANIFEST,
-  THINKING_TOOLBAR_MANIFEST,
   QUICK_PHRASES_TOOLBAR_MANIFEST,
   PERMISSION_MODE_TOOLBAR_MANIFEST
 ]

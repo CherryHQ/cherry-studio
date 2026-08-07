@@ -1,5 +1,5 @@
 import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs/skill'
-import { useInstalledSkills } from '@renderer/hooks/useSkills'
+import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -24,6 +24,7 @@ type CapabilityStepProps = {
 export function CapabilityStep({ form, portalContainer }: CapabilityStepProps) {
   const { t } = useTranslation()
   const skillIds = form.watch('skillIds')
+  useReconcileSkillsOnOpen(true)
   const { skills, loading } = useInstalledSkills()
 
   return (

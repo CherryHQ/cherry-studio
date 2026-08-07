@@ -1,23 +1,16 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { ipcApi } from '@renderer/ipc'
-import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { McpTool } from '@renderer/types/tool'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import type { CreateMcpServerDto, ListMcpServersQuery } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { useCallback, useMemo } from 'react'
 
-// Navigate to MCP server settings when a server is installed via URL scheme
-ipcApi.on('mcp.server.added', (server) => {
-  openSettingsTab(`/settings/mcp/settings/${server.id}`)
-})
-
 /**
  * MCP servers list hook — data fetching with optional filters and create mutation.
  */
-export const useMcpServers = (query?: ListMcpServersQuery) => {
-  const { data, isLoading, mutate } = useQuery('/mcp-servers', { query })
+export const useMcpServers = (query?: ListMcpServersQuery, options: { enabled?: boolean } = {}) => {
+  const { data, isLoading, mutate } = useQuery('/mcp-servers', { query, enabled: options.enabled })
 
   const mcpServers = useMemo(() => data?.items ?? [], [data])
 

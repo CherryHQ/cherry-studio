@@ -118,6 +118,18 @@ afterEach(() => {
 })
 
 describe('MiniApp launchpad pin menu', () => {
+  it.each(['Enter', ' '])('opens the mini app tab with the %j key', (key) => {
+    mocks.miniApps = [calculatorApp]
+
+    render(<MiniApp app={calculatorApp} variant="launchpad" />)
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Calculator' }), { key })
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/mini-app/calculator', {
+      title: 'Calculator',
+      icon: 'calculator-logo'
+    })
+  })
+
   it('adds an enabled mini app to launchpad by pinning status', () => {
     const enabledApp = { ...calculatorApp, status: 'enabled' as const }
     mocks.miniApps = [enabledApp]

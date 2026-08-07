@@ -139,6 +139,23 @@ describe('useProviderApiKey', () => {
     expect(result.current.hasPendingSync).toBe(true)
   })
 
+  it('does not persist API keys that cannot be used in HTTP headers', async () => {
+    const { result } = renderHook(() => useProviderApiKey('openai'))
+
+    act(() => {
+      result.current.setInputApiKey('sk-密钥')
+    })
+
+    await act(async () => {
+      vi.runAllTimers()
+      await Promise.resolve()
+    })
+
+    expect(updateApiKeysMock).not.toHaveBeenCalled()
+    expect(toast.error).toHaveBeenCalled()
+    expect(result.current.hasPendingSync).toBe(true)
+  })
+
   it('commits the current input immediately when requested', async () => {
     const { result } = renderHook(() => useProviderApiKey('openai'))
 

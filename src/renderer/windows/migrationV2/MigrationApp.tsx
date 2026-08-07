@@ -1,35 +1,44 @@
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
   Alert,
   Button,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
   error as showErrorToast,
-  MenuItem,
-  MenuList,
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
+  Scrollbar,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  success as showSuccessToast,
   Tooltip
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { DIALOG_UNMOUNT_DELAY_MS } from '@cherrystudio/ui/utils'
 import AppLogo from '@renderer/assets/images/logo.png'
 import ToastHost from '@renderer/components/ToastHost'
 import { loggerService } from '@renderer/services/LoggerService'
 import { isMac } from '@renderer/utils/platform'
-import { MigrationIpcChannels, type MigrationStage } from '@shared/data/migration/v2/types'
+import {
+  MigrationIpcChannels,
+  type MigrationStage,
+  type PreparedMigrationExportPaths
+} from '@shared/data/migration/v2/types'
 import {
   AlertTriangle,
   ArrowRight,
   Check,
+  Copy,
   Database,
+  Download,
   FolderOpen,
+  History,
   Loader2,
   Monitor,
   Moon,
@@ -61,11 +70,11 @@ const logger = loggerService.withContext('MigrationApp')
 type BadgeTone = 'primary' | 'success' | 'warning' | 'destructive' | 'neutral'
 
 const badgeToneClass: Record<BadgeTone, string> = {
-  primary: 'border-primary-mute bg-primary/10 text-primary',
-  success: 'border-success bg-success-bg text-success',
-  warning: 'border-warning bg-warning-bg text-warning',
-  destructive: 'border-error-border bg-error-bg text-error-text',
-  neutral: 'border-border bg-muted/40 text-foreground-secondary'
+  primary: 'border-primary/20 bg-primary/10 text-primary',
+  success: 'border-success-border bg-success-subtle text-success-subtle-foreground',
+  warning: 'border-warning-border bg-warning-subtle text-warning-subtle-foreground',
+  destructive: 'border-error-border bg-error-subtle text-error-subtle-foreground',
+  neutral: 'border-border bg-muted/40 text-muted-foreground'
 }
 
 const StageBadge: React.FC<{ tone?: BadgeTone; children: React.ReactNode }> = ({ tone = 'neutral', children }) => (
@@ -151,14 +160,14 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
               <div
                 className={cn(
                   'relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-medium text-sm',
-                  isError && 'bg-destructive text-destructive-foreground',
-                  !isError && (active || done) && 'bg-primary text-white',
-                  !isError && !active && !done && 'border border-border bg-background text-foreground-muted'
+                  isError && 'border border-error-border bg-error-subtle text-error-subtle-foreground',
+                  !isError && (active || done) && 'bg-primary text-primary-foreground',
+                  !isError && !active && !done && 'border border-border bg-background text-foreground-disabled'
                 )}>
                 {isError ? (
-                  <X size={13} strokeWidth={2.5} className="lucide-custom text-white" />
+                  <X size={13} strokeWidth={2.5} className="lucide-custom" />
                 ) : done ? (
-                  <Check size={12} strokeWidth={3} className="lucide-custom text-white" />
+                  <Check size={12} strokeWidth={3} className="lucide-custom" />
                 ) : (
                   step.n
                 )}
@@ -167,8 +176,8 @@ const StepRail: React.FC<{ stage: MigrationStage }> = ({ stage }) => {
                 className={cn(
                   'relative z-10 truncate text-sm',
                   active && 'font-medium text-foreground',
-                  done && 'text-foreground-secondary',
-                  !active && !done && 'text-foreground-muted'
+                  done && 'text-muted-foreground',
+                  !active && !done && 'text-foreground-disabled'
                 )}>
                 {t(step.labelKey)}
               </span>
@@ -190,44 +199,153 @@ const TopContent: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="mx-auto max-w-115 text-center">{children}</div>
 )
 
-type MigrationToolsMenuProps = {
+type MigrationOptionsDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSkipMigration: () => void
+  onContinueV1?: () => void
+  onCloseApp?: () => void
+  onExportDiagnostics?: () => void
   disabled?: boolean
+  showLabel?: boolean
 }
 
-const MigrationToolsMenu: React.FC<MigrationToolsMenuProps> = ({ open, onOpenChange, onSkipMigration, disabled }) => {
+const MigrationOptionsDialog: React.FC<MigrationOptionsDialogProps> = ({
+  open,
+  onOpenChange,
+  onSkipMigration,
+  onContinueV1,
+  onCloseApp,
+  onExportDiagnostics,
+  disabled,
+  showLabel = false
+}) => {
   const { t } = useTranslation()
+  const nextDialogTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(
+    () => () => {
+      if (nextDialogTimerRef.current) clearTimeout(nextDialogTimerRef.current)
+    },
+    []
+  )
+
+  const transitionTo = (openNextDialog: (() => void) | undefined) => {
+    onOpenChange(false)
+    if (!openNextDialog) return
+
+    if (nextDialogTimerRef.current) clearTimeout(nextDialogTimerRef.current)
+    nextDialogTimerRef.current = setTimeout(() => {
+      nextDialogTimerRef.current = null
+      openNextDialog()
+    }, DIALOG_UNMOUNT_DELAY_MS)
+  }
 
   const handleSkipMigration = () => {
-    onOpenChange(false)
-    onSkipMigration()
+    transitionTo(onSkipMigration)
+  }
+
+  const handleContinueV1 = () => {
+    transitionTo(onContinueV1)
+  }
+
+  const handleExportDiagnostics = () => {
+    transitionTo(onExportDiagnostics)
   }
 
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <PopoverTrigger asChild>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
         <Button
           type="button"
-          variant="ghost"
-          size="icon-sm"
+          variant={showLabel ? 'outline' : 'ghost'}
+          size={showLabel ? 'lg' : 'icon-sm'}
           disabled={disabled}
           aria-label={t('migration.buttons.more_options')}
-          className="text-foreground-muted/60 hover:text-foreground-muted">
+          className={cn(
+            'text-muted-foreground hover:text-foreground',
+            showLabel && 'w-full gap-2',
+            disabled && 'text-foreground-disabled hover:text-foreground-disabled'
+          )}>
           <Wrench size={15} />
+          {showLabel && t('migration.buttons.more_options')}
         </Button>
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-auto min-w-36 p-1.5">
-        <MenuList className="gap-1">
-          <MenuItem
-            icon={<AlertTriangle size={14} />}
-            label={t('migration.buttons.skip_migration')}
-            onClick={handleSkipMigration}
-          />
-        </MenuList>
-      </PopoverContent>
-    </Popover>
+      </DialogTrigger>
+      <DialogContent size={showLabel ? 'default' : 'sm'} className="max-h-[calc(100vh-2rem)] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{t('migration.buttons.more_options')}</DialogTitle>
+          <DialogDescription>{t('migration.more_options.description')}</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2.5">
+          {onExportDiagnostics && (
+            <Button
+              type="button"
+              variant="outline"
+              aria-label={t('migration.more_options.diagnostics_title')}
+              className="h-auto w-full items-start justify-start gap-3 whitespace-normal p-4 text-left"
+              onClick={handleExportDiagnostics}>
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
+                <Download size={16} />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-medium text-foreground text-sm">
+                  {t('migration.more_options.diagnostics_title')}
+                </span>
+                <span className="mt-1 block text-muted-foreground text-xs leading-relaxed">
+                  {t('migration.more_options.diagnostics_description')}
+                </span>
+              </span>
+            </Button>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            aria-label={t('migration.more_options.use_v2_title')}
+            className="h-auto w-full items-start justify-start gap-3 whitespace-normal p-4 text-left"
+            onClick={handleSkipMigration}>
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
+              <AlertTriangle size={16} />
+            </span>
+            <span className="min-w-0">
+              <span className="block font-medium text-foreground text-sm">
+                {t('migration.more_options.use_v2_title')}
+              </span>
+              <span className="mt-1 block text-muted-foreground text-xs leading-relaxed">
+                {t('migration.more_options.skip_description')}
+              </span>
+            </span>
+          </Button>
+          {onContinueV1 && (
+            <Button
+              type="button"
+              variant="outline"
+              aria-label={t('migration.buttons.continue_v1')}
+              className="h-auto w-full items-start justify-start gap-3 whitespace-normal p-4 text-left"
+              onClick={handleContinueV1}>
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-muted/40 text-muted-foreground">
+                <History size={16} />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-medium text-foreground text-sm">{t('migration.buttons.continue_v1')}</span>
+                <span className="mt-1 block text-muted-foreground text-xs leading-relaxed">
+                  {t('migration.more_options.continue_v1_description')}
+                </span>
+              </span>
+            </Button>
+          )}
+        </div>
+        <DialogFooter className="items-center sm:justify-between">
+          {onCloseApp && (
+            <Button type="button" variant="outline" onClick={onCloseApp}>
+              {t('migration.buttons.close')}
+            </Button>
+          )}
+          <DialogClose asChild>
+            <Button variant="outline">{t('migration.skip_dialog.cancel')}</Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -245,17 +363,25 @@ const MigrationApp: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   // Some runMigration failures happen before progress can reliably move to error.
   const [localMigrationError, setLocalMigrationError] = useState<string | null>(null)
-  // Retry sends the user back to the introduction screen, so a failure after this flag is set is
-  // the "retried and still failing" case that warrants pointing them back to v1.
-  const [hasRetried, setHasRetried] = useState(false)
   const [v1DialogOpen, setV1DialogOpen] = useState(false)
   const [skipOpen, setSkipOpen] = useState(false)
-  const [skipMenuOpen, setSkipMenuOpen] = useState(false)
+  const [moreOptionsOpen, setMoreOptionsOpen] = useState(false)
+  const [diagnosticExportOpen, setDiagnosticExportOpen] = useState(false)
+  const [diagnosticResult, setDiagnosticResult] = useState<'included' | 'not_included' | null>(null)
+  const [warningsDialogOpen, setWarningsDialogOpen] = useState(false)
   const [closeConfirmOpen, setCloseConfirmOpen] = useState(false)
   // Set when the user confirmed quit but main deferred it because a migration write
   // is still in flight; drives the non-blocking "closing after the current step" notice.
   const [quitDeferred, setQuitDeferred] = useState(false)
   const startGuardRef = useRef(false)
+  const diagnosticResultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(
+    () => () => {
+      if (diagnosticResultTimerRef.current) clearTimeout(diagnosticResultTimerRef.current)
+    },
+    []
+  )
 
   const [themeMode, setThemeMode] = useState<string>(() => localStorage.getItem(THEME_STORAGE_KEY) ?? 'system')
   const toggleTheme = () => {
@@ -320,40 +446,50 @@ const MigrationApp: React.FC = () => {
     try {
       logger.info('Starting migration process...')
 
-      // Export Redux data
+      const exportPaths = (await window.electron.ipcRenderer.invoke(
+        MigrationIpcChannels.PrepareExport
+      )) as PreparedMigrationExportPaths
+
+      // Export Redux slices to disk before opening IndexedDB. Keeping the parsed
+      // state alive through Dexie export raised the renderer's peak heap.
+      await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportExportStage, { source: 'redux' })
       const reduxExporter = new ReduxExporter()
-      const reduxResult = reduxExporter.export()
+      const reduxResult = await reduxExporter.export(exportPaths.reduxExportPath)
       logger.info('Redux data exported', {
         slicesFound: reduxResult.slicesFound,
-        slicesMissing: reduxResult.slicesMissing
+        slicesMissing: reduxResult.slicesMissing,
+        exportPath: reduxResult.exportPath
       })
 
       // Export Dexie data
-      const userDataPath = await window.electron.ipcRenderer.invoke(MigrationIpcChannels.GetUserDataPath)
-      const exportBasePath = `${userDataPath}/migration_temp`
-      const dexieExportPath = `${exportBasePath}/dexie_export`
-      const dexieExporter = new DexieExporter(dexieExportPath)
+      const dexieExporter = new DexieExporter(exportPaths.dexieExportPath)
 
-      await dexieExporter.exportAll((p) => {
+      await dexieExporter.exportAll(async (p) => {
+        if (p.progress === 0) {
+          await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportExportStage, {
+            source: 'dexie',
+            table: p.table
+          })
+        }
         logger.info('Dexie export progress', p)
       })
 
-      logger.info('Dexie data exported', { exportPath: dexieExportPath })
+      logger.info('Dexie data exported', { exportPath: exportPaths.dexieExportPath })
 
       // Export localStorage data
-      const localStorageExportPath = `${exportBasePath}/localstorage_export`
-      const localStorageExporter = new LocalStorageExporter(localStorageExportPath)
-      const localStorageFilePath = await localStorageExporter.export()
+      await window.electron.ipcRenderer.invoke(MigrationIpcChannels.ReportExportStage, { source: 'localStorage' })
+      const localStorageExporter = new LocalStorageExporter(exportPaths.localStorageExportDirectory)
+      await localStorageExporter.export()
       logger.info('localStorage data exported', {
         entryCount: localStorageExporter.getEntryCount(),
-        filePath: localStorageFilePath
+        filePath: exportPaths.localStorageExportPath
       })
 
       // Start migration with exported data
       await actions.startMigration({
-        reduxData: reduxResult.data,
-        dexieExportPath,
-        localStorageExportPath: localStorageFilePath
+        reduxExportPath: reduxResult.exportPath,
+        dexieExportPath: exportPaths.dexieExportPath,
+        localStorageExportPath: exportPaths.localStorageExportPath
       })
     } catch (error) {
       logger.error('Failed to start migration', error as Error)
@@ -379,6 +515,41 @@ const MigrationApp: React.FC = () => {
     }
   }
 
+  const handleDiagnosticSaved = (logs: 'included' | 'not_included') => {
+    setDiagnosticExportOpen(false)
+    if (diagnosticResultTimerRef.current) clearTimeout(diagnosticResultTimerRef.current)
+    diagnosticResultTimerRef.current = setTimeout(() => {
+      diagnosticResultTimerRef.current = null
+      setDiagnosticResult(logs)
+    }, DIALOG_UNMOUNT_DELAY_MS)
+  }
+
+  const openDiagnosticsFromError = () => {
+    if (window.getSelection()?.toString().trim()) return
+    setDiagnosticExportOpen(true)
+  }
+
+  const copyMigrationWarnings = async (warnings: string[]) => {
+    try {
+      await navigator.clipboard.writeText(warnings.map((warning, index) => `${index + 1}. ${warning}`).join('\n'))
+      showSuccessToast(t('migration.completed.warning_copy_success'))
+    } catch (error) {
+      logger.error('Failed to copy migration warnings', error as Error)
+      showErrorToast(t('migration.completed.warning_copy_failed'))
+    }
+  }
+
+  // On success main restarts the app, so there is no resolve path to handle here.
+  const handleSkipConfirm = async () => {
+    try {
+      await actions.skipMigration()
+    } catch (error) {
+      logger.error('Failed to skip migration', error as Error)
+      setSkipOpen(false)
+      showErrorToast(t('migration.skip_dialog.failed'))
+    }
+  }
+
   const progressMessage = useMemo(() => {
     if (progress.i18nMessage) {
       return t(progress.i18nMessage.key, progress.i18nMessage.params)
@@ -387,18 +558,6 @@ const MigrationApp: React.FC = () => {
   }, [progress, t])
 
   const stage = localMigrationError ? 'error' : progress.stage
-
-  // Offer the v1 download when a retried run lands back on the error stage. Keyed on *entering*
-  // the stage so clicking Retry — which sets hasRetried while the error screen is still up —
-  // does not pop it open, and a dismissal stays dismissed until the next failure.
-  const previousStageRef = useRef(stage)
-  useEffect(() => {
-    const enteredError = previousStageRef.current !== 'error' && stage === 'error'
-    previousStageRef.current = stage
-    if (enteredError && hasRetried) {
-      setV1DialogOpen(true)
-    }
-  }, [stage, hasRetried])
 
   const showRail = stage !== 'version_incompatible'
 
@@ -414,7 +573,7 @@ const MigrationApp: React.FC = () => {
               <h1 className="font-semibold text-2xl text-foreground tracking-tight">
                 {t('migration.introduction.title')}
               </h1>
-              <p className="mt-2 text-foreground-muted text-sm">{t('migration.introduction.subtitle')}</p>
+              <p className="mt-2 text-muted-foreground text-sm">{t('migration.introduction.subtitle')}</p>
             </TopContent>
 
             <div className="space-y-2.5">
@@ -438,12 +597,12 @@ const MigrationApp: React.FC = () => {
                 <div
                   key={index}
                   className="flex items-start gap-3 rounded-xl border border-border bg-muted/15 px-4 py-3.5">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40 text-foreground-secondary">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-border bg-muted/40 text-muted-foreground">
                     {feature.icon}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-foreground text-sm">{feature.title}</p>
-                    <p className="mt-0.5 text-foreground-muted text-xs leading-relaxed">{feature.description}</p>
+                    <p className="mt-0.5 text-muted-foreground text-xs leading-relaxed">{feature.description}</p>
                   </div>
                 </div>
               ))}
@@ -460,7 +619,7 @@ const MigrationApp: React.FC = () => {
                 <ArrowRight size={14} />
               </Button>
               {progress.dataLocation && (
-                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/15 px-3 py-2 text-foreground-muted text-xs">
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/15 px-3 py-2 text-foreground-tertiary text-xs">
                   <FolderOpen size={14} className="shrink-0" />
                   <span className="min-w-0 flex-1 break-all">
                     {t('migration.introduction.data_location', { path: progress.dataLocation })}
@@ -479,16 +638,16 @@ const MigrationApp: React.FC = () => {
                 <Loader2 size={26} strokeWidth={1.5} className="animate-spin" />
               </StageBadge>
               <h2 className="font-semibold text-foreground text-lg tracking-tight">{t('migration.migration.title')}</h2>
-              <p className="mt-1.5 text-foreground-muted text-sm">{progressMessage}</p>
+              <p className="mt-1.5 text-muted-foreground text-sm">{progressMessage}</p>
             </TopContent>
             <div>
-              <div className="mb-2 flex items-center justify-between text-foreground-muted text-xs">
+              <div className="mb-2 flex items-center justify-between text-foreground-tertiary text-xs">
                 <span className="tabular-nums">{Math.round(progress.overallProgress)}%</span>
               </div>
               <ProgressBar value={progress.overallProgress} />
             </div>
             <MigratorProgressList migrators={progress.migrators} />
-            <p className="pt-0.5 text-center text-foreground-muted text-xs">{t('migration.migration.do_not_close')}</p>
+            <p className="pt-0.5 text-center text-muted-foreground text-xs">{t('migration.migration.do_not_close')}</p>
           </div>
         )
 
@@ -505,7 +664,7 @@ const MigrationApp: React.FC = () => {
               <h2 className="font-semibold text-2xl text-foreground tracking-tight">
                 {t('migration.completed.title')}
               </h2>
-              <p className="mt-2.5 text-foreground-muted text-sm leading-relaxed">
+              <p className="mt-2.5 text-muted-foreground text-sm leading-relaxed">
                 {t('migration.completed.description')}
               </p>
             </TopContent>
@@ -516,17 +675,17 @@ const MigrationApp: React.FC = () => {
                   <span className="font-semibold text-2xl text-foreground tabular-nums">
                     {summary.completedMigrators}/{summary.totalMigrators}
                   </span>
-                  <span className="text-foreground-muted text-xs">{t('migration.completed.steps_label')}</span>
+                  <span className="text-foreground-tertiary text-xs">{t('migration.completed.steps_label')}</span>
                 </Stat>
                 <Stat>
                   <span className="font-semibold text-2xl text-foreground tabular-nums">{summary.itemsProcessed}</span>
-                  <span className="text-foreground-muted text-xs">{t('migration.completed.items_label')}</span>
+                  <span className="text-foreground-tertiary text-xs">{t('migration.completed.items_label')}</span>
                 </Stat>
                 <Stat>
                   <span className="font-semibold text-2xl text-foreground tabular-nums">
                     {formatDuration(summary.durationMs)}
                   </span>
-                  <span className="text-foreground-muted text-xs">{t('migration.completed.duration_label')}</span>
+                  <span className="text-foreground-tertiary text-xs">{t('migration.completed.duration_label')}</span>
                 </Stat>
               </div>
             )}
@@ -537,23 +696,44 @@ const MigrationApp: React.FC = () => {
             </Button>
 
             {warnings.length > 0 && (
-              <Accordion type="single" collapsible className="rounded-xl border border-warning bg-warning-bg px-4">
-                <AccordionItem value="migration-warnings" className="border-0 first:border-t-0">
-                  <AccordionTrigger className="py-3 font-medium text-sm text-warning hover:no-underline">
-                    {t('migration.completed.warning_heading', { count: warnings.length })}
-                  </AccordionTrigger>
-                  <AccordionContent className="pt-0 pb-3" contentClassName="text-foreground-secondary">
-                    <p className="text-xs leading-relaxed">{t('migration.completed.warning_description')}</p>
-                    <ul className="mt-2 max-h-40 list-disc space-y-1 overflow-y-auto pl-5 text-xs leading-relaxed">
+              <Dialog open={warningsDialogOpen} onOpenChange={setWarningsDialogOpen}>
+                <div className="flex justify-center" data-migration-warning-trigger="">
+                  <DialogTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="sm"
+                      className="h-auto w-fit gap-2 px-0 py-0 text-warning hover:text-warning">
+                      <AlertTriangle size={14} className="shrink-0" />
+                      {t('migration.completed.warning_heading', { count: warnings.length })}
+                    </Button>
+                  </DialogTrigger>
+                </div>
+                <DialogContent size="lg" className="max-h-[calc(100vh-2rem)] overflow-hidden">
+                  <DialogHeader>
+                    <DialogTitle>{t('migration.completed.warning_heading', { count: warnings.length })}</DialogTitle>
+                    <DialogDescription>{t('migration.completed.warning_description')}</DialogDescription>
+                  </DialogHeader>
+                  <Scrollbar className="max-h-[50vh]">
+                    <ul className="text-foreground text-sm leading-relaxed">
                       {warnings.map((warning, index) => (
                         <li key={index} className="wrap-break-words">
                           {warning}
                         </li>
                       ))}
                     </ul>
-                  </AccordionContent>
-                </AccordionItem>
-              </Accordion>
+                  </Scrollbar>
+                  <Button
+                    type="button"
+                    variant="emphasis"
+                    size="lg"
+                    className="w-full gap-2"
+                    onClick={() => void copyMigrationWarnings(warnings)}>
+                    <Copy size={14} />
+                    {t('migration.completed.warning_copy')}
+                  </Button>
+                </DialogContent>
+              </Dialog>
             )}
           </div>
         )
@@ -561,38 +741,52 @@ const MigrationApp: React.FC = () => {
 
       case 'error':
         return (
-          <div className="space-y-5">
+          <div className="space-y-4">
             <TopContent>
               <StageBadge tone="destructive">
                 <AlertTriangle size={26} strokeWidth={1.5} />
               </StageBadge>
               <h2 className="font-semibold text-foreground text-lg tracking-tight">{t('migration.error.title')}</h2>
-              <p className="mt-1.5 text-foreground-muted text-sm leading-relaxed">{t('migration.error.description')}</p>
+              <p className="mt-1.5 text-muted-foreground text-sm leading-relaxed">{t('migration.error.description')}</p>
             </TopContent>
-            <div className="rounded-xl border border-error-border bg-error-bg px-4 py-3">
-              <p className="wrap-break-words text-error-text text-xs leading-relaxed">
+            <div
+              role="button"
+              tabIndex={0}
+              aria-label={t('migration.diagnostics.open_from_error')}
+              data-migration-error-details=""
+              className="cursor-pointer rounded-lg border border-error-border bg-error-subtle px-3.5 py-3 transition-colors hover:border-error focus-visible:border-ring focus-visible:outline-none"
+              onClick={openDiagnosticsFromError}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  setDiagnosticExportOpen(true)
+                }
+              }}>
+              <p className="wrap-break-words select-text text-error-subtle-foreground text-xs leading-5">
                 {t('migration.error.error_prefix')}
                 {localMigrationError || lastError || progress.error || t('migration.error.unknown')}
               </p>
             </div>
-            <MigrationDiagnosticPanel />
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="lg" onClick={() => actions.cancel()}>
-                {t('migration.buttons.close')}
-              </Button>
-              <Button
-                variant="default"
-                size="lg"
-                className="flex-1 gap-2"
-                onClick={() => {
-                  setHasRetried(true)
-                  setLocalMigrationError(null)
-                  void actions.retry()
-                }}>
-                <RotateCcw size={14} />
-                {t('migration.buttons.retry')}
-              </Button>
-            </div>
+            <Button
+              variant="default"
+              size="lg"
+              className="w-full gap-2"
+              onClick={() => {
+                setLocalMigrationError(null)
+                void actions.retry()
+              }}>
+              <RotateCcw size={14} />
+              {t('migration.buttons.retry')}
+            </Button>
+            <MigrationOptionsDialog
+              open={moreOptionsOpen}
+              onOpenChange={setMoreOptionsOpen}
+              onSkipMigration={() => setSkipOpen(true)}
+              onContinueV1={() => setV1DialogOpen(true)}
+              onCloseApp={() => actions.cancel()}
+              onExportDiagnostics={() => setDiagnosticExportOpen(true)}
+              showLabel
+            />
           </div>
         )
 
@@ -607,7 +801,7 @@ const MigrationApp: React.FC = () => {
                 {t('migration.version_incompatible.title')}
               </h2>
             </div>
-            <div className="space-y-3 rounded-xl border border-border bg-muted/10 px-4 py-3 text-foreground-secondary text-sm leading-relaxed">
+            <div className="space-y-3 rounded-xl border border-border bg-muted/10 px-4 py-3 text-muted-foreground text-sm leading-relaxed">
               <p>{t('migration.version_incompatible.preamble')}</p>
               <p>{progressMessage}</p>
               <p>{t('migration.version_incompatible.ignore_hint')}</p>
@@ -643,7 +837,7 @@ const MigrationApp: React.FC = () => {
               <SelectTrigger
                 aria-label={t('migration.language.select')}
                 size="sm"
-                className="h-7 w-auto gap-1.5 border-0 bg-transparent px-1.5 text-foreground-muted text-xs shadow-none hover:bg-transparent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
+                className="h-7 w-auto gap-1.5 border-0 bg-transparent px-1.5 text-muted-foreground text-xs shadow-none hover:bg-transparent hover:text-foreground focus-visible:bg-transparent focus-visible:text-foreground aria-expanded:border-transparent aria-expanded:ring-0 dark:bg-transparent [&_svg]:size-3.5 [&_svg]:opacity-60">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -657,7 +851,7 @@ const MigrationApp: React.FC = () => {
                 size="icon-sm"
                 aria-label={t(themeLabelKey[themeMode] ?? themeLabelKey.system)}
                 onClick={toggleTheme}
-                className="text-foreground-muted hover:bg-muted/40 hover:text-foreground">
+                className="text-muted-foreground hover:bg-muted/40 hover:text-foreground">
                 <ThemeIcon className="size-3.5" strokeWidth={1.6} />
               </Button>
             </Tooltip>
@@ -665,8 +859,8 @@ const MigrationApp: React.FC = () => {
           <div className="flex items-center gap-2">
             <img src={AppLogo} alt="Cherry Studio" className="h-4.5 w-4.5 rounded-full object-cover" />
             <span className="font-medium text-foreground text-sm">Cherry Studio</span>
-            <span className="text-foreground-muted">·</span>
-            <span className="text-foreground-muted text-xs">{t('migration.title')}</span>
+            <span className="text-foreground-tertiary">·</span>
+            <span className="text-foreground-tertiary text-xs">{t('migration.title')}</span>
           </div>
           <MigrationWindowControls />
         </header>
@@ -678,11 +872,11 @@ const MigrationApp: React.FC = () => {
               'relative min-w-0 flex-1 overflow-y-auto',
               progress.stage === 'completed' && 'overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
             )}>
-            {progress.stage === 'introduction' && (
+            {stage === 'introduction' && (
               <div className="absolute top-2 right-3 z-10">
-                <MigrationToolsMenu
-                  open={skipMenuOpen}
-                  onOpenChange={setSkipMenuOpen}
+                <MigrationOptionsDialog
+                  open={moreOptionsOpen}
+                  onOpenChange={setMoreOptionsOpen}
                   onSkipMigration={() => setSkipOpen(true)}
                   disabled={isLoading}
                 />
@@ -692,12 +886,36 @@ const MigrationApp: React.FC = () => {
           </main>
         </div>
 
-        <SkipMigrationDialog open={skipOpen} onOpenChange={setSkipOpen} onConfirm={() => actions.skipMigration()} />
+        <SkipMigrationDialog open={skipOpen} onOpenChange={setSkipOpen} onConfirm={() => void handleSkipConfirm()} />
         <V1DownloadDialog
           open={v1DialogOpen}
           onOpenChange={setV1DialogOpen}
           onDownload={() => void openDownloadPage()}
         />
+        <Dialog open={diagnosticExportOpen} onOpenChange={setDiagnosticExportOpen}>
+          <DialogContent size="default">
+            <DialogHeader>
+              <DialogTitle>{t('migration.diagnostics.title')}</DialogTitle>
+              <DialogDescription>{t('migration.diagnostics.export_description')}</DialogDescription>
+            </DialogHeader>
+            <MigrationDiagnosticPanel embedded showPrivacy={false} onSaved={handleDiagnosticSaved} />
+          </DialogContent>
+        </Dialog>
+        {diagnosticResult && (
+          <Dialog
+            open
+            onOpenChange={(open) => {
+              if (!open) setDiagnosticResult(null)
+            }}>
+            <DialogContent size="sm">
+              <DialogHeader>
+                <DialogTitle>{t('migration.diagnostics.saved_title')}</DialogTitle>
+                <DialogDescription className="sr-only">{t('migration.diagnostics.saved_local')}</DialogDescription>
+              </DialogHeader>
+              <MigrationDiagnosticPanel embedded savedLogs={diagnosticResult} showPrivacy={false} />
+            </DialogContent>
+          </Dialog>
+        )}
         <CloseMigrationDialog
           open={closeConfirmOpen}
           onOpenChange={(open) => {

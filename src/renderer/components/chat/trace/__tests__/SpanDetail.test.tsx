@@ -136,7 +136,6 @@ describe('SpanDetail copy', () => {
       <SpanDetail node={node({ attributes: { inputs: '{"query":"hello"}', outputs: 'done' } })} onShowList={vi.fn()} />
     )
 
-    expect(screen.getByTestId('code-viewer')).toHaveClass('selectable')
     expect(screen.getByTestId('code-viewer').textContent).toBe('{\n  "query": "hello"\n}')
 
     await user.click(screen.getByRole('button', { name: 'common.copy' }))
@@ -144,18 +143,6 @@ describe('SpanDetail copy', () => {
     expect(mocks.writeText).toHaveBeenCalledWith('{\n  "query": "hello"\n}')
     expect(document.querySelector('.lucide-check')).toBeInTheDocument()
     expect(toast.success).not.toHaveBeenCalled()
-  })
-
-  it('keeps the copy utility muted until copying succeeds', async () => {
-    const user = setupUser()
-    render(<SpanDetail node={node()} onShowList={vi.fn()} />)
-
-    const copyButton = screen.getByRole('button', { name: 'common.copy' })
-    expect(copyButton).toHaveClass('text-muted-foreground', 'hover:text-foreground')
-
-    await user.click(copyButton)
-
-    expect(copyButton).toHaveClass('text-success', 'hover:text-success')
   })
 
   it('copies output, HTTP header, and raw content from the active tab without sharing success state', async () => {

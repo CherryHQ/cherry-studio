@@ -608,7 +608,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         // A resolved embedding model whose per-base legacy vector store is missing/empty/locked
         // yields dimensions===null. We must NOT drop the base (that loses the library with no
         // recoverable row): keep it as a `failed` row, like the dangling-model branch below, so
-        // the name/model/config/idle items survive and the UI offers a restore/re-index entry.
+        // the name/model/config/unindexed items survive and the UI offers a restore/re-index entry.
         // `vectorsWillMigrate` also gates directory expansion: a base whose vectors will not
         // migrate must not expand folders into `completed` children that would be empty shells.
         const vectorStoreUnresolved = embeddingResolution.kind === 'resolved' && resolvedDimensions.dimensions === null

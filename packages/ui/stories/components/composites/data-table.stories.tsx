@@ -49,7 +49,7 @@ const columnsWithActions: ColumnDef<Task>[] = [
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="text-foreground-muted hover:bg-accent/70 hover:text-foreground"
+          className="text-foreground-tertiary hover:bg-accent/70 hover:text-foreground"
           aria-label={`Edit ${row.original.name}`}>
           <Pencil className="size-4" />
         </Button>

@@ -39,6 +39,9 @@ const locales = Object.fromEntries(
   ].map(([locale, translation]) => [locale, { translation }])
 )
 
+/** Every language main carries a catalog for — the source of truth other modules should key off of. */
+export const SUPPORTED_LANGUAGES = Object.keys(locales) as LanguageVarious[]
+
 export const getAppLanguage = (): LanguageVarious => {
   const language = application.get('PreferenceService').get('app.language')
   const appLocale = app.getLocale()
@@ -50,8 +53,7 @@ export const getAppLanguage = (): LanguageVarious => {
   return (Object.keys(locales).includes(appLocale) ? appLocale : defaultLanguage) as LanguageVarious
 }
 
-export const getI18n = (): Record<string, any> => {
-  const language = getAppLanguage()
+export const getI18n = (language: LanguageVarious = getAppLanguage()): Record<string, any> => {
   return locales[language]
 }
 
@@ -59,12 +61,17 @@ export const getI18n = (): Record<string, any> => {
  * Get translation by key path (e.g., 'dialog.save_file')
  * This is a simplified version for main process, similar to i18next's t() function.
  *
- * Resolution order: the current app language, then the en-US catalog, then the key
- * itself. Supports i18next-style `{{var}}` interpolation: pass `params` and any
- * `{{name}}` placeholder in the resolved string is replaced with `params.name`.
- * Placeholders without a matching param are left intact.
+ * Resolution order: `language` (defaults to the current app language), then the
+ * en-US catalog, then the key itself. Supports i18next-style `{{var}}`
+ * interpolation: pass `params` and any `{{name}}` placeholder in the resolved
+ * string is replaced with `params.name`. Placeholders without a matching param
+ * are left intact.
+ *
+ * The optional `language` override lets a caller resolve a string in a language
+ * other than the app's current one — e.g. the API gateway's OpenAPI docs render
+ * one translation per requested language, independent of `app.language`.
  */
-export const t = (key: string, params?: Record<string, string | number>): string => {
+export const t = (key: string, params?: Record<string, string | number>, language?: LanguageVarious): string => {
   const resolve = (translation: any): string | undefined => {
     let result: any = translation
     for (const k of key.split('.')) {
@@ -76,7 +83,7 @@ export const t = (key: string, params?: Record<string, string | number>): string
     return typeof result === 'string' ? result : undefined
   }
 
-  const value = resolve(getI18n().translation) ?? resolve(locales[defaultLanguage].translation)
+  const value = resolve(getI18n(language).translation) ?? resolve(locales[defaultLanguage].translation)
   if (value === undefined) {
     return key
   }

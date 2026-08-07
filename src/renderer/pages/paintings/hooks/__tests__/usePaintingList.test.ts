@@ -43,8 +43,7 @@ function renderList(input: Partial<Parameters<typeof usePaintingList>[0]>) {
     usePaintingList({
       painting: makePainting({ id: 'current', persistedAt: '2026-01-01T00:00:00.000Z' }),
       setCurrentPainting,
-      currentProviderId: 'silicon',
-      modelOptions: [],
+      draftDefaults: { providerId: 'silicon' },
       historyItems: [],
       cancelGeneration,
       ...input
@@ -73,6 +72,20 @@ describe('usePaintingList', () => {
     // The whole point of the fix: a blank draft must NOT hit the DB / strip on click.
     expect(draft.persistedAt).toBeUndefined()
     expect(createPainting).not.toHaveBeenCalled()
+  })
+
+  it('add() uses the configured default model for a new draft', () => {
+    const { result, setCurrentPainting } = renderList({
+      draftDefaults: { providerId: 'openai', modelId: 'dall-e-3' }
+    })
+
+    act(() => {
+      result.current.add()
+    })
+
+    expect(setCurrentPainting).toHaveBeenCalledWith(
+      expect.objectContaining({ providerId: 'openai', model: 'dall-e-3' })
+    )
   })
 
   it('remove() deletes the record then refreshes the strip', async () => {

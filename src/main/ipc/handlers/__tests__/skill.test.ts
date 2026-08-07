@@ -7,7 +7,8 @@ const {
   installFromDirectoryMock,
   listLocalMock,
   discoverSystemMock,
-  importSystemMock
+  importSystemMock,
+  reconcileMock
 } = vi.hoisted(() => ({
   installMock: vi.fn(),
   uninstallMock: vi.fn(),
@@ -15,7 +16,8 @@ const {
   installFromDirectoryMock: vi.fn(),
   listLocalMock: vi.fn(),
   discoverSystemMock: vi.fn(),
-  importSystemMock: vi.fn()
+  importSystemMock: vi.fn(),
+  reconcileMock: vi.fn()
 }))
 
 vi.mock('@main/ai/skills/SkillService', () => ({
@@ -26,7 +28,8 @@ vi.mock('@main/ai/skills/SkillService', () => ({
     installFromDirectory: installFromDirectoryMock,
     listLocal: listLocalMock,
     discoverSystem: discoverSystemMock,
-    importSystem: importSystemMock
+    importSystem: importSystemMock,
+    reconcileSkills: reconcileMock
   }
 }))
 
@@ -96,6 +99,13 @@ describe('skillHandlers', () => {
 
     expect(discoverSystemMock).toHaveBeenCalledWith()
     expect(importSystemMock).toHaveBeenCalledWith({ directoryPath: '/skill' })
+  })
+
+  it('reconcile delegates to SkillService.reconcileSkills with the native IpcApi contract', async () => {
+    reconcileMock.mockResolvedValue(undefined)
+
+    await expect(skillHandlers['skill.reconcile']({}, ctx)).resolves.toBeUndefined()
+    expect(reconcileMock).toHaveBeenCalledWith()
   })
 
   it('import_system lets errors propagate to IpcApi', async () => {

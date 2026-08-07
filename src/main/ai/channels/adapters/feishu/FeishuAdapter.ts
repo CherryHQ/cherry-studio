@@ -470,21 +470,25 @@ class FeishuAdapter extends ChannelAdapter {
         this.appId = result.appId
         this.appSecret = result.appSecret
 
-        this.sendQrToRenderer('', 'confirmed', result.appId, result.appSecret)
+        // Persist first so the renderer can refetch the credentials as soon as
+        // it receives the confirmation event.
         this.emit('credentials', { appId: result.appId, appSecret: result.appSecret })
+        this.sendQrToRenderer('', 'confirmed', result.appId, result.appSecret)
         this.log.info('Feishu app registration completed')
       })
       .catch((error) => {
         if (signal.aborted) return
 
-        this.sendQrToRenderer('', 'expired')
-        this.log.warn(`Registration failed: ${error instanceof Error ? error.message : String(error)}`)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        const isExpired = /expired|timed out/i.test(errorMessage)
+        this.sendQrToRenderer('', isExpired ? 'expired' : 'error')
+        this.log.warn(`Registration failed: ${errorMessage}`)
       })
   }
 
   private sendQrToRenderer(
     url: string,
-    status: 'pending' | 'confirmed' | 'expired' | 'disconnected',
+    status: 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error',
     appId?: string,
     appSecret?: string
   ): void {

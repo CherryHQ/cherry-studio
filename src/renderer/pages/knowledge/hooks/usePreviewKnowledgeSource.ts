@@ -62,7 +62,7 @@ export const usePreviewKnowledgeSource = (
           return
         }
 
-        if (item.type === 'url' || item.type === 'note') {
+        if (item.type === 'url') {
           const previewUrl = sanitizeHttpUrl(source)
           if (!previewUrl) {
             toast.warning(t('knowledge.data_source.preview.unavailable'))

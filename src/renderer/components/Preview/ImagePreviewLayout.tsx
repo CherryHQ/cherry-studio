@@ -17,7 +17,7 @@ interface ImagePreviewLayoutProps {
   className?: string
 }
 
-const IMAGE_PREVIEW_LOADING_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const IMAGE_PREVIEW_LOADING_COLOR = 'var(--muted-foreground)'
 
 const ImagePreviewLayout = ({
   children,

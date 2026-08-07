@@ -172,6 +172,21 @@ describe('toolResponse adapter', () => {
     expect(response?.tool.name).toBe('CustomTool')
   })
 
+  it('marks provider-executed Responses tools as provider tools', () => {
+    const part = {
+      type: 'tool-webSearch',
+      toolCallId: 'provider-search',
+      state: 'output-available',
+      input: {},
+      output: { action: { type: 'search' } },
+      providerExecuted: true
+    } as unknown as CherryMessagePart
+
+    const response = buildToolResponseFromPart(part)
+    expect(response?.tool.type).toBe('provider')
+    expect(response?.tool.name).toBe('webSearch')
+  })
+
   it('keeps migrated agent dynamic-tool calls without metadata on the provider renderer path', () => {
     const part = {
       type: 'dynamic-tool',

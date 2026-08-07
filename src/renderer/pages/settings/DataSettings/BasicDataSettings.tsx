@@ -21,10 +21,9 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import BackupPopup from './BackupPopup'
-import { BackupUnavailableGate } from './BackupUnavailableGate'
 import RestorePopup from './RestorePopup'
 
-const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
+const DATA_SETTINGS_SUBTLE_TEXT_COLOR = 'var(--foreground-tertiary)'
 
 const BasicDataSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -213,38 +212,32 @@ const BasicDataSettings: React.FC = () => {
     }
   }
 
-  const onSkipBackupFilesChange = (value: boolean) => {
-    void setSkipBackupFile(value)
-  }
-
   return (
     <>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.title')}</SettingTitle>
         <SettingDivider />
-        <BackupUnavailableGate>
-          <SettingRow>
-            <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-            <RowFlex className="justify-between gap-1.25">
-              <Button onClick={() => BackupPopup.show()} variant="outline">
-                <SaveIcon size={14} />
-                {t('settings.general.backup.button')}
-              </Button>
-              <Button onClick={() => RestorePopup.show()} variant="outline">
-                <FolderOpen size={14} />
-                {t('settings.general.restore.button')}
-              </Button>
-            </RowFlex>
-          </SettingRow>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-            <Switch checked={skipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
-          </SettingRow>
-          <SettingRow>
-            <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-          </SettingRow>
-        </BackupUnavailableGate>
+        <SettingRow>
+          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+          <RowFlex className="justify-between gap-1.25">
+            <Button onClick={() => BackupPopup.show()} variant="outline">
+              <SaveIcon size={14} />
+              {t('settings.general.backup.button')}
+            </Button>
+            <Button onClick={() => RestorePopup.show()} variant="outline">
+              <FolderOpen size={14} />
+              {t('settings.general.restore.button')}
+            </Button>
+          </RowFlex>
+        </SettingRow>
+        <SettingDivider />
+        <SettingRow>
+          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+          <Switch checked={skipBackupFile} onCheckedChange={(value) => void setSkipBackupFile(value)} />
+        </SettingRow>
+        <SettingRow>
+          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+        </SettingRow>
       </SettingGroup>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.data.data.title')}</SettingTitle>
@@ -324,7 +317,7 @@ const BasicDataSettings: React.FC = () => {
 
 const CacheText = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
   <span
-    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-muted text-xs leading-4', className)}
+    className={cn('ml-1.25 inline-block text-left align-middle text-foreground-tertiary text-xs leading-4', className)}
     {...props}
   />
 )
@@ -359,7 +352,7 @@ const MigrationPathLabel = ({ className, ...props }: React.ComponentPropsWithout
 const MigrationPathValue = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn(
-      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-foreground-secondary text-sm',
+      'break-all rounded border border-border bg-background-subtle px-3 py-2 text-muted-foreground text-sm',
       className
     )}
     {...props}

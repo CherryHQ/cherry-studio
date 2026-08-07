@@ -1,6 +1,7 @@
 import { CHERRYAI_DEFAULT_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import {
+  deriveModelGroupName,
   isAudioModel,
   isEmbeddingModel,
   isFunctionCallingModel,
@@ -12,8 +13,7 @@ import {
   isSpeechToTextModel,
   isTextToSpeechModel,
   isVideoModel,
-  isVisionModel,
-  isWebSearchModel
+  isVisionModel
 } from '@shared/utils/model'
 import { describe, expect, it } from 'vitest'
 
@@ -29,18 +29,29 @@ const createModel = (capabilities: Model['capabilities'] = []): Model => ({
 })
 
 describe('shared model capability helpers', () => {
+  describe('deriveModelGroupName', () => {
+    it.each([
+      ['openai/gpt-4o', 'openai'],
+      ['deepseek-v4-pro', 'deepseek'],
+      ['gpt-5.6-sol', 'gpt'],
+      ['codex-auto-review', 'codex'],
+      ['hy3', undefined],
+      ['  ', undefined]
+    ])('derives %s as %s', (modelId, expected) => {
+      expect(deriveModelGroupName(modelId)).toBe(expected)
+    })
+  })
+
   it('reads capability state from v2 Model.capabilities', () => {
     const model = createModel([
       MODEL_CAPABILITY.REASONING,
       MODEL_CAPABILITY.FUNCTION_CALL,
-      MODEL_CAPABILITY.IMAGE_RECOGNITION,
-      MODEL_CAPABILITY.WEB_SEARCH
+      MODEL_CAPABILITY.IMAGE_RECOGNITION
     ])
 
     expect(isReasoningModel(model)).toBe(true)
     expect(isFunctionCallingModel(model)).toBe(true)
     expect(isVisionModel(model)).toBe(true)
-    expect(isWebSearchModel(model)).toBe(true)
   })
 
   it('does not infer capabilities from model id or name at runtime', () => {
@@ -54,7 +65,6 @@ describe('shared model capability helpers', () => {
     expect(isReasoningModel(model)).toBe(false)
     expect(isFunctionCallingModel(model)).toBe(false)
     expect(isVisionModel(model)).toBe(false)
-    expect(isWebSearchModel(model)).toBe(false)
   })
 
   it('keeps embedding, rerank, and image generation as explicit capability checks', () => {

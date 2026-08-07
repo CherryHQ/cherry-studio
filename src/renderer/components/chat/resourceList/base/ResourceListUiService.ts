@@ -15,6 +15,8 @@ export type ResourceListGroupStateSnapshot = {
   collapsed: boolean
   hasMore: boolean
   selected: boolean
+  /** The selected item is one of the rows this group currently renders (not collapsed away or trimmed by show-more). */
+  selectedVisible: boolean
   visibleCount: number
 }
 
@@ -28,8 +30,9 @@ type ResourceListUiStoreState = {
 
 export type ResourceListListboxStateSnapshot = Pick<ResourceListUiStoreState, 'activeId' | 'selectedId'>
 
-type ResourceListGroupRecord = Omit<ResourceListGroupStateSnapshot, 'selected'> & {
+type ResourceListGroupRecord = Omit<ResourceListGroupStateSnapshot, 'selected' | 'selectedVisible'> & {
   itemIds: Set<string>
+  visibleItemIds: Set<string>
 }
 
 const EMPTY_ROW_STATE: ResourceListRowStateSnapshot = Object.freeze({
@@ -45,6 +48,7 @@ const EMPTY_GROUP_STATE: ResourceListGroupStateSnapshot = Object.freeze({
   collapsed: false,
   hasMore: false,
   selected: false,
+  selectedVisible: false,
   visibleCount: 0
 })
 
@@ -64,6 +68,7 @@ function sameGroupState(a: ResourceListGroupStateSnapshot, b: ResourceListGroupS
     a.collapsed === b.collapsed &&
     a.hasMore === b.hasMore &&
     a.selected === b.selected &&
+    a.selectedVisible === b.selectedVisible &&
     a.visibleCount === b.visibleCount
   )
 }
@@ -125,6 +130,7 @@ export class ResourceListUiService {
       collapsed: record.collapsed,
       hasMore: record.hasMore,
       selected: this.state.selectedId !== null && record.itemIds.has(this.state.selectedId),
+      selectedVisible: this.state.selectedId !== null && record.visibleItemIds.has(this.state.selectedId),
       visibleCount: record.visibleCount
     }
     const previous = this.groupCache.get(groupId)
@@ -238,12 +244,14 @@ export class ResourceListUiService {
         itemIds.add(itemId)
         nextItemGroupIds.set(itemId, viewGroup.group.id)
       }
+      const visibleItemIds = new Set(viewGroup.items.map(getItemId))
 
       const nextRecord: ResourceListGroupRecord = {
         canCollapseToDefault: viewGroup.canCollapseToDefault,
         collapsed: viewGroup.collapsed,
         hasMore: viewGroup.hasMore,
         itemIds,
+        visibleItemIds,
         visibleCount: viewGroup.visibleCount
       }
       const previousSnapshot = this.getGroupSnapshot(viewGroup.group.id)

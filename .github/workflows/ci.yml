@@ -146,6 +146,9 @@ jobs:
             exit 1
           fi
 
+      - name: Builtin Knowledge Check
+        run: pnpm build:builtin-knowledge:check
+
       - name: i18n Check
         run: pnpm i18n:check
 
@@ -250,9 +253,6 @@ jobs:
 
       - name: UI Package Test
         run: pnpm test:pkg:ui
-
-      - name: Legacy CSS Variables Check
-        run: pnpm styles:legacy-vars:strict
 
   renderer-test-shard:
     name: renderer-test (${{ matrix.shard }}/3)

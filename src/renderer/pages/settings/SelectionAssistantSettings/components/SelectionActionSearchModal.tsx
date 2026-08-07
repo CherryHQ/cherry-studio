@@ -30,7 +30,7 @@ import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('SelectionActionSearchModal')
-const SEARCH_ENGINE_ICON_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const SEARCH_ENGINE_ICON_COLOR = 'var(--muted-foreground)'
 
 interface SearchEngineOption {
   label: string

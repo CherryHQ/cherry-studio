@@ -31,6 +31,7 @@ const logger = loggerService.withContext('QuickPhrasesButton')
 const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isManageModalOpen, setIsManageModalOpen] = useState(false)
+  const [promptsEnabled, setPromptsEnabled] = useState(false)
   const restoreInputFocusRef = useRef<(() => void) | null>(null)
   const { t } = useTranslation()
   const {
@@ -41,7 +42,11 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   } = useQuickPanel()
   const { setTimeoutTimer } = useTimer()
 
-  const { data: promptsRaw, isLoading: isPromptsLoading, error: promptsError } = useQuery('/prompts')
+  const {
+    data: promptsRaw,
+    isLoading: isPromptsLoading,
+    error: promptsError
+  } = useQuery('/prompts', { enabled: promptsEnabled })
 
   const { trigger: createPrompt, isLoading: isCreatingPrompt } = useMutation('POST', '/prompts', {
     refresh: ['/prompts'],
@@ -133,7 +138,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   const phraseItems = useMemo(() => {
     const newList: QuickPanelListItem[] = []
 
-    if (isPromptsLoading && promptItems.length === 0) {
+    if ((!promptsEnabled || isPromptsLoading) && promptItems.length === 0) {
       newList.push({
         label: t('common.loading'),
         icon: <Zap />,
@@ -169,7 +174,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     })
 
     return newList
-  }, [handleItemSelect, isPromptsLoading, openAddModal, openManageModal, promptItems, promptsError, t])
+  }, [handleItemSelect, isPromptsLoading, openAddModal, openManageModal, promptItems, promptsEnabled, promptsError, t])
 
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(
     () => ({
@@ -213,6 +218,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'settings.prompts.title'),
         action: ({ parentPanel, queryAnchor, triggerInfo }) => {
+          setPromptsEnabled(true)
           openQuickPanel(parentPanel, queryAnchor, triggerInfo)
         }
       }

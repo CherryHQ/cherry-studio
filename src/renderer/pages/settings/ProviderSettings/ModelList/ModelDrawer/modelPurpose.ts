@@ -62,10 +62,10 @@ function removeItem<T>(items: readonly T[] | undefined, item: T): T[] | undefine
 }
 
 export function getModelDrawerMode(provider: ModelDrawerProvider): ModelDrawerMode {
-  if (matchesPreset(provider, 'cherryin') || matchesPreset(provider, 'aionly')) {
+  if (matchesPreset(provider, 'new-api') || matchesPreset(provider, 'cherryin') || matchesPreset(provider, 'aionly')) {
     return 'endpoint-types'
   }
-  if (matchesPreset(provider, 'new-api') || (provider.presetProviderId == null && !isSystemProviderId(provider.id))) {
+  if (provider.presetProviderId == null && !isSystemProviderId(provider.id)) {
     return 'purpose'
   }
   return 'legacy'

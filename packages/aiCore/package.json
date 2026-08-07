@@ -36,7 +36,7 @@
     "ai": "^6.0.116"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.71",
+    "@ai-sdk/anthropic": "^3.0.103",
     "@ai-sdk/azure": "^3.0.54",
     "@ai-sdk/deepseek": "^2.0.30",
     "@ai-sdk/openai-compatible": "^2.0.62",
@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.2.4",
+    "@types/node": "^24.10.4",
     "@cherrystudio/ai-sdk-provider": "workspace:*",
     "oxlint": "^1.36.0",
     "tsdown": "^0.20.3",

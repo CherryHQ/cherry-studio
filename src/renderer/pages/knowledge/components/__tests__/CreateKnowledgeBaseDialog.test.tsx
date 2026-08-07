@@ -1,6 +1,7 @@
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -19,28 +20,18 @@ vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classNames: Array<string | false | null | undefined>) => classNames.filter(Boolean).join(' ')
 }))
 
-// Stubbed out because the real button probes `local_model.get_status` on mount,
-// which would show up in the ipc assertions below. Its own behavior is covered
-// by LocalEmbeddingDownloadButton.test.tsx.
-vi.mock('../LocalEmbeddingDownloadButton', () => ({
-  default: ({ onSelected }: { onSelected: (id: string) => void }) => (
-    <button type="button" onClick={() => onSelected('local-embedding::qwen3-embedding-0.6b')}>
-      local-download
-    </button>
-  )
-}))
-
-vi.mock('../KnowledgeModelSelect', () => ({
-  isEmbeddingModel: () => true,
-  KnowledgeModelSelect: ({
+vi.mock('../KnowledgeEmbeddingModelSelect', () => ({
+  KnowledgeEmbeddingModelSelect: ({
     value,
     placeholder,
+    noneOptionLabel,
     onChange,
     onSettingsNavigate,
     'aria-label': ariaLabel
   }: {
     value: string | null
     placeholder: string
+    noneOptionLabel?: string
     onChange: (modelId: string | null) => void
     onSettingsNavigate?: (navigate: () => void) => void
     'aria-label'?: string
@@ -54,6 +45,14 @@ vi.mock('../KnowledgeModelSelect', () => ({
       <button type="button" onClick={() => onSettingsNavigate?.(mockSettingsNavigate)}>
         open model settings
       </button>
+      <button type="button" onClick={() => onChange('local-embedding::qwen3-embedding-0.6b')}>
+        local-model-option
+      </button>
+      {noneOptionLabel ? (
+        <button type="button" onClick={() => onChange(null)}>
+          {noneOptionLabel}
+        </button>
+      ) : null}
     </>
   )
 }))
@@ -143,10 +142,10 @@ vi.mock('react-i18next', () => ({
           'knowledge.add.group': '分组',
           'knowledge.add.submit': '创建',
           'knowledge.embedding_model': '嵌入模型',
-          'knowledge.not_set': '未设置',
           'knowledge.name_required': '知识库名称为必填项',
           'knowledge.error.failed_to_create': '知识库创建失败',
           'knowledge.groups.default': '默认',
+          'knowledge.rag.rerank_disabled': '不使用',
           'message.error.get_embedding_dimensions': '获取嵌入维度失败'
         }) as Record<string, string>
       )[key] ?? key
@@ -225,6 +224,8 @@ describe('CreateKnowledgeBaseDialog', () => {
 
     expect(screen.getByText('嵌入模型')).toBeInTheDocument()
     expect(screen.getByLabelText('嵌入模型')).toHaveValue('')
+    expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
+    expect(screen.queryByText('未设置')).not.toBeInTheDocument()
   })
 
   it('renders all required fields and actions when a knowledge base is being created', () => {
@@ -415,7 +416,8 @@ describe('CreateKnowledgeBaseDialog', () => {
     await waitFor(() => expect(createBase).toHaveBeenCalledWith({ name: 'My Base', groupId: 'group-2' }))
   })
 
-  it('creates a BM25-only base without probing dimensions when no embedding model is picked', async () => {
+  it('creates a BM25-only base without probing dimensions after clearing a picked embedding model', async () => {
+    const user = userEvent.setup()
     const createBase = vi.fn().mockResolvedValue(createKnowledgeBase())
 
     render(
@@ -430,7 +432,9 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    fireEvent.click(screen.getByRole('button', { name: '创建' }))
+    fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
+    await user.click(screen.getByRole('button', { name: '不使用' }))
+    await user.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() => expect(createBase).toHaveBeenCalledWith({ name: 'My Base' }))
     expect(mockIpcRequest).not.toHaveBeenCalled()
@@ -469,7 +473,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     })
   })
 
-  it('offers the local embedding download only until a model is picked', () => {
+  it('keeps the local embedding entry inside the model selector', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
@@ -481,11 +485,11 @@ describe('CreateKnowledgeBaseDialog', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: 'local-download' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'local-model-option' })).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('嵌入模型'), { target: { value: 'openai::text-embedding-3-small' } })
 
-    expect(screen.queryByRole('button', { name: 'local-download' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'local-model-option' })).toBeInTheDocument()
   })
 
   it('submits the local embedding model with its fixed dimensions and no probe', async () => {
@@ -508,8 +512,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    // A finished download selects the model through the same handler as the picker.
-    fireEvent.click(screen.getByRole('button', { name: 'local-download' }))
+    fireEvent.click(screen.getByRole('button', { name: 'local-model-option' }))
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
     await waitFor(() =>

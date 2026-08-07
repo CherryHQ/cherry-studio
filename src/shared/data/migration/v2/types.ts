@@ -129,10 +129,17 @@ export interface LocalStorageRecord {
 }
 
 export interface StartMigrationPayload {
-  reduxData: Record<string, unknown>
+  reduxExportPath: string
   dexieExportPath: string
-  localStorageExportPath?: string
+  localStorageExportPath: string
 }
+
+export interface PreparedMigrationExportPaths extends StartMigrationPayload {
+  localStorageExportDirectory: string
+}
+
+/** localStorage keys that are still consumed by the v1 -> v2 migration. */
+export const MIGRATION_LOCAL_STORAGE_KEYS = ['onboarding-completed'] as const
 
 export type MigrationDiagnosticSaveResult =
   | { status: 'saved'; logs: 'included' | 'not_included' }
@@ -145,6 +152,7 @@ export interface MigrationDiagnosticSavePayload {
 }
 
 export type MigrationExportFileWriteMode = 'overwrite' | 'append'
+export type MigrationExportStage = { source: 'redux' } | { source: 'dexie'; table: string } | { source: 'localStorage' }
 
 // IPC channels for migration communication
 export const MigrationIpcChannels = {
@@ -152,11 +160,13 @@ export const MigrationIpcChannels = {
   CheckNeeded: 'migration:check-needed',
   GetProgress: 'migration:get-progress',
   GetLastError: 'migration:get-last-error',
-  GetUserDataPath: 'migration:get-user-data-path',
 
   // Flow control
   Start: 'migration:start',
+  PrepareExport: 'migration:prepare-export',
   StartMigration: 'migration:start-migration',
+  // Main-process breadcrumb for renderer export OOM diagnostics.
+  ReportExportStage: 'migration:report-export-stage',
   // Renderer-local failure mirrored to main's terminal error stage.
   ReportError: 'migration:report-error',
   Retry: 'migration:retry',

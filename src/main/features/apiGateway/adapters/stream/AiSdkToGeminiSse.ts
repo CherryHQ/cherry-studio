@@ -155,9 +155,10 @@ export class AiSdkToGeminiSse extends BaseStreamAdapter<GeminiGenerateContentRes
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
-    if (metadata.promptTokens !== undefined) this.state.inputTokens = metadata.promptTokens
-    if (metadata.completionTokens !== undefined) this.state.outputTokens = metadata.completionTokens
-    if (metadata.thoughtsTokens !== undefined) this.thoughtsTokens = metadata.thoughtsTokens
+    if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
+    if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
+    const reasoningTokens = metadata.stats?.outputTokenDetails?.reasoningTokens
+    if (reasoningTokens !== undefined) this.thoughtsTokens = reasoningTokens
   }
 
   private buildUsageMetadata(): GeminiUsageMetadata {

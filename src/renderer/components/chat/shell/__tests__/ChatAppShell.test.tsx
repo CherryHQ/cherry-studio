@@ -151,12 +151,14 @@ describe('ChatAppShell', () => {
     const navbarWrapper = screen.getByTestId('navbar').parentElement
 
     expect(chatMain).toContainElement(screen.getByTestId('navbar'))
-    expect(navbarWrapper).toHaveClass('relative', 'shrink-0', 'bg-background')
+    expect(navbarWrapper).toHaveClass('relative', 'shrink-0')
+    expect(navbarWrapper).not.toHaveClass('bg-background')
     expect(navbarWrapper).not.toHaveClass('absolute')
     expect(navbarWrapper).not.toHaveAttribute('data-chat-navbar-floating')
     expect(chatMain).not.toContainElement(screen.getByTestId('settings-panel'))
     expect(chatMain).toContainElement(screen.getByTestId('main'))
     expect(chatMain).toHaveClass('relative')
+    expect(chatMain?.getAttribute('data-ui')?.split(/\s+/)).toContain('part:conversation-main')
 
     const sidePanelHost = container.querySelector('[data-chat-side-panel-host]')
     expect(sidePanelHost).not.toBeNull()

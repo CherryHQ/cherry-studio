@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { ipcApi } from '@renderer/ipc'
+import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
@@ -31,11 +32,7 @@ export function useConversationTurnController<TInput, TConversation>({
   refreshMetadata
 }: UseConversationTurnControllerOptions<TInput, TConversation>) {
   const [phase, setPhase] = useState<ConversationTurnPhase>('draft')
-  const [localSendGeneration, setLocalSendGeneration] = useState(0)
   const scopeEpochRef = useRef(0)
-  const markLocalSendStarted = useCallback(() => {
-    setLocalSendGeneration((generation) => generation + 1)
-  }, [])
 
   useLayoutEffect(() => {
     scopeEpochRef.current += 1
@@ -62,7 +59,7 @@ export function useConversationTurnController<TInput, TConversation>({
         const ack = await ipcApi.request('ai.stream.open', buildStreamRequest(input, conversation))
 
         if (ack.mode === 'blocked') {
-          toast.error(ack.message)
+          toast.error(getStreamBlockedMessage(ack))
           if (isCurrentScope()) setPhase('ready')
           void Promise.resolve(refreshMetadata?.(conversation, ack)).catch((err) => {
             logger.warn('Failed to refresh conversation metadata after blocked turn', err as Error)
@@ -70,7 +67,6 @@ export function useConversationTurnController<TInput, TConversation>({
           return ack
         }
 
-        if (isCurrentScope()) markLocalSendStarted()
         const reservedMessages = ack.reservedMessages ?? []
         if (reservedMessages.length > 0) {
           await historyAdapter.seedReservedMessages(reservedMessages)
@@ -91,14 +87,12 @@ export function useConversationTurnController<TInput, TConversation>({
         throw err
       }
     },
-    [buildStreamRequest, ensureConversation, historyAdapter, markLocalSendStarted, refreshMetadata]
+    [buildStreamRequest, ensureConversation, historyAdapter, refreshMetadata]
   )
 
   return {
     phase,
     layout: phase === 'draft' ? ('draft' as const) : ('docked' as const),
-    localSendGeneration,
-    markLocalSendStarted,
     send
   }
 }

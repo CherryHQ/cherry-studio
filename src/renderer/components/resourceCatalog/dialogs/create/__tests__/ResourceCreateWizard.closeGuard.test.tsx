@@ -33,6 +33,9 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShared', () => ({
+  resourceDialogCloseButtonClassName: '',
+  resourceDialogHeaderClassName: '',
+  resourceDialogTitleClassName: '',
   KnowledgeBaseField: ({ disabled, onOpenKnowledgePage }: { disabled?: boolean; onOpenKnowledgePage?: () => void }) => (
     <button type="button" disabled={disabled} onClick={onOpenKnowledgePage}>
       open knowledge

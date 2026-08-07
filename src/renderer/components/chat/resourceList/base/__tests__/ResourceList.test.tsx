@@ -1,12 +1,7 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
-
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { type ReactNode, useMemo, useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-
-const animationStyles = readFileSync(join(process.cwd(), 'src/renderer/assets/styles/animation.css'), 'utf8')
 
 type VirtualizerOptionsMock = {
   count: number
@@ -138,6 +133,7 @@ import {
   useResourceListRowState
 } from '../ResourceList'
 import type { ResourceListContextValue, ResourceListItemBase } from '../ResourceListContext'
+import { RESOURCE_LIST_DEFAULT_ROW_SIZE, RESOURCE_LIST_MODULE_START_ROW_SIZE } from '../resourceListLayout'
 
 afterEach(() => {
   dndMocks.droppableData.clear()
@@ -168,6 +164,16 @@ const ITEMS: TestItem[] = [
   { id: 'beta', name: 'Beta', kind: 'session', pinned: true, updatedAt: 3 },
   { id: 'gamma', name: 'Gamma', kind: 'topic', pinned: true, updatedAt: 2 }
 ]
+
+/**
+ * On a header that switches away when clicked, the fold control is its own button beside the label,
+ * so `aria-expanded` lives there rather than on the header button carrying the group name.
+ */
+function chevronFor(groupHeaderButton: HTMLElement): HTMLElement {
+  const chevron = groupHeaderButton.parentElement?.querySelector(':scope > button[aria-expanded]')
+  if (!chevron) throw new Error('group header has no chevron button')
+  return chevron as HTMLElement
+}
 
 function Inspector() {
   const { state, view } = useResourceList<TestItem>()
@@ -227,18 +233,6 @@ describe('ResourceList', () => {
     expect(container.querySelectorAll('[data-slot="skeleton"]')).toHaveLength(19)
   })
 
-  it('uses a border-only reveal focus animation without changing row background', () => {
-    const revealFocusStart = animationStyles.indexOf('@keyframes animation-resource-list-reveal-focus')
-    const revealFocusEnd = animationStyles.indexOf('/* 流光动画 */', revealFocusStart)
-    const revealFocusStyle = animationStyles.slice(revealFocusStart, revealFocusEnd)
-
-    expect(revealFocusStart).toBeGreaterThanOrEqual(0)
-    expect(revealFocusEnd).toBeGreaterThan(revealFocusStart)
-    expect(revealFocusStyle).toContain('.animation-resource-list-reveal-focus::after')
-    expect(revealFocusStyle).toContain('box-shadow: inset')
-    expect(revealFocusStyle).not.toMatch(/\bbackground(?:-color)?\s*:/)
-  })
-
   it('renders a non-empty default error state', () => {
     const Provider = ResourceList.Provider<TestItem>
 
@@ -263,7 +257,7 @@ describe('ResourceList', () => {
     const originalOrder = ITEMS.map((item) => item.id).join(',')
     const Provider = ResourceList.Provider<TestItem>
 
-    const { container } = render(
+    render(
       <Provider
         items={ITEMS}
         defaultSortId="updated"
@@ -300,13 +294,6 @@ describe('ResourceList', () => {
     expect(screen.getByText('Beta')).toBeInTheDocument()
     expect(screen.getByText('Gamma')).toBeInTheDocument()
     expect(screen.getByText('Alpha')).toBeInTheDocument()
-    expect(container.querySelector('[data-resource-list-item-row="true"]')).toHaveClass(
-      'flex',
-      'h-[38px]',
-      'items-center',
-      'w-full',
-      'py-[2px]'
-    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Pinned' }))
     fireEvent.change(screen.getByPlaceholderText('Search resources'), { target: { value: 'ga' } })
@@ -563,7 +550,7 @@ describe('ResourceList', () => {
   })
 
   it('uses caller item size estimates while keeping group chrome at the shared row height', () => {
-    const estimateItemSize = vi.fn(() => 38)
+    const estimateItemSize = vi.fn(() => 44)
     const Provider = ResourceList.Provider<TestItem>
 
     render(
@@ -585,8 +572,9 @@ describe('ResourceList', () => {
 
     const options = lastVirtualizerOptions()
 
-    expect(options.estimateSize(0)).toBe(38)
-    expect(options.estimateSize(1)).toBe(38)
+    // index 0 is the group header (shared row height), index 1 the first item (caller's estimate)
+    expect(options.estimateSize(0)).toBe(RESOURCE_LIST_DEFAULT_ROW_SIZE)
+    expect(options.estimateSize(1)).toBe(44)
     expect(estimateItemSize).toHaveBeenCalledWith(0)
   })
 
@@ -1132,6 +1120,69 @@ describe('ResourceList', () => {
     )
   })
 
+  it('allows section drops only when the group guards explicitly opt in', () => {
+    const onReorder = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        canDragGroup={(group) => group.id.startsWith('section:')}
+        canDropGroup={({ activeGroupId, overGroupId }) =>
+          activeGroupId.startsWith('section:') && overGroupId.startsWith('section:')
+        }
+        collapsedState={['inner:topic']}
+        dragCapabilities={{ groups: true, items: false }}
+        groupBy={(item) => ({ id: `inner:${item.kind}`, label: item.kind })}
+        sectionBy={(item) => ({ id: `section:${item.kind}`, label: `${item.kind} section` })}
+        onReorder={onReorder}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualDraggableItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(dndMocks.sortableData.has('group:section:session')).toBe(true)
+    expect(dndMocks.sortableData.has('group:section:topic')).toBe(true)
+    expect(dndMocks.sortableData.has('group:inner:session')).toBe(false)
+
+    const dragEvent = {
+      active: {
+        data: sortableData('group:section:session'),
+        id: 'group:section:session',
+        rect: { current: { initial: { height: 32, width: 180 }, translated: null } }
+      },
+      over: { data: sortableData('group:section:topic'), id: 'group:section:topic' }
+    }
+    act(() => {
+      dndMocks.onDragStart?.(dragEvent)
+      dndMocks.onDragOver?.(dragEvent)
+    })
+
+    const targetGroupRow = screen
+      .getByRole('button', { name: 'topic' })
+      .closest('[class*="group/resource-list-group"]')?.parentElement
+    expect(targetGroupRow?.querySelector('[data-drop-indicator="after"]')).toBeInTheDocument()
+    expect(document.querySelectorAll('[data-drop-indicator]')).toHaveLength(1)
+
+    act(() => dndMocks.onDragEnd?.(dragEvent))
+
+    expect(onReorder).toHaveBeenCalledWith({
+      type: 'group',
+      activeGroupId: 'section:session',
+      overGroupId: 'section:topic',
+      overType: 'group',
+      sourceIndex: 0,
+      targetIndex: 2
+    })
+  })
+
   it('keeps grouped virtual items stable during drag over and reorders only on drop', () => {
     const onReorder = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
@@ -1296,7 +1347,7 @@ describe('ResourceList', () => {
     expect(screen.getByText('Pinned')).toBeInTheDocument()
     expect(screen.getByText('Regular')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveClass('text-inherit')
-    expect(screen.getByRole('button', { name: 'Pinned' })).not.toHaveClass('hover:text-muted-foreground/70')
+    expect(screen.getByRole('button', { name: 'Pinned' })).not.toHaveClass('text-muted-foreground')
     expect(screen.queryByText('2')).not.toBeInTheDocument()
     expect(screen.queryByText('1')).not.toBeInTheDocument()
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(
@@ -1426,13 +1477,19 @@ describe('ResourceList', () => {
     const sessionChevron = sessionButton.querySelector<SVGSVGElement>('svg')
     expect(sessionLabel).not.toBeNull()
     expect(sessionChevron).not.toBeNull()
-    expect(sessionChevron!.previousElementSibling).toBe(sessionLabel)
+    // The chevron sits in its own icon-sized slot right after the label, so it lines up with the
+    // hover action buttons instead of hugging the text.
+    const sessionChevronSlot = sessionChevron!.parentElement
+    expect(sessionChevronSlot).toBe(sessionLabel!.nextElementSibling)
     expect(sessionLabel!).not.toHaveClass('flex-1')
-    expect(sessionChevron!).toHaveClass(
+    // Keyboard focus reveals it, a mouse click on the title does not — otherwise the chevron stays
+    // pinned open after every click.
+    expect(sessionChevronSlot!).toHaveClass(
       'hidden',
-      'group-hover/resource-list-group:block',
-      'group-focus-within/resource-list-group:block',
-      'group-has-data-[state=open]/resource-list-group:block'
+      'size-6',
+      'group-hover/resource-list-group:flex',
+      'group-has-[:focus-visible]/resource-list-group:flex',
+      'group-has-data-[state=open]/resource-list-group:flex'
     )
     expect(sessionChevron!.style.transform).toBe('rotate(90deg)')
 
@@ -1543,16 +1600,25 @@ describe('ResourceList', () => {
     )
 
     const sessionGroupButton = screen.getByRole('button', { name: 'session' })
+    const sessionChevron = chevronFor(sessionGroupButton)
     const sessionGroupHeader = sessionGroupButton.closest('[data-selected]')
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+    // One type voice for the whole list; a bucket header is set apart by colour, not size or weight.
+    expect(screen.getByText('session')).toHaveClass('font-normal', 'text-[13px]')
+    // The strip filling the rest of the row runs the same click as the label, so it has to look
+    // clickable too — a `cursor-default` there reads as dead space in the middle of a live row.
+    const sessionRowFiller = sessionChevron.nextElementSibling
+    expect(sessionRowFiller).toHaveAttribute('aria-hidden', 'true')
+    expect(sessionRowFiller).toHaveClass('cursor-pointer')
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
     expect(sessionGroupHeader).toBeNull()
 
     fireEvent.click(sessionGroupButton)
 
     expect(onGroupHeaderSelectItem).toHaveBeenCalledWith('alpha')
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveAttribute('aria-selected', 'true')
-    expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
+    // The row itself is on screen and announces the selection — the header must not announce a second one.
+    expect(sessionGroupButton).not.toHaveAttribute('aria-current')
     expect(sessionGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
     expect(sessionGroupButton.closest('[data-selected]')?.firstElementChild?.className).toContain('h-8')
     expect(screen.getByRole('button', { name: 'topic' })).not.toHaveAttribute('aria-current')
@@ -1563,11 +1629,59 @@ describe('ResourceList', () => {
 
     fireEvent.click(sessionGroupButton)
 
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       collapsedGroups: ['session'],
       selectedId: 'alpha'
+    })
+  })
+
+  it('folds a group open from its chevron without selecting anything in it', () => {
+    const onGroupHeaderSelectItem = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        groupHeaderClickBehavior="select-first-then-toggle"
+        onGroupHeaderSelectItem={onGroupHeaderSelectItem}>
+        <ResourceList.Frame>
+          <Inspector />
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const sessionChevron = chevronFor(screen.getByRole('button', { name: 'session' }))
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(sessionChevron)
+
+    // Peeking at the group leaves the current selection — and the conversation you are in — alone.
+    expect(onGroupHeaderSelectItem).not.toHaveBeenCalled()
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: ['session'],
+      selectedId: null
+    })
+
+    fireEvent.click(sessionChevron)
+
+    expect(onGroupHeaderSelectItem).not.toHaveBeenCalled()
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: [],
+      selectedId: null
     })
   })
 
@@ -1597,49 +1711,15 @@ describe('ResourceList', () => {
     )
 
     const sessionGroupButton = screen.getByRole('button', { name: 'session' })
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(chevronFor(sessionGroupButton)).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(sessionGroupButton)
 
     expect(onGroupHeaderSelectItem).toHaveBeenCalledWith('alpha')
     expect(onCollapsedStateChange).not.toHaveBeenCalled()
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(chevronFor(sessionGroupButton)).toHaveAttribute('aria-expanded', 'false')
+    // Collapsed: the selected row isn't rendered, so the header takes over announcing it.
     expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
-  })
-
-  it('keeps group header action buttons compact on the right side', () => {
-    const Provider = ResourceList.Provider<TestItem>
-
-    render(
-      <Provider
-        items={ITEMS}
-        groupBy={(item) => ({ id: item.kind, label: item.kind })}
-        getGroupHeaderAction={() => <ResourceList.GroupHeaderActionButton aria-label="Group more" />}>
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <span>{item.name}</span>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    const groupActionButton = screen.getAllByRole('button', { name: 'Group more' })[0]
-    const groupActionWrapper = groupActionButton.parentElement
-
-    expect(groupActionButton).toHaveClass('size-6', 'min-h-6', 'min-w-6', 'rounded-md', 'p-0', '[&_svg]:size-3!')
-    expect(groupActionButton).not.toHaveClass('min-h-7.5')
-    expect(groupActionWrapper).toHaveClass(
-      'flex',
-      'opacity-0',
-      'group-hover/resource-list-group:opacity-100',
-      'group-focus-within/resource-list-group:opacity-100',
-      'has-data-[state=open]:opacity-100'
-    )
-    expect(groupActionWrapper).not.toHaveClass('hidden')
   })
 
   it('opens group header context menus from the group header trigger', () => {
@@ -1722,6 +1802,96 @@ describe('ResourceList', () => {
     expect(screen.queryByText('Group Context Menu')).not.toBeInTheDocument()
   })
 
+  it('gives every module start after the first an 8px break, in both the estimate and the row', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderKind={() => 'bucket'}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    // Both groups are declared buckets: the first opens the list, the second opens a new module.
+    const [firstHeader, secondHeader] = screen.getAllByRole('button', { name: /session|topic/ })
+    expect(firstHeader.closest(`.${CSS.escape('h-[36px]')}`)).not.toBeNull()
+    expect(secondHeader.closest(`.${CSS.escape('h-[44px]')}`)).not.toBeNull()
+
+    // The estimate has to agree with what got rendered or the virtualiser scrolls jumpily.
+    const rows = lastVirtualizerOptions()
+    expect(rows.estimateSize(0)).toBe(RESOURCE_LIST_DEFAULT_ROW_SIZE)
+    expect(rows.estimateSize(1 + ITEMS.filter((item) => item.kind === 'session').length)).toBe(
+      RESOURCE_LIST_MODULE_START_ROW_SIZE
+    )
+  })
+
+  it('keeps an inline bucket on the shared rhythm while it still reads as a bucket', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderKind={(group) => (group.id === 'topic' ? 'inline-bucket' : 'entity')}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    // A plain bucket here would open a module and take the 8px break. This one stands among entity
+    // headers, so it keeps the 36px row — and the estimate has to say the same thing.
+    const [firstHeader, secondHeader] = screen.getAllByRole('button', { name: /session|topic/ })
+    expect(secondHeader.closest(`.${CSS.escape('h-[44px]')}`)).toBeNull()
+    expect(secondHeader.closest(`.${CSS.escape('h-[36px]')}`)).not.toBeNull()
+    expect(lastVirtualizerOptions().estimateSize(1 + ITEMS.filter((item) => item.kind === 'session').length)).toBe(
+      RESOURCE_LIST_DEFAULT_ROW_SIZE
+    )
+
+    // The rhythm is all it gives up: the recessed label that marks a bucket stays.
+    expect(secondHeader.closest('.text-muted-foreground')).not.toBeNull()
+    expect(firstHeader.closest('.text-muted-foreground')).toBeNull()
+  })
+
+  it('renders headers of manageable groups at the same type as list content', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderAction={() => <ResourceList.GroupHeaderActionButton aria-label="Group more" />}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByText('session')).toHaveClass('font-normal', 'text-[13px]')
+  })
+
   it('routes group header context menu items to the right group', async () => {
     const onAction = vi.fn()
     const Provider = ResourceList.Provider<TestItem>
@@ -1772,7 +1942,6 @@ describe('ResourceList', () => {
     )
 
     const viewport = screen.getByRole('listbox')
-    expect(viewport).toHaveClass('-mr-2', 'pr-2', '[scrollbar-gutter:stable]')
     expect(viewport).toHaveAttribute('data-scrolling', 'false')
 
     fireEvent.scroll(viewport)
@@ -1821,10 +1990,6 @@ describe('ResourceList', () => {
 
     expect(screen.getByText('Item 5')).toBeInTheDocument()
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
-    const showMoreButton = screen.getByRole('button', { name: 'Show more' })
-    expect(showMoreButton.parentElement).toHaveClass('pl-9')
-    expect(showMoreButton).toHaveClass('text-muted-foreground/55', 'hover:text-inherit')
-    expect(showMoreButton).not.toHaveClass('opacity-[0.65]')
     expect(virtualMocks.useVirtualizer).toHaveBeenLastCalledWith(expect.objectContaining({ count: 7 }))
 
     fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
@@ -1838,45 +2003,6 @@ describe('ResourceList', () => {
     expect(screen.getByText('Item 5')).toBeInTheDocument()
     expect(screen.queryByText('Item 6')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
-  })
-
-  it('aligns group footer actions with header text when the group header has no icon', () => {
-    const Provider = ResourceList.Provider<TestItem>
-    const items = Array.from({ length: 6 }, (_, index) => ({
-      id: `item-${index + 1}`,
-      name: `Item ${index + 1}`,
-      kind: 'session' as const,
-      updatedAt: index
-    }))
-
-    render(
-      <Provider
-        items={items}
-        groupBy={() => ({ id: 'group', label: 'Group' })}
-        getGroupHeaderIcon={() => null}
-        groupShowMoreLabel="Show more"
-        groupCollapseLabel="Collapse">
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <span>{item.name}</span>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    const showMoreButton = screen.getByRole('button', { name: 'Show more' })
-    expect(showMoreButton.parentElement).toHaveClass('pl-2.5')
-    expect(showMoreButton.parentElement).not.toHaveClass('pl-9')
-
-    fireEvent.click(showMoreButton)
-
-    const collapseButton = screen.getByRole('button', { name: 'Collapse' })
-    expect(collapseButton.parentElement).toHaveClass('pl-2.5')
-    expect(collapseButton.parentElement).not.toHaveClass('pl-9')
   })
 
   it('toggles every group in a section from a menu item without collapsing the section', () => {
@@ -2568,148 +2694,6 @@ describe('ResourceList', () => {
     })
     expect(screen.queryByText('Topic 6')).not.toBeInTheDocument()
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
-  })
-
-  it('provides shared header, search, and item presentation parts', () => {
-    const Provider = ResourceList.Provider<TestItem>
-
-    render(
-      <Provider items={ITEMS}>
-        <ResourceList.Frame>
-          <ResourceList.Header
-            title="Resources"
-            count={ITEMS.length}
-            actions={<ResourceList.HeaderActionButton aria-label="Filter" />}>
-            <ResourceList.Search placeholder="Search resources" />
-            <ResourceList.HeaderItem aria-label="Create" icon={<span />} label="Create" />
-          </ResourceList.Header>
-          <ResourceList.VirtualItems<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <ResourceList.ItemLeadingSlot data-testid={`${item.id}-leading-slot`}>
-                  {item.id === 'alpha' ? <span data-testid="alpha-leading-icon" /> : null}
-                </ResourceList.ItemLeadingSlot>
-                <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
-                <ResourceList.ItemActions>
-                  <ResourceList.ItemAction aria-label={`Action ${item.name}`} />
-                </ResourceList.ItemActions>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    expect(screen.getByText('Resources')).toBeInTheDocument()
-    expect(screen.getByText(String(ITEMS.length))).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Search resources')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Filter' })).toHaveClass(
-      'text-foreground/70!',
-      'hover:text-foreground!',
-      'data-[state=open]:text-foreground!',
-      '[&_.lucide:not(.lucide-custom)]:text-current!',
-      // 16px icon to match the new-topic SquarePen, not icon-navbar's default 18px.
-      '[&_svg]:size-4!'
-    )
-    expect(screen.getByRole('button', { name: 'Create' })).toHaveClass('px-1.5')
-    expect(screen.getByRole('listbox')).not.toHaveClass('px-1.5')
-    expect(screen.getByRole('listbox').closest('[data-resource-list-variant]')).toHaveClass('p-1.5')
-    expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveClass(
-      'relative',
-      'gap-1.5',
-      'px-2.5',
-      'has-[[data-resource-list-leading-slot=true]]:px-1.5'
-    )
-    expect(screen.getByTestId('alpha-leading-slot')).toHaveClass('size-6')
-    expect(screen.getByTestId('alpha-leading-icon')).toBeInTheDocument()
-    expect(screen.getByTestId('beta-leading-slot')).toHaveClass('size-6')
-    expect(screen.getByTestId('beta-leading-slot')).toHaveAttribute('aria-hidden', 'true')
-    const action = screen.getByRole('button', { name: 'Action Alpha' })
-    expect(action).toHaveClass('pointer-events-none', 'size-5')
-    expect(action.closest('[data-resource-list-item-actions="true"]')).toHaveClass(
-      'absolute',
-      'right-1.5',
-      'opacity-0',
-      'group-hover:opacity-100'
-    )
-  })
-
-  it('keeps the search icon centered against the input when the wrapper adds top spacing', () => {
-    const Provider = ResourceList.Provider<TestItem>
-
-    const { container } = render(
-      <Provider items={ITEMS}>
-        <ResourceList.Frame>
-          <ResourceList.Search placeholder="Search resources" wrapperClassName="pt-1" />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    const input = screen.getByPlaceholderText('Search resources')
-    const wrapper = container.querySelector('.pt-1')
-    const inputFrame = input.parentElement
-    const iconFrame = wrapper?.querySelector('.lucide-search')?.parentElement
-
-    expect(wrapper).toHaveClass('pt-1')
-    expect(inputFrame).toHaveClass('relative')
-    expect(inputFrame).not.toHaveClass('pt-1')
-    expect(iconFrame?.parentElement).toBe(inputFrame)
-  })
-
-  it('keeps a command HeaderItem shrinkable so its actions stay visible', () => {
-    const Provider = ResourceList.Provider<TestItem>
-
-    render(
-      <Provider items={ITEMS}>
-        <ResourceList.Frame>
-          <ResourceList.Header>
-            <ResourceList.HeaderItem
-              command="topic.create"
-              aria-label="Create"
-              icon={<span />}
-              label="Create"
-              actions={<button type="button" aria-label="Filter" />}
-            />
-          </ResourceList.Header>
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    // Button's base class is `shrink-0`; the command branch (w-full) must re-add `shrink`
-    // so the full-width button yields space to the actions slot instead of clipping it.
-    const createButton = screen.getByRole('button', { name: 'Create' })
-    expect(createButton).toHaveClass('w-full', 'shrink')
-    expect(createButton).not.toHaveClass('flex-1')
-    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument()
-  })
-
-  it('does not reveal item actions just because a row is selected', () => {
-    const Provider = ResourceList.Provider<TestItem>
-
-    render(
-      <Provider items={ITEMS} selectedId="alpha">
-        <ResourceList.Frame>
-          <ResourceList.VirtualItems<TestItem>
-            renderItem={(item) => (
-              <ResourceList.Item item={item}>
-                <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
-                <ResourceList.ItemActions>
-                  <ResourceList.ItemAction aria-label={`Delete ${item.name}`} />
-                </ResourceList.ItemActions>
-              </ResourceList.Item>
-            )}
-          />
-        </ResourceList.Frame>
-      </Provider>
-    )
-
-    expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveAttribute('data-selected', 'true')
-    expect(screen.getByText('Alpha')).toHaveClass('font-normal', 'group-data-[selected=true]:font-medium')
-    expect(screen.getByText('Beta')).toHaveClass('font-normal')
-    expect(screen.getByRole('button', { name: 'Delete Alpha' })).toHaveClass('opacity-0', 'group-hover:opacity-100')
-    expect(screen.getByRole('button', { name: 'Delete Alpha' }).className).not.toContain(
-      'group-data-[selected=true]:opacity-100'
-    )
   })
 
   it('exposes explicit business variants without a shared mode prop', () => {

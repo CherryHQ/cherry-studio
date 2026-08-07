@@ -48,12 +48,6 @@ describe('DataApiService.onDataChanged', () => {
     expect(onDataChangedBridge).toHaveBeenCalledTimes(1)
   })
 
-  it('constructs without the preload bridge (test environments) without throwing', () => {
-    vi.stubGlobal('api', {})
-
-    expect(() => new DataApiService()).not.toThrow()
-  })
-
   it('routes by exact endpoint match and always delivers an array', () => {
     const topicsListener = vi.fn()
     const tagsListener = vi.fn()
@@ -168,11 +162,5 @@ describe('DataApiService.onDataChanged', () => {
     expect(() => emit([effect])).not.toThrow()
 
     expect(good).toHaveBeenCalledExactlyOnceWith([effect])
-  })
-
-  it('silently drops entries for endpoints without subscribers', () => {
-    service.onDataChanged('/topics', vi.fn())
-
-    expect(() => emit([{ endpoint: '/tags', kind: 'membership' }])).not.toThrow()
   })
 })

@@ -193,6 +193,39 @@ export function moveResourceListStringGroupAfterDrop(
   return next
 }
 
+/**
+ * Time buckets only carry meaning against each other: a list that falls entirely into "Earlier"
+ * gains nothing from a header saying so. Blank the label in that case — {@link ResourceList} drops
+ * headers without one — while keeping the group id so ordering and collapse state stay intact.
+ *
+ * Any other group in the list — "Pinned" in particular — puts the label back to work: it now marks
+ * where that group ends, so only a list that is ONE group top to bottom drops its header.
+ * `ignoreGroupIds` names groups that must keep their label even alone ("Pinned" is a state, not a
+ * point on the time axis, so it stays legible on its own).
+ */
+export function withSoleGroupLabelHidden<T>(
+  resolver: ResourceListGroupResolver<T>,
+  items: readonly T[],
+  { ignoreGroupIds }: { ignoreGroupIds?: readonly string[] } = {}
+): ResourceListGroupResolver<T> {
+  const ignored = new Set(ignoreGroupIds ?? [])
+  const groupIds = new Set<string>()
+  for (const item of items) {
+    const group = resolver(item)
+    if (group) groupIds.add(group.id)
+    if (groupIds.size > 1) return resolver
+  }
+
+  const [soleGroupId] = groupIds
+  if (groupIds.size !== 1 || ignored.has(soleGroupId)) return resolver
+
+  return (item) => {
+    const group = resolver(item)
+    if (!group) return null
+    return { ...group, label: '' }
+  }
+}
+
 export function withResourceListGroupIdPrefix<T>(
   prefix: string,
   resolver: ResourceListGroupResolver<T>

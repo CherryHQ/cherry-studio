@@ -41,7 +41,7 @@ vi.mock('@main/core/paths/pathRegistry', async () => {
         'cherry.bin': '/mock/home/.cherrystudio/bin',
         // Cherry-owned files (auto-ensure dirname only)
         'feature.copilot.token_file': '/mock/home/.cherrystudio/config/.copilot_token',
-        'app.database.file': '/mock/userData/cherrystudio.sqlite',
+        'app.database.file': '/mock/userData/Data/cherrystudio.sqlite',
         // NO_ENSURE — exact key entries (build artifacts)
         'app.exe_file': '/mock/install/CherryStudio',
         'app.extra_resources': '/mock/resources',
@@ -147,7 +147,7 @@ describe('Application.getPath', () => {
     it('mkdirs path.dirname(base) for a key whose name ends with ".file"', () => {
       app.getPath('app.database.file')
       expect(fs.mkdirSync).toHaveBeenCalledTimes(1)
-      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/userData', { recursive: true })
+      expect(fs.mkdirSync).toHaveBeenCalledWith('/mock/userData/Data', { recursive: true })
     })
 
     it('does not mkdir for keys in the NO_ENSURE exact list (app.exe_file)', () => {

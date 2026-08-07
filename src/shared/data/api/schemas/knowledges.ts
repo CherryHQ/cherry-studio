@@ -99,8 +99,8 @@ export type KnowledgeBaseListItem = KnowledgeBase & {
  * Query parameters for GET /knowledge-bases/:id/items
  *
  * Returns flat knowledge items for one knowledge base with optional filters,
- * using cursor-based pagination (keyset on `createdAt`/`id`) so concurrent
- * inserts during polling never duplicate or skip rows across pages.
+ * using cursor-based pagination (keyset on `directoryRank ASC` / `createdAt DESC` /
+ * `id ASC`) so concurrent inserts during polling never duplicate or skip rows across pages.
  */
 export const ListKnowledgeItemsQuerySchema = z.strictObject({
   /** Cursor returned by the previous page. Omitted for the first page. */

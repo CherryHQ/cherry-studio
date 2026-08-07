@@ -13,14 +13,34 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import ResetIcon from '@renderer/components/icons/ResetIcon'
 import { SettingSubtitle } from '@renderer/components/SettingsPrimitives'
+import { useModelById } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { isNonChatModel } from '@shared/utils/model'
 import { CircleHelp } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { DefaultModelSelector } from './DefaultModelSelector'
+
+const chatModelFilter = (model: Model) => !isNonChatModel(model)
+
 export const TopicNamingSettings = () => {
   const [enableTopicNaming, setEnableTopicNaming] = usePreference('topic.naming.enabled')
+  const [topicNamingModelId, setTopicNamingModelId] = usePreference('topic.naming.model_id')
   const [topicNamingPrompt, setTopicNamingPrompt] = usePreference('topic.naming_prompt')
   const { t } = useTranslation()
+
+  const { model: topicNamingModel } = useModelById(topicNamingModelId as UniqueModelId | null)
+  const { providers } = useProviders({ enabled: true })
+
+  const handleSelectModel = useCallback(
+    (selected: Model | undefined) => {
+      if (!selected) return
+      void setTopicNamingModelId(selected.id)
+    },
+    [setTopicNamingModelId]
+  )
 
   const handleReset = useCallback(() => {
     void setTopicNamingPrompt('')
@@ -30,10 +50,25 @@ export const TopicNamingSettings = () => {
     <section>
       <SettingSubtitle className="mt-0 mb-3">{t('settings.models.topic_naming.label')}</SettingSubtitle>
 
-      <ColFlex className="items-stretch rounded-md border border-border-muted">
+      <ColFlex className="items-stretch rounded-md border border-border-subtle">
         <RowFlex className="min-h-11 items-center justify-between gap-4 px-3 py-2.5">
           <div className="text-foreground text-sm">{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onCheckedChange={setEnableTopicNaming} />
+        </RowFlex>
+
+        <Divider className="m-0" />
+
+        <RowFlex className="min-h-11 items-center justify-between gap-4 px-3 py-2.5">
+          <div className="shrink-0 text-foreground text-sm">{t('settings.models.topic_naming.model')}</div>
+          <div className="flex w-[220px] min-w-0 items-center">
+            <DefaultModelSelector
+              model={topicNamingModel}
+              providers={providers}
+              filter={chatModelFilter}
+              onSelect={handleSelectModel}
+              placeholder={t('settings.models.empty')}
+            />
+          </div>
         </RowFlex>
 
         <Divider className="m-0" />
@@ -44,7 +79,7 @@ export const TopicNamingSettings = () => {
               <div className="truncate text-foreground text-sm">{t('settings.models.topic_naming.prompt')}</div>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" className="size-6 shrink-0 text-foreground-muted">
+                  <Button variant="ghost" size="icon-sm" className="size-6 shrink-0 text-muted-foreground">
                     <CircleHelp size={14} />
                   </Button>
                 </PopoverTrigger>

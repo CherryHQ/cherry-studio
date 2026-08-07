@@ -13,6 +13,7 @@ import { Topics } from './components/Topics'
 
 interface Props {
   activeTopic?: Topic
+  dataEnabled?: boolean
   historyRecordsActive?: boolean
   assistantTopicsSource: AssistantTopicsSource
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
@@ -30,6 +31,7 @@ interface Props {
 
 const HomeTabs: FC<Props> = ({
   activeTopic,
+  dataEnabled,
   historyRecordsActive,
   assistantTopicsSource,
   onActiveAssistantDeleted,
@@ -48,6 +50,7 @@ const HomeTabs: FC<Props> = ({
     <ConversationNavigationPane style={style}>
       <Topics
         activeTopic={activeTopic}
+        dataEnabled={dataEnabled}
         historyRecordsActive={historyRecordsActive}
         assistantTopicsSource={assistantTopicsSource}
         onActiveAssistantDeleted={onActiveAssistantDeleted}

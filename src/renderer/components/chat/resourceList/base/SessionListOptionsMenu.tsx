@@ -53,7 +53,7 @@ export function SessionListOptionsMenu({
       </PopoverTrigger>
       <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 p-1">
         <MenuList>
-          <div className="px-2.5 py-1 font-medium text-muted-foreground text-xs">
+          <div className="px-2.5 py-1 font-normal text-muted-foreground text-xs">
             {t('agent.session.display.title')}
           </div>
           {SESSION_DISPLAY_OPTIONS.map((option) => (

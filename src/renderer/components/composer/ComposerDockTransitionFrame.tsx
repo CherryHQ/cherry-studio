@@ -173,13 +173,15 @@ export default function ComposerDockTransitionFrame({
             : undefined
         }
         className={cn(
-          'absolute inset-x-0 w-full',
+          // The whole dock stack stays click-through: the layer, the wrapper, and
+          // any width-capped centering inside the composer all span or flank the
+          // pane, so pointer events are re-enabled only by the composer content
+          // roots (ComposerSurface's NarrowLayout and the override composers).
+          'pointer-events-none absolute inset-x-0 w-full',
           composerElevated ? 'z-50' : 'z-10',
-          isDocked
-            ? 'bottom-0'
-            : 'pointer-events-none top-0 bottom-0 flex items-center pb-[12vh] has-[.inputbar-container.expanded]:pb-0'
+          isDocked ? 'bottom-0' : 'top-0 bottom-0 flex items-center pb-[12vh] has-[.inputbar-container.expanded]:pb-0'
         )}>
-        <div className="pointer-events-auto w-full">
+        <div className="w-full">
           <div
             ref={composerRef}
             data-composer-dock-surface=""

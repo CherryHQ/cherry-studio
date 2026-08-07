@@ -268,7 +268,7 @@ const DefaultTag = ({
   ...props
 }: React.ComponentPropsWithoutRef<'span'> & { isCurrent: boolean }) => (
   <span
-    className={cn('rounded px-1 py-0.5 text-xs', isCurrent ? 'text-primary' : 'text-foreground-muted', className)}
+    className={cn('rounded px-1 py-0.5 text-xs', isCurrent ? 'text-primary' : 'text-foreground-tertiary', className)}
     {...props}
   />
 )

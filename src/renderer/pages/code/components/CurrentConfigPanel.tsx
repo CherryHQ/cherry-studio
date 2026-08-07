@@ -30,7 +30,7 @@ export const CurrentConfigPanel: FC<CurrentConfigPanelProps> = ({
   return (
     <div className="space-y-3">
       <div className="space-y-1.5">
-        <label className="text-foreground/70 text-xs">{t('code.working_directory')}</label>
+        <label className="text-muted-foreground text-xs">{t('code.working_directory')}</label>
         <div className="flex w-full items-center">
           <Input value={directory ?? ''} placeholder={t('code.folder_placeholder')} readOnly tabIndex={-1} />
           <Button variant="default" onClick={onSelectFolder} className="ml-2 shrink-0">
@@ -42,7 +42,7 @@ export const CurrentConfigPanel: FC<CurrentConfigPanelProps> = ({
 
       {showTerminals && (
         <div className="space-y-1.5">
-          <label className="text-foreground/70 text-xs">{t('code.terminal')}</label>
+          <label className="text-muted-foreground text-xs">{t('code.terminal')}</label>
           <Select value={effectiveTerminal} onValueChange={(value) => onSelectTerminal(value)}>
             <SelectTrigger size="sm" className="w-full">
               <SelectValue />

@@ -18,10 +18,15 @@ import {
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   NOTIFY_TOOL_NAME,
+  READ_FILE_TOOL_NAME,
   REPORT_ARTIFACTS_TOOL_NAME,
+  TO_MARKDOWN_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+
+import { MOVE_TO_TRASH_TOOL_NAME } from '../../moveToTrash'
+import { SAVE_ATTACHMENT_TOOL_NAME } from '../../saveAttachment'
 
 /** The in-process MCP server id that hosts the cherry builtin tools. */
 export const CHERRY_BUILTIN_MCP_SERVER = 'cherry-tools'
@@ -63,15 +68,41 @@ export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
   NOTIFY_TOOL_NAME,
   CONFIG_TOOL_NAME,
   CLI_LIST_TOOL_NAME,
-  CLI_SEARCH_TOOL_NAME
+  CLI_SEARCH_TOOL_NAME,
+  TO_MARKDOWN_TOOL_NAME
 ]
 
 /**
- * Assistant MCP tools safe to auto-approve for local Cherry Assistant sessions: `navigate` only,
- * which emits a clickable link the user must click themselves. `diagnose` reads local machine data
- * (logs, source files, config, host info) and MUST go through per-call approval — the Assistant
- * also reads untrusted web/KB content, and auto-approved web_fetch would complete a prompt-injection
- * exfiltration chain (untrusted page → diagnose → web_fetch). Never widen this to a
- * `mcp__assistant__` prefix or wildcard; a future assistant tool must opt in here explicitly.
+ * Assistant MCP tools safe to auto-approve for local Cherry Assistant sessions: `navigate`, which
+ * emits a clickable link the user must click themselves, and `product_info`, which only reads the
+ * bundled public product manifest. Never widen this to a `mcp__assistant__` prefix or wildcard; a
+ * future assistant tool must opt in here explicitly.
  */
-export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = ['mcp__assistant__navigate']
+export const ASSISTANT_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = [
+  'mcp__assistant__navigate',
+  'mcp__assistant__product_info'
+]
+
+/**
+ * Assistant MCP tools that must retain per-call approval even when the Agent uses acceptEdits or
+ * bypassPermissions. `diagnose` reads local device state; the other tools mutate app settings or
+ * create persistent business data.
+ */
+export const ASSISTANT_APPROVAL_REQUIRED_RUNTIME_NAMES: readonly string[] = [
+  'mcp__assistant__diagnose',
+  'mcp__assistant__apply_setting',
+  'mcp__assistant__create_agent'
+]
+
+/** Cherry Assistant-only file tools live on their own session-scoped MCP server. */
+export const ASSISTANT_FILE_MCP_SERVER = 'assistant-files'
+export const toAssistantFileRuntimeName = (toolName: string): string => `mcp__${ASSISTANT_FILE_MCP_SERVER}__${toolName}`
+
+export const ASSISTANT_FILE_AUTO_APPROVED_RUNTIME_NAMES: readonly string[] = [
+  toAssistantFileRuntimeName(READ_FILE_TOOL_NAME)
+]
+
+export const ASSISTANT_FILE_APPROVAL_REQUIRED_RUNTIME_NAMES: readonly string[] = [
+  toAssistantFileRuntimeName(MOVE_TO_TRASH_TOOL_NAME),
+  toAssistantFileRuntimeName(SAVE_ATTACHMENT_TOOL_NAME)
+]

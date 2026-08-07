@@ -1,3 +1,8 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
 import type { IpcMainInvokeEvent } from 'electron'
 import { describe, expect, it } from 'vitest'
 
@@ -9,6 +14,26 @@ const APP_ROOT = '/Applications/CherryStudio.app/Contents/Resources/app.asar'
 describe('isAppRendererUrl', () => {
   it('trusts a packaged app page whose file path is inside the app root', () => {
     expect(isAppRendererUrl(`file://${APP_ROOT}/out/renderer/index.html`, null, APP_ROOT)).toBe(true)
+  })
+
+  it('trusts a packaged app page when the launch path reaches the app through a directory link', () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), 'cherry-sender-link-'))
+    const realProgramsDir = join(fixtureRoot, 'real-programs')
+    const linkedProgramsDir = join(fixtureRoot, 'linked-programs')
+    const appRootFromLaunchPath = join(linkedProgramsDir, 'Cherry Studio', 'resources', 'app.asar')
+    const realAppRoot = join(realProgramsDir, 'Cherry Studio', 'resources', 'app.asar')
+
+    try {
+      mkdirSync(dirname(realAppRoot), { recursive: true })
+      writeFileSync(realAppRoot, '')
+      symlinkSync(realProgramsDir, linkedProgramsDir, process.platform === 'win32' ? 'junction' : 'dir')
+
+      const rendererPath = join(realpathSync.native(realAppRoot), 'out', 'renderer', 'windows', 'main', 'index.html')
+
+      expect(isAppRendererUrl(pathToFileURL(rendererPath).href, null, appRootFromLaunchPath)).toBe(true)
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true })
+    }
   })
 
   it('rejects a file:// page outside the app root (downloaded/exported HTML)', () => {

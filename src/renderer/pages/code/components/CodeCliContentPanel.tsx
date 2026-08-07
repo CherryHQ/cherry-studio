@@ -4,7 +4,7 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { Provider } from '@shared/data/types/provider'
 import { CodeCli } from '@shared/types/codeCli'
-import { CircleAlert, ExternalLink } from 'lucide-react'
+import { ExternalLink } from 'lucide-react'
 import { type FC, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -116,6 +116,11 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
             isUpgrading={upgradingTools.has(selectedCliTool)}
             installError={installError}
             onShowError={() => setShowInstallError(true)}
+            launchDisabledHint={
+              providerState.showSelectionHint
+                ? t('code.select_provider_before_launch', { toolName: activeMeta.label })
+                : undefined
+            }
           />
         )}
 
@@ -128,15 +133,8 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
           onOpenChange={(open) => !open && setShowInstallError(false)}
         />
 
-        {providerState.showSelectionHint && (
-          <div className="flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-warning text-xs">
-            <CircleAlert className="size-3.5 shrink-0" />
-            <span>{t('code.select_provider_before_launch', { toolName: activeMeta.label })}</span>
-          </div>
-        )}
-
         {providerState.providerless ? (
-          <div className="rounded-lg border border-border/40 bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
+          <div className="rounded-lg border border-border-subtle bg-accent/10 px-4 py-3 text-muted-foreground text-xs">
             {t('code.providerless_hint')}
           </div>
         ) : (
@@ -183,7 +181,7 @@ export const CodeCliContentPanel: FC<CodeCliContentPanelProps> = ({
               variant="outline"
               size="sm"
               onClick={() => openSettingsTab('/settings/provider')}
-              className="w-full rounded-xl border-border-subtle border-dashed py-2 text-foreground-secondary hover:border-border hover:text-foreground">
+              className="w-full rounded-xl border-border-subtle border-dashed py-2 text-muted-foreground hover:border-border hover:text-foreground">
               {t(getAddProviderHintKey(selectedCliTool))}
               <ExternalLink size={10} />
             </Button>

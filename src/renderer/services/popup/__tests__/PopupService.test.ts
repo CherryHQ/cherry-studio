@@ -37,27 +37,18 @@ describe('popupService / createPopup', () => {
     vi.useRealTimers()
   })
 
-  it('resolves dismissResult immediately when no host is mounted', async () => {
+  it('resolves each API fallback immediately when no host is mounted', async () => {
     const handle = createPopup<{ label: string }, string | null>(Noop, { dismissResult: null })
 
-    const result = handle.show({ label: 'x' })
+    const componentResult = handle.show({ label: 'x' })
+    const confirmResult = popup.confirm({ title: 'x' })
 
     expect(popupService.getSnapshot()).toHaveLength(0)
-    await expect(result).resolves.toBeNull()
+    await expect(componentResult).resolves.toBeNull()
+    await expect(confirmResult).resolves.toBe(false)
   })
 
-  it('mounts an open entry when a host is subscribed', () => {
-    subscribeHost()
-    const handle = createPopup<{ label: string }, string | null>(Noop, { dismissResult: null })
-
-    void handle.show({ label: 'hello' })
-
-    const entries = popupService.getSnapshot()
-    expect(entries).toHaveLength(1)
-    expect(entries[0]).toMatchObject({ kind: 'component', open: true, props: { label: 'hello' } })
-  })
-
-  it('is single-flight: a second show() returns the first promise and ignores new props', () => {
+  it('mounts once and preserves the first promise and props while single-flight', () => {
     subscribeHost()
     const handle = createPopup<{ label: string }, string | null>(Noop, { dismissResult: null })
 
@@ -66,7 +57,11 @@ describe('popupService / createPopup', () => {
 
     expect(second).toBe(first)
     expect(popupService.getSnapshot()).toHaveLength(1)
-    expect(popupService.getSnapshot()[0]).toMatchObject({ props: { label: 'A' } })
+    expect(popupService.getSnapshot()[0]).toMatchObject({
+      kind: 'component',
+      open: true,
+      props: { label: 'A' }
+    })
   })
 
   it('settles via resolve and removes the entry only after the exit phase', async () => {
@@ -103,31 +98,20 @@ describe('popupService / createPopup', () => {
     expect(popupService.getSnapshot()).toHaveLength(1)
   })
 
-  it('hide() settles the in-flight popup with dismissResult', async () => {
-    subscribeHost()
-    const handle = createPopup<{ label: string }, string | null>(Noop, { dismissResult: null })
-
-    const result = handle.show({ label: 'A' })
-    handle.hide()
-
-    await expect(result).resolves.toBeNull()
-  })
-
-  it('allows a fresh show() once the previous popup has settled', async () => {
+  it('hide() dismisses the in-flight popup and permits a fresh show()', async () => {
     subscribeHost()
     const handle = createPopup<{ label: string }, string | null>(Noop, { dismissResult: null })
 
     const first = handle.show({ label: 'A' })
-    popupService.settle(popupService.getSnapshot()[0].instanceId, 'a')
-    await first
+    handle.hide()
+
+    await expect(first).resolves.toBeNull()
 
     const second = handle.show({ label: 'B' })
     expect(second).not.toBe(first)
-    expect(popupService.getSnapshot().some((entry) => entry.open && entry.kind === 'component')).toBe(true)
-  })
-
-  it('confirm() resolves false when no host is mounted', async () => {
-    await expect(popup.confirm({ title: 'x' })).resolves.toBe(false)
+    expect(
+      popupService.getSnapshot().some((entry) => entry.open && entry.kind === 'component' && entry.props.label === 'B')
+    ).toBe(true)
   })
 
   it('confirm() mounts a confirm entry and settles to the given result', async () => {

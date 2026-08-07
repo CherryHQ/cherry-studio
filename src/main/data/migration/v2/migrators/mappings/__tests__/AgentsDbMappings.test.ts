@@ -325,6 +325,9 @@ describe('AgentsDbMappings', () => {
     expect(agentSkillInsert).toContain('COALESCE(is_enabled, 0) AS is_enabled')
 
     const channelInsert = find('agent_channel')
+    expect(channelInsert).toContain(
+      'INSERT INTO agent_channel (id, type, name, agent_id, session_id, workspace, config'
+    )
     expect(channelInsert).toContain('\'{"type":"system"}\' AS workspace')
     expect(channelInsert).toContain('COALESCE(is_active, 1) AS is_active')
     expect(channelInsert).toContain("COALESCE(active_chat_ids, '[]') AS active_chat_ids")

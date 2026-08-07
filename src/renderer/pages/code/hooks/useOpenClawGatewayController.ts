@@ -53,10 +53,14 @@ export function useOpenClawGatewayController({
 
   const openDashboard = useCallback(async () => {
     const dashboardUrl = await ipcApi.request('openclaw.get_dashboard_url')
+    const url = new URL(dashboardUrl)
+    // A per-open revision makes equal dashboard URLs observable through the
+    // cross-window transient descriptor registry after a gateway restart.
+    url.searchParams.set('cherry_navigation_revision', String(Date.now()))
     openSmartMiniApp({
       appId: 'openclaw-dashboard',
       name: 'OpenClaw',
-      url: dashboardUrl,
+      url: url.toString(),
       logo: 'openclaw'
     })
   }, [openSmartMiniApp])

@@ -22,6 +22,7 @@ export type {
   ResourceListDragCapabilities,
   ResourceListFilterOption,
   ResourceListGroup,
+  ResourceListGroupHeaderKind,
   ResourceListGroupReorderPayload,
   ResourceListGroupSeed,
   ResourceListItemAccessors,
@@ -66,7 +67,8 @@ export {
   RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
   RESOURCE_LIST_SELECTED_ROW_CLASS,
   RESOURCE_LIST_TITLE_FADE_CLASS,
-  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS
+  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
+  RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS
 } from './resourceListLayout'
 export type { ResourceListOrderAnchor } from './resourceListReorder'
 export {

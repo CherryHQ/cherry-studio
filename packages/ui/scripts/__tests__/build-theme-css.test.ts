@@ -25,42 +25,12 @@ describe('buildThemeContractCss', () => {
 
   it('keeps compatibility color allowlists shrink-only', () => {
     const frozenSemanticColors: readonly string[] = [
-      'primary-hover',
       'destructive-hover',
-      'foreground-secondary',
-      'foreground-muted',
-      'menu-item-hover',
-      'border-muted',
-      'border-hover',
-      'border-active',
       'secondary-hover',
       'secondary-active',
-      'ghost-hover',
       'ghost-active'
     ]
-    const frozenStatusColors: readonly string[] = [
-      'error-base',
-      'error-text',
-      'error-bg',
-      'error-text-hover',
-      'error-bg-hover',
-      'error-border-hover',
-      'error-active',
-      'success-base',
-      'success-text-hover',
-      'success-bg',
-      'success-bg-hover',
-      'warning-base',
-      'warning-text-hover',
-      'warning-bg',
-      'warning-bg-hover',
-      'warning-active',
-      'info-base',
-      'info-text-hover',
-      'info-bg',
-      'info-bg-hover',
-      'info-active'
-    ]
+    const frozenStatusColors: readonly string[] = []
 
     expect(COMPATIBILITY_SEMANTIC_COLOR_TOKENS.filter((token) => !frozenSemanticColors.includes(token))).toEqual([])
     expect(COMPATIBILITY_STATUS_COLOR_TOKENS.filter((token) => !frozenStatusColors.includes(token))).toEqual([])
@@ -94,12 +64,23 @@ describe('buildThemeContractCss', () => {
     expect(css).toContain('--color-sidebar-ring: var(--sidebar-ring);')
     expect(css).toContain('--color-success-subtle: var(--success-subtle);')
     expect(css).toContain('--color-error-border: var(--error-border);')
+    expect(css).toContain('--color-foreground-tertiary: var(--foreground-tertiary);')
+    expect(css).toContain('--color-foreground-disabled: var(--foreground-disabled);')
+    expect(css).toContain('--color-border-selected: var(--border-selected);')
+    expect(css).toContain('--color-link: var(--link);')
     expect(css).toContain('--color-ring: var(--ring);')
     expect(css).not.toContain('--color-primary: var(--cs-theme-primary);')
     expect(css).not.toContain('--color-ring: var(--cs-ring);')
     expect(css).toContain('--color-destructive: var(--destructive);')
-    expect(css).toContain('--color-primary-hover: var(--cs-primary-hover);')
-    expect(css).toContain('--color-error-base: var(--cs-error-base);')
+    expect(css).toContain('--color-destructive-hover: var(--cs-destructive-hover);')
+    expect(css).toContain('/* Compatibility: Existing Semantic Colors */')
+    expect(css).not.toContain('--color-primary-hover:')
+    expect(css).not.toContain('/* Compatibility: Existing Status Colors */')
+    expect(css).not.toContain('--color-error-base:')
+    expect(css).not.toContain('--color-error-bg:')
+    expect(css).not.toContain('--color-success-bg:')
+    expect(css).not.toContain('--color-warning-bg:')
+    expect(css).not.toContain('--color-info-bg:')
     expect(css).toContain('--radius-sm: calc(var(--radius) * 0.6);')
     expect(css).toContain('--radius-md: calc(var(--radius) * 0.8);')
     expect(css).toContain('--radius-lg: var(--radius);')

@@ -109,6 +109,19 @@ export class JsonFileStorage implements IOAuthStorage {
     })
   }
 
+  async getAuthServerUrl(): Promise<string | undefined> {
+    const data = await this.readStorage()
+    return data.authServerUrl
+  }
+
+  async saveAuthServerUrl(url: string | undefined): Promise<void> {
+    const data = await this.readStorage()
+    await this.writeStorage({
+      ...data,
+      authServerUrl: url
+    })
+  }
+
   async clear(): Promise<void> {
     try {
       await fs.unlink(this.filePath)

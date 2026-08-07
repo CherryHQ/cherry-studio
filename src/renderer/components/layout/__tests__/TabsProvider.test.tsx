@@ -51,6 +51,15 @@ const PINNED_CODE_TAB: Tab = {
   isPinned: true
 }
 
+const HOME_TAB: Tab = {
+  id: 'home',
+  type: 'route',
+  url: '/app/chat',
+  title: '',
+  lastAccessTime: 0,
+  isDormant: false
+}
+
 // Stable reference: re-renders are then driven only by the i18n.language change,
 // not by a fresh pinnedTabs identity — which is what makes the test catch a dropped
 // i18n.language dependency in the tabs useMemo.
@@ -147,6 +156,7 @@ function SessionInspector() {
         {tabs.map((tab) => `${tab.id}:${tab.isDormant ? 'dormant' : 'awake'}`).join(',')}
       </div>
       <div data-testid="session-ids">{tabs.map((tab) => tab.id).join(',')}</div>
+      <div data-testid="session-urls">{tabs.map((tab) => `${tab.id}=${tab.url}`).join(',')}</div>
     </div>
   )
 }
@@ -319,15 +329,7 @@ describe('TabsProvider', () => {
   it('refreshes localized route tab titles when the app language changes', async () => {
     // A fresh element each render so React doesn't bail out on referential equality.
     const renderUi = () => (
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <PinnedRouteTitle />
       </TabsProvider>
     )
@@ -369,15 +371,7 @@ describe('TabsProvider', () => {
 
   it('removes a menu-closed pinned tab from the persistent pinned list', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <CloseTabOnMount tabId="files" />
       </TabsProvider>
     )
@@ -398,15 +392,7 @@ describe('TabsProvider', () => {
     pinnedTabsValue = [LEGACY_LIBRARY_PINNED_TAB, PINNED_FILES_TAB]
 
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <TabIds />
       </TabsProvider>
     )
@@ -422,15 +408,7 @@ describe('TabsProvider', () => {
     pinnedTabsValue = [PINNED_OPENCLAW_TAB, PINNED_FILES_TAB]
 
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <TabSnapshot />
       </TabsProvider>
     )
@@ -446,15 +424,7 @@ describe('TabsProvider', () => {
 
   it('closes active and adjacent tabs atomically when closing a batch', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -474,15 +444,7 @@ describe('TabsProvider', () => {
 
   it('activates the designated survivor instead of the nearest neighbor when the active tab is batch-closed', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -504,15 +466,7 @@ describe('TabsProvider', () => {
 
   it('wakes a dormant survivor when batch close activates it', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -537,16 +491,7 @@ describe('TabsProvider', () => {
 
   it('wakes the active tab when it is unexpectedly dormant', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}
-        includePinnedTabs={false}>
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -564,15 +509,7 @@ describe('TabsProvider', () => {
 
   it('falls back to the nearest neighbor when the designated survivor is itself closed', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -593,15 +530,7 @@ describe('TabsProvider', () => {
 
   it('falls back to the left neighbor when the active tab is last in the strip', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -621,15 +550,7 @@ describe('TabsProvider', () => {
     pinnedTabsValue = [{ ...PINNED_FILES_TAB, isDormant: true }]
 
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}>
+      <TabsProvider initialDefaultTab={HOME_TAB}>
         <BatchCloseControls />
       </TabsProvider>
     )
@@ -654,16 +575,7 @@ describe('TabsProvider', () => {
 
   it('opens launchpad when closing the only tab', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}
-        includePinnedTabs={false}>
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
         <CloseTabOnMount tabId="home" />
       </TabsProvider>
     )
@@ -675,16 +587,7 @@ describe('TabsProvider', () => {
 
   it('does not open launchpad when closing one tab while another remains', async () => {
     render(
-      <TabsProvider
-        initialDefaultTab={{
-          id: 'home',
-          type: 'route',
-          url: '/app/chat',
-          title: '',
-          lastAccessTime: 0,
-          isDormant: false
-        }}
-        includePinnedTabs={false}>
+      <TabsProvider initialDefaultTab={HOME_TAB} includePinnedTabs={false}>
         <CloseHomeAfterSecondTabOpens />
       </TabsProvider>
     )

@@ -1,0 +1,73 @@
+import ImageViewer, { type ImageViewerProps } from '@renderer/components/ImageViewer'
+import MarkdownShadowDomRenderer from '@renderer/components/MarkdownShadowDomRenderer'
+import type { ComponentProps, CSSProperties, JSX } from 'react'
+import type { Components, ExtraProps } from 'streamdown'
+
+import { useChatMarkdownRenderContext } from './ChatMarkdownRenderContext'
+import CitationSup from './CitationSup'
+import CodeBlock from './CodeBlock'
+import Link from './Link'
+import MarkdownSvgRenderer from './MarkdownSvgRenderer'
+import Table from './Table'
+
+type MarkdownRendererProps<Tag extends keyof JSX.IntrinsicElements> = JSX.IntrinsicElements[Tag] & ExtraProps
+
+const IMAGE_STYLE: CSSProperties = { maxWidth: 500, maxHeight: 500 }
+const PRE_STYLE: CSSProperties = { overflow: 'visible' }
+
+function ChatLinkRenderer(props: MarkdownRendererProps<'a'>) {
+  const { citationRegistry } = useChatMarkdownRenderContext()
+  return <Link {...props} citationRegistry={citationRegistry} />
+}
+
+function ChatCitationSupRenderer(props: MarkdownRendererProps<'sup'>) {
+  const { citationRegistry } = useChatMarkdownRenderContext()
+  return <CitationSup {...props} citationRegistry={citationRegistry} />
+}
+
+function ChatCodeRenderer(props: MarkdownRendererProps<'code'>) {
+  const { blockId, inlineHtmlPreviewMode, isStreaming } = useChatMarkdownRenderContext()
+  return (
+    <CodeBlock
+      {...(props as ComponentProps<typeof CodeBlock>)}
+      blockId={blockId}
+      inlineHtmlPreviewMode={inlineHtmlPreviewMode}
+      isStreaming={isStreaming}
+    />
+  )
+}
+
+function ChatTableRenderer(props: MarkdownRendererProps<'table'>) {
+  const { blockId } = useChatMarkdownRenderContext()
+  return <Table {...(props as ComponentProps<typeof Table>)} blockId={blockId} />
+}
+
+function ChatImageRenderer(props: MarkdownRendererProps<'img'>) {
+  return <ImageViewer style={IMAGE_STYLE} {...(props as ImageViewerProps)} />
+}
+
+function ChatPreRenderer(props: MarkdownRendererProps<'pre'>) {
+  return <pre style={PRE_STYLE} {...props} />
+}
+
+function ChatParagraphRenderer(props: MarkdownRendererProps<'p'>) {
+  const hasImage = props.node?.children.some((child) => child.type === 'element' && child.tagName === 'img')
+  if (hasImage) return <div {...props} />
+  return <p {...props} />
+}
+
+export const CHAT_MARKDOWN_COMPONENTS = {
+  a: ChatLinkRenderer,
+  sup: ChatCitationSupRenderer,
+  code: ChatCodeRenderer,
+  table: ChatTableRenderer,
+  img: ChatImageRenderer,
+  pre: ChatPreRenderer,
+  p: ChatParagraphRenderer,
+  svg: MarkdownSvgRenderer as Components['svg']
+} satisfies Partial<Components>
+
+export const CHAT_MARKDOWN_COMPONENTS_WITH_STYLE = {
+  ...CHAT_MARKDOWN_COMPONENTS,
+  style: MarkdownShadowDomRenderer as Components['style']
+} satisfies Partial<Components>

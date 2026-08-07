@@ -191,7 +191,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       getName: (session: SessionListItem) => session.name || t('common.unnamed'),
       getUpdatedAt: (session: SessionListItem) => session.updatedAt,
       getSourceLabel: (session: SessionListItem) =>
-        (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? t('common.unknown'),
+        (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? unknownAgentLabel,
       renderAvatar: (session: SessionListItem) => {
         const agent = session.agentId ? agentById.get(session.agentId) : undefined
         return (
@@ -224,7 +224,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
           row
         )
     }),
-    [agentById, handleSessionSelect, handleToggleSessionPin, sessionMenuPreset, t]
+    [agentById, handleSessionSelect, handleToggleSessionPin, sessionMenuPreset, t, unknownAgentLabel]
   )
 
   const descriptor: HistoryRecordDescriptor<SessionListItem> = {

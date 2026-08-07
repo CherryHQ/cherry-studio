@@ -35,7 +35,7 @@ export const builtinMcpServers: BuiltinMcpServer[] = [
     id: nanoid(),
     name: BuiltinMcpServerNames.mcpAutoInstall,
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
-    type: 'inMemory',
+    type: 'stdio',
     command: 'npx',
     args: ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json'],
     isActive: false,

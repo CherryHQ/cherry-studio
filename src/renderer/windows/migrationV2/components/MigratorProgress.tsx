@@ -19,24 +19,24 @@ const StatusIcon: React.FC<{ status: MigratorStatus }> = ({ status }) => {
   switch (status) {
     case 'completed':
       return (
-        <span className={cn(ICON_WRAP, 'bg-success-bg text-success')}>
-          <Check size={12} strokeWidth={3} className="lucide-custom text-success" />
+        <span className={cn(ICON_WRAP, 'bg-success-subtle text-success-subtle-foreground')}>
+          <Check size={12} strokeWidth={3} className="lucide-custom" />
         </span>
       )
     case 'running':
       return (
-        <span className={cn(ICON_WRAP, 'bg-primary-mute text-primary')}>
+        <span className={cn(ICON_WRAP, 'bg-primary/10 text-primary')}>
           <Loader2 size={12} className="animate-spin" />
         </span>
       )
     case 'failed':
       return (
-        <span className={cn(ICON_WRAP, 'bg-error-bg text-error-text')}>
+        <span className={cn(ICON_WRAP, 'bg-error-subtle text-error-subtle-foreground')}>
           <XCircle size={12} />
         </span>
       )
     default:
-      return <span className={cn(ICON_WRAP, 'bg-muted/40 text-foreground-muted')} />
+      return <span className={cn(ICON_WRAP, 'bg-muted/40 text-foreground-tertiary')} />
   }
 }
 
@@ -49,7 +49,7 @@ const statusTextClass = (status: MigratorStatus): string => {
     case 'running':
       return 'text-primary'
     default:
-      return 'text-foreground-muted'
+      return 'text-foreground-tertiary'
   }
 }
 
@@ -71,7 +71,7 @@ export const MigratorProgressList: React.FC<Props> = ({ migrators }) => {
           <span
             className={cn(
               'flex-1 truncate text-sm',
-              migrator.status === 'pending' ? 'text-foreground-muted' : 'text-foreground'
+              migrator.status === 'pending' ? 'text-foreground-disabled' : 'text-foreground'
             )}>
             {migrator.name}
           </span>

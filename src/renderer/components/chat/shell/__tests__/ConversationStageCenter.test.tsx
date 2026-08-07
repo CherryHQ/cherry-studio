@@ -38,30 +38,16 @@ describe('ConversationStageCenter', () => {
     optionalPresentationState.value = undefined
   })
 
-  it('provides the shared full-height center frame around the composer stage', () => {
-    const { container } = render(
-      <ConversationStageCenter placement="home" main={<div>messages</div>} composer={<div>composer</div>} />
-    )
+  it('forwards stage content and maximized presentation state', () => {
+    optionalPresentationState.value = { presentationMaximized: true }
 
-    expect(container.firstElementChild).toHaveClass('h-full', 'min-h-0', 'flex-1')
+    render(<ConversationStageCenter placement="home" main={<div>messages</div>} composer={<div>composer</div>} />)
+
     expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-placement', 'home')
-  })
-
-  it('elevates the composer when the right panel is maximized', () => {
-    optionalPresentationState.value = { presentationMaximized: true }
-
-    render(<ConversationStageCenter placement="docked" main={<div />} composer={<div />} />)
-
-    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'true')
-  })
-
-  it('hides the main message area when the right panel is maximized', () => {
-    optionalPresentationState.value = { presentationMaximized: true }
-
-    render(<ConversationStageCenter placement="docked" main={<div>messages</div>} composer={<div />} />)
-
-    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-main-visible', 'false')
     expect(screen.getByTestId('stage-main')).toHaveTextContent('messages')
+    expect(screen.getByTestId('stage-composer')).toHaveTextContent('composer')
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-composer-elevated', 'true')
+    expect(screen.getByTestId('conversation-stage')).toHaveAttribute('data-main-visible', 'false')
   })
 
   it('uses effective presentation state while maximized intent is temporarily hidden', () => {

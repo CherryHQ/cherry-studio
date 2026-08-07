@@ -246,15 +246,15 @@ const TopicBranchPanel: FC<Props> = ({
       <div className="flex min-h-10 shrink-0 items-center gap-2 border-border-subtle border-b px-3 text-xs">
         {topicName && (
           <>
-            <span className="min-w-0 max-w-55 truncate text-foreground-muted">{topicName}</span>
-            <span className="shrink-0 text-foreground-muted">·</span>
+            <span className="min-w-0 max-w-55 truncate text-foreground-tertiary">{topicName}</span>
+            <span className="shrink-0 text-foreground-tertiary">·</span>
           </>
         )}
-        <span className="shrink-0 text-foreground-muted">
+        <span className="shrink-0 text-foreground-tertiary">
           {graph.stats.branchCount} {t('chat.message.flow.branches', { defaultValue: 'branches' })}
         </span>
-        <span className="shrink-0 text-foreground-muted">·</span>
-        <span className="shrink-0 text-foreground-muted">
+        <span className="shrink-0 text-foreground-tertiary">·</span>
+        <span className="shrink-0 text-foreground-tertiary">
           {graph.stats.nodeCount} {t('chat.message.flow.nodes', { defaultValue: 'nodes' })}
         </span>
       </div>
@@ -264,7 +264,7 @@ const TopicBranchPanel: FC<Props> = ({
             {t('common.error')}
           </div>
         ) : isLoading ? (
-          <div className="flex h-full min-h-80 items-center justify-center text-foreground-muted text-sm">
+          <div className="flex h-full min-h-80 items-center justify-center text-foreground-tertiary text-sm">
             {t('common.loading')}
           </div>
         ) : (

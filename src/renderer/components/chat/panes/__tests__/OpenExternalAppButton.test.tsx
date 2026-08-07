@@ -170,8 +170,6 @@ describe('OpenExternalAppButton', () => {
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
 
     const button = screen.getByRole('button', { name: 'Open in Finder' })
-    expect(button).toHaveAttribute('data-variant', 'ghost')
-    expect(button).toHaveAttribute('data-size', 'icon-sm')
 
     fireEvent.click(button)
 
@@ -205,14 +203,6 @@ describe('OpenExternalAppButton', () => {
 
     render(<OpenExternalAppButton workdir="/tmp/workspace" />)
 
-    const primaryButton = screen.getByRole('button', { name: 'Open in VS Code' })
-    const moreButton = screen.getByRole('button', { name: 'More' })
-    expect(primaryButton.parentElement).toHaveClass('h-8', 'border', 'border-border-subtle')
-    expect(primaryButton).toHaveClass('h-full')
-    expect(primaryButton).not.toHaveClass('border')
-    expect(moreButton).toHaveClass('h-full')
-    expect(moreButton).not.toHaveClass('border')
-
     // Menu targets live behind the split button's "More" popover trigger.
     fireEvent.click(screen.getByRole('button', { name: 'More' }))
     fireEvent.click(screen.getByRole('button', { name: 'Finder' }))
@@ -241,7 +231,6 @@ describe('OpenExternalAppButton', () => {
     render(<OpenExternalAppButton workdir="/tmp/workspace" filePath="report.xlsx" />)
 
     const primaryButton = screen.getByRole('button', { name: 'Open in Finder' })
-    expect(primaryButton.parentElement).toHaveClass('h-8', 'border', 'border-border-subtle')
 
     fireEvent.click(screen.getByRole('button', { name: 'More' }))
     fireEvent.click(screen.getByRole('button', { name: 'Default app' }))

@@ -2,6 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { ModelSelector } from '@renderer/components/ModelSelector'
+import { openResourceEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { AssistantSelector } from '@renderer/components/resourceCatalog/selectors'
 import { getLeadingEmoji } from '@renderer/utils/naming'
 import { cn } from '@renderer/utils/style'
@@ -10,6 +11,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { isNonChatModel } from '@shared/utils/model'
 import { Bot, ChevronDown } from 'lucide-react'
 import { useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { SelectedModelsTrigger } from '../SelectedModelsTrigger'
 import {
@@ -35,6 +37,7 @@ export interface ChatConversationControlsProps {
   selectModelLabel: string
   useMentionedModelSelector?: boolean
   shouldAutoSelectCreatedAssistant: boolean
+  assistantTriggerAction?: 'select' | 'edit'
   side: 'top' | 'bottom'
   iconOnly?: boolean
   onDialogCloseAutoFocus?: () => void
@@ -59,6 +62,7 @@ export function ChatConversationControls({
   selectModelLabel,
   useMentionedModelSelector,
   shouldAutoSelectCreatedAssistant,
+  assistantTriggerAction = 'select',
   side,
   iconOnly = false,
   onDialogCloseAutoFocus,
@@ -68,6 +72,7 @@ export function ChatConversationControls({
   onMentionedModelMultiSelectModeChange,
   onMentionedModelSelectorRestore
 }: ChatConversationControlsProps) {
+  const { t } = useTranslation()
   const assistantIcon = assistantEmoji || getLeadingEmoji(assistantName)
   const triggerClassName = side === 'bottom' ? COMPOSER_BELOW_SELECTOR_BUTTON_CLASS : COMPOSER_SELECTOR_BUTTON_CLASS
   const compactTriggerClassName = cn(triggerClassName, iconOnly && COMPOSER_ICON_ONLY_SELECTOR_BUTTON_CLASS)
@@ -98,28 +103,44 @@ export function ChatConversationControls({
     },
     [onMentionedModelMultiSelectModeChange]
   )
+  const handleAssistantEdit = useCallback(() => {
+    if (!assistantId) return
+    openResourceEditDialog({ kind: 'assistant', id: assistantId })
+  }, [assistantId])
 
   const assistantTrigger = (
-    <Button variant="ghost" size="sm" className={compactTriggerClassName}>
+    <Button
+      variant="ghost"
+      size="sm"
+      className={compactTriggerClassName}
+      disabled={assistantTriggerAction === 'edit' && !assistantId}
+      aria-label={assistantTriggerAction === 'edit' ? `${t('assistants.edit.title')}: ${assistantName}` : undefined}
+      onClick={assistantTriggerAction === 'edit' ? handleAssistantEdit : undefined}>
       {assistantIcon ? <EmojiIcon emoji={assistantIcon} size={20} /> : iconOnly ? <Bot size={16} aria-hidden /> : null}
       <span className={cn('max-w-40', labelClassName)}>{assistantName}</span>
-      <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
+      {assistantTriggerAction === 'edit' ? null : (
+        <ChevronDown size={14} aria-hidden className={cn('text-muted-foreground', iconOnly && 'hidden')} />
+      )}
     </Button>
   )
 
   return (
     <>
-      <AssistantSelector
-        multi={false}
-        value={assistantId}
-        onChange={onAssistantChange}
-        autoSelectOnCreate={shouldAutoSelectCreatedAssistant}
-        side={side}
-        align="start"
-        mountStrategy="lazy-keep"
-        onDialogCloseAutoFocus={onDialogCloseAutoFocus}
-        trigger={assistantTrigger}
-      />
+      {assistantTriggerAction === 'edit' ? (
+        assistantTrigger
+      ) : (
+        <AssistantSelector
+          multi={false}
+          value={assistantId}
+          onChange={onAssistantChange}
+          autoSelectOnCreate={shouldAutoSelectCreatedAssistant}
+          side={side}
+          align="start"
+          mountStrategy="lazy-keep"
+          onDialogCloseAutoFocus={onDialogCloseAutoFocus}
+          trigger={assistantTrigger}
+        />
+      )}
       {useMentionedModelSelector && isMentionedModelSelectorLocked ? (
         <SelectedModelsTrigger
           className={mentionedModelTriggerClassName}

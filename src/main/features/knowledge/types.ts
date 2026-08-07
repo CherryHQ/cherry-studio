@@ -1,6 +1,6 @@
 import type { JobType } from '@main/core/job/jobRegistry'
 
-export type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
+type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
 export const KNOWLEDGE_JOB_TYPES = [
   'knowledge.prepare-root',
   'knowledge.index-documents',
@@ -20,6 +20,9 @@ export type KnowledgeProgressDetail =
       stage: 'reading' | 'embedding' | 'writing' | 'enqueuing' | 'already-completed'
       currentFile: number
       totalFiles: number
+    }
+  | {
+      stage: 'copying'
     }
   | {
       stage: 'scanning'
@@ -45,7 +48,6 @@ export type KnowledgeProgressDetail =
       stage: 'failed'
     }
 
-export const KNOWLEDGE_ACTIVE_JOB_STATUSES = ['pending', 'delayed', 'running'] as const
 export const KNOWLEDGE_ACTIVE_JOB_LIMIT = 5000
 
 export function toKnowledgeBaseId(baseId: string): KnowledgeBaseId {

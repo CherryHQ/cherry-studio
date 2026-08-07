@@ -57,7 +57,7 @@ describe('webSearchProviderMeta', () => {
   })
 
   it('returns capability title keys', () => {
-    expect(getWebSearchCapabilityTitleKey('searchKeywords')).toBe('settings.tool.websearch.default_provider')
+    expect(getWebSearchCapabilityTitleKey('searchKeywords')).toBe('settings.tool.websearch.search_provider')
     expect(getWebSearchCapabilityTitleKey('fetchUrls')).toBe('settings.tool.websearch.fetch_urls_provider')
   })
 

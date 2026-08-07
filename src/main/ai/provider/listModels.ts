@@ -24,6 +24,7 @@ import {
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, withoutTrailingSlash } from '@shared/utils/api'
+import { deriveModelGroupName } from '@shared/utils/model'
 import {
   isAIGatewayProvider,
   isGeminiProvider,
@@ -131,8 +132,7 @@ async function getFromApi<T>({
 /** Build default headers with rotated API key */
 
 function defaultGroup(modelId: string, providerId: string): string {
-  const parts = modelId.split('/')
-  return parts.length > 1 ? parts[0] : providerId
+  return deriveModelGroupName(modelId) ?? providerId
 }
 
 /** Build a partial v2 Model from API response */

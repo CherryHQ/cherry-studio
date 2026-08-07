@@ -3,8 +3,9 @@
  * for user-provided absolute paths.
  *
  * Pure functions taking `FileManagerDeps` as the first argument. Each source
- * variant resolves to a normalized `{ name, ext, bytes }` triple, then writes
- * via `atomicWriteFile` and inserts the row through `fileEntryService.create`.
+ * variant resolves to normalized display metadata plus a prepared writer,
+ * then commits the prepared bytes and inserts their derived size/hash through
+ * `fileEntryService.create`.
  * On DB failure the just-written physical file is best-effort unlinked so the
  * `{userData}/Data/Files/` tree never carries orphan internal blobs from a failed
  * create flow.
@@ -14,8 +15,15 @@ import { realpath } from 'node:fs/promises'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file'
-import type { FileEntry } from '@shared/data/types/file'
+import {
+  prepareAtomicCopy,
+  prepareAtomicDownload,
+  prepareAtomicWrite,
+  type PreparedAtomicWrite,
+  remove as fsRemove,
+  stat as fsStat
+} from '@main/utils/file'
+import type { CleanupPolicy, FileEntry } from '@shared/data/types/file'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { canonicalizeFilePath } from '@shared/utils/file'
 import mime from 'mime'
@@ -55,7 +63,7 @@ async function bestEffortCleanup(physical: AbsoluteFilePath, context: string): P
 interface NormalisedSource {
   name: string
   ext: string | null
-  writeTo(target: AbsoluteFilePath): Promise<void>
+  prepare(target: AbsoluteFilePath): Promise<PreparedAtomicWrite>
 }
 
 const BASE64_DATA_URI = /^data:([^;,]+);base64,(.+)$/
@@ -66,7 +74,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
     return {
       name: params.name,
       ext: params.ext,
-      writeTo: (target) => atomicWriteFile(target, data)
+      prepare: (target) => prepareAtomicWrite(target, data)
     }
   }
   if (params.source === 'base64') {
@@ -81,7 +89,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
     return {
       name: params.name ?? `Pasted ${new Date().toISOString().slice(0, 10)}`,
       ext: ext ?? null,
-      writeTo: (target) => atomicWriteFile(target, new Uint8Array(bytes))
+      prepare: (target) => prepareAtomicWrite(target, new Uint8Array(bytes))
     }
   }
   if (params.source === 'path') {
@@ -89,7 +97,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
     return {
       name: basenameWithoutExt(src),
       ext: extWithoutDot(src),
-      writeTo: (target) => fsCopy(src, target)
+      prepare: (target) => prepareAtomicCopy(src, target)
     }
   }
   // url
@@ -97,7 +105,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
   return {
     name: urlTail(url),
     ext: extWithoutDot(url),
-    writeTo: (target) => download(url, target)
+    prepare: (target) => prepareAtomicDownload(url, target)
   }
 }
 
@@ -117,6 +125,23 @@ function extWithoutDot(p: string): string | null {
 function basenameForExtProjection(p: string): string {
   const base = p.split(/[\\/]/).pop() ?? p
   return base.replace(/[\s.]+$/, '')
+}
+
+/**
+ * Upgrade-only policy transition (spec §4.2): an explicit `manual` intent
+ * pins a previously business-owned entry; the reverse never happens
+ * implicitly — a library file @-mentioned in a chat must not become a
+ * cleanup candidate. Applied at every `ensureExternal` reuse return path.
+ */
+function upgradeCleanupPolicyIfNeeded(
+  deps: FileManagerDeps,
+  existing: FileEntry,
+  requestedPolicy: CleanupPolicy
+): FileEntry {
+  if (existing.cleanupPolicy === 'delete_when_unreferenced' && requestedPolicy === 'manual') {
+    return deps.fileEntryService.update(existing.id, { cleanupPolicy: 'manual' })
+  }
+  return existing
 }
 
 function urlTail(url: string): string {
@@ -140,12 +165,12 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
   const id = uuidv7()
   const filename = `${id}${source.ext ? `.${source.ext}` : ''}`
   const physical = AbsoluteFilePathSchema.parse(application.getPath('feature.files.data', filename))
-  await source.writeTo(physical)
-  let stats
+  const prepared = await source.prepare(physical)
   try {
-    stats = await fsStat(physical)
+    await prepared.commit()
   } catch (err) {
-    await bestEffortCleanup(physical, 'createInternal:stat-failed')
+    await prepared.abort()
+    await bestEffortCleanup(physical, 'createInternal:metadata-failed')
     throw err
   }
   try {
@@ -154,7 +179,9 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
       origin: 'internal',
       name: source.name,
       ext: source.ext,
-      size: stats.size
+      cleanupPolicy: params.cleanupPolicy,
+      size: prepared.size,
+      contentHash: prepared.contentHash
     })
   } catch (err) {
     logger.warn('createInternal: DB insert failed; unlinking physical file', { id, err })
@@ -174,7 +201,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
 export async function ensureExternal(deps: FileManagerDeps, params: EnsureExternalEntryParams): Promise<FileEntry> {
   const canonical = canonicalizeFilePath(params.externalPath)
   const existing = deps.fileEntryService.findByExternalPath(canonical)
-  if (existing) return existing
+  if (existing) return upgradeCleanupPolicyIfNeeded(deps, existing, params.cleanupPolicy)
   await fsStat(canonical)
   // Case-insensitive peer lookup is index-backed via the
   // `fe_external_path_lower_unique_idx` functional UNIQUE on `lower(externalPath)`.
@@ -200,26 +227,47 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   if (peers.length > 0) {
     const reusable = await resolveCaseCollisionPeer(canonical, peers)
     if (reusable) {
-      logger.info('ensureExternal: reusing case-collision peer (fs.realpath confirmed same FS entry)', {
+      // Re-read before trusting the peer: the `await` above (fs.realpath) yielded
+      // the event loop, and a concurrent cleanup pass can reclaim exactly this
+      // shape of row in the meantime — auto policy, zero refs, past grace is its
+      // target, not an edge case. Both failure halves are real: `update` would
+      // reject an upsert contracted to "ensure an entry exists", and the
+      // no-upgrade-needed path would hand back a FileEntry whose row is gone.
+      // Re-read and upgrade are both synchronous, so nothing interleaves between
+      // them (the cleanup pass shares this event loop). Losing the race is not an
+      // error — fall through and insert, which is what the caller asked for.
+      const stillPresent = deps.fileEntryService.findById(reusable.id)
+      if (stillPresent) {
+        logger.info('ensureExternal: reusing case-collision peer (fs.realpath confirmed same FS entry)', {
+          newPath: canonical,
+          peerId: stillPresent.id,
+          peerPath: (stillPresent as { externalPath: string }).externalPath
+        })
+        return upgradeCleanupPolicyIfNeeded(deps, stillPresent, params.cleanupPolicy)
+      }
+      // Reclaimed mid-flight. `fe_external_path_lower_unique_idx` is UNIQUE on
+      // `lower(externalPath)`, so `peers` holds at most this one row — its
+      // removal also released the constraint that forced this branch, and the
+      // insert below can proceed.
+      logger.info('ensureExternal: case-collision peer was reclaimed during realpath — inserting instead', {
         newPath: canonical,
-        peerId: reusable.id,
-        peerPath: (reusable as { externalPath: string }).externalPath
+        peerId: reusable.id
       })
-      return reusable
+    } else {
+      // No peer is the same FS entity. On a case-sensitive filesystem these
+      // are legitimately distinct files, but the DB unique constraint forbids
+      // the insert. Throw with full peer detail so the caller can act
+      // (rename one of the colliding paths, or surface the conflict to the
+      // user). This is a deliberate departure from the previous "warn-only"
+      // contract — the application-layer hard guarantee on lowered-path
+      // uniqueness is what option (c) brings.
+      throw new Error(
+        `ensureExternal: case-collision with existing entries — fs.realpath confirms different FS entities. ` +
+          `New: ${canonical}; conflicting peers: ${peers
+            .map((p) => `${p.id}=${(p as { externalPath: string }).externalPath}`)
+            .join(', ')}`
+      )
     }
-    // No peer is the same FS entity. On a case-sensitive filesystem these
-    // are legitimately distinct files, but the DB unique constraint forbids
-    // the insert. Throw with full peer detail so the caller can act
-    // (rename one of the colliding paths, or surface the conflict to the
-    // user). This is a deliberate departure from the previous "warn-only"
-    // contract — the application-layer hard guarantee on lowered-path
-    // uniqueness is what option (c) brings.
-    throw new Error(
-      `ensureExternal: case-collision with existing entries — fs.realpath confirms different FS entities. ` +
-        `New: ${canonical}; conflicting peers: ${peers
-          .map((p) => `${p.id}=${(p as { externalPath: string }).externalPath}`)
-          .join(', ')}`
-    )
   }
   // `name` and `ext` are pure projections of `externalPath` — derived here,
   // not accepted from callers. Doc-stated invariant: "external `name` is a
@@ -233,6 +281,7 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
     origin: 'external',
     name,
     ext,
+    cleanupPolicy: params.cleanupPolicy,
     externalPath: canonical
   })
   // Reverse-index hook: subsequent watcher / opportunistic ops events for

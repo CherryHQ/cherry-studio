@@ -24,7 +24,7 @@ export type SortDir = 'asc' | 'desc'
 const FILE_ROW_HEIGHT_PX = 44
 const FILE_LIST_GRID = 'grid grid-cols-[2.5rem_minmax(0,1fr)_4.5rem_4rem_7rem_6.5rem] items-center gap-2'
 const FILE_LIST_CHECKBOX_CLASS_NAME =
-  'inline-flex items-center justify-center align-middle border-border-active text-foreground hover:bg-accent data-[state=checked]:border-border-active data-[state=checked]:bg-background-subtle data-[state=checked]:text-foreground focus-visible:ring-border-active/20'
+  'inline-flex items-center justify-center align-middle text-foreground hover:bg-accent data-[state=checked]:border-border-selected data-[state=checked]:bg-background-subtle data-[state=checked]:text-foreground focus-visible:border-ring'
 
 function SortHeader({
   label,
@@ -47,7 +47,7 @@ function SortHeader({
       variant="ghost"
       size="sm"
       onClick={() => onSort(field)}
-      className="!text-foreground-muted hover:!text-foreground-secondary h-full min-h-0 w-full justify-start gap-1 rounded-none px-0 py-0 font-medium text-xs shadow-none hover:bg-transparent">
+      className="!text-muted-foreground hover:!text-foreground h-full min-h-0 w-full justify-start gap-1 rounded-none px-0 py-0 font-medium text-xs shadow-none hover:bg-transparent">
       <span>{label}</span>
       <SortIcon size={9} className={iconClass} />
     </Button>
@@ -210,16 +210,16 @@ export const FileList = memo(function FileList({
                   <>
                     <span className="truncate text-foreground text-sm">{file.name}</span>
                     {file.isMissing && (
-                      <span className="shrink-0 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] text-destructive/70">
+                      <span className="shrink-0 rounded border border-error-border bg-error-subtle px-1.5 py-0.5 text-[10px] text-error-subtle-foreground">
                         {t('files.missing')}
                       </span>
                     )}
                   </>
                 )}
               </div>
-              <span className="truncate text-foreground-secondary text-xs">{file.size}</span>
-              <span className="truncate text-foreground-secondary text-xs">{getFormatLabel(file.format)}</span>
-              <span className="truncate text-foreground-muted text-xs">{file.updatedAt}</span>
+              <span className="truncate text-muted-foreground text-xs">{file.size}</span>
+              <span className="truncate text-muted-foreground text-xs">{getFormatLabel(file.format)}</span>
+              <span className="truncate text-foreground-tertiary text-xs">{file.updatedAt}</span>
               <div className="grid grid-cols-4 justify-items-center gap-0.5 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
                 {canOpen ? (
                   <Button
@@ -227,7 +227,7 @@ export const FileList = memo(function FileList({
                     size="icon-sm"
                     aria-label={t('files.open')}
                     title={t('files.open')}
-                    className="!text-muted-foreground/70 hover:!text-foreground size-6 hover:bg-transparent"
+                    className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
                     onClick={(e) => {
                       e.stopPropagation()
                       onOpen(file)
@@ -243,7 +243,7 @@ export const FileList = memo(function FileList({
                     size="icon-sm"
                     aria-label={t('files.rename')}
                     title={t('files.rename')}
-                    className="!text-muted-foreground/70 hover:!text-foreground size-6 hover:bg-transparent"
+                    className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
                     onClick={(e) => {
                       e.stopPropagation()
                       onRename(file.id)
@@ -259,7 +259,7 @@ export const FileList = memo(function FileList({
                     size="icon-sm"
                     aria-label={t('files.restore')}
                     title={t('files.restore')}
-                    className="!text-muted-foreground/70 hover:!text-foreground size-6 hover:bg-transparent"
+                    className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
                     onClick={(e) => {
                       e.stopPropagation()
                       onRestore(file.id)
@@ -272,7 +272,7 @@ export const FileList = memo(function FileList({
                     size="icon-sm"
                     aria-label={t('files.show_in_folder')}
                     title={t('files.show_in_folder')}
-                    className="!text-muted-foreground/70 hover:!text-foreground size-6 hover:bg-transparent"
+                    className="!text-muted-foreground hover:!text-foreground size-6 hover:bg-transparent"
                     onClick={(e) => {
                       e.stopPropagation()
                       onShowInFolder(file.id)
@@ -287,7 +287,7 @@ export const FileList = memo(function FileList({
                   size="icon-sm"
                   aria-label={deleteLabel}
                   title={deleteLabel}
-                  className="!text-muted-foreground/70 hover:!text-destructive size-6 hover:bg-transparent"
+                  className="!text-muted-foreground hover:!text-destructive size-6 hover:bg-transparent"
                   onClick={(e) => {
                     e.stopPropagation()
                     onDelete(file.id)

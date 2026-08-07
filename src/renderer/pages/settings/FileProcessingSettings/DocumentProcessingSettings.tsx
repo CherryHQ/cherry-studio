@@ -1,32 +1,26 @@
-import { Badge, InfoTooltip, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { SettingsContentBody } from '@renderer/components/SettingsPrimitives'
+import { SettingsContentColumn } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
-import {
-  settingsContentScrollClassName,
-  settingsSubmenuItemClassName,
-  settingsSubmenuItemLabelClassName,
-  settingsSubmenuListClassName,
-  settingsSubmenuScrollClassName
-} from '@renderer/pages/settings/settingsStyles'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ProcessorAvatar } from './components/ProcessorAvatar'
 import { ProcessorPanel } from './components/ProcessorPanel'
 import { useAvailableFileProcessors } from './hooks/useAvailableFileProcessors'
 import { useFileProcessingPreferences } from './hooks/useFileProcessingPreferences'
-import { type FileProcessingMenuEntry, getFeatureSections, getProcessorNameKey } from './utils/fileProcessingMeta'
+import { type FileProcessingMenuEntry, getFeatureSections } from './utils/fileProcessingMeta'
 
 const EMPTY_MENU_ENTRIES: FileProcessingMenuEntry[] = []
+
+const documentProcessingFieldClassName =
+  '[&_input[data-slot=input]]:h-8 [&_input[data-slot=input]]:rounded-lg [&_input[data-slot=input]]:border-border-subtle ' +
+  '[&_input[data-slot=input]]:bg-muted/30 [&_input[data-slot=input]]:px-2.5 [&_input[data-slot=input]]:shadow-none ' +
+  '[&_input[data-slot=input]:focus-visible]:ring-[1px] [&_input[data-slot=input]:focus-visible]:ring-ring/35'
 
 const DocumentProcessingSettings: FC = () => {
   const { t } = useTranslation()
   const { theme: themeMode } = useTheme()
   const {
     defaultDocumentProcessor,
-    defaultImageProcessor,
     processors,
     setApiKeys,
     setCapabilityField,
@@ -43,90 +37,40 @@ const DocumentProcessingSettings: FC = () => {
     [availableProcessors.processorIds, processors]
   )
 
-  const [activeKey, setActiveKey] = useState(() => menuEntries[0]?.key ?? '')
+  const [activeKey, setActiveKey] = useState(
+    () => menuEntries.find((entry) => entry.processor.id === defaultDocumentProcessor)?.key ?? menuEntries[0]?.key ?? ''
+  )
 
   useEffect(() => {
-    setActiveKey((currentActiveKey) =>
-      menuEntries.some((entry) => entry.key === currentActiveKey) ? currentActiveKey : (menuEntries[0]?.key ?? '')
+    setActiveKey(
+      menuEntries.find((entry) => entry.processor.id === defaultDocumentProcessor)?.key ?? menuEntries[0]?.key ?? ''
     )
-  }, [menuEntries])
+  }, [defaultDocumentProcessor, menuEntries])
 
   const activeEntry = menuEntries.find((entry) => entry.key === activeKey) ?? menuEntries[0]
-  const activeEntryKey = activeEntry?.key ?? ''
 
   return (
-    <div className="flex flex-1" data-theme-mode={themeMode}>
-      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
-        <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
-          <PageHeader
-            title={
-              <span className="inline-flex max-w-full items-center gap-1.5 align-middle">
-                <span className="truncate">
-                  {t('settings.tool.file_processing.features.document_to_markdown.title')}
-                </span>
-                <InfoTooltip
-                  content={t('settings.tool.file_processing.features.document_to_markdown.tooltip')}
-                  placement="right"
-                  iconProps={{ size: 13, color: 'currentColor', className: 'shrink-0 opacity-80' }}
-                />
-              </span>
-            }
-          />
-          <Scrollbar className="min-h-0 flex-1">
-            <MenuList className={settingsSubmenuListClassName}>
-              {menuEntries.map((entry) => (
-                <MenuItem
-                  key={entry.key}
-                  label={t(getProcessorNameKey(entry.processor.id))}
-                  active={activeEntryKey === entry.key}
-                  onClick={() => setActiveKey(entry.key)}
-                  icon={
-                    <ProcessorAvatar
-                      processorId={entry.processor.id}
-                      size="md"
-                      className="shrink-0 rounded-lg border border-border/30"
-                    />
-                  }
-                  className={settingsSubmenuItemClassName}
-                  labelClassName={settingsSubmenuItemLabelClassName}
-                  suffix={
-                    defaultDocumentProcessor === entry.processor.id ? (
-                      <Badge className="rounded-full border border-success-border bg-success-subtle px-2 py-0.5 text-success-subtle-foreground text-xs">
-                        {t('common.default')}
-                      </Badge>
-                    ) : undefined
-                  }
-                />
-              ))}
-            </MenuList>
-          </Scrollbar>
+    <SettingsContentColumn theme={themeMode} innerClassName={documentProcessingFieldClassName}>
+      {availableProcessors.status === 'error' ? (
+        <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
+          {t('settings.tool.file_processing.errors.load_processors_failed')}
         </div>
-
-        <Scrollbar className={settingsContentScrollClassName}>
-          <SettingsContentBody>
-            {availableProcessors.status === 'error' ? (
-              <div className="flex h-full min-h-55 items-center justify-center text-foreground-muted text-sm">
-                {t('settings.tool.file_processing.errors.load_processors_failed')}
-              </div>
-            ) : activeEntry ? (
-              <ProcessorPanel
-                entry={activeEntry}
-                defaultDocumentProcessor={defaultDocumentProcessor}
-                defaultImageProcessor={defaultImageProcessor}
-                onSetApiKeys={setApiKeys}
-                onSetCapabilityField={setCapabilityField}
-                onSetDefaultProcessor={setDefaultProcessor}
-                onSetLanguageOptions={setLanguageOptions}
-              />
-            ) : (
-              <div className="flex h-full min-h-55 items-center justify-center text-foreground-muted text-sm">
-                {t('common.no_results')}
-              </div>
-            )}
-          </SettingsContentBody>
-        </Scrollbar>
-      </div>
-    </div>
+      ) : activeEntry ? (
+        <ProcessorPanel
+          entry={activeEntry}
+          entries={menuEntries}
+          onSelectEntry={(entry) => setActiveKey(entry.key)}
+          onSetApiKeys={setApiKeys}
+          onSetCapabilityField={setCapabilityField}
+          onSetDefaultProcessor={setDefaultProcessor}
+          onSetLanguageOptions={setLanguageOptions}
+        />
+      ) : (
+        <div className="flex h-full min-h-55 items-center justify-center text-foreground-tertiary text-sm">
+          {t('common.no_results')}
+        </div>
+      )}
+    </SettingsContentColumn>
   )
 }
 

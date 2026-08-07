@@ -418,6 +418,9 @@ describe('PreferencesMigrator', () => {
       const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, fileId))
       expect(entry?.origin).toBe('internal')
       expect(entry?.ext).toBe('webp')
+      // The mirror of the logo case: no ref table backs the avatar, so it must stay
+      // `manual` or the anti-join reclaims it on the very first cleanup pass.
+      expect(entry?.cleanupPolicy).toBe('manual')
     })
 
     it('passes a non-image avatar (emoji) through unchanged', async () => {

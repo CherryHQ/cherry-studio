@@ -90,9 +90,9 @@ const OvmsSettings: FC = () => {
 
   const bannerClasses = cn(
     'w-full rounded-lg border px-3 py-3 text-sm',
-    ovmsStatus === 'running' && 'border-success/40 bg-success/10 text-foreground',
-    ovmsStatus === 'not-running' && 'border-warning/40 bg-warning/10 text-foreground',
-    ovmsStatus === 'not-installed' && 'border-destructive/40 bg-destructive/10 text-foreground'
+    ovmsStatus === 'running' && 'border-success-border bg-success-subtle text-success-subtle-foreground',
+    ovmsStatus === 'not-running' && 'border-warning-border bg-warning-subtle text-warning-subtle-foreground',
+    ovmsStatus === 'not-installed' && 'border-error-border bg-error-subtle text-error-subtle-foreground'
   )
 
   const getStatusMessage = () => {
@@ -166,7 +166,7 @@ const OvmsSettings: FC = () => {
                 p: <p />,
                 a: (
                   <a
-                    className="text-primary"
+                    className="text-link"
                     href="https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md"
                     rel="noreferrer"
                     target="_blank"

@@ -13,6 +13,10 @@
 export const LOCAL_MODEL_STATUSES = ['not_downloaded', 'downloading', 'ready', 'error', 'unsupported'] as const
 export type LocalModelStatus = (typeof LOCAL_MODEL_STATUSES)[number]
 
+/** Terminal result returned to every caller awaiting the shared download. */
+export const LOCAL_MODEL_DOWNLOAD_RESULTS = ['ready', 'cancelled'] as const
+export type LocalModelDownloadResult = (typeof LOCAL_MODEL_DOWNLOAD_RESULTS)[number]
+
 /** Which downloadable local model a settings card / IPC route targets. */
 export const LOCAL_MODEL_KINDS = ['embedding', 'ocr'] as const
 export type LocalModelKind = (typeof LOCAL_MODEL_KINDS)[number]

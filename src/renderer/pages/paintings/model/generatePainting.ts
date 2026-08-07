@@ -50,6 +50,8 @@ export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMet
           prompt: opts.prompt,
           ...(opts.mode && { mode: opts.mode }),
           paramValues: opts.paramValues,
+          // Painting-owned images: reaped once no painting references them (file-entry-cleanup.md §4.1).
+          cleanupPolicy: 'delete_when_unreferenced',
           ...(opts.inputImages && opts.inputImages.length > 0 && { inputImages: opts.inputImages })
         }
       })

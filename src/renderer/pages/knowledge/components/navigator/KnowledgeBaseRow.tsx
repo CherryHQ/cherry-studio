@@ -131,7 +131,7 @@ const KnowledgeBaseRow = ({
             variant="ghost"
             onClick={() => onSelectBase(base.id)}
             className="flex min-h-0 min-w-0 flex-1 items-center justify-start rounded-md p-0 text-left shadow-none hover:bg-transparent">
-            <div className="min-w-0 truncate font-medium text-foreground text-sm leading-5">{base.name}</div>
+            <div className="min-w-0 truncate font-normal text-foreground text-sm leading-5">{base.name}</div>
           </Button>
           <KnowledgeRowActionsMenu items={contextMenuItems} />
         </div>

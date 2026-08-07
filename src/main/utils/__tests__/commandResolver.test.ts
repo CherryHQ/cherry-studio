@@ -1099,7 +1099,7 @@ describe('findCommandInShellEnv', () => {
       expect(spawn).toHaveBeenCalledWith('where', ['npx'], expect.any(Object))
     })
 
-    it('should reject .cmd files on Windows', async () => {
+    it('should find .cmd launchers on Windows', async () => {
       const mockChild = createMockChildProcess()
       vi.mocked(spawn).mockReturnValue(mockChild as never)
 
@@ -1110,7 +1110,7 @@ describe('findCommandInShellEnv', () => {
       mockChild.emit('close', 0)
 
       const result = await resultPromise
-      expect(result).toBeNull()
+      expect(result).toBe('C:\\Program Files\\nodejs\\npx.cmd')
     })
 
     it('should prefer .exe over .cmd when both exist', async () => {

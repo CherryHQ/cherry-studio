@@ -1,11 +1,11 @@
 import type { UIMessageChunk } from 'ai'
 
-import type { CherryMessagePart, CherryUIMessage } from '../../data/types/message'
+import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '../../data/types/message'
 import type { UniqueModelId } from '../../data/types/model'
 import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
 
-export interface AiChatRequestBody {
+export interface AiChatRequestBody extends AssistantTurnOptions {
   /** Topic ID for message routing and persistence. */
   topicId: string
   /** Explicit parent node — message id at the current branch tip, or null for first message. */
@@ -16,8 +16,6 @@ export interface AiChatRequestBody {
   userMessageParts?: CherryMessagePart[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
-  /** Canonical reasoning selection captured for this submit. */
-  reasoningEffort?: ReasoningEffortOption
 }
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
@@ -73,6 +71,8 @@ export interface ComposerQueuedMessagePayload {
   mentionedModels?: UniqueModelId[]
   /** Canonical reasoning selection captured with this queued draft. */
   reasoningEffort?: ReasoningEffortOption
+  /** Whether this queued draft requests Fast processing. */
+  fastMode?: boolean
 }
 
 /**
@@ -152,6 +152,8 @@ export type AiStreamOpenRequest = {
       userMessageParts: CherryMessagePart[]
       /** Canonical reasoning selection captured when the composer submitted. */
       reasoningEffort?: ReasoningEffortOption
+      /** Whether to request Fast processing for this turn. */
+      fastMode?: boolean
     }
   | {
       /** Re-run the assistant under an existing user msg. */
@@ -159,7 +161,10 @@ export type AiStreamOpenRequest = {
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
       userMessageParts?: never
-      reasoningEffort?: never
+      /** Canonical reasoning selection captured for this regenerated turn. */
+      reasoningEffort?: ReasoningEffortOption
+      /** Whether to request Fast processing for this regenerated turn. */
+      fastMode?: boolean
     }
 )
 
@@ -277,4 +282,9 @@ export type AiStreamOpenResponse =
       mode: 'blocked'
       reason: 'agent-session-workspace'
       message: string
+    }
+  | {
+      mode: 'blocked'
+      /** Main-side write quiesce (backup restore in progress). Renderer maps this reason to i18n. */
+      reason: 'paused'
     }

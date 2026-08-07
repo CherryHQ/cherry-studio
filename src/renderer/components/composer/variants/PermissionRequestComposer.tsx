@@ -181,7 +181,7 @@ function PermissionOption({
       <span
         className={cn(
           'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
-          'bg-muted text-muted-foreground group-hover:bg-neutral-950 group-hover:text-white dark:group-hover:bg-neutral-50 dark:group-hover:text-neutral-950'
+          'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'
         )}>
         {index}
       </span>
@@ -251,7 +251,9 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   return (
     <div
       data-composer-viewport-inset-target=""
-      className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
+      // pointer-events-auto: the composer dock stack is click-through; override
+      // composers re-enable interaction on their own root.
+      className={cn('pointer-events-auto relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
       <div
         className="rounded-[17px] border-[0.5px] border-border p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]"
         style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
@@ -267,7 +269,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
               <div className="mt-0.5 line-clamp-1 text-muted-foreground text-xs leading-4">{subtitle}</div>
             ) : null}
           </div>
-          <div className="rounded-full bg-warning/10 px-2 py-1 font-medium text-[11px] text-warning">
+          <div className="rounded-full border border-warning-border bg-warning-subtle px-2 py-1 font-medium text-[11px] text-warning-subtle-foreground">
             {t('agent.toolPermission.pending')}
           </div>
         </div>

@@ -19,6 +19,7 @@ import {
 import { parseKeyValueString } from '@renderer/utils/env'
 import { cn } from '@renderer/utils/style'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import { BuiltinMcpServerNames } from '@shared/utils/mcp'
 import type React from 'react'
 import { useCallback, useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
@@ -49,13 +50,27 @@ export const buildMcpSchema = (t: (key: string) => string) =>
       if ((value.serverType === 'sse' || value.serverType === 'streamableHttp') && !value.baseUrl?.trim()) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['baseUrl'], message: t('settings.mcp.url') })
       }
-      if (value.serverType === 'stdio' && !value.command?.trim()) {
+      if (resolveMcpConfigTransportType(value.serverType, value.name) === 'stdio' && !value.command?.trim()) {
         ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['command'], message: t('settings.mcp.command') })
       }
     })
 
 export type McpFormValues = z.infer<ReturnType<typeof buildMcpSchema>>
 export type McpForm = UseFormReturn<McpFormValues>
+
+export function resolveMcpConfigTransportType(type: McpServer['type'], name: string): McpServer['type'] {
+  return type === 'inMemory' && name === BuiltinMcpServerNames.mcpAutoInstall ? 'stdio' : type
+}
+
+export function resolveMcpConfigInstallSource(
+  server: Pick<McpServer, 'installSource' | 'name' | 'type'>
+): McpServer['installSource'] {
+  if (server.installSource) return server.installSource
+
+  return server.type === 'inMemory' && server.name === BuiltinMcpServerNames.mcpAutoInstall
+    ? 'builtin'
+    : server.installSource
+}
 
 export const MCP_FORM_DEFAULT_VALUES: McpFormValues = {
   name: '',
@@ -77,21 +92,22 @@ export const MCP_FORM_DEFAULT_VALUES: McpFormValues = {
 }
 
 export interface Registry {
-  name: string
+  /** i18n key under `settings.mcp.registryOptions` for the display name. */
+  nameKey: string
   url: string
 }
 
 export const NpmRegistry: Registry[] = [
-  { name: '淘宝 NPM Mirror', url: 'https://registry.npmmirror.com' },
-  { name: '自定义', url: 'custom' }
+  { nameKey: 'settings.mcp.registryOptions.npmTaobao', url: 'https://registry.npmmirror.com' },
+  { nameKey: 'settings.mcp.registryOptions.custom', url: 'custom' }
 ]
 
 export const PipRegistry: Registry[] = [
-  { name: '清华大学', url: 'https://pypi.tuna.tsinghua.edu.cn/simple' },
-  { name: '阿里云', url: 'http://mirrors.aliyun.com/pypi/simple/' },
-  { name: '中国科学技术大学', url: 'https://mirrors.ustc.edu.cn/pypi/simple/' },
-  { name: '华为云', url: 'https://repo.huaweicloud.com/repository/pypi/simple/' },
-  { name: '腾讯云', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
+  { nameKey: 'settings.mcp.registryOptions.pipTsinghua', url: 'https://pypi.tuna.tsinghua.edu.cn/simple' },
+  { nameKey: 'settings.mcp.registryOptions.pipAliyun', url: 'http://mirrors.aliyun.com/pypi/simple/' },
+  { nameKey: 'settings.mcp.registryOptions.pipUstc', url: 'https://mirrors.ustc.edu.cn/pypi/simple/' },
+  { nameKey: 'settings.mcp.registryOptions.pipHuawei', url: 'https://repo.huaweicloud.com/repository/pypi/simple/' },
+  { nameKey: 'settings.mcp.registryOptions.pipTencent', url: 'https://mirrors.cloud.tencent.com/pypi/simple/' }
 ]
 
 export const registryForCommand = (command: string): Registry[] | undefined => {
@@ -193,13 +209,12 @@ export function toMcpServerFields(values: McpFormValues): Partial<McpServer> {
 
   if (values.serverType === 'sse' || values.serverType === 'streamableHttp') {
     fields.baseUrl = values.baseUrl
+    fields.headers = parseKeyValueString(values.headers ?? '')
   } else {
     fields.command = values.command
     fields.args = values.args ? values.args.split('\n').filter((arg) => arg.trim() !== '') : []
+    fields.env = parseKeyValueString(values.env ?? '')
   }
-
-  if (values.env) fields.env = parseKeyValueString(values.env)
-  if (values.headers) fields.headers = parseKeyValueString(values.headers)
 
   return fields
 }
@@ -218,7 +233,7 @@ const McpFieldGroup = ({
   singleColumn ? <McpFormGrid className={singleColumnGridClassName}>{children}</McpFormGrid> : children
 
 const inlineSettingItemClassName =
-  'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border/70 px-3'
+  'flex h-14 min-w-0 flex-row items-center justify-between gap-4 rounded-md border border-border px-3'
 
 const codeAreaClassName = 'max-h-40 min-h-21 px-3 py-2 font-mono text-sm leading-5'
 
@@ -227,8 +242,8 @@ interface FieldsProps {
   serverType: McpServer['type']
   onServerTypeChange: (type: McpServer['type']) => void
   registryState: McpRegistryState
-  /** Built-in servers only expose a subset of the fields. */
-  isInMemory?: boolean
+  /** Built-in servers keep their identity while exposing transport-specific configuration. */
+  isBuiltin?: boolean
   /** Single-column layout for the quick-create dialog. */
   singleColumn?: boolean
   /** Allows quick-create to render args before the advanced section. */
@@ -238,7 +253,7 @@ interface FieldsProps {
 }
 
 /** Name / type / description — always visible. */
-export function McpIdentityFields({ form, onServerTypeChange, isInMemory, singleColumn }: FieldsProps) {
+export function McpIdentityFields({ form, onServerTypeChange, isBuiltin, singleColumn }: FieldsProps) {
   const { t } = useTranslation()
 
   return (
@@ -250,13 +265,13 @@ export function McpIdentityFields({ form, onServerTypeChange, isInMemory, single
           <FormItem className="min-w-0 gap-3">
             <FormLabel required>{t('settings.mcp.name')}</FormLabel>
             <FormControl>
-              <Input required placeholder={t('common.name')} disabled={isInMemory} {...field} />
+              <Input required placeholder={t('common.name')} disabled={isBuiltin} {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
         )}
       />
-      {!isInMemory && (
+      {!isBuiltin && (
         <FormField
           control={form.control}
           name="serverType"
@@ -436,7 +451,7 @@ export function McpTransportFields({ form, serverType, registryState, singleColu
                   {registry.map((reg) => (
                     <label key={reg.url} className="flex items-center gap-2 text-sm">
                       <RadioGroupItem value={reg.url} />
-                      {reg.name}
+                      {t(reg.nameKey)}
                     </label>
                   ))}
                 </RadioGroup>
@@ -525,7 +540,7 @@ export function McpRuntimeFields({ form, singleColumn, inlineCards = true }: Fie
                   onChange={(e) => field.onChange(e.target.value === '' ? undefined : Number(e.target.value))}
                   className="h-8 w-24 py-0"
                 />
-                <span className="text-foreground-muted text-xs">s</span>
+                <span className="text-foreground-tertiary text-xs">s</span>
               </div>
             </FormControl>
           </FormItem>

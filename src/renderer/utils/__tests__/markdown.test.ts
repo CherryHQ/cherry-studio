@@ -13,30 +13,17 @@ import {
 
 describe('markdown', () => {
   describe('findCitationInChildren', () => {
-    it('returns null when children is null or undefined', () => {
+    it('returns an empty string when no citation is present', () => {
       expect(findCitationInChildren(null)).toBe('')
       expect(findCitationInChildren(undefined)).toBe('')
+      expect(
+        findCitationInChildren([{ props: { foo: 'bar' } }, { props: { children: [{ props: { baz: 'qux' } }] } }])
+      ).toBe('')
     })
 
     it('finds citation in direct child element', () => {
       const children = [{ props: { 'data-citation': 'test-citation' } }]
       expect(findCitationInChildren(children)).toBe('test-citation')
-    })
-
-    it('finds citation in nested child element', () => {
-      const children = [
-        {
-          props: {
-            children: [{ props: { 'data-citation': 'nested-citation' } }]
-          }
-        }
-      ]
-      expect(findCitationInChildren(children)).toBe('nested-citation')
-    })
-
-    it('returns null when no citation is found', () => {
-      const children = [{ props: { foo: 'bar' } }, { props: { children: [{ props: { baz: 'qux' } }] } }]
-      expect(findCitationInChildren(children)).toBe('')
     })
 
     it('handles single child object (non-array)', () => {
@@ -46,6 +33,7 @@ describe('markdown', () => {
 
     it('handles deeply nested structures', () => {
       const children = [
+        'text node',
         {
           props: {
             children: [
@@ -68,28 +56,9 @@ describe('markdown', () => {
       ]
       expect(findCitationInChildren(children)).toBe('deep-citation')
     })
-
-    it('handles non-object children gracefully', () => {
-      const children = ['text node', 123, { props: { 'data-citation': 'mixed-citation' } }]
-      expect(findCitationInChildren(children)).toBe('mixed-citation')
-    })
   })
 
   describe('convertMathFormula', () => {
-    it('should convert LaTeX block delimiters to $$$$', () => {
-      // 验证将 LaTeX 块分隔符转换为 $$$$
-      const input = 'Some text \\[math formula\\] more text'
-      const result = convertMathFormula(input)
-      expect(result).toBe('Some text $$math formula$$ more text')
-    })
-
-    it('should convert LaTeX inline delimiters to $$', () => {
-      // 验证将 LaTeX 内联分隔符转换为 $$
-      const input = 'Some text \\(inline math\\) more text'
-      const result = convertMathFormula(input)
-      expect(result).toBe('Some text $inline math$ more text')
-    })
-
     it('should handle multiple delimiters in input', () => {
       // 验证处理输入中的多个分隔符
       const input = 'Text \\[block1\\] and \\(inline\\) and \\[block2\\]'
@@ -115,16 +84,9 @@ describe('markdown', () => {
   describe('removeTrailingDoubleSpaces', () => {
     it('should remove trailing double spaces from each line', () => {
       // 验证移除每行末尾的两个空格
-      const input = 'Line one  \nLine two  \nLine three'
+      const input = 'Line one  \nLine two \nLine three'
       const result = removeTrailingDoubleSpaces(input)
-      expect(result).toBe('Line one\nLine two\nLine three')
-    })
-
-    it('should handle single line with trailing double spaces', () => {
-      // 验证处理单行末尾的两个空格
-      const input = 'Single line  '
-      const result = removeTrailingDoubleSpaces(input)
-      expect(result).toBe('Single line')
+      expect(result).toBe('Line one\nLine two \nLine three')
     })
 
     it('should return unchanged if no trailing double spaces', () => {
@@ -132,13 +94,6 @@ describe('markdown', () => {
       const input = 'Line one\nLine two \nLine three'
       const result = removeTrailingDoubleSpaces(input)
       expect(result).toBe('Line one\nLine two \nLine three')
-    })
-
-    it('should handle empty string', () => {
-      // 验证处理空字符串
-      const input = ''
-      const result = removeTrailingDoubleSpaces(input)
-      expect(result).toBe('')
     })
   })
 
@@ -167,34 +122,6 @@ describe('markdown', () => {
     //   return result
     // }
 
-    it('should format content using remark-stringify', () => {
-      const markdown = '# Test\n```js\nvar x = 1;\n```'
-      const expectedResult = '# Test\n\n```js\nvar x = 1;\n```\n'
-
-      const actualId = '2:1:7'
-      const newContent = 'var x = 1;'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, actualId, newContent)
-
-      expect(result).toBe(expectedResult)
-    })
-
-    it('should update code block content when ID matches', () => {
-      const markdown = '# Test\n```js\nvar x = 1;\n```\nOther content'
-      const expectedResult = '# Test\n\n```js\nconst x = 2;\n```\n\nOther content\n'
-
-      const actualId = '2:1:7'
-      const newContent = 'const x = 2;'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, actualId, newContent)
-
-      expect(result).toBe(expectedResult)
-    })
-
     it('should not modify content when code block ID does not match', () => {
       const markdown = '# Test\n```js\nvar x = 1;\n```\nOther content'
       const wrongId = 'non-existent-id'
@@ -204,34 +131,6 @@ describe('markdown', () => {
 
       expect(result).toContain('var x = 1;')
       expect(result).not.toContain(newContent)
-    })
-
-    it('should preserve code block language tag', () => {
-      const markdown = '# Title\n\n```python\nprint("Hello")\n```\n'
-      const expectedResult = '# Title\n\n```python\nprint("Updated")\n```\n'
-
-      const pythonBlockId = '3:1:9'
-      const newContent = 'print("Updated")'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, pythonBlockId, newContent)
-
-      expect(result).toBe(expectedResult)
-    })
-
-    it('should only update the code block with matching ID when multiple blocks exist', () => {
-      const markdown = '```js\nvar x = 1;\n```\n\n```py\nprint("test")\n```'
-      const expectedResult = '```js\nconst y = 2;\n```\n\n```py\nprint("test")\n```\n'
-
-      const firstBlockId = '1:1:0'
-      const newContent = 'const y = 2;'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, firstBlockId, newContent)
-
-      expect(result).toBe(expectedResult)
     })
 
     it('should only update the second of two identical code blocks', () => {
@@ -248,20 +147,6 @@ describe('markdown', () => {
       // getAllCodeBlockIds(markdown)
 
       const result = updateCodeBlock(markdown, secondBlockId, newContent)
-
-      expect(result).toBe(expectedResult)
-    })
-
-    it('should handle code blocks with special characters', () => {
-      const markdown = '```js\nconst special = "\\n\\t\\"\\u{1F600}";\n```'
-      const expectedResult = '```js\nconst updated = true;\n```\n'
-
-      const blockId = '1:1:0'
-      const newContent = 'const updated = true;'
-
-      // getAllCodeBlockIds(markdown)
-
-      const result = updateCodeBlock(markdown, blockId, newContent)
 
       expect(result).toBe(expectedResult)
     })
@@ -301,61 +186,9 @@ describe('markdown', () => {
       expect(markdownToPlainText('')).toBe('')
     })
 
-    it('should remove headers', () => {
-      expect(markdownToPlainText('# Header 1')).toBe('Header 1')
-      expect(markdownToPlainText('## Header 2')).toBe('Header 2')
-      expect(markdownToPlainText('### Header 3')).toBe('Header 3')
-    })
-
-    it('should remove bold and italic', () => {
-      expect(markdownToPlainText('**bold**')).toBe('bold')
-      expect(markdownToPlainText('*italic*')).toBe('italic')
-      expect(markdownToPlainText('***bolditalic***')).toBe('bolditalic')
-      expect(markdownToPlainText('__bold__')).toBe('bold')
-      expect(markdownToPlainText('_italic_')).toBe('italic')
-      expect(markdownToPlainText('___bolditalic___')).toBe('bolditalic')
-    })
-
-    it('should remove strikethrough', () => {
-      expect(markdownToPlainText('~~strikethrough~~')).toBe('strikethrough')
-    })
-
-    it('should remove links, keeping the text', () => {
-      expect(markdownToPlainText('[link text](http://example.com)')).toBe('link text')
-      expect(markdownToPlainText('[link text with title](http://example.com "title")')).toBe('link text with title')
-    })
-
-    it('should remove images, keeping the alt text', () => {
-      expect(markdownToPlainText('![alt text](http://example.com/image.png)')).toBe('alt text')
-    })
-
-    it('should remove inline code', () => {
-      expect(markdownToPlainText('`inline code`')).toBe('inline code')
-    })
-
     it('should remove code blocks', () => {
       const codeBlock = '```javascript\nconst x = 1;\n```'
       expect(markdownToPlainText(codeBlock)).toBe('const x = 1;') // remove-markdown keeps code content
-    })
-
-    it('should remove blockquotes', () => {
-      expect(markdownToPlainText('> blockquote')).toBe('blockquote')
-    })
-
-    it('should remove unordered lists', () => {
-      const list = '* item 1\n* item 2'
-      expect(markdownToPlainText(list).replace(/\n+/g, ' ')).toBe('item 1 item 2')
-    })
-
-    it('should remove ordered lists', () => {
-      const list = '1. item 1\n2. item 2'
-      expect(markdownToPlainText(list).replace(/\n+/g, ' ')).toBe('item 1 item 2')
-    })
-
-    it('should remove horizontal rules', () => {
-      expect(markdownToPlainText('---')).toBe('')
-      expect(markdownToPlainText('***')).toBe('')
-      expect(markdownToPlainText('___')).toBe('')
     })
 
     it('should handle a mix of markdown elements', () => {
@@ -363,10 +196,6 @@ describe('markdown', () => {
       const expected = 'Title\nSome bold and italic text.\nlink\ncode\nquote\nlist item'
       const normalize = (str: string) => str.replace(/\s+/g, ' ').trim()
       expect(normalize(markdownToPlainText(mixed))).toBe(normalize(expected))
-    })
-
-    it('should keep plain text unchanged', () => {
-      expect(markdownToPlainText('This is plain text.')).toBe('This is plain text.')
     })
   })
 

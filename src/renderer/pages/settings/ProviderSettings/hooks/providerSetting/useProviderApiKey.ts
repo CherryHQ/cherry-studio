@@ -135,6 +135,9 @@ export function useProviderApiKey(providerId: string) {
       if (!provider) {
         return
       }
+      if ([...value].some((character) => character.charCodeAt(0) > 0xff)) {
+        throw new Error('API key contains characters unsupported by HTTP headers')
+      }
 
       await updateApiKeys(toApiKeyEntries(value, apiKeysData))
     },

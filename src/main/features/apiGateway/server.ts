@@ -42,7 +42,7 @@ export class ApiGateway {
     const port = preferenceService.get('feature.api_gateway.port')
     const host = preferenceService.get('feature.api_gateway.host')
 
-    const app = buildApp()
+    const app = buildApp({ host, port })
     this.app = app
 
     return new Promise((resolve, reject) => {

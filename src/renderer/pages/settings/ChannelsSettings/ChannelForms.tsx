@@ -11,8 +11,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
+import { PermissionModeIcon, PermissionModeOptionLabel } from '@renderer/components/PermissionModeOption'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import type { FeishuChannelConfig, FeishuDomain, PermissionMode } from '@renderer/types/agent'
+import { permissionModeCards } from '@renderer/utils/agent'
 import { QRCodeSVG } from 'qrcode.react'
 import type { ReactNode } from 'react'
 import { type FC, useCallback, useEffect, useState } from 'react'
@@ -21,14 +23,6 @@ import { useTranslation } from 'react-i18next'
 import type { ChannelData } from './channelTypes'
 
 // --------------- Permission mode ---------------
-
-const PERMISSION_MODE_OPTIONS: Array<{ value: PermissionMode | ''; labelKey: string }> = [
-  { value: '', labelKey: 'agent.channels.security.inheritFromAgent' },
-  { value: 'default', labelKey: 'agent.settings.tooling.permissionMode.default.title' },
-  { value: 'acceptEdits', labelKey: 'agent.settings.tooling.permissionMode.acceptEdits.title' },
-  { value: 'bypassPermissions', labelKey: 'agent.settings.tooling.permissionMode.bypassPermissions.title' },
-  { value: 'plan', labelKey: 'agent.settings.tooling.permissionMode.plan.title' }
-]
 
 const INHERIT_PERMISSION_MODE_VALUE = '__inherit'
 
@@ -66,6 +60,7 @@ type ChannelFieldsFormProps = ChannelFormProps & {
 
 const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
+  const selectedCard = permissionModeCards.find((card) => card.mode === channel.permissionMode)
   return (
     <div className="flex flex-col gap-1">
       <Label className="text-xs">{t('agent.channels.security.permissionMode')}</Label>
@@ -77,12 +72,25 @@ const ChannelPermissionMode: FC<ChannelFormProps> = ({ channel, onConfigChange }
           })
         }>
         <SelectTrigger size="sm" className="w-full">
-          <SelectValue />
+          {/* Own children so the trigger stays one line: the items below can be two. */}
+          <SelectValue>
+            {selectedCard ? (
+              <span className={selectedCard.dangerous ? 'text-destructive' : undefined}>
+                {t(selectedCard.titleKey, selectedCard.titleFallback)}
+              </span>
+            ) : (
+              t('agent.channels.security.inheritFromAgent')
+            )}
+          </SelectValue>
         </SelectTrigger>
         <SelectContent>
-          {PERMISSION_MODE_OPTIONS.map((opt) => (
-            <SelectItem key={opt.value || 'inherit'} value={opt.value || INHERIT_PERMISSION_MODE_VALUE}>
-              {t(opt.labelKey)}
+          <SelectItem value={INHERIT_PERMISSION_MODE_VALUE}>{t('agent.channels.security.inheritFromAgent')}</SelectItem>
+          {permissionModeCards.map((card) => (
+            <SelectItem key={card.mode} value={card.mode}>
+              <div className="flex items-center gap-2">
+                <PermissionModeIcon mode={card.mode} size={14} />
+                <PermissionModeOptionLabel card={card} t={t} withDescription={false} />
+              </div>
             </SelectItem>
           ))}
         </SelectContent>
@@ -169,7 +177,7 @@ const ChannelFieldsForm: FC<ChannelFieldsFormProps> = ({
             placeholder={chatIdsConfig.placeholder}
             className="h-8 text-sm"
           />
-          <span className="mt-1 block text-foreground-muted text-xs">{chatIdsConfig.hint}</span>
+          <span className="mt-1 block text-muted-foreground text-xs">{chatIdsConfig.hint}</span>
           {!chatIds.trim() && idsKey === 'allowed_chat_ids' && (
             <span className="mt-1 block text-warning text-xs">{t('agent.channels.chatIdsAutoTrackHint')}</span>
           )}
@@ -227,7 +235,7 @@ const FeishuDomainSelector: FC<ChannelFormProps> = ({ channel, onConfigChange })
   )
 }
 
-type FeishuStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected'
+type FeishuStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'
 
 export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   const { t } = useTranslation()
@@ -241,11 +249,12 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
     if (data.status === 'confirmed') {
       setQrUrl(null)
       setStatus('confirmed')
-      // Credentials are saved by main process (saveCredentialsAndReconnect).
-      // ChannelDetail will reload data on statusChange → connected.
     } else if (data.status === 'expired') {
       setQrUrl(null)
       setStatus('expired')
+    } else if (data.status === 'error') {
+      setQrUrl(null)
+      setStatus('error')
     } else if (data.url) {
       setQrUrl(data.url)
       setStatus('pending')
@@ -261,6 +270,12 @@ export const FeishuForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) =>
             <>
               <span className="inline-block h-2 w-2 rounded-full bg-error" />
               <span className="text-error text-xs">{t('agent.channels.feishu.qrExpired')}</span>
+            </>
+          )}
+          {status === 'error' && (
+            <>
+              <span className="inline-block h-2 w-2 rounded-full bg-error" />
+              <span className="text-error text-xs">{t('agent.channels.error')}</span>
             </>
           )}
           {status === 'idle' && <span className="text-info text-xs">{t('agent.channels.feishu.loginHint')}</span>}
@@ -386,7 +401,7 @@ export const QQForm: FC<ChannelFormProps> = ({ channel, onConfigChange }) => {
   )
 }
 
-type WeChatStatus = 'idle' | 'pending' | 'confirmed' | 'disconnected'
+type WeChatStatus = 'idle' | 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error'
 
 export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ channel, onConfigChange, onRemove }) => {
   const { t } = useTranslation()
@@ -411,9 +426,13 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
       if (data.userId) setLoginUserId(data.userId)
     } else if (data.status === 'expired') {
       setQrUrl(null)
+      setStatus('expired')
     } else if (data.status === 'disconnected') {
       setStatus('disconnected')
       setLoginUserId(null)
+    } else if (data.status === 'error') {
+      setQrUrl(null)
+      setStatus('error')
     } else if (data.url) {
       setQrUrl(data.url)
       setStatus('pending')
@@ -436,12 +455,24 @@ export const WeChatForm: FC<ChannelFormProps & { onRemove?: () => void }> = ({ c
               <span className="text-error text-xs">{t('agent.channels.wechat.disconnected')}</span>
             </>
           )}
+          {status === 'expired' && (
+            <>
+              <span className="inline-block h-2 w-2 rounded-full bg-error" />
+              <span className="text-error text-xs">{t('agent.channels.wechat.qrExpired')}</span>
+            </>
+          )}
+          {status === 'error' && (
+            <>
+              <span className="inline-block h-2 w-2 rounded-full bg-error" />
+              <span className="text-error text-xs">{t('agent.channels.error')}</span>
+            </>
+          )}
           {(status === 'idle' || status === 'pending') && (
             <span className="text-info text-xs">{t('agent.channels.wechat.loginHint')}</span>
           )}
         </div>
         {loginUserId && status === 'confirmed' && (
-          <span className="text-foreground-muted text-xs">
+          <span className="text-foreground-tertiary text-xs">
             User ID: <code className="select-all rounded bg-muted px-1">{loginUserId}</code>
           </span>
         )}

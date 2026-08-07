@@ -84,7 +84,6 @@ describe('useConversationTurnController', () => {
       await sendFromA
     })
 
-    expect(result.current.localSendGeneration).toBe(0)
     expect(result.current.phase).toBe('draft')
 
     mocks.streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
@@ -92,11 +91,10 @@ describe('useConversationTurnController', () => {
       await result.current.send('from B')
     })
 
-    expect(result.current.localSendGeneration).toBe(1)
     expect(result.current.phase).toBe('streaming')
   })
 
-  it('does not advance the local-send generation when stream open is blocked', async () => {
+  it('returns to ready when stream open is blocked', async () => {
     mocks.streamOpen.mockResolvedValueOnce({
       mode: 'blocked',
       reason: 'agent-session-workspace',
@@ -108,14 +106,13 @@ describe('useConversationTurnController', () => {
       await result.current.send('blocked message')
     })
 
-    expect(result.current.localSendGeneration).toBe(0)
     expect(result.current.phase).toBe('ready')
     expect(mocks.toastError).toHaveBeenCalledWith('Workspace access is required')
     expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
     expect(historyAdapter.rollback).not.toHaveBeenCalled()
   })
 
-  it('does not advance the local-send generation when stream open fails', async () => {
+  it('returns to draft when stream open fails', async () => {
     mocks.streamOpen.mockRejectedValueOnce(new Error('stream open failed'))
     const { result, historyAdapter } = renderController()
 
@@ -123,7 +120,6 @@ describe('useConversationTurnController', () => {
       await expect(result.current.send('failed message')).rejects.toThrow('stream open failed')
     })
 
-    expect(result.current.localSendGeneration).toBe(0)
     expect(result.current.phase).toBe('draft')
     expect(historyAdapter.seedReservedMessages).not.toHaveBeenCalled()
     expect(historyAdapter.rollback).toHaveBeenCalledOnce()

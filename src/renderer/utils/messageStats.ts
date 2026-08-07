@@ -31,7 +31,11 @@ function buildCacheTokenStats(
 }
 
 export function getCacheTokenStats(stats: MessageStats): CacheTokenStats | undefined {
-  return buildCacheTokenStats(stats.noCacheTokens ?? 0, stats.cacheReadTokens ?? 0, stats.cacheWriteTokens ?? 0)
+  return buildCacheTokenStats(
+    stats.inputTokenDetails?.noCacheTokens ?? 0,
+    stats.inputTokenDetails?.cacheReadTokens ?? 0,
+    stats.inputTokenDetails?.cacheWriteTokens ?? 0
+  )
 }
 
 /**
@@ -43,14 +47,18 @@ export function getCacheTokenStats(stats: MessageStats): CacheTokenStats | undef
  */
 export function statsToUsage(stats: MessageStats): Usage {
   return {
-    prompt_tokens: stats.promptTokens ?? 0,
-    completion_tokens: stats.completionTokens ?? 0,
+    prompt_tokens: stats.inputTokens ?? 0,
+    completion_tokens: stats.outputTokens ?? 0,
     total_tokens: stats.totalTokens ?? 0,
-    ...(stats.thoughtsTokens !== undefined && { thoughts_tokens: stats.thoughtsTokens }),
-    ...(stats.noCacheTokens !== undefined && { no_cache_tokens: stats.noCacheTokens }),
-    ...(stats.cacheReadTokens !== undefined && { cache_read_tokens: stats.cacheReadTokens }),
-    ...(stats.cacheWriteTokens !== undefined && { cache_write_tokens: stats.cacheWriteTokens }),
-    ...(stats.cost !== undefined && { cost: stats.cost })
+    ...(stats.outputTokenDetails?.reasoningTokens !== undefined && {
+      thoughts_tokens: stats.outputTokenDetails.reasoningTokens
+    }),
+    ...(stats.inputTokenDetails?.cacheReadTokens !== undefined && {
+      cache_read_tokens: stats.inputTokenDetails.cacheReadTokens
+    }),
+    ...(stats.inputTokenDetails?.cacheWriteTokens !== undefined && {
+      cache_write_tokens: stats.inputTokenDetails.cacheWriteTokens
+    })
   }
 }
 
@@ -63,7 +71,7 @@ export function statsToUsage(stats: MessageStats): Usage {
  */
 export function statsToMetrics(stats: MessageStats): Metrics {
   return {
-    completion_tokens: stats.completionTokens ?? 0,
+    completion_tokens: stats.outputTokens ?? 0,
     time_completion_millsec: stats.timeCompletionMs ?? 0,
     time_first_token_millsec: stats.timeFirstTokenMs,
     time_thinking_millsec: stats.timeThinkingMs

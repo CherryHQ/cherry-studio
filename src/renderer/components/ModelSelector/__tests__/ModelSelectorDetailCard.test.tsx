@@ -274,20 +274,6 @@ describe('ModelSelectorDetailCard', () => {
     expect(mockHoverCardContentProps.at(-1)?.avoidCollisions).toBeUndefined()
   })
 
-  it('does not use a document fragment as the collision boundary', () => {
-    const model = makeModel()
-    const portalContainer = document.createDocumentFragment()
-
-    render(
-      <ModelSelectorDetailCard item={makeItem(model)} provider={provider} portalContainer={portalContainer}>
-        <button type="button">GPT-4o mini</button>
-      </ModelSelectorDetailCard>
-    )
-
-    expect(mockHoverCardContentProps.at(-1)).toMatchObject({ portalContainer })
-    expect(mockHoverCardContentProps.at(-1)?.collisionBoundary).toBeUndefined()
-  })
-
   it('renders reasoning options derived from the descriptor', () => {
     const model = makeModel({
       id: 'openai::gpt-5-codex-max' as UniqueModelId,

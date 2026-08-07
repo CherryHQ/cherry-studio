@@ -12,9 +12,9 @@ import {
   SettingRowTitle,
   SettingTitle
 } from '@renderer/components/SettingsPrimitives'
+import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
-import { getBackupSyncState, startAutoSync, stopAutoSync } from '@renderer/services/BackupService'
 import { toast } from '@renderer/services/toast'
 import type { AppInfo } from '@renderer/types/app'
 import dayjs from 'dayjs'
@@ -22,10 +22,8 @@ import { FolderOpen, RefreshCw, Save, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { BackupUnavailableGate } from './BackupUnavailableGate'
-
 const logger = loggerService.withContext('LocalBackupSettings')
-const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, transparent)'
+const SYNC_STATUS_COLOR = 'var(--muted-foreground)'
 
 const LocalBackupSettings: React.FC = () => {
   const [, setLocalBackupAutoSync] = usePreference('data.backup.local.auto_sync')
@@ -35,6 +33,7 @@ const LocalBackupSettings: React.FC = () => {
   const [localBackupSyncInterval, setLocalBackupSyncInterval] = usePreference('data.backup.local.sync_interval')
 
   const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
+  const [localBackupDirDraft, setLocalBackupDirDraft] = useState(localBackupDir)
   const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const [appInfo, setAppInfo] = useState<AppInfo>()
@@ -49,20 +48,22 @@ const LocalBackupSettings: React.FC = () => {
     }
   }, [localBackupDir])
 
+  useEffect(() => {
+    setLocalBackupDirDraft(localBackupDir)
+  }, [localBackupDir])
+
   const { theme } = useTheme()
 
   const { t } = useTranslation()
 
-  const { localBackupSync } = getBackupSyncState()
+  const localBackupSync = useBackupSyncState('local')
 
-  const onSyncIntervalChange = (value: number) => {
-    void setLocalBackupSyncInterval(value)
+  const onSyncIntervalChange = async (value: number) => {
+    await setLocalBackupSyncInterval(value)
     if (value === 0) {
-      void setLocalBackupAutoSync(false)
-      stopAutoSync('local')
+      await setLocalBackupAutoSync(false)
     } else {
-      void setLocalBackupAutoSync(true)
-      void startAutoSync(false, 'local')
+      await setLocalBackupAutoSync(true)
     }
   }
 
@@ -72,17 +73,18 @@ const LocalBackupSettings: React.FC = () => {
     }
 
     const resolvedDir = await window.api.resolvePath(dir)
+    const info = appInfo ?? (await ipcApi.request('app.get_info'))
 
     // check new local backup dir is not in app data path
     // if is in app data path, show error
-    if (await window.api.isPathInside(resolvedDir, appInfo!.appDataPath)) {
+    if (await window.api.isPathInside(resolvedDir, info.appDataPath)) {
       toast.error(t('settings.data.local.directory.select_error_app_data_path'))
       return false
     }
 
     // check new local backup dir is not in app install path
     // if is in app install path, show error
-    if (await window.api.isPathInside(resolvedDir, appInfo!.installPath)) {
+    if (await window.api.isPathInside(resolvedDir, info.installPath)) {
       toast.error(t('settings.data.local.directory.select_error_in_app_install_path'))
       return false
     }
@@ -99,35 +101,29 @@ const LocalBackupSettings: React.FC = () => {
 
   const handleLocalBackupDirChange = async (value: string) => {
     if (value === localBackupDir) {
+      setLocalBackupDirDraft(localBackupDir)
       return
     }
 
     if (value === '') {
-      void handleClearDirectory()
+      await handleClearDirectory()
       return
     }
 
     if (await checkLocalBackupDirValid(value)) {
       await setLocalBackupDir(value)
+      setLocalBackupDirDraft(value)
       setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
       await setLocalBackupAutoSync(true)
-      void startAutoSync(true, 'local')
       return
     }
 
-    if (localBackupDir) {
-      await setLocalBackupDir(localBackupDir)
-      return
-    }
+    setLocalBackupDirDraft(localBackupDir)
   }
 
   const onMaxBackupsChange = (value: number) => {
     void setLocalBackupMaxBackups(value)
-  }
-
-  const onSkipBackupFilesChange = (value: boolean) => {
-    void setLocalBackupSkipBackupFile(value)
   }
 
   const handleBrowseDirectory = async () => {
@@ -148,9 +144,9 @@ const LocalBackupSettings: React.FC = () => {
   }
 
   const handleClearDirectory = async () => {
+    setLocalBackupDirDraft('')
     await setLocalBackupDir('')
     await setLocalBackupAutoSync(false)
-    stopAutoSync('local')
   }
 
   const renderSyncStatus = () => {
@@ -166,7 +162,7 @@ const LocalBackupSettings: React.FC = () => {
         {!localBackupSync.syncing && localBackupSync.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.local.syncError')}: ${localBackupSync.lastSyncError}`}
-            iconProps={{ style: { color: 'red' } }}
+            iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
         {localBackupSync.lastSyncTime && (
@@ -193,116 +189,117 @@ const LocalBackupSettings: React.FC = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.local.title')}</SettingTitle>
       <SettingDivider />
-      <BackupUnavailableGate>
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.local.directory.label')}</SettingRowTitle>
-          <RowFlex className="gap-1.25">
-            <Input
-              value={localBackupDir}
-              onChange={(e) => setLocalBackupDir(e.target.value)}
-              onBlur={(e) => handleLocalBackupDirChange(e.target.value)}
-              placeholder={t('settings.data.local.directory.placeholder')}
-              style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
-            />
-            <Button onClick={handleBrowseDirectory} variant="outline">
-              <FolderOpen size={14} />
-              {t('common.browse')}
-            </Button>
-            <Button onClick={handleClearDirectory} disabled={!localBackupDir} variant="destructive">
-              <Trash2 size={14} />
-              {t('common.clear')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
-          <RowFlex className="justify-between gap-1.25">
-            <Button onClick={showBackupModal} disabled={!localBackupDir || backuping} variant="outline">
-              <Save size={14} />
-              {t('settings.data.local.backup.button')}
-            </Button>
-            <Button onClick={showBackupManager} disabled={!localBackupDir} variant="outline">
-              <FolderOpen size={14} />
-              {t('settings.data.local.restore.button')}
-            </Button>
-          </RowFlex>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.local.autoSync.label')}</SettingRowTitle>
-          <Selector
-            size={14}
-            value={localBackupSyncInterval}
-            onChange={onSyncIntervalChange}
-            disabled={!localBackupDir}
-            options={[
-              { label: t('settings.data.local.autoSync.off'), value: 0 },
-              { label: t('settings.data.local.minute_interval', { count: 1 }), value: 1 },
-              { label: t('settings.data.local.minute_interval', { count: 5 }), value: 5 },
-              { label: t('settings.data.local.minute_interval', { count: 15 }), value: 15 },
-              { label: t('settings.data.local.minute_interval', { count: 30 }), value: 30 },
-              { label: t('settings.data.local.hour_interval', { count: 1 }), value: 60 },
-              { label: t('settings.data.local.hour_interval', { count: 2 }), value: 120 },
-              { label: t('settings.data.local.hour_interval', { count: 6 }), value: 360 },
-              { label: t('settings.data.local.hour_interval', { count: 12 }), value: 720 },
-              { label: t('settings.data.local.hour_interval', { count: 24 }), value: 1440 }
-            ]}
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.local.directory.label')}</SettingRowTitle>
+        <RowFlex className="gap-1.25">
+          <Input
+            value={localBackupDirDraft}
+            onChange={(e) => setLocalBackupDirDraft(e.target.value)}
+            onBlur={(e) => void handleLocalBackupDirChange(e.target.value)}
+            placeholder={t('settings.data.local.directory.placeholder')}
+            style={{ minWidth: 200, maxWidth: 400, flex: 1 }}
           />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.local.maxBackups.label')}</SettingRowTitle>
-          <Selector
-            size={14}
-            value={localBackupMaxBackups}
-            onChange={onMaxBackupsChange}
-            disabled={!localBackupDir}
-            options={[
-              { label: t('settings.data.local.maxBackups.unlimited'), value: 0 },
-              { label: '1', value: 1 },
-              { label: '3', value: 3 },
-              { label: '5', value: 5 },
-              { label: '10', value: 10 },
-              { label: '20', value: 20 },
-              { label: '50', value: 50 }
-            ]}
-          />
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
-          <Switch checked={localBackupSkipBackupFile} onCheckedChange={onSkipBackupFilesChange} />
-        </SettingRow>
-        <SettingRow>
-          <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
-        </SettingRow>
-        {localBackupSync && localBackupSyncInterval > 0 && (
-          <>
-            <SettingDivider />
-            <SettingRow>
-              <SettingRowTitle>{t('settings.data.local.syncStatus')}</SettingRowTitle>
-              {renderSyncStatus()}
-            </SettingRow>
-          </>
-        )}
+          <Button onClick={handleBrowseDirectory} variant="outline">
+            <FolderOpen size={14} />
+            {t('common.browse')}
+          </Button>
+          <Button onClick={handleClearDirectory} disabled={!localBackupDir} variant="destructive">
+            <Trash2 size={14} />
+            {t('common.clear')}
+          </Button>
+        </RowFlex>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.general.backup.title')}</SettingRowTitle>
+        <RowFlex className="justify-between gap-1.25">
+          <Button onClick={showBackupModal} disabled={!localBackupDir || backuping} variant="outline">
+            <Save size={14} />
+            {t('settings.data.local.backup.button')}
+          </Button>
+          <Button onClick={showBackupManager} disabled={!localBackupDir} variant="outline">
+            <FolderOpen size={14} />
+            {t('settings.data.local.restore.button')}
+          </Button>
+        </RowFlex>
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.local.autoSync.label')}</SettingRowTitle>
+        <Selector
+          size={14}
+          value={localBackupSyncInterval}
+          onChange={onSyncIntervalChange}
+          disabled={!localBackupDir}
+          options={[
+            { label: t('settings.data.local.autoSync.off'), value: 0 },
+            { label: t('settings.data.local.minute_interval', { count: 1 }), value: 1 },
+            { label: t('settings.data.local.minute_interval', { count: 5 }), value: 5 },
+            { label: t('settings.data.local.minute_interval', { count: 15 }), value: 15 },
+            { label: t('settings.data.local.minute_interval', { count: 30 }), value: 30 },
+            { label: t('settings.data.local.hour_interval', { count: 1 }), value: 60 },
+            { label: t('settings.data.local.hour_interval', { count: 2 }), value: 120 },
+            { label: t('settings.data.local.hour_interval', { count: 6 }), value: 360 },
+            { label: t('settings.data.local.hour_interval', { count: 12 }), value: 720 },
+            { label: t('settings.data.local.hour_interval', { count: 24 }), value: 1440 }
+          ]}
+        />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.local.maxBackups.label')}</SettingRowTitle>
+        <Selector
+          size={14}
+          value={localBackupMaxBackups}
+          onChange={onMaxBackupsChange}
+          disabled={!localBackupDir}
+          options={[
+            { label: t('settings.data.local.maxBackups.unlimited'), value: 0 },
+            { label: '1', value: 1 },
+            { label: '3', value: 3 },
+            { label: '5', value: 5 },
+            { label: '10', value: 10 },
+            { label: '20', value: 20 },
+            { label: '50', value: 50 }
+          ]}
+        />
+      </SettingRow>
+      <SettingDivider />
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.backup.skip_file_data_title')}</SettingRowTitle>
+        <Switch
+          checked={localBackupSkipBackupFile}
+          onCheckedChange={(value) => void setLocalBackupSkipBackupFile(value)}
+        />
+      </SettingRow>
+      <SettingRow>
+        <SettingHelpText>{t('settings.data.backup.skip_file_data_help')}</SettingHelpText>
+      </SettingRow>
+      {localBackupSync && localBackupSyncInterval > 0 && (
         <>
-          <LocalBackupModal
-            isModalVisible={isModalVisible}
-            handleBackup={handleBackup}
-            handleCancel={handleCancel}
-            backuping={backuping}
-            customFileName={customFileName}
-            setCustomFileName={setCustomFileName}
-          />
-
-          <LocalBackupManager
-            visible={backupManagerVisible}
-            onClose={closeBackupManager}
-            localBackupDir={resolvedLocalBackupDir}
-          />
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>{t('settings.data.local.syncStatus')}</SettingRowTitle>
+            {renderSyncStatus()}
+          </SettingRow>
         </>
-      </BackupUnavailableGate>
+      )}
+      <>
+        <LocalBackupModal
+          isModalVisible={isModalVisible}
+          handleBackup={handleBackup}
+          handleCancel={handleCancel}
+          backuping={backuping}
+          customFileName={customFileName}
+          setCustomFileName={setCustomFileName}
+        />
+
+        <LocalBackupManager
+          visible={backupManagerVisible}
+          onClose={closeBackupManager}
+          localBackupDir={resolvedLocalBackupDir}
+        />
+      </>
     </SettingGroup>
   )
 }

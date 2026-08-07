@@ -375,8 +375,8 @@ describe('Sidebar resize handle', () => {
     }
   })
 
-  it('renders full docked mini app icons directly without avatar chrome', () => {
-    const { container } = render(
+  it('renders apps and direct mini app icons together in one full docked list', () => {
+    render(
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
@@ -391,36 +391,13 @@ describe('Sidebar resize handle', () => {
       />
     )
 
-    expect(container.querySelector('[data-testid="resolved-mini-app-logo-avatar"]')).not.toBeInTheDocument()
-    expect(container.querySelector('[data-testid="resolved-mini-app-logo"]')).toHaveStyle({
-      width: '16px',
-      height: '16px'
-    })
-  })
-
-  it('renders apps and mini apps together in one continuous list', () => {
-    const dockedTab: SidebarMiniAppTab = {
-      title: 'Qwen',
-      miniApp: { id: 'qwen', logo: 'qwen' }
-    }
-
-    const { getByText } = render(
-      <Sidebar
-        width={SIDEBAR_FULL_THRESHOLD}
-        setWidth={vi.fn()}
-        active={{ activeItem: 'chat' }}
-        entries={[...entries, miniEntry(dockedTab)]}
-      />
-    )
-
-    // App and mini app rows go through the same resolved-entry render path, so both
-    // appear in the single list.
-    expect(getByText('Chat')).toBeInTheDocument()
-    expect(getByText('Qwen')).toBeInTheDocument()
+    expect(screen.getByText('Chat')).toBeInTheDocument()
+    expect(screen.getByText('Qwen')).toBeInTheDocument()
+    expect(screen.getByLabelText('Qwen')).toBeInTheDocument()
   })
 
   it('gives docked mini apps the shared icon-row button sizing and hover styles', () => {
-    const { container } = render(
+    render(
       <Sidebar
         width={SIDEBAR_ICON_WIDTH}
         setWidth={vi.fn()}
@@ -435,10 +412,8 @@ describe('Sidebar resize handle', () => {
       />
     )
 
-    const miniAppLogo = container.querySelector('[data-testid="resolved-mini-app-logo"]')
-    const dockedMiniAppButton = miniAppLogo?.closest('button')
+    const dockedMiniAppButton = screen.getByRole('button', { name: 'Qwen' })
 
-    expect(miniAppLogo).toHaveStyle({ width: '22px', height: '22px' })
     expect(dockedMiniAppButton).toHaveClass('h-9', 'w-9')
     expect(dockedMiniAppButton).toHaveClass('hover:bg-accent/60', 'hover:text-foreground')
   })

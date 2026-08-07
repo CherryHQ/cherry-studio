@@ -21,7 +21,7 @@
  * target name so telemetry can rebuild the call tree.
  */
 
-import { asSchema, type Tool, tool } from 'ai'
+import { asSchema, jsonSchema, type Tool, tool } from 'ai'
 import * as z from 'zod'
 
 import { isApprovalGated } from '../isApprovalGated'
@@ -30,6 +30,41 @@ import type { ToolEntry } from '../types'
 import { buildToolStub } from './schemaStub'
 
 export const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
+
+/** Runtime validation for tool_invoke's own input (the SDK skips zod when the
+ *  schema is a `jsonSchema()` wrapper, so the validate callback carries it). */
+const toolInvokeInputZod = z.object({
+  name: z.string(),
+  params: z.record(z.string(), z.unknown()).optional()
+})
+
+/**
+ * Hand-written JSON Schema instead of the zod schema above: the AI SDK's zod
+ * conversion (`addAdditionalPropertiesToJsonSchema` in @ai-sdk/provider-utils)
+ * force-sets `additionalProperties: false` on EVERY object node — including
+ * the free-form `params` record — regardless of the record's value type. The
+ * resulting wire schema forbids all `params` keys, so Anthropic's
+ * `input_examples` validation 400s the whole request and strict endpoints
+ * reject real calls. `asSchema` passes a pre-wrapped `jsonSchema()` through
+ * untouched, so `additionalProperties: true` survives here.
+ */
+const toolInvokeInputSchema = jsonSchema<{ name: string; params?: Record<string, unknown> }>(
+  {
+    type: 'object',
+    properties: {
+      name: { type: 'string', description: 'Tool name as returned by tool_search' },
+      params: { type: 'object', additionalProperties: true, description: 'Tool input arguments' }
+    },
+    required: ['name'],
+    additionalProperties: false
+  },
+  {
+    validate: (value) => {
+      const result = toolInvokeInputZod.safeParse(value)
+      return result.success ? { success: true, value: result.data } : { success: false, error: result.error }
+    }
+  }
+)
 
 /**
  * @param allowedNames per-request tool name set (the request's active inline ∪ deferred names).
@@ -54,10 +89,7 @@ export function createToolInvokeTool(
       'Call a single tool discovered via `tool_search` by name, passing arguments under `params`. ' +
       "If the tool hasn't been inspected, or the arguments don't match its schema, the call returns the " +
       'tool signature — read it and call again with corrected params. Inspect first to skip that round-trip.',
-    inputSchema: z.object({
-      name: z.string().describe('Tool name as returned by tool_search'),
-      params: z.record(z.string(), z.unknown()).optional().describe('Tool input arguments')
-    }),
+    inputSchema: toolInvokeInputSchema,
     inputExamples: [{ input: { name: 'web_search', params: { query: 'cherry studio latest release' } } }],
     execute: async ({ name, params }, options) => {
       if (!allowedNames.has(name)) throw new Error(`Tool not available in this request: ${name}`)

@@ -111,7 +111,7 @@ export class SchedulerService extends BaseService {
     }
 
     logger.debug('Scheduled', { id, kind: trigger.kind })
-    return this.registerDisposable(() => this.unregister(id))
+    return { dispose: () => this.unregister(id) }
   }
 
   /**

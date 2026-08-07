@@ -67,7 +67,7 @@ Dexie 表定义：`src/renderer/databases/index.ts`，`files` 表包含上述字
 
 ## IPC 接口（文件相关）
 
-注册位置：`src/main/ipc.ts`；预加载暴露：`src/preload/index.ts`（`window.api.file`）。
+注册位置：`src/main/ipc.ts`；预加载暴露：`src/preload/preload.ts`（`window.api.file`）。
 
 常用接口示例：
 
@@ -105,7 +105,7 @@ Dexie 表定义：`src/renderer/databases/index.ts`，`files` 表包含上述字
 
 - `src/main/services/FileStorage.ts`
 - `src/main/ipc.ts`
-- `src/preload/index.ts`
+- `src/preload/preload.ts`
 - `src/renderer/services/FileManager.ts`
 - `src/renderer/databases/index.ts`
 - `src/renderer/pages/files/FilesPage.tsx`

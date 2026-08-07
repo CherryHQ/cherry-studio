@@ -1,9 +1,14 @@
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import { describe, expect, it, vi } from 'vitest'
 
 import type * as ComposerDraftModule from '../../../composerDraft'
 import type { ComposerSerializedDraft } from '../../../tokens'
-import { buildComposerQueuedPayload } from '../composerQueuedPayload'
+import { buildComposerQueuedPayload, getComposerHistoryText } from '../composerQueuedPayload'
+
+// `createComposerUserMessageParts` is mocked below for the payload tests, but the history tests need
+// the real composer snapshot (token offsets + prompt text) that the excision walks.
+const { createComposerUserMessageParts } = await vi.importActual<typeof ComposerDraftModule>('../../../composerDraft')
 
 vi.mock('../../../composerDraft', async (importOriginal) => ({
   ...(await importOriginal<typeof ComposerDraftModule>()),
@@ -101,5 +106,62 @@ describe('buildComposerQueuedPayload', () => {
     expect(result?.text).toBe('  hello  ')
     expect(result?.userMessageParts).toEqual([{ type: 'text', text: '  hello  ' }])
     expect(result?.reasoningEffort).toBe('high')
+  })
+})
+
+describe('getComposerHistoryText', () => {
+  const KNOWLEDGE_PROMPT = 'The user attached knowledge base "Notes" (id: kb-1).'
+  const SKILL_PROMPT = 'Use the pdf skill.'
+
+  const promptDraft = (before: string, prompts: Array<{ kind: 'knowledge' | 'skill'; text: string }>) => {
+    let textOffset = before.length
+    const tokens = prompts.map((prompt, index) => {
+      const token = {
+        id: `${prompt.kind}:${index}`,
+        kind: prompt.kind,
+        label: prompt.kind,
+        index,
+        textOffset,
+        promptText: prompt.text
+      }
+      textOffset += prompt.text.length + 1
+      return token
+    })
+    return { text: `${before}${prompts.map((prompt) => `${prompt.text} `).join('')}tail`, tokens }
+  }
+
+  it('drops a knowledge prompt span so the replayed entry cannot claim an unauthorized base', () => {
+    const draft = promptDraft('summarize ', [{ kind: 'knowledge', text: KNOWLEDGE_PROMPT }])
+
+    const history = getComposerHistoryText(createComposerUserMessageParts(draft as ComposerSerializedDraft))
+
+    expect(history).not.toContain('kb-1')
+    expect(history).not.toContain(KNOWLEDGE_PROMPT)
+    expect(history).toContain('summarize')
+    expect(history).toContain('tail')
+  })
+
+  it('keeps every other kind verbatim — only knowledge needs an accompanying scope part', () => {
+    const draft = promptDraft('summarize ', [
+      { kind: 'knowledge', text: KNOWLEDGE_PROMPT },
+      { kind: 'skill', text: SKILL_PROMPT }
+    ])
+
+    const history = getComposerHistoryText(createComposerUserMessageParts(draft as ComposerSerializedDraft))
+
+    expect(history).toContain(SKILL_PROMPT)
+    expect(history).not.toContain(KNOWLEDGE_PROMPT)
+  })
+
+  it('leaves a knowledge-free draft byte-identical rather than rewriting tokens to clipboard markers', () => {
+    const draft = promptDraft('summarize ', [{ kind: 'skill', text: SKILL_PROMPT }])
+
+    const history = getComposerHistoryText(createComposerUserMessageParts(draft as ComposerSerializedDraft))
+
+    expect(history).toBe(draft.text)
+  })
+
+  it('passes a part without composer metadata through untouched', () => {
+    expect(getComposerHistoryText([{ type: 'text', text: 'plain text' } as CherryMessagePart])).toBe('plain text')
   })
 })

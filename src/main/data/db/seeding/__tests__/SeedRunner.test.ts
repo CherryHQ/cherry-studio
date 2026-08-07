@@ -30,6 +30,10 @@ describe('SeedRunner', () => {
       if (key === 'feature.provider_registry.data' && filename) {
         return resolve('packages/provider-registry/data', filename)
       }
+      if (key === 'feature.agents.builtin') {
+        const builtinRoot = resolve('resources/builtin-agents')
+        return filename ? resolve(builtinRoot, filename) : builtinRoot
+      }
 
       return filename ? `/mock/${key}/${filename}` : `/mock/${key}`
     })

@@ -3,7 +3,8 @@
  * Claude Code subprocess (heartbeat skip + agent-not-found). The full
  * streaming path is exercised by integration tests / Phase 5 manual e2e.
  *
- * Each fire creates a fresh session — there is no cross-fire session reuse.
+ * Each fire creates a fresh session unless the task opts into `reuseSession`,
+ * whose sticky-pointer branches are covered in the 'session reuse' block.
  */
 
 import type { JobContext } from '@main/core/job/types'
@@ -14,14 +15,26 @@ import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agent
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAbort, mockGetAdapter, mockStartRun, captured } = vi.hoisted(() => {
+const {
+  mockAbort,
+  mockRemoveListener,
+  mockGetAdapter,
+  mockStartRun,
+  mockBindTaskSessionReuse,
+  mockIsSessionBusy,
+  captured
+} = vi.hoisted(() => {
   const captured: { listeners: Array<Record<string, (arg?: unknown) => void>> } = { listeners: [] }
   return {
     mockAbort: vi.fn(),
+    mockRemoveListener: vi.fn(),
     mockGetAdapter: vi.fn(() => undefined),
     mockStartRun: vi.fn(async (opts: { listeners: typeof captured.listeners }) => {
       captured.listeners = opts.listeners
+      return { mode: 'started' as const }
     }),
+    mockBindTaskSessionReuse: vi.fn(() => true),
+    mockIsSessionBusy: vi.fn(() => false),
     captured
   }
 })
@@ -32,7 +45,10 @@ vi.mock('@application', async () => {
     // ChannelManager + AiStreamManager aren't in the default mock service set; the
     // streaming path (post heartbeat-skip) reads both, so wire minimal stubs here.
     ChannelManager: { getAdapter: mockGetAdapter },
-    AiStreamManager: { abort: mockAbort }
+    AiStreamManager: { abort: mockAbort, removeListener: mockRemoveListener },
+    AgentJobsService: { bindTaskSessionReuse: mockBindTaskSessionReuse },
+    // Gate that keeps a reusing fire off a session with a live turn.
+    AgentSessionRuntimeService: { isSessionBusy: mockIsSessionBusy }
   } as never)
 })
 
@@ -47,13 +63,13 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: vi.fn() }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { create: vi.fn() }
+  agentSessionService: { create: vi.fn(), getByTaskScheduleId: vi.fn() }
 }))
 vi.mock('@data/services/AgentWorkspaceService', () => ({
   agentWorkspaceService: { getById: vi.fn() }
 }))
 vi.mock('@data/services/JobScheduleService', () => ({
-  jobScheduleService: { getById: vi.fn() }
+  jobScheduleService: { getById: vi.fn(), getByIdTx: vi.fn() }
 }))
 vi.mock('@data/services/JobService', () => ({
   jobService: { getById: vi.fn() }
@@ -104,6 +120,7 @@ type TestAgentTaskInput = {
   prompt: string
   timeoutMinutes: number
   workspace: AgentSessionWorkspaceSource
+  reuseRevision: number
 }
 
 type TestJobContextOverrides = Omit<Partial<JobContext<TestAgentTaskInput>>, 'input'> & {
@@ -119,6 +136,7 @@ function makeCtx(overrides: TestJobContextOverrides = {}) {
       prompt: '__heartbeat__',
       timeoutMinutes: 2,
       workspace: { type: 'user', workspaceId: 'ws-1' },
+      reuseRevision: 0,
       ...inputOverride
     },
     attempt: 0,
@@ -166,7 +184,7 @@ function makeSession(workspacePath: string | null = '/ws/a'): AgentSessionEntity
   } as AgentSessionEntity
 }
 
-function makeSchedule(name: string | null = 'heartbeat') {
+function makeSchedule(name: string | null = 'heartbeat', metadata: Record<string, unknown> = {}) {
   return {
     id: 's1',
     type: 'agent.task',
@@ -177,7 +195,7 @@ function makeSchedule(name: string | null = 'heartbeat') {
     nextRun: null,
     lastRun: null,
     catchUpPolicy: { kind: 'skip-missed' },
-    metadata: {},
+    metadata,
     createdAt: '2026-05-20T00:00:00.000Z',
     updatedAt: '2026-05-20T00:00:00.000Z'
   } as never
@@ -189,11 +207,16 @@ describe('runAgentTask', () => {
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(agentService.getAgent).mockReset()
     vi.mocked(agentSessionService.create).mockReset()
+    vi.mocked(agentSessionService.getByTaskScheduleId).mockReset()
+    vi.mocked(jobScheduleService.getByIdTx).mockReset()
+    mockBindTaskSessionReuse.mockReset().mockReturnValue(true)
+    mockIsSessionBusy.mockReset().mockReturnValue(false)
     vi.mocked(agentWorkspaceService.getById).mockReset()
     vi.mocked(readHeartbeat).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockReturnValue([])
     mockStartRun.mockClear()
     mockAbort.mockClear()
+    mockRemoveListener.mockClear()
     mockGetAdapter.mockClear()
     captured.listeners = []
   })
@@ -225,16 +248,18 @@ describe('runAgentTask', () => {
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
 
-  it('skips assistant heartbeat WITHOUT creating a session', async () => {
+  it('treats a built-in Assistant heartbeat like any other Agent heartbeat', async () => {
     vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('heartbeat'))
     vi.mocked(agentService.getAgent).mockReturnValueOnce(
       makeAgent({ builtin_role: 'assistant', heartbeat_enabled: true })
     )
 
-    const out = await runAgentTask(makeCtx())
+    const out = await runAgentTask(
+      makeCtx({ input: { agentId: 'a1', prompt: '__heartbeat__', timeoutMinutes: 2, workspace: { type: 'system' } } })
+    )
 
-    expect(out).toEqual({ sessionId: null, result: 'Skipped (assistant role)' })
+    expect(out).toEqual({ sessionId: null, result: 'Skipped (no file)' })
     expect(agentSessionService.create).not.toHaveBeenCalled()
     expect(agentWorkspaceService.getById).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
@@ -342,6 +367,177 @@ describe('runAgentTask', () => {
       agentId: 'a1',
       name: 'daily-summary',
       workspace: { type: 'system' }
+    })
+  })
+
+  describe('session reuse', () => {
+    const REUSE_ON = { reuse: { enabled: true, revision: 0 } }
+
+    /** Drive one fire of a non-heartbeat task to completion. */
+    async function runToCompletion(scheduleMetadata: Record<string, unknown>) {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', scheduleMetadata))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+
+      const promise = runAgentTask(
+        makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+      return await promise
+    }
+
+    it('creates a fresh session per fire and writes no pointer when reuse is off', async () => {
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+
+      const out = await runToCompletion({})
+
+      expect(out.sessionId).toBe('sess-new')
+      expect(agentSessionService.getByTaskScheduleId).not.toHaveBeenCalled()
+      expect(mockBindTaskSessionReuse).not.toHaveBeenCalled()
+    })
+
+    it('binds the created session onto the schedule on the first reusing fire', async () => {
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+
+      const out = await runToCompletion(REUSE_ON)
+
+      expect(out.sessionId).toBe('sess-new')
+      expect(mockBindTaskSessionReuse).toHaveBeenCalledWith({
+        scheduleId: 's1',
+        sessionId: 'sess-new',
+        agentId: 'a1',
+        workspace: { type: 'system' },
+        reuseRevision: 0
+      })
+    })
+
+    it('continues the bound session on a later fire without creating one', async () => {
+      const bound = { ...makeSession('/ws/a'), id: 'sess-sticky' }
+      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(bound)
+
+      const out = await runToCompletion({ reuse: { enabled: true, revision: 0 } })
+
+      expect(out.sessionId).toBe('sess-sticky')
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+      // Already bound — no pointer rewrite.
+      expect(mockBindTaskSessionReuse).not.toHaveBeenCalled()
+    })
+
+    it('runs one-off when a queued job has a stale reuse revision', async () => {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(
+        makeSchedule('daily-summary', { reuse: { enabled: true, revision: 1 } })
+      )
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+
+      const promise = runAgentTask(
+        makeCtx({
+          input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' }, reuseRevision: 0 }
+        })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+
+      await expect(promise).resolves.toMatchObject({ sessionId: 'sess-new' })
+      expect(agentSessionService.getByTaskScheduleId).not.toHaveBeenCalled()
+      expect(mockBindTaskSessionReuse).not.toHaveBeenCalled()
+    })
+
+    // Deleting the session must not break the schedule: the fire rebinds a new one.
+    it('rebinds when the constrained relation no longer has a session', async () => {
+      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(null)
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+
+      const out = await runToCompletion(REUSE_ON)
+
+      expect(out.sessionId).toBe('sess-new')
+      expect(mockBindTaskSessionReuse).toHaveBeenCalledTimes(1)
+    })
+
+    it('refuses to resume a session owned by another agent', async () => {
+      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce({ ...makeSession('/ws/a'), agentId: 'a2' })
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+
+      const out = await runToCompletion(REUSE_ON)
+
+      expect(out.sessionId).toBe('sess-new')
+      expect(agentSessionService.create).toHaveBeenCalled()
+    })
+
+    it('delegates pointer admission to the command owner when reuse changes during the fire', async () => {
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+
+      const out = await runToCompletion(REUSE_ON)
+
+      expect(out.sessionId).toBe('sess-new')
+      expect(mockBindTaskSessionReuse).toHaveBeenCalledTimes(1)
+    })
+
+    // The sticky session is user-reachable (the run log links to it). Dispatching
+    // onto a live turn would attach this fire's sentinel to SOMEONE ELSE's stream:
+    // the job would settle on their onDone, and a task timeout would abort their turn.
+    it('stands down when the locked start reports a reused session busy', async () => {
+      const bound = { ...makeSession('/ws/a'), id: 'sess-sticky' }
+      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(bound)
+      mockStartRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'busy' } as never)
+
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+
+      const out = await runAgentTask(
+        makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+      )
+
+      expect(out).toEqual({ sessionId: 'sess-sticky', result: 'Skipped (session busy)' })
+      expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ requireIdle: { expectedAgentId: 'a1' } }))
+      expect(mockAbort).not.toHaveBeenCalled()
+      expect(agentSessionService.create).not.toHaveBeenCalled()
+    })
+
+    // Skipping must not look like a failure: agentTaskJobHandler.onSettled pauses
+    // the schedule after three consecutive failed runs, so a user chatting in the
+    // sticky session could otherwise disable their own task.
+    it('reports a busy skip as a completed run, not a throw', async () => {
+      const bound = { ...makeSession('/ws/a'), id: 'sess-sticky' }
+      vi.mocked(agentSessionService.getByTaskScheduleId).mockReturnValueOnce(bound)
+      mockStartRun.mockResolvedValueOnce({ mode: 'not-started', reason: 'busy' } as never)
+
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot('s1'))
+      vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary', REUSE_ON))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+
+      await expect(
+        runAgentTask(
+          makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+        )
+      ).resolves.toMatchObject({ result: 'Skipped (session busy)' })
+    })
+
+    it('starts a freshly created session through the locked require-idle path', async () => {
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+      const out = await runToCompletion(REUSE_ON)
+
+      expect(out.sessionId).toBe('sess-new')
+      expect(mockStartRun).toHaveBeenCalledWith(expect.objectContaining({ requireIdle: { expectedAgentId: 'a1' } }))
+    })
+
+    // Ad-hoc enqueues carry no schedule, so there is nowhere to persist a pointer.
+    it('does not attempt a pointer bind for a schedule-less job', async () => {
+      vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot(null))
+      vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+      vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+
+      const promise = runAgentTask(
+        makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0, workspace: { type: 'system' } } })
+      )
+      await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+      captured.listeners[0].onDone({ status: 'completed' })
+      await promise
+
+      expect(mockBindTaskSessionReuse).not.toHaveBeenCalled()
     })
   })
 
@@ -454,6 +650,75 @@ describe('runAgentTask', () => {
 
     await expect(promise).rejects.toThrow('cancelled by manager')
     expect(mockAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'cancelled by manager')
+  })
+
+  it('does not abort a queued successor after this task terminal listener has settled', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    const controller = new AbortController()
+    mockStartRun.mockImplementationOnce(async (opts) => {
+      opts.listeners[0].onDone({ status: 'completed' } as never)
+      // This models the runtime terminal listener scheduling a successor immediately after the
+      // task listener. A late timeout/cancel must no longer abort the topic.
+      controller.abort(new Error('late timeout'))
+      return { mode: 'started' }
+    })
+
+    await expect(
+      runAgentTask(makeCtx({ signal: controller.signal, input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    ).resolves.toEqual({ sessionId: 'sess-new', result: 'Completed' })
+
+    expect(mockAbort).not.toHaveBeenCalled()
+    expect(mockRemoveListener).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-new'), 'agent-task:s1')
+  })
+
+  it('does not abort a user turn when cancellation lands while idle admission is waiting', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create).mockReturnValueOnce(makeSession('/ws/a'))
+    const controller = new AbortController()
+    let finishAdmission!: () => void
+    mockStartRun.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishAdmission = () => resolve({ mode: 'not-started', reason: 'busy' } as never)
+        })
+    )
+
+    const promise = runAgentTask(
+      makeCtx({ signal: controller.signal, input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } })
+    )
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
+    controller.abort(new Error('cancelled while waiting'))
+    finishAdmission()
+
+    await expect(promise).rejects.toThrow('cancelled while waiting')
+    expect(mockAbort).not.toHaveBeenCalled()
+  })
+
+  it('rebinds once after an ownership race and starts only the replacement session', async () => {
+    vi.mocked(jobService.getById).mockReturnValueOnce(makeJobSnapshot())
+    vi.mocked(jobScheduleService.getById).mockReturnValueOnce(makeSchedule('daily-summary'))
+    vi.mocked(agentService.getAgent).mockReturnValueOnce(makeAgent())
+    vi.mocked(agentSessionService.create)
+      .mockReturnValueOnce({ ...makeSession('/ws/a'), id: 'sess-stale' })
+      .mockReturnValueOnce({ ...makeSession('/ws/a'), id: 'sess-rebound' })
+    mockStartRun
+      .mockResolvedValueOnce({ mode: 'not-started', reason: 'session-invalid' } as never)
+      .mockImplementationOnce(async (opts) => {
+        captured.listeners = opts.listeners
+        return { mode: 'started' }
+      })
+
+    const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
+    await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalledTimes(2))
+    captured.listeners[0].onDone({ status: 'completed' })
+
+    await expect(promise).resolves.toMatchObject({ sessionId: 'sess-rebound' })
+    expect(agentSessionService.create).toHaveBeenCalledTimes(2)
   })
 
   // agents-jobs-5: a non-zero `timeoutMinutes` arms a per-task timeout timer in

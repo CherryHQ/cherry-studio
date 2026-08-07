@@ -15,6 +15,16 @@ const packages = [
   '@anthropic-ai/claude-agent-sdk-linux-x64-musl',
   '@anthropic-ai/claude-agent-sdk-win32-arm64',
   '@anthropic-ai/claude-agent-sdk-win32-x64',
+  // anydoc converts binary office documents to markdown for the knowledge base.
+  // It ships no win32-arm64 build and no wasm fallback, so existing formats use
+  // their legacy readers there while newly supported .ppt fails visibly.
+  '@firecrawl/anydoc-darwin-arm64',
+  '@firecrawl/anydoc-darwin-x64',
+  '@firecrawl/anydoc-linux-arm64-gnu',
+  '@firecrawl/anydoc-linux-arm64-musl',
+  '@firecrawl/anydoc-linux-x64-gnu',
+  '@firecrawl/anydoc-linux-x64-musl',
+  '@firecrawl/anydoc-win32-x64-msvc',
   '@img/sharp-darwin-arm64',
   '@img/sharp-darwin-x64',
   '@img/sharp-libvips-darwin-arm64',
@@ -41,6 +51,14 @@ const packages = [
   '@napi-rs/canvas-darwin-arm64',
   '@napi-rs/canvas-win32-x64-msvc',
   '@napi-rs/canvas-win32-arm64-msvc',
+  '@node-rs/xxhash-darwin-arm64',
+  '@node-rs/xxhash-darwin-x64',
+  '@node-rs/xxhash-linux-arm64-gnu',
+  '@node-rs/xxhash-linux-arm64-musl',
+  '@node-rs/xxhash-linux-x64-gnu',
+  '@node-rs/xxhash-linux-x64-musl',
+  '@node-rs/xxhash-win32-arm64-msvc',
+  '@node-rs/xxhash-win32-x64-msvc',
   // sqlite-vec prebuilt extensions (vec0.dylib/.so/.dll), from the @aiany/sqlite-vec fork
   // which adds a windows-arm64 build (upstream ships none). Note the package names use
   // `windows`, not `win32` — see platformTokens below for why the keep-filter must match both.

@@ -20,9 +20,10 @@ import { cn } from '@renderer/utils/style'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mcp'
-import { useNavigate, useParams } from '@tanstack/react-router'
+import { isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
+import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, SaveIcon } from 'lucide-react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -37,6 +38,8 @@ import {
   McpIdentityFields,
   McpRuntimeFields,
   McpTransportFields,
+  resolveMcpConfigInstallSource,
+  resolveMcpConfigTransportType,
   toMcpServerFields,
   useMcpRegistryState
 } from './McpServerFields'
@@ -53,6 +56,7 @@ type McpTabItem = {
   children: React.ReactNode
 }
 type McpToolsCacheKey = `mcp.tools.${string}`
+type McpSettingsSearch = { autoEnable?: 'true' }
 
 const mcpToolsCacheKey = (serverId: string): McpToolsCacheKey => `mcp.tools.${serverId}`
 
@@ -62,6 +66,7 @@ const EMPTY_MCP_TOOLS: McpTool[] = []
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
   const params = useParams({ strict: false })
+  const search = useSearch({ strict: false }) as McpSettingsSearch
   const serverId = params.serverId
   const { server, isLoading: isServerLoading, updateMcpServer, deleteMcpServer } = useMcpServer(serverId ?? '')
 
@@ -90,6 +95,7 @@ const McpSettings: React.FC = () => {
   const [serverVersion, setServerVersion] = useState<string | null>(null)
   const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
   const fetchServerLogsRequestRef = useRef(0)
+  const handledAutoEnableServerIdRef = useRef<string | null>(null)
 
   const { theme } = useTheme()
 
@@ -98,7 +104,7 @@ const McpSettings: React.FC = () => {
   // Initialize form values whenever the server changes
   useEffect(() => {
     if (!server) return
-    const serverType: McpServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
+    const serverType = resolveMcpConfigTransportType(server.type || (server.baseUrl ? 'sse' : 'stdio'), server.name)
     setServerType(serverType)
 
     syncRegistryFromServer(server)
@@ -265,6 +271,7 @@ const McpSettings: React.FC = () => {
       const mcpServer: McpServer = {
         ...server,
         ...toMcpServerFields(values),
+        installSource: resolveMcpConfigInstallSource(server),
         isActive: values.isActive ?? server.isActive,
         timeout: values.timeout || server.timeout,
         // Use nullish coalescing to allow empty strings (for deletion)
@@ -384,6 +391,28 @@ const McpSettings: React.FC = () => {
     }
   }
 
+  const autoEnableProtocolServer = useEffectEvent(() => {
+    if (server && !server.isActive) {
+      void onToggleActive(true)
+    }
+  })
+
+  useEffect(() => {
+    if (search.autoEnable !== 'true' || !server || isServerLoading) return
+    if (handledAutoEnableServerIdRef.current === server.id) return
+
+    handledAutoEnableServerIdRef.current = server.id
+    void navigate({
+      to: '/settings/mcp/settings/$serverId',
+      params: { serverId: server.id },
+      search: {},
+      replace: true
+    })
+
+    autoEnableProtocolServer()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest server and toggle handler without resubscribing.
+  }, [isServerLoading, navigate, search.autoEnable, server])
+
   // Handle toggling a tool on/off
   const handleToggleTool = useCallback(
     async (tool: McpTool, enabled: boolean) => {
@@ -445,7 +474,7 @@ const McpSettings: React.FC = () => {
     serverType,
     onServerTypeChange: setServerType,
     registryState,
-    isInMemory: server.type === 'inMemory'
+    isBuiltin: server.installSource === 'builtin' || isInMemoryBuiltinMcpServer(server)
   }
 
   const tabs: McpTabItem[] = [
@@ -532,7 +561,7 @@ const McpSettings: React.FC = () => {
     children: (
       <LogList>
         {logs.length === 0 && (
-          <span className="text-foreground-muted text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
+          <span className="text-foreground-tertiary text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
         )}
         {logs.map((log, idx) => (
           <LogItem key={`${log.timestamp}-${idx}`}>
@@ -631,13 +660,13 @@ const McpSettings: React.FC = () => {
             </div>
           </Scrollbar>
           {activeTabValue === 'settings' && (
-            <div className="flex min-h-14 shrink-0 items-center border-border/60 border-t px-6">
+            <div className="flex min-h-14 shrink-0 items-center border-border-subtle border-t px-6">
               <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-3">
                 <Button
                   size="sm"
                   variant="ghost"
                   onClick={() => onDeleteMcpServer(server)}
-                  className="-ml-2 -mt-1 hover:!bg-destructive/10 hover:!text-destructive rounded-full text-destructive opacity-60 hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
+                  className="-ml-2 -mt-1 hover:!bg-destructive hover:!text-destructive-foreground rounded-full text-destructive opacity-60 hover:opacity-100 focus-visible:opacity-100 active:opacity-100">
                   <DeleteIcon size={14} className="lucide-custom" />
                   {t('common.delete')}
                 </Button>
@@ -676,7 +705,10 @@ const LogList = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>)
 )
 
 const LogItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('rounded-lg border border-border bg-card px-3 py-2.5 text-foreground', className)} {...props} />
+  <div
+    className={cn('rounded-lg border border-border bg-card px-3 py-2.5 text-card-foreground', className)}
+    {...props}
+  />
 )
 
 const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
@@ -684,7 +716,7 @@ const LogHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'
 )
 
 const Timestamp = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
-  <span className={cn('shrink-0 text-foreground-muted text-xs', className)} {...props} />
+  <span className={cn('shrink-0 text-foreground-tertiary text-xs', className)} {...props} />
 )
 
 const LogMessage = ({ className, ...props }: React.ComponentPropsWithoutRef<'span'>) => (
@@ -712,7 +744,7 @@ function mapLogLevelClass(level: McpServerLogEntry['level']) {
     case 'stdout':
       return 'border-info-border bg-info-subtle text-info-subtle-foreground'
     default:
-      return 'border-border/60 bg-muted text-muted-foreground'
+      return 'border-border-subtle bg-muted text-muted-foreground'
   }
 }
 
@@ -745,9 +777,9 @@ const McpRuntimeStatusBadge = ({
   <span
     className={cn(
       'inline-flex h-4.5 items-center rounded-[9px] px-1.5 text-[11px] leading-4.5',
-      state === 'connected' && 'bg-success/10 text-success',
-      state === 'connecting' && 'bg-warning/10 text-warning',
-      state === 'error' && 'bg-destructive/10 text-destructive',
+      state === 'connected' && 'border border-success-border bg-success-subtle text-success-subtle-foreground',
+      state === 'connecting' && 'border border-warning-border bg-warning-subtle text-warning-subtle-foreground',
+      state === 'error' && 'border border-error-border bg-error-subtle text-error-subtle-foreground',
       state === 'disabled' && 'bg-muted text-muted-foreground',
       className
     )}

@@ -10,9 +10,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * preference-change handler is captured so the toggle can be driven directly.
  */
 
-const { mockStart, mockStop, captured } = vi.hoisted(() => ({
+const { mockStart, mockStop, mockGetActiveUsageContext, captured } = vi.hoisted(() => ({
   mockStart: vi.fn(),
   mockStop: vi.fn(),
+  mockGetActiveUsageContext: vi.fn(),
   captured: { prefHandler: undefined as ((enabled: boolean) => void) | undefined }
 }))
 
@@ -36,8 +37,9 @@ vi.mock('@application', async () => {
       getMultiple: vi.fn(() => ({ enabled: false, host: '127.0.0.1', port: 23333, apiKey: 'existing-key' })),
       set: vi.fn(async () => {})
     },
-    CacheService: { setShared: vi.fn() }
-  })
+    CacheService: { setShared: vi.fn() },
+    AgentSessionRuntimeService: { getActiveUsageContext: mockGetActiveUsageContext }
+  } as any)
 })
 
 import { ApiGatewayService } from '../ApiGatewayService'
@@ -52,6 +54,11 @@ beforeEach(() => {
   rejectStart = false
   mockStart.mockReset()
   mockStop.mockReset()
+  mockGetActiveUsageContext.mockReset()
+  mockGetActiveUsageContext.mockReturnValue({
+    agentSessionId: 'session-1',
+    source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
+  })
   mockStart.mockImplementation(() =>
     rejectStart
       ? Promise.reject(new Error('port in use'))
@@ -61,6 +68,62 @@ beforeEach(() => {
 })
 
 describe('ApiGatewayService reconcile', () => {
+  it('recognizes an internal agent request when the process-local token matches', () => {
+    const service = new ApiGatewayService()
+    const headers = new Headers(service.getAgentSessionUsageHeaders('session-1'))
+
+    expect(service.isInternalAgentRequest(headers)).toBe(true)
+  })
+
+  it('rejects an internal agent request when the process-local token is wrong or missing', () => {
+    const service = new ApiGatewayService()
+    const usageHeaders = service.getAgentSessionUsageHeaders('session-1')
+
+    expect(
+      service.isInternalAgentRequest(
+        new Headers({
+          ...usageHeaders,
+          'x-cherry-internal-usage-token': 'wrong-proof'
+        })
+      )
+    ).toBe(false)
+    expect(service.isInternalAgentRequest(new Headers())).toBe(false)
+  })
+
+  it('recognizes an internal agent request without a session id when the process-local token matches', () => {
+    const service = new ApiGatewayService()
+    const headers = new Headers(service.getAgentSessionUsageHeaders('session-1'))
+    headers.delete('x-cherry-agent-session-id')
+
+    expect(service.isInternalAgentRequest(headers)).toBe(true)
+  })
+
+  it('accepts agent usage context only with its process-local proof', () => {
+    const service = new ApiGatewayService()
+    const usageHeaders = service.getAgentSessionUsageHeaders('session-1')
+
+    expect(service.resolveAgentSessionUsage(new Headers(usageHeaders))).toEqual({
+      agentSessionId: 'session-1',
+      source: { type: 'agent', id: 'agent-1', name: 'Original Agent', icon: '🧠' }
+    })
+    expect(mockGetActiveUsageContext).toHaveBeenCalledWith('session-1')
+    expect(
+      service.resolveAgentSessionUsage(
+        new Headers({
+          ...usageHeaders,
+          'x-cherry-internal-usage-token': 'wrong-proof'
+        })
+      )
+    ).toBeUndefined()
+    expect(
+      service.resolveAgentSessionUsage(
+        new Headers({
+          'x-cherry-agent-session-id': 'session-1'
+        })
+      )
+    ).toBeUndefined()
+  })
+
   it('honors an opposing toggle that lands during an in-flight activation (no dropped toggle)', async () => {
     const service = new ApiGatewayService()
     await service._doInit() // Ready; desiredEnabled=false; reconcile is a no-op.

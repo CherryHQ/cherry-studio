@@ -1,4 +1,5 @@
 /* eslint-disable @eslint-react/dom/no-missing-iframe-sandbox -- sandbox is always supplied via the (defaulted) prop; the rule can't statically resolve the dynamic value. */
+import { Parser } from 'htmlparser2'
 import { memo, type Ref } from 'react'
 
 export const HTML_PREVIEW_DEFAULT_BASE_URL = 'about:srcdoc'
@@ -43,36 +44,46 @@ interface HtmlPreviewFrameProps {
 const escapeHtmlAttribute = (value: string): string =>
   value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
 
-function injectHeadElement(html: string, element: string): string {
-  const headMatch = html.match(/<head(?:\s[^>]*)?>/i)
+const LEADING_DOCUMENT_PREAMBLE_REGEX =
+  /^(?:\s*(?:<!--[\s\S]*?-->|<!doctype[^>]*>|<\?[\s\S]*?\?>))*\s*(?:<html(?:\s[^>]*)?>\s*(?:<!--[\s\S]*?-->\s*)*)?/i
+
+function hasHtmlElement(html: string, elementName: string): boolean {
+  let found = false
+  const parser = new Parser(
+    {
+      onopentag(name) {
+        if (name === elementName) found = true
+      }
+    },
+    { lowerCaseTags: true }
+  )
+  parser.end(html)
+  return found
+}
+
+export function injectHtmlPreviewHeadElement(html: string, element: string): string {
+  const preambleEnd = html.match(LEADING_DOCUMENT_PREAMBLE_REGEX)?.[0].length ?? 0
+  const remainder = html.slice(preambleEnd)
+  const headMatch = remainder.match(/^<head(?:\s[^>]*)?>/i)
   if (headMatch?.index !== undefined) {
-    const insertAt = headMatch.index + headMatch[0].length
+    const insertAt = preambleEnd + headMatch[0].length
     return `${html.slice(0, insertAt)}${element}${html.slice(insertAt)}`
   }
 
-  const htmlMatch = html.match(/<html(?:\s[^>]*)?>/i)
-  if (htmlMatch?.index !== undefined) {
-    const insertAt = htmlMatch.index + htmlMatch[0].length
-    return `${html.slice(0, insertAt)}<head>${element}</head>${html.slice(insertAt)}`
-  }
-
-  const doctypeMatch = html.match(/<!doctype\s+html[^>]*>/i)
-  if (doctypeMatch?.index !== undefined) {
-    const insertAt = doctypeMatch.index + doctypeMatch[0].length
-    return `${html.slice(0, insertAt)}<head>${element}</head>${html.slice(insertAt)}`
-  }
-
-  return `<head>${element}</head>${html}`
+  return `${html.slice(0, preambleEnd)}<head>${element}</head>${html.slice(preambleEnd)}`
 }
 
 export function injectHtmlPreviewBase(html: string, baseUrl = HTML_PREVIEW_DEFAULT_BASE_URL): string {
-  if (!html.trim() || /<base(?:\s|>|\/)/i.test(html)) return html
-  return injectHeadElement(html, `<base href="${escapeHtmlAttribute(baseUrl)}">`)
+  if (!html.trim() || hasHtmlElement(html, 'base')) return html
+  return injectHtmlPreviewHeadElement(html, `<base href="${escapeHtmlAttribute(baseUrl)}">`)
 }
 
 export function injectHtmlPreviewCsp(html: string, csp: string): string {
   if (!html.trim()) return html
-  return injectHeadElement(html, `<meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(csp)}">`)
+  return injectHtmlPreviewHeadElement(
+    html,
+    `<meta http-equiv="Content-Security-Policy" content="${escapeHtmlAttribute(csp)}">`
+  )
 }
 
 export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
@@ -88,14 +99,14 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
     const withBase = injectHtmlPreviewBase(html, baseUrl)
     const srcDoc = csp ? injectHtmlPreviewCsp(withBase, csp) : withBase
     return (
-      <div className="h-full w-full overflow-hidden bg-background">
+      <div className="h-full w-full overflow-hidden bg-white">
         {html.trim() ? (
           <iframe
             ref={iframeRef}
             srcDoc={srcDoc}
             title={title}
             sandbox={sandbox}
-            className="h-full w-full border-0 bg-background"
+            className="h-full w-full border-0 bg-white"
           />
         ) : emptyText ? (
           <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground text-sm">

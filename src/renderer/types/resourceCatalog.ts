@@ -7,6 +7,11 @@ import type { Prompt } from '@shared/data/types/prompt'
 
 export type ResourceType = 'agent' | 'assistant' | 'skill' | 'prompt'
 
+export type ResourceEditDialogTarget = ({ kind: 'assistant'; id: string } | { kind: 'agent'; id: string }) & {
+  /** Leaf tab id to open the dialog on (e.g. `tools.mcp`, `tools.skills`). */
+  initialTab?: string
+}
+
 /** Validated values shared by every Assistant / Agent creation entry point. */
 export type ResourceCreateValues = {
   avatar: string

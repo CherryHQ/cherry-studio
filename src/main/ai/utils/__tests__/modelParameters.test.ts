@@ -2,8 +2,8 @@ import type { AssistantSettings } from '@shared/data/types/assistant'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { makeAssistant as makeAssistantBase, makeModel, makeProvider } from '../../__tests__/fixtures'
-import { filterStandardParams, getMaxTokens, getTemperature, getTopP } from '../modelParameters'
+import { makeAssistant as makeAssistantBase, makeModel } from '../../__tests__/fixtures'
+import { adjustMaxOutputTokensForReasoning, filterStandardParams, getTemperature, getTopP } from '../modelParameters'
 
 const OMIT_REASONING = { kind: 'omit' } as const
 const OFF_REASONING = { kind: 'off' } as const
@@ -137,70 +137,24 @@ describe('filterStandardParams', () => {
   })
 })
 
-describe('getMaxTokens', () => {
-  it('returns undefined when enableMaxTokens is off', () => {
-    const a = makeAssistant({ enableMaxTokens: false, maxTokens: 2048 })
-    expect(getMaxTokens(a, makeModel(), makeProvider(), NO_BUDGET)).toBeUndefined()
+describe('adjustMaxOutputTokensForReasoning', () => {
+  it('preserves an undefined max output limit', () => {
+    expect(adjustMaxOutputTokensForReasoning(undefined, 'anthropic-messages', NO_BUDGET)).toBeUndefined()
   })
 
-  it('returns maxTokens when enabled on non-Claude models', () => {
-    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 2048 })
-    expect(getMaxTokens(a, makeModel(), makeProvider(), NO_BUDGET)).toBe(2048)
+  it('does not subtract a budget for non-Anthropic endpoints', () => {
+    expect(adjustMaxOutputTokensForReasoning(8000, 'openai-chat-completions', { budgetTokens: 4000 })).toBe(8000)
   })
 
-  it('skips budget subtraction on Claude 4.6 series (adaptive thinking)', () => {
-    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 8000, reasoning_effort: 'high' })
-    const model = makeModel({ id: 'anthropic::claude-sonnet-4-6-20260101', providerId: 'anthropic' })
-    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
-    expect(getMaxTokens(a, model, provider, { budgetTokens: 4000 })).toBe(8000)
+  it('subtracts an explicit thinking budget for Anthropic Messages regardless of model family', () => {
+    expect(adjustMaxOutputTokensForReasoning(8000, 'anthropic-messages', { budgetTokens: 4000 })).toBe(4000)
   })
 
-  it('skips budget subtraction on Claude Opus 4.7 series (adaptive thinking)', () => {
-    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 8000, reasoning_effort: 'high' })
-    const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
-    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
-    expect(getMaxTokens(a, model, provider, { budgetTokens: 4000 })).toBe(8000)
+  it('does not subtract when adaptive thinking has no explicit budget', () => {
+    expect(adjustMaxOutputTokensForReasoning(8000, 'anthropic-messages', NO_BUDGET)).toBe(8000)
   })
 
-  // Characterization of the subtraction path (#16598 migration oracle). The
-  // gate `isSupportedThinkingTokenClaudeModel` reads the DESCRIPTOR
-  // (`reasoning.thinkingTokenLimits != null`), while the budget itself comes
-  // from the regex THINKING_TOKEN_MAP — both facts are frozen here.
-  const claude45WithLimits = () =>
-    makeModel({
-      id: 'anthropic::claude-sonnet-4-5',
-      providerId: 'anthropic',
-      capabilities: [MODEL_CAPABILITY.REASONING],
-      reasoning: { selectableEfforts: [], thinkingTokenLimits: { min: 1024, max: 64_000 } }
-    })
-
-  it('subtracts the thinking budget on pre-4.6 Claude with a token-limit descriptor', () => {
-    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 100_000, reasoning_effort: 'default' })
-    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
-    expect(getMaxTokens(a, claude45WithLimits(), provider, { budgetTokens: 51_404 })).toBe(48_596)
-  })
-
-  it('subtracts the resolver-provided budget that is strictly below maxTokens', () => {
-    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 8000, reasoning_effort: 'high' })
-    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
-    expect(getMaxTokens(a, claude45WithLimits(), provider, { budgetTokens: 7999 })).toBe(1)
-  })
-
-  it('skips subtraction on non-anthropic-like providers', () => {
-    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 100_000, reasoning_effort: 'high' })
-    expect(getMaxTokens(a, claude45WithLimits(), makeProvider({ id: 'openrouter' }), { budgetTokens: 51_404 })).toBe(
-      100_000
-    )
-  })
-
-  it('skips subtraction when the descriptor has no token limits (current catalog state for claude)', () => {
-    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 100_000, reasoning_effort: 'high' })
-    const model = makeModel({
-      id: 'anthropic::claude-sonnet-4-5',
-      providerId: 'anthropic',
-      capabilities: [MODEL_CAPABILITY.REASONING]
-    })
-    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
-    expect(getMaxTokens(a, model, provider, { budgetTokens: 51_404 })).toBe(100_000)
+  it('keeps at least one non-thinking output token', () => {
+    expect(adjustMaxOutputTokensForReasoning(8000, 'anthropic-messages', { budgetTokens: 8000 })).toBe(1)
   })
 })

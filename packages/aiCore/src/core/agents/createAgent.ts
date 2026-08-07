@@ -37,9 +37,15 @@ export async function createAgent<
   // 3. Resolve model + apply middleware via pluginEngine
   const resolvedModel = await executor.pluginEngine.resolveModel(modelId)
 
-  // 4. Build ToolLoopAgent
+  // 4. Run the transformParams chain over the agent settings. ToolLoopAgent
+  //    holds them for the whole loop and never enters the per-request plugin
+  //    pipeline, so this is the only point where a `transformParams`-only
+  //    plugin (provider-native tool injection) can contribute.
+  const transformedSettings = await executor.pluginEngine.transformAgentSettings(resolvedModel, agentSettings)
+
+  // 5. Build ToolLoopAgent
   return new ToolLoopAgent({
-    ...agentSettings,
+    ...transformedSettings,
     model: resolvedModel
   })
 }

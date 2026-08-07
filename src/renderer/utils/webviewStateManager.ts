@@ -52,8 +52,10 @@ export const clearWebviewState = (appId: string) => {
   if (wasLoaded) {
     logger.debug(`WebView state cleared for ${appId}`)
   }
-  // 清掉监听（避免潜在内存泄漏）
-  appListeners.delete(appId)
+  // Keep mounted consumers in sync when an LRU eviction destroys the WebView.
+  // Subscribers own their cleanup; removing them here would leave their local
+  // ready state stale and prevent them from observing a replacement WebView.
+  emitState(appId, false)
 }
 
 /**

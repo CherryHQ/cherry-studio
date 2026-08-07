@@ -1,5 +1,6 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { ipcApi } from '@renderer/ipc'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import { useCallback } from 'react'
@@ -21,12 +22,17 @@ const logger = loggerService.withContext('SkillAdapter')
  * `search` is forwarded to `GET /skills` and evaluated server-side.
  */
 function useSkillList(query?: ResourceListQuery): ResourceListResult<InstalledSkill> {
+  const enabled = query?.enabled !== false
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
-    enabled: query?.enabled !== false,
+    enabled,
     query: {
       ...(query?.search ? { search: query.search } : {})
     }
   })
+
+  // Surface agent-authored skills without an app restart (see the hook's docs). Shared with the
+  // agent edit dialog's Skills tab so both entry points reconcile.
+  useReconcileSkillsOnOpen(enabled)
 
   const items = Array.isArray(data) ? data : []
   const stableRefetch = useCallback(() => refetch(), [refetch])

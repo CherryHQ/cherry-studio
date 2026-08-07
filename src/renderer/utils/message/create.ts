@@ -4,7 +4,6 @@ import type { SerializedError } from '@renderer/types/error'
 import { FILE_TYPE, type FileMetadata } from '@renderer/types/file'
 import type {
   BaseMessageBlock,
-  CitationMessageBlock,
   ErrorMessageBlock,
   FileMessageBlock,
   ImageMessageBlock,
@@ -222,36 +221,6 @@ export function createToolBlock(
     toolName,
     arguments: args,
     content
-  }
-}
-
-/**
- * Creates a Citation Block.
- * @param messageId - The ID of the parent message.
- * @param citationData - The citation data.
- * @param overrides - Optional properties to override the defaults.
- * @returns A CitationBlock object.
- */
-export function createCitationBlock(
-  messageId: string,
-  citationData: Omit<CitationMessageBlock, keyof BaseMessageBlock | 'type'>,
-  overrides: Partial<Omit<CitationMessageBlock, 'id' | 'messageId' | 'type' | keyof typeof citationData>> = {}
-): CitationMessageBlock {
-  const { response, knowledge, memories, ...baseOverrides } = {
-    ...citationData,
-    ...overrides
-  }
-
-  const baseBlock = createBaseMessageBlock(messageId, MessageBlockType.CITATION, {
-    status: MessageBlockStatus.SUCCESS,
-    ...baseOverrides
-  })
-
-  return {
-    ...baseBlock,
-    response,
-    knowledge,
-    memories
   }
 }
 

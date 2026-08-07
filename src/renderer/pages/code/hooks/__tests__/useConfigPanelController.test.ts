@@ -52,7 +52,6 @@ function baseOptions() {
   return {
     selectedCliTool: CodeCli.CLAUDE_CODE,
     toolName: 'Claude Code',
-    isToolInstalled: true,
     currentProviderId: 'p1',
     providerConfigs: {},
     upsertProviderConfig: vi.fn().mockResolvedValue('p1'),
@@ -142,15 +141,18 @@ describe('useConfigPanelController', () => {
     })
   })
 
-  describe('install gate', () => {
+  describe('enable without installation state', () => {
     beforeEach(() => {
       // clearAllMocks() keeps the never-resolving clearCliConfig impl from the in-flight guard tests.
       mocks.clearCliConfig.mockReset()
       mocks.clearCliConfig.mockResolvedValue(undefined)
+      mocks.writeCliConfigDraft.mockReset()
+      mocks.writeCliConfigDraft.mockResolvedValue(undefined)
     })
 
-    it('blocks enabling a provider and nudges to install when the CLI is not installed', async () => {
-      const options = { ...baseOptions(), isToolInstalled: false, currentProviderId: null }
+    it('enables a configured provider without requiring the CLI to be installed first', async () => {
+      mocks.resolveCliConfigApplyContext.mockReturnValue({ modelId: 'm1', writePrimaryModel: true })
+      const options = { ...baseOptions(), currentProviderId: null }
       const { result } = renderHook(() => useConfigPanelController(options))
       const provider = { id: 'p2' } as Provider // not current → enabling
 
@@ -159,13 +161,19 @@ describe('useConfigPanelController', () => {
         await flushMicrotasks()
       })
 
-      expect(toast.error).toHaveBeenCalledWith('code.install_tool_first')
-      expect(options.setCurrentProvider).not.toHaveBeenCalled()
-      expect(mocks.writeCliConfigDraft).not.toHaveBeenCalled()
+      expect(mocks.writeCliConfigDraft).toHaveBeenCalledWith({
+        cliTool: CodeCli.CLAUDE_CODE,
+        modelId: 'm1',
+        configBlob: undefined,
+        writePrimaryModel: true,
+        gateway: undefined
+      })
+      expect(options.setCurrentProvider).toHaveBeenCalledWith('p2')
+      expect(toast.error).not.toHaveBeenCalled()
     })
 
-    it('still allows disabling the current provider when the CLI is not installed', async () => {
-      const options = { ...baseOptions(), isToolInstalled: false, currentProviderId: 'p1' }
+    it('still allows disabling the current provider', async () => {
+      const options = { ...baseOptions(), currentProviderId: 'p1' }
       const { result } = renderHook(() => useConfigPanelController(options))
       const provider = { id: 'p1' } as Provider // current → disabling
 

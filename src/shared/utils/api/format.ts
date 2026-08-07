@@ -37,6 +37,24 @@ export function splitApiKeyString(keyStr: string): string[] {
 }
 
 /**
+ * Mask an API key for transient display while retaining enough prefix and
+ * suffix characters to distinguish configured keys.
+ */
+export function maskApiKey(key: string): string {
+  if (!key) return ''
+
+  if (key.length > 24) {
+    return `${key.slice(0, 8)}****${key.slice(-8)}`
+  } else if (key.length > 16) {
+    return `${key.slice(0, 4)}****${key.slice(-4)}`
+  } else if (key.length > 8) {
+    return `${key.slice(0, 2)}****${key.slice(-2)}`
+  } else {
+    return key
+  }
+}
+
+/**
  * Joins API keys into the comma-separated input format accepted by splitApiKeyString.
  */
 export function joinApiKeyString(apiKeys: readonly string[]): string {

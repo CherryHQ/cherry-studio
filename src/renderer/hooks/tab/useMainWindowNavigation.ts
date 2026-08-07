@@ -1,6 +1,6 @@
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n/resolver'
-import { useIpcOn } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { OPEN_MAIN_ROUTE_EVENT, type OpenMainRouteEvent } from '@renderer/services/mainWindowNavigation'
 import { isSettingsPath, normalizeSettingsPath, type SettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
@@ -8,17 +8,13 @@ import { useCallback, useEffect, useRef } from 'react'
 
 import { useTabs } from './useTabs'
 
-function isSettingsTabUrl(url: string) {
-  return url === '/settings' || url.startsWith('/settings/') || url.startsWith('/settings?')
-}
-
 function useOpenSettingsRoute() {
   const { tabs, openTab, setActiveTab, updateTab } = useTabs()
   const settingsTabIdRef = useRef<string | null>(null)
   const pendingSettingsPathRef = useRef<SettingsPath | null>(null)
 
   useEffect(() => {
-    const settingsTab = tabs.find((tab) => tab.type === 'route' && isSettingsTabUrl(tab.url))
+    const settingsTab = tabs.find((tab) => tab.type === 'route' && isSettingsPath(tab.url))
 
     if (!settingsTab) {
       settingsTabIdRef.current = null
@@ -45,7 +41,7 @@ function useOpenSettingsRoute() {
     (path: SettingsPath) => {
       const targetPath = normalizeSettingsPath(path)
       const title = i18n.t('settings.title')
-      const settingsTab = tabs.find((tab) => tab.type === 'route' && isSettingsTabUrl(tab.url))
+      const settingsTab = tabs.find((tab) => tab.type === 'route' && isSettingsPath(tab.url))
 
       if (settingsTab) {
         updateTab(settingsTab.id, {
@@ -84,7 +80,7 @@ function useMainRouteEventBridge(handleRoute: (path: string) => void) {
 }
 
 /**
- * Single consumption point for main-window navigation, mounted once in AppShell.
+ * Single consumption point for main-window navigation, mounted once in MainWindowRuntime.
  * Three delivery legs feed the same routing split:
  *
  * - `OPEN_MAIN_ROUTE_EVENT` DOM event — the in-window fast path used by
@@ -123,7 +119,12 @@ export function useMainWindowNavigation() {
 
     handledNavigationRequestIdRef.current = initData.requestId
     handleRoute(initData.to)
+    void ipcApi.request('navigation.ack_open_route', { requestId: initData.requestId })
   }, [initData, handleRoute])
 
   useMainRouteEventBridge(handleRoute)
+
+  useEffect(() => {
+    void ipcApi.request('navigation.protocol_dispatch_ready')
+  }, [])
 }

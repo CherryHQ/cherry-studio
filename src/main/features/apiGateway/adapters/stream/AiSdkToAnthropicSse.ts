@@ -66,8 +66,11 @@ const NULL_CONTAINER = null
  * ```
  */
 export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent> {
+  private readonly toClientToolName?: (toolName: string) => string
+
   constructor(options: StreamAdapterOptions) {
     super(options)
+    this.toClientToolName = options.toClientToolName
   }
 
   /**
@@ -147,10 +150,11 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
       // no incremental input deltas to accumulate). Cache reasoning signatures
       // off its providerMetadata, then frame the Anthropic tool_use block.
       case 'tool-input-available': {
+        const toolName = this.toClientToolName?.(chunk.toolName) ?? chunk.toolName
         const meta = chunk.providerMetadata as Record<string, any> | undefined
         const thoughtSignature = meta?.google?.thoughtSignature
         if (googleReasoningCache && typeof thoughtSignature === 'string') {
-          googleReasoningCache.set(`google-${chunk.toolName}`, thoughtSignature)
+          googleReasoningCache.set(`google-${toolName}`, thoughtSignature)
         }
         const reasoningDetails = meta?.openrouter?.reasoning_details
         if (openRouterReasoningCache && Array.isArray(reasoningDetails)) {
@@ -158,7 +162,7 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         }
         this.handleToolCall({
           toolCallId: chunk.toolCallId,
-          toolName: chunk.toolName,
+          toolName,
           args: chunk.input
         })
         break
@@ -189,8 +193,8 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
-    if (metadata.promptTokens !== undefined) this.state.inputTokens = metadata.promptTokens
-    if (metadata.completionTokens !== undefined) this.state.outputTokens = metadata.completionTokens
+    if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
+    if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
   }
 
   private startTextBlock(): void {

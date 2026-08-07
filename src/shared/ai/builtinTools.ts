@@ -1,4 +1,5 @@
 import { KnowledgeItemStatusSchema } from '@shared/data/types/knowledge'
+import { isHttpUrl } from '@shared/utils/url'
 import * as z from 'zod'
 
 /**
@@ -137,7 +138,14 @@ export const kbSearchInputSchema = z.object({
 })
 
 export const kbSearchOutputItemSchema = z.object({
-  id: z.number().int().positive(),
+  // Citation id the model echoes back as `[cite:id]`. New results use a per-call
+  // random-prefixed string ("3f2a1b9c-2") so ids stay unique across multiple lookup
+  // calls in one message; number is kept so older persisted results still parse.
+  id: z.union([z.string(), z.number().int().positive()]),
+  // Owning base of the hit. kb_search fans out across `baseIds`, so this is both
+  // what kb_read needs to follow the hit up and what makes `conceptId` (a
+  // base-relative path) globally unique — two bases can hold their own README.md.
+  baseId: z.string().optional(),
   // Concept ID (the source document's relative path, OKF §2), display title, and
   // item type, so the model can follow a hit with kb_read. Optional:
   // older persisted tool results predate these fields and must still parse.
@@ -153,6 +161,20 @@ export const kbSearchOutputSchema = z.array(kbSearchOutputItemSchema)
 export type KbSearchInput = z.infer<typeof kbSearchInputSchema>
 export type KbSearchOutputItem = z.infer<typeof kbSearchOutputItemSchema>
 export type KbSearchOutput = z.infer<typeof kbSearchOutputSchema>
+
+// ── fs_read ──────────────────────────────────────────────────────
+
+export const FS_READ_TOOL_NAME = 'fs_read'
+
+/**
+ * Persist/truncate boundary for the context-build layer, and fs_read's
+ * per-call output cap. ONE constant on purpose: fs_read must be able to
+ * page through anything the persistence layer stored, so its cap must be
+ * ≥ the persist threshold — equality keeps one mental model. P2-B turns
+ * the threshold into a user setting; when it does, wire BOTH sides to the
+ * resolved setting, never split this back into two literals.
+ */
+export const CONTEXT_PERSIST_THRESHOLD_CHARS = 50_000
 
 // ── kb_read ──────────────────────────────────────────────────────
 
@@ -257,6 +279,13 @@ export const kbReadStrictInputSchema = z.object({
 })
 
 export const kbReadOutputSchema = z.object({
+  // Citation id the model echoes back as `[cite:id]`. One id per call: a read returns one
+  // document slice, so the whole result is a single source. Optional because results persisted
+  // before kb_read joined the citation pipeline carry no id — those simply aren't citable.
+  id: z.string().optional(),
+  // Echoes the requested base so `conceptId` (base-relative) identifies a document
+  // globally — see kbSearchOutputItemSchema. Optional for the same back-compat reason.
+  baseId: z.string().optional(),
   conceptId: z.string(),
   title: z.string(),
   type: z.string(),
@@ -281,6 +310,11 @@ export const kbGrepMatchSchema = z.object({
 })
 
 export const kbGrepOutputSchema = z.object({
+  // One id for the whole result, not one per match: every match lives in the same document, so
+  // they resolve to a single source. Optional for the same back-compat reason as kb_read.
+  id: z.string().optional(),
+  // See kbReadOutputSchema — same role, same back-compat reason.
+  baseId: z.string().optional(),
   conceptId: z.string(),
   title: z.string(),
   type: z.string(),
@@ -431,6 +465,7 @@ export type KbManageOutput = z.infer<typeof kbManageOutputSchema>
 // ── web_search ───────────────────────────────────────────────────
 
 export const WEB_SEARCH_TOOL_NAME = 'web_search'
+export const PROVIDER_WEB_SEARCH_TOOL_NAME = 'webSearch'
 export const WEB_FETCH_TOOL_NAME = 'web_fetch'
 
 export const webSearchInputSchema = z.object({
@@ -447,7 +482,10 @@ export const webSearchInputSchema = z.object({
 })
 
 export const webSearchOutputItemSchema = z.object({
-  id: z.number().int().positive(),
+  // Citation id the model echoes back as `[cite:id]`. New results use a per-call
+  // random-prefixed string ("3f2a1b9c-2") so ids stay unique across multiple lookup
+  // calls in one message; number is kept so older persisted results still parse.
+  id: z.union([z.string(), z.number().int().positive()]),
   title: z.string(),
   url: z.string(),
   content: z.string()
@@ -456,11 +494,28 @@ export const webSearchOutputItemSchema = z.object({
 export const webSearchOutputSchema = z.array(webSearchOutputItemSchema)
 
 export const webFetchInputSchema = z.object({
+  // `.refine()` rather than `.url()`: WebFetchTool runs with `strict: true`, and `.url()` emits
+  // `format: "uri"`, which strict OpenAI-compatible providers reject outright — the whole request
+  // 400s ("Invalid schema for function 'web_fetch': ... 'uri' is not a valid format"), taking every
+  // other tool in the turn down with it. A refinement is invisible to `toJSONSchema` (no `format`
+  // keyword) yet still runs locally, so the model's tool call is validated before `execute` and a
+  // malformed URL surfaces as a repairable input error instead of a bogus network failure.
+  //
+  // `isHttpUrl` is literally the predicate `normalizeWebSearchUrls` enforces service-side, so the
+  // schema and the service agree by construction instead of via two copies of one rule that drift.
+  //
+  // It is only a syntax gate, though. Of the two providers serving `web_fetch`, `fetch` retrieves
+  // the target in this process and so runs it through `remoteUrlSafety`, which additionally rejects
+  // credentials and loopback/private hosts that `isHttpUrl` accepts; `jina` hands the target to
+  // r.jina.ai and never retrieves it here. Passing this schema therefore does not imply a URL is
+  // safe or fetchable.
   urls: z
-    .array(z.string().trim().url('URL must be valid'))
+    .array(z.string().trim().min(1).refine(isHttpUrl, 'must be an absolute http(s) URL'))
     .min(1)
     .max(20, 'Fetch at most 20 URLs per call')
-    .describe('Absolute web page URLs to fetch and summarize. Use web_search first when you do not know the URL.')
+    .describe(
+      'Absolute http(s) web page URLs to fetch and summarize. Use web_search first when you do not know the URL.'
+    )
 })
 
 export const webFetchOutputSchema = webSearchOutputSchema
@@ -470,6 +525,39 @@ export type WebSearchOutputItem = z.infer<typeof webSearchOutputItemSchema>
 export type WebSearchOutput = z.infer<typeof webSearchOutputSchema>
 export type WebFetchInput = z.infer<typeof webFetchInputSchema>
 export type WebFetchOutput = z.infer<typeof webFetchOutputSchema>
+
+// ── to_markdown ──────────────────────────────────────────────────
+
+export const TO_MARKDOWN_TOOL_NAME = 'to_markdown'
+
+export const TO_MARKDOWN_SUPPORTED_EXTENSIONS =
+  '.doc, .docx, .docm, .ppt, .pps, .pot, .pptx, .pptm, .ppsx, .ppsm, .xls, .xlsx, .xlsm, .xlsb, .odt, .ods, .odp, .rtf, .epub, .csv, .pdf'
+
+export const toMarkdownInputSchema = z.object({
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4096)
+    .describe(
+      `Required source path inside the session workspace, relative or absolute within it. Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}.`
+    )
+})
+
+export const toMarkdownOutputSchema = z.object({
+  path: z.string().describe('Absolute path to the temporary Markdown file. Read this file in slices as needed.'),
+  chars: z.number().int().nonnegative().describe('Number of characters written to the Markdown file.')
+})
+
+export const TO_MARKDOWN_DESCRIPTION =
+  'Convert one supported document in the session workspace to Markdown. ' +
+  `Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}. ` +
+  'The converter detects recognizable formats from file contents and uses the extension as fallback (required for CSV). ' +
+  'Scanned/image-only PDFs need OCR and are unsupported. The full Markdown is written to an agent-private temporary ' +
+  'file instead of being returned; read the returned path in slices as needed.'
+
+export type ToMarkdownInput = z.infer<typeof toMarkdownInputSchema>
+export type ToMarkdownOutput = z.infer<typeof toMarkdownOutputSchema>
 
 // ── report_artifacts ─────────────────────────────────────────────
 

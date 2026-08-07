@@ -125,6 +125,12 @@ export function startTraceRootSpan(
   const originalEnd = span.end.bind(span)
   span.end = (endTime?: any) => {
     originalEnd(endTime)
+    // With developer mode off there is no TracerProvider, so `startSpan`
+    // returned the API's NonRecordingSpan — not a ReadableSpan, nothing to
+    // convert or persist. Without this guard the convert below threw on
+    // every turn end (`startTime[0]` of undefined) and warned each time.
+    // (`isRecording()` can't discriminate: an ended SDK span reports false too.)
+    if (!('startTime' in span)) return
     try {
       const spanEntity = convertSpanToSpanEntity(span as unknown as ReadableSpan)
       observabilitySinks.writeSpanEntity({

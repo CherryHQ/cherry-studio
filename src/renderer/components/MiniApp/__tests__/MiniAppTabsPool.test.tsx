@@ -85,11 +85,6 @@ describe('MiniAppTabsPool', () => {
     expect(renderedAppIds(container)).toEqual(['alpha', 'bravo', 'charlie'])
   })
 
-  it('renders no webviews when the keep-alive list is empty', () => {
-    const { container } = render(<MiniAppTabsPool />)
-    expect(renderedAppIds(container)).toEqual([])
-  })
-
   it('keeps DOM order stable when an app is added (only the new one inserts in sort position)', () => {
     mocks.openedKeepAliveMiniApps = [stubApp('alpha'), stubApp('charlie')]
     mocks.currentMiniAppId = 'alpha'

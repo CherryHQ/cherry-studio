@@ -5,6 +5,8 @@
  * Handles messages, tools, and special content types (images, thinking, tool results).
  */
 
+import { createHash } from 'node:crypto'
+
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type {
   ImageBlockParam,
@@ -23,6 +25,20 @@ import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
 import { mapAnthropicThinkingToProviderOptions } from './providerOptionsMapper'
 
 const MAGIC_STRING = 'skip_thought_signature_validator'
+const RESPONSES_TOOL_NAME_PATTERN = /^[A-Za-z0-9_-]+$/
+const RESPONSES_TOOL_NAME_MAX_LENGTH = 64
+const TOOL_NAME_HASH_LENGTH = 12
+
+function isResponsesCompatibleToolName(name: string): boolean {
+  return name.length <= RESPONSES_TOOL_NAME_MAX_LENGTH && RESPONSES_TOOL_NAME_PATTERN.test(name)
+}
+
+function buildResponsesToolName(name: string, attempt: number): string {
+  const sanitized = Array.from(name, (char) => (RESPONSES_TOOL_NAME_PATTERN.test(char) ? char : '_')).join('') || '_'
+  const hash = createHash('sha1').update(`${name}\0${attempt}`).digest('hex').slice(0, TOOL_NAME_HASH_LENGTH)
+  const prefixLength = RESPONSES_TOOL_NAME_MAX_LENGTH - hash.length - 1
+  return `${sanitized.slice(0, prefixLength)}_${hash}`
+}
 
 /** Match the branch's `isGemini3ModelId`: a gemini-3 family model id. */
 function isGemini3ModelId(modelId?: string): boolean {
@@ -112,6 +128,9 @@ export interface ReasoningCache {
 export class AnthropicMessageConverter implements IMessageConverter<MessageCreateParams> {
   private googleReasoningCache?: ReasoningCache
   private openRouterReasoningCache?: ReasoningCache
+  private mappedTools?: MessageCreateParams['tools']
+  private readonly providerToolNames = new Map<string, string>()
+  private readonly clientToolNames = new Map<string, string>()
 
   constructor(options?: { googleReasoningCache?: ReasoningCache; openRouterReasoningCache?: ReasoningCache }) {
     this.googleReasoningCache = options?.googleReasoningCache
@@ -127,6 +146,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
    * message upgrades the part to `output-available` so history stays coherent.
    */
   toUIMessages(params: MessageCreateParams): CherryUIMessage[] {
+    this.prepareToolNames(params.tools)
     const messages: CherryUIMessage[] = []
 
     // System message
@@ -189,11 +209,12 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
             parts.push(part)
           }
         } else if (block.type === 'tool_use') {
+          const toolName = this.toProviderToolName(block.name)
           const callProviderMetadata = this.buildToolCallProviderOptions(params.model, block.name, block.id)
           const result = toolResults.get(block.id)
           const base = {
             type: 'dynamic-tool' as const,
-            toolName: block.name,
+            toolName,
             toolCallId: block.id,
             ...(callProviderMetadata ? { callProviderMetadata } : {})
           }
@@ -246,6 +267,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
   toAiSdkTools(params: MessageCreateParams): ToolSet | undefined {
     const tools = params.tools
     if (!tools || tools.length === 0) return undefined
+    this.prepareToolNames(tools)
 
     const aiSdkTools: ToolSet = {}
     for (const anthropicTool of tools) {
@@ -256,12 +278,66 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
 
       const aiTool = tool({
         description: toolDef.description || '',
-        inputSchema: zodSchema(schema)
+        inputSchema: zodSchema(schema),
+        // The gateway forwards arbitrary Anthropic/MCP schemas. They do not satisfy
+        // Responses strict-mode's all-properties-required contract, so match the
+        // Codex client's dynamic-tool behavior and opt out explicitly.
+        strict: false
       })
 
-      aiSdkTools[toolDef.name] = aiTool
+      aiSdkTools[this.toProviderToolName(toolDef.name)] = aiTool
     }
     return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined
+  }
+
+  /** Restore the client-visible identity after the target model calls a normalized tool. */
+  toClientToolName(toolName: string): string {
+    return this.clientToolNames.get(toolName) ?? toolName
+  }
+
+  private prepareToolNames(tools: MessageCreateParams['tools']): void {
+    if (tools === this.mappedTools) return
+
+    this.mappedTools = tools
+    this.providerToolNames.clear()
+    this.clientToolNames.clear()
+
+    const names = [
+      ...new Set(
+        (tools ?? []).flatMap((toolDef) =>
+          'name' in toolDef && typeof toolDef.name === 'string' ? [toolDef.name] : []
+        )
+      )
+    ]
+
+    for (const name of names.filter(isResponsesCompatibleToolName)) {
+      this.providerToolNames.set(name, name)
+      this.clientToolNames.set(name, name)
+    }
+    for (const name of names.filter((candidate) => !isResponsesCompatibleToolName(candidate)).sort()) {
+      this.registerProviderToolName(name)
+    }
+  }
+
+  private toProviderToolName(toolName: string): string {
+    return this.providerToolNames.get(toolName) ?? this.registerProviderToolName(toolName)
+  }
+
+  private registerProviderToolName(toolName: string): string {
+    if (isResponsesCompatibleToolName(toolName) && !this.clientToolNames.has(toolName)) {
+      this.providerToolNames.set(toolName, toolName)
+      this.clientToolNames.set(toolName, toolName)
+      return toolName
+    }
+
+    let attempt = 0
+    let providerToolName = buildResponsesToolName(toolName, attempt)
+    while (this.clientToolNames.has(providerToolName)) {
+      providerToolName = buildResponsesToolName(toolName, ++attempt)
+    }
+    this.providerToolNames.set(toolName, providerToolName)
+    this.clientToolNames.set(providerToolName, toolName)
+    return providerToolName
   }
 
   /**

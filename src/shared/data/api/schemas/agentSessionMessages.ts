@@ -59,8 +59,7 @@ export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntity
 
 export const CreateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pick({
   modelId: true,
-  messageSnapshot: true,
-  stats: true
+  messageSnapshot: true
 })
   .partial()
   .extend({

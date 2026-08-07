@@ -53,6 +53,30 @@ describe('composer paste handling', () => {
     expect(getComposerPlainTextPasteOverride('single line', {})).toEqual([{ type: 'text', text: 'single line' }])
   })
 
+  it('turns a pasted standalone web URL into a link token', () => {
+    expect(getComposerPlainTextPasteOverride('https://www.example.com/docs', {})).toEqual([
+      {
+        type: 'composerToken',
+        attrs: {
+          id: expect.stringMatching(/^link-token-/),
+          kind: 'link',
+          label: 'example.com/docs',
+          promptText: 'https://www.example.com/docs'
+        }
+      }
+    ])
+  })
+
+  it('keeps URLs inside mixed text as plain text', () => {
+    const text = 'Open https://example.com/docs'
+    expect(getComposerPlainTextPasteOverride(text, {})).toEqual([{ type: 'text', text }])
+  })
+
+  it('keeps non-web URL schemes as plain text', () => {
+    const text = 'javascript:alert(1)'
+    expect(getComposerPlainTextPasteOverride(text, {})).toEqual([{ type: 'text', text }])
+  })
+
   it('restores mixed prompt variable and slash skill markers in one paste pass', () => {
     expect(
       getComposerPlainTextPasteOverride('Use ${city} with /pdf/\nThen ${date}', {
@@ -256,6 +280,39 @@ describe('composer paste handling', () => {
           }
         },
         { type: 'text', text: ' now' }
+      ],
+      files: []
+    })
+  })
+
+  it('restores private link tokens from a session-authored fragment', () => {
+    const url = 'https://example.com/docs'
+    const fragment = readComposerClipboardFragment(
+      createComposerClipboardFragment([
+        {
+          type: 'token',
+          fallbackText: url,
+          token: {
+            id: 'link-token-1',
+            kind: 'link',
+            label: 'example.com/docs',
+            promptText: url
+          }
+        }
+      ])
+    )
+
+    expect(getComposerClipboardPasteOverride(fragment, {})).toEqual({
+      content: [
+        {
+          type: 'composerToken',
+          attrs: {
+            id: 'link-token-1',
+            kind: 'link',
+            label: 'example.com/docs',
+            promptText: url
+          }
+        }
       ],
       files: []
     })

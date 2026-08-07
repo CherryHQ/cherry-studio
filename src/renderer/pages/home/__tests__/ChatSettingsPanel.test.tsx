@@ -84,8 +84,8 @@ vi.mock('@renderer/components/chat/shell/ConversationShell', () => ({
   )
 }))
 
-vi.mock('@renderer/components/ContentSearch', () => ({
-  ContentSearch: () => <div data-testid="content-search" />
+vi.mock('@renderer/components/FindBar', () => ({
+  FindBar: () => <div data-testid="content-search" />
 }))
 
 vi.mock('@renderer/components/popups/PromptPopup', () => ({

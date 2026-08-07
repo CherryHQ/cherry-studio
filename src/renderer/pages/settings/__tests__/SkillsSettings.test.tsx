@@ -16,7 +16,12 @@ describe('SkillsSettings', () => {
   it('renders the global Skill catalog', () => {
     render(<SkillsSettings />)
 
-    expect(screen.getByTestId('resource-catalog')).toBeInTheDocument()
-    expect(resourceCatalogViewMock).toHaveBeenCalledWith(expect.objectContaining({ resourceType: 'skill' }))
+    const resourceCatalog = screen.getByTestId('resource-catalog')
+    expect(resourceCatalog).toBeInTheDocument()
+    expect(resourceCatalog.parentElement?.parentElement).toHaveClass('pt-4')
+    expect(resourceCatalogViewMock).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceType: 'skill', variant: 'settings' })
+    )
+    expect(resourceCatalogViewMock.mock.calls[0]?.[0]).not.toHaveProperty('description')
   })
 })

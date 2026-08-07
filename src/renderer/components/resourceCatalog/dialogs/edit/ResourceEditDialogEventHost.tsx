@@ -1,7 +1,6 @@
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import type { ResourceEditDialogTarget } from '@renderer/types/resourceCatalog'
 import React, { useCallback, useEffect, useState } from 'react'
-
-import type { ResourceEditDialogTarget } from './ResourceEditDialogHost'
 
 // Lazy so the edit dialog (and its heavy form deps) stay out of the composer bundle until requested.
 const ResourceEditDialogHost = React.lazy(() =>

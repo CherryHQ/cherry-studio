@@ -189,6 +189,7 @@ describe('AgentChatContextProvider', () => {
       agentId: 'agent-1',
       agentType: 'claude-code',
       modelId: 'anthropic::claude-sonnet',
+      reasoningEffort: 'default',
       assistantMessageId: prepared.models[0].request.messageId,
       userMessage: expect.objectContaining({ id: prepared.userMessageId, role: 'user', sessionId: 'session-1' }),
       headless: false,
@@ -226,7 +227,8 @@ describe('AgentChatContextProvider', () => {
           name: 'My Agent',
           emoji: '🤖',
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
-        }
+        },
+        reasoningEffort: 'default'
       }
     )
     expect(prepared.models).toEqual([])
@@ -239,6 +241,22 @@ describe('AgentChatContextProvider', () => {
       })
     ])
     expect(prepared.listeners).toEqual([subscriber])
+  })
+
+  it('rejects a late busy transition when the caller requires an idle session', async () => {
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+
+    await expect(
+      provider.prepareDispatch(makeSubscriber(), openReq(), {
+        hasLiveStream: false,
+        requireIdle: true,
+        expectedAgentId: 'agent-1'
+      })
+    ).rejects.toMatchObject({ code: 'RESOURCE_LOCKED' })
+
+    expect(mocks.saveMessage).not.toHaveBeenCalled()
+    expect(mocks.saveMessages).not.toHaveBeenCalled()
+    expect(mocks.runtimeEnqueueUserMessage).not.toHaveBeenCalled()
   })
 
   it('forwards headless to the runtime when busy dispatch enqueues a follow-up', async () => {
@@ -257,8 +275,45 @@ describe('AgentChatContextProvider', () => {
           name: 'My Agent',
           emoji: '🤖',
           model: { id: 'claude-sonnet', name: 'Claude Sonnet', provider: 'anthropic' }
-        }
+        },
+        reasoningEffort: 'default'
       }
+    )
+  })
+
+  it('uses the persisted agent reasoning effort when the request does not override it', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      name: 'My Agent',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet',
+      configuration: { reasoning_effort: 'high' }
+    })
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(mocks.runtimeBeginTurn).toHaveBeenCalledWith(expect.objectContaining({ reasoningEffort: 'high' }))
+    expect(prepared.models[0].request.reasoningEffort).toBe('high')
+  })
+
+  it('prefers an explicit request reasoning effort over the persisted agent default', async () => {
+    mocks.runtimeIsSessionBusy.mockReturnValue(true)
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      name: 'My Agent',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      modelName: 'Claude Sonnet',
+      configuration: { reasoning_effort: 'high' }
+    })
+
+    await provider.prepareDispatch(makeSubscriber(), openReq({ reasoningEffort: 'low' }))
+
+    expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
+      'session-1',
+      expect.objectContaining({ role: 'user' }),
+      expect.objectContaining({ reasoningEffort: 'low' })
     )
   })
 

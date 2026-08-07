@@ -1,5 +1,7 @@
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
+import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../../composerDraft'
 import type { ComposerSerializedDraft } from '../../tokens'
@@ -46,6 +48,24 @@ export function buildComposerQueuedPayload(
     userMessageParts,
     ...extra?.(tokenIds, attachedFiles)
   }
+}
+
+/**
+ * The text an input-history entry should carry. History persists a bare string and replays it as
+ * `{ text, tokens: [] }`, so a knowledge token's sentence would come back as ordinary prose: a claim
+ * that a base is attached, naming an id the kb_* tools will reject, with no `data-knowledge-scope`
+ * left to authorize it — and an empty scope reads as "no narrowing" and widens to the assistant's
+ * full binding. Every other kind's prompt text is self-contained (a skill's `Use the X skill.` needs
+ * no accompanying part), so it survives verbatim.
+ *
+ * The identity mapper is load-bearing twice over: the default one rewrites tokens to clipboard
+ * markers, and returning anything but `''` for a token without prompt text would insert text at an
+ * offset the span never occupied.
+ */
+export function getComposerHistoryText(userMessageParts: CherryMessagePart[]): string {
+  return getComposerTextFromParts(userMessageParts, (token) =>
+    token.kind === 'knowledge' ? '' : (token.promptText ?? '')
+  )
 }
 
 export function hasUnsyncedComposerAttachments(files: ComposerAttachment[], attachedFiles: ComposerAttachment[]) {

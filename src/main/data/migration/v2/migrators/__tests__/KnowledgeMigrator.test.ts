@@ -1932,7 +1932,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { content: 'n1' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-2',
@@ -1940,7 +1940,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { content: 'n2' },
-        status: 'idle'
+        status: 'processing'
       }
     ]
 
@@ -2049,7 +2049,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { source: 'n1', content: 'n1' },
-        status: 'idle',
+        status: 'processing',
         error: null
       }
     ]
@@ -2137,7 +2137,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { source: 'note', content: 'note' },
-        status: 'idle',
+        status: 'processing',
         error: null,
         createdAt: 1775114958369,
         updatedAt: 1775114958369
@@ -2172,7 +2172,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         expect.objectContaining({
           id: 'item-1',
           baseId: 'kb-missing-model',
-          status: 'idle'
+          status: 'processing'
         })
       ]
     ])
@@ -2201,7 +2201,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { content: 'n1' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-2',
@@ -2209,7 +2209,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         groupId: null,
         type: 'note',
         data: { content: 'n2' },
-        status: 'idle'
+        status: 'processing'
       }
     ]
 
@@ -2365,7 +2365,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'file',
         data: { source: '/tmp/a.pdf', relativePath: 'a.pdf' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-b',
@@ -2373,7 +2373,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'file',
         data: { source: '/tmp/b.pdf', relativePath: 'b.pdf', indexedRelativePath: 'b.md' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-note',
@@ -2381,7 +2381,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'note',
         data: { source: 'some note', content: 'some note' },
-        status: 'idle'
+        status: 'processing'
       }
     ]
 
@@ -2416,7 +2416,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'file',
         data: { source: '/tmp/ok.pdf', relativePath: 'ok.pdf' },
-        status: 'idle'
+        status: 'processing'
       },
       {
         id: 'item-skipped-file-entry',
@@ -2424,7 +2424,7 @@ describe('KnowledgeMigrator file item path storage', () => {
         groupId: null,
         type: 'file',
         data: { source: '/tmp/bad.xyz', relativePath: 'bad.xyz' },
-        status: 'idle'
+        status: 'processing'
       }
     ]
     migrator.legacyItemIdRemap = new Map([

@@ -45,8 +45,7 @@ export function ResourceCatalogView({
       (resourceType === 'skill' && dialogs.systemSkillOpen) ||
       dialogs.createDialogOpen ||
       dialogs.createDialogKind ||
-      dialogs.editDialogOpen ||
-      dialogs.editDialog
+      dialogs.editDialogTarget
   )
   const [dialogsActivated, setDialogsActivated] = useState(hasActiveDialog)
 
@@ -65,7 +64,7 @@ export function ResourceCatalogView({
         {resourceError ? (
           <>
             {toolbarLeading ? (
-              <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 border-border-muted border-b px-2">
+              <div className="flex h-(--navbar-height) shrink-0 items-center gap-2 border-border-subtle border-b px-2">
                 <div className="flex shrink-0 items-center">{toolbarLeading}</div>
               </div>
             ) : null}

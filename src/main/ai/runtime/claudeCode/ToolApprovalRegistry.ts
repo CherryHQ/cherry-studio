@@ -9,6 +9,7 @@ type PendingApproval = {
   toolCallId: string
   toolName: string
   originalInput: Record<string, unknown>
+  presentation: 'stream' | 'message'
   resolve: (result: PermissionResult) => void
   signal?: AbortSignal
   abortListener?: () => void
@@ -20,7 +21,11 @@ type DispatchDecision = {
   updatedInput?: Record<string, unknown>
 }
 
-type DispatchedApproval = Pick<PendingApproval, 'sessionId' | 'toolCallId'>
+type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'toolCallId' | 'presentation'>
+type DispatchedApproval = ApprovalRegistration
+type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'presentation'> & {
+  presentation?: PendingApproval['presentation']
+}
 
 /**
  * Main-side dispatcher for tool-approval decisions. Holds each pending
@@ -31,7 +36,7 @@ type DispatchedApproval = Pick<PendingApproval, 'sessionId' | 'toolCallId'>
 class ToolApprovalRegistry {
   private readonly pending = new Map<string, PendingApproval>()
 
-  register(entry: Omit<PendingApproval, 'abortListener'>): void {
+  register(entry: PendingApprovalRegistration): void {
     const { approvalId, signal } = entry
     if (this.pending.has(approvalId)) {
       logger.warn('Duplicate approval registration — rejecting', { approvalId })
@@ -44,7 +49,7 @@ class ToolApprovalRegistry {
       return
     }
 
-    const stored: PendingApproval = { ...entry }
+    const stored: PendingApproval = { ...entry, presentation: entry.presentation ?? 'stream' }
     if (signal) {
       const abortListener = () => this.dispatch(approvalId, { approved: false, reason: 'aborted' })
       stored.abortListener = abortListener
@@ -52,6 +57,17 @@ class ToolApprovalRegistry {
     }
 
     this.pending.set(approvalId, stored)
+  }
+
+  /** Returns `undefined` for unknown ids (already dispatched / session expired). */
+  peek(approvalId: string): ApprovalRegistration | undefined {
+    const entry = this.pending.get(approvalId)
+    if (!entry) return undefined
+    return {
+      sessionId: entry.sessionId,
+      toolCallId: entry.toolCallId,
+      presentation: entry.presentation
+    }
   }
 
   /** Returns `undefined` for unknown ids (already dispatched / session expired). */
@@ -66,7 +82,11 @@ class ToolApprovalRegistry {
         ? { behavior: 'allow', updatedInput: decision.updatedInput ?? entry.originalInput }
         : { behavior: 'deny', message: decision.reason ?? 'User denied permission for this tool' }
     )
-    return { sessionId: entry.sessionId, toolCallId: entry.toolCallId }
+    return {
+      sessionId: entry.sessionId,
+      toolCallId: entry.toolCallId,
+      presentation: entry.presentation
+    }
   }
 
   abort(sessionId: string, reason = 'session-aborted'): number {

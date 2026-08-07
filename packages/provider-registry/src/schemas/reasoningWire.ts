@@ -117,6 +117,7 @@ export const ReasoningWireProfileSchema = z
 export type ReasoningWireProfile = z.infer<typeof ReasoningWireProfileSchema>
 
 export const ReasoningFormatWireProfileSchema = z.object({
-  wire: ReasoningWireProfileSchema
+  wire: ReasoningWireProfileSchema,
+  budgetWire: ReasoningWireProfileSchema.optional()
 })
 export type ReasoningFormatWireProfile = z.infer<typeof ReasoningFormatWireProfileSchema>

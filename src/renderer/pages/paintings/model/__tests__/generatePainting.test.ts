@@ -62,6 +62,13 @@ describe('generatePainting', () => {
     })
   })
 
+  it("stamps painting outputs as 'delete_when_unreferenced' (reaped once no painting references them)", async () => {
+    // Value-locks the policy: TS already blocks omitting cleanupPolicy, but not
+    // flipping it to 'manual', which would leak painting images forever.
+    await generatePainting(makeOptions({ size: '1024x1024' }))
+    expect(imagePayload()).toMatchObject({ cleanupPolicy: 'delete_when_unreferenced' })
+  })
+
   it('passes paramValues verbatim — no top-level wire fields', async () => {
     await generatePainting(makeOptions({ size: '1024x1024' }))
 

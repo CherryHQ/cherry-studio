@@ -44,6 +44,22 @@ export type ResourceListGroupHeaderIconContext = {
 
 export type ResourceListGroupHeaderClickBehavior = 'toggle' | 'select-first-then-toggle' | 'none'
 
+/**
+ * What a group header IS, which decides how it reads: an `entity` names something you can open or
+ * manage (an agent, an assistant, a workdir) and looks like the content it sits above; a `bucket`
+ * only gathers rows (a time range, "pinned", "no workdir") and recedes into a label. Defaults to
+ * `entity` — a header names something unless the list says otherwise.
+ *
+ * `inline-bucket` is a bucket that stands *inside* a run of entity headers rather than opening a
+ * module of its own — "unlinked assistant", "unlinked agent": the fallback a row falls into when its
+ * owner is missing. It reads like a bucket (recessed label, never a stand-in for a selection) but
+ * keeps the shared row rhythm, because its siblings are the entity headers around it, not the
+ * sections above them. The line is whether the group is a state a user can *choose*: "no workdir" is
+ * one (a task with no directory), so it stays a `bucket` and opens its own module; an owner that no
+ * longer exists is not.
+ */
+export type ResourceListGroupHeaderKind = 'entity' | 'bucket' | 'inline-bucket'
+
 export type ResourceListSortOption<T extends ResourceListItemBase> = {
   id: string
   label: string
@@ -139,6 +155,7 @@ export type ResourceListMeta<T extends ResourceListItemBase> = {
   getGroupHeaderClassName?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderTooltip?: (group: ResourceListGroup) => string | undefined
   getGroupHeaderClickBehavior: (group: ResourceListGroup) => ResourceListGroupHeaderClickBehavior
+  getGroupHeaderKind?: (group: ResourceListGroup) => ResourceListGroupHeaderKind
   onEmptyGroupHeaderClick?: (group: ResourceListGroup) => boolean | void
   sortOptions: ResourceListSortOption<T>[]
   filterOptions: ResourceListFilterOption<T>[]

@@ -26,10 +26,12 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
               baseUrl: 'https://open.cherryin.net',
               modelsApiUrls: { default: 'https://open.cherryin.net/v1/models' }
             },
+            'openai-responses': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
             'google-generate-content': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
           },
           defaultChatEndpoint: 'openai-chat-completions',
-          apiFeatures: { serviceTier: false }
+          apiFeatures: { serviceTier: false },
+          reportedCostCurrency: 'USD'
         },
         {
           id: 'my-relay',
@@ -86,8 +88,13 @@ describe('ProviderService read-time registry merge (#17096)', () => {
       adapterFamily: 'cherryin',
       baseUrl: 'https://open.cherryin.net'
     })
+    expect(provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]).toEqual({
+      adapterFamily: 'cherryin',
+      baseUrl: 'https://open.cherryin.net'
+    })
     // End to end: the resolver no longer falls through to openai-compatible.
     expect(resolveAiSdkProviderId(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).not.toBe('openai-compatible')
+    expect(resolveAiSdkProviderId(provider, ENDPOINT_TYPE.OPENAI_RESPONSES)).toBe('cherryin')
   })
 
   it('keeps the user-owned baseUrl while refreshing registry-owned fields', async () => {
@@ -145,7 +152,7 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     })
   })
 
-  it('resolves apiFeatures and defaultChatEndpoint from the registry when the row stores no delta', async () => {
+  it('resolves registry-owned request metadata when the row stores no delta', async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'cherryin',
       presetProviderId: 'cherryin',
@@ -158,6 +165,7 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     // Registry baseline over app defaults; nothing frozen in the row.
     expect(provider.apiFeatures.serviceTier).toBe(false)
     expect(provider.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
+    expect(provider.reportedCostCurrency).toBe('USD')
   })
 
   it('persists apiFeatures as a delta: single-key PATCH merges, baseline echoes vanish', async () => {

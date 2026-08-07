@@ -10,8 +10,9 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentChannelEntity, CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
-import type { ChannelConfig } from '@shared/data/types/channel'
+import type { ChannelConfig, ChannelType } from '@shared/data/types/channel'
 import { and, eq, inArray } from 'drizzle-orm'
 
 const logger = loggerService.withContext('ChannelService')
@@ -28,7 +29,7 @@ export class AgentChannelService {
     const clean = nullsToUndefined(row)
     return {
       ...clean,
-      type: row.type as AgentChannelEntity['type'],
+      type: row.type,
       config: normalizeChannelConfig(row.config) as AgentChannelEntity['config'],
       workspace: row.workspace,
       permissionMode: (row.permissionMode ?? undefined) as AgentChannelEntity['permissionMode'],
@@ -47,7 +48,10 @@ export class AgentChannelService {
           workspace: AgentSessionWorkspaceSource
           config: ChannelConfig | Record<string, unknown>
           isActive?: boolean
-          permissionMode?: string | null
+          // Narrow, not `string`: with the DB CHECK constraint gone this parameter type is
+          // what stops an internal caller (one that bypasses the DataApi zod boundary) from
+          // persisting a mode the SDK will reject at run time.
+          permissionMode?: AgentPermissionMode | null
         }
   ): AgentChannelEntity {
     const database = application.get('DbService').getDb()
@@ -84,7 +88,7 @@ export class AgentChannelService {
     return result[0] ? this.rowToEntity(result[0]) : null
   }
 
-  listChannels(filters?: { agentId?: string; type?: string }): AgentChannelEntity[] {
+  listChannels(filters?: { agentId?: string; type?: ChannelType }): AgentChannelEntity[] {
     const database = application.get('DbService').getDb()
 
     const agentCond = filters?.agentId ? eq(channelsTable.agentId, filters.agentId) : undefined

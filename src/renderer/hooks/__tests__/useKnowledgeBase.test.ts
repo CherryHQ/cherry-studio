@@ -105,6 +105,22 @@ describe('useKnowledgeBases', () => {
     expect(result.current.error).toBe(error)
     expect(result.current.refetch).toBe(refetch)
   })
+
+  it('passes an explicit activation boundary to DataApi', () => {
+    mockUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    renderHook(() => useKnowledgeBases({ enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/knowledge-bases', {
+      query: { page: 1, limit: 100 },
+      enabled: false
+    })
+  })
 })
 
 describe('useCreateKnowledgeBase', () => {
@@ -270,6 +286,35 @@ describe('useRestoreKnowledgeBase', () => {
     expect(restored).toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
     expect(result.current.isRestoring).toBe(false)
     expect(result.current.restoreError).toBeUndefined()
+  })
+
+  it('restores a BM25-only knowledge base with a null embedding config', async () => {
+    const restoredBase = createKnowledgeBase({
+      id: 'restored-base',
+      name: 'Legacy KB BM25',
+      embeddingModelId: null,
+      dimensions: null
+    })
+    mockIpcRequest.mockResolvedValueOnce({ base: restoredBase, skippedMissingSourceCount: 0 })
+
+    const { result } = renderHook(() => useRestoreKnowledgeBase())
+
+    await act(async () => {
+      await result.current.restoreBase({
+        sourceBaseId: 'source-base',
+        name: 'Legacy KB BM25',
+        embeddingModelId: null,
+        dimensions: null
+      })
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.restore_base', {
+      sourceBaseId: 'source-base',
+      name: 'Legacy KB BM25',
+      embeddingModelId: null,
+      dimensions: null
+    })
+    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
   })
 
   it('keeps restore rejected when runtime IPC fails without refreshing the list', async () => {

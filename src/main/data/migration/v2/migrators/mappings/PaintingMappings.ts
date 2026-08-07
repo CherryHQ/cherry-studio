@@ -7,6 +7,9 @@ import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/Mode
 export const LEGACY_PAINTING_NAMESPACES = [
   'siliconflow_paintings',
   'dmxapi_paintings',
+  // Provider retired in v2 (see ProviderModelMigrator RETIRED_PROVIDER_IDS), but its
+  // history is a frozen receipt — prompt + local output files stay readable.
+  'tokenflux_paintings',
   'zhipu_paintings',
   'aihubmix_image_generate',
   'aihubmix_image_remix',
@@ -171,6 +174,8 @@ export function getPaintingFilter(
   switch (namespace) {
     case 'siliconflow_paintings':
       return { providerId: 'silicon', mode: 'generate' }
+    case 'tokenflux_paintings':
+      return { providerId: 'tokenflux', mode: 'generate' }
     case 'zhipu_paintings':
       return { providerId: 'zhipu', mode: 'generate' }
     case 'aihubmix_image_generate':

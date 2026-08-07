@@ -1,4 +1,8 @@
-import type { ReasoningWireProfile } from '@cherrystudio/provider-registry'
+import {
+  inferReasoningControls,
+  REASONING_FORMAT_PROFILES,
+  type ReasoningWireProfile
+} from '@cherrystudio/provider-registry'
 import { describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures'
@@ -61,5 +65,21 @@ describe('resolveReasoningInvocation budget constraints', () => {
     const invocation = resolveReasoningInvocation({ selection: 'auto', model: toggleModel, profile })
 
     expect(encodeReasoningInvocation(invocation)).toEqual({ chat_template_kwargs: { thinking_mode: 'adaptive' } })
+  })
+
+  it('encodes Gemma 4 thinking control as Ollama booleans', () => {
+    const controls = inferReasoningControls('gemma4:31b')
+    expect(controls).toEqual([{ kind: 'toggle' }])
+
+    const gemma4 = makeModel({
+      reasoning: { controls, selectableEfforts: ['none', 'auto'] }
+    })
+    const profile = REASONING_FORMAT_PROFILES.ollama.wire
+
+    const enabled = resolveReasoningInvocation({ selection: 'auto', model: gemma4, profile })
+    const disabled = resolveReasoningInvocation({ selection: 'none', model: gemma4, profile })
+
+    expect(encodeReasoningInvocation(enabled)).toEqual({ think: true })
+    expect(encodeReasoningInvocation(disabled)).toEqual({ think: false })
   })
 })

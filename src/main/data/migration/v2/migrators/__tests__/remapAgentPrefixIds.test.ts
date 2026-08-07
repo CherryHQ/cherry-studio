@@ -1,8 +1,10 @@
 import { agentTable } from '@data/db/schemas/agent'
+import { agentChannelTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { jobScheduleTable } from '@data/db/schemas/job'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { setupTestDatabase } from '@test-helpers/db'
 import { sql } from 'drizzle-orm'
@@ -67,6 +69,29 @@ describe('remapAgentPrefixIds', () => {
     expect(sessions[0].agentId).toBe(agents[0].id)
   })
 
+  it('rewrites the immutable session-message author snapshot with the remapped agent id', async () => {
+    const agentId = 'agent_snapshot_abc'
+    const sessionId = 'session_snapshot_abc'
+    await insertAgent(dbh.db, agentId)
+    await insertSession(dbh.db, sessionId, agentId)
+    await dbh.db.insert(agentSessionMessageTable).values({
+      sessionId,
+      status: 'success',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'hello' }] } as never,
+      messageSnapshot: {
+        id: agentId,
+        name: 'Test Agent',
+        model: { id: 'test-model', name: 'Test Model', provider: 'test-provider' }
+      }
+    })
+
+    const remap = remapAgentPrefixIds(dbh.db)
+
+    const [message] = await dbh.db.select().from(agentSessionMessageTable)
+    expect(message.messageSnapshot).toMatchObject({ id: remap.agentIds.get(agentId), name: 'Test Agent' })
+  })
+
   it('rewrites agent_mcp_server.agentId when the agent id is remapped', async () => {
     const agentId = 'agent_mcp01_abc'
     await insertAgent(dbh.db, agentId)
@@ -125,6 +150,70 @@ describe('remapAgentPrefixIds', () => {
     for (const id of ids) {
       expect(id).toMatch(UUID_PATTERN)
     }
+  })
+
+  it('updates every mapped JSON and foreign-key reference with one temporary mapping set', async () => {
+    const agentIds = ['agent_set_1', 'agent_set_2']
+    const sessionIds = ['session_set_1', 'session_set_2']
+    for (let index = 0; index < agentIds.length; index++) {
+      const agentId = agentIds[index]
+      const sessionId = sessionIds[index]
+      await insertAgent(dbh.db, agentId)
+      await insertSession(dbh.db, sessionId, agentId)
+      await dbh.db.insert(agentSessionMessageTable).values({
+        sessionId,
+        status: 'success',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: `message ${index}` }] } as never,
+        messageSnapshot: {
+          id: agentId,
+          name: `Agent ${index}`,
+          model: { id: 'test-model', name: 'Test Model', provider: 'test-provider' }
+        }
+      })
+      await dbh.db.insert(agentChannelTable).values({
+        id: `channel-${index}`,
+        type: 'telegram',
+        name: `Channel ${index}`,
+        agentId,
+        sessionId,
+        workspace: { type: 'system' },
+        config: {}
+      })
+      await dbh.db.insert(jobScheduleTable).values({
+        id: `schedule-${index}`,
+        type: 'agent.task',
+        name: `Task ${index}`,
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: { agentId, prompt: `Prompt ${index}` },
+        catchUpPolicy: { kind: 'skip-missed' }
+      })
+    }
+
+    const remap = remapAgentPrefixIds(dbh.db)
+
+    const messages = await dbh.db.select().from(agentSessionMessageTable)
+    const channels = await dbh.db.select().from(agentChannelTable)
+    const schedules = await dbh.db.select().from(jobScheduleTable)
+    const messageAgentIds = new Set(messages.map((message) => message.messageSnapshot?.id))
+    const channelsById = new Map(channels.map((channel) => [channel.id, channel]))
+    const schedulesByName = new Map(schedules.map((schedule) => [schedule.name, schedule]))
+    for (let index = 0; index < agentIds.length; index++) {
+      const agentId = agentIds[index]
+      const sessionId = sessionIds[index]
+      const remappedAgentId = remap.agentIds.get(agentId)
+      expect(messageAgentIds).toContain(remappedAgentId)
+      expect(channelsById.get(`channel-${index}`)?.agentId).toBe(remappedAgentId)
+      expect(channelsById.get(`channel-${index}`)?.sessionId).toBe(remap.sessionIds.get(sessionId))
+      expect(schedulesByName.get(`Task ${index}`)?.jobInputTemplate).toMatchObject({
+        agentId: remappedAgentId
+      })
+    }
+    const temporaryMaps = dbh.db.all<{ name: string }>(
+      sql.raw(`SELECT name FROM sqlite_temp_master
+        WHERE name IN ('agent_id_remap', 'agent_session_id_remap')`)
+    )
+    expect(temporaryMaps).toHaveLength(0)
   })
 
   it('leaves rows that already have UUID IDs untouched', async () => {

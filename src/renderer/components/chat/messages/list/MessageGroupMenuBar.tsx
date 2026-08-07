@@ -35,17 +35,19 @@ const MessageGroupMenuBar: FC<Props> = ({
   const { t } = useTranslation()
   const partsMap = usePartsMap()
   const actions = useMessageListActions()
-  const groupParentId = messages[0]?.parentId
-  const deleteAvailability = groupParentId ? actions.getMessageDeleteAvailability?.(groupParentId) : undefined
+  const groupMessageIds = messages.map((message) => message.id)
+
+  const deleteAvailability = groupMessageIds
+    .map((messageId) => actions.getMessageDeleteAvailability?.(messageId))
+    .find((availability) => availability?.enabled === false)
   const isDeleteDisabled = deleteAvailability?.enabled === false
-  const deleteDisabledReason = isDeleteDisabled
-    ? getMessageDeleteUnavailableText(deleteAvailability.reason, t)
-    : undefined
+  const deleteDisabledReason =
+    deleteAvailability?.enabled === false ? getMessageDeleteUnavailableText(deleteAvailability.reason, t) : undefined
 
   const handleDeleteGroup = async () => {
-    if (!groupParentId || !actions.deleteMessageGroupWithConfirm || isDeleteDisabled) return
+    if (groupMessageIds.length === 0 || !actions.deleteMessageGroupWithConfirm || isDeleteDisabled) return
 
-    await actions.deleteMessageGroupWithConfirm(groupParentId)
+    await actions.deleteMessageGroupWithConfirm(groupMessageIds)
   }
 
   const isFailedMessage = (m: MessageListItem) => {
@@ -57,16 +59,11 @@ const MessageGroupMenuBar: FC<Props> = ({
     return isError || noContent
   }
 
-  const isTransmittingMessage = (m: MessageListItem) => {
-    if (m.role !== 'assistant') return false
-    return m.status === 'pending'
-  }
-
   const hasFailedMessages =
-    !!actions.regenerateMessage && messages.some((m) => isFailedMessage(m) && !isTransmittingMessage(m))
+    !!actions.regenerateMessage && messages.some((m) => isFailedMessage(m) && m.status !== 'pending')
 
   const handleRetryAll = async () => {
-    const candidates = messages.filter((m) => isFailedMessage(m) && !isTransmittingMessage(m))
+    const candidates = messages.filter((m) => isFailedMessage(m) && m.status !== 'pending')
     let failedCount = 0
     let lastError: unknown
 

@@ -440,7 +440,9 @@ export class CodeCliService extends BaseService {
     const rawPathEnv = Object.fromEntries(
       Object.entries(rawShellEnv ?? {}).filter(([key]) => key.toLowerCase() === 'path')
     )
-    const env: Record<string, string> = usesCherryExecutionEnv ? mergeBinaryExecutionEnv(rawPathEnv) : {}
+    const env: Record<string, string> = usesCherryExecutionEnv
+      ? mergeBinaryExecutionEnv(rawPathEnv, [application.getPath('cherry.bin')])
+      : {}
     // For a managed Windows launch buildEnvPrefix rewrites PATH inside the
     // terminal from `env`, so the bundled-git tail must land here too, not only
     // in the spawn env assembled below.

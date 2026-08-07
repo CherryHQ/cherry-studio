@@ -686,6 +686,7 @@ class ModelService {
 
         const updates: Partial<Model> = {}
         if (imageGeneration) updates.imageGeneration = imageGeneration
+        if (registryOverride?.supportsFastMode) updates.supportsFastMode = true
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined

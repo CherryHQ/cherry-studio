@@ -20,7 +20,7 @@ const loadHtmlToImage = () => {
   return htmlToImagePromise
 }
 
-function blobToDataUrl(blob: Blob): Promise<string> {
+export function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
     reader.onloadend = () => {
@@ -172,28 +172,9 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
   if (el) {
     const htmlToImage = await loadHtmlToImage()
-
-    // Save original styles
-    const originalStyle = {
-      height: el.style.height,
-      maxHeight: el.style.maxHeight,
-      overflow: el.style.overflow,
-      position: el.style.position
-    }
-
-    const originalScrollTop = el.scrollTop
     let restoreLocalImageSources: (() => void) | undefined
 
     try {
-      // Hide scrollbars during capture
-      el.classList.add('hide-scrollbar')
-
-      // Modify styles to show full content
-      el.style.height = 'auto'
-      el.style.maxHeight = 'none'
-      el.style.overflow = 'visible'
-      el.style.position = 'static'
-
       // calculate the size of the element
       const totalWidth = el.scrollWidth
       const totalHeight = el.scrollHeight
@@ -208,6 +189,10 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
 
       const filterHiddenElements = (node: Node) => {
         if (node instanceof HTMLElement) {
+          // Interactive HTML artifacts are intentionally omitted from image exports.
+          if (node.hasAttribute('data-html-artifact')) {
+            return false
+          }
           if (node.style.display === 'none') {
             return false
           }
@@ -227,11 +212,18 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
         imagePlaceholder: TRANSPARENT_IMAGE_PLACEHOLDER,
         pixelRatio: window.devicePixelRatio,
         skipAutoScale: true,
-        canvasWidth: el.scrollWidth,
-        canvasHeight: el.scrollHeight,
+        width: totalWidth,
+        height: totalHeight,
+        canvasWidth: totalWidth,
+        canvasHeight: totalHeight,
         style: {
           backgroundColor: getComputedStyle(el).backgroundColor,
-          color: getComputedStyle(el).color
+          color: getComputedStyle(el).color,
+          height: 'auto',
+          maxHeight: 'none',
+          overflow: 'visible',
+          position: 'static',
+          scrollbarWidth: 'none'
         }
       }
 
@@ -245,20 +237,6 @@ export const captureScrollable = async (elRef: React.RefObject<HTMLElement | nul
       throw error
     } finally {
       restoreLocalImageSources?.()
-
-      // Restore original styles
-      el.style.height = originalStyle.height
-      el.style.maxHeight = originalStyle.maxHeight
-      el.style.overflow = originalStyle.overflow
-      el.style.position = originalStyle.position
-
-      // Restore original scroll position
-      setTimeout(() => {
-        el.scrollTop = originalScrollTop
-      }, 0)
-
-      // Remove scrollbar hiding class
-      el.classList.remove('hide-scrollbar')
     }
   }
 
@@ -816,11 +794,21 @@ export async function getImageBlobFromSource(src: string): Promise<Blob> {
     const path = AbsoluteFilePathSchema.parse(fileUrlToPath(src as FileUrlString))
     const { content, mime } = await ipcApi.request('file.read', {
       handle: createFilePathHandle(path),
-      options: { encoding: 'binary' }
+      options: { mode: 'full', encoding: 'binary' }
     })
     return new Blob([content.slice() as unknown as BlobPart], { type: mime })
   }
 
   const response = await fetch(src)
   return response.blob()
+}
+
+export async function copyImageToClipboard(src: string): Promise<void> {
+  const blob = await getImageBlobFromSource(src)
+  const pngBlob = await convertImageToPng(blob)
+  const item = new ClipboardItem({
+    'image/png': pngBlob
+  })
+
+  await navigator.clipboard.write([item])
 }

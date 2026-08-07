@@ -90,7 +90,7 @@ describe('useKnowledgeRagConfig', () => {
     ])
   })
 
-  it('builds options from configured document processors and exposes the save mutation', async () => {
+  it('marks unconfigured document processors as unavailable and exposes the save mutation', async () => {
     const base = createKnowledgeBase({
       fileProcessorId: 'paddleocr',
       rerankModelId: 'jina::jina-reranker-v2-base-multilingual'
@@ -98,15 +98,12 @@ describe('useKnowledgeRagConfig', () => {
     const { result } = renderHook(() => useKnowledgeRagConfig(base))
 
     expect(result.current.fileProcessorOptions).toEqual([
-      { value: 'paddleocr', label: 'PaddleOCR' },
-      { value: 'open-mineru', label: 'Open MinerU' }
+      { value: 'paddleocr', label: 'PaddleOCR', disabled: false },
+      { value: 'mineru', label: 'MinerU', disabled: true },
+      { value: 'doc2x', label: 'Doc2X', disabled: true },
+      { value: 'mistral', label: 'Mistral', disabled: true },
+      { value: 'open-mineru', label: 'Open MinerU', disabled: false }
     ])
-    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('mineru')
-    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('doc2x')
-    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('mistral')
-    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('tesseract')
-    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('system')
-    expect(result.current.fileProcessorOptions.map((option) => option.value)).not.toContain('ovocr')
     expect(mockUseMutation).toHaveBeenCalledWith('PATCH', '/knowledge-bases/:id', {
       refresh: ['/knowledge-bases']
     })
@@ -153,7 +150,11 @@ describe('useKnowledgeRagConfig', () => {
 
     const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))
 
-    expect(result.current.fileProcessorOptions).toEqual([{ value: 'open-mineru', label: 'Open MinerU' }])
+    expect(result.current.fileProcessorOptions.find((option) => option.value === 'open-mineru')).toEqual({
+      value: 'open-mineru',
+      label: 'Open MinerU',
+      disabled: false
+    })
   })
 
   it('includes an explicit embedding model override in the patch body', async () => {

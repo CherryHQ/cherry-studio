@@ -86,8 +86,7 @@ describe('importService.importConversations', () => {
     // subsequent message's parentId equals the previous message's returned id.
     const messageCalls = calls.filter((c) => c.path.includes('/messages'))
     expect(messageCalls).toHaveLength(3)
-    expect(messageCalls[0].body.parentId).toBeNull()
-    expect(messageCalls[1].body.parentId).toBe(messageCalls[0].returnedId)
+    expect(messageCalls.map((c) => c.body.parentId)).toEqual([null, messageCalls[0].returnedId, null])
 
     // Text content is folded into a single AI SDK text part.
     expect(messageCalls[0].body.data.parts).toEqual([{ type: 'text', text: 'Hi' }])
@@ -114,5 +113,19 @@ describe('importService.importConversations', () => {
 
     expect(response.success).toBe(false)
     expect(vi.mocked(dataApiService.post)).not.toHaveBeenCalled()
+  })
+
+  it('returns the persistence error without reporting partial counts', async () => {
+    vi.mocked(dataApiService.post).mockRejectedValueOnce(new Error('database unavailable'))
+
+    const response = await importService.importConversations(chatgptExport())
+
+    expect(response).toMatchObject({
+      success: false,
+      topicsCount: 0,
+      messagesCount: 0,
+      error: 'database unavailable'
+    })
+    expect(vi.mocked(dataApiService.post)).toHaveBeenCalledOnce()
   })
 })

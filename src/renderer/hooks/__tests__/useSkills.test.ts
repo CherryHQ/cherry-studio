@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const useQueryMock = vi.hoisted(() => vi.fn())
 const invalidateMock = vi.hoisted(() => vi.fn())
+const refetchMock = vi.hoisted(() => vi.fn())
 const installSkillMock = vi.hoisted(() => vi.fn())
 const installSkillFromZipMock = vi.hoisted(() => vi.fn())
 const installSkillFromDirectoryMock = vi.hoisted(() => vi.fn())
@@ -33,6 +34,9 @@ function stubSkillRoutes() {
         return discoverSystemSkillsMock(input)
       case 'skill.import_system':
         return importSystemSkillMock(input)
+      case 'skill.reconcile':
+        // Fired by useReconcileSkillsOnOpen when a skill view mounts; irrelevant to these assertions.
+        return Promise.resolve(undefined)
       default:
         throw new Error(`Unexpected skill route: ${route}`)
     }
@@ -43,7 +47,14 @@ import { toast } from '@renderer/services/toast'
 import type { InstalledSkill, SystemSkillCandidate } from '@shared/types/skill'
 
 import { SKILL_SEARCH_FAILED_ERROR } from '../../utils/skillSearch'
-import { useAvailableSkills, useInstalledSkills, useSkillInstall, useSkillSearch, useSystemSkills } from '../useSkills'
+import {
+  useAvailableSkills,
+  useInstalledSkills,
+  useReconcileSkillsOnOpen,
+  useSkillInstall,
+  useSkillSearch,
+  useSystemSkills
+} from '../useSkills'
 
 function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
   return {
@@ -55,6 +66,7 @@ function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
     sourceUrl: null,
     namespace: null,
     author: null,
+    version: null,
     sourceTags: [],
     contentHash: 'hash-1',
     isEnabled: false,
@@ -78,11 +90,12 @@ describe('useInstalledSkills', () => {
       isLoading: false,
       isRefreshing: false,
       error: undefined,
-      refetch: vi.fn(),
+      refetch: refetchMock,
       mutate: vi.fn()
     })
 
     invalidateMock.mockResolvedValue(undefined)
+    refetchMock.mockResolvedValue(undefined)
     listLocalSkillsMock.mockResolvedValue({ success: true, data: [] })
 
     stubSkillRoutes()
@@ -93,6 +106,41 @@ describe('useInstalledSkills', () => {
 
     expect(result.current.skills).toHaveLength(2)
     expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: true, query: { agentId: 'agent-1' } })
+  })
+
+  it('keeps the installed-skills query free of filesystem reconciliation side effects', () => {
+    renderHook(() => useInstalledSkills('agent-1'))
+
+    expect(skillMocks.request).not.toHaveBeenCalledWith('skill.reconcile', {})
+  })
+
+  it('reconciles the on-disk library when an explicit Skills view opens, then refreshes', async () => {
+    renderHook(() => useReconcileSkillsOnOpen(true))
+
+    await waitFor(() => expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {}))
+    await waitFor(() => expect(invalidateMock).toHaveBeenCalledWith('/skills'))
+  })
+
+  it('reconciles before an explicit Composer skills refresh', async () => {
+    const { result } = renderHook(() => useAvailableSkills('agent-1', '/repo'))
+    expect(skillMocks.request).not.toHaveBeenCalledWith('skill.reconcile', {})
+    skillMocks.request.mockClear()
+    refetchMock.mockClear()
+
+    await act(async () => {
+      await result.current.refresh()
+    })
+
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {})
+    expect(refetchMock).toHaveBeenCalledOnce()
+    expect(skillMocks.request.mock.invocationCallOrder[0]).toBeLessThan(refetchMock.mock.invocationCallOrder[0])
+  })
+
+  it('keeps installed and workspace skill reads inactive until the Composer tool surface opens', () => {
+    renderHook(() => useAvailableSkills('agent-1', '/repo', { enabled: false }))
+
+    expect(useQueryMock).toHaveBeenCalledWith('/skills', { enabled: false, query: { agentId: 'agent-1' } })
+    expect(skillMocks.request).not.toHaveBeenCalledWith('skill.list_local', { workdir: '/repo' })
   })
 
   it('keeps cached skills visible during background refresh', () => {
@@ -292,20 +340,20 @@ describe('useSkillInstall', () => {
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
-  it('logs, toasts, and rethrows local ZIP and directory install failures', async () => {
+  it('logs and rethrows local ZIP and directory install failures without duplicate toasts', async () => {
     const { result } = renderHook(() => useSkillInstall())
 
     installSkillFromZipMock.mockRejectedValueOnce(new Error('zip failed'))
     await act(async () => {
       await expect(result.current.installFromZip('/tmp/bad.zip')).rejects.toThrow('zip failed')
     })
-    expect(toast.error).toHaveBeenCalledWith('zip failed')
+    expect(toast.error).not.toHaveBeenCalled()
 
     installSkillFromDirectoryMock.mockResolvedValueOnce({ success: false, error: 'directory failed' })
     await act(async () => {
       await expect(result.current.installFromDirectory('/tmp/bad-dir')).rejects.toThrow('directory failed')
     })
-    expect(toast.error).toHaveBeenCalledWith('directory failed')
+    expect(toast.error).not.toHaveBeenCalled()
   })
 })
 

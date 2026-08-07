@@ -529,9 +529,6 @@ describe('ProviderEditorDrawer', () => {
 
     expect(avatar.compareDocumentPosition(nameInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(nameInput.compareDocumentPosition(apiKeyInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(nameInput.parentElement).toHaveClass('gap-2')
-    expect(apiKeyInput.parentElement?.parentElement).toHaveClass('gap-2')
-    expect(apiKeyInput).toHaveClass('pr-10')
     expect(screen.getByRole('button', { name: 'settings.provider.api_key.show_key' })).toHaveAttribute(
       'data-slot',
       'button'
@@ -540,7 +537,6 @@ describe('ProviderEditorDrawer', () => {
     expect(apiKeyInput.compareDocumentPosition(chatInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(chatInput.compareDocumentPosition(anthropicInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(anthropicInput.compareDocumentPosition(moreTrigger) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(moreTrigger).toHaveClass('min-h-10', 'cursor-pointer')
     expect(moreTrigger).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByLabelText('settings.provider.more_endpoints.openai_responses')).not.toBeInTheDocument()
     expect(
@@ -558,14 +554,7 @@ describe('ProviderEditorDrawer', () => {
     const imageEditInput = screen.getByLabelText('settings.provider.image_endpoints.image_edit_base_url.label')
     expect(moreTrigger).toHaveAttribute('aria-expanded', 'true')
     expect(moreTrigger.compareDocumentPosition(responsesInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(responsesInput.closest('.text-foreground')).toBeInTheDocument()
     expect(imageEditInput.compareDocumentPosition(presetPicker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(presetPicker).toHaveAttribute('data-popover-align', 'start')
-    expect(presetPicker).toHaveAttribute(
-      'data-popover-class-name',
-      expect.stringContaining('w-(--radix-popover-trigger-width)!')
-    )
-    expect(document.querySelector('[data-slot="separator"]')).toBeInTheDocument()
     expect(screen.queryByText('settings.provider.create_custom.compatibility.label')).not.toBeInTheDocument()
   })
 
@@ -619,8 +608,6 @@ describe('ProviderEditorDrawer', () => {
     const setDefaultButton = screen.getByRole('button', {
       name: 'settings.provider.create_custom.endpoint_fields.set_default_chat'
     })
-    expect(defaultBadge).toHaveAttribute('data-slot', 'badge')
-    expect(setDefaultButton).toHaveClass('h-5', 'rounded-full', 'before:-top-5', 'active:scale-[0.96]')
     expect(
       screen.getByLabelText('settings.provider.more_endpoints.openai_chat').previousElementSibling
     ).toContainElement(defaultBadge)

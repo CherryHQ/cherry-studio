@@ -79,16 +79,32 @@ export function useChatWithHistory(
   const { status: topicStreamStatus, activeExecutions: liveExecutions } = useTopicStreamStatus(topicId)
   const activeExecutions = liveExecutions.length > 0 ? liveExecutions : EMPTY_EXECUTIONS
 
-  const resumeInFlightRef = useRef<{ token: symbol; topicId: string } | null>(null)
+  const topicSelectionToken = useMemo(() => Symbol(topicId), [topicId])
+  const currentTopicSelectionTokenRef = useRef(topicSelectionToken)
+  currentTopicSelectionTokenRef.current = topicSelectionToken
+  const resumeInFlightRef = useRef<{ ownerToken: symbol; token: symbol } | null>(null)
+
+  // `status` and `resumeStream` are read through refs so `resumeActiveStream`
+  // keeps one identity per topic. With them in the deps, the "mount" effect
+  // below re-fired on every SDK status change; when a resumed stream
+  // terminated (closed or errored) while main still reported the stream as
+  // attachable, each ready/error edge immediately re-attached — a hot
+  // resume loop (attach IPC + stream setup + status flap per cycle) that
+  // pegged the CPU. The refs also make the post-refresh status re-check read
+  // the current value instead of a stale closure.
+  const statusRef = useRef(status)
+  statusRef.current = status
+  const resumeStreamRef = useRef(resumeStream)
+  resumeStreamRef.current = resumeStream
 
   const resumeActiveStream = useCallback(
     (reason: 'mount' | 'started-event') => {
       if (!enabled) return
-      if (reason === 'mount' && (status === 'streaming' || status === 'submitted')) return
-      if (resumeInFlightRef.current?.topicId === topicId) return
+      if (reason === 'mount' && (statusRef.current === 'streaming' || statusRef.current === 'submitted')) return
+      if (resumeInFlightRef.current?.ownerToken === topicSelectionToken) return
 
       const token = Symbol(topicId)
-      resumeInFlightRef.current = { token, topicId }
+      resumeInFlightRef.current = { ownerToken: topicSelectionToken, token }
       void (async () => {
         if (reason === 'started-event') {
           try {
@@ -98,11 +114,20 @@ export function useChatWithHistory(
           }
         }
 
-        if (status === 'streaming' || status === 'submitted') {
+        // A refresh started for topic A may settle after this hook has switched
+        // to topic B. Do not let that stale task call B's latest resume callback.
+        if (
+          resumeInFlightRef.current?.token !== token ||
+          currentTopicSelectionTokenRef.current !== topicSelectionToken
+        ) {
           return
         }
 
-        await resumeStream()
+        if (statusRef.current === 'streaming' || statusRef.current === 'submitted') {
+          return
+        }
+
+        await resumeStreamRef.current()
       })()
         .catch((err) => {
           logger.warn('Failed to resume active stream', { topicId, reason, err })
@@ -111,9 +136,10 @@ export function useChatWithHistory(
           if (resumeInFlightRef.current?.token === token) resumeInFlightRef.current = null
         })
     },
-    [enabled, resumeStream, status, topicId]
+    [enabled, topicId, topicSelectionToken]
   )
 
+  // One attach attempt per topic selection — not per status change.
   useEffect(() => {
     resumeActiveStream('mount')
   }, [resumeActiveStream])

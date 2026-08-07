@@ -163,7 +163,7 @@ describe('prepareFileProcessingJob', () => {
 })
 
 // The `{kind:'path'}` branch is what the knowledge workflow actually uses
-// (KnowledgeWorkflowService passes `{kind:'path', path}`), bypassing FileManager.
+// (KnowledgeIngestionService passes `{kind:'path', path}`), bypassing FileManager.
 describe('resolveFileProcessingFileInfo — kind:path', () => {
   beforeEach(() => {
     fsStatMock.mockReset()

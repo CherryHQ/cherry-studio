@@ -1,5 +1,5 @@
 import { Alert, Button, Textarea } from '@cherrystudio/ui'
-import { SettingDivider, SettingGroup, SettingTitle } from '@renderer/components/SettingsPrimitives'
+import { SettingGroup, SettingSubtitle } from '@renderer/components/SettingsPrimitives'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useWebSearchSettings } from '@renderer/hooks/useWebSearch'
 import { toast } from '@renderer/services/toast'
@@ -11,7 +11,11 @@ import { useTranslation } from 'react-i18next'
 import { useWebSearchPersist } from '../hooks/useWebSearchPersist'
 import { parseWebSearchBlacklistInput } from '../utils/webSearchBlacklist'
 
-const BlacklistSettings: FC = () => {
+interface Props {
+  variant?: 'card' | 'plain'
+}
+
+const BlacklistSettings: FC<Props> = ({ variant = 'card' }) => {
   const { theme } = useTheme()
   const { t } = useTranslation()
   const [invalidEntries, setInvalidEntries] = useState<string[]>([])
@@ -50,35 +54,29 @@ const BlacklistSettings: FC = () => {
   }
 
   return (
-    <SettingGroup theme={theme}>
-      <SettingTitle>{t('settings.tool.websearch.blacklist')}</SettingTitle>
-      <SettingDivider />
-      <div className="space-y-2 py-2.5">
-        <div className="flex items-center gap-2 text-foreground-muted text-sm leading-5">
-          <span>{t('settings.tool.websearch.blacklist_description')}</span>
-          <span className="rounded-md bg-muted px-1.5 py-px text-foreground-muted text-xs leading-tight">
-            {excludeDomains.length}
-          </span>
-        </div>
-        <div className="relative">
-          <Textarea.Input
-            value={blacklistInput}
-            onChange={(e) => setBlacklistInput(e.target.value)}
-            placeholder={t('settings.tool.websearch.blacklist_tooltip')}
-            className="max-h-40 min-h-28 rounded-lg pr-20 text-sm leading-5 shadow-none"
-            rows={4}
-          />
-          {blacklistDirty && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="absolute right-2 bottom-2 h-7 px-2.5"
-              onClick={() => void updateManualBlacklist(blacklistInput)}>
-              {t('common.save')}
-            </Button>
-          )}
-        </div>
+    <SettingGroup theme={theme} variant={variant}>
+      <div className="flex min-h-6 items-center">
+        <SettingSubtitle>{t('settings.tool.websearch.blacklist')}</SettingSubtitle>
+      </div>
+      <div className="relative mt-2.5">
+        <Textarea.Input
+          aria-label={t('settings.tool.websearch.blacklist')}
+          value={blacklistInput}
+          onChange={(e) => setBlacklistInput(e.target.value)}
+          placeholder={t('settings.tool.websearch.blacklist_tooltip')}
+          className="max-h-32 min-h-20 rounded-lg pr-20 text-sm leading-5 shadow-none"
+          rows={3}
+        />
+        {blacklistDirty && (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="absolute right-2 bottom-2 h-7 px-2.5"
+            onClick={() => void updateManualBlacklist(blacklistInput)}>
+            {t('common.save')}
+          </Button>
+        )}
       </div>
       {invalidEntries.length > 0 && (
         <Alert

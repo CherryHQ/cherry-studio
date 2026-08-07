@@ -15,11 +15,16 @@ export interface FollowupQueueItem {
 /** Same per-window memory tier + TTL as the inputbar draft cache (`composerDraft` / ChatComposer). */
 const QUEUE_TTL = 24 * 60 * 60 * 1000
 const keyFor = (scopeKey: string) => `followup-queue.${scopeKey}`
+const pausedKeyFor = (scopeKey: string) => `followup-queue-paused.${scopeKey}`
 
 /** Load + validate a persisted queue (the cache holds arbitrary JSON; guard non-array entries). */
 function loadQueue(scopeKey: string): FollowupQueueItem[] {
   const cached = cacheService.getCasual<FollowupQueueItem[]>(keyFor(scopeKey))
   return Array.isArray(cached) ? cached : []
+}
+
+function loadPaused(scopeKey: string): boolean {
+  return cacheService.getCasual<boolean>(pausedKeyFor(scopeKey)) === true
 }
 
 interface UseFollowupQueueParams {
@@ -58,7 +63,7 @@ export function useFollowupQueue({
   onDrainFailed
 }: UseFollowupQueueParams): FollowupQueueController {
   const [items, setItems] = useState<FollowupQueueItem[]>(() => loadQueue(scopeKey))
-  const [paused, setPaused] = useState(false)
+  const [paused, setPausedState] = useState(() => loadPaused(scopeKey))
 
   // Latest values for the persistence + drain closures (kept off the effect deps to avoid re-running).
   const scopeKeyRef = useRef(scopeKey)
@@ -78,8 +83,13 @@ export function useFollowupQueue({
     if (scopeKeyRef.current === scopeKey) return
     scopeKeyRef.current = scopeKey
     setItems(loadQueue(scopeKey))
-    setPaused(false)
+    setPausedState(loadPaused(scopeKey))
   }, [scopeKey])
+
+  const setPaused = useCallback((nextPaused: boolean) => {
+    cacheService.setCasual(pausedKeyFor(scopeKeyRef.current), nextPaused)
+    setPausedState(nextPaused)
+  }, [])
 
   const enqueue = useCallback(
     (draft: ComposerSerializedDraft, payload: ComposerQueuedMessagePayload) => {

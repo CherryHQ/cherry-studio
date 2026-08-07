@@ -52,13 +52,13 @@ export interface MigrationContext {
 
 /**
  * Create a migration context with all data sources
- * @param reduxData - Parsed Redux state data from Renderer
+ * @param reduxSource - Redux export directory in production; parsed data in focused tests
  * @param dexieExportPath - Path to exported Dexie files
  */
 export async function createMigrationContext(
   db: DbType,
   paths: MigrationPaths,
-  reduxData: Record<string, unknown>,
+  reduxSource: Record<string, unknown> | string,
   dexieExportPath: string,
   localStorageExportPath?: string
 ): Promise<MigrationContext> {
@@ -96,7 +96,7 @@ export async function createMigrationContext(
   return {
     sources: {
       electronStore,
-      reduxState: new ReduxStateReader(reduxData),
+      reduxState: new ReduxStateReader(reduxSource),
       dexieExport: dexieFileReader,
       dexieSettings: new DexieSettingsReader(dexieSettingsRecords),
       localStorage: new LocalStorageReader(localStorageRecords),

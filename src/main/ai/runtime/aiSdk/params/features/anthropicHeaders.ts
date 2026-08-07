@@ -4,28 +4,27 @@
  */
 
 import { type AiPlugin, definePlugin, type StreamTextParams, type StreamTextResult } from '@cherrystudio/ai-core'
-import type { Assistant } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { addAnthropicHeaders } from '../../../../utils/anthropicHeaders'
 
 export interface AnthropicHeadersPluginConfig {
-  assistant: Assistant
   model: Model
   provider: Provider
+  serverWebSearch: boolean
 }
 
 const createAnthropicHeadersPlugin = ({
-  assistant,
   model,
-  provider
+  provider,
+  serverWebSearch
 }: AnthropicHeadersPluginConfig): AiPlugin<StreamTextParams, StreamTextResult> =>
   definePlugin<StreamTextParams, StreamTextResult>({
     name: 'anthropic-headers',
     enforce: 'pre',
     transformParams: (params) => {
-      const betas = addAnthropicHeaders(assistant, model, provider)
+      const betas = addAnthropicHeaders(model, provider, serverWebSearch)
       if (betas.length === 0) return params
 
       const existingHeaders = (params.headers ?? {}) as Record<string, string>
@@ -52,6 +51,10 @@ export const anthropicHeadersFeature: RequestFeature = {
     scope.endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES &&
     scope.aiSdkProviderId !== 'bedrock',
   contributeModelAdapters: (scope) => [
-    createAnthropicHeadersPlugin({ assistant: scope.assistant!, model: scope.model, provider: scope.provider })
+    createAnthropicHeadersPlugin({
+      model: scope.model,
+      provider: scope.provider,
+      serverWebSearch: scope.webToolRoutes?.webSearch === 'server'
+    })
   ]
 }

@@ -9,7 +9,7 @@ const KnowledgePageShell = ({ children }: PropsWithChildren) => {
   const { contentRef } = useKnowledgePage()
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div data-ui="knowledge.view" className="flex min-h-0 flex-1 flex-col">
       <Navbar>
         <NavbarCenter className="border-r-0">{t('knowledge.title')}</NavbarCenter>
       </Navbar>

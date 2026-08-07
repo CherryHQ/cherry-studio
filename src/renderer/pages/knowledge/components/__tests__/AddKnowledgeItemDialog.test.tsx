@@ -173,6 +173,7 @@ vi.mock('react-i18next', () => {
       'common.cancel': '取消',
       'common.close': '关闭',
       'common.delete': '删除',
+      'common.select_all': '全选',
       'knowledge.data_source.add_dialog.conflict_dialog.title': '存在同名数据源',
       'knowledge.data_source.add_dialog.conflict_dialog.description': `有 ${options?.count ?? 0} 个数据源与知识库中已存在的项目同名，请选择处理方式。`,
       'knowledge.data_source.add_dialog.conflict_dialog.keep_all': '全部保留',
@@ -395,10 +396,33 @@ describe('AddKnowledgeItemDialog', () => {
       expect(screen.getByText('Ideas')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
 
-      fireEvent.click(screen.getAllByRole('checkbox')[0])
+      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
 
       expect(screen.getByText('已选 1 个笔记')).toBeInTheDocument()
       expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+    })
+
+    it('selects and deselects every note from the list header', () => {
+      setPendingAddSource('note')
+      mockProjectNotesTree.mockReturnValue([
+        createNoteNode('Meeting notes', '/notes/Meeting notes.md'),
+        createNoteNode('Ideas', '/notes/Ideas.md')
+      ])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      const selectAll = screen.getByRole('checkbox', { name: '全选' })
+      fireEvent.click(selectAll)
+
+      expect(screen.getByText('已选 2 个笔记')).toBeInTheDocument()
+      expect(screen.getByRole('checkbox', { name: /Meeting notes/ })).toBeChecked()
+      expect(screen.getByRole('checkbox', { name: /Ideas/ })).toBeChecked()
+
+      fireEvent.click(selectAll)
+
+      expect(screen.queryByText('已选 2 个笔记')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+      expect(screen.getByRole('checkbox', { name: /Meeting notes/ })).not.toBeChecked()
+      expect(screen.getByRole('checkbox', { name: /Ideas/ })).not.toBeChecked()
     })
 
     it('submits note source body through the generic hook', async () => {
@@ -407,7 +431,7 @@ describe('AddKnowledgeItemDialog', () => {
       mockReadExternal.mockResolvedValueOnce('# Meeting\n\nbody')
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      fireEvent.click(screen.getByRole('checkbox'))
+      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
       await waitFor(() => {
@@ -426,7 +450,7 @@ describe('AddKnowledgeItemDialog', () => {
       mockProjectNotesTree.mockReturnValue(notes)
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      screen.getAllByRole('checkbox').forEach((checkbox) => fireEvent.click(checkbox))
+      fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
       const alert = await screen.findByRole('alert')
@@ -450,7 +474,7 @@ describe('AddKnowledgeItemDialog', () => {
       mockReadExternal.mockRejectedValueOnce(new Error('ENOENT'))
       render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-      fireEvent.click(screen.getByRole('checkbox'))
+      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
       fireEvent.click(screen.getByRole('button', { name: '添加' }))
 
       const alert = await screen.findByRole('alert')

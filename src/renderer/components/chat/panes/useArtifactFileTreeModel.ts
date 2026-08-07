@@ -565,11 +565,13 @@ export interface ArtifactFileTreeModel {
   nodeById: ReadonlyMap<string, FileTreeNode>
   isLoading: boolean
   hasLoaded: boolean
-  error?: Error
+  errorKind?: ArtifactFileTreeErrorKind
   setExpandedIds: (ids: ReadonlySet<string>) => void
   reloadExpandedDirectories: () => void
   refresh: () => void
 }
+
+export type ArtifactFileTreeErrorKind = 'invalid_path' | 'load_error'
 
 /**
  * Owns the workspace directory tree: materialization (`useDirectoryTree`),
@@ -589,8 +591,18 @@ export function useArtifactFileTreeModel({
   selectedFile,
   onExpandedIdsChange
 }: UseArtifactFileTreeModelParams): ArtifactFileTreeModel {
+  const workspacePathResult = workspacePath ? AbsoluteFilePathSchema.safeParse(workspacePath) : null
+  const validWorkspacePath = workspacePathResult?.success ? workspacePathResult.data : undefined
+  const invalidWorkspacePath = Boolean(workspacePath && !workspacePathResult?.success)
+
+  useEffect(() => {
+    if (invalidWorkspacePath) {
+      logger.warn('Skipped artifact file tree for invalid workspace path', { workspacePath })
+    }
+  }, [invalidWorkspacePath, workspacePath])
+
   const { tree, isLoading, hasLoaded, error, refresh } = useWorkspaceFileTree(
-    treeOpen ? workspacePath : undefined,
+    treeOpen ? validWorkspacePath : undefined,
     watchMissingRoot
   )
   const {
@@ -599,7 +611,7 @@ export function useArtifactFileTreeModel({
     loadDirectoryChildren,
     reloadExpandedDirectories
   } = useLazyArtifactFileTree({
-    workspacePath,
+    workspacePath: validWorkspacePath,
     treeOpen,
     tree,
     expandedIds
@@ -617,7 +629,10 @@ export function useArtifactFileTreeModel({
   )
 
   const trimmedFileSearch = enableFileSearch ? searchKeyword.trim() : ''
-  const searchTree = useArtifactFileSearch(treeOpen && enableFileSearch ? workspacePath : undefined, trimmedFileSearch)
+  const searchTree = useArtifactFileSearch(
+    treeOpen && enableFileSearch ? validWorkspacePath : undefined,
+    trimmedFileSearch
+  )
   const searchableTree = useMemo(() => {
     if (!trimmedFileSearch || !searchTree) return displayTree
     return mergeFileTreeNodeLists(displayTree, searchTree)
@@ -628,7 +643,7 @@ export function useArtifactFileTreeModel({
   const preservedSelectedSearchNodeRef = useRef<FileTreeNode | null>(null)
 
   useEffect(() => {
-    if (!selectedFile || !workspacePath) {
+    if (!selectedFile || !validWorkspacePath) {
       preservedSelectedSearchNodeRef.current = null
       return
     }
@@ -648,7 +663,7 @@ export function useArtifactFileTreeModel({
     if (preservedSelectedSearchNodeRef.current?.id !== selectedFile) {
       preservedSelectedSearchNodeRef.current = null
     }
-  }, [displayNodeById, searchableNodeById, selectedFile, trimmedFileSearch, workspacePath])
+  }, [displayNodeById, searchableNodeById, selectedFile, trimmedFileSearch, validWorkspacePath])
 
   const nodeById = useMemo(() => {
     const result = new Map(searchableNodeById)
@@ -660,11 +675,11 @@ export function useArtifactFileTreeModel({
   }, [searchableNodeById])
 
   const expandedIdsWithWorkspaceRoot = useMemo<ReadonlySet<string>>(() => {
-    if (!workspacePath) return expandedIds
+    if (!validWorkspacePath) return expandedIds
     const next = new Set(expandedIds)
     next.add(WORKSPACE_ROOT_ID)
     return next
-  }, [expandedIds, workspacePath])
+  }, [expandedIds, validWorkspacePath])
 
   const filteredTree = useMemo<FileTreeNode[]>(() => {
     if (!trimmedFileSearch) return displayTree
@@ -709,7 +724,7 @@ export function useArtifactFileTreeModel({
     nodeById,
     isLoading,
     hasLoaded: hasLoaded && !isLazyLoading,
-    error,
+    errorKind: invalidWorkspacePath ? 'invalid_path' : error ? 'load_error' : undefined,
     setExpandedIds,
     reloadExpandedDirectories,
     refresh

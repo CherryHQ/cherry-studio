@@ -325,7 +325,7 @@ export function GlobalMessageSearchRow({
         inset === 'nested' ? 'mx-8 w-[calc(100%-4rem)]' : 'mx-5 w-[calc(100%-2.5rem)]',
         active ? 'bg-muted/60 text-accent-foreground' : 'hover:bg-muted/40'
       )}>
-      <span className="min-w-0 flex-1 truncate text-foreground/90 text-sm leading-5">
+      <span className="min-w-0 flex-1 truncate text-foreground text-sm leading-5">
         <span className="font-medium text-muted-foreground">{actorLabel}</span>
         <span className="text-muted-foreground">: </span>
         <HighlightText text={item.result.snippet} keyword={query} />

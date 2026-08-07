@@ -100,7 +100,7 @@ const SelectionAssistantSettings: FC = () => {
           <div className="flex items-center">
             <button
               type="button"
-              className="cursor-pointer border-0 bg-transparent p-0 font-normal text-link text-xs hover:text-link-hover hover:underline"
+              className="cursor-pointer border-0 bg-transparent p-0 font-normal text-link text-xs hover:underline"
               onClick={() =>
                 ipcApi.request('system.shell.open_website', 'https://github.com/CherryHQ/cherry-studio/issues/6505')
               }>
@@ -221,7 +221,7 @@ const SelectionAssistantSettings: FC = () => {
                   content={
                     <div>
                       {t('selection.settings.toolbar.trigger_mode.shortcut_note')}
-                      <Link to="/settings/shortcut" style={{ color: 'var(--primary)' }}>
+                      <Link to="/settings/shortcut" style={{ color: 'var(--link)' }}>
                         {t('selection.settings.toolbar.trigger_mode.shortcut_link')}
                       </Link>
                     </div>
@@ -288,7 +288,6 @@ const SelectionAssistantSettings: FC = () => {
                 className="w-25"
                 min={20}
                 max={100}
-                inverted
                 value={[opacityValue]}
                 onValueChange={(value) => setOpacityValue(value[0])}
                 onValueCommit={(value) => setActionWindowOpacity(value[0])}
@@ -371,10 +370,10 @@ const DemoContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<'
   <div className={cn('mt-3.75 mb-1.25 flex items-center justify-center', className)} {...props} />
 )
 const QuestionIcon = ({ className, ...props }: React.ComponentProps<typeof CircleHelp>) => (
-  <CircleHelp className={cn('cursor-pointer text-foreground-muted', className)} {...props} />
+  <CircleHelp className={cn('cursor-pointer text-muted-foreground', className)} {...props} />
 )
 const ChecklistItem = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
-  <div className={cn('mb-0.5 flex items-center text-foreground-muted text-xs', className)} {...props} />
+  <div className={cn('mb-0.5 flex items-center text-foreground-tertiary text-xs', className)} {...props} />
 )
 
 export default SelectionAssistantSettings

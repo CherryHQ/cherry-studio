@@ -18,7 +18,7 @@ import {
 } from '@shared/data/api/schemas/agents'
 import { AgentSessionWorkspaceSourceSchema } from '@shared/data/api/schemas/agentWorkspaces'
 import { JobScheduleNameAtomSchema, TriggerSchema } from '@shared/data/api/schemas/jobs'
-import { type FileEntry, FileEntrySchema } from '@shared/data/types/file'
+import { CleanupPolicySchema, type FileEntry, FileEntrySchema } from '@shared/data/types/file'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { ImageGenerationModeSchema, ModelSchema, UniqueModelIdSchema } from '@shared/data/types/model'
 import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
@@ -41,8 +41,8 @@ import { defineRoute } from '../define'
  *
  * Inputs mirror the **wire shape** the renderer actually sends, i.e. the
  * clone-safe subset of the in-process request types: the in-process-only
- * `AbortSignal` and `callOverrides` (an AI SDK `ToolSet`, not structured-clone-safe)
- * are deliberately absent. Outputs reuse the canonical entity schemas
+ * `AbortSignal`, `callOverrides` (an AI SDK `ToolSet`, not structured-clone-safe),
+ * and main-internal `contextOwner` are deliberately absent. Outputs reuse the canonical entity schemas
  * (`FileEntrySchema`, `ModelSchema`) where they exist and `z.custom<T>()` for opaque
  * AI SDK / transport types (usage, stream responses) — the router never parses
  * `output`, and these are built by trusted main, so a field mirror buys nothing
@@ -71,6 +71,12 @@ const agentTaskFormSchema = z.strictObject({
   trigger: TriggerSchema,
   workspace: AgentSessionWorkspaceSourceSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
+  /**
+   * Continue one sticky session across fires instead of creating a fresh one.
+   * Defaults to off. To start a clean conversation, disable and save, then
+   * enable and save in a separate update.
+   */
+  reuseSession: z.boolean().optional(),
   channelIds: z.array(z.string()).optional()
 })
 export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
@@ -122,7 +128,12 @@ const aiImagePayloadSchema = z.strictObject({
   paramValues: imageParamsSchema,
   /** Attached images / mask are encoded file bytes (data URLs), not form params. */
   inputImages: z.array(z.string()).optional(),
-  mask: z.string().optional()
+  mask: z.string().optional(),
+  // Required: the calling business feature decides the cleanup intent for the
+  // generated OUTPUT entries (file-entry-cleanup.md §4.1) — main never defaults it.
+  // It does not reach the job path's input / mask copies: those are transport
+  // scratch owned by the job, pinned to `delete_when_unreferenced`.
+  cleanupPolicy: CleanupPolicySchema
 })
 
 export const aiRequestSchemas = {
@@ -186,11 +197,14 @@ export const aiRequestSchemas = {
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
-          reasoningEffort: ReasoningEffortOptionSchema.optional()
+          reasoningEffort: ReasoningEffortOptionSchema.optional(),
+          fastMode: z.boolean().optional()
         }),
         z.object({
           trigger: z.literal('regenerate-message'),
-          parentAnchorId: z.string().min(1)
+          parentAnchorId: z.string().min(1),
+          reasoningEffort: ReasoningEffortOptionSchema.optional(),
+          fastMode: z.boolean().optional()
         })
       ])
     ),
@@ -240,6 +254,10 @@ export const aiRequestSchemas = {
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
   }),
+  'ai.agent.feedback_session.create': defineRoute({
+    input: z.void(),
+    output: z.strictObject({ sessionId: z.string().min(1) })
+  }),
   'ai.agent.session.prewarm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
@@ -247,6 +265,21 @@ export const aiRequestSchemas = {
   'ai.agent.session.close_warm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
+  }),
+
+  // ── Agent session runtime queries & commands ──
+  // Takes a fresh context-usage reading for a UI about to show it. Best-effort and throttled in main:
+  // a session with no live connection keeps its last published value. The result arrives on the
+  // session's shared-cache key, not here.
+  'ai.agent.session.refresh_context_usage': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1) }),
+    output: z.void()
+  }),
+  // Stops one background task, not the turn. False when the session has no live connection or its
+  // runtime cannot stop tasks; the outcome itself arrives as a `task_notification`.
+  'ai.agent.session.stop_background_task': defineRoute({
+    input: z.strictObject({ sessionId: z.string().min(1), taskId: z.string().min(1) }),
+    output: z.boolean()
   }),
 
   // ── Agent scheduled-task commands (AgentJobsService is the sole command owner) ──

@@ -412,6 +412,6 @@ describe('TopicMessageFlowCanvas', () => {
     const errorNode = (await screen.findByText('Broken branch.')).closest('[data-message-id="error-1"]')
 
     expect(errorNode).toHaveAttribute('data-active', 'true')
-    expect(errorNode?.querySelector('.bg-destructive')).toBeInTheDocument()
+    expect(errorNode?.querySelector('.bg-error')).toBeInTheDocument()
   })
 })
