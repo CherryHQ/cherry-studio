@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ResourceCreateWizardFormValues } from '../../types'
-import { PersonaStep } from '../PersonaStep'
+import { SystemPromptStep } from '../SystemPromptStep'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
@@ -29,7 +29,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
   }) => (
     <div>
       {actions}
-      <textarea aria-label="persona-prompt" value={value} onChange={(event) => onChange(event.currentTarget.value)} />
+      <textarea aria-label="system-prompt" value={value} onChange={(event) => onChange(event.currentTarget.value)} />
       <output data-testid="preview-reset-key">{resetPreviewKey}</output>
     </div>
   )
@@ -52,7 +52,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishAct
       data-fallback-source={fallbackSource}
       data-empty-value-system-prompt={emptyValueSystemPrompt}
       data-existing-value-system-prompt={existingValueSystemPrompt}
-      onClick={() => onChange('Polished persona prompt')}>
+      onClick={() => onChange('Polished system prompt')}>
       Polish prompt
     </button>
   )
@@ -72,7 +72,7 @@ function Harness({ name = '' }: { name?: string }) {
       name,
       description: '',
       modelId: null,
-      prompt: 'Original persona prompt',
+      prompt: 'Original system prompt',
       knowledgeBaseIds: [],
       skillIds: []
     }
@@ -80,14 +80,14 @@ function Harness({ name = '' }: { name?: string }) {
 
   return (
     <Form {...form}>
-      <PersonaStep form={form} portalContainer={null} />
+      <SystemPromptStep form={form} portalContainer={null} />
     </Form>
   )
 }
 
 afterEach(cleanup)
 
-describe('PersonaStep', () => {
+describe('SystemPromptStep', () => {
   it('wires prompt generation and polish into the create form', async () => {
     const user = userEvent.setup()
 
@@ -106,7 +106,7 @@ describe('PersonaStep', () => {
 
     await user.click(action)
 
-    expect(screen.getByLabelText('persona-prompt')).toHaveValue('Polished persona prompt')
+    expect(screen.getByLabelText('system-prompt')).toHaveValue('Polished system prompt')
     expect(screen.getByTestId('preview-reset-key')).toHaveTextContent('1')
   })
 })

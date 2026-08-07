@@ -3549,8 +3549,7 @@
           "step": {
             "basic": "基本資訊",
             "capability": "技能",
-            "knowledge": "知識庫",
-            "persona": "設定人格"
+            "knowledge": "知識庫"
           },
           "submit": "建立",
           "submit_failed": "建立失敗"

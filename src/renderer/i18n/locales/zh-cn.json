@@ -3577,8 +3577,7 @@
           "step": {
             "basic": "基础信息",
             "capability": "技能",
-            "knowledge": "知识库",
-            "persona": "设定人格"
+            "knowledge": "知识库"
           },
           "submit": "新建",
           "submit_failed": "新建失败"

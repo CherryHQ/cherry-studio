@@ -3567,8 +3567,7 @@
           "step": {
             "basic": "Información básica",
             "capability": "Habilidades",
-            "knowledge": "Conocimiento",
-            "persona": "Persona"
+            "knowledge": "Conocimiento"
           },
           "submit": "Crear",
           "submit_failed": "Creación fallida"

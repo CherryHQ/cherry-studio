@@ -3549,8 +3549,7 @@
           "step": {
             "basic": "Thông tin cơ bản",
             "capability": "Kỹ năng",
-            "knowledge": "Kiến thức",
-            "persona": "Nhân cách"
+            "knowledge": "Kiến thức"
           },
           "submit": "Tạo",
           "submit_failed": "Tạo thất bại"

@@ -22,6 +22,8 @@ import { SkillCatalogPicker } from '@renderer/components/resourceCatalog/dialogs
 import { useAgentMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { useModelById } from '@renderer/hooks/useModel'
+import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { toast } from '@renderer/services/toast'
@@ -63,6 +65,7 @@ import {
   FieldLabelWithHelp,
   KnowledgeBaseField,
   type ModelLabels,
+  PromptVariablesPopover,
   TextInputField,
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
@@ -149,7 +152,7 @@ function defaultValuesForAgent(resource: AgentDetail): AgentEditFormValues {
 
 function modelLabelsForAgent(resource: AgentDetail): ModelLabels {
   return {
-    modelId: resource.model ?? null,
+    modelId: resource.modelName ?? null,
     planModelId: resource.planModel ?? null,
     smallModelId: resource.smallModel ?? null,
     contextCompressModelId: null
@@ -258,6 +261,13 @@ function AgentEditDialogContent({
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
   const values = form.watch()
+  const { model: selectedAgentModel } = useModelById(values.modelId)
+  const promptModelName =
+    selectedAgentModel?.id === values.modelId
+      ? selectedAgentModel.name
+      : values.modelId === resource.model
+        ? resource.modelName
+        : undefined
   const replaceFormBaseline = useCallback((next: AgentFormState) => {
     formBaselineRef.current = next
     setFormBaseline(next)
@@ -474,7 +484,7 @@ function AgentEditDialogContent({
           forceMount
           hidden={activeTab !== 'prompt'}
           className="m-0 flex h-full min-h-0 flex-col">
-          <AgentPromptField form={form} />
+          <AgentPromptField form={form} modelName={promptModelName ?? null} portalContainer={dialogContentElement} />
         </TabsContent>
         {isToolTab(activeTab) ? (
           <TabsContent value={activeTab} forceMount className="m-0">
@@ -713,43 +723,65 @@ function HeartbeatSettingsField({
   )
 }
 
-function AgentPromptField({ form }: { form: UseFormReturn<AgentEditFormValues> }) {
+function AgentPromptField({
+  form,
+  modelName,
+  portalContainer
+}: {
+  form: UseFormReturn<AgentEditFormValues>
+  modelName: string | null
+  portalContainer: HTMLElement | null
+}) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
-  const name = useWatch({ control: form.control, name: 'name' })
+  const instructions = form.watch('instructions')
+  const name = form.watch('name')
+  const processedInstructions = usePromptProcessor({
+    prompt: instructions,
+    modelName: modelName ?? undefined
+  })
+
+  const handlePromptChange = (nextInstructions: string) => {
+    form.setValue('instructions', nextInstructions, { shouldDirty: true, shouldTouch: true })
+  }
+
+  const handlePromptActionChange = (nextInstructions: string) => {
+    handlePromptChange(nextInstructions)
+    setResetPreviewKey((key) => key + 1)
+  }
 
   return (
     <FormField
       control={form.control}
       name="instructions"
-      render={({ field }) => {
-        const handlePromptActionChange = (instructions: string) => {
-          field.onChange(instructions)
-          setResetPreviewKey((key) => key + 1)
-        }
-
-        return (
-          <PromptEditorField
-            label={<FieldLabelWithHelp label={t('library.config.agent.field.instructions.label')} formLabel={false} />}
-            value={field.value}
-            onChange={field.onChange}
-            placeholder={t('library.config.agent.field.instructions.placeholder')}
-            resetPreviewKey={resetPreviewKey}
-            fill
-            actions={
-              <PromptPolishActions
-                value={field.value}
-                fallbackSource={name}
-                emptyValueSystemPrompt={AGENT_PROMPT}
-                existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
-                onChange={handlePromptActionChange}
-              />
-            }
-            minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
-            maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
-          />
-        )
-      }}
+      render={({ field }) => (
+        <PromptEditorField
+          label={
+            <FieldLabelWithHelp
+              label={t('library.config.prompt.label')}
+              helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
+              formLabel={false}
+            />
+          }
+          value={field.value}
+          onChange={handlePromptChange}
+          placeholder={t('library.config.prompt.placeholder')}
+          previewValue={processedInstructions || instructions}
+          resetPreviewKey={resetPreviewKey}
+          fill
+          actions={
+            <PromptPolishActions
+              value={instructions}
+              fallbackSource={name}
+              emptyValueSystemPrompt={AGENT_PROMPT}
+              existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+              onChange={handlePromptActionChange}
+            />
+          }
+          minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
+          maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
+        />
+      )}
     />
   )
 }

@@ -15,16 +15,16 @@ import { useTranslation } from 'react-i18next'
 
 import type { ResourceCreateWizardFormValues } from '../types'
 
-type PersonaStepProps = {
+type SystemPromptStepProps = {
   form: UseFormReturn<ResourceCreateWizardFormValues>
   portalContainer: HTMLElement | null
 }
 
 /**
- * Step 2 (shared by assistant + agent): the system prompt / persona. Just the
- * prompt editor — advanced settings stay in the edit dialog by design.
+ * Step 2 (shared by assistant + agent): the System Prompt editor.
+ * Advanced settings stay in the edit dialog by design.
  */
-export function PersonaStep({ form, portalContainer }: PersonaStepProps) {
+export function SystemPromptStep({ form, portalContainer }: SystemPromptStepProps) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const name = useWatch({ control: form.control, name: 'name' })

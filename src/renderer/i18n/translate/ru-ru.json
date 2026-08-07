@@ -3576,8 +3576,7 @@
           "step": {
             "basic": "Основная информация",
             "capability": "Навыки",
-            "knowledge": "Знание",
-            "persona": "Персона"
+            "knowledge": "Знание"
           },
           "submit": "Создать",
           "submit_failed": "Создание не удалось"

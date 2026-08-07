@@ -3558,8 +3558,7 @@
           "step": {
             "basic": "Βασικές πληροφορίες",
             "capability": "Δεξιότητες",
-            "knowledge": "Γνώση",
-            "persona": "Πρόσωπο"
+            "knowledge": "Γνώση"
           },
           "submit": "Δημιουργία",
           "submit_failed": "Η δημιουργία απέτυχε"

@@ -3549,8 +3549,7 @@
           "step": {
             "basic": "基本情報",
             "capability": "スキル",
-            "knowledge": "知識",
-            "persona": "ペルソナ"
+            "knowledge": "知識"
           },
           "submit": "作成",
           "submit_failed": "作成に失敗しました"

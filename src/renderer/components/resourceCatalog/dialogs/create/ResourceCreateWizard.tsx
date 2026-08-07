@@ -15,7 +15,7 @@ import {
 import { BasicInfoStep } from './steps/BasicInfoStep'
 import { CapabilityStep } from './steps/CapabilityStep'
 import { KnowledgeStep } from './steps/KnowledgeStep'
-import { PersonaStep } from './steps/PersonaStep'
+import { SystemPromptStep } from './steps/SystemPromptStep'
 import type { ResourceCreateWizardFormValues, ResourceCreateWizardKind, ResourceCreateWizardValues } from './types'
 
 export type { ResourceCreateWizardKind, ResourceCreateWizardValues } from './types'
@@ -31,7 +31,7 @@ type ResourceCreateWizardProps = {
   initialName?: string
 }
 
-type StepId = 'basic' | 'persona' | 'knowledge' | 'capability'
+type StepId = 'basic' | 'system-prompt' | 'knowledge' | 'capability'
 
 /** The avatar a brand-new resource starts with — exported so callers can preview what they'd create. */
 export function getResourceCreateDefaultAvatar(kind: ResourceCreateWizardKind) {
@@ -106,7 +106,7 @@ function WizardFooter({
 
 /**
  * Stepped create flow shared by assistant + agent. Steps 1–2 (basic info,
- * persona) are identical across kinds; agents then configure skills before
+ * System Prompt) are identical across kinds; agents then configure skills before
  * both kinds configure knowledge bases. A left rail tracks step progress
  * (done = check, current = filled number); the right pane swaps the active
  * step's form as the footer drives navigation. One form collects every field
@@ -147,12 +147,12 @@ export function ResourceCreateWizard({
 
   const steps = useMemo<{ id: StepId; label: string }[]>(() => {
     const basic = { id: 'basic' as const, label: t('library.config.dialogs.create.step.basic') }
-    const persona = { id: 'persona' as const, label: t('library.config.dialogs.create.step.persona') }
+    const systemPrompt = { id: 'system-prompt' as const, label: t('library.config.prompt.label') }
     const knowledge = { id: 'knowledge' as const, label: t('library.config.dialogs.create.step.knowledge') }
-    if (kind === 'assistant') return [basic, persona, knowledge]
+    if (kind === 'assistant') return [basic, systemPrompt, knowledge]
 
     const capability = { id: 'capability' as const, label: t('library.config.dialogs.create.step.capability') }
-    return [basic, persona, capability, knowledge]
+    return [basic, systemPrompt, capability, knowledge]
   }, [kind, t])
 
   // `initialName` seeds the form on open only. Reading it through an effect event keeps it out of the
@@ -340,8 +340,8 @@ export function ResourceCreateWizard({
                     onSettingsNavigate={closeBeforeAction}
                   />
                 ) : null}
-                {currentStep.id === 'persona' ? (
-                  <PersonaStep form={form} portalContainer={dialogContentElement} />
+                {currentStep.id === 'system-prompt' ? (
+                  <SystemPromptStep form={form} portalContainer={dialogContentElement} />
                 ) : null}
                 {currentStep.id === 'knowledge' ? (
                   <KnowledgeStep form={form} isSubmitting={submitting} portalContainer={dialogContentElement} />

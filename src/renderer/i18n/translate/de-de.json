@@ -3558,8 +3558,7 @@
           "step": {
             "basic": "Grundinformationen",
             "capability": "Fähigkeiten",
-            "knowledge": "Wissen",
-            "persona": "Persona"
+            "knowledge": "Wissen"
           },
           "submit": "Erstellen",
           "submit_failed": "Erstellen fehlgeschlagen"
