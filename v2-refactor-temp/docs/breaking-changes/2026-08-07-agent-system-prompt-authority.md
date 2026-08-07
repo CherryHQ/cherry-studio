@@ -2,7 +2,7 @@
 title: Agent System Prompt is now authoritative
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#18100'
 date: 2026-08-07
 ---
 
