@@ -44,6 +44,7 @@ const TraceTree: React.FC<TraceTreeProps> = ({ node, handleClick, treeData, padd
     <div className="w-full min-w-0 text-xs">
       <div
         className={`${TRACE_ROW_GRID} min-h-8 w-full px-2 hover:cursor-pointer hover:bg-accent max-[520px]:px-1 [&>div]:min-w-0`}
+        style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 32px' }}
         onClick={(e) => {
           e.preventDefault()
           handleClick(node.id)
