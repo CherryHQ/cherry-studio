@@ -181,6 +181,9 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         <div data-testid="composer-below-controls">
           {props.renderBelowControls?.(inputAdapter, unifiedPanelControl)}
         </div>
+        <div data-testid="composer-compact-controls">
+          {props.compactWhenSingleLine ? props.renderCompactControls?.(inputAdapter, unifiedPanelControl) : null}
+        </div>
         <div data-testid="composer-send-accessory">{sendAccessory}</div>
       </div>
     )
@@ -1242,6 +1245,39 @@ describe('ChatComposer', () => {
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
     expect(screen.getByText('Model A')).toBeInTheDocument()
   })
+
+  it.each(['home', 'docked'] as const)(
+    'forwards compact presentation and keeps pinned shortcuts available for %s placement',
+    (placement) => {
+      const webSearchLauncher = {
+        id: 'web-search',
+        kind: 'command',
+        label: 'chat.input.web_search.label',
+        icon: <span data-testid="web-search-icon" />,
+        sources: ['popover'],
+        active: false
+      }
+      mocks.toolLaunchers = [webSearchLauncher]
+      mocks.toolLaunchersVersion = 1
+
+      render(
+        <ChatPlacementComposer
+          placement={placement}
+          topic={topic}
+          onSend={vi.fn()}
+          externalContextControls
+          compactWhenSingleLine
+        />
+      )
+
+      expect(mocks.surfaceProps?.compactWhenSingleLine).toBe(true)
+      expect(
+        within(screen.getByTestId('composer-compact-controls')).getByRole('button', {
+          name: 'chat.input.web_search.label'
+        })
+      ).toBeInTheDocument()
+    }
+  )
 
   it('does not enable skill marker paste handling', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)

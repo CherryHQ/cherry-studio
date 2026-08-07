@@ -207,8 +207,17 @@ type ChatComposerControlProps = Omit<ChatConversationControlsProps, 'side'> & {
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type ComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
 type ComposerUnifiedPanelControl = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[1]
-type ChatComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
+type ChatComposerControlSlots = Pick<
+  ComposerSurfaceProps,
+  'renderLeftControls' | 'renderBelowControls' | 'renderCompactControls'
+>
 type ChatComposerControlsRenderer = (props: ChatComposerControlProps) => ChatComposerControlSlots
+
+const renderChatPersistentCompactControls = (
+  props: ChatComposerControlProps,
+  inputAdapter: ComposerInputAdapter,
+  unifiedPanelControl: ComposerUnifiedPanelControl
+) => props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })
 
 const restoreComposerInputFocus = (inputAdapter: ComposerInputAdapter) => {
   window.requestAnimationFrame(() => inputAdapter?.focus())
@@ -273,7 +282,9 @@ const renderChatInputControls: ChatComposerControlsRenderer = (props) => ({
       unifiedPanelControl={unifiedPanelControl}
       renderContextControls={() => null}
     />
-  )
+  ),
+  renderCompactControls: (inputAdapter, unifiedPanelControl) =>
+    renderChatPersistentCompactControls(props, inputAdapter, unifiedPanelControl)
 })
 
 const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
@@ -311,7 +322,9 @@ const renderChatHomeInputControls: ChatComposerControlsRenderer = (props) => ({
       {props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })}
       <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
     </div>
-  )
+  ),
+  renderCompactControls: (inputAdapter, unifiedPanelControl) =>
+    renderChatPersistentCompactControls(props, inputAdapter, unifiedPanelControl)
 })
 
 function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | null }) {
@@ -344,15 +357,25 @@ function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | 
   )
 }
 
-type ChatComposerRootProps = ChatComposerProps & {
-  renderControls: ChatComposerControlsRenderer
-  forceNarrowLayout?: boolean
-  deferQuickPanel?: boolean
+interface ChatComposerPresentationProps {
+  compactWhenSingleLine?: boolean
 }
 
-type ChatPlacementDockedProps = Omit<ChatComposerProps, 'onDraftAssistantChange'>
+type ChatComposerRootProps = ChatComposerProps &
+  ChatComposerPresentationProps & {
+    renderControls: ChatComposerControlsRenderer
+    forceNarrowLayout?: boolean
+    deferQuickPanel?: boolean
+  }
+
+type ChatPlacementPresentationProps =
+  | { externalContextControls: true; compactWhenSingleLine?: boolean }
+  | { externalContextControls?: false; compactWhenSingleLine?: never }
+type ChatPlacementHomeProps = Omit<ChatComposerProps, 'externalContextControls'> & ChatPlacementPresentationProps
+type ChatPlacementDockedProps = Omit<ChatComposerProps, 'externalContextControls' | 'onDraftAssistantChange'> &
+  ChatPlacementPresentationProps
 type ChatPlacementComposerProps =
-  | (ChatComposerProps & { placement: 'home' })
+  | (ChatPlacementHomeProps & { placement: 'home' })
   | (ChatPlacementDockedProps & { placement: 'docked' })
 
 const ChatComposerRoot = ({
@@ -368,6 +391,7 @@ const ChatComposerRoot = ({
   onSend,
   chatTarget,
   sendDisabled,
+  compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
@@ -423,6 +447,7 @@ const ChatComposerRoot = ({
             onSend={onSend}
             chatTarget={chatTarget}
             sendDisabled={sendDisabled}
+            compactWhenSingleLine={compactWhenSingleLine}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
             onNewTopic={onNewTopic}
@@ -437,7 +462,7 @@ const ChatComposerRoot = ({
   )
 }
 
-interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
+interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'>, ChatComposerPresentationProps {
   scopeKey: string
   initialDraft: ChatComposerDraftCache
   actionsRef: React.RefObject<ProviderActionHandlers>
@@ -460,6 +485,7 @@ const ChatComposerInner = ({
   onSend,
   chatTarget,
   sendDisabled = false,
+  compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
@@ -1660,6 +1686,7 @@ const ChatComposerInner = ({
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           deferQuickPanel={deferQuickPanel}
           sendAccessory={sendAccessory}
+          compactWhenSingleLine={compactWhenSingleLine}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>
