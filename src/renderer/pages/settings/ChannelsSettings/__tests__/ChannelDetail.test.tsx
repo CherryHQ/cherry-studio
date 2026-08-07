@@ -184,6 +184,14 @@ describe('ChannelDetail', () => {
       domain: 'feishu'
     }
   }
+  const wechatChannelDef: AvailableChannel = {
+    type: 'wechat',
+    name: 'WeChat',
+    titleKey: 'agent.channels.wechat.title',
+    description: 'agent.channels.wechat.description',
+    available: true,
+    defaultConfig: { token_path: '', allowed_chat_ids: [] }
+  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -271,6 +279,30 @@ describe('ChannelDetail', () => {
         expect.objectContaining({
           type: 'feishu',
           config: feishuChannelDef.defaultConfig,
+          isActive: true
+        })
+      )
+    })
+  })
+
+  it('creates WeChat channels active so binding an agent can start QR login', async () => {
+    channelMocks.channels = []
+    channelMocks.createChannel.mockResolvedValue({
+      id: 'new-wechat-channel',
+      type: 'wechat',
+      name: 'WeChat',
+      config: wechatChannelDef.defaultConfig,
+      isActive: true
+    })
+    render(<ChannelDetail channelDef={wechatChannelDef} />)
+
+    fireEvent.click(screen.getByText('agent.channels.add'))
+
+    await waitFor(() => {
+      expect(channelMocks.createChannel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'wechat',
+          config: wechatChannelDef.defaultConfig,
           isActive: true
         })
       )

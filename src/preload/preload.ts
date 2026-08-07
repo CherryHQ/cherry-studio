@@ -71,8 +71,6 @@ const api = {
     relaunch: (options?: Electron.RelaunchOptions): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Application_Relaunch, options)
   },
-  getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
-  clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   system: {
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
     // Git Bash is resolved in the main process (settingsBuilder); no renderer API.
