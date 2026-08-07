@@ -2984,6 +2984,28 @@
       "title": "Import ChatGPT Conversations",
       "untitled_conversation": "Untitled Conversation"
     },
+    "claude": {
+      "assistant_name": "Claude Import",
+      "button": "Select File",
+      "description": "Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "Invalid JSON file format",
+        "no_conversations": "No conversations found in file",
+        "no_valid_conversations": "No valid conversations to import",
+        "unknown": "Import failed, please check file format"
+      },
+      "help": {
+        "step1": "1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "2. Wait for the export file via email",
+        "step3": "3. Extract the downloaded file and find conversations.json",
+        "title": "How to export Claude conversations?"
+      },
+      "importing": "Importing conversations...",
+      "selecting": "Selecting file...",
+      "success": "Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "Import Claude Conversations",
+      "untitled_conversation": "Untitled Conversation"
+    },
     "confirm": {
       "button": "Select Import File",
       "label": "Are you sure you want to import external data?"
@@ -6089,6 +6111,7 @@
       "import_settings": {
         "button": "Import Json File",
         "chatgpt": "Import from ChatGPT",
+        "claude": "Import from Claude",
         "title": "Import App Data"
       },
       "joplin": {
@@ -6460,6 +6483,23 @@
         "token_placeholder": "Please enter Siyuan Note Token"
       },
       "title": "Data",
+      "v1_remigration": {
+        "acknowledgement": "I understand the risk and want to continue.",
+        "back": "Back",
+        "backup_acknowledgement": "I have backed up my data",
+        "backup_button": "Back Up All Data Now",
+        "backup_message": "Back up all current data before continuing. Continuing will permanently delete your current v2 data, and this action cannot be undone.",
+        "button": "Rerun Migration",
+        "confirm": "Rerun Migration",
+        "confirm_countdown": "Rerun Migration ({{seconds}}s)",
+        "dialog_title": "Rerun v1 Data Migration",
+        "error": "Failed to start v1 data migration again",
+        "final_confirmation": "Confirm that you want to delete the current v2 data and rerun the v1 data migration.",
+        "final_message": "Your current v2 data will be permanently deleted. This action cannot be undone.",
+        "final_retained": "Your original v1 data will be kept and imported again after restart.",
+        "next": "Next",
+        "title": "Rerun v1 Data Migration"
+      },
       "webdav": {
         "autoSync": {
           "label": "Auto Backup",
