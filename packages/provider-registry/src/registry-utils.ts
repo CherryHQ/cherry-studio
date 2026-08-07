@@ -5,7 +5,7 @@
 
 import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, type ModelCapability } from './schemas/enums'
 import type { ModelConfig } from './schemas/model'
-import type { ProviderConfig, RegistryEndpointConfig } from './schemas/provider'
+import type { ProviderConfig, ProviderReasoningFormat, RegistryEndpointConfig } from './schemas/provider'
 import type { ProviderModelOverride } from './schemas/provider-models'
 import { normalizeModelId } from './utils/normalize'
 
@@ -52,12 +52,15 @@ export interface PersistedEndpointConfig {
   baseUrl?: string
   modelsApiUrls?: { default?: string; embedding?: string; image?: string; reranker?: string }
   adapterFamily?: string
+  /** User-visible reasoning format for this endpoint (e.g. `self-hosted` for vLLM/SGLang). */
+  reasoningFormat?: ProviderReasoningFormat
 }
 
 /**
  * Project registry endpoint configs onto the connection facts persisted in
- * user_provider. Main-only reasoning profiles deliberately stay in registry
- * memory and never cross this boundary.
+ * user_provider. `reasoningFormat` is carried through so read-time merges and
+ * the renderer preset can see the registry's protocol default and let users
+ * override it per endpoint (e.g. `self-hosted` for vLLM/SGLang relays).
  */
 export function buildPersistedEndpointConfigs(
   registryConfigs: Record<string, RegistryEndpointConfig> | undefined
@@ -72,6 +75,7 @@ export function buildPersistedEndpointConfigs(
     if (regConfig.baseUrl) config.baseUrl = regConfig.baseUrl
     if (regConfig.modelsApiUrls) config.modelsApiUrls = regConfig.modelsApiUrls
     if (regConfig.adapterFamily) config.adapterFamily = regConfig.adapterFamily
+    if (regConfig.reasoningFormat) config.reasoningFormat = regConfig.reasoningFormat
 
     if (Object.keys(config).length > 0) configs[k] = config
   }

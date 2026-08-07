@@ -87,6 +87,7 @@ export const ProviderReasoningFormatSchema = z.discriminatedUnion('type', [
   reasoningFormat('anthropic'),
   reasoningFormat('gemini'),
   reasoningFormat('ollama'),
+  reasoningFormat('self-hosted'),
   reasoningFormat('none')
 ])
 
