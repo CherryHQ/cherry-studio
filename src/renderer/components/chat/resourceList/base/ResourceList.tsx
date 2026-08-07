@@ -419,7 +419,7 @@ function Item<T extends ResourceListItemBase>({
       id={elementId ?? getResourceListOptionDomId(id)}
       role="option"
       aria-selected={rowState.selected}
-      data-active-descendant={rowState.active || undefined}
+      data-active-descendant={rowState.active && !rowState.selected ? true : undefined}
       data-selected={rowState.selected || undefined}
       data-reveal-focus={rowState.revealFocused || undefined}
       data-dragging={rowState.dragging || undefined}

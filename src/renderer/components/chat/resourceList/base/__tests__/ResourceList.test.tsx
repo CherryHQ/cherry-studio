@@ -125,6 +125,7 @@ import type { ResolvedAction } from '../../../actions/actionTypes'
 import { ResourceListActionContextMenu } from '../../../actions/ResourceListActionContextMenu'
 import { SessionResourceList } from '../../SessionResourceList'
 import { TopicResourceList } from '../../TopicResourceList'
+import { ConversationResourceMenu } from '../ConversationResourceMenu'
 import {
   ResourceList,
   type ResourceListPresentation,
@@ -636,7 +637,9 @@ describe('ResourceList', () => {
     expect(listbox).toHaveAttribute('aria-activedescendant', 'resource-list-option-alpha')
     expect(screen.getByTestId('alpha-active')).toHaveTextContent('active')
     expect(screen.getByTestId('alpha-selected')).toHaveTextContent('selected')
-    expect(screen.getByTestId('alpha-selected').closest('[role="option"]')).toHaveClass(
+    const alphaRow = screen.getByTestId('alpha-selected').closest('[role="option"]')
+    expect(alphaRow).not.toHaveAttribute('data-active-descendant')
+    expect(alphaRow).toHaveClass(
       'bg-resource-list-row-selected',
       'text-resource-list-row-selected-foreground',
       'hover:bg-resource-list-row-selected'
@@ -649,7 +652,9 @@ describe('ResourceList', () => {
     expect(screen.getByTestId('alpha-active')).toHaveTextContent('idle')
     expect(screen.getByTestId('beta-active')).toHaveTextContent('active')
     expect(screen.getByTestId('alpha-selected')).toHaveTextContent('selected')
-    expect(screen.getByTestId('beta-active').closest('[role="option"]')).toHaveClass(
+    const betaRow = screen.getByTestId('beta-active').closest('[role="option"]')
+    expect(betaRow).toHaveAttribute('data-active-descendant', 'true')
+    expect(betaRow).toHaveClass(
       'bg-resource-list-row-active',
       'text-resource-list-row-active-foreground',
       'hover:bg-resource-list-row-active'
@@ -909,6 +914,28 @@ describe('ResourceList', () => {
     expect(screen.getByRole('button', { name: 'Item action' })).toHaveClass(
       'hover:bg-accent',
       'hover:text-accent-foreground'
+    )
+  })
+
+  it('uses product row semantics for conversation resource menu items', () => {
+    render(
+      <ConversationResourceMenu
+        items={[
+          { id: 'inactive', label: 'Inactive', onSelect: vi.fn() },
+          { active: true, id: 'active', label: 'Active', onSelect: vi.fn() }
+        ]}
+      />
+    )
+
+    const inactiveItem = screen.getByRole('button', { name: 'Inactive' })
+    const activeItem = screen.getByRole('button', { name: 'Active' })
+
+    expect(inactiveItem).toHaveClass('hover:bg-resource-list-row-hover', 'focus-visible:bg-resource-list-row-hover')
+    expect(inactiveItem).not.toHaveClass('hover:bg-accent/60', 'focus-visible:bg-accent/60')
+    expect(activeItem).toHaveClass(
+      'bg-resource-list-row-selected',
+      'hover:bg-resource-list-row-selected',
+      'focus-visible:bg-resource-list-row-selected'
     )
   })
 
