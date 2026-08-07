@@ -52,6 +52,14 @@ describe('ToMarkdownTool', () => {
     expect(screen.getByTestId('stats')).toHaveTextContent('message.tools.units.char:4210')
   })
 
+  it('shows only the basename for a Windows source path', () => {
+    render(<Harness input={{ path: 'C:\\docs\\report.pdf' }} />)
+
+    const source = screen.getByTestId('file-path')
+    expect(source).toHaveAttribute('data-path', 'C:\\docs\\report.pdf')
+    expect(source).toHaveTextContent('report.pdf')
+  })
+
   it('renders no body and no stats when the conversion failed', () => {
     render(
       <Harness
