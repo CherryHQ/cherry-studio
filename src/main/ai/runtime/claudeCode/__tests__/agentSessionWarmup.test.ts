@@ -1057,6 +1057,44 @@ describe('deriveConnectionConfig', () => {
     ).toEqual(['language'])
   })
 
+  it('changes only the prompt username rebuild fact when the user name changes', async () => {
+    mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.user.name' ? 'Alice' : undefined))
+    const alice = await deriveSignature()
+
+    mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.user.name' ? 'Bob' : undefined))
+    const bob = await deriveSignature()
+
+    expect(bob.rebuildSignature).not.toBe(alice.rebuildSignature)
+    expect(
+      Object.keys(alice.rebuildFactFingerprints).filter(
+        (name) => alice.rebuildFactFingerprints[name] !== bob.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['promptUserName'])
+  })
+
+  it('changes only the prompt model name rebuild fact when the resolved Agent model name changes', async () => {
+    const agent = {
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      modelName: 'Model One',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    const original = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({ ...agent, modelName: 'Renamed Model' })
+    const renamed = await deriveSignature()
+
+    expect(renamed.rebuildSignature).not.toBe(original.rebuildSignature)
+    expect(
+      Object.keys(original.rebuildFactFingerprints).filter(
+        (name) => original.rebuildFactFingerprints[name] !== renamed.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['promptModelName'])
+  })
+
   it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {
     mocks.getProxyEnvironment.mockReturnValue({ HTTP_PROXY: 'http://proxy-a.example.com:8080' })
     const first = await deriveSignature()

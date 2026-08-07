@@ -1007,6 +1007,10 @@
           "description": "Sends a notification through a connected channel",
           "label": "Notify"
         },
+        "CherryToMarkdown": {
+          "description": "Markdown is easier for the agent to read",
+          "label": "File to Markdown"
+        },
         "CherryWebFetch": {
           "description": "Fetches and reads a web page",
           "label": "Web Fetch"
@@ -3044,10 +3048,20 @@
           "selected_notes": "{{count}} notes selected"
         },
         "note": {
+          "create": {
+            "content_label": "Content",
+            "content_placeholder": "Write the note content here…",
+            "title_label": "Title",
+            "title_placeholder": "Name this note"
+          },
           "description": "Select existing notes as knowledge base sources",
           "empty_description": "Create notes in the Notes feature, then come back to select them here.",
           "empty_title": "No notes found",
-          "loading": "Loading notes…"
+          "loading": "Loading notes…",
+          "mode": {
+            "create": "New note",
+            "import": "Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3306,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "Apps",
+    "manage_sidebar": "Manage Sidebar",
     "minapps": "Minapps",
     "miniApps": "MiniApps",
     "pin_to_sidebar": "Add to Sidebar",
@@ -3376,11 +3391,6 @@
           },
           "heartbeat_interval": {
             "label": "Heartbeat interval (minutes)"
-          },
-          "instructions": {
-            "hint": "Defines the agent's role and behavior boundaries",
-            "label": "System prompt",
-            "placeholder": "Tell the agent who it is and what it can do…"
           },
           "max_turns": {
             "help": "0 means use the default",
@@ -3576,8 +3586,7 @@
           "step": {
             "basic": "Basic info",
             "capability": "Skills",
-            "knowledge": "Knowledge",
-            "persona": "Persona"
+            "knowledge": "Knowledge"
           },
           "submit": "Create",
           "submit_failed": "Create failed"
@@ -4240,6 +4249,8 @@
         "taskOutput": "View task output",
         "taskStop": "Stop task",
         "taskUpdate": "Update task",
+        "toMarkdown": "To Markdown",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Todo Write",
         "tool": "Tool",
         "webFetch": "Web Fetch",
@@ -4290,6 +4301,8 @@
       "thinkingHeader": "Thinking it through",
       "truncated": "Output truncated (original: {{size}})",
       "units": {
+        "char_one": "{{count}} char",
+        "char_other": "{{count}} chars",
         "done_one": "{{count}} Done",
         "done_other": "{{count}} Done",
         "file_one": "{{count}} file",
