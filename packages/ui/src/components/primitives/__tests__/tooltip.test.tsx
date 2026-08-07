@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
+import { DirectionProvider } from '../direction'
 import { NormalTooltip, Tooltip, TooltipContent, TooltipRoot, TooltipTrigger } from '../tooltip'
 
 beforeAll(() => {
@@ -170,6 +171,57 @@ describe('Tooltip', () => {
         </Tooltip>
       )
       expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    })
+  })
+
+  describe('logical placement', () => {
+    it('maps inline end to the physical right in LTR', () => {
+      render(
+        <DirectionProvider dir="ltr">
+          <Tooltip content="end in LTR" placement="end" isOpen>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        </DirectionProvider>
+      )
+
+      expect(getTooltipContentElement('end in LTR')).toHaveAttribute('data-side', 'right')
+    })
+
+    it('maps inline end to the physical left in RTL', () => {
+      render(
+        <DirectionProvider dir="rtl">
+          <Tooltip content="end in RTL" placement="end" isOpen>
+            <button type="button">Trigger</button>
+          </Tooltip>
+        </DirectionProvider>
+      )
+
+      expect(getTooltipContentElement('end in RTL')).toHaveAttribute('data-side', 'left')
+    })
+
+    it('falls back to the default placement when given an unrecognised value', () => {
+      render(
+        // Placement still reaches this component from untyped call sites.
+        <Tooltip content="legacy tip" placement={'bottomRight' as never} isOpen>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+
+      const content = getTooltipContentElement('legacy tip')
+      expect(content).toHaveAttribute('data-side', 'top')
+      expect(content).toHaveAttribute('data-align', 'center')
+    })
+
+    it('keeps resolving physical placements for pre-logical call sites', () => {
+      render(
+        <Tooltip content="physical tip" placement={'left-end' as never} isOpen>
+          <button type="button">Trigger</button>
+        </Tooltip>
+      )
+
+      const content = getTooltipContentElement('physical tip')
+      expect(content).toHaveAttribute('data-side', 'left')
+      expect(content).toHaveAttribute('data-align', 'end')
     })
   })
 

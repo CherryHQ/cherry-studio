@@ -1,9 +1,26 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 import * as React from 'react'
-import { Drawer as DrawerPrimitive } from 'vaul'
+import {
+  type DialogProps as VaulDrawerProps,
+  Drawer as DrawerPrimitive,
+  type WithFadeFromProps,
+  type WithoutFadeFromProps
+} from 'vaul'
 
-function Drawer({ ...props }: React.ComponentProps<typeof DrawerPrimitive.Root>) {
-  return <DrawerPrimitive.Root data-slot="drawer" {...props} />
+import { type LogicalSide, resolveInlineSide, useDirection } from './direction'
+
+type DrawerSide = 'top' | 'bottom' | LogicalSide
+
+type DrawerProps = Omit<VaulDrawerProps, 'direction' | keyof WithFadeFromProps> &
+  (WithFadeFromProps | WithoutFadeFromProps) & {
+    side?: DrawerSide
+  }
+
+function Drawer({ side = 'bottom', ...props }: DrawerProps) {
+  const direction = useDirection()
+  const resolvedDirection = side === 'start' || side === 'end' ? resolveInlineSide(side, direction) : side
+
+  return <DrawerPrimitive.Root data-slot="drawer" direction={resolvedDirection} {...props} />
 }
 
 function DrawerTrigger({ ...props }: React.ComponentProps<typeof DrawerPrimitive.Trigger>) {
@@ -58,7 +75,7 @@ function DrawerHeader({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="drawer-header"
       className={cn(
-        'flex flex-col gap-0.5 p-4 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-center group-data-[vaul-drawer-direction=top]/drawer-content:text-center md:gap-1.5 md:text-left',
+        'flex flex-col gap-0.5 p-4 group-data-[vaul-drawer-direction=bottom]/drawer-content:text-center group-data-[vaul-drawer-direction=top]/drawer-content:text-center md:gap-1.5 md:text-start',
         className
       )}
       {...props}
@@ -102,3 +119,4 @@ export {
   DrawerTitle,
   DrawerTrigger
 }
+export type { DrawerProps, DrawerSide }

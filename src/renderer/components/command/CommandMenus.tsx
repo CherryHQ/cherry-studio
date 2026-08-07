@@ -284,7 +284,7 @@ function ExtraMenuItemTooltip({ children, content }: { children: React.ReactNode
   if (!content) return children
 
   return (
-    <Tooltip content={content} placement="right" delay={300} classNames={{ placeholder: 'block' }}>
+    <Tooltip content={content} placement="end" delay={300} classNames={{ placeholder: 'block' }}>
       {children}
     </Tooltip>
   )

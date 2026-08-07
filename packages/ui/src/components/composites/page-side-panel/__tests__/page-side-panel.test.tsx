@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { DirectionProvider } from '@cherrystudio/ui/components/primitives/direction'
 import { PortalContainerProvider } from '@cherrystudio/ui/components/primitives/portal-container'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
@@ -293,18 +294,34 @@ describe('PageSidePanel', () => {
       expect(document.querySelector('[data-slot="page-side-panel-backdrop"]')).toHaveClass('absolute')
     })
 
-    it('applies design inset classes by default', () => {
+    it('anchors to logical end by default', () => {
       render(<PageSidePanel open={true} onClose={vi.fn()} />)
       const dialog = screen.getByRole('dialog')
       expect(dialog.className).toContain('top-3')
       expect(dialog.className).toContain('bottom-3')
-      expect(dialog.className).toContain('right-3')
+      expect(dialog.className).toContain('end-3')
     })
 
-    it('applies left-3 class when side=left', () => {
-      render(<PageSidePanel open={true} onClose={vi.fn()} side="left" />)
+    it('anchors to logical start when requested', () => {
+      render(<PageSidePanel open={true} onClose={vi.fn()} side="start" />)
       const dialog = screen.getByRole('dialog')
-      expect(dialog.className).toContain('left-3')
+      expect(dialog.className).toContain('start-3')
+    })
+
+    it('resolves logical end motion from the reading direction', () => {
+      const { rerender } = render(
+        <DirectionProvider dir="ltr">
+          <PageSidePanel open={true} onClose={vi.fn()} />
+        </DirectionProvider>
+      )
+      expect(motionSnapshots.propsBySlot.get('page-side-panel')?.initial).toEqual({ x: '100%' })
+
+      rerender(
+        <DirectionProvider dir="rtl">
+          <PageSidePanel open={true} onClose={vi.fn()} />
+        </DirectionProvider>
+      )
+      expect(motionSnapshots.propsBySlot.get('page-side-panel')?.initial).toEqual({ x: '-100%' })
     })
   })
 

@@ -449,7 +449,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
               }}>
               {t('settings.provider.basic_auth.label')}
               <InfoTooltip
-                placement="right"
+                placement="end"
                 content={t('settings.provider.basic_auth.tip')}
                 iconProps={{
                   size: 16,

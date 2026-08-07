@@ -185,6 +185,38 @@ import { Button } from '@cherrystudio/ui/components'
 import { DIALOG_CLOSE_DURATION_MS, DIALOG_UNMOUNT_DELAY_MS, toUndefinedIfNull } from '@cherrystudio/ui/utils'
 ```
 
+### Direction and bidirectional content
+
+Direction is application-wide. Every renderer document applies the same application-owned value to
+`document.documentElement.dir` for native layout and logical CSS, then mounts one `DirectionProvider` at its root
+for Radix and JavaScript layout adapters. Nested direction overrides are not supported. Shared component placement
+APIs use logical `start` / `end`; adapters such as `Drawer` and `Tooltip` translate those values only when an
+underlying library requires physical `left` / `right` values.
+
+```tsx
+import { DirectionProvider, Drawer, DirectionalIcon } from '@cherrystudio/ui/components'
+import { ArrowRight } from 'lucide-react'
+
+document.documentElement.dir = localeDirection
+
+root.render(
+  <DirectionProvider dir={localeDirection}>
+    <Drawer side="end">...</Drawer>
+    <DirectionalIcon>
+      <ArrowRight />
+    </DirectionalIcon>
+  </DirectionProvider>
+)
+```
+
+Use `DirectionalIcon` only for arrows whose meaning follows the application reading direction; never wrap logos,
+check marks, or physical media controls. Its mirror composes with any rotation on the same icon, so a chevron that
+also rotates open must counter-rotate under `rtl:` rather than rely on the mirror alone.
+
+Text inputs default to `dir="auto"`, while technical input types such as email, number, password, telephone, and
+URL default to LTR. Keyboard-shortcut slots default to LTR. Callers may explicitly override `dir` on any of these
+when their content contract is more specific.
+
 ## Development
 
 ```bash
@@ -332,6 +364,7 @@ The Shadcn-compatible native input primitive.
 **Props:**
 
 - accepts standard React input props, including native `type`, `value`, and event-based `onChange`
+- natural-language text inputs default to `dir="auto"`; technical input types default to `dir="ltr"` and callers may override the native `dir`
 - use `aria-invalid` for invalid-state styling
 - use `className` for supported layout composition
 

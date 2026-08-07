@@ -3,6 +3,8 @@ import { Slot } from '@radix-ui/react-slot'
 import { ChevronRight, MoreHorizontal } from 'lucide-react'
 import * as React from 'react'
 
+import { DirectionalIcon } from './directional-icon'
+
 function Breadcrumb({ ...props }: React.ComponentProps<'nav'>) {
   return <nav aria-label="breadcrumb" data-slot="breadcrumb" {...props} />
 }
@@ -59,7 +61,11 @@ function BreadcrumbSeparator({ children, className, ...props }: React.ComponentP
       aria-hidden="true"
       className={cn('[&>svg]:size-3.5', className)}
       {...props}>
-      {children ?? <ChevronRight />}
+      {children ?? (
+        <DirectionalIcon>
+          <ChevronRight />
+        </DirectionalIcon>
+      )}
     </li>
   )
 }

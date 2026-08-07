@@ -110,7 +110,7 @@ const QuickAssistantSettings: FC = () => {
             <span>{t('settings.quickAssistant.enable_quick_assistant')}</span>
             <InfoTooltip
               content={t('settings.quickAssistant.use_shortcut_to_show')}
-              placement="right"
+              placement="end"
               iconProps={{ className: 'cursor-pointer' }}
             />
           </SettingRowTitle>

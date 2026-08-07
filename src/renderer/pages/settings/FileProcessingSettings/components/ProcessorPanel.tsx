@@ -226,7 +226,7 @@ export function ProcessorPanel({
           <span className="truncate">{featureTitle}</span>
           <InfoTooltip
             content={t(featureTooltipKey)}
-            placement="right"
+            placement="end"
             iconProps={{ size: 13, color: 'currentColor', className: 'shrink-0 opacity-80' }}
           />
         </SettingTitle>

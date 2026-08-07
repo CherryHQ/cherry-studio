@@ -99,7 +99,7 @@ export function SidebarShellActions({
 
   if (layout === 'icon') {
     return (
-      <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="right" delay={800}>
+      <CommandTooltip command="app.settings.open" label={t('settings.title')} placement="end" delay={800}>
         <Button
           type="button"
           variant="ghost"

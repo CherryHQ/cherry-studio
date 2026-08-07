@@ -100,7 +100,7 @@ const JoplinSettings: FC = () => {
           <span>{t('settings.data.joplin.token')}</span>
           <InfoTooltip
             content={t('settings.data.joplin.help')}
-            placement="left"
+            placement="start"
             iconProps={{ className: 'text-text-2 cursor-pointer ml-1' }}
             onClick={handleJoplinHelpClick}
           />

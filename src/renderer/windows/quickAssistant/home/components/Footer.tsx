@@ -76,7 +76,7 @@ const Footer: FC<FooterProps> = ({
         className="nodrag mr-1 flex items-center text-foreground transition-colors"
         aria-pressed={isPinned}
         aria-label={t('quickAssistant.tooltip.pin')}>
-        <Tooltip placement="left" content={t('quickAssistant.tooltip.pin')} delay={800}>
+        <Tooltip placement="start" content={t('quickAssistant.tooltip.pin')} delay={800}>
           <Pin
             size={14}
             className={

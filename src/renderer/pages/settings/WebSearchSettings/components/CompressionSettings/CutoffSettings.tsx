@@ -25,7 +25,7 @@ const CutoffSettings = () => {
       <SettingRowTitle className={settingLabelClassName}>
         {t('settings.tool.websearch.compression.cutoff.limit.label')}
         <InfoTooltip
-          placement="right"
+          placement="end"
           content={t('settings.tool.websearch.compression.cutoff.limit.tooltip')}
           iconProps={{
             size: 16,

@@ -195,7 +195,7 @@ const ArtboardToolButton: FC<{
   onClick: () => void
 }> = ({ children, disabled, label, onClick }) => {
   return (
-    <Tooltip content={label} placement="right" delay={800}>
+    <Tooltip content={label} placement="end" delay={800}>
       <Button
         type="button"
         variant="ghost"

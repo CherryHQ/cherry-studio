@@ -92,12 +92,13 @@ const columns: ColumnDef<Person>[] = [
   {
     accessorKey: 'name',
     header: 'Name',
-    meta: { width: 180, maxWidth: 180 }
+    meta: { width: 180, maxWidth: 180, align: 'start' }
   },
   {
     accessorKey: 'role',
     header: 'Role',
-    cell: ({ row }) => <span>{row.original.role}</span>
+    cell: ({ row }) => <span>{row.original.role}</span>,
+    meta: { align: 'end' }
   }
 ]
 
@@ -122,13 +123,13 @@ describe('DataTable', () => {
         data={people}
         columns={columns}
         rowKey="id"
-        headerLeft={<button type="button">Left action</button>}
-        headerRight={<button type="button">Right action</button>}
+        headerStart={<button type="button">Start action</button>}
+        headerEnd={<button type="button">End action</button>}
       />
     )
 
-    expect(screen.getByRole('button', { name: 'Left action' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Right action' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Start action' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'End action' })).toBeInTheDocument()
   })
 
   it('uses full parent width with an optional max width', () => {
@@ -148,6 +149,31 @@ describe('DataTable', () => {
     expect(screen.getByRole('cell', { name: 'Ada' })).toHaveStyle({ maxWidth: '180px' })
     expect(screen.getByRole('columnheader', { name: 'Role' })).not.toHaveStyle({ width: '180px' })
     expect(screen.getByRole('columnheader', { name: 'Role' }).style.width).toBe('')
+  })
+
+  it('aligns columns using logical start and end', () => {
+    render(<DataTable data={people} columns={columns} rowKey="id" />)
+
+    expect(screen.getByRole('columnheader', { name: 'Name' })).toHaveClass('text-start')
+    expect(screen.getByRole('cell', { name: 'Ada' })).toHaveClass('text-start')
+    expect(screen.getByRole('columnheader', { name: 'Role' })).toHaveClass('text-end')
+    expect(screen.getByRole('cell', { name: 'Engineer' })).toHaveClass('text-end')
+  })
+
+  it('counter-rotates the expand chevron in RTL so it still opens downwards', () => {
+    // DirectionalIcon mirrors the chevron, and the mirror composes with the expanded rotation.
+    render(
+      <DataTable
+        data={people}
+        columns={columns}
+        rowKey="id"
+        expandedRowKeys={['1']}
+        renderExpandedRow={() => <div>details</div>}
+      />
+    )
+
+    const chevron = screen.getAllByRole('button', { name: 'Collapse row' })[0].querySelector('svg')
+    expect(chevron).toHaveClass('rotate-90', 'rtl:-rotate-90')
   })
 
   it('bounds long cell and expanded row content to the table width', () => {

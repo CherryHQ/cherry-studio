@@ -33,7 +33,7 @@ const AgentContent = ({
           <ConversationSidebarToggleButton
             sidebarOpen={showSidebar}
             onSidebarToggle={onSidebarToggle}
-            tooltipPlacement={showSidebar ? undefined : 'right'}
+            tooltipPlacement={showSidebar ? undefined : 'end'}
           />
         )}
         <ConversationTopBarPortalHost>{conversationControls}</ConversationTopBarPortalHost>

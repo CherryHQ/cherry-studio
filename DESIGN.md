@@ -99,8 +99,9 @@ and do not weaken foreground semantics with Tailwind color-opacity modifiers.
 ### Border Token Rules
 - Use semantic border utilities (`border-border`, `border-border-subtle`, `border-border-strong`, `border-border-selected`, `border-input`, `border-sidebar-border`) instead of hard-coded colors.
 - Use `border-border-selected` only for selected state. Keyboard focus always uses `border-ring` / `ring-ring`.
-- Plain `border`, `border-t`, `border-r`, `border-b`, and `border-l` are acceptable only when the global theme base provides the color fallback; reusable components should still name a semantic border color when the role is known.
-- For 0.5px hairline dividers, use an explicit token-backed property such as `[border-bottom:0.5px_solid_var(--border)]` or `[border-right:0.5px_solid_var(--border-subtle)]`.
+- Plain `border`, `border-t`, `border-b`, `border-s`, and `border-e` are acceptable only when the global theme base provides the color fallback; reusable components should still name a semantic border color when the role is known.
+- In new `packages/ui` components, prefer `border-s` / `border-e` over `border-l` / `border-r`, and reach for the physical pair only for geometry that does not follow reading direction. This is a convention for new shared components, not a repo-wide migration — existing physical borders elsewhere are not a defect and there is no lint gate for it yet.
+- For 0.5px hairline dividers, use an explicit token-backed property such as `[border-bottom:0.5px_solid_var(--border)]` or `[border-inline-end:0.5px_solid_var(--border-subtle)]`.
 - Existing opacity-modified border classes (`border-border/10` through `border-border/80`, plus hover/focus/active variants) continue to resolve through Tailwind v4's native color-opacity modifier support; `theme.css` does not enumerate separate compatibility mappings for them.
 - Do not introduce new opacity-modified semantic border classes such as `border-border/60`, `border-border/40`, `border-border/30`, or `border-border/15`. Use the semantic border utilities above so the visual role is explicit.
 
@@ -359,7 +360,7 @@ Source: `DialogContent` and related primitives from `@cherrystudio/ui` (`package
 
 **Layout**
 - Overlay: fixed full-window scrim, `z-[80]`, default `bg-black/50`
-- Content: fixed centered, `top-[50%] left-[50%]`, translated by `-50%`
+- Content: fixed centered with physical `top-[50%] left-[50%]` plus `-50%` translation; this is geometry, not reading-order placement
 - Width: full width with `max-w-[calc(100%-2rem)]` (narrow-window fallback, all sizes). Desktop width is set by the `size` prop on `DialogContent`:
   - `size="sm"` → `sm:max-w-sm` (24rem ≈ 384px) — single-field inputs, rename, short confirmations. Use this whenever the body is one label + one input or a one-line confirmation; the default size feels empty for that amount of content.
   - `size="default"` (current default) → `sm:max-w-lg` (32rem ≈ 512px) — standard forms with a few fields.
@@ -368,11 +369,11 @@ Source: `DialogContent` and related primitives from `@cherrystudio/ui` (`package
 - Consumers should use the default overlay first. If the scrim needs local tuning, pass `overlayClassName`; do not rewrite a page-local Dialog shell.
 
 **Structure**
-- Header: flex column, `gap-2`, centered on mobile and left-aligned from `sm`
+- Header: flex column, `gap-2`, centered on mobile and start-aligned from `sm`
 - Title: `text-lg leading-none font-semibold`
 - Description: `text-muted-foreground text-sm`
 - Footer: mobile `flex-col-reverse`, desktop row with `sm:justify-end`
-- Close button: shown by default, absolute `top-4 right-4`, low opacity, higher opacity on hover; hide with `showCloseButton={false}` when the surrounding UI supplies its own close affordance
+- Close button: shown by default, absolute `top-4 end-4`, low opacity, higher opacity on hover; hide with `showCloseButton={false}` when the surrounding UI supplies its own close affordance
 
 **Actions**
 - Use `Button variant="outline"` for cancel/secondary actions.
@@ -396,7 +397,7 @@ Source: `PageSidePanel` from `@cherrystudio/ui` (`packages/ui/src/components/com
 Use `PageSidePanel` for page-owned management surfaces such as mini-app display settings, translate settings, and translate history. By default, the panel and backdrop portal to `document.body` so page scroll containers, transformed ancestors, and nested layout shells cannot clip or re-base the drawer. In app shell route tabs, the tab content root is provided via `PortalContainerProvider` on every platform; `PageSidePanel` reads it with `usePortalContainer()`, portals into its owning tab root, and switches to absolute positioning, so a still-open panel stays hidden with its owning tab instead of surfacing over the active tab. The same provider scopes tab-owned Radix floating overlays (popovers, dropdown menus, selects, tooltips, hover cards, context menus) to that root, so the panel and those overlays share one portal container per tab.
 
 - Backdrop: default fixed `inset-0`, scoped absolute `inset-0`, `z-60`, `bg-black/50`, fades over `0.15s`
-- Panel: default fixed `top-3 bottom-3`, scoped absolute `top-3 bottom-3`, `right-3` or `left-3`, `z-70`
+- Panel: default fixed `top-3 bottom-3`, scoped absolute `top-3 bottom-3`, logical `end-3` or `start-3`, `z-70`
 - Size / shell: `w-100`, `rounded-3xl`, `bg-card`, `text-card-foreground`, `shadow-xl`, `overflow-hidden`
 - Motion: horizontal slide from the chosen side with spring transition (`damping: 30`, `stiffness: 350`)
 - Header: `px-6 pt-6 pb-3`, optional header content plus ghost close button
@@ -409,7 +410,7 @@ For standard settings panels, pass `title` instead of custom `header`. This rend
 Use `PageSidePanelSection` and `PageSidePanelItem` as optional content primitives for settings-style panels. The structure is intentionally three-layered:
 
 1. `PageSidePanel` owns only the floating drawer shell: placement, backdrop, title/close chrome, body scroll, and footer.
-2. `PageSidePanelSection` owns a settings group: section title, optional right-aligned low-emphasis actions, and group spacing.
+2. `PageSidePanelSection` owns a settings group: section title, optional inline-end low-emphasis actions, and group spacing.
 3. `PageSidePanelItem` owns a single setting row: title/description stack, trailing control, and optional expanded content below the row.
 
 Use this full shell → section → item stack for settings drawers such as mini-app display settings and translate settings:
@@ -432,8 +433,8 @@ Use `Drawer` for modal edge/bottom sheets, especially mobile-oriented or full-vi
 - Content: fixed `z-50`, flex column, `bg-background`
 - Top / bottom: full width, `max-h-[80vh]`, border on the attached edge, `rounded-b-lg` or `rounded-t-lg`
 - Bottom drawer: includes the built-in centered drag handle (`h-2 w-25 rounded-full bg-muted`)
-- Left / right: `inset-y-0`, `w-3/4`, `sm:max-w-sm`, border on the attached edge
-- Header: `p-4`, `gap-0.5`, centered for top/bottom and left-aligned from `md`
+- Inline start / end: resolved to the physical Vaul direction from the current reading direction; `inset-y-0`, `w-3/4`, `sm:max-w-sm`, border on the attached edge
+- Header: `p-4`, `gap-0.5`, centered for top/bottom and start-aligned from `md`
 - Footer: `mt-auto flex flex-col gap-2 p-4`
 - Title / description: `font-semibold text-foreground`; `text-sm text-muted-foreground`
 
@@ -562,7 +563,7 @@ The page owns the outer wrapper (width / Scrollbar / padding). Reusable sidebar 
 **Colors:**
 - Background: `var(--sidebar)`
 - Text: `var(--sidebar-foreground)` for body; `var(--muted-foreground)` for SectionTitle
-- Border-right (when divider needed): `0.5px solid var(--border)`
+- Inline-end border (when divider needed): `0.5px solid var(--border)`
 - Active item: `var(--sidebar-accent)` background, `var(--sidebar-accent-foreground)` text — **icon color stays `var(--sidebar-accent-foreground)` on active (no color change)**
 - Hover item: `var(--sidebar-accent)` background
 - Focus: use `var(--sidebar-accent)` background and `var(--sidebar-accent-foreground)` text; no outer ring
@@ -577,7 +578,7 @@ The page owns the outer wrapper (width / Scrollbar / padding). Reusable sidebar 
 | Relationship | Value | Token |
 |---|---|---|
 | Header / section label / menu item own height | 32px | `var(--spacing-8)` |
-| Horizontal inset on all rows (left/right padding) | 12px | `var(--spacing-3)` |
+| Horizontal inset on all rows (inline start/end padding) | 12px | `var(--spacing-3)` |
 | Gap between section blocks (Header → first Section, Section → next Section) | 12px | `var(--spacing-3)` |
 | Gap **inside** a section (section label → item, item → item) | 4px | `var(--spacing-1)` |
 | MenuItem corner radius | 10px | `rounded-[10px]` |
@@ -598,7 +599,7 @@ Source: `PageHeader` from `@cherrystudio/ui`. The single component for any page 
 
 **Anatomy:**
 - `title` (required) — heading text, rendered inside an `<h2>` with `truncate` for overflow safety.
-- `action` (optional) — right-aligned slot for icon-buttons (filter, add, etc.).
+- `action` (optional) — inline-end slot for icon-buttons (filter, add, etc.).
 - `bordered` (optional) — adds a `border-b border-border` divider underneath the header row. Default `false`. Use on right-pane detail headers to visually separate the title from the body; omit on left sidebar headers (which sit above a `MenuList` and don't need a divider).
 
 **Type:**
@@ -611,15 +612,15 @@ Source: `PageHeader` from `@cherrystudio/ui`. The single component for any page 
 | Bar height | 32px | `h-8` |
 | Margin top (gap above) | 12px | `mt-3` |
 | Margin bottom (gap below) | 8px | `mb-2` |
-| Left padding (title aligns with menu item icon column) | 20px | `pl-5` |
-| Right padding (action sits 12px from the column edge) | 12px | `pr-3` |
+| Inline-start padding (title aligns with menu item icon column) | 20px | `ps-5` |
+| Inline-end padding (action sits 12px from the column edge) | 12px | `pe-3` |
 | Title ↔ action gap | 8px | `gap-2` |
 | Bottom border (when `bordered`) | 1px | `border-b border-border` |
 
 **Rules:**
 - Action buttons should be 24×24 (`size-6`); they sit centered inside the 32px bar.
 - Title text comes from i18next; do not hard-code strings.
-- The asymmetric padding is intentional: `pl-5` (20px) aligns the title's left edge with the icon column of menu items below — wrapper `px-2.5` (10px) + item `px-2.5` (10px) = 20px. Do not change to symmetric padding.
+- The asymmetric padding is intentional: `ps-5` (20px) aligns the title's inline-start edge with the icon column of menu items below — wrapper `px-2.5` (10px) + item `px-2.5` (10px) = 20px. Do not change to symmetric padding.
 - Two adjacent `PageHeader` instances (left nav + right panel) are guaranteed to be vertically aligned because spacing tokens are identical; the title line box starts 20px from the column top.
 - Right-pane detail headers in two-column settings layouts **must** pass `bordered`; left sidebar headers **must not** (the menu list below them already provides visual structure). A right-pane header rendered by a non-`PageHeader` component (e.g. `ProviderHeader`, which carries a `<Switch>` plus multiple icons) must wrap itself in a container that draws an equivalent `border-b border-border` divider — see `providerDetailColumnClasses.headerContentMaxWidth` in `ProviderSettings/primitives/classNames.ts`.
 - Provider settings section headings use full `text-foreground` rather than reduced opacity. The right pane already has dense secondary helper text, badges, and inline controls; fully opaque section labels preserve scan hierarchy without introducing another local color rule.
@@ -656,6 +657,7 @@ Source: `Switch` and `DescriptionSwitch` from `@cherrystudio/ui` (`packages/ui/s
 - Don't pass page-local status colors (`bg-success`, `bg-warning`, etc.) to the track. The component owns its brand on state.
 - Don't add inline `style={{ ... }}` overrides for switch dimensions. If a new size is needed, add a variant to `switchRootVariants`/`switchThumbVariants` and document it here.
 - Use `<DescriptionSwitch label="..." description="...">` for reusable standalone preference rows. In dense `PageSidePanel` layouts, composing a row label plus a bare `<Switch>` is acceptable when the surrounding row owns spacing and helper text.
+- `DescriptionSwitch` places the control at logical inline end by default. Use `controlPosition="start"` only when the control must precede its label in reading order; never express this choice as physical left/right.
 
 ## 5. Layout Principles
 
@@ -886,11 +888,11 @@ Use icon-library defaults unless a component has a documented reason to override
 
 ### Example Component Prompts
 - "Create a chat interface on `var(--background)`. Messages use `var(--font-size-body-md)` `var(--font-weight-regular)`, `var(--line-height-body-md)`, `var(--foreground)` text. User messages in cards with `var(--secondary)` background and `var(--radius-lg)` border-radius. Primary send button uses the Button `default` variant."
-- "Design a sidebar navigation: `var(--sidebar)` background, 1px right border `var(--sidebar-border)`. Nav items use `var(--font-size-body-sm)` `var(--font-weight-medium)`, `var(--sidebar-foreground)` text. Active and hover items use `var(--sidebar-accent)` with `var(--sidebar-accent-foreground)` text."
+- "Design a sidebar navigation: `var(--sidebar)` background, 1px inline-end border `var(--sidebar-border)`. Nav items use `var(--font-size-body-sm)` `var(--font-weight-medium)`, `var(--sidebar-foreground)` text. Active and hover items use `var(--sidebar-accent)` with `var(--sidebar-accent-foreground)` text."
 - "Build a settings card: `var(--card)` background, 1px `var(--border)`, `var(--radius-lg)`. Title in `var(--font-size-heading-sm)` with the matching heading line-height. Description in `var(--font-size-body-sm)` `var(--font-weight-regular)`, `var(--muted-foreground)`. Toggles and inputs at `var(--radius-md)`."
 - "Create a dark-mode conversation view: `var(--background)` page. Message cards on `var(--card)`. Assistant code blocks use the code-rendering component's mono font stack at `var(--font-size-body-sm)` on `var(--popover)` with `var(--radius-md)`. Borders at `var(--border)`."
 - "Design a destructive confirmation dialog with the shared Dialog shell: `bg-card`, `text-card-foreground`, `rounded-3xl`, `border-0`, `p-6`, `gap-4`, `shadow-xl`, default overlay. Footer uses outline cancel + destructive delete."
-- "Build a page-owned settings side panel with `PageSidePanel`: it reads `usePortalContainer()` to scope into the owning route tab/page root when a `PortalContainerProvider` is present, otherwise falls back to the body portal; default fixed and scoped absolute `bg-black/50` backdrop, `top-3 bottom-3 right-3`, `w-100`, `bg-card`, `rounded-3xl`, `shadow-xl`, `title` for the shared `text-base` heading, body `px-6 py-4`, `PageSidePanelSection` groups separated by `gap-8`, and `PageSidePanelItem` rows separated by `gap-5` inside each group. Use only `PageSidePanel` for non-settings history/list/detail drawers, with a task-specific body layout."
+- "Build a page-owned settings side panel with `PageSidePanel`: it reads `usePortalContainer()` to scope into the owning route tab/page root when a `PortalContainerProvider` is present, otherwise falls back to the body portal; default fixed and scoped absolute `bg-black/50` backdrop, `top-3 bottom-3 end-3`, `w-100`, `bg-card`, `rounded-3xl`, `shadow-xl`, `title` for the shared `text-base` heading, body `px-6 py-4`, `PageSidePanelSection` groups separated by `gap-8`, and `PageSidePanelItem` rows separated by `gap-5` inside each group. Use only `PageSidePanel` for non-settings history/list/detail drawers, with a task-specific body layout."
 - "Build a modal bottom drawer with the shared `Drawer` primitive: `bg-background`, edge-attached bottom content, `max-h-[80vh]`, `rounded-t-lg`, `border-t`, built-in drag handle, header/footer `p-4`. Do not use the floating `PageSidePanel` shell for this."
 - "Floating toolbar: `bg-popover`, 1px `var(--border)`, `var(--radius-xl)`, `var(--shadow-md)`. Icon buttons inside use the shared `Button` with `variant=\"ghost\"` and `size=\"icon-sm\"`."
 - "Dense row actions: use low-emphasis icon-only controls with muted default text, no static fill, tooltip/`aria-label`, hover-only emphasis, and active tint only when the action has persistent state. Promote this pattern into a shared `IconButton` before reusing it across pages."
