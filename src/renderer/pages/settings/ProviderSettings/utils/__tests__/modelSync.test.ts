@@ -53,9 +53,9 @@ describe('fetchResolvedProviderModels', () => {
     ])
     dataApiGetMock.mockResolvedValueOnce([
       {
-        id: 'new-api::deepseek-v3.2',
+        id: 'new-api::agent/deepseek-v3.2',
         providerId: 'new-api',
-        apiModelId: 'deepseek-v3.2',
+        apiModelId: 'agent/deepseek-v3.2',
         name: 'DeepSeek V3.2',
         endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
       }
@@ -67,6 +67,52 @@ describe('fetchResolvedProviderModels', () => {
       name: 'DeepSeek V3.2',
       endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     })
+  })
+
+  it('uses the resolved friendly name when the provider only echoes the raw id', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'dashscope::qwen1.5-1.8b-chat',
+        providerId: 'dashscope',
+        apiModelId: 'qwen1.5-1.8b-chat',
+        name: 'qwen1.5-1.8b-chat'
+      }
+    ])
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'dashscope::qwen1.5-1.8b-chat',
+        providerId: 'dashscope',
+        apiModelId: 'qwen1.5-1.8b-chat',
+        name: 'Qwen1.5 1.8b Chat'
+      }
+    ])
+
+    const models = await fetchResolvedProviderModels('dashscope')
+
+    expect(models[0].name).toBe('Qwen1.5 1.8b Chat')
+  })
+
+  it('keeps a provider display name for an unmatched custom model', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'custom::custom-model',
+        providerId: 'custom',
+        apiModelId: 'custom-model',
+        name: 'Provider Display Name'
+      }
+    ])
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'custom::custom-model',
+        providerId: 'custom',
+        apiModelId: 'custom-model',
+        name: 'Custom Model'
+      }
+    ])
+
+    const models = await fetchResolvedProviderModels('custom')
+
+    expect(models[0].name).toBe('Provider Display Name')
   })
 })
 
