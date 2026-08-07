@@ -222,4 +222,23 @@ describe('toCreateModelDto', () => {
       endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     })
   })
+
+  it('forwards a provider-declared reasoning capability when reasoning metadata is present', () => {
+    const dto = toCreateModelDto('ollama', {
+      id: 'ollama::acme-thinker:latest' as UniqueModelId,
+      providerId: 'ollama',
+      apiModelId: 'acme-thinker:latest',
+      name: 'Acme Thinker',
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      },
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto.capabilities).toEqual([MODEL_CAPABILITY.REASONING])
+  })
 })

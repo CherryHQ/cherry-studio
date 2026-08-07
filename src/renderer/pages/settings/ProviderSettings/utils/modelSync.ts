@@ -4,7 +4,12 @@ import { ipcApi } from '@renderer/ipc'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { ProviderPreset } from '@shared/data/api/schemas/providers'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import { type EndpointType as RuntimeEndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
+import {
+  type EndpointType as RuntimeEndpointType,
+  type Model,
+  MODEL_CAPABILITY,
+  parseUniqueModelId
+} from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNewApiProvider } from '@shared/utils/provider'
 import { isEmpty } from 'es-toolkit/compat'
@@ -54,12 +59,17 @@ export function toCreateModelDto(
 ): CreateModelDto {
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
+  const capabilities =
+    model.reasoning && model.capabilities.includes(MODEL_CAPABILITY.REASONING)
+      ? [MODEL_CAPABILITY.REASONING]
+      : undefined
 
   return {
     providerId,
     modelId,
     name: model.name,
     group: model.group,
+    ...(capabilities ? { capabilities } : {}),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {})
   }
 }

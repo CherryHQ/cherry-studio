@@ -474,9 +474,12 @@ class ModelService {
     // infer the controls from the registry heuristics so custom rows are
     // descriptor-driven like catalog rows (#16598).
     if (dtoValues.reasoning == null) {
-      const inferred = inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, {
-        declaredReasoning: (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
-      })
+      const declaredReasoning = (dtoValues.capabilities ?? []).includes(MODEL_CAPABILITY.REASONING)
+      const inferred =
+        inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, { declaredReasoning }) ??
+        (declaredReasoning && registryData?.reasoningProfile.format === 'ollama'
+          ? projectRuntimeReasoning({ controls: [{ kind: 'toggle' }] }, registryData.reasoningProfile.wire)
+          : undefined)
       if (inferred) dtoValues.reasoning = inferred
     }
 

@@ -45,6 +45,15 @@ const OPENAI_CHAT_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReaso
   }
 }
 
+const OLLAMA_REASONING_PROFILE: ProviderRegistryServiceModule.ResolvedReasoningProfile = {
+  format: 'ollama' as const,
+  wire: {
+    off: { operations: [{ target: 'think', value: { source: 'literal', value: false } }] },
+    auto: { operations: [{ target: 'think', value: { source: 'literal', value: true } }] },
+    effort: { operations: [{ target: 'think', value: { source: 'effort' } }] }
+  }
+}
+
 beforeEach(() => {
   lookupModelMock.mockReset()
   lookupModelMock.mockReturnValue({
@@ -1524,6 +1533,38 @@ describe('ModelService — reasoning descriptor enrichment', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'my-compat'), eq(userModelTable.modelId, 'glm-4.6')))
     expect((row.reasoning as { controls?: unknown })?.controls).toEqual([{ kind: 'toggle' }])
+  })
+
+  it('uses an Ollama toggle for an unknown model that declares the thinking capability', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('ollama', 'Ollama'))
+    const registryData = {
+      presetModel: null,
+      registryOverride: null,
+      reasoningProfile: OLLAMA_REASONING_PROFILE
+    }
+    lookupModelMock.mockReturnValue(registryData)
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'ollama',
+          modelId: 'acme-thinker:latest',
+          capabilities: [MODEL_CAPABILITY.REASONING]
+        },
+        registryData
+      }
+    ])
+
+    expect(created.reasoning).toMatchObject({
+      controls: [{ kind: 'toggle' }],
+      selectableEfforts: ['none', 'auto']
+    })
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'ollama'), eq(userModelTable.modelId, 'acme-thinker:latest')))
+    expect(row.reasoning).toMatchObject({ controls: [{ kind: 'toggle' }] })
   })
 })
 
