@@ -171,7 +171,7 @@ Normal text with [3] citation`
       expect(result).toContain('Normal text with [cite:3]')
     })
 
-    it('should handle malformed code blocks', () => {
+    it('should preserve citations in unclosed code blocks', () => {
       const content = `Text with [1]
 
 \`\`\`unclosed
@@ -183,8 +183,8 @@ Normal text with [3] continues`
       const result = normalizeCitationMarks(content, citationMap)
 
       expect(result).toContain('[cite:1]')
-      expect(result).toContain('[cite:2]')
-      expect(result).toContain('[cite:3]')
+      expect(result).toContain('With [2] citation')
+      expect(result).toContain('Normal text with [3] continues')
     })
 
     it('should handle citations in various markdown structures', () => {

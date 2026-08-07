@@ -14,24 +14,9 @@ import type { GroundingSupport } from '@google/genai'
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE, type WebSearchSource } from '@renderer/types/webSearchProvider'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
+import { findMarkdownCodeRanges, mapMarkdownOutsideCode } from '@shared/ai/citations'
 
-const MARKDOWN_CODE_PATTERN = /```[\s\S]*?```|`[^`\n]*`/gm
-
-/** Apply a transform only to prose, preserving inline and fenced code byte-for-byte. */
-export function mapMarkdownOutsideCode(content: string, transform: (text: string) => string): string {
-  MARKDOWN_CODE_PATTERN.lastIndex = 0
-  let cursor = 0
-  let result = ''
-  let match: RegExpExecArray | null
-
-  while ((match = MARKDOWN_CODE_PATTERN.exec(content)) !== null) {
-    result += transform(content.slice(cursor, match.index))
-    result += match[0]
-    cursor = match.index + match[0].length
-  }
-
-  return result + transform(content.slice(cursor))
-}
+export { mapMarkdownOutsideCode } from '@shared/ai/citations'
 
 /** Tooltip projection shared by the tag emitter and the trusted renderer registry. */
 export function toTooltipCitation(citation: Citation): Citation {
@@ -77,21 +62,7 @@ export function normalizeCitationMarks(
   citationMap: Map<number, Citation>,
   sourceType?: WebSearchSource
 ): string {
-  const codeBlockRegex = MARKDOWN_CODE_PATTERN
-  const getSkipRanges = () => {
-    const skipRanges: Array<{ start: number; end: number }> = []
-
-    codeBlockRegex.lastIndex = 0
-    let match: RegExpExecArray | null
-    while ((match = codeBlockRegex.exec(content)) !== null) {
-      skipRanges.push({
-        start: match.index,
-        end: match.index + match[0].length
-      })
-    }
-
-    return skipRanges
-  }
+  const getSkipRanges = () => findMarkdownCodeRanges(content)
 
   // 检查位置是否在代码块内
   const shouldSkip = (pos: number, skipRanges = getSkipRanges()): boolean => {

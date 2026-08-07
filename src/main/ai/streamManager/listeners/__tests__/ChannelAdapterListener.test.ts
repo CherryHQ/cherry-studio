@@ -57,6 +57,34 @@ describe('ChannelAdapterListener', () => {
     expect(vi.mocked(adapter.sendMessage).mock.calls[0][1]).toContain('[REDACTED]')
   })
 
+  it('withholds an incomplete citation marker across live deltas and strips it once complete', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('Claim '))
+    listener.onChunk(delta('[ci'))
+    listener.onChunk(delta('te:source-'))
+    listener.onChunk(delta('1]'))
+    listener.onChunk(delta(' confirmed'))
+
+    const liveUpdates = vi.mocked(adapter.onTextUpdate).mock.calls.map(([, text]) => text)
+    expect(liveUpdates).toEqual(['Claim ', 'Claim', 'Claim', 'Claim', 'Claim confirmed'])
+    expect(liveUpdates.every((text) => !text.includes('[ci'))).toBe(true)
+
+    await listener.onDone({ status: 'success' } as StreamDoneResult)
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Claim confirmed')
+  })
+
+  it('preserves an incomplete citation-like suffix in the final delivery', async () => {
+    const adapter = makeAdapter({ onStreamComplete: vi.fn().mockResolvedValue(false) })
+    const listener = new ChannelAdapterListener(adapter, 'chat-1')
+
+    listener.onChunk(delta('Literal [cite:unfinished'))
+    await listener.onDone({ status: 'success' } as StreamDoneResult)
+
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Literal [cite:unfinished')
+  })
+
   it('does not deliver when the accumulated text is empty', async () => {
     const adapter = makeAdapter()
     const listener = new ChannelAdapterListener(adapter, 'chat-1')

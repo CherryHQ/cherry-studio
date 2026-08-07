@@ -24,7 +24,7 @@
 
 import type { Citation } from '@renderer/types/message'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
-import { mapCitationMarksToTags, mapMarkdownOutsideCode, normalizeCitationMarks } from '@renderer/utils/citation'
+import { mapCitationMarksToTags, normalizeCitationMarks } from '@renderer/utils/citation'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import {
   KB_READ_TOOL_NAME,
@@ -36,6 +36,7 @@ import {
   WEB_SEARCH_TOOL_NAME,
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
+import { mapMarkdownOutsideCode } from '@shared/ai/citations'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -480,9 +481,7 @@ export function toExportableCitations(
  * that contradict it. Stripping keeps the internal marker out of the export
  * without inventing a second, conflicting sequence.
  */
-export function stripCitationMarkers(content: string): string {
-  return mapMarkdownOutsideCode(content, (text) => text.replace(CITATION_MARKER_PATTERN, ''))
-}
+export { stripCitationMarkers } from '@shared/ai/citations'
 
 /**
  * Render-side wrapper: resolve the markers, then turn each into its

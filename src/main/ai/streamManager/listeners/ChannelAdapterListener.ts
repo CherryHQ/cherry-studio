@@ -41,7 +41,7 @@ export class ChannelAdapterListener implements StreamListener {
       // Best-effort streaming update; adapter chooses to throttle. Sanitize here — this is
       // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
       // be redacted before they leave.
-      const { text } = sanitizeChannelOutput(this.accumulatedText)
+      const { text } = sanitizeChannelOutput(this.accumulatedText, { isStreamUpdate: true })
       void this.adapter.onTextUpdate(this.platformChatId, text).catch(() => {})
     }
   }
