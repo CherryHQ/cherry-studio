@@ -60,7 +60,12 @@ const mcpSdkMock = vi.hoisted(() => {
       void opts
     }
   }
-  const clients: Array<{ connectCalls: Array<{ kind: string }>; close: ReturnType<typeof vi.fn> }> = []
+  const clients: Array<{
+    connectCalls: Array<{ kind: string }>
+    close: ReturnType<typeof vi.fn>
+    listPrompts: ReturnType<typeof vi.fn>
+    listResources: ReturnType<typeof vi.fn>
+  }> = []
   class Client {
     setNotificationHandler = vi.fn()
     _transport: { kind: string } | undefined = undefined
@@ -68,6 +73,9 @@ const mcpSdkMock = vi.hoisted(() => {
       this._transport = undefined
     })
     ping = vi.fn().mockResolvedValue(true)
+    getServerCapabilities = vi.fn(() => mcpSdkMock.state.capabilities)
+    listPrompts = vi.fn().mockResolvedValue({ prompts: [{ name: 'a-prompt' }] })
+    listResources = vi.fn().mockResolvedValue({ resources: [{ uri: 'file:///a', name: 'a' }] })
     connectCalls: Array<{ kind: string }> = []
     constructor() {
       clients.push(this)
@@ -113,7 +121,11 @@ const mcpSdkMock = vi.hoisted(() => {
     StdioClientTransport,
     stdioTransports,
     clients,
-    state: { failStreamable: false, failStreamableCode: 503 }
+    state: {
+      failStreamable: false,
+      failStreamableCode: 503,
+      capabilities: undefined as Record<string, unknown> | undefined
+    }
   }
 })
 
@@ -484,5 +496,51 @@ describe('McpRuntimeService transport fallback (issue #16891)', () => {
 
     // The only connect attempt is the configured streamableHttp one — no SSE fallback happened.
     expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
+  })
+})
+
+describe('McpRuntimeService prompt/resource capability gate', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpSdkMock.clients.length = 0
+    mcpSdkMock.state.capabilities = undefined
+    mcpSdkMock.state.failStreamable = false
+  })
+
+  function stdioServer(id: string): McpServer {
+    return { id, name: id, command: 'npx', args: ['-y', 'example-mcp'], isActive: true } as McpServer
+  }
+
+  it('never sends prompts/list or resources/list to a server declaring neither capability', async () => {
+    mcpSdkMock.state.capabilities = { tools: {} }
+    getByIdMock.mockReturnValue(stdioServer('caps-none'))
+    const service = new McpRuntimeService()
+
+    expect(await service.listPrompts('caps-none')).toEqual([])
+    expect(await service.listResources('caps-none')).toEqual([])
+
+    const client = mcpSdkMock.clients.at(-1)
+    expect(client?.listPrompts).not.toHaveBeenCalled()
+    expect(client?.listResources).not.toHaveBeenCalled()
+  })
+
+  it('lists prompts and resources when the server declares both', async () => {
+    mcpSdkMock.state.capabilities = { prompts: {}, resources: {} }
+    getByIdMock.mockReturnValue(stdioServer('caps-both'))
+    const service = new McpRuntimeService()
+
+    expect(await service.listPrompts('caps-both')).toMatchObject([{ name: 'a-prompt', serverId: 'caps-both' }])
+    expect(await service.listResources('caps-both')).toMatchObject([{ uri: 'file:///a', serverId: 'caps-both' }])
+  })
+
+  it('reports connected capabilities synchronously, and nothing for a server that never connected', async () => {
+    mcpSdkMock.state.capabilities = { resources: {} }
+    getByIdMock.mockReturnValue(stdioServer('caps-sync'))
+    const service = new McpRuntimeService()
+
+    expect(service.getConnectedServerCapabilities('caps-sync')).toBeUndefined()
+    await service.withClient('caps-sync', async () => undefined)
+    expect(service.getConnectedServerCapabilities('caps-sync')?.resources).toBeDefined()
   })
 })

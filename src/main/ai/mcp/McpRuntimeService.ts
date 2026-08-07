@@ -34,6 +34,7 @@ import {
   PromptListChangedNotificationSchema,
   ResourceListChangedNotificationSchema,
   ResourceUpdatedNotificationSchema,
+  type ServerCapabilities,
   ToolListChangedNotificationSchema
 } from '@modelcontextprotocol/sdk/types.js'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
@@ -311,6 +312,21 @@ export class McpRuntimeService extends BaseService {
       headers: server.headers,
       id: server.id
     })
+  }
+
+  /**
+   * Capabilities the server declared during the handshake, or `undefined` when it has never
+   * connected. Synchronous and connection-free by design: it is the gate for exposing the
+   * `mcp_resource_*` tools on the chat hot path, which must never open a connection to decide.
+   */
+  public getConnectedServerCapabilities(serverId: string): ServerCapabilities | undefined {
+    let server: McpServer | undefined
+    try {
+      server = this.getServerById(serverId)
+    } catch {
+      return undefined
+    }
+    return this.clients.get(this.getServerKey(server))?.getServerCapabilities()
   }
 
   private isServerKeyForId(serverKey: string, serverId: string): boolean {
@@ -1177,6 +1193,10 @@ export class McpRuntimeService extends BaseService {
    */
   private async listPromptsImpl(server: McpServer): Promise<McpPrompt[]> {
     const client = await this.getOrCreateClient(server)
+    if (!client.getServerCapabilities()?.prompts) {
+      getServerLogger(server).debug(`Server does not declare prompts capability, skipping list`)
+      return []
+    }
     getServerLogger(server).debug(`Listing prompts`)
     try {
       const { prompts } = await client.listPrompts()
@@ -1261,6 +1281,10 @@ export class McpRuntimeService extends BaseService {
    */
   private async listResourcesImpl(server: McpServer): Promise<McpResource[]> {
     const client = await this.getOrCreateClient(server)
+    if (!client.getServerCapabilities()?.resources) {
+      logger.debug(`Server ${server.name} does not declare resources capability, skipping list`)
+      return []
+    }
     logger.debug(`Listing resources for server: ${server.name}`)
     try {
       const result = await client.listResources()
