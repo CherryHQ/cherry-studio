@@ -19,11 +19,13 @@ narrows the model's controls or uses a different wire shape.
 ## Non-goals
 
 - No arbitrary JSONPath, expression language, or user-authored parameter template.
-- No provider wire profile in SQLite, DataApi, renderer state, or user-provider configuration.
 - No custom-model reasoning-control editor in the model drawer.
-- No user-selectable `reasoningFormatType` in the custom-provider connection drawer.
 - No runtime request serializer that identifies a model with regular expressions.
 - No compatibility dual-write for legacy `model.reasoning.type` or endpoint `reasoningFormatType` fields.
+
+A per-endpoint `reasoningFormat` selector *is* user-configurable in the custom-provider connection drawer (see
+[User-selectable reasoning format](#user-selectable-reasoning-format)); the wire profile it selects is registry data
+that lives only in main memory and is never authored by the user.
 
 ## Vocabulary
 
@@ -125,8 +127,10 @@ Encoders consume this result. They do not perform model/provider detection thems
 | User's default selection | Assistant settings | DataApi/SQLite |
 | Selection for one send | Request/queue snapshot | In-memory transport payload |
 
-Provider connection rows persist connection facts such as base URL and adapter family. They do not persist a
-reasoning format selector.
+Provider connection rows persist connection facts such as base URL and adapter family. A custom provider may
+additionally persist a per-endpoint `reasoningFormat` selector (`{ type: 'self-hosted' }` for vLLM/SGLang relays);
+preset-backed providers inherit the registry default and only persist a selector when the user overrides it. The
+selector names a registry format — it never carries a wire profile itself.
 
 ## Model enrichment and `reasoning-families*`
 
@@ -166,8 +170,8 @@ must not import the generated rule table or matcher.
 ## Endpoint-keyed contracts without a wire-family taxonomy
 
 The global format catalog contains protocol defaults only: OpenAI Chat, OpenAI Responses, Anthropic, Gemini,
-Ollama, and an explicitly disabled profile. It contains no provider names, model owners, control-kind matching, or
-model-family rules.
+Ollama, self-hosted (vLLM/SGLang chat templates), and an explicitly disabled profile. It contains no provider names,
+model owners, control-kind matching, or model-family rules.
 
 Request-time resolution first determines the effective endpoint, then applies this fixed precedence:
 
@@ -190,6 +194,34 @@ without putting provider protocol facts on the creator model.
 
 Unknown/custom models may still receive intrinsic controls from model-ID enrichment, but their requests use only the
 endpoint's standard protocol. Non-standard fields require a registry contract or explicit custom parameters.
+
+## Self-hosted reasoning format
+
+`self-hosted` targets chat-template servers (vLLM / SGLang) that gate thinking through `chat_template_kwargs`:
+
+- `chat_template_kwargs.enable_thinking` — turns thinking on/off;
+- `chat_template_kwargs.thinking_budget` — caps the thinking-token budget.
+
+The wire is endpoint-wide and static. `auto` and `effort` both emit `enable_thinking: true` plus a resolved
+`thinking_budget` (fallback 4096 tokens when the model declares no budget bounds); `off` emits `enable_thinking:
+false`. Because Qwen SKUs always think, a redundant `enable_thinking: true` is a tolerated no-op on modern vLLM, so
+one wire covers both Qwen and Hunyuan families. These targets are already part of the closed `chat_template_kwargs.*`
+operation set, so no schema change was needed to add the format.
+
+## User-selectable reasoning format
+
+Custom providers (no registry preset) resolve a protocol default from the endpoint type — `openai-chat` for
+`openai-chat-completions`. A provider serving chat-template models (vLLM/SGLang) through an OpenAI-compatible
+endpoint needs the `self-hosted` wire instead, so the connection drawer exposes a per-endpoint `reasoningFormat`
+selector.
+
+- The selector persists `endpointConfigs[<endpoint>].reasoningFormat` on the user provider row.
+- Read-time `mergeEndpointConfigs` gives the row's value priority over the registry preset's, and request-time
+  resolution (`resolveReasoningProfile`) consults the user value before the endpoint default.
+- The persisted value names a registry format only; the wire profile itself stays main-only registry data.
+
+Preset-backed providers keep the registry default and persist a selector only when the user explicitly overrides it
+(delta reduction in `projectEndpointConfigOverrides`), so registry updates still flow through.
 
 ## Registry generation contract
 
