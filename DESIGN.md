@@ -156,7 +156,8 @@ indicator. Avoid adding a second frame outside the control.
 - Buttons, menu items, tabs, links, and selectable rows should use their established hover vocabulary for
   focus-visible feedback.
 - Controls that cannot express focus through an existing surface may use an inset ring or inset shadow.
-- Do not remove focus feedback, and do not use positive outer ring, outline offset, or focus shadow treatments.
+- Do not remove focus feedback, and do not use non-inset focus rings, positive outline offsets, or focus shadows
+  that extend beyond the component bounds.
 
 Pointer focus, an open popup, or a pressed control does not automatically justify a theme-colored border.
 Persistent states such as selected, checked, active, and invalid may use a border when it communicates that state.
