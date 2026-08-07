@@ -1398,9 +1398,9 @@ const TasksSettings: FC = () => {
     async (selectedTaskId: string) => {
       const task = getTaskForAction(selectedTaskId)
       if (!task) return
-      const deleted = await deleteTask(task.agentId, selectedTaskId)
-      if (!deleted) return
-      await navigate({ to: '/settings/scheduled-tasks' })
+      await deleteTask(task.agentId, selectedTaskId, {
+        onDeleted: () => navigate({ to: '/settings/scheduled-tasks' })
+      })
     },
     [deleteTask, getTaskForAction, navigate]
   )

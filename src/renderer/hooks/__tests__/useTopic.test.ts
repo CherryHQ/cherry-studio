@@ -69,6 +69,62 @@ describe('getTopicMessages', () => {
     expect(dataApiService.get).toHaveBeenCalledTimes(2)
     expect(messages.map((message) => message.id)).toEqual(['older', 'newer'])
   })
+
+  it('filters awaiting-input messages and does not count them toward maxMessages', async () => {
+    const awaitingInput = {
+      ...apiMessage('awaiting-input'),
+      data: { parts: [] }
+    }
+
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce({
+        items: [{ message: awaitingInput }, { message: apiMessage('newer') }],
+        nextCursor: 'older-page',
+        activeNodeId: 'awaiting-input',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+      .mockResolvedValueOnce({
+        items: [{ message: apiMessage('older') }],
+        nextCursor: undefined,
+        activeNodeId: 'awaiting-input',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+
+    const messages = await getTopicMessages('topic-a', { maxMessages: 2 })
+
+    expect(dataApiService.get).toHaveBeenCalledTimes(2)
+    expect(messages.map((message) => message.id)).toEqual(['older', 'newer'])
+  })
+
+  it('filters awaiting-input messages from sibling groups', async () => {
+    const awaitingInputSibling = {
+      ...apiMessage('awaiting-input-sibling'),
+      data: { parts: [] }
+    }
+    const assistantSibling = {
+      ...apiMessage('assistant-sibling'),
+      role: 'assistant' as const
+    }
+
+    vi.mocked(dataApiService.get).mockResolvedValueOnce({
+      items: [
+        {
+          message: apiMessage('user'),
+          siblingsGroup: [awaitingInputSibling, assistantSibling]
+        }
+      ],
+      nextCursor: undefined,
+      activeNodeId: 'assistant-sibling',
+      assistantId: 'assistant-1',
+      rootId: 'root'
+    } as never)
+
+    const messages = await getTopicMessages('topic-a')
+
+    expect(messages.map((message) => message.id)).toEqual(['user', 'assistant-sibling'])
+  })
 })
 
 describe('useTopics', () => {

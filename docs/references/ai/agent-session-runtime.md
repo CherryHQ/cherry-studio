@@ -261,6 +261,26 @@ When the idle timer expires, the runtime closes the entry:
 
 Service stop and destroy close all runtime entries.
 
+`ClaudeCodeProcessManager` owns every CLI handle this app spawns. Every SDK `Options` object routes
+through its host spawn wrapper, which fixes the stdio contract and records each `ChildProcess`,
+dropping it on `exit`. Both consuming services `@DependsOn` it, so it initialises first and therefore
+stops last — after their queries are closed — instead of relying on registry order.
+
+Graceful cleanup is the close path: warm handles use their async-dispose contract, live queries call
+`close()` and await `return()`, and the shared `AbortController` signals the child. Its own `onStop()`
+then synchronously sends `SIGTERM` to whatever handle is still registered — a best-effort sweep for
+children the connection and warm-query abstractions lost track of. It waits for nothing and escalates
+to nothing: shutdown can be cut short by the OS at any point, so a child that must not outlive the app
+cannot depend on this running. No process-name lookup or machine-wide kill is used.
+
+Survival past an abrupt exit is the CLI's own responsibility, and it honours it. Holding its stdin as
+a pipe is what arms this: when the app dies the write end closes and the CLI sees EOF. Measured on
+macOS arm64 with SDK 0.3.220 — `SIGKILL` on the parent leaves the CLI reparented to PID 1 and it exits
+by itself ~240ms later; closing only its stdin while the parent stays alive exits it cleanly (code 0)
+within ~2s. So the sweep above is an accelerator and a net for lost handles, never the mechanism that
+keeps a CLI from outliving the app. Never spawn the CLI with `detached` or with stdin redirected away
+from the app — either would disarm this.
+
 ## Write quiesce
 
 For backup restore (#16849) the service exposes `pause(reason?): Disposable` +

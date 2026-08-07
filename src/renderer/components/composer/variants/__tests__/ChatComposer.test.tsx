@@ -2131,6 +2131,40 @@ describe('ChatComposer', () => {
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
   })
 
+  it('keeps a queued reserved-branch message bound to its captured target until the stream is idle', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const reservedTarget = { parentAnchorId: 'reserved-user', mode: 'reserved-branch' } as const
+    const view = render(<ChatComposer topic={topic} chatTarget={reservedTarget} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'reserved follow-up', tokens: [] })
+    })
+
+    let queueContent = mocks.surfaceProps?.queueContent as any
+    const queuedItem = queueContent.props.items[0]
+    expect(queuedItem.payload.chatTarget).toEqual(reservedTarget)
+    expect(queueContent.props.isSteerDisabled(queuedItem)).toBe(true)
+    expect(onSend).not.toHaveBeenCalled()
+
+    mocks.topicPending = false
+    view.rerender(
+      <ChatComposer
+        topic={topic}
+        chatTarget={{ parentAnchorId: 'different-active-node', mode: 'active-path' }}
+        onSend={onSend}
+      />
+    )
+    queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.isSteerDisabled(queueContent.props.items[0])).toBe(false)
+
+    await act(async () => {
+      await queueContent.props.onSteer(queuedItem.id)
+    })
+
+    expect(onSend).toHaveBeenCalledWith('reserved follow-up', expect.objectContaining({ chatTarget: reservedTarget }))
+  })
+
   describe('input history', () => {
     it('saves the sent text to input history after onSend resolves', async () => {
       const onSend = vi.fn().mockResolvedValue(undefined)

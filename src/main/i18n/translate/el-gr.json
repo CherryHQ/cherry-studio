@@ -2,7 +2,7 @@
   "agent": {
     "builtin": {
       "cherry_assistant": {
-        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Ενσωματωμένος σύμβουλος του Cherry Studio. Διαγιγνώσκει προβλήματα, καθοδηγεί τις λειτουργίες, συλλέγει συχνές ερωτήσεις, υποβάλλει αναφορές σφαλμάτων ή αιτήματα λειτουργιών και αναζητά ή δημιουργεί Skills."
       }
     },
     "session": {
@@ -42,7 +42,7 @@
     "about": "Σχετικά",
     "close": "Κλείσιμο Παραθύρου",
     "copy": "Αντιγραφή",
-    "cut": "Κόψε",
+    "cut": "Αποκοπή",
     "delete": "Διαγραφή",
     "documentation": "Τεκμηρίωση",
     "edit": "Επεξεργασία",
@@ -51,12 +51,12 @@
     "forceReload": "Εξαναγκασμένη επαναφόρτωση",
     "front": "Μεταφορά Όλων Μπροστά",
     "help": "Βοήθεια",
-    "hide": "Κρύψε",
+    "hide": "Απόκρυψη",
     "hideOthers": "Απόκρυψη Άλλων",
     "minimize": "Ελαχιστοποίηση",
     "paste": "Επικόλληση",
-    "quit": "Παραιτήσου",
-    "redo": "Ξανακάνε",
+    "quit": "Έξοδος",
+    "redo": "Επανάληψη",
     "releases": "Κυκλοφορίες",
     "reload": "Επαναφόρτωση",
     "resetZoom": "Πραγματικό Μέγεθος",
@@ -88,8 +88,8 @@
       "title": "Επαναφορά δεδομένων εφαρμογής"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "Αποθήκευση πακέτου διαγνωστικών",
+      "zip_filter": "Αρχείο ZIP"
     },
     "html_files": "Αρχεία HTML",
     "open_file": "Άνοιγμα Αρχείου",
