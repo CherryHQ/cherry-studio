@@ -5,7 +5,7 @@
  * end-to-end. Each step is pure and preserves element references when it changes nothing.
  */
 
-import { convertToModelMessages, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
+import { convertToModelMessages, isToolUIPart, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
 import { ALL_MEDIA, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
 import { renderPersistedToolOutputs } from './persistedOutputRendering'
@@ -64,13 +64,35 @@ export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelM
 }
 
 /**
+ * Drop tool parts still parked on an unanswered approval card.
+ *
+ * A turn that ends `awaiting-approval` persists its `approval-requested` parts, and
+ * `convertToModelMessages` turns those into a `tool-call` with no tool result —
+ * `ignoreIncompleteToolCalls` only covers `input-streaming`/`input-available`. Once the
+ * card is abandoned (app restart, branch switch) every later turn replays that dangling
+ * call and strict providers reject it (DeepSeek Responses: "No tool output found for tool
+ * call …", #17936). `approval-responded` is kept: the continue-conversation turn replays
+ * exactly that to resume execution.
+ */
+export function dropUnansweredApprovals<T extends UIMessage>(messages: T[]): T[] {
+  return messages.map((message) => {
+    if (!message.parts?.some((part) => isToolUIPart(part) && part.state === 'approval-requested')) return message
+    return {
+      ...message,
+      parts: message.parts.filter((part) => !isToolUIPart(part) || part.state !== 'approval-requested')
+    } as T
+  })
+}
+
+/**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
  * render persisted tool-output envelopes back into their <persisted-output> markers →
- * strip unsupported audio/video → convert, dropping incomplete tool calls that
- * would otherwise dangle without a result → merge adjacent same-role turns left by
- * drops → placeholder any turn that still converted to empty content. See #16195.
+ * strip unsupported audio/video → drop tool calls parked on an unanswered approval →
+ * convert, dropping incomplete tool calls that would otherwise dangle without a result →
+ * merge adjacent same-role turns left by drops → placeholder any turn that still
+ * converted to empty content. See #16195.
  */
 export async function toModelMessages(
   messages: UIMessage[],
@@ -78,7 +100,7 @@ export async function toModelMessages(
   tools?: ToolSet
 ): Promise<ModelMessage[]> {
   const rendered = renderPersistedToolOutputs(messages)
-  const shaped = stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)
+  const shaped = dropUnansweredApprovals(stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA))
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(model))
 }
