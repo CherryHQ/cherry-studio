@@ -526,6 +526,39 @@ export type WebSearchOutput = z.infer<typeof webSearchOutputSchema>
 export type WebFetchInput = z.infer<typeof webFetchInputSchema>
 export type WebFetchOutput = z.infer<typeof webFetchOutputSchema>
 
+// ── to_markdown ──────────────────────────────────────────────────
+
+export const TO_MARKDOWN_TOOL_NAME = 'to_markdown'
+
+export const TO_MARKDOWN_SUPPORTED_EXTENSIONS =
+  '.doc, .docx, .docm, .ppt, .pps, .pot, .pptx, .pptm, .ppsx, .ppsm, .xls, .xlsx, .xlsm, .xlsb, .odt, .ods, .odp, .rtf, .epub, .csv, .pdf'
+
+export const toMarkdownInputSchema = z.object({
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4096)
+    .describe(
+      `Required source path inside the session workspace, relative or absolute within it. Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}.`
+    )
+})
+
+export const toMarkdownOutputSchema = z.object({
+  path: z.string().describe('Absolute path to the temporary Markdown file. Read this file in slices as needed.'),
+  chars: z.number().int().nonnegative().describe('Number of characters written to the Markdown file.')
+})
+
+export const TO_MARKDOWN_DESCRIPTION =
+  'Convert one supported document in the session workspace to Markdown. ' +
+  `Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}. ` +
+  'The converter detects recognizable formats from file contents and uses the extension as fallback (required for CSV). ' +
+  'Scanned/image-only PDFs need OCR and are unsupported. The full Markdown is written to an agent-private temporary ' +
+  'file instead of being returned; read the returned path in slices as needed.'
+
+export type ToMarkdownInput = z.infer<typeof toMarkdownInputSchema>
+export type ToMarkdownOutput = z.infer<typeof toMarkdownOutputSchema>
+
 // ── report_artifacts ─────────────────────────────────────────────
 
 export const REPORT_ARTIFACTS_TOOL_NAME = 'report_artifacts'

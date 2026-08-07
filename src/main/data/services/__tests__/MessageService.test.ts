@@ -1825,6 +1825,137 @@ describe('MessageService', () => {
       expect(rows.filter((r) => r.parentId === null).map((r) => r.id)).toEqual(['vroot-topic-1'])
     })
 
+    it('expands a representative id to the complete reply group while preserving descendants', async () => {
+      await seedMultiModelTree()
+      await dbh.db.insert(messageTable).values({
+        id: 'm-a1-old',
+        parentId: 'm-root',
+        topicId: 'topic-1',
+        role: 'assistant',
+        data: mainText('older regenerated reply'),
+        status: 'success',
+        siblingsGroupId: 1,
+        modelId: createUniqueModelId('provider-a', 'model-A'),
+        createdAt: 190,
+        updatedAt: 190
+      })
+
+      const result = messageService.deleteReplyGroup('m-a1')
+
+      expect(result.deletedIds.slice().sort()).toEqual(['m-a1', 'm-a1-old', 'm-a2'])
+      expect(result.reparentedIds).toEqual(['m-follow'])
+
+      const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      const byId = new Map(rows.map((row) => [row.id, row]))
+      expect(byId.has('m-root')).toBe(true)
+      expect(byId.has('m-a1')).toBe(false)
+      expect(byId.has('m-a2')).toBe(false)
+      expect(byId.get('m-follow')?.parentId).toBe('m-root')
+    })
+
+    it('rejects the whole reply-group deletion when a hidden sibling is still generating', async () => {
+      await seedMultiModelTree()
+      await dbh.db.insert(messageTable).values({
+        id: 'm-a1-pending',
+        parentId: 'm-root',
+        topicId: 'topic-1',
+        role: 'assistant',
+        data: mainText('regenerating reply'),
+        status: 'pending',
+        siblingsGroupId: 1,
+        modelId: createUniqueModelId('provider-a', 'model-A'),
+        createdAt: 220,
+        updatedAt: 220
+      })
+
+      let error: unknown
+      try {
+        messageService.deleteReplyGroup('m-a1')
+      } catch (caught) {
+        error = caught
+      }
+
+      expect(error).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      expect(rows.map((row) => row.id)).toEqual(expect.arrayContaining(['m-a1', 'm-a1-pending', 'm-a2', 'm-follow']))
+      expect(rows.find((row) => row.id === 'm-follow')?.parentId).toBe('m-a2')
+    })
+
+    it('treats siblingsGroupId zero as an ungrouped reply', async () => {
+      await seedMultiModelTree()
+      await dbh.db.update(messageTable).set({ siblingsGroupId: 0 }).where(eq(messageTable.id, 'm-a1'))
+
+      const result = messageService.deleteReplyGroup('m-a1')
+
+      expect(result.deletedIds).toEqual(['m-a1'])
+      const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      expect(rows.some((row) => row.id === 'm-a2')).toBe(true)
+      expect(rows.find((row) => row.id === 'm-follow')?.parentId).toBe('m-a2')
+    })
+
+    it('falls the active node back to the shared parent when the active reply is deleted', async () => {
+      await seedMultiModelTree()
+      await dbh.db.update(topicTable).set({ activeNodeId: 'm-a2' }).where(eq(topicTable.id, 'topic-1'))
+
+      const result = messageService.deleteReplyGroup('m-a1')
+
+      expect(result.newActiveNodeId).toBe('m-root')
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
+      expect(topic.activeNodeId).toBe('m-root')
+    })
+
+    it('clears the active node when the deleted group is directly under the virtual root', async () => {
+      await seedMultiModelTree()
+      messageService.delete('m-root', false)
+      await dbh.db.update(topicTable).set({ activeNodeId: 'm-a2' }).where(eq(topicTable.id, 'topic-1'))
+
+      const result = messageService.deleteReplyGroup('m-a1')
+
+      expect(result.newActiveNodeId).toBeNull()
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
+      expect(topic.activeNodeId).toBeNull()
+    })
+
+    it('rejects non-assistant and unknown representatives', async () => {
+      await seedMultiModelTree()
+
+      for (const id of ['m-root', 'missing']) {
+        let error: unknown
+        try {
+          messageService.deleteReplyGroup(id)
+        } catch (caught) {
+          error = caught
+        }
+        expect(error).toMatchObject({
+          code: id === 'missing' ? ErrorCode.NOT_FOUND : ErrorCode.INVALID_OPERATION
+        })
+      }
+    })
+
+    it('keeps same-number child groups distinct when deleting multiple replies', async () => {
+      await seedMultiModelTree()
+      await dbh.db.insert(messageTable).values({
+        id: 'm-follow-a1',
+        parentId: 'm-a1',
+        topicId: 'topic-1',
+        role: 'user',
+        data: mainText('follow A'),
+        status: 'success',
+        siblingsGroupId: 5,
+        createdAt: 290,
+        updatedAt: 290
+      })
+      await dbh.db.update(messageTable).set({ siblingsGroupId: 5 }).where(eq(messageTable.id, 'm-follow'))
+
+      messageService.deleteReplyGroup('m-a1')
+
+      const rows = await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, 'topic-1'))
+      const byId = new Map(rows.map((row) => [row.id, row]))
+      expect(byId.get('m-follow-a1')?.parentId).toBe('m-root')
+      expect(byId.get('m-follow')?.parentId).toBe('m-root')
+      expect(byId.get('m-follow-a1')?.siblingsGroupId).not.toBe(byId.get('m-follow')?.siblingsGroupId)
+    })
+
     it('non-cascade delete reparents children to the real parent (linear splice)', async () => {
       await seedMultiModelTree()
 

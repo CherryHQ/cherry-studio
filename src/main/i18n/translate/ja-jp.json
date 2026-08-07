@@ -2,14 +2,14 @@
   "agent": {
     "builtin": {
       "cherry_assistant": {
-        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Cherry Studio 内蔵のアドバイザーです。問題の診断、操作案内、FAQ の収集、バグや機能リクエストの送信、スキルの検索と作成を行います。"
       }
     },
     "session": {
       "workspace_status": {
         "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
         "missing": "ワークスペースパスが存在しません: {{path}}",
-        "not_directory": "ワークスペースパスがディレクトリではありません: {{path}}"
+        "not_directory": "ワークスペースパスがフォルダーではありません: {{path}}"
       }
     }
   },
@@ -42,7 +42,7 @@
     "about": "について",
     "close": "ウィンドウを閉じる",
     "copy": "コピー",
-    "cut": "切る",
+    "cut": "切り取り",
     "delete": "削除",
     "documentation": "ドキュメント",
     "edit": "編集",
@@ -50,12 +50,12 @@
     "file": "ファイル",
     "forceReload": "強制再読み込み",
     "front": "すべてを前面に移動",
-    "help": "助け",
-    "hide": "隠す",
-    "hideOthers": "他を隠す",
+    "help": "ヘルプ",
+    "hide": "Cherry Studio を隠す",
+    "hideOthers": "ほかを隠す",
     "minimize": "最小化",
     "paste": "ペースト",
-    "quit": "やめる",
+    "quit": "Cherry Studio を終了",
     "redo": "やり直し",
     "releases": "リリース",
     "reload": "リロード",
@@ -68,7 +68,7 @@
     "unhide": "すべて表示",
     "view": "表示",
     "website": "ウェブサイト",
-    "window": "窓",
+    "window": "ウィンドウ",
     "zoom": "ズーム",
     "zoomIn": "ズームイン",
     "zoomOut": "ズームアウト"
@@ -76,7 +76,7 @@
   "common": {
     "copy": "コピー",
     "cut": "切り取り",
-    "inspect": "検査",
+    "inspect": "要素を調査",
     "paste": "貼り付け"
   },
   "dialog": {
@@ -88,8 +88,8 @@
       "title": "アプリデータをリセット"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "診断バンドルを保存",
+      "zip_filter": "ZIP アーカイブ"
     },
     "html_files": "HTMLファイル",
     "open_file": "ファイルを開く",
@@ -98,7 +98,7 @@
     "save_as_html": "HTMLとして保存",
     "save_as_pdf": "PDFとして保存",
     "save_file": "ファイルを保存",
-    "select_folder": "フォルダを選択",
+    "select_folder": "フォルダーを選択",
     "word_document": "ワード文書"
   },
   "openclaw": {
