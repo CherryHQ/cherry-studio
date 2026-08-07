@@ -1444,7 +1444,6 @@ export function buildMcpServers(
     instance: new CherryBuiltinToolsServer({
       agentId: agent.id,
       agentDataPath,
-      sessionId: session.id,
       workspaceSource,
       workspacePath: session.workspace.path,
       sourceChannelId,

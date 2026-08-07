@@ -1,43 +1,15 @@
-import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, truncate, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  fileManagerGetMetadataMock,
-  fileManagerGetPhysicalPathMock,
-  fileManagerReadMock,
-  formatFromExtensionMock,
-  listSessionMessagesMock,
-  loggerErrorMock,
-  loggerWarnMock,
-  toMarkdownBytesMock
-} = vi.hoisted(() => ({
-  fileManagerGetMetadataMock: vi.fn(),
-  fileManagerGetPhysicalPathMock: vi.fn(),
-  fileManagerReadMock: vi.fn(),
+const { formatFromExtensionMock, loggerErrorMock, loggerWarnMock, toMarkdownBytesMock } = vi.hoisted(() => ({
   formatFromExtensionMock: vi.fn(),
-  listSessionMessagesMock: vi.fn(),
   loggerErrorMock: vi.fn(),
   loggerWarnMock: vi.fn(),
   toMarkdownBytesMock: vi.fn()
-}))
-
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    FileManager: {
-      getMetadata: fileManagerGetMetadataMock,
-      getPhysicalPath: fileManagerGetPhysicalPathMock,
-      read: fileManagerReadMock
-    }
-  })
-})
-
-vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: { listSessionMessages: listSessionMessagesMock }
 }))
 
 vi.mock('@firecrawl/anydoc', () => ({
@@ -64,7 +36,7 @@ async function makeTools() {
   await Promise.all([mkdir(workspacePath), mkdir(agentDataPath)])
   return {
     agentDataPath,
-    tools: new CherryDocumentTools({ agentDataPath, sessionId: 'session-1', workspacePath }),
+    tools: new CherryDocumentTools({ agentDataPath, workspacePath }),
     workspacePath
   }
 }
@@ -74,29 +46,10 @@ function textOf(result: { content: Array<{ type: string; text?: string }> }): st
   return part.type === 'text' ? (part.text ?? '') : ''
 }
 
-function attachmentMessage(fileEntryId: string, filename: string) {
-  return {
-    id: `message-${fileEntryId}`,
-    role: 'user',
-    data: {
-      parts: [
-        {
-          type: 'file',
-          url: `file:///stale/${filename}`,
-          mediaType: 'application/pdf',
-          filename,
-          providerMetadata: { cherry: { fileEntryId } }
-        }
-      ]
-    }
-  }
-}
-
 describe('CherryDocumentTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     formatFromExtensionMock.mockReturnValue('docx')
-    listSessionMessagesMock.mockReturnValue({ items: [], nextCursor: undefined })
   })
 
   afterEach(async () => {
@@ -123,90 +76,46 @@ describe('CherryDocumentTools', () => {
     expect(toMarkdownBytesMock).toHaveBeenCalledWith(Buffer.from([1, 2, 3]), 'docx')
   })
 
-  it('converts a managed attachment referenced by the current Agent session', async () => {
+  it('converts an absolute local file outside the workspace', async () => {
     const { tools, workspacePath } = await makeTools()
-    const managedDirectory = path.join(path.dirname(workspacePath), 'managed')
-    const managedPath = path.join(managedDirectory, 'entry-id.pdf')
+    const outside = path.join(path.dirname(workspacePath), 'outside.pdf')
     const bytes = Buffer.from([1, 2, 3])
-    await mkdir(managedDirectory)
-    await writeFile(managedPath, bytes)
-    listSessionMessagesMock.mockReturnValue({
-      items: [attachmentMessage('entry-id', 'quarterly-report.pdf')],
-      nextCursor: undefined
-    })
-    fileManagerGetPhysicalPathMock.mockReturnValue(managedPath)
-    fileManagerGetMetadataMock.mockResolvedValue({ size: bytes.length })
-    fileManagerReadMock.mockResolvedValue({
-      content: bytes.toString('base64'),
-      mime: 'application/pdf',
-      version: { mtime: 1, size: bytes.length }
-    })
+    await writeFile(outside, bytes)
     formatFromExtensionMock.mockReturnValue('pdf')
     toMarkdownBytesMock.mockResolvedValue('# Converted report')
 
-    const result = await tools.call({ path: managedPath }, signal)
+    const result = await tools.call({ path: outside }, signal)
 
     expect(result.isError).toBeFalsy()
     expect(formatFromExtensionMock).toHaveBeenCalledWith('.pdf')
     expect(toMarkdownBytesMock).toHaveBeenCalledWith(bytes, 'pdf')
-    expect(fileManagerReadMock).toHaveBeenCalledWith('entry-id', { encoding: 'base64' })
-    expect(listSessionMessagesMock).toHaveBeenCalledWith('session-1', {
-      cursor: undefined,
-      limit: expect.any(Number)
-    })
   })
 
-  it('enforces the file-size limit before reading a managed attachment', async () => {
+  it('allows relative traversal and symlinks to readable local files', async () => {
     const { tools, workspacePath } = await makeTools()
-    const managedPath = path.join(path.dirname(workspacePath), 'oversize.pdf')
-    await writeFile(managedPath, 'placeholder')
-    listSessionMessagesMock.mockReturnValue({
-      items: [attachmentMessage('oversize-entry', 'oversize.pdf')],
-      nextCursor: undefined
-    })
-    fileManagerGetPhysicalPathMock.mockReturnValue(managedPath)
-    fileManagerGetMetadataMock.mockResolvedValue({ size: MAX_FILE_SIZE_BYTES + 1 })
+    const outside = path.join(path.dirname(workspacePath), 'outside.docx')
+    await writeFile(outside, 'document')
+    await symlink(outside, path.join(workspacePath, 'link.docx'))
+    toMarkdownBytesMock.mockResolvedValue('converted')
 
-    const result = await tools.call({ path: managedPath }, signal)
+    const traversal = await tools.call({ path: '../outside.docx' }, signal)
+    const symlinkResult = await tools.call({ path: 'link.docx' }, signal)
 
-    expect(result.isError).toBe(true)
-    expect(textOf(result)).toContain('byte limit')
-    expect(fileManagerReadMock).not.toHaveBeenCalled()
-    expect(toMarkdownBytesMock).not.toHaveBeenCalled()
+    expect(traversal.isError).toBeFalsy()
+    expect(symlinkResult.isError).toBeFalsy()
+    expect(toMarkdownBytesMock).toHaveBeenCalledTimes(2)
   })
 
-  it('still rejects an outside path that is not attached to the current Agent session', async () => {
+  it('enforces the file-size limit before reading a local file', async () => {
     const { tools, workspacePath } = await makeTools()
-    const outside = path.join(path.dirname(workspacePath), 'outside.pdf')
-    const otherAttachment = path.join(path.dirname(workspacePath), 'other.pdf')
-    await Promise.all([writeFile(outside, 'secret'), writeFile(otherAttachment, 'allowed')])
-    listSessionMessagesMock.mockReturnValue({
-      items: [attachmentMessage('other-entry', 'other.pdf')],
-      nextCursor: undefined
-    })
-    fileManagerGetPhysicalPathMock.mockReturnValue(otherAttachment)
+    const outside = path.join(path.dirname(workspacePath), 'oversize.pdf')
+    await writeFile(outside, '')
+    await truncate(outside, MAX_FILE_SIZE_BYTES + 1)
 
     const result = await tools.call({ path: outside }, signal)
 
     expect(result.isError).toBe(true)
-    expect(textOf(result)).toContain('outside the workspace')
-    expect(fileManagerReadMock).not.toHaveBeenCalled()
-    expect(toMarkdownBytesMock).not.toHaveBeenCalled()
-  })
-
-  it('rejects workspace traversal and symlink escapes', async () => {
-    const { tools, workspacePath } = await makeTools()
-    const outside = path.join(path.dirname(workspacePath), 'outside.docx')
-    await writeFile(outside, 'secret')
-    await symlink(outside, path.join(workspacePath, 'escape.docx'))
-
-    const traversal = await tools.call({ path: '../outside.docx' }, signal)
-    const symlinkEscape = await tools.call({ path: 'escape.docx' }, signal)
-
-    expect(traversal.isError).toBe(true)
-    expect(textOf(traversal)).toContain('outside the workspace')
-    expect(symlinkEscape.isError).toBe(true)
-    expect(textOf(symlinkEscape)).toContain('outside the workspace')
+    expect(textOf(result)).toContain('byte limit')
     expect(toMarkdownBytesMock).not.toHaveBeenCalled()
   })
 

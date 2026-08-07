@@ -540,7 +540,7 @@ export const toMarkdownInputSchema = z.object({
     .min(1)
     .max(4096)
     .describe(
-      `Required source path: workspace-relative, absolute inside the workspace, or a managed attachment path supplied for the current Agent session. Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}.`
+      `Required local source path. Relative paths resolve from the session workspace; absolute paths may reference any readable local file. Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}.`
     )
 })
 
@@ -550,7 +550,7 @@ export const toMarkdownOutputSchema = z.object({
 })
 
 export const TO_MARKDOWN_DESCRIPTION =
-  'Convert one supported workspace document or managed attachment from the current Agent session to Markdown. ' +
+  'Convert one supported local document to Markdown. Relative paths resolve from the session workspace. ' +
   `Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}. ` +
   'The converter detects recognizable formats from file contents and uses the extension as fallback (required for CSV). ' +
   'Scanned/image-only PDFs need OCR and are unsupported. The full Markdown is written to an agent-private temporary ' +

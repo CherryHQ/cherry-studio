@@ -711,7 +711,6 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
   const agentContext = {
     agentId: 'agent_1',
     agentDataPath: '/tmp/agent-data',
-    sessionId: 'session_1',
     workspaceSource: { type: 'system' as const },
     workspacePath: '/tmp/workspace',
     getKnowledgeBaseIds: () => KB_SCOPE

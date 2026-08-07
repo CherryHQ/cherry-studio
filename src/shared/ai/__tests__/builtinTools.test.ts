@@ -202,9 +202,9 @@ describe('builtin tool contracts', () => {
       '.pdf'
     ])
     expect(toMarkdownInputSchema.shape.path.description).toContain(TO_MARKDOWN_SUPPORTED_EXTENSIONS)
-    expect(toMarkdownInputSchema.shape.path.description).toContain('managed attachment')
+    expect(toMarkdownInputSchema.shape.path.description).toContain('any readable local file')
     expect(TO_MARKDOWN_DESCRIPTION).toContain(TO_MARKDOWN_SUPPORTED_EXTENSIONS)
-    expect(TO_MARKDOWN_DESCRIPTION).toContain('managed attachment')
+    expect(TO_MARKDOWN_DESCRIPTION).toContain('local document')
     expect(TO_MARKDOWN_DESCRIPTION).toContain('OCR')
   })
 
