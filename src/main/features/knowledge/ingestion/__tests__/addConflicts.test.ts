@@ -37,16 +37,31 @@ describe('resolveKnowledgeAddConflicts', () => {
     expect(result.keptInputs).toEqual(inputs)
   })
 
-  it('detects a collision against an existing root and reports the existing display title', () => {
+  it('detects a same-path collision against an existing root and reports the existing display title', () => {
     const inputs = [fileInput('/folderA/report.pdf')]
     const existing = [
-      existingItem('e1', { type: 'file', data: { source: '/old/report.pdf', relativePath: 'report.pdf' } })
+      existingItem('e1', { type: 'file', data: { source: '/folderA/report.pdf', relativePath: 'report.pdf' } })
     ]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
 
     expect(result.conflicts).toEqual([{ type: 'file', title: 'report.pdf' }])
     expect(result.conflictingExistingRootIds).toEqual(['e1'])
+    expect(result.keptInputs).toEqual(inputs)
+  })
+
+  it('does not collide a same-name file in a different folder (keys off the full path)', () => {
+    // The reported bug: /a/report.docx and /b/report.docx share a basename but are
+    // distinct sources — importing the second must not be blocked as a duplicate.
+    const inputs = [fileInput('/folderB/report.pdf')]
+    const existing = [
+      existingItem('e1', { type: 'file', data: { source: '/folderA/report.pdf', relativePath: 'report.pdf' } })
+    ]
+
+    const result = resolveKnowledgeAddConflicts(inputs, existing)
+
+    expect(result.conflicts).toEqual([])
+    expect(result.conflictingExistingRootIds).toEqual([])
     expect(result.keptInputs).toEqual(inputs)
   })
 
@@ -76,23 +91,32 @@ describe('resolveKnowledgeAddConflicts', () => {
     expect(result.conflictingExistingRootIds).toEqual(['e1'])
   })
 
-  it('detects an in-batch collision (last wins) and drops the earlier same-name input', () => {
-    const first = fileInput('/folderA/report.pdf')
-    const second = fileInput('/folderB/report.pdf')
+  it('detects an in-batch same-path collision (last wins) and drops the earlier input', () => {
+    const first = fileInput('/folder/report.pdf')
+    const second = fileInput('/folder/report.pdf')
     const inputs = [first, second]
 
     const result = resolveKnowledgeAddConflicts(inputs, [])
 
     expect(result.conflicts).toEqual([{ type: 'file', title: 'report.pdf' }])
     expect(result.conflictingExistingRootIds).toEqual([])
-    // last wins: only the second same-name input survives
+    // last wins: only the second same-path input survives
     expect(result.keptInputs).toEqual([second])
   })
 
-  it('dedupes the reported conflicts by type and key', () => {
+  it('keeps in-batch same-name files in different folders (no phantom in-batch collision)', () => {
     const inputs = [fileInput('/folderA/report.pdf'), fileInput('/folderB/report.pdf')]
+
+    const result = resolveKnowledgeAddConflicts(inputs, [])
+
+    expect(result.conflicts).toEqual([])
+    expect(result.keptInputs).toEqual(inputs)
+  })
+
+  it('dedupes the reported conflicts by type and key', () => {
+    const inputs = [fileInput('/folderA/report.pdf'), fileInput('/folderA/report.pdf')]
     const existing = [
-      existingItem('e1', { type: 'file', data: { source: '/old/report.pdf', relativePath: 'report.pdf' } })
+      existingItem('e1', { type: 'file', data: { source: '/folderA/report.pdf', relativePath: 'report.pdf' } })
     ]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
@@ -101,21 +125,21 @@ describe('resolveKnowledgeAddConflicts', () => {
     expect(result.conflictingExistingRootIds).toEqual(['e1'])
   })
 
-  it('on replace, targets only the existing copy whose deduped relativePath matches the incoming source', () => {
-    // Three test.md kept side by side are stored as test.md / test_2.md / test_3.md
-    // (deduped relativePath). A new test.md must overwrite ONLY relativePath `test.md`,
-    // leaving test_2.md / test_3.md intact — they are distinct, deliberately-kept copies.
-    const inputs = [fileInput('/incoming/test.md')]
+  it('on replace, purges every existing copy that shares the incoming source path', () => {
+    // The same path kept multiple times ("保留全部") is stored as test.md / test_2.md
+    // (deduped relativePath). Re-importing that path targets every copy of it; a copy
+    // of a *different* path with the same basename is left untouched.
+    const inputs = [fileInput('/a/test.md')]
     const existing = [
       existingItem('e1', { type: 'file', data: { source: '/a/test.md', relativePath: 'test.md' } }),
-      existingItem('e2', { type: 'file', data: { source: '/b/test.md', relativePath: 'test_2.md' } }),
-      existingItem('e3', { type: 'file', data: { source: '/c/test.md', relativePath: 'test_3.md' } })
+      existingItem('e2', { type: 'file', data: { source: '/a/test.md', relativePath: 'test_2.md' } }),
+      existingItem('e3', { type: 'file', data: { source: '/b/test.md', relativePath: 'test_3.md' } })
     ]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
 
     expect(result.conflicts).toEqual([{ type: 'file', title: 'test.md' }])
-    expect(result.conflictingExistingRootIds).toEqual(['e1'])
+    expect(result.conflictingExistingRootIds).toEqual(['e1', 'e2'])
   })
 
   it('never collides blank-content notes (empty detection key) and keeps them all', () => {
