@@ -10,7 +10,8 @@ import type { ProxyRoutingSnapshot } from '@main/services/proxy/proxyRouting'
  * functions, and Electron types.
  */
 
-/** Where transformers.js fetches ONNX weights from (HF / mirror / ModelScope). */
+/** Where transformers.js downloads ONNX weights from (HuggingFace / ModelScope mirror).
+ * Download only — inference resolves the cached model by absolute path instead. */
 export interface InferenceModelSource {
   /** transformers.js `env.remoteHost`, e.g. `https://huggingface.co`. */
   remoteHost: string
@@ -46,25 +47,35 @@ export interface EmbeddingLoadMessage {
   source: InferenceModelSource
 }
 
-/** Embed texts; loads the pipeline first if it is not cached yet. */
+/**
+ * Absolute path to the cached embedding model — the directory holding `config.json`
+ * (i.e. transformers.js's revision-specific cache dir, which nests a `master/` segment
+ * for ModelScope but not for HuggingFace's `main`). The main process resolves it from
+ * its own on-disk probe, exactly as it does for {@link OcrModelPaths}.
+ *
+ * Passing a path rather than a repo id is what keeps inference offline: transformers.js
+ * classifies it via `isValidHfModelId`, and every remote branch in its resolver is
+ * gated on that being true, so file discovery can only read the local filesystem.
+ */
+export type EmbeddingModelDir = string
+
+/** Embed texts; loads the pipeline from local files if it is not cached in memory. */
 export interface EmbeddingEmbedMessage {
   type: 'embedding.embed'
   id: string
-  modelRepo: string
+  modelDir: EmbeddingModelDir
   dtype: string
-  source: InferenceModelSource
   texts: string[]
 }
 
-/** Count tokens via the pipeline's own tokenizer; loads the pipeline first if
- * it is not cached yet. Keeps token counting off the main process, which must
+/** Count tokens via the pipeline's own tokenizer; loads the pipeline from local files if
+ * it is not cached in memory. Keeps token counting off the main process, which must
  * never import `@huggingface/transformers` itself (see localEmbeddingTokenLimit.ts). */
 export interface EmbeddingCountTokensMessage {
   type: 'embedding.countTokens'
   id: string
-  modelRepo: string
+  modelDir: EmbeddingModelDir
   dtype: string
-  source: InferenceModelSource
   texts: string[]
 }
 

@@ -3306,6 +3306,7 @@
   },
   "launchpad": {
     "apps": "应用",
+    "manage_sidebar": "管理侧边栏",
     "minapps": "小程序",
     "miniApps": "小程序",
     "pin_to_sidebar": "添加到侧边栏",
@@ -6667,6 +6668,7 @@
         "notice": {
           "downloadFailed": "下载失败，请检查网络后重试。",
           "inUse": "该模型仍被知识库使用，已保留权重。",
+          "incompleteCache": "模型文件不完整，请重新下载修复。",
           "removeFailed": "删除失败，请查看日志。"
         },
         "ocr": {
