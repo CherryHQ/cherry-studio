@@ -9,7 +9,8 @@ vi.mock('electron', () => ({
   app: {
     getAppPath: vi.fn(() => '/mock/app'),
     getPath: getPathMock,
-    isPackaged: false
+    isPackaged: false,
+    setAppLogsPath: vi.fn()
   }
 }))
 

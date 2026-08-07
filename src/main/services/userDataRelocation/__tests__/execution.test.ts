@@ -86,6 +86,9 @@ vi.mock('electron', () => ({
     },
     getPath: vi.fn((key: string) => (key === 'exe' ? '/mock/exe' : '/mock/unknown')),
     setPath: appSetPathMock,
+    // Consumed by core/paths/constants.ts (in this module's import graph via
+    // userDataLocation → resolveDevUserDataSuffix) when isPackaged is false.
+    setAppLogsPath: vi.fn(),
     whenReady: vi.fn().mockResolvedValue(undefined)
   }
 }))
