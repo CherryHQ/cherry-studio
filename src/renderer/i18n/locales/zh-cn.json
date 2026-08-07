@@ -3045,6 +3045,7 @@
         },
         "note": {
           "create": {
+            "content_label": "正文",
             "content_placeholder": "在此输入笔记内容…",
             "title_label": "标题",
             "title_placeholder": "为这篇笔记取个名字"

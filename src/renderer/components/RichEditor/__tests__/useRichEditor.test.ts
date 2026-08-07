@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import type { Editor } from '@tiptap/core'
-import { Selection } from '@tiptap/pm/state'
+import { Selection, TextSelection } from '@tiptap/pm/state'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/hooks/useCodeStyle', () => ({
@@ -45,6 +45,16 @@ const pasteImage = (editor: Editor, text = '') => {
 
 // `imagePlaceholder` counts too: it renders a click target that runs `setImage`, so leaking one into
 // an images-off editor reopens the very path the strip is meant to close.
+// An HTML-only clipboard: no `text/plain` flavor at all. Browsers' own copy always writes both, but
+// a programmatic `ClipboardItem({'text/html': ...})` does not.
+const pasteHtml = (editor: Editor, html: string) => {
+  const event = new Event('paste', { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'clipboardData', {
+    value: { getData: (type: string) => (type === 'text/html' ? html : ''), items: [] }
+  })
+  editor.view.dom.dispatchEvent(event)
+}
+
 const countImageNodes = (editor: Editor): number => {
   let count = 0
   editor.state.doc.descendants((node) => {
@@ -196,6 +206,53 @@ describe('useRichEditor markdown paste', () => {
     expect(result.current.editor.getText()).toBe('clipboard text')
   })
 
+  it('keeps the text of an HTML-only clipboard whose only text sits beside an image', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: '', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      pasteHtml(result.current.editor, '<p>caption <img src="https://example.com/image.png" alt="alt"></p>')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(countImageNodes(result.current.editor)).toBe(0)
+    expect(result.current.editor.getText()).toContain('caption')
+  })
+
+  it('inserts nothing for an HTML-only clipboard holding just an image', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: 'before', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      pasteHtml(result.current.editor, '<img src="https://example.com/image.png" alt="alt">')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(countImageNodes(result.current.editor)).toBe(0)
+    expect(result.current.editor.getText()).toBe('before')
+  })
+
+  it('leaves a selection intact when an image-only HTML clipboard is pasted over it', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: 'hello world', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      const { state } = result.current.editor.view
+      result.current.editor.view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, 1, 6)))
+    })
+    await act(async () => {
+      pasteHtml(result.current.editor, '<img src="https://example.com/image.png" alt="alt">')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    // A paste that inserts nothing must also destroy nothing: falling through here would have
+    // ProseMirror replace the selection with the emptied slice.
+    expect(result.current.editor.getText()).toBe('hello world')
+  })
+
   it('does not turn pasted markdown image syntax into an image when images are disabled', async () => {
     const { result } = renderHook(() =>
       useRichEditor({ initialContent: '', autoFocus: false, enableImageInsertion: false })
@@ -221,6 +278,20 @@ describe('useRichEditor markdown paste', () => {
 
     expect(result.current.editor.getJSON().content?.some((node) => node.type === 'image')).toBe(false)
     expect(result.current.editor.getText()).toBe('![alt](https://example.com/image.png)')
+  })
+})
+
+describe('useRichEditor accessibility', () => {
+  it('names the editing surface when the caller has no visible label', async () => {
+    const { result } = renderHook(() => useRichEditor({ initialContent: '', autoFocus: false, ariaLabel: 'Content' }))
+
+    expect(result.current.editor.view.dom.getAttribute('aria-label')).toBe('Content')
+  })
+
+  it('leaves the editing surface unnamed when no label is supplied', async () => {
+    const { result } = renderHook(() => useRichEditor({ initialContent: '', autoFocus: false }))
+
+    expect(result.current.editor.view.dom.hasAttribute('aria-label')).toBe(false)
   })
 })
 

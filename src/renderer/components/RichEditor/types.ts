@@ -54,6 +54,8 @@ export interface RichEditorProps {
   fontSize?: number
   /** Whether to enable spell check */
   enableSpellCheck?: boolean
+  /** Accessible name for the editing surface, for editors with no visible label */
+  ariaLabel?: string
   /** Whether users can insert images */
   enableImageInsertion?: boolean
   /** Toolbar and slash-menu commands hidden for this editor instance */

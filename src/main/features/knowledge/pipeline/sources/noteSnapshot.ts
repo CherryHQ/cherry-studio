@@ -1,22 +1,11 @@
-import { sanitizeFilename } from '@shared/utils/file'
+import { deriveNoteSnapshotSlug } from '@shared/data/types/knowledge'
 
 import { reserveImportedFileRelativePath, writeFileIntoKnowledgeBaseAt } from '../../pathStorage'
 import { serializeOkfFrontmatter } from './okfFrontmatter'
 
-const SNAPSHOT_TITLE_MAX = 80
-
-/**
- * Derive a human-readable file stem for a captured note snapshot from its
- * user-facing source title, falling back to `note` when sanitizing yields
- * nothing usable.
- */
-export function deriveNoteSnapshotSlug(source: string): string {
-  const sanitized = sanitizeFilename(source.slice(0, SNAPSHOT_TITLE_MAX).trim())
-  if (sanitized && sanitized !== 'untitled') {
-    return sanitized
-  }
-  return 'note'
-}
+// Owned by the shared knowledge contract: same-name detection has to predict this slug for a note
+// that has not been captured yet, so the two cannot be allowed to drift apart.
+export { deriveNoteSnapshotSlug }
 
 /**
  * Build a captured note snapshot's file content and its slug (no extension),

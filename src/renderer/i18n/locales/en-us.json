@@ -3045,6 +3045,7 @@
         },
         "note": {
           "create": {
+            "content_label": "Content",
             "content_placeholder": "Write the note content here…",
             "title_label": "Title",
             "title_placeholder": "Name this note"

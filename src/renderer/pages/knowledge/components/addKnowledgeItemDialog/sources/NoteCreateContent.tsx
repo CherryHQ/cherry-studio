@@ -49,6 +49,9 @@ const NoteCreateContent = ({ draft, onTitleChange, onContentChange }: NoteCreate
           initialContent={draft.content}
           onMarkdownChange={onContentChange}
           placeholder={t('knowledge.data_source.add_dialog.note.create.content_placeholder')}
+          // The body has no visible label, and `placeholder` only reaches a ProseMirror decoration,
+          // so without this the contenteditable reaches screen readers unnamed.
+          ariaLabel={t('knowledge.data_source.add_dialog.note.create.content_label')}
           className={`min-h-0 flex-1 ${TOOLBAR_WRAP}`}
           autoFocus={false}
           enableImageInsertion={false}

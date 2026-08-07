@@ -39,6 +39,8 @@ export interface UseRichEditorOptions {
   enableTableOfContents?: boolean
   /** Whether to enable spell check */
   enableSpellCheck?: boolean
+  /** Accessible name for the editing surface, for editors with no visible label */
+  ariaLabel?: string
   /** Whether users can insert images */
   enableImageInsertion?: boolean
   /** Slash-menu commands hidden for this editor instance */
@@ -96,6 +98,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     editable = true,
     autoFocus = true,
     enableSpellCheck = false,
+    ariaLabel,
     enableImageInsertion = true,
     disabledCommands,
     onShowTableActionMenu,
@@ -295,10 +298,10 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         const items = Array.from(event.clipboardData?.items || [])
         const imageItem = items.find((item) => item.type.startsWith('image/'))
         const clipboardText = event.clipboardData?.getData('text/plain') ?? ''
-        const clipboardHtml = !enableImageInsertion ? event.clipboardData?.getData('text/html') : ''
-        const hasHtmlImage = clipboardHtml
-          ? new DOMParser().parseFromString(clipboardHtml, 'text/html').querySelector('img') !== null
-          : false
+        const clipboardHtml = !enableImageInsertion ? (event.clipboardData?.getData('text/html') ?? '') : ''
+        const htmlDoc = clipboardHtml ? new DOMParser().parseFromString(clipboardHtml, 'text/html') : null
+        const htmlIsImageOnly =
+          htmlDoc !== null && htmlDoc.querySelector('img') !== null && !htmlDoc.body.textContent?.trim()
 
         if (imageItem && enableImageInsertion) {
           const file = imageItem.getAsFile()
@@ -309,7 +312,11 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           }
         }
 
-        if (!enableImageInsertion && (imageItem || hasHtmlImage) && !clipboardText) {
+        // A bare image with nothing to keep: swallow it rather than fall through. `transformPasted`
+        // would strip it to an empty slice, and ProseMirror's default handling replaces the
+        // selection with that — deleting whatever the user had selected in exchange for nothing.
+        // HTML holding an image *alongside* text must still fall through, so that its text survives.
+        if (!enableImageInsertion && (imageItem || htmlIsImageOnly) && !clipboardText) {
           return true
         }
 
@@ -365,7 +372,10 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           ? ''
           : 'user-select: text; -webkit-user-select: text; -moz-user-select: text; -ms-user-select: text;',
         // Set spellcheck attribute on the contenteditable element
-        spellcheck: enableSpellCheck ? 'true' : 'false'
+        spellcheck: enableSpellCheck ? 'true' : 'false',
+        // `placeholder` only reaches a ProseMirror decoration, so it gives the contenteditable no
+        // accessible name; callers without a visible label supply one here.
+        ...(ariaLabel ? { 'aria-label': ariaLabel } : {})
       }
     },
     onUpdate: ({ editor, transaction }) => {
