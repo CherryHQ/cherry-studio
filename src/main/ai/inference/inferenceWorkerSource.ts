@@ -1,4 +1,6 @@
-import { configureInferenceWorkerProxy } from './inferenceWorkerProxy'
+import { createProxyBypassMatcher } from '@main/services/proxy/bypassRules'
+import { configureWorkerProxy } from '@main/services/proxy/workerProxy'
+
 import { l2normalize } from './pooling'
 
 /**
@@ -9,7 +11,9 @@ import { l2normalize } from './pooling'
  * with multiple inputs — so we cannot emit a separate worker chunk. The existing
  * tool-exec worker uses the same string approach. When this host moves to an
  * Electron `utilityProcess` (for crash isolation), extract this source into its
- * own file unchanged — the message protocol and `InferenceServiceBase` API do not move.
+ * own file unchanged — the message protocol and `InferenceServiceBase` API do not
+ * move, and the proxy installer already lives in `@main/services/proxy/workerProxy`
+ * so the utilityProcess entry imports it directly instead of baking it in.
  *
  * The worker only `require`s external packages (resolved from node_modules at
  * runtime, since they are externalized from the bundle) and Node built-ins; it
@@ -33,10 +37,11 @@ let proxyStatus = 'not-initialized'
 const pipelines = new Map() // key: repo|dtype|host -> Promise<extractor>
 const paddleServices = new Map() // key: det|rec|dict -> Promise<PaddleOcrService>
 
-// Injected from pooling.ts (single, unit-tested source). Bound to a const so the
-// call site works even if the bundler renames the function's own symbol.
+// Injected from pooling.ts and services/proxy (single, unit-tested sources). Bound to
+// consts so the call sites work even if the bundler renames the functions' own symbols.
 const l2normalize = ${l2normalize.toString()}
-const configureInferenceWorkerProxy = ${configureInferenceWorkerProxy.toString()}
+const createProxyBypassMatcher = ${createProxyBypassMatcher.toString()}
+const configureWorkerProxy = ${configureWorkerProxy.toString()}
 
 function postLog(level, message) {
   parentPort.postMessage({ type: 'log', level, message })
@@ -203,20 +208,15 @@ parentPort.on('message', (msg) => {
   if (msg.type === 'init') {
     cacheDir = msg.cacheDir
     appPath = msg.appPath
-    const proxy = configureInferenceWorkerProxy(appPath)
+    const proxy = configureWorkerProxy(appPath, msg.proxyRouting, createProxyBypassMatcher)
     proxyStatus = proxy.status
     if (proxy.status === 'configured') {
       postLog(
         'info',
-        'network proxy configured origins=' +
-          proxy.proxyOrigins.join(',') +
-          ' bypassRules=' +
-          (proxy.bypassRulesConfigured ? 'configured' : 'none')
+        'network proxy configured origin=' + proxy.proxyOrigin + ' bypassRules=' + proxy.bypassRuleCount
       )
     } else if (proxy.status === 'direct') {
       postLog('info', 'network proxy not configured; remote model requests use a direct connection')
-    } else if (proxy.status === 'unsupported') {
-      postLog('warn', 'network proxy protocol is unsupported by the inference worker protocol=' + proxy.protocol)
     } else {
       postLog('error', 'network proxy configuration failed: ' + proxy.error)
     }
