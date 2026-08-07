@@ -84,7 +84,7 @@ export interface ToolEntry {
   /**
    * Grouping for `tool_search`. NOT part of the wire-name.
    *   builtin: 'web', 'kb'
-   *   mcp:     'mcp:{serverName}'  (raw display name, not camelCased)
+   *   mcp:     'mcp:{serverId}'  (stable ownership key, not a display name)
    *   meta:    'meta'  (excluded from search results)
    */
   namespace: string
