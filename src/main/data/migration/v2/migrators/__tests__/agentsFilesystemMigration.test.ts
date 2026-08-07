@@ -36,8 +36,6 @@ const { copyMutation, platformState } = vi.hoisted(() => ({
   copyMutation: {
     afterCopyFile: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
     beforeCpEntry: undefined as undefined | ((sourcePath: string, destinationPath: string) => Promise<void>),
-    beforeRealpath: undefined as undefined | ((sourcePath: string) => Promise<void>),
-    beforeSymlink: undefined as undefined | ((target: string, path: string, type?: string | null) => Promise<void>),
     copyFileCalls: [] as Array<[sourcePath: string, destinationPath: string]>,
     symlinkCalls: [] as Array<[target: string, path: string, type?: string | null]>
   },
@@ -83,13 +81,8 @@ vi.mock('node:fs/promises', async (importOriginal) => {
       await copyMutation.afterCopyFile?.(String(args[0]), String(args[1]))
       return result
     },
-    realpath: async (...args: Parameters<typeof original.realpath>) => {
-      await copyMutation.beforeRealpath?.(String(args[0]))
-      return original.realpath(...args)
-    },
     symlink: async (...args: Parameters<typeof original.symlink>) => {
       copyMutation.symlinkCalls.push([String(args[0]), String(args[1]), args[2]])
-      await copyMutation.beforeSymlink?.(String(args[0]), String(args[1]), args[2])
       return original.symlink(...args)
     }
   }
@@ -156,8 +149,6 @@ describe('agentsFilesystemMigration', () => {
   afterEach(async () => {
     copyMutation.afterCopyFile = undefined
     copyMutation.beforeCpEntry = undefined
-    copyMutation.beforeRealpath = undefined
-    copyMutation.beforeSymlink = undefined
     copyMutation.copyFileCalls.length = 0
     copyMutation.symlinkCalls.length = 0
     platformState.isMac = false
@@ -276,6 +267,22 @@ describe('agentsFilesystemMigration', () => {
     }
 
     await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(false)
+  })
+
+  it.runIf(process.platform !== 'win32')('skips a symlinked legacy Claude config root', async () => {
+    const { tempRoot, agentsDataRoot } = await createFixture()
+    const sourceTarget = path.join(tempRoot, 'external-claude')
+    const source = path.join(tempRoot, '.claude')
+    const destination = path.join(agentsDataRoot, '.claude')
+    await mkdir(sourceTarget)
+    await writeFile(path.join(sourceTarget, 'settings.json'), '{"source":true}')
+    await symlink(sourceTarget, source, 'dir')
+
+    await expect(copyLegacyClaudeConfig(source, destination)).resolves.toBe(false)
+
+    await expect(access(destination)).rejects.toThrow()
+    expect(await readFile(path.join(sourceTarget, 'settings.json'), 'utf8')).toBe('{"source":true}')
+    expect((await lstat(source)).isSymbolicLink()).toBe(true)
   })
 
   it('skips an existing identical Claude config destination on retry', async () => {
@@ -590,43 +597,7 @@ describe('agentsFilesystemMigration', () => {
   })
 
   it.runIf(process.platform !== 'win32')(
-    'recreates copied directory links as Windows junctions without asking fs.cp to copy the link',
-    async () => {
-      const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
-      const skillSource = path.join(tempRoot, 'Data', 'Skills', 'find-skills')
-      const sourceLink = path.join(legacyWorkspace, 'skills', 'find-skills')
-      await mkdir(skillSource, { recursive: true })
-      await writeFile(path.join(skillSource, 'SKILL.md'), '# Find Skills')
-      await mkdir(path.dirname(sourceLink), { recursive: true })
-      await symlink(skillSource, sourceLink, 'dir')
-      copyMutation.symlinkCalls.length = 0
-      platformState.isWin = true
-
-      const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
-        sourceSessionId: 'session_latest',
-        finalSessionId: FINAL_LATEST_SESSION_ID,
-        createdAt: Date.parse('2026-07-22T00:00:00Z'),
-        updatedAt: Date.parse('2026-07-23T00:00:00Z')
-      })
-
-      await stageLegacyAgentFiles({
-        agentsDataRoot,
-        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-        sessions: [latestSession]
-      })
-
-      const destinationLink = path.join(latestSession.systemWorkspacePath!, 'skills', 'find-skills')
-      expect(await readlink(destinationLink)).toBe(skillSource)
-      expect(copyMutation.symlinkCalls).toContainEqual([
-        skillSource,
-        expect.stringMatching(/[\\/]\.01257168-34a7-5ff9-994d-bf78596c777c\.migration-[^\\/]+[\\/]find-skills$/),
-        'junction'
-      ])
-    }
-  )
-
-  it.runIf(process.platform !== 'win32')(
-    'falls back to a directory symlink when publishing a top-level Windows junction fails',
+    'skips top-level workspace symlinks without attempting to recreate them on Windows',
     async () => {
       const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
       const sharedDirectory = path.join(tempRoot, 'shared-directory')
@@ -636,12 +607,6 @@ describe('agentsFilesystemMigration', () => {
       await mkdir(legacyWorkspace, { recursive: true })
       await symlink(sharedDirectory, sourceLink, 'dir')
       copyMutation.symlinkCalls.length = 0
-      copyMutation.beforeSymlink = async (_target, _linkPath, type) => {
-        if (type !== 'junction') return
-        const error = new Error('junction target is not supported')
-        Object.assign(error, { code: 'EPERM', syscall: 'symlink' })
-        throw error
-      }
       platformState.isWin = true
 
       const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
@@ -657,120 +622,98 @@ describe('agentsFilesystemMigration', () => {
         sessions: [latestSession]
       })
 
-      const destinationLink = path.join(latestSession.systemWorkspacePath!, 'shared-directory')
-      const stagingLinkPattern = /[\\/]\.01257168-34a7-5ff9-994d-bf78596c777c\.migration-[^\\/]+$/
-      expect(await readlink(destinationLink)).toBe(sharedDirectory)
-      expect(copyMutation.symlinkCalls).toEqual(
-        expect.arrayContaining([
-          [sharedDirectory, expect.stringMatching(stagingLinkPattern), 'junction'],
-          [sharedDirectory, expect.stringMatching(stagingLinkPattern), 'dir'],
-          [sharedDirectory, destinationLink, 'junction'],
-          [sharedDirectory, destinationLink, 'dir']
-        ])
-      )
+      await expect(access(path.join(latestSession.systemWorkspacePath!, 'shared-directory'))).rejects.toThrow()
+      expect(copyMutation.symlinkCalls).toEqual([])
     }
   )
 
-  it.runIf(process.platform !== 'win32')(
-    'splits identity from workspace content, materializes internal identity links, and preserves ordinary links',
-    async () => {
-      const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
-      await mkdir(path.join(legacyWorkspace, 'memory'), { recursive: true })
-      await writeFile(path.join(legacyWorkspace, 'identity-source.md'), 'agent soul')
-      await symlink('identity-source.md', path.join(legacyWorkspace, 'SOUL.md'))
-      await writeFile(path.join(legacyWorkspace, 'USER.md'), 'agent user')
-      await symlink('SOUL.md', path.join(legacyWorkspace, 'soul-link'))
-      await symlink(path.join(legacyWorkspace, 'USER.md'), path.join(legacyWorkspace, 'absolute-user-link'))
-      await writeFile(path.join(legacyWorkspace, 'fact-source.md'), 'remember this')
-      await symlink('../fact-source.md', path.join(legacyWorkspace, 'memory', 'FACT.md'))
-      await symlink('memory/FACT.md', path.join(legacyWorkspace, 'memory-link'))
-      await writeFile(path.join(legacyWorkspace, 'ordinary.txt'), 'workspace content')
-      await symlink('ordinary.txt', path.join(legacyWorkspace, 'relative-link'))
-      const sharedTarget = path.join(agentsDataRoot, 'shared', 'target.txt')
-      await mkdir(path.dirname(sharedTarget), { recursive: true })
-      await writeFile(sharedTarget, 'shared target')
-      await symlink('../shared/target.txt', path.join(legacyWorkspace, 'external-relative-link'))
-      await mkdir(path.join(legacyWorkspace, 'nested'))
-      await symlink('../../shared/target.txt', path.join(legacyWorkspace, 'nested', 'external-relative-link'))
-      const absoluteTarget = path.join(tempRoot, 'absolute-target.txt')
-      await writeFile(absoluteTarget, 'external target')
-      await symlink(absoluteTarget, path.join(legacyWorkspace, 'absolute-link'))
-      await symlink('missing-target', path.join(legacyWorkspace, 'dangling-link'))
+  it.runIf(process.platform !== 'win32')('splits identity from workspace content and skips every symlink', async () => {
+    const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
+    await mkdir(path.join(legacyWorkspace, 'memory'), { recursive: true })
+    await writeFile(path.join(legacyWorkspace, 'identity-source.md'), 'agent soul')
+    await symlink('identity-source.md', path.join(legacyWorkspace, 'SOUL.md'))
+    await writeFile(path.join(legacyWorkspace, 'USER.md'), 'agent user')
+    await symlink('SOUL.md', path.join(legacyWorkspace, 'soul-link'))
+    await symlink(path.join(legacyWorkspace, 'USER.md'), path.join(legacyWorkspace, 'absolute-user-link'))
+    await writeFile(path.join(legacyWorkspace, 'fact-source.md'), 'remember this')
+    await symlink('../fact-source.md', path.join(legacyWorkspace, 'memory', 'FACT.md'))
+    await symlink('memory/FACT.md', path.join(legacyWorkspace, 'memory-link'))
+    await writeFile(path.join(legacyWorkspace, 'ordinary.txt'), 'workspace content')
+    await symlink('ordinary.txt', path.join(legacyWorkspace, 'relative-link'))
+    const sharedTarget = path.join(agentsDataRoot, 'shared', 'target.txt')
+    await mkdir(path.dirname(sharedTarget), { recursive: true })
+    await writeFile(sharedTarget, 'shared target')
+    await symlink('../shared/target.txt', path.join(legacyWorkspace, 'external-relative-link'))
+    await mkdir(path.join(legacyWorkspace, 'nested'))
+    await symlink('../../shared/target.txt', path.join(legacyWorkspace, 'nested', 'external-relative-link'))
+    const absoluteTarget = path.join(tempRoot, 'absolute-target.txt')
+    await writeFile(absoluteTarget, 'external target')
+    await symlink(absoluteTarget, path.join(legacyWorkspace, 'absolute-link'))
+    await symlink('missing-target', path.join(legacyWorkspace, 'dangling-link'))
 
-      const oldSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
-        sourceSessionId: 'session_old',
-        finalSessionId: FINAL_OLD_SESSION_ID,
-        createdAt: Date.parse('2026-07-20T00:00:00Z'),
-        updatedAt: Date.parse('2026-07-21T00:00:00Z')
-      })
-      const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
-        sourceSessionId: 'session_latest',
-        finalSessionId: FINAL_LATEST_SESSION_ID,
-        createdAt: Date.parse('2026-07-22T00:00:00Z'),
-        updatedAt: Date.parse('2026-07-23T00:00:00Z')
-      })
+    const oldSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_old',
+      finalSessionId: FINAL_OLD_SESSION_ID,
+      createdAt: Date.parse('2026-07-20T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-21T00:00:00Z')
+    })
+    const latestSession = sessionPlan(agentsDataRoot, legacyWorkspace, {
+      sourceSessionId: 'session_latest',
+      finalSessionId: FINAL_LATEST_SESSION_ID,
+      createdAt: Date.parse('2026-07-22T00:00:00Z'),
+      updatedAt: Date.parse('2026-07-23T00:00:00Z')
+    })
 
-      const input = {
-        agentsDataRoot,
-        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-        sessions: [oldSession, latestSession]
-      }
-      await stageLegacyAgentFiles(input)
-
-      const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
-      expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('agent soul')
-      expect((await lstat(path.join(agentDataPath, 'SOUL.md'))).isSymbolicLink()).toBe(false)
-      expect(await readFile(path.join(agentDataPath, 'USER.md'), 'utf8')).toBe('agent user')
-      expect(await readFile(path.join(agentDataPath, 'memory', 'FACT.md'), 'utf8')).toBe('remember this')
-      expect((await lstat(path.join(agentDataPath, 'memory', 'FACT.md'))).isSymbolicLink()).toBe(false)
-
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
-        'workspace content'
-      )
-      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'relative-link'))).toBe('ordinary.txt')
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'external-relative-link'), 'utf8')).toBe(
-        'shared target'
-      )
-      expect(
-        await readFile(path.join(latestSession.systemWorkspacePath!, 'nested', 'external-relative-link'), 'utf8')
-      ).toBe('shared target')
-      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'absolute-link'))).toBe(absoluteTarget)
-      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'dangling-link'))).toBe('missing-target')
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'soul-link'), 'utf8')).toBe('agent soul')
-      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'absolute-user-link'))).toBe(
-        path.join(agentDataPath, 'USER.md')
-      )
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'memory-link'), 'utf8')).toBe('remember this')
-      // The shared v1 workspace is materialized only into the latest session; the
-      // older session keeps an empty system workspace (issue #17830).
-      expect((await lstat(oldSession.systemWorkspacePath!)).isDirectory()).toBe(true)
-      expect(await readdir(oldSession.systemWorkspacePath!)).toEqual([])
-
-      // The complete v1 workspace remains available for downgrade compatibility
-      // even after the v2 destinations have been verified and published.
-      expect(await readFile(path.join(legacyWorkspace, 'SOUL.md'), 'utf8')).toBe('agent soul')
-      expect((await lstat(path.join(legacyWorkspace, 'SOUL.md'))).isSymbolicLink()).toBe(true)
-      expect(await readFile(path.join(legacyWorkspace, 'USER.md'), 'utf8')).toBe('agent user')
-      expect(await readFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'utf8')).toBe('remember this')
-      expect(await readFile(path.join(legacyWorkspace, 'ordinary.txt'), 'utf8')).toBe('workspace content')
-
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'soul-link'), 'utf8')).toBe('agent soul')
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'absolute-user-link'), 'utf8')).toBe(
-        'agent user'
-      )
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'memory-link'), 'utf8')).toBe('remember this')
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'external-relative-link'), 'utf8')).toBe(
-        'shared target'
-      )
-
-      // Stable remapped IDs make a retry converge on the same destinations.
-      await expect(stageLegacyAgentFiles(input)).resolves.toBeUndefined()
-      expect(await readFile(path.join(legacyWorkspace, 'ordinary.txt'), 'utf8')).toBe('workspace content')
-      expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
-        'workspace content'
-      )
+    const input = {
+      agentsDataRoot,
+      agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+      sessions: [oldSession, latestSession]
     }
-  )
+    await stageLegacyAgentFiles(input)
+
+    const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
+    expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('')
+    expect((await lstat(path.join(agentDataPath, 'SOUL.md'))).isSymbolicLink()).toBe(false)
+    expect(await readFile(path.join(agentDataPath, 'USER.md'), 'utf8')).toBe('agent user')
+    await expect(access(path.join(agentDataPath, 'memory', 'FACT.md'))).rejects.toThrow()
+
+    expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
+      'workspace content'
+    )
+    for (const skippedEntry of [
+      'relative-link',
+      'external-relative-link',
+      'absolute-link',
+      'dangling-link',
+      'soul-link',
+      'absolute-user-link',
+      'memory-link'
+    ]) {
+      await expect(access(path.join(latestSession.systemWorkspacePath!, skippedEntry))).rejects.toThrow()
+    }
+    await expect(
+      access(path.join(latestSession.systemWorkspacePath!, 'nested', 'external-relative-link'))
+    ).rejects.toThrow()
+    // The shared v1 workspace is materialized only into the latest session; the
+    // older session keeps an empty system workspace (issue #17830).
+    expect((await lstat(oldSession.systemWorkspacePath!)).isDirectory()).toBe(true)
+    expect(await readdir(oldSession.systemWorkspacePath!)).toEqual([])
+
+    // The complete v1 workspace remains available for downgrade compatibility
+    // even after the v2 destinations have been verified and published.
+    expect(await readFile(path.join(legacyWorkspace, 'SOUL.md'), 'utf8')).toBe('agent soul')
+    expect((await lstat(path.join(legacyWorkspace, 'SOUL.md'))).isSymbolicLink()).toBe(true)
+    expect(await readFile(path.join(legacyWorkspace, 'USER.md'), 'utf8')).toBe('agent user')
+    expect(await readFile(path.join(legacyWorkspace, 'memory', 'FACT.md'), 'utf8')).toBe('remember this')
+    expect(await readFile(path.join(legacyWorkspace, 'ordinary.txt'), 'utf8')).toBe('workspace content')
+
+    // Stable remapped IDs make a retry converge on the same destinations.
+    await expect(stageLegacyAgentFiles(input)).resolves.toBeUndefined()
+    expect(await readFile(path.join(legacyWorkspace, 'ordinary.txt'), 'utf8')).toBe('workspace content')
+    expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'ordinary.txt'), 'utf8')).toBe(
+      'workspace content'
+    )
+  })
 
   it('copies the shared workspace content only into the most recently active managed session', async () => {
     const { agentsDataRoot, legacyWorkspace } = await createFixture()
@@ -931,7 +874,7 @@ describe('agentsFilesystemMigration', () => {
   })
 
   it.runIf(process.platform !== 'win32')(
-    'materializes a directory that contains symlinks into the latest session',
+    'copies regular directory content while skipping nested symlinks',
     async () => {
       const { agentsDataRoot, legacyWorkspace } = await createFixture()
       const sourceBundle = path.join(legacyWorkspace, 'bundle')
@@ -965,12 +908,10 @@ describe('agentsFilesystemMigration', () => {
       expect(await readFile(path.join(latestSession.systemWorkspacePath!, 'bundle', 'payload.txt'), 'utf8')).toBe(
         'workspace content'
       )
-      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'bundle', 'payload-link'))).toBe(
-        'payload.txt'
-      )
-      expect(await readlink(path.join(latestSession.systemWorkspacePath!, 'bundle', 'absolute-payload-link'))).toBe(
-        path.join(latestSession.systemWorkspacePath!, 'bundle', 'payload.txt')
-      )
+      await expect(access(path.join(latestSession.systemWorkspacePath!, 'bundle', 'payload-link'))).rejects.toThrow()
+      await expect(
+        access(path.join(latestSession.systemWorkspacePath!, 'bundle', 'absolute-payload-link'))
+      ).rejects.toThrow()
       expect(await readdir(oldSession.systemWorkspacePath!)).toEqual([])
     }
   )
@@ -1129,7 +1070,7 @@ describe('agentsFilesystemMigration', () => {
   })
 
   it.runIf(process.platform !== 'win32')(
-    'aborts instead of falling back when identity changes after its snapshot',
+    'skips a symlinked identity entry and falls back to an older real identity file',
     async () => {
       const { tempRoot, agentsDataRoot } = await createFixture()
       const olderWorkspace = path.join(tempRoot, 'older-workspace')
@@ -1142,13 +1083,6 @@ describe('agentsFilesystemMigration', () => {
       await writeFile(newestIdentitySource, 'newest soul')
       await symlink('identity-source.md', newestSoulPath)
       await writeFile(olderSoulPath, 'older soul')
-
-      let newestSoulRealpathCalls = 0
-      copyMutation.beforeRealpath = async (sourcePath) => {
-        if (sourcePath !== newestSoulPath || ++newestSoulRealpathCalls !== 2) return
-        await rm(newestSoulPath)
-        await symlink('missing-source.md', newestSoulPath)
-      }
 
       const olderSession = sessionPlan(agentsDataRoot, olderWorkspace, {
         sourceSessionId: 'session_old',
@@ -1165,18 +1099,16 @@ describe('agentsFilesystemMigration', () => {
         managed: false
       })
 
-      await expect(
-        stageLegacyAgentFiles({
-          agentsDataRoot,
-          agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
-          sessions: [olderSession, newestSession]
-        })
-      ).rejects.toThrow(/identity changed while being copied/i)
+      await stageLegacyAgentFiles({
+        agentsDataRoot,
+        agents: [{ sourceAgentId: SOURCE_AGENT_ID, finalAgentId: FINAL_AGENT_ID }],
+        sessions: [olderSession, newestSession]
+      })
 
       const agentDataPath = path.join(agentsDataRoot, FINAL_AGENT_ID)
-      await expect(access(path.join(agentDataPath, 'SOUL.md'))).rejects.toThrow()
+      expect(await readFile(path.join(agentDataPath, 'SOUL.md'), 'utf8')).toBe('older soul')
       expect((await readdir(agentDataPath)).every((entry) => !entry.startsWith('.SOUL.md.migration-'))).toBe(true)
-      expect(await readlink(newestSoulPath)).toBe('missing-source.md')
+      expect(await readlink(newestSoulPath)).toBe('identity-source.md')
       expect(await readFile(newestIdentitySource, 'utf8')).toBe('newest soul')
       expect(await readFile(olderSoulPath, 'utf8')).toBe('older soul')
     }
@@ -1862,7 +1794,7 @@ describe('agentsFilesystemMigration', () => {
   })
 
   it.runIf(process.platform !== 'win32')(
-    'treats a symlinked v1 root as an external user workspace without following or deleting it',
+    'skips a symlinked v1 workspace root without following or deleting it',
     async () => {
       const { tempRoot, agentsDataRoot, legacyWorkspace } = await createFixture()
       const externalWorkspace = path.join(tempRoot, 'external-workspace')
@@ -1890,7 +1822,7 @@ describe('agentsFilesystemMigration', () => {
       expect((await lstat(legacyWorkspace)).isSymbolicLink()).toBe(true)
       expect(await readFile(path.join(externalWorkspace, 'SOUL.md'), 'utf8')).toBe('external soul')
       expect(await readFile(path.join(externalWorkspace, 'ordinary.txt'), 'utf8')).toBe('external ordinary')
-      expect(await readFile(path.join(agentsDataRoot, FINAL_AGENT_ID, 'SOUL.md'), 'utf8')).toBe('external soul')
+      expect(await readFile(path.join(agentsDataRoot, FINAL_AGENT_ID, 'SOUL.md'), 'utf8')).toBe('')
     }
   )
 

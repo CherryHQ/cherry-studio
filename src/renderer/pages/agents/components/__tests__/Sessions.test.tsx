@@ -539,11 +539,11 @@ vi.mock('react-i18next', () => ({
         'agent.session.group.collapse': 'Collapse display',
         'agent.session.group.collapse_all': 'Collapse all',
         'agent.session.group.conversation': 'Conversations',
-        'agent.session.group.drag_hint': 'Drag to reorder. Drag tasks to adjust display and hidden groups.',
         'agent.session.group.earlier': 'Earlier',
         'agent.session.group.expand_all': 'Expand all',
         'agent.session.group.no_workdir': 'No work directory',
         'agent.session.group.show_more': 'Expand display',
+        'agent.session.group.tasks': 'Tasks',
         'agent.session.group.this_week': 'This week',
         'agent.session.group.today': 'Today',
         'agent.session.group.unknown_agent': 'Unlinked Agent',
@@ -622,6 +622,9 @@ import {
 import Sessions from '../Sessions'
 
 const CURRENT_SESSION_ISO = new Date().toISOString()
+// Time groups only label themselves when the list spans more than one bucket, so fixtures that
+// assert on a bucket header need something older to contrast with.
+const EARLIER_SESSION_ISO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 const SESSION_EXPANSION_TIME_KEY = 'ui.agent.session.expansion.time'
 const SESSION_EXPANSION_AGENT_KEY = 'ui.agent.session.expansion.agent'
 const SESSION_EXPANSION_WORKDIR_KEY = 'ui.agent.session.expansion.workdir'
@@ -787,6 +790,17 @@ function setupSessions(overrides: Record<string, unknown> = {}) {
   sessionDataMocks.useSessions.mockReturnValue(source)
 }
 
+/**
+ * An entity group header (agent / assistant) switches away when clicked, so its fold control is a
+ * separate button beside the label and `aria-expanded` lives there. Bucket headers (workdir, time
+ * ranges, pinned) still toggle as one row and keep the attribute on the header button itself.
+ */
+function groupChevron(groupHeaderButton: HTMLElement): HTMLElement {
+  const chevron = groupHeaderButton.parentElement?.querySelector(':scope > button[aria-expanded]')
+  if (!chevron) throw new Error('group header has no chevron button')
+  return chevron as HTMLElement
+}
+
 describe('Sessions', () => {
   beforeEach(() => {
     preferenceMocks.values.clear()
@@ -879,6 +893,29 @@ describe('Sessions', () => {
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toHaveAttribute('aria-expanded', 'true')
   })
 
+  it('never paints a workdir group as selected, collapsed or not', () => {
+    cacheMocks.state.activeSessionId = 'session-a'
+    setSessionGroupExpansionCache({
+      ...createExpandedSessionGroupExpansionFixture(),
+      workdir: ['session:workspace:ws-a']
+    })
+
+    const view = render(<SessionsForTest />)
+
+    // A folder holds sessions from any agent — "which folder am I in" isn't a state the user tracks,
+    // so the header stays plain even while it hides the open session.
+    const collapsedGroup = screen.getByRole('button', { name: 'Project A Workspace' })
+    expect(collapsedGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(collapsedGroup.parentElement).not.toHaveClass('bg-sidebar-accent')
+    expect(collapsedGroup).not.toHaveAttribute('aria-current')
+
+    setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
+    view.rerender(<SessionsForTest key="expanded-workdir" />)
+    const expandedGroup = screen.getByRole('button', { name: 'Project A Workspace' })
+    expect(expandedGroup).toHaveAttribute('aria-expanded', 'true')
+    expect(expandedGroup.parentElement).not.toHaveClass('bg-sidebar-accent')
+  })
+
   it('keeps channel and agent-pin reads inactive while the navigation pane is closed', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'agent')
 
@@ -966,14 +1003,17 @@ describe('Sessions', () => {
   it('shows fifty sessions in left-panel time groups and expands the remaining items', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
     setupSessions({
-      sessions: Array.from({ length: 56 }, (_, index) =>
-        createSession({
-          id: `session-${index + 1}`,
-          name: `Session ${index + 1}`,
-          orderKey: String(index + 1).padStart(3, '0'),
-          updatedAt: CURRENT_SESSION_ISO
-        })
-      )
+      sessions: [
+        ...Array.from({ length: 56 }, (_, index) =>
+          createSession({
+            id: `session-${index + 1}`,
+            name: `Session ${index + 1}`,
+            orderKey: String(index + 1).padStart(3, '0'),
+            updatedAt: CURRENT_SESSION_ISO
+          })
+        ),
+        createSession({ id: 'session-old', name: 'Older session', orderKey: 'zzz', updatedAt: EARLIER_SESSION_ISO })
+      ]
     })
 
     render(<SessionsForTest />)
@@ -1066,7 +1106,7 @@ describe('Sessions', () => {
     render(<SessionsForTest onCreateSession={onCreateSession} />)
 
     const projectSection = screen.getByRole('button', { name: 'Work directory' })
-    const noProjectSection = screen.getByRole('button', { name: 'No work directory' })
+    const noProjectSection = screen.getByRole('button', { name: 'Tasks' })
     expect(projectSection.compareDocumentPosition(noProjectSection) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(screen.getByText('System session')).toBeInTheDocument()
     const systemSessionRow = screen.getByText('System session').closest('[role="option"]')
@@ -1150,8 +1190,8 @@ describe('Sessions', () => {
     const betaGroup = screen.getByRole('button', { name: 'Beta agent' })
     const alphaGroup = screen.getByRole('button', { name: 'Alpha agent' })
     expect(betaGroup.compareDocumentPosition(alphaGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(betaGroup).toHaveAttribute('aria-expanded', 'false')
-    expect(alphaGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(betaGroup)).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(alphaGroup)).toHaveAttribute('aria-expanded', 'false')
     expect(betaGroup).toHaveTextContent('B')
     expect(alphaGroup).toHaveTextContent('A')
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
@@ -1166,7 +1206,7 @@ describe('Sessions', () => {
     )
     // Selecting the first item does not toggle the still-collapsed group.
     expect(getSessionGroupExpansionCache().agent).toContain('session:agent:agent-b')
-    expect(betaGroup).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(betaGroup)).toHaveAttribute('aria-expanded', 'false')
 
     cacheMocks.state.activeSessionId = 'session-b'
     view.rerender(<SessionsForTest key="selected-session-b" />)
@@ -1215,8 +1255,8 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.getByRole('button', { name: 'Alpha agent' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Beta agent' })).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(screen.getByRole('button', { name: 'Alpha agent' }))).toHaveAttribute('aria-expanded', 'false')
+    expect(groupChevron(screen.getByRole('button', { name: 'Beta agent' }))).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Alpha session')).not.toBeInTheDocument()
     expect(screen.queryByText('Beta session')).not.toBeInTheDocument()
   })
@@ -1325,7 +1365,7 @@ describe('Sessions', () => {
 
     render(<SessionsForTest />)
 
-    expect(screen.queryByRole('button', { name: 'No work directory' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Tasks' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha agent' })).toBeInTheDocument()
     expect(screen.getByText('System session')).toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
@@ -1352,7 +1392,13 @@ describe('Sessions', () => {
     const view = render(<SessionsForTest />)
 
     const betaGroupButton = screen.getByRole('button', { name: 'Beta agent' })
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(betaGroupButton)).toHaveAttribute('aria-expanded', 'true')
+    // The collapse chevron rides along with the hover actions instead of being dropped for headers that have them.
+    expect(groupChevron(betaGroupButton).querySelector('.lucide-chevron-right')).not.toBeNull()
+    // "New task" is one action with one icon everywhere — the composer's, not a stray pencil.
+    const createButton = screen.getAllByRole('button', { name: 'New task' })[0]
+    expect(createButton.querySelector('.new-conversation-icon')).not.toBeNull()
+    expect(createButton.querySelector('.lucide-square-pen')).toBeNull()
 
     fireEvent.click(betaGroupButton)
 
@@ -1360,21 +1406,30 @@ describe('Sessions', () => {
       'session-b',
       expect.objectContaining({ id: 'session-b' })
     )
-    expect(betaGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(betaGroupButton)).toHaveAttribute('aria-expanded', 'true')
     expect(getSessionGroupExpansionCache().agent).not.toContain('session:agent:agent-b')
 
     cacheMocks.state.activeSessionId = 'session-b'
     view.rerender(<SessionsForTest key="selected-session-b" />)
 
     const selectedBetaGroupButton = screen.getByRole('button', { name: 'Beta agent' })
-    expect(selectedBetaGroupButton).toHaveAttribute('aria-current', 'true')
+    // With the group open the row announces the selection; the header stays quiet so screen readers
+    // hear one "current", not two.
+    expect(selectedBetaGroupButton).not.toHaveAttribute('aria-current')
     expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
+    // While the group is open the session row carries the selection; the header must not repeat it.
+    expect(selectedBetaGroupButton.parentElement).not.toHaveClass('bg-sidebar-accent')
 
     fireEvent.click(selectedBetaGroupButton)
     expect(getSessionGroupExpansionCache().agent).toContain('session:agent:agent-b')
 
     view.rerender(<SessionsForTest key="collapsed-session-b" />)
-    expect(screen.getByRole('button', { name: 'Beta agent' })).toHaveAttribute('aria-expanded', 'false')
+    const collapsedBetaGroupButton = screen.getByRole('button', { name: 'Beta agent' })
+    expect(groupChevron(collapsedBetaGroupButton)).toHaveAttribute('aria-expanded', 'false')
+    // Collapsed, the header stands in for the hidden session row: same fill AND same weight a
+    // selected row gets anywhere else in the list.
+    expect(collapsedBetaGroupButton.parentElement).toHaveClass('bg-sidebar-accent')
+    expect(within(collapsedBetaGroupButton).getByText('Beta agent')).toHaveClass('font-medium')
   })
 
   it('clears session selection while a resource menu item is active', () => {
@@ -1595,7 +1650,9 @@ describe('Sessions', () => {
 
     expect(screen.getByRole('button', { name: 'Project A Workspace' })).toBeInTheDocument()
     expect(screen.getByText('Alpha session')).toBeInTheDocument()
-    expect(screen.getByText('Beta session')).toHaveClass('text-foreground', 'dark:text-muted-foreground')
+    // One rule for both themes: titles sit at `foreground`, no per-theme override.
+    expect(screen.getByText('Beta session')).toHaveClass('text-foreground')
+    expect(screen.getByText('Beta session')).not.toHaveClass('dark:text-muted-foreground')
     expect(document.querySelectorAll('[data-resource-list-loading-group]')).toHaveLength(0)
     expect(document.querySelectorAll('[data-resource-list-loading-item]')).toHaveLength(0)
   })
@@ -1615,6 +1672,12 @@ describe('Sessions', () => {
 
   it('does not block time grouping on workspace loading state', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
+        createSession({ id: 'session-old', name: 'Older session', orderKey: 'b', updatedAt: EARLIER_SESSION_ISO })
+      ]
+    })
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
     dataApiMocks.workspacesLoading = true
     dataApiMocks.workspacesError = new Error('Workspace request failed')
@@ -1628,6 +1691,12 @@ describe('Sessions', () => {
 
   it('does not show group header create actions in time display mode', () => {
     preferenceMocks.values.set('agent.session.display_mode', 'time')
+    setupSessions({
+      sessions: [
+        createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' }),
+        createSession({ id: 'session-old', name: 'Older session', orderKey: 'b', updatedAt: EARLIER_SESSION_ISO })
+      ]
+    })
 
     render(<SessionsForTest />)
 
@@ -1997,6 +2066,10 @@ describe('Sessions', () => {
     expect(
       pinnedRow?.querySelector('[data-resource-list-leading-slot="true"] [aria-label="Unpin task"]') ?? null
     ).not.toBeInTheDocument()
+    // Pinned rows are lifted out of their workdir group, so they must not keep its icon indent.
+    expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
+    // Only the pin shows on a pinned row, so the title yields one icon zone instead of two.
+    expect(within(pinnedRow as HTMLElement).getByText('Pinned session')).toHaveClass('group-hover:mr-7')
     expect(within(pinnedRow as HTMLElement).queryByLabelText('Delete')).not.toBeInTheDocument()
   })
 
@@ -2919,7 +2992,8 @@ describe('Sessions', () => {
     expect(pinMocks.usePins).toHaveBeenCalledWith('agent', { enabled: true })
     const agentGroup = screen.getByRole('button', { name: 'Alpha agent' }).closest('div')
     expect(agentGroup).not.toBeNull()
-    expect(agentGroup?.closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
+    // Real agent rows carry no tooltip — only the unlinked-agent pseudo group needs explaining.
+    expect(agentGroup?.closest('[data-slot="tooltip-trigger"]')).not.toBeInTheDocument()
     expect(within(agentGroup as HTMLElement).getByRole('button', { name: 'New task' })).toBeInTheDocument()
 
     const moreButton = within(agentGroup as HTMLElement).getByRole('button', { name: 'More' })
@@ -3103,7 +3177,10 @@ describe('Sessions', () => {
     view.rerender(<SessionsForTest key="collapsed-agent-groups" />)
 
     await vi.waitFor(() =>
-      expect(screen.getByRole('button', { name: 'Alpha agent' })).toHaveAttribute('aria-expanded', 'false')
+      expect(groupChevron(screen.getByRole('button', { name: 'Alpha agent' }))).toHaveAttribute(
+        'aria-expanded',
+        'false'
+      )
     )
     await vi.waitFor(() => expect(screen.queryByText('Agent session 1')).not.toBeInTheDocument())
     expect(screen.queryByRole('button', { name: 'Expand display' })).not.toBeInTheDocument()
@@ -3152,7 +3229,7 @@ describe('Sessions', () => {
     fireEvent.click(contextPinItem as HTMLElement)
 
     await vi.waitFor(() => expect(toggleAgentPin).toHaveBeenCalledWith('agent-a'))
-    expect(agentGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(groupChevron(agentGroupButton)).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('disables agent group pin action while agent pins are mutating', async () => {
