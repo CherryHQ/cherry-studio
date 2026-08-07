@@ -165,6 +165,26 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(appendAssistantMessageMock.mock.calls[0][1].status).toBe('error')
   })
 
+  it('keeps status=success for an empty-parts terminal when rejectEmptySuccess is off', async () => {
+    const listener = new PersistenceListener({
+      topicId: 'abc',
+      rejectEmptySuccess: false,
+      backend: new TemporaryChatBackend({
+        topicId: 'abc',
+        messageId: 'assistant-message-id',
+        messageSnapshot: { id: 'a1', name: 'A', emoji: '', model: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' } }
+      })
+    })
+
+    await listener.onDone({
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [] } as unknown as CherryUIMessage,
+      status: 'success'
+    })
+
+    expect(appendAssistantMessageMock).toHaveBeenCalledTimes(1)
+    expect(appendAssistantMessageMock.mock.calls[0][1].status).toBe('success')
+  })
+
   it('keeps status=success when hidden markers accompany real content', async () => {
     const listener = makeListener()
 

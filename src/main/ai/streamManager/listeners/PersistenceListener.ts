@@ -32,6 +32,15 @@ export interface PersistenceListenerOptions {
   modelId?: UniqueModelId
   backend: PersistenceBackend
   /**
+   * When true (default), a terminal `success` whose parts carry no renderable
+   * content (e.g. a lone `step-start` left by an empty AI SDK stream) is
+   * persisted as `error` instead. Set to false when the caller deliberately
+   * supplies terminal status — e.g. the agent runtime, whose empty-parts
+   * successes are legitimate and already handled by the agents renderer's own
+   * empty-terminal fallback.
+   */
+  rejectEmptySuccess?: boolean
+  /**
    * Called when persistence fails after a terminal event. The DB row is already driven to
    * `error`; this lets the caller also correct the LIVE renderer (which was told the turn
    * succeeded) so the bubble doesn't stay a frozen success until reload.
@@ -104,8 +113,13 @@ export class PersistenceListener implements StreamListener {
     // marker). Persist as a terminal `error` so the turn never renders as an
     // empty success bubble. Check AFTER stripping so empty text/reasoning parts
     // don't count as content. Tool-only turns keep success — tool parts render.
+    // Opted out (via `rejectEmptySuccess: false`) by callers that deliberately
+    // supply terminal status, e.g. the agent-session runtime.
+    const rejectEmptySuccess = this.opts.rejectEmptySuccess ?? true
     const effectiveStatus =
-      status === 'success' && strippedParts !== undefined && !hasRenderableContent(strippedParts) ? 'error' : status
+      status === 'success' && rejectEmptySuccess && strippedParts !== undefined && !hasRenderableContent(strippedParts)
+        ? 'error'
+        : status
 
     const finalMessageForPersistence = finalMessage
       ? {
