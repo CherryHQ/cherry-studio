@@ -2,6 +2,7 @@ import type { ComposerContextValue } from '@renderer/components/composer/Compose
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import {
   type ChatComposerResolvedContext,
+  type ChatContextUsageSource,
   type ChatConversationControlsChangeHandler,
   ChatPlacementComposer
 } from '@renderer/components/composer/variants/ChatComposer'
@@ -15,6 +16,7 @@ import type { AddNewTopicPayload } from './types'
 
 interface ChatComposerSlotBaseProps {
   topic: Topic
+  contextUsage: ChatContextUsageSource | null
   onSend: (
     text: string,
     options?: {
@@ -39,6 +41,7 @@ type ChatComposerSlotProps =
 export default function ChatComposerSlot({
   placement,
   topic,
+  contextUsage,
   onSend,
   chatTarget,
   onNewTopic,
@@ -55,6 +58,7 @@ export default function ChatComposerSlot({
         placement="home"
         scopeKey={topic.id}
         topicId={topic.id}
+        contextUsage={contextUsage}
         assistantId={topic.assistantId}
         onSend={onSend}
         chatTarget={chatTarget}
@@ -70,6 +74,7 @@ export default function ChatComposerSlot({
         placement="docked"
         scopeKey={topic.id}
         topicId={topic.id}
+        contextUsage={contextUsage}
         assistantId={topic.assistantId}
         onSend={onSend}
         chatTarget={chatTarget}
