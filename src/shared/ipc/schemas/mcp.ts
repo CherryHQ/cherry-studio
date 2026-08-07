@@ -14,9 +14,10 @@ import { defineRoute } from '../define'
  * plus three push events. Handlers span three services (McpRuntimeService /
  * McpCatalogService / McpPackageService); see handlers/mcp.ts.
  *
- * `server.list_prompts` / `server.list_resources` keep `z.any()` outputs: the legacy preload
- * returned `Promise<any>` and the renderer consumes the result untyped, so the migration
- * preserves that rather than tightening it. Upload inputs carry the file as an ArrayBuffer
+ * `server.list_prompts` / `server.list_resources` / `server.get_prompt` / `server.get_resource` keep
+ * `z.any()` outputs: they hand back raw MCP protocol shapes (`GetPromptResult`,
+ * `GetResourceResponse`) whose types live in the SDK / src/main, and the renderer consumes them
+ * untyped — same contract the legacy preload had. Upload inputs carry the file as an ArrayBuffer
  * (structured-clone safe); the renderer does `file.arrayBuffer()` at the call site now.
  */
 const serverId = z.object({ serverId: z.string() })
@@ -32,6 +33,18 @@ export const mcpRequestSchemas = {
   'mcp.server.refresh_tools': defineRoute({ input: serverId, output: z.void() }),
   'mcp.server.list_prompts': defineRoute({ input: serverIdNonEmpty, output: z.any() }),
   'mcp.server.list_resources': defineRoute({ input: serverIdNonEmpty, output: z.any() }),
+  'mcp.server.get_prompt': defineRoute({
+    input: z.object({
+      serverId: z.string().min(1),
+      name: z.string().min(1),
+      args: z.record(z.string(), z.any()).optional()
+    }),
+    output: z.any()
+  }),
+  'mcp.server.get_resource': defineRoute({
+    input: z.object({ serverId: z.string().min(1), uri: z.string().min(1) }),
+    output: z.any()
+  }),
   'mcp.server.check_connectivity': defineRoute({ input: serverIdNonEmpty, output: z.boolean() }),
   'mcp.server.get_version': defineRoute({ input: serverIdNonEmpty, output: z.string().nullable() }),
   'mcp.server.get_logs': defineRoute({ input: serverIdNonEmpty, output: z.custom<McpServerLogEntry[]>() }),
