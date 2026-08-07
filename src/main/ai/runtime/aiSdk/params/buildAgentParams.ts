@@ -3,7 +3,6 @@ import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import {
@@ -15,7 +14,12 @@ import {
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
-import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import {
+  type Assistant,
+  DEFAULT_ASSISTANT_SETTINGS,
+  MAX_TOOL_CALLS,
+  MIN_TOOL_CALLS
+} from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
