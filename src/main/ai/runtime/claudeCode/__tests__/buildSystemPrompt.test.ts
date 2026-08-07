@@ -228,6 +228,23 @@ describe('buildSystemPrompt — current workspace', () => {
 })
 
 describe('buildSystemPrompt — Agent System Prompt authority', () => {
+  it.each([{ instructions: undefined }, { instructions: '' }, { instructions: '   ' }])(
+    'keeps legacy persona role guidance when Agent System Prompt is blank: $instructions',
+    async ({ instructions }) => {
+      mockBuildPrompt.mockResolvedValueOnce({
+        base: { kind: 'claude_code' },
+        context: '## Memories\n\n<soul>\nSOUL_ROLE: You are the friendly historian.\n</soul>'
+      })
+
+      const text = promptText(await buildSystemPrompt(makeSession(), makeAgent({ instructions }), '/tmp/cwd'))
+
+      expect(mockBuildPrompt).toHaveBeenCalledWith('/tmp/cwd', expect.anything(), false, expect.anything())
+      expect(text).not.toContain('## Instruction Precedence')
+      expect(text).not.toContain('<agent_instructions>')
+      expect(text).toContain('SOUL_ROLE: You are the friendly historian.')
+    }
+  )
+
   it('declares agent instructions above workspace instructions and persona while preserving every source', async () => {
     mockBuildPrompt.mockResolvedValueOnce({
       base: { kind: 'custom', content: 'WORKSPACE_ROLE: You are the workspace reviewer.' },

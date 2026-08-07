@@ -389,6 +389,9 @@ Always cite primary sources.`
       const { context: result } = await builder.buildPromptParts('/workspace')
 
       expect(result).toContain('## Bootstrap Mode')
+      expect(result).toContain('**Discover the role**')
+      expect(result).toContain('with your role definition')
+      expect(result).not.toContain('The configured Agent System Prompt already defines your role')
       expect(result).toContain('complete_bootstrap')
     })
 

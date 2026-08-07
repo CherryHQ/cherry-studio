@@ -20,19 +20,33 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     actions,
     value,
     onChange,
+    previewValue,
     resetPreviewKey
   }: {
     actions?: ReactNode
     value: string
     onChange: (value: string) => void
+    previewValue?: string
     resetPreviewKey?: number
   }) => (
     <div>
       {actions}
       <textarea aria-label="system-prompt" value={value} onChange={(event) => onChange(event.currentTarget.value)} />
+      <output aria-label="system-prompt-preview">{previewValue}</output>
       <output data-testid="preview-reset-key">{resetPreviewKey}</output>
     </div>
   )
+}))
+
+vi.mock('@renderer/hooks/useModel', () => ({
+  useModelById: (modelId: string | null) => ({
+    model: modelId ? { id: modelId, name: 'Selected Model' } : undefined
+  })
+}))
+
+vi.mock('@renderer/hooks/usePromptProcessor', () => ({
+  usePromptProcessor: ({ prompt, modelName }: { prompt: string; modelName?: string }) =>
+    modelName ? prompt.replace(/{{model_name}}/g, modelName) : prompt
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions', () => ({
@@ -65,14 +79,22 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShare
   PromptVariablesPopover: () => null
 }))
 
-function Harness({ name = '' }: { name?: string }) {
+function Harness({
+  name = '',
+  modelId = null,
+  prompt = 'Original system prompt'
+}: {
+  name?: string
+  modelId?: ResourceCreateWizardFormValues['modelId']
+  prompt?: string
+}) {
   const form = useForm<ResourceCreateWizardFormValues>({
     defaultValues: {
       avatar: '💬',
       name,
       description: '',
-      modelId: null,
-      prompt: 'Original system prompt',
+      modelId,
+      prompt,
       knowledgeBaseIds: [],
       skillIds: []
     }
@@ -88,6 +110,15 @@ function Harness({ name = '' }: { name?: string }) {
 afterEach(cleanup)
 
 describe('SystemPromptStep', () => {
+  it('resolves the selected model name in the prompt preview', () => {
+    render(
+      <Harness modelId={'provider::model' as ResourceCreateWizardFormValues['modelId']} prompt="Use {{model_name}}" />
+    )
+
+    expect(screen.getByLabelText('system-prompt')).toHaveValue('Use {{model_name}}')
+    expect(screen.getByLabelText('system-prompt-preview')).toHaveTextContent('Use Selected Model')
+  })
+
   it('wires prompt generation and polish into the create form', async () => {
     const user = userEvent.setup()
 

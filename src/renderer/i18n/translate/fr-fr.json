@@ -3368,11 +3368,6 @@
           "heartbeat_interval": {
             "label": "Intervalle de pulsation (minutes)"
           },
-          "instructions": {
-            "hint": "Définit le rôle de l'agent et les limites de son comportement",
-            "label": "Invite système",
-            "placeholder": "Dis à l'agent qui il est et ce qu'il peut faire…"
-          },
           "max_turns": {
             "help": "0 signifie utiliser la valeur par défaut",
             "label": "Nombre maximal de tours de conversation"

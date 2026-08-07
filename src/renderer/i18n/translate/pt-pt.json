@@ -3368,11 +3368,6 @@
           "heartbeat_interval": {
             "label": "Intervalo de batimentos (minutos)"
           },
-          "instructions": {
-            "hint": "Define o papel do agente e os limites do seu comportamento",
-            "label": "Prompt do sistema",
-            "placeholder": "Diga ao agente quem ele é e o que pode fazer…"
-          },
           "max_turns": {
             "help": "0 significa usar o padrão",
             "label": "Máximo de turnos de conversa"

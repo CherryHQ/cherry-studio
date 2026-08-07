@@ -8,11 +8,11 @@ date: 2026-08-07
 
 ## What changed
 
-The System Prompt saved in Agent configuration now has explicit priority over workspace `system.md` instructions and the Agent's `SOUL.md` persona when they conflict. Agent editing also exposes the same System Prompt variables and preview affordances as Assistant editing.
+A non-blank System Prompt saved in Agent configuration now has explicit priority over workspace `system.md` instructions and the Agent's `SOUL.md` persona when they conflict. Agent editing also exposes the same System Prompt variables and preview affordances as Assistant editing. Agents without a configured System Prompt retain the legacy role-discovery and role-bearing `SOUL.md` fallback.
 
 ## Why this matters to the user
 
-Changes made in the Agent System Prompt field take effect from the next fresh model turn and define the Agent's role. Existing workspace instructions and persona continue to provide non-conflicting local guidance, personality, and tone.
+Changes made in the Agent System Prompt field take effect from the next fresh model turn and define the Agent's role when the field is non-blank. Existing workspace instructions and persona continue to provide non-conflicting local guidance, personality, and tone.
 
 ## What the user should do
 

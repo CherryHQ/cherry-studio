@@ -139,8 +139,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.description.placeholder': 'Describe this agent',
           'library.config.agent.field.heartbeat_enabled.label': 'Heartbeat',
           'library.config.agent.field.heartbeat_interval.label': 'Heartbeat interval',
-          'library.config.agent.field.instructions.label': 'Instructions',
-          'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
           'library.config.agent.field.model.hint': 'Primary agent model.',
           'library.config.agent.field.model.label': 'Model',
           'library.config.agent.field.name.hint': 'Shown in the selector.',

@@ -1384,18 +1384,16 @@ export async function buildSystemPrompt(
   const artifactsBlock = `\n\n${REPORT_ARTIFACTS_PROMPT}`
   const langInstruction = getLanguageInstruction()
 
-  // Runtime and tool-selection strategy lives in the default-enabled cherry-tool-guide skill.
-  // PATH injection and the dependency guard enforce availability and isolation without duplicating that handbook here.
-  const promptParts = await promptBuilder.buildPromptParts(
-    cwd,
-    agentConfig,
-    Boolean(instructions?.trim()),
-    agentDataPath
-  )
-  const resolvedInstructions = instructions
+  const resolvedInstructions = instructions?.trim()
     ? await replacePromptVariables(instructions, agent.modelName ?? undefined)
     : ''
-  const agentInstructionsBlock = resolvedInstructions
+  const hasAgentInstructions = Boolean(resolvedInstructions.trim())
+
+  // Runtime and tool-selection strategy lives in the default-enabled cherry-tool-guide skill.
+  // PATH injection and the dependency guard enforce availability and isolation without duplicating that handbook here.
+  const promptParts = await promptBuilder.buildPromptParts(cwd, agentConfig, hasAgentInstructions, agentDataPath)
+  const precedenceBlock = hasAgentInstructions ? `${AGENT_INSTRUCTION_PRECEDENCE_PROMPT}\n\n` : ''
+  const agentInstructionsBlock = hasAgentInstructions
     ? `\n\n${buildAgentInstructionsSection(resolvedInstructions)}`
     : ''
   // The Claude Code preset owns its dynamic cwd/git context. A custom base replaces that
@@ -1408,7 +1406,7 @@ export async function buildSystemPrompt(
           'Use it as the default base for file operations and shell commands; resolve unspecified or relative paths against it.'
         ].join('\n')}`
       : ''
-  const cherryContext = `${AGENT_INSTRUCTION_PRECEDENCE_PROMPT}\n\n${promptParts.context}${agentInstructionsBlock}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}\n\n${langInstruction}`
+  const cherryContext = `${precedenceBlock}${promptParts.context}${agentInstructionsBlock}${workspaceContextBlock}${channelSecurityBlock}${citationsBlock}${artifactsBlock}\n\n${langInstruction}`
 
   // The workspace chooses only the base. Cherry-owned context survives either path.
   if (promptParts.base.kind === 'claude_code') {

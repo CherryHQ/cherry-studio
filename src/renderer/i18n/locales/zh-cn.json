@@ -3378,11 +3378,6 @@
           "heartbeat_interval": {
             "label": "心跳间隔 (分钟)"
           },
-          "instructions": {
-            "hint": "定义 Agent 的角色和行为边界",
-            "label": "系统提示词",
-            "placeholder": "告诉 Agent 它是谁、它能做什么…"
-          },
           "max_turns": {
             "help": "0 表示使用默认值",
             "label": "最大对话轮数"

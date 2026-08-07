@@ -263,11 +263,7 @@ function AgentEditDialogContent({
   const values = form.watch()
   const { model: selectedAgentModel } = useModelById(values.modelId)
   const promptModelName =
-    selectedAgentModel?.id === values.modelId
-      ? selectedAgentModel.name
-      : values.modelId === resource.model
-        ? resource.modelName
-        : undefined
+    selectedAgentModel?.name ?? (values.modelId === resource.model ? resource.modelName : undefined)
   const replaceFormBaseline = useCallback((next: AgentFormState) => {
     formBaselineRef.current = next
     setFormBaseline(next)

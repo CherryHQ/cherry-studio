@@ -3368,11 +3368,6 @@
           "heartbeat_interval": {
             "label": "Intervalo de latidos (minutos)"
           },
-          "instructions": {
-            "hint": "Define el rol del agente y los límites de su comportamiento",
-            "label": "Indicación del sistema",
-            "placeholder": "Dile al agente quién es y y qué puede hacer…"
-          },
           "max_turns": {
             "help": "0 significa usar el valor predeterminado",
             "label": "Máximo de turnos de conversación"

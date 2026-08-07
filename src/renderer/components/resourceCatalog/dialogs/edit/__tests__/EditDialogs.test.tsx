@@ -302,8 +302,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.instructions.label': 'Instructions',
-          'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
           'library.config.agent.field.env_vars.help': 'One KEY=VALUE per line',
           'library.config.agent.field.env_vars.label': 'Environment variables',
           'library.config.agent.field.env_vars.placeholder': 'KEY=value\nANOTHER_KEY=another_value',

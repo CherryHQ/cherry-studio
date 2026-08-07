@@ -7,6 +7,8 @@ import {
   PromptVariablesPopover
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
+import { useModelById } from '@renderer/hooks/useModel'
+import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { useState } from 'react'
@@ -28,6 +30,10 @@ export function SystemPromptStep({ form, portalContainer }: SystemPromptStepProp
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const name = useWatch({ control: form.control, name: 'name' })
+  const modelId = useWatch({ control: form.control, name: 'modelId' })
+  const prompt = useWatch({ control: form.control, name: 'prompt' })
+  const { model } = useModelById(modelId)
+  const processedPrompt = usePromptProcessor({ prompt, modelName: model?.name })
 
   return (
     <FormField
@@ -57,6 +63,7 @@ export function SystemPromptStep({ form, portalContainer }: SystemPromptStepProp
             }
             value={field.value}
             onChange={field.onChange}
+            previewValue={processedPrompt || prompt}
             resetPreviewKey={resetPreviewKey}
             placeholder={t('library.config.prompt.placeholder')}
             minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
