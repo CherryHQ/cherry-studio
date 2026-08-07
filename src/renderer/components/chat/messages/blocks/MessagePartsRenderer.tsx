@@ -34,9 +34,10 @@ import {
   convertReferencesToCitationReferences,
   convertReferencesToCitations
 } from '@renderer/utils/partsToBlocks'
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { classifyTurn } from '@shared/ai/transport'
 import type { CherryMessagePart, ContentReference, ReasoningUIPart } from '@shared/data/types/message'
-import type { CherryProviderMetadata, ComposerMessageToken } from '@shared/data/types/uiParts'
+import type { CherryProviderMetadata, ComposerMessageSnapshot, ComposerMessageToken } from '@shared/data/types/uiParts'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { getToolName, isDataUIPart, isFileUIPart, isToolUIPart } from 'ai'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
@@ -129,7 +130,8 @@ const AnimatedBlockWrapper: React.FC<{
   enableAnimation: boolean
   className?: string
   animation?: 'slide' | 'fade'
-}> = ({ className, children, enableAnimation, animation = 'slide' }) => {
+  messagePartId?: string
+}> = ({ className, children, enableAnimation, animation = 'slide', messagePartId }) => {
   const wrapperClassName = ['block-wrapper', className].filter(Boolean).join(' ')
 
   // Latch: Once a block has entered the motion.div branch during streaming (enableAnimation === true),
@@ -146,7 +148,7 @@ const AnimatedBlockWrapper: React.FC<{
 
   if (!hasEverAnimated) {
     return (
-      <div className={wrapperClassName}>
+      <div className={wrapperClassName} data-message-part-id={messagePartId}>
         <ErrorBoundary fallbackComponent={BlockErrorFallback}>{children}</ErrorBoundary>
       </div>
     )
@@ -155,6 +157,7 @@ const AnimatedBlockWrapper: React.FC<{
   return (
     <motion.div
       className={wrapperClassName}
+      data-message-part-id={messagePartId}
       variants={variants}
       initial={enableAnimation ? 'hidden' : false}
       animate={enableAnimation ? 'visible' : 'static'}>
@@ -281,12 +284,13 @@ function getComposerTokenDisplayText(
   part: CherryMessagePart,
   message: MessageListItem,
   partId: string,
-  expandedTextPartIds: ReadonlySet<string>
+  expandedTextPartIds: ReadonlySet<string>,
+  composer: ComposerMessageSnapshot
 ): string {
   const text = (part as { text?: string }).text ?? ''
   if (message.role !== 'user' || expandedTextPartIds.has(partId)) return text
 
-  return buildUserMessagePreview(text).content
+  return buildUserMessagePreview(text, composer).content
 }
 
 function getVisibleComposerFileTokens(
@@ -299,7 +303,7 @@ function getVisibleComposerFileTokens(
     const composer = getCherryMeta(part)?.composer
     if (!composer) return []
     const partId = `${message.id}-part-${index}`
-    const text = getComposerTokenDisplayText(part, message, partId, expandedTextPartIds)
+    const text = getComposerTokenDisplayText(part, message, partId, expandedTextPartIds, composer)
 
     return getDisplayComposerTokens(composer).flatMap((token) => {
       if (token.kind !== 'file' || !isComposerTokenVisibleInText(token, text)) return []
@@ -534,7 +538,7 @@ function renderPart(
     }
 
     case 'data-compaction-anchor':
-      return <CompactionAnchorBlock key={partId} />
+      return <CompactionAnchorBlock key={partId} data={(part as { data?: CompactionAnchorData }).data} />
 
     case 'data-conversation-reset':
       return <ConversationResetBlock key={partId} />
@@ -861,7 +865,11 @@ function renderGroupedEntry(
         : undefined
 
   return (
-    <AnimatedBlockWrapper key={partId} enableAnimation={enableAnimation} className={wrapperClassName}>
+    <AnimatedBlockWrapper
+      key={partId}
+      enableAnimation={enableAnimation}
+      className={wrapperClassName}
+      messagePartId={entry.part.type === 'text' ? partId : undefined}>
       {rendered}
     </AnimatedBlockWrapper>
   )

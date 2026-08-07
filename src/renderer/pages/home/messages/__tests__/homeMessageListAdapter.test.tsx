@@ -48,6 +48,7 @@ const { refetchTranslationLanguagesMock, useLanguagesMock } = vi.hoisted(() => {
   }
 })
 const useMessageErrorActionsMock = vi.hoisted(() => vi.fn<(options?: unknown) => Record<string, never>>(() => ({})))
+const openRouteMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@data/DataApiService', () => ({
   dataApiService: {
@@ -105,6 +106,10 @@ vi.mock('@renderer/hooks/chat/ChatWriteContext', () => ({
 
 vi.mock('@renderer/hooks/command', () => ({
   useCommandHandler: commandHandlerMock
+}))
+
+vi.mock('@renderer/services/mainWindowNavigation', () => ({
+  openRoute: openRouteMock
 }))
 
 vi.mock('@renderer/hooks/translate', () => ({
@@ -274,7 +279,7 @@ function MessageListAdapterHarness({
 }) {
   const value = useHomeMessageListProviderValue({
     topic,
-    assistant: { id: 'assistant-1', name: 'Assistant' } as any,
+    assistant: { id: 'assistant-1', name: 'Assistant', emoji: '🤖' } as any,
     messages,
     partsByMessageId,
     streamingLayers,
@@ -326,6 +331,14 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     await waitFor(() => expect(useLanguagesMock).toHaveBeenLastCalledWith({ enabled: true }))
   })
 
+  it('exposes the current assistant profile for migrated messages without snapshots', () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    expect(value?.meta.assistantProfile).toEqual({ name: 'Assistant', avatar: '🤖' })
+  })
+
   it('exposes the language load status and retries through the shared refetch', () => {
     let value: MessageListProviderValue | undefined
 
@@ -336,6 +349,16 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     act(() => value?.actions.retryTranslationLanguages?.())
 
     expect(refetchTranslationLanguagesMock).toHaveBeenCalledOnce()
+  })
+
+  it('opens navigation entries in an application tab', () => {
+    let value: MessageListProviderValue | undefined
+
+    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(nextValue) => (value = nextValue)} />)
+
+    act(() => void value?.actions.navigateToRoute?.({ path: '/app/paintings', query: { source: 'assistant' } }))
+
+    expect(openRouteMock).toHaveBeenCalledWith('/app/paintings', { source: 'assistant' })
   })
 
   it('injects Home-message diagnosis persistence into the shared error UI', async () => {

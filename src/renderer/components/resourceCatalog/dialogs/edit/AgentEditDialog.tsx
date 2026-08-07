@@ -24,6 +24,7 @@ import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { permissionModeCards } from '@renderer/utils/agent'
 import {
@@ -62,7 +63,6 @@ import {
   FieldLabelWithHelp,
   KnowledgeBaseField,
   type ModelLabels,
-  PromptVariablesPopover,
   TextInputField,
   useDebouncedAutoSave
 } from '../components/EditDialogShared'
@@ -151,7 +151,8 @@ function modelLabelsForAgent(resource: AgentDetail): ModelLabels {
   return {
     modelId: resource.model ?? null,
     planModelId: resource.planModel ?? null,
-    smallModelId: resource.smallModel ?? null
+    smallModelId: resource.smallModel ?? null,
+    contextCompressModelId: null
   }
 }
 
@@ -174,6 +175,10 @@ function buildAgentFormState(baseline: AgentFormState, values: AgentEditFormValu
     heartbeatEnabled: values.heartbeatEnabled,
     heartbeatInterval: values.heartbeatInterval
   }
+}
+
+function serializeAgentSaveAttempt(values: AgentEditFormValues, payload: UpdateAgentDto): string {
+  return JSON.stringify({ values, payload })
 }
 
 function advanceAgentFormBaseline(
@@ -248,6 +253,7 @@ function AgentEditDialogContent({
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAgent(resource))
   const [formBaseline, setFormBaseline] = useState<AgentFormState>(() => buildInitialAgentFormState(resource))
   const formBaselineRef = useRef(formBaseline)
+  const failedSaveKeyRef = useRef<string | null>(null)
   const [baselineSkillAgentId, setBaselineSkillAgentId] = useState<string | null>(null)
   const defaultValues = useMemo(() => defaultValuesForAgent(resource), [resource])
   const form = useForm<AgentEditFormValues>({ defaultValues })
@@ -323,6 +329,7 @@ function AgentEditDialogContent({
     setModelLabels(modelLabelsForAgent(resource))
     replaceFormBaseline(buildInitialAgentFormState(resource))
     setBaselineSkillAgentId(null)
+    failedSaveKeyRef.current = null
   }, [defaultValues, form, initialTab, open, replaceFormBaseline, resource])
 
   // Cached skill rows may render during revalidation, but the editable skill
@@ -368,29 +375,34 @@ function AgentEditDialogContent({
 
   const rootError = form.formState.errors.root?.message
   const autoSaveChangeKey =
-    saveIntent && values.name.trim().length > 0 ? JSON.stringify({ values, payload: saveIntent.payload }) : null
+    saveIntent && values.name.trim().length > 0 ? serializeAgentSaveAttempt(values, saveIntent.payload) : null
   const canPersist = autoSaveChangeKey !== null
-  // Tracks whether the most recent save attempt failed, so the close path can
-  // keep the dialog open (and the error visible) instead of closing over a loss.
-  const saveFailedRef = useRef(false)
+  const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
 
   const persist = async () => {
     // Recompute from refs at execution time: the serialized autosave queue may
     // start its follow-up pass before React has rendered the baseline state
     // advanced by the previous pass.
-    const submittedFormState = buildAgentFormState(formBaselineRef.current, form.getValues())
+    const submittedValues = form.getValues()
+    const submittedFormState = buildAgentFormState(formBaselineRef.current, submittedValues)
     const pending = diffAgentSaveIntent(submittedFormState, formBaselineRef.current)
     if (!pending) return
+    const attemptedKey = serializeAgentSaveAttempt(submittedValues, pending.payload)
+
+    // A close-triggered flush does not cancel the already scheduled debounce.
+    // Keep both paths from resending an unchanged payload that already failed.
+    if (failedSaveKeyRef.current === attemptedKey) return
 
     form.clearErrors('root')
-    saveFailedRef.current = false
+    failedSaveKeyRef.current = null
 
     try {
       await updateAgent(pending.payload)
     } catch (error) {
       logger.error('Failed to auto-save agent edit dialog', error as Error, { agentId: resource.id })
-      form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
-      saveFailedRef.current = true
+      failedSaveKeyRef.current = attemptedKey
+      form.setError('root', { message: saveFailedMessage })
+      toast.error(saveFailedMessage)
       return
     }
 
@@ -418,9 +430,13 @@ function AgentEditDialogContent({
       onOpenChange(next)
       return
     }
+    if (failedSaveKeyRef.current === autoSaveChangeKey) {
+      toast.error(saveFailedMessage)
+      return
+    }
     void (async () => {
       await flush()
-      if (saveFailedRef.current) return
+      if (failedSaveKeyRef.current !== null) return
       onOpenChange(false)
     })()
   }
@@ -458,7 +474,7 @@ function AgentEditDialogContent({
           forceMount
           hidden={activeTab !== 'prompt'}
           className="m-0 flex h-full min-h-0 flex-col">
-          <AgentPromptField form={form} portalContainer={dialogContentElement} />
+          <AgentPromptField form={form} />
         </TabsContent>
         {isToolTab(activeTab) ? (
           <TabsContent value={activeTab} forceMount className="m-0">
@@ -697,13 +713,7 @@ function HeartbeatSettingsField({
   )
 }
 
-function AgentPromptField({
-  form,
-  portalContainer
-}: {
-  form: UseFormReturn<AgentEditFormValues>
-  portalContainer: HTMLElement | null
-}) {
+function AgentPromptField({ form }: { form: UseFormReturn<AgentEditFormValues> }) {
   const { t } = useTranslation()
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const name = useWatch({ control: form.control, name: 'name' })
@@ -720,13 +730,7 @@ function AgentPromptField({
 
         return (
           <PromptEditorField
-            label={
-              <FieldLabelWithHelp
-                label={t('library.config.agent.field.instructions.label')}
-                helpTrigger={<PromptVariablesPopover portalContainer={portalContainer} />}
-                formLabel={false}
-              />
-            }
+            label={<FieldLabelWithHelp label={t('library.config.agent.field.instructions.label')} formLabel={false} />}
             value={field.value}
             onChange={field.onChange}
             placeholder={t('library.config.agent.field.instructions.placeholder')}

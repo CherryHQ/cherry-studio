@@ -207,6 +207,23 @@ export interface MessageListItem {
   isContextBoundary?: boolean
 }
 
+/**
+ * The message topology the anchor rail derives its turns from — deliberately
+ * the complete set of fields it may read.
+ *
+ * Streaming rewrites message content and array identity on every chunk but
+ * never the topology, so projecting onto these fields lets the rail keep a
+ * referentially stable `messages` prop and skip the render entirely. Reading
+ * any other field from the rail means widening this type first, which is a
+ * compile error rather than a silently stale render.
+ */
+export interface AnchorMessage {
+  id: string
+  role: MessageListItem['role']
+  isActiveBranch?: boolean
+  isContextBoundary?: boolean
+}
+
 export interface MessageRenderConfig {
   userName: string
   narrowMode: boolean
@@ -386,8 +403,8 @@ export interface MessageListActions {
   deleteMessage?: (messageId: string, options?: DeleteMessageOptions) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>
-  deleteMessageGroup?: (parentId: string) => void | Promise<void>
-  deleteMessageGroupWithConfirm?: (parentId: string) => void | Promise<void>
+  deleteMessageGroup?: (messageIds: readonly string[]) => void | Promise<void>
+  deleteMessageGroupWithConfirm?: (messageIds: readonly string[]) => void | Promise<void>
   regenerateMessage?: (messageId: string) => void | Promise<void>
 }
 

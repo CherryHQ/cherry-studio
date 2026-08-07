@@ -9,7 +9,7 @@ import {
   usePortalContainer
 } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
-import { AtSign, Search, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import {
   type ComponentPropsWithoutRef,
   isValidElement,
@@ -56,6 +56,7 @@ export type SelectorShellSearch = {
 type SelectorShellMultiSelectBase = {
   label: ReactNode
   hint?: ReactNode
+  tooltip?: ReactNode
   checked: boolean
   disabled?: boolean
   onCheckedChange: (checked: boolean) => void
@@ -518,24 +519,23 @@ export function SelectorShell({
                     ) : null}
                   </div>
                   {renderMultiSelectAsSearchBadge && multiSelect ? (
-                    <Tooltip content={multiSelect.ariaLabel ?? multiSelect.label}>
+                    <Tooltip content={multiSelect.tooltip} delay={1500}>
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="icon-sm"
+                        variant="secondary"
+                        size="sm"
                         disabled={multiSelect.disabled}
                         aria-pressed={multiSelect.checked}
                         aria-label={multiSelect.ariaLabel}
-                        title={multiSelect.ariaLabel}
                         data-testid={multiSelect.dataTestId}
                         className={cn(
-                          'size-6 shrink-0 rounded-md bg-transparent p-0 shadow-none',
+                          'h-6 min-h-6 shrink-0 rounded-md px-2 text-xs',
                           multiSelect.checked
-                            ? 'bg-accent text-accent-foreground'
-                            : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
+                            ? 'bg-accent text-accent-foreground hover:bg-accent'
+                            : 'bg-secondary/60 hover:bg-secondary'
                         )}
                         onClick={() => multiSelect.onCheckedChange(!multiSelect.checked)}>
-                        <AtSign className="size-3.5" aria-hidden="true" />
+                        {multiSelect.label}
                       </Button>
                     </Tooltip>
                   ) : null}

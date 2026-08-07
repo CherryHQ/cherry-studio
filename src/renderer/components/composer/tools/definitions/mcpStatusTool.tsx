@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import {
   openResourceEditDialog,
@@ -15,10 +16,10 @@ import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import type { McpMode } from '@shared/data/types/assistant'
+import { DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
-import { Cable, Check, Loader2, Settings2 } from 'lucide-react'
+import { Check, Loader2, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export const MCP_STATUS_LAUNCHER_ID = 'mcp-status'
@@ -73,7 +74,7 @@ function createEmptyMcpStatusItem(label: string): QuickPanelListItem {
   return {
     id: 'mcp-status-empty',
     label,
-    icon: <Cable />,
+    icon: <McpLogo aria-hidden />,
     disabled: true
   }
 }
@@ -91,7 +92,7 @@ function createMcpStatusItem(
     label: server.name,
     description,
     filterText: [server.name, server.description, description].filter(Boolean).join(' '),
-    icon: <Cable />
+    icon: <McpLogo aria-hidden />
   }
 }
 
@@ -154,7 +155,7 @@ export async function updateMcpBinding({
     return true
   }
 
-  if (!assistant || assistant.settings?.mcpMode !== 'manual') return false
+  if (!assistant || (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) !== 'manual') return false
   await updateAssistant({ mcpServerIds: nextBindingIds(assistant.mcpServerIds ?? [], serverId, enabled) })
   return true
 }
@@ -181,7 +182,7 @@ export function buildMcpStatusItems({
     })
   }
 
-  const mode = assistant?.settings?.mcpMode ?? 'disabled'
+  const mode = assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled'
   if (mode === 'disabled') {
     return [createEmptyMcpStatusItem(t('settings.quickPanel.mcp.disabled', 'MCP is disabled'))]
   }
@@ -266,7 +267,7 @@ export function createMcpStatusLauncher(
       isDisabled && modeLabel
         ? modeLabel
         : t('settings.quickPanel.mcp.description', 'View configured MCP server status'),
-    icon: <Cable />,
+    icon: <McpLogo aria-hidden />,
     action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
       onOpen?.()
       clearMcpStatusInputQuery(inputAdapter, queryAnchor, triggerInfo)
@@ -287,7 +288,8 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
   const { assistant, launcher, scope, session, t } = context
   const { isVisible, symbol, updateList } = useQuickPanel()
   const [dataRequested, setDataRequested] = useState(false)
-  const mode = scope === TopicType.Chat ? (assistant?.settings?.mcpMode ?? 'disabled') : undefined
+  const mode =
+    scope === TopicType.Chat ? (assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled') : undefined
   const dataEnabled = dataRequested && (scope === TopicType.Session || mode !== 'disabled')
   const { mcpServers, isLoading: isMcpServersLoading } = useMcpServers(undefined, { enabled: dataEnabled })
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)

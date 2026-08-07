@@ -1662,504 +1662,6 @@
       "providerId": "aihubmix"
     },
     {
-      "modelId": "claude-haiku-4-5",
-      "providerId": "anthropic",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "claude-opus-4",
-      "providerId": "anthropic",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "claude-opus-4-1",
-      "providerId": "anthropic",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "claude-opus-4-5",
-      "providerId": "anthropic",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "claude-sonnet-4",
-      "providerId": "anthropic",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "claude-sonnet-4-5",
-      "providerId": "anthropic",
-      "reasoningContracts": {
-        "anthropic-messages": {
-          "wire": {
-            "auto": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "clampToMaxTokens": true,
-                "missing": {
-                  "type": "fallback",
-                  "value": 13312
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                },
-                {
-                  "target": "thinking.budgetTokens",
-                  "value": {
-                    "source": "budget"
-                  }
-                },
-                {
-                  "target": "sendReasoning",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "global.anthropic.claude-fable-5",
       "modelId": "claude-fable-5",
       "pricing": {
@@ -8749,7 +8251,7 @@
       "providerId": "deepseek"
     },
     {
-      "endpointTypes": ["openai-responses", "openai-chat-completions"],
+      "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-flash",
       "providerId": "deepseek",
       "reasoningContracts": {
@@ -8866,7 +8368,7 @@
       }
     },
     {
-      "endpointTypes": ["openai-chat-completions"],
+      "endpointTypes": ["openai-chat-completions", "anthropic-messages"],
       "modelId": "deepseek-v4-pro",
       "providerId": "deepseek",
       "reasoningContracts": {
@@ -11619,29 +11121,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "anthropic/claude-opus-4.1",
-      "modelId": "claude-opus-4-1",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 1.5
-        },
-        "cacheWrite": {
-          "currency": "USD",
-          "perMillionTokens": 18.75
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 15
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 75
-        }
-      },
-      "providerId": "gateway"
-    },
-    {
       "apiModelId": "anthropic/claude-opus-4.5",
       "modelId": "claude-opus-4-5",
       "pricing": {
@@ -12036,15 +11515,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.0036
+          "perMillionTokens": 0.14
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.435
+          "perMillionTokens": 1.74
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.87
+          "perMillionTokens": 3.48
         }
       },
       "providerId": "gateway"
@@ -15378,635 +14857,6 @@
       "providerId": "gateway"
     },
     {
-      "apiModelId": "gemini-2.5-flash",
-      "modelId": "gemini-2-5-flash",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "gemini-2.5-flash-image",
-      "modelId": "gemini-2-5-flash-image",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "gemini-2.5-flash-image-preview",
-      "modelId": "gemini-2-5-flash-image-preview",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "gemini-2.5-flash-lite",
-      "modelId": "gemini-2-5-flash-lite",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "gemini-2.5-pro",
-      "modelId": "gemini-2-5-pro",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "gemini-2.5-pro-preview",
-      "modelId": "gemini-2-5-pro-preview",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "gemini-2.5-pro-preview-05-06",
-      "modelId": "gemini-2-5-pro-preview-05-06",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "apiModelId": "gemini-3.1-flash-lite-image",
-      "modelId": "gemini-3-1-flash-lite-image",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "gemini-omni-flash-preview",
-      "providerId": "gemini",
-      "reasoningContracts": {
-        "google-generate-content": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": -1
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "budget": {
-                "missing": {
-                  "type": "fallback",
-                  "value": -1
-                }
-              },
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": true
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "budget"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "thinkingConfig.includeThoughts",
-                  "value": {
-                    "source": "literal",
-                    "value": false
-                  }
-                },
-                {
-                  "target": "thinkingConfig.thinkingBudget",
-                  "value": {
-                    "source": "literal",
-                    "value": 0
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "mistral-ai/codestral-2501",
       "modelId": "codestral",
       "pricing": {
@@ -17032,6 +15882,22 @@
       "providerId": "grok-cli"
     },
     {
+      "apiModelId": "allam-2-7b",
+      "modelId": "allam-2-7b",
+      "name": "ALLaM-2-7b",
+      "pricing": {
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 0
+        }
+      },
+      "providerId": "groq"
+    },
+    {
       "apiModelId": "openai/gpt-oss-120b",
       "modelId": "gpt-oss-120b",
       "pricing": {
@@ -17117,22 +15983,6 @@
       "providerId": "groq"
     },
     {
-      "apiModelId": "meta-llama/llama-4-scout-17b-16e-instruct",
-      "modelId": "llama-4-scout-17b-16e-instruct",
-      "name": "Llama 4 Scout 17B 16E",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.11
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.34
-        }
-      },
-      "providerId": "groq"
-    },
-    {
       "apiModelId": "meta-llama/llama-prompt-guard-2-22m",
       "modelId": "llama-prompt-guard-2-22m",
       "name": "Llama Prompt Guard 2 22M",
@@ -17165,16 +16015,20 @@
       "providerId": "groq"
     },
     {
-      "apiModelId": "qwen/qwen3-32b",
-      "modelId": "qwen3-32b",
+      "apiModelId": "qwen/qwen3.6-27b",
+      "modelId": "qwen3-6-27b",
       "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.3
+        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.29
+          "perMillionTokens": 0.6
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.59
+          "perMillionTokens": 3
         }
       },
       "providerId": "groq"
@@ -21327,6 +20181,7 @@
     },
     {
       "apiModelId": "gpt-5.6-luna",
+      "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-6-luna",
       "pricing": {
         "cacheRead": {
@@ -21346,11 +20201,23 @@
           "perMillionTokens": 0.6
         }
       },
-      "providerId": "opencode"
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "low", "medium", "high", "xhigh", "max"]
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "apiModelId": "grok-4.5",
-      "endpointTypes": ["openai-chat-completions"],
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "grok-4-5",
       "pricing": {
         "cacheRead": {
@@ -21377,11 +20244,22 @@
               }
             ]
           }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["low", "medium", "high"]
+              }
+            ]
+          }
         }
       }
     },
     {
       "apiModelId": "hy3",
+      "endpointTypes": ["openai-chat-completions"],
       "modelId": "hy3",
       "pricing": {
         "cacheRead": {
@@ -21397,7 +20275,19 @@
           "perMillionTokens": 0.58
         }
       },
-      "providerId": "opencode"
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "low", "high"]
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "apiModelId": "kimi-k2.5",
@@ -22040,6 +20930,7 @@
     },
     {
       "apiModelId": "qwen3.8-max",
+      "endpointTypes": ["anthropic-messages"],
       "modelId": "qwen3-8-max",
       "pricing": {
         "cacheRead": {
@@ -22059,7 +20950,60 @@
           "perMillionTokens": 6
         }
       },
-      "providerId": "opencode"
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "support": {
+            "controls": [
+              {
+                "kind": "budget",
+                "max": 262144,
+                "min": 1
+              },
+              {
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "effort": {
+              "budget": {
+                "clampToMaxTokens": true,
+                "min": 1024,
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                },
+                {
+                  "target": "thinking.budgetTokens",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "aion-labs/aion-2.0",
@@ -23233,15 +22177,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.018
+          "perMillionTokens": 0.0027
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.09
+          "perMillionTokens": 0.083
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.18
+          "perMillionTokens": 0.167
         }
       },
       "providerId": "openrouter",
@@ -25048,15 +23992,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.1794
+          "perMillionTokens": 0.1768
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.966
+          "perMillionTokens": 0.952
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.036
+          "perMillionTokens": 2.992
         }
       },
       "providerId": "openrouter",
@@ -27544,7 +26488,7 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.73
+          "perMillionTokens": 0.7
         },
         "output": {
           "currency": "USD",
@@ -28412,7 +27356,7 @@
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.15
+          "perMillionTokens": 0.22
         },
         "output": {
           "currency": "USD",
@@ -28434,15 +27378,15 @@
       "pricing": {
         "cacheRead": {
           "currency": "USD",
-          "perMillionTokens": 0.05
+          "perMillionTokens": 0.054
         },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.25
+          "perMillionTokens": 0.27
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 1.08
         }
       },
       "providerId": "openrouter",
@@ -28747,11 +27691,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.075
+          "perMillionTokens": 0.09375
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.2
+          "perMillionTokens": 0.25
         }
       },
       "providerId": "openrouter"
@@ -28808,6 +27752,41 @@
     {
       "apiModelId": "meta/muse-spark-1.1",
       "modelId": "muse-spark-1-1",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.15
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 1.25
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 4.25
+        }
+      },
+      "providerId": "openrouter",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "default": "medium",
+                "kind": "effort",
+                "values": ["xhigh", "high", "medium", "low", "minimal"]
+              }
+            ],
+            "defaultEffort": "medium",
+            "supportedEfforts": ["xhigh", "high", "medium", "low", "minimal"]
+          }
+        }
+      }
+    },
+    {
+      "apiModelId": "meta/muse-spark-1.2",
+      "modelId": "muse-spark-1-2",
+      "name": "Muse Spark 1.2",
       "pricing": {
         "cacheRead": {
           "currency": "USD",
@@ -29481,6 +28460,178 @@
       "providerId": "openrouter"
     },
     {
+      "apiModelId": "qwen/qwen-image-3",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 4,
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:2",
+                  "1:4",
+                  "2:1",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "9:16",
+                  "16:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:2",
+                  "1:4",
+                  "2:1",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "9:16",
+                  "16:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen-image-3",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
+      "apiModelId": "qwen/qwen-image-3-pro",
+      "capabilities": {
+        "add": ["image-generation"]
+      },
+      "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "maxInputImages": 4,
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:2",
+                  "1:4",
+                  "2:1",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "9:16",
+                  "16:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": [
+                  "1:1",
+                  "1:2",
+                  "1:4",
+                  "2:1",
+                  "2:3",
+                  "3:2",
+                  "3:4",
+                  "4:1",
+                  "4:3",
+                  "4:5",
+                  "5:4",
+                  "9:16",
+                  "16:9"
+                ],
+                "type": "enum"
+              },
+              "numImages": {
+                "max": 6,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              },
+              "resolution": {
+                "options": ["1K", "2K"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "qwen-image-3-pro",
+      "outputModalities": ["image"],
+      "providerId": "openrouter"
+    },
+    {
       "apiModelId": "qwen/qwen-plus-2025-07-28:thinking",
       "modelId": "qwen-plus",
       "pricing": {
@@ -29510,17 +28661,13 @@
       "apiModelId": "qwen/qwen2.5-vl-72b-instruct",
       "modelId": "qwen2-5-vl-72b-instruct",
       "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.4
-        },
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.8
+          "perMillionTokens": 0.25
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 1
+          "perMillionTokens": 0.75
         }
       },
       "providerId": "openrouter"
@@ -30289,11 +29436,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.98
+          "perMillionTokens": 0.4
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 3.95
+          "perMillionTokens": 4
         }
       },
       "providerId": "openrouter",
@@ -37307,5 +36454,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "575c567531d2c161"
+  "version": "72a7007d4783a627"
 }

@@ -3,7 +3,6 @@ import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import {
@@ -12,17 +11,24 @@ import {
   WEB_FETCH_TOOL_NAME,
   WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
+import type { CompactionSink } from '@shared/ai/compaction'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
-import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import {
+  type Assistant,
+  DEFAULT_ASSISTANT_SETTINGS,
+  MAX_TOOL_CALLS,
+  MIN_TOOL_CALLS
+} from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
 import { finalizeWebToolRoutes, resolveWebToolRoutes, type WebToolRoutes } from '@shared/utils/provider'
 import { type JSONValue, stepCountIs, type StopCondition, type ToolSet, type UIMessage } from 'ai'
 
-import { collectFileAttachments } from '../../../messages/attachmentRouting'
+import { resolveRequestContextSettings } from '../../../contextBuild/resolveRequestContextSettings'
 import type { FileAttachmentRef } from '../../../messages/attachmentTypes'
+import { collectRetainedContext, type RetainedContext } from '../../../messages/retainedContext'
 import { createHttpTraceFetch } from '../../../observability'
 import { resolveProviderAiSdkConfig } from '../../../provider/config'
 import type { ServingCredentialReceipt } from '../../../provider/credential'
@@ -83,6 +89,8 @@ export interface BuildAgentParamsInput {
     chatId?: string
     messageId?: string
     messages?: UIMessage[]
+    /** Raw-path surviving context from the chat provider (see AiStreamRequest.retainedContext). */
+    retainedContext?: RetainedContext
   }
   signal: AbortSignal | undefined
   provider: Provider
@@ -92,6 +100,8 @@ export interface BuildAgentParamsInput {
   extraFeatures?: readonly RequestFeature[]
   /** Late-bound request usage middleware for nested tool-repair calls. */
   getRepairUsagePlugins?: () => AiPlugin[]
+  /** Reports compaction progress to the UI; absent when there is no live stream. */
+  compactionSink?: CompactionSink
 }
 
 export interface BuiltAgentParams {
@@ -110,7 +120,7 @@ export interface BuiltAgentParams {
 }
 
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
-  const { request, signal, provider, model, assistant, extraFeatures } = input
+  const { request, signal, provider, model, assistant, extraFeatures, compactionSink } = input
 
   const resolvedEndpoint = resolveEffectiveEndpoint(provider, model)
   const { sdkConfig, credentialReceipt } = await resolveSdkConfig(
@@ -120,11 +130,18 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     request.apiKeyOverride
   )
   applyHttpTrace(sdkConfig, request.chatId, model)
-  const fileAttachments = collectFileAttachments(request.messages)
+  // Prefer the request-carried retained context: the persistent chat provider
+  // computes it from the RAW message path, so attachments and persisted tool
+  // outputs folded away by durable compaction stay readable via read_file /
+  // fs_read. Scanning `messages` only sees the served (post-fold) view — the
+  // fallback is for providers that never fold (temporary chat, agent).
+  const retained = request.retainedContext ?? collectRetainedContext(request.messages ?? [])
+  const fileAttachments = retained.fileAttachments
   const hasFileAttachments = fileAttachments.length > 0
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request) : undefined
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
+    endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
       ? toolSignals.mcpToolIds.size > 0 ||
         // Mirrors the KB tools' own `applies`: owning a base is not enough, this request must also
@@ -177,13 +194,26 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
 
+  // Resolved before the tool context so fs_read's per-call cap can follow the
+  // effective persist threshold instead of the compile-time default.
+  const { contextSettings, compressionModel } = await resolveRequestContextSettings(
+    model,
+    assistant?.settings.contextSettings
+  )
+
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
     assistant,
     abortSignal: signal,
     fileAttachments,
-    knowledgeBaseIds
+    knowledgeBaseIds,
+    // fs_read's exact allow-list: blobs referenced by the conversation, plus
+    // whatever the in-flight offload adapter appends mid-turn. Cloned so those
+    // per-turn appends never contaminate the RetainedContext shared across the
+    // models of a multi-model send.
+    persistedOutputPaths: new Set(retained.persistedOutputPaths),
+    toolOutputCharCap: contextSettings.truncateThreshold
   }
 
   const scope: RequestScope = {
@@ -201,6 +231,9 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     reasoning,
     requestContext,
     mcpToolIds,
+    contextSettings,
+    compressionModel,
+    compactionSink,
     webToolRoutes: finalWebToolRoutes,
     hasFileAttachments,
     knowledgeBaseIds
@@ -372,7 +405,11 @@ async function resolveRequestWebToolRoutes(
   model: Model,
   provider: Provider,
   assistant: Assistant | undefined,
-  requestContext: { hasFunctionToolSignals: boolean; reasoningEffort: string | undefined }
+  requestContext: {
+    endpointType: EndpointType | undefined
+    hasFunctionToolSignals: boolean
+    reasoningEffort: string | undefined
+  }
 ): Promise<WebToolRoutes> {
   if (!assistant) return NO_WEB_TOOL_ROUTES
 
@@ -391,6 +428,7 @@ async function resolveRequestWebToolRoutes(
     clientSearchAvailable,
     clientFetchAvailable,
     clientToolsPreferred,
+    endpointType: requestContext.endpointType,
     hasFunctionToolSignals: requestContext.hasFunctionToolSignals,
     reasoningEffort: requestContext.reasoningEffort
   })

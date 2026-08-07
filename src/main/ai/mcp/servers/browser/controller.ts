@@ -1,7 +1,9 @@
+import { application } from '@application'
 import { isMac, isWin } from '@main/core/platform'
+import { WindowType } from '@main/core/window/types'
 import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { randomUUID } from 'crypto'
-import { app, BrowserView, BrowserWindow, nativeTheme } from 'electron'
+import { app, BrowserView, type BrowserWindow, nativeTheme } from 'electron'
 import TurndownService from 'turndown'
 
 import { SESSION_KEY_DEFAULT, SESSION_KEY_PRIVATE, TAB_BAR_HEIGHT } from './constants'
@@ -104,6 +106,14 @@ export class CdpBrowserController {
     }
   }
 
+  // All controller-initiated window closes go through WindowManager, which owns
+  // the BrowserWindow lifecycle; the per-window 'closed' listener does map cleanup.
+  private closeWindow(windowInfo: WindowInfo) {
+    if (!windowInfo.window.isDestroyed()) {
+      application.get('WindowManager').close(windowInfo.windowId)
+    }
+  }
+
   private async ensureDebuggerAttached(dbg: Electron.Debugger, sessionKey: string) {
     if (!dbg.isAttached()) {
       try {
@@ -130,9 +140,7 @@ export class CdpBrowserController {
         for (const tabId of tabIds) {
           this.closeTabInternal(windowInfo, tabId)
         }
-        if (!windowInfo.window.isDestroyed()) {
-          windowInfo.window.close()
-        }
+        this.closeWindow(windowInfo)
         this.windows.delete(windowKey)
       }
     }
@@ -155,9 +163,7 @@ export class CdpBrowserController {
         for (const [tabId] of windowInfo.tabs.entries()) {
           this.closeTabInternal(windowInfo, tabId)
         }
-        if (!windowInfo.window.isDestroyed()) {
-          windowInfo.window.close()
-        }
+        this.closeWindow(windowInfo)
       }
       this.windows.delete(lruKey)
       logger.info('Evicted window to respect maxWindows', { evicted: lruKey })
@@ -306,9 +312,7 @@ export class CdpBrowserController {
         }
       }
     } else if (action.type === 'window-close') {
-      if (!windowInfo.window.isDestroyed()) {
-        windowInfo.window.close()
-      }
+      this.closeWindow(windowInfo)
     }
   }
 
@@ -349,32 +353,21 @@ export class CdpBrowserController {
     windowKey: string,
     privateMode: boolean,
     showWindow = false
-  ): Promise<BrowserWindow> {
+  ): Promise<{ window: BrowserWindow; windowId: string }> {
     await this.ensureAppReady()
 
-    const partition = this.getPartition(privateMode)
-
-    const win = new BrowserWindow({
-      show: showWindow,
-      width: 1200,
-      height: 800,
-      ...(isMac
-        ? {
-            titleBarStyle: 'hidden',
-            titleBarOverlay: { height: 42 }, // WCO height (macOS)
-            trafficLightPosition: { x: 13, y: 13 }
-          }
-        : {
-            frame: false // Frameless window for Windows and Linux
-          }),
-      webPreferences: {
-        contextIsolation: true,
-        sandbox: true,
-        nodeIntegration: false,
-        devTools: true,
-        partition
-      }
+    const windowManager = application.get('WindowManager')
+    // The per-mode session partition is the only dynamic option; everything else
+    // lives in the WindowType.McpBrowser registry entry.
+    const windowId = windowManager.open(WindowType.McpBrowser, {
+      options: { webPreferences: { partition: this.getPartition(privateMode) } }
     })
+    const win = windowManager.getWindow(windowId)
+    if (!win) {
+      windowManager.close(windowId)
+      throw new Error('MCP browser window not found after open')
+    }
+    if (showWindow) win.show()
 
     win.on('closed', () => {
       const windowInfo = this.windows.get(windowKey)
@@ -387,7 +380,7 @@ export class CdpBrowserController {
       }
     })
 
-    return win
+    return { window: win, windowId }
   }
 
   private async getOrCreateWindow(privateMode: boolean, showWindow = false): Promise<WindowInfo> {
@@ -399,11 +392,12 @@ export class CdpBrowserController {
     let windowInfo = this.windows.get(windowKey)
     if (!windowInfo) {
       this.evictIfNeeded(windowKey)
-      const window = await this.createBrowserWindow(windowKey, privateMode, showWindow)
+      const { window, windowId } = await this.createBrowserWindow(windowKey, privateMode, showWindow)
       windowInfo = {
         windowKey,
         privateMode,
         window,
+        windowId,
         tabs: new Map(),
         activeTabId: null,
         lastActive: Date.now(),
@@ -739,9 +733,7 @@ export class CdpBrowserController {
 
         // If no tabs left, close the window
         if (windowInfo.tabs.size === 0) {
-          if (!windowInfo.window.isDestroyed()) {
-            windowInfo.window.close()
-          }
+          this.closeWindow(windowInfo)
           this.windows.delete(windowKey)
           logger.info('Browser CDP window closed (last tab closed)', { windowKey, tabId })
           return
@@ -771,9 +763,7 @@ export class CdpBrowserController {
         for (const tid of tabIds) {
           this.closeTabInternal(windowInfo, tid)
         }
-        if (!windowInfo.window.isDestroyed()) {
-          windowInfo.window.close()
-        }
+        this.closeWindow(windowInfo)
       }
       this.windows.delete(windowKey)
       logger.info('Browser CDP window reset', { windowKey, privateMode })
@@ -786,9 +776,7 @@ export class CdpBrowserController {
       for (const tid of tabIds) {
         this.closeTabInternal(windowInfo, tid)
       }
-      if (!windowInfo.window.isDestroyed()) {
-        windowInfo.window.close()
-      }
+      this.closeWindow(windowInfo)
     }
     this.windows.clear()
     logger.info('Browser CDP context reset (all windows)')

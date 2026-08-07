@@ -2,7 +2,7 @@
   "agent": {
     "builtin": {
       "cherry_assistant": {
-        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Conseiller intégré de Cherry Studio. Il diagnostique les problèmes, vous guide dans les opérations, recueille les FAQ, soumet les bugs et demandes de fonctionnalités, et recherche ou crée des Skills."
       }
     },
     "session": {
@@ -87,6 +87,10 @@
       "message": "Les discussions, assistants, bases de connaissances, fichiers et paramètres seront effacés, puis l’application redémarrera. Cette action est irréversible. Continuer ?",
       "title": "Réinitialiser les données de l’application"
     },
+    "diagnostic_bundle": {
+      "title": "Enregistrer l'archive de diagnostic",
+      "zip_filter": "Archive ZIP"
+    },
     "html_files": "Fichiers HTML",
     "open_file": "Ouvrir le fichier",
     "pdf_files": "Fichiers PDF",
@@ -96,6 +100,14 @@
     "save_file": "Enregistrer le fichier",
     "select_folder": "Sélectionner un dossier",
     "word_document": "Document Word"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Le binaire OpenClaw utilisé par Cherry Studio est incompatible avec la configuration générée. Mettez OpenClaw à niveau.{{details}}",
+      "external_config_invalid": "OpenClaw a rejeté une configuration située en dehors de la section des fournisseurs gérée par Cherry Studio. Corrigez cette configuration ou mettez OpenClaw à niveau.{{details}}",
+      "more_issues": "et {{count}} autre(s) problème(s)",
+      "preflight_failed": "Cherry Studio n’a pas pu valider la configuration OpenClaw."
+    }
   },
   "paintings": {
     "generate_failed": "Échec de la génération de l'image",

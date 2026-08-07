@@ -7,19 +7,36 @@ import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeAssistant, makeModel, makeProvider } from '../../../../__tests__/fixtures'
+import type * as ResolveRequestContextSettingsModule from '../../../../contextBuild/resolveRequestContextSettings'
+import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
 import type { ToolEntry } from '../../../../tools/adapters/aiSdk/types'
 import type { AppProviderSettingsMap } from '../../../../types'
 import type { CallOverrides } from '../../../../types/requests'
 
-const { preferenceGetMock, resolveProviderAiSdkConfigMock } = vi.hoisted(() => ({
+const { preferenceGetMock, resolveProviderAiSdkConfigMock, resolveRequestContextSettingsSpy } = vi.hoisted(() => ({
   preferenceGetMock: vi.fn(),
-  resolveProviderAiSdkConfigMock: vi.fn()
+  resolveProviderAiSdkConfigMock: vi.fn(),
+  resolveRequestContextSettingsSpy: vi.fn()
 }))
 
 vi.mock('../../../../provider/config', () => ({
   resolveProviderAiSdkConfig: resolveProviderAiSdkConfigMock
 }))
+
+// Spy that calls through to the real resolver (the null-pref mock keeps it
+// behavior-preserving) so existing tests are untouched but the assistant
+// override passthrough can be asserted.
+vi.mock('../../../../contextBuild/resolveRequestContextSettings', async (importOriginal) => {
+  const actual = await importOriginal<typeof ResolveRequestContextSettingsModule>()
+  return {
+    ...actual,
+    resolveRequestContextSettings: (...args: Parameters<typeof actual.resolveRequestContextSettings>) => {
+      resolveRequestContextSettingsSpy(...args)
+      return actual.resolveRequestContextSettings(...args)
+    }
+  }
+})
 
 vi.mock('@application', () => ({
   application: {
@@ -541,6 +558,114 @@ describe('buildAgentParams web-tool routing', () => {
     }
   )
 
+  it.each([
+    { endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES, runtimeProviderId: 'openai', expectedRoute: 'server' },
+    {
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      runtimeProviderId: 'deepseek',
+      expectedRoute: 'client'
+    },
+    { endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, runtimeProviderId: 'anthropic', expectedRoute: 'client' }
+  ] as const)(
+    'routes DeepSeek V4 Flash web search to $expectedRoute on $endpointType',
+    async ({ endpointType, runtimeProviderId, expectedRoute }) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: runtimeProviderId, providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const deepseekProvider = makeProvider({
+        id: 'deepseek',
+        presetProviderId: 'deepseek',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'deepseek' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+        },
+        serverTools: [
+          {
+            id: SERVER_TOOL.WEB_SEARCH,
+            modelScope: 'model-dependent',
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+          }
+        ]
+      })
+      const deepseekModel = makeModel({
+        id: 'deepseek::deepseek-v4-flash',
+        providerId: 'deepseek',
+        apiModelId: 'deepseek-v4-flash',
+        endpointTypes: [endpointType],
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+      const preferences = new Map<string, unknown>([
+        ['app.developer_mode.enabled', false],
+        ['chat.web_search.client_tools_preferred', false],
+        ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
+        ['chat.web_search.provider_overrides', {}],
+        ['chat.web_search.max_results', 5],
+        ['chat.web_search.exclude_domains', []]
+      ])
+      preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+      registry.register(clientSearchEntry)
+
+      const result = await buildAgentParams({
+        request: {},
+        signal: undefined,
+        provider: deepseekProvider,
+        model: deepseekModel,
+        assistant
+      })
+
+      expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(expectedRoute === 'server')
+      expect(result.tools?.web_search === clientSearchEntry.tool).toBe(expectedRoute === 'client')
+    }
+  )
+
+  it.each(['deepseek-v3', 'deepseek-v3.2'])(
+    'keeps Bailian built-in search enabled for %s on Chat Completions',
+    async (apiModelId) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'openai-compatible', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const dashscopeProvider = makeProvider({
+        id: 'dashscope',
+        presetProviderId: 'dashscope',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' }
+        },
+        serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
+      })
+      const dashscopeModel = makeModel({
+        id: `dashscope::${apiModelId}`,
+        providerId: 'dashscope',
+        apiModelId,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+      preferenceGetMock.mockImplementation((key: string) => {
+        if (key === 'chat.web_search.client_tools_preferred') return false
+        if (key === 'chat.web_search.max_results') return 5
+        if (key === 'chat.web_search.exclude_domains') return []
+        return null
+      })
+
+      const result = await buildAgentParams({
+        request: {},
+        signal: undefined,
+        provider: dashscopeProvider,
+        model: dashscopeModel,
+        assistant
+      })
+
+      expect(result.options.providerOptions).toMatchObject({
+        dashscope: { enable_search: true, search_options: { forced_search: true } }
+      })
+      expect(result.tools?.web_search).toBeUndefined()
+    }
+  )
+
   // Owning a knowledge base is global account state; the KB tools only load when this request also
   // scopes one (their `applies` requires both). Treating the global flag as a function-tool signal
   // made every Gemini 2.5 request look like a native-tool conflict and lose the server route.
@@ -679,8 +804,12 @@ describe('buildAgentParams assistant-less reasoning', () => {
     })
 
     expect(result.sdkConfig.providerOptionsKey).toBe('google')
+    // Gemini 2.5 speaks the budget dialect and hard-rejects `thinkingLevel`, so
+    // turning reasoning off must send `thinkingBudget: 0`. This row is exactly
+    // the shape that used to leak the Gemini 3 field: a catalog-backed custom
+    // row (resolvable apiModelId, no presetModelId) on a gateway with no pin.
     expect(result.options.providerOptions).toEqual({
-      google: { thinkingConfig: { includeThoughts: false, thinkingLevel: 'minimal' } }
+      google: { thinkingConfig: { includeThoughts: false, thinkingBudget: 0 } }
     })
   })
 
@@ -722,6 +851,181 @@ describe('buildAgentParams assistant-less reasoning', () => {
     } finally {
       registry.deregister(entry.name)
     }
+  })
+})
+
+/**
+ * Custom rows carry no `presetModelId`, and `wireDialect` is a catalog fact that
+ * is never persisted on the row — so the dialect has to be re-resolved through
+ * `apiModelId` at request time. When that lookup is missing these rows silently
+ * fall back to the newer wire and emit a field the vendor rejects outright
+ * (Gemini 2.x `thinkingLevel`, Claude <=4.5 `thinking.type=adaptive`).
+ */
+describe('buildAgentParams native-dialect resolution for catalog-backed custom rows', () => {
+  const buildFor = async (
+    endpoint: (typeof ENDPOINT_TYPE)[keyof typeof ENDPOINT_TYPE],
+    adapterFamily: string,
+    apiModelId: string
+  ) => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: adapterFamily, providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'my-gateway',
+      defaultChatEndpoint: endpoint,
+      endpointConfigs: { [endpoint]: { adapterFamily } }
+    })
+    // No presetModelId — the row a user gets by typing the id on a custom provider.
+    const model = makeModel({
+      id: `my-gateway::${apiModelId}`,
+      providerId: 'my-gateway',
+      apiModelId,
+      maxOutputTokens: 32_000,
+      capabilities: [MODEL_CAPABILITY.REASONING],
+      reasoning: { controls: [{ kind: 'budget', min: 1024, max: 8192 }], selectableEfforts: ['low', 'high'] }
+    })
+    const assistant = makeAssistant({ settings: { reasoning_effort: 'high' } })
+    const result = await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+    return result.options.providerOptions ?? {}
+  }
+
+  it('keeps Claude 4.5 on the budget dialect', async () => {
+    const options = await buildFor(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic', 'claude-sonnet-4-5')
+    const thinking = options.anthropic?.thinking as { type?: string; budgetTokens?: number } | undefined
+    expect(thinking?.type).toBe('enabled')
+    expect(thinking?.budgetTokens).toBeGreaterThan(0)
+  })
+
+  it('keeps Gemini 2.5 on the budget dialect', async () => {
+    const options = await buildFor(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google', 'gemini-2.5-flash')
+    const config = options.google?.thinkingConfig as Record<string, unknown> | undefined
+    expect(config).toHaveProperty('thinkingBudget')
+    expect(config).not.toHaveProperty('thinkingLevel')
+  })
+
+  // Positive control: the fallback must not force every model onto budget.
+  it('leaves Gemini 3 on the level dialect', async () => {
+    const options = await buildFor(ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google', 'gemini-3-flash')
+    const config = options.google?.thinkingConfig as Record<string, unknown> | undefined
+    expect(config).toHaveProperty('thinkingLevel')
+    expect(config).not.toHaveProperty('thinkingBudget')
+  })
+
+  it('leaves Claude 4.6+ on the adaptive dialect', async () => {
+    const options = await buildFor(ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic', 'claude-opus-4-6')
+    const thinking = options.anthropic?.thinking as { type?: string; budgetTokens?: number } | undefined
+    expect(thinking?.type).toBe('adaptive')
+    expect(thinking?.budgetTokens).toBeUndefined()
+  })
+})
+
+describe('buildAgentParams retained context', () => {
+  const makeSetup = () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    const provider = makeProvider({
+      id: 'custom-claude',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+      }
+    })
+    const model = makeModel({ id: 'custom-claude::claude-x', providerId: 'custom-claude', apiModelId: 'claude-x' })
+    return { provider, model }
+  }
+  const fileMessage = {
+    id: 'm1',
+    role: 'user' as const,
+    parts: [
+      { type: 'text', text: 'see attachment' },
+      {
+        type: 'file',
+        mediaType: 'text/plain',
+        url: 'file:///tmp/log.txt',
+        filename: 'log.txt',
+        providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+      }
+    ]
+  } as never
+
+  it('prefers the request-carried retained context over scanning messages', async () => {
+    const { provider, model } = makeSetup()
+    const retainedContext = {
+      fileAttachments: [{ fileEntryId: 'fe-raw', handle: 'folded.txt', displayName: 'folded.txt' }],
+      persistedOutputPaths: new Set(['/blobs/fe-blob.txt'])
+    }
+
+    const result = await buildAgentParams({
+      request: { messages: [fileMessage], retainedContext },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    // Served messages carry fe-1, but the raw-path retained context wins.
+    expect(result.fileAttachments).toBe(retainedContext.fileAttachments)
+    expect((result.options.context as RequestContext | undefined)?.persistedOutputPaths).toEqual(
+      new Set(['/blobs/fe-blob.txt'])
+    )
+  })
+
+  it('clones the allow-list Set so mid-turn appends never reach the shared retained context', async () => {
+    const { provider, model } = makeSetup()
+    const retainedContext = {
+      fileAttachments: [],
+      persistedOutputPaths: new Set(['/blobs/fe-blob.txt'])
+    }
+
+    const result = await buildAgentParams({
+      request: { retainedContext },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    const served = (result.options.context as RequestContext | undefined)?.persistedOutputPaths
+    expect(served).not.toBe(retainedContext.persistedOutputPaths)
+    served?.add('/blobs/new-mid-turn.txt')
+    expect(retainedContext.persistedOutputPaths.has('/blobs/new-mid-turn.txt')).toBe(false)
+  })
+
+  it('falls back to scanning served messages when no retained context rides the request', async () => {
+    const { provider, model } = makeSetup()
+
+    const result = await buildAgentParams({
+      request: { messages: [fileMessage] },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(result.fileAttachments).toEqual([{ fileEntryId: 'fe-1', handle: 'log.txt', displayName: 'log.txt' }])
+    expect((result.options.context as RequestContext | undefined)?.persistedOutputPaths?.size).toBe(0)
+  })
+})
+
+describe('buildAgentParams — assistant context-settings passthrough (P2-D)', () => {
+  it("forwards the assistant's contextSettings override to the resolver", async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'anthropic', providerSettings: {} },
+      credentialReceipt: { attribution: 'unknown' }
+    })
+    resolveRequestContextSettingsSpy.mockClear()
+    const provider = makeProvider({
+      id: 'custom-claude',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' } }
+    })
+    const model = makeModel({ id: 'custom-claude::claude-x', providerId: 'custom-claude', apiModelId: 'claude-x' })
+    const override = { truncateThreshold: 4000, compress: { enabled: false } }
+    const assistant = makeAssistant({ settings: { contextSettings: override } })
+
+    await buildAgentParams({ request: {}, signal: undefined, provider, model, assistant })
+
+    expect(resolveRequestContextSettingsSpy).toHaveBeenCalledWith(model, override)
   })
 })
 
@@ -868,11 +1172,15 @@ describe('resolveToolCallLimit', () => {
 
   it('retains the effective default cap for assistant-less and disabled-limit requests', () => {
     expect(resolveToolCallLimit(undefined)).toBe(20)
-    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(100)
   })
 
   it('falls back when the configured limit is outside the supported range', () => {
-    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 101 } }))).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 1001 } }))).toBe(100)
+  })
+
+  it('accepts a limit above the previous 100-round ceiling', () => {
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 500 } }))).toBe(500)
   })
 })
 

@@ -2,6 +2,7 @@ import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import type { ResolvedAction } from '@renderer/components/chat/actions/actionTypes'
+import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import {
   ResourceEditDialogHost,
   type ResourceEditDialogTarget
@@ -10,7 +11,7 @@ import { useMutation } from '@renderer/data/hooks/useDataApi'
 import type { AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { useAssistantMutations, useAssistantsApi } from '@renderer/hooks/useAssistant'
-import { useGroups } from '@renderer/hooks/useGroups'
+import { useGroupReorder, useGroups } from '@renderer/hooks/useGroups'
 import { usePins } from '@renderer/hooks/usePins'
 import { mapApiTopicToRendererTopic, useTopicMutations } from '@renderer/hooks/useTopic'
 import { popup } from '@renderer/services/popup'
@@ -18,7 +19,7 @@ import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AssistantIconType } from '@shared/data/preference/preferenceTypes'
-import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, SquarePen, Tags, Trash2 } from 'lucide-react'
+import { BrushCleaning, Edit3, PinIcon, PinOffIcon, Plus, Smile, Tags, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -99,6 +100,7 @@ export function AssistantResourceList({
     isLoading: isAssistantGroupsLoading,
     error: assistantGroupsError
   } = useGroups('assistant', { enabled: dataEnabled && isGroupGrouping })
+  const { reorderGroup: reorderAssistantGroup } = useGroupReorder()
   const {
     topics: apiTopics,
     isLoadingAll: isTopicsLoadingAll,
@@ -200,7 +202,7 @@ export function AssistantResourceList({
                 onClick={() => {
                   void handleCreateTopic(assistant.id)
                 }}>
-                <SquarePen className="block" />
+                <NewConversationIcon className="block" />
               </ResourceList.GroupHeaderActionButton>
             </Tooltip>
           )
@@ -243,6 +245,17 @@ export function AssistantResourceList({
       toast.error(formatErrorMessageWithPrefix(error, t('assistants.reorder.error.failed')))
     },
     [t]
+  )
+  const handleGroupReorder = useCallback(
+    async (groupId: string, anchor: ResourceEntityRailReorderAnchor) => {
+      try {
+        await reorderAssistantGroup(groupId, anchor)
+      } catch (error) {
+        logger.error('Failed to reorder assistant groups in classic-layout rail', { groupId, error })
+        toast.error(formatErrorMessageWithPrefix(error, t('assistants.reorder.error.failed')))
+      }
+    },
+    [reorderAssistantGroup, t]
   )
 
   const { items, listStatus, selectedId, handleSelect, handleReorder } = useResourceEntityRail({
@@ -508,9 +521,8 @@ export function AssistantResourceList({
         }
         onSelect={handleSelect}
         onSelectedClick={() => void onSelectedAssistantClick?.()}
-        // Reorder persists the global assistant `orderKey`; grouped sections use Group.orderKey.
-        // Disable assistant reorder while grouped because it cannot change group ordering.
         onReorder={isGroupGrouping ? undefined : handleReorder}
+        onGroupReorder={isGroupGrouping ? handleGroupReorder : undefined}
         reorderEnabled={isTopicsFullyLoaded && !isTopicsLoadingAll && !isTopicsRefreshing}
         getContextMenuActions={getContextMenuActions}
         onContextMenuAction={handleContextMenuAction}

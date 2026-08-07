@@ -424,6 +424,24 @@
       }
     },
     {
+      "capabilities": ["image-recognition", "image-generation"],
+      "id": "qwen-image-3",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Qwen: Qwen Image 3",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba"
+    },
+    {
+      "capabilities": ["image-recognition", "image-generation"],
+      "id": "qwen-image-3-pro",
+      "inputModalities": ["text", "image"],
+      "metadata": {},
+      "name": "Qwen: Qwen Image 3 Pro",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba"
+    },
+    {
       "capabilities": ["image-recognition", "image-generation", "file-input"],
       "family": "qwen",
       "id": "qwen-image-edit",
@@ -2143,9 +2161,12 @@
             "kind": "budget",
             "max": 262144,
             "min": 0
+          },
+          {
+            "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "xhigh"],
+        "supportedEfforts": ["low", "medium", "xhigh", "none"],
         "thinkingTokenLimits": {
           "max": 262144,
           "min": 0
@@ -3524,7 +3545,8 @@
             "values": ["low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -3553,7 +3575,8 @@
             "values": ["low", "medium", "high", "max"]
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max"]
+        "supportedEfforts": ["low", "medium", "high", "max"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -3600,7 +3623,8 @@
         "thinkingTokenLimits": {
           "max": 64000,
           "min": 1024
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -3632,7 +3656,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -3679,7 +3704,8 @@
         "thinkingTokenLimits": {
           "max": 32000,
           "min": 1024
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -3726,7 +3752,8 @@
         "thinkingTokenLimits": {
           "max": 32000,
           "min": 1024
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -3777,7 +3804,8 @@
         "thinkingTokenLimits": {
           "max": 64000,
           "min": 1024
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -3828,7 +3856,8 @@
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -3876,7 +3905,8 @@
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -3927,7 +3957,8 @@
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -3968,7 +3999,8 @@
         "thinkingTokenLimits": {
           "max": 128000,
           "min": 1024
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -4010,7 +4042,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -4052,7 +4085,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "none"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "none"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -4091,7 +4125,8 @@
             "values": ["low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -4130,7 +4165,8 @@
             "values": ["low", "medium", "high", "xhigh", "max"]
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -4162,7 +4198,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -4209,7 +4246,8 @@
         "thinkingTokenLimits": {
           "max": 64000,
           "min": 1024
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -4256,7 +4294,8 @@
         "thinkingTokenLimits": {
           "max": 64000,
           "min": 1024
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -4307,7 +4346,8 @@
         "thinkingTokenLimits": {
           "max": 64000,
           "min": 1024
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -4349,7 +4389,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "xhigh", "max", "none"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -4381,7 +4422,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["low", "medium", "high", "max", "none"]
+        "supportedEfforts": ["low", "medium", "high", "max", "none"],
+        "wireDialect": "effort"
       }
     },
     {
@@ -5130,6 +5172,16 @@
       "metadata": {},
       "name": "Flux 2 Pro",
       "outputModalities": ["image"],
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "capabilities": ["video-generation"],
+      "family": "flux",
+      "id": "flux-3-video",
+      "inputModalities": ["text"],
+      "metadata": {},
+      "name": "Flux 3",
+      "outputModalities": ["video"],
       "ownedBy": "black-forest-labs"
     },
     {
@@ -7402,13 +7454,13 @@
         "controls": [
           {
             "kind": "effort",
-            "values": ["none", "high", "max", "xhigh"]
+            "values": ["none", "high", "max", "low", "xhigh"]
           },
           {
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "high", "max", "xhigh"]
+        "supportedEfforts": ["none", "high", "max", "low", "xhigh"]
       }
     },
     {
@@ -7423,11 +7475,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.09
+          "perMillionTokens": 0.083
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.18
+          "perMillionTokens": 0.167
         }
       },
       "reasoning": {
@@ -7442,11 +7494,11 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 1048576,
+      "contextWindow": 1048600,
       "family": "deepseek-thinking",
       "id": "deepseek-v4-pro",
       "inputModalities": ["text"],
-      "maxOutputTokens": 393216,
+      "maxOutputTokens": 1048600,
       "metadata": {},
       "name": "DeepSeek V4 Pro",
       "openWeights": true,
@@ -7710,7 +7762,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -7770,7 +7823,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -7815,7 +7869,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -7866,7 +7921,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 512
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -7956,7 +8012,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -7996,7 +8053,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -8037,7 +8095,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -8131,7 +8190,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8193,7 +8253,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8245,7 +8306,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8296,7 +8358,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8348,7 +8411,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8396,7 +8460,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8434,7 +8499,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8486,7 +8552,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8538,7 +8605,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8590,7 +8658,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8642,7 +8711,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8715,7 +8785,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8759,7 +8830,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8811,7 +8883,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8880,7 +8953,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8938,7 +9012,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -8990,7 +9065,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -9086,7 +9162,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -9138,7 +9215,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 512
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -9173,7 +9251,8 @@
         "thinkingTokenLimits": {
           "max": 24576,
           "min": 0
-        }
+        },
+        "wireDialect": "budget"
       }
     },
     {
@@ -9219,7 +9298,8 @@
         "thinkingTokenLimits": {
           "max": 32768,
           "min": 128
-        }
+        },
+        "wireDialect": "effort"
       }
     },
     {
@@ -9257,7 +9337,8 @@
             "kind": "toggle"
           }
         ],
-        "supportedEfforts": ["none", "auto"]
+        "supportedEfforts": ["none", "auto"],
+        "wireDialect": "budget"
       }
     },
     {
@@ -13043,11 +13124,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.075
+          "perMillionTokens": 0.09375
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.19999999999999998
+          "perMillionTokens": 0.25
         }
       }
     },
@@ -18421,7 +18502,7 @@
     },
     {
       "capabilities": ["function-call", "reasoning", "structured-output"],
-      "contextWindow": 128000,
+      "contextWindow": 131072,
       "id": "solar-pro-3",
       "inputModalities": ["text"],
       "metadata": {},
@@ -20946,5 +21027,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "fc192c89cc19978b"
+  "version": "406889b05c8b2726"
 }

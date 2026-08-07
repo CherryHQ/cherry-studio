@@ -9,12 +9,14 @@ import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
+  getSidebarApp,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
+  isMessageOnlyConversationUrl,
   REQUIRED_SIDEBAR_FAVORITES,
-  resolveSidebarActiveItem
+  resolveSidebarActiveItem,
+  tabBelongsToApp
 } from '@renderer/utils/sidebar'
-import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -129,8 +131,20 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const handleNavigate = useCallback(
     (menuItemId: string) => {
       const menuId = menuItemId as SidebarAppId
+      const app = getSidebarApp(menuId)
       const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
-      if (!path || activeTab?.url === path) return
+      if (!app || !path) return
+
+      // Conversation apps: any owned tab is already "there" — its URL carries its own
+      // conversation, and re-entering through the route interceptor would just rebind
+      // it. Message-only viewers are not an app entry, so they navigate like any
+      // foreign tab. Apps without sub-instances keep exact-URL matching.
+      const isActiveTarget =
+        !!activeTab &&
+        (app.conversationRoute
+          ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
+          : activeTab.url === path)
+      if (isActiveTarget) return
 
       const title = getDefaultRouteTitle(path)
 
@@ -144,14 +158,14 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           url: path,
           title,
           icon: undefined,
-          metadata: clearTabInstanceMetadata(activeTab.metadata)
+          metadata: undefined
         })
         return
       }
 
       openTab(path, { forceNew: true, title })
     },
-    [activeTab, updateTab, openTab, defaultPaintingProvider]
+    [activeTab, defaultPaintingProvider, openTab, updateTab]
   )
   const handleOpenSettingsTab = useCallback(() => {
     openSettingsTab('/settings/provider')
@@ -179,7 +193,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           url: path,
           title,
           icon,
-          metadata: clearTabInstanceMetadata(activeTab.metadata)
+          metadata: undefined
         })
         return
       }
