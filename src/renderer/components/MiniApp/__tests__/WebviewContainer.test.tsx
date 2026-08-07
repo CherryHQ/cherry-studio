@@ -89,9 +89,6 @@ describe('WebviewContainer', () => {
 
     act(() => {
       webview?.dispatchEvent(new Event('dom-ready'))
-      webview?.dispatchEvent(new Event('did-finish-load'))
-      webview?.dispatchEvent(new Event('ready-to-show'))
-      vi.advanceTimersByTime(100)
     })
 
     expect(onLoaded).toHaveBeenCalledOnce()
