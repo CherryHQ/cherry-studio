@@ -8,13 +8,17 @@
  * `CherryBuiltinToolsServer` is constructed with.
  */
 
+import { realpath } from 'node:fs/promises'
+import path from 'node:path'
+
 import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
 import { agentService } from '@data/services/AgentService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
-import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
+import { type ChannelAdapter, readCanonicalLocalFile, sanitizeChannelOutput } from '@main/ai/channels'
+import type { FileAttachment } from '@main/utils/downloadAsBase64'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
@@ -140,6 +144,56 @@ const NOTIFY_TOOL: Tool = {
     // the trimmed values (empty strings must still be rejected).
     anyOf: [{ required: ['message'] }, { required: ['file_path'] }]
   }
+}
+
+function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
+  return error instanceof Error && 'code' in error
+}
+
+/**
+ * Resolve `notify`'s `file_path` into an attachment, confined to the session workspace.
+ * Accepts paths relative to the workspace and absolute paths that land inside it.
+ * `realpath` defeats `../` and symlink escape, and the canonical path is what gets read,
+ * so the containment check and the read cannot see different files.
+ *
+ * Confinement is `notify`'s own contract, not a general filesystem policy: this tool
+ * pushes bytes out of the machine to an IM chat, so the blast radius of a wrong path is
+ * exfiltration rather than a bad tool result. It is defense-in-depth against traversal
+ * mistakes and prompt injection picking a wrong path — not a sandbox against an agent
+ * with code execution (which can already read arbitrary files and paste them as message
+ * text). See #16566.
+ */
+async function resolveWorkspaceAttachment(workspaceRoot: string, userPath: string): Promise<FileAttachment> {
+  const requested = path.resolve(workspaceRoot, userPath)
+
+  let realRoot: string
+  try {
+    realRoot = await realpath(workspaceRoot)
+  } catch (error) {
+    // The root is a caller invariant, but if the session workspace is gone a bare ENOENT
+    // naming the root reads like "your file_path is wrong" — wrap it so the agent doesn't
+    // waste retries on other paths.
+    if (isErrnoException(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
+      throw new Error(`Session workspace is unavailable: ${workspaceRoot}`)
+    }
+    throw error
+  }
+
+  let realTarget: string
+  try {
+    realTarget = await realpath(requested)
+  } catch (error) {
+    if (isErrnoException(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
+      throw new Error(`File not found in workspace: ${userPath}`)
+    }
+    throw error
+  }
+
+  if (realTarget !== realRoot && !realTarget.startsWith(realRoot + path.sep)) {
+    throw new Error(`Path is outside the workspace: ${userPath}`)
+  }
+
+  return readCanonicalLocalFile(requested, realTarget, userPath)
 }
 
 /** Per-adapter-type config schema descriptions (for agent self-documentation). */
@@ -430,10 +484,10 @@ export class CherryAutonomyTools {
     }
 
     // Resolve the file once before dispatch so a bad path fails fast (one error,
-    // not one per chat). Guard errors surface as a clean isError result via the
-    // CallTool catch. Done after the no-adapters guard so we don't read up to
+    // not one per chat). Resolution errors surface as a clean isError result via
+    // the CallTool catch. Done after the no-adapters guard so we don't read up to
     // 100MB off disk only to discover there's nowhere to send it.
-    const file = filePath ? await resolveWorkspaceFile(this.workspacePath, filePath) : undefined
+    const file = filePath ? await resolveWorkspaceAttachment(this.workspacePath, filePath) : undefined
     const sanitizedMessage = message ? sanitizeChannelOutput(message).text : undefined
 
     let messagesSent = 0

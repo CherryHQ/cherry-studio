@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
@@ -492,6 +492,81 @@ describe('CherryAutonomyTools', () => {
         const result = await callTool(server, { file_path: escape }, 'notify')
 
         expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('outside the workspace')
+        expect(mockSendFile).not.toHaveBeenCalled()
+      })
+
+      it('should accept an absolute path inside the workspace', async () => {
+        mockSendFile.mockResolvedValue(undefined)
+        mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+        await mkdir(path.join(workspace, 'sub'))
+        const abs = path.join(workspace, 'sub', 'data.csv')
+        await writeFile(abs, 'a,b')
+
+        const server = createServer('agent_1', workspace)
+        const result = await callTool(server, { file_path: abs }, 'notify')
+
+        expect(result.isError).toBeFalsy()
+        const [, file] = mockSendFile.mock.calls[0]
+        expect(file.filename).toBe('data.csv')
+        expect(file.media_type).toBe('text/csv')
+      })
+
+      it('should reject a symlink that points outside the workspace', async () => {
+        mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+        const secret = path.join(outside, 'secret.txt')
+        await writeFile(secret, 'top secret')
+        await symlink(secret, path.join(workspace, 'link.txt'))
+
+        const server = createServer('agent_1', workspace)
+        const result = await callTool(server, { file_path: 'link.txt' }, 'notify')
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('outside the workspace')
+        expect(mockSendFile).not.toHaveBeenCalled()
+      })
+
+      it('should reject a sibling directory that shares the workspace path as a prefix', async () => {
+        mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+        // `${workspace}-evil` starts with the workspace path but is NOT inside it; the
+        // `realRoot + path.sep` boundary is what stops a naive startsWith from matching it.
+        const evilDir = `${workspace}-evil`
+        await mkdir(evilDir)
+        const evilFile = path.join(evilDir, 'secret.txt')
+        await writeFile(evilFile, 'top secret')
+
+        try {
+          const server = createServer('agent_1', workspace)
+          const result = await callTool(server, { file_path: evilFile }, 'notify')
+
+          expect(result.isError).toBe(true)
+          expect(result.content[0].text).toContain('outside the workspace')
+          expect(mockSendFile).not.toHaveBeenCalled()
+        } finally {
+          await rm(evilDir, { recursive: true, force: true })
+        }
+      })
+
+      it('should reject a directory as not-a-file', async () => {
+        mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+        await mkdir(path.join(workspace, 'adir'))
+
+        const server = createServer('agent_1', workspace)
+        const result = await callTool(server, { file_path: 'adir' }, 'notify')
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('Not a regular file')
+        expect(mockSendFile).not.toHaveBeenCalled()
+      })
+
+      it('should report a missing workspace instead of a bare path error', async () => {
+        mockGetNotifyAdapters.mockReturnValue([makeAdapter('ch1', ['100'])])
+
+        const server = createServer('agent_1', path.join(workspace, 'gone'))
+        const result = await callTool(server, { file_path: 'a.txt' }, 'notify')
+
+        expect(result.isError).toBe(true)
+        expect(result.content[0].text).toContain('Session workspace is unavailable')
         expect(mockSendFile).not.toHaveBeenCalled()
       })
 

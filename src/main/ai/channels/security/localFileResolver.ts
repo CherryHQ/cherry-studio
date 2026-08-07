@@ -16,6 +16,16 @@ function mimeForFilename(filename: string): string {
   return FILE_EXTENSION_MIME_MAP[ext] ?? 'application/octet-stream'
 }
 
+/**
+ * Read an already-canonical path into a `FileAttachment`. Carries the file-safety
+ * properties only — regular-file check, size cap, and a single fd so the stat and the
+ * read see the same inode. It performs no authorization: callers that need a boundary
+ * (e.g. workspace confinement) must canonicalize and check the path themselves, then
+ * hand the canonical path here so the check and the read cannot diverge.
+ *
+ * `requestedPath` names the attachment (its basename and MIME); `displayPath` is echoed
+ * back in errors as the caller's own path spelling.
+ */
 export async function readCanonicalLocalFile(
   requestedPath: string,
   canonicalPath: string,
