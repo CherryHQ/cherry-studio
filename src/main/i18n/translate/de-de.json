@@ -2,7 +2,7 @@
   "agent": {
     "builtin": {
       "cherry_assistant": {
-        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Integrierter Cherry-Studio-Berater. Diagnostiziert Probleme, gibt Bedienungshinweise, sammelt häufige Fragen, übermittelt Fehler und Funktionswünsche und sucht oder erstellt Fähigkeiten"
       }
     },
     "session": {
@@ -88,8 +88,8 @@
       "title": "App-Daten zurücksetzen"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "Diagnosepaket speichern",
+      "zip_filter": "ZIP-Archiv"
     },
     "html_files": "HTML-Dateien",
     "open_file": "Datei öffnen",

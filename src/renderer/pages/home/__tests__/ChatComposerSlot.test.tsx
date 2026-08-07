@@ -37,11 +37,13 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
 }))
 
 const topic = { id: 'topic-1' } as Topic
+const chatTarget = { parentAnchorId: 'active-node', mode: 'active-path' } as const
 
 const baseProps = {
   placement: 'docked' as const,
   topic,
-  onSend: vi.fn()
+  onSend: vi.fn(),
+  chatTarget
 }
 
 describe('ChatComposerSlot', () => {
@@ -64,6 +66,7 @@ describe('ChatComposerSlot', () => {
     expect(composer).toHaveAttribute('data-placement', 'docked')
     expect(chatPlacementProps.current).toEqual(
       expect.objectContaining({
+        chatTarget,
         resolvedContext: assistantContext,
         resolvedProviders: providers,
         externalContextControls: true,
@@ -82,7 +85,13 @@ describe('ChatComposerSlot', () => {
 
   it('does not forward slot sendDisabled into home placement', async () => {
     render(
-      <ChatComposerSlot placement="home" topic={topic} onSend={baseProps.onSend} composerContext={{ overrides: [] }} />
+      <ChatComposerSlot
+        placement="home"
+        topic={topic}
+        onSend={baseProps.onSend}
+        chatTarget={chatTarget}
+        composerContext={{ overrides: [] }}
+      />
     )
 
     const composer = await screen.findByTestId('chat-fallback-composer')

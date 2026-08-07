@@ -150,7 +150,7 @@ vi.mock('@renderer/components/popups/ContentPopup', () => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: mocks.ipcRequest,
-    on: vi.fn()
+    on: vi.fn(() => vi.fn())
   }
 }))
 
@@ -365,10 +365,6 @@ describe('NotesPage print payloads', () => {
         file: {
           write: vi.fn().mockResolvedValue(undefined),
           listDirectory: vi.fn().mockResolvedValue([])
-        },
-        tree: {
-          onMutation: vi.fn(() => vi.fn()),
-          dispose: vi.fn().mockResolvedValue(undefined)
         }
       }
     })
