@@ -22,7 +22,7 @@ import {
 } from '@shared/types/webview'
 import { EditorContent } from '@tiptap/react'
 import type { WebviewTag } from 'electron'
-import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
+import { ArrowUp, Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -31,7 +31,7 @@ const logger = loggerService.withContext('WebviewAnnotationControls')
 const EMPTY_STATE: WebviewAnnotationState = { enabled: false, annotations: [] }
 const WEBVIEW_ATTACH_MAX_ATTEMPTS = 300
 const EDITOR_WIDTH_PX = 320
-const EDITOR_ESTIMATED_HEIGHT_PX = 168
+const EDITOR_ESTIMATED_HEIGHT_PX = 140
 const EDITOR_MARGIN_PX = 8
 const WEBVIEW_ANNOTATION_COMMIT_TIMEOUT_MS = 5_000
 
@@ -843,8 +843,7 @@ function WebviewAnnotationEditor({
     editorProps: {
       attributes: {
         'aria-label': t('webview.annotation.placeholder'),
-        class:
-          'max-h-40 min-h-20 overflow-y-auto rounded-md border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-primary'
+        class: 'max-h-40 min-h-16 overflow-y-auto px-3 pt-2.5 pb-1 text-sm outline-none'
       },
       handleKeyDown: (view, event) => {
         if (event.key === 'Escape') {
@@ -869,32 +868,45 @@ function WebviewAnnotationEditor({
     <div
       role="dialog"
       aria-label={t('webview.annotation.placeholder')}
-      className="fixed z-50 flex flex-col gap-2 rounded-lg border border-border bg-popover p-3 shadow-lg"
+      className="fixed z-50 flex flex-col overflow-hidden rounded-[20px] border-[0.5px] border-border bg-card shadow-[0_0_0_0.5px_rgba(0,0,0,0.05),0_8px_24px_rgba(0,0,0,0.16)]"
       style={{ left: position.left, top: position.top, width: EDITOR_WIDTH_PX }}>
       <EditorContent editor={editor} />
-      <div className="flex items-center gap-2">
-        {canDelete ? (
+      <div className="flex h-10 shrink-0 items-center justify-between gap-2 px-2 py-1.25">
+        <div className="flex items-center">
+          {canDelete ? (
+            <Tooltip content={t('webview.annotation.delete')} placement="bottom">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={onDelete}
+                aria-label={t('webview.annotation.delete')}
+                className="rounded-full text-destructive shadow-none hover:bg-destructive/10 hover:text-destructive">
+                <Trash2 size={14} />
+              </Button>
+            </Tooltip>
+          ) : null}
+        </div>
+        <div className="flex items-center gap-1.5">
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="text-destructive hover:text-destructive"
-            onClick={onDelete}>
-            {t('webview.annotation.delete')}
+            onClick={onCancel}
+            className="rounded-full text-muted-foreground shadow-none hover:text-foreground">
+            {t('webview.annotation.cancel')}
           </Button>
-        ) : null}
-        <div className="flex-1" />
-        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
-          {t('webview.annotation.cancel')}
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          loading={isSaving}
-          disabled={!trimmedComment || isSaving}
-          onClick={() => onSave(trimmedComment)}>
-          {t('webview.annotation.save')}
-        </Button>
+          <Button
+            type="button"
+            size="icon-sm"
+            loading={isSaving}
+            disabled={!trimmedComment || isSaving}
+            onClick={() => onSave(trimmedComment)}
+            aria-label={t('webview.annotation.save')}
+            className="rounded-full transition-[transform,background-color,color] active:scale-[0.96]">
+            <ArrowUp size={14} />
+          </Button>
+        </div>
       </div>
     </div>,
     document.body
