@@ -6486,6 +6486,23 @@
         "token_placeholder": "Por favor, introduza o token do Siyuan Notebook"
       },
       "title": "Configurações de dados",
+      "v1_remigration": {
+        "acknowledgement": "Compreendo o risco e pretendo continuar.",
+        "back": "Voltar",
+        "backup_acknowledgement": "Já fiz uma cópia de segurança dos meus dados",
+        "backup_button": "Criar agora uma cópia de segurança completa",
+        "backup_message": "Faça uma cópia de segurança de todos os dados atuais antes de continuar. Se continuar, os dados v2 atuais serão eliminados permanentemente e esta ação não pode ser anulada.",
+        "button": "Repetir migração",
+        "confirm": "Repetir migração",
+        "confirm_countdown": "Repetir migração ({{seconds}} s)",
+        "dialog_title": "Repetir a migração dos dados v1",
+        "error": "Não foi possível reiniciar a migração dos dados v1",
+        "final_confirmation": "Confirme que pretende eliminar os dados v2 atuais e repetir a migração dos dados v1.",
+        "final_message": "Os dados v2 atuais serão eliminados permanentemente. Esta ação não pode ser anulada.",
+        "final_retained": "Os dados v1 originais serão mantidos e novamente importados após reiniciar.",
+        "next": "Seguinte",
+        "title": "Repetir a migração dos dados v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Backup automático",
