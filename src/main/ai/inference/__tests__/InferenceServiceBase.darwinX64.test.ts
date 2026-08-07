@@ -30,6 +30,7 @@ const SOURCE: InferenceModelSource = {
   remotePathTemplate: '{model}/resolve/{revision}',
   revision: 'main'
 }
+const MODEL_DIR = '/models/qwen3-embedding/org/model'
 
 describe('InferenceService on darwin-x64', () => {
   beforeEach(() => {
@@ -37,7 +38,7 @@ describe('InferenceService on darwin-x64', () => {
   })
 
   it('rejects embed without spawning a worker', async () => {
-    await expect(embeddingInferenceService.embed(['hi'], SOURCE, 'org/model', 'q8')).rejects.toThrow(/darwin x64/)
+    await expect(embeddingInferenceService.embed(['hi'], MODEL_DIR, 'q8')).rejects.toThrow(/darwin x64/)
     expect(WorkerCtor).not.toHaveBeenCalled()
   })
 
@@ -47,7 +48,7 @@ describe('InferenceService on darwin-x64', () => {
   })
 
   it('rejects countTokens without spawning a worker', async () => {
-    await expect(embeddingInferenceService.countTokens(['hi'], SOURCE, 'org/model', 'q8')).rejects.toThrow(/darwin x64/)
+    await expect(embeddingInferenceService.countTokens(['hi'], MODEL_DIR, 'q8')).rejects.toThrow(/darwin x64/)
     expect(WorkerCtor).not.toHaveBeenCalled()
   })
 

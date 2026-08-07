@@ -240,7 +240,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       }
     }
 
-    // Let scan failures propagate. Swallowing them resolves File_TreeCreate
+    // Let scan failures propagate. Swallowing them resolves file.tree.create
     // with an empty tree — indistinguishable from "the directory is genuinely
     // empty" to the renderer, which produces a silent regression (the user
     // sees zero notes when ripgrep is missing or the root is unreadable).
