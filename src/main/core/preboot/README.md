@@ -156,8 +156,11 @@ Or pass it inline for a single dev process:
 CS_DEV_USER_DATA_SUFFIX=DevQuito pnpm dev
 ```
 
-The trimmed suffix is appended to the default path. Empty or whitespace-only
-values fall back to `Dev`.
+The trimmed suffix is appended to the default path. It must be a single
+portable path component — ASCII letters, digits, `.`, `_`, `-`, without a
+trailing dot. Empty, whitespace-only, or invalid values fall back to `Dev`
+(invalid ones with a console warning), so a malformed suffix can never
+resolve the dev directories onto a packaged install's.
 
 ### No barrel export
 
