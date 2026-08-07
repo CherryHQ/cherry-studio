@@ -2,6 +2,7 @@ import { cacheService } from '@data/CacheService'
 import { useSharedCacheValue } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import MiniAppLogoAvatar from '@renderer/components/icons/MiniAppLogoAvatar'
+import WebviewSearch from '@renderer/components/WebviewSearch'
 import { useCurrentTab, useCurrentTabId, useIsActiveTab } from '@renderer/hooks/tab'
 import { useOptionalTabsContext } from '@renderer/hooks/tab'
 import { toTransientMiniApp, useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
@@ -18,7 +19,6 @@ import BeatLoader from 'react-spinners/BeatLoader'
 
 // Tab mode page shell — relies on the global MiniAppTabsPool instead of creating WebViews directly
 import MinimalToolbar from './components/MinimalToolbar'
-import WebviewSearch from './components/WebviewSearch'
 
 const logger = loggerService.withContext('MiniAppPage')
 const MINI_APP_LOADING_COLOR = 'var(--muted-foreground)'
@@ -247,7 +247,7 @@ const MiniAppPage: FC = () => {
           onOpenDevTools={handleOpenDevTools}
         />
       </div>
-      <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} appId={app.appId} />
+      <WebviewSearch webviewRef={webviewRef} isWebviewReady={isReady} targetId={`mini-app:${app.appId}`} />
       {!isReady && (
         <div className="absolute inset-x-0 top-8.75 bottom-0 z-4 flex flex-col items-center justify-center gap-3 bg-card">
           <MiniAppLogoAvatar logo={app.logoSrc ?? app.logo} size={60} />

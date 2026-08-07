@@ -19,6 +19,7 @@ export const WEBVIEW_ANNOTATION_LIMITS = {
   regionCoord: 10_000_000,
   regionElements: 12,
   role: 64,
+  styleText: 400,
   selector: 2_048,
   tagName: 64,
   targetId: 160,
@@ -48,7 +49,9 @@ export const WebviewElementLocatorSchema = z
     tagName: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.tagName),
     text: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.text).nullable(),
     ariaLabel: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.ariaLabel).nullable(),
-    role: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.role).nullable()
+    role: z.string().trim().max(WEBVIEW_ANNOTATION_LIMITS.role).nullable(),
+    /** Compact non-default computed layout styles, e.g. `position: absolute; z-index: 3`. */
+    styles: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.styleText).optional()
   })
   .strict()
 
@@ -88,6 +91,25 @@ export const WebviewAnnotationStateSchema = z
   .object({
     enabled: z.boolean(),
     annotations: z.array(WebviewAnnotationSchema).max(WEBVIEW_ANNOTATION_LIMITS.annotations)
+  })
+  .strict()
+
+/** Guest-viewport rect (CSS pixels relative to the WebView element) anchoring the host editor. */
+export const WebviewAnchorRectSchema = z
+  .object({
+    x: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
+    y: z.number().int().min(-WEBVIEW_ANNOTATION_LIMITS.regionCoord).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
+    width: z.number().int().min(0).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord),
+    height: z.number().int().min(0).max(WEBVIEW_ANNOTATION_LIMITS.regionCoord)
+  })
+  .strict()
+
+/** A guest selection waiting for the host-rendered editor to commit or cancel it. */
+export const WebviewPendingSelectionSchema = z
+  .object({
+    element: WebviewElementLocatorSchema,
+    region: WebviewAnnotationRegionSchema.optional(),
+    anchor: WebviewAnchorRectSchema
   })
   .strict()
 
@@ -174,10 +196,6 @@ export const WebviewResolvedAnnotationDocumentSchema = WebviewAnnotationDocument
 
 export const WebviewAnnotationLocaleSchema = z
   .object({
-    placeholder: z.string().max(200),
-    save: z.string().max(80),
-    cancel: z.string().max(80),
-    delete: z.string().max(80),
     edit: z.string().max(80)
   })
   .strict()
@@ -193,6 +211,22 @@ export const WebviewAnnotationHostCommandSchema = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('set_enabled'), enabled: z.boolean() }).strict(),
+  z
+    .object({
+      type: z.literal('commit_pending'),
+      id: z.uuid(),
+      comment: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.comment)
+    })
+    .strict(),
+  z.object({ type: z.literal('cancel_pending') }).strict(),
+  z
+    .object({
+      type: z.literal('update_annotation'),
+      id: z.uuid(),
+      comment: z.string().trim().min(1).max(WEBVIEW_ANNOTATION_LIMITS.comment)
+    })
+    .strict(),
+  z.object({ type: z.literal('delete_annotation'), id: z.uuid() }).strict(),
   z.object({ type: z.literal('clear') }).strict(),
   z.object({ type: z.literal('reset') }).strict(),
   z.object({ type: z.literal('request_state') }).strict()
@@ -204,6 +238,20 @@ export const WebviewAnnotationGuestEventSchema = z.discriminatedUnion('type', [
       type: z.literal('state_changed'),
       state: WebviewAnnotationStateSchema
     })
+    .strict(),
+  z
+    .object({
+      type: z.literal('selection_pending'),
+      selection: WebviewPendingSelectionSchema
+    })
+    .strict(),
+  z.object({ type: z.literal('selection_cleared') }).strict(),
+  z
+    .object({
+      type: z.literal('annotation_activated'),
+      id: z.uuid(),
+      anchor: WebviewAnchorRectSchema
+    })
     .strict()
 ])
 
@@ -213,6 +261,8 @@ export type WebviewRegionRect = z.infer<typeof WebviewRegionRectSchema>
 export type WebviewAnnotationRegion = z.infer<typeof WebviewAnnotationRegionSchema>
 export type WebviewAnnotation = z.infer<typeof WebviewAnnotationSchema>
 export type WebviewAnnotationState = z.infer<typeof WebviewAnnotationStateSchema>
+export type WebviewAnchorRect = z.infer<typeof WebviewAnchorRectSchema>
+export type WebviewPendingSelection = z.infer<typeof WebviewPendingSelectionSchema>
 export type WebviewAnnotationDocument = z.infer<typeof WebviewAnnotationDocumentSchema>
 export type WebviewAccessibilityStatus = z.infer<typeof WebviewAccessibilityStatusSchema>
 export type WebviewAccessibilityState = z.infer<typeof WebviewAccessibilityStateSchema>

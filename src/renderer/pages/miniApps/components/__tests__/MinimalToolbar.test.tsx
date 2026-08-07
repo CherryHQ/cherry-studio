@@ -62,9 +62,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
-        'miniApp.error.load_failed': 'Failed to load app',
-        'settings.miniApps.custom.url': 'URL',
-        'settings.miniApps.custom.url_invalid': 'Enter a valid URL'
+        'webview.navigation.address': 'URL',
+        'webview.navigation.invalid_address': 'Enter a valid URL',
+        'webview.navigation.load_failed': 'Failed to load app'
       })[key] ?? key
   })
 }))
@@ -130,6 +130,18 @@ describe('MinimalToolbar address bar', () => {
     await user.type(address, 'cherry-ai.com/docs{Enter}')
 
     await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('https://cherry-ai.com/docs'))
+  })
+
+  it('treats a loopback host with a port as an HTTP development server', async () => {
+    const { webview } = createWebview()
+    const user = userEvent.setup()
+    renderToolbar(webview)
+
+    const address = screen.getByRole('textbox', { name: 'URL' })
+    await user.clear(address)
+    await user.type(address, 'localhost:5173{Enter}')
+
+    await waitFor(() => expect(mocks.loadURL).toHaveBeenCalledWith('http://localhost:5173/'))
   })
 
   it('tracks document and SPA navigation without overwriting an active edit', async () => {

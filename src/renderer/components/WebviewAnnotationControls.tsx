@@ -1,51 +1,70 @@
 import { Badge, Button, ConfirmDialog, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
+import { createComposerDraftContent, serializeComposerDocument } from '@renderer/components/composer/composerDraft'
+import { createComposerEditorPreset } from '@renderer/components/composer/composerPreset'
+import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
+  WEBVIEW_ANNOTATION_LIMITS,
+  type WebviewAnchorRect,
   type WebviewAnnotation,
   WebviewAnnotationGuestEventSchema,
   type WebviewAnnotationHostCommand,
   type WebviewAnnotationState,
-  type WebviewAnnotationTarget
+  type WebviewAnnotationTarget,
+  type WebviewPendingSelection
 } from '@shared/types/webview'
+import { EditorContent } from '@tiptap/react'
 import type { WebviewTag } from 'electron'
 import { Copy, Loader2, MousePointer2, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WebviewAnnotationControls')
 const EMPTY_STATE: WebviewAnnotationState = { enabled: false, annotations: [] }
 const WEBVIEW_ATTACH_MAX_ATTEMPTS = 300
+const EDITOR_WIDTH_PX = 320
+const EDITOR_ESTIMATED_HEIGHT_PX = 168
+const EDITOR_MARGIN_PX = 8
+
+type AnnotationEditorSession =
+  | { mode: 'create'; selection: WebviewPendingSelection }
+  | { mode: 'edit'; annotationId: string; anchor: WebviewAnchorRect }
+
+export interface WebviewAnnotationSavedPayload {
+  annotation: WebviewAnnotation
+  page: { url: string; title: string }
+}
 
 interface Props {
   webviewRef: React.RefObject<WebviewTag | null>
   isWebviewReady: boolean
   isHostActive: boolean
   target: WebviewAnnotationTarget
+  onAnnotationSaved?: (payload: WebviewAnnotationSavedPayload) => void
 }
 
-export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostActive, target }: Props) {
+export function WebviewAnnotationControls({
+  webviewRef,
+  isWebviewReady,
+  isHostActive,
+  target,
+  onAnnotationSaved
+}: Props) {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const [state, setState] = useState<WebviewAnnotationState>(EMPTY_STATE)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
   const [isCopying, setIsCopying] = useState(false)
+  const [editorSession, setEditorSession] = useState<AnnotationEditorSession | null>(null)
 
-  const locale = useMemo(
-    () => ({
-      placeholder: t('webview.annotation.placeholder'),
-      save: t('webview.annotation.save'),
-      cancel: t('webview.annotation.cancel'),
-      delete: t('webview.annotation.delete'),
-      edit: t('webview.annotation.edit')
-    }),
-    [t]
-  )
+  const locale = useMemo(() => ({ edit: t('webview.annotation.edit') }), [t])
 
   const sendCommand = useCallback(
     (command: WebviewAnnotationHostCommand, webview = webviewRef.current): boolean => {
@@ -81,6 +100,7 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
 
   useEffect(() => {
     setState(EMPTY_STATE)
+    setEditorSession(null)
   }, [target.id])
 
   useEffect(() => {
@@ -93,16 +113,34 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
       if (event.channel !== WEBVIEW_ANNOTATION_BRIDGE_CHANNEL) return
       const parsed = WebviewAnnotationGuestEventSchema.safeParse(event.args[0])
       if (!parsed.success) return
-      const nextState = isHostActive ? parsed.data.state : { ...parsed.data.state, enabled: false }
-      setState(nextState)
-      void replaceMainSnapshot(nextState.annotations, attachedWebview)
-      if (!isHostActive && parsed.data.state.enabled) {
-        sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
+      const guestEvent = parsed.data
+      switch (guestEvent.type) {
+        case 'state_changed': {
+          const nextState = isHostActive ? guestEvent.state : { ...guestEvent.state, enabled: false }
+          setState(nextState)
+          void replaceMainSnapshot(nextState.annotations, attachedWebview)
+          if (!isHostActive && guestEvent.state.enabled) {
+            sendCommand({ type: 'set_enabled', enabled: false }, attachedWebview)
+          }
+          break
+        }
+        case 'selection_pending':
+          if (isHostActive) setEditorSession({ mode: 'create', selection: guestEvent.selection })
+          break
+        case 'selection_cleared':
+          setEditorSession((current) => (current?.mode === 'create' ? null : current))
+          break
+        case 'annotation_activated':
+          if (isHostActive) {
+            setEditorSession({ mode: 'edit', annotationId: guestEvent.id, anchor: guestEvent.anchor })
+          }
+          break
       }
     }
 
     const resetForNavigation = () => {
       setState(EMPTY_STATE)
+      setEditorSession(null)
       sendCommand({ type: 'reset' }, attachedWebview)
       void replaceMainSnapshot([], attachedWebview)
     }
@@ -172,6 +210,7 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
   useEffect(() => {
     if (isHostActive || !state.enabled) return
     setState((current) => ({ ...current, enabled: false }))
+    setEditorSession(null)
     sendCommand({ type: 'set_enabled', enabled: false })
   }, [isHostActive, sendCommand, state.enabled])
 
@@ -179,7 +218,58 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
     const enabled = !state.enabled
     if (!sendCommand({ type: 'set_enabled', enabled })) return
     setState((current) => ({ ...current, enabled }))
+    if (!enabled) setEditorSession(null)
   }
+
+  const closeEditor = useCallback(
+    (cancelPendingSelection: boolean) => {
+      setEditorSession((current) => {
+        if (cancelPendingSelection && current?.mode === 'create') sendCommand({ type: 'cancel_pending' })
+        return null
+      })
+    },
+    [sendCommand]
+  )
+
+  const handleEditorSave = useCallback(
+    (comment: string) => {
+      const session = editorSession
+      if (!session) return
+      if (session.mode === 'create') {
+        const id = crypto.randomUUID()
+        if (!sendCommand({ type: 'commit_pending', id, comment })) return
+        const webview = webviewRef.current
+        let url = ''
+        let title = ''
+        try {
+          url = webview?.getURL() ?? ''
+          title = webview?.getTitle() ?? ''
+        } catch (error) {
+          logger.debug('Webview page metadata is unavailable for the saved annotation', { targetId: target.id, error })
+        }
+        onAnnotationSaved?.({
+          annotation: {
+            id,
+            comment,
+            createdAt: Date.now(),
+            element: session.selection.element,
+            ...(session.selection.region ? { region: session.selection.region } : {})
+          },
+          page: { url, title }
+        })
+      } else {
+        sendCommand({ type: 'update_annotation', id: session.annotationId, comment })
+      }
+      setEditorSession(null)
+    },
+    [editorSession, onAnnotationSaved, sendCommand, target.id, webviewRef]
+  )
+
+  const handleEditorDelete = useCallback(() => {
+    if (editorSession?.mode !== 'edit') return
+    sendCommand({ type: 'delete_annotation', id: editorSession.annotationId })
+    setEditorSession(null)
+  }, [editorSession, sendCommand])
 
   const handleCopy = async () => {
     const webview = webviewRef.current
@@ -276,7 +366,137 @@ export function WebviewAnnotationControls({ webviewRef, isWebviewReady, isHostAc
         destructive
         onConfirm={handleClear}
       />
+
+      {editorSession ? (
+        <WebviewAnnotationEditor
+          key={editorSession.mode === 'edit' ? editorSession.annotationId : 'create'}
+          webviewRef={webviewRef}
+          anchor={editorSession.mode === 'create' ? editorSession.selection.anchor : editorSession.anchor}
+          initialComment={
+            editorSession.mode === 'edit'
+              ? (state.annotations.find((annotation) => annotation.id === editorSession.annotationId)?.comment ?? '')
+              : ''
+          }
+          canDelete={editorSession.mode === 'edit'}
+          onSave={handleEditorSave}
+          onCancel={() => closeEditor(true)}
+          onDelete={handleEditorDelete}
+        />
+      ) : null}
     </>
+  )
+}
+
+interface WebviewAnnotationEditorProps {
+  webviewRef: React.RefObject<WebviewTag | null>
+  anchor: WebviewAnchorRect
+  initialComment: string
+  canDelete: boolean
+  onSave: (comment: string) => void
+  onCancel: () => void
+  onDelete: () => void
+}
+
+/**
+ * Host-rendered comment editor anchored over the WebView at the guest-reported
+ * selection rect. Reuses the composer's editor kernel and schema preset so the
+ * input behaves and evolves with the chat composer, minus its chrome.
+ */
+function WebviewAnnotationEditor({
+  webviewRef,
+  anchor,
+  initialComment,
+  canDelete,
+  onSave,
+  onCancel,
+  onDelete
+}: WebviewAnnotationEditorProps) {
+  const { t } = useTranslation()
+  const [comment, setComment] = useState(initialComment)
+  const trimmedComment = comment.trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.comment)
+
+  // Captured once per anchor; the popover stays put if the guest page scrolls underneath.
+  const position = useMemo(() => {
+    const bounds =
+      webviewRef.current?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight)
+    const maxLeft = Math.max(bounds.left + EDITOR_MARGIN_PX, bounds.right - EDITOR_WIDTH_PX - EDITOR_MARGIN_PX)
+    const left = Math.min(Math.max(bounds.left + anchor.x, bounds.left + EDITOR_MARGIN_PX), maxLeft)
+    const viewportBottom = Math.min(bounds.bottom, window.innerHeight)
+    let top = bounds.top + anchor.y + anchor.height + EDITOR_MARGIN_PX
+    if (top + EDITOR_ESTIMATED_HEIGHT_PX > viewportBottom - EDITOR_MARGIN_PX) {
+      top = Math.max(
+        bounds.top + EDITOR_MARGIN_PX,
+        bounds.top + anchor.y - EDITOR_ESTIMATED_HEIGHT_PX - EDITOR_MARGIN_PX
+      )
+    }
+    return { left, top }
+  }, [anchor, webviewRef])
+
+  const extensions = useMemo(
+    () => createComposerEditorPreset({ placeholder: t('webview.annotation.placeholder') }),
+    [t]
+  )
+  const initialContent = useMemo(
+    () => createComposerDraftContent({ text: initialComment, tokens: [] }),
+    [initialComment]
+  )
+  const editor = useRichTextEditorKernel({
+    extensions,
+    content: initialContent,
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        'aria-label': t('webview.annotation.placeholder'),
+        class:
+          'max-h-40 min-h-20 overflow-y-auto rounded-md border border-input bg-transparent px-2.5 py-2 text-sm outline-none focus-visible:border-primary'
+      },
+      handleKeyDown: (view, event) => {
+        if (event.key === 'Escape') {
+          onCancel()
+          return true
+        }
+        if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+          const text = serializeComposerDocument(view.state.doc.toJSON())
+            .text.trim()
+            .slice(0, WEBVIEW_ANNOTATION_LIMITS.comment)
+          if (text) onSave(text)
+          return true
+        }
+        return false
+      }
+    },
+    onCreate: ({ editor: created }) => created.commands.focus('end'),
+    onUpdate: ({ editor: updated }) => setComment(serializeComposerDocument(updated).text)
+  })
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-label={t('webview.annotation.placeholder')}
+      className="fixed z-50 flex flex-col gap-2 rounded-lg border border-border bg-popover p-3 shadow-lg"
+      style={{ left: position.left, top: position.top, width: EDITOR_WIDTH_PX }}>
+      <EditorContent editor={editor} />
+      <div className="flex items-center gap-2">
+        {canDelete ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            onClick={onDelete}>
+            {t('webview.annotation.delete')}
+          </Button>
+        ) : null}
+        <div className="flex-1" />
+        <Button type="button" variant="outline" size="sm" onClick={onCancel}>
+          {t('webview.annotation.cancel')}
+        </Button>
+        <Button type="button" size="sm" disabled={!trimmedComment} onClick={() => onSave(trimmedComment)}>
+          {t('webview.annotation.save')}
+        </Button>
+      </div>
+    </div>,
+    document.body
   )
 }
 

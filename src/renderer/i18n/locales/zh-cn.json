@@ -362,6 +362,7 @@
         "workspace": "工作区"
       },
       "tabs": {
+        "browser": "浏览器",
         "files": "文件",
         "flow": "消息流",
         "status": "状态"
@@ -8748,6 +8749,20 @@
       "enable_mode": "标注页面",
       "placeholder": "描述需要修改的内容或你注意到的问题…",
       "save": "保存"
+    },
+    "browser": {
+      "load_failed": "页面无法加载，请确认本地服务仍在运行。",
+      "loading": "正在加载页面…"
+    },
+    "navigation": {
+      "address": "网页地址",
+      "address_placeholder": "输入网址",
+      "back": "后退",
+      "forward": "前进",
+      "invalid_address": "请输入有效的 HTTP、HTTPS 或文件地址",
+      "load_failed": "页面加载失败",
+      "open_external": "在外部浏览器中打开",
+      "reload": "刷新"
     }
   },
   "words": {

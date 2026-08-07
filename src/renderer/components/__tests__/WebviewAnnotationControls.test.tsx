@@ -1,7 +1,8 @@
 import {
   WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
   type WebviewAnnotationGuestEvent,
-  type WebviewAnnotationHostCommand
+  type WebviewAnnotationHostCommand,
+  type WebviewAnnotationState
 } from '@shared/types/webview'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { WebviewTag } from 'electron'
@@ -47,6 +48,51 @@ vi.mock('@cherrystudio/ui', () => ({
     ) : null
 }))
 
+// The annotation editor reuses the composer editor kernel; fake the TipTap layer
+// with a plain textarea so the host command flow stays testable in jsdom.
+vi.mock('@renderer/components/composer/composerPreset', () => ({
+  createComposerEditorPreset: (options: { placeholder?: string }) => options
+}))
+vi.mock('@renderer/components/composer/composerDraft', () => ({
+  createComposerDraftContent: ({ text }: { text: string }) => text,
+  serializeComposerDocument: (source: unknown) => ({
+    text:
+      typeof source === 'object' && source !== null && 'text' in source
+        ? String((source as { text: unknown }).text)
+        : '',
+    tokens: []
+  })
+}))
+vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
+  useRichTextEditorKernel: (options: unknown) => options
+}))
+vi.mock('@tiptap/react', () => ({
+  EditorContent: ({ editor }: { editor: FakeKernelOptions }) => (
+    <textarea
+      aria-label={editor.editorProps.attributes['aria-label']}
+      placeholder={editor.extensions.placeholder}
+      defaultValue={editor.content}
+      onChange={(event) => editor.onUpdate?.({ editor: { text: event.target.value } })}
+      onKeyDown={(event) =>
+        editor.editorProps.handleKeyDown?.(
+          { state: { doc: { toJSON: () => ({ text: event.currentTarget.value }) } } },
+          event
+        )
+      }
+    />
+  )
+}))
+
+interface FakeKernelOptions {
+  content: string
+  extensions: { placeholder?: string }
+  editorProps: {
+    attributes: Record<string, string>
+    handleKeyDown?: (view: unknown, event: unknown) => boolean
+  }
+  onUpdate?: (payload: { editor: { text: string } }) => void
+}
+
 import { WebviewAnnotationControls } from '../WebviewAnnotationControls'
 
 const annotation = {
@@ -73,12 +119,16 @@ function createWebview() {
   return element
 }
 
-function dispatchGuestState(webview: WebviewTag, state: WebviewAnnotationGuestEvent['state']) {
+function dispatchGuestEvent(webview: WebviewTag, guestEvent: WebviewAnnotationGuestEvent) {
   const event = Object.assign(new Event('ipc-message'), {
     channel: WEBVIEW_ANNOTATION_BRIDGE_CHANNEL,
-    args: [{ type: 'state_changed', state } satisfies WebviewAnnotationGuestEvent]
+    args: [guestEvent]
   })
   webview.dispatchEvent(event)
+}
+
+function dispatchGuestState(webview: WebviewTag, state: WebviewAnnotationState) {
+  dispatchGuestEvent(webview, { type: 'state_changed', state })
 }
 
 const target = { id: 'mini-app:demo', label: 'Demo' }
@@ -197,6 +247,94 @@ describe('WebviewAnnotationControls', () => {
     resolveMarkdown?.('# Resolved annotations')
     await waitFor(() => expect(copyButton).not.toBeDisabled())
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('# Resolved annotations')
+  })
+
+  it('opens the host editor for a pending selection and reports the saved annotation', async () => {
+    const webview = createWebview()
+    const onAnnotationSaved = vi.fn()
+    render(
+      <WebviewAnnotationControls
+        webviewRef={{ current: webview }}
+        isWebviewReady
+        isHostActive
+        target={target}
+        onAnnotationSaved={onAnnotationSaved}
+      />
+    )
+
+    act(() =>
+      dispatchGuestEvent(webview, {
+        type: 'selection_pending',
+        selection: { element: annotation.element, anchor: { x: 10, y: 20, width: 100, height: 40 } }
+      })
+    )
+
+    const textarea = await screen.findByPlaceholderText('描述需要修改的内容或你注意到的问题…')
+    fireEvent.change(textarea, { target: { value: '整理这块重叠区域' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    const commit = vi
+      .mocked(webview.send)
+      .mock.calls.map((call) => call[1] as WebviewAnnotationHostCommand)
+      .find((command) => command.type === 'commit_pending')
+    expect(commit).toMatchObject({ comment: '整理这块重叠区域' })
+    expect(onAnnotationSaved).toHaveBeenCalledWith({
+      annotation: expect.objectContaining({ comment: '整理这块重叠区域', element: annotation.element }),
+      page: { url: 'https://example.com/page?secret=yes#part', title: 'Demo page' }
+    })
+    expect(screen.queryByPlaceholderText('描述需要修改的内容或你注意到的问题…')).not.toBeInTheDocument()
+  })
+
+  it('edits and deletes an existing annotation through the host editor', async () => {
+    const webview = createWebview()
+    render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
+    act(() => dispatchGuestState(webview, { enabled: true, annotations: [annotation] }))
+    act(() =>
+      dispatchGuestEvent(webview, {
+        type: 'annotation_activated',
+        id: annotation.id,
+        anchor: { x: 5, y: 5, width: 60, height: 30 }
+      })
+    )
+
+    const textarea = await screen.findByPlaceholderText('描述需要修改的内容或你注意到的问题…')
+    expect(textarea).toHaveValue('Fix this button')
+    fireEvent.change(textarea, { target: { value: 'Updated note' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+    expect(webview.send).toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, {
+      type: 'update_annotation',
+      id: annotation.id,
+      comment: 'Updated note'
+    })
+
+    act(() =>
+      dispatchGuestEvent(webview, {
+        type: 'annotation_activated',
+        id: annotation.id,
+        anchor: { x: 5, y: 5, width: 60, height: 30 }
+      })
+    )
+    fireEvent.click(await screen.findByRole('button', { name: '删除' }))
+    expect(webview.send).toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, {
+      type: 'delete_annotation',
+      id: annotation.id
+    })
+  })
+
+  it('cancels a pending selection when the editor is dismissed', async () => {
+    const webview = createWebview()
+    render(<WebviewAnnotationControls webviewRef={{ current: webview }} isWebviewReady isHostActive target={target} />)
+    act(() =>
+      dispatchGuestEvent(webview, {
+        type: 'selection_pending',
+        selection: { element: annotation.element, anchor: { x: 0, y: 0, width: 10, height: 10 } }
+      })
+    )
+
+    const textarea = await screen.findByPlaceholderText('描述需要修改的内容或你注意到的问题…')
+    fireEvent.keyDown(textarea, { key: 'Escape' })
+    expect(webview.send).toHaveBeenCalledWith(WEBVIEW_ANNOTATION_BRIDGE_CHANNEL, { type: 'cancel_pending' })
+    expect(screen.queryByPlaceholderText('描述需要修改的内容或你注意到的问题…')).not.toBeInTheDocument()
   })
 
   it('shows the existing error feedback and avoids stale output when the current snapshot cannot be synchronized', async () => {

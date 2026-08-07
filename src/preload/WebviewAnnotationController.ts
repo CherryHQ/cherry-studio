@@ -1,7 +1,9 @@
 import {
   WEBVIEW_ANNOTATION_LIMITS,
   WEBVIEW_SHADOW_SELECTOR_SEPARATOR,
+  type WebviewAnchorRect,
   type WebviewAnnotation,
+  type WebviewAnnotationGuestEvent,
   type WebviewAnnotationHostCommand,
   type WebviewAnnotationLocale,
   type WebviewAnnotationRegion,
@@ -49,6 +51,7 @@ const OVERLAY_CSS = `
     pointer-events: none;
   }
 
+  /* The comment editor is host-rendered React; this overlay only draws selection chrome. */
   .pin {
     position: fixed;
     width: 24px;
@@ -72,78 +75,6 @@ const OVERLAY_CSS = `
     outline-offset: 2px;
   }
 
-  .editor {
-    position: fixed;
-    display: none;
-    width: min(320px, calc(100vw - 24px));
-    padding: 12px;
-    border: 1px solid var(--annotation-border);
-    border-radius: 10px;
-    background: var(--annotation-surface);
-    color: var(--annotation-text);
-    box-shadow: 0 12px 40px color-mix(in srgb, black 28%, transparent);
-    pointer-events: auto;
-  }
-
-  textarea {
-    display: block;
-    width: 100%;
-    min-height: 88px;
-    max-height: 240px;
-    resize: vertical;
-    padding: 9px 10px;
-    border: 1px solid var(--annotation-border);
-    border-radius: 7px;
-    background: var(--annotation-input);
-    color: var(--annotation-text);
-    font: 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  }
-
-  textarea:focus {
-    border-color: var(--annotation-accent);
-    outline: 2px solid color-mix(in srgb, var(--annotation-accent) 30%, transparent);
-    outline-offset: 1px;
-  }
-
-  .actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 10px;
-  }
-
-  button.action {
-    min-height: 30px;
-    padding: 5px 10px;
-    border: 1px solid var(--annotation-border);
-    border-radius: 7px;
-    background: var(--annotation-input);
-    color: var(--annotation-text);
-    cursor: pointer;
-    font: 600 12px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  }
-
-  button.action.primary {
-    border-color: var(--annotation-accent);
-    background: var(--annotation-accent);
-    color: white;
-  }
-
-  button.action.danger {
-    margin-right: auto;
-    border-color: var(--annotation-danger);
-    color: var(--annotation-danger);
-  }
-
-  button.action:disabled {
-    cursor: default;
-    opacity: 0.45;
-  }
-
-  button.action:focus-visible {
-    outline: 2px solid var(--annotation-focus);
-    outline-offset: 2px;
-  }
 `
 
 const cssEscape = (value: string) => {
@@ -296,19 +227,60 @@ const summarizeText = (element: Element) => {
   return normalized ? normalized.slice(0, WEBVIEW_ANNOTATION_LIMITS.text) : null
 }
 
+/** Layout-relevant computed styles; values matching these defaults are omitted as noise. */
+const STYLE_PROPERTY_DEFAULTS: readonly (readonly [property: string, defaults: readonly string[]])[] = [
+  ['position', ['static']],
+  ['display', []],
+  ['z-index', ['auto']],
+  ['top', ['auto']],
+  ['right', ['auto']],
+  ['bottom', ['auto']],
+  ['left', ['auto']],
+  ['width', ['auto']],
+  ['height', ['auto']],
+  ['margin', ['0px']],
+  ['padding', ['0px']],
+  ['transform', ['none']],
+  ['float', ['none']],
+  ['overflow', ['visible']],
+  ['flex', ['0 1 auto']],
+  ['gap', ['normal', 'normal normal']]
+]
+
+const summarizeComputedStyles = (element: Element): string | undefined => {
+  const view = element.ownerDocument?.defaultView
+  if (!view) return undefined
+  let computed: CSSStyleDeclaration
+  try {
+    computed = view.getComputedStyle(element)
+  } catch {
+    return undefined
+  }
+
+  const parts: string[] = []
+  for (const [property, defaults] of STYLE_PROPERTY_DEFAULTS) {
+    const value = computed.getPropertyValue(property).trim()
+    if (!value || defaults.includes(value)) continue
+    parts.push(`${property}: ${value}`)
+  }
+  return parts.length > 0 ? parts.join('; ').slice(0, WEBVIEW_ANNOTATION_LIMITS.styleText) : undefined
+}
+
 export function createWebviewElementLocator(element: Element): WebviewElementLocator | null {
   const selector = buildWebviewElementSelector(element)
   if (!selector) return null
 
   const ariaLabel = element.getAttribute('aria-label')?.replace(/\s+/g, ' ').trim() || null
   const role = element.getAttribute('role')?.replace(/\s+/g, ' ').trim() || null
+  const styles = summarizeComputedStyles(element)
 
   return {
     selector,
     tagName: element.tagName.toLowerCase().slice(0, WEBVIEW_ANNOTATION_LIMITS.tagName),
     text: summarizeText(element),
     ariaLabel: ariaLabel?.slice(0, WEBVIEW_ANNOTATION_LIMITS.ariaLabel) ?? null,
-    role: role?.slice(0, WEBVIEW_ANNOTATION_LIMITS.role) ?? null
+    role: role?.slice(0, WEBVIEW_ANNOTATION_LIMITS.role) ?? null,
+    ...(styles ? { styles } : {})
   }
 }
 
@@ -343,22 +315,22 @@ const findCommonAncestor = (elements: readonly Element[]): Element | null => {
   return chain.values().next().value ?? null
 }
 
-type StateListener = (state: WebviewAnnotationState) => void
+type GuestEventListener = (event: WebviewAnnotationGuestEvent) => void
 
 export class WebviewAnnotationController {
   private annotations: WebviewAnnotation[] = []
   private annotationElements = new Map<string, Element>()
   private configured = false
-  private editorAnnotationId: string | null = null
-  private editorElement: Element | null = null
-  /** Page-coordinate rect anchoring the editor/highlight while a region is being created or edited. */
-  private editorRegion: WebviewRegionRect | null = null
   private enabled = false
   private highlightElement: Element | null = null
   private marquee: HTMLDivElement | null = null
   private marqueeOrigin: { x: number; y: number } | null = null
   private marqueeRect: ViewportRect | null = null
+  private pendingElement: Element | null = null
+  private pendingLocator: WebviewElementLocator | null = null
   private pendingRegion: WebviewAnnotationRegion | null = null
+  /** Page-coordinate rect anchoring the highlight while a region selection is pending. */
+  private pendingRegionRect: WebviewRegionRect | null = null
   private suppressNextClick = false
   private locale: WebviewAnnotationLocale | null = null
   private mutationObserver: MutationObserver | null = null
@@ -366,13 +338,10 @@ export class WebviewAnnotationController {
   private overlayHost: HTMLDivElement | null = null
   private highlight: HTMLDivElement | null = null
   private pinLayer: HTMLDivElement | null = null
-  private editor: HTMLDivElement | null = null
-  private textarea: HTMLTextAreaElement | null = null
-  private saveButton: HTMLButtonElement | null = null
   private theme: WebviewAnnotationTheme = 'light'
   private updateFrame: number | null = null
 
-  constructor(private readonly onStateChange: StateListener) {}
+  constructor(private readonly onEvent: GuestEventListener) {}
 
   handleCommand(command: WebviewAnnotationHostCommand) {
     switch (command.type) {
@@ -381,10 +350,21 @@ export class WebviewAnnotationController {
         this.locale = command.locale
         this.theme = command.theme
         this.applyTheme()
-        this.updateEditorLabels()
         break
       case 'set_enabled':
         this.setEnabled(command.enabled)
+        break
+      case 'commit_pending':
+        this.commitPending(command.id, command.comment)
+        break
+      case 'cancel_pending':
+        this.clearPending()
+        break
+      case 'update_annotation':
+        this.updateAnnotation(command.id, command.comment)
+        break
+      case 'delete_annotation':
+        this.deleteAnnotation(command.id)
         break
       case 'clear':
         this.clearAnnotations()
@@ -439,7 +419,7 @@ export class WebviewAnnotationController {
     } else {
       this.removeSelectionListeners()
       this.cancelMarquee()
-      this.closeEditor()
+      this.clearPending(true)
       this.highlightElement = null
       this.schedulePositionUpdate()
       if (this.annotations.length === 0) {
@@ -462,7 +442,7 @@ export class WebviewAnnotationController {
   private clearAnnotations(emit = true) {
     this.annotations = []
     this.annotationElements.clear()
-    this.closeEditor()
+    this.clearPending(true)
     this.renderPins()
     if (emit) this.emitState()
     if (!this.enabled) {
@@ -472,7 +452,16 @@ export class WebviewAnnotationController {
   }
 
   private emitState() {
-    this.onStateChange(this.getState())
+    this.onEvent({ type: 'state_changed', state: this.getState() })
+  }
+
+  private toAnchorRect(rect: ViewportRect): WebviewAnchorRect {
+    return {
+      x: Math.round(rect.left),
+      y: Math.round(rect.top),
+      width: Math.max(0, Math.round(rect.width)),
+      height: Math.max(0, Math.round(rect.height))
+    }
   }
 
   private ensureOverlay() {
@@ -492,16 +481,14 @@ export class WebviewAnnotationController {
     const marquee = document.createElement('div')
     marquee.className = 'marquee'
     const pinLayer = document.createElement('div')
-    const editor = this.createEditor()
 
-    shadowRoot.append(highlight, marquee, pinLayer, editor)
+    shadowRoot.append(highlight, marquee, pinLayer)
     document.documentElement?.appendChild(host)
 
     this.overlayHost = host
     this.highlight = highlight
     this.marquee = marquee
     this.pinLayer = pinLayer
-    this.editor = editor
     this.applyTheme()
     this.renderPins()
   }
@@ -545,73 +532,6 @@ export class WebviewAnnotationController {
     this.highlight = null
     this.marquee = null
     this.pinLayer = null
-    this.editor = null
-    this.textarea = null
-    this.saveButton = null
-  }
-
-  private createEditor() {
-    const editor = document.createElement('div')
-    editor.className = 'editor'
-
-    const textarea = document.createElement('textarea')
-    textarea.maxLength = WEBVIEW_ANNOTATION_LIMITS.comment
-    textarea.addEventListener('input', () => {
-      if (this.saveButton) this.saveButton.disabled = textarea.value.trim().length === 0
-    })
-    textarea.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        event.stopPropagation()
-        this.closeEditor()
-      } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault()
-        event.stopPropagation()
-        this.saveEditor()
-      }
-    })
-
-    const actions = document.createElement('div')
-    actions.className = 'actions'
-
-    const deleteButton = document.createElement('button')
-    deleteButton.type = 'button'
-    deleteButton.className = 'action danger'
-    deleteButton.dataset.action = 'delete'
-    deleteButton.addEventListener('click', () => this.deleteEditorAnnotation())
-
-    const cancelButton = document.createElement('button')
-    cancelButton.type = 'button'
-    cancelButton.className = 'action'
-    cancelButton.dataset.action = 'cancel'
-    cancelButton.addEventListener('click', () => this.closeEditor())
-
-    const saveButton = document.createElement('button')
-    saveButton.type = 'button'
-    saveButton.className = 'action primary'
-    saveButton.dataset.action = 'save'
-    saveButton.addEventListener('click', () => this.saveEditor())
-
-    actions.append(deleteButton, cancelButton, saveButton)
-    editor.append(textarea, actions)
-    this.textarea = textarea
-    this.saveButton = saveButton
-    this.updateEditorLabels(editor)
-    return editor
-  }
-
-  private updateEditorLabels(editor = this.editor) {
-    if (!editor || !this.locale) return
-    if (this.textarea) {
-      this.textarea.placeholder = this.locale.placeholder
-      this.textarea.setAttribute('aria-label', this.locale.placeholder)
-    }
-    const deleteButton = editor.querySelector<HTMLButtonElement>('[data-action="delete"]')
-    const cancelButton = editor.querySelector<HTMLButtonElement>('[data-action="cancel"]')
-    const saveButton = editor.querySelector<HTMLButtonElement>('[data-action="save"]')
-    if (deleteButton) deleteButton.textContent = this.locale.delete
-    if (cancelButton) cancelButton.textContent = this.locale.cancel
-    if (saveButton) saveButton.textContent = this.locale.save
   }
 
   private addSelectionListeners() {
@@ -691,7 +611,7 @@ export class WebviewAnnotationController {
       this.suppressNextClick = true
       event.preventDefault()
       event.stopImmediatePropagation()
-      this.openRegionEditor(rect)
+      this.startPendingRegion(rect)
       return
     }
     this.blockSelectionEvent(event)
@@ -710,7 +630,7 @@ export class WebviewAnnotationController {
     if (!element) return
     event.preventDefault()
     event.stopImmediatePropagation()
-    this.openEditor(element)
+    this.startPendingSelection(element)
   }
 
   private handleDocumentKeyDown = (event: KeyboardEvent) => {
@@ -719,8 +639,8 @@ export class WebviewAnnotationController {
     event.stopImmediatePropagation()
     if (this.marqueeOrigin || this.marqueeRect) {
       this.cancelMarquee()
-    } else if (this.editorElement) {
-      this.closeEditor()
+    } else if (this.pendingElement) {
+      this.clearPending(true)
     } else {
       this.setEnabled(false)
     }
@@ -772,7 +692,7 @@ export class WebviewAnnotationController {
     })
   }
 
-  private openRegionEditor(rect: ViewportRect) {
+  private startPendingRegion(rect: ViewportRect) {
     if (this.annotations.length >= WEBVIEW_ANNOTATION_LIMITS.annotations) return
 
     const contained = this.collectRegionElements(rect)
@@ -786,7 +706,8 @@ export class WebviewAnnotationController {
       findCommonAncestor(contained) ?? (centerElement !== this.overlayHost ? centerElement : null) ?? document.body
     // Walk up until a selector can be built; <body> always can.
     while (anchor && !buildWebviewElementSelector(anchor)) anchor = composedParent(anchor)
-    if (!anchor) return
+    const locator = anchor ? createWebviewElementLocator(anchor) : null
+    if (!anchor || !locator) return
 
     const pageRect: WebviewRegionRect = {
       x: Math.round(rect.left + window.scrollX),
@@ -796,90 +717,110 @@ export class WebviewAnnotationController {
     }
     const elements = contained
       .map(createWebviewElementLocator)
-      .filter((locator): locator is WebviewElementLocator => locator !== null)
+      .filter((elementLocator): elementLocator is WebviewElementLocator => elementLocator !== null)
       .slice(0, WEBVIEW_ANNOTATION_LIMITS.regionElements)
 
+    this.pendingElement = anchor
+    this.pendingLocator = locator
     this.pendingRegion = { rect: pageRect, elements }
-    this.editorRegion = pageRect
-    this.openEditor(anchor)
+    this.pendingRegionRect = pageRect
+    this.highlightElement = null
+    this.schedulePositionUpdate()
+    this.onEvent({
+      type: 'selection_pending',
+      selection: { element: locator, region: this.pendingRegion, anchor: this.toAnchorRect(rect) }
+    })
   }
 
-  private openEditor(element: Element, annotationId: string | null = null) {
-    if (!this.locale || (!annotationId && this.annotations.length >= WEBVIEW_ANNOTATION_LIMITS.annotations)) return
-    this.ensureOverlay()
-    if (!this.editor || !this.textarea || !this.saveButton) return
+  private startPendingSelection(element: Element) {
+    if (this.annotations.length >= WEBVIEW_ANNOTATION_LIMITS.annotations) return
+    const locator = createWebviewElementLocator(element)
+    if (!locator) return
 
-    const annotation = annotationId ? this.annotations.find((item) => item.id === annotationId) : undefined
-    this.editorElement = element
-    this.editorAnnotationId = annotationId
-    this.textarea.value = annotation?.comment ?? ''
-    this.textarea.placeholder = this.locale.placeholder
-    this.saveButton.disabled = this.textarea.value.trim().length === 0
-    const deleteButton = this.editor.querySelector<HTMLButtonElement>('[data-action="delete"]')
-    if (deleteButton) deleteButton.style.display = annotationId ? '' : 'none'
-    this.editor.style.display = 'block'
+    this.pendingElement = element
+    this.pendingLocator = locator
+    this.pendingRegion = null
+    this.pendingRegionRect = null
     this.highlightElement = element
     this.schedulePositionUpdate()
-    this.textarea.focus()
-  }
-
-  private closeEditor() {
-    this.editorAnnotationId = null
-    this.editorElement = null
-    this.editorRegion = null
-    this.pendingRegion = null
-    if (this.editor) this.editor.style.display = 'none'
-    this.schedulePositionUpdate()
-  }
-
-  private saveEditor() {
-    if (!this.editorElement || !this.textarea) return
-    const comment = this.textarea.value.trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.comment)
-    if (!comment) return
-
-    if (this.editorAnnotationId) {
-      const annotation = this.annotations.find((item) => item.id === this.editorAnnotationId)
-      if (!annotation) return
-      annotation.comment = comment
-      // Region annotations keep their captured ancestor locator: the editor may
-      // have fallen back to <body> when the ancestor no longer resolves.
-      if (!annotation.region) {
-        const locator = createWebviewElementLocator(this.editorElement)
-        if (locator) annotation.element = locator
-        this.annotationElements.set(annotation.id, this.editorElement)
-      }
-    } else {
-      const locator = createWebviewElementLocator(this.editorElement)
-      if (!locator) return
-      const annotation: WebviewAnnotation = {
-        id: crypto.randomUUID(),
-        comment,
-        createdAt: Date.now(),
+    const rect = element.getBoundingClientRect()
+    this.onEvent({
+      type: 'selection_pending',
+      selection: {
         element: locator,
-        ...(this.pendingRegion ? { region: this.pendingRegion } : {})
+        anchor: this.toAnchorRect({ left: rect.left, top: rect.top, width: rect.width, height: rect.height })
       }
-      this.annotations.push(annotation)
-      this.annotationElements.set(annotation.id, this.editorElement)
-    }
+    })
+  }
 
-    this.observeElementRoot(this.editorElement)
-    this.closeEditor()
+  private clearPending(notifyHost = false) {
+    const hadPending = this.pendingElement !== null
+    this.pendingElement = null
+    this.pendingLocator = null
+    this.pendingRegion = null
+    this.pendingRegionRect = null
+    this.schedulePositionUpdate()
+    if (notifyHost && hadPending) this.onEvent({ type: 'selection_cleared' })
+  }
+
+  private commitPending(id: string, comment: string) {
+    if (!this.pendingElement || !this.pendingLocator) return
+    const trimmed = comment.trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.comment)
+    if (!trimmed || this.annotations.length >= WEBVIEW_ANNOTATION_LIMITS.annotations) {
+      this.clearPending()
+      return
+    }
+    if (this.annotations.some((annotation) => annotation.id === id)) return
+
+    const annotation: WebviewAnnotation = {
+      id,
+      comment: trimmed,
+      createdAt: Date.now(),
+      element: this.pendingLocator,
+      ...(this.pendingRegion ? { region: this.pendingRegion } : {})
+    }
+    this.annotations.push(annotation)
+    this.annotationElements.set(id, this.pendingElement)
+    this.observeElementRoot(this.pendingElement)
+    this.clearPending()
     this.renderPins()
     this.emitState()
   }
 
-  private deleteEditorAnnotation() {
-    if (!this.editorAnnotationId) return
-    const annotationId = this.editorAnnotationId
-    this.annotations = this.annotations.filter((annotation) => annotation.id !== annotationId)
-    this.annotationElements.delete(annotationId)
-    this.closeEditor()
+  private updateAnnotation(id: string, comment: string) {
+    const annotation = this.annotations.find((item) => item.id === id)
+    const trimmed = comment.trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.comment)
+    if (!annotation || !trimmed) return
+    annotation.comment = trimmed
+    this.emitState()
+  }
+
+  private deleteAnnotation(id: string) {
+    const remaining = this.annotations.filter((annotation) => annotation.id !== id)
+    if (remaining.length === this.annotations.length) return
+    this.annotations = remaining
+    this.annotationElements.delete(id)
     this.renderPins()
     this.emitState()
     if (!this.enabled && this.annotations.length === 0) {
       this.stopPositionTracking()
       this.removeOverlay()
     }
+  }
+
+  private getAnnotationAnchorRect(annotation: WebviewAnnotation): ViewportRect | null {
+    if (annotation.region) {
+      return {
+        left: annotation.region.rect.x - window.scrollX,
+        top: annotation.region.rect.y - window.scrollY,
+        width: annotation.region.rect.width,
+        height: annotation.region.rect.height
+      }
+    }
+    const element = this.resolveAnnotationElement(annotation)
+    if (!element) return null
+    const rect = element.getBoundingClientRect()
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
   }
 
   private renderPins() {
@@ -893,10 +834,9 @@ export class WebviewAnnotationController {
       pin.textContent = String(index + 1)
       pin.setAttribute('aria-label', `${this.locale?.edit ?? ''} ${index + 1}`.trim())
       pin.addEventListener('click', () => {
-        const element = this.resolveAnnotationElement(annotation) ?? (annotation.region ? document.body : null)
-        if (!element) return
-        if (annotation.region) this.editorRegion = annotation.region.rect
-        this.openEditor(element, annotation.id)
+        const anchor = this.getAnnotationAnchorRect(annotation)
+        if (!anchor) return
+        this.onEvent({ type: 'annotation_activated', id: annotation.id, anchor: this.toAnchorRect(anchor) })
       })
       this.pinLayer?.appendChild(pin)
     })
@@ -988,7 +928,7 @@ export class WebviewAnnotationController {
       pin.style.top = `${Math.max(4, rect.top)}px`
     })
 
-    const anchorRect = this.getEditorAnchorRect()
+    const anchorRect = this.getPendingAnchorRect()
     const highlightedElement = this.highlightElement
     if (this.highlight && anchorRect) {
       this.highlight.style.display = anchorRect.width > 0 && anchorRect.height > 0 ? 'block' : 'none'
@@ -1006,36 +946,20 @@ export class WebviewAnnotationController {
     } else if (this.highlight) {
       this.highlight.style.display = 'none'
     }
-
-    if (this.editor && anchorRect) {
-      const editorRect = this.editor.getBoundingClientRect()
-      const margin = 8
-      const left = Math.min(
-        Math.max(margin, anchorRect.left),
-        Math.max(margin, window.innerWidth - editorRect.width - margin)
-      )
-      const belowTop = anchorRect.top + anchorRect.height + margin
-      const top =
-        belowTop + editorRect.height <= window.innerHeight - margin
-          ? belowTop
-          : Math.max(margin, anchorRect.top - editorRect.height - margin)
-      this.editor.style.left = `${left}px`
-      this.editor.style.top = `${top}px`
-    }
   }
 
-  /** Viewport rect the editor and highlight anchor to: the region box when set, else the editor element. */
-  private getEditorAnchorRect(): ViewportRect | null {
-    if (this.editorRegion) {
+  /** Viewport rect the highlight anchors to while a selection awaits the host editor. */
+  private getPendingAnchorRect(): ViewportRect | null {
+    if (this.pendingRegionRect) {
       return {
-        left: this.editorRegion.x - window.scrollX,
-        top: this.editorRegion.y - window.scrollY,
-        width: this.editorRegion.width,
-        height: this.editorRegion.height
+        left: this.pendingRegionRect.x - window.scrollX,
+        top: this.pendingRegionRect.y - window.scrollY,
+        width: this.pendingRegionRect.width,
+        height: this.pendingRegionRect.height
       }
     }
-    if (this.editorElement?.isConnected) {
-      const rect = this.editorElement.getBoundingClientRect()
+    if (this.pendingElement?.isConnected) {
+      const rect = this.pendingElement.getBoundingClientRect()
       return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
     }
     return null

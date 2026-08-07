@@ -362,6 +362,7 @@
         "workspace": "Workspace"
       },
       "tabs": {
+        "browser": "Browser",
         "files": "Files",
         "flow": "Flow",
         "status": "Status"
@@ -8748,6 +8749,20 @@
       "enable_mode": "Annotate page",
       "placeholder": "Describe what should change or what you noticed…",
       "save": "Save"
+    },
+    "browser": {
+      "load_failed": "This page could not be loaded. Check that the local server is still running.",
+      "loading": "Loading page…"
+    },
+    "navigation": {
+      "address": "Web address",
+      "address_placeholder": "Enter a URL",
+      "back": "Back",
+      "forward": "Forward",
+      "invalid_address": "Enter a valid HTTP, HTTPS, or file URL",
+      "load_failed": "Failed to load the page",
+      "open_external": "Open in external browser",
+      "reload": "Reload"
     }
   },
   "words": {

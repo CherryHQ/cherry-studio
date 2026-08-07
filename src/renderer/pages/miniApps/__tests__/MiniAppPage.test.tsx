@@ -59,7 +59,7 @@ vi.mock('@renderer/pages/miniApps/components/MinimalToolbar', () => ({
   )
 }))
 
-vi.mock('@renderer/pages/miniApps/components/WebviewSearch', () => ({
+vi.mock('@renderer/components/WebviewSearch', () => ({
   default: () => <div data-testid="webview-search" />
 }))
 
