@@ -3316,6 +3316,7 @@
   },
   "launchpad": {
     "apps": "Apps",
+    "manage_sidebar": "Manage Sidebar",
     "minapps": "Minapps",
     "miniApps": "MiniApps",
     "pin_to_sidebar": "Add to Sidebar",
