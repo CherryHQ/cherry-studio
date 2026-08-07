@@ -163,6 +163,29 @@ describe('MessageService', () => {
     return messageService.createRootMessageTx(dbh.db, topicId)
   }
 
+  async function seedAwaitingInputBranch(topicId: string) {
+    const rootId = await seedTopicWithRoot(topicId)
+    const prompt = messageService.create(topicId, {
+      parentId: rootId,
+      role: 'user',
+      data: mainText('question'),
+      status: 'success'
+    })
+    const anchor = messageService.create(topicId, {
+      parentId: prompt.id,
+      role: 'assistant',
+      data: mainText('answer'),
+      status: 'success'
+    })
+    const awaitingInput = messageService.create(topicId, {
+      parentId: anchor.id,
+      role: 'user',
+      data: { parts: [] },
+      status: 'success'
+    })
+    return { prompt, anchor, awaitingInput }
+  }
+
   async function seedFileEntry(id: string) {
     await dbh.db
       .insert(fileEntryTable)
@@ -1668,6 +1691,35 @@ describe('MessageService', () => {
   describe('delete — virtual root guard', () => {
     const virtualRootId = 'vroot-topic-1'
 
+    it('deletes an awaiting-input leaf when awaitingInputOnly is required', async () => {
+      const { anchor, awaitingInput } = await seedAwaitingInputBranch('topic-delete-empty-branch')
+
+      const result = messageService.delete(awaitingInput.id, false, 'parent', true)
+
+      expect(result).toMatchObject({
+        deletedIds: [awaitingInput.id],
+        newActiveNodeId: anchor.id
+      })
+      expect(() => messageService.getById(awaitingInput.id)).toThrow()
+      const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-delete-empty-branch'))
+      expect(topic.activeNodeId).toBe(anchor.id)
+    })
+
+    it('rejects awaitingInputOnly after the empty message has been filled', async () => {
+      const { awaitingInput } = await seedAwaitingInputBranch('topic-delete-filled-branch')
+      messageService.update(awaitingInput.id, { data: mainText('filled question') })
+
+      let err: unknown
+      try {
+        messageService.delete(awaitingInput.id, false, 'parent', true)
+      } catch (error) {
+        err = error
+      }
+
+      expect(err).toMatchObject({ code: ErrorCode.INVALID_OPERATION })
+      expect(messageService.getById(awaitingInput.id).data.parts).toEqual(mainText('filled question').parts)
+    })
+
     it('rejects deleting the virtual root with cascade=false', async () => {
       await seedMultiModelTree()
 
@@ -2204,6 +2256,50 @@ describe('MessageService', () => {
     })
   })
 
+  describe('reserveBranch', () => {
+    it('persists every reservation and only activates when requested', async () => {
+      const { anchor, awaitingInput } = await seedAwaitingInputBranch('topic-reserve-branch')
+
+      const inactiveReservation = messageService.reserveBranch(anchor.id, false)
+      const [topicAfterInactive] = await dbh.db
+        .select()
+        .from(topicTable)
+        .where(eq(topicTable.id, 'topic-reserve-branch'))
+
+      expect(inactiveReservation).toMatchObject({
+        topicId: 'topic-reserve-branch',
+        parentId: anchor.id,
+        role: 'user',
+        data: { parts: [] },
+        status: 'success'
+      })
+      expect(topicAfterInactive.activeNodeId).toBe(awaitingInput.id)
+
+      const activeReservation = messageService.reserveBranch(anchor.id)
+      const [topicAfterActive] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-reserve-branch'))
+      const children = messageService.getChildrenByParentId(anchor.id)
+
+      expect(activeReservation.id).not.toBe(inactiveReservation.id)
+      expect(children.map((message) => message.id)).toEqual(
+        expect.arrayContaining([awaitingInput.id, inactiveReservation.id, activeReservation.id])
+      )
+      expect(topicAfterActive.activeNodeId).toBe(activeReservation.id)
+    })
+
+    it('rejects non-assistant anchors without creating a node', async () => {
+      const rootId = await seedTopicWithRoot('topic-reserve-invalid')
+      const userMessage = messageService.create('topic-reserve-invalid', {
+        parentId: rootId,
+        role: 'user',
+        data: mainText('question'),
+        status: 'success'
+      })
+
+      expect(() => messageService.reserveBranch(userMessage.id)).toThrow()
+      expect(messageService.getChildrenByParentId(userMessage.id)).toEqual([])
+    })
+  })
+
   describe('createUserMessageWithPlaceholders', () => {
     async function seedTopic(id = 'topic-1') {
       await dbh.db.insert(topicTable).values({ id, orderKey: 'a0' })
@@ -2263,6 +2359,86 @@ describe('MessageService', () => {
 
         const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
         expect(topic.activeNodeId).toBe(placeholders.at(-1)!.id)
+      })
+    })
+
+    describe('persisted awaiting-input turn', () => {
+      it('fills the existing empty user row and creates its placeholder atomically', async () => {
+        const { prompt, awaitingInput } = await seedAwaitingInputBranch('topic-1')
+
+        expect(
+          messageService.getTree('topic-1', { depth: -1 }).nodes.find((node) => node.id === awaitingInput.id)
+        ).toMatchObject({ isAwaitingInput: true })
+
+        const { userMessage, placeholders } = messageService.createUserMessageWithPlaceholders({
+          topicId: 'topic-1',
+          userMessage: {
+            mode: 'fill-reserved',
+            id: awaitingInput.id,
+            data: mainText('new branch question'),
+            modelId: createUniqueModelId('provider-a', 'model-A')
+          },
+          placeholders: [{ role: 'assistant', data: { parts: [] }, status: 'pending' }]
+        })
+
+        expect(userMessage.id).toBe(awaitingInput.id)
+        expect(userMessage.data).toEqual(mainText('new branch question'))
+        expect(userMessage.modelId).toBe(createUniqueModelId('provider-a', 'model-A'))
+        expect(placeholders).toHaveLength(1)
+        expect(placeholders[0]).toMatchObject({ parentId: awaitingInput.id, status: 'pending' })
+
+        const userRows = await dbh.db
+          .select()
+          .from(messageTable)
+          .where(and(eq(messageTable.topicId, 'topic-1'), eq(messageTable.role, 'user')))
+        expect(userRows.map((row) => row.id).sort()).toEqual([awaitingInput.id, prompt.id].sort())
+
+        const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1'))
+        expect(topic.activeNodeId).toBe(placeholders[0].id)
+      })
+
+      it('rejects a normal user message without changing its data or creating a placeholder', async () => {
+        await seedTopic()
+        const userMessage = messageService.create('topic-1', {
+          role: 'user',
+          parentId: null,
+          data: mainText('normal message'),
+          status: 'success'
+        })
+
+        expect(() =>
+          messageService.createUserMessageWithPlaceholders({
+            topicId: 'topic-1',
+            userMessage: {
+              mode: 'fill-reserved',
+              id: userMessage.id,
+              data: mainText('replacement')
+            },
+            placeholders: [{ role: 'assistant', data: { parts: [] }, status: 'pending' }]
+          })
+        ).toThrow()
+
+        expect(messageService.getById(userMessage.id).data).toEqual(mainText('normal message'))
+        expect(messageService.getChildrenByParentId(userMessage.id)).toEqual([])
+      })
+
+      it('rolls the reserved fill back when placeholder creation fails', async () => {
+        const { anchor, awaitingInput } = await seedAwaitingInputBranch('topic-fill-rollback')
+
+        expect(() =>
+          messageService.createUserMessageWithPlaceholders({
+            topicId: 'topic-fill-rollback',
+            userMessage: {
+              mode: 'fill-reserved',
+              id: awaitingInput.id,
+              data: mainText('must roll back')
+            },
+            placeholders: [{ id: anchor.id, role: 'assistant', data: { parts: [] }, status: 'pending' }]
+          })
+        ).toThrow()
+
+        expect(messageService.getById(awaitingInput.id).data).toEqual({ parts: [] })
+        expect(messageService.getChildrenByParentId(awaitingInput.id)).toEqual([])
       })
     })
 

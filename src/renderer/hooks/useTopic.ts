@@ -34,7 +34,7 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared/data/api/schemas/topics'
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
-import { hasClearContextPart } from '@shared/data/types/uiParts'
+import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
@@ -123,6 +123,11 @@ export const finishTopicRenaming = (topicId: string) => {
 // hard-capping at one large page.
 const MESSAGES_PAGE_SIZE = 200
 
+function isRenderableTopicMessage(message: SharedMessage): boolean {
+  const parts = message.data.parts ?? []
+  return !hasClearContextPart(parts) && !isBlankUserTurn({ role: message.role, status: message.status, parts })
+}
+
 /**
  * Load and return all messages for a topic.
  *
@@ -165,12 +170,12 @@ export async function getTopicMessages(
 
       const pageMessages: MessageExportView[] = []
       for (const item of response.items) {
-        if (!hasClearContextPart(item.message.data.parts)) {
+        if (isRenderableTopicMessage(item.message)) {
           pageMessages.push(convertSharedMessage(item.message, assistantId))
         }
         if (item.siblingsGroup) {
           for (const sibling of item.siblingsGroup) {
-            if (!hasClearContextPart(sibling.data.parts)) {
+            if (isRenderableTopicMessage(sibling)) {
               pageMessages.push(convertSharedMessage(sibling, assistantId))
             }
           }

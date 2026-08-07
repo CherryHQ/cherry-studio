@@ -29,7 +29,6 @@ import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import type { SkillFileNode, SkillResult } from '@shared/types/skill'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 import type { CommandId } from '@shared/utils/command'
-import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file'
 import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
@@ -171,20 +170,6 @@ const api = {
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
     readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)
-  },
-  tree: {
-    create: (rootPath: string, options?: DirectoryTreeOptions): Promise<CreateTreeIpcResult> =>
-      ipcRenderer.invoke(IpcChannel.File_TreeCreate, { rootPath, options }),
-    dispose: (treeId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_TreeDispose, { treeId }),
-    rename: (treeId: string, oldPath: string, newPath: string): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.File_TreeRename, { treeId, oldPath, newPath }),
-    onMutation: (callback: (payload: TreeMutationPushPayload) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, payload: TreeMutationPushPayload) => {
-        if (payload && typeof payload === 'object') callback(payload)
-      }
-      ipcRenderer.on(IpcChannel.File_TreeMutation, listener)
-      return () => ipcRenderer.off(IpcChannel.File_TreeMutation, listener)
-    }
   },
   command: {
     showNativePopupMenu: (
