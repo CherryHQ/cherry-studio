@@ -1,7 +1,3 @@
-import {
-  DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS,
-  getMessageMenuBarConfig
-} from '@renderer/components/chat/messages/frame/messageMenuBarConfig'
 import { defaultMessageMenuConfig, type MessageListActions } from '@renderer/components/chat/messages/types'
 import { COMPOSER_CLIPBOARD_FRAGMENT_MIME } from '@renderer/utils/message/composerClipboard'
 import { fireEvent, render, screen } from '@testing-library/react'
@@ -119,8 +115,6 @@ vi.mock('@renderer/utils/export', () => ({
   messageToPlainText: vi.fn(() => 'plain text')
 }))
 
-import { TopicType } from '@renderer/types/topic'
-
 import type { MessageMenuBarActionContext } from '../messageMenuBarActions'
 import {
   executeMessageMenuBarAction,
@@ -166,7 +160,6 @@ function createActionContext(overrides: Partial<MessageMenuBarActionContext> = {
     } as any,
     messageContainerRef: { current: null } as any,
     mainTextContent: 'hello',
-    toolbarButtonIds: new Set(DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS),
     menuConfig: defaultMessageMenuConfig,
     copied: false,
     setCopied: vi.fn(),
@@ -209,27 +202,26 @@ describe('messageMenuBarActions', () => {
     expect(toolbarActions.map((action) => action.id)).toEqual(['copy'])
   })
 
-  it('disables deletion when the message is protected', () => {
-    const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createActionContext({
-        actions: {
-          getMessageDeleteAvailability: vi.fn(() => ({ enabled: false, reason: 'first-turn' })),
-          deleteMessage: vi.fn()
-        } as MessageListActions
-      })
-    )
+  it('disables deletion while the target message is unavailable', () => {
+    const context = createActionContext({
+      actions: {
+        getMessageDeleteAvailability: vi.fn(() => ({ enabled: false, reason: 'not-loaded' })),
+        deleteMessage: vi.fn()
+      } as MessageListActions
+    })
+    const toolbarActions = resolveMessageMenuBarToolbarActions(context)
 
     const deleteAction = toolbarActions.find((action) => action.id === 'delete')
     expect(deleteAction?.availability).toEqual({
       visible: true,
       enabled: false,
-      reason: 'message.delete.first_turn_not_supported'
+      reason: 'message.delete.root_unavailable'
     })
 
     render(
       renderDeleteToolbarAction({
         action: deleteAction!,
-        actionContext: createActionContext(),
+        actionContext: context,
         executeAction: vi.fn(),
         menuActions: [],
         softHoverBg: false,
@@ -241,7 +233,7 @@ describe('messageMenuBarActions', () => {
     expect(deleteButton).toBeDisabled()
     expect(deleteButton.closest('[data-testid="mock-tooltip"]')).toHaveAttribute(
       'data-content',
-      'message.delete.first_turn_not_supported'
+      'message.delete.root_unavailable'
     )
   })
 
@@ -342,6 +334,7 @@ describe('messageMenuBarActions', () => {
           exportToNotes: vi.fn(),
           regenerateMessage: vi.fn(),
           renderRegenerateModelPicker: vi.fn(),
+          setActiveBranch: vi.fn(),
           translateMessage: vi.fn()
         } as MessageListActions,
         translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
@@ -547,6 +540,76 @@ describe('messageMenuBarActions', () => {
     expect(tooltipOpenValues).not.toContain(undefined)
   })
 
+  it('keeps translate available and requests languages when its menu first opens', () => {
+    const requestTranslationLanguages = vi.fn()
+    const context = createActionContext({
+      actions: {
+        requestTranslationLanguages,
+        translateMessage: vi.fn()
+      } as MessageListActions
+    })
+    const action = resolveMessageMenuBarToolbarActions(context).find((item) => item.id === 'translate')
+    const translationItems = resolveMessageMenuBarTranslationItems(context)
+
+    expect(action).toBeTruthy()
+    expect(translationItems).toEqual([
+      expect.objectContaining({ key: 'translate-loading', label: 'common.loading', enabled: false })
+    ])
+
+    render(
+      renderTranslateToolbarAction({
+        action: action!,
+        actionContext: context,
+        executeAction: vi.fn(),
+        menuActions: [],
+        softHoverBg: false,
+        translationItems
+      })
+    )
+
+    expect(requestTranslationLanguages).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'chat.translate' }))
+
+    expect(requestTranslationLanguages).toHaveBeenCalledOnce()
+    expect(screen.getByRole('menu')).toHaveTextContent('common.loading')
+  })
+
+  it('offers an actionable retry item when the language load failed, then recovers', async () => {
+    const retryTranslationLanguages = vi.fn()
+    const failedContext = createActionContext({
+      translationLanguagesStatus: 'error',
+      actions: {
+        requestTranslationLanguages: vi.fn(),
+        retryTranslationLanguages,
+        translateMessage: vi.fn()
+      } as MessageListActions
+    })
+
+    const failedItems = resolveMessageMenuBarTranslationItems(failedContext)
+    expect(failedItems).toEqual([expect.objectContaining({ key: 'translate-retry', label: 'common.retry' })])
+
+    const retryItem = failedItems[0]
+    expect('onSelect' in retryItem).toBe(true)
+    if ('onSelect' in retryItem) {
+      await retryItem.onSelect()
+    }
+    expect(retryTranslationLanguages).toHaveBeenCalledOnce()
+
+    const recoveredItems = resolveMessageMenuBarTranslationItems(
+      createActionContext({
+        translationLanguagesStatus: 'ready',
+        translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
+        actions: {
+          requestTranslationLanguages: vi.fn(),
+          retryTranslationLanguages,
+          translateMessage: vi.fn()
+        } as MessageListActions
+      })
+    )
+    expect(recoveredItems.map((item) => item.key)).toEqual(['en'])
+  })
+
   it('suppresses the translate tooltip after the language menu closes until a new trigger hover starts', () => {
     tooltipOpenValues.length = 0
 
@@ -592,23 +655,23 @@ describe('messageMenuBarActions', () => {
     expect(tooltipOpenValues[tooltipOpenValues.length - 1]).toBe(true)
   })
 
-  it('keeps session scope capability-driven for toolbar actions', () => {
-    const sessionConfig = getMessageMenuBarConfig(TopicType.Session)
-    const toolbarActions = resolveMessageMenuBarToolbarActions(
-      createActionContext({
-        actions: {
-          deleteMessage: vi.fn(),
-          exportToNotes: vi.fn(),
-          regenerateMessage: vi.fn(),
-          renderRegenerateModelPicker: vi.fn(),
-          translateMessage: vi.fn()
-        } as MessageListActions,
-        translateLanguages: [{ langCode: 'en', emoji: '🇺🇸', label: 'English' } as any],
-        toolbarButtonIds: new Set(sessionConfig.buttonIds)
-      })
-    )
+  it('keeps Notes actions capability-driven', () => {
+    const context = createActionContext({
+      actions: {
+        deleteMessage: vi.fn(),
+        exportToNotes: vi.fn(),
+        saveToKnowledge: vi.fn()
+      } as MessageListActions
+    })
+
+    const toolbarActions = resolveMessageMenuBarToolbarActions(context)
 
     expect(toolbarActions.map((action) => action.id)).toEqual(['copy', 'notes', 'delete', 'more-menu'])
+    expect(
+      resolveMessageMenuBarMenuActions(context)
+        .find((action) => action.id === 'save')
+        ?.children.map((action) => action.id)
+    ).toEqual(['save.notes', 'save.knowledge'])
   })
 
   it('keeps menu actions capability-driven instead of filtering by session roots', () => {
@@ -640,7 +703,57 @@ describe('messageMenuBarActions', () => {
     expect(menuActions[3]?.children.map((action) => action.id)).toEqual(['export.markdown'])
   })
 
-  it('shows disabled new branch with a reason in the latest message menu', () => {
+  it('orders message export actions by destination and behavior', () => {
+    const menuActions = resolveMessageMenuBarMenuActions(
+      createActionContext({
+        actions: {
+          copyImage: vi.fn(),
+          copyText: vi.fn(),
+          exportMessageAsMarkdown: vi.fn(),
+          exportToJoplin: vi.fn(),
+          exportToNotion: vi.fn(),
+          exportToObsidian: vi.fn(),
+          exportToSiyuan: vi.fn(),
+          exportToWord: vi.fn(),
+          exportToYuque: vi.fn(),
+          saveImage: vi.fn()
+        } as MessageListActions,
+        menuConfig: {
+          ...defaultMessageMenuConfig,
+          exportMenuOptions: {
+            ...defaultMessageMenuConfig.exportMenuOptions,
+            docx: true,
+            image: true,
+            joplin: true,
+            markdown: true,
+            markdown_reason: true,
+            notion: true,
+            obsidian: true,
+            plain_text: true,
+            siyuan: true,
+            yuque: true
+          }
+        }
+      })
+    )
+
+    const exportActions = menuActions.find((action) => action.id === 'export')?.children
+    expect(exportActions?.map((action) => action.id)).toEqual([
+      'export.image',
+      'export.markdown',
+      'export.markdown-reason',
+      'export.word',
+      'export.notion',
+      'export.yuque',
+      'export.obsidian',
+      'export.joplin',
+      'export.siyuan',
+      'export.copy-plain-text',
+      'export.copy-image'
+    ])
+  })
+
+  it('enables new branch in the latest message menu', () => {
     const menuActions = resolveMessageMenuBarMenuActions(
       createActionContext({
         actions: {
@@ -659,8 +772,7 @@ describe('messageMenuBarActions', () => {
     expect(menuActions.map((action) => action.id)).toEqual(['new-branch', 'multi-select'])
     expect(menuActions[0]?.availability).toEqual({
       visible: true,
-      enabled: false,
-      reason: 'chat.message.new.branch.disabled.latest'
+      enabled: true
     })
   })
 
@@ -782,6 +894,17 @@ describe('messageMenuBarActions', () => {
 
     expect(copyText).toHaveBeenCalledWith('hello', { successMessage: 'message.copied' })
     expect(setCopied).toHaveBeenCalledWith(true)
+  })
+
+  it('saves the original main text through the local file action', async () => {
+    const saveTextFile = vi.fn()
+    const context = createActionContext({
+      actions: { saveTextFile } as MessageListActions
+    })
+
+    await executeMessageMenuBarAction('save.file', context)
+
+    expect(saveTextFile).toHaveBeenCalledWith(expect.stringMatching(/\.md$/), 'hello')
   })
 
   it('copies user composer tokens through rich clipboard when available', async () => {

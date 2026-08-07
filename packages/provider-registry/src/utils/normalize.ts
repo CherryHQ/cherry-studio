@@ -180,7 +180,16 @@ export function stripHostReprefix(modelId: string, isKnownId: (id: string) => bo
  * `flux.2-pro` and versions such as `qwen3.7` are never touched.
  */
 export function stripBedrockVendorPrefix(modelId: string): string {
-  return modelId.replace(BEDROCK_VENDOR_DOTTED, '').replace(BEDROCK_VENDOR_DASH, '')
+  return stripBedrockDottedVendorPrefix(modelId).replace(BEDROCK_VENDOR_DASH, '')
+}
+
+/**
+ * The dotted half of {@link stripBedrockVendorPrefix} (`us.anthropic.claude-…` → `claude-…`), split out
+ * so display-name derivation can tell how much of a raw id normalization folded away and keep the
+ * prefix as a distinguishing decoration (`MiniMax.MiniMax-M2.1` vs the bare `MiniMax-M2.1`).
+ */
+export function stripBedrockDottedVendorPrefix(modelId: string): string {
+  return modelId.replace(BEDROCK_VENDOR_DOTTED, '')
 }
 
 /** Strip a Bedrock ARN model revision: `claude-…-v1:0` / `…:0` → bare id (keeps `whisper-v3`, no colon). */

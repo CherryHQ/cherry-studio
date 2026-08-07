@@ -10,7 +10,7 @@
  * messages. Row fields carry identity, role, status, and timestamps.
  */
 
-import { useSharedCacheValue } from '@renderer/data/hooks/useCache'
+import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@renderer/data/hooks/useDataApi'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
@@ -73,7 +73,6 @@ function reservedUIMessageToAgentSessionMessage(
 export function useAgentSessionParts(sessionId: string, options: { enabled?: boolean; fetchOnMount?: boolean } = {}) {
   const enabled = !!sessionId && options.enabled !== false
   const fetchOnMount = options.fetchOnMount ?? enabled
-  const flowParts = useSharedCacheValue(AGENT_SESSION_FLOW_PARTS_CACHE_KEY(sessionId || 'disabled'))
   const sessionMessagesCachePath = `/agent-sessions/${sessionId}/messages` as const
   const { pages, isLoading, hasNext, loadNext, mutate } = useInfiniteQuery('/agent-sessions/:sessionId/messages', {
     params: { sessionId },
@@ -100,6 +99,17 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   // MessageVirtualList expects chronological-asc (oldest first), so reverse both
   // axes: oldest page first, and within each page reverse to ASC.
   const rows = useInfiniteFlatItems(pages, { reversePages: true, reverseItems: true })
+  const loadedMessageIds = useMemo(() => (enabled ? rows.map((row) => row.id) : []), [enabled, rows])
+  const flowPartsKeys = useMemo(
+    () => loadedMessageIds.map((messageId) => AGENT_SESSION_FLOW_PARTS_CACHE_KEY(sessionId, messageId)),
+    [loadedMessageIds, sessionId]
+  )
+  const selectFlowParts = useCallback(
+    (values: readonly (CherryMessagePart[] | undefined)[]) =>
+      Object.fromEntries(loadedMessageIds.map((messageId, index) => [messageId, values[index]])),
+    [loadedMessageIds]
+  )
+  const flowParts = useSharedCacheSelector(flowPartsKeys, selectFlowParts)
 
   const messageProjectionRef = useRef<
     | {
@@ -120,7 +130,7 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
       const previousById = previousProjection?.ownerToken === projectionOwnerToken ? previousProjection.byId : undefined
       const nextById = new Map<string, CachedAgentSessionMessage>()
       const nextMessages = sourceRows.map((row) => {
-        const liveParts = flowParts?.[row.id]
+        const liveParts = flowParts[row.id]
         const cached = previousById?.get(row.id)
         if (
           cached?.sessionId === row.sessionId &&

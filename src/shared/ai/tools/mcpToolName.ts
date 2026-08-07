@@ -148,9 +148,13 @@ export type McpFunctionCallToolNameParts = {
 /**
  * Parse MCP tool-call names in the Claude/AI-SDK format:
  * `mcp__{server}__{tool}`.
+ *
+ * Callers feed this raw provider payloads, where a tool name typed as `string`
+ * can still be absent at runtime (see `ClaudeCodeStreamAdapter`), so a missing
+ * name parses as "not an MCP name" rather than throwing.
  */
-export function parseFunctionCallToolName(toolName: string): McpFunctionCallToolNameParts | null {
-  if (!toolName.startsWith('mcp__')) return null
+export function parseFunctionCallToolName(toolName: string | undefined): McpFunctionCallToolNameParts | null {
+  if (!toolName?.startsWith('mcp__')) return null
 
   const rest = toolName.slice('mcp__'.length)
   const delimiterIndex = rest.lastIndexOf('__')

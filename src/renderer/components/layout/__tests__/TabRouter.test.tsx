@@ -240,15 +240,11 @@ describe('TabRouter PageSidePanel portal isolation', () => {
 })
 
 describe('TabRouter', () => {
-  it('uses the tab entry URL even when instance metadata points to another key', () => {
+  it('uses the tab entry URL as the initial history entry', () => {
     render(
       <TabRouter
         tab={tab('chat-tab', '/app/chat?topicId=entry-topic', {
           title: 'Chat',
-          metadata: {
-            instanceAppId: 'assistants',
-            instanceKey: 'current-topic'
-          },
           lastAccessTime: 1,
           isDormant: false
         })}
@@ -259,26 +255,6 @@ describe('TabRouter', () => {
 
     expect(createMemoryHistory).toHaveBeenCalledWith({ initialEntries: ['/app/chat?topicId=entry-topic'] })
     expect(routerMocks.navigate).not.toHaveBeenCalled()
-  })
-
-  it('uses the tab entry URL when metadata belongs to a different app route', () => {
-    render(
-      <TabRouter
-        tab={tab('settings-tab', '/settings/provider', {
-          title: 'Settings',
-          metadata: {
-            instanceAppId: 'assistants',
-            instanceKey: 'old-topic'
-          },
-          lastAccessTime: 1,
-          isDormant: false
-        })}
-        isActive
-        onUrlChange={vi.fn()}
-      />
-    )
-
-    expect(createMemoryHistory).toHaveBeenCalledWith({ initialEntries: ['/settings/provider'] })
   })
 
   it('navigates when the tab entry URL changes externally', () => {
@@ -299,10 +275,6 @@ describe('TabRouter', () => {
       <TabRouter
         tab={tab('chat-tab', '/app/chat?topicId=current-topic', {
           title: 'Chat',
-          metadata: {
-            instanceAppId: 'assistants',
-            instanceKey: 'current-topic'
-          },
           lastAccessTime: 1,
           isDormant: false
         })}

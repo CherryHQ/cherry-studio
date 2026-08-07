@@ -13,7 +13,7 @@ export default defineProvider({
   defaultChatEndpoint: 'openai-chat-completions',
   endpointConfigs: {
     'anthropic-messages': {
-      adapterFamily: 'openrouter',
+      adapterFamily: 'anthropic',
       baseUrl: 'https://openrouter.ai/api'
     },
     'openai-chat-completions': {
@@ -38,6 +38,10 @@ export default defineProvider({
       baseUrl: 'https://openrouter.ai/api/v1/'
     }
   },
+  serverTools: [
+    { id: 'web-search', modelScope: 'all-chat-models' },
+    { id: 'url-context', modelScope: 'all-chat-models' }
+  ],
   metadata: {
     website: {
       apiKey: 'https://openrouter.ai/settings/keys',

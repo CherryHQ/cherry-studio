@@ -2,7 +2,7 @@
   "agent": {
     "builtin": {
       "cherry_assistant": {
-        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Встроенный консультант Cherry Studio: диагностирует проблемы, помогает с действиями, собирает ответы на частые вопросы, отправляет сообщения об ошибках и запросы функций, а также ищет и создаёт навыки."
       }
     },
     "session": {
@@ -39,29 +39,29 @@
     }
   },
   "appMenu": {
-    "about": "О",
+    "about": "О программе",
     "close": "Закрыть окно",
     "copy": "Копировать",
-    "cut": "Резать",
+    "cut": "Вырезать",
     "delete": "Удалить",
     "documentation": "Документация",
     "edit": "Редактировать",
     "feedback": "Обратная связь",
     "file": "Файл",
-    "forceReload": "Принудительная перезагрузка",
+    "forceReload": "Принудительно перезагрузить",
     "front": "Показать все поверх других",
     "help": "Помощь",
     "hide": "Скрыть",
     "hideOthers": "Скрыть остальные",
-    "minimize": "Минимизировать",
+    "minimize": "Свернуть",
     "paste": "Вставить",
     "quit": "Выйти",
-    "redo": "Переделать",
+    "redo": "Повторить",
     "releases": "Релизы",
-    "reload": "Перезагрузка",
-    "resetZoom": "Настоящий размер",
+    "reload": "Перезагрузить",
+    "resetZoom": "Фактический размер",
     "selectAll": "Выбрать все",
-    "services": "Услуги",
+    "services": "Службы",
     "toggleDevTools": "Переключить инструменты разработчика",
     "toggleFullscreen": "Переключить полноэкранный режим",
     "undo": "Отменить",
@@ -69,14 +69,14 @@
     "view": "Вид",
     "website": "Веб-сайт",
     "window": "Окно",
-    "zoom": "Zoom",
+    "zoom": "Масштаб",
     "zoomIn": "Увеличить",
-    "zoomOut": "Отдалить"
+    "zoomOut": "Уменьшить"
   },
   "common": {
     "copy": "Копировать",
     "cut": "Вырезать",
-    "inspect": "Осмотреть",
+    "inspect": "Проверить",
     "paste": "Вставить"
   },
   "dialog": {
@@ -87,6 +87,10 @@
       "message": "Будут удалены чаты, ассистенты, базы знаний, файлы и настройки, после чего приложение перезапустится. Это действие нельзя отменить. Продолжить?",
       "title": "Сброс данных приложения"
     },
+    "diagnostic_bundle": {
+      "title": "Сохранение диагностического пакета",
+      "zip_filter": "ZIP-архив"
+    },
     "html_files": "Файлы HTML",
     "open_file": "Открыть файл",
     "pdf_files": "Файлы PDF",
@@ -96,6 +100,14 @@
     "save_file": "Сохранить файл",
     "select_folder": "Выбрать папку",
     "word_document": "Документ Word"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Исполняемый файл OpenClaw, используемый Cherry Studio, несовместим со сгенерированной конфигурацией. Обновите OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw отклонил конфигурацию за пределами раздела провайдеров, управляемого Cherry Studio. Исправьте эту конфигурацию или обновите OpenClaw.{{details}}",
+      "more_issues": "и ещё проблем: {{count}}",
+      "preflight_failed": "Cherry Studio не смогла проверить конфигурацию OpenClaw."
+    }
   },
   "paintings": {
     "generate_failed": "Не удалось сгенерировать изображение",
@@ -109,7 +121,7 @@
       "oauth": {
         "callback": {
           "message": "Вы можете закрыть эту страницу и вернуться в Cherry Studio",
-          "title": "Аутентификация Успешна"
+          "title": "Аутентификация выполнена"
         }
       }
     },

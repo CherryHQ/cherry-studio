@@ -162,6 +162,20 @@ export type KbSearchInput = z.infer<typeof kbSearchInputSchema>
 export type KbSearchOutputItem = z.infer<typeof kbSearchOutputItemSchema>
 export type KbSearchOutput = z.infer<typeof kbSearchOutputSchema>
 
+// ── fs_read ──────────────────────────────────────────────────────
+
+export const FS_READ_TOOL_NAME = 'fs_read'
+
+/**
+ * Persist/truncate boundary for the context-build layer, and fs_read's
+ * per-call output cap. ONE constant on purpose: fs_read must be able to
+ * page through anything the persistence layer stored, so its cap must be
+ * ≥ the persist threshold — equality keeps one mental model. P2-B turns
+ * the threshold into a user setting; when it does, wire BOTH sides to the
+ * resolved setting, never split this back into two literals.
+ */
+export const CONTEXT_PERSIST_THRESHOLD_CHARS = 50_000
+
 // ── kb_read ──────────────────────────────────────────────────────
 
 export const KB_READ_TOOL_NAME = 'kb_read'
@@ -451,6 +465,7 @@ export type KbManageOutput = z.infer<typeof kbManageOutputSchema>
 // ── web_search ───────────────────────────────────────────────────
 
 export const WEB_SEARCH_TOOL_NAME = 'web_search'
+export const PROVIDER_WEB_SEARCH_TOOL_NAME = 'webSearch'
 export const WEB_FETCH_TOOL_NAME = 'web_fetch'
 
 export const webSearchInputSchema = z.object({
@@ -510,6 +525,39 @@ export type WebSearchOutputItem = z.infer<typeof webSearchOutputItemSchema>
 export type WebSearchOutput = z.infer<typeof webSearchOutputSchema>
 export type WebFetchInput = z.infer<typeof webFetchInputSchema>
 export type WebFetchOutput = z.infer<typeof webFetchOutputSchema>
+
+// ── to_markdown ──────────────────────────────────────────────────
+
+export const TO_MARKDOWN_TOOL_NAME = 'to_markdown'
+
+export const TO_MARKDOWN_SUPPORTED_EXTENSIONS =
+  '.doc, .docx, .docm, .ppt, .pps, .pot, .pptx, .pptm, .ppsx, .ppsm, .xls, .xlsx, .xlsm, .xlsb, .odt, .ods, .odp, .rtf, .epub, .csv, .pdf'
+
+export const toMarkdownInputSchema = z.object({
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4096)
+    .describe(
+      `Required source path inside the session workspace, relative or absolute within it. Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}.`
+    )
+})
+
+export const toMarkdownOutputSchema = z.object({
+  path: z.string().describe('Absolute path to the temporary Markdown file. Read this file in slices as needed.'),
+  chars: z.number().int().nonnegative().describe('Number of characters written to the Markdown file.')
+})
+
+export const TO_MARKDOWN_DESCRIPTION =
+  'Convert one supported document in the session workspace to Markdown. ' +
+  `Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}. ` +
+  'The converter detects recognizable formats from file contents and uses the extension as fallback (required for CSV). ' +
+  'Scanned/image-only PDFs need OCR and are unsupported. The full Markdown is written to an agent-private temporary ' +
+  'file instead of being returned; read the returned path in slices as needed.'
+
+export type ToMarkdownInput = z.infer<typeof toMarkdownInputSchema>
+export type ToMarkdownOutput = z.infer<typeof toMarkdownOutputSchema>
 
 // ── report_artifacts ─────────────────────────────────────────────
 

@@ -13,7 +13,7 @@ import type { LocalModelKind } from '@shared/data/presets/localModel'
 import { net } from 'electron'
 import { parse } from 'yaml'
 
-import { LocalModelDownloadService } from './LocalModelDownloadService'
+import { LocalModelDownloadService, type LocalModelFilesState } from './LocalModelDownloadService'
 import { onnxRuntimeBinaryService } from './OnnxRuntimeBinaryService'
 
 const logger = loggerService.withContext('LocalOcrDownloadService')
@@ -47,8 +47,8 @@ export function dictTextFromInferenceYml(yml: string): string {
 class LocalOcrDownloadService extends LocalModelDownloadService {
   protected readonly kind: LocalModelKind = 'ocr'
 
-  protected isReady(): boolean {
-    return onnxRuntimeBinaryService.isReady() && isLocalPaddleocrModelDownloaded()
+  protected modelFilesState(): LocalModelFilesState {
+    return onnxRuntimeBinaryService.isReady() && isLocalPaddleocrModelDownloaded() ? 'ready' : 'absent'
   }
 
   protected async performDownload(signal: AbortSignal): Promise<void> {
@@ -87,10 +87,12 @@ class LocalOcrDownloadService extends LocalModelDownloadService {
     await this.promoteToDefault()
   }
 
-  protected override async cleanupAfterError(): Promise<void> {
-    // Drop partials so the next probe reports not_downloaded rather than ready.
-    await this.cleanup()
-  }
+  // No cleanupAfterError override: fetchToFile streams into `${dest}.tmp` and renames only
+  // once the size check passes, so a failed download leaves no partial weights for the
+  // readiness probe (which requires all three files) to trip over. Deleting the model dir
+  // on failure would instead wipe weights an earlier download had completed — and, unlike
+  // remove() below, failure cleanup cannot demote the default processor, so it would strand
+  // `default_image_to_text` on an unavailable local-paddleocr and break every OCR consumer.
 
   async remove(): Promise<{ removed: boolean }> {
     // Reset the default first: leaving `default_image_to_text` pinned to

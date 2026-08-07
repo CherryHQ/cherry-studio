@@ -87,6 +87,10 @@
       "message": "将清除聊天、助手、知识库、文件和设置并重启应用。此操作无法撤销，是否继续？",
       "title": "重置应用数据"
     },
+    "diagnostic_bundle": {
+      "title": "保存诊断包",
+      "zip_filter": "ZIP 压缩包"
+    },
     "html_files": "HTML 文件",
     "open_file": "打开文件",
     "pdf_files": "PDF 文件",
@@ -96,6 +100,14 @@
     "save_file": "保存文件",
     "select_folder": "选择文件夹",
     "word_document": "Word 文档"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Cherry Studio 当前使用的 OpenClaw 与生成的配置不兼容，请升级 OpenClaw。{{details}}",
+      "external_config_invalid": "OpenClaw 拒绝了 Cherry Studio 管理区之外的配置，请修正该配置或升级 OpenClaw。{{details}}",
+      "more_issues": "另有 {{count}} 个问题",
+      "preflight_failed": "Cherry Studio 无法验证 OpenClaw 配置。"
+    }
   },
   "paintings": {
     "generate_failed": "生成图像失败",

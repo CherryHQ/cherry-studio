@@ -1,5 +1,6 @@
 import { type ComposerContextValue, useActiveComposerOverride } from '@renderer/components/composer/ComposerContext'
 import type { Topic } from '@renderer/types/topic'
+import type { ComposerChatTarget } from '@shared/ai/transport'
 import { render, screen, waitFor } from '@testing-library/react'
 import { useLayoutEffect } from 'react'
 import { describe, expect, it, vi } from 'vitest'
@@ -14,6 +15,8 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
   ChatPlacementComposer: (props: {
     placement: 'home' | 'docked'
     scopeKey: string
+    contextUsage: { contextTokens: number; modelId: string } | null
+    chatTarget?: ComposerChatTarget
     sendDisabled?: boolean
     onConversationControlsChange?: (snapshot: unknown) => void
   }) => {
@@ -37,12 +40,14 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
 }))
 
 const topic = { id: 'topic-1' } as Topic
+const chatTarget = { parentAnchorId: 'active-node', mode: 'active-path' } as const
 
 const baseProps = {
   placement: 'docked' as const,
   topic,
+  contextUsage: { contextTokens: 42, modelId: 'provider::model' as const },
   onSend: vi.fn(),
-  captureLocalSendScrollEligibility: vi.fn()
+  chatTarget
 }
 
 describe('ChatComposerSlot', () => {
@@ -65,10 +70,11 @@ describe('ChatComposerSlot', () => {
     expect(composer).toHaveAttribute('data-placement', 'docked')
     expect(chatPlacementProps.current).toEqual(
       expect.objectContaining({
+        chatTarget,
         resolvedContext: assistantContext,
         resolvedProviders: providers,
+        contextUsage: baseProps.contextUsage,
         externalContextControls: true,
-        captureLocalSendScrollEligibility: baseProps.captureLocalSendScrollEligibility,
         onConversationControlsChange
       })
     )
@@ -84,7 +90,14 @@ describe('ChatComposerSlot', () => {
 
   it('does not forward slot sendDisabled into home placement', async () => {
     render(
-      <ChatComposerSlot placement="home" topic={topic} onSend={baseProps.onSend} composerContext={{ overrides: [] }} />
+      <ChatComposerSlot
+        placement="home"
+        topic={topic}
+        contextUsage={baseProps.contextUsage}
+        onSend={baseProps.onSend}
+        chatTarget={chatTarget}
+        composerContext={{ overrides: [] }}
+      />
     )
 
     const composer = await screen.findByTestId('chat-fallback-composer')

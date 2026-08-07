@@ -42,7 +42,8 @@ vi.mock('@renderer/components/chat/messages/blocks/MessagePartsContext', async (
 
 vi.mock('@renderer/components/chat/messages/MessageListProvider', () => ({
   useOptionalMessageListActions: () => mockMessageListActions(),
-  useOptionalMessageListUi: () => ({ externalCodeEditors: [] })
+  useOptionalMessageListUi: () => ({ externalCodeEditors: [] }),
+  useOptionalMessageListTopicId: () => undefined
 }))
 
 vi.mock('@renderer/ipc', () => ({

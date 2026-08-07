@@ -1326,8 +1326,10 @@ export function buildMessageTree(
     }
   }
 
-  // Build set of known message IDs for validating references
-  const knownIds = new Set(messages.map((m) => m.id))
+  // Only references to messages already processed in chronological order are
+  // safe parent edges. Accepting an ID that appears later can create a cycle
+  // when that later user message links back to a selected response.
+  const seenMessageIds = new Set<string>()
 
   // Track fallback parent for orphaned askId groups (user message deleted)
   // All messages in the same orphaned group share the previousMessageId at the time
@@ -1348,7 +1350,7 @@ export function buildMessageTree(
     if (msg.askId && askIdToGroupId.has(msg.askId)) {
       siblingsGroupId = askIdToGroupId.get(msg.askId)!
 
-      if (knownIds.has(msg.askId)) {
+      if (seenMessageIds.has(msg.askId)) {
         // Normal multi-model: parent is the user message
         parentId = msg.askId
       } else {
@@ -1381,6 +1383,7 @@ export function buildMessageTree(
     }
 
     result.set(msg.id, { parentId, siblingsGroupId })
+    seenMessageIds.add(msg.id)
 
     // Update tracking for next iteration
     previousMessageId = msg.id

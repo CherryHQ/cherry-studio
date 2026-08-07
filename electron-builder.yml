@@ -80,6 +80,7 @@ asarUnpack:
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
   - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/@firecrawl/anydoc-*/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
@@ -155,58 +156,54 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0-rc.4 - Providers, Files & Polish
+    Cherry Studio 2.0.2 - New Features and Fixes
 
     ✨ New Features
-    - [Files] Files exclusively owned by deleted chats, topics, or paintings are now cleaned up automatically after a grace period instead of accumulating forever. Files you upload from the Files page are kept permanently; v1-migrated files are preserved unless they belonged to migrated chats or paintings.
-    - [Providers] Add AMD GPU Cloud as a built-in model provider and mini app, including Token Factory API key setup and source attribution.
-    - [Providers] Add official DeepSeek V4 Flash Responses API support while retaining Chat Completions fallback.
-    - [Providers] Provider request settings now allow changing the default chat endpoint.
-    - [Knowledge] Show live copy progress for folder imports and list folders before files in knowledge bases.
+    - [Import] Import Claude (Anthropic) conversation history; ChatGPT and Claude imports now preserve message branches
+    - [Providers] Built-in web search and URL context support for DeepSeek, OpenRouter, and Dashscope
+    - [Settings] Selective cache cleanup with per-item and total size estimates, plus optional removal of old-version leftover data
+    - [Settings] Workflow to safely rerun retained v1 data migration with risk acknowledgement and optional backup
+    - [Chat] Branches now persist empty input nodes, stay stable in the branch canvas, and can be removed from the node context menu
 
     🐛 Bug Fixes
-    - [Chat] Fixed multi-model context selection so the indicator matches the branch used for subsequent messages, and selecting context no longer jumps the conversation to the latest message.
-    - [Paintings] Fixed the Paintings page opening the latest generated image instead of a fresh empty draft.
-    - [Agent] Claude Code Agent sessions no longer fail when SDK usage messages omit a model identifier.
-    - [Agent] Fixed the agent permission-mode switcher in the composer, where the "Approve for Me" and "Full Access" model-support warnings overflowed their rows and overlapped neighbouring options. The same warning no longer pushes the channel permission-mode selector onto two lines.
-    - [Agent] New agents now start in the "Ask Before Acting" permission mode instead of "Approve for Me". "Approve for Me" relies on model-side classification that not every model supports, so it is now an explicit choice and warns about model support when selected. Existing agents keep their current mode.
-    - [Agent] Fixed Agent v2 migration retries failing on stale Agent, workspace, or Claude Session cache targets.
-    - [Migration] Fixed model metadata (capabilities, context window, token limits) not being resolved from the provider registry after migrating from Cherry Studio v1 for models under user-defined custom providers.
-    - [Onboarding] Fixed onboarding blocking migrated users whose current privacy agreement was already saved.
-    - [Providers] Prevented API keys with non-ByteString characters from causing request encoding failures. Action required: replace any existing affected API key in provider settings.
-    - [Files] Agent file outputs now open in the appropriate Files pane view, with consistent previews and interactive HTML artifact support.
-    - [Mini Apps] Use a distinct grid icon for the mini-app launchpad action so it is easier to distinguish from the detached window always-on-top control.
+    - [Local Model] Local embedding model downloads fall back to the other mirror when one is unreachable, keep inference fully offline once weights are on disk, and explain an incomplete cache instead of reporting a generic connection error
+    - [Local Model] Local model downloads failing behind a SOCKS proxy, and proxy bypass rules are now honored for every redirect hop
+    - [Migration] Agent data migration no longer fails on Windows symbolic links; symlinked entries are skipped so the rest migrates successfully
+    - [Migration] V1 users can upgrade directly to any v2.0.x release while v2.1.0 and later remain gated
+    - [Providers] New API providers no longer require a URL for every protocol: one API host now serves the OpenAI, Anthropic, Gemini, and Responses endpoints, each with its correct version segment
+    - [MCP] MCP server settings no longer lose unsaved edits during refreshes, and tool details show full descriptions with clearer nested input schemas
+    - [Agent] WeChat channel QR login now starts when the channel is bound to an agent, and the channel reconnects automatically after app restart
+    - [Composer] Image attachment tokens open the shared full-size image preview when clicked or activated with the keyboard
+    - [Agent] Agent right pane Files tree no longer shows empty when the workspace already contained files; directory-tree updates were being lost during subscription setup
+    - [Chat] Tool-heavy tasks no longer stop early at 20 tool-call rounds: the default "Max tool call rounds" is raised to 100 and the maximum to 1000
+    - [Claude Code] Claude agent CLI subprocesses are no longer left running in the background after quitting the app
 
-    💄 Improvements
-    - [UI] Improved visual consistency and usability across settings, chat, Markdown, resource dialogs, and related navigation surfaces.
-    - [UI] Improved focus feedback so controls no longer draw an extra outer frame or change selector borders on pointer open.
-    - [Themes] Improved the consistency and readability of secondary text, links, focus outlines, selected borders, and feedback surfaces across light and dark themes.
+    ⚡ Performance
+    - [Chat] Switching back to a chat tab no longer re-highlights expanded tool responses, re-loads generated images, re-runs error diagnosis, rebuilds file-tree watchers, or re-polls finished traces — tab switches are smoother and previously loaded content stays in place
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0-rc.4 - 服务商、文件与界面打磨
+    Cherry Studio 2.0.2 - 新功能与问题修复
 
     ✨ 新功能
-    - [文件] 已删除对话、话题或绘画面板专属的文件现会在宽限期后自动清理，而非永久堆积。从”文件”页上传的文件将永久保留；从 v1 迁移过来的文件除非属于已迁移的对话或绘画面板，否则也会保留。
-    - [服务商] 新增 AMD GPU Cloud 作为内置模型服务商与小程序，包含 Token Factory API 密钥设置与来源标注。
-    - [服务商] 新增 DeepSeek V4 Flash Responses API 官方支持，并保留 Chat Completions 作为回退。
-    - [服务商] 服务商请求设置现允许更改默认聊天端点。
-    - [知识库] 文件夹导入现显示实时复制进度，并在知识库中将文件夹排在文件之前。
+    - [Import] 支持 Claude（Anthropic）对话历史导入；ChatGPT 和 Claude 导入现在会保留消息分支
+    - [Providers] DeepSeek、OpenRouter、Dashscope 新增内置联网搜索与 URL 上下文支持
+    - [Settings] 缓存清理支持按项查看占用大小，可选清理旧版本残留数据
+    - [Settings] 新增 v1 数据重新迁移流程，含风险确认与可选完整备份
+    - [Chat] 对话分支现在会持久化空输入节点，在分支画布中保持稳定，并支持从节点右键菜单删除
 
     🐛 问题修复
-    - [聊天] 修复多模型上下文选择：指示器现与后续消息所用分支一致，选择上下文不再让对话跳转到最新消息。
-    - [绘画面板] 修复绘画面板打开时显示最近生成图片而非空白草稿的问题。
-    - [智能体] Claude Code 智能体会话在 SDK 用量消息缺少模型标识时不再失败。
-    - [智能体] 修复输入框中智能体权限模式切换器的”为我审批”与”完全访问”模型支持警告溢出行、与相邻选项重叠的问题；该警告也不再使频道权限模式选择器折成两行。
-    - [智能体] 新建智能体现以”操作前询问”权限模式启动，而非”为我审批”。”为我审批”依赖并非所有模型都支持的模型端分类，因此现为显式选择，并在选中时提示模型支持情况。已有智能体保持当前模式不变。
-    - [智能体] 修复智能体 v2 迁移在遇到陈旧的智能体、工作区或 Claude Session 缓存目标时重试失败的问题。
-    - [迁移] 修复从 Cherry Studio v1 迁移后，用户自定义服务商下模型的元数据（能力、上下文窗口、token 上限）无法从服务商注册表解析的问题。
-    - [引导] 修复引导流程卡住已保存过隐私协议的迁移用户的问题。
-    - [服务商] 阻止包含非 ByteString 字符的 API 密钥导致请求编码失败。需要操作：在服务商设置中替换任何已存在的受影响 API 密钥。
-    - [文件] 智能体文件输出现可在相应的”文件”窗格视图中打开，预览一致并支持交互式 HTML 工件。
-    - [小程序] 为小程序启动台操作使用独立的网格图标，使其更易与分离窗口的置顶控件区分。
+    - [Local Model] 修复本地 Embedding 模型下载：单个镜像不可用时自动切换到备用镜像，模型缓存到本地后推理完全离线，缓存损坏时给出明确提示而非笼统的网络错误
+    - [Local Model] 修复 SOCKS 代理环境下本地模型下载失败的问题，并对下载过程中的每次重定向跳转应用代理绕过规则
+    - [Migration] 修复 Windows 上符号链接导致 Agent 数据迁移失败的问题：跳过符号链接项，确保其余数据正常迁移
+    - [Migration] v1 用户可直接升级到任意 v2.0.x 版本，v2.1.0 及之后版本仍受迁移网关保护
+    - [Providers] New API 服务商不再需要为每个协议分别填写 URL：一个 API Host 即可同时承载 OpenAI、Anthropic、Gemini、Responses 端点，并各自使用正确的版本段
+    - [MCP] 修复 MCP 服务器设置在刷新时丢失未保存编辑的问题，工具详情展示完整描述并清晰呈现嵌套输入 schema
+    - [Agent] 修复微信渠道绑定到 Agent 后才启动二维码登录的问题，并支持应用重启后自动重连
+    - [Composer] 图片附件 Token 支持点击或键盘激活时打开共享的全屏图片预览
+    - [Agent] 修复 Agent 右侧面板在工作区已有文件时仍显示为空的问题：目录树更新在订阅建立过程中被丢失
+    - [Chat] 工具密集型任务不再在 20 轮工具调用后提前停止：默认"最大工具调用轮数"提升到 100，上限提升到 1000
+    - [Claude Code] 修复退出应用后 Claude Agent CLI 子进程仍在后台残留的问题
 
-    💄 改进
-    - [界面] 改进设置、聊天、Markdown、资源对话框及相关导航界面的视觉一致性与可用性。
-    - [界面] 改进焦点反馈，控件不再在指针打开时绘制多余外框或更改选择器边框。
-    - [主题] 改进亮色与暗色主题下辅助文本、链接、焦点轮廓、选中边框与反馈界面的一致性与可读性。
+    ⚡ 性能优化
+    - [Chat] 切换回聊天标签页时不再重新高亮工具响应、重新加载生成图片、重新运行错误诊断、重建文件树监听或重新轮询已完成的 trace，标签切换更顺滑，已加载内容保持不变
     <!--LANG:END-->

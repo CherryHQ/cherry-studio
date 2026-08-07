@@ -22,7 +22,7 @@
  * - data-code (code blocks)
  */
 
-import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
+import type { CompactionAnchorData } from '@shared/ai/compaction'
 import { type FileType, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
 
@@ -62,7 +62,7 @@ export interface CompactPartData {
 }
 
 /** Compaction anchor data — marks where a runtime context compaction completed. */
-export type CompactionAnchorPartData = AgentSessionCompactionAnchorData
+export type CompactionAnchorPartData = CompactionAnchorData
 
 /** Claude Agent SDK task lifecycle event data. Hidden inline state consumed by agent status panels. */
 export interface AgentTaskEventPartData {
@@ -340,6 +340,15 @@ export function createClearContextPart(): ClearContextPart {
 /** Whether a message's persisted parts contain a model-context boundary. */
 export function hasClearContextPart(parts: readonly CherryMessagePart[] | undefined): boolean {
   return parts?.some((part) => part.type === CLEAR_CONTEXT_PART_TYPE) ?? false
+}
+
+/** Whether persisted message values describe a blank user turn, without making any tree-level claim. */
+export function isBlankUserTurn(input: {
+  role: string
+  status: string | undefined
+  parts: readonly unknown[] | undefined
+}): boolean {
+  return input.role === 'user' && input.status === 'success' && (input.parts?.length ?? 0) === 0
 }
 
 /** Replace the aggregate knowledge scope part while preserving every content part. */

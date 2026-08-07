@@ -16,6 +16,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
+import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -35,6 +36,7 @@ import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { parseDataUrl } from '@shared/utils/dataUrl'
+import { archiveExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import type {
@@ -53,6 +55,7 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
+import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -349,6 +352,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sdkInputQueue = new SdkInputQueue()
   private readonly abortController = new AbortController()
   private query?: Query
+  private closePromise?: Promise<void>
   /** The exact spawn options of the live query — the stale-resume retry re-spawns from these. */
   private spawnOptions?: Options
   private lastSdkUserMessage?: SDKUserMessage
@@ -361,6 +365,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private resumeToken?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
+  private assistantFileToolsEnabled = false
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
@@ -398,6 +403,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
     this.connectionConfig = request.connectionConfig
+    this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
     const traceEnv = await this.prepareTraceEnv()
     const options: Options = {
@@ -410,7 +416,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             }
           }
         : {}),
-      abortController: this.abortController
+      abortController: this.abortController,
+      spawnClaudeCodeProcess
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -482,6 +489,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.adapter?.beginTurn()
 
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+      supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
     this.lastSdkUserMessage = sdkMessage
@@ -544,25 +552,48 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!baseline) return 'rebuild'
 
     const fresh = derived.config
+    const permissionModeChanged = baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode
+    // Claude's set_permission_mode control request can terminate work already in flight. Keep the
+    // mode (and the local approval gate that mirrors it) frozen for the active turn; the host pulls
+    // reconcile again before admitting the next turn, when the SDK update is safe to apply.
+    const deferPermissionMode = permissionModeChanged && this.adapter?.isTurnActive === true
+    const applicableToolPolicy = deferPermissionMode
+      ? { ...fresh.live.toolPolicy, permissionMode: baseline.live.toolPolicy.permissionMode }
+      : fresh.live.toolPolicy
     let patched = false
-    // Live-first: apply the tool-policy facts BEFORE the rebuild verdict, so a combined update
-    // (e.g. a wholesale configuration edit touching max_turns AND tightening the permission mode)
-    // can't defer the tighten behind a rebuild that a live turn postpones.
-    if (!toolPolicyFactsEqual(baseline.live.toolPolicy, fresh.live.toolPolicy)) {
+    // Apply the tool-policy facts that are safe for this turn BEFORE the rebuild verdict. Newly
+    // disabled tools still tighten immediately; permission-mode changes wait for the next boundary.
+    if (!toolPolicyFactsEqual(baseline.live.toolPolicy, applicableToolPolicy)) {
       try {
         const agent = agentService.getAgent(this.input.agentId)
         if (!agent) return 'invalid'
-        if (baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode) {
+        if (permissionModeChanged && !deferPermissionMode) {
           await this.query.setPermissionMode((fresh.live.toolPolicy.permissionMode ?? 'default') as AgentPermissionMode)
         }
-        // Refresh the entire snapshot only after the SDK confirms the permission mode. update()
-        // itself changes the snapshot mode, so doing it first would make the SDK call look redundant.
-        await this.toolPolicySnapshot?.update(agent)
+        // Refresh only after the SDK confirms an applicable permission change. If the current turn
+        // keeps its old mode, preserve that mode in the snapshot while still applying other policy
+        // changes (for example, disabling a tool).
+        await this.toolPolicySnapshot?.update(
+          deferPermissionMode
+            ? {
+                ...agent,
+                configuration: {
+                  ...agent.configuration,
+                  permission_mode: (baseline.live.toolPolicy.permissionMode ?? undefined) as
+                    | AgentPermissionMode
+                    | undefined
+                }
+              }
+            : agent
+        )
       } catch (error) {
         logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
         return 'failed'
       }
-      this.connectionConfig = { ...baseline, live: fresh.live }
+      this.connectionConfig = {
+        ...baseline,
+        live: { ...fresh.live, toolPolicy: applicableToolPolicy }
+      }
       patched = true
     }
 
@@ -609,14 +640,30 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  close(): void {
+  close(): Promise<void> {
+    this.closePromise ??= this.closeQuery()
+    return this.closePromise
+  }
+
+  private async closeQuery(): Promise<void> {
+    const query = this.query
     this.settlePendingInvocations()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
     this.teardownSession()
-    this.query?.close()
     this.eventQueue.close()
+    if (!query) return
+    try {
+      query.close()
+    } catch (error) {
+      logger.warn('Claude Code query close failed', { sessionId: this.input.sessionId, error })
+    }
+    try {
+      await query.return(undefined)
+    } catch (error) {
+      logger.warn('Claude Code query cleanup failed', { sessionId: this.input.sessionId, error })
+    }
   }
 
   private async runQueryLoop(): Promise<void> {
@@ -1036,9 +1083,12 @@ async function toSdkUserMessage(
   message: AgentSessionMessageEntity,
   resumeToken?: string,
   systemReminder = false,
-  { supportsImages = true }: { supportsImages?: boolean } = {}
+  {
+    supportsAttachmentReads = false,
+    supportsImages = true
+  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean } = {}
 ): Promise<SDKUserMessage> {
-  let content = await materializeUserContent(message, supportsImages)
+  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads)
   if (systemReminder) {
     content = applySteerReminder(content)
   }
@@ -1073,18 +1123,27 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
  * Build SDK user content from a message entity. When the model supports vision,
  * supported image attachments (png, jpeg, gif, webp) are materialized into native
  * Anthropic image blocks; otherwise first-party images are OCR'd to text by the
- * shared routing, like first-party non-image files. External files and images that
+ * shared routing, like first-party non-image files. First-party archives are always
+ * forwarded as tool-readable paths; enabling Assistant attachment handles adds that
+ * interface without taking the ordinary Agent path away. External files and images that
  * cannot be materialized fall back to local paths when available.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
 async function materializeUserContent(
   message: AgentSessionMessageEntity,
-  supportsImages: boolean
+  supportsImages: boolean,
+  supportsAttachmentReads: boolean
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
+  const firstPartyFileParts = parts.filter(
+    (part): part is FileUIPart => part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId)
+  )
+  const firstPartyArchiveParts = firstPartyFileParts.filter(isArchiveFilePart)
   const firstPartyParts = parts.filter(
-    (part) => part.type === 'text' || (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId))
+    (part) =>
+      part.type === 'text' ||
+      (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && !isArchiveFilePart(part))
   )
   const externalFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
@@ -1097,12 +1156,20 @@ async function materializeUserContent(
   )
 
   let routedParts = firstPartyParts
-  if (firstPartyParts.some((part) => part.type === 'file')) {
+  let turnAttachments: ReturnType<typeof collectAssistantFileAttachments> = []
+  const hasRoutableFirstPartyFiles = firstPartyParts.some((part) => part.type === 'file')
+  if (supportsAttachmentReads && (hasRoutableFirstPartyFiles || firstPartyArchiveParts.length > 0)) {
+    turnAttachments = collectAssistantFileAttachments([
+      { id: message.id, role: 'user', parts: [...firstPartyParts, ...firstPartyArchiveParts] } as CherryUIMessage
+    ])
+  }
+  if (hasRoutableFirstPartyFiles) {
     const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
+    const attachments = supportsAttachmentReads ? turnAttachments : collectFileAttachments([userMessage])
     const [prepared] = await prepareChatMessages([userMessage], {
-      attachments: collectFileAttachments([userMessage]),
+      attachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
-      isToolCapable: false
+      isToolCapable: supportsAttachmentReads
     })
     routedParts = prepared.parts
   }
@@ -1117,11 +1184,13 @@ async function materializeUserContent(
 
   for (const part of [
     ...routedParts.filter((part): part is FileUIPart => part.type === 'file'),
+    ...firstPartyArchiveParts,
     ...externalFileParts
   ]) {
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
-    if (!supportsImages || !canBeClaudeImage(part)) {
+    const isArchive = isArchiveFilePart(originalPart)
+    if (isArchive || !supportsImages || !canBeClaudeImage(part)) {
       const target = originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
       target.push(originalPart)
       continue
@@ -1161,6 +1230,7 @@ async function materializeUserContent(
 
   const paths = extractAttachmentPaths(fallbackParts)
   let textContent = appendAttachmentPaths(text, paths)
+  if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
     logger.warn('Claude Code attachments could not be sent', { attachments: names })
@@ -1169,6 +1239,19 @@ async function materializeUserContent(
   }
   if (images.length === 0) return textContent
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
+}
+
+function appendAttachmentManifest(
+  text: string,
+  attachments: ReadonlyArray<{ displayName: string; handle: string }>
+): string {
+  if (attachments.length === 0) return text
+
+  const list = attachments
+    .map(({ displayName, handle }) => `- ${JSON.stringify(displayName)} (handle: ${handle})`)
+    .join('\n')
+  const section = `Attachment manifest:\n${list}`
+  return text.trim() ? `${text}\n\n${section}` : section
 }
 
 function appendAttachmentPaths(text: string, paths: string[]): string {
@@ -1187,6 +1270,11 @@ function extractAttachmentPaths(parts: Array<{ type: string; url?: string }>): s
     paths.push(fileURLToPath(part.url))
   }
   return paths
+}
+
+function isArchiveFilePart(part: FileUIPart): boolean {
+  const filename = part.filename?.toLowerCase()
+  return filename ? archiveExts.some((extension) => filename.endsWith(extension)) : false
 }
 
 function canBeClaudeImage(part: FileUIPart): boolean {

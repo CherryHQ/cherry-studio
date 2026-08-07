@@ -149,14 +149,75 @@ describe('useImageTools', () => {
     expect(container.style.cursor).toBe('default')
   })
 
+  it('consumes modifier-wheel zoom before it reaches a scroll parent', () => {
+    const { container, svg, containerRef } = createImageFixture()
+    const scrollParent = document.createElement('div')
+    const handleParentWheel = vi.fn()
+    scrollParent.addEventListener('wheel', handleParentWheel)
+    scrollParent.appendChild(container)
+    document.body.appendChild(scrollParent)
+
+    const { result } = renderHook(() =>
+      useImageTools(containerRef, {
+        prefix: 'diagram',
+        imgSelector: 'svg',
+        enableWheelZoom: true
+      })
+    )
+    const wheelEvent = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: -1,
+      metaKey: true
+    })
+
+    svg.dispatchEvent(wheelEvent)
+
+    expect(result.current.getCurrentTransform().scale).toBe(1.1)
+    expect(wheelEvent.defaultPrevented).toBe(true)
+    expect(handleParentWheel).not.toHaveBeenCalled()
+  })
+
+  it('leaves unmodified wheel input to the scroll parent', () => {
+    const { container, svg, containerRef } = createImageFixture()
+    const scrollParent = document.createElement('div')
+    const handleParentWheel = vi.fn()
+    scrollParent.addEventListener('wheel', handleParentWheel)
+    scrollParent.appendChild(container)
+    document.body.appendChild(scrollParent)
+
+    const { result } = renderHook(() =>
+      useImageTools(containerRef, {
+        prefix: 'diagram',
+        imgSelector: 'svg',
+        enableWheelZoom: true
+      })
+    )
+    const wheelEvent = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: -1
+    })
+
+    svg.dispatchEvent(wheelEvent)
+
+    expect(result.current.getCurrentTransform().scale).toBe(1)
+    expect(wheelEvent.defaultPrevented).toBe(false)
+    expect(handleParentWheel).toHaveBeenCalledOnce()
+  })
+
   it('copies a clean PNG representation to the clipboard', async () => {
     const { svg, containerRef } = createImageFixture()
     const { result } = renderHook(() => useImageTools(containerRef, { prefix: 'diagram', imgSelector: 'svg' }))
     svg.style.transform = 'translate(20px, 10px) scale(2)'
     svg.style.transformOrigin = 'top left'
 
-    await act(() => result.current.copy())
+    let copied = false
+    await act(async () => {
+      copied = await result.current.copy()
+    })
 
+    expect(copied).toBe(true)
     const convertedSvg = mocks.svgToPngBlob.mock.calls[0][0] as SVGElement
     expect(convertedSvg).not.toBe(svg)
     expect(convertedSvg.style.transform).toBe('')
@@ -202,12 +263,14 @@ describe('useImageTools', () => {
     mocks.svgToPngBlob.mockRejectedValue(new Error('conversion failed'))
     mocks.showImagePreview.mockRejectedValue(new Error('preview failed'))
 
+    let copied = true
     await act(async () => {
-      await result.current.copy()
+      copied = await result.current.copy()
       await result.current.download('png')
       await result.current.dialog()
     })
 
+    expect(copied).toBe(false)
     expect(toast.error).toHaveBeenCalledWith('message.copy.failed')
     expect(toast.error).toHaveBeenCalledWith('message.download.failed')
     expect(toast.error).toHaveBeenCalledWith('message.dialog.failed')

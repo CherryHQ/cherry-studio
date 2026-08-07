@@ -109,6 +109,13 @@ describe('KnowledgeBaseService', () => {
   }
 
   describe('list', () => {
+    it('returns every knowledge base id for filesystem ownership checks', async () => {
+      await seedKnowledgeBase()
+      await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Another Base' })
+
+      expect(service.listAllIds()).toEqual(new Set([KNOWLEDGE_BASE_ID, SECOND_KNOWLEDGE_BASE_ID]))
+    })
+
     it('should return paginated knowledge bases', async () => {
       await seedKnowledgeBase()
       await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Another Base' })
@@ -346,6 +353,12 @@ describe('KnowledgeBaseService', () => {
 
       expect(() => service.getById(KNOWLEDGE_BASE_ID)).toThrow('Chunk overlap must be smaller than chunk size')
     })
+
+    it('should reject an invalid persisted separator at the read boundary', async () => {
+      await seedKnowledgeBase({ chunkStrategy: 'delimiter', chunkSeparator: '' })
+
+      expect(() => service.getById(KNOWLEDGE_BASE_ID)).toThrow('Separator is required when chunk strategy is delimiter')
+    })
   })
 
   describe('create', () => {
@@ -453,17 +466,17 @@ describe('KnowledgeBaseService', () => {
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
-            dimensions: ['A knowledge base with an embedding model requires positive dimensions']
+            dimensions: ['Embedding model and dimensions must be set together']
           }
         }
       })
     })
 
     it.each([
-      ['zero', 0],
-      ['negative', -1],
-      ['non-integer', 1.5]
-    ])('rejects an embedding model with %s dimensions', (_label, dimensions) => {
+      ['zero', 0, 'Too small: expected number to be >0'],
+      ['negative', -1, 'Too small: expected number to be >0'],
+      ['non-integer', 1.5, 'Invalid input: expected int, received number']
+    ])('rejects an embedding model with %s dimensions', (_label, dimensions, message) => {
       let err: unknown
       try {
         service.create({
@@ -478,7 +491,7 @@ describe('KnowledgeBaseService', () => {
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
-            dimensions: ['A knowledge base with an embedding model requires positive dimensions']
+            dimensions: [message]
           }
         }
       })
@@ -759,6 +772,24 @@ describe('KnowledgeBaseService', () => {
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.threshold).toBe(0.7)
+    })
+
+    it('allows renaming or moving a recoverable failed base despite a leftover mismatched embedding/dimensions pair', async () => {
+      // A migration-failed base can carry a leftover embeddingModelId with null
+      // dimensions (or vice versa); the DB CHECK only constrains this pairing for
+      // completed bases, so a plain metadata PATCH must not resurrect that check
+      // (the pairing invariant is still enforced for completed bases — see "rejects
+      // an embedding model without positive dimensions" above).
+      await seedKnowledgeBase({
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        dimensions: null,
+        status: 'failed',
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+      })
+
+      const result = service.update(KNOWLEDGE_BASE_ID, { name: 'Renamed while failed' })
+      expect(result.name).toBe('Renamed while failed')
+      expect(result.dimensions).toBeNull()
     })
 
     it('should reject shrinking chunkSize when the existing chunkOverlap no longer fits', async () => {
@@ -1052,6 +1083,43 @@ describe('KnowledgeBaseService', () => {
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
+    })
+  })
+
+  describe('embedding model removal guard', () => {
+    const embeddingModelId = createUniqueModelId('openai', 'embed-model')
+
+    it('does not acquire the guard while a knowledge base references the model', async () => {
+      await seedKnowledgeBase()
+
+      expect(service.acquireEmbeddingModelRemovalGuard(embeddingModelId)).toBeUndefined()
+    })
+
+    it('rejects writes that add the model until the removal guard is released', async () => {
+      await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+      const releaseGuard = service.acquireEmbeddingModelRemovalGuard(embeddingModelId)
+      expect(releaseGuard).toBeTypeOf('function')
+
+      let createError: unknown
+      try {
+        service.create({ name: 'Concurrent Base', embeddingModelId, dimensions: 1536 })
+      } catch (error) {
+        createError = error
+      }
+      expect(createError).toMatchObject({ code: ErrorCode.RESOURCE_LOCKED })
+
+      let updateError: unknown
+      try {
+        service.update(KNOWLEDGE_BASE_ID, { embeddingModelId, dimensions: 1536 })
+      } catch (error) {
+        updateError = error
+      }
+      expect(updateError).toMatchObject({ code: ErrorCode.RESOURCE_LOCKED })
+
+      releaseGuard?.()
+      expect(service.update(KNOWLEDGE_BASE_ID, { embeddingModelId, dimensions: 1536 }).embeddingModelId).toBe(
+        embeddingModelId
+      )
     })
   })
 })

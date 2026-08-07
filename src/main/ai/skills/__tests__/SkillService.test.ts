@@ -11,6 +11,7 @@ import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { loggerService } from '@logger'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { setupTestDatabase } from '@test-helpers/db'
+import AdmZip from 'adm-zip'
 import { eq } from 'drizzle-orm'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -680,6 +681,33 @@ describe('SkillService', () => {
 
       expect(extractZipSpy).toHaveBeenCalledWith(canonicalZipPath, extractDir)
       expect(installSkillDirSpy).toHaveBeenCalledWith(locatedSkillDir, 'zip', pathToFileURL(canonicalZipPath).href)
+    })
+
+    it('accepts ZIP archives containing 2,000 entries', async () => {
+      const skillService = new SkillService()
+      const root = await createTempDir('skill-zip-limit-')
+      const zipPath = path.join(root, 'limit.zip')
+      const extractDir = path.join(root, 'extract')
+      const zip = new AdmZip()
+      for (let index = 0; index < 2_000; index++) zip.addFile(`${index}.txt`, Buffer.alloc(0))
+      zip.writeZip(zipPath)
+      await fs.promises.mkdir(extractDir)
+
+      await expect(skillService['extractZip'](zipPath, extractDir)).resolves.toBeUndefined()
+    })
+
+    it('rejects ZIP archives containing more than 2,000 entries', async () => {
+      const skillService = new SkillService()
+      const root = await createTempDir('skill-zip-limit-')
+      const zipPath = path.join(root, 'over-limit.zip')
+      const extractDir = path.join(root, 'extract')
+      const zip = new AdmZip()
+      for (let index = 0; index < 2_001; index++) zip.addFile(`${index}.txt`, Buffer.alloc(0))
+      zip.writeZip(zipPath)
+
+      await expect(skillService['extractZip'](zipPath, extractDir)).rejects.toThrow(
+        'ZIP has too many files: 2001 exceeds 2000'
+      )
     })
 
     it('rejects a repository skill directory whose symlink resolves outside the clone', async () => {

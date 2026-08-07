@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
 import { defineTool, type ToolRenderContext, TopicType } from '@renderer/components/composer/tools/types'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { type QuickPanelInputAdapter, type QuickPanelListItem, useQuickPanel } from '@renderer/components/QuickPanel'
 import {
   openResourceEditDialog,
@@ -15,10 +16,10 @@ import { toast } from '@renderer/services/toast'
 import type { Assistant } from '@renderer/types/assistant'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import type { McpMode } from '@shared/data/types/assistant'
+import { DEFAULT_MCP_MODE, type McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
-import { Cable, Check, Loader2, Settings2 } from 'lucide-react'
+import { Check, Loader2, Settings2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export const MCP_STATUS_LAUNCHER_ID = 'mcp-status'
@@ -73,7 +74,7 @@ function createEmptyMcpStatusItem(label: string): QuickPanelListItem {
   return {
     id: 'mcp-status-empty',
     label,
-    icon: <Cable />,
+    icon: <McpLogo aria-hidden />,
     disabled: true
   }
 }
@@ -91,7 +92,7 @@ function createMcpStatusItem(
     label: server.name,
     description,
     filterText: [server.name, server.description, description].filter(Boolean).join(' '),
-    icon: <Cable />
+    icon: <McpLogo aria-hidden />
   }
 }
 
@@ -154,7 +155,7 @@ export async function updateMcpBinding({
     return true
   }
 
-  if (!assistant || assistant.settings?.mcpMode !== 'manual') return false
+  if (!assistant || (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) !== 'manual') return false
   await updateAssistant({ mcpServerIds: nextBindingIds(assistant.mcpServerIds ?? [], serverId, enabled) })
   return true
 }
@@ -181,7 +182,7 @@ export function buildMcpStatusItems({
     })
   }
 
-  const mode = assistant?.settings?.mcpMode ?? 'disabled'
+  const mode = assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled'
   if (mode === 'disabled') {
     return [createEmptyMcpStatusItem(t('settings.quickPanel.mcp.disabled', 'MCP is disabled'))]
   }
@@ -248,7 +249,8 @@ export function createMcpStatusLauncher(
   items: QuickPanelListItem[],
   t: TFunction,
   mode?: McpMode,
-  editable = false
+  editable = false,
+  onOpen?: () => void
 ): ComposerToolLauncher {
   const modeLabel = mode ? getMcpModeLabel(t, mode) : undefined
   const isDisabled = mode === 'disabled'
@@ -265,8 +267,9 @@ export function createMcpStatusLauncher(
       isDisabled && modeLabel
         ? modeLabel
         : t('settings.quickPanel.mcp.description', 'View configured MCP server status'),
-    icon: <Cable />,
+    icon: <McpLogo aria-hidden />,
     action: ({ inputAdapter, parentPanel, queryAnchor, quickPanel, triggerInfo }) => {
+      onOpen?.()
       clearMcpStatusInputQuery(inputAdapter, queryAnchor, triggerInfo)
       quickPanel.open({
         title: mode ? `MCP / ${getMcpModeLabel(t, mode)}` : 'MCP',
@@ -284,14 +287,17 @@ export function createMcpStatusLauncher(
 export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolContext }) => {
   const { assistant, launcher, scope, session, t } = context
   const { isVisible, symbol, updateList } = useQuickPanel()
-  const { mcpServers } = useMcpServers()
+  const [dataRequested, setDataRequested] = useState(false)
+  const mode =
+    scope === TopicType.Chat ? (assistant ? (assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE) : 'disabled') : undefined
+  const dataEnabled = dataRequested && (scope === TopicType.Session || mode !== 'disabled')
+  const { mcpServers, isLoading: isMcpServersLoading } = useMcpServers(undefined, { enabled: dataEnabled })
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
-  const { agent } = useAgent(scope === TopicType.Session ? (session?.agentId ?? null) : null)
+  const { agent } = useAgent(dataEnabled && scope === TopicType.Session ? (session?.agentId ?? null) : null)
   const { updateAssistant } = useAssistantMutationsById(assistant?.id ?? '')
   const { updateAgent } = useAgentMutationsById(session?.agentId ?? '')
   const [pendingServerId, setPendingServerId] = useState<string | null>(null)
   const bindingMutationInFlightRef = useRef(false)
-  const mode = scope === TopicType.Chat ? (assistant?.settings?.mcpMode ?? 'disabled') : undefined
   const bindingPanelEditable = scope === TopicType.Session || mode === 'manual'
   const canEditBindings =
     scope === TopicType.Session ? Boolean(session?.agentId && agent) : Boolean(assistant?.id && mode === 'manual')
@@ -334,6 +340,16 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
   )
 
   const items = useMemo(() => {
+    if (dataEnabled && isMcpServersLoading && mcpServers.length === 0) {
+      return [
+        {
+          id: 'mcp-status-loading',
+          label: t('common.loading', 'Loading...'),
+          icon: <Loader2 className="animate-spin" aria-hidden />,
+          disabled: true
+        }
+      ]
+    }
     const statusItems = buildMcpStatusItems({
       assistant,
       agent,
@@ -353,7 +369,9 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
     bindingPanelEditable,
     canEditBindings,
     configTarget,
+    dataEnabled,
     handleToggleBinding,
+    isMcpServersLoading,
     mcpServers,
     mcpStatuses,
     pendingServerId,
@@ -362,7 +380,7 @@ export const McpStatusComposerRuntime = ({ context }: { context: McpStatusToolCo
   ])
 
   const mcpStatusLauncher = useMemo(
-    () => createMcpStatusLauncher(items, t, mode, bindingPanelEditable),
+    () => createMcpStatusLauncher(items, t, mode, bindingPanelEditable, () => setDataRequested(true)),
     [bindingPanelEditable, items, mode, t]
   )
 

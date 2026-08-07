@@ -11,6 +11,7 @@ import {
   type ResourceListFilterOption,
   type ResourceListGroup,
   type ResourceListGroupHeaderClickBehavior,
+  type ResourceListGroupHeaderKind,
   type ResourceListGroupSeed,
   type ResourceListItemAccessors,
   ResourceListItemAccessorsContext,
@@ -327,6 +328,7 @@ export type ResourceListProviderProps<T extends ResourceListItemBase> = {
   getGroupHeaderClassName?: ResourceListMeta<T>['getGroupHeaderClassName']
   getGroupHeaderTooltip?: ResourceListMeta<T>['getGroupHeaderTooltip']
   groupHeaderClickBehavior?: ResourceListGroupHeaderClickBehaviorResolver
+  getGroupHeaderKind?: (group: ResourceListGroup) => ResourceListGroupHeaderKind
   collapsedState?: readonly string[]
   revealRequest?: ResourceListRevealRequest
   dragCapabilities?: ResourceListDragCapabilities
@@ -534,6 +536,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
   getGroupHeaderClassName,
   getGroupHeaderTooltip,
   groupHeaderClickBehavior = 'toggle',
+  getGroupHeaderKind,
   collapsedState,
   revealRequest,
   dragCapabilities,
@@ -901,6 +904,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderClassName,
       getGroupHeaderTooltip,
       getGroupHeaderClickBehavior,
+      getGroupHeaderKind,
       onEmptyGroupHeaderClick,
       sortOptions,
       filterOptions,
@@ -935,6 +939,7 @@ export function ResourceListProvider<T extends ResourceListItemBase>({
       getGroupHeaderAction,
       getGroupHeaderClassName,
       getGroupHeaderClickBehavior,
+      getGroupHeaderKind,
       getGroupHeaderContextMenu,
       getGroupHeaderIcon,
       getGroupHeaderLeadingAction,

@@ -13,8 +13,10 @@
  * lookup that can lag behind `useChat.state.messages` during streaming.
  */
 
+import { usePreference } from '@data/hooks/usePreference'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
+import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type {
   BranchMessage,
   BranchMessagesResponse,
@@ -24,7 +26,13 @@ import type {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { SWRInfiniteKeyedMutator } from 'swr/infinite'
 
+// Baseline page size when the anchor rail is off — no reason to load more.
 const PAGE_SIZE = 50
+
+// Sized so one page (~75 turns) fills the anchor rail's visible capacity on a
+// typical full-height window (~73 ticks at 10px pitch) — the rail then shows a
+// complete strip on entry instead of visibly growing as older pages stream in.
+const ANCHOR_RAIL_PAGE_SIZE = 150
 
 interface DisplayBranchMessage {
   message: SharedMessage
@@ -37,13 +45,13 @@ interface DisplayBranchMessage {
  * of the same model). Mixed cohorts — user @mentioned N models AND
  * regenerated one of them — produce N buckets, one per model.
  *
- * Fallback key when `modelId` is missing (legacy / defensive): the member's
- * own id, guaranteeing a singleton bucket that behaves like a distinct model.
+ * Imported messages may only carry model identity in `messageSnapshot`, so
+ * resolve both sources before falling back to a singleton bucket.
  */
 function bucketAssistantSiblingsByModel(members: SharedMessage[]): Map<string, SharedMessage[]> {
   const buckets = new Map<string, SharedMessage[]>()
   for (const m of members) {
-    const key = m.modelId ?? m.id
+    const key = resolveUniqueModelId(m.modelId, m.messageSnapshot?.model) ?? m.id
     const bucket = buckets.get(key)
     if (bucket) bucket.push(m)
     else buckets.set(key, [m])
@@ -161,8 +169,6 @@ export interface UseTopicMessagesResult {
   isStale: boolean
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
-  /** The topic's virtual-root id — authoritative first-turn signal (parentId === rootId). */
-  rootId: string | null
   /** Load the next (older) page of branch history. */
   loadOlder: () => void
   /** Whether older pages remain on the server. */
@@ -181,10 +187,14 @@ export function useTopicMessages(
 ): UseTopicMessagesResult {
   const enabled = options?.enabled !== false
   const fetchOnMount = options?.fetchOnMount ?? enabled
+  const [messageNavigation] = usePreference('chat.message.navigation_mode')
+  // `limit` is part of the SWR infinite key, so toggling the preference
+  // mid-session swaps to a fresh cache entry instead of mixing page sizes.
+  const pageSize = messageNavigation === 'anchor' ? ANCHOR_RAIL_PAGE_SIZE : PAGE_SIZE
   const { pages, isLoading, isRefreshing, mutate, loadNext, hasNext } = useInfiniteQuery('/topics/:topicId/messages', {
     params: { topicId },
     query: { includeSiblings: true },
-    limit: PAGE_SIZE,
+    limit: pageSize,
     enabled,
     swrOptions: {
       dedupingInterval: 0,
@@ -211,7 +221,6 @@ export function useTopicMessages(
     [pages, topicId]
   )
   const activeNodeId = pages[0]?.activeNodeId ?? null
-  const rootId = pages[0]?.rootId ?? null
 
   // On remount with stale SWR cache, SWR may expose cached data while it
   // revalidates. Track freshness per topic so the loading gate blocks stale
@@ -263,7 +272,6 @@ export function useTopicMessages(
     isStale,
     refresh,
     activeNodeId,
-    rootId,
     loadOlder: loadNext,
     hasOlder: hasNext,
     mutate: mutate

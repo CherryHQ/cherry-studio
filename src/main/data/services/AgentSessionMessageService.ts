@@ -150,6 +150,22 @@ export class AgentSessionMessageService {
   }
 
   /**
+   * Lightweight existence check used to distinguish an untouched session's
+   * initial turn without loading a potentially large message payload.
+   */
+  hasSessionMessages(sessionId: string): boolean {
+    const database = application.get('DbService').getDb()
+    return (
+      database
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(eq(sessionMessagesTable.sessionId, sessionId))
+        .limit(1)
+        .all().length > 0
+    )
+  }
+
+  /**
    * Cursor-paginated message read. Walks newest-first; an absent cursor
    * returns the most recent page, each `nextCursor` walks one page older.
    * Cursor wire format: `<createdAtMs>:<id>` — composite (createdAt, id) so
@@ -471,10 +487,11 @@ export class AgentSessionMessageService {
     return result.entity
   }
 
-  saveMessages(params: CreateAgentSessionMessagesDto): AgentSessionMessageEntity[] {
+  saveMessages(params: CreateAgentSessionMessagesDto, expectedAgentId?: string): AgentSessionMessageEntity[] {
     const { sessionId, runtimeResumeToken, messages } = params
 
     const saved = application.get('DbService').withWriteTx((tx) => {
+      this.assertExpectedAgentTx(tx, sessionId, expectedAgentId)
       const timestampMs = Date.now()
       const result: AgentSessionMessageEntity[] = []
       for (const message of messages) {
@@ -489,6 +506,20 @@ export class AgentSessionMessageService {
       }
     }
     return saved
+  }
+
+  /** Reject ownership changes before any message row is written in this transaction. */
+  private assertExpectedAgentTx(db: DbOrTx, sessionId: string, expectedAgentId: string | undefined): void {
+    if (!expectedAgentId) return
+    const [session] = db
+      .select({ agentId: sessionTable.agentId })
+      .from(sessionTable)
+      .where(eq(sessionTable.id, sessionId))
+      .limit(1)
+      .all()
+    if (!session || session.agentId !== expectedAgentId) {
+      throw DataApiErrorFactory.notFound('Session', sessionId)
+    }
   }
 
   replaceMessageParts(

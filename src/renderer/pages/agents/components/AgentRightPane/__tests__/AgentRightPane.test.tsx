@@ -168,9 +168,8 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
   EmptyState: () => <div data-testid="empty-state" />
 }))
 
-vi.mock('@renderer/components/chat/agent/ContextUsageSummary', () => ({
-  ContextUsageSummary: () => <div data-testid="context-usage" />,
-  getAgentContextUsageColor: () => 'success'
+vi.mock('@renderer/components/chat/agent/AgentContextUsageSummary', () => ({
+  AgentContextUsageSummary: () => <div data-testid="context-usage" />
 }))
 
 vi.mock('@renderer/components/chat/messages/MessageList', () => ({
@@ -709,6 +708,22 @@ describe('AgentRightPane', () => {
     )
   })
 
+  it('does not request a system workspace tree for a relative path', () => {
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="relative/workspace"
+        workspaceType="system"
+        messages={[]}
+        partsByMessageId={{}}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    expect(useDirectoryTreeMock).toHaveBeenLastCalledWith(undefined, { watchMissingRoot: true })
+  })
+
   it('hides conversation shortcuts when the conversation is unavailable', () => {
     render(
       <TestAgentRightPane
@@ -825,6 +840,26 @@ describe('AgentRightPane', () => {
       kind: 'path',
       path: '/workspace/report.md'
     })
+  })
+
+  it('rejects direct relative artifact opening from a relative workspace before metadata lookup', async () => {
+    const artifactPanePath = await vi.importActual<typeof ArtifactPanePath>(
+      '@renderer/components/chat/panes/artifactPanePath'
+    )
+    resolveArtifactPaneFileSelectionMock.mockImplementation(artifactPanePath.resolveArtifactPaneFileSelection)
+
+    render(
+      <TestAgentRightPane sessionId="session-a" workspacePath="relative/workspace" messages={[]} partsByMessageId={{}}>
+        <OpenArtifactButton />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'open artifact' }))
+
+    expect(screen.getByTestId('right-pane')).toHaveAttribute('data-open', 'true')
+    expect(ipcRequestMock).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('artifact-file-preview-overlay')).toBeNull()
   })
 
   it('ignores a stale artifact metadata resolution after the workspace switches', async () => {

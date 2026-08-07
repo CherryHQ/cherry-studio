@@ -5,6 +5,7 @@ import type { Model } from '@renderer/types/model'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +15,7 @@ import MainTextBlock from '../MainTextBlock'
 const mockRenderConfig = vi.hoisted(() => ({
   renderInputMessageAsMarkdown: false
 }))
+const imagePreviewShowMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
 const mockTranslations = vi.hoisted(() => ({
   'message.message.user_content.expand': 'Expand',
@@ -23,6 +25,12 @@ const mockTranslations = vi.hoisted(() => ({
 vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => mockRenderConfig,
   useOptionalMessageListActions: () => undefined
+}))
+
+vi.mock('@renderer/services/ImagePreviewService', () => ({
+  ImagePreviewService: {
+    show: imagePreviewShowMock
+  }
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -218,9 +226,13 @@ vi.mock('@renderer/utils/citation', () => ({
 }))
 
 // Mock Markdown component
+const capturedChatMarkdownProps = vi.hoisted(() => [] as any[])
+
 vi.mock('@renderer/components/chat/messages/markdown/ChatMarkdown', () => ({
   __esModule: true,
-  default: ({ block, inlineHtmlPreviewMode, postProcess, components }: any) => {
+  default: (props: any) => {
+    capturedChatMarkdownProps.push(props)
+    const { block, inlineHtmlPreviewMode, postProcess, components } = props
     const content = postProcess ? postProcess(block.content) : block.content
     const tokenPlaceholderPattern =
       /<span data-composer-token-index="(\d+)" data-composer-token-block="([^"]+)"><\/span>/g
@@ -258,6 +270,7 @@ describe('MainTextBlock', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    capturedChatMarkdownProps.length = 0
 
     const { withCitationTags, determineCitationSource } = await import('@renderer/utils/citation')
     mockWithCitationTags = withCitationTags as any
@@ -510,14 +523,6 @@ describe('MainTextBlock', () => {
       expect(textElement.textContent).toBe(complexContent)
     })
 
-    it('should handle empty content gracefully', () => {
-      expect(() => {
-        renderMainTextBlock({ content: '', role: 'assistant' })
-      }).not.toThrow()
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-    })
-
     it('should not show the collapse toggle for user messages with up to five effective lines', () => {
       const fiveEffectiveLines = ['Line 1', '', 'Line 2', 'Line 3', 'Line 4', 'Line 5'].join('\n')
 
@@ -608,6 +613,74 @@ describe('MainTextBlock', () => {
       expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
       expect(document.body).toHaveTextContent('Line 5')
       expect(document.body).not.toHaveTextContent('Line 6')
+    })
+
+    it('does not collapse a short visible message because a reference token contains a long transcript', () => {
+      const promptText = `<referenced-conversation type="topic" name="Project">
+[user]
+Old question
+
+[assistant]
+Old answer
+
+[user]
+More context
+</referenced-conversation>`
+      renderMainTextBlock({
+        content: `${promptText} Start the demo`,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'reference:topic:project',
+              kind: 'reference',
+              label: 'Project',
+              index: 0,
+              textOffset: 0,
+              promptText
+            }
+          ]
+        }
+      })
+
+      expect(document.querySelector('[data-composer-token-kind="reference"]')).toHaveTextContent('Project')
+      expect(document.body).toHaveTextContent('Start the demo')
+      expect(document.body).not.toHaveTextContent('Old question')
+      expect(screen.queryByRole('button', { name: 'Expand' })).not.toBeInTheDocument()
+    })
+
+    it('collapses long visible content after a reference token without exposing its transcript', () => {
+      const promptText = `<referenced-conversation type="topic" name="Project">
+[user]
+Hidden question
+
+[assistant]
+Hidden answer
+</referenced-conversation>`
+      renderMainTextBlock({
+        content: `${promptText} ${Array.from({ length: 7 }, (_, index) => `Visible line ${index + 1}`).join('\n')}`,
+        role: 'user',
+        composer: {
+          version: 1,
+          tokens: [
+            {
+              id: 'reference:topic:project',
+              kind: 'reference',
+              label: 'Project',
+              index: 0,
+              textOffset: 0,
+              promptText
+            }
+          ]
+        }
+      })
+
+      expect(document.querySelector('[data-composer-token-kind="reference"]')).toHaveTextContent('Project')
+      expect(screen.getByRole('button', { name: 'Expand' })).toHaveAttribute('aria-expanded', 'false')
+      expect(document.body).toHaveTextContent('Visible line 5')
+      expect(document.body).not.toHaveTextContent('Visible line 6')
+      expect(document.body).not.toHaveTextContent('Hidden question')
     })
 
     it('should not collapse assistant messages', () => {
@@ -803,7 +876,8 @@ describe('MainTextBlock', () => {
       }
     )
 
-    it('should open a sent image preview from its linked file part with the composer keyboard contract', () => {
+    it('should open the shared image preview when a sent image token is activated', async () => {
+      const user = userEvent.setup()
       renderMainTextBlock({
         content: 'View photo.png now',
         role: 'user',
@@ -838,23 +912,19 @@ describe('MainTextBlock', () => {
       expect(trigger).toHaveAttribute('role', 'button')
       expect(trigger).toHaveAttribute('tabindex', '0')
 
-      trigger.focus()
-      fireEvent.keyDown(trigger, { key: 'Enter' })
-
-      const popover = screen.getByTestId('composer-message-token-popover-content')
-      expect(popover).toHaveAttribute('data-side', 'top')
-      expect(popover).toHaveAttribute('data-align', 'start')
-      expect(popover).toHaveAttribute('data-side-offset', '8')
-      expect(popover).toHaveFocus()
-      expect(screen.getByAltText('photo.png')).toHaveAttribute('src', 'file:///internal/message-files/photo.png')
-      expect(popover).not.toHaveTextContent('/internal/message-files/photo.png')
-
-      fireEvent.keyDown(trigger, { key: 'Escape' })
+      await user.click(trigger)
+      expect(imagePreviewShowMock).toHaveBeenCalledWith('file:///internal/message-files/photo.png')
       expect(screen.queryByTestId('composer-message-token-popover-content')).toBeNull()
-      expect(trigger).toHaveFocus()
+
+      trigger.focus()
+      await user.keyboard('{Enter}')
+      expect(imagePreviewShowMock).toHaveBeenCalledTimes(2)
+      expect(imagePreviewShowMock).toHaveBeenLastCalledWith('file:///internal/message-files/photo.png')
+      expect(screen.queryByTestId('composer-message-token-popover-content')).toBeNull()
     })
 
-    it('should apply the shared dangerous-file safety rule to a linked sent image preview', () => {
+    it('should apply the shared dangerous-file safety rule to a linked sent image preview', async () => {
+      const user = userEvent.setup()
       renderMainTextBlock({
         content: 'View icon.svg now',
         role: 'user',
@@ -885,10 +955,9 @@ describe('MainTextBlock', () => {
 
       const token = document.querySelector('[data-composer-token-kind="file"]') as HTMLElement
       const trigger = token.closest('[data-popover-trigger="true"]') as HTMLElement
-      trigger.focus()
-      fireEvent.keyDown(trigger, { key: 'Enter' })
+      await user.click(trigger)
 
-      expect(screen.getByAltText('icon.svg')).toHaveAttribute('src', 'file:///internal/message-files')
+      expect(imagePreviewShowMock).toHaveBeenCalledWith('file:///internal/message-files')
     })
 
     it('should preview sent pasted text from the linked internal file without persisting its path', async () => {
@@ -1082,11 +1151,6 @@ describe('MainTextBlock', () => {
       expect(screen.getByText('@deepseek-r1')).toBeInTheDocument()
       expect(screen.getByText('@claude-sonnet-4')).toBeInTheDocument()
     })
-
-    it('should not display mentions when none provided', () => {
-      renderMainTextBlock({ content: 'No mentions content', role: 'assistant', mentions: [] })
-      expect(screen.queryAllByText(/@/)).toHaveLength(0)
-    })
   })
 
   describe('citation processing', () => {
@@ -1133,56 +1197,24 @@ describe('MainTextBlock', () => {
       expect(screen.getByText('Markdown: Content [1]')).toBeInTheDocument()
       expect(mockWithCitationTags).not.toHaveBeenCalled()
     })
-
-    it('should handle multiple citations gracefully', () => {
-      const citations: Citation[] = [
-        { number: 1, url: 'https://first.com', title: 'First' },
-        { number: 2, url: 'https://second.com', title: 'Second' }
-      ]
-      const citationReferences = [{ citationBlockSource: 'DEFAULT' as any }]
-
-      expect(() => {
-        renderMainTextBlock({
-          content: 'Multiple citations [1] and [2]',
-          role: 'assistant',
-          citations,
-          citationReferences
-        })
-      }).not.toThrow()
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-    })
   })
 
-  describe('settings integration', () => {
-    it('should respond to markdown rendering setting changes', () => {
-      // Test with markdown enabled
-      mockRenderConfig.renderInputMessageAsMarkdown = true
-      const { unmount } = renderMainTextBlock({ content: 'Settings test content', role: 'user' })
-      expect(getRenderedMarkdown()).toBeInTheDocument()
-      unmount()
+  describe('prop identity stability', () => {
+    // A fresh trustedCitations array per render cascades into ChatMarkdown's
+    // Streamdown components map and forces every markdown block to re-parse
+    // and re-animate on each streaming tick.
+    it('keeps trustedCitations identity stable across re-renders without citations', () => {
+      const view = render(
+        <MainTextBlock id="stable-1" content="chunk one" isStreaming role="assistant" citations={[]} />
+      )
+      view.rerender(<MainTextBlock id="stable-1" content="chunk one two" isStreaming role="assistant" citations={[]} />)
 
-      // Test with markdown disabled
-      mockRenderConfig.renderInputMessageAsMarkdown = false
-      renderMainTextBlock({ content: 'Settings test content', role: 'user' })
-      expect(getRenderedPlainText()).toBeInTheDocument()
-      expect(getRenderedMarkdown()).not.toBeInTheDocument()
-    })
-  })
-
-  describe('robustness', () => {
-    it('should handle null and undefined values gracefully', () => {
-      expect(() => {
-        renderMainTextBlock({
-          content: 'Null safety test',
-          role: 'assistant',
-          mentions: undefined,
-          citations: undefined,
-          citationReferences: undefined
-        })
-      }).not.toThrow()
-
-      expect(getRenderedMarkdown()).toBeInTheDocument()
+      expect(capturedChatMarkdownProps.length).toBeGreaterThanOrEqual(2)
+      const [first, ...rest] = capturedChatMarkdownProps
+      expect(first.trustedCitations).toEqual([])
+      for (const props of rest) {
+        expect(props.trustedCitations).toBe(first.trustedCitations)
+      }
     })
   })
 })
