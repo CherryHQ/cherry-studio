@@ -3,11 +3,16 @@ import type { Topic } from '@renderer/types/topic'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import { render, screen, waitFor } from '@testing-library/react'
 import { useLayoutEffect } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatComposerSlot from '../ChatComposerSlot'
 
 const chatPlacementProps = vi.hoisted(() => ({ current: null as any }))
+const rightPanelPresentationMock = vi.hoisted(() => ({ maximized: false }))
+
+vi.mock('@renderer/components/chat/panes/Shell', () => ({
+  useRightPanelPresentationMaximized: () => rightPanelPresentationMock.maximized
+}))
 
 // The real fallback composer pulls in the whole input toolbar; swap it for a
 // sentinel so the test exercises only the override-forwarding wire.
@@ -51,6 +56,11 @@ const baseProps = {
 }
 
 describe('ChatComposerSlot', () => {
+  beforeEach(() => {
+    chatPlacementProps.current = null
+    rightPanelPresentationMock.maximized = false
+  })
+
   it('renders the normal composer when no approval override is active', async () => {
     const assistantContext = { assistant: { id: 'assistant-1' } } as any
     const providers = [{ id: 'provider-1' }] as any
@@ -103,6 +113,18 @@ describe('ChatComposerSlot', () => {
     const composer = await screen.findByTestId('chat-fallback-composer')
     expect(composer).toHaveAttribute('data-placement', 'home')
     expect(composer).not.toBeDisabled()
+  })
+
+  it.each([
+    ['maximized right panel', true],
+    ['docked right panel', false]
+  ])('sets compact single-line presentation for the %s', async (_label, maximized) => {
+    rightPanelPresentationMock.maximized = maximized
+
+    render(<ChatComposerSlot {...baseProps} composerContext={{ overrides: [] }} />)
+
+    await screen.findByTestId('chat-fallback-composer')
+    expect(chatPlacementProps.current?.compactWhenSingleLine).toBe(maximized)
   })
 
   it('mounts the composer while the page-owned assistant context is loading', async () => {
