@@ -807,9 +807,14 @@ const SNAPSHOT_TITLE_MAX = 80
  * Lives here rather than beside the capture code because the same slug is the note's identity: an
  * add-input has no snapshot yet, so detection has to predict the name an already-indexed note was
  * stored under (`Q4: plan` → `Q4_ plan`) or a re-add of an ordinary title would never be detected.
+ * For the same reason the title is reduced to its first line *before* sanitizing — a `source` can
+ * legitimately be the whole note body (the v1 migrator's fallback), and newlines are control
+ * characters, so sanitizing it whole would fold the body into the name as `Title__- item`.
  */
 export function deriveNoteSnapshotSlug(source: string): string {
-  const sanitized = sanitizeFilename(source.slice(0, SNAPSHOT_TITLE_MAX).trim())
+  // Trim after truncating: `sanitizeFilename` only strips *trailing* whitespace, and it turns a tab
+  // landing on the cut into an `_` first, so an 80-char cut would otherwise keep a stray separator.
+  const sanitized = sanitizeFilename(getKnowledgeNoteFirstLine(source).slice(0, SNAPSHOT_TITLE_MAX).trim())
   if (sanitized && sanitized !== 'untitled') {
     return sanitized
   }

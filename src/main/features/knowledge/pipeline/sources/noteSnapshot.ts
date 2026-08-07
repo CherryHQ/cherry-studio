@@ -1,4 +1,4 @@
-import { deriveNoteSnapshotSlug } from '@shared/data/types/knowledge'
+import { deriveNoteSnapshotSlug, getKnowledgeNoteFirstLine } from '@shared/data/types/knowledge'
 
 import { reserveImportedFileRelativePath, writeFileIntoKnowledgeBaseAt } from '../../pathStorage'
 import { serializeOkfFrontmatter } from './okfFrontmatter'
@@ -22,7 +22,9 @@ export function buildNoteSnapshotFile(
 ): { slug: string; fileText: string } {
   const frontmatter = serializeOkfFrontmatter({
     type: 'Note',
-    title: source,
+    // The same first-line name the slug and the conflict key use: a migrated `source` can be the
+    // entire note body, and recording that as the title would restate the body in the header.
+    title: getKnowledgeNoteFirstLine(source),
     timestamp
   })
   return {
