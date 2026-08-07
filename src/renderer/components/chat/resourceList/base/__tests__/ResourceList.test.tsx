@@ -839,7 +839,12 @@ describe('ResourceList', () => {
         <ResourceList.Item item={item}>
           <ResourceList.RenameField item={item} aria-label={`Rename ${item.name}`} />
           <span>{item.name}</span>
-          <button type="button" onClick={() => actions.startRename(item.id)}>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              actions.startRename(item.id)
+            }}>
             Rename {item.name}
           </button>
         </ResourceList.Item>

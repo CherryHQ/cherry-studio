@@ -134,6 +134,31 @@
     { "source": "--cs-highlight-accent", "target": "--highlight-accent", "strategy": "exact" },
     { "source": "--cs-chat-user", "target": "--chat-user", "strategy": "exact" },
     {
+      "source": "--cs-resource-list-row-hover",
+      "target": "--resource-list-row-hover",
+      "strategy": "exact"
+    },
+    {
+      "source": "--cs-resource-list-row-active",
+      "target": "--resource-list-row-active",
+      "strategy": "exact"
+    },
+    {
+      "source": "--cs-resource-list-row-active-foreground",
+      "target": "--resource-list-row-active-foreground",
+      "strategy": "exact"
+    },
+    {
+      "source": "--cs-resource-list-row-selected",
+      "target": "--resource-list-row-selected",
+      "strategy": "exact"
+    },
+    {
+      "source": "--cs-resource-list-row-selected-foreground",
+      "target": "--resource-list-row-selected-foreground",
+      "strategy": "exact"
+    },
+    {
       "source": "--cs-user-font-family",
       "target": null,
       "strategy": "review",

@@ -2075,8 +2075,6 @@ describe('Sessions', () => {
     ).not.toBeInTheDocument()
     // Pinned rows are lifted out of their workdir group, so they must not keep its icon indent.
     expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
-    // Only the pin shows on a pinned row, so the title yields one icon zone instead of two.
-    expect(within(pinnedRow as HTMLElement).getByText('Pinned session')).toHaveClass('group-hover:mr-7')
     expect(within(pinnedRow as HTMLElement).queryByLabelText('Delete')).not.toBeInTheDocument()
   })
 

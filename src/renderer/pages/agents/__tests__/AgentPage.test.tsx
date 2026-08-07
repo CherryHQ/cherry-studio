@@ -867,7 +867,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.rightPanelSessionsSource).toBe(agentPageMocks.createdAgentSessionsSource)
   })
 
-  it('hides resource management entries from the left rail when sessions are on the right', () => {
+  it('opens agent management from the entity rail when sessions are on the right', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.sessionPanePosition = 'right'
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
@@ -876,8 +876,10 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     expect(screen.getByTestId('agent-resource-list')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'agent.manage.title' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'chat.resource_view.menu.skill' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
   })
 
   it('does not render the session resource pane when the classic session position is left', () => {
