@@ -147,7 +147,8 @@ export class AgentsMdLoader {
       if (!(await stat(resolvedPath)).isFile()) return undefined
       return resolvedPath
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === 'ENOENT' || code === 'ENOTDIR') return undefined
       throw error
     }
   }

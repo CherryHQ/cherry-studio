@@ -82,6 +82,18 @@ describe('AgentsMdLoader', () => {
     expect(context).toContain('Renderer parent instructions')
   })
 
+  it('uses the parent directory when Grep targets a file', async () => {
+    await mkdir(path.join(workspace, 'src'), { recursive: true })
+    await writeFile(path.join(workspace, 'src', 'AGENTS.md'), 'Source instructions')
+    const targetFile = path.join(workspace, 'src', 'index.ts')
+    await writeFile(targetFile, 'export {}')
+    const loader = await AgentsMdLoader.create(workspace)
+
+    const context = await loader.loadForTool('Grep', { path: targetFile })
+
+    expect(context).toContain('Source instructions')
+  })
+
   it('ignores target paths outside the workspace', async () => {
     await writeFile(path.join(workspace, 'AGENTS.md'), 'Workspace instructions')
     const loader = await AgentsMdLoader.create(workspace)
