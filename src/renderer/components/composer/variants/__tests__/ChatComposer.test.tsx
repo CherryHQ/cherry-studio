@@ -1373,6 +1373,44 @@ describe('ChatComposer', () => {
     expect(mocks.setModel).not.toHaveBeenCalled()
   })
 
+  it('restores the topic model selection without keeping unavailable models', async () => {
+    vi.mocked(cacheService.get).mockImplementation((key: string) =>
+      key === 'chat.composer_draft.topic-1'
+        ? {
+            text: 'cached draft',
+            tokens: [],
+            files: [],
+            knowledgeBaseIds: [],
+            mentionedModelIds: [model.id, 'missing-provider::missing-model', modelB.id],
+            modelMultiSelectMode: true
+          }
+        : undefined
+    )
+
+    render(<ChatHomeComposer topic={topic} onSend={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('model-selector')).toHaveAttribute('data-multi-select-mode', 'true')
+      expect(screen.getByTestId('model-selector')).toHaveAttribute('data-value-count', '2')
+    })
+    expect(screen.getByTestId('selected-models-trigger')).toHaveAttribute('data-model-count', '2')
+    expect(mocks.setModel).not.toHaveBeenCalled()
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('updated draft')
+    })
+    await waitFor(() => {
+      expect(cacheService.set).toHaveBeenCalledWith(
+        'chat.composer_draft.topic-1',
+        expect.objectContaining({
+          mentionedModelIds: [model.id, modelB.id],
+          modelMultiSelectMode: true
+        }),
+        expect.any(Number)
+      )
+    })
+  })
+
   it('sets the assistant model from the first mentioned model before sending when multi-selecting without a configured model', async () => {
     mocks.assistant = {
       ...mocks.assistant,
@@ -2275,7 +2313,14 @@ describe('ChatComposer', () => {
     await waitFor(() => {
       expect(cacheService.set).toHaveBeenCalledWith(
         'chat.composer_draft.topic-1',
-        { text: 'real draft', tokens: [], files: [], knowledgeBaseIds: [] },
+        {
+          text: 'real draft',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: [],
+          mentionedModelIds: [],
+          modelMultiSelectMode: false
+        },
         expect.any(Number)
       )
     })
@@ -2294,7 +2339,14 @@ describe('ChatComposer', () => {
     await waitFor(() => {
       expect(cacheService.set).toHaveBeenCalledWith(
         'chat.composer_draft.topic-1',
-        { text: 'real draft', tokens: [], files: [], knowledgeBaseIds: [] },
+        {
+          text: 'real draft',
+          tokens: [],
+          files: [],
+          knowledgeBaseIds: [],
+          mentionedModelIds: [],
+          modelMultiSelectMode: false
+        },
         expect.any(Number)
       )
     })
@@ -2532,7 +2584,14 @@ describe('ChatComposer', () => {
     expect(mocks.mentionedModels).toEqual([model, modelB])
     expect(cacheService.set).toHaveBeenCalledWith(
       'chat.composer_draft.topic-1',
-      { text: 'history entry', tokens: [], files: [], knowledgeBaseIds: [] },
+      {
+        text: 'history entry',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: [],
+        mentionedModelIds: [model.id],
+        modelMultiSelectMode: true
+      },
       expect.any(Number)
     )
 
@@ -2809,7 +2868,9 @@ describe('ChatComposer', () => {
           text: 'quoted text',
           tokens: [quoteToken, knowledgeToken],
           files: [],
-          knowledgeBaseIds: ['base-1']
+          knowledgeBaseIds: ['base-1'],
+          mentionedModelIds: [],
+          modelMultiSelectMode: false
         },
         expect.any(Number)
       )
@@ -2843,7 +2904,14 @@ describe('ChatComposer', () => {
     await waitFor(() => {
       expect(cacheService.set).toHaveBeenCalledWith(
         'chat.composer_draft.topic-1',
-        { text: url, tokens: [linkToken], files: [], knowledgeBaseIds: [] },
+        {
+          text: url,
+          tokens: [linkToken],
+          files: [],
+          knowledgeBaseIds: [],
+          mentionedModelIds: [],
+          modelMultiSelectMode: false
+        },
         expect.any(Number)
       )
     })
@@ -2867,7 +2935,14 @@ describe('ChatComposer', () => {
     expect(onSend).toHaveBeenCalled()
     expect(vi.mocked(cacheService.set).mock.lastCall).toEqual([
       'chat.composer_draft.topic-1',
-      { text: '', tokens: [], files: [], knowledgeBaseIds: [] },
+      {
+        text: '',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: [],
+        mentionedModelIds: [],
+        modelMultiSelectMode: false
+      },
       expect.any(Number)
     ])
   })
@@ -2909,7 +2984,14 @@ describe('ChatComposer', () => {
     await waitFor(() => expect(mocks.surfaceProps?.editingState).toBeUndefined())
     expect(vi.mocked(cacheService.set).mock.lastCall).toEqual([
       'chat.composer_draft.topic-1',
-      { text: 'original draft', tokens: [], files: [], knowledgeBaseIds: [] },
+      {
+        text: 'original draft',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: [],
+        mentionedModelIds: [],
+        modelMultiSelectMode: false
+      },
       expect.any(Number)
     ])
   })
@@ -3439,7 +3521,14 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.text).toBe('topic 2 draft')
     expect(cacheService.set).toHaveBeenCalledWith(
       'chat.composer_draft.topic-1',
-      { text: 'original draft', tokens: [], files: [], knowledgeBaseIds: [] },
+      {
+        text: 'original draft',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: [],
+        mentionedModelIds: [],
+        modelMultiSelectMode: false
+      },
       expect.any(Number)
     )
 

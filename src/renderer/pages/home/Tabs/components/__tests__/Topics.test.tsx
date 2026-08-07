@@ -704,7 +704,14 @@ const topicStreamLastSeenCompletionCacheKey = (topicId: string) =>
   `topic.stream.last_seen_completion.${topicId}` as never
 
 function setTopicDraft(topicId: string, text: string) {
-  writeChatDraftCache(topicId, { text, tokens: [], files: [], knowledgeBaseIds: [] })
+  writeChatDraftCache(topicId, {
+    text,
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    mentionedModelIds: [],
+    modelMultiSelectMode: false
+  })
 }
 
 function clearTopicDraftCache(...topicIds: string[]) {

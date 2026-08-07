@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ComposerSerializedToken } from '../../tokens'
 import {
+  type ChatComposerDraftCache,
   getChatDraftCacheKey,
   hasChatDraftContent,
   readChatDraftCache,
@@ -61,7 +62,9 @@ describe('chatDraftCache', () => {
       text: '',
       tokens: [],
       files: [],
-      knowledgeBaseIds: []
+      knowledgeBaseIds: [],
+      mentionedModelIds: [],
+      modelMultiSelectMode: false
     })
     expect(cacheService.get).toHaveBeenCalledWith('chat.composer_draft.topic-a')
   })
@@ -71,23 +74,29 @@ describe('chatDraftCache', () => {
       text: 42,
       tokens: 'invalid',
       files: [file],
-      knowledgeBaseIds: ['base-1', 42]
+      knowledgeBaseIds: ['base-1', 42],
+      mentionedModelIds: ['provider::model-a', 'invalid'],
+      modelMultiSelectMode: 'invalid'
     })
 
     expect(readChatDraftCache('topic-a')).toEqual({
       text: '',
       tokens: [],
       files: [file],
-      knowledgeBaseIds: ['base-1']
+      knowledgeBaseIds: ['base-1'],
+      mentionedModelIds: ['provider::model-a'],
+      modelMultiSelectMode: false
     })
   })
 
   it('round-trips files, knowledge bases, and every draft token', () => {
-    const draft = {
+    const draft: ChatComposerDraftCache = {
       text: 'hello world',
       tokens: [fileToken, knowledgeToken, quoteToken],
       files: [file],
-      knowledgeBaseIds: ['base-1']
+      knowledgeBaseIds: ['base-1'],
+      mentionedModelIds: ['provider::model-a', 'provider::model-b'],
+      modelMultiSelectMode: true
     }
 
     writeChatDraftCache('topic-a', draft)
@@ -98,11 +107,21 @@ describe('chatDraftCache', () => {
     expect(readChatDraftCache('topic-a')).toEqual(draft)
   })
 
-  it('detects text, tokens, files, and knowledge bases as draft content', () => {
-    expect(hasChatDraftContent({ text: '', tokens: [], files: [], knowledgeBaseIds: [] })).toBe(false)
-    expect(hasChatDraftContent({ text: 'draft', tokens: [], files: [], knowledgeBaseIds: [] })).toBe(true)
-    expect(hasChatDraftContent({ text: '', tokens: [quoteToken], files: [], knowledgeBaseIds: [] })).toBe(true)
-    expect(hasChatDraftContent({ text: '', tokens: [], files: [file], knowledgeBaseIds: [] })).toBe(true)
-    expect(hasChatDraftContent({ text: '', tokens: [], files: [], knowledgeBaseIds: ['base-1'] })).toBe(true)
+  it('detects editor tools and explicit model selection as draft content', () => {
+    const emptyDraft: ChatComposerDraftCache = {
+      text: '',
+      tokens: [],
+      files: [],
+      knowledgeBaseIds: [],
+      mentionedModelIds: [],
+      modelMultiSelectMode: false
+    }
+    expect(hasChatDraftContent(emptyDraft)).toBe(false)
+    expect(hasChatDraftContent({ ...emptyDraft, text: 'draft' })).toBe(true)
+    expect(hasChatDraftContent({ ...emptyDraft, tokens: [quoteToken] })).toBe(true)
+    expect(hasChatDraftContent({ ...emptyDraft, files: [file] })).toBe(true)
+    expect(hasChatDraftContent({ ...emptyDraft, knowledgeBaseIds: ['base-1'] })).toBe(true)
+    expect(hasChatDraftContent({ ...emptyDraft, mentionedModelIds: ['provider::model-a'] })).toBe(true)
+    expect(hasChatDraftContent({ ...emptyDraft, modelMultiSelectMode: true })).toBe(false)
   })
 })

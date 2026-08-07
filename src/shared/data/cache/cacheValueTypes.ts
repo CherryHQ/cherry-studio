@@ -11,6 +11,7 @@ import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommand
 import type { ExternalAppId } from '../../types/externalApp'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
+import type { UniqueModelId } from '../types/model'
 import type { ComposerMessageTokenKind } from '../types/uiParts'
 import type { WebSearchStatus } from '../types/webSearch'
 
@@ -153,14 +154,21 @@ export interface CacheComposerAttachment {
   composerFileKind?: 'pasted-text'
 }
 
-export interface CacheChatComposerDraft {
+export interface CacheComposerDraftBase {
   text: string
   tokens: CacheComposerSerializedToken[]
   files: CacheComposerAttachment[]
   knowledgeBaseIds: string[]
 }
 
-export interface CacheAgentComposerDraft extends CacheChatComposerDraft {
+export interface CacheChatComposerDraft extends CacheComposerDraftBase {
+  /** Explicit per-topic model selection; runtime model records are resolved when restoring. */
+  mentionedModelIds: UniqueModelId[]
+  /** Selection behavior cannot be inferred when zero or one models remain selected. */
+  modelMultiSelectMode: boolean
+}
+
+export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
   workspaceKey: string
   agentId: string
   shouldValidateSkills?: boolean

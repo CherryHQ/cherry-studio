@@ -487,6 +487,18 @@ const ChatComposerInner = ({
   const surfaceGetDraftRef = useRef<ComposerSurfaceActions['getDraft']>(emptyActions.getDraft)
   const [draftTokenRevision, setDraftTokenRevision] = useState(0)
   const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
+  const mentionedModelDraftRef = useRef({
+    mentionedModelIds: [...initialDraft.mentionedModelIds],
+    modelMultiSelectMode: initialDraft.modelMultiSelectMode
+  })
+  const shouldHydrateMentionedModelDraft =
+    Boolean(useMentionedModelSelector) &&
+    (initialDraft.mentionedModelIds.length > 0 || initialDraft.modelMultiSelectMode)
+  const [isMentionedModelDraftHydrated, setIsMentionedModelDraftHydrated] = useState(!shouldHydrateMentionedModelDraft)
+  const { models: draftModels, isLoading: isDraftModelsLoading } = useModels(
+    { enabled: true },
+    { fetchEnabled: shouldHydrateMentionedModelDraft && initialDraft.mentionedModelIds.length > 0 }
+  )
   const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
     initialDraft.knowledgeBaseIds.length === 0 ? JSON.stringify([]) : null
   )
@@ -637,7 +649,8 @@ const ChatComposerInner = ({
     mentionedModelMultiSelectMode,
     handleMentionedModelsSelect: selectMentionedModels,
     handleMentionedModelMultiSelectModeChange: changeMentionedModelMultiSelectMode,
-    handleMentionedModelSelectorRestore: restoreMentionedModelSelector
+    handleMentionedModelSelectorRestore: restoreMentionedModelSelector,
+    restoreMentionedModelDraft
   } = useChatMentionedModels({
     enabled: useMentionedModelSelector,
     runtimeModel,
@@ -649,6 +662,42 @@ const ChatComposerInner = ({
     preserveExplicitSelectionOnRuntimeChange: !assistant && !assistantId,
     onModelSelect: handleModelSelect
   })
+
+  useEffect(() => {
+    if (isMentionedModelDraftHydrated || !useMentionedModelSelector) return
+    if (runtimeModelPending || (initialDraft.mentionedModelIds.length > 0 && isDraftModelsLoading)) return
+
+    const modelById = new Map(draftModels.map((model) => [model.id, model]))
+    const restoredModels = initialDraft.mentionedModelIds.flatMap((modelId) => {
+      const restoredModel = modelById.get(modelId)
+      return restoredModel ? [restoredModel] : []
+    })
+    if (initialDraft.mentionedModelIds.length > 0 && restoredModels.length === 0) {
+      restoreMentionedModelSelector()
+    } else {
+      restoreMentionedModelDraft(restoredModels, initialDraft.modelMultiSelectMode)
+    }
+    setIsMentionedModelDraftHydrated(true)
+  }, [
+    draftModels,
+    initialDraft.mentionedModelIds,
+    initialDraft.modelMultiSelectMode,
+    isDraftModelsLoading,
+    isMentionedModelDraftHydrated,
+    restoreMentionedModelDraft,
+    restoreMentionedModelSelector,
+    runtimeModelPending,
+    useMentionedModelSelector
+  ])
+
+  useEffect(() => {
+    if (!useMentionedModelSelector || !isMentionedModelDraftHydrated) return
+    mentionedModelDraftRef.current = {
+      mentionedModelIds: mentionedModels.map((model) => model.id),
+      modelMultiSelectMode: mentionedModelMultiSelectMode
+    }
+  }, [isMentionedModelDraftHydrated, mentionedModelMultiSelectMode, mentionedModels, useMentionedModelSelector])
+
   const exitInputHistoryPreview = useCallback(() => {
     const draft = takeDraftBeforeHistory()
     const tools = inputHistoryToolsRef.current
@@ -665,7 +714,8 @@ const ChatComposerInner = ({
       text: visibleDraft.text,
       tokens: visibleDraft.tokens,
       files: filesRef.current,
-      knowledgeBaseIds: knowledgeBaseIdsRef.current
+      knowledgeBaseIds: knowledgeBaseIdsRef.current,
+      ...mentionedModelDraftRef.current
     })
   }, [actionsRef, draftCacheScopeKey, exitInputHistoryPreview, filesRef])
   const handleMentionedModelsSelect = useCallback(
@@ -860,11 +910,11 @@ const ChatComposerInner = ({
 
   // Single owner of the topic draft cache. Runs after ComposerSurface's effects have synced the
   // editor to the current text, so getDraft() serializes the live tokens consistently. Every
-  // persistable change is observed through text, files, knowledge bases, or the editor token revision.
+  // persistable change is observed through text, files, knowledge bases, model selection, or the editor token revision.
   // The revision covers token-only edits whose serialized text stays unchanged.
   const persistedOnceRef = useRef(false)
   useEffect(() => {
-    if (!isKnowledgeBaseDraftHydrated) return
+    if (!isKnowledgeBaseDraftHydrated || !isMentionedModelDraftHydrated) return
     if (!persistedOnceRef.current) {
       persistedOnceRef.current = true
       return
@@ -891,7 +941,8 @@ const ChatComposerInner = ({
       text,
       tokens: draft.tokens,
       files,
-      knowledgeBaseIds: knowledgeBaseIdsRef.current
+      knowledgeBaseIds: knowledgeBaseIdsRef.current,
+      ...mentionedModelDraftRef.current
     })
   }, [
     actionsRef,
@@ -900,13 +951,16 @@ const ChatComposerInner = ({
     editingMessage,
     files,
     isKnowledgeBaseDraftHydrated,
+    isMentionedModelDraftHydrated,
+    mentionedModelMultiSelectMode,
+    mentionedModels,
     selectableKnowledgeBases,
     selectedKnowledgeBasesInScope,
     text
   ])
 
   const persistFinalDraft = useEffectEvent(() => {
-    if (isInputHistoryActive || !isKnowledgeBaseDraftHydrated) return
+    if (isInputHistoryActive || !isKnowledgeBaseDraftHydrated || !isMentionedModelDraftHydrated) return
     const savedDraft = savedDraftBeforeEditingRef.current
     if (editingMessage && !savedDraft) return
     const draft = savedDraft ? { text: savedDraft.text, tokens: savedDraft.draftTokens } : surfaceGetDraftRef.current()
@@ -914,7 +968,9 @@ const ChatComposerInner = ({
       text: savedDraft ? draft.text : text,
       tokens: draft.tokens,
       files: savedDraft?.files ?? filesRef.current,
-      knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current
+      knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current,
+      mentionedModelIds: (savedDraft?.mentionedModels ?? mentionedModelsRef.current).map((model) => model.id),
+      modelMultiSelectMode: mentionedModelDraftRef.current.modelMultiSelectMode
     })
   })
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by topic.

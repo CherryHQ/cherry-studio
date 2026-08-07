@@ -208,7 +208,14 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.web_search.searching': false,
-  'chat.composer_draft.${topicId}': { text: '', tokens: [], files: [], knowledgeBaseIds: [] },
+  'chat.composer_draft.${topicId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    mentionedModelIds: [],
+    modelMultiSelectMode: false
+  },
   'chat.scroll_anchor.${topicId}': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
