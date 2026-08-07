@@ -55,6 +55,7 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
+import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -351,6 +352,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sdkInputQueue = new SdkInputQueue()
   private readonly abortController = new AbortController()
   private query?: Query
+  private closePromise?: Promise<void>
   /** The exact spawn options of the live query — the stale-resume retry re-spawns from these. */
   private spawnOptions?: Options
   private lastSdkUserMessage?: SDKUserMessage
@@ -414,7 +416,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             }
           }
         : {}),
-      abortController: this.abortController
+      abortController: this.abortController,
+      spawnClaudeCodeProcess
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -637,14 +640,30 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  close(): void {
+  close(): Promise<void> {
+    this.closePromise ??= this.closeQuery()
+    return this.closePromise
+  }
+
+  private async closeQuery(): Promise<void> {
+    const query = this.query
     this.settlePendingInvocations()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
     this.teardownSession()
-    this.query?.close()
     this.eventQueue.close()
+    if (!query) return
+    try {
+      query.close()
+    } catch (error) {
+      logger.warn('Claude Code query close failed', { sessionId: this.input.sessionId, error })
+    }
+    try {
+      await query.return(undefined)
+    } catch (error) {
+      logger.warn('Claude Code query cleanup failed', { sessionId: this.input.sessionId, error })
+    }
   }
 
   private async runQueryLoop(): Promise<void> {
