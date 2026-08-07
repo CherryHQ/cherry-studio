@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Enter your QQ Bot client secret",
         "description": "Receive and respond to messages via QQ Bot official API.",
+        "mentionOnlyLabel": "@Mention only",
+        "mentionOnlyHint": "When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
         "title": "QQ",
         "whoamiTip": "💡 Tip: Send /whoami to the bot to get your chat ID in the correct format."
       },

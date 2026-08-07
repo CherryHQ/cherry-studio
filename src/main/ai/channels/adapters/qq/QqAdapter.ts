@@ -113,13 +113,22 @@ class QqAdapter extends ChannelAdapter {
   /** Number of rapid disconnects before invalidating session */
   private readonly maxRapidDisconnects = 3
 
+  private readonly mentionOnly: boolean
+
+  /** Dedup: msg ids seen recently (id → timestamp) to suppress duplicate @mention events. */
+  private readonly seenMsgIds = new Map<string, number>()
+
+  private readonly DEDUP_TTL_MS = 10_000
+  private readonly DEDUP_MAX_ENTRIES = 500
+
   constructor(config: ChannelAdapterConfig<'qq'>) {
     super(config)
-    const { app_id, client_secret, allowed_chat_ids } = config.channelConfig
+    const { app_id, client_secret, allowed_chat_ids, mention_only } = config.channelConfig
     this.appId = app_id
     this.clientSecret = client_secret
     this.allowedChatIds = allowed_chat_ids ?? []
     this.notifyChatIds = [...this.allowedChatIds]
+    this.mentionOnly = mention_only ?? true
   }
 
   protected override async checkReady(): Promise<boolean> {
@@ -371,8 +380,18 @@ class QqAdapter extends ChannelAdapter {
       case 'C2C_MESSAGE_CREATE':
         await this.handleC2CMessage(data as QqMessage)
         break
-      case 'GROUP_AT_MESSAGE_CREATE':
-        await this.handleGroupMessage(data as QqMessage)
+      case 'GROUP_AT_MESSAGE_CREATE': {
+        const msg = data as QqMessage
+        // Dedup: if the same @message already arrived via GROUP_MESSAGE_CREATE
+        // (full mode, FULL landed first), skip the duplicate AT event.
+        if (!this.wasSeen(msg.id)) {
+          this.markSeen(msg.id)
+          await this.handleGroupMessage(msg)
+        }
+        break
+      }
+      case 'GROUP_MESSAGE_CREATE':
+        await this.handleGroupFullMessage(data as QqMessage)
         break
       case 'AT_MESSAGE_CREATE':
         await this.handleGuildMessage(data as QqMessage)
@@ -393,6 +412,45 @@ class QqAdapter extends ChannelAdapter {
     const chatId = `group:${msg.group_openid}`
     if (!this.isAllowed(chatId, msg.group_openid)) return
     await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
+  }
+
+  /** Group full-message handler (GROUP_MESSAGE_CREATE — all group messages when full mode is on). */
+  private async handleGroupFullMessage(msg: QqMessage): Promise<void> {
+    const chatId = `group:${msg.group_openid}`
+    if (!this.isAllowed(chatId, msg.group_openid)) return
+
+    // mention_only mode: ignore non-@ messages (they already arrive via GROUP_AT_MESSAGE_CREATE)
+    if (this.mentionOnly) return
+
+    // Dedup: GROUP_AT_MESSAGE_CREATE and GROUP_MESSAGE_CREATE may both fire for the same @message
+    if (this.wasSeen(msg.id)) return
+    this.markSeen(msg.id)
+
+    await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
+  }
+
+  /** Mark a msg id as seen for dedup purposes. Trims the map when it exceeds the max. */
+  private markSeen(msgId: string): void {
+    const now = Date.now()
+    this.seenMsgIds.set(msgId, now)
+    if (this.seenMsgIds.size > this.DEDUP_MAX_ENTRIES) {
+      // Evict entries older than DEDUP_TTL
+      const cutoff = now - this.DEDUP_TTL_MS
+      for (const [id, ts] of this.seenMsgIds) {
+        if (ts < cutoff) this.seenMsgIds.delete(id)
+      }
+    }
+  }
+
+  /** Check whether a msg id was already processed (dedup). Cleans stale entries inline. */
+  private wasSeen(msgId: string): boolean {
+    const ts = this.seenMsgIds.get(msgId)
+    if (ts === undefined) return false
+    if (Date.now() - ts > this.DEDUP_TTL_MS) {
+      this.seenMsgIds.delete(msgId)
+      return false
+    }
+    return true
   }
 
   private async handleGuildMessage(msg: QqMessage): Promise<void> {
