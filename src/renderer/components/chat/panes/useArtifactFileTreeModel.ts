@@ -284,6 +284,14 @@ interface LazyDirectoryWatcher {
   disposed: boolean
 }
 
+/**
+ * Grace period before the lazy directory watchers of an unmounted/hidden tree
+ * are actually disposed. Absorbs <Activity> tab switches, which run this
+ * hook's cleanups on hide and re-run its effects on show — without the grace,
+ * every switch paid a tree.dispose + tree.create IPC per expanded directory.
+ */
+const LAZY_WATCHER_DISPOSE_GRACE_MS = 10_000
+
 function useLazyArtifactFileTree({
   workspacePath,
   treeOpen,
@@ -301,6 +309,8 @@ function useLazyArtifactFileTree({
   const lazyLoadingDirIdsRef = useRef<Set<string>>(new Set())
   const lazyRequestIdsByDirIdRef = useRef<Map<string, number>>(new Map())
   const lazyDirectoryWatchersRef = useRef<Map<string, LazyDirectoryWatcher>>(new Map())
+  const pendingWatcherDisposeRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const watchersWorkspacePathRef = useRef(workspacePath)
   const lazyLoadGenerationRef = useRef(0)
   const currentWorkspacePathRef = useRef(workspacePath)
   const [lazyChildrenVersion, setLazyChildrenVersion] = useState(0)
@@ -519,10 +529,26 @@ function useLazyArtifactFileTree({
   }, [resetLazyChildren, treeOpen])
 
   useEffect(() => {
-    return () => {
+    // A dispose scheduled by the previous cleanup (an <Activity> hide) is
+    // canceled here: the watcher map lives in a ref that survived, so the
+    // still-live watchers are reused instead of recreated.
+    if (pendingWatcherDisposeRef.current !== null) {
+      clearTimeout(pendingWatcherDisposeRef.current)
+      pendingWatcherDisposeRef.current = null
+    }
+    // Watchers watch absolute paths under the previous workspace — after a
+    // workspace switch, surviving watchers must be dropped immediately.
+    if (watchersWorkspacePathRef.current !== workspacePath) {
+      watchersWorkspacePathRef.current = workspacePath
       disposeLazyDirectoryWatchers()
     }
-  }, [disposeLazyDirectoryWatchers, treeOpen, workspacePath])
+    return () => {
+      pendingWatcherDisposeRef.current = setTimeout(() => {
+        pendingWatcherDisposeRef.current = null
+        disposeLazyDirectoryWatchers()
+      }, LAZY_WATCHER_DISPOSE_GRACE_MS)
+    }
+  }, [disposeLazyDirectoryWatchers, workspacePath])
 
   useEffect(() => {
     if (!treeOpen) return

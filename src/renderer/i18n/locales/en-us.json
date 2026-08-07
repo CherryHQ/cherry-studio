@@ -3,7 +3,7 @@
     "add": {
       "description": "Handle complex tasks with various tools",
       "error": {
-        "failed": "Failed to add a agent",
+        "failed": "Failed to add an agent",
         "invalid_agent": "Invalid Agent"
       },
       "model": {
@@ -1334,7 +1334,7 @@
       "regular_phrases": {
         "add": "Add Phrase",
         "contentLabel": "Content",
-        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+        "contentPlaceholder": "Enter phrase content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
         "delete": "Delete Phrase",
         "deleteConfirm": "Are you sure to delete this phrase?",
         "edit": "Edit Phrase",
@@ -1677,11 +1677,6 @@
       "new": {
         "branch": {
           "created": "New Branch Created",
-          "disabled": {
-            "active": "This node is already selected. Continue typing to extend the branch from here.",
-            "latest": "You are already at the end of this branch. Continue typing to extend it.",
-            "no_follow_up": "There is no follow-up after this message yet. Switch to this node and continue typing instead."
-          },
           "label": "New Branch"
         },
         "context": "New Context"
@@ -2596,7 +2591,7 @@
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
-    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
+    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Raise \"Max tool call rounds\" in the assistant settings, or reduce the task scope.",
     "truncated": "Data truncated, original size",
     "truncatedBadge": "Truncated",
     "unknown": "Unknown error",
@@ -3493,7 +3488,7 @@
             "hint": "Caps response length when enabled"
           },
           "max_tool_calls": {
-            "hint": "Limits tool-call rounds when enabled; otherwise uses the default 20-round limit"
+            "hint": "Limits tool-call rounds when enabled; otherwise uses the default {{count}}-round limit"
           },
           "model": {
             "hint": "Overrides the global default model for this assistant"
@@ -4816,7 +4811,7 @@
       "stop": "Stop OVMS",
       "stopping": "Stopping"
     },
-    "description": "<div><p>1. Download OV Models.</p><p>2. Add Models in 'Manager'.</p><p>Support Windows Only!</p><p>OVMS Install Path: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Please refer to <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS Guide</a></p></dev>",
+    "description": "<div><p>1. Download the OV models.</p><p>2. Add the models in Manager.</p><p>Windows only.</p><p>OVMS installation path: '%USERPROFILE%\\.cherrystudio\\ovms'.</p><p>See the <a href=\"https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md\">Intel OVMS guide</a>.</p></div>",
     "download": {
       "button": "Download",
       "error": "Download Error",
@@ -5581,7 +5576,7 @@
       },
       "prompt": {
         "explain": "Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
-        "refine": "Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
+        "refine": "Please optimize or polish the user input inside the INPUT XML element while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
         "summary": "Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
       },
       "translate": {
@@ -5833,7 +5828,7 @@
         "open": "Open",
         "title": "Debug"
       },
-      "description": "A powerful AI assistant for producer",
+      "description": "A powerful AI assistant built for creators",
       "diagnostics": {
         "actions": {
           "cancel": "Cancel",
@@ -5845,7 +5840,7 @@
           "reveal": "Open file location"
         },
         "dialog": {
-          "description": "Save recent app information as a ZIP file to help support investigate issues.",
+          "description": "Save recent app information as a ZIP file to help support staff investigate issues.",
           "title": "Export diagnostic bundle"
         },
         "entry": {
@@ -5869,7 +5864,7 @@
         },
         "privacy": {
           "consent": "I understand the information above and will share the ZIP only privately with support.",
-          "description": "These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "description": "These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not redact or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
           "title": "Before you share"
         },
         "range_title": "Time range",
@@ -7435,8 +7430,8 @@
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
       "provider_key_add_failed_by_invalid_data": "Failed to add provider API key, data format error",
       "provider_key_added": "Successfully added API key for {{provider}}",
-      "provider_key_already_exists": "{{provider}} already has an API key ({{existingKey}}). Do not add it again.",
-      "provider_key_confirm_title": "Add Provider API Key",
+      "provider_key_already_exists": "{{provider}} already has this API key. It will not be added again.",
+      "provider_key_confirm_title": "Add {{provider}} API Key",
       "provider_key_no_change": "API key for {{provider}} has not changed",
       "provider_key_overridden": "Successfully updated API key for {{provider}}",
       "provider_key_override_confirm": "{{provider}} already has an API key ({{existingKey}}). Do you want to override it with the new key ({{newKey}})?",
@@ -7448,7 +7443,7 @@
         "description": "Model used for simple tasks such as conversation naming and keyword extraction",
         "label": "Quick Model",
         "setting_title": "Quick model setup",
-        "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
+        "tooltip": "Choose a lightweight model and avoid reasoning models."
       },
       "toolbar": {
         "custom_add": "Custom",
@@ -7965,7 +7960,7 @@
       "add": "Add Phrase",
       "assistant": "Assistant Phrases",
       "contentLabel": "Content",
-      "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "contentPlaceholder": "Enter phrase content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
       "delete": "Delete Phrase",
       "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
       "edit": "Edit Phrase",
@@ -8704,7 +8699,7 @@
     "title": "Update"
   },
   "warning": {
-    "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."
+    "missing_provider": "The provider does not exist; reverted to the default provider {{provider}}. This may cause issues."
   },
   "words": {
     "knowledgeGraph": "Knowledge Graph",
