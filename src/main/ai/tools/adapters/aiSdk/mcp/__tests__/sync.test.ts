@@ -163,8 +163,35 @@ describe('syncMcpToolsToRegistry', () => {
     expect(searchEntry.applies!({ mcpToolIds: new Set() })).toBe(false)
   })
 
+  it('excludes distinct identities sharing one wire id while keeping unrelated tools', async () => {
+    const reg = new ToolRegistry()
+    const collisionId = 'mcp__collision'
+    list.mockReturnValue({ items: [activeServer('server-a'), activeServer('server-b')] })
+    listTools.mockImplementation((serverId: string) =>
+      serverId === 'server-a'
+        ? [{ ...mcpTool('server-a', 'first'), id: collisionId }, mcpTool('server-a', 'safe')]
+        : [{ ...mcpTool('server-b', 'second'), id: collisionId }]
+    )
+
+    await syncMcpToolsToRegistry(reg)
+
+    expect(reg.getByName(collisionId)).toBeUndefined()
+    expect(reg.getByName('mcp__server-a__safe')).toBeDefined()
+  })
+
+  it('deduplicates repeated descriptors for the same identity', async () => {
+    const reg = new ToolRegistry()
+    const duplicate = mcpTool('server-a', 'query')
+    list.mockReturnValue({ items: [activeServer('server-a')] })
+    listTools.mockReturnValue([duplicate, duplicate])
+
+    await syncMcpToolsToRegistry(reg)
+
+    expect(reg.getAll().filter((entry) => entry.name === duplicate.id)).toHaveLength(1)
+  })
+
   describe('with selectedToolIds filter', () => {
-    it('only calls listTools on servers whose tool ids appear in the selection', async () => {
+    it('scans every active server cache and registers only the selected id', async () => {
       const reg = new ToolRegistry()
       list.mockReturnValue({ items: [activeServer('gh'), activeServer('jira'), activeServer('slack')] })
       listTools.mockImplementation((serverId: string) => [mcpTool(serverId, 't')])
@@ -172,7 +199,27 @@ describe('syncMcpToolsToRegistry', () => {
       await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__t']) })
 
       const calledIds = listTools.mock.calls.map((args) => args[0] as string)
-      expect(calledIds).toEqual(['gh'])
+      expect(calledIds).toEqual(['gh', 'jira', 'slack'])
+      expect(reg.getAll().map((entry) => entry.name)).toEqual(['mcp__gh__t'])
+    })
+
+    it('matches selected ids against catalog entries instead of normalized server names', async () => {
+      const reg = new ToolRegistry()
+      const reimbursement = { ...mcpTool('server-a', 'executeSql'), id: 'mcp__mysql__executeSql_a' }
+      const elevator = { ...mcpTool('server-b', 'executeSql'), id: 'mcp__mysql__executeSql_b' }
+      list.mockReturnValue({
+        items: [
+          { ...activeServer('server-a'), name: 'mysql_报销' },
+          { ...activeServer('server-b'), name: 'mysql_电梯' }
+        ]
+      })
+      listTools.mockImplementation((serverId: string) => (serverId === 'server-a' ? [reimbursement] : [elevator]))
+
+      await syncMcpToolsToRegistry(reg, { selectedToolIds: new Set([reimbursement.id]) })
+
+      expect(listTools.mock.calls.map(([serverId]) => serverId)).toEqual(['server-a', 'server-b'])
+      expect(reg.getByName(reimbursement.id)?.namespace).toBe('mcp:server-a')
+      expect(reg.getByName(elevator.id)).toBeUndefined()
     })
 
     it('keeps entries from active-but-unselected servers untouched (no eviction within other namespaces)', async () => {

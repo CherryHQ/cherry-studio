@@ -3,7 +3,6 @@ import { loggerService } from '@logger'
 import type { McpCallToolResponse } from '@main/ai/mcp/types'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import { isFunctionCallToolNameForServer } from '@shared/ai/tools/mcpToolName'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
 import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
@@ -13,6 +12,14 @@ import type { ToolEntry } from '../types'
 import { mcpResultToTextSummary } from './utils'
 
 const logger = loggerService.withContext('mcpTools')
+
+type McpToolCandidate = {
+  server: McpServer
+  tool: McpTool
+}
+
+const namespaceForServer = (serverId: string) => `mcp:${serverId}`
+const candidateIdentity = ({ tool }: McpToolCandidate) => `${tool.serverId}\0${tool.name}`
 
 function resolveActiveServerById(serverId: string): McpServer | undefined {
   // Direct point lookup instead of listing every active server on each tool call.
@@ -74,7 +81,7 @@ function toEntry(mcpTool: McpTool, server: McpServer): ToolEntry {
   const forcePrompt = isMcpToolForcePromptBySource(server, mcpTool)
   return {
     name: mcpTool.id,
-    namespace: `mcp:${server.name}`,
+    namespace: namespaceForServer(server.id),
     description: mcpTool.description || mcpTool.name,
     defer: forcePrompt ? 'never' : 'auto',
     tool: createMcpTool(mcpTool, forcePrompt),
@@ -82,25 +89,11 @@ function toEntry(mcpTool: McpTool, server: McpServer): ToolEntry {
   }
 }
 
-/** Keep servers that own at least one selected tool id (see `buildFunctionCallToolName`). */
-function filterServersByToolIds(
-  servers: readonly McpServer[],
-  selectedToolIds: ReadonlySet<string>
-): readonly McpServer[] {
-  if (!selectedToolIds.size) return []
-  return servers.filter((server) => {
-    for (const id of selectedToolIds) {
-      if (isFunctionCallToolNameForServer(server.name, id)) return true
-    }
-    return false
-  })
-}
-
 export interface SyncMcpToolsToRegistryOptions {
   /**
-   * Restrict the per-server `listTools` round-trip to servers owning a
-   * selected tool. Stale-server cleanup still runs globally. Omit for
-   * full reconcile (bootstrap / admin).
+   * Restrict registration to exact selected tool ids. Ownership is resolved
+   * from each active server's cache-only catalog; stale-server cleanup still
+   * runs globally. Omit for full reconcile (bootstrap / admin).
    */
   readonly selectedToolIds?: ReadonlySet<string>
 }
@@ -116,33 +109,67 @@ export async function syncMcpToolsToRegistry(
   opts: SyncMcpToolsToRegistryOptions = {}
 ): Promise<void> {
   const { items: activeServers } = mcpServerService.list({ isActive: true })
-
-  const targetServers = opts.selectedToolIds
-    ? filterServersByToolIds(activeServers, opts.selectedToolIds)
-    : activeServers
-  const targetNamespaces = new Set(targetServers.map((s) => `mcp:${s.name}`))
-  const activeNamespaces = new Set(activeServers.map((s) => `mcp:${s.name}`))
-
-  const freshNames = new Set<string>()
+  const selectedToolIds = opts.selectedToolIds
+  const targetNamespaces = new Set<string>()
+  const activeNamespaces = new Set(activeServers.map((server) => namespaceForServer(server.id)))
   // Only namespaces whose `listTools` actually succeeded. A transient connection drop
   // must NOT evict a still-active server's previously-registered tools — without this
   // guard the eviction loop below sees every prior tool as `missing` and deregisters them.
   const refreshedNamespaces = new Set<string>()
-  for (const server of targetServers) {
-    try {
-      const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
-      for (const mcpTool of enabledTools) {
-        reg.register(toEntry(mcpTool, server))
-        freshNames.add(mcpTool.id)
+  const candidates: McpToolCandidate[] = []
+
+  if (selectedToolIds) {
+    for (const entry of reg.getAll()) {
+      if (selectedToolIds.has(entry.name) && entry.namespace.startsWith('mcp:')) {
+        targetNamespaces.add(entry.namespace)
       }
-      refreshedNamespaces.add(`mcp:${server.name}`)
-    } catch (error) {
-      logger.error('Failed to list MCP tools for server', {
-        serverId: server.id,
-        serverName: server.name,
-        error
-      })
     }
+  }
+
+  if (!selectedToolIds || selectedToolIds.size > 0) {
+    for (const server of activeServers) {
+      const namespace = namespaceForServer(server.id)
+      try {
+        const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
+        const scopedTools = selectedToolIds ? enabledTools.filter((tool) => selectedToolIds.has(tool.id)) : enabledTools
+        if (!selectedToolIds || scopedTools.length > 0) targetNamespaces.add(namespace)
+        candidates.push(...scopedTools.map((tool) => ({ server, tool })))
+        refreshedNamespaces.add(namespace)
+      } catch (error) {
+        logger.error('Failed to list MCP tools for server', {
+          serverId: server.id,
+          serverName: server.name,
+          error
+        })
+      }
+    }
+  }
+
+  const candidatesById = new Map<string, McpToolCandidate[]>()
+  for (const candidate of candidates) {
+    const group = candidatesById.get(candidate.tool.id) ?? []
+    group.push(candidate)
+    candidatesById.set(candidate.tool.id, group)
+  }
+
+  const freshNames = new Set<string>()
+  for (const [toolId, group] of candidatesById) {
+    const identities = new Map(group.map((candidate) => [candidateIdentity(candidate), candidate]))
+    if (identities.size > 1) {
+      logger.error('Conflicting MCP tool identities share one wire id', {
+        toolId,
+        tools: [...identities.values()].map(({ server, tool }) => ({
+          serverId: server.id,
+          serverName: server.name,
+          toolName: tool.name
+        }))
+      })
+      continue
+    }
+    const candidate = identities.values().next().value
+    if (!candidate) continue
+    reg.register(toEntry(candidate.tool, candidate.server))
+    freshNames.add(toolId)
   }
 
   for (const entry of reg.getAll()) {
