@@ -30,11 +30,13 @@ unambiguous):
 | Source | Name pattern | Example |
 |---|---|---|
 | Built-in | fixed wire name (`<namespace>_<verb>`) | `web_search`, `kb_search` |
-| MCP | `mcp__<camelCase(server)>__<camelCase(tool)>` | `mcp__gmail__sendMessage` |
+| MCP (AI SDK) | `mcp__<server-slug>__<tool-slug>_<identity-digest>` | `mcp__gmail__sendMessage_a1b2…` |
 | Meta | `tool_<verb>` | `tool_search`, `tool_invoke`, `tool_inspect` (`tool_exec` is defined but not injected — see below) |
 
 The built-in wire names live in `@shared/ai/builtinTools` (single-underscore,
 e.g. `web_search`); they are not derived from a `__` segment convention like MCP.
+The AI SDK MCP digest is derived from the stable server id plus the original
+protocol tool name. Claude Code keeps its separate runtime naming contract.
 
 ## Built-in tools
 
@@ -60,14 +62,15 @@ tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
 
 - `resolveAssistantMcpToolIds` — assistant's enabled MCP servers + per-tool
   disable list → set of tool ids.
-- `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — reads each
-  selected server's tools from the catalog via `McpCatalogService.listTools`
-  (cache-only; see [Tool catalog reads](#tool-catalog-reads-never-block-on-mcp)),
-  registers each as a `ToolEntry` whose `tool.execute` proxies through
-  the MCP transport. **Scope:** only servers owning a selected tool are
-  synced. Because the read is last-known-good cache, a server is only evicted
-  from the registry when its cache is genuinely empty — a transient blip can no
-  longer drop a still-active server's tools.
+- `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — scans active servers'
+  cache-only catalogs via `McpCatalogService.listTools`, matches full tool ids,
+  and registers only exact selections as `ToolEntry` objects whose
+  `tool.execute` proxies through the MCP transport. Registry namespaces use the
+  stable `mcp:<serverId>` form; display names never determine ownership. Before
+  registration, duplicate descriptors for one identity are collapsed and a
+  wire id shared by distinct identities is excluded rather than silently
+  overwritten. Because reads are last-known-good cache snapshots, a transient
+  catalog failure does not evict a still-active server's prior entries.
 
 The sync is idempotent; a stale entry is overwritten on the next sync.
 
