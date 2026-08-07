@@ -1,8 +1,5 @@
-import { dataApiService } from '@data/DataApiService'
-import { useInvalidateCache } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
-import type { TopicMessageFlowLiveState } from '@renderer/components/chat/flow'
 import { ResourcePaneCountButton, type ResourcePaneCountButtonProps } from '@renderer/components/chat/panes/Shell'
 import ConversationCenterState from '@renderer/components/chat/shell/ConversationCenterState'
 import ConversationShell from '@renderer/components/chat/shell/ConversationShell'
@@ -23,7 +20,7 @@ import type { ConversationCenterSlot, PaneManualToggleSignal } from '@renderer/t
 import type { Citation } from '@renderer/types/message'
 import type { Topic } from '@renderer/types/topic'
 import type { FC, ReactNode } from 'react'
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ChatContent from './ChatContent'
@@ -72,12 +69,9 @@ const Chat: FC<Props> = (props) => {
   const { t } = useTranslation()
   const [messageStyle] = usePreference('chat.message.style')
   const [topicDisplayMode] = usePreference('topic.tab.display_mode')
-  const invalidateCache = useInvalidateCache()
   const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
   const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
   const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
-  const branchDraftAnchorIdRef = useRef<string | null>(null)
-  const branchSendAnchorOverrideIdRef = useRef<string | null>(null)
 
   const mainRef = React.useRef<HTMLDivElement>(null)
   const activeTopic = props.activeTopic
@@ -106,15 +100,11 @@ const Chat: FC<Props> = (props) => {
   const onLocateMessageHandledProp = props.onLocateMessageHandled
 
   useEffect(() => {
-    branchDraftAnchorIdRef.current = null
-    branchSendAnchorOverrideIdRef.current = null
     setBranchLocateMessageId(undefined)
     if (!activeTopicId) return
 
     setTopicBranchLiveState(activeTopicId, null)
     return () => {
-      branchDraftAnchorIdRef.current = null
-      branchSendAnchorOverrideIdRef.current = null
       setTopicBranchLiveState(activeTopicId, null)
     }
   }, [activeTopicId, setTopicBranchLiveState])
@@ -164,67 +154,6 @@ const Chat: FC<Props> = (props) => {
     },
     [activeTopicId, setTopicBranchLiveState]
   )
-  const getBranchDraftAnchorId = useCallback(
-    () => branchDraftAnchorIdRef.current ?? branchSendAnchorOverrideIdRef.current,
-    []
-  )
-  const clearBranchDraft = useCallback(() => {
-    branchDraftAnchorIdRef.current = null
-    branchSendAnchorOverrideIdRef.current = null
-  }, [])
-  const handleCancelBranchDraft = useCallback(
-    (nextActiveNodeId?: string | null) => {
-      branchDraftAnchorIdRef.current = null
-      branchSendAnchorOverrideIdRef.current = nextActiveNodeId ?? null
-      if (!activeTopicId) return
-
-      if (nextActiveNodeId === undefined) {
-        setTopicBranchLiveState(activeTopicId, null)
-        return
-      }
-
-      setTopicBranchLiveState(activeTopicId, {
-        topicId: activeTopicId,
-        activeNodeId: nextActiveNodeId,
-        nodes: []
-      })
-    },
-    [activeTopicId, setTopicBranchLiveState]
-  )
-  const handleStartBranchDraft = useCallback(
-    async (anchorMessageId: string) => {
-      if (!activeTopicId) return
-
-      await dataApiService.put(`/topics/${activeTopicId}/active-node`, {
-        body: { nodeId: anchorMessageId }
-      })
-
-      branchDraftAnchorIdRef.current = anchorMessageId
-      branchSendAnchorOverrideIdRef.current = null
-      const draftNodeId = `branch-draft:${anchorMessageId}`
-      const draftState: TopicMessageFlowLiveState = {
-        topicId: activeTopicId,
-        activeNodeId: draftNodeId,
-        nodes: [
-          {
-            id: draftNodeId,
-            parentId: anchorMessageId,
-            role: 'user',
-            preview: t('chat.message.flow.status.awaiting_input'),
-            modelId: null,
-            status: 'paused',
-            createdAt: new Date().toISOString(),
-            isInputDraft: true
-          }
-        ]
-      }
-
-      setTopicBranchLiveState(activeTopicId, draftState)
-      void EventEmitter.emit(EVENT_NAMES.FOCUS_CHAT_COMPOSER, { topicId: activeTopicId })
-      await invalidateCache(`/topics/${activeTopicId}/messages`)
-    },
-    [activeTopicId, invalidateCache, setTopicBranchLiveState, t]
-  )
   const locateMessageId = locateMessageIdProp ?? branchLocateMessageId
   const handleLocateMessageHandled = useCallback(() => {
     setBranchLocateMessageId(undefined)
@@ -244,9 +173,6 @@ const Chat: FC<Props> = (props) => {
         locateMessageId={locateMessageId}
         onLocateMessageHandled={handleLocateMessageHandled}
         onBranchLiveStateChange={handleBranchLiveStateChange}
-        clearBranchDraft={clearBranchDraft}
-        getBranchDraftAnchorId={getBranchDraftAnchorId}
-        onStartBranchDraft={handleStartBranchDraft}
         assistantContext={assistantContext}
         providers={providers}
         onConversationControlsChange={setConversationControlsSnapshot}
@@ -338,13 +264,7 @@ const Chat: FC<Props> = (props) => {
         ) : undefined
       }
       center={center}
-      rightPane={
-        <TopicRightPane.Viewport
-          onLocateMessage={setBranchLocateMessageId}
-          onStartBranchDraft={handleStartBranchDraft}
-          onCancelBranchDraft={handleCancelBranchDraft}
-        />
-      }
+      rightPane={<TopicRightPane.Viewport onLocateMessage={setBranchLocateMessageId} />}
       centerId={centerSurface?.id ?? (showConversation ? 'chat-main' : undefined)}
       centerRef={centerSurface?.ref ?? (showConversation ? mainRef : undefined)}
       centerClassName={
