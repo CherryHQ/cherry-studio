@@ -42,6 +42,8 @@ interface UseConfigPanelControllerOptions {
   /** Synthetic Cherry gateway bundle (null when the gateway config is unavailable). */
   apiGatewayProvider?: ApiGatewayProviderBundle | null
   gatewayModelsById?: Map<UniqueModelId, Model>
+  /** True while either query backing `gatewayModelsById` is still in flight. */
+  isGatewayModelsLoading?: boolean
 }
 
 interface ConfigPanelController {
@@ -63,7 +65,8 @@ export function useConfigPanelController({
   setCurrentCliConfigConnection,
   makeModelFilter,
   apiGatewayProvider,
-  gatewayModelsById
+  gatewayModelsById,
+  isGatewayModelsLoading
 }: UseConfigPanelControllerOptions): ConfigPanelController {
   const { t } = useTranslation()
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
@@ -140,6 +143,15 @@ export function useConfigPanelController({
         throw new Error('Cannot resolve the detailed gateway model')
       }
       const shouldApplyCliConfig = currentProviderId === editingProvider.id || shouldEnableAfterSave
+      // Preference and the external CLI files are one user-visible config. The active provider owns
+      // the current files, so with nothing addressing a model the write below is skipped and
+      // persisting anyway would strand the files on their previous contents (e.g. flipping Claude's
+      // detailed mode back to common without picking a model). Reject instead of half-saving.
+      // Only the active provider is at risk: any other provider owns no files to diverge from, and
+      // an enable-on-save that resolves no model simply leaves it disabled with its params stored.
+      if (currentProviderId === editingProvider.id && !cliConfigModelId) {
+        throw new Error('Cannot apply a CLI config without a model')
+      }
       const previousProviderConfig = providerConfigs[editingProvider.id]
       let providerConfigPersisted = false
       if (hasModelValue || hasConfigValue) {
@@ -364,6 +376,7 @@ export function useConfigPanelController({
                 ? { provider: apiGatewayProvider.provider, apiKey: apiGatewayProvider.apiKey ?? '' }
                 : undefined,
             gatewayModels: isApiGatewayProviderId(editingProvider.id) ? gatewayModelsById : undefined,
+            isGatewayModelsLoading: isApiGatewayProviderId(editingProvider.id) ? isGatewayModelsLoading : false,
             onSubmit: handlePanelSubmit
           }
         : undefined,

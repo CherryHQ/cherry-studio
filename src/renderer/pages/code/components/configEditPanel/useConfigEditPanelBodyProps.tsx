@@ -24,6 +24,7 @@ export function useConfigEditPanelBodyProps({
   modelFilter,
   gateway,
   gatewayModels,
+  isGatewayModelsLoading,
   onSubmit
 }: ConfigEditPanelProps): ConfigEditDialogBodyProps {
   const { t } = useTranslation()
@@ -64,6 +65,7 @@ export function useConfigEditPanelBodyProps({
     apiKeys,
     gateway,
     models: modelsById,
+    isModelsLoading: isGateway && isGatewayModelsLoading,
     onSubmit
   })
 

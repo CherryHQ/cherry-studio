@@ -36,5 +36,7 @@ export interface ConfigEditPanelProps {
   gateway?: CliConfigGatewayContext
   /** Models currently addressable through the gateway, keyed by their real model id. */
   gatewayModels?: Map<UniqueModelId, Model>
+  /** True while the queries behind `gatewayModels` are in flight — an empty map is not yet meaningful. */
+  isGatewayModelsLoading?: boolean
   onSubmit: (values: ConfigEditPanelSubmitValues) => Promise<void>
 }
