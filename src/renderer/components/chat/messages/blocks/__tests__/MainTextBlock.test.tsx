@@ -911,7 +911,6 @@ Hidden answer
       expect(token).not.toHaveAttribute('title')
       expect(trigger).toHaveAttribute('role', 'button')
       expect(trigger).toHaveAttribute('tabindex', '0')
-      expect(trigger).toHaveAttribute('aria-haspopup', 'dialog')
 
       await user.click(trigger)
       expect(imagePreviewShowMock).toHaveBeenCalledWith('file:///internal/message-files/photo.png')

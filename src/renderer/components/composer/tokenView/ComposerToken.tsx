@@ -652,7 +652,6 @@ function ComposerTokenHoverPopover({
       role="button"
       tabIndex={0}
       aria-label={ariaLabel}
-      aria-haspopup={onActivate ? 'dialog' : undefined}
       onMouseEnter={scheduleOpenPopover}
       onMouseLeave={scheduleClosePopover}
       onMouseMove={scheduleOpenPopover}
