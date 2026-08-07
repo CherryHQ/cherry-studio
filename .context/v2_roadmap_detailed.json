@@ -1,5 +1,5 @@
 {
-  "report_date": "2026-08-06",
+  "report_date": "2026-08-07",
   "repository": "CherryHQ/cherry-studio",
   "v2_status": "RELEASED — v2.0 live (rc.4+ confirmed in issues); main branch is v2 development target",
   "v2_branch_prs": {
@@ -8,36 +8,36 @@
   },
   "active_pain_points_post_v2_launch": [
     {
-      "area": "Data Migration",
+      "area": "MCP Reliability",
       "severity": "CRITICAL",
-      "open_count": 63,
+      "open_count": 54,
       "new_today": 1,
       "top_issues": [
-        {"number": 18051, "title": "Migration stuck in retry loop — cleanup overlaps legacy source", "filed": "2026-08-06", "severity": "CRITICAL"},
-        {"number": 17957, "title": "V2 repeated crash during data migration"},
+        {"number": 18131, "title": "MCP server connected but Agent session shows no tools mounted", "filed": "2026-08-07", "severity": "HIGH"},
+        {"number": 17984, "title": "ToolLoopTerminalError prematurely in multi-step MCP (v2.0 regression)", "severity": "HIGH"},
+        {"number": 17992, "title": "Restore MCP-over-HTTP endpoints on v2 API Gateway", "severity": "MEDIUM"},
+        {"number": 17689, "title": "MCP stdio process leak (4 comments, growing)", "severity": "HIGH"},
+        {"number": 17999, "title": "MCP prompts visible but unusable in chat"}
+      ]
+    },
+    {
+      "area": "Data Migration",
+      "severity": "HIGH",
+      "open_count": 62,
+      "new_today": 0,
+      "top_issues": [
+        {"number": 18051, "title": "Migration stuck in retry loop (CLOSED 2026-08-06 — fixed)", "status": "CLOSED"},
+        {"number": 17957, "title": "V2 repeated crash during data migration", "comments": 3},
         {"number": 17709, "title": "RC users migrated file entries remain permanently manual"},
         {"number": 17695, "title": "Agent migration keeps old workspace root after cross-machine v1 restore"},
         {"number": 17470, "title": "Migration aborts on legacy agents.db schema drift"}
       ]
     },
     {
-      "area": "MCP Reliability",
-      "severity": "HIGH",
-      "open_count": 54,
-      "new_today": 4,
-      "top_issues": [
-        {"number": 17984, "title": "ToolLoopTerminalError in complex multi-step MCP (v2.0 regression)", "filed": "2026-08-06", "severity": "HIGH"},
-        {"number": 17992, "title": "Restore MCP-over-HTTP endpoints on v2 API Gateway", "filed": "2026-08-06", "severity": "MEDIUM"},
-        {"number": 17689, "title": "MCP stdio process leak (4 comments, growing)", "severity": "HIGH"},
-        {"number": 17999, "title": "MCP prompts visible but unusable in chat", "filed": "2026-08-06"},
-        {"number": 17688, "title": "mcp-auto-install npm package 404"}
-      ]
-    },
-    {
       "area": "Agent/Assistant",
       "severity": "HIGH",
       "open_count": 105,
-      "new_today": 3,
+      "new_today": 0,
       "top_issues": [
         {"number": 18044, "title": "Let Agent drive Chrome via CDP (internal roadmap)", "filed": "2026-08-06"},
         {"number": 18043, "title": "Add Report Error button for agent failures (internal roadmap)", "filed": "2026-08-06"},
@@ -50,7 +50,7 @@
       "area": "v1→v2 Regressions (UI/UX)",
       "severity": "MEDIUM",
       "open_count": 275,
-      "new_today": 5,
+      "new_today": 1,
       "top_issues": [
         {"number": 17954, "title": "Conversation history limit removed from Edit Assistant → Model", "comments": 4},
         {"number": 17923, "title": "v2.0 regressions: themes, history navigation, tab behavior, reasoning effort"},
@@ -77,22 +77,24 @@
     {"number": 18045, "title": "Power / Prevent-Sleep setting", "labels": ["feature", "internal_team"], "filed": "2026-08-06"},
     {"number": 18044, "title": "Agent drive Chrome via CDP", "labels": ["feature", "Assistant", "Agent", "internal_team"], "filed": "2026-08-06"},
     {"number": 18043, "title": "Report Error button for chat/Agent failures", "labels": ["feature", "UI/UX", "internal_team"], "filed": "2026-08-06"},
+    {"number": 18087, "title": "Custom prompt for built-in Agent should fully replace bundled prompt layers", "comments": 3},
     {"number": 17782, "title": "Agent Orchestration Primitives", "labels": ["Assistant", "internal_team"]}
   ],
   "release_timeline_inference": {
     "current_version": "v2.0.0-rc.4+ (based on issue references)",
-    "stability_signal": "IMPROVING — unlabeled triage down 28%→11.6%; issue growth slowing. Critical blockers remain: migration retry loop, MCP ToolLoopTerminalError.",
+    "stability_signal": "STABILIZING — migration retry loop fixed yesterday, net +5 issues today (slowing). Critical blocker: MCP tool mount failure in Agent sessions (#18131, new today).",
     "suggested_hotfix_targets": [
-      "#18051 — Migration retry loop (data corruption risk)",
-      "#17984 — MCP ToolLoopTerminalError (agent regression)",
+      "#18131 — MCP tools not mounted in Agent session (new, fast community response)",
+      "#17984 — MCP ToolLoopTerminalError (agent workflow regression)",
       "#17689 — MCP stdio process leak (systemic)",
       "#17957 — Migration crash (blocks upgrade path)"
     ],
     "suggested_rc5_focus": [
-      "Fix all 4 migration reliability issues",
-      "Fix MCP ToolLoopTerminalError and process leak",
-      "Restore top 3 v1 regressions: context limit, mini programs, topic prompt",
-      "Fix Anthropic ~1900 token output cap (#18029)"
+      "Fix MCP tool mount failure in Agent sessions (#18131)",
+      "Fix MCP ToolLoopTerminalError (#17984) and process leak (#17689)",
+      "Restore top v1 regressions: context limit (#17954), mini programs (#17907), topic prompt (#17949)",
+      "Fix Anthropic ~1900 token output cap (#18029)",
+      "Close or assign P1 aging bugs: #13193 (156d) and #13608 (142d)"
     ]
   }
 }

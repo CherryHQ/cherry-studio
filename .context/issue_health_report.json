@@ -1,37 +1,38 @@
 {
-  "report_date": "2026-08-06",
-  "total_open": 894,
-  "delta_from_yesterday": 14,
+  "report_date": "2026-08-07",
+  "total_open": 899,
+  "delta_from_yesterday": 5,
   "health_buckets": {
     "active": {
-      "description": "Updated within last 7 days (Jul 30 – Aug 6)",
-      "count": 156,
-      "pct": 17.4,
-      "note": "Lower than yesterday (43.4%) — launch spike absorbed; daily rate normalizing"
+      "description": "Updated within last 7 days (Jul 31 – Aug 7)",
+      "count": 385,
+      "pct": 42.8,
+      "note": "899 total minus 514 not-updated-since-2026-07-08"
     },
     "aging": {
-      "description": "Updated 7–30 days ago (Jul 7 – Jul 29)",
-      "count": 224,
-      "pct": 25.1,
-      "note": "v2 beta period (July) backlog"
+      "description": "Updated 7–30 days ago (Jul 8 – Jul 30)",
+      "count": null,
+      "pct": null,
+      "note": "Overlap with active bucket; see stale/zombie at the 30d boundary"
     },
     "stale": {
-      "description": "Updated 30–90 days ago (May 8 – Jul 6)",
+      "description": "Updated 30–90 days ago (May 8 – Jul 7)",
       "count": 204,
-      "pct": 22.8
+      "pct": 22.7,
+      "calculation": "514 (not updated since Jul 8) minus 310 (not updated since May 8)"
     },
     "zombie": {
-      "description": "Not updated in 90+ days (before May 8)",
+      "description": "Not updated in 90+ days (before May 8, 2026)",
       "count": 310,
-      "pct": 34.7,
-      "note": "Three P1 issues (#13193, #13608, #14899) persist in this bucket"
+      "pct": 34.5,
+      "note": "Three P1 issues (#13193, #13608, #14899) remain in zombie bucket"
     }
   },
   "label_coverage": {
-    "labeled_count": 790,
-    "unlabeled_count": 104,
-    "unlabeled_pct": 11.6,
-    "note": "Significant improvement from yesterday (28.0% → 11.6%) — triage team active on v2 launch backlog"
+    "labeled_count": 796,
+    "unlabeled_count": 103,
+    "unlabeled_pct": 11.5,
+    "note": "Marginal improvement from yesterday (11.6% → 11.5%)"
   },
   "p1_open_issues": {
     "count": 3,
@@ -39,20 +40,20 @@
       {
         "number": 14899,
         "title": "Unified Notification Center",
-        "age_days": 91,
+        "age_days": 92,
         "milestone": "v2.4.0",
         "status": "Planned — no active fix PR found"
       },
       {
         "number": 13608,
         "title": "xiaomi mimo response last-line only",
-        "age_days": 141,
+        "age_days": 142,
         "status": "No fix PR — aging without triage"
       },
       {
         "number": 13193,
         "title": "Azure OpenAI responses API fallback failure (404)",
-        "age_days": 155,
+        "age_days": 156,
         "assignee": "DeJeune",
         "status": "Assigned to DeJeune — no fix PR yet"
       }
@@ -60,58 +61,43 @@
   },
   "new_high_severity_today": [
     {
-      "number": 18051,
-      "title": "V2 migration stuck in retry loop — cleanup target overlaps legacy source when session workspace is ancestor of Data/Agents",
-      "labels": ["Data"],
-      "severity": "HIGH — blocks migration path, corruption risk",
-      "filed_at": "2026-08-06T16:35:59Z"
-    },
-    {
-      "number": 17984,
-      "title": "ToolLoopTerminalError triggered prematurely during complex multi-step MCP tool executions in v2.0",
+      "number": 18131,
+      "title": "MCP server shows connected, but Agent session still prompts that no tools are mounted",
       "labels": ["MCP"],
-      "severity": "HIGH — agent workflow reliability regression",
-      "filed_at": "2026-08-06T05:39:37Z"
+      "severity": "HIGH — MCP/agent tool mounting reliability",
+      "comments": 3
     },
     {
-      "number": 18003,
-      "title": "Lifecycle stopAll has no per-service stop timeout — one slow onStop starves later services and force-exit orphans child processes",
+      "number": 18130,
+      "title": "After selecting Zhipu as the search provider, entering the API key still doesn't work",
       "labels": [],
-      "severity": "MEDIUM — process management robustness",
-      "filed_at": "2026-08-06T08:35:29Z"
-    },
-    {
-      "number": 17992,
-      "title": "Restore MCP-over-HTTP endpoints on v2 API Gateway (/v1/mcps)",
-      "labels": ["MCP"],
-      "severity": "MEDIUM — MCP HTTP capability regression",
-      "filed_at": "2026-08-06T07:22:35Z"
+      "severity": "MEDIUM — provider configuration regression",
+      "comments": 3
     }
   ],
   "ongoing_priority_clusters": {
     "data_migration": {
       "count": 63,
-      "top": ["#18051 retry loop", "#17957 repeated crash", "#17709 RC file entries manual", "#17695 old workspace root"]
+      "top": ["#18051 retry loop (closed 2026-08-06)", "#17957 repeated crash", "#17709 RC file entries manual", "#17695 old workspace root"]
     },
     "mcp_reliability": {
       "count": 54,
-      "top": ["#17984 ToolLoopTerminalError", "#17992 MCP-over-HTTP missing", "#17689 process leak (4 comments)", "#17999 prompts unusable"]
+      "top": ["#18131 MCP connected but no tools (3 comments)", "#17984 ToolLoopTerminalError", "#17992 MCP-over-HTTP missing", "#17689 process leak"]
     },
     "agent_assistant": {
       "count": 105,
       "top": ["#18044 CDP Chrome control (internal)", "#17260 hard-coded SDK", "#17329 Cherry Assistant crash"]
     },
     "v1_v2_regressions": {
-      "count": "~30 estimated",
-      "top": ["#17954 history limit", "#17923 themes/nav/tabs", "#17907 mini programs", "#17949 topic prompt"]
+      "top": ["#17954 history limit (4 comments)", "#17923 themes/nav/tabs", "#17907 mini programs", "#17949 topic prompt"]
     }
   },
   "recommendations": [
-    "HIGH: Migration retry loop #18051 — new today, potential data corruption",
-    "HIGH: MCP ToolLoopTerminalError #17984 — agent workflow reliability in v2.0",
-    "ONGOING: MCP process leak #17689 — still 4 comments, growing user reports",
-    "TRIAGE: 104 unlabeled issues — down from 246 yesterday, keep momentum",
-    "P1 AGING: #13608 (141d) and #13193 (155d) without fix — assign or close as wontfix",
-    "ZOMBIE: 310 issues (34.7%) with 90d+ no activity — schedule quarterly triage sweep"
+    "HIGH: MCP tool mount failure #18131 — new today, 3 comments already (MCP connected but tools not exposed to agent)",
+    "ONGOING: MCP ToolLoopTerminalError #17984 — agent workflow reliability in v2.0",
+    "ONGOING: MCP process leak #17689 — persistent multi-comment report",
+    "P1 AGING: #13193 (156d) assigned to DeJeune but no fix PR — check status",
+    "P1 AGING: #13608 (142d) unassigned — needs owner or wontfix decision",
+    "ZOMBIE: 310 issues (34.5%) with 90d+ no activity — schedule quarterly triage sweep"
   ]
 }

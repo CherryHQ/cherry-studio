@@ -1,94 +1,86 @@
 {
-  "report_date": "2026-08-06",
-  "generated_at": "2026-08-06T18:00:00Z",
+  "report_date": "2026-08-07",
+  "generated_at": "2026-08-07T00:00:00Z",
   "note": "GraphQL Discussions API unavailable via MCP; analysis derived from issues tagged 'discussion' + 'help wanted' and high-comment issues",
   "discussion_volume": {
-    "discussion_labeled_issues_open": 28,
-    "new_discussions_today": 2,
+    "discussion_labeled_issues_open": 8,
+    "new_discussions_today": 1,
     "top_new": [
-      "#17981 [Discussion]: Could you consider adopting the expert team concept from workbuddy? (help wanted)",
-      "#17961 [Discussion]: Add platform prefix to release asset filenames",
-      "#17965 [Feature]: Preserve Unsent Content During Navigation/Model Switching (UI/UX)"
+      "#18122 [Discussion]: Why is it gone in 2.0? The aggregation of various AIs in the web version (closed same day)"
     ]
   },
   "theme_analysis": {
     "v2_feature_regressions": {
       "volume": "HIGH",
       "trending": true,
-      "description": "v2.0 driving ongoing regression reports from v1 users; volume normalizing from yesterday's spike",
+      "description": "v2.0 driving ongoing regression reports from v1 users; volume slowly normalizing",
       "key_issues": [
         {"number": 17954, "title": "Conversation history limit removed from Edit Assistant → Model", "comments": 4},
         {"number": 17923, "title": "v2.0 regressions: themes, history navigation, tab behavior, reasoning effort"},
         {"number": 17949, "title": "V2 regression — cannot check and manage topic prompt"},
         {"number": 17907, "title": "Restore mini programs to sidebar like v1.x", "comments": 2},
-        {"number": 17965, "title": "Preserve Unsent Content During Navigation/Model Switching"}
+        {"number": 18122, "title": "Web AI aggregation removed in v2 (closed)"}
       ],
       "signal": "Persistent cluster — product team needs explicit decision on v1 feature restoration roadmap"
     },
-    "data_migration_reliability": {
+    "mcp_agent_reliability": {
       "volume": "HIGH",
       "trending": true,
-      "description": "v1→v2 migration path continues to surface critical issues",
+      "description": "MCP tool mounting and agent reliability — multi-front issue cluster",
       "key_issues": [
-        {"number": 18051, "title": "Migration stuck in retry loop — cleanup overlaps legacy source (new today)"},
-        {"number": 17957, "title": "V2 repeated crash during data migration", "comments": 1},
-        {"number": 17695, "title": "Agent migration keeps old workspace root after cross-machine v1 restore"}
-      ],
-      "signal": "New critical issue today (#18051) — migration reliability remains pre-stable blocker"
-    },
-    "agent_mcp_reliability": {
-      "volume": "HIGH",
-      "trending": true,
-      "description": "MCP process management and agent reliability — multi-front issue cluster",
-      "key_issues": [
-        {"number": 17984, "title": "ToolLoopTerminalError in complex multi-step MCP (new today)", "filed_today": true},
-        {"number": 17992, "title": "Restore MCP-over-HTTP endpoints on v2 API Gateway (new today)", "filed_today": true},
+        {"number": 18131, "title": "MCP server connected but Agent session shows no tools mounted (new today)", "filed_today": true},
+        {"number": 17984, "title": "ToolLoopTerminalError in complex multi-step MCP"},
+        {"number": 17992, "title": "Restore MCP-over-HTTP endpoints on v2 API Gateway"},
         {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
         {"number": 17999, "title": "MCP prompts visible but unusable in chat"}
       ],
-      "signal": "4 new MCP issues today — systemic reliability concern for v2.0 stable release"
+      "signal": "New MCP agent mount failure today (#18131) — 3 comments in first few hours"
+    },
+    "data_migration_reliability": {
+      "volume": "HIGH",
+      "trending": false,
+      "description": "v1→v2 migration path — #18051 (retry loop, data corruption risk) closed yesterday",
+      "key_issues": [
+        {"number": 18051, "title": "Migration stuck in retry loop (CLOSED 2026-08-06 — fixed)"},
+        {"number": 17957, "title": "V2 repeated crash during data migration", "comments": 3, "still_open": true},
+        {"number": 17695, "title": "Agent migration keeps old workspace root after cross-machine v1 restore"}
+      ],
+      "signal": "Migration loop fixed yesterday, migration crash #17957 still open"
     },
     "model_compatibility": {
       "volume": "MEDIUM",
       "description": "Various model providers and formats failing in v2",
       "key_issues": [
+        {"number": 18130, "title": "Zhipu search provider API key configuration not working (new today)"},
+        {"number": 18113, "title": "Cherry Studio replaces relay station Grok model ID with official format (closed 2026-08-07)"},
         {"number": 18029, "title": "Anthropic model output cannot exceed ~1900 tokens"},
-        {"number": 17973, "title": "Volcano Engine Ark Responses API: Invalid JSON — annotations field"},
-        {"number": 17897, "title": "DeepSeek V4 Flash built-in search unavailable in v2.0"},
-        {"number": 17900, "title": "Cannot translate after setting deepseek v4 flash as translation model"}
-      ]
-    },
-    "internal_team_roadmap": {
-      "volume": "LOW",
-      "description": "3 new internal roadmap items filed today",
-      "key_issues": [
-        {"number": 18045, "title": "Power/Prevent-Sleep setting (Off/Keep awake during tasks/Always)", "labels": ["feature", "internal_team"]},
-        {"number": 18044, "title": "Let Agent drive user's Chrome via CDP (no extension install)", "labels": ["feature", "Assistant", "internal_team"]},
-        {"number": 18043, "title": "Add Report Error button for chat/Agent failures", "labels": ["feature", "UI/UX", "internal_team"]}
+        {"number": 13608, "title": "xiaomi mimo response last-line only (P1, 142d old)"}
       ]
     }
   },
   "top_by_engagement": [
     {"number": 17954, "title": "v2.0 conversation history limit removed", "comments": 4},
     {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
-    {"number": 17801, "title": "Add status indicator for agent thinking/tool execution", "comments": 1},
+    {"number": 18054, "title": "QQ adapter GROUP_MESSAGE_CREATE not handled", "comments": 4},
+    {"number": 17979, "title": ".md files with Chinese filenames cannot be @-referenced", "comments": 4},
     {"number": 17735, "title": "Built-in web search unlimited content → context overflow", "comments": 3},
     {"number": 17898, "title": "Auto-connect vision/OCR for text-only models", "comments": 3},
-    {"number": 17629, "title": "Processes remain after closing with minimize-to-tray disabled", "comments": 2}
+    {"number": 17957, "title": "V2 repeated crash during data migration", "comments": 3},
+    {"number": 18131, "title": "MCP connected but no tools in Agent session", "comments": 3}
   ],
   "sentiment_summary": {
-    "overall": "Mixed — triage improving, but MCP and migration reliability remain concerns",
+    "overall": "Stabilizing — same-day closure rate high, but MCP reliability remains a concern",
     "positive_signals": [
-      "Unlabeled issues dropped from 28% → 11.6% overnight — active triage",
-      "Internal team filing new roadmap items (CDP agent, prevent-sleep, error reporting)",
-      "v2.0 stabilizing: net issue growth slowed from +43 yesterday to +14 today"
+      "9+ issues closed same day (very active triage/fix cycle)",
+      "Migration retry loop #18051 fixed and closed",
+      "Net new issues down to +5 today (from +14 yesterday)"
     ],
     "pain_points": [
-      "New migration retry loop bug (#18051) — potential data corruption",
-      "MCP reliability: 4 new issues today (ToolLoopTerminalError, HTTP endpoints, prompts unusable)",
-      "Missing v1 features cluster still growing: mini programs, history limit, topic prompt",
-      "Anthropic model output cap (~1900 tokens) — likely blocking serious usage",
-      "Lifecycle stopAll timeout missing — child process orphaning on shutdown"
+      "MCP tool mount failure in Agent sessions (#18131) — new today, fast community engagement",
+      "MCP ToolLoopTerminalError (#17984) still open — regression from v2.0",
+      "Missing v1 features cluster still growing: web aggregation, history limit, mini programs",
+      "P1 #13193 (Azure OpenAI 404) at 156 days — assigned but no fix PR",
+      "310 zombie issues need quarterly triage sweep"
     ]
   }
 }

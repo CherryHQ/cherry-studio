@@ -1,13 +1,13 @@
 {
-  "snapshot_date": "2026-08-06",
-  "generated_at": "2026-08-06T18:00:00Z",
+  "snapshot_date": "2026-08-07",
+  "generated_at": "2026-08-07T00:00:00Z",
   "open_issues": {
-    "total": 894,
-    "delta_from_yesterday": 14,
+    "total": 899,
+    "delta_from_yesterday": 5,
     "new_last_24h": 20,
-    "no_label": 104,
-    "no_label_pct": 11.6,
-    "note_on_no_label": "Improved from yesterday's 28.0% — triage team appears to have labeled many v2 launch issues",
+    "no_label": 103,
+    "no_label_pct": 11.5,
+    "note_on_no_label": "Continued improvement from yesterday's 11.6% — triage team active",
     "by_label": {
       "UI/UX": 275,
       "Models": 172,
@@ -16,12 +16,17 @@
       "MCP": 54,
       "Performance": 38,
       "RAG": 34,
-      "Connectivity": 21
+      "Connectivity": 21,
+      "P1": 3,
+      "help wanted": 8,
+      "discussion": 8,
+      "Planned": 1
     }
   },
   "open_prs": {
-    "total": 383,
-    "note": "Estimated from yesterday baseline; exact count requires additional pagination"
+    "total": 386,
+    "v2_base_open": 0,
+    "v2_title_mentions": 4
   },
   "p1_open_issues": [
     {
@@ -30,7 +35,7 @@
       "labels": ["P1", "Planned", "feature", "UI/UX"],
       "milestone": "v2.4.0",
       "created_at": "2026-05-07",
-      "age_days": 91,
+      "age_days": 92,
       "assignee": null
     },
     {
@@ -38,7 +43,7 @@
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["P1", "Models"],
       "created_at": "2026-03-18",
-      "age_days": 141,
+      "age_days": 142,
       "assignee": null
     },
     {
@@ -46,33 +51,22 @@
       "title": "[Bug]: Azure OpenAI defaults to responses API — Resource not found (404)",
       "labels": ["P1", "Models"],
       "created_at": "2026-03-04",
-      "age_days": 155,
+      "age_days": 156,
       "assignee": "DeJeune"
     }
   ],
   "new_issues_today_sample": [
-    "#18055 [Bug]: Web search citations shown as raw [cite:xxx] markers in IM channels (UI/UX)",
-    "#18054 [Feature]: QQ adapter does not handle GROUP_MESSAGE_CREATE",
-    "#18051 [Bug]: V2 migration stuck in retry loop — cleanup overlaps legacy source (Data)",
-    "#18049 [Bug]: (empty title) RAG",
-    "#18045 Add a Power / Prevent-Sleep setting (feature, internal_team)",
-    "#18044 Let Agent drive user's Chrome via CDP (feature, Assistant, internal_team)",
-    "#18043 Add Report Error button for chat/Agent failures (feature, UI/UX, internal_team)",
-    "#18034 [Bug]: Traditional Chinese version 'token' incorrectly translated as '代幣'",
-    "#18029 [Bug]: Anthropic model output cannot exceed ~1900 tokens (Models)",
-    "#18011 [Bug]: Cannot find restore entry after hiding Knowledge Base (UI/UX)",
-    "#18007 [Bug]: v2.0 agent cannot access web properly",
-    "#18005 [Bug]: No QR code for WeChat channel binding (UI/UX, Connectivity)",
-    "#18003 [Bug]: Lifecycle stopAll has no per-service stop timeout",
-    "#17999 [Bug]: MCP prompts visible but unusable in chat (MCP, UI/UX)",
-    "#17998 [Bug]: ChatGPT MiniApp stays behind loading overlay (UI/UX)",
-    "#17995 [Bug]: (empty title) Data",
-    "#17992 [Feature]: Restore MCP-over-HTTP endpoints on v2 API Gateway (MCP)",
-    "#17984 [Bug]: ToolLoopTerminalError prematurely in multi-step MCP (MCP)",
-    "#17981 [Discussion]: expert team concept from workbuddy",
-    "#17979 [Bug]: .md files with Chinese filenames cannot be @-referenced"
+    "#18131 [Bug]: MCP server shows connected, but Agent session still prompts that no tools are mounted",
+    "#18130 [Bug]: After selecting Zhipu as the search provider, entering the API key still doesn't work",
+    "#18123 [Bug]: `GLlBc 2.29' not found (closed same day)",
+    "#18122 [Discussion]: Why is it gone in 2.0? Web AI aggregation (closed same day)",
+    "#18113 [Bug]: Cherry Studio forcibly replaces relay station Grok model ID (closed same day)",
+    "#18111 [Bug]: Thinking mode multi-turn conversation error: reasoning_content must be passed back (closed same day)",
+    "#18106 [Feature]: Agent cannot access attachment file paths in sessions (closed same day)",
+    "#18086 [Bug]: Unable to reopen/customize left sidebar entry after deleting sidebar agent (closed same day)",
+    "#18055 [Bug]: Web search citations shown as raw [cite:xxx] markers (closed same day)"
   ],
   "merged_prs_last_30d": 572,
-  "closed_issues_last_30d": 394,
-  "velocity_note": "Net +14 open issues today. v2.0 launch stabilizing: triage improved (unlabeled dropped from 28% to 11.6%). MCP ToolLoopTerminalError (#17984) and migration retry loop (#18051) are new high-severity reports. Internal team filed 3 roadmap items (18043/18044/18045)."
+  "closed_issues_last_30d": 424,
+  "velocity_note": "Net +5 open issues today (slower than yesterday's +14). Rapid triage continues — 9+ issues closed same-day. High-severity MCP and migration bugs persist. 3 P1 issues still open, oldest is #13193 at 156 days."
 }
