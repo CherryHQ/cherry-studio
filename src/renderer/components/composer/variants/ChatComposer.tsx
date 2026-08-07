@@ -914,7 +914,7 @@ const ChatComposerInner = ({
   // The revision covers token-only edits whose serialized text stays unchanged.
   const persistedOnceRef = useRef(false)
   useEffect(() => {
-    if (!isKnowledgeBaseDraftHydrated || !isMentionedModelDraftHydrated) return
+    if (isInputHistoryActive || !isKnowledgeBaseDraftHydrated || !isMentionedModelDraftHydrated) return
     if (!persistedOnceRef.current) {
       persistedOnceRef.current = true
       return
@@ -950,6 +950,7 @@ const ChatComposerInner = ({
     draftTokenRevision,
     editingMessage,
     files,
+    isInputHistoryActive,
     isKnowledgeBaseDraftHydrated,
     isMentionedModelDraftHydrated,
     mentionedModelMultiSelectMode,
