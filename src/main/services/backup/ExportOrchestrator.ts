@@ -27,7 +27,7 @@
 // no-op until the first redaction contributor.
 
 import { rm, unlink } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 
 import { loggerService } from '@logger'
 import { BackupReadonlyDb } from '@main/data/db/backup/contexts'
@@ -515,7 +515,16 @@ export class ExportOrchestrator {
         }
       }
       const deleteUnstagedNotes = (scope: NonNullable<typeof notes>): void => {
+        // stagedPaths are notesRoot-RELATIVE POSIX paths (collectNotesMarkdown → stageNotes
+        // emit relative). The note table stores ABSOLUTE paths in production: root_path =
+        // notes root, path = normalizePathValue(node.externalPath) (the file-tree builder
+        // stores absPath verbatim). Compare in a common shape: forward-slash normalize the
+        // root comparison (Windows) and reduce row.path to its notesRoot-relative form
+        // before testing stagedPaths — otherwise every overlay row looks unstaged and is
+        // pruned, silently dropping star/expand state from a "complete" full archive.
+        const normalizeSep = (p: string): string => p.replace(/\\/g, '/')
         const stagedPaths = new Set(scope.paths)
+        const scopeRoot = normalizeSep(scope.rootPath)
         const rows = db.prepare(`SELECT id, root_path, path FROM note`).all() as {
           id: string
           root_path: string
@@ -523,7 +532,16 @@ export class ExportOrchestrator {
         }[]
         const deleteById = db.prepare(`DELETE FROM note WHERE id = ?`)
         for (const row of rows) {
-          if (row.root_path !== scope.rootPath || !stagedPaths.has(row.path)) {
+          const rowRoot = normalizeSep(row.root_path)
+          if (rowRoot !== scopeRoot) {
+            deleteById.run(row.id)
+            continue
+          }
+          // Derive the notesRoot-relative key the body was staged under. row.path is the
+          // absolute externalPath under row.root_path; posix.relative yields the same
+          // relative form collectNotesMarkdown produced for stagedPaths.
+          const relPath = posix.relative(rowRoot === '' ? '.' : rowRoot, normalizeSep(row.path))
+          if (!stagedPaths.has(relPath)) {
             deleteById.run(row.id)
           }
         }

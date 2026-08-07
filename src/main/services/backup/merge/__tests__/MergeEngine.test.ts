@@ -1207,12 +1207,19 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(rows).toEqual([{ id: 'note-local', is_starred: 1 }]) // local wins, no UNIQUE abort
   })
 
-  it('imports only planned note-add overlays and remaps their rootPath to this host', async () => {
+  it('imports only planned note-add overlays and remaps their (rootPath, path) to this host', async () => {
+    // Production note rows store ABSOLUTE paths: rootPath = notes root, path =
+    // normalizePathValue(node.externalPath) (the file-tree builder stores absPath
+    // verbatim). The restore plan keys overlays by the notesRoot-RELATIVE body path,
+    // so the engine must derive the relative key from the backup row's own (rootPath,
+    // path) and rewrite BOTH columns to the host form (else the host renderer cannot
+    // join a restored overlay). See MergeEngine.notesPath.test.ts for the full matrix.
     const now = Date.now()
     const sourceNotesRoot = '/Users/source/Notes'
     const targetNotesRoot = '/Users/target/Library/Application Support/CherryStudio/Data/Notes'
     seedBackup((db) => {
-      for (const [id, notePath] of [
+      // path = absolute externalPath under sourceNotesRoot (production form).
+      for (const [id, noteRelPath] of [
         ['note-planned', 'planned.md'],
         // Its body conflicted during planning, so it is deliberately absent from noteAdditions.
         ['note-conflict', 'conflict.md'],
@@ -1222,7 +1229,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
         db.prepare(
           `INSERT INTO note (id, root_path, path, is_starred, is_expanded, created_at, updated_at)
            VALUES (?, ?, ?, 1, 0, ?, ?)`
-        ).run(id, sourceNotesRoot, notePath, now, now)
+        ).run(id, sourceNotesRoot, `${sourceNotesRoot}/${noteRelPath}`, now, now)
       }
     })
 
@@ -1235,8 +1242,15 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
       includeFiles: true
     })
 
+    // Only the planned overlay is imported; rootPath remapped to the host root AND path
+    // rewritten to the host externalPath (host root + relative), so the host renderer
+    // can join it. The conflict + missing-body rows are SKIPped.
     expect(dbh.sqlite.prepare(`SELECT id, root_path, path FROM note ORDER BY id`).all()).toEqual([
-      { id: 'note-planned', root_path: targetNotesRoot, path: 'planned.md' }
+      {
+        id: 'note-planned',
+        root_path: targetNotesRoot,
+        path: `${targetNotesRoot}/planned.md`
+      }
     ])
   })
 

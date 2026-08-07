@@ -36,6 +36,13 @@ export interface AggregateDecision {
   readonly newRootKey?: string
   /** Resolved target Notes root for a planned note-add overlay. */
   readonly noteRootPath?: string
+  /**
+   * Resolved target host externalPath for a planned note-add overlay (hostRoot + the
+   * notesRoot-relative body path, forward-slash normalized). The note table stores the
+   * ABSOLUTE externalPath; without rewriting `path` to the host form a restored overlay
+   * keeps the backup machine's absolute path and cannot be joined by the host renderer.
+   */
+  readonly noteHostPath?: string
 }
 
 /** Endpoint of a junction reference (root or member table + the FK column into it). */

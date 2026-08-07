@@ -19,6 +19,8 @@
 //
 // See `docs/references/backup/backup-architecture.md` §3/§9.
 
+import { posix } from 'node:path'
+
 import { loggerService } from '@logger'
 import type {
   AggregateBoundary,
@@ -576,6 +578,50 @@ export class MergeEngine {
   }
 
   /**
+   * Resolve a backup `note` overlay row to its target host identity.
+   *
+   * The note table stores ABSOLUTE paths in production: `rootPath` = the notes root
+   * (OS-raw), `path` = `normalizePathValue(node.externalPath)` — the file-tree builder
+   * stores absPath verbatim, the renderer only forward-slash normalizes it. But the
+   * restore pipeline's note identity (collectNotesMarkdown → stageNotes → manifest →
+   * ResourcePlan.noteAdditions) is keyed by the notesRoot-RELATIVE POSIX path. So a
+   * lookup with the absolute `row.path` always misses noteAdditions, and an imported
+   * row whose `path` keeps the backup machine's absolute value cannot be joined by
+   * the host renderer (which queries with the host's absolute externalPath).
+   *
+   * This derives the relative key from the backup row's own (rootPath, path) — the
+   * tree builder guarantees `path` sits under `rootPath` — looks up noteAdditions,
+   * and returns the host-form identity. Both columns are forward-slash normalized so
+   * the restored row matches what the renderer writes on Windows.
+   *
+   * Returns undefined when the body was not staged (noteAdditions miss) → caller SKIPs.
+   */
+  private resolveNoteOverlayTarget(
+    backupRow: Record<string, unknown>,
+    noteAdditions: ReadonlyMap<string, string> | undefined
+  ): { hostRoot: string; hostPath: string } | undefined {
+    if (noteAdditions === undefined || noteAdditions.size === 0) return undefined
+    // Forward-slash normalize both columns before deriving the relative key — the
+    // backup machine may be Windows (backslash separators) while noteAdditions keys
+    // are POSIX. normalizePathValue mirrors the renderer's boundary normalization.
+    const normalizePathValue = (p: string): string => p.replace(/\\/g, '/')
+    const backupRoot = normalizePathValue(String(backupRow[physicalColumn('rootPath')] ?? ''))
+    const backupPath = normalizePathValue(String(backupRow[physicalColumn('path')] ?? ''))
+    // Derive the notesRoot-relative key the body was staged under. `path` is the
+    // absolute externalPath under `rootPath`; posix.relative yields 'note.md' /
+    // 'sub/note.md' (matching collectNotesMarkdown's output).
+    const relPath = posix.relative(backupRoot, backupPath)
+    if (relPath === '' || relPath.startsWith('../')) return undefined
+    const hostRoot = noteAdditions.get(relPath)
+    if (hostRoot === undefined) return undefined
+    // Rebuild the host absolute externalPath (renderer-joinable) + normalize the
+    // host root so both columns come out POSIX regardless of host OS path separators.
+    const normalizedHostRoot = normalizePathValue(hostRoot)
+    const hostPath = posix.join(normalizedHostRoot, relPath)
+    return { hostRoot: normalizedHostRoot, hostPath }
+  }
+
+  /**
    * Scan work.sqlite (merge base) + backup.sqlite for each aggregate root and produce
    * a decision per backup root. Runs BEFORE the write tx (read-only on both DBs).
    *
@@ -646,9 +692,17 @@ export class MergeEngine {
           // prefetched tuple matches the lookup view without mutating the backup row.
           let identityView = row
           if (agg.root === 'note') {
-            const plannedRoot = ctx.resourcePlan?.noteAdditions.get(String(row[physicalColumn('path')]))
-            if (plannedRoot !== undefined) {
-              identityView = { ...row, [physicalColumn('rootPath')]: plannedRoot }
+            // Rewrite BOTH identity columns to the host form: the backup row stores
+            // machine-specific absolute paths, but local renderer-written rows (and
+            // thus the identity lookup) use the host's absolute form. See
+            // resolveNoteOverlayTarget for why both columns must be rewritten.
+            const target = this.resolveNoteOverlayTarget(row, ctx.resourcePlan?.noteAdditions)
+            if (target !== undefined) {
+              identityView = {
+                ...row,
+                [physicalColumn('rootPath')]: target.hostRoot,
+                [physicalColumn('path')]: target.hostPath
+              }
             }
           }
           if (naturalKey) {
@@ -676,24 +730,29 @@ export class MergeEngine {
         for (const backupRow of backupRoots) {
           const backupPrimaryKey = pkColumns.map((c) => backupRow[physicalColumn(c)] as string | number)
           // Full restores import an overlay only when planning staged its markdown body.
-          // The plan also supplies this host's Notes root, so both conflict lookup and
-          // the later insert use the target path rather than the backup machine's root.
-          const noteRootPath =
-            agg.root === 'note'
-              ? ctx.resourcePlan?.noteAdditions.get(String(backupRow[physicalColumn('path')]))
-              : undefined
-          if (agg.root === 'note' && noteRootPath === undefined) {
-            decisions.push({
-              aggregate: agg,
-              identity: backupPrimaryKey,
-              backupPrimaryKey,
-              localCanonicalPrimaryKey: undefined,
-              action: 'skip'
-            })
-            continue
-          }
-          if (noteRootPath !== undefined) {
-            backupRow[physicalColumn('rootPath')] = noteRootPath
+          // The backup row stores machine-specific absolute paths; resolve the host form
+          // (host root + host externalPath) so conflict lookup, the write, and the host
+          // renderer all see the same identity. SKIP when the body was not staged.
+          let noteRootPath: string | undefined
+          let noteHostPath: string | undefined
+          if (agg.root === 'note') {
+            const target = this.resolveNoteOverlayTarget(backupRow, ctx.resourcePlan?.noteAdditions)
+            if (target === undefined) {
+              decisions.push({
+                aggregate: agg,
+                identity: backupPrimaryKey,
+                backupPrimaryKey,
+                localCanonicalPrimaryKey: undefined,
+                action: 'skip'
+              })
+              continue
+            }
+            noteRootPath = target.hostRoot
+            noteHostPath = target.hostPath
+            // Rewrite both identity columns in place so the identity lookup below
+            // (which reads backupRow) matches a local renderer-written row.
+            backupRow[physicalColumn('rootPath')] = target.hostRoot
+            backupRow[physicalColumn('path')] = target.hostPath
           }
           if (pinEntityMap) {
             const entityType = String(backupRow[physicalColumn('entityType')] ?? '') as EntityType
@@ -787,7 +846,8 @@ export class MergeEngine {
             backupPrimaryKey,
             localCanonicalPrimaryKey,
             action,
-            noteRootPath
+            noteRootPath,
+            noteHostPath
           })
         }
       }
@@ -1127,8 +1187,14 @@ export class MergeEngine {
       .prepare(`SELECT * FROM ${quoteIdent(agg.root)} WHERE ${whereBackup}`)
       .get(...backupPrimaryKey) as Record<string, unknown> | undefined
     if (!backupRoot) return
+    // Rewrite the note overlay identity to the host form (both columns) — the row was
+    // re-selected from backup.sqlite (machine-specific absolute paths) so the scan-time
+    // rewrite does not carry over. See resolveNoteOverlayTarget.
     if (decision.noteRootPath !== undefined) {
       backupRoot[physicalColumn('rootPath')] = decision.noteRootPath
+    }
+    if (decision.noteHostPath !== undefined) {
+      backupRoot[physicalColumn('path')] = decision.noteHostPath
     }
 
     const domain = this.registry.getTableOwner(agg.root)
@@ -1199,8 +1265,14 @@ export class MergeEngine {
       | Record<string, unknown>
       | undefined
     if (!rootRow) return // root vanished from backup mid-merge — skip defensively
+    // Rewrite the note overlay identity to the host form (both columns) — the row was
+    // re-selected from backup.sqlite (machine-specific absolute paths). See
+    // resolveNoteOverlayTarget.
     if (decision.noteRootPath !== undefined) {
       rootRow[physicalColumn('rootPath')] = decision.noteRootPath
+    }
+    if (decision.noteHostPath !== undefined) {
+      rootRow[physicalColumn('path')] = decision.noteHostPath
     }
     // B1 R1 P0-1: rewrite the root row's cross-aggregate owning FKs through the
     // identityMap BEFORE insert. The only owning FK in B1's owning set is

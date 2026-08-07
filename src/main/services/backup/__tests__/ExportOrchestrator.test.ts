@@ -316,10 +316,17 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
       await writeFile(join(notesRoot, 'sub', 'note2.md'), '# note 2')
       await writeFile(join(notesRoot, 'note3.MD'), '# note 3')
       await dbh.db.insert(noteTable).values([
-        { id: 'note-active-root', rootPath: notesRoot, path: 'note1.md', isStarred: true },
-        { id: 'note-active-nested', rootPath: notesRoot, path: 'sub/note2.md', isExpanded: true },
-        { id: 'note-deleted-body', rootPath: notesRoot, path: 'deleted.md', isStarred: true },
-        { id: 'note-stale-root', rootPath: join(dir, 'old-notes-root'), path: 'note1.md', isStarred: true }
+        // Production form: path = absolute externalPath under rootPath (the file-tree
+        // builder stores absPath verbatim; useNote.ts only forward-slash normalizes).
+        { id: 'note-active-root', rootPath: notesRoot, path: `${notesRoot}/note1.md`, isStarred: true },
+        { id: 'note-active-nested', rootPath: notesRoot, path: `${notesRoot}/sub/note2.md`, isExpanded: true },
+        { id: 'note-deleted-body', rootPath: notesRoot, path: `${notesRoot}/deleted.md`, isStarred: true },
+        {
+          id: 'note-stale-root',
+          rootPath: join(dir, 'old-notes-root'),
+          path: join(dir, 'old-notes-root', 'note1.md'),
+          isStarred: true
+        }
       ])
 
       // Snapshot the live test DB (holds the seeded file_entry + knowledge_base) via
@@ -385,8 +392,11 @@ describe('ExportOrchestrator e2e (full export with file + knowledge blobs)', () 
           expect(count('file_entry'), 'file_entry preserved on full').toBe(1)
           expect(count('knowledge_base'), 'knowledge_base preserved on full').toBe(1)
           expect(d.prepare(`SELECT id, root_path, path FROM note ORDER BY id`).all()).toEqual([
-            { id: 'note-active-nested', root_path: notesRoot, path: 'sub/note2.md' },
-            { id: 'note-active-root', root_path: notesRoot, path: 'note1.md' }
+            // Active overlays retained (their bodies staged); deleted-body + stale-root
+            // pruned. path keeps the production absolute externalPath form (export prunes
+            // unstaged rows but does not rewrite retained rows — restore rewrites to host).
+            { id: 'note-active-nested', root_path: notesRoot, path: `${notesRoot}/sub/note2.md` },
+            { id: 'note-active-root', root_path: notesRoot, path: `${notesRoot}/note1.md` }
           ])
         } finally {
           d.close()
