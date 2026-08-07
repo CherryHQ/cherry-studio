@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -140,6 +141,48 @@ describe('AppShell', () => {
     expect(provider).not.toContainElement(screen.getByTestId('mini-app-pool'))
     expect(provider).not.toContainElement(screen.getByTestId('sidebar'))
     expect(provider).not.toContainElement(screen.getByTestId('tab-bar'))
+  })
+
+  it('applies the compact minimum window size for the active chat tab and resets it on leaving', async () => {
+    mocks.tabs = [
+      ...mocks.tabs,
+      {
+        id: 'agents',
+        isDormant: false,
+        title: 'Agents',
+        type: 'route',
+        url: '/app/agents'
+      },
+      {
+        id: 'files',
+        isDormant: false,
+        title: 'Files',
+        type: 'route',
+        url: '/app/files'
+      }
+    ]
+
+    const { rerender } = render(<AppShell />)
+
+    await waitFor(() => {
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('window.main.set_minimum_size', {
+        width: SECOND_MIN_WINDOW_WIDTH,
+        height: MIN_WINDOW_HEIGHT
+      })
+    })
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.main.reset_minimum_size')
+
+    // Switching between two compact tabs must not re-issue the IPC pair.
+    mocks.ipcRequest.mockClear()
+    mocks.activeTabId = 'agents'
+    rerender(<AppShell />)
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('window.main.set_minimum_size', expect.anything())
+
+    mocks.activeTabId = 'files'
+    rerender(<AppShell />)
+    await waitFor(() => {
+      expect(mocks.ipcRequest).toHaveBeenCalledWith('window.main.reset_minimum_size')
+    })
   })
 
   it('opens global search from the shell-level shortcut', () => {

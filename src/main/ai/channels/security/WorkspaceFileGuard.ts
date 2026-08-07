@@ -1,19 +1,12 @@
-import type { FileHandle } from 'node:fs/promises'
-import { open, realpath } from 'node:fs/promises'
+import { realpath } from 'node:fs/promises'
 import path from 'node:path'
 
 import type { FileAttachment } from '@main/utils/downloadAsBase64'
-import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 
-import { FILE_EXTENSION_MIME_MAP } from '../utils'
+import { readCanonicalLocalFile } from './localFileResolver'
 
 function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error
-}
-
-function mimeForFilename(filename: string): string {
-  const ext = path.extname(filename).slice(1).toLowerCase()
-  return FILE_EXTENSION_MIME_MAP[ext] ?? 'application/octet-stream'
 }
 
 /**
@@ -56,40 +49,5 @@ export async function resolveWorkspaceFile(workspaceRoot: string, userPath: stri
     throw new Error(`Path is outside the workspace: ${userPath}`)
   }
 
-  let fd: FileHandle
-  try {
-    fd = await open(realTarget, 'r')
-  } catch (error) {
-    if (isErrnoException(error) && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
-      throw new Error(`File not found in workspace: ${userPath}`)
-    }
-    throw error
-  }
-
-  try {
-    const stats = await fd.stat()
-    if (!stats.isFile()) {
-      throw new Error(`Not a regular file: ${userPath}`)
-    }
-    if (stats.size > MAX_FILE_SIZE_BYTES) {
-      throw new Error(`File exceeds the ${MAX_FILE_SIZE_BYTES} byte limit (${stats.size} bytes): ${userPath}`)
-    }
-
-    const buffer = await fd.readFile()
-    // Re-check against the actual read size: the file can grow between fstat and read,
-    // so the pre-read stat cap alone could let an oversize payload through.
-    if (buffer.length > MAX_FILE_SIZE_BYTES) {
-      throw new Error(`File exceeds the ${MAX_FILE_SIZE_BYTES} byte limit (${buffer.length} bytes): ${userPath}`)
-    }
-    const filename = path.basename(requested)
-    return {
-      filename,
-      data: buffer.toString('base64'),
-      media_type: mimeForFilename(filename),
-      size: buffer.length
-    }
-  } finally {
-    // Swallow close errors so they can't mask an in-flight resolution error.
-    await fd.close().catch(() => {})
-  }
+  return readCanonicalLocalFile(requested, realTarget, userPath)
 }
