@@ -99,7 +99,9 @@ function WheelStepControl({ children, className, min, max, value, onValueChange 
       wheelTarget.addEventListener('wheel', handleWheel, { passive: false })
       return () => {
         wheelTarget.removeEventListener('wheel', handleWheel)
+        wheelDeltaRef.current = 0
         if (wheelIdleTimerRef.current) clearTimeout(wheelIdleTimerRef.current)
+        wheelIdleTimerRef.current = null
       }
     },
     [handleWheel]

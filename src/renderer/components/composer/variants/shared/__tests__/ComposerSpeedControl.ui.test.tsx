@@ -309,6 +309,21 @@ describe('ComposerSpeedControl UI', () => {
     expect(slider).toHaveAttribute('data-value', '5')
   })
 
+  it('resets an incomplete wheel step when the wheel target ref is rebound', () => {
+    const { rerender } = render(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
+
+    let slider = screen.getByRole('slider', { name: 'agent.speed.effort' })
+    fireEvent.wheel(slider, { deltaY: -20 })
+
+    rerender(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
+    slider = screen.getByRole('slider', { name: 'agent.speed.effort' })
+    fireEvent.wheel(slider, { deltaY: -20 })
+    expect(slider).toHaveAttribute('data-value', '3')
+
+    fireEvent.wheel(slider, { deltaY: -20 })
+    expect(slider).toHaveAttribute('data-value', '4')
+  })
+
   it('toggles Fast only for a capable provider-model pair', () => {
     const { rerender } = render(<ControlledSpeedControl model={codexModel} initialEffort="max" />)
 
