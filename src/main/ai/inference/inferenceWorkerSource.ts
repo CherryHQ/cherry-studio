@@ -34,7 +34,7 @@ let appPath = null
 let transformers = null
 let ppu = null
 let proxyStatus = 'not-initialized'
-const pipelines = new Map() // key: repo|dtype|host -> Promise<extractor>
+const pipelines = new Map() // key: modelDir|dtype -> Promise<extractor>
 const paddleServices = new Map() // key: det|rec|dict -> Promise<PaddleOcrService>
 
 // Injected from pooling.ts and services/proxy (single, unit-tested sources). Bound to
@@ -68,14 +68,16 @@ function describeError(error) {
 function requestLogContext(msg) {
   const context = ['request=' + msg.type, 'proxy=' + proxyStatus]
   if (typeof msg.modelRepo === 'string') context.push('model=' + JSON.stringify(msg.modelRepo))
-  if (msg.source && typeof msg.source.remoteHost === 'string') {
-    let source = '<invalid>'
+  if (typeof msg.modelDir === 'string') context.push('modelDir=' + JSON.stringify(msg.modelDir))
+  if (msg.source) {
+    let origin
     try {
-      source = new URL(msg.source.remoteHost).origin
+      origin = new URL(msg.source.remoteHost).origin
     } catch {
       // Keep the invalid marker without echoing an untrusted URL into logs.
+      origin = '<invalid>'
     }
-    context.push('source=' + JSON.stringify(source))
+    context.push('source=' + JSON.stringify(origin))
   }
   return context.join(' ')
 }
@@ -105,35 +107,24 @@ async function getPpu() {
   return ppu
 }
 
-function pipelineKey(repo, dtype, source) {
-  return repo + '|' + dtype + '|' + source.remoteHost
-}
-
-function getPipeline(id, repo, dtype, source, withProgress) {
-  const key = pipelineKey(repo, dtype, source)
+/**
+ * Load the cached model straight off disk. The model id is an absolute directory, which
+ * transformers.js rejects as a repo id (isValidHfModelId) — and every remote branch in its
+ * resolver is gated on that check, so file discovery cannot reach the network no matter
+ * what \`revision\`/\`local_files_only\` its internal stages default to. That matters because
+ * 4.2.0 drops both options before discovery (get_pipeline_files -> get_files -> get_config /
+ * get_tokenizer_files), which is what made a ModelScope-only cache unusable offline.
+ */
+function getLocalPipeline(modelDir, dtype) {
+  const key = modelDir + '|' + dtype
   let promise = pipelines.get(key)
   if (!promise) {
     promise = (async () => {
       const { pipeline, env } = getTransformers()
-      env.allowRemoteModels = true
+      // Leave env.remoteHost/remotePathTemplate untouched: an absolute model id never
+      // consults them, and clearing them would race the download path sharing this env.
       if (cacheDir) env.cacheDir = cacheDir
-      env.remoteHost = source.remoteHost
-      env.remotePathTemplate = source.remotePathTemplate
-      const options = { dtype, device: 'cpu', revision: source.revision }
-      if (withProgress) {
-        options.progress_callback = (p) => {
-          parentPort.postMessage({
-            type: 'progress',
-            id,
-            status: p.status,
-            file: p.file,
-            loaded: p.loaded,
-            total: p.total,
-            progress: p.progress
-          })
-        }
-      }
-      return pipeline('feature-extraction', repo, options)
+      return pipeline('feature-extraction', modelDir, { dtype, device: 'cpu' })
     })()
     pipelines.set(key, promise)
     // Drop the cached promise on failure so a later request can retry.
@@ -142,8 +133,37 @@ function getPipeline(id, repo, dtype, source, withProgress) {
   return promise
 }
 
+/**
+ * Download the model into the transformers.js cache. Unlike inference this needs a repo id
+ * and the mirror env, and the resulting pipeline is discarded: inference reloads by
+ * absolute path, so keeping this instance would pin ~600MB for nothing.
+ */
+async function downloadPipeline(id, repo, dtype, source) {
+  const { pipeline, env } = getTransformers()
+  env.allowRemoteModels = true
+  if (cacheDir) env.cacheDir = cacheDir
+  env.remoteHost = source.remoteHost
+  env.remotePathTemplate = source.remotePathTemplate
+  await pipeline('feature-extraction', repo, {
+    dtype,
+    device: 'cpu',
+    revision: source.revision,
+    progress_callback: (p) => {
+      parentPort.postMessage({
+        type: 'progress',
+        id,
+        status: p.status,
+        file: p.file,
+        loaded: p.loaded,
+        total: p.total,
+        progress: p.progress
+      })
+    }
+  })
+}
+
 async function handleEmbed(msg) {
-  const extractor = await getPipeline(msg.id, msg.modelRepo, msg.dtype, msg.source, false)
+  const extractor = await getLocalPipeline(msg.modelDir, msg.dtype)
   const vectors = []
   for (const text of msg.texts) {
     // pooling:'none' -> tensor of shape [batch=1, sequence, hidden].
@@ -156,12 +176,12 @@ async function handleEmbed(msg) {
 }
 
 async function handleLoad(msg) {
-  await getPipeline(msg.id, msg.modelRepo, msg.dtype, msg.source, true)
+  await downloadPipeline(msg.id, msg.modelRepo, msg.dtype, msg.source)
   parentPort.postMessage({ type: 'result', id: msg.id, embeddings: null })
 }
 
 async function handleCountTokens(msg) {
-  const extractor = await getPipeline(msg.id, msg.modelRepo, msg.dtype, msg.source, false)
+  const extractor = await getLocalPipeline(msg.modelDir, msg.dtype)
   const tokenCounts = msg.texts.map((text) => extractor.tokenizer.encode(text, { add_special_tokens: true }).length)
   parentPort.postMessage({ type: 'result', id: msg.id, tokenCounts })
 }
