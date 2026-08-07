@@ -4,7 +4,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import { cacheCleanupService } from '@main/services/cacheCleanup'
-import { requestDataReset } from '@main/services/dataReset'
+import { requestDataReset, requestV1Remigration } from '@main/services/dataReset'
 import { inspectUserDataRelocationTarget, requestUserDataRelocation } from '@main/services/userDataRelocation'
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -49,6 +49,7 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     webContents.getAllWebContents().forEach((w) => w.session.setSpellCheckerEnabled(isEnable))
   },
   'app.data_reset.request': async () => requestDataReset(),
+  'app.migration_v2.rerun': async () => requestV1Remigration(),
   'app.updater.check_for_update': async () => {
     await application.get('AppUpdaterService').checkForUpdates()
   },
