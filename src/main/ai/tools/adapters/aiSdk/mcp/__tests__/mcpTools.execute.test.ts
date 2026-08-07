@@ -110,12 +110,12 @@ describe('mcpTools execute wrapper', () => {
     callTool.mockResolvedValue(runtimeResult)
 
     const out = (await execute({ q: 'x' }, { toolCallId: 'call-3' } as any)) as McpCallToolResponse & {
-      metadata: { serverId: string; serverName: string; type: string }
+      metadata: { description: string; name: string; serverId: string; serverName: string; type: string }
     }
 
     expect(callTool).toHaveBeenCalledWith({ serverId: 's1', name: 't', args: { q: 'x' }, callId: 'call-3' })
     expect(out.content).toEqual([{ type: 'text', text: 'ok' }])
-    expect(out.metadata).toEqual({ serverName: 's1', serverId: 's1', type: 'mcp' })
+    expect(out.metadata).toEqual({ description: '', name: 't', serverName: 's1', serverId: 's1', type: 'mcp' })
   })
 
   it('executes the explicitly selected server when display names normalize alike', async () => {

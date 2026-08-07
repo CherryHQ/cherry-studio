@@ -244,6 +244,20 @@ describe('syncMcpToolsToRegistry', () => {
       expect(reg.getByName('mcp__jira__legacy')).toBeDefined()
     })
 
+    it('keeps tools selected by overlapping requests for the same server', async () => {
+      const reg = new ToolRegistry()
+      list.mockReturnValue({ items: [activeServer('gh')] })
+      listTools.mockReturnValue([mcpTool('gh', 'search'), mcpTool('gh', 'fork')])
+
+      await Promise.all([
+        syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__search']) }),
+        syncMcpToolsToRegistry(reg, { selectedToolIds: new Set(['mcp__gh__fork']) })
+      ])
+
+      expect(reg.getByName('mcp__gh__search')).toBeDefined()
+      expect(reg.getByName('mcp__gh__fork')).toBeDefined()
+    })
+
     it('still evicts entries from servers that are no longer active (stale-server cleanup runs globally)', async () => {
       const reg = new ToolRegistry()
       reg.register({
@@ -272,9 +286,8 @@ describe('syncMcpToolsToRegistry', () => {
       expect(listTools).not.toHaveBeenCalled()
     })
 
-    it('matches server name with camelCase normalisation (mirrors buildFunctionCallToolName)', async () => {
+    it('registers an exact selected id containing readable camelCase slugs', async () => {
       const reg = new ToolRegistry()
-      // Server name with separators — `mcp__myServer__t` is the id format.
       list.mockReturnValue({
         items: [{ id: 'srv', name: 'my-server', isActive: true, disabledAutoApproveTools: [] }]
       })

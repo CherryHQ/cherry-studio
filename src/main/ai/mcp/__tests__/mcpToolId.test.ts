@@ -3,6 +3,12 @@ import { describe, expect, it } from 'vitest'
 import { buildMcpToolWireId } from '../mcpToolId'
 
 describe('buildMcpToolWireId', () => {
+  it('pins the 80-bit SHA-256 identity suffix', () => {
+    expect(buildMcpToolWireId({ serverId: 'server-a', serverName: 'mysql', toolName: 'query' })).toBe(
+      'mcp__mysql__query_306d76332fabbe783838'
+    )
+  })
+
   it('distinguishes identical display and tool names by server id', () => {
     const first = buildMcpToolWireId({ serverId: 'server-a', serverName: 'mysql', toolName: 'executeSql' })
     const second = buildMcpToolWireId({ serverId: 'server-b', serverName: 'mysql', toolName: 'executeSql' })

@@ -30,7 +30,7 @@ unambiguous):
 | Source | Name pattern | Example |
 |---|---|---|
 | Built-in | fixed wire name (`<namespace>_<verb>`) | `web_search`, `kb_search` |
-| MCP (AI SDK) | `mcp__<server-slug>__<tool-slug>_<identity-digest>` | `mcp__gmail__sendMessage_a1b2…` |
+| MCP (AI SDK) | `mcp__<server-slug>__<tool-slug>_<identity-digest>` | `mcp__gmail__sendMessage_a1b2c3d4e5f60718293a` |
 | Meta | `tool_<verb>` | `tool_search`, `tool_invoke`, `tool_inspect` (`tool_exec` is defined but not injected — see below) |
 
 The built-in wire names live in `@shared/ai/builtinTools` (single-underscore,

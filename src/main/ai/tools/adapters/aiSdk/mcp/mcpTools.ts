@@ -60,6 +60,8 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
       return {
         ...result,
         metadata: {
+          description: mcpTool.description,
+          name: mcpTool.name,
           serverName: mcpTool.serverName,
           serverId: mcpTool.serverId,
           type: 'mcp' as const
@@ -179,7 +181,8 @@ export async function syncMcpToolsToRegistry(
     // the prior snapshot intact. A truly deactivated server is still evicted regardless.
     const inSyncScope = targetNamespaces.has(entry.namespace) && refreshedNamespaces.has(entry.namespace)
     const missing = !freshNames.has(entry.name)
-    if (serverDeactivated || (inSyncScope && missing)) {
+    const missingFromSelectedSync = selectedToolIds ? selectedToolIds.has(entry.name) : true
+    if (serverDeactivated || (inSyncScope && missing && missingFromSelectedSync)) {
       reg.deregister(entry.name)
     }
   }
