@@ -8,6 +8,7 @@ const {
   cacheCleanupRunMock,
   inspectTargetMock,
   requestDataResetMock,
+  requestV1RemigrationMock,
   requestRelocationMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
@@ -17,6 +18,7 @@ const {
   cacheCleanupRunMock: vi.fn(),
   inspectTargetMock: vi.fn(),
   requestDataResetMock: vi.fn(),
+  requestV1RemigrationMock: vi.fn(),
   requestRelocationMock: vi.fn()
 }))
 
@@ -27,7 +29,10 @@ vi.mock('@application', () => ({
     relaunch: appRelaunchMock
   }
 }))
-vi.mock('@main/services/dataReset', () => ({ requestDataReset: requestDataResetMock }))
+vi.mock('@main/services/dataReset', () => ({
+  requestDataReset: requestDataResetMock,
+  requestV1Remigration: requestV1RemigrationMock
+}))
 vi.mock('@main/services/userDataRelocation', () => ({
   inspectUserDataRelocationTarget: inspectTargetMock,
   requestUserDataRelocation: requestRelocationMock
@@ -150,5 +155,12 @@ describe('appHandlers', () => {
     requestDataResetMock.mockRejectedValueOnce(new Error('EACCES: permission denied'))
 
     await expect(appHandlers['app.data_reset.request'](undefined, ctx)).rejects.toThrow('EACCES')
+  })
+
+  it('delegates v1 remigration requests to the owning domain module', async () => {
+    const result = await appHandlers['app.migration_v2.rerun'](undefined, ctx)
+
+    expect(requestV1RemigrationMock).toHaveBeenCalledTimes(1)
+    expect(result).toBeUndefined()
   })
 })
