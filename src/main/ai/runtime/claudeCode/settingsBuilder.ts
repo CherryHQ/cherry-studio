@@ -107,6 +107,11 @@ import type { ClaudeCodeSettings, McpToolDisplayMetadata, SteerHolder, ToolAppro
 const logger = loggerService.withContext('ClaudeCodeSettingsBuilder')
 const MIN_AUTO_COMPACT_WINDOW = 100_000
 const MAX_AUTO_COMPACT_WINDOW = 1_000_000
+/**
+ * Slack between the SDK's local token estimate and the provider's own count.
+ * Widen it if 400s reappear while the reported input sits just under budget.
+ */
+const AUTO_COMPACT_ESTIMATE_MARGIN = 0.02
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
   'Within Cherry Studio, serve as Cherry Assistant, its built-in general-purpose Agent and onboarding guide. Help the user complete any request using the available tools.'
 const AGENT_INSTRUCTION_PRECEDENCE_PROMPT = `## Instruction Precedence
@@ -131,7 +136,29 @@ ${instructions}
 </agent_instructions>`
 }
 
-function resolveAutoCompactWindow(contextWindow: number | undefined): number | undefined {
+/**
+ * The input budget Claude Code may fill before it must compact.
+ *
+ * Providers bill `input + max_tokens` against the context limit, so history can
+ * only ever occupy `contextWindow - maxOutputTokens`. Budgeting against the raw
+ * window hands the SDK room that no request can actually use: a 1M-window model
+ * reserving 131,072 output tokens reached ~924K input — below the SDK's compact
+ * threshold, but already past the real 917,504 ceiling — so the turn 400'd and
+ * auto-compaction never got a chance to fire.
+ *
+ * `maxOutputTokens` is optional model metadata; without it we can only budget
+ * against the raw window, exactly as before.
+ *
+ * Deliberate ceiling: the result is clamped to `MIN_AUTO_COMPACT_WINDOW` rather
+ * than dropped, because omitting the setting falls back to the SDK's own
+ * Claude-shaped default — further from the truth than a floored budget. A model
+ * whose real budget lands under that floor is still over-promised; declaring a
+ * sub-100K window to the SDK is the upgrade trigger for revisiting the floor.
+ */
+function resolveAutoCompactWindow(
+  contextWindow: number | undefined,
+  maxOutputTokens: number | undefined
+): number | undefined {
   if (
     typeof contextWindow !== 'number' ||
     !Number.isInteger(contextWindow) ||
@@ -139,7 +166,12 @@ function resolveAutoCompactWindow(contextWindow: number | undefined): number | u
   ) {
     return undefined
   }
-  return Math.min(contextWindow, MAX_AUTO_COMPACT_WINDOW)
+  const reservedOutput =
+    typeof maxOutputTokens === 'number' && Number.isInteger(maxOutputTokens) && maxOutputTokens > 0
+      ? maxOutputTokens
+      : 0
+  const budget = Math.floor((contextWindow - reservedOutput) * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
+  return Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
 }
 const promptBuilder = new PromptBuilder()
 const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
@@ -354,6 +386,8 @@ export interface ClaudeCodeSessionOptions {
   lastAgentSessionId?: string
   /** Model-declared context window used to align Claude Code's automatic compaction threshold. */
   contextWindow?: number
+  /** Model-declared output reservation, subtracted from the window to get the usable input budget. */
+  maxOutputTokens?: number
   /** MCP rows captured by the request builder; keeps bridge materialization on that same snapshot. */
   mcpServerSnapshots?: McpServerSnapshotMap
   /** Channel binding captured by the request builder; `null` means the session was local. */
@@ -512,7 +546,7 @@ export async function buildClaudeCodeSessionSettings(
   const skills = await buildSkillWhitelist(agent.id, cwd, builtinRole)
 
   // 10. Build settings
-  const autoCompactWindow = resolveAutoCompactWindow(options?.contextWindow)
+  const autoCompactWindow = resolveAutoCompactWindow(options?.contextWindow, options?.maxOutputTokens)
   if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined) {
     env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(autoCompactWindow)
   }

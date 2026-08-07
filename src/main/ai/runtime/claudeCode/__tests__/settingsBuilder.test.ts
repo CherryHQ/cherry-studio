@@ -394,8 +394,42 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 128_000 }
     )
 
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 128_000 })
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '128000' })
+    // No declared output reservation — budget against the raw window, less the estimate margin.
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 125_440 })
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '125440' })
+  })
+
+  it('reserves the model output budget so the prompt cannot outgrow the provider limit', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 1_048_576, maxOutputTokens: 131_072 }
+    )
+
+    // (1048576 - 131072) * 0.98 = 899153.92 -> 899153, safely under the real 917504 input ceiling.
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 899_153 })
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '899153' })
+  })
+
+  it('floors the budget at the Claude Code minimum instead of dropping the setting', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 128_000, maxOutputTokens: 64_000 }
+    )
+
+    // (128000 - 64000) * 0.98 = 62720, below the floor — clamped rather than omitted, because
+    // omitting it hands the SDK its own Claude-shaped default instead.
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 100_000 })
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '100000' })
   })
 
   it('clamps model context windows above Claude Code limits', async () => {
@@ -432,7 +466,11 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
   )
 
-  it.each([100_000, 1_000_000])('accepts the inclusive Claude Code boundary %i', async (contextWindow) => {
+  // Floor case is clamped back up to 100_000; ceiling case keeps the margin (980_000 < the 1M cap).
+  it.each([
+    [100_000, 100_000],
+    [1_000_000, 980_000]
+  ])('accepts the inclusive Claude Code boundary %i', async (contextWindow, expected) => {
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
@@ -443,8 +481,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow }
     )
 
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: contextWindow })
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(contextWindow) })
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: expected })
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(expected) })
   })
 
   it('preserves an explicit maximum context window environment override', async () => {
@@ -470,7 +508,7 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 256_000 }
     )
 
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 256_000 })
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 250_880 })
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '131072' })
   })
 
