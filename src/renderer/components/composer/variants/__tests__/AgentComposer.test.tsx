@@ -2947,7 +2947,7 @@ describe('AgentComposer', () => {
     expect(mocks.surfaceProps?.tokens).not.toContainEqual(expect.objectContaining({ id: 'skill:stale' }))
   })
 
-  it('uses an isolated launch draft, selects its skill, and focuses without sending', async () => {
+  it('uses an ephemeral launch draft, selects its skill, and focuses without caching', async () => {
     const issueReporter = { name: 'issue-reporter', filename: 'issue-reporter' }
     const issueReporterToken = {
       id: 'skill:issue-reporter',
@@ -2959,10 +2959,12 @@ describe('AgentComposer', () => {
       textOffset: 0
     }
     vi.mocked(cacheService.get).mockImplementation((key: string) =>
-      key === 'agent.composer_draft.session_session-1' ? { text: 'preserved ordinary draft', tokens: [] } : undefined
+      key === 'agent.composer_draft.session_feedback-session'
+        ? { text: 'preserved ordinary draft', tokens: [] }
+        : undefined
     )
 
-    render(
+    const view = render(
       <AgentComposer
         agentId="agent-1"
         sessionId="feedback-session"
@@ -2970,7 +2972,6 @@ describe('AgentComposer', () => {
         stop={mocks.stop}
         isStreaming={false}
         launchOptions={{
-          draftCacheKey: 'agent.composer_draft.feedback_feedback-session',
           initialDraft: {
             text: 'Use the issue-reporter skill.',
             tokens: [issueReporterToken]
@@ -2979,25 +2980,23 @@ describe('AgentComposer', () => {
       />
     )
 
-    expect(cacheService.get).toHaveBeenCalledWith('agent.composer_draft.feedback_feedback-session')
-    expect(cacheService.get).not.toHaveBeenCalledWith('agent.composer_draft.session_session-1')
+    expect(cacheService.get).not.toHaveBeenCalledWith('agent.composer_draft.session_feedback-session')
     expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
     expect(mocks.surfaceProps?.tokens).toContainEqual(expect.objectContaining({ id: 'skill:issue-reporter' }))
     expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
-    expect(cacheService.set).toHaveBeenCalledWith(
-      'agent.composer_draft.feedback_feedback-session',
-      {
-        text: 'Use the issue-reporter skill.',
-        tokens: [issueReporterToken],
-        files: [],
-        knowledgeBaseIds: [],
-        workspaceKey: 'workspace-1\0/workspace',
-        agentId: 'agent-1'
-      },
-      expect.any(Number)
-    )
     await waitFor(() => expect(mocks.surfaceFocus).toHaveBeenCalledWith('end'))
     expect(mocks.sendMessage).not.toHaveBeenCalled()
+
+    act(() => {
+      mocks.surfaceProps?.onTextChange('Edited feedback draft')
+    })
+    view.unmount()
+
+    expect(cacheService.set).not.toHaveBeenCalledWith(
+      'agent.composer_draft.session_feedback-session',
+      expect.anything(),
+      expect.anything()
+    )
   })
 
   it('adopts launch options that arrive after the restored session first renders', async () => {
@@ -3025,7 +3024,6 @@ describe('AgentComposer', () => {
       <AgentComposer
         {...defaultProps}
         launchOptions={{
-          draftCacheKey: 'agent.composer_draft.feedback_feedback-session',
           initialDraft: { text: 'Use the issue-reporter skill.', tokens: [issueReporterToken] }
         }}
       />
@@ -3040,33 +3038,6 @@ describe('AgentComposer', () => {
 
     expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
     expect(mocks.surfaceProps?.draftTokens).toEqual([issueReporterToken])
-  })
-
-  it('does not restore the launch template after the isolated draft was intentionally cleared', () => {
-    vi.mocked(cacheService.has).mockReturnValue(true)
-    vi.mocked(cacheService.get).mockReturnValue({ text: '', tokens: [] })
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="feedback-session"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-        launchOptions={{
-          draftCacheKey: 'agent.composer_draft.feedback_feedback-session',
-          initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] }
-        }}
-      />
-    )
-
-    expect(mocks.surfaceProps?.text).toBe('')
-    expect(mocks.surfaceProps?.draftTokens).toEqual([])
-    expect(cacheService.set).not.toHaveBeenCalledWith(
-      'agent.composer_draft.feedback_feedback-session',
-      expect.objectContaining({ text: 'Use the issue-reporter skill.' }),
-      expect.any(Number)
-    )
   })
 
   it('consumes the launch state only after the user successfully sends the editable draft', async () => {
@@ -3088,7 +3059,6 @@ describe('AgentComposer', () => {
         stop={mocks.stop}
         isStreaming={false}
         launchOptions={{
-          draftCacheKey: 'agent.composer_draft.feedback_feedback-session',
           initialDraft: { text: 'Use the issue-reporter skill.', tokens: [token] },
           onSent
         }}
@@ -3105,20 +3075,8 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).toHaveBeenCalledTimes(1)
     expect(onSent).toHaveBeenCalledTimes(1)
-    expect(cacheService.set).toHaveBeenLastCalledWith(
-      'agent.composer_draft.feedback_feedback-session',
-      {
-        text: '',
-        tokens: [],
-        files: [],
-        knowledgeBaseIds: [],
-        workspaceKey: 'workspace-1\0/workspace',
-        agentId: 'agent-1'
-      },
-      expect.any(Number)
-    )
     expect(cacheService.set).not.toHaveBeenCalledWith(
-      'agent.composer_draft.session_session-1',
+      'agent.composer_draft.session_feedback-session',
       expect.anything(),
       expect.anything()
     )
@@ -3135,7 +3093,6 @@ describe('AgentComposer', () => {
         stop={mocks.stop}
         isStreaming={false}
         launchOptions={{
-          draftCacheKey: 'agent.composer_draft.feedback_feedback-session',
           initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] },
           onSent
         }}
@@ -3147,17 +3104,11 @@ describe('AgentComposer', () => {
     })
 
     expect(onSent).not.toHaveBeenCalled()
-    expect(cacheService.set).toHaveBeenLastCalledWith(
-      'agent.composer_draft.feedback_feedback-session',
-      {
-        text: 'Use the issue-reporter skill.',
-        tokens: [],
-        files: [],
-        knowledgeBaseIds: [],
-        workspaceKey: 'workspace-1\0/workspace',
-        agentId: 'agent-1'
-      },
-      expect.any(Number)
+    expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
+    expect(cacheService.set).not.toHaveBeenCalledWith(
+      'agent.composer_draft.session_feedback-session',
+      expect.anything(),
+      expect.anything()
     )
   })
 
@@ -4562,7 +4513,7 @@ describe('AgentComposer', () => {
     expect(belowText.indexOf('Claude Sonnet 4.5')).toBeLessThan(belowText.indexOf('Workspace 1'))
   })
 
-  it('renders a missing-agent home composer with a selectable agent and blocked sending', () => {
+  it('keeps missing-agent input local while selecting an agent', () => {
     const onAgentChange = vi.fn()
 
     render(<MissingAgentHomeComposer onAgentChange={onAgentChange} />)
@@ -4583,18 +4534,7 @@ describe('AgentComposer', () => {
     })
     fireEvent.click(screen.getByText('select agent 2'))
 
-    expect(cacheService.set).toHaveBeenCalledWith(
-      'agent.composer_draft.home',
-      {
-        text: 'draft before agent',
-        tokens: [],
-        files: [],
-        knowledgeBaseIds: [],
-        workspaceKey: '',
-        agentId: ''
-      },
-      24 * 60 * 60 * 1000
-    )
+    expect(cacheService.set).not.toHaveBeenCalledWith('agent.composer_draft.home', expect.anything(), expect.anything())
     expect(onAgentChange).toHaveBeenCalledWith('agent-2')
   })
 

@@ -59,12 +59,10 @@ import { AgentCreateDialog } from './components/AgentCreateDialog'
 import type { AgentFileNavigationRequest } from './components/AgentRightPane'
 import Sessions from './components/Sessions'
 import {
-  clearFeedbackComposerLaunch,
+  createFeedbackComposerLaunch,
   FEEDBACK_INTENT_GUARD_TTL_MS,
   type FeedbackComposerLaunch,
-  getFeedbackIntentGuardCacheKey,
-  persistFeedbackComposerLaunch,
-  readFeedbackComposerLaunch
+  getFeedbackIntentGuardCacheKey
 } from './feedbackComposerLaunch'
 import { parseAgentRouteSearch } from './routeSearch'
 import type { CreateAgentSessionDefaults } from './types'
@@ -249,7 +247,13 @@ const AgentPage = () => {
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const sessionRevealRequestIdRef = useRef(0)
   const initialEmptySessionEvaluatedRef = useRef(false)
-  const [feedbackComposerLaunch, setFeedbackComposerLaunch] = useState<FeedbackComposerLaunch | null>(null)
+  const routeFeedbackComposerLaunch = useMemo<FeedbackComposerLaunch | null>(
+    () => (isFeedbackIntent && routeSessionId ? createFeedbackComposerLaunch(routeSessionId) : null),
+    [isFeedbackIntent, routeSessionId]
+  )
+  const [feedbackComposerLaunch, setFeedbackComposerLaunch] = useState<FeedbackComposerLaunch | null>(
+    routeFeedbackComposerLaunch
+  )
   const [selectingMissingAgent, setSelectingMissingAgent] = useState(false)
   const [replacingSessionWorkspace, setReplacingSessionWorkspace] = useState(false)
   const [missingAgentSelection, setMissingAgentSelection] = useState(false)
@@ -798,12 +802,11 @@ const AgentPage = () => {
 
   const runFeedbackIntent = useEffectEvent(async (intentGuardCacheKey: string) => {
     initialEmptySessionEvaluatedRef.current = true
-    setFeedbackComposerLaunch(null)
     closeSurface()
     setPendingLocateMessageId(undefined)
     setMissingAgentSelection(false)
     try {
-      if (!routeSessionId) {
+      if (!routeSessionId || !routeFeedbackComposerLaunch) {
         throw new Error('Feedback intent is missing its prepared session')
       }
       try {
@@ -813,8 +816,9 @@ const AgentPage = () => {
           sessionId: routeSessionId
         })
       }
-      setFeedbackComposerLaunch(persistFeedbackComposerLaunch(routeSessionId))
+      setFeedbackComposerLaunch(routeFeedbackComposerLaunch)
     } catch (err) {
+      setFeedbackComposerLaunch(null)
       logger.error('Failed to prepare Cherry Assistant feedback session', err as Error)
       toast.error(t('settings.about.feedback.agent_error'))
       showMissingAgentSelection()
@@ -892,27 +896,14 @@ const AgentPage = () => {
   ])
 
   const visibleSessionId = visibleSession?.id
-  useEffect(() => {
-    if (!visibleSessionId) return
-    const cachedLaunch = readFeedbackComposerLaunch(visibleSessionId)
-    if (!cachedLaunch) return
-    setFeedbackComposerLaunch((current) => (current?.sessionId === visibleSessionId ? current : cachedLaunch))
-  }, [visibleSessionId])
-
-  const visibleFeedbackComposerLaunch =
-    feedbackComposerLaunch?.sessionId === visibleSessionId
-      ? feedbackComposerLaunch
-      : visibleSessionId
-        ? readFeedbackComposerLaunch(visibleSessionId)
-        : null
+  const feedbackLaunch = feedbackComposerLaunch ?? routeFeedbackComposerLaunch
+  const visibleFeedbackComposerLaunch = feedbackLaunch?.sessionId === visibleSessionId ? feedbackLaunch : null
   const composerLaunchOptions = useMemo<AgentComposerLaunchOptions | undefined>(() => {
     if (!visibleFeedbackComposerLaunch) return undefined
     const launch = visibleFeedbackComposerLaunch
     return {
-      draftCacheKey: launch.draftCacheKey,
       initialDraft: launch.initialDraft,
       onSent: () => {
-        clearFeedbackComposerLaunch(launch)
         setFeedbackComposerLaunch((current) => (current?.sessionId === launch.sessionId ? null : current))
       }
     }

@@ -6,7 +6,6 @@ import {
   getAgentDraftCacheKey,
   getAgentDraftTokens,
   getCachedSkillTokens,
-  hasAgentDraftCache,
   readAgentDraftCache,
   writeAgentDraftCache
 } from '../agent/agentDraftCache'
@@ -14,7 +13,6 @@ import {
 vi.mock('@data/CacheService', () => ({
   cacheService: {
     get: vi.fn(),
-    has: vi.fn(),
     set: vi.fn()
   }
 }))
@@ -78,16 +76,12 @@ const scope = { workspaceKey: 'workspace-1\0/workspace', agentId: 'agent-1' }
 describe('agentDraftCache', () => {
   beforeEach(() => {
     vi.mocked(cacheService.get).mockReset()
-    vi.mocked(cacheService.has).mockReset()
     vi.mocked(cacheService.set).mockReset()
   })
 
-  it('keys default drafts by session and preserves the empty-cache sentinel', () => {
-    vi.mocked(cacheService.has).mockReturnValue(true)
-
+  it('keys drafts by session', () => {
     expect(getAgentDraftCacheKey('session-1')).toBe('agent.composer_draft.session_session-1')
     expect(getAgentDraftCacheKey('session-2')).toBe('agent.composer_draft.session_session-2')
-    expect(hasAgentDraftCache('agent.composer_draft.feedback_session-1')).toBe(true)
   })
 
   it('keeps every active input token, including file and knowledge tokens', () => {

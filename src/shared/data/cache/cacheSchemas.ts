@@ -147,8 +147,8 @@ export type UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
-  // Per-scope composer draft (session, home, or feedback launch). Renderer memory only.
-  'agent.composer_draft.${scopeId}': CacheValueTypes.CacheAgentComposerDraft
+  // Per-session composer draft. Renderer memory only; app restart discards it.
+  'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
 
   // Translate page state management
   /** Input text */
@@ -233,7 +233,7 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': {},
-  'agent.composer_draft.${scopeId}': {
+  'agent.composer_draft.${sessionId}': {
     text: '',
     tokens: [],
     files: [],

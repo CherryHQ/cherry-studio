@@ -7,9 +7,8 @@ import type { ComposerSerializedDraft, ComposerSerializedToken } from '../../tok
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 
-export type AgentComposerDraftCacheKey = `agent.composer_draft.${string}`
+export type AgentComposerDraftCacheKey = `agent.composer_draft.session_${string}`
 
-export const AGENT_HOME_DRAFT_CACHE_KEY = 'agent.composer_draft.home' as const
 export const getAgentDraftCacheKey = (sessionId: string) => `agent.composer_draft.session_${sessionId}` as const
 
 export type AgentComposerDraftCache = CacheAgentComposerDraft
@@ -117,10 +116,6 @@ export function readAgentDraftCache(
     agentId: scope.agentId,
     shouldValidateSkills
   }
-}
-
-export function hasAgentDraftCache(cacheKey: AgentComposerDraftCacheKey): boolean {
-  return cacheService.has(cacheKey)
 }
 
 export function writeAgentDraftCache(cacheKey: AgentComposerDraftCacheKey, draft: AgentComposerDraftCache) {

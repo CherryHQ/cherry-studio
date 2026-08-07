@@ -736,7 +736,7 @@ describe('AgentPage', () => {
     ipcMocks.request.mockResolvedValue(undefined)
   })
 
-  it('consumes a prepared feedback session once and skips the normal resume path', async () => {
+  it('uses a prepared feedback session as a transient launch and skips the normal resume path', async () => {
     // Opening must not depend on Cherry Assistant already being present in the renderer's stale Agent list.
     agentPageMocks.agents = []
     const previousSession = {
@@ -771,7 +771,6 @@ describe('AgentPage', () => {
     )
     expect(agentPageMocks.dataApiDelete).not.toHaveBeenCalled()
     expect(agentPageMocks.composerLaunchOptions).toMatchObject({
-      draftCacheKey: 'agent.composer_draft.feedback_session-feedback',
       initialDraft: {
         text: 'Use the issue-reporter skill.',
         tokens: [expect.objectContaining({ id: 'skill:issue-reporter', kind: 'skill' })]
@@ -782,25 +781,15 @@ describe('AgentPage', () => {
       search: { sessionId: 'session-feedback' },
       replace: true
     })
-    expect(cacheService.hasCasual('agent-feedback-launch-session-feedback')).toBe(true)
-    expect(cacheService.has('agent.composer_draft.feedback_session-feedback')).toBe(true)
+    expect(cacheService.hasCasual('agent-feedback-launch-session-feedback')).toBe(false)
+    expect(cacheService.has('agent.composer_draft.feedback_session-feedback')).toBe(false)
 
     agentPageMocks.routeSearch = { sessionId: 'session-feedback' }
     view.unmount()
     agentPageMocks.composerLaunchOptions = undefined
     render(<AgentPage />)
 
-    await waitFor(() => {
-      expect(agentPageMocks.composerLaunchOptions).toMatchObject({
-        draftCacheKey: 'agent.composer_draft.feedback_session-feedback',
-        initialDraft: { text: 'Use the issue-reporter skill.' }
-      })
-    })
-    act(() => {
-      agentPageMocks.composerLaunchOptions.onSent()
-    })
     await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeUndefined())
-    expect(cacheService.hasCasual('agent-feedback-launch-session-feedback')).toBe(false)
   })
 
   it('starts the model read from the visible list agent hint', async () => {
