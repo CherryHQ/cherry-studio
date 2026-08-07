@@ -3392,11 +3392,6 @@
           "heartbeat_interval": {
             "label": "心跳间隔 (分钟)"
           },
-          "instructions": {
-            "hint": "定义 Agent 的角色和行为边界",
-            "label": "系统提示词",
-            "placeholder": "告诉 Agent 它是谁、它能做什么…"
-          },
           "max_turns": {
             "help": "0 表示使用默认值",
             "label": "最大对话轮数"
@@ -3591,8 +3586,7 @@
           "step": {
             "basic": "基础信息",
             "capability": "技能",
-            "knowledge": "知识库",
-            "persona": "设定人格"
+            "knowledge": "知识库"
           },
           "submit": "新建",
           "submit_failed": "新建失败"

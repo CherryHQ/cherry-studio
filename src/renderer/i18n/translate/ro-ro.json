@@ -3359,11 +3359,6 @@
           "heartbeat_interval": {
             "label": "Interval de bătăi ale inimii (minute)"
           },
-          "instructions": {
-            "hint": "Definește rolul agentului și limitele comportamentului său",
-            "label": "Prompt de sistem",
-            "placeholder": "Spune-i agentului cine este și ce poate face…"
-          },
           "max_turns": {
             "help": "0 înseamnă să folosească valoarea implicită",
             "label": "Număr maxim de runde de conversație"
@@ -3558,8 +3553,7 @@
           "step": {
             "basic": "Informații de bază",
             "capability": "Abilități",
-            "knowledge": "Cunoștințe",
-            "persona": "Persoană"
+            "knowledge": "Cunoștințe"
           },
           "submit": "Creează",
           "submit_failed": "Crearea a eșuat"

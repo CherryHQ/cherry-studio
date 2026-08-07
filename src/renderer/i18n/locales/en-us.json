@@ -3392,11 +3392,6 @@
           "heartbeat_interval": {
             "label": "Heartbeat interval (minutes)"
           },
-          "instructions": {
-            "hint": "Defines the agent's role and behavior boundaries",
-            "label": "System prompt",
-            "placeholder": "Tell the agent who it is and what it can do…"
-          },
           "max_turns": {
             "help": "0 means use the default",
             "label": "Max conversation turns"
@@ -3591,8 +3586,7 @@
           "step": {
             "basic": "Basic info",
             "capability": "Skills",
-            "knowledge": "Knowledge",
-            "persona": "Persona"
+            "knowledge": "Knowledge"
           },
           "submit": "Create",
           "submit_failed": "Create failed"
