@@ -2591,7 +2591,7 @@
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
-    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
+    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Raise \"Max tool call rounds\" in the assistant settings, or reduce the task scope.",
     "truncated": "Data truncated, original size",
     "truncatedBadge": "Truncated",
     "unknown": "Unknown error",
@@ -3488,7 +3488,7 @@
             "hint": "Caps response length when enabled"
           },
           "max_tool_calls": {
-            "hint": "Limits tool-call rounds when enabled; otherwise uses the default 20-round limit"
+            "hint": "Limits tool-call rounds when enabled; otherwise uses the default {{count}}-round limit"
           },
           "model": {
             "hint": "Overrides the global default model for this assistant"
@@ -6012,11 +6012,41 @@
         "skip_file_data_title": "Slim Backup"
       },
       "clear_cache": {
+        "approximately": "Approx. {{size}}",
         "button": "Clear Cache",
-        "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
+        "calculating": "Calculating…",
         "error": "Error clearing cache",
+        "legacy_warning": {
+          "confirm": "Select Anyway",
+          "description": "After cleanup finishes, the v1 data included in this option will be permanently deleted. Without a backup, this data cannot be recovered.",
+          "message": "v1 data will be permanently deleted",
+          "title": "Select leftover v1 data?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Leftover v1 data, including old conversation history and settings. Clearing it cannot be undone.",
+            "title": "Leftover data from v1"
+          },
+          "normal_cache": {
+            "description": "Clears cache and temporary files created while using the app to free up storage space. Your conversation history and settings will not be deleted.",
+            "title": "App cache"
+          },
+          "orphaned_data": {
+            "description": "Removes unused files, leftover knowledge bases, and temporary backup restore files.",
+            "title": "Leftover files and knowledge bases"
+          },
+          "site_data": {
+            "description": "Cookies and site storage used by websites and mini apps. You may be signed out of websites.",
+            "title": "Website and mini app data"
+          }
+        },
+        "partial_success": "Cleanup finished, but some items could not be cleared",
+        "selected_total": "Selected total",
         "success": "Cache cleared",
-        "title": "Clear Cache"
+        "title": "Clear Cache",
+        "total_partial": "{{size}} counted; some sizes are unknown",
+        "unavailable": "Unable to calculate",
+        "waiting_for_legacy_database": "Waiting for the old database to be released. Close other Cherry Studio windows; cleanup will continue after their connections close."
       },
       "data": {
         "title": "Data Directory"
