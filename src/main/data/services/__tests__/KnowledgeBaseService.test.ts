@@ -109,6 +109,13 @@ describe('KnowledgeBaseService', () => {
   }
 
   describe('list', () => {
+    it('returns every knowledge base id for filesystem ownership checks', async () => {
+      await seedKnowledgeBase()
+      await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Another Base' })
+
+      expect(service.listAllIds()).toEqual(new Set([KNOWLEDGE_BASE_ID, SECOND_KNOWLEDGE_BASE_ID]))
+    })
+
     it('should return paginated knowledge bases', async () => {
       await seedKnowledgeBase()
       await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Another Base' })

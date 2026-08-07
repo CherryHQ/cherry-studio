@@ -4,17 +4,21 @@ const {
   appGetMock,
   appGetPathMock,
   appRelaunchMock,
+  cacheCleanupInspectMock,
+  cacheCleanupRunMock,
+  inspectTargetMock,
   requestDataResetMock,
   requestV1RemigrationMock,
-  inspectTargetMock,
   requestRelocationMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   appGetPathMock: vi.fn(),
   appRelaunchMock: vi.fn(),
+  cacheCleanupInspectMock: vi.fn(),
+  cacheCleanupRunMock: vi.fn(),
+  inspectTargetMock: vi.fn(),
   requestDataResetMock: vi.fn(),
   requestV1RemigrationMock: vi.fn(),
-  inspectTargetMock: vi.fn(),
   requestRelocationMock: vi.fn()
 }))
 
@@ -32,6 +36,9 @@ vi.mock('@main/services/dataReset', () => ({
 vi.mock('@main/services/userDataRelocation', () => ({
   inspectUserDataRelocationTarget: inspectTargetMock,
   requestUserDataRelocation: requestRelocationMock
+}))
+vi.mock('@main/services/cacheCleanup', () => ({
+  cacheCleanupService: { inspect: cacheCleanupInspectMock, run: cacheCleanupRunMock }
 }))
 vi.mock('electron', () => ({
   app: { getVersion: () => '1.0.0', isPackaged: true },
@@ -92,6 +99,33 @@ describe('appHandlers', () => {
   it('relaunches through IpcApi', async () => {
     await expect(appHandlers['app.relaunch'](undefined, ctx)).resolves.toBeUndefined()
     expect(appRelaunchMock).toHaveBeenCalledOnce()
+  })
+
+  it('delegates cache cleanup inspection to the service', async () => {
+    const expected = {
+      results: [
+        {
+          group: 'normal_cache' as const,
+          size: { bytes: 128, accuracy: 'estimated' as const, completeness: 'complete' as const }
+        }
+      ]
+    }
+    cacheCleanupInspectMock.mockResolvedValue(expected)
+
+    const result = await appHandlers['app.cache_cleanup.inspect']({ groups: ['normal_cache'] }, ctx)
+
+    expect(cacheCleanupInspectMock).toHaveBeenCalledWith(['normal_cache'])
+    expect(result).toEqual(expected)
+  })
+
+  it('delegates cache cleanup execution to the service', async () => {
+    const expected = { results: [{ group: 'site_data' as const, status: 'cleared' as const }] }
+    cacheCleanupRunMock.mockResolvedValue(expected)
+
+    const result = await appHandlers['app.cache_cleanup.run']({ groups: ['site_data'] }, ctx)
+
+    expect(cacheCleanupRunMock).toHaveBeenCalledWith(['site_data'])
+    expect(result).toEqual(expected)
   })
 
   it('check_for_update triggers the AppUpdaterService check and resolves void', async () => {

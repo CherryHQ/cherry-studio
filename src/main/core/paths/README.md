@@ -35,10 +35,12 @@ application.getPath('invalid.key')
 | `sys.*` | OS-managed directories | `sys.home`, `sys.temp`, `sys.downloads` |
 | `app.*` | Electron app: install dir, userData, database, logs, temp root | `app.userdata`, `app.database.file` |
 | `feature.*` | Cherry-owned feature data (grouped by feature) | `feature.files.data`, `feature.mcp.oauth` |
+| `v1.*` | Old-version paths retained only for cleanup | `v1.trace`, `v1.cli.install` |
 | `external.*` | Third-party paths (Cherry reads/writes, does NOT own) | `external.openclaw.config` |
 
-**Default to `feature.*` for new keys.** The other four scopes are effectively closed.
-`feature.*` → Cherry creates/manages/may delete. `external.*` → Cherry MUST NOT delete.
+**Default to `feature.*` for active data.** Use `v1.*` only for old-version cleanup targets. The other scopes are effectively closed.
+`feature.*` → Cherry creates/manages/may delete. `v1.*` → Cherry never creates and may only inspect/delete during
+explicit cleanup. `external.*` → Cherry MUST NOT delete.
 
 ## Key Naming Convention
 
@@ -71,11 +73,12 @@ required not only for read-only/external paths, but also when the owning
 business workflow must control when materialization happens so a path lookup or
 database-only operation cannot create files. Two entry forms:
 - **Namespace prefix** (e.g. `'sys.'`, `'external.'`) — matches all keys under it
-- **Exact PathKey** — for individual read-only paths (asar bundle, packaged resources, etc.)
+- **Exact PathKey** — for individual paths that must not be materialized by lookup
 
 Add a key to NO_ENSURE only if the target is **read-only in production**,
 **owned by a third party**, or has an explicit owner that performs validated
-materialization separately from path resolution.
+materialization separately from path resolution, or is a **cleanup-only legacy
+target that Cherry must never recreate**.
 Type-checked via `satisfies` — typos and stale references fail at compile time.
 
 ## The `.` Separator Is Semantic, Not Physical
@@ -123,11 +126,11 @@ Reserved for features that genuinely need per-instance subdirectories.
 
 ## Adding a New Path Key
 
-1. Pick namespace (almost always `feature.*`)
+1. Pick namespace (almost always `feature.*`; `v1.*` only for cleanup-only old-version paths)
 2. Add entry in `pathRegistry.ts` under the appropriate section
 3. Reuse hoisted vars (`appUserDataData`, `appTemp`, etc.)
 4. Choose key shape: directory (no suffix), standalone file (`_file`), sibling file (`.file`)
-5. If read-only, add to `NO_ENSURE`
+5. If read-only, external, cleanup-only, or materialized separately by its owner, add to `NO_ENSURE`
 6. Run `pnpm lint`
 
 ## File-Level Constraint in `pathRegistry.ts`

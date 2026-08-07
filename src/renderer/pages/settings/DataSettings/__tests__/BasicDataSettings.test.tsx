@@ -2,11 +2,13 @@ import '@testing-library/jest-dom/vitest'
 
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getCacheSizeMock, indexedDbDatabasesMock, requestMock } = vi.hoisted(() => ({
-  getCacheSizeMock: vi.fn(),
+import type * as ClearCachePopupModule from '../ClearCachePopup'
+
+const { clearCacheShowMock, indexedDbDatabasesMock, requestMock } = vi.hoisted(() => ({
+  clearCacheShowMock: vi.fn(),
   indexedDbDatabasesMock: vi.fn(),
   requestMock: vi.fn()
 }))
@@ -35,6 +37,10 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
 vi.mock('../BackupPopup', () => ({ default: { show: vi.fn() } }))
 vi.mock('../RestorePopup', () => ({ default: { show: vi.fn() } }))
 vi.mock('../V1RemigrationPopup', () => ({ default: { show: vi.fn() } }))
+vi.mock('../ClearCachePopup', async (importOriginal) => {
+  const actual = await importOriginal<typeof ClearCachePopupModule>()
+  return { ...actual, default: { show: clearCacheShowMock } }
+})
 
 import BasicDataSettings from '../BasicDataSettings'
 import V1RemigrationPopup from '../V1RemigrationPopup'
@@ -47,13 +53,24 @@ async function renderSettings() {
 
 describe('BasicDataSettings', () => {
   beforeEach(() => {
-    getCacheSizeMock.mockResolvedValue('0')
-    indexedDbDatabasesMock.mockReset()
+    vi.clearAllMocks()
     indexedDbDatabasesMock.mockResolvedValue([])
-    requestMock.mockResolvedValue(undefined)
-    vi.stubGlobal('api', { getCacheSize: getCacheSizeMock })
     vi.stubGlobal('indexedDB', { databases: indexedDbDatabasesMock })
     localStorage.clear()
+    requestMock.mockImplementation((route: string) =>
+      Promise.resolve(
+        route === 'app.cache_cleanup.inspect'
+          ? {
+              results: [
+                {
+                  group: 'normal_cache',
+                  size: { bytes: 0, accuracy: 'estimated', completeness: 'complete' }
+                }
+              ]
+            }
+          : undefined
+      )
+    )
   })
 
   it('leaves backup and restore actions interactive', async () => {
@@ -94,6 +111,30 @@ describe('BasicDataSettings', () => {
     await renderSettings()
 
     expect(await screen.findByRole('button', { name: 'settings.data.v1_remigration.button' })).toBeInTheDocument()
+  })
+
+  it('continues non-v1 cleanup when the legacy retry marker cannot be written', async () => {
+    await renderSettings()
+    fireEvent.click(screen.getByRole('button', { name: 'settings.data.clear_cache.button' }))
+    await waitFor(() => expect(clearCacheShowMock).toHaveBeenCalledOnce())
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementationOnce(() => {
+      throw new DOMException('quota exceeded', 'QuotaExceededError')
+    })
+    requestMock.mockResolvedValueOnce({
+      results: [{ group: 'normal_cache', status: 'cleared' }]
+    })
+    const onClear = clearCacheShowMock.mock.calls[0][0].onClear as (
+      groups: Array<'normal_cache' | 'legacy_v1'>
+    ) => Promise<boolean>
+
+    let succeeded: boolean | undefined
+    await act(async () => {
+      succeeded = await onClear(['normal_cache', 'legacy_v1'])
+    })
+
+    expect(succeeded).toBe(false)
+    expect(requestMock).toHaveBeenCalledWith('app.cache_cleanup.run', { groups: ['normal_cache'] })
+    expect(toast.warning).toHaveBeenCalledWith('settings.data.clear_cache.partial_success')
   })
 
   it('does not send IPC when the renderer confirmation is cancelled', async () => {

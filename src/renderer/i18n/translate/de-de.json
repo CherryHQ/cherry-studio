@@ -6016,11 +6016,41 @@
         "skip_file_data_title": "Kompaktes Backup"
       },
       "clear_cache": {
+        "approximately": "Ca. {{size}}",
         "button": "Cache löschen",
-        "confirm": "Cache leeren entfernt alle zwischengespeicherten Daten inkl. Mini-App-Daten. Nicht wiederherstellbar. Fortfahren?",
+        "calculating": "Wird berechnet…",
         "error": "Cache-Löschen fehlgeschlagen",
+        "legacy_warning": {
+          "confirm": "Trotzdem auswählen",
+          "description": "Nach Abschluss der Bereinigung werden die in dieser Option enthaltenen v1-Daten dauerhaft gelöscht. Ohne Sicherung können diese Daten nicht wiederhergestellt werden.",
+          "message": "v1-Daten werden dauerhaft gelöscht",
+          "title": "Verbleibende v1-Daten auswählen?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Verbleibende v1-Daten, einschließlich alter Chatverläufe und Einstellungen. Das Löschen kann nicht rückgängig gemacht werden.",
+            "title": "Verbleibende Daten aus v1"
+          },
+          "normal_cache": {
+            "description": "Entfernt Cache- und temporäre Dateien, die bei der Nutzung der App entstehen, um Speicherplatz freizugeben. Chatverläufe und Einstellungen werden nicht gelöscht.",
+            "title": "App-Cache"
+          },
+          "orphaned_data": {
+            "description": "Entfernt nicht mehr verwendete Dateien, verbliebene Wissensdatenbanken und temporäre Backup-Wiederherstellungsdateien.",
+            "title": "Übrig gebliebene Dateien und Wissensdatenbanken"
+          },
+          "site_data": {
+            "description": "Cookies und Website-Speicher, die von Websites und Mini-Apps verwendet werden. Möglicherweise werden Sie von Websites abgemeldet.",
+            "title": "Website- und Mini-App-Daten"
+          }
+        },
+        "partial_success": "Bereinigung abgeschlossen, einige Elemente konnten jedoch nicht gelöscht werden",
+        "selected_total": "Ausgewählte Elemente gesamt",
         "success": "Cache erfolgreich geleert",
-        "title": "Cache löschen"
+        "title": "Cache löschen",
+        "total_partial": "{{size}} erfasst; einige Größen sind unbekannt",
+        "unavailable": "Berechnung nicht möglich",
+        "waiting_for_legacy_database": "Warten auf die Freigabe der alten Datenbank. Schließen Sie andere Cherry-Studio-Fenster; die Bereinigung wird fortgesetzt, sobald deren Verbindungen geschlossen sind."
       },
       "data": {
         "title": "Datenverzeichnis"
