@@ -52,11 +52,31 @@ export function getEffectiveMcpMode(assistant: Assistant): McpMode {
   return assistant.settings?.mcpMode ?? DEFAULT_MCP_MODE
 }
 
-function resolveServersForAssistant(assistant: Assistant, mode: McpMode): McpServer[] {
+export function resolveServersForAssistant(assistant: Assistant, mode: McpMode): McpServer[] {
+  const linkedIds = mode === 'auto' ? null : new Set(assistant.mcpServerIds)
+  // Manual mode with nothing linked can only resolve to an empty set — skip the query. Every chat
+  // request reaches here (the resource-tool gate), and 'manual' is the default mode.
+  if (linkedIds?.size === 0) return []
   const { items: activeServers } = mcpServerService.list({ isActive: true })
-  if (mode === 'auto') return activeServers
-  const linkedIds = new Set(assistant.mcpServerIds)
-  return activeServers.filter((server) => linkedIds.has(server.id))
+  return linkedIds ? activeServers.filter((server) => linkedIds.has(server.id)) : activeServers
+}
+
+/**
+ * The assistant's in-scope servers that declared the `resources` capability — the gate and the
+ * reachable set for the `mcp_resource_*` tools.
+ *
+ * Reads capabilities off already-connected clients only: this runs on the chat hot path (and again
+ * inside every tool call), so it must never open a connection. A server that has not connected yet
+ * simply doesn't expose its resources this turn; the tools appear once it has.
+ */
+export function resolveMcpResourceServers(assistant: Assistant | undefined): McpServer[] {
+  if (!assistant) return []
+  const mode = getEffectiveMcpMode(assistant)
+  if (mode === 'disabled') return []
+  const runtime = application.get('McpRuntimeService')
+  return resolveServersForAssistant(assistant, mode).filter(
+    (server) => !!runtime.getConnectedServerCapabilities(server.id)?.resources
+  )
 }
 
 function isToolDisabled(server: McpServer, tool: { name: string; id: string; description?: string }): boolean {

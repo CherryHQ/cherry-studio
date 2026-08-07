@@ -44,7 +44,10 @@ import {
 import type { RequestContext } from '../../../tools/adapters/aiSdk/context'
 import { applyDeferExposition } from '../../../tools/adapters/aiSdk/exposition/applyDeferExposition'
 import { syncMcpToolsToRegistry } from '../../../tools/adapters/aiSdk/mcp/mcpTools'
-import { resolveAssistantMcpToolIds } from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
+import {
+  resolveAssistantMcpToolIds,
+  resolveMcpResourceServers
+} from '../../../tools/adapters/aiSdk/mcp/resolveAssistantMcpTools'
 import { registry, ToolRegistry } from '../../../tools/adapters/aiSdk/registry'
 import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
@@ -172,7 +175,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
       : false,
     reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
   })
-  const { tools, deferredEntries, hasCitableTools, mcpToolIds } = toolSignals
+  const { tools, deferredEntries, hasCitableTools, mcpToolIds, mcpResourceServerIds } = toolSignals
     ? await resolveTools(
         request,
         assistant,
@@ -184,7 +187,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
         hasPersistedOutputs,
         canOffloadToolOutputs
       )
-    : { tools: undefined, deferredEntries: [] as ToolEntry[], hasCitableTools: false, mcpToolIds: new Set<string>() }
+    : {
+        tools: undefined,
+        deferredEntries: [] as ToolEntry[],
+        hasCitableTools: false,
+        mcpToolIds: new Set<string>(),
+        mcpResourceServerIds: new Set<string>()
+      }
   const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
   const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, provider, hasFunctionTools)
   const capabilities = assistant
@@ -256,6 +265,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     reasoning,
     requestContext,
     mcpToolIds,
+    mcpResourceServerIds,
     contextSettings,
     compressionModel,
     compactionSink,
@@ -371,6 +381,7 @@ export async function resolveTools(
   deferredEntries: ToolEntry[]
   hasCitableTools: boolean
   mcpToolIds: ReadonlySet<string>
+  mcpResourceServerIds: ReadonlySet<string>
 }> {
   const { mcpToolIds, hasAnyKnowledgeBase } = signals ?? (await resolveRequestToolSignals(request))
   if (mcpToolIds.size) {
@@ -380,10 +391,12 @@ export async function resolveTools(
   }
 
   const paintingModel = resolveConfiguredPaintingModel()
+  const mcpResourceServerIds = new Set(resolveMcpResourceServers(assistant).map((server) => server.id))
   const selected = registry.selectActive({
     assistant,
     paintingModel: paintingModel ?? undefined,
     mcpToolIds,
+    mcpResourceServerIds,
     hasFileAttachments,
     hasPersistedOutputs,
     canOffloadToolOutputs,
@@ -422,7 +435,13 @@ export async function resolveTools(
   const hasCitableTools = activeEntries.some(
     (entry) => CITABLE_BUILTIN_TOOL_NAMES.has(entry.name) && !clientToolNames.has(entry.name)
   )
-  return { tools: exposed.tools, deferredEntries: exposed.deferredEntries, hasCitableTools, mcpToolIds }
+  return {
+    tools: exposed.tools,
+    deferredEntries: exposed.deferredEntries,
+    hasCitableTools,
+    mcpToolIds,
+    mcpResourceServerIds
+  }
 }
 
 async function resolveRequestWebToolRoutes(
