@@ -166,9 +166,25 @@ export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
  * Organized by domain responsibility:
  * - /topics/:id/tree - Tree visualization
  * - /topics/:id/messages - Branch messages for conversation
+ * - /messages/:id/reply-group - Assistant reply group operations
  * - /messages/:id - Individual message operations
  */
 export type MessageSchemas = {
+  /**
+   * Delete the complete assistant reply group containing one representative.
+   *
+   * The replies are spliced out atomically: each reply's direct children are
+   * reparented to the shared user-message parent before the replies are deleted.
+   *
+   * @example DELETE /messages/reply_1/reply-group
+   */
+  '/messages/:id/reply-group': {
+    DELETE: {
+      params: { id: string }
+      response: DeleteMessageResponse
+    }
+  }
+
   /**
    * Tree query endpoint for visualization
    * @example GET /topics/abc123/tree?depth=1

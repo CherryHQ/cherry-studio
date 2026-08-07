@@ -29,7 +29,6 @@ const logger = loggerService.withContext('useConfigPanelController')
 interface UseConfigPanelControllerOptions {
   selectedCliTool: CodeCli
   toolName: string
-  isToolInstalled: boolean
   currentProviderId: string | null
   providerConfigs: Record<string, CliProviderConfig>
   upsertProviderConfig: (
@@ -56,7 +55,6 @@ interface ConfigPanelController {
 export function useConfigPanelController({
   selectedCliTool,
   toolName,
-  isToolInstalled,
   currentProviderId,
   providerConfigs,
   upsertProviderConfig,
@@ -212,13 +210,6 @@ export function useConfigPanelController({
   const handleToggleCurrent = useCallback(
     (provider: Provider) => {
       const isEnabling = currentProviderId !== provider.id
-      // Enabling injects config into the CLI's own files, which is meaningless until the CLI is
-      // installed — nudge the user to install it instead of marking a provider "enabled" that can
-      // never launch. Disabling (scrubbing config) stays allowed regardless.
-      if (isEnabling && !isToolInstalled) {
-        toast.error(t('code.install_tool_first', { toolName }))
-        return
-      }
       // Ignore a re-entrant toggle for the same tool while its config write/clear is still running.
       if (inFlightToolsRef.current.has(selectedCliTool)) return
       inFlightToolsRef.current.add(selectedCliTool)
@@ -311,8 +302,6 @@ export function useConfigPanelController({
     [
       currentProviderId,
       selectedCliTool,
-      toolName,
-      isToolInstalled,
       providerConfigs,
       upsertProviderConfig,
       setCurrentProvider,
