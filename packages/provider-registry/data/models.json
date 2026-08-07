@@ -7475,11 +7475,11 @@
       "pricing": {
         "input": {
           "currency": "USD",
-          "perMillionTokens": 0.09
+          "perMillionTokens": 0.083
         },
         "output": {
           "currency": "USD",
-          "perMillionTokens": 0.18
+          "perMillionTokens": 0.167
         }
       },
       "reasoning": {
@@ -18773,66 +18773,6 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "audio-recognition",
-        "video-recognition",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 1048576,
-      "family": "muse",
-      "id": "muse-spark-1-2",
-      "inputModalities": ["text", "image", "video", "audio"],
-      "maxOutputTokens": 1048576,
-      "metadata": {},
-      "name": "Muse Spark 1.2",
-      "outputModalities": ["text"],
-      "ownedBy": "vercel",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.15
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.25
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 4.25
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
-      "contextWindow": 1048576,
-      "family": "muse",
-      "id": "muse-spark-1-2-contributor",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 1048576,
-      "metadata": {},
-      "name": "Muse Spark 1.2 Contributor",
-      "outputModalities": ["text"],
-      "ownedBy": "vercel",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.002
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.2
-        }
-      }
-    },
-    {
       "capabilities": ["embedding"],
       "contextWindow": 32000,
       "family": "v0",
@@ -21087,5 +21027,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "c9d1bd8e37dff744"
+  "version": "406889b05c8b2726"
 }

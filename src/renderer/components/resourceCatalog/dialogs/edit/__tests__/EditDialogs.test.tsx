@@ -327,7 +327,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.field.tags.hint': 'Group related assistants.',
           'library.config.basic.field.custom_params.hint': 'Extra provider parameters.',
           'library.config.basic.field.max_tokens.hint': 'Caps response length.',
-          'library.config.basic.field.max_tool_calls.hint': 'Caps tool-call rounds at 100.',
+          'library.config.basic.field.max_tool_calls.hint': 'Caps tool-call rounds at 1000.',
           'library.config.basic.field.stream_output.hint': 'Stream responses.',
           'library.config.basic.field.temperature.hint': 'Controls randomness.',
           'library.config.basic.field.top_p.hint': 'Controls nucleus sampling.',
@@ -335,7 +335,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.json_invalid': 'Invalid JSON',
           'library.config.basic.max_tokens': 'Max tokens',
           'library.config.basic.max_tool_calls': 'Max tool call rounds',
-          'library.config.basic.max_tool_calls_default': 'Default (20 rounds)',
+          'library.config.basic.max_tool_calls_default': 'Default (100 rounds)',
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_pick': 'Pick model',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
@@ -1010,7 +1010,7 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('shows the default tool-call cap and clamps custom rounds at 100', async () => {
+  it('shows the default tool-call cap and clamps custom rounds at 1000', async () => {
     render(
       <AssistantEditDialog
         open
@@ -1029,24 +1029,24 @@ describe('edit dialogs', () => {
     const maxToolCallsSwitch = await screen.findByRole('switch', { name: 'Max tool call rounds' })
 
     expect(maxToolCallsSwitch).not.toBeChecked()
-    expect(screen.getByText('Default (20 rounds)')).toBeVisible()
+    expect(screen.getByText('Default (100 rounds)')).toBeVisible()
 
     fireEvent.click(maxToolCallsSwitch)
     const maxToolCallsInput = await screen.findByDisplayValue('20')
     expect(maxToolCallsInput).toHaveAttribute('min', '1')
-    expect(maxToolCallsInput).toHaveAttribute('max', '100')
+    expect(maxToolCallsInput).toHaveAttribute('max', '1000')
 
     fireEvent.focus(maxToolCallsInput)
-    fireEvent.change(maxToolCallsInput, { target: { value: '101' } })
+    fireEvent.change(maxToolCallsInput, { target: { value: '1001' } })
     fireEvent.blur(maxToolCallsInput)
 
-    expect(maxToolCallsInput).toHaveValue(100)
+    expect(maxToolCallsInput).toHaveValue(1000)
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
           settings: expect.objectContaining({
             enableMaxToolCalls: true,
-            maxToolCalls: 100
+            maxToolCalls: 1000
           })
         })
       })
