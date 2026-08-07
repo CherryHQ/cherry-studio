@@ -661,3 +661,51 @@ export type ReadFileInput = z.infer<typeof readFileInputSchema>
 export type ReadFileOutput = z.infer<typeof readFileOutputSchema>
 export type ReadFileError = z.infer<typeof readFileErrorSchema>
 export type ReadFileResult = z.infer<typeof readFileResultSchema>
+
+// ── mcp_resource_list / mcp_resource_read ────────────────────────
+// The MCP *resources* half of the protocol (tools are exposed per server by `syncMcpToolsToRegistry`
+// instead). Both tools are scoped to the servers this request's assistant binds, so neither takes a
+// server argument: `mcp_resource_list` returns every reachable resource, `mcp_resource_read` resolves
+// the owning server from the uri.
+
+export const MCP_RESOURCE_LIST_TOOL_NAME = 'mcp_resource_list'
+export const MCP_RESOURCE_READ_TOOL_NAME = 'mcp_resource_read'
+
+/** No inputs: the reachable server set is request scope, not a model decision. */
+export const mcpResourceListInputSchema = z.object({})
+
+export const mcpResourceEntrySchema = z.object({
+  serverName: z.string(),
+  uri: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  mimeType: z.string().optional()
+})
+
+export const mcpResourceListOutputSchema = z.object({
+  resources: z.array(mcpResourceEntrySchema)
+})
+
+export const mcpResourceReadInputSchema = z.object({
+  uri: z
+    .string()
+    .min(1)
+    .describe('Resource uri exactly as returned by mcp_resource_list, for example "file:///notes.md".')
+})
+
+export const mcpResourceReadOutputSchema = z.object({
+  uri: z.string(),
+  serverName: z.string(),
+  mimeType: z.string().optional(),
+  text: z.string()
+})
+
+/** Unknown uri / unreachable server — distinguishable from a successful read. */
+export const mcpResourceErrorSchema = z.object({ error: z.string() })
+
+export const mcpResourceReadResultSchema = z.union([mcpResourceReadOutputSchema, mcpResourceErrorSchema])
+
+export type McpResourceEntry = z.infer<typeof mcpResourceEntrySchema>
+export type McpResourceListOutput = z.infer<typeof mcpResourceListOutputSchema>
+export type McpResourceReadOutput = z.infer<typeof mcpResourceReadOutputSchema>
+export type McpResourceReadResult = z.infer<typeof mcpResourceReadResultSchema>
