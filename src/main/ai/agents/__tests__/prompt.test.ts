@@ -292,6 +292,33 @@ describe('PromptBuilder', () => {
     expect(result).toContain('current working directory is the session workspace')
   })
 
+  it('skips the bundled memory contract in custom mode (built-in agent with user instructions)', async () => {
+    setupFiles({
+      '/agent-data/SOUL.md': 'Official soul.',
+      '/agent-data/USER.md': 'Official user.',
+      '/agent-data/memory/FACT.md': 'Official fact.'
+    })
+
+    const { context: result } = await builder.buildPromptParts('/workspace', baseConfig, true, '/agent-data', true)
+
+    // Custom mode: the user's prompt is the only identity — no persona, user or
+    // fact files are loaded into context.
+    expect(result).not.toContain('## Memories')
+    expect(result).not.toContain('Official soul.')
+    expect(result).not.toContain('Official user.')
+    expect(result).not.toContain('Official fact.')
+    expect(result).not.toContain('`/agent-data/SOUL.md`')
+  })
+
+  it('keeps the bundled memory contract outside custom mode', async () => {
+    setupFiles({})
+
+    const { context: result } = await builder.buildPromptParts('/workspace', baseConfig, true, '/agent-data', false)
+
+    expect(result).toContain('## Memories')
+    expect(result).toContain('`/agent-data/SOUL.md`')
+  })
+
   it('always identifies the agent data directory when identity files are empty and bootstrap is skipped', async () => {
     setupFiles({})
 

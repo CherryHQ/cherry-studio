@@ -109,7 +109,10 @@ ${sections}`
  * {@link buildPromptParts} — returns {@link AgentPromptParts} describing
  * whether the base should be the SDK preset or an explicit `system.md`, plus
  * separate Cherry-owned context (bootstrap instructions when needed, and the
- * agent data files SOUL.md / USER.md / FACT.md). Tool-usage guidance (autonomy, memory, web) is not
+ * agent data files SOUL.md / USER.md / FACT.md). A built-in agent with
+ * user-written instructions enters custom mode: the bundled persona/memory
+ * contract is skipped so the user's prompt is the only identity layer.
+ * Tool-usage guidance (autonomy, memory, web) is not
  * injected here — it ships lazily via the default-enabled `cherry-tool-guide`
  * builtin skill.
  *
@@ -126,7 +129,13 @@ export class PromptBuilder {
     workspacePath: string,
     config?: AgentConfiguration,
     hasUserInstructions = false,
-    agentDataPath = workspacePath
+    agentDataPath = workspacePath,
+    /**
+     * Custom mode: a built-in agent with user-written instructions owns its identity
+     * entirely — the bundled persona/memory contract (SOUL.md / USER.md / FACT.md)
+     * is skipped so the user's prompt is the only role definition.
+     */
+    skipBundledMemories = false
   ): Promise<AgentPromptParts> {
     const contextParts: string[] = []
 
@@ -147,8 +156,12 @@ export class PromptBuilder {
     }
 
     // Always include the storage contract and absolute identity paths. Only the
-    // loaded file-content blocks inside the section are conditional.
-    contextParts.push(await this.buildMemoriesSection(agentDataPath))
+    // loaded file-content blocks inside the section are conditional. Custom mode
+    // (built-in agent with user-written instructions, signalled by the caller)
+    // skips the bundled persona/memory contract entirely.
+    if (!skipBundledMemories) {
+      contextParts.push(await this.buildMemoriesSection(agentDataPath))
+    }
 
     return { base, context: contextParts.join('\n\n') }
   }

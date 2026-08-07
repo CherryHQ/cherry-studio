@@ -139,7 +139,8 @@ describe('buildSystemPrompt — current workspace', () => {
       '/workspace/project-a',
       expect.anything(),
       false,
-      '/data/Agents/agent-1'
+      '/data/Agents/agent-1',
+      false
     )
     expect(result).toMatchObject({ type: 'preset', preset: 'claude_code' })
     expect(promptText(result)).not.toContain(WORKSPACE_MARKER)
@@ -312,7 +313,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
 
   it('initializes persona and memory resources in agent data on every build', async () => {
     const agent = makeAgent({
-      instructions: 'Assistant instructions.',
+      instructions: '',
       configuration: { builtin_role: 'assistant' } as never
     })
 
@@ -327,7 +328,7 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
 
   it('provisions agent data instead of a user workspace', async () => {
     const agent = makeAgent({
-      instructions: 'Assistant instructions.',
+      instructions: '',
       configuration: { builtin_role: 'assistant' } as never
     })
 
@@ -343,9 +344,24 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
     expect(mockProvisionBuiltinAgent).not.toHaveBeenCalledWith('/workspace/project', 'assistant')
   })
 
+  it('skips bundled persona provisioning when the built-in agent has user instructions', async () => {
+    const agent = makeAgent({
+      instructions: 'My custom instructions.',
+      configuration: { builtin_role: 'assistant' } as never
+    })
+
+    await buildSystemPrompt(makeSession(), agent, '/tmp/cwd', false, '/data/Agents/agent-1')
+
+    expect(mockProvisionBuiltinAgent).not.toHaveBeenCalled()
+    // The prompt pipeline still runs (with the user-instructions flag and custom
+    // mode's skipBundledMemories) so the workspace base and functional context
+    // blocks are assembled as usual.
+    expect(mockBuildPrompt).toHaveBeenCalledWith('/tmp/cwd', expect.anything(), true, '/data/Agents/agent-1', true)
+  })
+
   it('loads the built-in Assistant through the normal identity and memory prompt pipeline', async () => {
     const agent = makeAgent({
-      instructions: 'Assistant instructions.',
+      instructions: '',
       configuration: { builtin_role: 'assistant' } as never
     })
 
@@ -356,7 +372,8 @@ describe('buildSystemPrompt — builtin Cherry Assistant definition', () => {
       '/workspace/assistant',
       expect.anything(),
       true,
-      '/data/Agents/agent-1'
+      '/data/Agents/agent-1',
+      false
     )
     expect(mockProvisionBuiltinAgent.mock.invocationCallOrder[0]).toBeLessThan(
       mockBuildPrompt.mock.invocationCallOrder[0]
