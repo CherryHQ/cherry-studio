@@ -84,11 +84,10 @@ describe('NotesEditor focus behavior', () => {
     )
 
     expect(mocks.richEditorProps).toHaveBeenCalledWith(
-      expect.objectContaining({
-        enableImageInsertion: false,
-        disabledCommands: ['inlineMath']
-      })
+      expect.objectContaining({ disabledCommands: ['image', 'inlineMath'] })
     )
     expect(mocks.richEditorProps.mock.lastCall?.[0]).not.toHaveProperty('onCommandsReady')
+    // Hiding the image command must not disable image paste, which notes have always supported.
+    expect(mocks.richEditorProps.mock.lastCall?.[0]).not.toHaveProperty('enableImageInsertion')
   })
 })

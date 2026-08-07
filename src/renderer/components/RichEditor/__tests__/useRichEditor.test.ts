@@ -1,4 +1,4 @@
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import type { Editor } from '@tiptap/core'
 import { Selection } from '@tiptap/pm/state'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -39,6 +39,27 @@ const pasteImage = (editor: Editor, text = '') => {
       getData: (type: string) => (type === 'text/plain' ? text : ''),
       items: [{ type: file.type, getAsFile: () => file }]
     }
+  })
+  editor.view.dom.dispatchEvent(event)
+}
+
+// `imagePlaceholder` counts too: it renders a click target that runs `setImage`, so leaking one into
+// an images-off editor reopens the very path the strip is meant to close.
+const countImageNodes = (editor: Editor): number => {
+  let count = 0
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === 'image' || node.type.name === 'imagePlaceholder') count += 1
+  })
+  return count
+}
+
+// Mirrors ProseMirror's external-drag path: with no `view.dragging` the slice is parsed from the
+// drag event's `text/html`. `posAtCoords` needs stubbing because jsdom reports no layout.
+const dropHtml = (editor: Editor, html: string) => {
+  editor.view.posAtCoords = () => ({ pos: editor.state.doc.content.size, inside: -1 })
+  const event = new Event('drop', { bubbles: true, cancelable: true })
+  Object.defineProperty(event, 'dataTransfer', {
+    value: { getData: (type: string) => (type === 'text/html' ? html : ''), files: [], types: ['text/html'] }
   })
   editor.view.dom.dispatchEvent(event)
 }
@@ -128,6 +149,30 @@ describe('useRichEditor markdown paste', () => {
     expect(nodeTypes).toContain('codeBlock')
   })
 
+  // Notes rely on this: they hide the image command but keep paste, and the pinned `manual` cleanup
+  // policy is what makes writing into the user's notes folder safe.
+  it('persists a pasted image as a pinned entry when image insertion is enabled', async () => {
+    vi.mocked(window.api.file.createInternalEntry).mockResolvedValue({
+      id: 'entry-1',
+      name: 'Pasted Image',
+      ext: 'png'
+    } as never)
+    vi.mocked(window.api.file.getPhysicalPath).mockResolvedValue('/tmp/pasted.png' as never)
+
+    const { result } = renderHook(() => useRichEditor({ initialContent: '', autoFocus: false }))
+
+    await act(async () => {
+      pasteImage(result.current.editor)
+    })
+    // The paste is only observable once the whole async persist chain settles; letting it straddle
+    // the end of the test would land the call on the next test's spy.
+    await waitFor(() => expect(countImageNodes(result.current.editor)).toBe(1))
+
+    expect(window.api.file.createInternalEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'bytes', cleanupPolicy: 'manual' })
+    )
+  })
+
   it('keeps clipboard images out without losing accompanying text when images are disabled', async () => {
     const { result } = renderHook(() =>
       useRichEditor({ initialContent: '', autoFocus: false, enableImageInsertion: false })
@@ -176,5 +221,78 @@ describe('useRichEditor markdown paste', () => {
 
     expect(result.current.editor.getJSON().content?.some((node) => node.type === 'image')).toBe(false)
     expect(result.current.editor.getText()).toBe('![alt](https://example.com/image.png)')
+  })
+})
+
+describe('useRichEditor image drag and drop', () => {
+  it('keeps an image dragged in as HTML out of the document while preserving its text', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: '', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      dropHtml(result.current.editor, '<p>caption <img src="https://example.com/image.png" alt="alt"></p>')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(countImageNodes(result.current.editor)).toBe(0)
+    expect(result.current.editor.getText()).toContain('caption')
+  })
+
+  it('inserts nothing when the dragged HTML is only an image', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: 'before', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      dropHtml(result.current.editor, '<img src="https://example.com/image.png" alt="alt">')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(countImageNodes(result.current.editor)).toBe(0)
+    expect(result.current.editor.getText()).toBe('before')
+  })
+
+  it('strips a dragged image placeholder when image insertion is disabled', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: '', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      dropHtml(result.current.editor, '<p>keep</p><div data-type="image-placeholder"></div>')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(countImageNodes(result.current.editor)).toBe(0)
+    expect(result.current.editor.getText()).toContain('keep')
+  })
+
+  it('leaves the document schema-valid when a dropped table cell held only an image', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: '', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      dropHtml(
+        result.current.editor,
+        '<table><tbody><tr><td><img src="https://example.com/image.png"></td><td>text</td></tr></tbody></table>'
+      )
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(countImageNodes(result.current.editor)).toBe(0)
+    expect(result.current.editor.getText()).toContain('text')
+    expect(() => result.current.editor.state.doc.check()).not.toThrow()
+  })
+
+  it('still accepts a dragged image when image insertion is enabled', async () => {
+    const { result } = renderHook(() => useRichEditor({ initialContent: '', autoFocus: false }))
+
+    await act(async () => {
+      dropHtml(result.current.editor, '<p><img src="https://example.com/image.png" alt="alt"></p>')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(countImageNodes(result.current.editor)).toBe(1)
   })
 })

@@ -12,7 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { createRichEditorExtensions } from './createExtensions'
 import { blobToArrayBuffer, compressImage, shouldCompressImage } from './helpers/imageUtils'
-import { pickInlinePasteContent, stripImageNodes } from './helpers/markdownPaste'
+import { pickInlinePasteContent, stripImageNodes, stripImageNodesFromSlice } from './helpers/markdownPaste'
 
 const logger = loggerService.withContext('useRichEditor')
 
@@ -358,6 +358,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         }
         return false
       },
+      transformPasted: (slice) => (enableImageInsertion ? slice : stripImageNodesFromSlice(slice)),
       attributes: {
         // Allow text selection even when not editable
         style: editable

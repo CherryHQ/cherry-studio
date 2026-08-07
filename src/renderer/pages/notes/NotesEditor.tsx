@@ -17,7 +17,10 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('NotesEditor')
-const DISABLED_RICH_EDITOR_COMMANDS = ['inlineMath'] as const
+// Hides the toolbar button and the slash-menu entry only. Image *paste* stays enabled: notes have
+// persisted pasted images into the user's notes folder since the module shipped, and
+// `handleImagePaste` pins those entries with `cleanupPolicy: 'manual'` for exactly this path.
+const DISABLED_RICH_EDITOR_COMMANDS = ['image', 'inlineMath'] as const
 
 interface NotesEditorProps {
   activeNodeId?: string
@@ -117,7 +120,6 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               fontFamily={settings.fontFamily}
               fontSize={settings.fontSize}
               enableSpellCheck={enableSpellCheck}
-              enableImageInsertion={false}
               disabledCommands={DISABLED_RICH_EDITOR_COMMANDS}
             />
           )}
