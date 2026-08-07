@@ -456,6 +456,353 @@ describe('MessageService', () => {
     })
   })
 
+  describe('getBranchMessages — followingBranchCount', () => {
+    it('returns 0 for a linear tree with no hidden branches', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-linear', activeNodeId: 'm-a2', orderKey: 'c0' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-linear', [
+          {
+            id: 'm-u1',
+            parentId: null,
+            topicId: 'topic-linear',
+            role: 'user',
+            data: mainText('q1'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-a1',
+            parentId: 'm-u1',
+            topicId: 'topic-linear',
+            role: 'assistant',
+            data: mainText('a1'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          },
+          {
+            id: 'm-u2',
+            parentId: 'm-a1',
+            topicId: 'topic-linear',
+            role: 'user',
+            data: mainText('q2'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 300,
+            updatedAt: 300
+          },
+          {
+            id: 'm-a2',
+            parentId: 'm-u2',
+            topicId: 'topic-linear',
+            role: 'assistant',
+            data: mainText('a2'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 400,
+            updatedAt: 400
+          }
+        ])
+      )
+
+      const result = messageService.getBranchMessages('topic-linear', { includeSiblings: true })
+
+      expect(result.followingBranchCount).toBe(0)
+    })
+
+    it('counts hidden follow-ups after regenerating a mid-conversation message', async () => {
+      // root→U1→[A1(sg=1), A1'(sg=1, active)], A1→U2→A2. Regenerating A1 moved
+      // activeNode to A1', so U2→A2 under the old A1 branch are hidden.
+      await dbh.db.insert(topicTable).values({ id: 'topic-regen', activeNodeId: 'm-a1p', orderKey: 'c1' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-regen', [
+          {
+            id: 'm-u1',
+            parentId: null,
+            topicId: 'topic-regen',
+            role: 'user',
+            data: mainText('q1'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-a1',
+            parentId: 'm-u1',
+            topicId: 'topic-regen',
+            role: 'assistant',
+            data: mainText('old reply'),
+            status: 'success',
+            siblingsGroupId: 1,
+            createdAt: 200,
+            updatedAt: 200
+          },
+          {
+            id: 'm-a1p',
+            parentId: 'm-u1',
+            topicId: 'topic-regen',
+            role: 'assistant',
+            data: mainText('new reply'),
+            status: 'success',
+            siblingsGroupId: 1,
+            createdAt: 210,
+            updatedAt: 210
+          },
+          {
+            id: 'm-u2',
+            parentId: 'm-a1',
+            topicId: 'topic-regen',
+            role: 'user',
+            data: mainText('q2'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 300,
+            updatedAt: 300
+          },
+          {
+            id: 'm-a2',
+            parentId: 'm-u2',
+            topicId: 'topic-regen',
+            role: 'assistant',
+            data: mainText('a2'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 400,
+            updatedAt: 400
+          }
+        ])
+      )
+
+      const result = messageService.getBranchMessages('topic-regen', { includeSiblings: true })
+
+      // A1 is an alternative reply of the visible group (excluded); U2 + A2 are
+      // genuinely hidden follow-ups on the old branch.
+      expect(result.followingBranchCount).toBe(2)
+    })
+
+    it('returns 0 for a multi-model reply group whose alternatives are visible', async () => {
+      await seedMultiModelTree()
+
+      const result = messageService.getBranchMessages('topic-1', { includeSiblings: true })
+
+      // m-a1 is an alternative reply of m-a2's visible group — excluded.
+      expect(result.followingBranchCount).toBe(0)
+    })
+
+    it('counts a user-forked branch that is not on the active path', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-fork', activeNodeId: 'm-a1', orderKey: 'c2' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-fork', [
+          {
+            id: 'm-u1',
+            parentId: null,
+            topicId: 'topic-fork',
+            role: 'user',
+            data: mainText('q1'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-u1b',
+            parentId: null,
+            topicId: 'topic-fork',
+            role: 'user',
+            data: mainText('q1 edited'),
+            status: 'success',
+            siblingsGroupId: 2,
+            createdAt: 110,
+            updatedAt: 110
+          },
+          {
+            id: 'm-a1',
+            parentId: 'm-u1',
+            topicId: 'topic-fork',
+            role: 'assistant',
+            data: mainText('a1'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          },
+          {
+            id: 'm-a1b',
+            parentId: 'm-u1b',
+            topicId: 'topic-fork',
+            role: 'assistant',
+            data: mainText('a1b'),
+            status: 'success',
+            siblingsGroupId: 2,
+            createdAt: 210,
+            updatedAt: 210
+          }
+        ])
+      )
+
+      const result = messageService.getBranchMessages('topic-fork', { includeSiblings: true })
+
+      // m-u1b + m-a1b are an off-path fork (different sibling group from the
+      // visible m-u1 path) → both counted.
+      expect(result.followingBranchCount).toBe(2)
+    })
+
+    it('returns the same count regardless of pagination', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-page', activeNodeId: 'm-follow2', orderKey: 'c3' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-page', [
+          {
+            id: 'm-u1',
+            parentId: null,
+            topicId: 'topic-page',
+            role: 'user',
+            data: mainText('q1'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-a1',
+            parentId: 'm-u1',
+            topicId: 'topic-page',
+            role: 'assistant',
+            data: mainText('a1'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          },
+          {
+            id: 'm-u2',
+            parentId: 'm-a1',
+            topicId: 'topic-page',
+            role: 'user',
+            data: mainText('q2'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 300,
+            updatedAt: 300
+          },
+          {
+            id: 'm-a2',
+            parentId: 'm-u2',
+            topicId: 'topic-page',
+            role: 'assistant',
+            data: mainText('a2'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 400,
+            updatedAt: 400
+          },
+          {
+            id: 'm-follow2',
+            parentId: 'm-a2',
+            topicId: 'topic-page',
+            role: 'user',
+            data: mainText('follow'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 500,
+            updatedAt: 500
+          },
+          // Hidden off-path branch: a sibling fork under m-u2.
+          {
+            id: 'm-a2b',
+            parentId: 'm-u2',
+            topicId: 'topic-page',
+            role: 'assistant',
+            data: mainText('a2b'),
+            status: 'success',
+            siblingsGroupId: 3,
+            createdAt: 450,
+            updatedAt: 450
+          }
+        ])
+      )
+
+      const first = messageService.getBranchMessages('topic-page', { includeSiblings: true, limit: 2 })
+      expect(first.followingBranchCount).toBe(1)
+
+      const second = messageService.getBranchMessages('topic-page', {
+        includeSiblings: true,
+        limit: 2,
+        cursor: first.nextCursor
+      })
+      expect(second.followingBranchCount).toBe(1)
+    })
+
+    it('returns 0 when no active node exists', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-empty', activeNodeId: null, orderKey: 'c4' })
+
+      const result = messageService.getBranchMessages('topic-empty', { includeSiblings: true })
+
+      expect(result.followingBranchCount).toBe(0)
+    })
+
+    it('excludes soft-deleted hidden messages from the count', async () => {
+      await dbh.db.insert(topicTable).values({ id: 'topic-deleted', activeNodeId: 'm-a1d', orderKey: 'c5' })
+      await dbh.db.insert(messageTable).values(
+        withRoot('topic-deleted', [
+          {
+            id: 'm-u1',
+            parentId: null,
+            topicId: 'topic-deleted',
+            role: 'user',
+            data: mainText('q1'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 100,
+            updatedAt: 100
+          },
+          {
+            id: 'm-a1d',
+            parentId: 'm-u1',
+            topicId: 'topic-deleted',
+            role: 'assistant',
+            data: mainText('active'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 200,
+            updatedAt: 200
+          },
+          {
+            id: 'm-a1x',
+            parentId: 'm-u1',
+            topicId: 'topic-deleted',
+            role: 'assistant',
+            data: mainText('hidden'),
+            status: 'success',
+            siblingsGroupId: 4,
+            createdAt: 210,
+            updatedAt: 210
+          },
+          {
+            id: 'm-u2',
+            parentId: 'm-a1x',
+            topicId: 'topic-deleted',
+            role: 'user',
+            data: mainText('q2'),
+            status: 'success',
+            siblingsGroupId: 0,
+            createdAt: 300,
+            updatedAt: 300
+          }
+        ])
+      )
+
+      // Soft-delete the hidden branch head.
+      await dbh.db.update(messageTable).set({ deletedAt: 999 }).where(eq(messageTable.id, 'm-a1x')).run()
+
+      // m-u2 is a live child of the soft-deleted m-a1x → still hidden and counted.
+      expect(messageService.getBranchMessages('topic-deleted').followingBranchCount).toBe(1)
+    })
+  })
+
   describe('search', () => {
     it('searches v2 parts text and returns message snippets', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-search', activeNodeId: 'm-search-1', orderKey: 's0' })

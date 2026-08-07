@@ -374,7 +374,12 @@ export async function buildClaudeCodeSessionSettings(
   const agentConfig = agent.configuration
   const builtinRole = agentConfig?.builtin_role as string | undefined
   const isAssistant = builtinRole === 'assistant'
-  const builtinPluginDirectory = builtinRole ? getBuiltinAgentPluginDirectory(builtinRole) : undefined
+  // Custom mode: user-written DB instructions make the built-in agent fully
+  // user-owned — the bundled plugin (persona + onboarder skills) and its skill
+  // whitelist entries are skipped so the user's prompt is the only identity.
+  const customizedBuiltinAgent = builtinRole !== undefined && Boolean(agent.instructions?.trim())
+  const builtinPluginDirectory =
+    !customizedBuiltinAgent && builtinRole ? getBuiltinAgentPluginDirectory(builtinRole) : undefined
   const linkedChannelSnapshot =
     options?.linkedChannelSnapshot === undefined
       ? channelService.findBySessionId(session.id)
@@ -483,7 +488,7 @@ export async function buildClaudeCodeSessionSettings(
   // 9. Skills — pass the SDK skill-name whitelist (managed skills enabled for this
   // agent + the workspace's own .claude/skills). The CLAUDE_CONFIG_DIR/skills mirror
   // is maintained by SkillService (install/uninstall/startup), not here.
-  const skills = await buildSkillWhitelist(agent.id, cwd, builtinRole)
+  const skills = await buildSkillWhitelist(agent.id, cwd, customizedBuiltinAgent ? undefined : builtinRole)
 
   // 10. Build settings
   const autoCompactWindow = resolveAutoCompactWindow(options?.contextWindow)
@@ -1344,7 +1349,12 @@ export async function buildSystemPrompt(
 
   // Persona and memory templates belong in the app-owned agent data directory. Bundled
   // skills are injected from the read-only app plugin and never copied into user projects.
-  if (builtinRole) {
+  // Custom mode (non-empty user instructions) skips provisioning: the user owns the
+  // identity, so the bundled SOUL/USER/FACT templates must not be re-seeded. The check
+  // uses the raw DB instructions, not the resolved `instructions` variable, which the
+  // bundle fallback fills even when the DB field is empty.
+  const customizedBuiltinAgent = builtinRole !== undefined && Boolean(agent.instructions?.trim())
+  if (builtinRole && !customizedBuiltinAgent) {
     await provisionBuiltinAgent(agentDataPath, builtinRole)
   }
 
@@ -1369,7 +1379,8 @@ export async function buildSystemPrompt(
     cwd,
     agentConfig,
     Boolean(instructions?.trim()),
-    agentDataPath
+    agentDataPath,
+    customizedBuiltinAgent
   )
   const userInstructions = instructions ? `\n\n${instructions}` : ''
   // The Claude Code preset owns its dynamic cwd/git context. A custom base replaces that

@@ -1654,6 +1654,46 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.skills).toEqual(expect.arrayContaining(['system-skill', 'cherry-assistant-guide', 'faq-collector']))
   })
 
+  it('skips the bundled plugin and builtin skill whitelist when the built-in Assistant has user instructions', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      model: 'anthropic::claude-sonnet',
+      instructions: 'My custom instructions.',
+      mcps: [],
+      allowedTools: [],
+      disabledTools: [],
+      configuration: { builtin_role: 'assistant' }
+    })
+    mocks.listSkills.mockResolvedValue([{ id: 'skill-1', folderName: 'system-skill', isEnabled: true }])
+    mocks.getBuiltinAgentPluginDirectory.mockReturnValue('/app/feature.agents.builtin/cherry-assistant/.claude')
+    mocks.loadBuiltinAgentDefinition.mockReturnValue({
+      skills: ['cherry-assistant-guide', 'faq-collector']
+    })
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      workspace: { type: 'user', path: '/workspace/project' }
+    }
+
+    const settings = await buildClaudeCodeSessionSettings(session as never, {} as never)
+
+    // The private skill plugin (global skills) stays, but the bundled plugin is skipped.
+    expect(settings.plugins).toContainEqual({
+      type: 'local',
+      path: '/app/feature.agents.claude.root',
+      skipMcpDiscovery: true
+    })
+    expect(settings.plugins).not.toContainEqual({
+      type: 'local',
+      path: '/app/feature.agents.builtin/cherry-assistant/.claude',
+      skipMcpDiscovery: true
+    })
+    // Managed skills stay; the bundled skill names are no longer force-whitelisted.
+    expect(settings.skills).toEqual(expect.arrayContaining(['system-skill']))
+    expect(settings.skills).not.toEqual(expect.arrayContaining(['cherry-assistant-guide', 'faq-collector']))
+  })
+
   it('injects and auto-approves Assistant MCP tools for a local assistant session', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',

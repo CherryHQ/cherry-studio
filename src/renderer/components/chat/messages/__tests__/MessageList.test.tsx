@@ -196,6 +196,7 @@ vi.mock('../list/MessageVirtualList', async () => {
       items,
       keepMountedKeys,
       onScrollContainerReady,
+      renderFooter,
       renderItem,
       scrollToBottomButtonBottomOffset,
       showScrollToBottomButton,
@@ -237,6 +238,7 @@ vi.mock('../list/MessageVirtualList', async () => {
           {visibleItems.map((item: unknown, index: number) => (
             <div key={index}>{renderItem(item, index)}</div>
           ))}
+          {renderFooter != null && (typeof renderFooter === 'function' ? renderFooter() : renderFooter)}
         </div>
       )
     }
@@ -313,6 +315,19 @@ describe('MessageList', () => {
     renderMessageList([createMessage('assistant-1', 'assistant')])
 
     expect(screen.queryByTestId('message-list-search')).not.toBeInTheDocument()
+  })
+
+  it('renders the afterList footer after the last message', () => {
+    render(
+      <MessageListProvider
+        value={createValue([createMessage('assistant-1', 'assistant')], {
+          afterList: <div data-testid="after-list-footer" />
+        })}>
+        <MessageList />
+      </MessageListProvider>
+    )
+
+    expect(screen.getByTestId('after-list-footer')).toBeInTheDocument()
   })
 
   it('keeps search mounted while excluding pending and live message content', () => {

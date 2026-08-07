@@ -2,6 +2,7 @@ import { graphlib, layout, type OrderConstraint } from '@dagrejs/dagre'
 import { MarkerType, Position } from '@xyflow/react'
 
 import type {
+  TopicMessageFlowDirection,
   TopicMessageFlowEdgeModel,
   TopicMessageFlowEdgeState,
   TopicMessageFlowGraph,
@@ -35,7 +36,10 @@ const EDGE_COLORS: Record<TopicMessageFlowEdgeState, string> = {
   sibling: 'var(--border)'
 }
 
-export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): TopicMessageFlowLayout {
+export function layoutTopicMessageFlowGraph(
+  graph: TopicMessageFlowGraph,
+  direction: TopicMessageFlowDirection = 'top-to-bottom'
+): TopicMessageFlowLayout {
   const depthById = getDepthById(graph)
   const orderedNodes = [...graph.nodes].sort((a, b) => compareGraphNodes(a, b, depthById))
   const orderConstraints = buildSiblingOrderConstraints(orderedNodes)
@@ -52,9 +56,10 @@ export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): Topic
     }
   }
 
+  const rankdir = direction === 'bottom-to-top' ? 'BT' : 'TB'
   const dagreGraph = new graphlib.Graph()
     .setGraph({
-      rankdir: 'TB',
+      rankdir,
       ...GRAPH_SPACING
     })
     .setDefaultEdgeLabel(() => ({}))
@@ -72,10 +77,14 @@ export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): Topic
   const nodes = orderedNodes.map((node): TopicMessageFlowNodeModel => {
     const positioned = dagreGraph.node(node.id)
 
-    return toReactFlowNode(node, {
-      x: positioned.x - TOPIC_MESSAGE_FLOW_NODE_SIZE.width / 2,
-      y: positioned.y - TOPIC_MESSAGE_FLOW_NODE_SIZE.height / 2
-    })
+    return toReactFlowNode(
+      node,
+      {
+        x: positioned.x - TOPIC_MESSAGE_FLOW_NODE_SIZE.width / 2,
+        y: positioned.y - TOPIC_MESSAGE_FLOW_NODE_SIZE.height / 2
+      },
+      direction
+    )
   })
 
   return {
@@ -88,15 +97,18 @@ export function layoutTopicMessageFlowGraph(graph: TopicMessageFlowGraph): Topic
 
 function toReactFlowNode(
   node: TopicMessageFlowGraph['nodes'][number],
-  position: TopicMessageFlowNodeModel['position']
+  position: TopicMessageFlowNodeModel['position'],
+  direction: TopicMessageFlowDirection = 'top-to-bottom'
 ): TopicMessageFlowNodeModel {
+  const sourcePosition = direction === 'bottom-to-top' ? Position.Top : Position.Bottom
+  const targetPosition = direction === 'bottom-to-top' ? Position.Bottom : Position.Top
   return {
     id: node.id,
     type: TOPIC_MESSAGE_FLOW_NODE_TYPE,
     position,
     data: { ...node.data },
-    sourcePosition: Position.Bottom,
-    targetPosition: Position.Top,
+    sourcePosition,
+    targetPosition,
     draggable: false,
     connectable: false,
     selectable: true,

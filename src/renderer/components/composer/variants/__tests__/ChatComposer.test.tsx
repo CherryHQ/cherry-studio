@@ -57,6 +57,7 @@ const mocks = vi.hoisted(() => ({
   dispatchLauncher: vi.fn(),
   unifiedPanelOpen: vi.fn(),
   unifiedPanelAvailable: true,
+  editMessageSaveChoice: null as 'save-only' | 'save-and-regenerate' | null | undefined,
   pinnedToolIds: ['composer:new-conversation', 'web-search'] as string[],
   ipcListeners: new Map<string, (_event: unknown, payload: unknown) => void>(),
   ipcOn: vi.fn(),
@@ -140,6 +141,15 @@ const ipcRequestMock = vi.hoisted(() => vi.fn())
 
 // Send-time attachment metadata (buildFileParts) resolves through IpcApi.
 vi.mock('@renderer/ipc', () => ({ ipcApi: { request: ipcRequestMock } }))
+
+// Editing a user message now asks how to save; default to regenerate so the
+// existing edit-save assertions (forkAndResend is called) keep their meaning.
+vi.mock('@renderer/components/popups/EditMessageSavePopup', () => ({
+  __esModule: true,
+  default: {
+    show: () => Promise.resolve(mocks.editMessageSaveChoice ?? 'save-and-regenerate')
+  }
+}))
 
 vi.mock('@renderer/components/composer/ComposerSurface', () => {
   function MockComposerSurface(props: ComposerSurfaceProps) {
@@ -743,6 +753,7 @@ describe('ChatComposer', () => {
     mocks.dispatchLauncher.mockReset()
     mocks.unifiedPanelOpen.mockReset()
     mocks.unifiedPanelAvailable = true
+    mocks.editMessageSaveChoice = undefined
     mocks.pinnedToolIds = ['composer:new-conversation', 'web-search']
     mocks.ipcListeners.clear()
     mocks.ipcOn.mockReset()
