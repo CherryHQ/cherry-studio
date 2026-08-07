@@ -23,7 +23,12 @@ export const knowledgeSupportedFileExts = [
   '.epub',
   '.draftsexport'
 ] as const
-export const knowledgeFileProcessingExts = ['.pdf', '.doc', '.docx', '.pptx', '.xlsx', '.xls'] as const
+/**
+ * The extensions a knowledge base routes through a `document_to_markdown` processor.
+ * PDF only: every other binary office format is already read directly by `AnydocReader`,
+ * so sending it through a document processor as well is redundant work.
+ */
+export const knowledgeFileProcessingExts = ['.pdf'] as const
 
 /**
  * A flat array of all file extensions known by the linguist database.
