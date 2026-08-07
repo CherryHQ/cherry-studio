@@ -332,7 +332,7 @@ export function GroupHeader({ group, className, ref, style, onContextMenu, ...pr
       {groupHeaderAction && (
         <div
           className={cn(
-            '-ml-1.5 pointer-events-none flex max-w-0 shrink-0 items-center overflow-hidden opacity-0 transition-[max-width,opacity] duration-150',
+            '-ml-1.5 pointer-events-none flex max-w-0 shrink-0 items-center overflow-hidden opacity-0 transition-[max-width,opacity] duration-150 motion-reduce:transition-none',
             !hasLeadingSlot && '-mr-1',
             'group-hover/resource-list-group:pointer-events-auto group-hover/resource-list-group:max-w-full group-hover/resource-list-group:opacity-100 has-data-[state=open]:pointer-events-auto has-data-[state=open]:max-w-full has-data-[state=open]:opacity-100 group-has-[:focus-visible]/resource-list-group:pointer-events-auto group-has-[:focus-visible]/resource-list-group:max-w-full group-has-[:focus-visible]/resource-list-group:opacity-100'
           )}

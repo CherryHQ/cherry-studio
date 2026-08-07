@@ -608,7 +608,7 @@ function ItemActions({ active, className, ref, ...props }: ItemActionsProps) {
       data-active={active || undefined}
       data-resource-list-item-actions="true"
       className={cn(
-        '-ml-1.5 -mr-1 pointer-events-none flex max-w-0 shrink-0 items-center gap-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-150 group-has-[[data-resource-list-leading-slot=true]]:mr-0',
+        '-ml-1.5 -mr-1 pointer-events-none flex max-w-0 shrink-0 items-center gap-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-150 group-has-[[data-resource-list-leading-slot=true]]:mr-0 motion-reduce:transition-none',
         'focus-within:pointer-events-auto focus-within:max-w-full focus-within:opacity-100 group-hover:pointer-events-auto group-hover:max-w-full group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:max-w-full data-[active=true]:opacity-100',
         className
       )}

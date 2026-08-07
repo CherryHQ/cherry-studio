@@ -96,9 +96,9 @@ export const RESOURCE_LIST_LABEL_CLASS = 'font-normal text-[13px] leading-5'
  * mask clips at the border-box edge, so a padding reserve would hard-crop the
  * text at the content edge instead of fading it.
  *
- * Group headers reuse the same band but yield differently: their hover actions
- * are absolutely positioned, so the animated reserve lives in the header
- * button's own padding-right instead of a margin on the label.
+ * Group headers reuse the same band. Their in-flow action rail expands from a
+ * zero max-width, so the flex label yields directly without a separate padding
+ * reserve.
  */
 export const RESOURCE_LIST_TITLE_FADE_CLASS =
   'overflow-hidden text-clip whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%-16px),transparent)]'

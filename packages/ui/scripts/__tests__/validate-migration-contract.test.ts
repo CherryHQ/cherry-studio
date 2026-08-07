@@ -155,8 +155,18 @@ describe('validateMigrationContractSources', () => {
     const registry = JSON.parse(sources.migrationRegistry) as {
       rules: Array<{ source: string; target: string | null; strategy: string }>
     }
+    // A new public product token does not imply that a historical --cs-* API existed for it.
+    const productTokensWithoutPrefixedPredecessors = new Set<(typeof CHERRY_PRODUCT_VARIABLE_TOKENS)[number]>([
+      'resource-list-row-hover',
+      'resource-list-row-active',
+      'resource-list-row-active-foreground',
+      'resource-list-row-selected',
+      'resource-list-row-selected-foreground'
+    ])
 
-    for (const token of CHERRY_PRODUCT_VARIABLE_TOKENS.filter((token) => token !== 'link')) {
+    for (const token of CHERRY_PRODUCT_VARIABLE_TOKENS.filter(
+      (token) => token !== 'link' && !productTokensWithoutPrefixedPredecessors.has(token)
+    )) {
       expect(registry.rules).toContainEqual({
         source: `--cs-${token}`,
         target: `--${token}`,
