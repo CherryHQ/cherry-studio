@@ -440,12 +440,19 @@ export async function buildClaudeCodeSessionSettings(
   const agentsMdContext = await agentsMdLoader.loadInitialContext()
   // The hooks resolve the approval emitter / steer holder by session id at fire-time, so they are
   // not passed in; the holders above are created here only to expose them on `settings`.
+  // IM-channel sessions have no live turn stream, but their agent runs are
+  // background work (like sub-agents).  Flag them so canUseTool treats them
+  // as background agents and auto-approves regular tools instead of denying
+  // "outside a live interactive turn".  Fixes #18140.
+  const isChannelSession = linkedChannelSnapshot !== null
+
   const { canUseTool, hooks, disallowedTools, toolPolicySnapshot } = await buildToolPermissions(
     session,
     agent,
     assistantMcpEnabled,
     agentDataPath,
-    agentsMdLoader
+    agentsMdLoader,
+    isChannelSession
   )
 
   // 5. System prompt. The citation guidance is gated on the same resolved scope that decides whether
@@ -878,7 +885,8 @@ async function buildToolPermissions(
   agent: AgentEntity,
   assistantMcpEnabled: boolean,
   agentDataPath: string,
-  agentsMdLoader: AgentsMdLoader
+  agentsMdLoader: AgentsMdLoader,
+  isChannelSession: boolean
 ): Promise<{
   canUseTool: CanUseTool
   hooks: ClaudeCodeSettings['hooks']
@@ -949,7 +957,10 @@ async function buildToolPermissions(
     }
 
     const hasLiveTurnStream = interactionState.userResponse === 'stream'
-    const isBackgroundAgent = typeof opts.agentID === 'string' && opts.agentID.length > 0
+    // IM-channel sessions have no live turn stream and no sub-agent context,
+    // but their agent runs are background work — treat them like sub-agents
+    // so regular tools are auto-approved without an approval click.
+    const isBackgroundAgent = (typeof opts.agentID === 'string' && opts.agentID.length > 0) || isChannelSession
     const requiresUserResponse =
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
       opts.matchedAskRule !== undefined
