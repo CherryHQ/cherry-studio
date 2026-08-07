@@ -8,7 +8,10 @@ import {
 import { type ByteDanceProviderSettings, createByteDance } from '@ai-sdk/bytedance'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
 import type { GatewayProviderSettings } from '@ai-sdk/gateway'
-import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
+import {
+  type GoogleVertexAnthropicProvider,
+  type GoogleVertexAnthropicProviderSettings
+} from '@ai-sdk/google-vertex/anthropic/edge'
 import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
 import {
   createVertexMaas,
@@ -35,6 +38,7 @@ import { type AihubmixProviderSettings, createAihubmix } from './custom/aihubmix
 import { createDashScopeProvider, type DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
 import { createDmxapiProvider, type DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
 import { createGatewayWithImageModel } from './custom/gateway/gatewayProvider'
+import { createGoogleVertexAnthropic } from './custom/google-vertex-anthropic-provider'
 import {
   createLocalEmbeddingProvider,
   type LocalEmbeddingProviderSettings
@@ -79,7 +83,7 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   name: 'google-vertex-anthropic',
   aliases: ['vertexai-anthropic'] as const,
   supportsImageGeneration: true,
-  create: createVertexAnthropic,
+  create: createGoogleVertexAnthropic,
   toolFactories: {
     webSearch:
       (provider: GoogleVertexAnthropicProvider) =>
@@ -88,7 +92,7 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
       })
   }
 } as const satisfies ProviderExtensionConfig<
-  GoogleVertexProviderSettings,
+  GoogleVertexAnthropicProviderSettings,
   GoogleVertexAnthropicProvider,
   'google-vertex-anthropic'
 >)
