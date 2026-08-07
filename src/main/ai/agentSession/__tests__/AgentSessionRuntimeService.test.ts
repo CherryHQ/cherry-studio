@@ -454,7 +454,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.saveMessage).toHaveBeenCalledTimes(1)
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(1)
       expect(entry.runtimeState.queue).toEqual([])
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
   })
 
@@ -2416,7 +2416,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(mocks.startRuntimeTurn).toHaveBeenCalledTimes(2)
       expect(entry.currentTurn.userMessage.id).toBe('user-2')
       expect(entry.runtimeState.queue).toEqual([])
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('keeps a receive-only wake interactive when the background work started from an interactive turn', async () => {
@@ -3861,7 +3861,7 @@ describe('AgentSessionRuntimeService', () => {
       expect(redirect).not.toHaveBeenCalled()
       expect(entry.runtimeState.queue.map((pendingTurn: any) => pendingTurn.message.id)).toEqual(['user-2'])
       expect(entry.runtimeState.launch).toEqual({ kind: 'idle' })
-      service.closeSession('session-1')
+      void service.closeSession('session-1')
     })
 
     it('queues a steer whose effective knowledge scope differs from the live turn', async () => {
@@ -4762,7 +4762,7 @@ describe('AgentSessionRuntimeService', () => {
     expect(mocks.startRuntimeTurn).not.toHaveBeenCalled()
     expect(mocks.terminateHeldTopicStream).not.toHaveBeenCalled()
     expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
-    service.closeSession('session-1')
+    void service.closeSession('session-1')
   })
 
   it('surfaces the error and settles the turn when the next-turn placeholder save rejects (R3)', async () => {
