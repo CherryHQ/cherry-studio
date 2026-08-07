@@ -100,6 +100,36 @@ describe('QueuedFollowupsDock', () => {
     expect(onTogglePause).toHaveBeenCalled()
   })
 
+  it('disables manual steer for a reserved branch while its caller reports the stream as live', () => {
+    const onSteer = vi.fn()
+    const reservedItem = {
+      ...items[0],
+      payload: {
+        ...items[0].payload,
+        chatTarget: { parentAnchorId: 'reserved-user', mode: 'reserved-branch' }
+      }
+    }
+
+    render(
+      <QueuedFollowupsDock
+        items={[reservedItem]}
+        paused={false}
+        onTogglePause={vi.fn()}
+        onSteer={onSteer}
+        onEdit={vi.fn()}
+        onRemove={vi.fn()}
+        onReorder={vi.fn()}
+        isSteerDisabled={(item) => item.payload.chatTarget?.mode === 'reserved-branch'}
+        steerDisabledReason="wait for current"
+      />
+    )
+
+    const steerButton = screen.getByLabelText('chat.input.followup_queue.steer')
+    expect(steerButton).toBeDisabled()
+    fireEvent.click(steerButton)
+    expect(onSteer).not.toHaveBeenCalled()
+  })
+
   it('renders a token-only draft without repeating its prompt text or reserving text spacing', () => {
     const url = 'https://example.com/docs'
     const { container } = render(

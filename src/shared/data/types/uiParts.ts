@@ -342,6 +342,15 @@ export function hasClearContextPart(parts: readonly CherryMessagePart[] | undefi
   return parts?.some((part) => part.type === CLEAR_CONTEXT_PART_TYPE) ?? false
 }
 
+/** Whether persisted message values describe a blank user turn, without making any tree-level claim. */
+export function isBlankUserTurn(input: {
+  role: string
+  status: string | undefined
+  parts: readonly unknown[] | undefined
+}): boolean {
+  return input.role === 'user' && input.status === 'success' && (input.parts?.length ?? 0) === 0
+}
+
 /** Replace the aggregate knowledge scope part while preserving every content part. */
 export function withKnowledgeScopePart(parts: CherryMessagePart[], baseIds: readonly string[]): CherryMessagePart[] {
   const contentParts = parts.filter((part) => part.type !== KNOWLEDGE_SCOPE_PART_TYPE)

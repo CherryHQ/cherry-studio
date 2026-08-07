@@ -1677,11 +1677,6 @@
       "new": {
         "branch": {
           "created": "New Branch Created",
-          "disabled": {
-            "active": "This node is already selected. Continue typing to extend the branch from here.",
-            "latest": "You are already at the end of this branch. Continue typing to extend it.",
-            "no_follow_up": "There is no follow-up after this message yet. Switch to this node and continue typing instead."
-          },
           "label": "New Branch"
         },
         "context": "New Context"
@@ -2596,7 +2591,7 @@
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
-    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
+    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Raise \"Max tool call rounds\" in the assistant settings, or reduce the task scope.",
     "truncated": "Data truncated, original size",
     "truncatedBadge": "Truncated",
     "unknown": "Unknown error",
@@ -2987,6 +2982,28 @@
       "selecting": "Selecting file...",
       "success": "Successfully imported {{topics}} conversations with {{messages}} messages",
       "title": "Import ChatGPT Conversations",
+      "untitled_conversation": "Untitled Conversation"
+    },
+    "claude": {
+      "assistant_name": "Claude Import",
+      "button": "Select File",
+      "description": "Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "Invalid JSON file format",
+        "no_conversations": "No conversations found in file",
+        "no_valid_conversations": "No valid conversations to import",
+        "unknown": "Import failed, please check file format"
+      },
+      "help": {
+        "step1": "1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "2. Wait for the export file via email",
+        "step3": "3. Extract the downloaded file and find conversations.json",
+        "title": "How to export Claude conversations?"
+      },
+      "importing": "Importing conversations...",
+      "selecting": "Selecting file...",
+      "success": "Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "Import Claude Conversations",
       "untitled_conversation": "Untitled Conversation"
     },
     "confirm": {
@@ -3493,7 +3510,7 @@
             "hint": "Caps response length when enabled"
           },
           "max_tool_calls": {
-            "hint": "Limits tool-call rounds when enabled; otherwise uses the default 20-round limit"
+            "hint": "Limits tool-call rounds when enabled; otherwise uses the default {{count}}-round limit"
           },
           "model": {
             "hint": "Overrides the global default model for this assistant"
@@ -6017,11 +6034,41 @@
         "skip_file_data_title": "Slim Backup"
       },
       "clear_cache": {
+        "approximately": "Approx. {{size}}",
         "button": "Clear Cache",
-        "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
+        "calculating": "Calculating…",
         "error": "Error clearing cache",
+        "legacy_warning": {
+          "confirm": "Select Anyway",
+          "description": "After cleanup finishes, the v1 data included in this option will be permanently deleted. Without a backup, this data cannot be recovered.",
+          "message": "v1 data will be permanently deleted",
+          "title": "Select leftover v1 data?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Leftover v1 data, including old conversation history and settings. Clearing it cannot be undone.",
+            "title": "Leftover data from v1"
+          },
+          "normal_cache": {
+            "description": "Clears cache and temporary files created while using the app to free up storage space. Your conversation history and settings will not be deleted.",
+            "title": "App cache"
+          },
+          "orphaned_data": {
+            "description": "Removes unused files, leftover knowledge bases, and temporary backup restore files.",
+            "title": "Leftover files and knowledge bases"
+          },
+          "site_data": {
+            "description": "Cookies and site storage used by websites and mini apps. You may be signed out of websites.",
+            "title": "Website and mini app data"
+          }
+        },
+        "partial_success": "Cleanup finished, but some items could not be cleared",
+        "selected_total": "Selected total",
         "success": "Cache cleared",
-        "title": "Clear Cache"
+        "title": "Clear Cache",
+        "total_partial": "{{size}} counted; some sizes are unknown",
+        "unavailable": "Unable to calculate",
+        "waiting_for_legacy_database": "Waiting for the old database to be released. Close other Cherry Studio windows; cleanup will continue after their connections close."
       },
       "data": {
         "title": "Data Directory"
@@ -6064,6 +6111,7 @@
       "import_settings": {
         "button": "Import Json File",
         "chatgpt": "Import from ChatGPT",
+        "claude": "Import from Claude",
         "title": "Import App Data"
       },
       "joplin": {
@@ -6435,6 +6483,23 @@
         "token_placeholder": "Please enter Siyuan Note Token"
       },
       "title": "Data",
+      "v1_remigration": {
+        "acknowledgement": "I understand the risk and want to continue.",
+        "back": "Back",
+        "backup_acknowledgement": "I have backed up my data",
+        "backup_button": "Back Up All Data Now",
+        "backup_message": "Back up all current data before continuing. Continuing will permanently delete your current v2 data, and this action cannot be undone.",
+        "button": "Rerun Migration",
+        "confirm": "Rerun Migration",
+        "confirm_countdown": "Rerun Migration ({{seconds}}s)",
+        "dialog_title": "Rerun v1 Data Migration",
+        "error": "Failed to start v1 data migration again",
+        "final_confirmation": "Confirm that you want to delete the current v2 data and rerun the v1 data migration.",
+        "final_message": "Your current v2 data will be permanently deleted. This action cannot be undone.",
+        "final_retained": "Your original v1 data will be kept and imported again after restart.",
+        "next": "Next",
+        "title": "Rerun v1 Data Migration"
+      },
       "webdav": {
         "autoSync": {
           "label": "Auto Backup",
@@ -6602,6 +6667,7 @@
         "notice": {
           "downloadFailed": "Download failed. Check your connection and try again.",
           "inUse": "Still used by a knowledge base; the weights were kept.",
+          "incompleteCache": "Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "Remove failed. Check the logs for details."
         },
         "ocr": {
