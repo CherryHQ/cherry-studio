@@ -455,6 +455,7 @@
         "expand_all": "Alle erweitern",
         "no_workdir": "Kein Arbeitsverzeichnis",
         "show_more": "Anzeige erweitern",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "Diese Woche",
         "today": "Heute",
         "unknown_agent": "Unbekannter Agent",
@@ -1005,6 +1006,10 @@
         "CherryNotify": {
           "description": "Sendet eine Benachrichtigung über einen verbundenen Kanal",
           "label": "Benachrichtigen"
+        },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
+          "label": "[to be translated]:Document to Markdown"
         },
         "CherryWebFetch": {
           "description": "Ruft eine Webseite ab und liest sie",
@@ -1676,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Neuer Branch erstellt",
-          "disabled": {
-            "active": "Dieser Knoten ist bereits ausgewählt. Tippen Sie weiter, um den Zweig von hier aus zu erweitern.",
-            "latest": "Sie sind bereits am Ende dieses Zweigs. Tippen Sie weiter, um ihn zu erweitern.",
-            "no_follow_up": "Nach dieser Nachricht gibt es noch keine Fortsetzung. Wechseln Sie zu diesem Knoten und schreiben Sie dort weiter."
-          },
           "label": "Branch"
         },
         "context": "Kontext löschen"
@@ -4222,6 +4222,8 @@
         "taskOutput": "Aufgabenausgabe anzeigen",
         "taskStop": "Aufgabe stoppen",
         "taskUpdate": "Aufgabe aktualisieren",
+        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "Alles schreiben",
         "tool": "Werkzeug",
         "webFetch": "Web abrufen",
@@ -4272,6 +4274,8 @@
       "thinkingHeader": "Denken",
       "truncated": "Ausgabe gekürzt (Original: {{size}})",
       "units": {
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
         "done_one": "{{count}} Erledigt",
         "done_other": "{{count}} Erledigt",
         "file_one": "{{count}} Datei",

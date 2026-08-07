@@ -147,6 +147,7 @@
       }
     },
     "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
       "background_running_other": "{{count}} 個背景任務正在執行"
     },
     "delete": {
@@ -260,6 +261,7 @@
         }
       },
       "file_tree": "檔案樹",
+      "items_one": "[to be translated]:{{count}} item",
       "items_other": "{{count}} 個項目",
       "maximize": "最大化",
       "minimize": "最小化",
@@ -343,6 +345,7 @@
         "agent": "Agent",
         "context": "上下文",
         "no_tasks": "沒有進行中的任務",
+        "run_task_live_one": "[to be translated]:{{count}} live",
         "run_task_live_other": "{{count}} 個執行中",
         "run_tasks": "子任務",
         "selected_tool": "選取的工具",
@@ -350,6 +353,7 @@
         "stop_run_task_failed": "無法停止任務",
         "task_count": "{{completed}} / {{total}} 完成",
         "tasks": "任務",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
         "tool_uses_other": "{{count}} 個工具呼叫",
         "tools_active": "活躍",
         "tools_done": "完成",
@@ -451,12 +455,14 @@
         "expand_all": "展開全部",
         "no_workdir": "無工作目錄",
         "show_more": "展開顯示",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "本週",
         "today": "今天",
         "unknown_agent": "未連結的 Agent",
         "unknown_agent_tip": "這是一個沒有 Agent 的歷史工作階段群組，並非實際的 Agent。此群組僅供檢視，無法繼續執行。",
         "yesterday": "昨天"
       },
+      "label_one": "[to be translated]:Session",
       "label_other": "工作階段",
       "list": {
         "title": "任務"
@@ -1000,6 +1006,10 @@
         "CherryNotify": {
           "description": "透過已連接的頻道傳送通知",
           "label": "通知"
+        },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
+          "label": "[to be translated]:Document to Markdown"
         },
         "CherryWebFetch": {
           "description": "擷取並讀取網頁",
@@ -1671,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "新分支已建立",
-          "disabled": {
-            "active": "目前已定位到這個節點，繼續輸入即可從這裡延續。",
-            "latest": "目前已在最新分支末端，繼續輸入即可延續這個分支。",
-            "no_follow_up": "這則訊息後還沒有後續對話，切換到該節點後繼續輸入即可。"
-          },
           "label": "分支"
         },
         "context": "新上下文"
@@ -2165,6 +2170,7 @@
     "config_json_hint": "貼上或編輯原始 JSON，可與上方參數雙向同步",
     "configure": "設定",
     "configuring_provider": "設定 {{provider}}",
+    "count_one": "[to be translated]:{{count}} item",
     "count_other": "{{count}} 個",
     "current_config": "目前",
     "current_config_settings": "目前設定",
@@ -2293,10 +2299,12 @@
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
     "agent": "Agent",
+    "agent_one": "[to be translated]:Agent",
     "agent_other": "Agent",
     "all": "全部",
     "and": "與",
     "assistant": "Agent",
+    "assistant_one": "[to be translated]:Assistant",
     "assistant_other": "助理",
     "avatar": "頭像",
     "back": "回上一頁",
@@ -3232,6 +3240,7 @@
       "action": "重建知識庫",
       "default_name": "{{name}}_複本",
       "failed_to_restore": "知識庫重建失敗",
+      "skipped_missing_sources_one": "[to be translated]:Skipped {{count}} item whose source no longer exists",
       "skipped_missing_sources_other": "已略過 {{count}} 個來源已遺失的項目",
       "submit": "重建",
       "title": "重建知識庫"
@@ -4213,6 +4222,8 @@
         "taskOutput": "檢視任務輸出",
         "taskStop": "停止任務",
         "taskUpdate": "更新任務",
+        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "待辦寫入",
         "tool": "工具",
         "webFetch": "網頁擷取",
@@ -4263,11 +4274,19 @@
       "thinkingHeader": "思考",
       "truncated": "輸出已截斷（原始大小：{{size}}）",
       "units": {
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
+        "done_one": "[to be translated]:{{count}} Done",
         "done_other": "{{count}} 完成",
+        "file_one": "[to be translated]:{{count}} file",
         "file_other": "{{count}} 個檔案",
+        "item_one": "[to be translated]:{{count}} item",
         "item_other": "{{count}} 個項目",
+        "line_one": "[to be translated]:{{count}} line",
         "line_other": "{{count}} 行",
+        "plan_one": "[to be translated]:{{count}} plan",
         "plan_other": "{{count}} 個方案",
+        "result_one": "[to be translated]:{{count}} result",
         "result_other": "{{count}} 個結果"
       },
       "workflow": {
@@ -5142,9 +5161,11 @@
     "search_placeholder": "搜尋外掛...",
     "search_placeholder_skills": "搜尋技能...",
     "showing_results": "顯示 {{count}} 個外掛",
+    "showing_results_one": "[to be translated]:Showing {{count}} plugin",
     "showing_results_other": "顯示 {{count}} 個外掛",
     "showing_results_plural": "顯示 {{count}} 個外掛",
     "showing_results_skills": "顯示 {{count}} 個技能",
+    "showing_results_skills_one": "[to be translated]:Showing {{count}} skill",
     "showing_results_skills_other": "顯示 {{count}} 個技能",
     "showing_results_skills_plural": "顯示 {{count}} 個技能",
     "skills": "技能",
@@ -5866,6 +5887,7 @@
             "title": "應用程式記錄"
           },
           "summary": "{{count}} 個檔案，約 {{size}}",
+          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
           "summary_other": "{{count}} 個檔案，約 {{size}}",
           "system": {
             "description": "包含應用程式、系統與裝置詳細資訊。最近當機 {{crashCount}} 次；不會收集當機檔案。",
@@ -6040,6 +6062,7 @@
         "title": "匯出選單設定",
         "yuque": "匯出到語雀"
       },
+      "hour_interval_one": "[to be translated]:{{count}} hour",
       "hour_interval_other": "{{count}} 小時",
       "import_settings": {
         "button": "匯入 JSON 檔案",
@@ -6128,12 +6151,14 @@
           "select_error_write_permission": "新路徑沒有寫入權限",
           "select_title": "選擇備份目錄"
         },
+        "hour_interval_one": "[to be translated]:{{count}} hour",
         "hour_interval_other": "{{count}} 小時",
         "lastSync": "上次備份",
         "maxBackups": {
           "label": "最大備份數",
           "unlimited": "無限制"
         },
+        "minute_interval_one": "[to be translated]:{{count}} minute",
         "minute_interval_other": "{{count}} 分鐘",
         "noSync": "等待下次備份",
         "restore": {
@@ -6180,6 +6205,7 @@
           "title": "使用快速模型為匯出的訊息命名標題"
         }
       },
+      "minute_interval_one": "[to be translated]:{{count}} minute",
       "minute_interval_other": "{{count}} 分鐘",
       "notion": {
         "api_key": "Notion 金鑰",
@@ -6471,9 +6497,11 @@
           "label": "WebDAV 主機位址",
           "placeholder": "http://localhost:8080"
         },
+        "hour_interval_one": "[to be translated]:{{count}} hour",
         "hour_interval_other": "{{count}} 小時",
         "lastSync": "上次備份時間",
         "maxBackups": "最大備份數量",
+        "minute_interval_one": "[to be translated]:{{count}} minute",
         "minute_interval_other": "{{count}} 分鐘",
         "noSync": "等待下次備份",
         "password": "WebDAV 密碼",
@@ -8383,6 +8411,7 @@
         "shareLabel": "佔比",
         "title": "探索",
         "top": "Top",
+        "totalEntries_one": "[to be translated]:{{count}} entry",
         "totalEntries_other": "{{count}} 筆記錄"
       },
       "groupBy": {
@@ -8423,6 +8452,7 @@
       "title": "用量分析",
       "tooltip": {
         "cost": "成本 {{value}}",
+        "requests_one": "[to be translated]:{{count}} request",
         "requests_other": "{{count}} 個請求",
         "tokens": "{{value}} Token"
       },

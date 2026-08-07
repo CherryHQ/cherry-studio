@@ -26,6 +26,7 @@ import {
   descriptorToTool,
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
@@ -35,6 +36,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
@@ -1208,7 +1210,7 @@ async function materializeUserContent(
 
   const resolvedPaths = await extractAttachmentPaths(fallbackParts)
   unavailableParts.push(...resolvedPaths.unavailable)
-  let textContent = appendAttachmentPaths(text, resolvedPaths.paths)
+  let textContent = appendAttachmentPaths(text, resolvedPaths.files)
   if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
@@ -1233,33 +1235,57 @@ function appendAttachmentManifest(
   return text.trim() ? `${text}\n\n${section}` : section
 }
 
-function appendAttachmentPaths(text: string, paths: string[]): string {
-  if (paths.length === 0) return text
+function appendAttachmentPaths(text: string, files: ResolvedAttachmentPath[]): string {
+  if (files.length === 0) return text
 
-  const list = paths.map((path) => `- ${path}`).join('\n')
+  // Managed copies are stored under a UUID filename, so the display name has to travel
+  // with the path — otherwise multiple attachments are indistinguishable to the model.
+  const list = files
+    .map(({ filename, path }) => (filename ? `- ${JSON.stringify(filename)}: ${path}` : `- ${path}`))
+    .join('\n')
   const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
   return text.trim() ? `${text}\n\n${section}` : section
 }
 
+interface ResolvedAttachmentPath {
+  filename?: string
+  path: string
+}
+
 /** Resolve current managed paths so userData relocation never leaves a stale path in the prompt. */
-async function extractAttachmentPaths(parts: FileUIPart[]): Promise<{ paths: string[]; unavailable: FileUIPart[] }> {
-  const paths: string[] = []
+async function extractAttachmentPaths(
+  parts: FileUIPart[]
+): Promise<{ files: ResolvedAttachmentPath[]; unavailable: FileUIPart[] }> {
+  const files: ResolvedAttachmentPath[] = []
   const unavailable: FileUIPart[] = []
   for (const part of parts) {
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     try {
+      let resolved: AbsoluteFilePath
       if (fileEntryId) {
-        paths.push(application.get('FileManager').getPhysicalPath(fileEntryId))
+        resolved = application.get('FileManager').getPhysicalPath(fileEntryId)
       } else if (part.url?.startsWith('file://')) {
-        paths.push(fileURLToPath(part.url))
+        resolved = AbsoluteFilePathSchema.parse(fileURLToPath(part.url))
       } else {
         unavailable.push(part)
+        continue
       }
-    } catch {
+
+      // `getPhysicalPath` is a DB lookup: it resolves an entry whose bytes may already be
+      // gone. Announcing a dead path would send the agent hunting; `unverifiable` (EACCES,
+      // a stalled network volume) still gets announced rather than dropped on a transient.
+      if ((await probeReadable(resolved)) === 'missing') {
+        logger.warn('Attachment path no longer exists', { fileEntryId })
+        unavailable.push(part)
+        continue
+      }
+      files.push({ filename: part.filename, path: resolved })
+    } catch (error) {
+      logger.warn('Failed to resolve an attachment path', error as Error, { fileEntryId })
       unavailable.push(part)
     }
   }
-  return { paths, unavailable }
+  return { files, unavailable }
 }
 
 function isImageFilePart(part: FileUIPart): boolean {
