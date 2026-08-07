@@ -41,16 +41,22 @@ const pasteImage = (editor: Editor, text = '') => {
     }
   })
   editor.view.dom.dispatchEvent(event)
+  return event
 }
 
 // `imagePlaceholder` counts too: it renders a click target that runs `setImage`, so leaking one into
 // an images-off editor reopens the very path the strip is meant to close.
 // An HTML-only clipboard: no `text/plain` flavor at all. Browsers' own copy always writes both, but
-// a programmatic `ClipboardItem({'text/html': ...})` does not.
-const pasteHtml = (editor: Editor, html: string) => {
+// a programmatic `ClipboardItem({'text/html': ...})` does not. `withImageItem` adds an `image/*`
+// entry alongside, the multi-MIME shape apps produce when copying a region containing an image.
+const pasteHtml = (editor: Editor, html: string, { withImageItem = false } = {}) => {
+  const file = new File([new Uint8Array([137, 80, 78, 71])], 'pasted.png', { type: 'image/png' })
   const event = new Event('paste', { bubbles: true, cancelable: true })
   Object.defineProperty(event, 'clipboardData', {
-    value: { getData: (type: string) => (type === 'text/html' ? html : ''), items: [] }
+    value: {
+      getData: (type: string) => (type === 'text/html' ? html : ''),
+      items: withImageItem ? [{ type: file.type, getAsFile: () => file }] : []
+    }
   })
   editor.view.dom.dispatchEvent(event)
 }
@@ -218,6 +224,87 @@ describe('useRichEditor markdown paste', () => {
 
     expect(countImageNodes(result.current.editor)).toBe(0)
     expect(result.current.editor.getText()).toContain('caption')
+  })
+
+  it('keeps HTML text when the clipboard also carries an image item and no plain text', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: '', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      // Copying a region with an image yields both an `image/*` item and rich HTML; keying the
+      // swallow off the item alone throws the caption away with it.
+      pasteHtml(result.current.editor, '<p>caption <img src="https://example.com/image.png"></p>', {
+        withImageItem: true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(window.api.file.createInternalEntry).not.toHaveBeenCalled()
+    expect(countImageNodes(result.current.editor)).toBe(0)
+    expect(result.current.editor.getText()).toContain('caption')
+  })
+
+  it('leaves a selection intact when an image item arrives with image-only HTML', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: 'hello world', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      const { state } = result.current.editor.view
+      result.current.editor.view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, 1, 6)))
+    })
+    await act(async () => {
+      pasteHtml(result.current.editor, '<img src="https://example.com/image.png">', { withImageItem: true })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(countImageNodes(result.current.editor)).toBe(0)
+    expect(result.current.editor.getText()).toBe('hello world')
+  })
+
+  it('leaves a selection intact when the clipboard HTML text sits only in tags ProseMirror ignores', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: 'hello world', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      const { state } = result.current.editor.view
+      result.current.editor.view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, 1, 6)))
+    })
+    await act(async () => {
+      // An HTML email body carries its `<style>` along with the copied image. That text reaches
+      // `textContent` but never the parsed slice, so measuring the DOM instead of the slice would
+      // call this "text worth keeping" and fall through onto an empty insert.
+      pasteHtml(result.current.editor, '<img src="https://example.com/image.png"><style>td {border: 0;}</style>', {
+        withImageItem: true
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(result.current.editor.getText()).toBe('hello world')
+  })
+
+  it('consumes a bare image clipboard pasted over a selection', async () => {
+    const { result } = renderHook(() =>
+      useRichEditor({ initialContent: 'hello world', autoFocus: false, enableImageInsertion: false })
+    )
+
+    await act(async () => {
+      const { state } = result.current.editor.view
+      result.current.editor.view.dispatch(state.tr.setSelection(TextSelection.create(state.doc, 1, 6)))
+    })
+    let event: Event | undefined
+    await act(async () => {
+      // A screenshot clipboard is `image/png` alone — no HTML, no text. jsdom cannot run the
+      // browser's native paste, so consuming the event is the only observable of the thing that
+      // stops it from dropping a blob-URL <img> over the selection.
+      event = pasteImage(result.current.editor)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(event?.defaultPrevented).toBe(true)
+    expect(result.current.editor.getText()).toBe('hello world')
   })
 
   it('inserts nothing for an HTML-only clipboard holding just an image', async () => {

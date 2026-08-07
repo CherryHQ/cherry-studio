@@ -281,7 +281,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
     contentType: 'markdown',
     editable: editable,
     editorProps: {
-      handlePaste: (view, event) => {
+      handlePaste: (view, event, slice) => {
         // First check if we're inside a code block - if so, insert plain text
         const { selection } = view.state
         const { $from } = selection
@@ -300,8 +300,7 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
         const clipboardText = event.clipboardData?.getData('text/plain') ?? ''
         const clipboardHtml = !enableImageInsertion ? (event.clipboardData?.getData('text/html') ?? '') : ''
         const htmlDoc = clipboardHtml ? new DOMParser().parseFromString(clipboardHtml, 'text/html') : null
-        const htmlIsImageOnly =
-          htmlDoc !== null && htmlDoc.querySelector('img') !== null && !htmlDoc.body.textContent?.trim()
+        const htmlHasImage = htmlDoc?.querySelector('img') != null
 
         if (imageItem && enableImageInsertion) {
           const file = imageItem.getAsFile()
@@ -312,11 +311,16 @@ export const useRichEditor = (options: UseRichEditorOptions = {}): UseRichEditor
           }
         }
 
-        // A bare image with nothing to keep: swallow it rather than fall through. `transformPasted`
-        // would strip it to an empty slice, and ProseMirror's default handling replaces the
-        // selection with that — deleting whatever the user had selected in exchange for nothing.
-        // HTML holding an image *alongside* text must still fall through, so that its text survives.
-        if (!enableImageInsertion && (imageItem || htmlIsImageOnly) && !clipboardText) {
+        // An image with nothing else to keep: swallow it rather than fall through. ProseMirror runs
+        // `transformPasted` *before* handing us `slice`, so images are already stripped out of it;
+        // when that leaves it empty, falling through has the default handling replace the selection
+        // with nothing — deleting whatever the user had selected in exchange for nothing.
+        //
+        // The stripped slice is the only honest measure of "nothing to keep". Copying a region
+        // containing an image commonly yields an `image/*` item *and* rich HTML whose text must
+        // survive; conversely a clipboard's HTML text can sit entirely in tags ProseMirror ignores
+        // (`<style>`, `<script>`), which must not count as something to keep.
+        if (!enableImageInsertion && (imageItem || htmlHasImage) && !clipboardText && slice.content.size === 0) {
           return true
         }
 
