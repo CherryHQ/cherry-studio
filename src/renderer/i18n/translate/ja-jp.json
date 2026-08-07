@@ -3350,11 +3350,6 @@
           "heartbeat_interval": {
             "label": "ハートビート間隔（分）"
           },
-          "instructions": {
-            "hint": "エージェントの役割と行動の境界を定義する",
-            "label": "システムプロンプト",
-            "placeholder": "エージェントに、それが何者であり、何ができるのかを伝えてください…"
-          },
           "max_turns": {
             "help": "0 はデフォルトを使用することを意味します",
             "label": "最大会話ターン数"
@@ -3549,8 +3544,7 @@
           "step": {
             "basic": "基本情報",
             "capability": "スキル",
-            "knowledge": "知識",
-            "persona": "ペルソナ"
+            "knowledge": "知識"
           },
           "submit": "作成",
           "submit_failed": "作成に失敗しました"
