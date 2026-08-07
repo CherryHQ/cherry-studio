@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto'
-import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
+import { application } from '@application'
 import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
 import { loggerService } from '@logger'
 import { resolveWorkspaceFile } from '@main/ai/channels'
+import { listAgentSessionAttachments } from '@main/ai/messages/agentSessionAttachments'
+import type { FileAttachment } from '@main/utils/downloadAsBase64'
+import { MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
 import { isAbortError } from '@main/utils/error'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import {
@@ -17,6 +21,7 @@ import * as z from 'zod'
 
 export interface CherryDocumentContext {
   agentDataPath: string
+  sessionId: string
   workspacePath: string
 }
 
@@ -49,6 +54,58 @@ function throwIfAborted(signal: AbortSignal): void {
 function errorResult(error: unknown): CallToolResult {
   const message = error instanceof Error ? error.message : String(error)
   return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true }
+}
+
+async function resolveSessionAttachment(
+  context: CherryDocumentContext,
+  sourcePath: string
+): Promise<FileAttachment | undefined> {
+  let requestedPath: string
+  try {
+    requestedPath = await realpath(path.resolve(context.workspacePath, sourcePath))
+  } catch {
+    return undefined
+  }
+
+  const fileManager = application.get('FileManager')
+  for (const attachment of listAgentSessionAttachments(context.sessionId)) {
+    let physicalPath: string
+    try {
+      physicalPath = await realpath(fileManager.getPhysicalPath(attachment.fileEntryId))
+    } catch {
+      continue
+    }
+    if (physicalPath !== requestedPath) continue
+
+    const metadata = await fileManager.getMetadata(attachment.fileEntryId)
+    if (metadata.size > MAX_FILE_SIZE_BYTES) {
+      throw new Error(`File exceeds the ${MAX_FILE_SIZE_BYTES} byte limit (${metadata.size} bytes): ${sourcePath}`)
+    }
+
+    const result = await fileManager.read(attachment.fileEntryId, { encoding: 'base64' })
+    const size = Buffer.byteLength(result.content, 'base64')
+    if (size > MAX_FILE_SIZE_BYTES) {
+      throw new Error(`File exceeds the ${MAX_FILE_SIZE_BYTES} byte limit (${size} bytes): ${sourcePath}`)
+    }
+    return {
+      filename: attachment.displayName,
+      data: result.content,
+      media_type: result.mime,
+      size
+    }
+  }
+
+  return undefined
+}
+
+async function resolveDocumentSource(context: CherryDocumentContext, sourcePath: string): Promise<FileAttachment> {
+  try {
+    return await resolveWorkspaceFile(context.workspacePath, sourcePath)
+  } catch (workspaceError) {
+    const attachment = await resolveSessionAttachment(context, sourcePath)
+    if (attachment) return attachment
+    throw workspaceError
+  }
 }
 
 async function cleanupStaleOutputs(directory: string): Promise<void> {
@@ -85,7 +142,7 @@ export class CherryDocumentTools {
   async call(args: unknown, signal: AbortSignal): Promise<CallToolResult> {
     try {
       const { path: sourcePath } = toMarkdownInputSchema.parse(args)
-      const source = await resolveWorkspaceFile(this.context.workspacePath, sourcePath)
+      const source = await resolveDocumentSource(this.context, sourcePath)
       throwIfAborted(signal)
 
       const anydoc = await loadAnydocModule()

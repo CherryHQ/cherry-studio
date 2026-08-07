@@ -1,8 +1,9 @@
 # Workspace document conversion
 
 Covers `mcp__cherry-tools__to_markdown` — converting a supported document from the
-session workspace into Markdown. This is distinct from knowledge-base tools, which
-search documents already indexed by Cherry, and from shell runtimes or managed CLIs.
+session workspace or a managed attachment from the current Agent session into Markdown.
+This is distinct from knowledge-base tools, which search documents already indexed by
+Cherry, and from shell runtimes or managed CLIs.
 
 Get exact argument shapes from the live tool schema — this reference gives routing,
 sequencing, supported formats, and recovery.
@@ -10,9 +11,10 @@ sequencing, supported formats, and recovery.
 ## Workflow
 
 Use `mcp__cherry-tools__to_markdown` when an agent needs the structured contents of a
-workspace document that ordinary text reads cannot handle.
+workspace document or user attachment that ordinary text reads cannot handle.
 
-Pass the workspace-relative path (or an absolute path inside the workspace). Cherry
+Pass the workspace-relative path, an absolute path inside the workspace, or the managed
+absolute path Cherry supplied for an attachment in the current Agent session. Cherry
 converts the source with its bundled document converter and writes the complete result
 to an agent-private temporary Markdown file. The tool result contains only that file's
 absolute path and character count — it deliberately does not inject the whole document
@@ -35,9 +37,10 @@ override, page range, password, or OCR option. The converter detects recognizabl
 formats from file contents and falls back to the extension; CSV has no signature, so it
 must use the `.csv` extension.
 
-The source must be a regular file inside the session workspace; paths that escape
-through `..` or symlinks are rejected. Temporary conversions older than 24 hours are
-removed when the tool runs again.
+The source must be either a regular file inside the session workspace or an exact
+managed path backed by an attachment in the current Agent session. Other outside paths,
+including paths that escape through `..` or symlinks, are rejected. Temporary
+conversions older than 24 hours are removed when the tool runs again.
 
 ## Recovery and limits
 
