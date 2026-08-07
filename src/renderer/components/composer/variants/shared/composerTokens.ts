@@ -4,6 +4,7 @@ import {
   getComposerFileTokenSourceId
 } from '@renderer/utils/message/composerFileTokenSource'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import type { McpResource } from '@shared/types/mcp'
 
 import type { ComposerDraftToken, ComposerSerializedToken } from '../../tokens'
 
@@ -54,6 +55,26 @@ export function knowledgeBaseToComposerToken(base: KnowledgeBase): ComposerDraft
     label: base.name,
     promptText: `The user attached knowledge base "${base.name}" (id: ${base.id}) — use that id with the kb_* tools.`,
     payload: base
+  }
+}
+
+export const composerMcpResourceTokenId = (resource: Pick<McpResource, 'uri'>) => `mcp-resource:${resource.uri}`
+
+/**
+ * A picked MCP resource the composer did not inline — binary content, or text past
+ * `MCP_RESOURCE_INLINE_MAX_CHARS`. Same contract as the knowledge token above: the uri is
+ * load-bearing (it is exactly what `mcp_resource_read` takes), and the sentence names the tool
+ * because nothing else tells the model the attachment exists.
+ */
+export function mcpResourceToComposerToken(resource: McpResource): ComposerDraftToken {
+  const name = resource.name || resource.uri
+  return {
+    id: composerMcpResourceTokenId(resource),
+    kind: 'reference',
+    label: name,
+    description: resource.uri,
+    promptText: `The user attached MCP resource "${name}" (uri: ${resource.uri}) from server "${resource.serverName}" — read it with mcp_resource_read.`,
+    payload: resource
   }
 }
 

@@ -1501,6 +1501,18 @@
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
       "knowledge_base_unavailable": "请选择支持工具调用的模型",
       "locate_editing_message": "定位原消息",
+      "mcp_prompts": {
+        "description": "插入 MCP 服务器提供的提示词",
+        "empty": "没有可用的 MCP 提示词",
+        "insert_failed": "提示词插入失败",
+        "title": "MCP 提示词"
+      },
+      "mcp_resources": {
+        "description": "引用 MCP 服务器提供的资源",
+        "empty": "没有可用的 MCP 资源",
+        "read_failed": "资源读取失败",
+        "title": "MCP 资源"
+      },
       "new": {
         "context": "清除上下文"
       },

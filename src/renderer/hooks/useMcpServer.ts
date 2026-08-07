@@ -45,6 +45,30 @@ export const useMcpServers = (query?: ListMcpServersQuery, options: { enabled?: 
 }
 
 /**
+ * Active MCP servers reachable from one conversation: `'all'` for auto mode, an explicit id list for
+ * manual / agent bindings, `null` when MCP is off (skips the query entirely). Inactive servers are
+ * always dropped — a disabled server can serve neither tools nor prompts nor resources.
+ *
+ * Pass a memoized `boundServerIds` array; it is a dependency of the filter.
+ */
+export const useScopedMcpServers = (
+  boundServerIds: readonly string[] | 'all' | null,
+  options: { enabled?: boolean } = {}
+) => {
+  const { mcpServers, isLoading } = useMcpServers(undefined, {
+    enabled: (options.enabled ?? true) && boundServerIds !== null
+  })
+
+  const servers = useMemo(() => {
+    if (boundServerIds === null) return []
+    const bound = boundServerIds === 'all' ? null : new Set(boundServerIds)
+    return mcpServers.filter((server) => server.isActive && (!bound || bound.has(server.id)))
+  }, [boundServerIds, mcpServers])
+
+  return { servers, isLoading }
+}
+
+/**
  * Single MCP server hook — read + update + delete.
  * Fetches via the list endpoint with an id filter (separate SWR cache entry
  * from the unfiltered list). Mutations use refresh: ['/mcp-servers'] to

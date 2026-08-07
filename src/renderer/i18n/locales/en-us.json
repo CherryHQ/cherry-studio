@@ -1501,6 +1501,18 @@
       "knowledge_base_disabled_by_files": "Remove attached files to use Knowledge Base",
       "knowledge_base_unavailable": "Select a tool-capable model",
       "locate_editing_message": "Locate original message",
+      "mcp_prompts": {
+        "description": "Insert a prompt published by an MCP server",
+        "empty": "No MCP prompts available",
+        "insert_failed": "Failed to insert the prompt",
+        "title": "MCP Prompts"
+      },
+      "mcp_resources": {
+        "description": "Reference a resource published by an MCP server",
+        "empty": "No MCP resources available",
+        "read_failed": "Failed to read the resource",
+        "title": "MCP Resources"
+      },
       "new": {
         "context": "Clear Context"
       },
