@@ -18,6 +18,7 @@ import type { SerializedError } from '@shared/types/error'
 import {
   dropEmptyContentParts,
   finalizeInterruptedParts,
+  hasRenderableContent,
   type PersistenceBackend
 } from '../persistence/PersistenceBackend'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
@@ -96,10 +97,20 @@ export class PersistenceListener implements StreamListener {
     // Strip empty text/reasoning parts so invisible (zero-height) message blocks
     // are never written to storage. Applied for all statuses. The `finalMessage`
     // guard is for the typed-undefined error path (no finalMessage).
+    const strippedParts = finalMessage ? dropEmptyContentParts(finalMessage.parts as CherryMessagePart[]) : undefined
+
+    // Reject "success" streams that ended without any renderable output (e.g. a
+    // CherryIN gateway returning an empty stream that only left a `step-start`
+    // marker). Persist as a terminal `error` so the turn never renders as an
+    // empty success bubble. Check AFTER stripping so empty text/reasoning parts
+    // don't count as content. Tool-only turns keep success — tool parts render.
+    const effectiveStatus =
+      status === 'success' && strippedParts !== undefined && !hasRenderableContent(strippedParts) ? 'error' : status
+
     const finalMessageForPersistence = finalMessage
       ? {
           ...finalMessage,
-          parts: finalizeInterruptedParts(dropEmptyContentParts(finalMessage.parts as CherryMessagePart[]), status)
+          parts: finalizeInterruptedParts(strippedParts as CherryMessagePart[], effectiveStatus)
         }
       : finalMessage
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
@@ -111,20 +122,20 @@ export class PersistenceListener implements StreamListener {
     try {
       await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
-        status,
+        status: effectiveStatus,
         modelId: this.opts.modelId,
         ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
       })
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
-        status
+        status: effectiveStatus
       })
     } catch (err) {
       logger.error('Failed to persist assistant message', {
         backend: this.opts.backend.kind,
         topicId: this.opts.topicId,
-        status,
+        status: effectiveStatus,
         err
       })
       // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
@@ -144,7 +155,7 @@ export class PersistenceListener implements StreamListener {
       return
     }
 
-    if (status === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {
+    if (effectiveStatus === 'success' && finalMessageForPersistence && this.opts.backend.afterPersist) {
       void this.opts.backend.afterPersist(finalMessageForPersistence).catch((err) => {
         logger.warn('afterPersist hook failed', {
           backend: this.opts.backend.kind,
