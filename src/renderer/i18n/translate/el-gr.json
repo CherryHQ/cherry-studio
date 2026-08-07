@@ -455,6 +455,7 @@
         "expand_all": "Ανάπτυξη όλων",
         "no_workdir": "Κανένας κατάλογος εργασίας",
         "show_more": "Ανάπτυξη οθόνης",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "Αυτή την εβδομάδα",
         "today": "Σήμερα",
         "unknown_agent": "Άγνωστος πράκτορας",
@@ -1005,6 +1006,10 @@
         "CherryNotify": {
           "description": "Στέλνει μια ειδοποίηση μέσω ενός συνδεδεμένου καναλιού",
           "label": "Ειδοποίηση"
+        },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
+          "label": "[to be translated]:Document to Markdown"
         },
         "CherryWebFetch": {
           "description": "Ανάκτηση και ανάγνωση μιας ιστοσελίδας",
@@ -1676,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Νέα διακοπή δημιουργήθηκε",
-          "disabled": {
-            "active": "Αυτός ο κόμβος έχει ήδη επιλεγεί. Συνεχίστε να πληκτρολογείτε για να επεκτείνετε τον κλάδο από εδώ.",
-            "latest": "Ήδη βρίσκεστε στο τέλος αυτού του κλαδιού. Συνεχίστε να πληκτρολογείτε για να το επεκτείνετε.",
-            "no_follow_up": "Δεν υπάρχει ακόμη συνέχεια μετά από αυτό το μήνυμα. Μεταβείτε σε αυτόν τον κόμβο και συνεχίστε να πληκτρολογείτε εκεί."
-          },
           "label": "Διακοπή"
         },
         "context": "Καθαρισμός ενδιάμεσων"
@@ -4216,6 +4216,8 @@
         "taskOutput": "Δείτε την έξοδο της εργασίας",
         "taskStop": "Σταματήστε την εργασία",
         "taskUpdate": "Ενημέρωση εργασίας",
+        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "Να γράψεις",
         "tool": "Εργαλείο",
         "webFetch": "Ανάκτηση Ιστού",
@@ -4266,6 +4268,8 @@
       "thinkingHeader": "Σκέψη",
       "truncated": "Η έξοδος περικόπηκε (πρωτότυπο: {{size}})",
       "units": {
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
         "done_one": "{{count}} Ολοκληρώθηκε",
         "done_other": "{{count}} Ολοκληρώθηκαν",
         "file_one": "{{count}} αρχείο",
