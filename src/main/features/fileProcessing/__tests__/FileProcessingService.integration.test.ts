@@ -1,8 +1,8 @@
 /**
  * Orchestration-layer tests for FileProcessingService.
  *
- * Verifies (1) handler registration on onInit, (2) mode → JobRegistry type
- * routing on startJob, (3) fresh job creation, and (4) listAvailableProcessors
+ * Verifies (1) handler registration on onInit, (2) mode + runtime → JobRegistry
+ * type routing on startJob, (3) fresh job creation, and (4) listAvailableProcessors
  * delegates to the processor registry. The JobManager itself is stubbed — its
  * idempotency / cancellation behavior is covered by JobManager's own
  * test suite; this layer just verifies we hand it the right arguments.
@@ -22,9 +22,10 @@ const {
   toFileInfoMock,
   processorRegistryMock,
   resolveProcessorConfigByFeatureMock,
-  isAvailableTesseractMock,
-  isAvailableDoc2xMock,
-  isAvailableSystemMock
+  isSupportedTesseractMock,
+  isSupportedDoc2xMock,
+  isSupportedSystemMock,
+  isSupportedMistralMock
 } = vi.hoisted(() => ({
   appGetMock: vi.fn(),
   enqueueMock: vi.fn(),
@@ -34,9 +35,10 @@ const {
   toFileInfoMock: vi.fn(),
   processorRegistryMock: {} as Record<string, unknown>,
   resolveProcessorConfigByFeatureMock: vi.fn(),
-  isAvailableTesseractMock: vi.fn(() => true),
-  isAvailableDoc2xMock: vi.fn(() => true),
-  isAvailableSystemMock: vi.fn(() => false)
+  isSupportedTesseractMock: vi.fn(() => true),
+  isSupportedDoc2xMock: vi.fn(() => true),
+  isSupportedSystemMock: vi.fn(() => false),
+  isSupportedMistralMock: vi.fn(() => true)
 }))
 
 vi.mock('@application', () => ({
@@ -71,20 +73,30 @@ vi.mock('../processors/registry', () => ({
   processorRegistry: processorRegistryMock
 }))
 
-// Pre-populate the mocked processorRegistry before SUT import.
+// Pre-populate the mocked processorRegistry before SUT import. `runtime` mirrors
+// the real registry: tesseract/system run on this machine, doc2x/mistral over a
+// socket — startJob routes background jobs by exactly this field.
 const tesseractHandler = { mode: 'background', prepare: vi.fn() }
 const doc2xHandler = { mode: 'remote-poll', prepare: vi.fn() }
 processorRegistryMock.tesseract = {
+  runtime: 'local',
   capabilities: { image_to_text: tesseractHandler },
-  isAvailable: isAvailableTesseractMock
+  isSupported: isSupportedTesseractMock
 }
 processorRegistryMock.doc2x = {
+  runtime: 'remote',
   capabilities: { document_to_markdown: doc2xHandler },
-  isAvailable: isAvailableDoc2xMock
+  isSupported: isSupportedDoc2xMock
 }
 processorRegistryMock.system = {
+  runtime: 'local',
   capabilities: { image_to_text: { mode: 'background', prepare: vi.fn() } },
-  isAvailable: isAvailableSystemMock
+  isSupported: isSupportedSystemMock
+}
+processorRegistryMock.mistral = {
+  runtime: 'remote',
+  capabilities: { document_to_markdown: { mode: 'background', prepare: vi.fn() } },
+  isSupported: isSupportedMistralMock
 }
 
 const { FileProcessingService } = await import('../FileProcessingService')
@@ -183,9 +195,10 @@ beforeEach(() => {
     throw new Error(`Unexpected application.get(${name})`)
   })
   setupFileInfo()
-  isAvailableTesseractMock.mockReturnValue(true)
-  isAvailableDoc2xMock.mockReturnValue(true)
-  isAvailableSystemMock.mockReturnValue(false)
+  isSupportedTesseractMock.mockReturnValue(true)
+  isSupportedDoc2xMock.mockReturnValue(true)
+  isSupportedSystemMock.mockReturnValue(false)
+  isSupportedMistralMock.mockReturnValue(true)
 })
 
 describe('FileProcessingService — lifecycle metadata', () => {
@@ -196,13 +209,14 @@ describe('FileProcessingService — lifecycle metadata', () => {
 })
 
 describe('FileProcessingService.onInit', () => {
-  it('registers both job handlers on JobManager', () => {
+  it('registers all three job handlers on JobManager', () => {
     const svc = new FileProcessingService()
     ;(svc as unknown as { onInit(): void }).onInit()
 
-    expect(registerHandlerMock).toHaveBeenCalledTimes(2)
+    expect(registerHandlerMock).toHaveBeenCalledTimes(3)
     const types = registerHandlerMock.mock.calls.map((c) => c[0])
     expect(types).toContain('file-processing.background')
+    expect(types).toContain('file-processing.background-local')
     expect(types).toContain('file-processing.remote-poll')
   })
 })
@@ -223,7 +237,7 @@ describe('FileProcessingService.startJob — routing', () => {
     return svc
   }
 
-  it('routes background-mode handler to file-processing.background type', async () => {
+  it('routes a background-mode handler on a local processor to file-processing.background-local', async () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue({
       id: 'tesseract',
       capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
@@ -237,7 +251,7 @@ describe('FileProcessingService.startJob — routing', () => {
     })
 
     expect(enqueueMock).toHaveBeenCalledWith(
-      'file-processing.background',
+      'file-processing.background-local',
       entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract'),
       {}
     )
@@ -247,6 +261,27 @@ describe('FileProcessingService.startJob — routing', () => {
       status: 'pending',
       input: entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract')
     })
+  })
+
+  it('routes a background-mode handler on a remote processor to file-processing.background', async () => {
+    resolveProcessorConfigByFeatureMock.mockReturnValue({
+      id: 'mistral',
+      capabilities: [{ feature: 'document_to_markdown', inputs: ['document'] }]
+    })
+    const svc = makeSvc()
+
+    await svc.startJob({
+      feature: 'document_to_markdown',
+      file: { kind: 'entry' as const, entryId: PDF_ENTRY_ID },
+      processorId: 'mistral',
+      output: MARKDOWN_OUTPUT
+    })
+
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'file-processing.background',
+      entryPayload('document_to_markdown', PDF_ENTRY_ID, 'mistral', MARKDOWN_OUTPUT),
+      {}
+    )
   })
 
   it('routes remote-poll-mode handler to file-processing.remote-poll type', async () => {
@@ -287,7 +322,7 @@ describe('FileProcessingService.startJob — routing', () => {
     )
 
     expect(enqueueMock).toHaveBeenCalledWith(
-      'file-processing.background',
+      'file-processing.background-local',
       entryPayload('image_to_text', IMAGE_ENTRY_ID, 'tesseract'),
       { parentId: 'parent-job-1' }
     )
@@ -395,7 +430,7 @@ describe('FileProcessingService.startJob — routing', () => {
 })
 
 describe('FileProcessingService.listAvailableProcessors', () => {
-  it('returns only processors whose isAvailable() returns true', () => {
+  it('returns only processors whose isSupported() returns true', () => {
     const svc = new FileProcessingService()
     const result = svc.listAvailableProcessors()
 
@@ -404,9 +439,9 @@ describe('FileProcessingService.listAvailableProcessors', () => {
     expect(result.processorIds).not.toContain('system')
   })
 
-  it('re-evaluates isAvailable on each call', () => {
+  it('re-evaluates isSupported on each call', () => {
     const svc = new FileProcessingService()
-    isAvailableSystemMock.mockReturnValue(true)
+    isSupportedSystemMock.mockReturnValue(true)
     const result = svc.listAvailableProcessors()
     expect(result.processorIds).toContain('system')
   })

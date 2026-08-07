@@ -2,12 +2,15 @@ import { FILE_PROCESSOR_FEATURES } from '@shared/data/preference/preferenceTypes
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 import { describe, expect, it, vi } from 'vitest'
 
-async function importRegistryWithPlatform(platform: { isLinux: boolean; isMac: boolean; isWin: boolean }) {
+type Platform = { isLinux: boolean; isMac: boolean; isWin: boolean; isDarwinX64?: boolean }
+
+async function importRegistryWithPlatform(platform: Platform) {
   vi.resetModules()
   vi.doMock('@main/core/platform', () => ({
     isLinux: platform.isLinux,
     isMac: platform.isMac,
-    isWin: platform.isWin
+    isWin: platform.isWin,
+    isDarwinX64: platform.isDarwinX64 ?? false
   }))
 
   const { processorRegistry } = await import('../registry')
@@ -54,6 +57,27 @@ describe('processorRegistry', () => {
   ])('marks System OCR availability from main platform constants %#', async ({ isLinux, isMac, isWin, expected }) => {
     const processorRegistry = await importRegistryWithPlatform({ isLinux, isMac, isWin })
 
-    expect(processorRegistry.system.isAvailable()).toBe(expected)
+    expect(processorRegistry.system.isSupported()).toBe(expected)
   })
+
+  // isSupported must answer "could this machine ever run it", never "is the model
+  // downloaded" — conflating the two is what hid local-paddleocr from the OCR
+  // settings page, the only place offering the download that would unhide it.
+  it.each([
+    { isDarwinX64: false, expected: true },
+    { isDarwinX64: true, expected: false }
+  ])(
+    'gates the local model processors on platform only (isDarwinX64=$isDarwinX64)',
+    async ({ isDarwinX64, expected }) => {
+      const processorRegistry = await importRegistryWithPlatform({
+        isLinux: false,
+        isMac: true,
+        isWin: false,
+        isDarwinX64
+      })
+
+      expect(processorRegistry['local-paddleocr'].isSupported()).toBe(expected)
+      expect(processorRegistry['local-document'].isSupported()).toBe(expected)
+    }
+  )
 })
