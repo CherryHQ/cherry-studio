@@ -1007,6 +1007,10 @@
           "description": "通过已连接的频道发送通知",
           "label": "通知"
         },
+        "CherryToMarkdown": {
+          "description": "转成 Markdown，智能体更好读",
+          "label": "文件转为 Markdown"
+        },
         "CherryWebFetch": {
           "description": "抓取并读取网页",
           "label": "网页抓取"
@@ -2591,7 +2595,7 @@
     "text": "文本",
     "toolInput": "工具输入",
     "toolName": "工具名",
-    "tool_call_limit_reached": "助手在生成最终回复前已达到工具调用上限。请重试，或缩小任务范围。",
+    "tool_call_limit_reached": "助手在生成最终回复前已达到工具调用上限。请在助手设置中调高“最大工具调用轮次”，或缩小任务范围。",
     "truncated": "数据已截断，原始大小",
     "truncatedBadge": "已截断",
     "unknown": "未知错误",
@@ -2984,6 +2988,28 @@
       "title": "导入 ChatGPT 对话",
       "untitled_conversation": "未命名对话"
     },
+    "claude": {
+      "assistant_name": "Claude 导入",
+      "button": "选择文件",
+      "description": "导入文字、思考过程和工具调用，不包含图片和附件",
+      "error": {
+        "invalid_json": "无效的 JSON 文件格式",
+        "no_conversations": "文件中未找到任何对话",
+        "no_valid_conversations": "没有可导入的有效对话",
+        "unknown": "导入失败，请检查文件格式"
+      },
+      "help": {
+        "step1": "1. 登录 Claude，进入设置 > 隐私 > 导出数据",
+        "step2": "2. 等待邮件接收导出文件",
+        "step3": "3. 解压下载的文件，找到 conversations.json",
+        "title": "如何导出 Claude 对话？"
+      },
+      "importing": "正在导入对话...",
+      "selecting": "正在选择文件...",
+      "success": "成功导入 {{topics}} 个对话，共 {{messages}} 条消息",
+      "title": "导入 Claude 对话",
+      "untitled_conversation": "未命名对话"
+    },
     "confirm": {
       "button": "选择导入文件",
       "label": "确定要导入外部数据吗？"
@@ -3022,10 +3048,20 @@
           "selected_notes": "已选 {{count}} 个笔记"
         },
         "note": {
+          "create": {
+            "content_label": "正文",
+            "content_placeholder": "在此输入笔记内容…",
+            "title_label": "标题",
+            "title_placeholder": "为这篇笔记取个名字"
+          },
           "description": "选择已有笔记作为知识库数据源",
           "empty_description": "请先在「笔记」功能中创建笔记，再回到这里选择。",
           "empty_title": "未找到笔记",
-          "loading": "正在加载笔记…"
+          "loading": "正在加载笔记…",
+          "mode": {
+            "create": "新建笔记",
+            "import": "导入笔记"
+          }
         },
         "placeholder": {
           "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3284,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "应用",
+    "manage_sidebar": "管理侧边栏",
     "minapps": "小程序",
     "miniApps": "小程序",
     "pin_to_sidebar": "添加到侧边栏",
@@ -3354,11 +3391,6 @@
           },
           "heartbeat_interval": {
             "label": "心跳间隔 (分钟)"
-          },
-          "instructions": {
-            "hint": "定义 Agent 的角色和行为边界",
-            "label": "系统提示词",
-            "placeholder": "告诉 Agent 它是谁、它能做什么…"
           },
           "max_turns": {
             "help": "0 表示使用默认值",
@@ -3488,7 +3520,7 @@
             "hint": "启用后限制回复长度"
           },
           "max_tool_calls": {
-            "hint": "启用后限制工具调用轮次；关闭时使用默认的 20 轮上限"
+            "hint": "启用后限制工具调用轮次；关闭时使用默认的 {{count}} 轮上限"
           },
           "model": {
             "hint": "覆盖该助手使用的全局默认模型"
@@ -3554,8 +3586,7 @@
           "step": {
             "basic": "基础信息",
             "capability": "技能",
-            "knowledge": "知识库",
-            "persona": "设定人格"
+            "knowledge": "知识库"
           },
           "submit": "新建",
           "submit_failed": "新建失败"
@@ -4218,6 +4249,8 @@
         "taskOutput": "查看任务输出",
         "taskStop": "停止任务",
         "taskUpdate": "更新任务",
+        "toMarkdown": "转为 Markdown",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "待办写入",
         "tool": "工具",
         "webFetch": "网页获取",
@@ -4268,6 +4301,8 @@
       "thinkingHeader": "思路梳理",
       "truncated": "输出已截断（原始大小：{{size}}）",
       "units": {
+        "char_one": "{{count}} 字符",
+        "char_other": "{{count}} 字符",
         "done_one": "{{count}} 项完成",
         "done_other": "{{count}} 项完成",
         "file_one": "{{count}} 个文件",
@@ -6012,11 +6047,41 @@
         "skip_file_data_title": "精简备份"
       },
       "clear_cache": {
+        "approximately": "约 {{size}}",
         "button": "清除缓存",
-        "confirm": "清除缓存将删除应用缓存的数据，包括小程序数据。此操作不可恢复，是否继续？",
+        "calculating": "计算中…",
         "error": "清除缓存失败",
+        "legacy_warning": {
+          "confirm": "仍要选择",
+          "description": "清理完成后，此选项包含的 v1 版本数据将被永久删除。如果没有备份，这些数据将无法恢复。",
+          "message": "v1 版本数据将被永久删除",
+          "title": "确认选择 v1 版本遗留数据？"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "v1 版本遗留数据，包括旧的对话记录和设置。清理后无法恢复。",
+            "title": "v1 版本遗留数据"
+          },
+          "normal_cache": {
+            "description": "清理应用使用过程中产生的缓存和临时文件，释放存储空间，不会删除聊天记录和设置。",
+            "title": "应用缓存"
+          },
+          "orphaned_data": {
+            "description": "清理不再使用的文件、知识库残留和备份恢复临时文件。",
+            "title": "残留文件与知识库"
+          },
+          "site_data": {
+            "description": "网站与小程序使用的 Cookie 和站点存储；清理后可能需要重新登录网站。",
+            "title": "网站与小程序数据"
+          }
+        },
+        "partial_success": "清理已完成，但部分项目未能清除",
+        "selected_total": "所选项目总计",
         "success": "缓存清除成功",
-        "title": "清除缓存"
+        "title": "清除缓存",
+        "total_partial": "已统计 {{size}}，部分大小未知",
+        "unavailable": "无法统计",
+        "waiting_for_legacy_database": "正在等待旧版数据库释放。请关闭其他 Cherry Studio 窗口，连接关闭后将继续清理。"
       },
       "data": {
         "title": "数据目录"
@@ -6059,6 +6124,7 @@
       "import_settings": {
         "button": "导入文件",
         "chatgpt": "导入 ChatGPT 数据",
+        "claude": "导入 Claude 数据",
         "title": "导入外部应用数据"
       },
       "joplin": {
@@ -6430,6 +6496,23 @@
         "token_placeholder": "请输入思源笔记令牌"
       },
       "title": "数据",
+      "v1_remigration": {
+        "acknowledgement": "我已了解风险并愿意继续。",
+        "back": "上一步",
+        "backup_acknowledgement": "我已备份数据",
+        "backup_button": "立即完整备份",
+        "backup_message": "请先完整备份当前数据。继续操作将永久删除当前 v2 数据，此操作无法撤销。",
+        "button": "重新迁移",
+        "confirm": "重新迁移",
+        "confirm_countdown": "重新迁移（{{seconds}} 秒）",
+        "dialog_title": "重新迁移 v1 数据",
+        "error": "重新迁移 v1 数据启动失败",
+        "final_confirmation": "确认删除当前 v2 数据并重新迁移 v1 数据？",
+        "final_message": "当前 v2 数据将被永久删除，此操作无法撤销。",
+        "final_retained": "原始 v1 数据会保留，并在重启后重新导入。",
+        "next": "下一步",
+        "title": "重新迁移 v1 数据"
+      },
       "webdav": {
         "autoSync": {
           "label": "自动备份",
@@ -6597,6 +6680,7 @@
         "notice": {
           "downloadFailed": "下载失败，请检查网络后重试。",
           "inUse": "该模型仍被知识库使用，已保留权重。",
+          "incompleteCache": "模型文件不完整，请重新下载修复。",
           "removeFailed": "删除失败，请查看日志。"
         },
         "ocr": {

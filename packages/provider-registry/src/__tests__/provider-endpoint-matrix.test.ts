@@ -163,3 +163,27 @@ describe('doubao (Ark) endpoint matrix', () => {
     expect(endpointsOf('doubao', modelId)).toEqual(['openai-chat-completions'])
   })
 })
+
+/**
+ * A self-hosted relay has ONE user-supplied host. `getBaseUrl` only falls back to the default
+ * chat endpoint when the requested endpoint has no `baseUrl`, so a placeholder host on a
+ * secondary endpoint silently sends that protocol's traffic to localhost:3000.
+ */
+describe('new-api single-host endpoints', () => {
+  it('carries a placeholder baseUrl on the default chat endpoint only', () => {
+    const withBaseUrl = Object.entries(provider('new-api').endpointConfigs ?? {})
+      .filter(([, config]) => config?.baseUrl)
+      .map(([endpointType]) => endpointType)
+    expect(withBaseUrl).toEqual(['openai-chat-completions'])
+  })
+
+  /**
+   * An override is also a catalog row, so any entry here advertises a model to every New API user
+   * regardless of what their relay serves. The wire such an entry would carry is unknowable too:
+   * the thinking field depends on the channel behind the model, which is why New API solves this
+   * with server-side 参数覆盖.
+   */
+  it('declares no per-model overrides', () => {
+    expect(provider('new-api').overrides ?? []).toEqual([])
+  })
+})

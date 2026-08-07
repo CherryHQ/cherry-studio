@@ -5,7 +5,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
-import { BOOTSTRAP_INSTRUCTIONS, SOUL_CONTENT_THRESHOLD } from './bootstrap'
+import { buildBootstrapInstructions, SOUL_CONTENT_THRESHOLD } from './bootstrap'
 
 const logger = loggerService.withContext('PromptBuilder')
 
@@ -88,7 +88,7 @@ Persistent files in the agent data directory \`${agentDataPath}/\` carry your id
 
 | File | Purpose | How to update |
 |---|---|---|
-| \`${agentDataPath}/SOUL.md\` | WHO you are — personality, tone, communication style, core principles | Read + Edit tools |
+| \`${agentDataPath}/SOUL.md\` | HOW you present yourself — name, personality, tone, and communication style; also the role definition when no Agent System Prompt is configured | Read + Edit tools |
 | \`${agentDataPath}/USER.md\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
 | \`${agentDataPath}/memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`mcp__agent-memory__memory\` update action |
 | \`${agentDataPath}/memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
@@ -114,7 +114,7 @@ ${sections}`
  * builtin skill.
  *
  * Memory files layout:
- *   {agentData}/SOUL.md          — personality, tone, communication style
+ *   {agentData}/SOUL.md          — personality, tone, communication style; role fallback without a System Prompt
  *   {agentData}/USER.md          — user profile, preferences, context
  *   {agentData}/memory/FACT.md   — durable project knowledge, technical decisions
  *   {agentData}/memory/JOURNAL.jsonl — timestamped event log (managed by memory tool)
@@ -141,12 +141,12 @@ export class PromptBuilder {
     const needsBootstrap = await this.shouldRunBootstrap(agentDataPath, config, hasUserInstructions)
     if (needsBootstrap) {
       contextParts.push(
-        `${BOOTSTRAP_INSTRUCTIONS}\n\nDuring bootstrap, write identity files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
+        `${buildBootstrapInstructions(hasUserInstructions)}\n\nDuring bootstrap, write persona and user-profile files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
       )
       logger.info('Bootstrap mode active — injecting onboarding instructions')
     }
 
-    // Always include the storage contract and absolute identity paths. Only the
+    // Always include the storage contract and absolute persona and user-profile file paths. Only the
     // loaded file-content blocks inside the section are conditional.
     contextParts.push(await this.buildMemoriesSection(agentDataPath))
 
