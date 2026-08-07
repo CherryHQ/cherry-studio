@@ -1,6 +1,6 @@
-// 32px row surface + 4px breathing room, the same rhythm the settings sidebar uses (DESIGN.md puts
-// menu items at 32px). The list is dense by design: the surface owns the height, the gap is the
-// smallest one that still separates two filled rows.
+// 32px row surface + 4px breathing room, matching the settings sidebar's 32px menu items. The list
+// is dense by design: the surface owns the height, and the gap is the smallest one that still
+// separates two filled rows.
 export const RESOURCE_LIST_DEFAULT_ROW_SIZE = 36
 
 export const RESOURCE_LIST_ROW_HEIGHT_CLASS = 'h-[36px]'
@@ -34,9 +34,9 @@ export const RESOURCE_LIST_GROUP_HEADER_LEADING_SLOT_CLASS =
 
 export const RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS = RESOURCE_LIST_LEADING_SLOT_BASE_CLASS
 
-// DESIGN.md's sidebar spec puts an active row on `sidebar-accent`, so that's the fill — a lighter
-// surface than a general-purpose `accent`, which the label's `font-medium` makes up for. The text
-// colour never changes; weight is the only thing selection adds to it.
+// Active sidebar rows use `sidebar-accent`, so that's the fill — a lighter surface than a
+// general-purpose `accent`, which the label's `font-medium` makes up for. The text colour never
+// changes; weight is the only thing selection adds to it.
 //
 // The hover fill has to be restated here: `hover:bg-*` out-specifies a plain `bg-*`, so without this
 // the row would go LIGHTER under the pointer — the open conversation would look like any hovered row.
