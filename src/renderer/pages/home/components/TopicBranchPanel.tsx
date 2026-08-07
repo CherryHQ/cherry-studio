@@ -8,6 +8,7 @@ import {
   layoutTopicMessageFlowGraph,
   mergeTopicMessageFlowLiveTree,
   TopicMessageFlowCanvas,
+  type TopicMessageFlowDirection,
   type TopicMessageFlowLiveState
 } from '@renderer/components/chat/flow'
 import { CommandContextMenu } from '@renderer/components/command'
@@ -15,9 +16,9 @@ import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import { toast } from '@renderer/services/toast'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type { Message as DbMessage, TreeResponse } from '@shared/data/types/message'
-import { CopyPlus, GitBranch } from 'lucide-react'
+import { ArrowDownToLine, ArrowUpToLine, CopyPlus, GitBranch } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useTopicBranchActions } from '../hooks/useTopicBranchActions'
@@ -58,6 +59,7 @@ const TopicBranchPanel: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const contextMenuMessageIdRef = useRef<string | null>(null)
+  const [flowDirection, setFlowDirection] = useState<TopicMessageFlowDirection>('top-to-bottom')
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
   const { data, error, isLoading, refetch } = useQuery('/topics/:topicId/tree', {
@@ -77,7 +79,10 @@ const TopicBranchPanel: FC<Props> = ({
     () => mergeTopicMessageFlowLiveTree(data ?? emptyTree, liveState?.topicId === topicId ? liveState : null),
     [data, liveState, topicId]
   )
-  const graph = useMemo(() => layoutTopicMessageFlowGraph(buildTopicMessageFlowGraph(tree)), [tree])
+  const graph = useMemo(
+    () => layoutTopicMessageFlowGraph(buildTopicMessageFlowGraph(tree), flowDirection),
+    [tree, flowDirection]
+  )
 
   const handleNodeSelect = useCallback(
     async (messageId: string) => {
@@ -266,6 +271,25 @@ const TopicBranchPanel: FC<Props> = ({
         <span className="shrink-0 text-foreground-tertiary">
           {graph.stats.nodeCount} {t('chat.message.flow.nodes', { defaultValue: 'nodes' })}
         </span>
+        <button
+          type="button"
+          data-testid="topic-message-flow-direction-toggle"
+          aria-label={t('chat.message.flow.direction_toggle', { defaultValue: 'Toggle tree direction' })}
+          title={
+            flowDirection === 'top-to-bottom'
+              ? t('chat.message.flow.direction_down', { defaultValue: 'Root at top' })
+              : t('chat.message.flow.direction_up', { defaultValue: 'Root at bottom' })
+          }
+          onClick={() =>
+            setFlowDirection((direction) => (direction === 'top-to-bottom' ? 'bottom-to-top' : 'top-to-bottom'))
+          }
+          className="ml-auto flex h-6 shrink-0 items-center gap-1 rounded-md border border-border-subtle px-1.5 text-foreground-tertiary transition-colors hover:bg-muted hover:text-foreground">
+          {flowDirection === 'top-to-bottom' ? (
+            <ArrowDownToLine className="size-3.5" />
+          ) : (
+            <ArrowUpToLine className="size-3.5" />
+          )}
+        </button>
       </div>
       <div className="min-h-0 flex-1">
         {error ? (

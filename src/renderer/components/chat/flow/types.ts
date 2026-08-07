@@ -5,6 +5,9 @@ export const TOPIC_MESSAGE_FLOW_NODE_TYPE = 'topicMessage'
 
 export type TopicMessageFlowEdgeState = 'active' | 'default' | 'inactive' | 'sibling'
 
+/** Flow tree direction: root at top (down) or root at bottom (up). */
+export type TopicMessageFlowDirection = 'top-to-bottom' | 'bottom-to-top'
+
 export interface TopicMessageFlowNodeData extends Record<string, unknown> {
   messageId: string
   role: MessageRole
