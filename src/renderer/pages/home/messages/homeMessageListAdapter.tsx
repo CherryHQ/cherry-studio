@@ -32,6 +32,8 @@ import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
+import FollowingBranchNotice from '@renderer/components/chat/messages/FollowingBranchNotice'
+import { useRightPanelActions } from '@renderer/components/chat/panes/Shell'
 import { useLanguages } from '@renderer/hooks/translate'
 import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
@@ -74,6 +76,8 @@ interface HomeMessageListParams {
   isMessagesStale?: boolean
   loadOlder?: () => void
   hasOlder?: boolean
+  /** Live messages hidden on other branches after the active path end. */
+  followingBranchCount?: number
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   imageActionConsumer?: 'capture'
   onBindRuntime?: MessageListActions['bindRuntime']
@@ -92,6 +96,7 @@ export function useHomeMessageListProviderValue({
   isMessagesStale = false,
   loadOlder,
   hasOlder = false,
+  followingBranchCount = 0,
   openCitationsPanel,
   imageActionConsumer,
   onBindRuntime,
@@ -781,6 +786,17 @@ export function useHomeMessageListProviderValue({
     [regenerateMessageUsingModel, t]
   )
 
+  const rightPanelActions = useRightPanelActions()
+  const afterList = useMemo<React.ReactNode>(() => {
+    if (!followingBranchCount || followingBranchCount <= 0) return undefined
+    return (
+      <FollowingBranchNotice
+        count={followingBranchCount}
+        onOpenBranches={() => rightPanelActions.tryOpen('branch', { userInitiated: true })}
+      />
+    )
+  }, [followingBranchCount, rightPanelActions])
+
   const state = useMemo<MessageListState>(
     () => ({
       topic,
@@ -791,6 +807,7 @@ export function useHomeMessageListProviderValue({
       isMessagesStale,
       hasOlder,
       messageNavigation,
+      afterList,
       ...DEFAULT_MESSAGE_LIST_CONFIG,
       listKey: resolvedAssistantId,
       renderConfig,
@@ -812,6 +829,7 @@ export function useHomeMessageListProviderValue({
       getMessageSiblings,
       isMessageTranslating,
       getTranslationLanguageLabel,
+      afterList,
       hasOlder,
       isInitialLoading,
       isMessagesStale,

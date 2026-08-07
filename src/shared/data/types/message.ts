@@ -635,4 +635,12 @@ export interface BranchMessagesResponse extends CursorPaginationResponse<BranchM
    * with its parent assistant's id. Always present in successful responses.
    */
   assistantId: string | null
+  /**
+   * Live messages in this topic hidden from the active-branch view: not on
+   * the root→activeNode path, and not an alternative reply of a reply-group
+   * that is visible on the path (those surface via multi-model tabs / sibling
+   * navigator). Topic-level and pagination-independent; the same value rides
+   * on every page.
+   */
+  followingBranchCount: number
 }

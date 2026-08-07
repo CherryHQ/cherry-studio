@@ -1,7 +1,7 @@
 import { mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useTopicMessages } from '../useTopicMessages'
 
@@ -41,6 +41,44 @@ describe('useTopicMessages', () => {
         '/topics/:topicId/messages',
         expect.objectContaining({ limit: 50 })
       )
+    })
+  })
+
+  describe('followingBranchCount', () => {
+    it('reads the topic-level count off pages[0]', () => {
+      mockUseInfiniteQuery.mockReturnValue({
+        pages: [{ items: [], activeNodeId: 'node-1', followingBranchCount: 3 }],
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        hasNext: false,
+        loadNext: vi.fn(),
+        refresh: vi.fn().mockResolvedValue(undefined),
+        reset: vi.fn(),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      } as any)
+
+      const { result } = renderHook(() => useTopicMessages('topic-1'))
+
+      expect(result.current.followingBranchCount).toBe(3)
+    })
+
+    it('defaults to 0 when no page has loaded yet', () => {
+      mockUseInfiniteQuery.mockReturnValue({
+        pages: [],
+        isLoading: false,
+        isRefreshing: false,
+        error: undefined,
+        hasNext: false,
+        loadNext: vi.fn(),
+        refresh: vi.fn().mockResolvedValue(undefined),
+        reset: vi.fn(),
+        mutate: vi.fn().mockResolvedValue(undefined)
+      } as any)
+
+      const { result } = renderHook(() => useTopicMessages('topic-1'))
+
+      expect(result.current.followingBranchCount).toBe(0)
     })
   })
 })

@@ -19,6 +19,7 @@ interface ChatMainProps {
   isMessagesStale?: boolean
   loadOlder: () => void
   hasOlder: boolean
+  followingBranchCount: number
   openCitationsPanel?: MessageListActions['openCitationsPanel']
   onStartBranchDraft?: MessageListActions['startMessageBranch']
 }
@@ -34,6 +35,7 @@ const ChatMain: FC<ChatMainProps> = ({
   isMessagesStale,
   loadOlder,
   hasOlder,
+  followingBranchCount,
   openCitationsPanel,
   onStartBranchDraft
 }) => {
@@ -48,6 +50,7 @@ const ChatMain: FC<ChatMainProps> = ({
     isMessagesStale,
     loadOlder,
     hasOlder,
+    followingBranchCount,
     openCitationsPanel,
     onStartBranchDraft
   })

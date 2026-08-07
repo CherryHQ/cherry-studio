@@ -184,7 +184,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
   // message column; this component both writes it (via the resize observer
   // below) and renders from it.
   const { setForceWideLayout, railGutterPx, setRailGutterPx } = useChatLayoutMode()
-  const { topic, messages, beforeList, messageTail, hasOlder = false, messageNavigation } = data
+  const { topic, messages, beforeList, afterList, messageTail, hasOlder = false, messageNavigation } = data
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const { setTimeoutTimer } = useTimer()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
@@ -761,6 +761,7 @@ const MessageList = ({ enableSearch = false }: MessageListProps) => {
             overscan={data.overscan}
             topPadding={topPadding}
             bottomPadding={bottomPadding}
+            renderFooter={afterList}
             keepMountedKeys={keepMountedKeys}
             showScrollToBottomButton
             scrollToBottomButtonBottomOffset={Math.max(24, bottomPadding)}

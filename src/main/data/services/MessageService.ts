@@ -44,7 +44,7 @@ import {
 import type { UniqueModelId } from '@shared/data/types/model'
 import { hasClearContextPart, isBlankUserTurn, readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, ne, not, or, sql } from 'drizzle-orm'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { getDataService, registerDataService } from './dataServiceRegistry'
@@ -665,7 +665,14 @@ export class MessageService {
 
     // Return empty if no active node
     if (!nodeId) {
-      return { items: [], nextCursor: undefined, activeNodeId: null, assistantId: topic.assistantId, rootId }
+      return {
+        items: [],
+        nextCursor: undefined,
+        activeNodeId: null,
+        assistantId: topic.assistantId,
+        rootId,
+        followingBranchCount: 0
+      }
     }
 
     const fullPath = this.getPathRowsToNodeTx(db, nodeId, { topicId })
@@ -762,8 +769,60 @@ export class MessageService {
       nextCursor,
       activeNodeId: topic.activeNodeId,
       assistantId: topic.assistantId,
-      rootId
+      rootId,
+      followingBranchCount: this.countFollowingBranch(topicId, fullPath)
     }
+  }
+
+  /**
+   * Count live messages in a topic hidden from the active-branch view.
+   *
+   * A message counts as "hidden" when it is not on the root→activeNode path
+   * AND is not an alternative reply of a reply-group that is visible on the
+   * path (alternative replies surface via multi-model tabs / sibling
+   * navigator, so they are reachable from the view). The virtual root
+   * (parentId-null), soft-deleted rows, and in-flight `pending` placeholders
+   * are excluded. Topic-level and pagination-independent.
+   */
+  private countFollowingBranch(topicId: string, fullPath: MessageRow[]): number {
+    if (fullPath.length === 0) return 0
+    const db = application.get('DbService').getDb()
+
+    const activePathIds = fullPath.map((m) => m.id)
+    // Only exclude alternatives of reply-groups visible on the path:
+    // the (parentId, siblingsGroupId) pairs of every path node with a group.
+    const groupCombos: string[] = []
+    for (const m of fullPath) {
+      if (m.siblingsGroupId !== 0) {
+        groupCombos.push(`${m.parentId}:${m.siblingsGroupId}`)
+      }
+    }
+
+    const conditions = [
+      eq(messageTable.topicId, topicId),
+      isNull(messageTable.deletedAt),
+      isNotNull(messageTable.parentId),
+      ne(messageTable.status, 'pending'),
+      not(inArray(messageTable.id, activePathIds))
+    ]
+    for (const combo of groupCombos) {
+      const sep = combo.indexOf(':')
+      conditions.push(
+        not(
+          and(
+            eq(messageTable.parentId, combo.slice(0, sep)),
+            eq(messageTable.siblingsGroupId, Number(combo.slice(sep + 1)))
+          )
+        )
+      )
+    }
+
+    const [row] = db
+      .select({ count: sql<number>`COUNT(*)` })
+      .from(messageTable)
+      .where(and(...conditions))
+      .all()
+    return row?.count ?? 0
   }
 
   /**
