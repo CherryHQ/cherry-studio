@@ -78,22 +78,30 @@ export const mcpRoutes = new Elysia({ prefix: '/mcps' })
       detail: { tags: [DOC_TAGS.cherry], summary: 'Get MCP Server', description: DOC_DESCRIPTIONS.get_mcp_server }
     }
   )
-  // Streamable HTTP proxy. Registered as three explicit methods rather than `.all()` so
-  // `toOpenAPISchema` sees ordinary operations; only POST carries real traffic, so GET
-  // (405 — no standalone SSE stream in stateless mode) and DELETE (session teardown,
-  // a no-op here) stay out of the docs.
+  // Streamable HTTP proxy. Registered as explicit methods rather than `.all()` so
+  // `toOpenAPISchema` sees ordinary operations; only POST carries traffic, so the two
+  // 405 responders stay out of the docs.
   .post('/:server_id/mcp', ({ params, request, body }) => handleMcpRequest(params.server_id, request, body), {
     params: ServerIdParamSchema,
     detail: { tags: [DOC_TAGS.cherry], summary: 'MCP Proxy', description: DOC_DESCRIPTIONS.mcp_proxy }
   })
-  .get('/:server_id/mcp', ({ params, request }) => handleMcpRequest(params.server_id, request), {
-    params: ServerIdParamSchema,
-    detail: { hide: true }
-  })
-  .delete('/:server_id/mcp', ({ params, request }) => handleMcpRequest(params.server_id, request), {
-    params: ServerIdParamSchema,
-    detail: { hide: true }
-  })
+  // Stateless means no standalone SSE stream and no session to terminate, and the spec's
+  // answer in both cases is 405. Handled here rather than by the transport: its GET branch
+  // ignores stateless mode and opens an SSE stream that this request's own teardown would
+  // close immediately, handing the client a dead stream instead of an honest refusal.
+  .get('/:server_id/mcp', () => methodNotAllowed(), { params: ServerIdParamSchema, detail: { hide: true } })
+  .delete('/:server_id/mcp', () => methodNotAllowed(), { params: ServerIdParamSchema, detail: { hide: true } })
+
+/** The MCP SDK's own 405 body, so clients see one shape whoever produced it. */
+function methodNotAllowed(): Response {
+  return new Response(
+    JSON.stringify({ jsonrpc: '2.0', error: { code: -32000, message: 'Method not allowed.' }, id: null }),
+    {
+      status: 405,
+      headers: { Allow: 'POST', 'Content-Type': 'application/json' }
+    }
+  )
+}
 
 async function handleMcpRequest(serverId: string, request: Request, body?: unknown): Promise<Response> {
   const server = resolveServer(serverId)
