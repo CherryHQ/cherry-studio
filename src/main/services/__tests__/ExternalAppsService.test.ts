@@ -145,6 +145,34 @@ describe('ExternalAppsService', () => {
     )
   })
 
+  it('removes Cherry proxy settings from a copied environment before spawning', async () => {
+    vi.stubEnv('HTTP_PROXY', 'http://user:password@proxy.example')
+    vi.stubEnv('ALL_PROXY', 'socks5://proxy.example')
+    vi.stubEnv('NO_PROXY', 'localhost')
+    vi.stubEnv('CHERRY_STUDIO_NODE_PROXY_RULES', 'http://user:password@proxy.example')
+    vi.stubEnv('CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES', 'localhost')
+    vi.stubEnv('USER_DEFINED_TOKEN', 'preserve-me')
+    const child = mockSpawn()
+
+    const openPromise = service.open('wt', 'C:\\work\\project')
+    child.emitClose(0)
+    await openPromise
+
+    const options = mocks.spawn.mock.calls[0][2] as { env: NodeJS.ProcessEnv }
+    expect(options.env).not.toBe(process.env)
+    expect(options.env).toMatchObject({
+      LOCALAPPDATA: 'C:\\Users\\test\\AppData\\Local',
+      USER_DEFINED_TOKEN: 'preserve-me'
+    })
+    expect(options.env).not.toHaveProperty('HTTP_PROXY')
+    expect(options.env).not.toHaveProperty('ALL_PROXY')
+    expect(options.env).not.toHaveProperty('NO_PROXY')
+    expect(options.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_RULES')
+    expect(options.env).not.toHaveProperty('CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES')
+    expect(process.env.HTTP_PROXY).toBe('http://user:password@proxy.example')
+    expect(process.env.CHERRY_STUDIO_NODE_PROXY_RULES).toBe('http://user:password@proxy.example')
+  })
+
   it('opens a terminal in the containing directory when the target is a file', async () => {
     statSyncSpy.mockReturnValue({ isFile: () => true } as fs.Stats)
     const child = mockSpawn()

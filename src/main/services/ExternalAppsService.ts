@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { removeEnvProxy } from '@main/utils/processRunner'
 import type { ExternalAppConfig, ExternalAppId, ExternalAppInfo } from '@shared/types/externalApp'
 import { spawn } from 'child_process'
 import { app } from 'electron'
@@ -68,10 +69,12 @@ class ExternalAppsService {
     const directory = this.resolveTerminalDirectory(targetPath)
     const launchContext = { appId, executablePath, targetPath, directory }
     logger.info('Launching external app', launchContext)
+    const env = { ...process.env }
+    removeEnvProxy(env)
 
     await new Promise<void>((resolve, reject) => {
       // Windows Terminal is a GUI app; hiding the spawned process also hides its window.
-      const child = spawn(executablePath, ['-d', directory], { env: process.env, shell: false, windowsHide: false })
+      const child = spawn(executablePath, ['-d', directory], { env, shell: false, windowsHide: false })
       let settled = false
 
       child.on('error', (error) => {
