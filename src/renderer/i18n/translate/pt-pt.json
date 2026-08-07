@@ -455,6 +455,7 @@
         "expand_all": "Expandir tudo",
         "no_workdir": "Sem diretório de trabalho",
         "show_more": "Expandir exibição",
+        "tasks": "Tarefas",
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_agent": "Agente desconhecido",
@@ -5835,73 +5836,73 @@
       "description": "Um assistente de IA criado para criadores",
       "diagnostics": {
         "actions": {
-          "cancel": "[to be translated]:Cancel",
-          "close": "[to be translated]:Close",
-          "contact": "[to be translated]:Email support",
-          "copy_email": "[to be translated]:Copy support email",
-          "export": "[to be translated]:Export",
-          "exporting": "[to be translated]:Exporting...",
-          "reveal": "[to be translated]:Open file location"
+          "cancel": "Cancelar",
+          "close": "Fechar",
+          "contact": "Suporte por e-mail",
+          "copy_email": "Copiar e-mail de suporte",
+          "export": "Exportar",
+          "exporting": "Exportando...",
+          "reveal": "Abrir localização do arquivo"
         },
         "dialog": {
-          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
-          "title": "[to be translated]:Export diagnostic bundle"
+          "description": "Salve informações recentes do aplicativo como um arquivo ZIP para ajudar o suporte a investigar problemas.",
+          "title": "Exportar pacote de diagnóstico"
         },
         "entry": {
-          "button": "[to be translated]:Export",
-          "title": "[to be translated]:Diagnostic bundle"
+          "button": "Exportar",
+          "title": "Pacote de diagnóstico"
         },
         "errors": {
-          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
-          "copy_failed": "[to be translated]:Could not copy the support email",
-          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
-          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
-          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
-          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
-          "reveal_failed": "[to be translated]:Could not open the file location"
+          "busy": "Outro pacote de diagnóstico já está sendo exportado",
+          "copy_failed": "Não foi possível copiar o email de suporte",
+          "destination_conflict": "O local de salvamento selecionado entra em conflito com dados de diagnóstico. Escolha uma pasta diferente.",
+          "email_client_failed": "Não foi possível abrir um cliente de e-mail. Você pode copiar o e-mail de suporte em vez disso.",
+          "export_failed": "Não foi possível exportar o pacote de diagnóstico",
+          "inspect_failed": "Não foi possível verificar o que está disponível para exportação. Tente novamente mais tarde.",
+          "reveal_failed": "Não foi possível abrir o local do arquivo"
         },
-        "inspecting": "[to be translated]:Preparing the available information...",
-        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "inspecting": "Preparando as informações disponíveis...",
+        "limit": "Para manter o ZIP gerenciável, logs e registros detalhados são limitados a {{size}}. Informações mais recentes são mantidas primeiro.",
         "mail": {
-          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
-          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+          "body": "Por favor, ajude a investigar este problema do Cherry Studio.\n\nID do pacote de diagnóstico: {{bundleId}}\nVersão: {{version}}\nPlataforma: {{platform}}\nIntervalo de tempo: {{range}}\nArquivo: {{fileName}}\n\nPor favor, anexe o arquivo ZIP a este e-mail. O pacote foi salvo localmente e não foi carregado automaticamente.",
+          "subject": "Diagnósticos do Cherry Studio {{bundleId}}"
         },
         "privacy": {
-          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
-          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
-          "title": "[to be translated]:Before you share"
+          "consent": "Compreendo as informações acima e partilharei o ZIP apenas de forma privada com o suporte.",
+          "description": "Esses registros podem conter coisas que você digitou, locais de arquivos, conteúdo de solicitações e respostas, e informações de conexão de serviços. O Cherry Studio não os oculta nem os envia automaticamente. Compartilhe o ZIP apenas com o suporte e nunca o publique no GitHub ou em outros sites públicos.",
+          "title": "Antes de partilhar"
         },
-        "range_title": "[to be translated]:Time range",
+        "range_title": "Intervalo de tempo",
         "ranges": {
-          "24h": "[to be translated]:Last 24 hours",
-          "3d": "[to be translated]:Last 3 days",
-          "7d": "[to be translated]:Last 7 days"
+          "24h": "Últimas 24 horas",
+          "3d": "Últimos 3 dias",
+          "7d": "Últimos 7 dias"
         },
         "sources": {
-          "inspecting": "[to be translated]:Checking what is available...",
+          "inspecting": "Verificando o que está disponível...",
           "logs": {
-            "title": "[to be translated]:App logs"
+            "title": "Registros do aplicativo"
           },
-          "summary": "[to be translated]:{{count}} files, about {{size}}",
-          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
-          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "summary": "{{count}} arquivos, cerca de {{size}}",
+          "summary_one": "{{count}} arquivo, cerca de {{size}}",
+          "summary_other": "{{count}} arquivos, cerca de {{size}}",
           "system": {
-            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
-            "title": "[to be translated]:App and device information"
+            "description": "Inclui detalhes do aplicativo, do sistema e do dispositivo. Falhas recentes: {{crashCount}}. Arquivos de falha não são coletados.",
+            "title": "Informações do aplicativo e do dispositivo"
           },
           "traces": {
-            "title": "[to be translated]:Detailed activity records"
+            "title": "Registros detalhados de atividade"
           },
-          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+          "unavailable": "Não há nada disponível para exportar para este intervalo de tempo"
         },
         "success": {
-          "email_copied": "[to be translated]:Support email copied",
-          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
-          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
-          "title": "[to be translated]:Diagnostic bundle exported"
+          "email_copied": "Email de suporte copiado",
+          "local_only": "O arquivo foi salvo apenas no seu computador e não foi carregado. Anexe o arquivo ZIP manualmente ao enviar o e-mail para o suporte.",
+          "summary": "Tamanho do arquivo {{size}} · {{included}} arquivos coletados · {{omitted}} arquivos não coletados",
+          "title": "Pacote de diagnóstico exportado"
         },
-        "unknown": "[to be translated]:Unknown",
-        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+        "unknown": "Desconhecido",
+        "warning": "Algumas informações de diagnóstico não estavam disponíveis. O pacote exportado pode estar incompleto."
       },
       "downloading": "Baixando atualizações...",
       "enterprise": {
@@ -6041,12 +6042,16 @@
         "third_party": "Conexões de Terceiros"
       },
       "export_menu": {
+        "categories": {
+          "apps": "Apps de terceiros",
+          "copy": "Copiar",
+          "file": "Exportação de Arquivo"
+        },
         "docx": "Exportar como Word",
         "image": "Exportar como Imagem",
         "joplin": "Exportar para Joplin",
         "markdown": "Exportar como Markdown",
         "markdown_reason": "Exportar como Markdown (incluindo pensamentos)",
-        "notes": "Exportar para notas",
         "notion": "Exportar para Notion",
         "obsidian": "Exportar para Obsidian",
         "plain_text": "Copiar como texto simples",
@@ -7341,7 +7346,9 @@
       "expand_all": "Expandir tudo",
       "filter": {
         "clear": "Limpar filtro de modelos",
-        "label": "Filtrar modelos"
+        "label": "Filtrar modelos",
+        "scroll_left": "Rolar tipos de modelos para a esquerda",
+        "scroll_right": "Desloque os tipos de modelo para a direita"
       },
       "group_disable": "Desativar este grupo",
       "group_enable": "Ativar este grupo",

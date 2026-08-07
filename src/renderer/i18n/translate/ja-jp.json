@@ -455,6 +455,7 @@
         "expand_all": "すべて展開",
         "no_workdir": "作業ディレクトリがありません",
         "show_more": "表示を拡大",
+        "tasks": "タスク",
         "this_week": "今週",
         "today": "今日",
         "unknown_agent": "不明なエージェント",
@@ -5835,73 +5836,73 @@
       "description": "クリエイターのための強力なAIアシスタント",
       "diagnostics": {
         "actions": {
-          "cancel": "[to be translated]:Cancel",
-          "close": "[to be translated]:Close",
-          "contact": "[to be translated]:Email support",
-          "copy_email": "[to be translated]:Copy support email",
-          "export": "[to be translated]:Export",
-          "exporting": "[to be translated]:Exporting...",
-          "reveal": "[to be translated]:Open file location"
+          "cancel": "キャンセル",
+          "close": "閉じる",
+          "contact": "メールサポート",
+          "copy_email": "サポートメールをコピー",
+          "export": "エクスポート",
+          "exporting": "エクスポート中...",
+          "reveal": "ファイルの場所を開く"
         },
         "dialog": {
-          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
-          "title": "[to be translated]:Export diagnostic bundle"
+          "description": "最近のアプリ情報をZIPファイルとして保存し、サポートによる問題調査を支援します。",
+          "title": "診断バンドルのエクスポート"
         },
         "entry": {
-          "button": "[to be translated]:Export",
-          "title": "[to be translated]:Diagnostic bundle"
+          "button": "エクスポート",
+          "title": "診断バンドル"
         },
         "errors": {
-          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
-          "copy_failed": "[to be translated]:Could not copy the support email",
-          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
-          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
-          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
-          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
-          "reveal_failed": "[to be translated]:Could not open the file location"
+          "busy": "別の診断バンドルがすでにエクスポート中です",
+          "copy_failed": "サポートメールをコピーできませんでした",
+          "destination_conflict": "選択した保存場所は診断データと競合しています。別のフォルダーを選択してください。",
+          "email_client_failed": "メールクライアントを開くことができませんでした。代わりにサポートメールアドレスをコピーできます。",
+          "export_failed": "診断バンドルをエクスポートできませんでした",
+          "inspect_failed": "エクスポート可能な項目を確認できませんでした。後でもう一度お試しください。",
+          "reveal_failed": "ファイルの場所を開けませんでした"
         },
-        "inspecting": "[to be translated]:Preparing the available information...",
-        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "inspecting": "利用可能な情報を準備しています...",
+        "limit": "ZIPファイルを管理しやすくするため、ログと詳細な記録は{{size}}に制限されています。新しい情報が優先して保持されます。",
         "mail": {
-          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
-          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+          "body": "このCherry Studioの問題を調査してください。\n\n診断バンドルID: {{bundleId}}\nバージョン: {{version}}\nプラットフォーム: {{platform}}\n時間範囲: {{range}}\nファイル: {{fileName}}\n\nZIPファイルをこのメールに添付してください。バンドルはローカルに保存され、自動的にはアップロードされていません。",
+          "subject": "Cherry Studio 診断 {{bundleId}}"
         },
         "privacy": {
-          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
-          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
-          "title": "[to be translated]:Before you share"
+          "consent": "上記の情報を理解し、ZIPはサポートと非公開で共有することに同意します。",
+          "description": "これらの記録には、入力した内容、ファイルの場所、リクエストとレスポンスの内容、およびサービス接続情報が含まれる可能性があります。Cherry Studioはこれらを自動的に隠したりアップロードしたりすることはありません。このZIPはサポート担当者とのみ共有し、Gitやその他の公開サイトには絶対に投稿しないでください。",
+          "title": "共有する前に"
         },
-        "range_title": "[to be translated]:Time range",
+        "range_title": "時間範囲",
         "ranges": {
-          "24h": "[to be translated]:Last 24 hours",
-          "3d": "[to be translated]:Last 3 days",
-          "7d": "[to be translated]:Last 7 days"
+          "24h": "過去24時間",
+          "3d": "過去3日間",
+          "7d": "過去7日間"
         },
         "sources": {
-          "inspecting": "[to be translated]:Checking what is available...",
+          "inspecting": "利用可能なものを確認中...",
           "logs": {
-            "title": "[to be translated]:App logs"
+            "title": "アプリログ"
           },
-          "summary": "[to be translated]:{{count}} files, about {{size}}",
-          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
-          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "summary": "{{count}} ファイル、約 {{size}}",
+          "summary_one": "{{count}} ファイル、約 {{size}}",
+          "summary_other": "{{count}} ファイル、約 {{size}}",
           "system": {
-            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
-            "title": "[to be translated]:App and device information"
+            "description": "アプリ、システム、およびデバイスの詳細が含まれます。最近のクラッシュ：{{crashCount}}件。クラッシュファイルは収集されません。",
+            "title": "アプリおよびデバイス情報"
           },
           "traces": {
-            "title": "[to be translated]:Detailed activity records"
+            "title": "詳細な活動記録"
           },
-          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+          "unavailable": "この期間にエクスポートできるデータはありません"
         },
         "success": {
-          "email_copied": "[to be translated]:Support email copied",
-          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
-          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
-          "title": "[to be translated]:Diagnostic bundle exported"
+          "email_copied": "サポートメールをコピーしました",
+          "local_only": "このファイルはお使いのコンピュータにのみ保存され、アップロードはされていません。サポートにメールする際は、ZIPファイルを手動で添付してください。",
+          "summary": "ファイルサイズ {{size}} · {{included}} ファイル収集済み · {{omitted}} ファイル未収集",
+          "title": "診断バンドルがエクスポートされました"
         },
-        "unknown": "[to be translated]:Unknown",
-        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+        "unknown": "不明",
+        "warning": "一部の診断情報が利用できませんでした。エクスポートされたバンドルが不完全である可能性があります。"
       },
       "downloading": "ダウンロード中...",
       "enterprise": {
@@ -6041,12 +6042,16 @@
         "third_party": "サードパーティー連携"
       },
       "export_menu": {
+        "categories": {
+          "apps": "サードパーティアプリ",
+          "copy": "コピー",
+          "file": "ファイルエクスポート"
+        },
         "docx": "Wordとしてエクスポート",
         "image": "画像としてエクスポート",
         "joplin": "Joplinにエクスポート",
         "markdown": "Markdownとしてエクスポート",
         "markdown_reason": "Markdownとしてエクスポート（思考内容を含む）",
-        "notes": "ノートにエクスポートする",
         "notion": "Notionにエクスポート",
         "obsidian": "Obsidianにエクスポート",
         "plain_text": "プレーンテキストとしてコピー",
@@ -7341,7 +7346,9 @@
       "expand_all": "すべて展開",
       "filter": {
         "clear": "モデルフィルターをクリア",
-        "label": "モデルをフィルター"
+        "label": "モデルをフィルター",
+        "scroll_left": "モデルの種類を左にスクロール",
+        "scroll_right": "モデルタイプを右にスクロール"
       },
       "group_disable": "このグループを無効化",
       "group_enable": "このグループを有効化",

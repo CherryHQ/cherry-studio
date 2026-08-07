@@ -88,8 +88,8 @@
       "title": "Đặt lại dữ liệu ứng dụng"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "Lưu gói chẩn đoán",
+      "zip_filter": "Lưu trữ ZIP"
     },
     "html_files": "Tập tin HTML",
     "open_file": "Mở Tệp",

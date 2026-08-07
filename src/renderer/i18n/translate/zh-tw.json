@@ -455,6 +455,7 @@
         "expand_all": "展開全部",
         "no_workdir": "無工作目錄",
         "show_more": "展開顯示",
+        "tasks": "任務",
         "this_week": "本週",
         "today": "今天",
         "unknown_agent": "未知代理",
@@ -5835,73 +5836,73 @@
       "description": "一款為創作者而生的強大 AI 助手",
       "diagnostics": {
         "actions": {
-          "cancel": "[to be translated]:Cancel",
-          "close": "[to be translated]:Close",
-          "contact": "[to be translated]:Email support",
-          "copy_email": "[to be translated]:Copy support email",
-          "export": "[to be translated]:Export",
-          "exporting": "[to be translated]:Exporting...",
-          "reveal": "[to be translated]:Open file location"
+          "cancel": "取消",
+          "close": "關閉",
+          "contact": "電子郵件支援",
+          "copy_email": "複製支援電子郵件",
+          "export": "匯出",
+          "exporting": "匯出中...",
+          "reveal": "開啟檔案位置"
         },
         "dialog": {
-          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
-          "title": "[to be translated]:Export diagnostic bundle"
+          "description": "將最近應用程式資訊儲存為 ZIP 檔案，以協助支援團隊調查問題。",
+          "title": "匯出診斷套件"
         },
         "entry": {
-          "button": "[to be translated]:Export",
-          "title": "[to be translated]:Diagnostic bundle"
+          "button": "匯出",
+          "title": "診斷套件"
         },
         "errors": {
-          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
-          "copy_failed": "[to be translated]:Could not copy the support email",
-          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
-          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
-          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
-          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
-          "reveal_failed": "[to be translated]:Could not open the file location"
+          "busy": "另一個診斷套件正在匯出中",
+          "copy_failed": "無法複製支援電子郵件",
+          "destination_conflict": "所選的儲存位置與診斷資料衝突。請選擇不同的資料夾。",
+          "email_client_failed": "無法開啟電子郵件用戶端。您可以改為複製支援電子郵件地址。",
+          "export_failed": "無法匯出診斷套件",
+          "inspect_failed": "無法檢查有哪些項目可供匯出。請稍後再試。",
+          "reveal_failed": "無法開啟檔案位置"
         },
-        "inspecting": "[to be translated]:Preparing the available information...",
-        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "inspecting": "準備可用資訊...",
+        "limit": "為了保持 ZIP 檔案大小可控，日誌和詳細記錄限制在 {{size}}。較新的資訊會優先保留。",
         "mail": {
-          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
-          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+          "body": "請協助調查此 Cherry Studio 問題。\n\n診斷套件 ID：{{bundleId}}\n版本：{{version}}\n平台：{{platform}}\n時間範圍：{{range}}\n檔案：{{fileName}}\n\n請將 ZIP 檔案附加至此電子郵件。該套件已儲存在本地，並未自動上傳。",
+          "subject": "Cherry Studio 診斷 {{bundleId}}"
         },
         "privacy": {
-          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
-          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
-          "title": "[to be translated]:Before you share"
+          "consent": "我理解上述資訊，並且只會私下與支援人員分享 ZIP 檔案。",
+          "description": "這些記錄可能包含您輸入的內容、檔案位置、請求與回應內容，以及服務連線資訊。Cherry Studio 不會隱藏或自動上傳這些資料。請僅將 ZIP 檔案分享給支援人員，切勿發布於 GitHub 或其他公開網站。",
+          "title": "在分享之前"
         },
-        "range_title": "[to be translated]:Time range",
+        "range_title": "時間範圍",
         "ranges": {
-          "24h": "[to be translated]:Last 24 hours",
-          "3d": "[to be translated]:Last 3 days",
-          "7d": "[to be translated]:Last 7 days"
+          "24h": "過去 24 小時",
+          "3d": "最近3天",
+          "7d": "過去7天"
         },
         "sources": {
-          "inspecting": "[to be translated]:Checking what is available...",
+          "inspecting": "檢查可用的項目...",
           "logs": {
-            "title": "[to be translated]:App logs"
+            "title": "應用程式日誌"
           },
-          "summary": "[to be translated]:{{count}} files, about {{size}}",
-          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
-          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "summary": "{{count}} 個檔案，約 {{size}}",
+          "summary_one": "{{count}} 個檔案，約 {{size}}",
+          "summary_other": "{{count}} 個檔案，約 {{size}}",
           "system": {
-            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
-            "title": "[to be translated]:App and device information"
+            "description": "包含應用程式、系統和裝置詳細資訊。最近崩潰次數：{{crashCount}}。未收集崩潰檔案。",
+            "title": "應用程式和裝置資訊"
           },
           "traces": {
-            "title": "[to be translated]:Detailed activity records"
+            "title": "詳細的活動記錄"
           },
-          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+          "unavailable": "此時間範圍內沒有可匯出的內容"
         },
         "success": {
-          "email_copied": "[to be translated]:Support email copied",
-          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
-          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
-          "title": "[to be translated]:Diagnostic bundle exported"
+          "email_copied": "支援電子郵件已複製",
+          "local_only": "此檔案僅儲存在您的電腦中，並未上傳。請在寄送電子郵件給客服時手動附加 ZIP 檔案。",
+          "summary": "檔案大小 {{size}} · 已收集 {{included}} 個檔案 · 未收集 {{omitted}} 個檔案",
+          "title": "診斷套件已匯出"
         },
-        "unknown": "[to be translated]:Unknown",
-        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+        "unknown": "未知",
+        "warning": "部分診斷資訊無法取得。匯出的套件可能不完整。"
       },
       "downloading": "正在下載...",
       "enterprise": {
@@ -6041,12 +6042,16 @@
         "third_party": "第三方連結"
       },
       "export_menu": {
+        "categories": {
+          "apps": "第三方應用程式",
+          "copy": "複製",
+          "file": "檔案匯出"
+        },
         "docx": "匯出為 Word",
         "image": "匯出為圖片",
         "joplin": "匯出到 Joplin",
         "markdown": "匯出為 Markdown",
         "markdown_reason": "匯出為 Markdown（包含思考）",
-        "notes": "匯出到筆記",
         "notion": "匯出到 Notion",
         "obsidian": "匯出到 Obsidian",
         "plain_text": "複製為純文字",
@@ -7341,7 +7346,9 @@
       "expand_all": "全部展開",
       "filter": {
         "clear": "清除模型篩選",
-        "label": "篩選模型"
+        "label": "篩選模型",
+        "scroll_left": "向左捲動模型類型",
+        "scroll_right": "向右捲動模型類型"
       },
       "group_disable": "停用此分組",
       "group_enable": "開啟此分組",

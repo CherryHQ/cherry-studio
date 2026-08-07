@@ -88,8 +88,8 @@
       "title": "Resetarea datelor aplicației"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "Salvați pachetul de diagnosticare",
+      "zip_filter": "Arhivă ZIP"
     },
     "html_files": "Fișiere HTML",
     "open_file": "Deschide fișier",

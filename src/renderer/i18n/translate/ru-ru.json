@@ -455,6 +455,7 @@
         "expand_all": "Развернуть все",
         "no_workdir": "Нет рабочего каталога",
         "show_more": "Развернуть дисплей",
+        "tasks": "Задачи",
         "this_week": "На этой неделе",
         "today": "Сегодня",
         "unknown_agent": "Неизвестный агент",
@@ -5835,73 +5836,73 @@
       "description": "Мощный AI-ассистент для созидания",
       "diagnostics": {
         "actions": {
-          "cancel": "[to be translated]:Cancel",
-          "close": "[to be translated]:Close",
-          "contact": "[to be translated]:Email support",
-          "copy_email": "[to be translated]:Copy support email",
-          "export": "[to be translated]:Export",
-          "exporting": "[to be translated]:Exporting...",
-          "reveal": "[to be translated]:Open file location"
+          "cancel": "Отмена",
+          "close": "Закрыть",
+          "contact": "Поддержка по электронной почте",
+          "copy_email": "Скопировать email поддержки",
+          "export": "Экспорт",
+          "exporting": "Экспорт...",
+          "reveal": "Открыть расположение файла"
         },
         "dialog": {
-          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
-          "title": "[to be translated]:Export diagnostic bundle"
+          "description": "Сохранить информацию о недавних приложениях в виде ZIP-файла, чтобы помочь службе поддержки в расследовании проблем.",
+          "title": "Экспорт диагностического пакета"
         },
         "entry": {
-          "button": "[to be translated]:Export",
-          "title": "[to be translated]:Diagnostic bundle"
+          "button": "Экспорт",
+          "title": "Диагностический пакет данных"
         },
         "errors": {
-          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
-          "copy_failed": "[to be translated]:Could not copy the support email",
-          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
-          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
-          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
-          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
-          "reveal_failed": "[to be translated]:Could not open the file location"
+          "busy": "Другой диагностический пакет уже экспортируется",
+          "copy_failed": "Не удалось скопировать адрес службы поддержки",
+          "destination_conflict": "Выбранное место сохранения конфликтует с диагностическими данными. Выберите другую папку.",
+          "email_client_failed": "Не удалось открыть почтовый клиент. Вы можете скопировать адрес службы поддержки.",
+          "export_failed": "Не удалось экспортировать диагностический пакет",
+          "inspect_failed": "Не удалось проверить, что доступно для экспорта. Попробуйте снова позже.",
+          "reveal_failed": "Не удалось открыть расположение файла"
         },
-        "inspecting": "[to be translated]:Preparing the available information...",
-        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "inspecting": "Подготовка доступной информации...",
+        "limit": "Чтобы ZIP-файл оставался компактным, журналы и подробные записи ограничены размером {{size}}. Новая информация сохраняется в первую очередь.",
         "mail": {
-          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
-          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+          "body": "Пожалуйста, помогите расследовать эту проблему с Cherry Studio.\n\nИдентификатор диагностического пакета: {{bundleId}}\nВерсия: {{version}}\nПлатформа: {{platform}}\nВременной диапазон: {{range}}\nФайл: {{fileName}}\n\nПожалуйста, прикрепите ZIP-файл к этому письму. Пакет был сохранен локально и не был загружен автоматически.",
+          "subject": "Диагностика Cherry Studio {{bundleId}}"
         },
         "privacy": {
-          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
-          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
-          "title": "[to be translated]:Before you share"
+          "consent": "Я понимаю информацию выше и буду делиться ZIP-файлом только в частном порядке со службой поддержки.",
+          "description": "Эти записи могут содержать введённые вами данные, расположения файлов, содержимое запросов и ответов, а также информацию о подключении к сервисам. Cherry Studio не скрывает и не загружает их автоматически. Делитесь ZIP-файлом только со службой поддержки и никогда не публикуйте его на GitHub или других публичных сайтах.",
+          "title": "Прежде чем поделиться"
         },
-        "range_title": "[to be translated]:Time range",
+        "range_title": "Диапазон времени",
         "ranges": {
-          "24h": "[to be translated]:Last 24 hours",
-          "3d": "[to be translated]:Last 3 days",
-          "7d": "[to be translated]:Last 7 days"
+          "24h": "Последние 24 часа",
+          "3d": "Последние 3 дня",
+          "7d": "Последние 7 дней"
         },
         "sources": {
-          "inspecting": "[to be translated]:Checking what is available...",
+          "inspecting": "Проверка доступных ресурсов...",
           "logs": {
-            "title": "[to be translated]:App logs"
+            "title": "Журналы приложения"
           },
-          "summary": "[to be translated]:{{count}} files, about {{size}}",
-          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
-          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "summary": "{{count}} файлов, около {{size}}",
+          "summary_one": "{{count}} файл, около {{size}}",
+          "summary_other": "{{count}} файлов, примерно {{size}}",
           "system": {
-            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
-            "title": "[to be translated]:App and device information"
+            "description": "Включает сведения о приложении, системе и устройстве. Недавние сбои: {{crashCount}}. Файлы сбоев не собираются.",
+            "title": "Информация о приложении и устройстве"
           },
           "traces": {
-            "title": "[to be translated]:Detailed activity records"
+            "title": "Подробные записи о деятельности"
           },
-          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+          "unavailable": "Нет данных для экспорта за выбранный период времени"
         },
         "success": {
-          "email_copied": "[to be translated]:Support email copied",
-          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
-          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
-          "title": "[to be translated]:Diagnostic bundle exported"
+          "email_copied": "Email поддержки скопирован",
+          "local_only": "Файл был сохранён только на вашем компьютере и не был загружен. При отправке письма в службу поддержки прикрепите ZIP-файл вручную.",
+          "summary": "Размер файла {{size}} · {{included}} файлов собрано · {{omitted}} файлов не собрано",
+          "title": "Диагностический пакет экспортирован"
         },
-        "unknown": "[to be translated]:Unknown",
-        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+        "unknown": "Неизвестно",
+        "warning": "Некоторая диагностическая информация была недоступна. Экспортированный пакет может быть неполным."
       },
       "downloading": "Загрузка...",
       "enterprise": {
@@ -6041,12 +6042,16 @@
         "third_party": "Сторонние подключения"
       },
       "export_menu": {
+        "categories": {
+          "apps": "Приложения сторонних разработчиков",
+          "copy": "Копировать",
+          "file": "Экспорт файла"
+        },
         "docx": "Экспорт в Word",
         "image": "Экспорт как изображение",
         "joplin": "Экспорт в Joplin",
         "markdown": "Экспорт в Markdown",
         "markdown_reason": "Экспорт в Markdown (с рассуждениями)",
-        "notes": "экспорт в заметки",
         "notion": "Экспорт в Notion",
         "obsidian": "Экспорт в Obsidian",
         "plain_text": "Копировать как чистый текст",
@@ -7341,7 +7346,9 @@
       "expand_all": "Развернуть все",
       "filter": {
         "clear": "Очистить фильтр моделей",
-        "label": "Фильтровать модели"
+        "label": "Фильтровать модели",
+        "scroll_left": "Прокрутить типы моделей влево",
+        "scroll_right": "Прокрутите типы моделей вправо"
       },
       "group_disable": "Отключить эту группу",
       "group_enable": "Включить эту группу",

@@ -455,6 +455,7 @@
         "expand_all": "Mở rộng tất cả",
         "no_workdir": "Không có thư mục làm việc",
         "show_more": "Mở rộng hiển thị",
+        "tasks": "Nhiệm vụ",
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_agent": "Đại lý không xác định",
@@ -5835,73 +5836,73 @@
       "description": "Một trợ lý AI mạnh mẽ cho nhà sản xuất",
       "diagnostics": {
         "actions": {
-          "cancel": "[to be translated]:Cancel",
-          "close": "[to be translated]:Close",
-          "contact": "[to be translated]:Email support",
-          "copy_email": "[to be translated]:Copy support email",
-          "export": "[to be translated]:Export",
-          "exporting": "[to be translated]:Exporting...",
-          "reveal": "[to be translated]:Open file location"
+          "cancel": "Hủy",
+          "close": "Đóng",
+          "contact": "Hỗ trợ qua email",
+          "copy_email": "Sao chép email hỗ trợ",
+          "export": "Xuất khẩu",
+          "exporting": "Đang xuất...",
+          "reveal": "Mở vị trí tệp"
         },
         "dialog": {
-          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
-          "title": "[to be translated]:Export diagnostic bundle"
+          "description": "Lưu thông tin ứng dụng gần đây dưới dạng tệp ZIP để hỗ trợ điều tra các vấn đề.",
+          "title": "Xuất gói chẩn đoán"
         },
         "entry": {
-          "button": "[to be translated]:Export",
-          "title": "[to be translated]:Diagnostic bundle"
+          "button": "Xuất khẩu",
+          "title": "Gói chẩn đoán"
         },
         "errors": {
-          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
-          "copy_failed": "[to be translated]:Could not copy the support email",
-          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
-          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
-          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
-          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
-          "reveal_failed": "[to be translated]:Could not open the file location"
+          "busy": "Một gói chẩn đoán khác đang được xuất ra",
+          "copy_failed": "Không thể sao chép email hỗ trợ",
+          "destination_conflict": "Vị trí lưu được chọn xung đột với dữ liệu chẩn đoán. Vui lòng chọn một thư mục khác.",
+          "email_client_failed": "Không thể mở ứng dụng email. Bạn có thể sao chép email hỗ trợ thay vào đó.",
+          "export_failed": "Không thể xuất gói chẩn đoán",
+          "inspect_failed": "Không thể kiểm tra những gì có sẵn để xuất. Vui lòng thử lại sau.",
+          "reveal_failed": "Không thể mở vị trí tệp tin"
         },
-        "inspecting": "[to be translated]:Preparing the available information...",
-        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "inspecting": "Đang chuẩn bị thông tin có sẵn...",
+        "limit": "Để giữ cho tệp ZIP dễ quản lý, nhật ký và hồ sơ chi tiết được giới hạn ở {{size}}. Thông tin mới hơn được giữ lại trước.",
         "mail": {
-          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
-          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+          "body": "Vui lòng giúp điều tra vấn đề này của Cherry Studio.\n\nID gói chẩn đoán: {{bundleId}}\nPhiên bản: {{version}}\nNền tảng: {{platform}}\nKhoảng thời gian: {{range}}\nTệp: {{fileName}}\n\nVui lòng đính kèm tệp ZIP vào email này. Gói đã được lưu cục bộ và không được tải lên tự động.",
+          "subject": "Cherry Studio diagnostics {{bundleId}}"
         },
         "privacy": {
-          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
-          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
-          "title": "[to be translated]:Before you share"
+          "consent": "Tôi hiểu thông tin ở trên và sẽ chỉ chia sẻ tệp ZIP riêng tư với bộ phận hỗ trợ.",
+          "description": "Các bản ghi này có thể chứa dữ liệu bạn đã nhập, vị trí tệp, nội dung yêu cầu và phản hồi, cùng thông tin kết nối dịch vụ. Cherry Studio không tự động ẩn hoặc tải lên chúng. Chỉ chia sẻ tệp ZIP với bộ phận hỗ trợ, và không bao giờ đăng lên GitHub hoặc các trang web công cộng khác.",
+          "title": "Trước khi bạn chia sẻ"
         },
-        "range_title": "[to be translated]:Time range",
+        "range_title": "Khoảng thời gian",
         "ranges": {
-          "24h": "[to be translated]:Last 24 hours",
-          "3d": "[to be translated]:Last 3 days",
-          "7d": "[to be translated]:Last 7 days"
+          "24h": "24 giờ qua",
+          "3d": "3 ngày qua",
+          "7d": "7 ngày qua"
         },
         "sources": {
-          "inspecting": "[to be translated]:Checking what is available...",
+          "inspecting": "Đang kiểm tra những gì có sẵn...",
           "logs": {
-            "title": "[to be translated]:App logs"
+            "title": "Nhật ký ứng dụng"
           },
-          "summary": "[to be translated]:{{count}} files, about {{size}}",
-          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
-          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "summary": "{{count}} tệp, khoảng {{size}}",
+          "summary_one": "{{count}} tệp, khoảng {{size}}",
+          "summary_other": "{{count}} tệp, khoảng {{size}}",
           "system": {
-            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
-            "title": "[to be translated]:App and device information"
+            "description": "Bao gồm chi tiết về ứng dụng, hệ thống và thiết bị. Số lần sự cố gần đây: {{crashCount}}. Các tệp sự cố không được thu thập.",
+            "title": "Thông tin ứng dụng và thiết bị"
           },
           "traces": {
-            "title": "[to be translated]:Detailed activity records"
+            "title": "Hồ sơ hoạt động chi tiết"
           },
-          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+          "unavailable": "Không có dữ liệu nào có thể xuất cho khoảng thời gian này"
         },
         "success": {
-          "email_copied": "[to be translated]:Support email copied",
-          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
-          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
-          "title": "[to be translated]:Diagnostic bundle exported"
+          "email_copied": "Email hỗ trợ đã được sao chép",
+          "local_only": "Tệp chỉ được lưu trên máy tính của bạn và không được tải lên. Vui lòng đính kèm tệp ZIP thủ công khi gửi email cho bộ phận hỗ trợ.",
+          "summary": "Dung lượng tệp {{size}} · {{included}} tệp đã được thu thập · {{omitted}} tệp chưa được thu thập",
+          "title": "Gói chẩn đoán đã được xuất ra"
         },
-        "unknown": "[to be translated]:Unknown",
-        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+        "unknown": "Không xác định",
+        "warning": "Một số thông tin chẩn đoán không khả dụng. Gói đã xuất có thể không đầy đủ."
       },
       "downloading": "Đang tải xuống...",
       "enterprise": {
@@ -6041,12 +6042,16 @@
         "third_party": "Kết nối của bên thứ ba"
       },
       "export_menu": {
+        "categories": {
+          "apps": "Ứng dụng bên thứ ba",
+          "copy": "Sao chép",
+          "file": "Xuất tệp"
+        },
         "docx": "Xuất ra Word",
         "image": "Xuất dưới dạng hình ảnh",
         "joplin": "Xuất sang Joplin",
         "markdown": "Xuất ra dạng Markdown",
         "markdown_reason": "Xuất ra dạng Markdown (kèm lý do)",
-        "notes": "Xuất ra Ghi chú",
         "notion": "Xuất sang Notion",
         "obsidian": "Xuất sang Obsidian",
         "plain_text": "Sao chép dưới dạng văn bản thuần",
@@ -7341,7 +7346,9 @@
       "expand_all": "Mở rộng tất cả",
       "filter": {
         "clear": "Xóa bộ lọc mô hình",
-        "label": "Lọc mô hình"
+        "label": "Lọc mô hình",
+        "scroll_left": "Cuộn các loại mô hình sang trái",
+        "scroll_right": "Cuộn sang phải các loại mô hình"
       },
       "group_disable": "Tắt nhóm này",
       "group_enable": "Bật nhóm này",

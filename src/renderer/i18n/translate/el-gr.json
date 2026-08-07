@@ -455,6 +455,7 @@
         "expand_all": "Ανάπτυξη όλων",
         "no_workdir": "Κανένας κατάλογος εργασίας",
         "show_more": "Ανάπτυξη οθόνης",
+        "tasks": "Εργασίες",
         "this_week": "Αυτή την εβδομάδα",
         "today": "Σήμερα",
         "unknown_agent": "Άγνωστος πράκτορας",
@@ -5835,73 +5836,73 @@
       "description": "Ένα AI ασιστάντα που έχει σχεδιαστεί για δημιουργούς",
       "diagnostics": {
         "actions": {
-          "cancel": "[to be translated]:Cancel",
-          "close": "[to be translated]:Close",
-          "contact": "[to be translated]:Email support",
-          "copy_email": "[to be translated]:Copy support email",
-          "export": "[to be translated]:Export",
-          "exporting": "[to be translated]:Exporting...",
-          "reveal": "[to be translated]:Open file location"
+          "cancel": "Ακύρωση",
+          "close": "Κλείσιμο",
+          "contact": "Υποστήριξη μέσω email",
+          "copy_email": "Αντιγραφή email υποστήριξης",
+          "export": "Εξαγωγή",
+          "exporting": "Εξαγωγή...",
+          "reveal": "Άνοιγμα θέσης αρχείου"
         },
         "dialog": {
-          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
-          "title": "[to be translated]:Export diagnostic bundle"
+          "description": "Αποθήκευση πρόσφατων πληροφοριών εφαρμογής ως αρχείο ZIP για να βοηθήσει την υποστήριξη να διερευνήσει προβλήματα.",
+          "title": "Εξαγωγή διαγνωστικού πακέτου"
         },
         "entry": {
-          "button": "[to be translated]:Export",
-          "title": "[to be translated]:Diagnostic bundle"
+          "button": "Εξαγωγή",
+          "title": "Διαγνωστικό πακέτο"
         },
         "errors": {
-          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
-          "copy_failed": "[to be translated]:Could not copy the support email",
-          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
-          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
-          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
-          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
-          "reveal_failed": "[to be translated]:Could not open the file location"
+          "busy": "Ένα άλλο διαγνωστικό πακέτο εξάγεται ήδη",
+          "copy_failed": "Δεν ήταν δυνατή η αντιγραφή του email υποστήριξης",
+          "destination_conflict": "Η επιλεγμένη τοποθεσία αποθήκευσης συγκρούεται με διαγνωστικά δεδομένα. Επιλέξτε διαφορετικό φάκελο.",
+          "email_client_failed": "Δεν ήταν δυνατό το άνοιγμα ενός προγράμματος ηλεκτρονικού ταχυδρομείου. Μπορείτε αντί αυτού να αντιγράψετε το email υποστήριξης.",
+          "export_failed": "Δεν ήταν δυνατή η εξαγωγή του διαγνωστικού πακέτου",
+          "inspect_failed": "Δεν ήταν δυνατός ο έλεγχος των διαθέσιμων στοιχείων για εξαγωγή. Δοκιμάστε ξανά αργότερα.",
+          "reveal_failed": "Δεν ήταν δυνατό το άνοιγμα της τοποθεσίας του αρχείου"
         },
-        "inspecting": "[to be translated]:Preparing the available information...",
-        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "inspecting": "Προετοιμασία των διαθέσιμων πληροφοριών...",
+        "limit": "Για να διατηρηθεί το ZIP διαχειρίσιμο, τα αρχεία καταγραφής και οι λεπτομερείς εγγραφές περιορίζονται σε {{size}}. Οι νεότερες πληροφορίες διατηρούνται πρώτες.",
         "mail": {
-          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
-          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+          "body": "Παρακαλώ βοηθήστε στη διερεύνηση αυτού του ζητήματος του Cherry Studio.\n\nΑναγνωριστικό πακέτου διαγνωστικών: {{bundleId}}\nΈκδοση: {{version}}\nΠλατφόρμα: {{platform}}\nΧρονικό εύρος: {{range}}\nΑρχείο: {{fileName}}\n\nΠαρακαλώ επισυνάψτε το αρχείο ZIP σε αυτό το email. Το πακέτο αποθηκεύτηκε τοπικά και δεν μεταφορτώθηκε αυτόματα.",
+          "subject": "Διαγνωστικά Cherry Studio {{bundleId}}"
         },
         "privacy": {
-          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
-          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
-          "title": "[to be translated]:Before you share"
+          "consent": "Κατανοώ τις παραπάνω πληροφορίες και θα μοιραστώ το ZIP μόνο ιδιωτικά με την υποστήριξη.",
+          "description": "Αυτά τα αρχεία ενδέχεται να περιέχουν στοιχεία που εισαγάγατε, τοποθεσίες αρχείων, περιεχόμενο αιτημάτων και απαντήσεων, καθώς και πληροφορίες σύνδεσης υπηρεσιών. Το Cherry Studio δεν τα αποκρύπτει ούτε τα ανεβάζει αυτόματα. Μοιραστείτε το ZIP μόνο με την υποστήριξη, και μην το δημοσιεύσετε ποτέ στο GitHub ή σε άλλες δημόσιες ιστοσελίδες.",
+          "title": "Πριν να μοιραστείς"
         },
-        "range_title": "[to be translated]:Time range",
+        "range_title": "Εύρος χρόνου",
         "ranges": {
-          "24h": "[to be translated]:Last 24 hours",
-          "3d": "[to be translated]:Last 3 days",
-          "7d": "[to be translated]:Last 7 days"
+          "24h": "Τελευταίες 24 ώρες",
+          "3d": "Τελευταίες 3 ημέρες",
+          "7d": "Τελευταίες 7 ημέρες"
         },
         "sources": {
-          "inspecting": "[to be translated]:Checking what is available...",
+          "inspecting": "Έλεγχος διαθεσιμότητας...",
           "logs": {
-            "title": "[to be translated]:App logs"
+            "title": "Αρχεία καταγραφής εφαρμογής"
           },
-          "summary": "[to be translated]:{{count}} files, about {{size}}",
-          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
-          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "summary": "{{count}} αρχεία, περίπου {{size}}",
+          "summary_one": "{{count}} αρχείο, περίπου {{size}}",
+          "summary_other": "{{count}} αρχεία, περίπου {{size}}",
           "system": {
-            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
-            "title": "[to be translated]:App and device information"
+            "description": "Περιλαμβάνει λεπτομέρειες εφαρμογής, συστήματος και συσκευής. Πρόσφατα σφάλματα: {{crashCount}}. Τα αρχεία σφαλμάτων δεν συλλέγονται.",
+            "title": "Πληροφορίες εφαρμογής και συσκευής"
           },
           "traces": {
-            "title": "[to be translated]:Detailed activity records"
+            "title": "Λεπτομερείς αρχεία δραστηριοτήτων"
           },
-          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+          "unavailable": "Δεν υπάρχει διαθέσιμο περιεχόμενο για εξαγωγή σε αυτό το χρονικό εύρος"
         },
         "success": {
-          "email_copied": "[to be translated]:Support email copied",
-          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
-          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
-          "title": "[to be translated]:Diagnostic bundle exported"
+          "email_copied": "Το email υποστήριξης αντιγράφηκε",
+          "local_only": "Το αρχείο αποθηκεύτηκε μόνο στον υπολογιστή σας και δεν ανέβηκε. Επισυνάψτε χειροκίνητα το αρχείο ZIP όταν στέλνετε email στην υποστήριξη.",
+          "summary": "Μέγεθος αρχείου {{size}} · {{included}} αρχεία συλλέχθηκαν · {{omitted}} αρχεία δεν συλλέχθηκαν",
+          "title": "Διαγνωστικό πακέτο εξήχθη"
         },
-        "unknown": "[to be translated]:Unknown",
-        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+        "unknown": "Άγνωστο",
+        "warning": "Μερικές διαγνωστικές πληροφορίες δεν ήταν διαθέσιμες. Το εξαγόμενο πακέτο μπορεί να είναι ελλιπές."
       },
       "downloading": "Λήψη ενημερώσεων...",
       "enterprise": {
@@ -6041,12 +6042,16 @@
         "third_party": "Σύνδεση τρίτων"
       },
       "export_menu": {
+        "categories": {
+          "apps": "Εφαρμογές τρίτων",
+          "copy": "Αντιγραφή",
+          "file": "Εξαγωγή αρχείου"
+        },
         "docx": "Εξαγωγή σε Word",
         "image": "Εξαγωγή ως εικόνα",
         "joplin": "Εξαγωγή στο Joplin",
         "markdown": "Εξαγωγή σε Markdown",
         "markdown_reason": "Εξαγωγή σε Markdown (περιλαμβάνει σκέψη)",
-        "notes": "εξαγωγή στις σημειώσεις",
         "notion": "Εξαγωγή στο Notion",
         "obsidian": "Εξαγωγή στο Obsidian",
         "plain_text": "Αντιγραφή ως απλό κείμενο",
@@ -7341,7 +7346,9 @@
       "expand_all": "Ανάπτυξη όλων",
       "filter": {
         "clear": "Εκκαθάριση φίλτρου μοντέλων",
-        "label": "Φιλτράρισμα μοντέλων"
+        "label": "Φιλτράρισμα μοντέλων",
+        "scroll_left": "Κύλιση τύπων μοντέλων αριστερά",
+        "scroll_right": "Κύλιση τύπων μοντέλων δεξιά"
       },
       "group_disable": "Απενεργοποίηση αυτής της ομάδας",
       "group_enable": "Ενεργοποίηση αυτής της ομάδας",

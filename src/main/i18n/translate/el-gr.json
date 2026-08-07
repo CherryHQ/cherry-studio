@@ -88,8 +88,8 @@
       "title": "Επαναφορά δεδομένων εφαρμογής"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "Αποθήκευση δέσμης διαγνωστικών",
+      "zip_filter": "Αρχείο ZIP"
     },
     "html_files": "Αρχεία HTML",
     "open_file": "Άνοιγμα Αρχείου",

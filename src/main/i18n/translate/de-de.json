@@ -88,8 +88,8 @@
       "title": "App-Daten zurücksetzen"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "Diagnosepaket speichern",
+      "zip_filter": "ZIP-Archiv"
     },
     "html_files": "HTML-Dateien",
     "open_file": "Datei öffnen",

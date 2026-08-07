@@ -455,6 +455,7 @@
         "expand_all": "Extinde tot",
         "no_workdir": "Niciun director de lucru",
         "show_more": "Extinde afișajul",
+        "tasks": "Sarcini",
         "this_week": "Săptămâna aceasta",
         "today": "Astăzi",
         "unknown_agent": "Agent necunoscut",
@@ -5835,73 +5836,73 @@
       "description": "Un asistent AI puternic pentru producători",
       "diagnostics": {
         "actions": {
-          "cancel": "[to be translated]:Cancel",
-          "close": "[to be translated]:Close",
-          "contact": "[to be translated]:Email support",
-          "copy_email": "[to be translated]:Copy support email",
-          "export": "[to be translated]:Export",
-          "exporting": "[to be translated]:Exporting...",
-          "reveal": "[to be translated]:Open file location"
+          "cancel": "Anulare",
+          "close": "Închide",
+          "contact": "Suport prin email",
+          "copy_email": "Copiază adresa de e-mail de asistență",
+          "export": "Export",
+          "exporting": "Se exportează...",
+          "reveal": "Deschide locația fișierului"
         },
         "dialog": {
-          "description": "[to be translated]:Save recent app information as a ZIP file to help support investigate issues.",
-          "title": "[to be translated]:Export diagnostic bundle"
+          "description": "Salvați informațiile recente ale aplicației ca fișier ZIP pentru a ajuta asistența să investigheze problemele.",
+          "title": "Exportare pachet diagnostic"
         },
         "entry": {
-          "button": "[to be translated]:Export",
-          "title": "[to be translated]:Diagnostic bundle"
+          "button": "Export",
+          "title": "Pachet de diagnosticare"
         },
         "errors": {
-          "busy": "[to be translated]:Another diagnostic bundle is already being exported",
-          "copy_failed": "[to be translated]:Could not copy the support email",
-          "destination_conflict": "[to be translated]:The selected save location conflicts with diagnostic data. Choose a different folder.",
-          "email_client_failed": "[to be translated]:Could not open an email client. You can copy the support email instead.",
-          "export_failed": "[to be translated]:Could not export the diagnostic bundle",
-          "inspect_failed": "[to be translated]:Could not check what is available to export. Try again later.",
-          "reveal_failed": "[to be translated]:Could not open the file location"
+          "busy": "Un alt pachet de diagnostic este deja în curs de exportare",
+          "copy_failed": "Nu s-a putut copia adresa de e-mail de asistență",
+          "destination_conflict": "Locația de salvare selectată intră în conflict cu datele de diagnostic. Alegeți un alt folder.",
+          "email_client_failed": "Nu s-a putut deschide un client de email. Puteți copia în schimb adresa de email de asistență.",
+          "export_failed": "Nu s-a putut exporta pachetul de diagnostic",
+          "inspect_failed": "Nu s-a putut verifica ce este disponibil pentru export. Încercați din nou mai târziu.",
+          "reveal_failed": "Nu s-a putut deschide locația fișierului"
         },
-        "inspecting": "[to be translated]:Preparing the available information...",
-        "limit": "[to be translated]:To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "inspecting": "Pregătirea informațiilor disponibile...",
+        "limit": "Pentru a menține fișierul ZIP gestionabil, jurnalele și înregistrările detaliate sunt limitate la {{size}}. Informațiile mai noi sunt păstrate primele.",
         "mail": {
-          "body": "[to be translated]:Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
-          "subject": "[to be translated]:Cherry Studio diagnostics {{bundleId}}"
+          "body": "Vă rugăm să ajutați la investigarea acestei probleme din Cherry Studio.\n\nID pachet diagnostic: {{bundleId}}\nVersiune: {{version}}\nPlatformă: {{platform}}\nInterval de timp: {{range}}\nFișier: {{fileName}}\n\nVă rugăm să atașați fișierul ZIP la acest e-mail. Pachetul a fost salvat local și nu a fost încărcat automat.",
+          "subject": "Diagnostice Cherry Studio {{bundleId}}"
         },
         "privacy": {
-          "consent": "[to be translated]:I understand the information above and will share the ZIP only privately with support.",
-          "description": "[to be translated]:These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not hide or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
-          "title": "[to be translated]:Before you share"
+          "consent": "Înțeleg informațiile de mai sus și voi partaja fișierul ZIP doar în mod privat cu echipa de asistență.",
+          "description": "Aceste înregistrări pot conține lucruri pe care le-ați introdus, locațiile fișierelor, conținutul cererilor și răspunsurilor, și informațiile despre conexiunea serviciului. Cherry Studio nu le ascunde sau nu le încarcă automat. Partajați fișierul ZIP doar cu asistența tehnică, și nu-l postați niciodată pe GitHub sau alte site-uri publice.",
+          "title": "Înainte de a distribui"
         },
-        "range_title": "[to be translated]:Time range",
+        "range_title": "Interval de timp",
         "ranges": {
-          "24h": "[to be translated]:Last 24 hours",
-          "3d": "[to be translated]:Last 3 days",
-          "7d": "[to be translated]:Last 7 days"
+          "24h": "Ultimele 24 de ore",
+          "3d": "Ultimele 3 zile",
+          "7d": "Ultimele 7 zile"
         },
         "sources": {
-          "inspecting": "[to be translated]:Checking what is available...",
+          "inspecting": "Verificând ce este disponibil...",
           "logs": {
-            "title": "[to be translated]:App logs"
+            "title": "Jurnale aplicație"
           },
-          "summary": "[to be translated]:{{count}} files, about {{size}}",
-          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
-          "summary_other": "[to be translated]:{{count}} files, about {{size}}",
+          "summary": "{{count}} fișiere, aproximativ {{size}}",
+          "summary_one": "{{count}} fișier, aproximativ {{size}}",
+          "summary_other": "{{count}} fișiere, aproximativ {{size}}",
           "system": {
-            "description": "[to be translated]:Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
-            "title": "[to be translated]:App and device information"
+            "description": "Include detalii despre aplicație, sistem și dispozitiv. Crahuri recente: {{crashCount}}. Fișierele de crah nu sunt colectate.",
+            "title": "Informații despre aplicație și dispozitiv"
           },
           "traces": {
-            "title": "[to be translated]:Detailed activity records"
+            "title": "Înregistrări detaliate ale activității"
           },
-          "unavailable": "[to be translated]:Nothing is available to export for this time range"
+          "unavailable": "Nu există nimic disponibil pentru export pentru acest interval de timp"
         },
         "success": {
-          "email_copied": "[to be translated]:Support email copied",
-          "local_only": "[to be translated]:The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
-          "summary": "[to be translated]:File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
-          "title": "[to be translated]:Diagnostic bundle exported"
+          "email_copied": "Adresa de e-mail de asistență a fost copiată",
+          "local_only": "Fișierul a fost salvat doar pe computerul tău și nu a fost încărcat. Atașează manual fișierul ZIP când trimiți e-mailul către asistență.",
+          "summary": "Dimensiune fișier {{size}} · {{included}} fișiere colectate · {{omitted}} fișiere necolectate",
+          "title": "Pachet de diagnostic exportat"
         },
-        "unknown": "[to be translated]:Unknown",
-        "warning": "[to be translated]:Some diagnostic information was unavailable. The exported bundle may be incomplete."
+        "unknown": "Necunoscut",
+        "warning": "Unele informații de diagnosticare nu au fost disponibile. Pachetul exportat poate fi incomplet."
       },
       "downloading": "Se descarcă...",
       "enterprise": {
@@ -6041,12 +6042,16 @@
         "third_party": "Conexiuni terțe"
       },
       "export_menu": {
+        "categories": {
+          "apps": "Aplicații terțe",
+          "copy": "Copiază",
+          "file": "Export de fișier"
+        },
         "docx": "Exportă ca Word",
         "image": "Exportă ca imagine",
         "joplin": "Exportă în Joplin",
         "markdown": "Exportă ca Markdown",
         "markdown_reason": "Exportă ca Markdown (cu raționament)",
-        "notes": "Exportă în Notițe",
         "notion": "Exportă în Notion",
         "obsidian": "Exportă în Obsidian",
         "plain_text": "Copiază ca text simplu",
@@ -7341,7 +7346,9 @@
       "expand_all": "Extinde tot",
       "filter": {
         "clear": "Șterge filtrul de modele",
-        "label": "Filtrează modelele"
+        "label": "Filtrează modelele",
+        "scroll_left": "Derulați tipurile de modele la stânga",
+        "scroll_right": "Derulați tipurile de modele la dreapta"
       },
       "group_disable": "Dezactivează acest grup",
       "group_enable": "Activează acest grup",

@@ -88,8 +88,8 @@
       "title": "Repor os dados da aplicação"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "Salvar pacote de diagnóstico",
+      "zip_filter": "Arquivo ZIP"
     },
     "html_files": "Arquivos HTML",
     "open_file": "Abrir Arquivo",

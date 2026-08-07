@@ -88,8 +88,8 @@
       "title": "重設應用程式資料"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "儲存診斷套件",
+      "zip_filter": "ZIP 壓縮檔"
     },
     "html_files": "HTML 檔案",
     "open_file": "開啟檔案",

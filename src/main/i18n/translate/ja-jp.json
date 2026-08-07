@@ -88,8 +88,8 @@
       "title": "アプリデータをリセット"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "診断バンドルを保存",
+      "zip_filter": "ZIPアーカイブ"
     },
     "html_files": "HTMLファイル",
     "open_file": "ファイルを開く",

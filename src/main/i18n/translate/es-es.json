@@ -88,8 +88,8 @@
       "title": "Restablecer datos de la aplicación"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "Guardar paquete de diagnóstico",
+      "zip_filter": "Archivo ZIP"
     },
     "html_files": "Archivos HTML",
     "open_file": "Abrir archivo",

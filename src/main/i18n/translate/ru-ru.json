@@ -88,8 +88,8 @@
       "title": "Сброс данных приложения"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "Сохранить диагностический пакет",
+      "zip_filter": "Архив ZIP"
     },
     "html_files": "Файлы HTML",
     "open_file": "Открыть файл",

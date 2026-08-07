@@ -88,8 +88,8 @@
       "title": "Réinitialiser les données de l’application"
     },
     "diagnostic_bundle": {
-      "title": "[to be translated]:Save diagnostic bundle",
-      "zip_filter": "[to be translated]:ZIP archive"
+      "title": "Enregistrer le bundle de diagnostic",
+      "zip_filter": "Archive ZIP"
     },
     "html_files": "Fichiers HTML",
     "open_file": "Ouvrir le fichier",
