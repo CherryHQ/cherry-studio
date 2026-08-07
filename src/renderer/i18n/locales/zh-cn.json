@@ -8731,6 +8731,25 @@
   "warning": {
     "missing_provider": "服务商不存在，已回退到默认服务商 {{provider}}。这可能导致问题。"
   },
+  "webview": {
+    "annotation": {
+      "cancel": "取消",
+      "clear": "清空标注",
+      "clear_description": "这会移除当前页面上的所有标注。",
+      "clear_title": "清空全部标注？",
+      "copied": "已复制标注",
+      "copy": "复制标注 Markdown",
+      "copy_failed": "复制标注失败",
+      "count_one": "{{count}} 条标注",
+      "count_other": "{{count}} 条标注",
+      "delete": "删除",
+      "disable_mode": "退出标注",
+      "edit": "编辑标注",
+      "enable_mode": "标注页面",
+      "placeholder": "描述需要修改的内容或你注意到的问题…",
+      "save": "保存"
+    }
+  },
   "words": {
     "knowledgeGraph": "知识图谱",
     "quit": "退出",
