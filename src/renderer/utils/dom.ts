@@ -50,10 +50,15 @@ export function scrollElementIntoView(
     return
   }
 
-  // Check if container is scrollable
+  // Check if container is actually scrollable (has overflow:auto/scroll AND overflowing content).
+  // Elements with overflow:visible can have scrollHeight > clientHeight but scrollTo is a no-op on them.
+  const computedOverflow = window.getComputedStyle(scrollContainer).overflow
+  const computedOverflowY = window.getComputedStyle(scrollContainer).overflowY
+  const isScrollableOverflow = computedOverflow === 'auto' || computedOverflow === 'scroll' || computedOverflowY === 'auto' || computedOverflowY === 'scroll'
   const canScroll =
-    scrollContainer.scrollHeight > scrollContainer.clientHeight ||
-    scrollContainer.scrollWidth > scrollContainer.clientWidth
+    isScrollableOverflow &&
+    (scrollContainer.scrollHeight > scrollContainer.clientHeight ||
+      scrollContainer.scrollWidth > scrollContainer.clientWidth)
 
   if (canScroll) {
     // Container is scrollable, scroll within the container
