@@ -74,6 +74,32 @@ describe('syncMcpToolsToRegistry', () => {
     expect(reg.getByName('mcp__s1__a')?.defer).toBe('auto')
   })
 
+  it('attaches raw MCP identity metadata before execution', async () => {
+    const reg = new ToolRegistry()
+    list.mockReturnValue({ items: [{ ...activeServer('ocr-server'), name: '票据 OCR' }] })
+    listTools.mockReturnValue([
+      {
+        ...mcpTool('ocr-server', '识别发票', '识别票据中的结构化字段'),
+        id: 'mcp__ocr__tool_1234567890abcdef1234',
+        serverName: '票据 OCR'
+      }
+    ])
+
+    await syncMcpToolsToRegistry(reg)
+
+    expect(reg.getByName('mcp__ocr__tool_1234567890abcdef1234')?.tool.metadata).toEqual({
+      cherry: {
+        tool: {
+          description: '识别票据中的结构化字段',
+          name: '识别发票',
+          serverId: 'ocr-server',
+          serverName: '票据 OCR',
+          type: 'mcp'
+        }
+      }
+    })
+  })
+
   it('marks a force-prompt (approval-gated) tool defer:never so it stays inline for the SDK gate', async () => {
     const reg = new ToolRegistry()
     // Server disables auto-approve for tool 'a' (force-prompt); 'b' stays auto-approve.

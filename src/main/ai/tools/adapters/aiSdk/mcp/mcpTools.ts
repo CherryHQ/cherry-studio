@@ -34,9 +34,17 @@ function resolveActiveServerById(serverId: string): McpServer | undefined {
 
 /** Build the AI SDK Tool wrapper around a single McpTool. */
 function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
+  const metadata = {
+    description: mcpTool.description,
+    name: mcpTool.name,
+    serverId: mcpTool.serverId,
+    serverName: mcpTool.serverName,
+    type: 'mcp' as const
+  }
   return {
     type: 'function',
     description: mcpTool.description || mcpTool.name,
+    metadata: { cherry: { tool: metadata } },
     inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
     needsApproval: async () => forcePrompt,
     execute: async (args: Record<string, unknown>, { toolCallId }) => {
@@ -59,13 +67,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
       // parts intact); `toModelOutput` below produces the string view.
       return {
         ...result,
-        metadata: {
-          description: mcpTool.description,
-          name: mcpTool.name,
-          serverName: mcpTool.serverName,
-          serverId: mcpTool.serverId,
-          type: 'mcp' as const
-        }
+        metadata
       }
     },
     toModelOutput({ output }) {
