@@ -79,6 +79,24 @@ describe('translateService.resolveTranslatePayload', () => {
     expect(getByKeyMock).toHaveBeenCalledWith('openai', 'gpt-4o')
   })
 
+  it('interpolates replacement tokens and placeholder-shaped values literally', () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4o')
+    MockMainPreferenceServiceUtils.setPreferenceValue(
+      'feature.translate.model_prompt',
+      'A {{target_language}} B {{text}} C {{target_language}} D {{text}}'
+    )
+    getByKeyMock.mockReturnValue({ id: 'openai::gpt-4o', providerId: 'openai', apiModelId: 'gpt-4o', name: 'GPT-4o' })
+    const sourceText = "$$E=mc^2$$ | $& | $` | $' | {{target_language}}"
+    const targetLanguage = {
+      ...TARGET,
+      value: "$$English$$ | $& | $` | $' | {{text}}"
+    }
+
+    const payload = translateService.resolveTranslatePayload(sourceText, targetLanguage)
+
+    expect(payload.content).toBe(`A ${targetLanguage.value} B ${sourceText} C ${targetLanguage.value} D ${sourceText}`)
+  })
+
   it('skips interpolation for Qwen MT models — passes raw source text', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.translate.model_id', 'dashscope::qwen-mt-turbo')
     MockMainPreferenceServiceUtils.setPreferenceValue(
