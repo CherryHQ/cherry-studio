@@ -8,10 +8,6 @@ import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedR
 const logger = loggerService.withContext('ChannelAdapterListener')
 const INCOMPLETE_CITATION_MARKER_PATTERN = /[ \t]?\[(?:c(?:i(?:t(?:e(?::[\w-]*)?)?)?)?)?$/
 
-function withholdIncompleteCitationMarker(text: string): string {
-  return text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, '')
-}
-
 /** IM-channel sink (Discord / Slack / Feishu / Telegram / etc). */
 export class ChannelAdapterListener implements StreamListener {
   readonly id: string
@@ -47,7 +43,9 @@ export class ChannelAdapterListener implements StreamListener {
       // the live delivery path that reaches the IM platform, so secrets (keys/tokens) must
       // be redacted before they leave.
       const { text } = sanitizeChannelOutput(this.accumulatedText)
-      void this.adapter.onTextUpdate(this.platformChatId, withholdIncompleteCitationMarker(text)).catch(() => {})
+      void this.adapter
+        .onTextUpdate(this.platformChatId, text.replace(INCOMPLETE_CITATION_MARKER_PATTERN, ''))
+        .catch(() => {})
     }
   }
 
