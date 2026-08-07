@@ -16,6 +16,7 @@ const {
   knowledgeBasesState,
   mcpStatusState,
   openSettingsTabMock,
+  promptProcessorMock,
   settingsNavigateMock,
   skillCatalogPickerMock,
   updateAgentMock,
@@ -51,6 +52,7 @@ const {
   },
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
+  promptProcessorMock: vi.fn(({ prompt }: { prompt: string }) => prompt),
   settingsNavigateMock: vi.fn(),
   skillCatalogPickerMock: vi.fn(),
   updateAgentMock: vi.fn(),
@@ -115,6 +117,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value,
     onChange,
     placeholder,
+    previewValue,
     resetPreviewKey,
     minHeight,
     maxHeight
@@ -125,6 +128,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value: string
     onChange: (value: string) => void
     placeholder?: string
+    previewValue?: string
     resetPreviewKey?: number
     minHeight?: string
     maxHeight?: string
@@ -142,6 +146,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
         onChange={(event) => onChange(event.target.value)}
         style={{ minHeight, maxHeight }}
       />
+      <output aria-label="Prompt preview">{previewValue}</output>
       <output data-testid="prompt-preview-reset-key">{resetPreviewKey}</output>
     </div>
   )
@@ -237,7 +242,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 }))
 
 vi.mock('@renderer/hooks/usePromptProcessor', () => ({
-  usePromptProcessor: ({ prompt }: { prompt: string }) => prompt
+  usePromptProcessor: promptProcessorMock
 }))
 
 vi.mock('@renderer/utils/aiGeneration', () => ({
@@ -297,8 +302,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.instructions.label': 'Instructions',
-          'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
           'library.config.agent.field.env_vars.help': 'One KEY=VALUE per line',
           'library.config.agent.field.env_vars.label': 'Environment variables',
           'library.config.agent.field.env_vars.placeholder': 'KEY=value\nANOTHER_KEY=another_value',
@@ -495,6 +498,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  promptProcessorMock.mockReset().mockImplementation(({ prompt }: { prompt: string }) => prompt)
   installedSkillsState.current = {
     skills: [
       {
@@ -758,25 +762,47 @@ describe('edit dialogs', () => {
   })
 
   it('submits agent instructions and model changes as a PATCH', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+    promptProcessorMock.mockImplementation(({ prompt, modelName }: { prompt: string; modelName?: string }) =>
+      prompt.replaceAll('{{model_name}}', modelName ?? '')
+    )
+    render(
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, instructions: 'Original instructions {{model_name}}' }}
+        onOpenChange={vi.fn()}
+      />
+    )
 
     selectTab('Prompt')
-    expect(screen.queryByRole('button', { name: 'System variables' })).not.toBeInTheDocument()
-    expect(screen.getByText('Instructions')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'System variables' })).toBeInTheDocument()
+    expect(within(screen.getByRole('tabpanel', { name: 'Prompt' })).getByText('Prompt')).toBeInTheDocument()
     const instructionsInput = screen.getByLabelText('Prompt editor')
-    expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this agent how to work')
-    fireEvent.change(instructionsInput, { target: { value: 'Updated instructions' } })
+    expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this assistant how to respond')
+    expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Original instructions Old Model')
+    expect(promptProcessorMock).toHaveBeenLastCalledWith({
+      prompt: 'Original instructions {{model_name}}',
+      modelName: 'Old Model'
+    })
+    fireEvent.change(instructionsInput, { target: { value: 'Updated instructions {{model_name}}' } })
     selectTab('Basic')
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
     expect(modelTrigger).toHaveTextContent('Old Model')
     expect(modelTrigger).not.toHaveTextContent('Provider')
     fireEvent.click(modelTrigger)
     fireEvent.click(screen.getAllByRole('button', { name: 'Pick model' })[0])
+    selectTab('Prompt')
+    await waitFor(() =>
+      expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Updated instructions Updated Model')
+    )
+    expect(promptProcessorMock).toHaveBeenLastCalledWith({
+      prompt: 'Updated instructions {{model_name}}',
+      modelName: 'Updated Model'
+    })
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
           model: MODEL.id,
-          instructions: 'Updated instructions'
+          instructions: 'Updated instructions {{model_name}}'
         })
       })
     )

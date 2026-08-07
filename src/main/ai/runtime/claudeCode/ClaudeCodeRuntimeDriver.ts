@@ -26,6 +26,7 @@ import {
   descriptorToTool,
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
@@ -35,8 +36,9 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import { archiveExts } from '@shared/utils/file'
+import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import type {
@@ -1127,13 +1129,12 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
 }
 
 /**
- * Build SDK user content from a message entity. When the model supports vision,
- * supported image attachments (png, jpeg, gif, webp) are materialized into native
- * Anthropic image blocks; otherwise first-party images are OCR'd to text by the
- * shared routing, like first-party non-image files. First-party archives are always
- * forwarded as tool-readable paths; enabling Assistant attachment handles adds that
- * interface without taking the ordinary Agent path away. External files and images that
- * cannot be materialized fall back to local paths when available.
+ * Build SDK user content from a message entity. Non-image attachments are sent as
+ * current local paths so the Agent decides how to inspect them with its tools. Images
+ * keep the capability-aware path: supported formats become native Anthropic image
+ * blocks, while first-party images use shared OCR/native-fallback routing when vision
+ * is unavailable. Assistant attachment handles remain an additional compatibility
+ * interface; external files and images that cannot be materialized fall back to paths.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
@@ -1146,42 +1147,41 @@ async function materializeUserContent(
   const firstPartyFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId)
   )
-  const firstPartyArchiveParts = firstPartyFileParts.filter(isArchiveFilePart)
-  const firstPartyParts = parts.filter(
+  const firstPartyImageParts = firstPartyFileParts.filter(isImageFilePart)
+  const firstPartyPathParts = firstPartyFileParts.filter((part) => !isImageFilePart(part))
+  const routedParts = parts.filter(
     (part) =>
       part.type === 'text' ||
-      (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && !isArchiveFilePart(part))
+      (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && isImageFilePart(part))
   )
   const externalFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
   )
   const originalFirstPartyFiles = new Map(
-    firstPartyParts
-      .filter((part): part is FileUIPart => part.type === 'file')
+    firstPartyFileParts
       .map((part) => [readCherryMeta(part)?.fileEntryId, part] as const)
       .filter((entry): entry is [string, FileUIPart] => Boolean(entry[0]))
   )
 
-  let routedParts = firstPartyParts
+  let preparedParts = routedParts
   let turnAttachments: ReturnType<typeof collectAssistantFileAttachments> = []
-  const hasRoutableFirstPartyFiles = firstPartyParts.some((part) => part.type === 'file')
-  if (supportsAttachmentReads && (hasRoutableFirstPartyFiles || firstPartyArchiveParts.length > 0)) {
+  if (supportsAttachmentReads && firstPartyFileParts.length > 0) {
     turnAttachments = collectAssistantFileAttachments([
-      { id: message.id, role: 'user', parts: [...firstPartyParts, ...firstPartyArchiveParts] } as CherryUIMessage
+      { id: message.id, role: 'user', parts: firstPartyFileParts } as CherryUIMessage
     ])
   }
-  if (hasRoutableFirstPartyFiles) {
-    const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
+  if (firstPartyImageParts.length > 0) {
+    const userMessage = { id: message.id, role: 'user', parts: routedParts } as CherryUIMessage
     const attachments = supportsAttachmentReads ? turnAttachments : collectFileAttachments([userMessage])
     const [prepared] = await prepareChatMessages([userMessage], {
       attachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
       isToolCapable: supportsAttachmentReads
     })
-    routedParts = prepared.parts
+    preparedParts = prepared.parts
   }
 
-  const text = routedParts
+  const text = preparedParts
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
     .map((part) => part.text)
     .join('\n')
@@ -1190,15 +1190,14 @@ async function materializeUserContent(
   const unavailableParts: FileUIPart[] = []
 
   for (const part of [
-    ...routedParts.filter((part): part is FileUIPart => part.type === 'file'),
-    ...firstPartyArchiveParts,
+    ...preparedParts.filter((part): part is FileUIPart => part.type === 'file'),
+    ...firstPartyPathParts,
     ...externalFileParts
   ]) {
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
-    const isArchive = isArchiveFilePart(originalPart)
-    if (isArchive || !supportsImages || !canBeClaudeImage(part)) {
-      const target = originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
+    if (!isImageFilePart(originalPart) || !supportsImages || !canBeClaudeImage(part)) {
+      const target = fileEntryId || originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
       target.push(originalPart)
       continue
     }
@@ -1235,8 +1234,9 @@ async function materializeUserContent(
     }
   }
 
-  const paths = extractAttachmentPaths(fallbackParts)
-  let textContent = appendAttachmentPaths(text, paths)
+  const resolvedPaths = await extractAttachmentPaths(fallbackParts)
+  unavailableParts.push(...resolvedPaths.unavailable)
+  let textContent = appendAttachmentPaths(text, resolvedPaths.files)
   if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
@@ -1261,27 +1261,64 @@ function appendAttachmentManifest(
   return text.trim() ? `${text}\n\n${section}` : section
 }
 
-function appendAttachmentPaths(text: string, paths: string[]): string {
-  if (paths.length === 0) return text
+function appendAttachmentPaths(text: string, files: ResolvedAttachmentPath[]): string {
+  if (files.length === 0) return text
 
-  const list = paths.map((path) => `- ${path}`).join('\n')
+  // Managed copies are stored under a UUID filename, so the display name has to travel
+  // with the path — otherwise multiple attachments are indistinguishable to the model.
+  const list = files
+    .map(({ filename, path }) => (filename ? `- ${JSON.stringify(filename)}: ${path}` : `- ${path}`))
+    .join('\n')
   const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
   return text.trim() ? `${text}\n\n${section}` : section
 }
 
-/** Absolute local paths of `file://`-backed attachment parts (shared path extraction). */
-function extractAttachmentPaths(parts: Array<{ type: string; url?: string }>): string[] {
-  const paths: string[] = []
-  for (const part of parts) {
-    if (part.type !== 'file' || !part.url?.startsWith('file://')) continue
-    paths.push(fileURLToPath(part.url))
-  }
-  return paths
+interface ResolvedAttachmentPath {
+  filename?: string
+  path: string
 }
 
-function isArchiveFilePart(part: FileUIPart): boolean {
+/** Resolve current managed paths so userData relocation never leaves a stale path in the prompt. */
+async function extractAttachmentPaths(
+  parts: FileUIPart[]
+): Promise<{ files: ResolvedAttachmentPath[]; unavailable: FileUIPart[] }> {
+  const files: ResolvedAttachmentPath[] = []
+  const unavailable: FileUIPart[] = []
+  for (const part of parts) {
+    const fileEntryId = readCherryMeta(part)?.fileEntryId
+    try {
+      let resolved: AbsoluteFilePath
+      if (fileEntryId) {
+        resolved = application.get('FileManager').getPhysicalPath(fileEntryId)
+      } else if (part.url?.startsWith('file://')) {
+        resolved = AbsoluteFilePathSchema.parse(fileURLToPath(part.url))
+      } else {
+        unavailable.push(part)
+        continue
+      }
+
+      // `getPhysicalPath` is a DB lookup: it resolves an entry whose bytes may already be
+      // gone. Announcing a dead path would send the agent hunting; `unverifiable` (EACCES,
+      // a stalled network volume) still gets announced rather than dropped on a transient.
+      if ((await probeReadable(resolved)) === 'missing') {
+        logger.warn('Attachment path no longer exists', { fileEntryId })
+        unavailable.push(part)
+        continue
+      }
+      files.push({ filename: part.filename, path: resolved })
+    } catch (error) {
+      logger.warn('Failed to resolve an attachment path', error as Error, { fileEntryId })
+      unavailable.push(part)
+    }
+  }
+  return { files, unavailable }
+}
+
+function isImageFilePart(part: FileUIPart): boolean {
+  if (part.mediaType?.toLowerCase().startsWith('image/')) return true
   const filename = part.filename?.toLowerCase()
-  return filename ? archiveExts.some((extension) => filename.endsWith(extension)) : false
+  const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
+  return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
 }
 
 function canBeClaudeImage(part: FileUIPart): boolean {

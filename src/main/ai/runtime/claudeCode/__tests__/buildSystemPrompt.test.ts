@@ -22,7 +22,8 @@ const {
   mockProvisionBuiltinAgent,
   mockBuildMemoriesSection,
   mockGetAppLanguage,
-  mockBuildPrompt
+  mockBuildPrompt,
+  mockReplacePromptVariables
 } = vi.hoisted(() => ({
   mockFindBySessionId: vi.fn(),
   mockMkdir: vi.fn(),
@@ -34,7 +35,8 @@ const {
   mockProvisionBuiltinAgent: vi.fn(),
   mockBuildMemoriesSection: vi.fn(),
   mockGetAppLanguage: vi.fn(() => 'en-US'),
-  mockBuildPrompt: vi.fn().mockResolvedValue({ base: { kind: 'claude_code' }, context: 'SOUL_PROMPT' })
+  mockBuildPrompt: vi.fn().mockResolvedValue({ base: { kind: 'claude_code' }, context: 'SOUL_PROMPT' }),
+  mockReplacePromptVariables: vi.fn(async (prompt: string) => prompt)
 }))
 
 vi.mock('@logger', () => ({
@@ -90,6 +92,10 @@ vi.mock('@main/ai/agents/prompt', () => ({
   }))
 }))
 
+vi.mock('@main/utils/prompt', () => ({
+  replacePromptVariables: mockReplacePromptVariables
+}))
+
 const { buildSystemPrompt } = await import('../settingsBuilder')
 
 const ARTIFACTS_MARKER = '## Reporting deliverables'
@@ -103,6 +109,7 @@ beforeEach(() => {
   mockProvisionBuiltinAgent.mockReset()
   mockBuildMemoriesSection.mockReset().mockResolvedValue(undefined)
   mockBuildPrompt.mockReset().mockResolvedValue({ base: { kind: 'claude_code' }, context: 'SOUL_PROMPT' })
+  mockReplacePromptVariables.mockReset().mockImplementation(async (prompt: string) => prompt)
   mockGetAppLanguage.mockReturnValue('en-US')
 })
 
@@ -195,7 +202,8 @@ describe('buildSystemPrompt — current workspace', () => {
     )
 
     expect(typeof result).toBe('string')
-    expect(result).toMatch(/^CUSTOM SYSTEM PROMPT\n\nSOUL_PROMPT/)
+    expect(result).toMatch(/^CUSTOM SYSTEM PROMPT\n\n## Instruction Precedence/)
+    expect(result).toContain('SOUL_PROMPT')
     expect(result).toContain('Agent instructions.')
     expect(result).toContain(WORKSPACE_MARKER)
     expect(result).toContain(ARTIFACTS_MARKER)
@@ -212,9 +220,85 @@ describe('buildSystemPrompt — current workspace', () => {
     )
 
     expect(typeof result).toBe('string')
-    expect(result).toMatch(/^SOUL_PROMPT/)
+    expect(result).toMatch(/^## Instruction Precedence/)
+    expect(result).toContain('SOUL_PROMPT')
     expect(result).toContain('Agent instructions.')
     expect(result).toContain(WORKSPACE_MARKER)
+  })
+})
+
+describe('buildSystemPrompt — Agent System Prompt authority', () => {
+  it.each([{ instructions: undefined }, { instructions: '' }, { instructions: '   ' }])(
+    'keeps legacy persona role guidance when Agent System Prompt is blank: $instructions',
+    async ({ instructions }) => {
+      mockBuildPrompt.mockResolvedValueOnce({
+        base: { kind: 'claude_code' },
+        context: '## Memories\n\n<soul>\nSOUL_ROLE: You are the friendly historian.\n</soul>'
+      })
+
+      const text = promptText(await buildSystemPrompt(makeSession(), makeAgent({ instructions }), '/tmp/cwd'))
+
+      expect(mockBuildPrompt).toHaveBeenCalledWith('/tmp/cwd', expect.anything(), false, expect.anything())
+      expect(text).not.toContain('## Instruction Precedence')
+      expect(text).not.toContain('<agent_instructions>')
+      expect(text).toContain('SOUL_ROLE: You are the friendly historian.')
+    }
+  )
+
+  it('declares agent instructions above workspace instructions and persona while preserving every source', async () => {
+    mockBuildPrompt.mockResolvedValueOnce({
+      base: { kind: 'custom', content: 'WORKSPACE_ROLE: You are the workspace reviewer.' },
+      context: '## Memories\n\n<soul>\nSOUL_ROLE: You are the friendly historian.\n</soul>'
+    })
+
+    const text = promptText(
+      await buildSystemPrompt(
+        makeSession(),
+        makeAgent({ instructions: 'AGENT_ROLE: You are the release manager.' }),
+        '/tmp/cwd'
+      )
+    )
+
+    expect(text).toContain('1. Platform and runtime safety constraints')
+    expect(text).toContain('2. Agent System Prompt (`agent.instructions`)')
+    expect(text).toContain('3. Workspace Instructions (`system.md`, when present)')
+    expect(text).toContain('4. Agent Persona (`SOUL.md`)')
+    expect(text).toContain('WORKSPACE_ROLE: You are the workspace reviewer.')
+    expect(text).toContain('SOUL_ROLE: You are the friendly historian.')
+    expect(text).toContain('<agent_instructions>\nAGENT_ROLE: You are the release manager.\n</agent_instructions>')
+    expect(text.indexOf(CHANNEL_SECURITY_PROMPT)).toBe(-1)
+  })
+
+  it('keeps runtime safety guidance outside the user-controlled Agent System Prompt block', async () => {
+    mockFindBySessionId.mockReturnValue({ id: 'channel-1', sessionId: 'sess-1' })
+
+    const text = promptText(
+      await buildSystemPrompt(makeSession(), makeAgent({ instructions: 'Follow the configured role.' }), '/tmp/cwd')
+    )
+    const instructionsEnd = text.indexOf('</agent_instructions>')
+    const securityStart = text.indexOf(CHANNEL_SECURITY_PROMPT)
+
+    expect(instructionsEnd).toBeGreaterThan(-1)
+    expect(securityStart).toBeGreaterThan(instructionsEnd)
+    expect(text.slice(text.indexOf('<agent_instructions>'), instructionsEnd)).not.toContain(CHANNEL_SECURITY_PROMPT)
+  })
+
+  it('resolves Agent System Prompt variables with the embedded Agent model name', async () => {
+    mockReplacePromptVariables.mockResolvedValueOnce('Address Alice while using Claude Sonnet 4.5.')
+    const agent = makeAgent({
+      instructions: 'Address {{username}} while using {{model_name}}.',
+      modelName: 'Claude Sonnet 4.5'
+    })
+
+    const text = promptText(await buildSystemPrompt(makeSession(), agent, '/tmp/cwd'))
+
+    expect(mockReplacePromptVariables).toHaveBeenCalledWith(
+      'Address {{username}} while using {{model_name}}.',
+      'Claude Sonnet 4.5'
+    )
+    expect(text).toContain('Address Alice while using Claude Sonnet 4.5.')
+    expect(text).not.toContain('{{username}}')
+    expect(text).not.toContain('{{model_name}}')
   })
 })
 
