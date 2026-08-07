@@ -47,6 +47,7 @@ export function resolveDevUserDataSuffix(): string {
   const configured = process.env.CS_DEV_USER_DATA_SUFFIX?.trim()
   if (!configured) return DEFAULT_DEV_USER_DATA_SUFFIX
   if (!VALID_DEV_USER_DATA_SUFFIX.test(configured) || configured.endsWith('.')) {
+    // eslint-disable-next-line no-restricted-syntax -- LoggerService imports LOGS_DIR from this module.
     console.warn(
       `[paths] CS_DEV_USER_DATA_SUFFIX ${JSON.stringify(configured)} is not a portable ` +
         `path component; falling back to "${DEFAULT_DEV_USER_DATA_SUFFIX}"`
