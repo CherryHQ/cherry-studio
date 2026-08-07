@@ -55,7 +55,7 @@ function stopEventPropagation(event: { stopPropagation: () => void }) {
  * Group-header labels shrink to their text so the collapse chevron can sit right
  * after the name, which means the fade band would eat the tail of names that fit.
  * Measuring is the only way to tell: the label box shrinks below its text exactly
- * when the row runs out of room (sidebar resize, or the hover actions claiming
+ * when the row runs out of room (left-panel resize, or the hover actions claiming
  * their reserve), and the observer catches both.
  */
 function useLabelOverflow(label: string) {
@@ -127,7 +127,7 @@ export function SectionHeader({ section, className, ref, style, ...props }: Sect
         <button
           type="button"
           aria-expanded={!collapsed}
-          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none focus-visible:text-foreground"
+          className="flex h-full min-w-0 flex-1 items-center gap-1.5 text-left text-inherit outline-none"
           onClick={() => actions.toggleGroup(section.id)}>
           <span className={cn('min-w-0 truncate text-left text-inherit', RESOURCE_LIST_LABEL_CLASS)}>
             {section.label}
@@ -418,7 +418,7 @@ export function GroupShowMore({ groupId, className, ref, style, ...props }: Grou
       <button
         type="button"
         className={cn(
-          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left text-foreground-tertiary transition-colors duration-150 hover:text-foreground focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:outline-none',
+          'flex h-5 min-w-0 items-center justify-start rounded-sm px-0 text-left text-foreground-tertiary transition-colors duration-150 hover:text-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:outline-none',
           RESOURCE_LIST_LABEL_CLASS
         )}
         onClick={() => {

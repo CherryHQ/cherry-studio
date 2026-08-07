@@ -765,7 +765,7 @@ const HomePage: FC = () => {
     )
   }
 
-  // Classic layout = entity rail + right topic panel; modern layout = the single sidebar (HomeTabs).
+  // Classic layout = entity rail + right topic panel; modern layout = one left navigation panel (HomeTabs).
   const pane =
     isClassicTopicLayout && topicListPosition === 'right' ? (
       <AssistantResourceList

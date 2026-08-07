@@ -358,8 +358,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
         sourceGroupId === targetGroupId
       }
       onReorder={hasReorderHandler ? handleReorder : undefined}>
-      <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`}>
-        <ResourceList.Header className="gap-1">
+      <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`} presentation="left-panel">
+        <ResourceList.Header>
           <ResourceList.HeaderItem
             type="button"
             icon={addIcon}

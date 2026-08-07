@@ -980,7 +980,7 @@ const AgentPage = () => {
     setPendingLocateMessageId(undefined)
   }, [])
 
-  // Classic layout = entity rail + right session panel; modern layout = the single sidebar (AgentSidePanel).
+  // Classic layout = entity rail + right session panel; modern layout = one left navigation panel (AgentSidePanel).
   const activeResourceAgentId = visibleSession?.agentId ?? null
   const sessionResourcePaneCount: ResourcePaneCountButtonProps | undefined =
     isClassicSessionLayout && sessionListPosition === 'right' && activeResourceAgentId

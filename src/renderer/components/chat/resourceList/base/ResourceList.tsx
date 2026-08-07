@@ -23,12 +23,16 @@ import {
 import { GroupHeader, GroupShowMore } from './ResourceListGroups'
 import {
   getResourceListItemActionYieldClassName,
+  RESOURCE_LIST_ACTIVE_ROW_CLASS,
   RESOURCE_LIST_DEFAULT_ROW_LAYOUT,
   RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
   RESOURCE_LIST_LABEL_CLASS,
+  RESOURCE_LIST_PRESENTATION_CLASS_NAMES,
+  RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS,
   RESOURCE_LIST_SELECTED_ROW_CLASS,
   RESOURCE_LIST_TITLE_FADE_CLASS,
-  RESOURCE_LIST_VISUAL_ROW_CLASS
+  RESOURCE_LIST_VISUAL_ROW_CLASS,
+  type ResourceListPresentation
 } from './resourceListLayout'
 import { ResourceListLeadingSlot, type ResourceListLeadingSlotProps } from './ResourceListLeadingSlot'
 import { ResourceListProvider } from './ResourceListProvider'
@@ -58,23 +62,37 @@ export type {
   ResourceListViewSection
 } from './ResourceListContext'
 export type { ResourceListGroupReorderPayload, ResourceListItemReorderPayload } from './ResourceListContext'
+export type { ResourceListPresentation } from './resourceListLayout'
 
 type FrameProps = ComponentProps<'div'> & {
+  presentation?: ResourceListPresentation
   ref?: Ref<HTMLDivElement>
 }
 
-function Frame({ className, ref, ...props }: FrameProps) {
+const ResourceListPresentationContext = createContext<ResourceListPresentation>('left-panel')
+
+function useResourceListPresentation() {
+  return use(ResourceListPresentationContext)
+}
+
+function Frame({ className, presentation = 'left-panel', ref, ...props }: FrameProps) {
   const meta = useResourceListMeta()
+  const presentationClassNames = RESOURCE_LIST_PRESENTATION_CLASS_NAMES[presentation]
+
   return (
-    <div
-      ref={ref}
-      data-resource-list-variant={meta.variant}
-      className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden border-border border-r-[0.5px] p-1.5 text-foreground',
-        className
-      )}
-      {...props}
-    />
+    <ResourceListPresentationContext value={presentation}>
+      <div
+        ref={ref}
+        data-resource-list-presentation={presentation}
+        data-resource-list-variant={meta.variant}
+        className={cn(
+          'flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-1.5 text-foreground',
+          presentationClassNames.frame,
+          className
+        )}
+        {...props}
+      />
+    </ResourceListPresentationContext>
   )
 }
 
@@ -87,9 +105,12 @@ type SearchProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> & {
 function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProps) {
   const actions = useResourceListActions()
   const state = useResourceListControlsState()
+  const presentation = useResourceListPresentation()
+  const presentationClassNames = RESOURCE_LIST_PRESENTATION_CLASS_NAMES[presentation]
   const searchIcon = icon === undefined ? <SearchIcon size={12} /> : icon
+
   return (
-    <div className={wrapperClassName}>
+    <div className={cn(presentationClassNames.searchWrapper, wrapperClassName)}>
       <div className="relative">
         {searchIcon && (
           <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 flex text-foreground-tertiary">
@@ -101,9 +122,9 @@ function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProp
           value={state.query}
           onChange={(event) => actions.setQuery(event.target.value)}
           className={cn(
-            'h-7 rounded-full border border-sidebar-border bg-sidebar pr-2 text-[10px] text-sidebar-foreground shadow-none transition-colors md:text-[10px]',
-            'placeholder:text-[10px] placeholder:text-muted-foreground focus-visible:border-sidebar-ring focus-visible:ring-0',
-            searchIcon ? 'pl-6' : 'pl-2',
+            'border border-border-subtle bg-background-subtle pr-2 text-foreground shadow-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:bg-background focus-visible:ring-0',
+            presentationClassNames.searchInput,
+            searchIcon ? presentationClassNames.searchIconPadding : 'pl-2',
             className
           )}
           {...props}
@@ -122,8 +143,11 @@ type HeaderProps = ComponentProps<'div'> & {
 }
 
 function Header({ actions, children, className, count, icon, ref, title, ...props }: HeaderProps) {
+  const presentation = useResourceListPresentation()
+  const presentationClassNames = RESOURCE_LIST_PRESENTATION_CLASS_NAMES[presentation]
+
   return (
-    <div ref={ref} className={cn('flex shrink-0 flex-col gap-2.5', className)} {...props}>
+    <div ref={ref} className={cn('flex shrink-0 flex-col gap-1', presentationClassNames.header, className)} {...props}>
       {(title || actions) && (
         <div className="flex h-5 items-center gap-1.5">
           {icon && (
@@ -405,7 +429,7 @@ function Item<T extends ResourceListItemBase>({
         RESOURCE_LIST_LABEL_CLASS,
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
-        rowState.active && !rowState.selected && 'bg-sidebar-accent text-sidebar-accent-foreground',
+        rowState.active && !rowState.selected && RESOURCE_LIST_ACTIVE_ROW_CLASS,
         rowState.selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
         rowState.revealFocused && 'animation-resource-list-reveal-focus',
         className
@@ -493,11 +517,11 @@ function RenameField<T extends ResourceListItemBase>({
       ref={setInputRef}
       defaultValue={getItemLabel(item)}
       className={cn(
-        // Renaming always happens on the selected row, so it carries the selected weight — otherwise
-        // the title visibly thins out the moment the input takes over.
+        // The input inherits the row's semantic foreground: callers may start renaming without first
+        // selecting the row, while selected rows still carry the paired product foreground.
         // `md:text-sm` on the shared Input wins over a plain `text-[13px]`, so the responsive variant
         // has to be restated — otherwise the title grows a size the moment editing starts.
-        'h-6 flex-1 border-none bg-transparent px-0 text-sidebar-accent-foreground shadow-none focus-visible:ring-0 md:text-[13px]',
+        'h-6 flex-1 border-none bg-transparent px-0 text-inherit shadow-none focus-visible:ring-0 md:text-[13px]',
         RESOURCE_LIST_LABEL_CLASS,
         'font-medium',
         className
@@ -540,7 +564,8 @@ function ItemTitle({ className, fade = false, ref, ...props }: ItemTitleProps) {
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left text-foreground group-data-[selected=true]:font-medium group-data-[active-descendant=true]:text-sidebar-accent-foreground group-data-[selected=true]:text-sidebar-accent-foreground',
+        'min-w-0 flex-1 truncate text-left text-foreground group-data-[selected=true]:font-medium',
+        RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS,
         RESOURCE_LIST_LABEL_CLASS,
         fade && RESOURCE_LIST_TITLE_FADE_CLASS,
         getResourceListItemActionYieldClassName(actionCount),
@@ -568,9 +593,9 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       type={type}
       className={cn(
         'pointer-events-none flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
-        'hover:bg-accent hover:text-foreground',
-        'focus-visible:pointer-events-auto focus-visible:bg-sidebar-accent focus-visible:text-sidebar-accent-foreground focus-visible:opacity-100 focus-visible:outline-none',
-        'group-data-[active-descendant=true]:text-sidebar-accent-foreground group-data-[selected=true]:text-sidebar-accent-foreground',
+        'hover:bg-accent hover:text-accent-foreground',
+        'focus-visible:pointer-events-auto focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:opacity-100 focus-visible:outline-none',
+        RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS,
         'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100',
         className
       )}
@@ -643,6 +668,8 @@ function Body<T extends ResourceListItemBase>({
 }: BodyProps<T>) {
   const state = useResourceListControlsState()
   const view = useResourceListView<T>()
+  const presentation = useResourceListPresentation()
+  const resolvedVirtualClassName = cn(RESOURCE_LIST_PRESENTATION_CLASS_NAMES[presentation].body, virtualClassName)
 
   if (state.status === 'loading') {
     return <LoadingState />
@@ -658,11 +685,18 @@ function Body<T extends ResourceListItemBase>({
 
   if (draggable) {
     return (
-      <VirtualDraggableItems ref={listRef} className={virtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
+      <VirtualDraggableItems
+        ref={listRef}
+        className={resolvedVirtualClassName}
+        ariaLabel={ariaLabel}
+        renderItem={renderItem}
+      />
     )
   }
 
-  return <VirtualItems ref={listRef} className={virtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
+  return (
+    <VirtualItems ref={listRef} className={resolvedVirtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
+  )
 }
 
 type EmptyStateProps = ComponentProps<typeof UiEmptyState>

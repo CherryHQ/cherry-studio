@@ -906,14 +906,14 @@ describe('Sessions', () => {
     // so the header stays plain even while it hides the open session.
     const collapsedGroup = screen.getByRole('button', { name: 'Project A Workspace' })
     expect(collapsedGroup).toHaveAttribute('aria-expanded', 'false')
-    expect(collapsedGroup.parentElement).not.toHaveClass('bg-sidebar-accent')
+    expect(collapsedGroup.parentElement).not.toHaveClass('bg-resource-list-row-selected')
     expect(collapsedGroup).not.toHaveAttribute('aria-current')
 
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
     view.rerender(<SessionsForTest key="expanded-workdir" />)
     const expandedGroup = screen.getByRole('button', { name: 'Project A Workspace' })
     expect(expandedGroup).toHaveAttribute('aria-expanded', 'true')
-    expect(expandedGroup.parentElement).not.toHaveClass('bg-sidebar-accent')
+    expect(expandedGroup.parentElement).not.toHaveClass('bg-resource-list-row-selected')
   })
 
   it('keeps channel and agent-pin reads inactive while the navigation pane is closed', () => {
@@ -1468,7 +1468,7 @@ describe('Sessions', () => {
     expect(selectedBetaGroupButton).not.toHaveAttribute('aria-current')
     expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
     // While the group is open the session row carries the selection; the header must not repeat it.
-    expect(selectedBetaGroupButton.parentElement).not.toHaveClass('bg-sidebar-accent')
+    expect(selectedBetaGroupButton.parentElement).not.toHaveClass('bg-resource-list-row-selected')
 
     fireEvent.click(selectedBetaGroupButton)
     expect(getSessionGroupExpansionCache().agent).toContain('session:agent:agent-b')
@@ -1478,7 +1478,7 @@ describe('Sessions', () => {
     expect(groupChevron(collapsedBetaGroupButton)).toHaveAttribute('aria-expanded', 'false')
     // Collapsed, the header stands in for the hidden session row: same fill AND same weight a
     // selected row gets anywhere else in the list.
-    expect(collapsedBetaGroupButton.parentElement).toHaveClass('bg-sidebar-accent')
+    expect(collapsedBetaGroupButton.parentElement).toHaveClass('bg-resource-list-row-selected')
     expect(within(collapsedBetaGroupButton).getByText('Beta agent')).toHaveClass('font-medium')
   })
 

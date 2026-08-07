@@ -638,7 +638,7 @@ function renderTopicList({
   onOpenHistoryRecords?: Mock<() => void>
   onSetPanePosition?: ComponentProps<typeof Topics>['onSetPanePosition']
   panePosition?: ComponentProps<typeof Topics>['panePosition']
-  presentation?: 'sidebar' | 'right-panel'
+  presentation?: ComponentProps<typeof Topics>['presentation']
   revealRequest?: ResourceListRevealRequest
   resourceMenuItems?: ComponentProps<typeof Topics>['resourceMenuItems']
 } = {}) {

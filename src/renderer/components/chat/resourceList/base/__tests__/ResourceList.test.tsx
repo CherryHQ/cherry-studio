@@ -127,6 +127,7 @@ import { SessionResourceList } from '../../SessionResourceList'
 import { TopicResourceList } from '../../TopicResourceList'
 import {
   ResourceList,
+  type ResourceListPresentation,
   useResourceList,
   useResourceListActions,
   useResourceListGroupState,
@@ -635,6 +636,11 @@ describe('ResourceList', () => {
     expect(listbox).toHaveAttribute('aria-activedescendant', 'resource-list-option-alpha')
     expect(screen.getByTestId('alpha-active')).toHaveTextContent('active')
     expect(screen.getByTestId('alpha-selected')).toHaveTextContent('selected')
+    expect(screen.getByTestId('alpha-selected').closest('[role="option"]')).toHaveClass(
+      'bg-resource-list-row-selected',
+      'text-resource-list-row-selected-foreground',
+      'hover:bg-resource-list-row-selected'
+    )
 
     fireEvent.keyDown(listbox, { key: 'ArrowDown' })
 
@@ -643,6 +649,11 @@ describe('ResourceList', () => {
     expect(screen.getByTestId('alpha-active')).toHaveTextContent('idle')
     expect(screen.getByTestId('beta-active')).toHaveTextContent('active')
     expect(screen.getByTestId('alpha-selected')).toHaveTextContent('selected')
+    expect(screen.getByTestId('beta-active').closest('[role="option"]')).toHaveClass(
+      'bg-resource-list-row-active',
+      'text-resource-list-row-active-foreground',
+      'hover:bg-resource-list-row-active'
+    )
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(1, { align: 'auto' })
 
     fireEvent.keyDown(listbox, { key: 'End' })
@@ -842,6 +853,8 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Rename Alpha' }))
     const input = screen.getByLabelText('Rename Alpha')
+    expect(input.closest('[role="option"]')).toHaveAttribute('aria-selected', 'false')
+    expect(input).toHaveClass('text-inherit')
     fireEvent.change(input, { target: { value: 'Renamed Alpha' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -849,6 +862,98 @@ describe('ResourceList', () => {
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       renamingId: null
     })
+  })
+
+  it('uses product row semantics without flattening foreground hierarchy', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={[ITEMS[0]]}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item} data-testid="resource-row">
+                <ResourceList.ItemLeadingSlot data-testid="resource-leading-slot">#</ResourceList.ItemLeadingSlot>
+                <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
+                <ResourceList.ItemActions>
+                  <ResourceList.ItemAction aria-label="Item action">#</ResourceList.ItemAction>
+                </ResourceList.ItemActions>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByTestId('resource-row')).toHaveClass(
+      'hover:bg-resource-list-row-hover',
+      'focus-visible:bg-resource-list-row-hover'
+    )
+    expect(screen.getByTestId('resource-row')).not.toHaveClass(
+      'hover:text-resource-list-row-active-foreground',
+      'hover:text-resource-list-row-selected-foreground'
+    )
+    expect(screen.getByText('Alpha')).toHaveClass(
+      'group-data-[active-descendant=true]:text-resource-list-row-active-foreground',
+      'group-data-[selected=true]:text-resource-list-row-selected-foreground'
+    )
+    expect(screen.getByText('Alpha')).not.toHaveClass('group-hover:text-inherit', 'group-focus-visible:text-inherit')
+    expect(screen.getByTestId('resource-leading-slot')).toHaveClass(
+      'group-data-[active-descendant=true]:text-resource-list-row-active-foreground',
+      'group-data-[selected=true]:text-resource-list-row-selected-foreground'
+    )
+    expect(screen.getByTestId('resource-leading-slot')).not.toHaveClass(
+      'group-hover:text-inherit',
+      'group-focus-visible:text-inherit'
+    )
+    expect(screen.getByRole('button', { name: 'Item action' })).toHaveClass(
+      'hover:bg-accent',
+      'hover:text-accent-foreground'
+    )
+  })
+
+  it('owns left- and right-panel presentation styling without sidebar semantics', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const renderPresentation = (presentation: ResourceListPresentation) => (
+      <Provider items={[ITEMS[0]]}>
+        <ResourceList.Frame data-testid="resource-frame" presentation={presentation}>
+          <ResourceList.Header data-testid="resource-header">
+            <ResourceList.Search placeholder="Search resources" />
+          </ResourceList.Header>
+          <ResourceList.Body<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const view = render(renderPresentation('left-panel'))
+    const frame = screen.getByTestId('resource-frame')
+    const header = screen.getByTestId('resource-header')
+    const search = screen.getByPlaceholderText('Search resources')
+    const listbox = screen.getByRole('listbox')
+
+    expect(frame).toHaveAttribute('data-resource-list-presentation', 'left-panel')
+    expect(frame).toHaveClass('bg-background', 'border-r-[0.5px]')
+    expect(header).toHaveClass('gap-1')
+    expect(header).not.toHaveClass('pb-1')
+    expect(search).toHaveClass('h-7', 'rounded-full', 'border-border-subtle', 'bg-background-subtle', 'pl-6')
+    expect(search).not.toHaveClass('border-sidebar-border', 'bg-sidebar', 'text-sidebar-foreground')
+    expect(listbox).toHaveClass('pt-0', 'pb-3')
+
+    view.rerender(renderPresentation('right-panel'))
+
+    expect(frame).toHaveAttribute('data-resource-list-presentation', 'right-panel')
+    expect(frame).toHaveClass('h-full', 'bg-background')
+    expect(frame).not.toHaveClass('border-r-[0.5px]')
+    expect(header).toHaveClass('gap-1', 'pb-1')
+    expect(search).toHaveClass('h-8', 'rounded-lg', 'border-border-subtle', 'bg-background-subtle', 'pl-7')
+    expect(search.parentElement?.parentElement).toHaveClass('pt-1')
+    expect(listbox).toHaveClass('pt-0', 'pb-8')
   })
 
   it('cancels inline rename with Escape without committing the draft name', () => {
@@ -2696,7 +2801,7 @@ describe('ResourceList', () => {
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
   })
 
-  it('exposes explicit business variants without a shared mode prop', () => {
+  it('keeps business variants independent from presentation', () => {
     const variants = [
       ['session', SessionResourceList],
       ['topic', TopicResourceList]
@@ -2704,7 +2809,7 @@ describe('ResourceList', () => {
 
     for (const [name, Component] of variants) {
       const { unmount } = render(
-        <Component items={[{ id: `${name}-1`, name: `${name} item` }]}>
+        <Component items={[{ id: `${name}-1`, name: `${name} item` }]} presentation="left-panel">
           <ResourceList.VirtualItems
             renderItem={(item) => (
               <ResourceList.Item item={item}>

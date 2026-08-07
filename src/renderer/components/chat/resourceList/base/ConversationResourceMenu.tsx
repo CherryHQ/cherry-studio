@@ -2,6 +2,7 @@ import { cn } from '@renderer/utils/style'
 import type { ReactNode } from 'react'
 
 import { ResourceList } from './ResourceList'
+import { RESOURCE_LIST_SELECTED_ROW_CLASS } from './resourceListLayout'
 
 export type ConversationResourceMenuItem = {
   active?: boolean
@@ -30,8 +31,8 @@ export function ConversationResourceMenu({ items }: ConversationResourceMenuProp
           aria-current={item.active ? 'page' : undefined}
           onClick={() => void item.onSelect()}
           className={cn(
-            item.active &&
-              'bg-sidebar-accent text-sidebar-foreground hover:bg-sidebar-accent focus-visible:bg-sidebar-accent [&_span]:text-sidebar-foreground'
+            item.active && RESOURCE_LIST_SELECTED_ROW_CLASS,
+            item.active && '[&_span]:text-resource-list-row-selected-foreground'
           )}
         />
       ))}
