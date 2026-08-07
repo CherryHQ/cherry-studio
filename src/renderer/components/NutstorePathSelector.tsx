@@ -58,6 +58,7 @@ interface FileListProps {
 
 function FileList(props: FileListProps) {
   const [files, setFiles] = useState<Nutstore.FileStat[]>([])
+  const { t } = useTranslation()
 
   const folders = files.filter((file) => file.isDir).sort((a, b) => a.basename.localeCompare(b.basename, ['zh']))
 
@@ -70,14 +71,14 @@ function FileList(props: FileListProps) {
         if (error instanceof Error) {
           logger.error('Error fetching files:', error)
           void popup.error({
-            content: error.message,
+            content: t('settings.data.nutstore.pathSelector.fetchError'),
             centered: true
           })
         }
       }
     }
     void fetchFiles()
-  }, [props.path, props.fs])
+  }, [props.path, props.fs, t])
 
   return (
     <>

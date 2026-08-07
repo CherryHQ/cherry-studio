@@ -33,7 +33,7 @@ import { toast } from '@renderer/services/toast'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import type { DirectoryTreeOptions } from '@shared/utils/file'
+import { createFilePathHandle, type DirectoryTreeOptions } from '@shared/utils/file'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -107,7 +107,11 @@ const NotesPage: FC = () => {
   const noteByPathRef = useRef(noteByPath)
   const { activeNode } = useActiveNode(notesTree, activeFilePath)
 
-  const fileSession = useFileEditSession(activeFilePath)
+  const activeFileHandle = useMemo(
+    () => (activeFilePath ? createFilePathHandle(activeFilePath) : undefined),
+    [activeFilePath]
+  )
+  const fileSession = useFileEditSession(activeFileHandle)
   const {
     discard: discardFileDraft,
     flush: flushFileDraft,
@@ -251,17 +255,21 @@ const NotesPage: FC = () => {
     if (fileSession.conflict) setShowConflict(true)
   }, [fileSession.conflict])
 
-  // Autosave I/O failures (disk full, permissions…) — warn, throttled so a
-  // typing burst doesn't stack toasts. The draft stays in memory and autosave
-  // remains paused until an explicit retry succeeds.
+  // Autosave failures — warn, throttled so a typing burst doesn't stack
+  // toasts. A committed-metadata-pending result is distinct: bytes landed and
+  // the user must not be asked to repeat the same write.
   const lastSaveFailureToastAtRef = useRef(0)
   useEffect(() => {
     if (!fileSession.saveError) return
     const now = Date.now()
     if (now - lastSaveFailureToastAtRef.current < SAVE_FAILURE_TOAST_INTERVAL_MS) return
     lastSaveFailureToastAtRef.current = now
-    toast.error(t('notes.save_failed'))
-  }, [fileSession.saveError, t])
+    if (fileSession.metadataRecoveryPending) {
+      toast.warning(t('notes.save_failure.metadata_pending'))
+    } else {
+      toast.error(t('notes.save_failed'))
+    }
+  }, [fileSession.metadataRecoveryPending, fileSession.saveError, t])
 
   const handleRetrySave = useCallback(async () => {
     try {
@@ -395,7 +403,7 @@ const NotesPage: FC = () => {
 
   useEffect(() => {
     const editor = editorRef.current
-    if (!editor || !currentContent) return
+    if (!editor) return
     // 获取编辑器当前内容
     const editorMarkdown = editor.getMarkdown()
 
@@ -1049,7 +1057,7 @@ const NotesPage: FC = () => {
   }, [activeNode?.id, activeFilePath, notesTree, requestFileTransition, setActiveFilePath])
 
   return (
-    <div id="notes-page" className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+    <div data-ui="notes.view" id="notes-page" className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
       <div id="content-container" className="flex h-full min-h-0 flex-1 flex-row overflow-hidden">
         <AnimatePresence initial={false}>
           {showWorkspace && (
@@ -1090,20 +1098,30 @@ const NotesPage: FC = () => {
           {fileSession.saveError && (
             <div
               role="alert"
-              className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-bg px-3 py-2 text-error-text text-xs">
-              <span className="min-w-0 flex-1">{t('notes.save_failure.description')}</span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={fileSession.isSaving}
-                onClick={() => void handleRetrySave()}>
-                {t('common.retry')}
-              </Button>
+              className="flex shrink-0 items-center gap-2 border-error-border border-b bg-error-subtle px-3 py-2 text-error-subtle-foreground text-xs">
+              <span className="min-w-0 flex-1">
+                {t(
+                  fileSession.metadataRecoveryPending
+                    ? 'notes.save_failure.metadata_pending'
+                    : 'notes.save_failure.description'
+                )}
+              </span>
+              {!fileSession.metadataRecoveryPending && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={fileSession.isSaving}
+                  onClick={() => void handleRetrySave()}>
+                  {t('common.retry')}
+                </Button>
+              )}
             </div>
           )}
           {shouldRetainMissingDraft && (
-            <div role="alert" className="shrink-0 border-warning border-b bg-warning-bg px-3 py-2 text-warning text-xs">
+            <div
+              role="alert"
+              className="shrink-0 border-warning-border border-b bg-warning-subtle px-3 py-2 text-warning-subtle-foreground text-xs">
               {t('notes.file_removed_draft')}
             </div>
           )}

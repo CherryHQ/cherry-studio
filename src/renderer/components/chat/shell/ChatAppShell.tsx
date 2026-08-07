@@ -314,6 +314,7 @@ export function ChatAppShell({
           <div className="relative flex min-w-0 flex-1 flex-col">
             <motion.div
               ref={centerRef}
+              data-ui="part:conversation-main"
               data-chat-app-shell-center
               id={centerId}
               layout
@@ -326,7 +327,7 @@ export function ChatAppShell({
                 rightPanelState?.presentationMaximized && '!transform-none !will-change-auto'
               )}>
               {topBar && (
-                <div className="relative z-10 shrink-0 bg-background">
+                <div className="relative z-10 shrink-0">
                   <ErrorBoundary>{topBar}</ErrorBoundary>
                 </div>
               )}

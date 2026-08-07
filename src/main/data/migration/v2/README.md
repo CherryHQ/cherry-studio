@@ -37,7 +37,11 @@ paths with `path.join()` from scratch inside migration code.
 | Correct ✅ | Wrong ❌ |
 |-----------|---------|
 | `ctx.paths.userData` | `app.getPath('userData')` |
-| `ctx.paths.databaseFile` | `path.join(app.getPath('userData'), 'cherrystudio.sqlite')` |
+| `ctx.paths.databaseFile` | `path.join(app.getPath('userData'), 'Data', 'cherrystudio.sqlite')` |
+| `ctx.paths.legacyClaudeConfigDir` | `path.join(ctx.paths.userData, '.claude')` |
+| `ctx.paths.legacyClaudeProjectsDir` | `path.join(ctx.paths.userData, '.claude', 'projects')` |
+| `ctx.paths.claudeConfigDir` | `path.join(ctx.paths.userData, 'Data', 'Agents', '.claude')` |
+| `ctx.paths.claudeProjectsDir` | `path.join(ctx.paths.userData, 'Data', 'Agents', '.claude', 'projects')` |
 | `ctx.paths.knowledgeBaseDir` | `path.join(app.getPath('userData'), 'Data', 'KnowledgeBase')` |
 | `ctx.paths.legacyConfigFile` | `path.join(os.homedir(), '.cherrystudio', 'config', 'config.json')` |
 | `new Store({ cwd: ctx.paths.userData })` | `new Store()` |
@@ -63,6 +67,16 @@ cannot be formed, publish metadata only and disclose that result in the UI only 
 proven safe. If destination or source identity cannot be established, saving fails without replacing the existing
 file. Metadata excludes failure stacks, paths, and run/process fields. Logs may be sensitive and must not be shared
 publicly or outside Cherry Studio support.
+
+## Renderer Export Memory
+
+The migration renderer writes selected Redux Persist slices and Dexie records through bounded IPC chunks. Redux
+is handed to main as a directory of category files, and localStorage export is restricted to keys actually owned
+by migration mappings. Do not restore whole-state parsing or include `persist:cherry-studio` in the generic
+localStorage export: either change retains duplicate copies of the same legacy state before migration begins.
+Main owns the exact export paths: `migration:prepare-export` clears the registered staging directories before each
+attempt and returns those paths to renderer. File-write, migration-start, and cleanup code must never accept an
+unvalidated renderer-selected path.
 
 ## Version Compatibility Gate
 

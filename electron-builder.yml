@@ -79,6 +79,8 @@ asarUnpack:
   - "node_modules/@img/sharp-*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
+  - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/@firecrawl/anydoc-*/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
@@ -154,54 +156,140 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0-beta.3 - Migration Safety, API Gateway & Agent Improvements
+    Cherry Studio 2.0.1 - Refinements and Fixes
 
     ✨ New Features
-    - [Agent] Agents can now discover and install reusable CLIs through Cherry Studio
-    - [Settings] Show the client ID in System Settings when Developer Mode is enabled
+    - [Agent] Built-in document conversion for workspace files
+    - [Chat] Show the generating model's identity on single replies
+    - [Chat] Assistant picker keeps the create row visible while searching
+    - [Chat] Permission mode submenu indicator in the composer
+    - [Tab Bar] Chrome-style divider between adjacent tabs
+    - [Tab Bar] Settings opens as a focused tab that can be detached to a window
+    - [Assistant] Drag to reorder conversation sidebar assistant groups
+    - [Settings] Privacy-focused diagnostic bundle export in About
+    - [Models] DeepSeek V4 Flash built-in web search
+    - [Providers] Embedding endpoint type for NEWAPI model configuration
+    - [Provider Settings] Persist provider filter across visits and restarts
 
     🐛 Bug Fixes
-    - [Privacy] The app can now be used without accepting the privacy policy; anonymous error and usage reporting stays disabled until the latest policy is accepted
-    - [Chat] Chat topic titles are no longer overwritten by auto-naming after an app restart or idle time; once a title has been AI-generated or manually edited, it stays fixed
-    - [Agent] Agent conversations now prompt you to pick a model when sending without one
-    - [Agent] Agent question cards no longer flash or duplicate while streaming, and answered questions keep their order
-    - [Agent] Agent AskUserQuestion prompts now appear and wait for a response even when bypass permissions are enabled
-    - [Agent] WeChat and Feishu agent channels can now use interactive QR authentication, and the QR code stays visible outside collapsed tool history
-    - [API Gateway] API Key and Authorization Header are now masked by default with a reveal toggle
-    - [Claude Code] Fixed Claude Code configuration for versioned Anthropic endpoints, with clearer route, authentication, and model-mapping errors
-    - [Ollama] Ollama models now use the configured context window size instead of being capped at the 2048-token default
-    - [Composer] Composer text, attachments, and focus are now preserved while tool approval prompts are shown
-    - [Channels] Fixed Telegram, QQ, Discord and Slack channels failing to create with "Validation failed"; new channels are created inactive and activate with the switch after credentials are filled
-    - [UI] Non-searchable dropdowns now highlight the currently selected option when opened instead of always the first item
-    - [UI] Fixed unwanted resource-list expansion during navigation, refined global-search reveal, and balanced the new-task icon size
+    - [Chat] Preserve conversation branches when deleting messages
+    - [Chat] Restore missing assistant names and avatars in migrated conversations
+    - [Chat] Restore default reasoning effort option after selecting a level
+    - [Chat] Prevent reference context leaks in collapsed message previews
+    - [Chat] Fix Exa web search not sending the configured API key
+    - [Chat] Fix chats failing with HTTP 400 when attaching files
+    - [Chat] Fix Gemini tool calls failing via OpenAI-compatible endpoints
+    - [Chat] Fix model selector crash when a capability filter is active
+    - [Chat] Fix model selector rebuilding model lists and causing slowdowns
+    - [Chat] Fix nested scroll regions affecting the chat viewport position
+    - [Chat] Fix right-click copying of rendered math formulas to preserve TeX
+    - [Chat] Fix Claude Code requests through the API Gateway failing with Responses API providers
+    - [Chat] Fix Claude Agent sessions on no-prefill Claude models
+    - [Chat] Fix Claude Code MCP servers failing to start on Windows when Node provides npx.cmd
+    - [Chat] Fix Claude Code Agent system prompts being overwritten by Cherry Studio instructions
+    - [Chat] Fix DeepSeek V4 model routing and OpenCode Go model API protocols
+    - [Chat] Fix Agent requests failing with HTTP 400 after gateway conversion
+    - [Chat] Fix Exa web search crashing on non-string queries
+    - [Chat] Fix translating button contrast on Windows
+    - [Tab Bar] Fix assistant and agent conversation tabs reverting their titles or losing identity
+    - [Sidebar] Normalize mini-app icons and conversation list typography and selection states
+    - [Sidebar] Fix OpenClaw dashboards staying blank or unresponsive after a gateway restart
+    - [Models] Fix missing Kimi model avatars for custom providers using K3 IDs
+    - [Models] Clarify the multi-select control with a localized button
+    - [Models] Add left/right scroll controls when model type categories overflow
+    - [Models] Fix new painting drafts not applying the default painting model
+    - [Models] Fix migration of TokenFlux painting history
+    - [Agent] Restore context usage indicator for Gateway-routed agent models
+    - [Agent] Restore normal Cherry Assistant agent capabilities
+    - [Agent] Hide disabled MCP tools from agents
+    - [Agent] Fix agent follow-ups being lost while background tasks report results
+    - [Agent] Fix localhost/loopback gateway connections bypassing configured proxies
+    - [Agent] Fix agent-session turn ordering during reconnects
+    - [Agent] Hide the prompt variable help popover in the agent prompt editor
+    - [Agent] Keep agent edit dialogs open after save failures
+    - [Migration] Fix crashes and out-of-memory failures during v1→v2 migration
+    - [Migration] Fix Agent v2 migration failing when a legacy workspace shares the Agent data path
+    - [Migration] Fix agent filesystem migration failing on cloud-storage metadata churn
+    - [Migration] Fix v2 migration failures caused by unusable legacy API keys
+    - [Notes] Fix empty notes retaining content from the previously selected note
+    - [Notes] Fix pasted markdown tables and code blocks rendering as plain text
+    - [Code] Fix custom code fonts being ignored in conversation code blocks
+    - [Code] Fix provider enabling before CLI installation
+    - [Settings] Fix AI error diagnosis using the default assistant model instead of the free Qwen model
+    - [Skills] Raise imported skill ZIP entry limit from 1,000 to 2,000
+    - [Tasks] Fix scheduled task deletion showing a misleading load failure
+    - [Export] Clarify Export menu grouping and preserve per-message local file saving
+    - [Profile] Allow WebP avatar uploads
 
-    💄 Improvements
-    - [Code Mate] Renamed "Code Switch" to "Code Mate" across supported languages
-    - [Translate] Translation now turns off model "thinking" when supported, reducing latency and token usage
+    ⚡ Performance
+    - [Agent] Improve conversation loading responsiveness and avoid unrelated session row updates
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0-beta.3 - 迁移安全、API 网关与智能体改进
+    Cherry Studio 2.0.1 - 体验优化与问题修复
 
     ✨ 新功能
-    - [智能体] 智能体现可在 Cherry Studio 中发现并安装可复用的 CLI
-    - [设置] 开启开发者模式后，在系统设置中显示客户端 ID
+    - [Agent] 内置工作区文档格式转换
+    - [Chat] 单模型回复显示当前生成模型的头像与名称
+    - [Chat] 助手选择器在搜索时保持创建行可见
+    - [Chat] 输入框权限模式显示子菜单指示
+    - [Tab Bar] 相邻标签页之间绘制 Chrome 风格分割线
+    - [Tab Bar] 设置作为独立标签页打开，可分离为单独窗口
+    - [Assistant] 侧边栏助手分组支持拖拽排序
+    - [Settings] 关于页新增隐私优先的本地诊断包导出
+    - [Models] DeepSeek V4 Flash 内置联网搜索
+    - [Providers] NEWAPI 模型配置新增 embedding 端点类型
+    - [Provider Settings] 服务商筛选在切换页面和重启后保持
 
     🐛 问题修复
-    - [隐私] 现在可以在不接受隐私政策的情况下继续使用应用；在接受最新政策之前，匿名错误与用量上报保持关闭
-    - [聊天] 重启应用或长时间空闲后，聊天话题标题不再被自动命名覆盖；标题经 AI 生成或手动编辑后即固定不变
-    - [智能体] 智能体对话在未选择模型时发送，会提示先选择模型
-    - [智能体] 智能体问题卡片在流式输出时不再闪烁或重复，已回答的问题保持原顺序
-    - [智能体] 启用绕过权限时，智能体的 AskUserQuestion 提示也能正常出现并等待回应
-    - [智能体] 微信与飞书智能体渠道支持交互式二维码认证，且二维码在折叠的工具历史之外仍可见
-    - [API 网关] API Key 与 Authorization Header 默认掩码显示，并提供切换显示的开关
-    - [Claude Code] 修复了带版本号的 Anthropic 端点的 Claude Code 配置，并分别报告路由、鉴权与模型映射错误
-    - [Ollama] Ollama 模型现在使用配置的上下文窗口大小，而不再被默认 2048 token 上限限制
-    - [输入框] 显示工具批准提示时，输入框文本、附件与焦点得以保留
-    - [渠道] 修复 Telegram、QQ、Discord、Slack 渠道创建时报“校验失败”的问题；新渠道以停用状态创建，填写凭据后用开关激活
-    - [界面] 不可搜索的下拉菜单打开时现在高亮当前选中项，而不是总是高亮第一项
-    - [界面] 修复了导航时资源列表意外展开的问题，优化全局搜索的显示与输入框工具栏行为，并调整了新建任务图标尺寸
+    - [Chat] 删除消息时正确保留对话分支
+    - [Chat] 恢复迁移后对话中缺失的助手名称和头像
+    - [Chat] 恢复选择推理强度后的"跟随模型默认"选项
+    - [Chat] 修复折叠消息预览中引用上下文泄露的问题
+    - [Chat] 修复 Exa 联网搜索未发送已配置 API Key 的问题
+    - [Chat] 修复附件上传导致 400 错误的问题
+    - [Chat] 修复通过 OpenAI 兼容端点调用 Gemini 工具失败的问题
+    - [Chat] 修复在能力筛选激活时选择模型崩溃的问题
+    - [Chat] 修复模型选择器重复重建模型列表导致的卡顿
+    - [Chat] 修复嵌套滚动区域影响外层聊天视口位置的问题
+    - [Chat] 修复右键复制数学公式时丢失 TeX 源码的问题
+    - [Chat] 修复通过 API Gateway 调用 Claude Code 在 Responses API 服务商下失败的问题
+    - [Chat] 修复无 prefill 的 Claude 模型上 Agent 会话异常的问题
+    - [Chat] 修复 Windows 上 Node 提供 npx.cmd 时 Claude Code MCP 服务器启动失败
+    - [Chat] 修复 Claude Code Agent 系统提示被 Cherry Studio 指令覆盖的问题
+    - [Chat] 修复 DeepSeek V4 模型路由和 OpenCode Go 模型 API 协议
+    - [Chat] 修复网关转换后 Agent 请求返回 HTTP 400 的问题
+    - [Chat] 修复 Exa 联网搜索在非字符串查询时崩溃的问题
+    - [Chat] 修复翻译按钮在 Windows 上的对比度
+    - [Tab Bar] 修复助手和 Agent 对话标签页标题回退或身份丢失的问题
+    - [Sidebar] 统一小程序图标和会话列表的字号字重与选中态
+    - [Sidebar] 修复 OpenClaw 仪表盘在网关重启后空白或无响应的问题
+    - [Models] 修复自定义服务商使用 K3 模型 ID 时 Kimi 头像缺失
+    - [Models] 用本地化按钮明确多选控件
+    - [Models] 模型类型分类溢出时增加左右滚动控件
+    - [Models] 修复新绘画草稿未应用默认绘画模型的问题
+    - [Models] 修复 TokenFlux 绘画历史迁移丢失的问题
+    - [Agent] 恢复网关路由 Agent 模型的上下文用量指示
+    - [Agent] 恢复 Cherry Assistant 正常的 Agent 能力
+    - [Agent] 不再将已禁用的 MCP 工具暴露给 Agent
+    - [Agent] 修复后台任务回报期间 Agent 追问消息丢失的问题
+    - [Agent] 修复 localhost/环回网关绕过已配置代理的问题
+    - [Agent] 修复重连时 Agent 会话回合顺序错乱的问题
+    - [Agent] 隐藏 Agent 提示词编辑器中的系统变量帮助弹窗
+    - [Agent] 修复保存失败时 Agent 编辑对话框异常关闭的问题
+    - [Migration] 修复 v1→v2 迁移过程中的崩溃和内存溢出问题
+    - [Migration] 修复旧工作区与 Agent 数据路径重叠时 Agent v2 迁移失败
+    - [Migration] 修复云存储元数据变化导致 Agent 文件系统迁移失败
+    - [Migration] 修复旧 API Key 不可用导致 v2 迁移失败
+    - [Notes] 修复空笔记残留上一个笔记内容的问题
+    - [Notes] 修复粘贴的 Markdown 表格和代码块被渲染为纯文本的问题
+    - [Code] 修复对话代码块忽略自定义代码字体的问题
+    - [Code] 修复 CLI 安装前无法启用服务商的问题
+    - [Settings] 修复 AI 错误诊断使用默认助手模型而非免费 Qwen 模型的问题
+    - [Skills] 导入技能 ZIP 条目上限从 1,000 提升到 2,000
+    - [Tasks] 修复定时任务删除后显示误导性加载失败的问题
+    - [Export] 厘清导出菜单分组并保留单条消息本地保存
+    - [Profile] 支持 WebP 头像上传
 
-    💄 改进
-    - [Code Mate] 在支持的各语言中将“Code Switch”更名为“Code Mate”
-    - [翻译] 翻译现在会在模型支持时关闭“思考”，降低延迟与 token 用量
+    ⚡ 性能优化
+    - [Agent] 提升 Agent 对话加载响应速度，避免无关会话行的额外更新
     <!--LANG:END-->

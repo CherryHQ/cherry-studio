@@ -243,6 +243,9 @@ export class BinaryManager extends BaseService {
   protected async onInit() {
     this.isShuttingDown = false
     this.normalizationPromise = null
+    // Prime the process-wide login-shell snapshot for system tool discovery, CLIs, MCP, and agent
+    // runtimes. Do not await it: consumers share shellEnv's memoized in-flight capture.
+    void getRawShellEnv()
     // Install-env invalidation subscription: this Background service depends on
     // PreferenceService, a BeforeReady service. A Background onInit is fire-and-forget
     // and races BeforeReady/WhenReady (Application.bootstrap sets isBootstrapped only
@@ -1133,6 +1136,23 @@ export class BinaryManager extends BaseService {
     await this.installWithMise(definition, targetVersion, definitions)
     if (!(await this.isManagedBinaryReady(definition.name))) {
       throw new Error(`Tool installed but not runnable: ${definition.name}`)
+    }
+
+    // Only explicit updates clean versions no longer referenced by mise.
+    if (targetVersion) {
+      try {
+        await this.runMise(['prune', definition.tool])
+      } catch (err) {
+        logger.warn('Failed to prune obsolete mise tool versions', {
+          name: definition.name,
+          error: this.errorMessage(err)
+        })
+        return
+      }
+      await this.runMise(['reshim'])
+      if (!(await this.isManagedBinaryReady(definition.name))) {
+        throw new Error(`Tool not runnable after pruning obsolete versions: ${definition.name}`)
+      }
     }
   }
 

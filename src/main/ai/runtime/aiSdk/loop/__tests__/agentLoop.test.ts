@@ -502,9 +502,10 @@ describe('Agent', () => {
     }
 
     // Expect TWO metadata chunks (one per onStepFinish), with running cumulative sums.
+    // contextTokens = last step's totalTokens (anchor for context-build truncation).
     expect(collectedMetadata).toEqual([
-      { totalTokens: 8, promptTokens: 3, completionTokens: 5, thoughtsTokens: undefined },
-      { totalTokens: 14, promptTokens: 5, completionTokens: 9, thoughtsTokens: undefined }
+      { stats: { inputTokens: 3, outputTokens: 5, totalTokens: 8, contextTokens: 8 } },
+      { stats: { inputTokens: 5, outputTokens: 9, totalTokens: 14, contextTokens: 6 } }
     ])
   })
 
@@ -565,10 +566,27 @@ describe('Agent', () => {
       }
     }
 
-    // reasoningTokens (thoughtsTokens) must accumulate alongside the summed completion tokens.
+    // reasoningTokens must accumulate alongside the summed output tokens.
+    // contextTokens = last step's totalTokens (anchor for context-build truncation).
     expect(collectedMetadata).toEqual([
-      { totalTokens: 8, promptTokens: 3, completionTokens: 5, thoughtsTokens: 10 },
-      { totalTokens: 14, promptTokens: 5, completionTokens: 9, thoughtsTokens: 25 }
+      {
+        stats: {
+          inputTokens: 3,
+          outputTokens: 5,
+          totalTokens: 8,
+          contextTokens: 8,
+          outputTokenDetails: { reasoningTokens: 10 }
+        }
+      },
+      {
+        stats: {
+          inputTokens: 5,
+          outputTokens: 9,
+          totalTokens: 14,
+          contextTokens: 6,
+          outputTokenDetails: { reasoningTokens: 25 }
+        }
+      }
     ])
   })
 

@@ -184,7 +184,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id is invalid; falling back to managed CherryAI default model',
+      'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
       { configured: 'bad-value' }
     )
   })
@@ -207,7 +207,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id points to a missing model; falling back to managed CherryAI default model',
+      'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
       { configured: 'ghost::missing' }
     )
   })
@@ -597,7 +597,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id points to an external-CLI (agent-only) provider; falling back to managed CherryAI default model',
+      'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
       { configured: 'claude-code::haiku' }
     )
   })
@@ -640,5 +640,77 @@ describe('TopicNamingService', () => {
     // surrogate with no preceding high one) — exactly what a mid-pair cut leaves.
     const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
     expect(LONE_SURROGATE.test(renamedTo.name)).toBe(false)
+  })
+
+  describe('inFlightWrites registry', () => {
+    // Entries self-remove a couple of microtasks after their promise settles
+    // (trackNamingWrite chains `.catch().finally()` off the returned promise).
+    const flushSettles = () => new Promise((resolve) => setImmediate(resolve))
+
+    beforeEach(async () => {
+      // Let deletion chains from earlier tests land before asserting absolute sizes —
+      // the registry is module-level, shared across service instances.
+      await flushSettles()
+    })
+
+    it('maybeRenameAgentSession registers synchronously and self-removes on settle', async () => {
+      mocks.getSession.mockReturnValue({
+        id: 'session-1',
+        agentId: 'agent-1',
+        name: 'common.unnamed',
+        isNameManuallyEdited: false
+      })
+      const service = createService()
+
+      const pending = service.maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Agent response' }]
+      } as never)
+
+      // Registered at method entry, before any await — a detached spawn is
+      // captured before its caller's promise resolves.
+      expect(service.inFlightWrites().size).toBe(1)
+      const [agentKey] = [...service.inFlightWrites().keys()]
+      expect(agentKey).toMatch(/^agent-session:session-1#\d+$/)
+
+      await pending
+      await flushSettles()
+      expect(service.inFlightWrites().size).toBe(0)
+    })
+
+    it('maybeRenameFromConversationSummary registers under the topic: prefix', async () => {
+      const service = createService()
+
+      const pending = service.maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Assistant response' }]
+      } as never)
+
+      expect(service.inFlightWrites().size).toBe(1)
+      const [topicKey] = [...service.inFlightWrites().keys()]
+      expect(topicKey).toMatch(/^topic:topic-1#\d+$/)
+
+      await pending
+      await flushSettles()
+      expect(service.inFlightWrites().size).toBe(0)
+    })
+
+    it('removes the entry and resolves even when the rename path no-ops', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', false)
+      const service = createService()
+
+      const pending = service.maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Agent response' }]
+      } as never)
+
+      // Even the disabled early return was registered first…
+      expect(service.inFlightWrites().size).toBe(1)
+      // …and the wrapper never rejects.
+      await expect(pending).resolves.toBeUndefined()
+      await flushSettles()
+      expect(service.inFlightWrites().size).toBe(0)
+      expect(mocks.generateText).not.toHaveBeenCalled()
+    })
   })
 })

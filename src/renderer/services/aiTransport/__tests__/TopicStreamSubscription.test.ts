@@ -219,6 +219,31 @@ describe('TopicStreamSubscription', () => {
     sub.dispose()
   })
 
+  it('keeps the topic attached across the done(false) gap before continuation chunks arrive', async () => {
+    const sub = new TopicStreamSubscription(TOPIC)
+    const first = sub.register(A, 'assistant-1')
+    await tick()
+
+    mock.emitDone(TOPIC, A, 'success', false, 'assistant-1')
+    expect(await readAll(first)).toEqual([])
+    sub.unregister(A, 'assistant-1')
+    await tick()
+
+    expect(sub.isTopicOpen()).toBe(true)
+    expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
+
+    mock.emitChunk(TOPIC, A, textChunk('continued'), 'assistant-2')
+    const second = sub.register(A, 'assistant-2')
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-2')
+    expect(await readAll(second)).toEqual([textChunk('continued')])
+    sub.unregister(A, 'assistant-2')
+    await tick()
+
+    expect(sub.isTopicOpen()).toBe(false)
+    expect(mock.mockApi.streamDetach).toHaveBeenCalledTimes(1)
+    sub.dispose()
+  })
+
   it('replays the error part and terminal status when failure arrives before the branch registers', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
     const terminals: Array<{ id: string; isAbort: boolean; isError: boolean }> = []
@@ -361,6 +386,18 @@ describe('TopicStreamSubscription', () => {
     const sa = sub.register(A)
     await tick()
     expect(await readAll(sa)).toEqual([])
+    sub.dispose()
+  })
+
+  it('attach failure closes branches with an error terminal instead of hanging readers', async () => {
+    mock.mockApi.streamAttach.mockRejectedValueOnce(new Error('ipc down'))
+    const sub = new TopicStreamSubscription(TOPIC)
+    const terminals: Array<{ isAbort: boolean; isError: boolean }> = []
+    sub.onExecutionTerminal((_id, terminal) => terminals.push(terminal))
+    const sa = sub.register(A)
+    await tick()
+    expect(await readAll(sa)).toEqual([])
+    expect(terminals).toEqual([expect.objectContaining({ isAbort: false, isError: true })])
     sub.dispose()
   })
 })

@@ -1,12 +1,21 @@
 import { application } from '@application'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
+import { createBuiltinAssistantFeedbackSession } from '@main/ai/agents/createBuiltinAssistantFeedbackSession'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
+import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { WebContentsListener } from '@main/ai/streamManager'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type { AiStreamOpenRequest, AiToolResultResponse } from '@shared/ai/transport'
+import type {
+  AiStreamOpenRequest,
+  AiToolResultResponse,
+  PersistedToolOutput,
+  PersistedToolOutputBlobRef
+} from '@shared/ai/transport'
+import { blobRefsOf, isPersistedToolOutput } from '@shared/ai/transport'
 import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import { aiErrorCodes } from '@shared/ipc/errors/ai'
 import { IpcError } from '@shared/ipc/errors/IpcError'
@@ -55,19 +64,59 @@ function senderWebContents(senderId: WindowId | null): Electron.WebContents | un
 }
 
 /** The persisted half of `ai.tool.get_result` — matches the same shape projection replaces. */
-function findPersistedToolOutput(topicId: string, messageId: string, toolCallId: string): AiToolResultResponse {
+async function findPersistedToolOutput(
+  topicId: string,
+  messageId: string,
+  toolCallId: string
+): Promise<AiToolResultResponse> {
   try {
     const parts = isAgentSessionTopic(topicId)
       ? agentSessionMessageService.getSessionMessage(extractAgentSessionId(topicId), messageId).data.parts
       : messageService.getById(messageId).data.parts
     for (const part of parts ?? []) {
       if (!isToolUIPart(part) || part.state !== 'output-available') continue
-      if (part.toolCallId === toolCallId) return { found: true, output: part.output }
+      if (part.toolCallId !== toolCallId) continue
+      if (isPersistedToolOutput(part.output)) {
+        return { found: true, output: await resolvePersistedToolOutput(part.output) }
+      }
+      return { found: true, output: part.output }
     }
   } catch (e) {
     logger.warn('ai.tool.get_result persisted lookup failed', { topicId, messageId, toolCallId, err: e })
   }
   return { found: false }
+}
+
+/**
+ * Rebuild a `$persistedToolOutput` envelope into the original output by
+ * reading the blobs back from FileManager. When an entry is gone (manual DB
+ * surgery, restore of an older backup) or is not a blob the tool-output store
+ * wrote (a forged / colliding envelope in arbitrary tool output — the
+ * ownership gate against reading unrelated entries), that blob degrades to
+ * its stored excerpt with an explanatory note rather than `found: false` —
+ * the renderer treats a miss as a permanent error, and the excerpt is still
+ * real content.
+ */
+async function resolvePersistedToolOutput(output: PersistedToolOutput): Promise<unknown> {
+  const ref = output.$persistedToolOutput
+  const readBlob = async (blob: PersistedToolOutputBlobRef): Promise<string> => {
+    try {
+      const entry = fileEntryService.findById(blob.fileEntryId)
+      if (!entry || !isToolOutputBlobEntry(entry)) throw new Error('entry is not a persisted tool-output blob')
+      const { content } = await application.get('FileManager').read(blob.fileEntryId, { encoding: 'text' })
+      return content
+    } catch (e) {
+      logger.warn('persisted tool output unavailable, serving excerpt', { fileEntryId: blob.fileEntryId, err: e })
+      return `${blob.head}\n\n[persisted output no longer available — showing excerpt of ${blob.totalChars} chars]\n\n${blob.tail}`
+    }
+  }
+  if (ref.shape === 'entities') {
+    const texts = Object.fromEntries(
+      await Promise.all(ref.blobRefs.map(async (blob) => [blob.key, await readBlob(blob)] as const))
+    )
+    return inflateEntities(ref, texts)
+  }
+  return reconstructOutput(ref, await readBlob(blobRefsOf(ref)[0]))
 }
 
 /**
@@ -144,21 +193,27 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
-  'ai.agent.session.prewarm': async ({ sessionId }) => {
-    // Trace mode needs each connection created fresh with trace env at turn start; priming a
-    // trace-less connection ahead of the turn would have the first traced turn reuse it. Mirror the
-    // old warm-query path and skip prewarm entirely while trace mode is on.
-    if (application.get('ClaudeCodeTraceBridgeService').isTraceModeEnabled()) return
-    // Open the live connection eagerly (not just a warm-query park) so the session's slash-command
-    // catalog is read into the cache before the first message — the warm-query handle can't expose it.
-    await application.get('AgentSessionRuntimeService').primeConnection(sessionId)
-  },
+  'ai.agent.feedback_session.create': async () => ({ sessionId: createBuiltinAssistantFeedbackSession().id }),
+  // Open the live connection eagerly (not just a warm-query park) so the session's slash-command
+  // catalog is read into the cache before the first message — the warm-query handle can't expose it.
+  // Trace mode is no exception: the primed connection resolves the session's container trace up front
+  // and spawns with TRACEPARENT, and the one thing a traced turn must not reuse — a trace-less warm
+  // query — is refused by the driver itself.
+  'ai.agent.session.prewarm': ({ sessionId }) =>
+    application.get('AgentSessionRuntimeService').primeConnection(sessionId),
   'ai.agent.session.close_warm': async ({ sessionId }) => {
     application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
     // Prewarm now opens a real runtime connection, so releasing the warm-query park alone would leak
     // the primed subprocess until the idle TTL. Tear it down on view close unless a turn is running.
     application.get('AgentSessionRuntimeService').releaseIdleConnection(sessionId)
   },
+
+  // ── Agent session runtime queries & commands. ──
+  'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {
+    application.get('AgentSessionRuntimeService').refreshContextUsageOnDemand(sessionId)
+  },
+  'ai.agent.session.stop_background_task': ({ sessionId, taskId }) =>
+    application.get('AgentSessionRuntimeService').stopBackgroundTask(sessionId, taskId),
 
   // ── Agent scheduled-task commands — thin delegation to the owning AgentJobsService. ──
   'ai.agent.task.create': ({ agentId, ...form }) =>

@@ -810,6 +810,11 @@ describe('MiniAppMigrator', () => {
         const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, logoFileId))
         expect(entry?.origin).toBe('internal')
         expect(entry?.ext).toBe('webp')
+        // Must match what the live `bindLogoImage` path assigns: the logo is held
+        // only by the ref row above, so once the mini-app (or the slot) goes away
+        // it has to become a cleanup candidate. Falling through to the DB default
+        // `'manual'` would strand the row and its WebP forever.
+        expect(entry?.cleanupPolicy).toBe('delete_when_unreferenced')
 
         const webps = (await fs.readdir(filesDir)).filter((name) => name.endsWith('.webp'))
         expect(webps).toContain(`${logoFileId}.webp`)

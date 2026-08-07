@@ -36,6 +36,7 @@ vi.mock('node:fs/promises', async () => {
 
 import {
   buildMessageTree,
+  estimateLegacyRequestCount,
   extractCitationReferences,
   mergeStats,
   normalizeStatus,
@@ -140,6 +141,29 @@ describe('buildMessageTree', () => {
     expect(tree.get('a2')!.parentId).toBe('prev')
     expect(tree.get('a1')!.siblingsGroupId).toBeGreaterThan(0)
     expect(tree.get('a1')!.siblingsGroupId).toBe(tree.get('a2')!.siblingsGroupId)
+  })
+
+  it('does not link multi-model responses to an askId that appears later', async () => {
+    const messages = [
+      msg('a1', 'assistant', { askId: 'u1', foldSelected: true }),
+      msg('a2', 'assistant', { askId: 'u1' }),
+      msg('u1', 'user')
+    ]
+
+    const tree = buildMessageTree(messages)
+
+    // The future u1 cannot be the responses' parent. Both responses use the
+    // orphan-group fallback, then u1 follows the selected response.
+    expect(tree.get('a1')?.parentId).toBeNull()
+    expect(tree.get('a2')?.parentId).toBeNull()
+    expect(tree.get('u1')?.parentId).toBe('a1')
+
+    const indexById = new Map(messages.map((message, index) => [message.id, index]))
+    for (const [id, node] of tree) {
+      if (node.parentId) {
+        expect(indexById.get(node.parentId)).toBeLessThan(indexById.get(id)!)
+      }
+    }
   })
 
   it('handles mixed: some askIds valid, some pointing to deleted messages', async () => {
@@ -944,15 +968,76 @@ describe('normalizeStatus', () => {
 // mergeStats
 // ============================================================================
 
+describe('estimateLegacyRequestCount', () => {
+  const block = (type: string): OldBlock =>
+    ({
+      id: `block-${type}`,
+      messageId: 'message-1',
+      type,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      status: 'success',
+      ...(type === 'tool' ? { toolId: `tool-${type}` } : {}),
+      ...(type === 'main_text' || type === 'thinking' ? { content: 'output' } : {})
+    }) as OldBlock
+
+  it('uses one baseline request for text-only and empty historical messages', () => {
+    expect(estimateLegacyRequestCount([])).toBe(1)
+    expect(estimateLegacyRequestCount([block('main_text')])).toBe(1)
+  })
+
+  it('counts parallel tool groups only when followed by more model output', () => {
+    expect(
+      estimateLegacyRequestCount([
+        block('tool'),
+        block('tool'),
+        block('citation'),
+        block('file'),
+        block('source'),
+        block('main_text'),
+        block('tool')
+      ])
+    ).toBe(2)
+  })
+
+  it('does not infer another request from a terminal tool group', () => {
+    expect(estimateLegacyRequestCount([block('main_text'), block('tool'), block('citation')])).toBe(1)
+  })
+})
+
 describe('mergeStats', () => {
   it('returns null when both usage and metrics are missing', async () => {
     expect(mergeStats()).toBeNull()
     expect(mergeStats(undefined, undefined)).toBeNull()
   })
 
-  it('merges usage tokens', async () => {
-    const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 })
-    expect(stats).toEqual({ promptTokens: 10, completionTokens: 20, totalTokens: 30 })
+  it('merges usage tokens (AI SDK v6 names)', async () => {
+    const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30, thoughts_tokens: 4 })
+    expect(stats).toEqual({
+      inputTokens: 10,
+      outputTokens: 20,
+      totalTokens: 30,
+      outputTokenDetails: { reasoningTokens: 4 },
+      requestCount: 1,
+      estimatedRequestCount: 1,
+      unpricedRequestCount: 1
+    })
+  })
+
+  it('maps v1 cost to a provider-reported USD cost', async () => {
+    const stats = mergeStats({ prompt_tokens: 10, completion_tokens: 20, cost: 0.0042 })
+    expect(stats).toMatchObject({
+      costs: [
+        {
+          currency: 'USD',
+          amount: 0.0042,
+          providerReportedRequestCount: 1,
+          computedRequestCount: 0
+        }
+      ],
+      requestCount: 1,
+      estimatedRequestCount: 1,
+      unpricedRequestCount: 0
+    })
   })
 
   it('merges metrics timing', async () => {
@@ -962,7 +1047,13 @@ describe('mergeStats', () => {
 
   it('merges both usage and metrics', async () => {
     const stats = mergeStats({ prompt_tokens: 5 }, { time_thinking_millsec: 200 })
-    expect(stats).toEqual({ promptTokens: 5, timeThinkingMs: 200 })
+    expect(stats).toEqual({
+      inputTokens: 5,
+      requestCount: 1,
+      estimatedRequestCount: 1,
+      unpricedRequestCount: 1,
+      timeThinkingMs: 200
+    })
   })
 })
 

@@ -44,6 +44,20 @@ export const agentSessionMessageTable = sqliteTable(
 export type AgentSessionMessageRow = typeof agentSessionMessageTable.$inferSelect
 export type InsertAgentSessionMessageRow = typeof agentSessionMessageTable.$inferInsert
 
+export const AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME = 'agent_session_message_ai'
+export const AGENT_SESSION_MESSAGE_INSERT_TRIGGER_SQL = `CREATE TRIGGER ${AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME} AFTER INSERT ON agent_session_message BEGIN
+  UPDATE agent_session_message SET
+    fts_rowid = (SELECT COALESCE(MAX(fts_rowid), 0) + 1 FROM agent_session_message),
+    searchable_text = COALESCE((
+      SELECT group_concat(json_extract(value, '$.text'), char(10))
+      FROM json_each(json_extract(NEW.data, '$.parts'))
+      WHERE json_extract(value, '$.type') IN ('text', 'reasoning')
+    ), '')
+  WHERE id = NEW.id;
+  INSERT INTO agent_session_message_fts(rowid, searchable_text)
+  SELECT fts_rowid, searchable_text FROM agent_session_message WHERE id = NEW.id;
+END`
+
 /**
  * FTS5 SQL statements for agent session message full-text search.
  *
@@ -64,22 +78,11 @@ export const AGENT_SESSION_MESSAGE_FTS_STATEMENTS: string[] = [
   )`,
 
   // DROP+CREATE so body / fts_rowid-wiring changes take effect on existing DBs.
-  `DROP TRIGGER IF EXISTS agent_session_message_ai`,
+  `DROP TRIGGER IF EXISTS ${AGENT_SESSION_MESSAGE_INSERT_TRIGGER_NAME}`,
   `DROP TRIGGER IF EXISTS agent_session_message_ad`,
   `DROP TRIGGER IF EXISTS agent_session_message_au`,
 
-  `CREATE TRIGGER agent_session_message_ai AFTER INSERT ON agent_session_message BEGIN
-    UPDATE agent_session_message SET
-      fts_rowid = (SELECT COALESCE(MAX(fts_rowid), 0) + 1 FROM agent_session_message),
-      searchable_text = COALESCE((
-        SELECT group_concat(json_extract(value, '$.text'), char(10))
-        FROM json_each(json_extract(NEW.data, '$.parts'))
-        WHERE json_extract(value, '$.type') IN ('text', 'reasoning')
-      ), '')
-    WHERE id = NEW.id;
-    INSERT INTO agent_session_message_fts(rowid, searchable_text)
-    SELECT fts_rowid, searchable_text FROM agent_session_message WHERE id = NEW.id;
-  END`,
+  AGENT_SESSION_MESSAGE_INSERT_TRIGGER_SQL,
 
   `CREATE TRIGGER agent_session_message_ad AFTER DELETE ON agent_session_message BEGIN
     INSERT INTO agent_session_message_fts(agent_session_message_fts, rowid, searchable_text)

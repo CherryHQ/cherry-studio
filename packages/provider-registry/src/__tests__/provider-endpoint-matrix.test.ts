@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { splitOverrideWireId } from '../../scripts/canonicalize'
 import { PROVIDERS } from '../providers'
 
 /**
@@ -16,8 +17,12 @@ const provider = (providerId: string) => {
   return result
 }
 
+// Look up by the CANONICAL key the catalog ships: source authors `modelId` as the served id
+// (`qwen3.7-max`), and generation splits it into key + `apiModelId` (see splitOverrideWireId).
 const endpointsOf = (providerId: string, modelId: string): string[] | undefined => {
-  const entry = provider(providerId).overrides?.find((o) => o.modelId === modelId)
+  const entry = provider(providerId)
+    .overrides?.map((o) => splitOverrideWireId(o))
+    .find((o) => o.modelId === modelId)
   if (!entry) throw new Error(`Missing override: ${providerId}/${modelId}`)
   return entry.endpointTypes as string[] | undefined
 }
@@ -59,10 +64,91 @@ describe('dashscope (Bailian) endpoint matrix', () => {
   })
 })
 
+describe('deepseek endpoint matrix', () => {
+  it('uses the native OpenAI adapter for the official Responses endpoint', () => {
+    expect(provider('deepseek').endpointConfigs?.['openai-responses']).toEqual({
+      adapterFamily: 'openai',
+      baseUrl: 'https://api.deepseek.com',
+      reasoningFormat: { type: 'openai-responses' }
+    })
+  })
+
+  it('advertises the Responses API built-in web search tool', () => {
+    expect(provider('deepseek').serverTools).toEqual([
+      {
+        id: 'web-search',
+        modelScope: 'model-dependent',
+        modelIdPrefixes: ['deepseek-v4-flash'],
+        endpointTypes: ['openai-responses']
+      }
+    ])
+  })
+
+  it('prefers Responses for V4 Flash while keeping Chat Completions selectable', () => {
+    expect(endpointsOf('deepseek', 'deepseek-v4-flash')).toEqual([
+      'openai-responses',
+      'openai-chat-completions',
+      'anthropic-messages'
+    ])
+  })
+
+  /**
+   * The Anthropic-compatible endpoint (api-docs.deepseek.com/zh-cn/guides/anthropic_api,
+   * https://api.deepseek.com/anthropic) documents V4 Pro and V4 Flash only — it maps `claude-opus*`
+   * onto v4-pro, `claude-sonnet*`/`claude-haiku*` onto v4-flash, and silently rewrites any other
+   * model name to v4-flash. So chat/reasoner stay off it: reaching them through it would serve a
+   * different model than the one selected. It trails Chat Completions on both V4 SKUs because
+   * `endpointTypes[0]` is what routes in-app chat.
+   */
+  it('exposes the Anthropic-compatible endpoint on V4 Pro without displacing its Chat default', () => {
+    expect(endpointsOf('deepseek', 'deepseek-v4-pro')).toEqual(['openai-chat-completions', 'anthropic-messages'])
+  })
+
+  it.each(['deepseek-chat', 'deepseek-reasoner'])(
+    'pins %s to Chat Completions, the only endpoint DeepSeek serves it on',
+    (modelId) => {
+      expect(endpointsOf('deepseek', modelId)).toEqual(['openai-chat-completions'])
+    }
+  )
+})
+
+/**
+ * OpenCode Go multiplexes three wire protocols over one base URL, and the protocol per model is
+ * published as models.dev's per-model `provider.npm` (`@ai-sdk/openai` → Responses, `@ai-sdk/anthropic`
+ * → Messages, inherited `@ai-sdk/openai-compatible` → Chat) — which is what the OpenCode client itself
+ * consumes. The vendor's Go endpoint table is asserted against only where the two agree: it still
+ * prints chat/completions for Grok 4.5, months after models.dev moved it to the OpenAI SDK (#17860).
+ */
+describe('opencode (Zen Go) endpoint matrix', () => {
+  it('uses the native OpenAI adapter for the Responses endpoint', () => {
+    expect(provider('opencode').endpointConfigs?.['openai-responses']).toEqual({
+      adapterFamily: 'openai',
+      baseUrl: 'https://opencode.ai/zen/go/v1',
+      reasoningFormat: { type: 'openai-responses' }
+    })
+  })
+
+  it('prefers Responses for Grok 4.5 while keeping the documented Chat route selectable', () => {
+    expect(endpointsOf('opencode', 'grok-4-5')).toEqual(['openai-responses', 'openai-chat-completions'])
+  })
+
+  it('pins GPT 5.6 Luna to Responses, the only endpoint Go serves it on', () => {
+    expect(endpointsOf('opencode', 'gpt-5-6-luna')).toEqual(['openai-responses'])
+  })
+
+  it.each(['qwen3-8-max', 'qwen3-7-max', 'minimax-m3'])('pins %s to the Anthropic-compatible endpoint', (modelId) => {
+    expect(endpointsOf('opencode', modelId)).toEqual(['anthropic-messages'])
+  })
+
+  it.each(['hy3', 'kimi-k3', 'glm-5-2'])('pins %s to Chat Completions', (modelId) => {
+    expect(endpointsOf('opencode', modelId)).toEqual(['openai-chat-completions'])
+  })
+})
+
 describe('doubao (Ark) endpoint matrix', () => {
   // Ark serves /responses for the 250615+ line only (docs/82379/1585128), so here a single-element
   // pin IS correct — the vendor genuinely does not serve the other endpoint.
-  it.each(['doubao-seed-2-1-pro', 'doubao-seed-1-6', 'seed-1-8'])(
+  it.each(['doubao-seed-2-1-pro', 'doubao-seed-1-6', 'doubao-seed-1-8'])(
     'prefers Responses with Chat selectable for the 250615+ SKU %s',
     (modelId) => {
       expect(endpointsOf('doubao', modelId)).toEqual(['openai-responses', 'openai-chat-completions'])

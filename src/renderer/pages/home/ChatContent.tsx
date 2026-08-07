@@ -16,7 +16,6 @@ import type {
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
@@ -77,7 +76,6 @@ const ChatContent: FC<Props> = ({
     isStale: isHistoryStale,
     refresh,
     activeNodeId,
-    rootId,
     loadOlder,
     hasOlder,
     mutate: messagesCacheMutate
@@ -105,7 +103,6 @@ const ChatContent: FC<Props> = ({
       siblingsMap={siblingsMap}
       refresh={refresh}
       activeNodeId={activeNodeId}
-      rootId={rootId}
       loadOlder={loadOlder}
       hasOlder={hasOlder}
       messagesCacheMutate={messagesCacheMutate}
@@ -128,7 +125,6 @@ interface InnerProps extends Props {
   siblingsMap: ReturnType<typeof useTopicMessages>['siblingsMap']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
-  rootId: string | null
   loadOlder: () => void
   hasOlder: boolean
   messagesCacheMutate: ReturnType<typeof useTopicMessages>['mutate']
@@ -155,7 +151,6 @@ const ChatContentInner: FC<InnerProps> = ({
   siblingsMap,
   refresh,
   activeNodeId,
-  rootId,
   loadOlder,
   hasOlder,
   messagesCacheMutate
@@ -170,13 +165,13 @@ const ChatContentInner: FC<InnerProps> = ({
     uiMessages,
     refresh,
     activeNodeId,
-    rootId,
     messagesCacheMutate,
     assistant,
     onBranchLiveStateChange,
     clearBranchDraft,
     getBranchDraftAnchorId
   })
+  const locateRuntimeMessage = runtime.locateMessage
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
 
   useEffect(() => {
@@ -188,7 +183,7 @@ const ChatContentInner: FC<InnerProps> = ({
     if (uiMessages.some((message) => message.id === locateMessageId)) {
       locateLoadRequestRef.current = undefined
       window.requestAnimationFrame(() => {
-        void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + locateMessageId, true)
+        locateRuntimeMessage(locateMessageId, true)
       })
       onLocateMessageHandled?.()
       return
@@ -207,7 +202,7 @@ const ChatContentInner: FC<InnerProps> = ({
       locateLoadRequestRef.current = undefined
       onLocateMessageHandled?.()
     }
-  }, [hasOlder, isHistoryLoading, loadOlder, locateMessageId, onLocateMessageHandled, uiMessages])
+  }, [hasOlder, isHistoryLoading, loadOlder, locateMessageId, locateRuntimeMessage, onLocateMessageHandled, uiMessages])
 
   const isEmptyConversation = !isHistoryLoading && runtime.messages.length === 0
   const main = (
@@ -224,7 +219,6 @@ const ChatContentInner: FC<InnerProps> = ({
         messages={runtime.messages}
         partsByMessageId={runtime.partsByMessageId}
         streamingLayers={runtime.streamingLayers}
-        localSendGeneration={runtime.localSendGeneration}
         onBindRuntime={runtime.bindMessageListRuntime}
         isInitialLoading={isHistoryLoading}
         isMessagesStale={isHistoryStale}
@@ -240,7 +234,6 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="home"
       topic={topic}
       onSend={runtime.sendMessage}
-      captureLocalSendScrollEligibility={runtime.captureLocalSendScrollEligibility}
       onNewTopic={onNewTopic}
       composerContext={runtime.composerContext}
       assistantContext={assistantContext}
@@ -252,7 +245,6 @@ const ChatContentInner: FC<InnerProps> = ({
       placement="docked"
       topic={topic}
       onSend={runtime.sendMessage}
-      captureLocalSendScrollEligibility={runtime.captureLocalSendScrollEligibility}
       onNewTopic={onNewTopic}
       onCreateEmptyTopic={onCreateEmptyTopic}
       sendDisabled={isHistoryLoading}

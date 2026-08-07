@@ -35,7 +35,9 @@ after `apiOptions` is cleared. Do not replace this comparison with current
 Projection rules:
 
 - A provider with `presetProviderId = null` is custom and keeps its mapped
-  provider/model configuration.
+  provider configuration. Its models may still match global `models.json`
+  metadata independently; provider-model overrides remain unavailable without
+  an effective preset provider.
 - A preset provider is resolved by `providerId` first, then
   `presetProviderId`. The second lookup is required for custom IDs backed by a
   known provider type, such as Azure OpenAI.
@@ -46,15 +48,22 @@ Projection rules:
   feature baseline rather than the linked system preset baseline. This
   preserves explicit post-v1-migration feature choices while dropping untouched
   custom defaults.
-- A preset model is resolved with the effective provider's
-  provider-model override. If the override has no global `models.json` entry,
-  the migrator synthesizes the same provider-exclusive preset used at runtime.
+- A model first uses the effective provider's provider-model override when one
+  is available, then matches global `models.json` metadata. Global matching also
+  applies to fully custom providers. If an effective provider's override has no
+  global entry, the migrator synthesizes the same provider-exclusive preset used
+  at runtime.
 - Preset model fields equal to the final-v1 model become null. Every non-null
   sparse column is authoritative at read time; there is no separate ownership
   marker.
 - If a current preset exists but the model is absent from the final-v1
   baseline, ordinary legacy fields have no provable user provenance and remain
   null. Explicit `capabilities[].isUserSelected` choices are preserved.
+  `endpointTypes` is also preserved when the current provider-model registry
+  cannot re-derive the legacy routing metadata, including dynamic models from
+  built-in NewAPI providers and custom providers with legacy `type='new-api'`.
+  CherryIN models without legacy endpoint metadata restore its prefix routing
+  (`anthropic/`, `google/`, or OpenAI-compatible fallback) explicitly.
 - The v1 editor's synthetic `0/0` pricing value is treated as equivalent to an
   absent final-v1 price.
 
@@ -85,7 +94,7 @@ IDs, and provider-exclusive models.
 | v1 source | v2 target | Transformation |
 |------|------|------|
 | provider ID + model `id` | `id`, `providerId`, `modelId` | Build deterministic `providerId::modelId` identity |
-| effective registry match | `presetModelId` | Global preset or synthesized provider-exclusive preset; null for a custom model |
+| effective registry match | `presetModelId` | Global preset (independent of provider provenance) or synthesized provider-exclusive preset; null for an unmatched custom model |
 | `name`, `description`, `group` | same-named nullable columns | Complete values for custom rows; final-v1 deltas for preset rows |
 | `capabilities` | `capabilities` | Normalize capability names; preserve explicit `isUserSelected` choices |
 | `endpoint_type`, `supported_endpoint_types` | `endpointTypes` | Normalize legacy endpoint aliases |
