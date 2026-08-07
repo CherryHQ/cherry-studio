@@ -41,6 +41,7 @@ import type {
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 import { maskApiKey } from '@shared/utils/api'
 import { and, asc, eq, type SQLWrapper } from 'drizzle-orm'
+import { isEqual } from 'es-toolkit/compat'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
@@ -188,6 +189,9 @@ function projectEndpointConfigOverrides(
     const presetConfig = presetConfigs?.[ep]
     const override: StoredEndpointConfigOverride = {}
     if (config.baseUrl !== undefined && config.baseUrl !== presetConfig?.baseUrl) override.baseUrl = config.baseUrl
+    if (config.reasoningFormat !== undefined && !isEqual(config.reasoningFormat, presetConfig?.reasoningFormat)) {
+      override.reasoningFormat = config.reasoningFormat
+    }
     if (presetProviderId === null && storedConfigs?.[ep]?.adapterFamily !== undefined) {
       override.adapterFamily = storedConfigs[ep].adapterFamily
     }

@@ -159,6 +159,8 @@ export interface ReasoningProviderContext {
   id: Provider['id']
   presetProviderId?: Provider['presetProviderId'] | null
   defaultChatEndpoint?: Provider['defaultChatEndpoint']
+  /** Merged runtime endpoint configs — carries the user's per-endpoint `reasoningFormat` override. */
+  endpointConfigs?: Provider['endpointConfigs']
 }
 
 function isEmptyPricingEcho(value: unknown): boolean {
@@ -731,6 +733,11 @@ class ProviderRegistryService {
         const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
         if (baseUrl !== undefined) config.baseUrl = baseUrl
         if (presetConfig?.modelsApiUrls !== undefined) config.modelsApiUrls = presetConfig.modelsApiUrls
+        // `reasoningFormat` is user-owned when set; otherwise the registry's
+        // protocol default (if any) carries through so custom providers can
+        // override it (e.g. `self-hosted` for vLLM/SGLang relays).
+        const reasoningFormat = rowConfig?.reasoningFormat ?? presetConfig?.reasoningFormat
+        if (reasoningFormat !== undefined) config.reasoningFormat = reasoningFormat
         merged[ep] = config
       }
       return Object.keys(merged).length > 0 ? merged : null
@@ -775,6 +782,7 @@ class ProviderRegistryService {
       return {
         id: provider.id,
         presetProviderId,
+        endpointConfigs: provider.endpointConfigs,
         defaultChatEndpoint:
           provider.defaultChatEndpoint ??
           (presetProviderId === null ? undefined : (registryProvider?.defaultChatEndpoint ?? undefined))
@@ -821,7 +829,10 @@ class ProviderRegistryService {
       (inferredControls ? { controls: inferredControls } : undefined)
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType,
-      format: endpointType ? profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat : undefined,
+      format: endpointType
+        ? (context.endpointConfigs?.[endpointType]?.reasoningFormat ??
+          profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat)
+        : undefined,
       contract,
       wireDialect: reasoning?.wireDialect
     })
@@ -869,7 +880,10 @@ class ProviderRegistryService {
 
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType: effectiveEndpoint,
-      format: effectiveEndpoint ? profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat : undefined,
+      format: effectiveEndpoint
+        ? (provider.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat ??
+          profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat)
+        : undefined,
       contract,
       wireDialect
     })
