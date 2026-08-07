@@ -6484,6 +6484,23 @@
         "token_placeholder": "请输入思源笔记令牌"
       },
       "title": "数据",
+      "v1_remigration": {
+        "acknowledgement": "我已了解风险并愿意继续。",
+        "back": "上一步",
+        "backup_acknowledgement": "我已备份数据",
+        "backup_button": "立即完整备份",
+        "backup_message": "请先完整备份当前数据。继续操作将永久删除当前 v2 数据，此操作无法撤销。",
+        "button": "重新迁移",
+        "confirm": "重新迁移",
+        "confirm_countdown": "重新迁移（{{seconds}} 秒）",
+        "dialog_title": "重新迁移 v1 数据",
+        "error": "重新迁移 v1 数据启动失败",
+        "final_confirmation": "确认删除当前 v2 数据并重新迁移 v1 数据？",
+        "final_message": "当前 v2 数据将被永久删除，此操作无法撤销。",
+        "final_retained": "原始 v1 数据会保留，并在重启后重新导入。",
+        "next": "下一步",
+        "title": "重新迁移 v1 数据"
+      },
       "webdav": {
         "autoSync": {
           "label": "自动备份",

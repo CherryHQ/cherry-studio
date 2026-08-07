@@ -7,8 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type * as ClearCachePopupModule from '../ClearCachePopup'
 
-const { clearCacheShowMock, requestMock } = vi.hoisted(() => ({
+const { clearCacheShowMock, indexedDbDatabasesMock, requestMock } = vi.hoisted(() => ({
   clearCacheShowMock: vi.fn(),
+  indexedDbDatabasesMock: vi.fn(),
   requestMock: vi.fn()
 }))
 
@@ -35,12 +36,14 @@ vi.mock('@renderer/components/SettingsPrimitives', () => ({
 
 vi.mock('../BackupPopup', () => ({ default: { show: vi.fn() } }))
 vi.mock('../RestorePopup', () => ({ default: { show: vi.fn() } }))
+vi.mock('../V1RemigrationPopup', () => ({ default: { show: vi.fn() } }))
 vi.mock('../ClearCachePopup', async (importOriginal) => {
   const actual = await importOriginal<typeof ClearCachePopupModule>()
   return { ...actual, default: { show: clearCacheShowMock } }
 })
 
 import BasicDataSettings from '../BasicDataSettings'
+import V1RemigrationPopup from '../V1RemigrationPopup'
 
 async function renderSettings() {
   render(<BasicDataSettings />)
@@ -51,6 +54,9 @@ async function renderSettings() {
 describe('BasicDataSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    indexedDbDatabasesMock.mockResolvedValue([])
+    vi.stubGlobal('indexedDB', { databases: indexedDbDatabasesMock })
+    localStorage.clear()
     requestMock.mockImplementation((route: string) =>
       Promise.resolve(
         route === 'app.cache_cleanup.inspect'
@@ -77,6 +83,34 @@ describe('BasicDataSettings', () => {
       expect(action).toBeEnabled()
       expect(action.closest('[inert]')).toBeNull()
     }
+  })
+
+  it('hides the v1 remigration entry when neither exact v1 source exists', async () => {
+    localStorage.setItem('persist:other-app', '{}')
+    indexedDbDatabasesMock.mockResolvedValueOnce([{ name: 'cherrystudio', version: 1 }])
+    await renderSettings()
+
+    await waitFor(() => expect(indexedDbDatabasesMock).toHaveBeenCalledOnce())
+    expect(screen.queryByRole('button', { name: 'settings.data.v1_remigration.button' })).not.toBeInTheDocument()
+  })
+
+  it('shows the v1 remigration entry for the exact Redux key and opens its warning', async () => {
+    localStorage.setItem('persist:cherry-studio', '{}')
+    await renderSettings()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.data.v1_remigration.button' }))
+
+    expect(V1RemigrationPopup.show).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows the v1 remigration entry for the exact IndexedDB database name', async () => {
+    indexedDbDatabasesMock.mockResolvedValueOnce([
+      { name: 'other-database', version: 1 },
+      { name: 'CherryStudio', version: 29 }
+    ])
+    await renderSettings()
+
+    expect(await screen.findByRole('button', { name: 'settings.data.v1_remigration.button' })).toBeInTheDocument()
   })
 
   it('continues non-v1 cleanup when the legacy retry marker cannot be written', async () => {
