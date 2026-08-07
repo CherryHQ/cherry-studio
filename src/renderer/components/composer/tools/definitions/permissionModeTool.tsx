@@ -70,10 +70,9 @@ const usePermissionModeToolController = (context: PermissionModeContext) => {
         ...PERMISSION_MODE_TOOLBAR_MANIFEST.toolbar,
         sources: ['popover'],
         label: t('agent.settings.permissionMode.title', 'Permission Mode'),
-        description: '',
+        description: tooltipTitle,
         searchAliases: getQuickPanelSearchAliases(t, 'agent.settings.permissionMode.title'),
         icon: <PermissionModeIcon mode={currentMode} />,
-        suffix: tooltipTitle,
         submenu: modeSubmenu
       }
     ])
