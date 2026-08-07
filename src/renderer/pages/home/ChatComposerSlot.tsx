@@ -1,3 +1,4 @@
+import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import {
@@ -52,6 +53,7 @@ export default function ChatComposerSlot({
   providers,
   onConversationControlsChange
 }: ChatComposerSlotProps) {
+  const compactWhenSingleLine = useRightPanelPresentationMaximized()
   const fallback =
     placement === 'home' ? (
       <ChatPlacementComposer
@@ -67,6 +69,7 @@ export default function ChatComposerSlot({
         resolvedContext={assistantContext}
         resolvedProviders={providers}
         externalContextControls
+        compactWhenSingleLine={compactWhenSingleLine}
         onConversationControlsChange={onConversationControlsChange}
       />
     ) : (
@@ -84,6 +87,7 @@ export default function ChatComposerSlot({
         resolvedContext={assistantContext}
         resolvedProviders={providers}
         externalContextControls
+        compactWhenSingleLine={compactWhenSingleLine}
         onConversationControlsChange={onConversationControlsChange}
       />
     )
