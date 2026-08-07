@@ -14,6 +14,8 @@ export interface CreateAiUsageCaptureContextInput {
   modelName?: string | null
   pricing?: RuntimeModelPricing | null
   pricingSnapshot?: AiUsagePricingSnapshot | null
+  /** Scales every captured rate — 1.5 for MiniMax's priority tier, 1 otherwise. */
+  priceMultiplier?: number
   trustProviderReportedCost?: boolean
   reportedCostCurrency?: Currency | null
   credentialReceipt?: AiUsageCredentialReceipt
@@ -46,30 +48,51 @@ function pricingCurrency(pricing: RuntimeModelPricing): AiUsagePricingSnapshot['
   return currencies[0]
 }
 
+/**
+ * Freeze the pricing that applies to this request. `multiplier` scales every
+ * rate so the snapshot records the *effective* price — surcharged routes like
+ * MiniMax's priority tier need no second adjustment at cost time.
+ */
 export function createAiUsagePricingSnapshot(
   pricing: RuntimeModelPricing | null | undefined,
-  capturedAt = new Date().toISOString()
+  capturedAt = new Date().toISOString(),
+  multiplier = 1
 ): AiUsagePricingSnapshot | null {
   if (!pricing) return null
   const currency = pricingCurrency(pricing)
   if (!currency) return null
 
+  const rate = (value: number) => value * multiplier
+
   const snapshot = {
     currency,
-    ...(pricing.input?.perMillionTokens != null ? { inputPerMillionTokens: pricing.input.perMillionTokens } : {}),
-    ...(pricing.output?.perMillionTokens != null ? { outputPerMillionTokens: pricing.output.perMillionTokens } : {}),
+    ...(pricing.input?.perMillionTokens != null ? { inputPerMillionTokens: rate(pricing.input.perMillionTokens) } : {}),
+    ...(pricing.output?.perMillionTokens != null
+      ? { outputPerMillionTokens: rate(pricing.output.perMillionTokens) }
+      : {}),
     ...(pricing.cacheRead?.perMillionTokens != null
-      ? { cacheReadPerMillionTokens: pricing.cacheRead.perMillionTokens }
+      ? { cacheReadPerMillionTokens: rate(pricing.cacheRead.perMillionTokens) }
       : {}),
     ...(pricing.cacheWrite?.perMillionTokens != null
-      ? { cacheWritePerMillionTokens: pricing.cacheWrite.perMillionTokens }
+      ? { cacheWritePerMillionTokens: rate(pricing.cacheWrite.perMillionTokens) }
       : {}),
     ...(pricing.perImage
       ? {
           perImage: {
-            price: pricing.perImage.price,
+            price: rate(pricing.perImage.price),
             unit: pricing.perImage.unit ?? 'image'
           }
+        }
+      : {}),
+    ...(pricing.thresholds?.length
+      ? {
+          thresholds: pricing.thresholds.map((threshold) => ({
+            aboveInputTokens: threshold.aboveInputTokens,
+            inputPerMillionTokens: rate(threshold.input),
+            outputPerMillionTokens: rate(threshold.output),
+            ...(threshold.cacheRead != null ? { cacheReadPerMillionTokens: rate(threshold.cacheRead) } : {}),
+            ...(threshold.cacheWrite != null ? { cacheWritePerMillionTokens: rate(threshold.cacheWrite) } : {})
+          }))
         }
       : {}),
     capturedAt
@@ -91,7 +114,7 @@ export function createAiUsageCaptureContext(input: CreateAiUsageCaptureContextIn
     modelName: input.modelName ?? null,
     pricingSnapshot:
       input.pricingSnapshot === undefined
-        ? createAiUsagePricingSnapshot(input.pricing, input.capturedAt)
+        ? createAiUsagePricingSnapshot(input.pricing, input.capturedAt, input.priceMultiplier)
         : input.pricingSnapshot === null
           ? null
           : (() => {

@@ -263,6 +263,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'isEnabled',
   'isHidden',
   'isDeprecated',
+  'usePriorityServiceTier',
   'notes'
 ]
 
@@ -416,6 +417,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
+    usePriorityServiceTier: row.usePriorityServiceTier,
     notes: row.notes ?? undefined
   }
 }
@@ -430,6 +432,7 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
     isEnabled: row.isEnabled,
     isHidden: row.isHidden,
     isDeprecated: row.isDeprecated,
+    usePriorityServiceTier: row.usePriorityServiceTier,
     notes: row.notes ?? undefined
   }
 }

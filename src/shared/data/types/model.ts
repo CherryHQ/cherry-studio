@@ -281,6 +281,22 @@ export type RuntimeParameterSupport = z.infer<typeof RuntimeParameterSupportSche
 export const PricingTierSchema = PricePerTokenSchema
 export type PricingTier = z.infer<typeof PricingTierSchema>
 
+/**
+ * Whole-request threshold pricing. When a request's all-in input token count
+ * exceeds `aboveInputTokens`, every bucket of that request bills at this
+ * entry's rates instead of the base rates — the switch is wholesale, not
+ * graduated. Rates are per million tokens in the model's base currency, so
+ * entries carry no currency of their own.
+ */
+export const ModelPricingThresholdSchema = z.object({
+  aboveInputTokens: z.number().positive(),
+  input: z.number().nonnegative(),
+  output: z.number().nonnegative(),
+  cacheRead: z.number().nonnegative().optional(),
+  cacheWrite: z.number().nonnegative().optional()
+})
+export type ModelPricingThreshold = z.infer<typeof ModelPricingThresholdSchema>
+
 export const RuntimeModelPricingSchema = z.object({
   input: PricePerTokenSchema,
   output: PricePerTokenSchema,
@@ -296,7 +312,8 @@ export const RuntimeModelPricingSchema = z.object({
     .object({
       price: z.number()
     })
-    .optional()
+    .optional(),
+  thresholds: z.array(ModelPricingThresholdSchema).optional()
 })
 export type RuntimeModelPricing = z.infer<typeof RuntimeModelPricingSchema>
 
@@ -366,6 +383,8 @@ export const ModelSchema = z.object({
   isHidden: z.boolean(),
   /** Whether this model has been deprecated by provider sync */
   isDeprecated: z.boolean().optional(),
+  /** Call MiniMax with `service_tier: priority` — billed at 1.5x the standard price */
+  usePriorityServiceTier: z.boolean().optional(),
   /** Replacement model if this one is deprecated */
   replaceWith: UniqueModelIdSchema.optional(),
 

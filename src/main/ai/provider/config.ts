@@ -301,6 +301,24 @@ export async function resolveProviderAiSdkConfig(
         }
       }))
     },
+    // MiniMax's priority tier is a plain body field, and it must ride EVERY request
+    // for the model — billing applies the 1.5x surcharge at capture time, so a
+    // request that silently went out on the standard tier would be over-charged.
+    // providerOptions cannot carry it: `buildCapabilityProviderOptions` is skipped
+    // for assistant-less callers (translate, topic naming), which would leave
+    // exactly that mismatch. A body transform runs on every assembled request.
+    {
+      match: (p, id) =>
+        id === 'openai-compatible' && matchesPreset(p, 'minimax') && model.usePriorityServiceTier === true,
+      build: withSelectedApiKey((ctx) => {
+        const config = buildOpenAICompatibleConfig(ctx)
+        config.providerSettings.transformRequestBody = (args: Record<string, any>) => ({
+          ...args,
+          service_tier: 'priority'
+        })
+        return config
+      })
+    },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
     // `google-vertex-anthropic` (Vertex on an anthropic-messages endpoint) must route here
     // too — `buildVertexConfig` branches on `isAnthropic`. Otherwise it falls through to the

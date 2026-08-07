@@ -144,6 +144,7 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'isEnabled',
       'isHidden',
       'isDeprecated',
+      'usePriorityServiceTier',
       'notes'
     ]
 
@@ -2069,6 +2070,30 @@ describe('ModelService.bulkUpdate', () => {
 
     const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
     expect(row.name).toBeNull()
+  })
+
+  // A pricing sub-field the baseline comparison ignores reads as "equal to
+  // preset", and the sparse-column write then nulls the whole pricing override.
+  it('keeps a threshold-only pricing PATCH out of the baseline-clearing path', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    await dbh.db.insert(userModelTable).values(modelRow('openai', 'gpt-4o', { presetModelId: 'gpt-4o' }))
+    const presetPricing = {
+      input: { perMillionTokens: 3, currency: 'USD' as const },
+      output: { perMillionTokens: 15, currency: 'USD' as const }
+    }
+    lookupModelMock.mockReturnValue({
+      presetModel: { id: 'gpt-4o', name: 'GPT-4o', pricing: presetPricing },
+      registryOverride: null,
+      reasoningProfile: OPENAI_CHAT_REASONING_PROFILE
+    })
+
+    const thresholds = [{ aboveInputTokens: 512_000, input: 6, output: 30 }]
+    modelService.bulkUpdate([
+      { providerId: 'openai', modelId: 'gpt-4o', patch: { pricing: { ...presetPricing, thresholds } } }
+    ])
+
+    const [row] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
+    expect(row.pricing).toMatchObject({ thresholds })
   })
 
   it('rejects managed CherryAI default model PATCHes before writing other rows', async () => {

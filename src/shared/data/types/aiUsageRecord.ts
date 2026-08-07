@@ -32,6 +32,19 @@ export const AiUsageCostBreakdownSchema = z.strictObject({
 })
 export type AiUsageCostBreakdown = z.infer<typeof AiUsageCostBreakdownSchema>
 
+/**
+ * Flattened threshold entry. A request whose all-in input token count exceeds
+ * `aboveInputTokens` bills every bucket at these rates instead of the
+ * snapshot's base rates.
+ */
+const AiUsagePricingThresholdSchema = z.strictObject({
+  aboveInputTokens: FiniteNonnegativeIntegerSchema,
+  inputPerMillionTokens: FiniteNonnegativeNumberSchema,
+  outputPerMillionTokens: FiniteNonnegativeNumberSchema,
+  cacheReadPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
+  cacheWritePerMillionTokens: FiniteNonnegativeNumberSchema.optional()
+})
+
 export const AiUsagePricingSnapshotSchema = z.strictObject({
   currency: z.enum(objectValues(CURRENCY)),
   inputPerMillionTokens: FiniteNonnegativeNumberSchema.optional(),
@@ -44,6 +57,7 @@ export const AiUsagePricingSnapshotSchema = z.strictObject({
       unit: z.enum(['image', 'pixel'])
     })
     .optional(),
+  thresholds: z.array(AiUsagePricingThresholdSchema).optional(),
   capturedAt: z.iso.datetime()
 })
 export type AiUsagePricingSnapshot = z.infer<typeof AiUsagePricingSnapshotSchema>

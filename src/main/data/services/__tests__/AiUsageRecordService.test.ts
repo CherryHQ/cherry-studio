@@ -310,7 +310,118 @@ describe('AiUsageRecordService', () => {
     })
   })
 
-  it('keeps incomplete token pricing, pixel pricing, and untrusted provider cost unpriced', () => {
+  it('bills the whole request at the highest threshold its all-in input exceeds', () => {
+    const pricingSnapshot = {
+      currency: 'USD' as const,
+      inputPerMillionTokens: 2,
+      outputPerMillionTokens: 8,
+      // Deliberately unsorted: selection must not depend on authoring order.
+      thresholds: [
+        { aboveInputTokens: 2_000_000, inputPerMillionTokens: 8, outputPerMillionTokens: 32 },
+        { aboveInputTokens: 1_000_000, inputPerMillionTokens: 4, outputPerMillionTokens: 16 }
+      ],
+      capturedAt: '2026-07-28T00:00:00.000Z'
+    }
+
+    aiUsageRecordService.recordInvocations([
+      invocation({
+        requestId: 'at-boundary',
+        context: context({ pricingSnapshot }),
+        usage: { inputTokens: 1_000_000, outputTokens: 1_000_000 }
+      }),
+      invocation({
+        requestId: 'first-tier',
+        context: context({ pricingSnapshot }),
+        usage: { inputTokens: 2_000_000, outputTokens: 1_000_000 }
+      }),
+      invocation({
+        requestId: 'second-tier',
+        context: context({ pricingSnapshot }),
+        usage: { inputTokens: 3_000_000, outputTokens: 1_000_000 }
+      })
+    ])
+
+    const costOf = (requestId: string) =>
+      dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, requestId)).get()?.cost
+
+    // `aboveInputTokens` is exclusive, so an exactly-equal request stays on base rates.
+    expect(costOf('at-boundary')).toBe(2 + 8)
+    expect(costOf('first-tier')).toBe(2 * 4 + 16)
+    expect(costOf('second-tier')).toBe(3 * 8 + 32)
+  })
+
+  it('resolves a threshold cache rate from that threshold, not the base rate it replaced', () => {
+    aiUsageRecordService.recordInvocation(
+      invocation({
+        requestId: 'threshold-cache',
+        context: context({
+          pricingSnapshot: {
+            currency: 'USD',
+            inputPerMillionTokens: 2,
+            outputPerMillionTokens: 8,
+            cacheReadPerMillionTokens: 0.5,
+            thresholds: [{ aboveInputTokens: 1_000_000, inputPerMillionTokens: 4, outputPerMillionTokens: 16 }],
+            capturedAt: '2026-07-28T00:00:00.000Z'
+          }
+        }),
+        usage: { inputTokens: 2_000_000, cacheReadTokens: 1_000_000, outputTokens: 0 }
+      })
+    )
+
+    expect(
+      dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, 'threshold-cache')).get()
+    ).toMatchObject({
+      cost: 8,
+      costBreakdown: { input: 4, cacheRead: 4, output: 0 }
+    })
+  })
+
+  it('bills image generation per image when configured, and by token otherwise', () => {
+    aiUsageRecordService.recordInvocations([
+      invocation({
+        requestId: 'per-image',
+        context: context({
+          pricingSnapshot: {
+            currency: 'USD',
+            inputPerMillionTokens: 1,
+            outputPerMillionTokens: 2,
+            perImage: { price: 0.5, unit: 'image' },
+            capturedAt: '2026-07-28T00:00:00.000Z'
+          }
+        }),
+        modality: 'image',
+        usage: { inputTokens: 1_000_000, outputTokens: 500_000 },
+        imageCount: 3
+      }),
+      invocation({
+        requestId: 'token-billed-image',
+        context: context({
+          pricingSnapshot: {
+            currency: 'USD',
+            inputPerMillionTokens: 1,
+            outputPerMillionTokens: 2,
+            capturedAt: '2026-07-28T00:00:00.000Z'
+          }
+        }),
+        modality: 'image',
+        usage: { inputTokens: 1_000_000, outputTokens: 500_000 },
+        imageCount: 3
+      })
+    ])
+
+    const rowOf = (requestId: string) =>
+      dbh.db.select().from(aiUsageRecordTable).where(eq(aiUsageRecordTable.requestId, requestId)).get()
+
+    expect(rowOf('per-image')).toMatchObject({ cost: 1.5, costSource: 'computed', costBreakdown: { image: 1.5 } })
+    // No per-image rate: the model's token rates take over.
+    expect(rowOf('token-billed-image')).toMatchObject({
+      cost: 2,
+      costSource: 'computed',
+      costBreakdown: { input: 1, output: 1 }
+    })
+  })
+
+  it('keeps incomplete token pricing, uncosted pixel pricing, and untrusted provider cost unpriced', () => {
     aiUsageRecordService.recordInvocations([
       invocation({
         requestId: 'missing-output-price',
@@ -323,6 +434,8 @@ describe('AiUsageRecordService', () => {
         }),
         usage: { outputTokens: 10 }
       }),
+      // `pixel` is not a costable unit, so this falls through to token pricing —
+      // which has neither usage nor rates here, leaving the record unpriced.
       invocation({
         requestId: 'pixel-image',
         context: context({
@@ -428,6 +541,37 @@ describe('AiUsageRecordService', () => {
       perImage: { price: 0.02, unit: 'image' },
       capturedAt: '2026-07-28T00:00:00.000Z'
     })
+  })
+
+  it('scales every captured rate by the price multiplier, leaving the default a no-op', () => {
+    const pricing = {
+      input: { perMillionTokens: 2, currency: 'CNY' as const },
+      output: { perMillionTokens: 8, currency: 'CNY' as const },
+      cacheRead: { perMillionTokens: 1, currency: 'CNY' as const },
+      perImage: { price: 0.5, unit: 'image' as const },
+      thresholds: [{ aboveInputTokens: 512_000, input: 4, output: 16, cacheRead: 2 }]
+    }
+
+    expect(createAiUsagePricingSnapshot(pricing, '2026-07-28T00:00:00.000Z', 1.5)).toEqual({
+      currency: 'CNY',
+      inputPerMillionTokens: 3,
+      outputPerMillionTokens: 12,
+      cacheReadPerMillionTokens: 1.5,
+      perImage: { price: 0.75, unit: 'image' },
+      thresholds: [
+        {
+          aboveInputTokens: 512_000,
+          inputPerMillionTokens: 6,
+          outputPerMillionTokens: 24,
+          cacheReadPerMillionTokens: 3
+        }
+      ],
+      capturedAt: '2026-07-28T00:00:00.000Z'
+    })
+
+    expect(createAiUsagePricingSnapshot(pricing, '2026-07-28T00:00:00.000Z')).toEqual(
+      createAiUsagePricingSnapshot(pricing, '2026-07-28T00:00:00.000Z', 1)
+    )
   })
 
   it('drops invalid non-integer or non-finite record metrics without disrupting message state', () => {

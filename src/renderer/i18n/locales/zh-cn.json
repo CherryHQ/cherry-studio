@@ -4440,7 +4440,19 @@
       "input": "输入价格",
       "million_tokens": "百万 Token",
       "output": "输出价格",
-      "price": "价格"
+      "per_image": {
+        "label": "按图片张数计费",
+        "price": "单张图片价格",
+        "unit": "张"
+      },
+      "price": "价格",
+      "threshold": {
+        "above": "输入 Token 超过",
+        "add": "添加阶梯",
+        "description": "当一次请求的输入 Token 超过某一阶梯时，整次请求按该阶梯的价格计费，命中多个时取最高一档。",
+        "label": "阶梯计价",
+        "remove": "删除阶梯"
+      }
     },
     "reasoning": "推理",
     "rerank_model": "重排模型",
@@ -4456,6 +4468,12 @@
       "remove_model": "移除 {{name}}",
       "restore_default": "恢复助手模型",
       "selected_models": "已选模型"
+    },
+    "service_tier": {
+      "priority": {
+        "label": "优先服务等级",
+        "tooltip": "调用该模型时携带 service_tier=priority。MiniMax 对优先层级按标准价格的 1.5 倍计费，用量成本也按此换算。"
+      }
     },
     "stream_output": "流式输出",
     "type": {

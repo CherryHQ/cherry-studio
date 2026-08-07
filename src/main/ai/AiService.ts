@@ -35,6 +35,7 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { Base64String, CreateInternalEntryIpcParams, UrlString } from '@shared/types/file'
 import { isEmbeddingModel, isFunctionCallingModel, isRerankModel } from '@shared/utils/model'
+import { MINIMAX_PRIORITY_TIER_PRICE_MULTIPLIER, usesMinimaxPriorityTier } from '@shared/utils/provider'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -114,6 +115,7 @@ function createCaptureContext(input: {
     modelId: input.sdkModelId,
     modelName: input.model.name,
     pricing: input.model.pricing,
+    priceMultiplier: usesMinimaxPriorityTier(input.provider, input.model) ? MINIMAX_PRIORITY_TIER_PRICE_MULTIPLIER : 1,
     trustProviderReportedCost: input.provider.apiFeatures.reportsActualCost,
     reportedCostCurrency: input.provider.reportedCostCurrency,
     credentialReceipt: input.credentialReceipt,

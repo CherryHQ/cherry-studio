@@ -177,7 +177,9 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('moves legacy sticky session pointers into the constrained relation', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    // Pinned now that this is a shipped migration: on the default (tip) target a
+    // later migration would seed the rows *after* the backfill already ran.
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0005_slow_obadiah_stane'))
     const now = Date.now()
     sqlite
       .prepare(

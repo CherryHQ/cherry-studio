@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, CURRENCY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -131,7 +131,9 @@ import {
 } from '@cherrystudio/provider-registry/node'
 
 // Must import after mocks are set up
-const { mergePresetModel, providerRegistryService } = await import('../ProviderRegistryService')
+const { matchesModelPricingBaseline, mergePresetModel, providerRegistryService } = await import(
+  '../ProviderRegistryService'
+)
 
 const mockReadModels = vi.mocked(readModelRegistry)
 const mockReadProviderModels = vi.mocked(readProviderModelRegistry)
@@ -841,6 +843,47 @@ describe('ProviderRegistryService', () => {
       const result = providerRegistryService.lookupModel('openai', 'gpt-4o')
 
       expect(result.reasoningProfile.format).toBe('openai-chat')
+    })
+  })
+
+  // `ModelService.buildUpdates` nulls the whole pricing column when a PATCH is
+  // judged baseline-equal, so any field this comparison ignores is a field a
+  // user can silently lose.
+  describe('matchesModelPricingBaseline', () => {
+    const baseTiers = {
+      input: { perMillionTokens: 3, currency: CURRENCY.USD },
+      output: { perMillionTokens: 15, currency: CURRENCY.USD }
+    }
+
+    it('treats a threshold-only difference as a real delta', () => {
+      expect(
+        matchesModelPricingBaseline(
+          { ...baseTiers, thresholds: [{ aboveInputTokens: 512_000, input: 6, output: 30 }] },
+          { ...baseTiers }
+        )
+      ).toBe(false)
+    })
+
+    it('does not read an empty-price echo carrying thresholds as an absent baseline', () => {
+      expect(
+        matchesModelPricingBaseline(
+          {
+            input: { perMillionTokens: 0, currency: CURRENCY.USD },
+            output: { perMillionTokens: 0, currency: CURRENCY.USD },
+            thresholds: [{ aboveInputTokens: 512_000, input: 6, output: 30 }]
+          },
+          undefined
+        )
+      ).toBe(false)
+    })
+
+    it('ignores a per-image unit the catalog leaves implicit', () => {
+      expect(
+        matchesModelPricingBaseline(
+          { ...baseTiers, perImage: { price: 0.04, unit: 'image' } },
+          { ...baseTiers, perImage: { price: 0.04 } }
+        )
+      ).toBe(true)
     })
   })
 })

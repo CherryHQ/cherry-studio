@@ -918,6 +918,64 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const config = await providerToAiSdkConfig(provider, model)
 
       expect(config.providerId).toBe('openai-compatible')
+      expect((config.providerSettings as Record<string, unknown>).transformRequestBody).toBeUndefined()
+    })
+
+    it.each([
+      ['minimax', undefined],
+      ['minimax-global', 'minimax']
+    ])('sends service_tier=priority on every %s chat request when the model opts in', async (id, presetProviderId) => {
+      const provider = makeProvider({
+        id,
+        presetProviderId,
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://api.minimaxi.com/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: id,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+        usePriorityServiceTier: true
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const transformRequestBody = (config.providerSettings as Record<string, unknown>).transformRequestBody as (
+        args: Record<string, unknown>
+      ) => Record<string, unknown>
+
+      expect(config.providerId).toBe('openai-compatible')
+      expect(transformRequestBody({ model: 'minimax-m2', stream: true })).toEqual({
+        model: 'minimax-m2',
+        stream: true,
+        service_tier: 'priority'
+      })
+    })
+
+    it('keeps MiniMax IMAGE models on the bespoke transport even when priority is enabled', async () => {
+      const provider = makeProvider({
+        id: 'minimax',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://api.minimaxi.com/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+      const model = makeModel({
+        providerId: 'minimax',
+        capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+        usePriorityServiceTier: true
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+
+      expect(config.providerId).toBe('minimax')
+      expect((config.providerSettings as Record<string, unknown>).transformRequestBody).toBeUndefined()
     })
 
     it('routes Doubao IMAGE models through Doubao config (Ark protocol + the providerOptions key)', async () => {

@@ -177,6 +177,8 @@ function buildUsageModels(
   for (const { sdkModelId, ref } of entries) {
     const current = byModelId.get(ref.modelId) ?? {
       modelName: ref.model?.name ?? ref.modelId,
+      // No priority-tier multiplier here: agent sessions run on the Agent SDK's
+      // anthropic-messages endpoint, which never carries `service_tier`.
       pricingSnapshot: createAiUsagePricingSnapshot(ref.model?.pricing),
       aliases: new Set<string>()
     }

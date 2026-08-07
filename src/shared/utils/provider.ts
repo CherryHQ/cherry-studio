@@ -182,6 +182,21 @@ export function isSupportServiceTierProvider(provider: Provider): boolean {
   return provider.apiFeatures?.serviceTier ?? false
 }
 
+/** MiniMax's priority route is billed at 1.5x the standard price. */
+export const MINIMAX_PRIORITY_TIER_PRICE_MULTIPLIER = 1.5
+
+/**
+ * Whether this request rides MiniMax's priority service tier. Like Fast mode,
+ * it belongs to the provider-model pair: the toggle is per model, but only
+ * MiniMax (and its global mirror) serves the tier.
+ */
+export function usesMinimaxPriorityTier(
+  provider: Pick<Provider, 'id' | 'presetProviderId'>,
+  model: Pick<Model, 'usePriorityServiceTier'>
+): boolean {
+  return model.usePriorityServiceTier === true && matchesPreset(provider, 'minimax')
+}
+
 /** Effective Fast support belongs to the provider-model pair, not either side alone. */
 export function isSupportFastMode(
   provider: Pick<Provider, 'fastMode'>,

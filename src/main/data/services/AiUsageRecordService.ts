@@ -181,6 +181,38 @@ interface LanguageCostResult {
   breakdown: AiUsageCostBreakdown
 }
 
+interface ResolvedRates {
+  input: number | undefined
+  output: number | undefined
+  cacheRead: number | undefined
+  cacheWrite: number | undefined
+}
+
+/**
+ * Pick the rates a request bills at. A request whose all-in input count exceeds
+ * a threshold bills *every* bucket at that threshold's rates — the switch is
+ * wholesale, not graduated — and the highest matching threshold wins. Equal
+ * thresholds resolve to whichever the snapshot listed first (the sort is
+ * stable).
+ */
+function selectRates(pricing: AiUsagePricingSnapshot, totalInputTokens: number | undefined): ResolvedRates {
+  const matched =
+    totalInputTokens === undefined
+      ? undefined
+      : [...(pricing.thresholds ?? [])]
+          .sort((a, b) => b.aboveInputTokens - a.aboveInputTokens)
+          .find((threshold) => totalInputTokens > threshold.aboveInputTokens)
+
+  return {
+    input: matched?.inputPerMillionTokens ?? pricing.inputPerMillionTokens,
+    output: matched?.outputPerMillionTokens ?? pricing.outputPerMillionTokens,
+    // A matched threshold owns every bucket: an omitted cache rate falls back to
+    // that threshold's own input rate, never to the base rate it replaced.
+    cacheRead: matched ? matched.cacheReadPerMillionTokens : pricing.cacheReadPerMillionTokens,
+    cacheWrite: matched ? matched.cacheWritePerMillionTokens : pricing.cacheWritePerMillionTokens
+  }
+}
+
 /**
  * Compute the usage-record domain's cache-aware language cost from the all-in
  * input count and any provider breakdown. Partial cache details are subtracted
@@ -204,11 +236,21 @@ function computeLanguageCost(
         : usage.inputTokens
       : undefined)
 
+  // Thresholds key off the all-in input count (cached tokens included), matching
+  // how vendors define their long-context brackets. `nonCacheInput` is derived
+  // from this same total, so it cannot be the selector.
+  const totalInputTokens =
+    usage.inputTokens ??
+    (nonCacheInput !== undefined || hasCacheDetails
+      ? (nonCacheInput ?? 0) + (cacheReadTokens ?? 0) + (cacheWriteTokens ?? 0)
+      : undefined)
+  const rates = selectRates(pricing, totalInputTokens)
+
   const buckets = [
-    ['input', nonCacheInput, pricing.inputPerMillionTokens],
-    ['cacheRead', cacheReadTokens, pricing.cacheReadPerMillionTokens ?? pricing.inputPerMillionTokens],
-    ['cacheWrite', cacheWriteTokens, pricing.cacheWritePerMillionTokens ?? pricing.inputPerMillionTokens],
-    ['output', usage.outputTokens, pricing.outputPerMillionTokens]
+    ['input', nonCacheInput, rates.input],
+    ['cacheRead', cacheReadTokens, rates.cacheRead ?? rates.input],
+    ['cacheWrite', cacheWriteTokens, rates.cacheWrite ?? rates.input],
+    ['output', usage.outputTokens, rates.output]
   ] as const
 
   if (!buckets.some(([, tokens]) => tokens !== undefined)) return undefined
@@ -1199,9 +1241,12 @@ function computedCost(
   if (!pricing) return undefined
 
   if (input.modality === 'image') {
-    if (!pricing.perImage || pricing.perImage.unit !== 'image' || input.imageCount === undefined) return undefined
-    const amount = input.imageCount * pricing.perImage.price
-    return { amount, breakdown: { image: amount } }
+    if (pricing.perImage && pricing.perImage.unit === 'image' && input.imageCount !== undefined) {
+      const amount = input.imageCount * pricing.perImage.price
+      return { amount, breakdown: { image: amount } }
+    }
+    // No per-image rate (or an uncosted `pixel` unit): fall through to token
+    // pricing, which is how image models that report token usage are billed.
   }
   if (input.modality === 'rerank') return undefined
 

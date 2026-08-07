@@ -1,0 +1,1 @@
+ALTER TABLE `user_model` ADD `use_priority_service_tier` integer DEFAULT false NOT NULL;

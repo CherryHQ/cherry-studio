@@ -172,7 +172,8 @@ function isEmptyPricingEcho(value: unknown): boolean {
     !pricing.cacheRead &&
     !pricing.cacheWrite &&
     !pricing.perImage &&
-    !pricing.perMinute
+    !pricing.perMinute &&
+    !pricing.thresholds?.length
   )
 }
 
@@ -187,8 +188,13 @@ function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeMod
     output: normalizeTier(pricing.output),
     ...(pricing.cacheRead ? { cacheRead: normalizeTier(pricing.cacheRead) } : {}),
     ...(pricing.cacheWrite ? { cacheWrite: normalizeTier(pricing.cacheWrite) } : {}),
-    ...(pricing.perImage ? { perImage: pricing.perImage } : {}),
-    ...(pricing.perMinute ? { perMinute: pricing.perMinute } : {})
+    // The catalog leaves `unit` undefined while the model drawer writes 'image';
+    // default it so an untouched per-image price is not read as a user delta.
+    ...(pricing.perImage
+      ? { perImage: { price: pricing.perImage.price, unit: pricing.perImage.unit ?? 'image' } }
+      : {}),
+    ...(pricing.perMinute ? { perMinute: pricing.perMinute } : {}),
+    ...(pricing.thresholds?.length ? { thresholds: pricing.thresholds } : {})
   }
 }
 

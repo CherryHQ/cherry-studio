@@ -192,6 +192,41 @@ describe('EditModelDrawer pricing currency', () => {
     )
   })
 
+  it('carries per-image, per-minute, and threshold pricing through an unrelated edit', async () => {
+    const model = {
+      ...modelWithFullPricing,
+      pricing: {
+        ...modelWithFullPricing.pricing,
+        perImage: { price: 0.04, unit: 'image' },
+        perMinute: { price: 0.006 },
+        thresholds: [{ aboveInputTokens: 512_000, input: 6, output: 30, cacheRead: 0.6 }]
+      }
+    } as unknown as Model
+
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={model} />)
+
+    await act(async () => {
+      const modelName = screen.getByLabelText('settings.models.add.model_name.label')
+      fireEvent.change(modelName, { target: { value: 'Claude 4 Sonnet Renamed' } })
+      fireEvent.blur(modelName)
+    })
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    expect(updateModelMock.mock.calls[0][2]).toEqual(
+      expect.objectContaining({
+        pricing: {
+          input: { perMillionTokens: 3, currency: CURRENCY.USD },
+          output: { perMillionTokens: 15, currency: CURRENCY.USD },
+          cacheRead: { perMillionTokens: 0.3, currency: CURRENCY.USD },
+          cacheWrite: { perMillionTokens: 3.75, currency: CURRENCY.USD },
+          perImage: { price: 0.04, unit: 'image' },
+          perMinute: { price: 0.006 },
+          thresholds: [{ aboveInputTokens: 512_000, input: 6, output: 30, cacheRead: 0.6 }]
+        }
+      })
+    )
+  })
+
   it('moves every pricing tier to the newly selected currency', async () => {
     render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={modelWithFullPricing} />)
 

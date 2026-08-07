@@ -97,6 +97,9 @@ export const userModelTable = sqliteTable(
     /** Whether this model has been deprecated by the provider (no longer in API model list) */
     isDeprecated: integer({ mode: 'boolean' }).notNull().default(false),
 
+    /** Call MiniMax with `service_tier: priority` for this model (billed at 1.5x) */
+    usePriorityServiceTier: integer({ mode: 'boolean' }).notNull().default(false),
+
     /** Fractional-indexing order key scoped within provider. */
     ...orderKeyColumns,
 

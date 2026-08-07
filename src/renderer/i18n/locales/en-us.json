@@ -4440,7 +4440,19 @@
       "input": "Input Price",
       "million_tokens": "M Tokens",
       "output": "Output Price",
-      "price": "Price"
+      "per_image": {
+        "label": "Bill per image",
+        "price": "Price per image",
+        "unit": "image"
+      },
+      "price": "Price",
+      "threshold": {
+        "above": "Input tokens above",
+        "add": "Add tier",
+        "description": "When a request exceeds a tier’s input tokens, the whole request is billed at that tier’s prices. The highest matching tier wins.",
+        "label": "Tiered pricing",
+        "remove": "Remove tier"
+      }
     },
     "reasoning": "Reasoning",
     "rerank_model": "Reranker",
@@ -4456,6 +4468,12 @@
       "remove_model": "Remove {{name}}",
       "restore_default": "Restore assistant model",
       "selected_models": "Selected models"
+    },
+    "service_tier": {
+      "priority": {
+        "label": "Priority service tier",
+        "tooltip": "Calls this model with service_tier=priority. MiniMax bills the priority tier at 1.5x the standard price, and usage costs are calculated accordingly."
+      }
     },
     "stream_output": "Stream output",
     "type": {

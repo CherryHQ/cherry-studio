@@ -16,6 +16,8 @@ import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import { isGenerateImageModel } from '@shared/utils/model'
+import { matchesPreset } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,6 +39,12 @@ import {
 import { ModelBasicFields } from './ModelBasicFields'
 import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
+import {
+  fromPricingThresholdDrafts,
+  type ModelPricingThresholdDraft,
+  ModelPricingThresholdFields,
+  toPricingThresholdDrafts
+} from './ModelPricingThresholdFields'
 import {
   applyModelPurpose,
   getInitialChatEndpointType,
@@ -72,6 +80,10 @@ interface BuildPatchOverrides {
   inputPrice?: string
   outputPrice?: string
   cacheReadPrice?: string
+  perImageEnabled?: boolean
+  perImagePrice?: string
+  thresholdDrafts?: ModelPricingThresholdDraft[]
+  usePriorityServiceTier?: boolean
   contextWindow?: string
   maxInputTokens?: string
   maxOutputTokens?: string
@@ -124,6 +136,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [inputPrice, setInputPrice] = useState('0')
   const [outputPrice, setOutputPrice] = useState('0')
   const [cacheReadPrice, setCacheReadPrice] = useState('')
+  const [perImageEnabled, setPerImageEnabled] = useState(false)
+  const [perImagePrice, setPerImagePrice] = useState('')
+  const [thresholdDrafts, setThresholdDrafts] = useState<ModelPricingThresholdDraft[]>([])
+  const [usePriorityServiceTier, setUsePriorityServiceTier] = useState(false)
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
@@ -165,6 +181,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setOutputPrice(String(model.pricing?.output?.perMillionTokens ?? 0))
     const cacheReadRate = model.pricing?.cacheRead?.perMillionTokens
     setCacheReadPrice(cacheReadRate == null ? '' : String(cacheReadRate))
+    // Only the `image` unit is billable; a `pixel` price reads as "off" here.
+    const perImage = model.pricing?.perImage
+    const billsPerImage = perImage != null && (perImage.unit ?? 'image') === 'image'
+    setPerImageEnabled(billsPerImage)
+    setPerImagePrice(billsPerImage ? String(perImage.price) : '')
+    setThresholdDrafts(toPricingThresholdDrafts(model.pricing?.thresholds))
+    setUsePriorityServiceTier(model.usePriorityServiceTier ?? false)
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
@@ -184,7 +207,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         contextWindow: patch.contextWindow,
         maxInputTokens: patch.maxInputTokens,
         maxOutputTokens: patch.maxOutputTokens,
-        pricing: patch.pricing
+        pricing: patch.pricing,
+        usePriorityServiceTier: patch.usePriorityServiceTier
       })
     },
     [updateModel]
@@ -206,6 +230,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       const nextCacheReadPrice = nextCacheReadPriceValue.trim() === '' ? undefined : Number(nextCacheReadPriceValue)
       const hasCacheReadPrice =
         nextCacheReadPrice !== undefined && Number.isFinite(nextCacheReadPrice) && nextCacheReadPrice >= 0
+      const nextPerImageEnabled = overrides?.perImageEnabled ?? perImageEnabled
+      const nextPerImagePrice = Number(overrides?.perImagePrice ?? perImagePrice)
+      const perImage =
+        nextPerImageEnabled && Number.isFinite(nextPerImagePrice) && nextPerImagePrice >= 0
+          ? { price: nextPerImagePrice, unit: 'image' as const }
+          : undefined
+      const nextThresholds = fromPricingThresholdDrafts(overrides?.thresholdDrafts ?? thresholdDrafts)
       const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
       const hasPurposeFieldsOverride = overrides != null && Object.hasOwn(overrides, 'purposeFields')
       const nextPurposeFields = overrides?.purposeFields ?? purposeFields
@@ -261,6 +292,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           ? { outputModalities: resolvedPurposeFields.outputModalities }
           : {}),
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
+        usePriorityServiceTier: overrides?.usePriorityServiceTier ?? usePriorityServiceTier,
         contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
         maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
         maxOutputTokens: Number(overrides?.maxOutputTokens ?? maxOutputTokens) || undefined,
@@ -279,7 +311,14 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           // Cache-write has no field in this drawer, but it must follow the selected currency:
           // `computeLanguageCost` sums every tier and labels the total with the input currency,
           // so a tier left behind in the old currency would be added across currencies.
-          ...(model.pricing?.cacheWrite ? { cacheWrite: { ...model.pricing.cacheWrite, currency: finalCurrency } } : {})
+          ...(model.pricing?.cacheWrite
+            ? { cacheWrite: { ...model.pricing.cacheWrite, currency: finalCurrency } }
+            : {}),
+          ...(perImage ? { perImage } : {}),
+          // Per-minute has no field here either; carry it through so an unrelated
+          // edit does not drop it (this object replaces `pricing` wholesale).
+          ...(model.pricing?.perMinute ? { perMinute: model.pricing.perMinute } : {}),
+          ...(nextThresholds.length > 0 ? { thresholds: nextThresholds } : {})
         }
       }
     },
@@ -295,10 +334,14 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       model,
       name,
       outputPrice,
+      perImageEnabled,
+      perImagePrice,
       purposeFields,
       classification,
       defaultChatEndpoint,
-      supportsStreaming
+      supportsStreaming,
+      thresholdDrafts,
+      usePriorityServiceTier
     ]
   )
 
@@ -402,6 +445,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   }
 
   const currentCurrency = currencySymbol || '$'
+  const isImageModel = isGenerateImageModel(model)
+  // MiniMax serves the priority tier on its OpenAI-compatible chat route only;
+  // image models go through the bespoke transport, which never sends it.
+  const supportsPriorityServiceTier = matchesPreset(provider, 'minimax') && !isImageModel
 
   return (
     <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')}>
@@ -641,7 +688,88 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                     </span>
                   </div>
                 </ProviderField>
+
+                {isImageModel && (
+                  <>
+                    <div className="flex min-w-0 items-center justify-between gap-3">
+                      <span className="truncate font-normal text-[13px] text-muted-foreground leading-5">
+                        {t('models.price.per_image.label')}
+                      </span>
+                      <Switch
+                        size="sm"
+                        aria-label={t('models.price.per_image.label')}
+                        checked={perImageEnabled}
+                        onCheckedChange={(checked) => {
+                          setPerImageEnabled(checked)
+                          autoSave({ perImageEnabled: checked })
+                        }}
+                      />
+                    </div>
+
+                    {perImageEnabled && (
+                      <ProviderField
+                        title={t('models.price.per_image.price')}
+                        titleClassName={drawerClasses.fieldTitle}>
+                        <div className={drawerClasses.responsiveValueRow}>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            aria-label={t('models.price.per_image.price')}
+                            value={perImagePrice}
+                            placeholder="0.00"
+                            className={drawerClasses.input}
+                            onChange={(event) => {
+                              setPerImagePrice(event.target.value)
+                            }}
+                            onBlur={() => autoSave({ perImagePrice })}
+                          />
+                          <span className={drawerClasses.valueSuffix}>
+                            {currentCurrency} / {t('models.price.per_image.unit')}
+                          </span>
+                        </div>
+                      </ProviderField>
+                    )}
+                  </>
+                )}
               </div>
+
+              <div className={drawerClasses.sectionCard}>
+                <ProviderField title={t('models.price.threshold.label')} titleClassName={drawerClasses.fieldTitle}>
+                  <ModelPricingThresholdFields
+                    drafts={thresholdDrafts}
+                    currencySymbol={currentCurrency}
+                    onChange={setThresholdDrafts}
+                    onCommit={(drafts) => autoSave({ thresholdDrafts: drafts })}
+                  />
+                </ProviderField>
+              </div>
+
+              {supportsPriorityServiceTier && (
+                <div className={drawerClasses.switchCard}>
+                  <div className="flex min-w-0 items-center justify-between gap-3">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-normal text-[13px] text-muted-foreground leading-5">
+                        {t('models.service_tier.priority.label')}
+                      </span>
+                      <Tooltip content={t('models.service_tier.priority.tooltip')}>
+                        <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-muted-foreground">
+                          <CircleHelp aria-hidden className="size-3" />
+                        </span>
+                      </Tooltip>
+                    </div>
+                    <Switch
+                      size="sm"
+                      aria-label={t('models.service_tier.priority.label')}
+                      checked={usePriorityServiceTier}
+                      onCheckedChange={(checked) => {
+                        setUsePriorityServiceTier(checked)
+                        autoSave({ usePriorityServiceTier: checked })
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </ProviderSection>
         )}
