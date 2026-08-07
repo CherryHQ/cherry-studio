@@ -112,6 +112,20 @@ const MAX_AUTO_COMPACT_WINDOW = 1_000_000
  * Widen it if 400s reappear while the reported input sits just under budget.
  */
 const AUTO_COMPACT_ESTIMATE_MARGIN = 0.02
+/**
+ * Percentage of the input budget at which Claude Code starts compacting, passed
+ * through the CLI's `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` knob. The value is an
+ * integer percentage, not a 0-1 fraction.
+ *
+ * Left at the CLI's own default, compaction starts late enough that a turn whose
+ * tool results land in one burst can jump the budget and fail outright — and a
+ * failed turn cannot compact its way out, because compaction replays the same
+ * oversized history. 80 buys roughly a fifth of the window as landing room.
+ *
+ * Deliberate ceiling: one flat percentage for every model. Make it per-model if
+ * agents on small windows start compacting too eagerly to make progress.
+ */
+const AUTO_COMPACT_TRIGGER_PCT = 80
 const MINIMAL_CHERRY_ASSISTANT_INSTRUCTIONS =
   'Within Cherry Studio, serve as Cherry Assistant, its built-in general-purpose Agent and onboarding guide. Help the user complete any request using the available tools.'
 const AGENT_INSTRUCTION_PRECEDENCE_PROMPT = `## Instruction Precedence
@@ -549,6 +563,11 @@ export async function buildClaudeCodeSessionSettings(
   const autoCompactWindow = resolveAutoCompactWindow(options?.contextWindow, options?.maxOutputTokens)
   if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined) {
     env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(autoCompactWindow)
+  }
+  // Unconditional: unlike the window, a trigger percentage is meaningful even for models that
+  // declare no usable context window. An explicit agent `env_vars` entry still wins.
+  if (env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE === undefined) {
+    env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = String(AUTO_COMPACT_TRIGGER_PCT)
   }
   const settings: ClaudeCodeSettings = {
     cwd,
