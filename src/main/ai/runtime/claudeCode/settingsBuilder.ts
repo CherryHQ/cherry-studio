@@ -42,6 +42,7 @@ import CherryBuiltinToolsServer from '@main/ai/mcp/servers/cherryBuiltinTools'
 import SkillsServer from '@main/ai/mcp/servers/skills'
 import { buildCitationsGuidance } from '@main/ai/runtime/claudeCode/citationsGuidance'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
+import { limitClaudeCodeToolOutput } from '@main/ai/runtime/claudeCode/toolOutputLimiter'
 import { skillService } from '@main/ai/skills/SkillService'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -1287,7 +1288,7 @@ async function buildToolPermissions(
 
   const agentsMdHook = agentsMdLoader.createPreToolUseHook()
 
-  const postToolTimingHook: HookCallback = async (input): Promise<HookJSONOutput> => {
+  const postToolUseHook: HookCallback = async (input): Promise<HookJSONOutput> => {
     if (!input || (input.hook_event_name !== 'PostToolUse' && input.hook_event_name !== 'PostToolUseFailure')) {
       return {}
     }
@@ -1295,21 +1296,31 @@ async function buildToolPermissions(
     const toolCallId = event.tool_use_id
     const toolName = event.tool_name
     const durationMs = event.duration_ms
-    if (
-      typeof toolCallId !== 'string' ||
-      typeof toolName !== 'string' ||
-      typeof durationMs !== 'number' ||
-      !Number.isFinite(durationMs) ||
-      durationMs < 0
-    ) {
-      return {}
+    if (typeof toolCallId !== 'string' || typeof toolName !== 'string') return {}
+
+    if (typeof durationMs === 'number' && Number.isFinite(durationMs) && durationMs >= 0) {
+      application.get('AgentSessionRuntimeService').recordToolExecutionTiming(session.id, {
+        toolCallId,
+        toolName,
+        durationMs
+      })
     }
-    application.get('AgentSessionRuntimeService').recordToolExecutionTiming(session.id, {
-      toolCallId,
+
+    if (input.hook_event_name !== 'PostToolUse') return {}
+    const limited = await limitClaudeCodeToolOutput(
+      input.tool_response,
+      application.getPath('feature.agents.data'),
+      agentDataPath,
       toolName,
-      durationMs
-    })
-    return {}
+      toolCallId
+    )
+    if (!limited) return {}
+    return {
+      hookSpecificOutput: {
+        hookEventName: 'PostToolUse',
+        updatedToolOutput: limited.updatedOutput
+      }
+    }
   }
 
   return {
@@ -1333,8 +1344,8 @@ async function buildToolPermissions(
           ]
         }
       ],
-      PostToolUse: [{ hooks: [postToolTimingHook] }],
-      PostToolUseFailure: [{ hooks: [postToolTimingHook] }]
+      PostToolUse: [{ hooks: [postToolUseHook] }],
+      PostToolUseFailure: [{ hooks: [postToolUseHook] }]
     },
     disallowedTools: resolveDisallowedTools({ disabledTools: agent.disabledTools }, conditionContext),
     toolPolicySnapshot

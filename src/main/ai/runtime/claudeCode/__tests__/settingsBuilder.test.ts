@@ -340,6 +340,53 @@ describe('buildClaudeCodeSessionSettings', () => {
     }
   )
 
+  it('replaces oversized model-visible tool output through PostToolUse', async () => {
+    const agentsDataRoot = await mkdtemp(path.join(os.tmpdir(), 'cherry-agent-output-hook-'))
+    try {
+      mocks.applicationGetPath.mockImplementation((key: string) =>
+        key === 'feature.agents.data' ? agentsDataRoot : `/app/${key}`
+      )
+      mocks.ensureAgentDataDirectory.mockImplementation(async (root: string, agentId: string) => {
+        const agentDataPath = path.join(root, agentId)
+        await mkdir(agentDataPath, { recursive: true })
+        return agentDataPath
+      })
+      mocks.ensureAgentStorageDirectory.mockImplementation(async (_root: string, target: string) => {
+        await mkdir(target, { recursive: true })
+      })
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never
+      )
+      const hook = settings.hooks?.PostToolUse?.[0]?.hooks[0]
+      const output = 'x'.repeat(20_001)
+
+      const result = await hook?.(
+        {
+          hook_event_name: 'PostToolUse',
+          tool_use_id: 'tool-1',
+          tool_name: 'Read',
+          tool_input: {},
+          tool_response: output
+        } as never,
+        'tool-use-1',
+        { signal: { aborted: false } } as never
+      )
+
+      const updatedOutput = (result as { hookSpecificOutput?: { updatedToolOutput?: unknown } })?.hookSpecificOutput
+        ?.updatedToolOutput
+      expect(updatedOutput).toBeTypeOf('string')
+      expect(updatedOutput as string).toHaveLength(20_000)
+      expect(updatedOutput as string).toContain('Full output:')
+    } finally {
+      await rm(agentsDataRoot, { recursive: true, force: true })
+    }
+  })
+
   it('builds the SDK skill whitelist from the DB and workspace before returning settings', async () => {
     const session = {
       id: 'session-1',
