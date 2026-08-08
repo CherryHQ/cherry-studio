@@ -8,6 +8,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
+import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -15,6 +16,10 @@ import AdmZip from 'adm-zip'
 import { eq } from 'drizzle-orm'
 import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const notifyDataApiDataChangeMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 vi.mock('@main/utils/markdownParser', () => ({
   parseSkillMetadata: vi.fn(),
@@ -141,6 +146,34 @@ describe('SkillService', () => {
       const two = result.find((s) => s.id === SKILL_ID_2)
       expect(one?.isEnabled).toBe(true)
       expect(two?.isEnabled).toBe(false)
+    })
+
+    it('keeps the global state separate and lets it override an agent enablement without erasing it', async () => {
+      const skillService = new SkillService()
+      await seedAgent()
+      await seedSkills()
+      await dbh.db.insert(agentSkillTable).values({
+        agentId: AGENT_ID,
+        skillId: SKILL_ID_1,
+        isEnabled: true
+      })
+      const disabledSkill = agentGlobalSkillService.updateGlobalEnabled(SKILL_ID_1, false)
+
+      const globallyListed = await skillService.list()
+      const agentListed = await skillService.list({ agentId: AGENT_ID })
+      const storedPreference = await dbh.db
+        .select()
+        .from(agentSkillTable)
+        .where(eq(agentSkillTable.skillId, SKILL_ID_1))
+        .get()
+
+      expect(disabledSkill?.isGlobalEnabled).toBe(false)
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/skills', kind: 'projection', entityIds: [SKILL_ID_1] }
+      ])
+      expect(globallyListed.find((skill) => skill.id === SKILL_ID_1)?.isGlobalEnabled).toBe(false)
+      expect(agentListed.find((skill) => skill.id === SKILL_ID_1)).toBeUndefined()
+      expect(storedPreference?.isEnabled).toBe(true)
     })
 
     it('defaults isEnabled to false for non-builtin skills and true for builtin skills when agentId has no skill rows', async () => {
@@ -1158,7 +1191,7 @@ describe('SkillService', () => {
       expect(rows[0]?.source).toBe('local')
       expect(rows[0]?.name).toBe('New Skill')
       expect(rows[0]?.version).toBe('3.0.0')
-      expect(rows[0]?.isEnabled).toBe(false)
+      expect(rows[0]?.isEnabled).toBe(true)
       await expect(fs.promises.access(path.join(authored, 'SKILL.md'))).resolves.toBeUndefined()
       expect((await fs.promises.lstat(path.join(mirrorRoot, 'new-skill'))).isSymbolicLink()).toBe(true)
     })
