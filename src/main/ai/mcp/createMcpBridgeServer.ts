@@ -19,7 +19,7 @@ import {
 import type { McpServer as McpServerEntity } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
-const logger = loggerService.withContext('SdkMcpBridge')
+const logger = loggerService.withContext('McpBridge')
 
 function toSdkTool(tool: McpTool): SdkTool {
   const sdkTool = { ...tool } as SdkTool & Record<'id' | 'serverId' | 'serverName' | 'type', unknown>
@@ -61,9 +61,9 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
  * proxying tool/resource/prompt list and call requests to an existing MCP
  * server managed by `McpRuntimeService`.
  *
- * The returned instance is designed for use with the Claude Agent SDK's
- * in-memory (`type: 'sdk'`) transport, keeping all communication
- * within the Electron main process.
+ * Two consumers: the Claude Agent SDK's in-memory (`type: 'sdk'`) transport, keeping all
+ * communication within the Electron main process; and the API gateway's `/v1/mcps/:id/mcp`
+ * route, which fronts it with a stateless Streamable HTTP transport for external clients.
  *
  * Tool-list consistency model: the SDK snapshots this bridge's tools ONCE per session
  * (standard MCP — `tools/list` at connect, then only on `tools/list_changed`), so the
@@ -78,7 +78,7 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
  *   round-trip heals a session that started on a cold cache — including servers whose
  *   connect outlives the session-build warm — with zero blocking anywhere.
  */
-export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpServerEntity): McpServer {
+export function createMcpBridgeServer(mcpId: string, serverSnapshot?: McpServerEntity): McpServer {
   const serverConfig = serverSnapshot ?? mcpServerService.findByIdOrName(mcpId)
   if (!serverConfig) {
     throw new Error(`MCP server not found: ${mcpId}`)
@@ -116,9 +116,9 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
         // session missed an invalidation (it re-syncs only if the cache changes again), so
         // keep it visible at warn.
         if (error instanceof Error && error.message.includes('Not connected')) {
-          logger.debug('SDK bridge: tools/list_changed raced transport teardown', { mcpId })
+          logger.debug('MCP bridge: tools/list_changed raced transport teardown', { mcpId })
         } else {
-          logger.warn('SDK bridge: failed to send tools/list_changed', { mcpId, error })
+          logger.warn('MCP bridge: failed to send tools/list_changed', { mcpId, error })
         }
       })
     })
@@ -132,20 +132,20 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
 
   rawServer.setRequestHandler(ListToolsRequestSchema, async () => {
     try {
-      logger.debug('SDK bridge: listing tools', { mcpId })
+      logger.debug('MCP bridge: listing tools', { mcpId })
       const tools = application.get('McpCatalogService').listTools(serverConfig.id, { includeDisabled: false })
       return {
         tools: tools.map(toSdkTool)
       }
     } catch (error) {
-      logger.error('SDK bridge: failed to list tools', { mcpId, error })
+      logger.error('MCP bridge: failed to list tools', { mcpId, error })
       throw error
     }
   })
 
   rawServer.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
-      logger.debug('SDK bridge: calling tool', { mcpId, tool: request.params.name })
+      logger.debug('MCP bridge: calling tool', { mcpId, tool: request.params.name })
       const result = await application.get('McpRuntimeService').callTool({
         serverId: serverConfig.id,
         name: request.params.name,
@@ -153,20 +153,20 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
       })
       return result as CallToolResult
     } catch (error) {
-      logger.error('SDK bridge: failed to call tool', { mcpId, tool: request.params.name, error })
+      logger.error('MCP bridge: failed to call tool', { mcpId, tool: request.params.name, error })
       throw error
     }
   })
 
   rawServer.setRequestHandler(ListResourcesRequestSchema, async () => {
     try {
-      logger.debug('SDK bridge: listing resources', { mcpId })
+      logger.debug('MCP bridge: listing resources', { mcpId })
       const resources = await application.get('McpCatalogService').listResources(serverConfig.id)
       return {
         resources: resources.map(toSdkResource)
       }
     } catch (error) {
-      logger.error('SDK bridge: failed to list resources', { mcpId, error })
+      logger.error('MCP bridge: failed to list resources', { mcpId, error })
       throw error
     }
   })
@@ -178,26 +178,26 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
   rawServer.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     const { uri } = request.params
     try {
-      logger.debug('SDK bridge: reading resource', { mcpId, uri })
+      logger.debug('MCP bridge: reading resource', { mcpId, uri })
       const { contents } = await application.get('McpRuntimeService').getResource({ serverId: serverConfig.id, uri })
       return {
         contents: contents.map(toSdkResourceContents)
       }
     } catch (error) {
-      logger.error('SDK bridge: failed to read resource', { mcpId, uri, error })
+      logger.error('MCP bridge: failed to read resource', { mcpId, uri, error })
       throw error
     }
   })
 
   rawServer.setRequestHandler(ListPromptsRequestSchema, async () => {
     try {
-      logger.debug('SDK bridge: listing prompts', { mcpId })
+      logger.debug('MCP bridge: listing prompts', { mcpId })
       const prompts = await application.get('McpCatalogService').listPrompts(serverConfig.id)
       return {
         prompts: prompts.map(toSdkPrompt)
       }
     } catch (error) {
-      logger.error('SDK bridge: failed to list prompts', { mcpId, error })
+      logger.error('MCP bridge: failed to list prompts', { mcpId, error })
       throw error
     }
   })
@@ -205,14 +205,14 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
   rawServer.setRequestHandler(GetPromptRequestSchema, async (request) => {
     const { name, arguments: args } = request.params
     try {
-      logger.debug('SDK bridge: getting prompt', { mcpId, prompt: name })
+      logger.debug('MCP bridge: getting prompt', { mcpId, prompt: name })
       return await application.get('McpRuntimeService').getPrompt({
         serverId: serverConfig.id,
         name,
         args
       })
     } catch (error) {
-      logger.error('SDK bridge: failed to get prompt', { mcpId, prompt: name, error })
+      logger.error('MCP bridge: failed to get prompt', { mcpId, prompt: name, error })
       throw error
     }
   })

@@ -19,6 +19,7 @@ import {
 import { chatRoutes } from './routes/chat'
 import { geminiRoutes } from './routes/gemini'
 import { knowledgeRoutes } from './routes/knowledge'
+import { mcpRoutes } from './routes/mcp'
 import { messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
 import { responsesRoutes } from './routes/responses'
@@ -48,6 +49,7 @@ const v1Routes = new Elysia({ prefix: '/v1' })
   .use(responsesRoutes)
   .use(modelsRoutes)
   .use(knowledgeRoutes)
+  .use(mcpRoutes)
 
 /** Where the gateway listens; used to render an absolute OpenAPI server URL. */
 interface BuildAppOptions {
@@ -146,7 +148,9 @@ export function buildApp({ host = '127.0.0.1', port = 23333 }: BuildAppOptions =
           messages: 'POST /v1/messages',
           generate_content: 'POST /v1beta/models/{model}:generateContent',
           knowledge_bases: 'GET /v1/knowledge-bases',
-          knowledge_search: 'POST /v1/knowledge-bases/search'
+          knowledge_search: 'POST /v1/knowledge-bases/search',
+          mcp_servers: 'GET /v1/mcps',
+          mcp_proxy: 'POST /v1/mcps/{server_id}/mcp'
         }
       }),
       { detail: { tags: [DOC_TAGS.cherry], summary: 'API Info', description: DOC_DESCRIPTIONS.info } }
