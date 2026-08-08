@@ -142,6 +142,7 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     onSend,
     sendDisabled,
     onDraftAssistantChange,
+    contextUsage,
     chatTarget
   }: {
     placement: 'home' | 'docked'
@@ -151,30 +152,40 @@ vi.mock('@renderer/components/composer/variants/ChatComposer', () => ({
     ) => Promise<void> | void
     sendDisabled?: boolean
     onDraftAssistantChange?: (assistantId: string | null) => void | Promise<void>
+    contextUsage?: { contextTokens: number; modelId: string } | null
     chatTarget?: ComposerChatTarget
   }) => {
     capturedOnSend = onSend
     if (placement === 'home') {
       return (
-        <button type="button" data-testid="chat-home-composer" onClick={() => onDraftAssistantChange?.('assistant-2')}>
-          home composer
-        </button>
+        <>
+          <button
+            type="button"
+            data-testid="chat-home-composer"
+            onClick={() => onDraftAssistantChange?.('assistant-2')}>
+            home composer
+          </button>
+          {contextUsage ? <span role="meter" aria-label="context usage" /> : null}
+        </>
       )
     }
 
     return (
-      <button
-        type="button"
-        data-use-mentioned-model-selector="true"
-        disabled={sendDisabled}
-        onClick={() =>
-          onSend('hello', {
-            userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart],
-            chatTarget
-          })
-        }>
-        send
-      </button>
+      <>
+        <button
+          type="button"
+          data-use-mentioned-model-selector="true"
+          disabled={sendDisabled}
+          onClick={() =>
+            onSend('hello', {
+              userMessageParts: [{ type: 'text', text: 'hello' } as CherryMessagePart],
+              chatTarget
+            })
+          }>
+          send
+        </button>
+        {contextUsage ? <span role="meter" aria-label="context usage" /> : null}
+      </>
     )
   }
 }))
@@ -356,6 +367,39 @@ describe('ChatContent', () => {
       )
     })
     expect(sendMessage).not.toHaveBeenCalled()
+  })
+
+  it('hides context usage while topic history is stale', () => {
+    const activeAssistant = {
+      ...createUiMessage('history-assistant', 'assistant'),
+      metadata: {
+        createdAt: '2026-01-01T00:00:01.000Z',
+        modelId: 'provider::model-a',
+        stats: { contextTokens: 42 }
+      }
+    } as CherryUIMessage
+    const topicMessagesResult = {
+      uiMessages: [activeAssistant],
+      siblingsMap: {},
+      isLoading: false,
+      isStale: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: activeAssistant.id,
+      rootId: 'root-1',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }
+    mockUseTopicMessages.mockReturnValue(topicMessagesResult)
+
+    const view = render(<ChatContent topic={topic} />)
+
+    expect(screen.getByRole('meter', { name: 'context usage' })).toBeInTheDocument()
+
+    mockUseTopicMessages.mockReturnValue({ ...topicMessagesResult, isLoading: true, isStale: true })
+    view.rerender(<ChatContent topic={topic} />)
+
+    expect(screen.queryByRole('meter', { name: 'context usage' })).not.toBeInTheDocument()
   })
 
   it('submits against the captured empty branch without patching it first and hides its empty bubble', async () => {

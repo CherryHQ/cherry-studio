@@ -31,7 +31,6 @@ import {
   useConversationCenterSurface
 } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
-import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
@@ -46,7 +45,6 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { AGENT_WORKSPACE_TYPE, type AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { TopicTabPosition } from '@shared/data/preference/preferenceTypes'
-import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { Bot } from 'lucide-react'
 import type { PropsWithChildren } from 'react'
@@ -434,13 +432,6 @@ const AgentPage = () => {
       setLastUsedSessionId(activeSession.id)
     }
   }, [isActiveTab, activeSession, activeSessionSource, setLastUsedSessionId])
-
-  useEffect(() => {
-    void ipcApi.request('window.main.set_minimum_size', { width: SECOND_MIN_WINDOW_WIDTH, height: MIN_WINDOW_HEIGHT })
-    return () => {
-      void ipcApi.request('window.main.reset_minimum_size')
-    }
-  }, [])
 
   const rememberLastUsedSession = useCallback(
     (agentId: string, userWorkspaceId?: string) => {

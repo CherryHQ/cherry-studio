@@ -4,7 +4,6 @@ import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/ag
 import { useCommandHandler } from '@renderer/hooks/command'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -2230,19 +2229,6 @@ describe('AgentPage', () => {
       </WindowFrameProvider>
     )
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
-  })
-
-  it('uses the compact minimum window width even while the agent sidebar is open', async () => {
-    agentPageMocks.showSidebar = true
-
-    render(<AgentPage />)
-
-    await waitFor(() => {
-      expect(ipcMocks.request).toHaveBeenCalledWith('window.main.set_minimum_size', {
-        width: SECOND_MIN_WINDOW_WIDTH,
-        height: MIN_WINDOW_HEIGHT
-      })
-    })
   })
 
   it('shows the missing-agent home composer by default when there are no agents', async () => {

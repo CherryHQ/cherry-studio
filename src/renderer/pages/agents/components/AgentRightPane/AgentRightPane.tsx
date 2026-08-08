@@ -1,6 +1,6 @@
 import { Badge, Button, ConfirmDialog, HoverCard, HoverCardContent, HoverCardTrigger, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
+import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
 import MessageList from '@renderer/components/chat/messages/MessageList'
 import { MessageListProvider } from '@renderer/components/chat/messages/MessageListProvider'
 import {
@@ -1002,7 +1002,6 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
-  const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
 
   return (
     <div className="h-full space-y-4 overflow-auto p-3 text-sm">
@@ -1038,10 +1037,9 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
         </section>
       )}
 
-      <ContextUsageSummary
+      <AgentContextUsageSummary
         usage={usage}
         percentage={percentage}
-        color={contextUsageColor}
         isCompacting={isCompacting}
         className="rounded-md border border-border-subtle px-3 py-2"
       />
@@ -1258,16 +1256,10 @@ function AgentRightPaneStatusPreview() {
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
-  const contextUsageColor = percentage === null ? undefined : getAgentContextUsageColor(percentage)
 
   return (
     <Scrollbar className="-mr-2 max-h-[calc(70vh-1.5rem)] space-y-3 overflow-x-hidden pr-3">
-      <ContextUsageSummary
-        usage={usage}
-        percentage={percentage}
-        color={contextUsageColor}
-        isCompacting={isCompacting}
-      />
+      <AgentContextUsageSummary usage={usage} percentage={percentage} isCompacting={isCompacting} />
       <AgentRightPaneHighlights status={status} compact />
     </Scrollbar>
   )

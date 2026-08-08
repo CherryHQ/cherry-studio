@@ -147,7 +147,6 @@
       }
     },
     "composer": {
-      "background_running_many": "{{count}} tareas en segundo plano en ejecución",
       "background_running_one": "{{count}} tarea en segundo plano en ejecución",
       "background_running_other": "{{count}} tareas en segundo plano en ejecución"
     },
@@ -262,7 +261,6 @@
         }
       },
       "file_tree": "Árbol de archivos",
-      "items_many": "{{count}} elementos",
       "items_one": "{{count}} elemento",
       "items_other": "{{count}} elementos",
       "maximize": "Maximizar",
@@ -347,7 +345,6 @@
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sin tareas activas",
-        "run_task_live_many": "{{count}} en curso",
         "run_task_live_one": "{{count}} en curso",
         "run_task_live_other": "{{count}} en curso",
         "run_tasks": "Subtareas",
@@ -356,7 +353,6 @@
         "stop_run_task_failed": "Error al detener la tarea",
         "task_count": "{{completed}} / {{total}} completado",
         "tasks": "Tareas",
-        "tool_uses_many": "{{count}} llamadas a herramientas",
         "tool_uses_one": "{{count}} llamada a herramienta",
         "tool_uses_other": "{{count}} llamadas a herramientas",
         "tools_active": "Activo",
@@ -459,13 +455,13 @@
         "expand_all": "Expandir todo",
         "no_workdir": "Sin carpeta de trabajo",
         "show_more": "Expandir pantalla",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "Esta semana",
         "today": "Hoy",
         "unknown_agent": "Agente desconocido",
         "unknown_agent_tip": "Este es un grupo de sesión histórico sin agente, no un agente real. Es solo de visualización y no puede continuar ejecutándose.",
         "yesterday": "Ayer"
       },
-      "label_many": "Sesiones",
       "label_one": "Sesión",
       "label_other": "Sesiones",
       "list": {
@@ -1010,6 +1006,10 @@
         "CherryNotify": {
           "description": "Envía una notificación a través de un canal conectado",
           "label": "Notificar"
+        },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
+          "label": "[to be translated]:Document to Markdown"
         },
         "CherryWebFetch": {
           "description": "Obtiene y lee una página web",
@@ -1681,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Nueva rama creada",
-          "disabled": {
-            "active": "Este nodo ya está seleccionado. Continúa escribiendo para extender la rama desde aquí.",
-            "latest": "Ya estás al final de esta rama. Continúa escribiendo para extenderla.",
-            "no_follow_up": "Todavía no hay seguimiento después de este mensaje. Cambia a este nodo y continúa escribiendo en su lugar."
-          },
           "label": "Rama nueva"
         },
         "context": "Limpiar contexto"
@@ -2175,7 +2170,6 @@
     "config_json_hint": "Pega o edita JSON en bruto; se mantiene sincronizado con los campos de arriba",
     "configure": "Configurar",
     "configuring_provider": "Configurar {{provider}}",
-    "count_many": "{{count}} elementos",
     "count_one": "{{count}} elemento",
     "count_other": "{{count}} elementos",
     "current_config": "Actual",
@@ -2305,13 +2299,11 @@
     "add_success": "Añadido con éxito",
     "advanced_settings": "Configuración avanzada",
     "agent": "Agente",
-    "agent_many": "Agentes",
     "agent_one": "Agente",
     "agent_other": "Agentes",
     "all": "Todo",
     "and": "y",
     "assistant": "Agente inteligente",
-    "assistant_many": "Asistentes",
     "assistant_one": "Asistente",
     "assistant_other": "Asistentes",
     "avatar": "Avatar",
@@ -3248,7 +3240,6 @@
       "action": "Reconstruir la base de conocimientos",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Error al reconstruir la base de conocimientos",
-      "skipped_missing_sources_many": "Se omitieron {{count}} elementos cuya fuente ya no existe",
       "skipped_missing_sources_one": "Se omitió {{count}} elemento cuya fuente ya no existe",
       "skipped_missing_sources_other": "Se omitieron {{count}} elementos cuyo origen ya no existe",
       "submit": "Reconstruir",
@@ -3367,11 +3358,6 @@
           },
           "heartbeat_interval": {
             "label": "Intervalo de latidos (minutos)"
-          },
-          "instructions": {
-            "hint": "Define el rol del agente y los límites de su comportamiento",
-            "label": "Indicación del sistema",
-            "placeholder": "Dile al agente quién es y y qué puede hacer…"
           },
           "max_turns": {
             "help": "0 significa usar el valor predeterminado",
@@ -3567,8 +3553,7 @@
           "step": {
             "basic": "Información básica",
             "capability": "Habilidades",
-            "knowledge": "Conocimiento",
-            "persona": "Persona"
+            "knowledge": "Conocimiento"
           },
           "submit": "Crear",
           "submit_failed": "Creación fallida"
@@ -4231,6 +4216,8 @@
         "taskOutput": "Ver salida de la tarea",
         "taskStop": "Detener tarea",
         "taskUpdate": "Actualizar tarea",
+        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "Todo Escribir",
         "tool": "Herramienta",
         "webFetch": "Obtención Web",
@@ -4281,22 +4268,18 @@
       "thinkingHeader": "Pensamiento",
       "truncated": "Salida truncada (original: {{size}})",
       "units": {
-        "done_many": "{{count}} completados",
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
         "done_one": "{{count}} completado",
         "done_other": "{{count}} completados",
-        "file_many": "{{count}} archivos",
         "file_one": "{{count}} archivo",
         "file_other": "{{count}} archivos",
-        "item_many": "{{count}} elementos",
         "item_one": "{{count}} elemento",
         "item_other": "{{count}} elementos",
-        "line_many": "{{count}} líneas",
         "line_one": "{{count}} línea",
         "line_other": "{{count}} líneas",
-        "plan_many": "{{count}} planes",
         "plan_one": "{{count}} plan",
         "plan_other": "{{count}} planes",
-        "result_many": "{{count}} resultados",
         "result_one": "{{count}} resultado",
         "result_other": "{{count}} resultados"
       },
@@ -5172,12 +5155,10 @@
     "search_placeholder": "Buscar complemento...",
     "search_placeholder_skills": "Habilidades de búsqueda...",
     "showing_results": "Mostrar {{count}} complementos",
-    "showing_results_many": "Mostrando {{count}} complementos",
     "showing_results_one": "Mostrando {{count}} complemento",
     "showing_results_other": "Mostrando {{count}} complementos",
     "showing_results_plural": "Mostrar {{count}} complementos",
     "showing_results_skills": "Mostrando {{count}} habilidad",
-    "showing_results_skills_many": "Mostrando {{count}} habilidades",
     "showing_results_skills_one": "Mostrando {{count}} habilidad",
     "showing_results_skills_other": "Mostrando {{count}} habilidades",
     "showing_results_skills_plural": "Mostrando {{count}} habilidades",
@@ -5900,7 +5881,6 @@
             "title": "Registros de la aplicación"
           },
           "summary": "{{count}} archivos, unos {{size}}",
-          "summary_many": "{{count}} archivos, unos {{size}}",
           "summary_one": "{{count}} archivo, unos {{size}}",
           "summary_other": "{{count}} archivos, unos {{size}}",
           "system": {
@@ -6106,7 +6086,6 @@
         "title": "Exportar configuración del menú",
         "yuque": "Exportar a Yuque"
       },
-      "hour_interval_many": "{{count}} horas",
       "hour_interval_one": "{{count}} hora",
       "hour_interval_other": "{{count}} horas",
       "import_settings": {
@@ -6196,7 +6175,6 @@
           "select_error_write_permission": "La nueva ruta no tiene permisos de escritura",
           "select_title": "Seleccionar carpeta de copia de seguridad"
         },
-        "hour_interval_many": "{{count}} horas",
         "hour_interval_one": "{{count}} hora",
         "hour_interval_other": "{{count}} horas",
         "lastSync": "Última copia de seguridad",
@@ -6204,7 +6182,6 @@
           "label": "Número máximo de copias de seguridad",
           "unlimited": "Ilimitado"
         },
-        "minute_interval_many": "{{count}} minutos",
         "minute_interval_one": "{{count}} minuto",
         "minute_interval_other": "{{count}} minutos",
         "noSync": "Esperando próxima copia de seguridad",
@@ -6252,7 +6229,6 @@
           "title": "Usar el modelo rápido para nombrar el título de los mensajes exportados"
         }
       },
-      "minute_interval_many": "{{count}} minutos",
       "minute_interval_one": "{{count}} minuto",
       "minute_interval_other": "{{count}} minutos",
       "notion": {
@@ -6562,12 +6538,10 @@
           "label": "Dirección WebDAV",
           "placeholder": "http://localhost:8080"
         },
-        "hour_interval_many": "{{count}} horas",
         "hour_interval_one": "{{count}} hora",
         "hour_interval_other": "{{count}} horas",
         "lastSync": "Última copia de seguridad",
         "maxBackups": "Número máximo de copias de seguridad",
-        "minute_interval_many": "{{count}} minutos",
         "minute_interval_one": "{{count}} minuto",
         "minute_interval_other": "{{count}} minutos",
         "noSync": "Esperando la próxima copia de seguridad",
@@ -8478,7 +8452,6 @@
         "shareLabel": "Compartir",
         "title": "Explorar",
         "top": "Superior",
-        "totalEntries_many": "{{count}} entradas",
         "totalEntries_one": "{{count}} entrada",
         "totalEntries_other": "{{count}} entradas"
       },
@@ -8520,7 +8493,6 @@
       "title": "Análisis de Uso",
       "tooltip": {
         "cost": "Costo {{value}}",
-        "requests_many": "{{count}} solicitudes",
         "requests_one": "{{count}} solicitud",
         "requests_other": "{{count}} solicitudes",
         "tokens": "{{value}} tokens"

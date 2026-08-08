@@ -269,6 +269,10 @@ Three invariants keep this safe:
 - **Disposable timer**: `registerDisposable(() => clearTimeout(handle))` guarantees the timer is cleared by `_cleanupDisposables` even if the service stops before the quiet window elapses.
 - **`onStop` join**: assigning the flow's `Promise` to `this._workDone` and awaiting it from `onStop` gives the framework a way to wait out a mid-flight step before tearing down dependent resources.
 
+**The join is bounded on the shutdown path.** `stopAll()` caps every service at `SERVICE_STOP_TIMEOUT_MS` (5s). On expiry the framework logs, records the service as timed out, and moves to the next one. The cap abandons the *wait*, not the work: your `onStop` keeps running, and if it settles later it still disposes (and, if it resolved rather than threw, reaches `Stopped`) — but no `SERVICE_STOPPED` fires and the recorded outcome stands. Whether `onDestroy()` still runs depends on whether that late settle beats `destroyAll()` to your service; assume it does not. The runtime `stop()` / `restart()` path has no such cap. See [Lifecycle Overview — teardown time contract](./lifecycle-overview.md#teardown-time-contract).
+
+Join for cleanup that is *better to get than not*. Never make correctness depend on it completing: `kill -9`, a crash, or power loss bypasses `onStop` outright, so the work must already be atomic (tmp + rename) or self-healing (recovered on next start).
+
 Real-world example: `JobManager.onAllReady` registers a `setTimeout` that fires ~60 seconds later and then runs the recovery flow. See [job-and-scheduler/overview.md — Startup Recovery](../job-and-scheduler/overview.md#startup-recovery).
 
 ## Service Events (Emitter / Event)

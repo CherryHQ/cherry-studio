@@ -27,6 +27,11 @@ describe('dataSourcePanel.selectors', () => {
     expect(getItemTitle(createNoteItem({ id: 'note-1', content: '\n \n  第一行标题  \n第二行内容' }))).toBe(
       '第一行标题'
     )
+    // A drafted note's title is its own field, so the row shows it rather than the body's opening
+    // line — the same name same-name detection keys off.
+    expect(getItemTitle(createNoteItem({ id: 'note-3', source: '季度复盘', content: '第一行标题\n第二行内容' }))).toBe(
+      '季度复盘'
+    )
     expect(getItemTitle(createNoteItem({ id: 'note-2', content: '\n   \n' }))).toBe('')
   })
 
