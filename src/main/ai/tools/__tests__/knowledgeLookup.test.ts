@@ -4,19 +4,20 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ debug: vi.fn(), warn: vi.fn(), info: vi.fn(), error: vi.fn() }) }
 }))
 
-const { knowledgeSearchMock } = vi.hoisted(() => ({
-  knowledgeSearchMock: vi.fn<() => Promise<unknown[]>>()
+const { knowledgeSearchMock, knowledgeAddItemsMock } = vi.hoisted(() => ({
+  knowledgeSearchMock: vi.fn<() => Promise<unknown[]>>(),
+  knowledgeAddItemsMock: vi.fn<() => Promise<unknown>>()
 }))
 vi.mock('@application', () => ({
   application: {
     get: (name: string) => {
-      if (name === 'KnowledgeService') return { search: knowledgeSearchMock }
+      if (name === 'KnowledgeService') return { search: knowledgeSearchMock, addItems: knowledgeAddItemsMock }
       throw new Error(`Unexpected application.get(${name})`)
     }
   }
 }))
 
-import { searchKnowledge } from '../knowledgeLookup'
+import { manageKnowledge, searchKnowledge } from '../knowledgeLookup'
 
 const CITE_ID = /^[0-9a-f]{8}-\d+$/
 
@@ -55,5 +56,21 @@ describe('searchKnowledge', () => {
       ['base1', 'README.md'],
       ['base2', 'README.md']
     ])
+  })
+})
+
+describe('manageKnowledge add', () => {
+  it('persists the full source path for a file add so same-path conflict detection stays consistent', async () => {
+    // Regression: a runtime file add previously stored `source` as the basename while
+    // UI adds store the full path, so a real same-path re-add missed the conflict and
+    // duplicated. `source` must be the full path across producers.
+    knowledgeAddItemsMock.mockResolvedValueOnce({ status: 'added' })
+
+    const result = await manageKnowledge({ baseId: 'base1', action: 'add', type: 'file', path: '/a/report.pdf' }, [])
+
+    expect(knowledgeAddItemsMock).toHaveBeenCalledWith('base1', [
+      { type: 'file', data: { source: '/a/report.pdf', path: '/a/report.pdf' } }
+    ])
+    expect(result).toEqual({ action: 'add', added: ['/a/report.pdf'] })
   })
 })

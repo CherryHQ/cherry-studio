@@ -826,6 +826,26 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
 }
 
 /**
+ * Normalize an original path into a stable same-path identity for conflict keying.
+ * Unifies separators so equivalent spellings compare equal — Windows `C:\Docs\a.pdf`
+ * vs `C:/Docs/a.pdf`, UNC `\\server\share\a.pdf` vs `//server/share/a.pdf` — and
+ * trims trailing separators (a directory's `/a/docs/` == `/a/docs`), but never below
+ * a filesystem root: a POSIX root `/` keeps a non-empty key so it can still collide
+ * and be replaced (an empty key is deliberately excluded from detection). Returns
+ * '' only for a genuinely empty source. String ops only (no `node:path`) — safe in
+ * the renderer.
+ */
+function normalizeKnowledgePathKey(value: string): string {
+  const unified = value.trim().replace(/\\/g, '/')
+  if (unified === '') {
+    return ''
+  }
+  // Trailing separators only (leading UNC `//` is meaningful and preserved). A value
+  // that is all separators is a root, so keep a single `/` rather than collapsing to ''.
+  return unified.replace(/\/+$/, '') || '/'
+}
+
+/**
  * Per-type same-name detection key. Unlike {@link getKnowledgeItemDisplayTitle}
  * (which prefers the deduped `raw/` name so kept copies stay distinguishable),
  * detection keys off the *original path*, not the basename: two files that share a
@@ -833,20 +853,21 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
  * are distinct sources and must not be flagged as duplicates (product spec:
  * "Same-path conflicts"). So file/directory key off the full `data.source` — the
  * original path, carried identically on an existing item and on an add-input —
- * making the two sides directly comparable: the same path still collides, a
- * different path never does. url/note stay separate from the display title: url
- * keys off the raw `data.url` (exact, no normalization) and note off its first
- * line, because their deduped name is a post-index snapshot name absent at
- * add-time — keying off it would miss real duplicate urls/notes.
+ * normalized to a stable same-path identity (see {@link normalizeKnowledgePathKey})
+ * so the two sides compare equal for the same path and stay distinct for different
+ * ones. url/note stay separate from the display title: url keys off the raw
+ * `data.url` (exact, no normalization) and note off its first line, because their
+ * deduped name is a post-index snapshot name absent at add-time — keying off it
+ * would miss real duplicate urls/notes.
  */
 export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): string {
   const data = item.data
   switch (item.type) {
     case 'file':
     case 'directory':
-      // Trailing separators only — do not reduce to a basename, or different-folder
-      // same-name sources would alias into a phantom conflict (the bug this fixes).
-      return (data.source || '').trim().replace(/[/\\]+$/, '')
+      // Full path (not a basename), or different-folder same-name sources would
+      // alias into a phantom conflict (the bug this fixes).
+      return normalizeKnowledgePathKey(data.source || '')
     case 'note':
       return getKnowledgeNoteFirstLine(data.content || '')
     case 'url':

@@ -125,10 +125,11 @@ describe('resolveKnowledgeAddConflicts', () => {
     expect(result.conflictingExistingRootIds).toEqual(['e1'])
   })
 
-  it('on replace, purges every existing copy that shares the incoming source path', () => {
+  it('discloses and purges every existing copy that shares the incoming source path (Keep All then Replace)', () => {
     // The same path kept multiple times ("保留全部") is stored as test.md / test_2.md
-    // (deduped relativePath). Re-importing that path targets every copy of it; a copy
-    // of a *different* path with the same basename is left untouched.
+    // (deduped relativePath) under one source path. Re-importing that path targets every
+    // copy of it, and each copy is disclosed by its own display title so a Replace never
+    // deletes an undisclosed copy. A copy of a *different* path (e3) is left untouched.
     const inputs = [fileInput('/a/test.md')]
     const existing = [
       existingItem('e1', { type: 'file', data: { source: '/a/test.md', relativePath: 'test.md' } }),
@@ -138,7 +139,11 @@ describe('resolveKnowledgeAddConflicts', () => {
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
 
-    expect(result.conflicts).toEqual([{ type: 'file', title: 'test.md' }])
+    // Both colliding copies are disclosed (previously only test.md was, hiding test_2.md's deletion).
+    expect(result.conflicts).toEqual([
+      { type: 'file', title: 'test.md' },
+      { type: 'file', title: 'test_2.md' }
+    ])
     expect(result.conflictingExistingRootIds).toEqual(['e1', 'e2'])
   })
 

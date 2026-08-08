@@ -123,6 +123,30 @@ describe('getKnowledgeItemConflictKey', () => {
     )
   })
 
+  it('keeps a non-empty key for a POSIX root source (so it can still collide and be replaced)', () => {
+    // A byte-exact trailing-trim would reduce `/` to '', which detection excludes —
+    // selecting `/` twice would then never conflict. The root must stay a real key.
+    const rootKey = getKnowledgeItemConflictKey({ type: 'directory', data: { source: '/' } })
+    expect(rootKey).not.toBe('')
+    expect(rootKey).toBe(getKnowledgeItemConflictKey({ type: 'directory', data: { source: '/' } }))
+  })
+
+  it('treats equivalent Windows and UNC spellings as the same path', () => {
+    // The accepted path contract preserves both separator spellings; a byte-exact key
+    // would wrongly treat them as different sources.
+    expect(getKnowledgeItemConflictKey({ type: 'file', data: { source: 'C:\\Docs\\a.pdf' } })).toBe(
+      getKnowledgeItemConflictKey({ type: 'file', data: { source: 'C:/Docs/a.pdf' } })
+    )
+    expect(getKnowledgeItemConflictKey({ type: 'file', data: { source: '\\\\server\\share\\a.pdf' } })).toBe(
+      getKnowledgeItemConflictKey({ type: 'file', data: { source: '//server/share/a.pdf' } })
+    )
+  })
+
+  it('returns an empty key for an empty source (excluded from detection)', () => {
+    expect(getKnowledgeItemConflictKey({ type: 'file', data: { source: '' } })).toBe('')
+    expect(getKnowledgeItemConflictKey({ type: 'file', data: {} })).toBe('')
+  })
+
   it('keys note off the first line', () => {
     expect(getKnowledgeItemConflictKey({ type: 'note', data: { content: 'Title\nbody' } })).toBe('Title')
   })

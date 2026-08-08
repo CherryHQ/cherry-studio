@@ -8,10 +8,13 @@ import {
 
 export interface KnowledgeAddConflictResolution {
   /**
-   * One entry per distinct same-name collision (deduped by type + detection key).
-   * `title` is the existing colliding item's display name when the collision is
-   * against an existing root, else the incoming source's display name (in-batch
-   * collision). Used by the `detect` pass to populate the conflict dialog.
+   * What a `replace` would purge, disclosed for the conflict dialog: one entry per
+   * existing root that collides with an incoming source, each with its own display
+   * title. A source path kept multiple times ("保留全部") groups under one detection
+   * key but contributes several entries (e.g. `test.md` and `test_2.md`), so the
+   * dialog never hides a copy that replacement will delete. A collision that exists
+   * only within the incoming batch (no existing root) contributes a single entry for
+   * the incoming source. Populated by the `detect` pass.
    */
   conflicts: KnowledgeAddItemConflict[]
   /** Existing root item ids whose name an incoming (kept) source collides with — the `replace` purge targets. */
@@ -60,7 +63,7 @@ export function resolveKnowledgeAddConflicts(
     }
   }
 
-  const conflictsByKey = new Map<string, KnowledgeAddItemConflict>()
+  const conflictsByKey = new Map<string, KnowledgeAddItemConflict[]>()
   const conflictingExistingRootIds = new Set<string>()
   const seenBatchKeys = new Set<string>()
   const lastInputIndexByKey = new Map<string, number>()
@@ -76,11 +79,14 @@ export function resolveKnowledgeAddConflicts(
     const collides = existing !== undefined || seenBatchKeys.has(mapKey)
 
     if (collides && !conflictsByKey.has(mapKey)) {
-      conflictsByKey.set(mapKey, {
-        type: input.type,
-        // First existing item per key gives a stable display title.
-        title: getKnowledgeItemDisplayTitle(existing?.[0] ?? input)
-      })
+      // Disclose exactly what `replace` will purge: one entry per existing copy sharing
+      // this key (a path kept multiple times has several), each with its own title. An
+      // in-batch-only collision has no existing copy — report the incoming source once.
+      const entries: KnowledgeAddItemConflict[] =
+        existing && existing.length > 0
+          ? existing.map((item) => ({ type: input.type, title: getKnowledgeItemDisplayTitle(item) }))
+          : [{ type: input.type, title: getKnowledgeItemDisplayTitle(input) }]
+      conflictsByKey.set(mapKey, entries)
     }
     if (existing) {
       for (const item of existing) {
@@ -103,7 +109,7 @@ export function resolveKnowledgeAddConflicts(
   })
 
   return {
-    conflicts: [...conflictsByKey.values()],
+    conflicts: [...conflictsByKey.values()].flat(),
     conflictingExistingRootIds: [...conflictingExistingRootIds],
     keptInputs
   }

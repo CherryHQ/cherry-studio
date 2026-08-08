@@ -20,8 +20,6 @@
  * `WebSearchService` honours one). Add one here only once the service does.
  */
 
-import { basename } from 'node:path'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
@@ -537,8 +535,11 @@ function buildAddInput(input: ManageKnowledgeInput): AddInputResult {
       if (!input.path) {
         return { ok: false, error: 'kb_manage add with type "file" requires `path` — an absolute local file path.' }
       }
-      const source = basename(input.path)
-      return validateAddInput({ type: 'file', data: { source, path: input.path } }, source)
+      // `source` must be the full original path (not a basename): conflict detection
+      // keys off it and compares against UI adds, which carry the full path. A basename
+      // here would break the same-path invariant and miss a real duplicate (e.g. an
+      // agent add of /a/report.pdf vs a UI re-add of the same path).
+      return validateAddInput({ type: 'file', data: { source: input.path, path: input.path } }, input.path)
     }
     case 'url': {
       if (!input.url) {
