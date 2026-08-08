@@ -2,10 +2,14 @@ import { randomUUID } from 'node:crypto'
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
+import { application } from '@application'
 import type { formatFromExtension, toMarkdownBytes } from '@firecrawl/anydoc'
 import { loggerService } from '@logger'
-import { resolveWorkspaceFile } from '@main/ai/channels'
+import { resolveLocalFile, resolveWorkspaceFile } from '@main/ai/channels'
+import { listAgentSessionAttachments } from '@main/ai/messages/agentSessionAttachments'
+import type { FileAttachment } from '@main/utils/downloadAsBase64'
 import { isAbortError } from '@main/utils/error'
+import { isSameOrInside, realpath } from '@main/utils/file'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import {
   TO_MARKDOWN_DESCRIPTION,
@@ -13,10 +17,12 @@ import {
   toMarkdownInputSchema,
   toMarkdownOutputSchema
 } from '@shared/ai/builtinTools'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import * as z from 'zod'
 
 export interface CherryDocumentContext {
   agentDataPath: string
+  sessionId: string
   workspacePath: string
 }
 
@@ -49,6 +55,42 @@ function throwIfAborted(signal: AbortSignal): void {
 function errorResult(error: unknown): CallToolResult {
   const message = error instanceof Error ? error.message : String(error)
   return { content: [{ type: 'text', text: `Error: ${message}` }], isError: true }
+}
+
+/**
+ * Trusted roots for an out-of-workspace source: the agent data directory (documents the agent
+ * produced or downloaded there — already an approval-free root for the SDK file tools) and the
+ * exact managed files attached to this session, not the shared `Data/Files` directory holding them.
+ */
+async function isAuthorizedOutsideWorkspace(context: CherryDocumentContext, requestedPath: string): Promise<boolean> {
+  const agentDataRoot = await realpath(AbsoluteFilePathSchema.parse(context.agentDataPath)).catch(() => null)
+  if (agentDataRoot && isSameOrInside(requestedPath, agentDataRoot)) return true
+
+  const fileManager = application.get('FileManager')
+  for (const attachment of listAgentSessionAttachments(context.sessionId)) {
+    const physicalPath = await realpath(fileManager.getPhysicalPath(attachment.fileEntryId)).catch(() => null)
+    if (physicalPath === requestedPath) return true
+  }
+  return false
+}
+
+/**
+ * Resolve the source document, confined to the session workspace plus the trusted roots above.
+ * Anything else keeps the workspace guard's rejection — this tool is auto-approved, so an
+ * unauthorized path must fail here rather than reach the converter.
+ */
+async function resolveDocumentSource(context: CherryDocumentContext, sourcePath: string): Promise<FileAttachment> {
+  try {
+    return await resolveWorkspaceFile(context.workspacePath, sourcePath)
+  } catch (workspaceError) {
+    const requestedPath = await realpath(
+      AbsoluteFilePathSchema.parse(path.resolve(context.workspacePath, sourcePath))
+    ).catch(() => null)
+    if (requestedPath && (await isAuthorizedOutsideWorkspace(context, requestedPath))) {
+      return resolveLocalFile(context.workspacePath, sourcePath)
+    }
+    throw workspaceError
+  }
 }
 
 async function cleanupStaleOutputs(directory: string): Promise<void> {
@@ -85,7 +127,7 @@ export class CherryDocumentTools {
   async call(args: unknown, signal: AbortSignal): Promise<CallToolResult> {
     try {
       const { path: sourcePath } = toMarkdownInputSchema.parse(args)
-      const source = await resolveWorkspaceFile(this.context.workspacePath, sourcePath)
+      const source = await resolveDocumentSource(this.context, sourcePath)
       throwIfAborted(signal)
 
       const anydoc = await loadAnydocModule()
