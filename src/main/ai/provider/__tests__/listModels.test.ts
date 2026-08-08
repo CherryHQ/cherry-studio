@@ -101,6 +101,50 @@ describe('listModels — default grouping', () => {
   )
 })
 
+describe('listModels — Ollama capabilities', () => {
+  function makeOllamaProvider() {
+    return makeProvider({
+      id: 'ollama',
+      defaultChatEndpoint: ENDPOINT_TYPE.OLLAMA_CHAT,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OLLAMA_CHAT]: { baseUrl: 'http://ollama.test:11434' }
+      }
+    })
+  }
+
+  it('maps native thinking support to the reasoning capability without declaring controls', async () => {
+    aiSdkGetFromApiMock.mockResolvedValueOnce({
+      value: {
+        models: [
+          {
+            name: 'qwen3:32b-q4_K_M',
+            capabilities: ['completion', 'tools', 'thinking'],
+            details: { family: 'qwen3' }
+          },
+          {
+            name: 'qwen3-embedding:4b',
+            capabilities: ['embedding'],
+            details: { family: 'qwen3' }
+          }
+        ]
+      }
+    })
+
+    const models = await listModels(makeOllamaProvider())
+
+    expect(models[0]).toMatchObject({
+      apiModelId: 'qwen3:32b-q4_K_M',
+      capabilities: [MODEL_CAPABILITY.REASONING]
+    })
+    expect(models[0].reasoning).toBeUndefined()
+    expect(models[1]).toMatchObject({ capabilities: [] })
+    expect(models[1].reasoning).toBeUndefined()
+    expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
+      url: 'http://ollama.test:11434/api/tags'
+    })
+  })
+})
+
 describe('listModels — geminiFetcher API key transport', () => {
   it('passes the API key via the x-goog-api-key header, never the ?key= query (REGRESSION)', async () => {
     const provider = makeGeminiProvider()

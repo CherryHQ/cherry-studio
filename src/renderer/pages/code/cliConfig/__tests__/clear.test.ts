@@ -219,6 +219,29 @@ describe('clearCliConfig', () => {
     })
   })
 
+  it('pi: strips Cherry-managed providers and defaults while preserving user config', async () => {
+    existing['/resolved~/.pi/agent/models.json'] = JSON.stringify({
+      userTop: 'keep',
+      providers: {
+        'cherry-gateway': { apiKey: 'cs-sk-secret' },
+        user: { baseUrl: 'https://user.example' }
+      }
+    })
+    existing['/resolved~/.pi/agent/settings.json'] = JSON.stringify({
+      theme: 'light',
+      defaultProvider: 'cherry-gateway',
+      defaultModel: 'deepseek:deepseek-chat'
+    })
+
+    await clearCliConfig({ cliTool: CodeCli.PI })
+
+    expect(JSON.parse(writes['/resolved~/.pi/agent/models.json'])).toEqual({
+      userTop: 'keep',
+      providers: { user: { baseUrl: 'https://user.example' } }
+    })
+    expect(JSON.parse(writes['/resolved~/.pi/agent/settings.json'])).toEqual({ theme: 'light' })
+  })
+
   it('is a no-op for tools without a managed config file (openclaw)', async () => {
     await clearCliConfig({ cliTool: CodeCli.OPENCLAW })
     expect(mocks.request).not.toHaveBeenCalled()
@@ -286,6 +309,12 @@ describe('clearCliConfig', () => {
     it('kimi: rejects and writes nothing', async () => {
       existing['/resolved~/.kimi-code/config.toml'] = 'broken====='
       await expect(clearCliConfig({ cliTool: CodeCli.KIMI_CODE })).rejects.toThrow(/Failed to parse/)
+      expect(writes).toEqual({})
+    })
+
+    it('pi: rejects and writes nothing', async () => {
+      existing['/resolved~/.pi/agent/models.json'] = '{ not valid json'
+      await expect(clearCliConfig({ cliTool: CodeCli.PI })).rejects.toThrow(/Failed to parse/)
       expect(writes).toEqual({})
     })
   })

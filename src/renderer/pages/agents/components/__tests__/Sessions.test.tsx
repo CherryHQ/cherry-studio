@@ -906,14 +906,14 @@ describe('Sessions', () => {
     // so the header stays plain even while it hides the open session.
     const collapsedGroup = screen.getByRole('button', { name: 'Project A Workspace' })
     expect(collapsedGroup).toHaveAttribute('aria-expanded', 'false')
-    expect(collapsedGroup.parentElement).not.toHaveClass('bg-sidebar-accent')
+    expect(collapsedGroup.parentElement).not.toHaveClass('bg-resource-list-row-selected')
     expect(collapsedGroup).not.toHaveAttribute('aria-current')
 
     setSessionGroupExpansionCache(createExpandedSessionGroupExpansionFixture())
     view.rerender(<SessionsForTest key="expanded-workdir" />)
     const expandedGroup = screen.getByRole('button', { name: 'Project A Workspace' })
     expect(expandedGroup).toHaveAttribute('aria-expanded', 'true')
-    expect(expandedGroup.parentElement).not.toHaveClass('bg-sidebar-accent')
+    expect(expandedGroup.parentElement).not.toHaveClass('bg-resource-list-row-selected')
   })
 
   it('keeps channel and agent-pin reads inactive while the navigation pane is closed', () => {
@@ -1468,7 +1468,7 @@ describe('Sessions', () => {
     expect(selectedBetaGroupButton).not.toHaveAttribute('aria-current')
     expect(selectedBetaGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
     // While the group is open the session row carries the selection; the header must not repeat it.
-    expect(selectedBetaGroupButton.parentElement).not.toHaveClass('bg-sidebar-accent')
+    expect(selectedBetaGroupButton.parentElement).not.toHaveClass('bg-resource-list-row-selected')
 
     fireEvent.click(selectedBetaGroupButton)
     expect(getSessionGroupExpansionCache().agent).toContain('session:agent:agent-b')
@@ -1478,67 +1478,24 @@ describe('Sessions', () => {
     expect(groupChevron(collapsedBetaGroupButton)).toHaveAttribute('aria-expanded', 'false')
     // Collapsed, the header stands in for the hidden session row: same fill AND same weight a
     // selected row gets anywhere else in the list.
-    expect(collapsedBetaGroupButton.parentElement).toHaveClass('bg-sidebar-accent')
+    expect(collapsedBetaGroupButton.parentElement).toHaveClass('bg-resource-list-row-selected')
     expect(within(collapsedBetaGroupButton).getByText('Beta agent')).toHaveClass('font-medium')
   })
 
-  it('clears session selection while a resource menu item is active', () => {
+  it('clears session selection while agent management is active', () => {
     cacheMocks.state.activeSessionId = 'session-a'
     const onSelectResourceView = vi.fn()
     setupSessions({
       sessions: [createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' })]
     })
 
-    render(
-      <SessionsForTest
-        resourceMenuItems={[
-          {
-            active: true,
-            id: 'agent-resource-view',
-            label: 'Agents',
-            onSelect: onSelectResourceView
-          }
-        ]}
-      />
-    )
+    render(<SessionsForTest manageAgentsActive onManageAgents={onSelectResourceView} />)
 
     expect(screen.queryByRole('button', { name: 'Manage Agents' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
     fireEvent.click(screen.getByRole('button', { name: 'Manage Agents' }))
     expect(onSelectResourceView).toHaveBeenCalled()
     expect(screen.getByText('Alpha session').closest('[role="option"]')).not.toHaveAttribute('data-selected')
-  })
-
-  it('keeps Skill management out of the display menu', () => {
-    const onManageAgents = vi.fn()
-    const onManageSkills = vi.fn()
-    setupSessions({
-      sessions: [createSession({ id: 'session-a', name: 'Alpha session', orderKey: 'a' })]
-    })
-
-    render(
-      <SessionsForTest
-        resourceMenuItems={[
-          {
-            id: 'agent-resource-view',
-            label: 'Agents',
-            onSelect: onManageAgents
-          },
-          {
-            id: 'skill-resource-view',
-            label: 'Skills',
-            onSelect: onManageSkills
-          }
-        ]}
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: 'Manage skills' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Display mode' }))
-    expect(screen.getByRole('button', { name: 'Manage Agents' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Manage skills' })).not.toBeInTheDocument()
-    expect(onManageSkills).not.toHaveBeenCalled()
-    expect(onManageAgents).not.toHaveBeenCalled()
   })
 
   it('creates sessions from agent group actions', async () => {
@@ -2118,9 +2075,19 @@ describe('Sessions', () => {
     ).not.toBeInTheDocument()
     // Pinned rows are lifted out of their workdir group, so they must not keep its icon indent.
     expect(pinnedRow?.querySelector('[data-resource-list-leading-slot="true"]') ?? null).not.toBeInTheDocument()
-    // Only the pin shows on a pinned row, so the title yields one icon zone instead of two.
-    expect(within(pinnedRow as HTMLElement).getByText('Pinned session')).toHaveClass('group-hover:mr-7')
     expect(within(pinnedRow as HTMLElement).queryByLabelText('Delete')).not.toBeInTheDocument()
+  })
+
+  it('keeps the pinned group label when every session is pinned in time mode', () => {
+    preferenceMocks.values.set('agent.session.display_mode', 'time')
+    setupSessions({
+      sessions: [createSession({ id: 'session-pinned', name: 'Pinned session', orderKey: 'a' })],
+      pinIdBySessionId: new Map([['session-pinned', 'pin-session-pinned']])
+    })
+
+    render(<SessionsForTest />)
+
+    expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
   })
 
   it('requires a second inline click before deleting a session', async () => {

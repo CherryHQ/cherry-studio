@@ -53,7 +53,7 @@ export interface FollowupQueueController {
  * Per-conversation FIFO queue of follow-up drafts. While a turn streams the composer enqueues here
  * instead of sending; on the live→idle edge the head auto-drains (one per completion), and the dock
  * lets the user steer/edit/remove individual items or pause auto-drain. Persistence mirrors the
- * draft cache (`cacheService.setCasual`, per-window memory + TTL).
+ * draft cache (per-window memory + TTL); this queue remains on the casual cache API.
  */
 export function useFollowupQueue({
   scopeKey,

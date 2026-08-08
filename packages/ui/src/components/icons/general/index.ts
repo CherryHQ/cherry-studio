@@ -2,8 +2,8 @@
  * Auto-generated icon exports
  * Do not edit manually
  *
- * Generated at: 2026-07-17T15:59:16.129Z
- * Total icons: 22
+ * Generated at: 2026-08-06T03:38:10.988Z
+ * Total icons: 23
  */
 
 export { AddCategory } from './add-category'
@@ -25,6 +25,7 @@ export { MessageAi1 } from './message-ai-1'
 export { MessageBalloonAi1 } from './message-balloon-ai-1'
 export { OpenCode } from './open-code'
 export { OpenaiCodex } from './openai-codex'
+export { PiCli } from './pi-cli'
 export { QoderCli } from './qoder-cli'
 export { QwenCode } from './qwen-code'
 export { Vector } from './vector'

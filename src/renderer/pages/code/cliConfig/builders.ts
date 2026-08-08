@@ -17,7 +17,7 @@ import {
   isCodexReasoningEffort,
   isOpenCodePermissionMode
 } from './permissionModes'
-import type { OpenCodeNpmInfo } from './resolvers'
+import type { OpenCodeNpmInfo, PiApi } from './resolvers'
 import { sanitizeGeminiConfigBlob, sanitizeKimiConfigBlob, sanitizeQwenConfigBlob } from './sanitize'
 import {
   asRecord,
@@ -296,4 +296,53 @@ export function buildKimiConfig(
   const merged = { ...existing, default_model: resolved.modelKey, providers: providerTable, models: modelsTable }
   applyWritableTomlSettings(merged, sanitizedConfigBlob)
   return merged
+}
+
+export function buildPiModelsConfig(
+  existing: Record<string, any>,
+  resolved: {
+    api: PiApi
+    apiKey: string
+    baseUrl: string
+    contextWindow?: number
+    headers?: Record<string, string>
+    input: Array<'image' | 'text'>
+    maxTokens?: number
+    model: string
+    modelLabel: string
+    providerKey: string
+    reasoning: boolean
+  }
+): Record<string, any> {
+  const model: Record<string, any> = {
+    id: resolved.model,
+    name: resolved.modelLabel,
+    reasoning: resolved.reasoning,
+    input: resolved.input
+  }
+  if (resolved.contextWindow !== undefined) model.contextWindow = resolved.contextWindow
+  if (resolved.maxTokens !== undefined) model.maxTokens = resolved.maxTokens
+
+  const provider: Record<string, any> = {
+    baseUrl: resolved.baseUrl,
+    api: resolved.api,
+    apiKey: resolved.apiKey,
+    models: [model]
+  }
+  if (resolved.headers && Object.keys(resolved.headers).length > 0) provider.headers = resolved.headers
+
+  return {
+    ...existing,
+    providers: {
+      ...omitKeysByPrefix(asRecord(existing.providers), CHERRY_PROVIDER_PREFIX),
+      [resolved.providerKey]: provider
+    }
+  }
+}
+
+export function buildPiSettingsConfig(
+  existing: Record<string, any>,
+  resolved: { model: string; providerKey: string }
+): Record<string, any> {
+  return { ...existing, defaultProvider: resolved.providerKey, defaultModel: resolved.model }
 }

@@ -114,8 +114,18 @@ const MESSAGE_INSERT_BATCH_SIZE = 100
 const FILE_REF_INSERT_BATCH_SIZE = 100
 const SKIP_WARNING_SAMPLE_LIMIT = 10
 const INARRAY_CHUNK = 500
-const BLOCK_INDEX_BATCH_SIZE = 1000
+// Decode one block at a time so a batch of inline images/tool payloads cannot
+// accumulate in the V8 heap. Serialized rows are still grouped below to keep
+// SQLite transaction overhead bounded.
+const BLOCK_INDEX_READ_BATCH_SIZE = 1
+const BLOCK_INDEX_WRITE_BATCH_SIZE = 100
+const BLOCK_INDEX_WRITE_CHAR_LIMIT = 4 * 1024 * 1024
 const TEMP_BLOCK_INDEX_TABLE = 'migration_chat_blocks'
+
+interface BlockIndexRow {
+  id: string
+  payload: string
+}
 
 /**
  * Yield each FileEntryId referenced by file parts in a message's parts array.
@@ -247,10 +257,9 @@ export class ChatMigrator extends BaseMigrator {
    *
    * Steps:
    * 1. Check if topics.json and message_blocks.json exist
-   * 2. Load all blocks into memory for fast lookup
-   * 3. Load assistant data for generating meta
-   * 4. Count topics and estimate message count
-   * 5. Validate sample data for integrity
+   * 2. Load assistant data for model and topic metadata lookup
+   * 3. Count topics and estimate message count
+   * 4. Validate sample data for integrity
    */
 
   private sanitizeMessageModelReferences(messages: NewMessage[]): number {
@@ -419,7 +428,7 @@ export class ChatMigrator extends BaseMigrator {
       logger.info('Prepare phase completed', {
         topics: this.topicCount,
         estimatedMessages: this.messageCount,
-        blocksIndexed: this.blocksExist,
+        blocksAvailable: this.blocksExist,
         assistants: this.assistantLookup.size
       })
 
@@ -827,18 +836,43 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     let indexed = 0
-    const blockReader = ctx.sources.dexieExport.createStreamReader('message_blocks')
-    await blockReader.readInBatches<OldBlock>(BLOCK_INDEX_BATCH_SIZE, async (blocks) => {
+    let pendingChars = 0
+    let pendingRows: BlockIndexRow[] = []
+
+    const flushPendingRows = (): void => {
+      if (pendingRows.length === 0) return
+
+      const rows = pendingRows
+      pendingRows = []
+      pendingChars = 0
+
       ctx.db.transaction((tx) => {
-        for (const block of blocks) {
-          if (!block?.id) continue
-          tx.run(
-            sql`INSERT OR REPLACE INTO migration_chat_blocks (id, payload) VALUES (${block.id}, ${JSON.stringify(block)})`
-          )
+        for (const row of rows) {
+          tx.run(sql`INSERT OR REPLACE INTO migration_chat_blocks (id, payload) VALUES (${row.id}, ${row.payload})`)
           indexed += 1
         }
       })
+    }
+
+    const blockReader = ctx.sources.dexieExport.createStreamReader('message_blocks')
+    await blockReader.readInBatches<OldBlock>(BLOCK_INDEX_READ_BATCH_SIZE, async (blocks) => {
+      for (const block of blocks) {
+        if (!block?.id) continue
+
+        const payload = JSON.stringify(block)
+        if (pendingRows.length > 0 && pendingChars + payload.length > BLOCK_INDEX_WRITE_CHAR_LIMIT) {
+          flushPendingRows()
+        }
+
+        pendingRows.push({ id: block.id, payload })
+        pendingChars += payload.length
+
+        if (pendingRows.length >= BLOCK_INDEX_WRITE_BATCH_SIZE || pendingChars >= BLOCK_INDEX_WRITE_CHAR_LIMIT) {
+          flushPendingRows()
+        }
+      }
     })
+    flushPendingRows()
 
     logger.info('Indexed message blocks in temporary SQLite table', { indexed })
   }
