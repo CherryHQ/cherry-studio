@@ -69,6 +69,13 @@ const isSkippableLevelDbLockError = (sourcePath: string, error: unknown): error 
   return nodeError.code === 'EBUSY' || nodeError.errno === WINDOWS_UV_EBUSY_ERRNO
 }
 
+// Detect a file that vanished between readdir/lstat enumeration and the copy/chmod pass
+// (e.g. a deeply-nested Skills schema file on macOS, issue #17179). Such files were never
+// meant to be in the backup; skipping them does not affect integrity. Non-ENOENT errors
+// (EACCES, etc.) fall through and still abort the backup as before.
+const isVanishedMidStagingError = (error: unknown): boolean =>
+  error instanceof Error && (error as NodeJS.ErrnoException).code === 'ENOENT'
+
 interface DirectBackupMetadata {
   version: number
   timestamp: number
@@ -1746,6 +1753,9 @@ class BackupManager {
                 if (isSkippableLevelDbLockError(sourcePath, error)) {
                   logger.warn('[BackupManager] Skipping locked file', { path: sourcePath })
                   continue
+                } else if (isVanishedMidStagingError(error)) {
+                  logger.warn('[BackupManager] File disappeared during backup, skipping', { path: sourcePath })
+                  continue
                 }
                 throw error
               }
@@ -1760,6 +1770,9 @@ class BackupManager {
                 // backup integrity and will be recreated on restore if needed.
                 if (isSkippableLevelDbLockError(sourcePath, copyError)) {
                   logger.warn('[BackupManager] Skipping locked file', { path: sourcePath })
+                  continue
+                } else if (isVanishedMidStagingError(copyError)) {
+                  logger.warn('[BackupManager] File disappeared during backup, skipping', { path: sourcePath })
                   continue
                 }
                 throw copyError
