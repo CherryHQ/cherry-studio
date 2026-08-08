@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -504,12 +505,12 @@ vi.mock('../AgentSidePanel', () => ({
     historyRecordsActive,
     agentSessionsSource,
     onAddAgent,
+    onManageAgents,
     onOpenHistoryRecords,
     onSetPanePosition,
     onCreateSession,
     onShowMissingAgentSelection,
     revealRequest,
-    resourceMenuItems,
     setActiveSessionId
   }: any) => {
     agentPageMocks.agentSidePanelSessionsSource = agentSessionsSource
@@ -572,11 +573,11 @@ vi.mock('../AgentSidePanel', () => ({
           }>
           Replace deleted panel session
         </button>
-        {resourceMenuItems?.map((item: { id: string; label: ReactNode; onSelect: () => void | Promise<void> }) => (
-          <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-            {item.id === 'agent-resource-view' ? 'agent.manage.title' : item.label}
+        {onManageAgents && (
+          <button type="button" onClick={() => void onManageAgents()}>
+            agent.manage.title
           </button>
-        ))}
+        )}
       </div>
     )
   }
@@ -589,6 +590,7 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     agentSessionsSource,
     onAddAgent,
     onActiveAgentDeleted,
+    onManageAgents,
     onOpenHistoryRecords,
     onSelectedAgentClick
   }: {
@@ -597,9 +599,9 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
     agentSessionsSource?: unknown
     onAddAgent?: () => void | Promise<void>
     onActiveAgentDeleted?: (agentId: string) => void | Promise<void>
+    onManageAgents?: () => void | Promise<void>
     onOpenHistoryRecords?: () => void | Promise<void>
     onSelectedAgentClick?: () => void | Promise<void>
-    resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => {
     agentPageMocks.agentResourceListSessionsSource = agentSessionsSource
 
@@ -620,6 +622,11 @@ vi.mock('@renderer/components/chat/resourceList/AgentResourceList', () => ({
         <button type="button" onClick={() => void onSelectedAgentClick?.()}>
           Toggle selected agent pane
         </button>
+        {onManageAgents && (
+          <button type="button" onClick={() => void onManageAgents()}>
+            agent.manage.title
+          </button>
+        )}
       </div>
     )
   }
@@ -735,7 +742,7 @@ describe('AgentPage', () => {
     ipcMocks.request.mockResolvedValue(undefined)
   })
 
-  it('consumes a prepared feedback session once and skips the normal resume path', async () => {
+  it('uses a prepared feedback session as a transient launch and skips the normal resume path', async () => {
     // Opening must not depend on Cherry Assistant already being present in the renderer's stale Agent list.
     agentPageMocks.agents = []
     const previousSession = {
@@ -770,7 +777,6 @@ describe('AgentPage', () => {
     )
     expect(agentPageMocks.dataApiDelete).not.toHaveBeenCalled()
     expect(agentPageMocks.composerLaunchOptions).toMatchObject({
-      draftCacheKey: 'agent-feedback-draft-session-feedback',
       initialDraft: {
         text: 'Use the issue-reporter skill.',
         tokens: [expect.objectContaining({ id: 'skill:issue-reporter', kind: 'skill' })]
@@ -781,25 +787,14 @@ describe('AgentPage', () => {
       search: { sessionId: 'session-feedback' },
       replace: true
     })
-    expect(cacheService.hasCasual('agent-feedback-launch-session-feedback')).toBe(true)
-    expect(cacheService.hasCasual('agent-feedback-draft-session-feedback')).toBe(true)
+    expect(cacheService.has(getAgentDraftCacheKey('session-feedback'))).toBe(false)
 
     agentPageMocks.routeSearch = { sessionId: 'session-feedback' }
     view.unmount()
     agentPageMocks.composerLaunchOptions = undefined
     render(<AgentPage />)
 
-    await waitFor(() => {
-      expect(agentPageMocks.composerLaunchOptions).toMatchObject({
-        draftCacheKey: 'agent-feedback-draft-session-feedback',
-        initialDraft: { text: 'Use the issue-reporter skill.' }
-      })
-    })
-    act(() => {
-      agentPageMocks.composerLaunchOptions.onSent()
-    })
     await waitFor(() => expect(agentPageMocks.composerLaunchOptions).toBeUndefined())
-    expect(cacheService.hasCasual('agent-feedback-launch-session-feedback')).toBe(false)
   })
 
   it('starts the model read from the visible list agent hint', async () => {
@@ -861,7 +856,7 @@ describe('AgentPage', () => {
     expect(agentPageMocks.rightPanelSessionsSource).toBe(agentPageMocks.createdAgentSessionsSource)
   })
 
-  it('hides resource management entries from the left rail when sessions are on the right', () => {
+  it('opens agent management from the entity rail when sessions are on the right', () => {
     agentPageMocks.sessionDisplayMode = 'agent'
     agentPageMocks.sessionPanePosition = 'right'
     activeSessionMocks.session = { ...agentPageMocks.persistedSession, agentId: 'agent-a' }
@@ -870,8 +865,10 @@ describe('AgentPage', () => {
     render(<AgentPage />)
 
     expect(screen.getByTestId('agent-resource-list')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'agent.manage.title' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'chat.resource_view.menu.skill' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'agent.manage.title' }))
+
+    expect(screen.getByTestId('resource-catalog-agent')).toBeInTheDocument()
+    expect(screen.getByTestId('agent-conversation-page-shell')).toBeInTheDocument()
   })
 
   it('does not render the session resource pane when the classic session position is left', () => {

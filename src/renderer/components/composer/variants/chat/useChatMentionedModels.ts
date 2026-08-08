@@ -21,6 +21,7 @@ interface UseMentionedModelSelectorResult {
   handleMentionedModelsSelect: (models: Model[]) => void
   handleMentionedModelMultiSelectModeChange: (enabled: boolean) => void
   handleMentionedModelSelectorRestore: () => void
+  restoreMentionedModelDraft: (models: Model[], multiSelectMode: boolean) => void
 }
 
 /**
@@ -143,11 +144,24 @@ export function useChatMentionedModels({
     setMentionedModels([])
   }, [runtimeModel, setMentionedModels])
 
+  const restoreMentionedModelDraft = useCallback(
+    (models: Model[], multiSelectMode: boolean) => {
+      mentionedModelsRef.current = models
+      mentionedModelSelectorValueRef.current = models
+      mentionedModelMultiSelectModeRef.current = multiSelectMode
+      setMentionedModels(models)
+      setMentionedModelSelectorValue(models)
+      setMentionedModelMultiSelectMode(multiSelectMode)
+    },
+    [setMentionedModels]
+  )
+
   return {
     mentionedModelSelectorValue,
     mentionedModelMultiSelectMode,
     handleMentionedModelsSelect,
     handleMentionedModelMultiSelectModeChange,
-    handleMentionedModelSelectorRestore
+    handleMentionedModelSelectorRestore,
+    restoreMentionedModelDraft
   }
 }

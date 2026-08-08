@@ -1,5 +1,5 @@
+import { projectMessagePartsForRenderer, projectStreamChunkForRenderer } from '@main/utils/messageOutputProjection'
 import type { StreamChunkPayload } from '@shared/ai/transport'
-import { projectMessagePartsForRenderer, projectStreamChunkForRenderer } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 
 export function projectStreamMessageForRenderer(topicId: string, message: CherryUIMessage): CherryUIMessage {

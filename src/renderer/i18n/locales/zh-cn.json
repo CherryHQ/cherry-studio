@@ -1741,12 +1741,6 @@
       "top": "回到顶部"
     },
     "resend": "重新发送",
-    "resource_view": {
-      "menu": {
-        "agent": "智能体",
-        "assistant": "助手"
-      }
-    },
     "save": {
       "file": {
         "title": "保存到本地文件"
@@ -1919,6 +1913,7 @@
         "time": "时间",
         "title": "展示方式"
       },
+      "draft": "草稿",
       "edit": {
         "placeholder": "输入新名称",
         "title": "编辑对话名",
