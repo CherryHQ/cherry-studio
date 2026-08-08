@@ -9,6 +9,7 @@ export { KnowledgeVectorStoreService } from './pipeline/vectorstore/KnowledgeVec
 export { type MaterialFieldSource, toMaterialRelativePath } from './items'
 export {
   assertSafeKnowledgeRelativePath,
+  CHERRY_META_DIR,
   collectKnowledgeReservedRelativePaths,
   needsProcessedArtifactReservation,
   reserveImportedFileRelativePath
