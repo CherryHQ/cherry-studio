@@ -77,7 +77,7 @@ jobs:
               - 'vitest.config.ts'
               - 'patches/**'
 
-  basic-checks:
+  basic-checks-worker:
     runs-on: ubuntu-latest
     env:
       CI: true
@@ -122,7 +122,17 @@ jobs:
         shell: bash
         run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
 
+      - name: Restore pnpm dependencies
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
       - name: Cache pnpm dependencies
+        if: github.event_name != 'pull_request'
         uses: actions/cache@v5
         with:
           path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
@@ -139,18 +149,13 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: pnpm changeset status --since="origin/$BASE_REF"
 
-      - name: Read-only Checks
+      - name: Type and Repository Checks
         run: |
           pnpm exec concurrently \
-            --names "Lint Check,Format Check,Type Check,Builtin Knowledge Check,i18n Check,Hardcoded Strings Check,Skills Check" \
-            --prefix-colors "cyan,magenta,yellow,blue,green,red,white" \
-            "pnpm test:lint" \
-            "pnpm format:check" \
-            "pnpm typecheck" \
-            "pnpm build:builtin-knowledge:check" \
-            "pnpm i18n:check" \
-            "pnpm i18n:hardcoded:strict" \
-            "pnpm skills:check"
+            --names "Type and Hardcoded Strings,Format and Repository Checks" \
+            --prefix-colors "yellow,cyan" \
+            "pnpm typecheck && pnpm i18n:hardcoded:strict" \
+            "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm i18n:check && pnpm skills:check"
 
       - name: DB Migrations Check
         run: |
@@ -177,8 +182,61 @@ jobs:
             exit 1
           fi
 
+  lint-check:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".node-version"
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v5
+
+      - name: Get pnpm store directory
+        id: pnpm-cache
+        shell: bash
+        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
+
+      - name: Restore pnpm dependencies
+        uses: actions/cache/restore@v5
+        with:
+          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install Dependencies
+        run: pnpm install
+
+      - name: Lint Check
+        run: pnpm test:lint
+
+  basic-checks:
+    runs-on: ubuntu-latest
+    needs: [basic-checks-worker, lint-check]
+    if: >-
+      always() &&
+      (github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event.pull_request.draft == false)
+    steps:
+      - name: Verify basic checks
+        env:
+          BASIC_RESULT: ${{ needs.basic-checks-worker.result }}
+          LINT_RESULT: ${{ needs.lint-check.result }}
+        run: |
+          test "$BASIC_RESULT" = "success"
+          test "$LINT_RESULT" = "success"
+
   main-test-shard:
-    name: main-test (${{ matrix.shard }}/2)
+    name: main-test (${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
     needs: changes
     if: >-
@@ -192,7 +250,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     env:
       CI: true
 
@@ -225,7 +283,7 @@ jobs:
         run: pnpm install
 
       - name: Main Process Test
-        run: pnpm test:main --shard=${{ matrix.shard }}/2
+        run: pnpm test:main --shard=${{ matrix.shard }}/3
 
   general-test:
     runs-on: ubuntu-latest
@@ -314,7 +372,7 @@ jobs:
         run: pnpm test:scripts
 
   renderer-test-shard:
-    name: renderer-test (${{ matrix.shard }}/4)
+    name: renderer-test (${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
     needs: changes
     if: >-
@@ -330,7 +388,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     env:
       CI: true
 
@@ -363,7 +421,7 @@ jobs:
         run: pnpm install
 
       - name: Renderer Test
-        run: pnpm test:renderer --shard=${{ matrix.shard }}/4
+        run: pnpm test:renderer --shard=${{ matrix.shard }}/6
 
   render-test:
     runs-on: ubuntu-latest
