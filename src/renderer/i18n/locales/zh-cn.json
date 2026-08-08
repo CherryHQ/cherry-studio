@@ -524,6 +524,16 @@
         "inaccessible": "工作区路径不可访问：{{path}}"
       }
     },
+    "session_delivery": {
+      "from": "来自 {{agent}} / {{session}}",
+      "status": {
+        "accepted": "已接受",
+        "consumed": "已消费",
+        "delivering": "投递中",
+        "failed": "失败",
+        "queued": "排队中"
+      }
+    },
     "settings": {
       "advance": {
         "envVars": {
@@ -4285,6 +4295,14 @@
         "searchResults": "搜索结果",
         "stderr": "标准错误",
         "stdout": "标准输出"
+      },
+      "sessionCreate": {
+        "created": "已启动新会话",
+        "creating": "正在启动新会话",
+        "firstMessage": "首条消息",
+        "inheritedContext": "沿用当前智能体与工作区",
+        "sessionId": "会话 ID",
+        "untitled": "未命名会话"
       },
       "status": {
         "done": "完成",

@@ -1193,10 +1193,29 @@ async function materializeUserContent(
     preparedParts = prepared.parts
   }
 
-  const text = preparedParts
+  let text = preparedParts
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
     .map((part) => part.text)
     .join('\n')
+  if (message.delivery) {
+    const context = JSON.stringify({
+      schema: 'cherry.session-delivery.v1',
+      deliveryId: message.delivery.id,
+      sender: {
+        agentId: message.delivery.sender.agentId,
+        sessionId: message.delivery.sender.sessionId
+      },
+      receiver: {
+        agentId: message.delivery.receiver.agentId,
+        sessionId: message.delivery.receiver.sessionId
+      },
+      replyTo: {
+        agentId: message.delivery.replyTo.agentId,
+        sessionId: message.delivery.replyTo.sessionId
+      }
+    })
+    text = `<cherry-session-delivery>${context}</cherry-session-delivery>\n\n${text}`
+  }
   const images: ImageBlockParam[] = []
   const fallbackParts: FileUIPart[] = []
   const unavailableParts: FileUIPart[] = []

@@ -1,11 +1,76 @@
 import { application } from '@application'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import { agentChatContextProvider } from '../context/AgentChatContextProvider'
-import type { StreamListener } from '../types'
+import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
+
+const logger = loggerService.withContext('AgentSessionDelivery')
+
+class AgentSessionDeliveryListener implements StreamListener {
+  readonly id: string
+  private replied = false
+
+  constructor(private readonly message: AgentSessionMessageEntity) {
+    this.id = `agent-delivery:${message.delivery?.id ?? message.id}`
+  }
+
+  onChunk(): void {}
+
+  async onDone(result: StreamDoneResult): Promise<void> {
+    await this.reply(this.extractText(result.finalMessage) || 'Session completed without a text response.')
+  }
+
+  async onPaused(result: StreamPausedResult): Promise<void> {
+    await this.reply(this.extractText(result.finalMessage) || 'Session paused without a text response.')
+  }
+
+  async onError(result: StreamErrorResult): Promise<void> {
+    const partial = this.extractText(result.finalMessage)
+    const error = result.error.message ?? 'Unknown error'
+    await this.reply(partial ? `${partial}\n\nSession ended with an error: ${error}` : `Session failed: ${error}`)
+  }
+
+  isAlive(): boolean {
+    return true
+  }
+
+  private extractText(message: StreamDoneResult['finalMessage']): string {
+    return (message?.parts ?? [])
+      .flatMap((part) => (part.type === 'text' ? [part.text] : []))
+      .join('')
+      .trim()
+  }
+
+  private async reply(content: string): Promise<void> {
+    const delivery = this.message.delivery
+    if (!delivery?.expectsReply || this.replied) return
+    this.replied = true
+
+    try {
+      const reply = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: delivery.receiver.agentId,
+        senderSessionId: delivery.receiver.sessionId,
+        receiverSessionId: delivery.replyTo.sessionId,
+        content,
+        mode: 'auto'
+      })
+      await dispatchAcceptedAgentSessionDelivery(reply)
+    } catch (error) {
+      logger.error('Failed to return Agent Session delivery result', {
+        deliveryId: delivery.id,
+        senderSessionId: delivery.receiver.sessionId,
+        receiverSessionId: delivery.replyTo.sessionId,
+        error
+      })
+    }
+  }
+}
 
 /**
  * Start (or inject into) an agent-session stream from a non-renderer caller.
@@ -26,7 +91,7 @@ import type { StreamListener } from '../types'
  * graph would loop back through stream-manager/context.
  */
 export type StartAgentSessionRunResult =
-  | { mode: 'started' }
+  | { mode: 'started'; disposition?: 'queued' | 'delivering' }
   | { mode: 'not-started'; reason: 'busy' | 'session-invalid' }
 
 export async function startAgentSessionRun(input: {
@@ -35,6 +100,10 @@ export async function startAgentSessionRun(input: {
   listeners: StreamListener[]
   headless?: boolean
   requireIdle?: { expectedAgentId: string }
+  /** Already-persisted Main-authored user row for cross-session delivery. */
+  deliveryMessage?: AgentSessionMessageEntity
+  /** Persist and run as a later FIFO turn; never redirect into the current turn. */
+  queueOnly?: boolean
 }): Promise<StartAgentSessionRunResult> {
   if (input.listeners.length === 0) {
     throw new Error('startAgentSessionRun requires at least one listener')
@@ -85,6 +154,7 @@ export async function startAgentSessionRun(input: {
       }
     }
 
+    const wasBusy = application.get('AgentSessionRuntimeService').isSessionBusy(input.sessionId)
     let prepared
     try {
       prepared = await agentChatContextProvider.prepareDispatch(
@@ -93,7 +163,9 @@ export async function startAgentSessionRun(input: {
           trigger: 'submit-message',
           topicId,
           userMessageParts: input.userParts,
-          headless: input.headless === true
+          headless: input.headless === true,
+          agentDeliveryMessage: input.deliveryMessage,
+          agentDeliveryQueueOnly: input.queueOnly === true
         },
         {
           hasLiveStream: false,
@@ -124,7 +196,53 @@ export async function startAgentSessionRun(input: {
       siblingsGroupId: prepared.siblingsGroupId,
       lifecycle: prepared.lifecycle
     })
-    result = { mode: 'started' }
+    const disposition = wasBusy ? 'queued' : 'delivering'
+    if (input.deliveryMessage?.delivery) {
+      agentSessionMessageService.updateSessionDeliveryStatus(input.sessionId, input.deliveryMessage.id, disposition)
+    }
+    result = input.deliveryMessage ? { mode: 'started', disposition } : { mode: 'started' }
   })
   return result
+}
+
+export async function dispatchAcceptedAgentSessionDelivery(
+  message: AgentSessionMessageEntity
+): Promise<'queued' | 'delivering'> {
+  if (!message.delivery) throw new Error(`Message ${message.id} has no delivery envelope`)
+  try {
+    const result = await startAgentSessionRun({
+      sessionId: message.sessionId,
+      userParts: message.data.parts ?? [],
+      listeners: [new AgentSessionDeliveryListener(message)],
+      headless: true,
+      deliveryMessage: message,
+      queueOnly: message.delivery.mode === 'queue'
+    })
+    if (result.mode !== 'started') throw new Error(`Delivery was not started: ${result.reason}`)
+    if (!result.disposition) throw new Error('Delivery started without a disposition')
+    return result.disposition
+  } catch (error) {
+    agentSessionMessageService.updateSessionDeliveryStatus(message.sessionId, message.id, 'failed', {
+      code: 'TARGET_UNAVAILABLE',
+      message: error instanceof Error ? error.message : String(error)
+    })
+    throw error
+  }
+}
+
+export async function recoverAcceptedAgentSessionDeliveries(): Promise<void> {
+  const messages = agentSessionMessageService.listRecoverableSessionDeliveries()
+  if (messages.length === 0) return
+  logger.info('Recovering durable agent-session deliveries', { count: messages.length })
+  for (const message of messages) {
+    try {
+      await dispatchAcceptedAgentSessionDelivery(message)
+    } catch (error) {
+      logger.warn('Failed to recover agent-session delivery', {
+        deliveryId: message.delivery?.id,
+        sessionId: message.sessionId,
+        error
+      })
+    }
+  }
 }

@@ -33,6 +33,7 @@ function toReservedAgentUIMessage(row: AgentSessionMessageEntity): CherryUIMessa
       createdAt: row.createdAt,
       modelId: row.modelId ?? undefined,
       messageSnapshot: row.messageSnapshot ?? undefined,
+      delivery: row.delivery ?? undefined,
       stats: row.stats ?? undefined,
       ...(row.stats?.totalTokens ? { totalTokens: row.stats.totalTokens } : {})
     }
@@ -87,11 +88,18 @@ export class AgentChatContextProvider implements ChatContextProvider {
       model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
     }
 
-    const userMessageId = uuidv7()
-    const userMessageParts = req.userMessageParts ?? []
+    const deliveryMessage = req.agentDeliveryMessage
+    if (
+      deliveryMessage &&
+      (deliveryMessage.sessionId !== sessionId || deliveryMessage.role !== 'user' || !deliveryMessage.delivery)
+    ) {
+      throw new Error('Invalid durable agent delivery message')
+    }
+    const userMessageId = deliveryMessage?.id ?? uuidv7()
+    const userMessageParts = deliveryMessage?.data.parts ?? req.userMessageParts ?? []
     const createdAt = new Date().toISOString()
 
-    const userMessage: AgentSessionMessageEntity = {
+    let userMessage: AgentSessionMessageEntity = deliveryMessage ?? {
       id: userMessageId,
       sessionId,
       role: 'user',
@@ -127,11 +135,14 @@ export class AgentChatContextProvider implements ChatContextProvider {
         }
       })
 
+      userMessage = savedUserMessage
+
       application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage, {
         headless: req.headless === true,
         messageSnapshot,
         reasoningEffort,
-        fastMode: req.fastMode
+        fastMode: req.fastMode,
+        ...(deliveryMessage ? { allowRedirect: req.agentDeliveryQueueOnly !== true } : {})
       })
 
       return {
@@ -202,6 +213,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
       topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
     }
+    userMessage = savedMessages[0]
 
     // Author the turn span's input/identity here (where the agent + user message live).
     applyTurnInputAttributes(turnTrace.rootSpan, {

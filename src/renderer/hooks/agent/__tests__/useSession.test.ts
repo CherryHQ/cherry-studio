@@ -315,6 +315,20 @@ describe('useSessions', () => {
     })
   })
 
+  it('refreshes the session list when a backend-created Session is announced', () => {
+    const refresh = vi.fn().mockResolvedValue(undefined)
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
+    renderHook(() => useSessions(undefined))
+
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([
+        { endpoint: '/agent-sessions', kind: 'membership', entityIds: ['session-created'] }
+      ])
+    })
+
+    expect(refresh).toHaveBeenCalledOnce()
+  })
+
   it('does not revalidate previously loaded pages while the load-all session chain grows', () => {
     // Simulate a multi-page loadAll: each render grows `pages` by one and
     // keeps `hasNext` true until the final page. The auto-paginate effect

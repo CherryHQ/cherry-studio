@@ -1,3 +1,4 @@
+import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
@@ -23,6 +24,9 @@ export const agentSessionMessageTable = sqliteTable(
     messageSnapshot: text({ mode: 'json' }).$type<MessageSnapshot>(),
     stats: text({ mode: 'json' }).$type<MessageStats>(),
     runtimeResumeToken: text(),
+    // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
+    // message edits cannot forge sender identity or mutate delivery lifecycle.
+    delivery: text({ mode: 'json' }).$type<AgentSessionDelivery>(),
     // Stable integer surrogate for the FTS5 content_rowid (see message.ts for full rationale):
     // trigger-assigned, local-only, nullable because the AFTER INSERT trigger fills it.
     ftsRowid: integer(),

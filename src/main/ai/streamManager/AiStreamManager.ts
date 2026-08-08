@@ -27,6 +27,7 @@ import { type UIMessageChunk } from 'ai'
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
 import type { AiStreamRequest, CallOverrides, ContextOwner, InProcessUsageContext } from '../types'
+import { recoverAcceptedAgentSessionDeliveries } from './api/startAgentSessionRun'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
@@ -285,6 +286,12 @@ export class AiStreamManager extends BaseService {
     this.reconcileStalePendingMessages()
     this.markReconciled()
     logger.info('AiStreamManager initialized')
+  }
+
+  protected override onAllReady(): void {
+    void recoverAcceptedAgentSessionDeliveries().catch((error) => {
+      logger.error('Agent-session delivery recovery failed', { error })
+    })
   }
 
   /**

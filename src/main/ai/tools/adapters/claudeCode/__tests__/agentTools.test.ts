@@ -17,6 +17,7 @@ import {
   CHERRY_BUILTIN_MCP_SERVER,
   toCherryBuiltinRuntimeName
 } from '@main/ai/tools/adapters/claudeCode/cherryBuiltinApproval'
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import { KB_MANAGE_TOOL_NAME, TO_MARKDOWN_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -256,7 +257,12 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(KB_MANAGE_TOOL_NAME)
     expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(CLI_INSTALL_TOOL_NAME)
     expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).toEqual(
-      expect.arrayContaining([CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, TO_MARKDOWN_TOOL_NAME])
+      expect.arrayContaining([
+        CLI_LIST_TOOL_NAME,
+        CLI_SEARCH_TOOL_NAME,
+        TO_MARKDOWN_TOOL_NAME,
+        SESSION_CREATE_TOOL_NAME
+      ])
     )
     expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).not.toContain(KB_MANAGE_TOOL_NAME)
     const autoApproved = new Set<string>(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES)

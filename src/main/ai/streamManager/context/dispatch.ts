@@ -6,6 +6,7 @@
 
 import { loggerService } from '@logger'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
 import { isAgentSessionWorkspaceError } from '../../runtime/claudeCode'
@@ -55,6 +56,10 @@ export type MainDispatchRequest = (
    * task), so runtimes must not enable ask-the-user tools. Never set on renderer requests.
    */
   headless?: boolean
+  /** Main-only durable user row accepted by the cross-session delivery path. */
+  agentDeliveryMessage?: AgentSessionMessageEntity
+  /** Main-only queue policy: never redirect this delivery into the currently-running turn. */
+  agentDeliveryQueueOnly?: boolean
 }
 
 const logger = loggerService.withContext('chatContextDispatch')
