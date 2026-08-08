@@ -1804,6 +1804,7 @@ const TopicRow = memo(function TopicRow({
           topicId={topic.id}
           awaitingApprovalLabel={t('agent.toolPermission.pendingBadge')}
           draftLabel={t('chat.topics.draft')}
+          isActive={isActive}
           isAwaitingApproval={isTopicAwaitingApproval}
           isErrored={isTopicStreamErrored}
           isFulfilled={!isActive && isTopicStreamFulfilled}
@@ -1875,6 +1876,7 @@ const TopicTrailingStatus = ({
   topicId,
   awaitingApprovalLabel,
   draftLabel,
+  isActive,
   isAwaitingApproval,
   isErrored,
   isFulfilled,
@@ -1883,6 +1885,7 @@ const TopicTrailingStatus = ({
   topicId: string
   awaitingApprovalLabel: string
   draftLabel: string
+  isActive: boolean
   isAwaitingApproval: boolean
   isErrored: boolean
   isFulfilled: boolean
@@ -1899,6 +1902,10 @@ const TopicTrailingStatus = ({
   if (isPending || isErrored || isFulfilled) {
     return <TopicStreamIndicator isErrored={isErrored} isFulfilled={isFulfilled} isPending={isPending} />
   }
+
+  // The active row's draft is the text visible in the composer right below it,
+  // so flagging it as unsent tells the user nothing.
+  if (isActive) return null
 
   // The draft subscriber mounts only in the lowest-priority branch. Virtualized
   // rows that are offscreen, or rows showing a higher-priority status, subscribe

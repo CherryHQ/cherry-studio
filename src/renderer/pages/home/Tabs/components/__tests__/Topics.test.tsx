@@ -2119,6 +2119,19 @@ describe('Topics', () => {
     expect(topicRow.querySelector('[data-testid="topic-stream-indicator"]')).not.toBeInTheDocument()
   })
 
+  it('hides the draft indicator on the active topic', () => {
+    const activeTopic = createRendererTopic({ id: 'topic-a', assistantId: 'assistant-1', name: 'Alpha topic' })
+
+    renderTopicList({ activeTopic })
+
+    // The active row's draft is the text sitting in the composer right below the list.
+    act(() => setTopicDraft('topic-a', 'Currently typing'))
+    expect(within(getTopicRow('Alpha topic')).queryByRole('img', { name: 'Draft' })).not.toBeInTheDocument()
+
+    act(() => setTopicDraft('topic-c', 'Unsent elsewhere'))
+    expect(within(getTopicRow('Gamma topic')).getByRole('img', { name: 'Draft' })).toBeInTheDocument()
+  })
+
   it('shows an awaiting-approval badge for a terminal topic without a spinner', () => {
     setTopicDraft('topic-c', 'Draft while awaiting approval')
     setTopicStreamCacheStatus('topic-c', 'awaiting-approval')
