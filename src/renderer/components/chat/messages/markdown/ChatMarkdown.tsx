@@ -1,10 +1,14 @@
 import '@cherrystudio/ui/components/composites/markdown/styles'
 
 import { Markdown, type MarkdownSource, StreamingMarkdown, withChatPlugins } from '@cherrystudio/ui'
-import { useMessageRenderConfig } from '@renderer/components/chat/messages/MessageListProvider'
+import {
+  useMessageRenderConfig,
+  useOptionalMessageListActions
+} from '@renderer/components/chat/messages/MessageListProvider'
 import type { Citation } from '@renderer/types/message'
 import { removeSvgEmptyLines } from '@renderer/utils/formats'
 import { processLatexBrackets } from '@renderer/utils/markdown'
+import { openFileTarget } from '@renderer/utils/openFileTarget'
 import { isEmpty } from 'es-toolkit/compat'
 import { type FC, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -42,6 +46,7 @@ const ChatMarkdown: FC<Props> = ({
 }) => {
   const { t } = useTranslation()
   const { mathEnableSingleDollar } = useMessageRenderConfig()
+  const actions = useOptionalMessageListActions()
   const isStreaming = block.status === 'streaming'
   const hasStreamedRef = useRef(isStreaming)
   if (isStreaming) hasStreamedRef.current = true
@@ -76,6 +81,24 @@ const ChatMarkdown: FC<Props> = ({
   const footnoteLabel = t('common.footnotes')
   const remarkPlugins = inlineHtmlPreviewMode ? HTML_ARTIFACT_REMARK_PLUGINS : undefined
 
+  // Only intercept schemeless markdown links as workspace files when the host can actually
+  // resolve+open them: openArtifactFile is the workspace-aware opener (agent sessions with an
+  // artifact pane). Surfaces without it — Home chat, Quick Assistant, the selection window —
+  // must not intercept (dead/no-op or wrong-CWD open), and keep Streamdown's link hardening.
+  const canOpenWorkspaceFiles = !!actions?.openArtifactFile
+  const openFilePath = useMemo(
+    () =>
+      actions?.openArtifactFile
+        ? (path: string) =>
+            openFileTarget(path, {
+              openArtifactFile: actions.openArtifactFile,
+              openPath: actions.openPath,
+              onError: () => actions.notifyError?.(t('chat.input.tools.open_file_error', { path }))
+            })
+        : undefined,
+    [actions, t]
+  )
+
   // Keep the renderer type stable when an active text tail is sealed by a
   // later process part. Historical markdown still mounts the static renderer.
   const renderer = hasStreamedRef.current ? (
@@ -86,7 +109,8 @@ const ChatMarkdown: FC<Props> = ({
       components={mergedComponents}
       footnoteLabel={footnoteLabel}
       animated={isStreaming ? undefined : false}
-      parseIncompleteMarkdown={isStreaming}>
+      parseIncompleteMarkdown={isStreaming}
+      disableLinkHardening={canOpenWorkspaceFiles}>
       {content}
     </StreamingMarkdown>
   ) : (
@@ -96,7 +120,8 @@ const ChatMarkdown: FC<Props> = ({
       remarkPlugins={remarkPlugins}
       components={mergedComponents}
       className={className}
-      footnoteLabel={footnoteLabel}>
+      footnoteLabel={footnoteLabel}
+      disableLinkHardening={canOpenWorkspaceFiles}>
       {content}
     </Markdown>
   )
@@ -106,7 +131,8 @@ const ChatMarkdown: FC<Props> = ({
       blockId={block.id}
       citationRegistry={citationRegistry}
       inlineHtmlPreviewMode={inlineHtmlPreviewMode}
-      isStreaming={isStreaming}>
+      isStreaming={isStreaming}
+      openFilePath={openFilePath}>
       {inlineHtmlPreviewMode ? <HtmlArtifactPopupHost>{renderer}</HtmlArtifactPopupHost> : renderer}
     </ChatMarkdownRenderProvider>
   )

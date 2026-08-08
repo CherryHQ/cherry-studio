@@ -16,8 +16,8 @@ const IMAGE_STYLE: CSSProperties = { maxWidth: 500, maxHeight: 500 }
 const PRE_STYLE: CSSProperties = { overflow: 'visible' }
 
 function ChatLinkRenderer(props: MarkdownRendererProps<'a'>) {
-  const { citationRegistry } = useChatMarkdownRenderContext()
-  return <Link {...props} citationRegistry={citationRegistry} />
+  const { citationRegistry, openFilePath } = useChatMarkdownRenderContext()
+  return <Link {...props} citationRegistry={citationRegistry} openFilePath={openFilePath} />
 }
 
 function ChatCitationSupRenderer(props: MarkdownRendererProps<'sup'>) {

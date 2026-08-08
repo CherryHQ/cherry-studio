@@ -34,7 +34,8 @@ vi.mock('@cherrystudio/ui', () => ({
 }))
 
 vi.mock('../../MessageListProvider', () => ({
-  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false })
+  useMessageRenderConfig: () => ({ mathEnableSingleDollar: false }),
+  useOptionalMessageListActions: () => undefined
 }))
 
 vi.mock('../ChatMarkdownRenderers', () => ({

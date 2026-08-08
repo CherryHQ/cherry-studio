@@ -234,4 +234,31 @@ describe('ClickableFilePath', () => {
     expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
     expect(screen.getAllByText('/tmp/test.ts').length).toBeGreaterThan(0)
   })
+
+  it('should open via onOpen with the resolved path outside a message list provider (artifact preview)', async () => {
+    // The artifact file preview renders this off any MessageListProvider, so the
+    // open handler arrives through `onOpen` rather than the message-list actions.
+    const onOpen = vi.fn()
+    render(<ClickableFilePath path="`.agents/skills/gh-create-pr/SKILL.md`" onOpen={onOpen} />)
+
+    fireEvent.click(screen.getByRole('link', { name: '.agents/skills/gh-create-pr/SKILL.md' }))
+
+    await waitFor(() => {
+      expect(onOpen).toHaveBeenCalledWith('.agents/skills/gh-create-pr/SKILL.md')
+    })
+  })
+
+  it('should prefer onOpen over the message-list open actions', async () => {
+    const onOpen = vi.fn()
+    renderWithProvider(<ClickableFilePath path="/Users/foo/bar.tsx" onOpen={onOpen} />, {
+      openArtifactFile: mockOpenArtifactFile
+    })
+
+    fireEvent.click(screen.getByRole('link', { name: '/Users/foo/bar.tsx' }))
+
+    await waitFor(() => {
+      expect(onOpen).toHaveBeenCalledWith('/Users/foo/bar.tsx')
+    })
+    expect(mockOpenArtifactFile).not.toHaveBeenCalled()
+  })
 })

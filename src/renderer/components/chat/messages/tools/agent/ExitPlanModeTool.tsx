@@ -1,5 +1,5 @@
+import { StaticMarkdown } from '@renderer/components/markdown'
 import { useTranslation } from 'react-i18next'
-import { Streamdown } from 'streamdown'
 
 import type { ExitPlanModeToolInput, ExitPlanModeToolOutput } from '../shared/agentToolTypes'
 import { AgentToolsType } from '../shared/agentToolTypes'
@@ -34,7 +34,7 @@ export function ExitPlanModeTool({
     ),
     children: (
       <div>
-        <Streamdown mode="static">{truncatedContent}</Streamdown>
+        <StaticMarkdown>{truncatedContent}</StaticMarkdown>
         {isTruncated && <TruncatedIndicator originalLength={originalLength} />}
       </div>
     )
