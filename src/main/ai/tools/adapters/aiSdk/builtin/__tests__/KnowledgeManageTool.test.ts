@@ -42,22 +42,12 @@ type ManageArgs = {
   conceptIds?: string[]
 }
 
-type StrictManageArgs = Omit<Required<ManageArgs>, 'type'> & {
-  type: NonNullable<ManageArgs['type']> | 'none'
-}
-
 function callExecute(args: ManageArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
-  const execute = entry.tool.execute as (args: StrictManageArgs, options: ToolExecutionOptions) => Promise<unknown>
+  const execute = entry.tool.execute as (args: ManageArgs, options: ToolExecutionOptions) => Promise<unknown>
   return execute(
-    {
-      type: 'none',
-      path: '',
-      url: '',
-      content: '',
-      title: '',
-      conceptIds: [],
-      ...args
-    },
+    // Fields the action does not use are omitted, not sentinel-valued — kb_manage runs without
+    // `strict`, so its schema is plain optionals.
+    args,
     {
       toolCallId: 'tc-1',
       messages: [],
