@@ -652,7 +652,7 @@ function mockDeferredAnimationFrames() {
 }
 
 describe('edit dialogs', () => {
-  it('submits assistant name, description, and model changes as a PATCH', async () => {
+  it('submits assistant name, description, and model changes as separate PATCHes', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Updated Assistant' } })
@@ -662,15 +662,10 @@ describe('edit dialogs', () => {
     expect(modelTrigger).not.toHaveTextContent('Provider')
     fireEvent.click(modelTrigger)
     fireEvent.click(screen.getByRole('button', { name: 'Pick model' }))
-    await waitFor(() =>
-      expect(updateAssistantMock).toHaveBeenCalledWith({
-        body: expect.objectContaining({
-          name: 'Updated Assistant',
-          description: 'Updated assistant description',
-          modelId: MODEL.id
-        })
-      })
-    )
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(3))
+    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { name: 'Updated Assistant' } })
+    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { description: 'Updated assistant description' } })
+    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { modelId: MODEL.id } })
   })
 
   it('shows the clear model affordance beside the chevron and clears the selected model', async () => {
@@ -761,7 +756,7 @@ describe('edit dialogs', () => {
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
   })
 
-  it('submits agent instructions and model changes as a PATCH', async () => {
+  it('submits agent instructions and model changes as separate PATCHes', async () => {
     promptProcessorMock.mockImplementation(({ prompt, modelName }: { prompt: string; modelName?: string }) =>
       prompt.replaceAll('{{model_name}}', modelName ?? '')
     )
@@ -798,14 +793,9 @@ describe('edit dialogs', () => {
       prompt: 'Updated instructions {{model_name}}',
       modelName: 'Updated Model'
     })
-    await waitFor(() =>
-      expect(updateAgentMock).toHaveBeenCalledWith({
-        body: expect.objectContaining({
-          model: MODEL.id,
-          instructions: 'Updated instructions {{model_name}}'
-        })
-      })
-    )
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock).toHaveBeenCalledWith({ body: { instructions: 'Updated instructions {{model_name}}' } })
+    expect(updateAgentMock).toHaveBeenCalledWith({ body: { model: MODEL.id } })
   })
 
   it('does not turn externally refreshed agent fields into stale PATCH values', async () => {
@@ -1556,7 +1546,6 @@ describe('edit dialogs', () => {
       .mockResolvedValue(undefined)
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
-    selectTab('Advanced')
     const intervalInput = screen.getByDisplayValue('30')
     fireEvent.focus(intervalInput)
     fireEvent.change(intervalInput, { target: { value: '45' } })
