@@ -2,7 +2,7 @@
 title: Developer-mode trace viewer keeps only recent trace data
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#18203"
 date: 2026-08-08
 ---
 
