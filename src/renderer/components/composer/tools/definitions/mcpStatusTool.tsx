@@ -277,7 +277,8 @@ export function createMcpStatusLauncher(
         symbol: ComposerPanelSymbol.McpStatus,
         parentPanel,
         queryAnchor,
-        triggerInfo: triggerInfo ?? { type: 'button' },
+        triggerInfo: { type: 'button' },
+        trackInputQuery: true,
         readOnly: !editable
       })
     }
