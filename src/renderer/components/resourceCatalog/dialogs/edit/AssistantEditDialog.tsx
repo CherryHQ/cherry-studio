@@ -172,6 +172,7 @@ function contextSettingsFromValues(values: AssistantEditFormValues): AssistantSe
  */
 type AssistantEditor = {
   form: UseFormReturn<AssistantEditFormValues>
+  discard: (...keys: (keyof UpdateAssistantDto)[]) => void
   set: (
     values: Partial<AssistantEditFormValues>,
     patch: UpdateAssistantDto,
@@ -219,25 +220,52 @@ function AssistantEditDialogContent({
   const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
+  const saveFailureToastKey = `assistant-edit-save-failed:${resource.id}`
   const save = useDirectFieldSave<UpdateAssistantDto>({
     save: updateAssistant,
     merge: mergeAssistantPatch,
-    onError: (error) => {
+    onError: (error, retry) => {
       logger.error('Failed to save assistant edit dialog', error, { assistantId: resource.id })
-      toast.error(saveFailedMessage)
+      toast.error({
+        key: saveFailureToastKey,
+        timeout: 0,
+        title: saveFailedMessage,
+        description: (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-auto min-h-0 px-1 py-0 text-xs underline-offset-2 hover:underline"
+            onClick={() => {
+              toast.closeToast(saveFailureToastKey)
+              retry()
+            }}>
+            {t('common.retry')}
+          </Button>
+        )
+      })
     }
   })
+  useEffect(() => {
+    if (save.status !== 'failed') toast.closeToast(saveFailureToastKey)
+  }, [save.status, saveFailureToastKey])
   const setField = useCallback<AssistantEditor['set']>(
     (values, patch, mode = 'now') => {
       for (const [key, value] of Object.entries(values)) {
-        form.setValue(key as Path<AssistantEditFormValues>, value as never, { shouldDirty: true })
+        form.setValue(key as Path<AssistantEditFormValues>, value as never, {
+          shouldDirty: true,
+          shouldValidate: key === 'name'
+        })
       }
       if (mode === 'debounced') save.schedule(patch)
       else save.commit(patch)
     },
     [form, save]
   )
-  const editor = useMemo<AssistantEditor>(() => ({ form, set: setField }), [form, setField])
+  const editor = useMemo<AssistantEditor>(
+    () => ({ form, discard: save.discard, set: setField }),
+    [form, save.discard, setField]
+  )
   const tabs = useMemo<EditDialogTab[]>(
     () => [
       { id: 'basic', label: t('library.config.dialogs.edit.basic_tab') },
@@ -402,13 +430,14 @@ function AssistantBasicFields({
   onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
-  const { form, set } = editor
+  const { form, discard, set } = editor
 
   const handleNameChange = (name: string) => {
     // An empty name is a transient editing state, not a persistable value: keep
     // it in the draft, surface the required message, and skip the PATCH.
     const trimmed = name.trim()
     if (!trimmed) {
+      discard('name')
       form.setValue('name', name, { shouldDirty: true, shouldValidate: true })
       return
     }

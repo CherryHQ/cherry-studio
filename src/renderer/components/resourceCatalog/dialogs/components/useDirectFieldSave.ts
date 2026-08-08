@@ -9,6 +9,8 @@ export interface DirectFieldSave<TPatch> {
   commit: (patch: TPatch) => void
   /** Buffer `patch` and send it once typing settles; later calls re-arm the timer. */
   schedule: (patch: TPatch) => void
+  /** Remove fields that are still buffered but have not started saving. */
+  discard: (...keys: (keyof TPatch)[]) => void
   /** Send everything buffered right away; resolves when the queue drains. */
   flush: () => Promise<void>
   /** Re-send the buffered patch whose last attempt failed. */
@@ -39,7 +41,7 @@ export function useDirectFieldSave<TPatch extends object>({
   save: (patch: TPatch) => Promise<unknown>
   /** Combine a buffered patch with a newer one; `next` wins on conflicts. */
   merge: (base: TPatch, next: TPatch) => TPatch
-  onError?: (error: Error) => void
+  onError?: (error: Error, retry: () => void) => void
   delay?: number
 }): DirectFieldSave<TPatch> {
   const [status, setStatus] = useState<DirectSaveStatus>('idle')
@@ -58,6 +60,7 @@ export function useDirectFieldSave<TPatch extends object>({
   const drainingRef = useRef(false)
   const inFlightRef = useRef<Promise<void>>(Promise.resolve())
   const mountedRef = useRef(true)
+  const retryRef = useRef<() => void>(() => undefined)
 
   useEffect(
     () => () => {
@@ -89,7 +92,7 @@ export function useDirectFieldSave<TPatch extends object>({
             // user's next edit, which merges on top — can resend it.
             pendingRef.current = pendingRef.current ? mergeRef.current(patch, pendingRef.current) : patch
             publishStatus('failed')
-            onErrorRef.current?.(error instanceof Error ? error : new Error(String(error)))
+            onErrorRef.current?.(error instanceof Error ? error : new Error(String(error)), () => retryRef.current())
             return
           }
         }
@@ -134,6 +137,22 @@ export function useDirectFieldSave<TPatch extends object>({
     [clearTimer, delay, drain, enqueue, publishStatus]
   )
 
+  const discard = useCallback(
+    (...keys: (keyof TPatch)[]) => {
+      if (!pendingRef.current) return
+
+      const remaining: Partial<TPatch> = { ...pendingRef.current }
+      for (const key of keys) delete remaining[key]
+      pendingRef.current = Object.keys(remaining).length > 0 ? (remaining as TPatch) : null
+
+      if (!pendingRef.current) {
+        clearTimer()
+        if (!drainingRef.current) publishStatus('idle')
+      }
+    },
+    [clearTimer, publishStatus]
+  )
+
   const flush = useCallback((): Promise<void> => {
     clearTimer()
     return drain()
@@ -144,7 +163,14 @@ export function useDirectFieldSave<TPatch extends object>({
     void drain()
   }, [clearTimer, drain])
 
+  useEffect(() => {
+    retryRef.current = retry
+  }, [retry])
+
   // Stable except when the reported status changes, so the field tree built on
   // top of it doesn't re-render on every keystroke.
-  return useMemo(() => ({ status, commit, schedule, flush, retry }), [commit, flush, retry, schedule, status])
+  return useMemo(
+    () => ({ status, commit, schedule, discard, flush, retry }),
+    [commit, discard, flush, retry, schedule, status]
+  )
 }

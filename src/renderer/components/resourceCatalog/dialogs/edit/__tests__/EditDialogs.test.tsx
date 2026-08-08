@@ -1490,28 +1490,74 @@ describe('edit dialogs', () => {
     })
   })
 
-  it('flags an emptied name instead of persisting it', async () => {
+  it('drops a queued assistant name when it is emptied and clears the error after recovery', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: '  ' } })
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'Queued Assistant' } })
+    fireEvent.change(nameInput, { target: { value: '  ' } })
 
     expect(await screen.findByText('Required')).toBeInTheDocument()
     await new Promise((resolve) => setTimeout(resolve, 700))
     expect(updateAssistantMock).not.toHaveBeenCalled()
+
+    fireEvent.change(nameInput, { target: { value: 'Recovered Assistant' } })
+
+    await waitFor(() => expect(screen.queryByText('Required')).not.toBeInTheDocument())
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledWith({ body: { name: 'Recovered Assistant' } }))
   })
 
-  it('closes the assistant dialog even when the final save fails', async () => {
+  it('drops a queued agent name when it is emptied and clears the error after recovery', async () => {
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'Queued Agent' } })
+    fireEvent.change(nameInput, { target: { value: '  ' } })
+
+    expect(await screen.findByText('Required')).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(updateAgentMock).not.toHaveBeenCalled()
+
+    fireEvent.change(nameInput, { target: { value: 'Recovered Agent' } })
+
+    await waitFor(() => expect(screen.queryByText('Required')).not.toBeInTheDocument())
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledWith({ body: { name: 'Recovered Agent' } }))
+  })
+
+  it('keeps assistant retry available after a failed closing save unmounts the dialog', async () => {
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
-    const onOpenChange = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
+    function UnmountingAssistantDialog() {
+      const [resource, setResource] = useState<Assistant | null>(ASSISTANT)
+      return (
+        <AssistantEditDialog
+          open={resource !== null}
+          resource={resource}
+          onOpenChange={(next) => {
+            if (!next) setResource(null)
+          }}
+        />
+      )
+    }
+    render(<UnmountingAssistantDialog />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    // A rejected field save is reported, never used to trap the user in the dialog.
-    expect(onOpenChange).toHaveBeenCalledWith(false)
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Save failed'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({ key: 'assistant-edit-save-failed:assistant-1', timeout: 0, title: 'Save failed' })
+      )
+    )
     expect(updateAssistantMock).toHaveBeenCalledWith({ body: { name: 'Closing Edit' } })
+
+    const toastConfig = vi.mocked(toast.error).mock.calls.at(-1)?.[0]
+    if (typeof toastConfig === 'string' || !toastConfig?.description) throw new Error('Expected retryable save toast')
+    render(<>{toastConfig.description}</>)
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: { name: 'Closing Edit' } })
   })
 
   it('closes the agent dialog even when the final save fails', async () => {
@@ -1523,7 +1569,11 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Save failed'))
+    await waitFor(() =>
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.objectContaining({ key: 'agent-edit-save-failed:agent-1', timeout: 0, title: 'Save failed' })
+      )
+    )
     expect(updateAgentMock).toHaveBeenCalledWith({ body: { name: 'Closing Agent' } })
   })
 

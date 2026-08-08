@@ -82,7 +82,7 @@ describe('useDirectFieldSave', () => {
     await settle()
 
     expect(result.current.status).toBe('failed')
-    expect(onError).toHaveBeenCalledExactlyOnceWith(expect.any(Error))
+    expect(onError).toHaveBeenCalledExactlyOnceWith(expect.any(Error), expect.any(Function))
 
     act(() => result.current.retry())
     await settle()
@@ -116,15 +116,62 @@ describe('useDirectFieldSave', () => {
     expect(save).toHaveBeenCalledExactlyOnceWith({ name: 'a' })
   })
 
-  it('does not resend a patch that a failure already reported after unmount', async () => {
-    const save = vi.fn().mockRejectedValue(new Error('offline'))
-    const { result, unmount } = setup(save)
+  it('discards a buffered field without dropping unrelated fields', async () => {
+    vi.useFakeTimers()
+    try {
+      const save = vi.fn().mockResolvedValue(undefined)
+      const { result } = setup(save)
+
+      act(() => result.current.schedule({ name: 'temporary', description: 'keep' }))
+      act(() => result.current.discard('name'))
+
+      await act(async () => {
+        vi.advanceTimersByTime(10)
+        await Promise.resolve()
+      })
+
+      expect(save).toHaveBeenCalledExactlyOnceWith({ description: 'keep' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels the timer when the only buffered field is discarded', async () => {
+    vi.useFakeTimers()
+    try {
+      const save = vi.fn().mockResolvedValue(undefined)
+      const { result } = setup(save)
+
+      act(() => result.current.schedule({ name: 'temporary' }))
+      act(() => result.current.discard('name'))
+      await act(async () => vi.advanceTimersByTime(10))
+
+      expect(save).not.toHaveBeenCalled()
+      expect(result.current.status).toBe('idle')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('exposes a retry that still drains the rejected patch after unmount', async () => {
+    const onError = vi.fn()
+    const save = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
+    const { result, unmount } = setup(save, onError)
 
     act(() => result.current.commit({ name: 'a' }))
     unmount()
     await settle()
 
-    // One attempt, and no state update on the unmounted hook.
     expect(save).toHaveBeenCalledTimes(1)
+    const retry = onError.mock.calls[0]?.[1]
+    expect(retry).toEqual(expect.any(Function))
+
+    act(() => {
+      retry?.()
+    })
+    await settle()
+
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(save).toHaveBeenLastCalledWith({ name: 'a' })
   })
 })

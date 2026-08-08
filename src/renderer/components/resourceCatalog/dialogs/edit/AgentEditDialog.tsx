@@ -193,6 +193,7 @@ function agentConfigurationPatch(configuration: AgentConfiguration): UpdateAgent
  */
 type AgentEditor = {
   form: UseFormReturn<AgentEditFormValues>
+  discard: (...keys: (keyof UpdateAgentDto)[]) => void
   set: (values: Partial<AgentEditFormValues>, patch: UpdateAgentDto, mode?: 'now' | 'debounced') => void
 }
 
@@ -230,25 +231,52 @@ function AgentEditDialogContent({
   const promptModelName = selectedAgentModel?.name ?? (modelId === resource.model ? resource.modelName : undefined)
   const { updateAgent } = useAgentMutationsById(resource.id)
   const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
+  const saveFailureToastKey = `agent-edit-save-failed:${resource.id}`
   const save = useDirectFieldSave<UpdateAgentDto>({
     save: updateAgent,
     merge: mergeAgentPatch,
-    onError: (error) => {
+    onError: (error, retry) => {
       logger.error('Failed to save agent edit dialog', error, { agentId: resource.id })
-      toast.error(saveFailedMessage)
+      toast.error({
+        key: saveFailureToastKey,
+        timeout: 0,
+        title: saveFailedMessage,
+        description: (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-auto min-h-0 px-1 py-0 text-xs underline-offset-2 hover:underline"
+            onClick={() => {
+              toast.closeToast(saveFailureToastKey)
+              retry()
+            }}>
+            {t('common.retry')}
+          </Button>
+        )
+      })
     }
   })
+  useEffect(() => {
+    if (save.status !== 'failed') toast.closeToast(saveFailureToastKey)
+  }, [save.status, saveFailureToastKey])
   const setField = useCallback<AgentEditor['set']>(
     (values, patch, mode = 'now') => {
       for (const [key, value] of Object.entries(values)) {
-        form.setValue(key as Path<AgentEditFormValues>, value as never, { shouldDirty: true })
+        form.setValue(key as Path<AgentEditFormValues>, value as never, {
+          shouldDirty: true,
+          shouldValidate: key === 'name'
+        })
       }
       if (mode === 'debounced') save.schedule(patch)
       else save.commit(patch)
     },
     [form, save]
   )
-  const editor = useMemo<AgentEditor>(() => ({ form, set: setField }), [form, setField])
+  const editor = useMemo<AgentEditor>(
+    () => ({ form, discard: save.discard, set: setField }),
+    [form, save.discard, setField]
+  )
   const { bases: knowledgeBases, isLoading: knowledgeBasesLoading } = useKnowledgeBases()
   const availableKnowledgeBaseIds = useMemo(() => new Set(knowledgeBases.map((base) => base.id)), [knowledgeBases])
   const {
@@ -418,7 +446,7 @@ function AgentBasicFields({
   onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
-  const { form, set } = editor
+  const { form, discard, set } = editor
   const heartbeatEnabled = form.watch('heartbeatEnabled')
 
   const handleNameChange = (name: string) => {
@@ -426,6 +454,7 @@ function AgentBasicFields({
     // it in the draft, surface the required message, and skip the PATCH.
     const trimmed = name.trim()
     if (!trimmed) {
+      discard('name')
       form.setValue('name', name, { shouldDirty: true, shouldValidate: true })
       return
     }
