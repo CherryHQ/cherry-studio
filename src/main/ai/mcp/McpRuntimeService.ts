@@ -114,6 +114,10 @@ export interface McpToolListChangedEvent {
 // still letting users raise it further via `server.timeout`.
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 
+// Liveness ping before reusing a cached client. 1s falsely timed out on stdio servers busy
+// with a previous request, forcing needless reconnects.
+const PING_TIMEOUT_MS = 5_000
+
 // Order in which to attempt the URL-based transports for a given server. We try the
 // user-configured type first (no behavior change for correctly configured servers) and,
 // if that fails with a transport-level protocol error, retry with the other transport.
@@ -370,20 +374,19 @@ export class McpRuntimeService extends BaseService {
         // Check if the existing client is still connected
         const pingResult = await existingClient.ping({
           // add short timeout to prevent hanging
-          timeout: 1000
+          timeout: PING_TIMEOUT_MS
         })
         getServerLogger(server).debug(`Ping result`, { ok: !!pingResult })
-        // If the ping fails, remove the client from the cache
-        // and create a new one
+        // If the ping fails, close the client and create a new one
         if (!pingResult) {
-          this.clients.delete(serverKey)
+          await this.discardStaleClient(serverKey)
         } else {
           this.setServerStatus(server.id, 'connected')
           return existingClient
         }
       } catch (error: any) {
         getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
-        this.clients.delete(serverKey)
+        await this.discardStaleClient(serverKey)
       }
     }
 
@@ -955,6 +958,19 @@ export class McpRuntimeService extends BaseService {
       if (result.status === 'rejected') {
         logger.error(`Failed to close client`, result.reason as Error)
       }
+    }
+  }
+
+  /**
+   * A client that failed its liveness ping must still be closed — dropping it from the map
+   * alone orphans the stdio child process (issue #18144).
+   */
+  private async discardStaleClient(serverKey: string): Promise<void> {
+    try {
+      await this.closeClient(serverKey)
+    } catch (error) {
+      logger.error(`Failed to close stale client`, error as Error)
+      this.clients.delete(serverKey)
     }
   }
 
