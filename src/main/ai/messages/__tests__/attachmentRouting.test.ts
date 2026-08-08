@@ -1,4 +1,5 @@
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
+import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -26,7 +27,7 @@ vi.mock('../attachmentTextExtraction', () => ({
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
-import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
+import { collectFileAttachments, prepareChatMessages, resolveAttachmentInlineCap } from '../attachmentRouting'
 import { toModelMessages } from '../messageRules'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
@@ -47,14 +48,15 @@ const fileWithEntry = (id: string, filename: string, mediaType: string): CherryM
 const run = (
   parts: CherryMessagePart[],
   ns: NativeFileSupport,
-  opts: { isToolCapable?: boolean; cap?: number } = {}
+  opts: { isToolCapable?: boolean; cap?: number; contextWindow?: number } = {}
 ) => {
   const messages = [userMessage(parts)] as UIMessage[]
   return prepareChatMessages(messages, {
     attachments: collectFileAttachments(messages),
     nativeSupport: ns,
     isToolCapable: opts.isToolCapable ?? true,
-    cap: opts.cap
+    cap: opts.cap,
+    contextWindow: opts.contextWindow
   })
 }
 
@@ -208,6 +210,16 @@ describe('prepareChatMessages — routing', () => {
     expect(text).not.toContain('read_file')
   })
 
+  it('inlines a long document in full when the window affords it', async () => {
+    const doc = '一'.repeat(40_000)
+    getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
+    extractMock.mockResolvedValueOnce(doc)
+    const [out] = await run([fileWithEntry('e1', 'a.txt', 'text/plain')], NONE, { contextWindow: 400_000 })
+    const text = textOf(out.parts)[0]
+    expect(text).not.toContain('Truncated')
+    expect(text).toContain(doc)
+  })
+
   it('degrades to a note when both OCR and the native image fallback fail', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     ocrMock.mockRejectedValueOnce(new Error('Default file processor for image_to_text is not configured'))
@@ -269,5 +281,22 @@ describe('collectFileAttachments', () => {
   it('ignores file parts without a fileEntryId', () => {
     const legacy = { type: 'file', url: 'file:///x/legacy.pdf', mediaType: 'application/pdf' } as CherryMessagePart
     expect(collectFileAttachments([userMessage([legacy])] as UIMessage[])).toEqual([])
+  })
+})
+
+describe('resolveAttachmentInlineCap', () => {
+  it('falls back to the flat page size when no window is known', () => {
+    expect(resolveAttachmentInlineCap(undefined, 1)).toBe(READ_FILE_PAGE_SIZE)
+    expect(resolveAttachmentInlineCap(0, 1)).toBe(READ_FILE_PAGE_SIZE)
+  })
+
+  it('scales with the window and splits across attachments', () => {
+    expect(resolveAttachmentInlineCap(400_000, 1)).toBe(200_000)
+    expect(resolveAttachmentInlineCap(400_000, 4)).toBe(50_000)
+  })
+
+  it('never drops below the flat page size on a tiny window', () => {
+    expect(resolveAttachmentInlineCap(8_000, 1)).toBe(READ_FILE_PAGE_SIZE)
+    expect(resolveAttachmentInlineCap(400_000, 1_000)).toBe(READ_FILE_PAGE_SIZE)
   })
 })

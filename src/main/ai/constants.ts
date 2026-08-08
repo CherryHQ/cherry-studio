@@ -49,6 +49,25 @@ export const APPROX_CHARS_PER_TOKEN = 3
  */
 export const MIN_IN_FLIGHT_TRUNCATE_THRESHOLD = 2000
 
+/**
+ * Share of the model's context window the request's attachments may claim
+ * inline. Attachments are explicit user intent — unlike tool output the user
+ * asked for this content to be read — so the share is far larger than
+ * IN_FLIGHT_TOOL_OUTPUT_WINDOW_RATIO.
+ */
+export const ATTACHMENT_INLINE_WINDOW_RATIO = 0.5
+
+/**
+ * Pessimistic chars-per-token for the attachment budget. NOT
+ * APPROX_CHARS_PER_TOKEN (3): that one is tuned for code/JSON/log tool output
+ * and is backstopped by the user's absolute character setting. The attachment
+ * budget has no such backstop, and CJK prose runs ~1 token per character — at
+ * 3 a Chinese document would claim ~3× its budgeted share and overflow the
+ * window outright. Erring small only costs a read_file page; erring large
+ * fails the request.
+ */
+export const ATTACHMENT_CHARS_PER_TOKEN = 1
+
 /** Internal Claude Agent SDK → Cherry API Gateway bridge for Codex priority requests. */
 export const CHERRY_FAST_MODE_HEADER = 'X-Cherry-Fast-Mode'
 /** Process-local credential proving that a gateway request originated inside Cherry. */
