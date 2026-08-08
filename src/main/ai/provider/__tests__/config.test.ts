@@ -142,6 +142,59 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
   })
 
+  it('sends Authorization: Bearer to a third-party anthropic-compatible gateway', async () => {
+    // LongCat-shaped: the Anthropic adapter only ever sends `x-api-key`, which this gateway
+    // answers with 401 missing_api_key.
+    const provider = makeProvider({
+      id: 'longcat',
+      presetProviderId: 'longcat',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+          adapterFamily: 'openai-compatible',
+          baseUrl: 'https://api.longcat.chat/openai'
+        },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
+          adapterFamily: 'anthropic',
+          baseUrl: 'https://api.longcat.chat/anthropic'
+        }
+      }
+    })
+    const model = makeModel({
+      id: 'longcat::LongCat-2.0',
+      apiModelId: 'LongCat-2.0',
+      providerId: 'longcat',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+      preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const settings = config.providerSettings as Record<string, any>
+
+    expect(settings.headers.Authorization).toBe('Bearer sk-test-key')
+  })
+
+  it('never sends Authorization alongside x-api-key to Anthropic itself, which 401s on both', async () => {
+    const provider = makeProvider({
+      id: 'anthropic',
+      presetProviderId: 'anthropic',
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' }
+      }
+    })
+    const model = makeModel({
+      id: 'anthropic::claude-sonnet-4',
+      apiModelId: 'claude-sonnet-4',
+      providerId: 'anthropic'
+    })
+
+    const config = await providerToAiSdkConfig(provider, model)
+    const settings = config.providerSettings as Record<string, any>
+
+    expect(settings.headers.Authorization).toBeUndefined()
+  })
+
   describe('Vertex routing (google-vertex AND google-vertex-anthropic → buildVertexConfig)', () => {
     const vertexAuth: AuthConfig = {
       type: 'iam-gcp',
