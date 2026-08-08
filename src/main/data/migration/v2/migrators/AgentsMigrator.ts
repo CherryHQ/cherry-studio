@@ -1671,7 +1671,7 @@ export function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<string, str
        WHERE a.id IN (SELECT id FROM agent)`
     )
   )
-  let normalizedAgentCount = 0
+  const normalizedAgentIds: string[] = []
   const rows = legacyRows.flatMap(({ agentId, mcps }) => {
     if (mcps === null) return []
 
@@ -1679,22 +1679,25 @@ export function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<string, str
     try {
       parsed = JSON.parse(mcps)
     } catch {
-      normalizedAgentCount++
+      normalizedAgentIds.push(agentId)
       return []
     }
 
     if (!Array.isArray(parsed)) {
-      normalizedAgentCount++
+      normalizedAgentIds.push(agentId)
       return []
     }
 
     const mcpIds = parsed.filter((mcpId): mcpId is string => typeof mcpId === 'string')
-    if (mcpIds.length !== parsed.length) normalizedAgentCount++
+    if (mcpIds.length !== parsed.length) normalizedAgentIds.push(agentId)
     return Array.from(new Set(mcpIds), (oldMcpId) => ({ agentId, oldMcpId }))
   })
 
-  if (normalizedAgentCount > 0) {
-    logger.warn('Normalized invalid legacy agent MCP configuration', { agentCount: normalizedAgentCount })
+  if (normalizedAgentIds.length > 0) {
+    logger.warn('Normalized invalid legacy agent MCP configuration', {
+      agentCount: normalizedAgentIds.length,
+      agentIds: normalizedAgentIds
+    })
   }
   if (rows.length === 0) return
 

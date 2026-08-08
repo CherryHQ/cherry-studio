@@ -6,6 +6,7 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import Database from 'better-sqlite3'
 import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -45,6 +46,7 @@ describe('AgentsMigrator > migrateAgentMcps malformed legacy data', () => {
   })
 
   beforeEach(() => {
+    mockMainLoggerService.warn.mockClear()
     dbh.db
       .insert(agentTable)
       .values(
@@ -72,5 +74,9 @@ describe('AgentsMigrator > migrateAgentMcps malformed legacy data', () => {
     expect(dbh.db.select().from(agentMcpServerTable).all()).toEqual([
       expect.objectContaining({ agentId: VALID_AGENT_ID, mcpServerId: TARGET_MCP_ID })
     ])
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Normalized invalid legacy agent MCP configuration', {
+      agentCount: 1,
+      agentIds: [MALFORMED_AGENT_ID]
+    })
   })
 })
