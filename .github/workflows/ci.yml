@@ -372,7 +372,7 @@ jobs:
         run: pnpm test:scripts
 
   renderer-test-shard:
-    name: renderer-test (${{ matrix.shard }}/6)
+    name: renderer-test (${{ matrix.shard }}/8)
     runs-on: ubuntu-latest
     needs: changes
     if: >-
@@ -388,7 +388,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     env:
       CI: true
 
@@ -421,7 +421,7 @@ jobs:
         run: pnpm install
 
       - name: Renderer Test
-        run: pnpm test:renderer --shard=${{ matrix.shard }}/6
+        run: pnpm test:renderer --shard=${{ matrix.shard }}/8
 
   render-test:
     runs-on: ubuntu-latest
