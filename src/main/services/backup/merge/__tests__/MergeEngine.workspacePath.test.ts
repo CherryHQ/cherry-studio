@@ -233,4 +233,31 @@ describe('MergeEngine cross-machine agent_workspace.path rebase (t2)', () => {
     const row = dbh.sqlite.prepare(`SELECT path FROM agent_workspace WHERE id = 'ws-win'`).get() as { path: string }
     expect(row.path).toBe(join(hostSystemWorkspacesRoot, '2026-03-09', 'sess-b'))
   })
+
+  it('disambiguates two user workspaces sharing a basename (no UNIQUE(path) abort)', async () => {
+    // Two backup user workspaces whose final path segment coincides (common — users name dirs
+    // 'proj' / 'workspace'). Both absent locally → both rebase to {root}/proj. agent_workspace.path
+    // is UNIQUE; without disambiguation the second INSERT throws and rolls back the WHOLE merge.
+    // The rebase must append a stable suffix so both rows insert.
+    seedBackup((db) => {
+      insertWorkspace(db, 'ws-a', '/home/alice/work/proj', { type: 'user', name: 'proj' })
+      insertWorkspace(db, 'ws-b', '/home/bob/work/proj', { type: 'user', name: 'proj' })
+    })
+
+    await runMerge(wsCtx())
+
+    // Both rows inserted (no UNIQUE abort, no rollback).
+    expect(countWorkspaces()).toBe(2)
+    const rows = dbh.sqlite.prepare(`SELECT id, path FROM agent_workspace ORDER BY id`).all() as {
+      id: string
+      path: string
+    }[]
+    // Both rebased under the host root; the second carries a disambiguator suffix.
+    const baseA = join(hostSystemWorkspacesRoot, 'proj')
+    expect(rows[0].path).toBe(baseA)
+    expect(rows[1].path).not.toBe(baseA)
+    expect(rows[1].path.startsWith(`${baseA}-`)).toBe(true)
+    // Paths remain distinct (UNIQUE preserved).
+    expect(rows[0].path).not.toBe(rows[1].path)
+  })
 })

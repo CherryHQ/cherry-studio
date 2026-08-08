@@ -19,6 +19,7 @@
 //
 // See `docs/references/backup/backup-architecture.md` §3/§9.
 
+import { createHash } from 'node:crypto'
 import { posix } from 'node:path'
 
 import { loggerService } from '@logger'
@@ -103,6 +104,18 @@ export const tupleKey = (values: readonly (string | number)[]): string =>
       return `${s.length}:${s}`
     })
     .join(TUPLE_KEY_SEP)
+
+/**
+ * Append a short stable suffix to a rebased user-workspace placeholder path so two backup
+ * user workspaces sharing a basename do not collide on agent_workspace.path (UNIQUE). The
+ * suffix is the first 8 hex chars of sha256(backupId) — stable across re-imports (same backup
+ * row → same suffix) so a repeated restore lands on the same host path, and distinct for
+ * distinct backup ids. e.g. {root}/proj → {root}/proj-a1b2c3d4.
+ */
+const disambiguateWorkspacePath = (placeholderPath: string, backupId: string): string => {
+  const suffix = createHash('sha256').update(backupId).digest('hex').slice(0, 8)
+  return `${placeholderPath}-${suffix}`
+}
 
 /**
  * Max bound variables per anchor-id `IN (...)` lookup. Stays far below the bundled
@@ -299,19 +312,25 @@ const resolveReferenceTargetTable = (ref: EntityReference): DbTableName | undefi
 }
 
 /**
- * Intra-domain Kahn topological sort of aggregates. Edges are `kind:'owning'`
- * cross-aggregate refs whose target is another aggregate root in the SAME
- * domain — the referenced root must be processed first so its identityMap
- * entry is available when the referrer's pre-pass writes its own entry.
+ * Intra-domain Kahn topological sort of aggregates. Edges are:
+ *   (a) `kind:'owning'` cross-aggregate refs whose target is another aggregate root in the
+ *       SAME domain — the referenced root must be processed first so its identityMap entry
+ *       is available when the referrer's pre-pass writes its own entry.
+ *   (b) `required` JSON entity-id soft refs whose targetTable is another aggregate root in
+ *       the SAME domain — the target's identityMap must be seeded before the source imports,
+ *       or a required entity-id rewrite reports missing and the source row is mis-pruned
+ *       (mirrors finalize #10's cross-domain entity-id DAG edge at the intra-domain level).
  *
  * Does NOT sort across domains — `registry.topoSort` already handles that.
  * The implementation is independent of the contributor `aggregates` declaration
  * order (it does not assume any), so contributors may declare aggregates in
- * any order without breaking identity propagation.
+ * any order without breaking identity propagation — for BOTH owning FKs and required
+ * JSON entity-ids.
  */
 const topoSortAggregates = (
   aggregates: readonly AggregateBoundary[],
-  intraDomainRefs: ReadonlyMap<DbTableName, readonly EntityReference[]>
+  intraDomainRefs: ReadonlyMap<DbTableName, readonly EntityReference[]>,
+  intraDomainEntityIdEdges: ReadonlyArray<readonly [sourceRoot: DbTableName, targetRoot: DbTableName]> = []
 ): readonly AggregateBoundary[] => {
   const rootsByTable = new Map<DbTableName, AggregateBoundary>()
   for (const agg of aggregates) rootsByTable.set(agg.root, agg)
@@ -322,6 +341,19 @@ const topoSortAggregates = (
     adj.set(agg.root, [])
     inDegree.set(agg.root, 0)
   }
+  // Add an edge target → source (target must precede source) iff both are aggregate roots in
+  // this domain and distinct. Deduped so an aggregate that both owns a FK to AND carries a
+  // required entity-id pointing at the same target adds the edge once (Kahn inDegree must stay
+  // balanced with the queue's decrement-per-push).
+  const seenEdge = new Set<string>()
+  const addEdge = (target: DbTableName, source: DbTableName): void => {
+    if (!rootsByTable.has(target) || !rootsByTable.has(source) || target === source) return
+    const key = `${target}\0${source}`
+    if (seenEdge.has(key)) return
+    seenEdge.add(key)
+    adj.get(target)!.push(source)
+    inDegree.set(source, (inDegree.get(source) ?? 0) + 1)
+  }
   for (const agg of aggregates) {
     const refs = intraDomainRefs.get(agg.root) ?? []
     for (const ref of refs) {
@@ -329,10 +361,11 @@ const topoSortAggregates = (
       const targetTable = resolveReferenceTargetTable(ref)
       if (targetTable === undefined) continue
       // Edge only between two aggregates in the SAME domain (intra-domain cross-aggregate).
-      if (!rootsByTable.has(targetTable) || targetTable === agg.root) continue
-      adj.get(targetTable)!.push(agg.root)
-      inDegree.set(agg.root, (inDegree.get(agg.root) ?? 0) + 1)
+      addEdge(targetTable, agg.root)
     }
+  }
+  for (const [sourceRoot, targetRoot] of intraDomainEntityIdEdges) {
+    addEdge(targetRoot, sourceRoot)
   }
   const queue: DbTableName[] = aggregates.map((a) => a.root).filter((t) => (inDegree.get(t) ?? 0) === 0)
   const sorted: AggregateBoundary[] = []
@@ -738,11 +771,29 @@ export class MergeEngine {
     } catch {
       // table empty / missing — nothing to protect
     }
+    // Track rebased user-ws placeholder paths so two backup user workspaces that share a
+    // basename (e.g. /home/alice/work/proj + /home/bob/work/proj) do not collapse onto the
+    // same {hostRoot}/{basename} — agent_workspace.path is UNIQUE, so a collision would make
+    // the second INSERT throw and roll back the ENTIRE merge. On collision, append a short
+    // stable suffix derived from the backup row's uuid id (system ws keeps its faithful tail
+    // and is never deduped — its /system/{date}/{sessionId} tail is already unique).
+    const assignedUserPaths = new Set<string>(localUserPaths)
     for (const row of backupRoots) {
       const target = this.resolveWorkspacePathTarget(row, ctx.hostSystemWorkspacesRoot, localUserPaths)
       if (target !== undefined) {
-        row[physicalColumn('path')] = target.path
-        if (target.rebased) rebasedWorkspaceRows.add(row)
+        let finalPath = target.path
+        if (target.rebased) {
+          // Disambiguate only user-ws placeholders (system tails are unique by construction).
+          if (assignedUserPaths.has(finalPath)) {
+            finalPath = disambiguateWorkspacePath(finalPath, String(row[physicalColumn('id')] ?? ''))
+          }
+          assignedUserPaths.add(finalPath)
+          row[physicalColumn('path')] = finalPath
+          rebasedWorkspaceRows.add(row)
+        } else {
+          assignedUserPaths.add(finalPath)
+          row[physicalColumn('path')] = finalPath
+        }
       }
     }
   }
@@ -1052,7 +1103,22 @@ export class MergeEngine {
       if (domainDecisions.length === 0) continue
       const aggregates = this.registry.getAggregatesForDomain(domain)
       const intraDomainRefs = groupIntraDomainOwningRefs(aggregates, this.registry.getReferencesForDomain(domain))
-      const sorted = topoSortAggregates(aggregates, intraDomainRefs)
+      // Intra-domain required JSON entity-id edges (mirror of finalize #10's cross-domain edge):
+      // a required entity-id whose targetTable is an aggregate root in THIS domain makes that
+      // target a prerequisite, so its targetMap is seeded before the source imports.
+      const domainRoots = new Set(aggregates.map((a) => a.root))
+      const intraDomainEntityIdEdges: readonly (readonly [DbTableName, DbTableName])[] = this.registry
+        .getSchema(domain)
+        .jsonSoftReferences.filter(
+          (j) =>
+            j.target === 'entity-id' &&
+            j.kind === 'required' &&
+            j.targetTable !== undefined &&
+            domainRoots.has(j.table) &&
+            domainRoots.has(j.targetTable)
+        )
+        .map((j) => [j.table, j.targetTable as DbTableName] as const)
+      const sorted = topoSortAggregates(aggregates, intraDomainRefs, intraDomainEntityIdEdges)
       // Decision write order: each aggregate's decisions land in topo order so
       // the referenced root identity is in the map before any referrer that
       // needs it. The sort is a total order over aggregates; decisions per
@@ -1284,6 +1350,14 @@ export class MergeEngine {
     identityMap: IdentityMap,
     degradedToSkips: DegradedSkip[]
   ): void {
+    // Aggregate skipReason disclosures (e.g. pin rows dropped by a selected-domain filter) by
+    // table+reason — mirrors importAllJunctionRows / importPolymorphicAssociationRows so a LITE
+    // restore carrying many same-reason skips emits one {count:N} record, not N {count:1}.
+    const skipCounts = new Map<string, number>()
+    const bumpSkip = (table: DbTableName, reason: string): void => {
+      const key = `${table}${DEGRADE_KEY_SEP}${reason}`
+      skipCounts.set(key, (skipCounts.get(key) ?? 0) + 1)
+    }
     for (const decision of decisions) {
       switch (decision.action) {
         case 'skip': {
@@ -1305,14 +1379,11 @@ export class MergeEngine {
             )
           }
           // t3: disclose a skipped row whose reason is user-visible (e.g. a pin whose entity
-          // domain is not in this restore). Mirrors entity_tag's association_dropped disclosure.
+          // domain is not in this restore). Aggregated per table+reason (not one-per-row) so a
+          // large set of same-reason skips does not bloat the journal/UI. Mirrors entity_tag's
+          // association_dropped disclosure.
           if (decision.skipReason !== undefined) {
-            degradedToSkips.push({
-              kind: 'association_dropped',
-              table: decision.aggregate.root,
-              count: 1,
-              reason: decision.skipReason
-            })
+            bumpSkip(decision.aggregate.root, decision.skipReason)
           }
           continue
         }
@@ -1328,6 +1399,10 @@ export class MergeEngine {
         case 'rename':
           throw new MergeStrategyNotImplementedError(decision.action)
       }
+    }
+    for (const [key, count] of skipCounts) {
+      const [table, reason] = key.split(DEGRADE_KEY_SEP)
+      degradedToSkips.push({ kind: 'association_dropped', table: table as DbTableName, count, reason })
     }
     void ordered
   }
@@ -1756,11 +1831,13 @@ export class MergeEngine {
       } else if (policy.strategy === 'remote-overwrites-local') {
         // backup-wins: a non-empty backup value overwrites local (even non-empty). Backup
         // null/empty never overwrites (an empty backup would wipe local config). Overwriting
-        // a local NON-EMPTY value is destructive → disclose so it is auditable / undo-visible.
+        // a local NON-EMPTY value is destructive → disclose with a DISTINCT kind
+        // (backup_overwrote_local, NOT field_conflict) so the summary tells the user the local
+        // value was REPLACED, not kept (field_conflict's i18n says "will keep the local value").
         if (!isEmptyForRemoteFill(backupVal)) {
           if (!isEmptyForRemoteFill(localVal) && !cellEqualForMerge(backupVal, localVal)) {
             degradedToSkips.push({
-              kind: 'field_conflict',
+              kind: 'backup_overwrote_local',
               table,
               count: 1,
               reason: `backup-wins overwrote local non-empty ('${policy.column}')`
