@@ -370,11 +370,12 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
 function buildOpenCodeGoConfig(ctx: BuilderContext): ProviderConfig {
   const config =
     ctx.aiSdkProviderId === 'openai-compatible' ? buildOpenAICompatibleConfig(ctx) : buildGenericProviderConfig(ctx)
-  const headers = config.providerSettings.headers as Record<string, string | undefined> | undefined
+  const providerSettings = config.providerSettings as { headers?: Record<string, string | undefined> }
+  const headers = providerSettings.headers
   const hasExplicitSession = Object.keys(headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
 
   if (ctx.sessionId && !hasExplicitSession) {
-    config.providerSettings.headers = { 'x-opencode-session': ctx.sessionId, ...headers }
+    providerSettings.headers = { 'x-opencode-session': ctx.sessionId, ...headers }
   }
 
   return config

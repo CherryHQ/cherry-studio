@@ -164,8 +164,9 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model, { sessionId: 'topic-123' })
+      const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
 
-      expect(config.providerSettings.headers).toMatchObject({ 'x-opencode-session': 'topic-123' })
+      expect(headers).toMatchObject({ 'x-opencode-session': 'topic-123' })
     })
 
     it('keeps an explicitly configured session header', async () => {
@@ -183,9 +184,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       })
 
       const config = await providerToAiSdkConfig(provider, model, { sessionId: 'topic-123' })
+      const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
 
-      expect(config.providerSettings.headers).toMatchObject({ 'X-OpenCode-Session': 'configured-session' })
-      expect(config.providerSettings.headers).not.toHaveProperty('x-opencode-session')
+      expect(headers).toMatchObject({ 'X-OpenCode-Session': 'configured-session' })
+      expect(headers).not.toHaveProperty('x-opencode-session')
     })
   })
 
