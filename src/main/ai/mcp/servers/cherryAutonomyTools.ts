@@ -22,6 +22,7 @@ import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import {
   AgentSessionDeliveryModeSchema,
+  SESSION_CREATE_TOOL_NAME,
   SESSION_INBOX_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
@@ -291,6 +292,20 @@ const SESSION_INBOX_TOOL: Tool = {
   }
 }
 
+const SESSION_CREATE_TOOL: Tool = {
+  name: SESSION_CREATE_TOOL_NAME,
+  description:
+    'Create a new Session for the current Agent and send its first durable message. The new Session inherits the current workspace policy and uses the Agent model.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      message: { type: 'string', description: 'First message for the new Session.' },
+      title: { type: 'string', maxLength: 255, description: 'Optional Session title.' }
+    },
+    required: ['message']
+  }
+}
+
 const SESSION_SEND_TOOL: Tool = {
   name: SESSION_SEND_TOOL_NAME,
   description:
@@ -315,6 +330,7 @@ const AUTONOMY_TOOLS: readonly Tool[] = [
   NOTIFY_TOOL,
   CONFIG_TOOL,
   SESSION_LIST_TOOL,
+  SESSION_CREATE_TOOL,
   SESSION_INBOX_TOOL,
   SESSION_SEND_TOOL
 ]
@@ -362,6 +378,8 @@ export class CherryAutonomyTools {
           return await this.sendNotification(args)
         case SESSION_LIST_TOOL_NAME:
           return this.listSessions(args)
+        case SESSION_CREATE_TOOL_NAME:
+          return await this.createSession(args)
         case SESSION_INBOX_TOOL_NAME:
           return this.listSessionInbox(args)
         case SESSION_SEND_TOOL_NAME:
@@ -456,6 +474,38 @@ export class CherryAutonomyTools {
         : []
     )
     return { content: [{ type: 'text' as const, text: JSON.stringify({ deliveries }) }] }
+  }
+
+  private async createSession(args: Record<string, unknown>) {
+    const content = typeof args.message === 'string' ? args.message.trim() : ''
+    const title = typeof args.title === 'string' ? args.title.trim() : ''
+    if (!content) throw new McpError(ErrorCode.InvalidParams, "'message' is required")
+    if (args.title !== undefined && typeof args.title !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, "'title' must be a string")
+    }
+    if (title.length > 255) throw new McpError(ErrorCode.InvalidParams, "'title' must be at most 255 characters")
+
+    const created = agentSessionMessageService.createSessionWithDelivery({
+      senderAgentId: this.agentId,
+      senderSessionId: this.sessionId,
+      sessionName: title,
+      workspace: this.workspace,
+      content
+    })
+    const disposition = await dispatchAcceptedAgentSessionDelivery(created.message)
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            ok: true,
+            agentId: created.session.agentId,
+            sessionId: created.session.id,
+            delivery: { ...created.message.delivery, status: disposition }
+          })
+        }
+      ]
+    }
   }
 
   private async sendSessionMessage(args: Record<string, unknown>) {

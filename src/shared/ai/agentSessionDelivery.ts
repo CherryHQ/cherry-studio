@@ -25,6 +25,8 @@ export const AgentSessionDeliverySchema = z.strictObject({
   sender: AgentSessionDeliveryAddressSchema,
   receiver: AgentSessionDeliveryAddressSchema,
   replyTo: AgentSessionDeliveryAddressSchema,
+  /** Creation deliveries return the target's terminal output to this address. */
+  expectsReply: z.literal(true).optional(),
   mode: AgentSessionDeliveryModeSchema,
   status: AgentSessionDeliveryStatusSchema,
   acceptedAt: z.iso.datetime(),
@@ -36,6 +38,7 @@ export const AgentSessionDeliverySchema = z.strictObject({
 export type AgentSessionDelivery = z.infer<typeof AgentSessionDeliverySchema>
 
 export const SESSION_LIST_TOOL_NAME = 'session_list'
+export const SESSION_CREATE_TOOL_NAME = 'session_create'
 export const SESSION_INBOX_TOOL_NAME = 'session_inbox'
 export const SESSION_SEND_TOOL_NAME = 'session_send'
 

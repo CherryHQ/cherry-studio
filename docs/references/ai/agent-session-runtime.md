@@ -97,6 +97,7 @@ processes never connect to one another. Each `cherry-tools` instance receives it
 `agentId` and `sessionId` from `settingsBuilder` and exposes:
 
 - `session_list` — discover active `{ agentId, sessionId }` addresses;
+- `session_create` — atomically create a same-Agent Session plus its first durable message;
 - `session_send` — accept a durable message for one target Session;
 - `session_inbox` — inspect structured delivery envelopes and their stable `replyTo` address.
 
@@ -105,6 +106,15 @@ runtime-bound sender Session and target Agent inside the write transaction, then
 user row with a Main-authored delivery envelope before scheduling. The envelope records sender,
 receiver, reply target, mode, status, and lifecycle timestamps; renderer message edits cannot alter
 it because it is a separate column, not part of editable `MessageData`.
+
+`session_create` accepts a required first message and optional title. It creates a new Session for
+the runtime-bound Agent, inherits the current workspace policy (a system policy creates a fresh
+system workspace), and stores the first delivery in the same database transaction. Runtime dispatch
+happens only after commit and follows the same durable recovery path as `session_send`. The model is
+not a tool argument because Sessions use their owning Agent's model. Its envelope also records that
+the terminal result is expected back: success, pause, and error terminal output is persisted as a
+new ordinary delivery to the creator Session and dispatched through the same host path. The reply
+does not itself request another reply, preventing ping-pong.
 
 After commit, `startAgentSessionRun` reuses the per-topic dispatch lock and this runtime's existing
 busy/idle paths. Idle targets start immediately. Busy `send-now`/`auto` deliveries may use the

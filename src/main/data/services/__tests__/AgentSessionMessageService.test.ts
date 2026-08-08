@@ -123,6 +123,78 @@ describe('AgentSessionMessageService', () => {
       ])
     })
 
+    it('atomically creates a same-Agent Session with its first delivery', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'shared-workspace',
+        name: 'Shared',
+        path: '/tmp/shared-workspace',
+        type: 'user',
+        orderKey: 'workspace-shared'
+      })
+
+      const created = agentSessionMessageService.createSessionWithDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        sessionName: 'Fresh work',
+        workspace: { type: 'user', workspaceId: 'shared-workspace' },
+        content: 'Start here'
+      })
+
+      expect(created.session).toMatchObject({
+        agentId: 'agent-a',
+        name: 'Fresh work',
+        workspaceId: 'shared-workspace'
+      })
+      expect(created.message).toMatchObject({
+        sessionId: created.session.id,
+        data: { parts: [{ type: 'text', text: 'Start here' }] },
+        delivery: {
+          sender: { agentId: 'agent-a', sessionId: 'sender' },
+          receiver: { agentId: 'agent-a', sessionId: created.session.id },
+          expectsReply: true,
+          status: 'accepted'
+        }
+      })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-sessions', kind: 'membership', entityIds: [created.session.id] },
+        {
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'membership',
+          entityIds: [created.message.id]
+        }
+      ])
+    })
+
+    it('rolls back the new Session when the sender identity is stale', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'rollback-workspace',
+        name: 'Rollback',
+        path: '/tmp/rollback-workspace',
+        type: 'user',
+        orderKey: 'workspace-rollback'
+      })
+      const sessionsBefore = await dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable)
+
+      expect(() =>
+        agentSessionMessageService.createSessionWithDelivery({
+          senderAgentId: 'agent-b',
+          senderSessionId: 'sender',
+          sessionName: 'Must roll back',
+          workspace: { type: 'user', workspaceId: 'rollback-workspace' },
+          content: 'Do not persist'
+        })
+      ).toThrow()
+
+      const sessionsAfter = await dbh.db.select({ id: agentSessionTable.id }).from(agentSessionTable)
+      expect(sessionsAfter).toEqual(sessionsBefore)
+      expect(notifyDataApiDataChangeMock).not.toHaveBeenCalled()
+    })
+
     it('rejects a forged sender identity without writing a message', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedAgent('agent-b', 'Agent B')

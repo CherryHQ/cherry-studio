@@ -25,6 +25,7 @@ const mockDeleteChannel = vi.fn()
 const mockGetSession = vi.fn()
 const mockListSessions = vi.fn()
 const mockAcceptSessionDelivery = vi.fn()
+const mockCreateSessionWithDelivery = vi.fn()
 const mockListSessionDeliveries = vi.fn()
 const mockDispatchSessionDelivery = vi.fn()
 
@@ -61,6 +62,7 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   },
   agentSessionMessageService: {
     acceptSessionDelivery: mockAcceptSessionDelivery,
+    createSessionWithDelivery: mockCreateSessionWithDelivery,
     listSessionDeliveries: mockListSessionDeliveries
   }
 }))
@@ -152,12 +154,13 @@ describe('CherryAutonomyTools', () => {
   it('should list all tools', () => {
     const server = createServer()
     const tools = server.tools()
-    expect(tools).toHaveLength(6)
+    expect(tools).toHaveLength(7)
     expect(tools.map((t) => t.name)).toEqual([
       'cron',
       'notify',
       'config',
       'session_list',
+      'session_create',
       'session_inbox',
       'session_send'
     ])
@@ -222,6 +225,36 @@ describe('CherryAutonomyTools', () => {
       expect(JSON.parse(result.content[0].text)).toMatchObject({
         ok: true,
         delivery: { id: 'delivery-1', status: 'queued' }
+      })
+    })
+
+    it('creates a same-Agent Session with its first message before dispatching it', async () => {
+      const message = {
+        id: 'message-1',
+        sessionId: 'session-new',
+        delivery: { id: 'delivery-1', status: 'accepted' }
+      }
+      mockCreateSessionWithDelivery.mockReturnValue({
+        session: { id: 'session-new', agentId: 'agent_test' },
+        message
+      })
+      mockDispatchSessionDelivery.mockResolvedValue('delivering')
+
+      const result = await callTool(createServer(), { message: 'Hello', title: 'English greeting' }, 'session_create')
+
+      expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith({
+        senderAgentId: 'agent_test',
+        senderSessionId: 'session_test',
+        sessionName: 'English greeting',
+        workspace: WORKSPACE_SOURCE,
+        content: 'Hello'
+      })
+      expect(mockDispatchSessionDelivery).toHaveBeenCalledWith(message)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: true,
+        agentId: 'agent_test',
+        sessionId: 'session-new',
+        delivery: { id: 'delivery-1', status: 'delivering' }
       })
     })
   })
