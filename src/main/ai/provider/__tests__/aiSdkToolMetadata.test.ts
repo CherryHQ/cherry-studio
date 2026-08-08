@@ -54,9 +54,10 @@ function findToolPart(message: UIMessage) {
   return part
 }
 
-// Guards the tool metadata propagation backport in patches/ai@6.0.143.patch.
-// Upstream support landed in vercel/ai@f591416 (released in ai@6.0.176).
-describe('patched AI SDK tool metadata propagation', () => {
+// Guards `Tool.metadata` reaching UI message parts as `toolMetadata`. Upstream
+// support landed in vercel/ai@f591416 (ai@6.0.176); before that the field
+// typechecked and silently did nothing, so this must fail on a downgrade.
+describe('AI SDK tool metadata propagation', () => {
   it('preserves metadata on approval-requested UI message parts', async () => {
     const result = streamText({
       model: createToolCallModel(),

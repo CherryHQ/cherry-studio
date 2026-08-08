@@ -54,6 +54,7 @@ overrides:
   '@napi-rs/system-ocr-darwin-x64': 1.0.2
   '@ai-sdk/provider-utils': 4.0.40
   '@ai-sdk/anthropic': 3.0.103
+  ai: 6.0.185
 
 patchedDependencies:
   '@ai-sdk/anthropic': b2bc7d39b24cc63ee2638efcb8543eb64d7f3b86c71234b809418b6097768a46
@@ -67,7 +68,7 @@ patchedDependencies:
   '@opeoginni/github-copilot-openai-compatible@1.0.0': 4bea0e526136ed32d0be4849ec5cbb41bd5de7b7418dd6920598357438cfef25
   '@tiptap/extension-drag-handle@3.26.1': 2f5c32153f059725f94906803079b90be2a4cf602befe45cd4f2e96652099096
   '@tiptap/markdown@3.26.1': 4b825bfd4fccf96d565836b1e72fdd2526302248d66c68f43d9f6edf42b85540
-  ai@6.0.143: 92c90acf399355094140dfea111d26c85da7f87dfc2f34a4dfc6c78ddd3d65f0
+  ai@6.0.185: 0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a
   atomically@1.7.0: 657b68ae90d71dfa6230dbf3431a1c2d952f87572cd8e00e635c4f5739f7b671
   electron-updater@6.7.0: 845dead3509897d7a5aed99b4d271a244449c544b840c21bf149ff6fc907cc85
   emoji-picker-react@4.19.1: ba04440e6cf4cbf02fe55453d84c4fcf318bc83f6481fc7e5e5b3d5e29af3649
@@ -392,7 +393,7 @@ importers:
         version: 2.3.0(encoding@0.1.13)
       '@openrouter/ai-sdk-provider':
         specifier: ^2.10.0
-        version: 2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.143(patch_hash=92c90acf399355094140dfea111d26c85da7f87dfc2f34a4dfc6c78ddd3d65f0)(zod@4.3.4))(zod@4.3.4)
+        version: 2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4))(zod@4.3.4)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -655,8 +656,8 @@ importers:
         specifier: 0.4.16
         version: 0.4.16
       ai:
-        specifier: 6.0.143
-        version: 6.0.143(patch_hash=92c90acf399355094140dfea111d26c85da7f87dfc2f34a4dfc6c78ddd3d65f0)(zod@4.3.4)
+        specifier: 6.0.185
+        version: 6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4)
       ansi-to-react:
         specifier: ^6.2.6
         version: 6.2.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -929,7 +930,7 @@ importers:
         version: 0.0.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       ollama-ai-provider-v2:
         specifier: 3.3.1
-        version: 3.3.1(patch_hash=8aceca32b8ea722ca9955177622f35735676b9c573fa7347f7d9b28e6210d3bb)(ai@6.0.143(patch_hash=92c90acf399355094140dfea111d26c85da7f87dfc2f34a4dfc6c78ddd3d65f0)(zod@4.3.4))(zod@4.3.4)
+        version: 3.3.1(patch_hash=8aceca32b8ea722ca9955177622f35735676b9c573fa7347f7d9b28e6210d3bb)(ai@6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4))(zod@4.3.4)
       open:
         specifier: ^8.4.2
         version: 8.4.2
@@ -1363,10 +1364,10 @@ importers:
         version: link:../ai-sdk-provider
       '@openrouter/ai-sdk-provider':
         specifier: ^2.10.0
-        version: 2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.143(patch_hash=92c90acf399355094140dfea111d26c85da7f87dfc2f34a4dfc6c78ddd3d65f0)(zod@4.3.4))(zod@4.3.4)
+        version: 2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4))(zod@4.3.4)
       ai:
-        specifier: ^6.0.116
-        version: 6.0.143(patch_hash=92c90acf399355094140dfea111d26c85da7f87dfc2f34a4dfc6c78ddd3d65f0)(zod@4.3.4)
+        specifier: 6.0.185
+        version: 6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4)
       quick-lru:
         specifier: ^5.1.1
         version: 5.1.1
@@ -1749,12 +1750,6 @@ packages:
 
   '@ai-sdk/gateway@3.0.116':
     resolution: {integrity: sha512-k8P17w7Eho5Y4l3tZrYxqQdffkI4xwtl8GCxkZs+JdMWZhyrLLlozqWkKLaWrCSlEYQOeIhEnQLhqQgYYU86Rw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
-
-  '@ai-sdk/gateway@3.0.85':
-    resolution: {integrity: sha512-oPvs3bYnxndBY/O0gFSFuc5aA/QKCJbk/CaJaRnKgA/ZPH17jeVvEtiUBE6/N8hWhK7XgX53NFI7F3CGmDfm1g==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -4032,7 +4027,7 @@ packages:
     resolution: {integrity: sha512-FMsAEjLUt5pWuRE2LDC/LCvVrFjLlrEzUITH5+5SZtfq7KZ2wrOHjQVxzz92sju8S9ltpzW87CLW8/b0oBXVCw==}
     engines: {node: '>=18'}
     peerDependencies:
-      ai: ^6.0.0
+      ai: 6.0.185
       zod: ^3.25.0 || ^4.0.0
 
   '@opentelemetry/api-logs@0.200.0':
@@ -7372,10 +7367,6 @@ packages:
       '@vectorstores/core': 0.1.8
       '@vectorstores/env': 0.1.0
 
-  '@vercel/oidc@3.1.0':
-    resolution: {integrity: sha512-Fw28YZpRnA3cAHHDlkt7xQHiJ0fcL+NRcIqsocZQUSmbzeIKRpwttJjik5ZGanXP+vlA4SbTg+AbA3bP363l+w==}
-    engines: {node: '>= 20'}
-
   '@vercel/oidc@3.2.0':
     resolution: {integrity: sha512-UycprH3T6n3jH0k44NHMa7pnFHGu/N05MjojYr+Mc6I7obkoLIJujSWwin1pCvdy/eOxrI/l3uDLQsmcrOb4ug==}
     engines: {node: '>= 20'}
@@ -7567,12 +7558,6 @@ packages:
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
-
-  ai@6.0.143:
-    resolution: {integrity: sha512-wVDb7StQ1EPQ9GDAOmi1AsuAXQRSii+zZT2sFK+MCisH4vV7XNEAdzXL+sKsUAFhhq+EtVFWWlB4mCk4hcoIMw==}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4.1.8
 
   ai@6.0.185:
     resolution: {integrity: sha512-oGsqscREaTlo75KHZLtwZxRyI+ZBwHV2wRX9B8smHjgOs13WwoCvUyr5aPUWpIBRz406wmIKy1RzoUEq0/WKJw==}
@@ -11491,7 +11476,7 @@ packages:
     resolution: {integrity: sha512-j4BBqqQnvf/uDz+aPYcgU4/MQZERw087Fn1DMGtViA/PgahBq36jHKHVoZfx8mxj+w8cxsKd3eYaDgyZPhE6YA==}
     engines: {node: '>=18'}
     peerDependencies:
-      ai: ^5.0.0 || ^6.0.0
+      ai: 6.0.185
       zod: ^4.0.16
 
   on-finished@2.4.1:
@@ -14260,13 +14245,6 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.3.4
 
-  '@ai-sdk/gateway@3.0.85(zod@4.3.4)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
-      '@vercel/oidc': 3.1.0
-      zod: 4.3.4
-
   '@ai-sdk/google-vertex@4.0.112(zod@4.3.4)':
     dependencies:
       '@ai-sdk/anthropic': 3.0.103(patch_hash=b2bc7d39b24cc63ee2638efcb8543eb64d7f3b86c71234b809418b6097768a46)(zod@4.3.4)
@@ -14392,7 +14370,7 @@ snapshots:
   '@ai-sdk/react@3.0.187(react@19.2.3)(zod@4.3.4)':
     dependencies:
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
-      ai: 6.0.185(zod@4.3.4)
+      ai: 6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4)
       react: 19.2.3
       swr: 2.3.8(react@19.2.3)
       throttleit: 2.1.0
@@ -17094,9 +17072,9 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
-  '@openrouter/ai-sdk-provider@2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.143(patch_hash=92c90acf399355094140dfea111d26c85da7f87dfc2f34a4dfc6c78ddd3d65f0)(zod@4.3.4))(zod@4.3.4)':
+  '@openrouter/ai-sdk-provider@2.10.0(patch_hash=fe61d9ff590828fc0fd3f8b3b8b88a4a1b736a99b595a276c8df9e12c9498009)(ai@6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4))(zod@4.3.4)':
     dependencies:
-      ai: 6.0.143(patch_hash=92c90acf399355094140dfea111d26c85da7f87dfc2f34a4dfc6c78ddd3d65f0)(zod@4.3.4)
+      ai: 6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4)
       zod: 4.3.4
 
   '@opentelemetry/api-logs@0.200.0':
@@ -20635,8 +20613,6 @@ snapshots:
       - encoding
       - supports-color
 
-  '@vercel/oidc@3.1.0': {}
-
   '@vercel/oidc@3.2.0': {}
 
   '@vimeo/player@2.29.0':
@@ -20904,15 +20880,7 @@ snapshots:
 
   agent-base@7.1.4: {}
 
-  ai@6.0.143(patch_hash=92c90acf399355094140dfea111d26c85da7f87dfc2f34a4dfc6c78ddd3d65f0)(zod@4.3.4):
-    dependencies:
-      '@ai-sdk/gateway': 3.0.85(zod@4.3.4)
-      '@ai-sdk/provider': 3.0.8
-      '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
-      '@opentelemetry/api': 1.9.0
-      zod: 4.3.4
-
-  ai@6.0.185(zod@4.3.4):
+  ai@6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4):
     dependencies:
       '@ai-sdk/gateway': 3.0.116(zod@4.3.4)
       '@ai-sdk/provider': 3.0.10
@@ -25479,11 +25447,11 @@ snapshots:
       react: 19.2.3
       react-dom: 19.2.3(react@19.2.3)
 
-  ollama-ai-provider-v2@3.3.1(patch_hash=8aceca32b8ea722ca9955177622f35735676b9c573fa7347f7d9b28e6210d3bb)(ai@6.0.143(patch_hash=92c90acf399355094140dfea111d26c85da7f87dfc2f34a4dfc6c78ddd3d65f0)(zod@4.3.4))(zod@4.3.4):
+  ollama-ai-provider-v2@3.3.1(patch_hash=8aceca32b8ea722ca9955177622f35735676b9c573fa7347f7d9b28e6210d3bb)(ai@6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4))(zod@4.3.4):
     dependencies:
       '@ai-sdk/provider': 3.0.14
       '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
-      ai: 6.0.143(patch_hash=92c90acf399355094140dfea111d26c85da7f87dfc2f34a4dfc6c78ddd3d65f0)(zod@4.3.4)
+      ai: 6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4)
       zod: 4.3.4
 
   on-finished@2.4.1:
