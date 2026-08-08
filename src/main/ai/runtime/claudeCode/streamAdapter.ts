@@ -1753,7 +1753,7 @@ export class ClaudeCodeStreamAdapter {
       content: hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result,
       metadata: {
         type: 'mcp',
-        ...(state.displayName ? { name: state.displayName } : {}),
+        name: state.displayName ?? state.name,
         ...(state.description ? { description: state.description } : {}),
         serverName: state.serverName ?? 'MCP',
         serverId: state.serverId ?? state.serverName ?? 'unknown'
