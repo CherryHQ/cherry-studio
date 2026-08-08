@@ -9,6 +9,7 @@ import {
   kbManageInputSchema,
   kbReadInputSchema,
   kbSearchInputSchema,
+  readFileInputSchema,
   REPORT_ARTIFACTS_DESCRIPTION,
   REPORT_ARTIFACTS_TOOL_NAME,
   reportArtifactsInputSchema,
@@ -43,10 +44,11 @@ describe('builtin tool contracts', () => {
     expect(description).not.toContain('web__search')
   })
 
-  it('keeps `format` out of the web_fetch schema so strict providers accept it', () => {
-    // WebFetchTool runs with `strict: true`. Zod's `.url()` emits `format: "uri"`, which strict
-    // OpenAI-compatible providers reject with a 400 that kills the whole request, not just this
-    // tool ("Invalid schema for function 'web_fetch': ... 'uri' is not a valid format").
+  it('keeps `format` out of the web_fetch schema so any provider accepts it', () => {
+    // Zod's `.url()` emits `format: "uri"`, which strict OpenAI-compatible providers reject with a
+    // 400 that kills the whole request, not just this tool ("Invalid schema for function
+    // 'web_fetch': ... 'uri' is not a valid format"). No builtin tool is strict any more, but the
+    // refinement is kept regardless — `isHttpUrl` is narrower than `.url()` (see the schema).
     // The http(s) contract is carried by a refinement, which `toJSONSchema` cannot express.
     // Whole-document rather than a `properties.urls.items.format` chain: an optional chain that
     // stops matching after a shape change would pass while `format` reappeared elsewhere.
@@ -106,6 +108,18 @@ describe('builtin tool contracts', () => {
   // mean "grep for ''" rather than "read the document". Rejecting it keeps the sentinel unreachable.
   it('rejects an empty kb_read pattern rather than letting it mean read mode', () => {
     expect(kbReadInputSchema.safeParse({ baseId: 'kb-1', conceptId: 'docs/intro.md', pattern: '' }).success).toBe(false)
+  })
+
+  // read_file's offset/limit were required numbers with a 0 sentinel while it ran with `strict: true`.
+  // Now that they are plain optionals, `limit: 0` has no sentinel meaning left — and taken literally
+  // it says "return zero characters", which `paginate` would answer with a 2-char page. Reject it so
+  // a model that still sends the old sentinel gets a repairable input error instead of a silent
+  // near-empty read. `offset: 0` stays valid: it genuinely means "start at the beginning".
+  it('rejects read_file limit: 0 but keeps offset: 0 meaningful', () => {
+    expect(readFileInputSchema.safeParse({ filename: 'a.txt' }).success).toBe(true)
+    expect(readFileInputSchema.safeParse({ filename: 'a.txt', offset: 0 }).success).toBe(true)
+    expect(readFileInputSchema.safeParse({ filename: 'a.txt', limit: 0 }).success).toBe(false)
+    expect(readFileInputSchema.safeParse({ filename: 'a.txt', limit: 1 }).success).toBe(true)
   })
 
   it('advertises the exact to_markdown input boundary and supported extensions', () => {

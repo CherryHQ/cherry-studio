@@ -11,25 +11,35 @@ import * as z from 'zod'
  * place is a compile error in the other.
  */
 
-// ── Why the kb_* tools do not run with `strict: true` ────────────
+// ── Why no builtin tool runs with `strict: true` ─────────────────
 //
-// `strict` asks the provider for constrained decoding, which makes it compile every strict tool
-// schema in the request into one sampling grammar. Binding a knowledge base turns on four tools at
-// once (kb_search / kb_list / kb_read / kb_manage, all `defer: 'never'`), and Anthropic 400s the
-// whole request when that combined grammar exceeds its compile budget ("Schema is too complex for
-// compilation") — so attaching a base broke every message, including "hi".
+// `strict` asks the provider for constrained decoding, which makes Anthropic compile every strict
+// tool schema in the request into ONE sampling grammar. The compile budget is shared across those
+// strict schemas (non-strict tools do not count toward it), and the request 400s when the combined
+// grammar exceeds it ("Schema is too complex for compilation"). Binding a knowledge base turned on
+// four strict tools at once (kb_search / kb_list / kb_read / kb_manage, all `defer: 'never'`, so
+// none could even be deferred) and broke every message, including "hi".
 //
-// Dropping `strict` also removes what forced these schemas into a second, sentinel-valued shape:
-// strict mode requires every property in `required`, so optional fields had to become required
-// primitives (`''` / `0` / `-1` / `'none'`) that adapters translated back. Plain `.optional()` is
-// both what the model reads more easily and what the shared `knowledgeLookup` core already expects,
-// so one schema now serves the AI-SDK tool and the Claude Code / MCP bridge alike.
+// The web/file tools that were also strict (web_search / web_fetch / read_file — 5 properties
+// between them) would not have blown that budget on their own. They lost `strict` for the reason
+// below instead: on schemas this small it buys almost nothing, and it is not free.
+//
+// Dropping `strict` also removes what forced several of these schemas into a second, sentinel-valued
+// shape: strict mode requires every property in `required`, so optional fields had to become
+// required primitives (`''` / `0` / `-1` / `'none'`) that adapters translated back. Plain
+// `.optional()` is both what the model reads more easily and what the shared cores already expect,
+// so one schema now serves the AI-SDK tools and the Claude Code / MCP bridge alike.
 //
 // Nothing goes unvalidated: the AI SDK still checks every tool call against these schemas, and
 // `createAiRepair` re-asks the model on a mismatch — the fallback `strict` was buying us out of.
+// Provider-side, the validation keywords strict mode used to strip (`minLength`, `maximum`, …) now
+// survive; each provider's own sanitizer drops or folds what it cannot take (Anthropic turns them
+// into advisory description text), so the model sees MORE of the contract than it did before.
 //
-// Keep it this way: re-adding `strict` here reintroduces the 400 the moment a base is bound.
-// (`readFileInputSchema` below is a different case — it is still strict, and still needs sentinels.)
+// Keep it this way. `registerBuiltinTools.test.ts` asserts the whole registry stays non-strict: a
+// blanket rule needs no judgement call, whereas "is this one small enough to be strict?" has to be
+// re-answered against an undocumented budget that only Anthropic can change — and answered again
+// every time a tool or a property is added.
 
 // ── kb_list ──────────────────────────────────────────────────────
 
@@ -378,15 +388,18 @@ export const webSearchOutputItemSchema = z.object({
 export const webSearchOutputSchema = z.array(webSearchOutputItemSchema)
 
 export const webFetchInputSchema = z.object({
-  // `.refine()` rather than `.url()`: WebFetchTool runs with `strict: true`, and `.url()` emits
-  // `format: "uri"`, which strict OpenAI-compatible providers reject outright — the whole request
-  // 400s ("Invalid schema for function 'web_fetch': ... 'uri' is not a valid format"), taking every
-  // other tool in the turn down with it. A refinement is invisible to `toJSONSchema` (no `format`
-  // keyword) yet still runs locally, so the model's tool call is validated before `execute` and a
-  // malformed URL surfaces as a repairable input error instead of a bogus network failure.
-  //
-  // `isHttpUrl` is literally the predicate `normalizeWebSearchUrls` enforces service-side, so the
-  // schema and the service agree by construction instead of via two copies of one rule that drift.
+  // `.refine()` rather than `.url()`, for two reasons that both still hold now that no builtin tool
+  // runs with `strict: true` (see the note at the top of this file):
+  //   1. `isHttpUrl` is *narrower* than `.url()`, which happily accepts `file:///etc/passwd` and
+  //      `javascript:alert(1)`. It is literally the predicate `normalizeWebSearchUrls` enforces
+  //      service-side, so the schema and the service agree by construction rather than via two
+  //      copies of one rule that drift. Do not "simplify" this back to `.url()`.
+  //   2. A refinement is invisible to `toJSONSchema` (it emits no `format` keyword), so the schema
+  //      carries no `format: "uri"` — which strict OpenAI-compatible providers reject outright,
+  //      400ing the whole request and taking every other tool in the turn with it. Keeping `format`
+  //      out costs nothing and keeps this schema safe to send anywhere.
+  // Either way the refinement still runs locally, so a malformed URL surfaces as a repairable input
+  // error before `execute` instead of a bogus network failure.
   //
   // It is only a syntax gate, though. Of the two providers serving `web_fetch`, `fetch` retrieves
   // the target in this process and so runs it through `remoteUrlSafety`, which additionally rejects
@@ -507,24 +520,27 @@ export const readFileInputSchema = z.object({
     .describe(
       'Name of the attached file to read, exactly as it appears in the attachment manifest in the conversation.'
     ),
-  // Required plain numbers with a 0 sentinel, not `.optional()` / `.nullable()`: ReadFileTool runs
-  // with `strict: true`, so a strict OpenAI-compatible provider rejects a schema whose `required`
-  // omits a property (`z.toJSONSchema` drops `.optional()` fields from `required`) — while Gemini
-  // rejects the `anyOf: [number, null]` that `.nullable()` emits ("didn't specify the schema type
-  // field"). A bare `number` is the only shape both accept; `readFile` maps 0 back to the defaults.
+  // Plain optionals — omitting a field means "use the default". These were required numbers with a
+  // 0 sentinel while read_file ran with `strict: true`; see the note at the top of this file for why
+  // strict is gone. `.optional()` and not `.nullable()`: the latter emits `anyOf: [number, null]`,
+  // which Gemini rejects ("didn't specify the schema type field").
   offset: z
     .number()
     .int()
     .nonnegative()
+    .optional()
     .describe(
-      '0-based character offset to start from. Page through long documents with offset + limit. Use 0 to start at the beginning.'
+      '0-based character offset to start from. Page through long documents with offset + limit. Omit to start at the beginning.'
     ),
+  // `.positive()`, not `.nonnegative()`: with the sentinel gone, `limit: 0` would mean "return zero
+  // characters" and `paginate` would emit a 2-char page rather than the default. Reject it instead.
   limit: z
     .number()
     .int()
-    .nonnegative()
+    .positive()
     .max(200_000)
-    .describe(`Max characters to return. Use 0 to default to ${READ_FILE_PAGE_SIZE}.`)
+    .optional()
+    .describe(`Max characters to return. Omit to default to ${READ_FILE_PAGE_SIZE}.`)
 })
 
 export const readFileOutputSchema = z.object({

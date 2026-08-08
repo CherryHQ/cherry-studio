@@ -30,18 +30,22 @@ describe('registerBuiltinTools', () => {
     expect(reg.has(FS_READ_TOOL_NAME)).toBe(true)
   })
 
-  it('never marks a knowledge tool `strict` (binding a base would 400 the whole request)', () => {
-    // `strict` asks the provider for constrained decoding, so it compiles every strict tool schema in
-    // the request into one sampling grammar. These four turn on together the moment a knowledge base
-    // is bound, and Anthropic 400s the request ("Schema is too complex for compilation") once that
-    // combined grammar exceeds its compile budget — which broke every message, including "hi".
+  it('never marks a builtin tool `strict` (strict schemas share one compile budget)', () => {
+    // `strict` asks the provider for constrained decoding, so Anthropic compiles every strict tool
+    // schema in the request into one sampling grammar and 400s the request ("Schema is too complex
+    // for compilation") once the combined grammar exceeds its compile budget. Binding a knowledge
+    // base alone turned on four strict tools at once and broke every message, including "hi".
+    // Asserted registry-wide rather than on the kb_* four: the budget is undocumented and shared, so
+    // "this tool is small enough to be strict" is a judgement that would need re-checking on every
+    // added tool and property. A blanket rule needs none.
     // The AI SDK still validates tool calls against the zod schema, and `createAiRepair` re-asks the
     // model on a mismatch, so nothing is silently unvalidated.
     const reg = new ToolRegistry()
     registerBuiltinTools(reg)
-    for (const name of [KB_SEARCH_TOOL_NAME, KB_LIST_TOOL_NAME, KB_READ_TOOL_NAME, KB_MANAGE_TOOL_NAME]) {
-      expect(reg.getByName(name)?.tool.strict ?? false).toBe(false)
-    }
+    const strictEntries = reg.getAll().filter((e) => e.tool.strict === true)
+    expect(strictEntries.map((e) => e.name)).toEqual([])
+    // Sanity: the assertion above is only meaningful while the registry is actually populated.
+    expect(reg.getAll().length).toBeGreaterThan(0)
   })
 
   it('gates read_file on file attachments', () => {
