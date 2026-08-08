@@ -776,9 +776,14 @@ describe('FileMigrator lost original filename', () => {
     const result = await m.prepare(ctx as never)
     await m.execute(ctx as never)
 
-    const joined = (result.warnings ?? []).join('\n')
+    const warnings = result.warnings ?? []
+    const joined = warnings.join('\n')
     expect(joined).toContain('Original filename lost')
     expect(joined).toContain(FIXTURE_DEDUP_WINDOWS_ROW.id)
+    // Exactly once. This migrator owns the global `files` row and is the sole producer of the
+    // diagnostic — `KnowledgeMappings` and `ChatMappings` stay quiet so the user does not get one
+    // notice per reference in the engine's concatenated, un-deduped warning list.
+    expect(warnings.filter((warning) => warning.includes('Original filename lost'))).toHaveLength(1)
     // No better name exists — the id is what the file is now, and it matches its file on disk.
     const inserted = insertValues.mock.calls[0][0]
     const firstRow = Array.isArray(inserted) ? inserted[0] : inserted

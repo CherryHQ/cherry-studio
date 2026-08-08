@@ -15,7 +15,7 @@ import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
-import { hasLostOriginalFilename, legacyStorageNames } from './legacyFileMappings'
+import { legacyStorageNames } from './legacyFileMappings'
 
 export type NewKnowledgeBase = typeof knowledgeBaseTable.$inferInsert
 export type NewKnowledgeItem = typeof knowledgeItemTable.$inferInsert
@@ -318,14 +318,12 @@ export const transformKnowledgeItem = (
       onWarning?.(
         `Knowledge file item ${item.id} has a blank v1 filename; falling back to ${JSON.stringify(relativePath)}`
       )
-    } else if (hasLostOriginalFilename(file)) {
-      // Mutually exclusive with the blank case above (this one requires a non-empty origin_name),
-      // and both say "the name is not what the user chose" — one notice is enough.
-      onWarning?.(
-        `Knowledge file item ${item.id}: the original filename was lost by a legacy v1 duplicate-upload bug and ` +
-          `cannot be recovered. The file is migrated intact as ${JSON.stringify(relativePath)}.`
-      )
     }
+    // A name lost to v1's duplicate-upload bug is deliberately NOT reported here. `FileMigrator`
+    // owns the global `files` row and warns once per file; warning again per knowledge item that
+    // references it repeats the same diagnostic — the engine concatenates every migrator's
+    // warnings into one un-deduped list, so the count would grow with the reference count. Same
+    // reasoning already applied to `ChatMappings`' `filename` (see `FileMigrator.toFileEntry`).
     data = { source: file.path, relativePath }
     // Locate the physical upload through the same candidate list `FileMigrator` uses, so one
     // migration run cannot resolve the same row two ways. Never `file.name`: v1
@@ -459,12 +457,20 @@ const splitLegacyPathSegments = (value: string): string[] =>
   value.split(/[\\/]+/).filter((segment) => segment !== '' && segment !== '.')
 
 /**
- * Comparison key for "is this the same directory segment?". A cross-platform restore can leave the
- * folder path and its files' paths differing in case or Unicode composition, so containment is
- * tested on the folded key while the emitted path always keeps the original casing. `toLowerCase`
- * (not `toLocaleLowerCase`) to keep this free of locale surprises such as tr-TR's I→ı.
+ * Comparison key for "is this the same directory segment?". Two uses, both needing the same key:
+ *
+ * - Containment: a cross-platform restore can leave the folder path and its files' paths differing
+ *   in case or Unicode composition, so the subtree test folds while the emitted path keeps its
+ *   original casing.
+ * - Top-level `raw/` occupancy: Windows and default macOS volumes are case-insensitive, so two
+ *   folders named `docs` and `Docs` would be persisted as distinct prefixes yet resolve to one
+ *   physical directory. Deleting or re-indexing either container calls `removeDir(raw/<prefix>)`
+ *   and would take the other's bytes with it, leaving its rows and index entries behind.
+ *
+ * `toLowerCase` (not `toLocaleLowerCase`) to keep this free of locale surprises such as tr-TR's
+ * I→ı.
  */
-const foldPathSegment = (segment: string): string => segment.normalize('NFC').toLowerCase()
+export const foldPathSegment = (segment: string): string => segment.normalize('NFC').toLowerCase()
 
 /**
  * Sanitize one path segment. `sanitizeFilename` strips separators, control characters, Windows
@@ -495,9 +501,9 @@ export interface ExpandedDirectoryItem {
    */
   childLoaderRemap: Map<string, string>
   /**
-   * The top-level `raw/` name this expansion claimed. The caller must add it to its per-base
-   * set of taken top-level names — but only for a non-null result, since a null expansion
-   * claims nothing.
+   * The top-level `raw/` name this expansion claimed, in its original casing. The caller must add
+   * `foldPathSegment(pathPrefix)` to its per-base set of taken top-level names — but only for a
+   * non-null result, since a null expansion claims nothing.
    */
   pathPrefix: string
   /**
@@ -545,8 +551,10 @@ export interface ExpandedDirectoryItem {
  * of reindex admission / restore filtering / preview into a bare `Error`, since
  * `getKnowledgeBaseFilePath` asserts on every one of those paths.
  *
- * `reservedTopLevelNames` is read-only: a null result claims no prefix, so committing the claim is
- * the caller's job (see `pathPrefix`).
+ * `reservedTopLevelNames` holds `foldPathSegment` keys, not literal names, so a prefix cannot
+ * collide with one that differs only in case or Unicode composition — those are the same directory
+ * on Windows and default macOS volumes. It is read-only: a null result claims no prefix, so
+ * committing the claim is the caller's job (see `pathPrefix`).
  *
  * Returns `null` when the directory's `content` (folder path) is blank, or when no child
  * file can be resolved (vector DB unreadable/empty, or the directory carries no loader ids)
@@ -567,9 +575,12 @@ export const expandLegacyDirectoryItem = (
   // A folder name is not a filename: `report.v2` must dedupe to `report.v2_1`, not `report_1.v2`
   // — hence splitExtension=false, matching chooseDirectoryPathPrefix. A path of only separators
   // leaves no segment, so fall back to `root` the way the native chooser does.
+  // Occupancy is tested on the folded key, not the literal name: `raw/docs` and `raw/Docs` are the
+  // same directory on Windows and default macOS volumes, so `Docs` must dedupe to `Docs_1` rather
+  // than claim a prefix another container already owns physically.
   const pathPrefix = nextFreeKnowledgeRelativePath(
     toSafePathSegment(containerSegments.at(-1) ?? 'root'),
-    (candidate) => !reservedTopLevelNames.has(candidate),
+    (candidate) => !reservedTopLevelNames.has(foldPathSegment(candidate)),
     false
   )
 

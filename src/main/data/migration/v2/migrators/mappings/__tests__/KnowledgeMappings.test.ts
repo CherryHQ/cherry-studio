@@ -516,10 +516,11 @@ describe('KnowledgeMappings', () => {
     expect(warnings[0]).toContain('blank v1 filename')
   })
 
-  it('transformKnowledgeItem reports a filename lost by the v1 duplicate-upload bug', () => {
+  it('transformKnowledgeItem leaves the lost-filename diagnostic to FileMigrator', () => {
     // v1 FileStorage.findDuplicateFile overwrote origin_name with the storage name on a second
-    // upload of the same bytes. The name is unrecoverable, so the item migrates under the id —
-    // but silently showing it as if the user had chosen it is what this warning prevents.
+    // upload of the same bytes. The name is unrecoverable and the item migrates under the id, but
+    // warning here would repeat FileMigrator's per-file notice once per knowledge reference — the
+    // engine concatenates every migrator's warnings into one un-deduped list shown to the user.
     const warnings: string[] = []
     const dedupedFile = {
       ...fileMetadata,
@@ -537,9 +538,7 @@ describe('KnowledgeMappings', () => {
       source: '/tmp/source-on-disk.pdf',
       relativePath: `${LEGACY_FILE_ID}.pdf`
     })
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('file-lost-name')
-    expect(warnings[0]).toContain('the original filename was lost')
+    expect(warnings).toStrictEqual([])
   })
 
   it('transformKnowledgeItem stays quiet for a normal upload', () => {
@@ -936,6 +935,53 @@ describe('expandLegacyDirectoryItem', () => {
     expect(result?.pathPrefix).toBe('docs_1')
     expect(result?.container.data).toStrictEqual({ source: '/tmp/docs', relativePath: 'docs_1' })
     expect(result?.children[0].data.relativePath).toBe('docs_1/a.md')
+  })
+
+  it('dedupes the container prefix against a name differing only in case', () => {
+    // `raw/docs` and `raw/Docs` are one directory on Windows and default macOS volumes. Letting
+    // both be claimed means deleting or re-indexing either container runs `removeDir` over the
+    // other's bytes while its rows and index entries survive.
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      { id: 'dir-1', type: 'directory', content: '/tmp/Docs', uniqueIds: ['L1'] },
+      new Map([['L1', '/tmp/Docs/a.md']]),
+      new Set(['docs'])
+    )
+
+    expect(result?.pathPrefix).toBe('Docs_1')
+    expect(result?.children[0].data.relativePath).toBe('Docs_1/a.md')
+  })
+
+  it('dedupes the container prefix against a name differing only in Unicode composition', () => {
+    // Decomposed and composed accents are one filename to macOS; the reserved set holds folded
+    // (NFC) keys, so the decomposed spelling cannot claim a prefix the composed one already owns.
+    const decomposed = 're\u0301sume'
+    const composed = 'r\u00e9sume'
+    expect(decomposed).not.toBe(composed)
+
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      { id: 'dir-1', type: 'directory', content: `/tmp/${decomposed}`, uniqueIds: ['L1'] },
+      new Map([['L1', `/tmp/${decomposed}/a.md`]]),
+      new Set([composed])
+    )
+
+    expect(result?.pathPrefix).toBe(`${decomposed}_1`)
+  })
+
+  it('keeps a case variant of .cherry away from the reserved meta dir too', () => {
+    // `.Cherry` passes assertSafeKnowledgeRelativePath (that check is case-sensitive) but is the
+    // *same* directory as the base's `.cherry` metadata dir on Windows and default macOS volumes,
+    // so a container claiming it would sit on top of the base's own metadata.
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      { id: 'dir-1', type: 'directory', content: '/tmp/.Cherry', uniqueIds: ['L1'] },
+      new Map([['L1', '/tmp/.Cherry/a.md']]),
+      new Set([CHERRY_META_DIR])
+    )
+
+    expect(result?.pathPrefix).toBe('.Cherry_1')
+    expect(() => assertSafeKnowledgeRelativePath(result!.container.data.relativePath!)).not.toThrow()
   })
 
   it('keeps a folder named .cherry away from the reserved meta dir', () => {
