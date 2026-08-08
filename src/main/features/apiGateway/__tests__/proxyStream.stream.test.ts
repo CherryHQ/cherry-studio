@@ -587,6 +587,34 @@ describe('processMessage (streaming)', () => {
     await response
   })
 
+  it('forwards request-scoped session affinity through the generic header option', async () => {
+    const response = processMessage({
+      params: { model: 'openai:gpt-4', stream: true, messages: [] } as any,
+      inputFormat: 'openai',
+      outputFormat: 'openai',
+      requestHeaders: new Headers({ 'X-Session-Affinity': 'ses_abc123' })
+    })
+    await vi.waitFor(() => expect(captured.listener).toBeDefined())
+
+    expect(mockStreamPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({ headers: { 'x-session-affinity': 'ses_abc123' } })
+    )
+
+    commit(captured.listener!)
+    await captured.listener!.onDone({} as any)
+    await response
+  })
+
+  it('does not attach upstream headers when the request has none', async () => {
+    const { response, listener } = await startStreaming()
+
+    expect(mockStreamPrompt).not.toHaveBeenCalledWith(expect.objectContaining({ headers: expect.anything() }))
+
+    commit(listener)
+    await listener.onDone({} as any)
+    await response
+  })
+
   it('buffers protocol scaffolding until a semantic chunk, then flushes frames + done marker', async () => {
     const { response, listener } = await startStreaming()
 

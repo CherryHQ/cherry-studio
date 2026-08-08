@@ -642,6 +642,8 @@ export class AiStreamManager extends BaseService {
     idleTimeoutMs?: number
     /** In-process agent correlation for gateway-owned provider-request records. */
     usageContext?: InProcessUsageContext
+    /** Per-request headers forwarded to the upstream provider. */
+    headers?: Record<string, string>
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -657,7 +659,14 @@ export class AiStreamManager extends BaseService {
       contextOwner: input.contextOwner,
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
-      ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
+      ...(input.idleTimeoutMs !== undefined || input.headers !== undefined
+        ? {
+            requestOptions: {
+              ...(input.idleTimeoutMs !== undefined ? { timeout: input.idleTimeoutMs } : {}),
+              ...(input.headers !== undefined ? { headers: input.headers } : {})
+            }
+          }
+        : {})
     }
     return this.send({
       topicId: input.streamId,
