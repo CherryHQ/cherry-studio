@@ -1,3 +1,4 @@
+import type * as CherryUiModule from '@cherrystudio/ui'
 import { AssistantPresetPreviewDialog } from '@renderer/components/resourceCatalog/dialogs/detail/AssistantPresetPreviewDialog'
 import { toast } from '@renderer/services/toast'
 import type { ResourceItem } from '@renderer/types/resourceCatalog'
@@ -55,7 +56,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@cherrystudio/ui')>()
+  const actual = await importOriginal<typeof CherryUiModule>()
   const React = await vi.importActual<typeof ReactModule>('react')
   const PopoverContext = React.createContext<{
     open: boolean

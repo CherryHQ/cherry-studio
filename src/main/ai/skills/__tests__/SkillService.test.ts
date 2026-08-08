@@ -161,7 +161,7 @@ describe('SkillService', () => {
 
       const globallyListed = await skillService.list()
       const agentListed = await skillService.list({ agentId: AGENT_ID })
-      const storedPreference = await dbh.db
+      const storedPreference = dbh.db
         .select()
         .from(agentSkillTable)
         .where(eq(agentSkillTable.skillId, SKILL_ID_1))
