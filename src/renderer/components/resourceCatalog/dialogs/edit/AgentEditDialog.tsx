@@ -257,8 +257,16 @@ function AgentEditDialogContent({
       })
     }
   })
+  // Close the failure toast only on recovery. The toast outlives this dialog on
+  // purpose (it carries the retry for an edit that never landed), and the key is
+  // per-agent — closing it on mount would silently drop that retry the next time
+  // the same agent is opened.
+  const previousSaveStatusRef = useRef(save.status)
   useEffect(() => {
-    if (save.status !== 'failed') toast.closeToast(saveFailureToastKey)
+    if (previousSaveStatusRef.current === 'failed' && save.status !== 'failed') {
+      toast.closeToast(saveFailureToastKey)
+    }
+    previousSaveStatusRef.current = save.status
   }, [save.status, saveFailureToastKey])
   const setField = useCallback<AgentEditor['set']>(
     (values, patch, mode = 'now') => {
@@ -520,7 +528,7 @@ function AgentBasicFields({
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
-        onModelChange={(modelId) => set({ planModelId: modelId ?? '' }, { planModel: modelId ?? undefined })}
+        onModelChange={(modelId) => set({ planModelId: modelId ?? '' }, { planModel: modelId ?? null })}
         onSettingsNavigate={onSettingsNavigate}
         layout="row"
         triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
@@ -534,7 +542,7 @@ function AgentBasicFields({
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
-        onModelChange={(modelId) => set({ smallModelId: modelId ?? '' }, { smallModel: modelId ?? undefined })}
+        onModelChange={(modelId) => set({ smallModelId: modelId ?? '' }, { smallModel: modelId ?? null })}
         onSettingsNavigate={onSettingsNavigate}
         layout="row"
         triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
@@ -654,14 +662,11 @@ function HeartbeatSettingsField({ editor, enabled }: { editor: AgentEditor; enab
                   value={field.value || null}
                   onChange={(v) => {
                     const heartbeatInterval = typeof v === 'number' ? v : 0
-                    // An interval edit implies the feature is on — mirrors the
-                    // pairing the runtime expects.
+                    // This control only renders while the feature is on, so send
+                    // the pair the runtime expects rather than an orphan interval.
                     set(
                       { heartbeatInterval },
-                      agentConfigurationPatch({
-                        ...(enabled ? { heartbeat_enabled: true } : {}),
-                        heartbeat_interval: heartbeatInterval
-                      })
+                      agentConfigurationPatch({ heartbeat_enabled: true, heartbeat_interval: heartbeatInterval })
                     )
                   }}
                 />
@@ -795,13 +800,13 @@ function AgentToolsFields({
   )
   const setToolEnabled = (name: string, enabled: boolean) => {
     const next = enabled ? disabledTools.filter((n) => n !== name) : [...disabledTools, name]
-    set({ disabledTools: next }, { disabledTools: next })
+    set({ disabledTools: next }, { disabledTools: next }, 'debounced')
   }
 
   const mcpIds = useMemo(() => new Set(mcps), [mcps])
   const setMcpEnabled = (id: string, enabled: boolean) => {
     const next = enabled ? [...mcps, id] : mcps.filter((mcpId) => mcpId !== id)
-    set({ mcps: next }, { mcps: next })
+    set({ mcps: next }, { mcps: next }, 'debounced')
   }
 
   // Skills persist as per-skill toggles, so send only the ids whose enablement
@@ -814,7 +819,7 @@ function AgentToolsFields({
       ...nextSkillIds.filter((id) => !before.has(id)).map((skillId) => ({ skillId, isEnabled: true }))
     ]
     if (skillUpdates.length === 0) return
-    set({ skillIds: nextSkillIds }, { skillUpdates })
+    set({ skillIds: nextSkillIds }, { skillUpdates }, 'debounced')
   }
 
   return (
@@ -839,7 +844,7 @@ function AgentToolsFields({
         <KnowledgeBaseField
           form={form}
           portalContainer={portalContainer}
-          onValueChange={(knowledgeBaseIds) => set({ knowledgeBaseIds }, { knowledgeBaseIds })}
+          onValueChange={(knowledgeBaseIds) => set({ knowledgeBaseIds }, { knowledgeBaseIds }, 'debounced')}
         />
       ) : null}
       {activeToolTab === 'tools.mcp' ? (

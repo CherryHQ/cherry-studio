@@ -81,7 +81,12 @@ export function useDirectFieldSave<TPatch extends object>({
     drainingRef.current = true
     inFlightRef.current = (async () => {
       try {
-        while (pendingRef.current) {
+        // An armed timer means the buffered patch is still debouncing: it was
+        // scheduled while this loop was awaiting, and swallowing it here would
+        // send a keystroke per round trip for as long as the user keeps typing.
+        // Every non-debounced entry point (commit / flush / retry, and the timer
+        // callback itself) clears the timer before draining.
+        while (pendingRef.current && timerRef.current === null) {
           const patch = pendingRef.current
           pendingRef.current = null
           publishStatus('saving')
@@ -96,7 +101,7 @@ export function useDirectFieldSave<TPatch extends object>({
             return
           }
         }
-        publishStatus('idle')
+        publishStatus(pendingRef.current ? 'pending' : 'idle')
       } finally {
         drainingRef.current = false
       }

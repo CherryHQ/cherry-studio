@@ -246,8 +246,16 @@ function AssistantEditDialogContent({
       })
     }
   })
+  // Close the failure toast only on recovery. The toast outlives this dialog on
+  // purpose (it carries the retry for an edit that never landed), and the key is
+  // per-assistant — closing it on mount would silently drop that retry the next
+  // time the same assistant is opened.
+  const previousSaveStatusRef = useRef(save.status)
   useEffect(() => {
-    if (save.status !== 'failed') toast.closeToast(saveFailureToastKey)
+    if (previousSaveStatusRef.current === 'failed' && save.status !== 'failed') {
+      toast.closeToast(saveFailureToastKey)
+    }
+    previousSaveStatusRef.current = save.status
   }, [save.status, saveFailureToastKey])
   const setField = useCallback<AssistantEditor['set']>(
     (values, patch, mode = 'now') => {
@@ -378,7 +386,9 @@ function AssistantEditDialogContent({
                 <KnowledgeBaseField
                   form={form}
                   portalContainer={dialogContentElement}
-                  onValueChange={(knowledgeBaseIds) => setField({ knowledgeBaseIds }, { knowledgeBaseIds })}
+                  onValueChange={(knowledgeBaseIds) =>
+                    setField({ knowledgeBaseIds }, { knowledgeBaseIds }, 'debounced')
+                  }
                 />
               </div>
             )}
@@ -612,7 +622,7 @@ function AssistantToolsFields({
     const next = enabled
       ? Array.from(new Set([...mcpServerIds, id]))
       : mcpServerIds.filter((serverId) => serverId !== id)
-    set({ mcpServerIds: next }, { mcpServerIds: next })
+    set({ mcpServerIds: next }, { mcpServerIds: next }, 'debounced')
   }
 
   return (

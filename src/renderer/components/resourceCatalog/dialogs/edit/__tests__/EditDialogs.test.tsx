@@ -1297,16 +1297,33 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('tab', { name: 'MCP' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('saves an agent skill toggle immediately as a single skill update', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
-
-    selectTab('技能')
+  it('batches rapid agent skill toggles into one PATCH', async () => {
+    installedSkillsState.current = {
+      skills: [
+        ...installedSkillsState.current.skills,
+        {
+          id: 'skill-2',
+          name: 'Skill Two',
+          description: 'Second skill description',
+          isEnabled: false
+        }
+      ],
+      loading: false,
+      refreshing: false
+    }
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="tools.skills" />)
 
     fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill Two' }))
 
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
-        body: { skillUpdates: [{ skillId: 'skill-1', isEnabled: true }] }
+        body: {
+          skillUpdates: [
+            { skillId: 'skill-1', isEnabled: true },
+            { skillId: 'skill-2', isEnabled: true }
+          ]
+        }
       })
     )
     expect(updateAgentMock).toHaveBeenCalledTimes(1)
@@ -1558,6 +1575,31 @@ describe('edit dialogs', () => {
 
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
     expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: { name: 'Closing Edit' } })
+  })
+
+  it('leaves the lingering failure toast alone when the same assistant is reopened', async () => {
+    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
+    const { unmount } = render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Edit' } })
+    await screen.findByText('Save failed')
+    unmount()
+
+    vi.mocked(toast.closeToast).mockClear()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    // That toast carries the only retry for an edit the server never accepted;
+    // a fresh editing session must not dismiss it just by mounting.
+    await screen.findByLabelText('Name')
+    expect(toast.closeToast).not.toHaveBeenCalledWith('assistant-edit-save-failed:assistant-1')
+  })
+
+  it('clears an agent sub-model with an explicit null so the server can unset it', async () => {
+    render(<AgentEditDialog open resource={{ ...AGENT, planModel: 'provider::plan-model' }} onOpenChange={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Plan model Clear' }))
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledWith({ body: { planModel: null } }))
   })
 
   it('closes the agent dialog even when the final save fails', async () => {

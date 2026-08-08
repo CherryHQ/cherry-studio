@@ -73,6 +73,45 @@ describe('useDirectFieldSave', () => {
     expect(save).toHaveBeenLastCalledWith({ name: 'b', description: 'd' })
   })
 
+  it('leaves a patch scheduled behind an in-flight save on its debounce', async () => {
+    vi.useFakeTimers()
+    try {
+      let releaseFirst: (() => void) | undefined
+      const save = vi
+        .fn()
+        .mockImplementationOnce(() => new Promise<void>((resolve) => (releaseFirst = resolve)))
+        .mockResolvedValue(undefined)
+      const { result } = setup(save)
+
+      act(() => result.current.commit({ name: 'a' }))
+      await settle()
+      expect(save).toHaveBeenCalledTimes(1)
+
+      act(() => result.current.schedule({ description: 'typin' }))
+      await act(async () => {
+        releaseFirst?.()
+        await Promise.resolve()
+      })
+      await settle()
+
+      // The queue drained the committed patch but must not swallow the debounced
+      // one — otherwise every keystroke typed during a save costs a round trip.
+      expect(save).toHaveBeenCalledTimes(1)
+      expect(result.current.status).toBe('pending')
+
+      act(() => result.current.schedule({ description: 'typing' }))
+      await act(async () => {
+        vi.advanceTimersByTime(10)
+        await Promise.resolve()
+      })
+
+      expect(save).toHaveBeenCalledTimes(2)
+      expect(save).toHaveBeenLastCalledWith({ description: 'typing' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps a rejected patch buffered and resends it on retry', async () => {
     const onError = vi.fn()
     const save = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
