@@ -20,7 +20,6 @@ import { type EndpointDispatchConfig, resolveProviderModelRoute } from '@cherrys
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
 import { createAihubmixImageModel } from './aihubmixImageModel'
-import { resolveAihubmixChatFamily } from './aihubmixRouting'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }
@@ -127,17 +126,21 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
       fileIdPrefixes: ['file-']
     })
 
+  // The endpoint claiming this id picks the model class. An unclaimed id is the openai-compatible
+  // passthrough line — AiHubMix's default for everything it does not serve natively.
   const createChatModel = (modelId: string): LanguageModelV3 => {
-    switch (resolveAihubmixChatFamily(resolveProviderModelRoute(options.endpointConfigs, modelId))) {
-      case 'anthropic':
+    switch (resolveProviderModelRoute(options.endpointConfigs, modelId)?.endpointType) {
+      case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
         return createAnthropicModel(modelId)
-      case 'gemini':
+      case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
         return createGeminiModel(modelId)
-      case 'openai-chat':
+      // Only the responses-incapable OpenAI SKUs are claimed here; @ai-sdk/openai's chat model
+      // reads the same canonical `openai` namespace.
+      case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
         return createOpenAIChatModel(modelId)
-      case 'openai-responses':
+      case ENDPOINT_TYPE.OPENAI_RESPONSES:
         return createResponsesModel(modelId)
-      case 'compat':
+      default:
         return createOpenAICompatibleChatModel(modelId)
     }
   }

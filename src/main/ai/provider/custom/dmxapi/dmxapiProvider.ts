@@ -16,7 +16,6 @@ import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils/api'
 
 import { createImageGenerationModel, type ImageGenerationTransport } from '../imageGenerationModel'
-import { resolveDmxapiChatFamily } from './dmxapiRouting'
 import { createDmxapiTransport, resolveDmxapiFamily } from './dmxapiTransport'
 
 export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
@@ -158,8 +157,8 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
   const transport = buildDmxapiTransport(settings)
 
   const createChatModel = (modelId: string): LanguageModelV3 => {
-    switch (resolveDmxapiChatFamily(resolveProviderModelRoute(settings.endpointConfigs, modelId))) {
-      case 'anthropic':
+    switch (resolveProviderModelRoute(settings.endpointConfigs, modelId)?.endpointType) {
+      case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
         return new AnthropicMessagesLanguageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.anthropic`,
           baseURL: anthropicBaseURL,
@@ -168,7 +167,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
           supportedUrls: () => ({ 'image/*': [/^https?:\/\/.*$/] }),
           supportsNativeStructuredOutput: false
         })
-      case 'gemini':
+      case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
         return new GoogleGenerativeAILanguageModel(modelId, {
           provider: `${DMXAPI_PROVIDER_NAME}.google`,
           baseURL: geminiBaseURL,
@@ -177,7 +176,9 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
           generateId: () => `${DMXAPI_PROVIDER_NAME}-${Date.now()}`,
           supportedUrls: () => ({})
         })
-      case 'openai':
+      // Native OpenAI chat models — @ai-sdk/openai's chat class reads the canonical `openai`
+      // namespace, not the dmxapi one the passthrough line below implies.
+      case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
         return openaiChatModel(modelId)
       default:
         return new OpenAICompatibleChatLanguageModel(modelId, {
@@ -193,7 +194,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
     // Native SDK families win first — `gpt-image-*` / `dall-e-*` via
     // `@ai-sdk/openai`'s `OpenAIImageModel` (multipart edits, etc.),
     // `imagen-*` / `gemini-*-image*` via `@ai-sdk/google`'s `provider.image`.
-    // Putting these ahead of `resolveDmxapiFamily` ensures a model that has
+    // Putting these ahead of the endpoint claim ensures a model that has
     // a first-party adapter is never accidentally routed to the bespoke
     // transport just because a family-table matcher overlaps.
     switch (resolveNativeImageFamily(modelId)) {
