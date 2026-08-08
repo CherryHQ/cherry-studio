@@ -50,6 +50,14 @@ function readableSpan(overrides: { spanId: string; traceId: string; ended: boole
   } as unknown as ReadableSpan
 }
 
+// Reading history is the expensive path (whole trace parsed into the heap + IPC payload), so the
+// hot-path tests below assert on it directly rather than on whichever fs call implements it.
+type HistoryReader = { getHistoryData: (topicId: string, traceId: string) => Promise<SpanEntity[]> }
+
+function spyOnHistoryReads(service: TraceStorageService) {
+  return vi.spyOn(service as unknown as HistoryReader, 'getHistoryData')
+}
+
 function timedEvent(name: string): TimedEvent {
   return { name, time: [0, 0], attributes: {} } as TimedEvent
 }
@@ -120,6 +128,51 @@ describe('TraceStorageService', () => {
       { id: 'history', name: 'live-wins' },
       { id: 'live', name: 'from-live' }
     ])
+  })
+
+  it('returns one full snapshot followed by live deltas without rereading unchanged history', async () => {
+    await service._doInit()
+
+    service.saveEntity(span({ id: 'history', traceId: 'trace-a', topicId: 'topic-a' }))
+    await service.saveSpans('topic-a')
+    service.saveEntity(span({ id: 'live', traceId: 'trace-a', topicId: 'topic-a', name: 'live-v1' }))
+
+    const initial = await service.getTraceData('topic-a', 'trace-a')
+    expect(initial.reset).toBe(true)
+    expect(initial.spans.map((item) => item.id).sort()).toEqual(['history', 'live'])
+
+    const historySpy = spyOnHistoryReads(service)
+    try {
+      const unchanged = await service.getTraceData('topic-a', 'trace-a', initial.cursor)
+      expect(unchanged).toMatchObject({ reset: false, spans: [] })
+      expect(historySpy).not.toHaveBeenCalled()
+
+      service.saveEntity(span({ id: 'live', traceId: 'trace-a', topicId: 'topic-a', name: 'live-v2' }))
+      const changed = await service.getTraceData('topic-a', 'trace-a', unchanged.cursor)
+      expect(changed.reset).toBe(false)
+      expect(changed.spans).toMatchObject([{ id: 'live', name: 'live-v2' }])
+      expect(historySpy).not.toHaveBeenCalled()
+    } finally {
+      historySpy.mockRestore()
+    }
+  })
+
+  it('accumulates trace files without reading the complete history during each flush', async () => {
+    await service._doInit()
+
+    service.saveEntity(span({ id: 'first', traceId: 'trace-a', topicId: 'topic-a' }))
+    await service.saveSpans('topic-a')
+
+    const historySpy = spyOnHistoryReads(service)
+    try {
+      service.saveEntity(span({ id: 'second', traceId: 'trace-a', topicId: 'topic-a' }))
+      await service.saveSpans('topic-a')
+      expect(historySpy).not.toHaveBeenCalled()
+    } finally {
+      historySpy.mockRestore()
+    }
+
+    expect((await service.getSpans('topic-a', 'trace-a')).map((item) => item.id).sort()).toEqual(['first', 'second'])
   })
 
   // The OTel createSpan/endSpan path is the live source of cached spans. If endSpan does not
@@ -251,6 +304,25 @@ describe('TraceStorageService', () => {
     expect(service['pendingEventBytes']).toBeLessThanOrEqual(16 * 1024 * 1024)
     expect(service['pendingEvents'].has('span-0')).toBe(false)
     expect(service['pendingEvents'].has('span-9')).toBe(true)
+  })
+
+  // A container trace file accumulates every turn of a session, and each viewer resync parses the
+  // WHOLE file into the main heap, the IPC payload and the renderer's node map. Without retention
+  // that grows without bound, so the oldest spans must age out of the file.
+  it('drops the oldest history spans once a trace file exceeds the retention budget', async () => {
+    await service._doInit()
+
+    // 4 spans x ~3 MiB > the 8 MiB budget. The cap is soft (the flush in progress is never trimmed),
+    // so trimming lands on the flush AFTER the file first goes over.
+    const body = 'x'.repeat(3 * 1024 * 1024)
+    for (const id of ['oldest', 'second', 'third', 'newest']) {
+      service.saveEntity(span({ id, traceId: 'trace-big', topicId: 'topic-big', attributes: { body } }))
+      await service.saveSpans('topic-big')
+    }
+
+    const retained = (await service.getSpans('topic-big', 'trace-big')).map((item) => item.id)
+    expect(retained).not.toContain('oldest')
+    expect(retained).toEqual(['second', 'third', 'newest'])
   })
 
   // A warm-query span can be stored before the live connection registers the trace's topic; it must

@@ -11,6 +11,12 @@ export interface TraceSpanQuery {
   modelName?: string
 }
 
+export interface TraceSpanChanges {
+  revision: number
+  reset: boolean
+  spans: SpanEntity[]
+}
+
 /**
  * Default cap on the total number of spans held in memory. When exceeded, the oldest
  * fully-ended trace is evicted (see {@link TraceSpanStore.enforceSpanLimit}). In-flight
@@ -20,6 +26,15 @@ export interface TraceSpanQuery {
  */
 const DEFAULT_MAX_SPANS = 50_000
 
+/**
+ * Cap on retained per-trace deletion markers. A marker only matters until every viewer cursor has
+ * advanced past it, but the store cannot know when that happened, so markers would otherwise
+ * accumulate one entry per trace id ever flushed — unbounded over a long session. Evicting the
+ * oldest into {@link TraceSpanStore.evictedResetRevision} preserves correctness: a cursor older
+ * than anything dropped is forced to resync rather than silently missing a deletion.
+ */
+const MAX_TRACKED_RESETS = 1_000
+
 export class TraceSpanStore {
   private readonly traceMeta = new Map<string, TraceSpanMeta>()
   private readonly spans = new Map<string, SpanEntity>()
@@ -27,7 +42,14 @@ export class TraceSpanStore {
   private readonly traceSpanIds = new Map<string, Set<string>>()
   // Per-trace recency counter; lower values are older. Bumped on every setSpan.
   private readonly traceOrder = new Map<string, number>()
+  private readonly spanRevisions = new Map<string, number>()
+  // Insertion order is kept in revision order (oldest first) by markTraceReset, so eviction can
+  // drop the oldest marker without scanning.
+  private readonly traceResetRevisions = new Map<string, number>()
+  private globalResetRevision = 0
+  private evictedResetRevision = 0
   private orderSeq = 0
+  private revisionSeq = 0
 
   constructor(private readonly maxSpans = DEFAULT_MAX_SPANS) {}
 
@@ -59,7 +81,9 @@ export class TraceSpanStore {
   }
 
   setSpan(span: SpanEntity): void {
+    const revision = this.nextRevision()
     this.spans.set(span.id, span)
+    this.spanRevisions.set(span.id, revision)
     if (span.traceId) {
       let ids = this.traceSpanIds.get(span.traceId)
       if (!ids) {
@@ -80,28 +104,59 @@ export class TraceSpanStore {
 
   deleteSpan(spanId: string): void {
     const span = this.spans.get(spanId)
+    if (!span) return
+    const revision = this.nextRevision()
     this.spans.delete(spanId)
-    if (span) this.untrackSpan(span.traceId, spanId)
+    this.spanRevisions.delete(spanId)
+    this.markTraceReset(span.traceId, revision)
+    this.untrackSpan(span.traceId, spanId)
   }
 
   getSpans(query: TraceSpanQuery): SpanEntity[] {
-    return Array.from(this.spans.values()).filter((span) => this.matchesQuery(span, query))
+    const spans: SpanEntity[] = []
+    for (const spanId of this.traceSpanIds.get(query.traceId) ?? []) {
+      const span = this.spans.get(spanId)
+      if (span && this.matchesQuery(span, query)) spans.push(span)
+    }
+    return spans
+  }
+
+  getSpanChanges(query: TraceSpanQuery, afterRevision?: number): TraceSpanChanges {
+    const revision = this.revisionSeq
+    const resetRevision = Math.max(
+      this.globalResetRevision,
+      this.evictedResetRevision,
+      this.traceResetRevisions.get(query.traceId) ?? 0
+    )
+    const reset = afterRevision === undefined || afterRevision > revision || afterRevision < resetRevision
+    const spans = this.getSpans(query).filter(
+      (span) => reset || (this.spanRevisions.get(span.id) ?? 0) > (afterRevision ?? 0)
+    )
+    return { revision, reset, spans }
   }
 
   clear(): void {
+    if (this.spans.size > 0 || this.traceMeta.size > 0) {
+      this.globalResetRevision = this.nextRevision()
+    }
     this.spans.clear()
     this.traceMeta.clear()
     this.traceSpanIds.clear()
     this.traceOrder.clear()
+    this.spanRevisions.clear()
+    this.traceResetRevisions.clear()
+    // globalResetRevision already dominates every marker just dropped.
+    this.evictedResetRevision = 0
   }
 
   clearTrace(traceId: string, modelName?: string): void {
+    const removedIds: string[] = []
     for (const span of this.spans.values()) {
       if (span.traceId === traceId && this.matchesModel(span, modelName, false)) {
-        this.spans.delete(span.id)
-        this.untrackSpan(span.traceId, span.id)
+        removedIds.push(span.id)
       }
     }
+    this.removeSpans(removedIds)
     if (!modelName) {
       this.traceMeta.delete(traceId)
     }
@@ -109,11 +164,34 @@ export class TraceSpanStore {
 
   /** Delete a specific set of spans by id (e.g. exactly the spans a flush persisted). */
   clearSpans(ids: string[]): void {
+    this.removeSpans(ids)
+  }
+
+  private removeSpans(ids: string[]): void {
+    const resetRevision = ids.some((id) => this.spans.has(id)) ? this.nextRevision() : undefined
     for (const id of ids) {
       const span = this.spans.get(id)
       if (!span) continue
       this.spans.delete(id)
+      this.spanRevisions.delete(id)
+      if (resetRevision !== undefined) this.markTraceReset(span.traceId, resetRevision)
       this.untrackSpan(span.traceId, span.id)
+    }
+  }
+
+  /**
+   * Record that `traceId` lost spans at `revision`, so cursors older than that must resync.
+   * Re-inserting keeps the map in revision order; the oldest marker is evicted past
+   * {@link MAX_TRACKED_RESETS} and folded into the conservative global floor.
+   */
+  private markTraceReset(traceId: string, revision: number): void {
+    this.traceResetRevisions.delete(traceId)
+    this.traceResetRevisions.set(traceId, revision)
+    while (this.traceResetRevisions.size > MAX_TRACKED_RESETS) {
+      const oldest = this.traceResetRevisions.entries().next().value
+      if (!oldest) break
+      this.traceResetRevisions.delete(oldest[0])
+      this.evictedResetRevision = Math.max(this.evictedResetRevision, oldest[1])
     }
   }
 
@@ -174,5 +252,10 @@ export class TraceSpanStore {
 
   private matchesModel(span: SpanEntity, modelName?: string, includeUnmodelled = true): boolean {
     return !modelName || span.modelName === modelName || (includeUnmodelled && !span.modelName)
+  }
+
+  private nextRevision(): number {
+    this.revisionSeq += 1
+    return this.revisionSeq
   }
 }
