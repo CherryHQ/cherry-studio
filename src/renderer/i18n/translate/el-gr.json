@@ -2988,6 +2988,28 @@
       "title": "Εισαγωγή Συνομιλιών του ChatGPT",
       "untitled_conversation": "Συνομιλία χωρίς τίτλο"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "Επιλέξτε Εισαγωγή Αρχείου",
       "label": "Είστε σίγουροι ότι θέλετε να εισάγετε εξωτερικά δεδομένα;"
@@ -3026,10 +3048,20 @@
           "selected_notes": "{{count}} σημειώσεις επιλέχθηκαν"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "Επιλέξτε υπάρχοντες σημειώσεις ως πηγές βάσης γνώσης",
           "empty_description": "Επιλέξιμες σημειώσεις θα εμφανιστούν εδώ αφού συνδεθεί η πραγματική λίστα σημειώσεων. Για τώρα, χρησιμοποιήστε αρχεία, φακέλους, διευθύνσεις URL ή sitemaps.",
           "empty_title": "Οι σημειώσεις δεν έχουν συνδεθεί ακόμα",
-          "loading": "Φόρτωση σημειώσεων…"
+          "loading": "Φόρτωση σημειώσεων…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Υποστηρίζει PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3288,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "Εφαρμογές",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "Μικροεφαρμογές",
     "miniApps": "Μικρές εφαρμογές",
     "pin_to_sidebar": "Καρφίτσωμα στην πλαϊνή μπάρα",
@@ -6091,6 +6124,7 @@
       "import_settings": {
         "button": "Εισαγωγή αρχείου Json",
         "chatgpt": "Εισαγωγή από το ChatGPT",
+        "claude": "[to be translated]:Import from Claude",
         "title": "Εισαγωγή Δεδομένων Εξωτερικής Εφαρμογής"
       },
       "joplin": {
@@ -6646,6 +6680,7 @@
         "notice": {
           "downloadFailed": "Η λήψη απέτυχε. Ελέγξτε τη σύνδεσή σας και προσπαθήστε ξανά.",
           "inUse": "Ακόμα χρησιμοποιείται από μια βάση γνώσης· τα βάρη διατηρήθηκαν.",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "Η αφαίρεση απέτυχε. Ελέγξτε τα αρχεία καταγραφής για λεπτομέρειες."
         },
         "ocr": {
@@ -6740,7 +6775,7 @@
       },
       "sidebar": {
         "chat": {
-          "hiddenMessage": "Η υπηρεσία είναι βασική λειτουργία και δεν υποστηρίζεται η κρυμμένη εμφάνιση"
+          "visible": "[to be translated]:Show Chat Assistant in Sidebar"
         },
         "disabled": "Αποκρυμμένα εικονίδια",
         "empty": "Βάλτε εδώ τις λειτουργίες που θέλετε να κρύψετε από την αριστερά",

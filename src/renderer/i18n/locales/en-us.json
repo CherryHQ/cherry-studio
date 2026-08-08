@@ -6775,7 +6775,7 @@
       },
       "sidebar": {
         "chat": {
-          "hiddenMessage": "Assistants are basic functions, not supported for hiding"
+          "visible": "Show Chat Assistant in Sidebar"
         },
         "disabled": "Hide icons",
         "empty": "Drag the hidden feature from the left side here",

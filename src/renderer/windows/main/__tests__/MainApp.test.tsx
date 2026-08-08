@@ -5,6 +5,10 @@ import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+const tabsProviderProps = vi.hoisted(() => ({
+  initialDefaultTab: undefined as { url: string } | undefined
+}))
+
 vi.mock('../onboarding/OnboardingPage', () => ({
   default: () => <div data-testid="onboarding-page">onboarding</div>
 }))
@@ -14,7 +18,10 @@ vi.mock('../privacy/PrivacyPolicyUpdateGate', () => ({
 }))
 
 vi.mock('@renderer/components/layout/TabsProvider', () => ({
-  TabsProvider: ({ children }: { children: ReactNode }) => <div data-testid="tabs-provider">{children}</div>
+  TabsProvider: ({ children, initialDefaultTab }: { children: ReactNode; initialDefaultTab?: { url: string } }) => {
+    tabsProviderProps.initialDefaultTab = initialDefaultTab
+    return <div data-testid="tabs-provider">{children}</div>
+  }
 }))
 
 vi.mock('@renderer/components/layout/AppShell', () => ({
@@ -73,6 +80,32 @@ describe('MainWindowContent', () => {
     expect(screen.getByTestId('app-shell')).toBeInTheDocument()
     expect(screen.queryByTestId('onboarding-page')).not.toBeInTheDocument()
     expect(screen.getByTestId('privacy-policy-gate')).toBeInTheDocument()
+  })
+
+  it('lands on the first visible sidebar app as the default tab', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [{ type: 'app', id: 'translate' }])
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
+
+    render(<MainWindowContent />)
+
+    expect(tabsProviderProps.initialDefaultTab).toMatchObject({ id: 'home', url: '/app/translate' })
+  })
+
+  it('resolves the default tab with the paintings provider route for the paintings app', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [{ type: 'app', id: 'paintings' }])
+    MockUsePreferenceUtils.setPreferenceValue('feature.paintings.default_provider', 'zhipu')
+
+    render(<MainWindowContent />)
+
+    expect(tabsProviderProps.initialDefaultTab).toMatchObject({ id: 'home', url: '/app/paintings/zhipu' })
+  })
+
+  it('falls back to the chat assistant when no sidebar app is visible', () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [{ type: 'mini_app', id: 'calculator' }])
+
+    render(<MainWindowContent />)
+
+    expect(tabsProviderProps.initialDefaultTab).toMatchObject({ id: 'home', url: '/app/chat' })
   })
 })
 

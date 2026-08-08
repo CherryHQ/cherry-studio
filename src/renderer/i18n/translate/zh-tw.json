@@ -1008,8 +1008,8 @@
           "label": "通知"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "[to be translated]:Markdown is easier for the agent to read",
+          "label": "[to be translated]:File to Markdown"
         },
         "CherryWebFetch": {
           "description": "擷取並讀取網頁",
@@ -2988,6 +2988,28 @@
       "title": "匯入 ChatGPT 對話",
       "untitled_conversation": "未命名對話"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "選擇匯入檔案",
       "label": "確定要匯入外部資料嗎？"
@@ -3026,10 +3048,20 @@
           "selected_notes": "已選 {{count}} 個筆記"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "選擇現有筆記作為知識庫資料來源",
           "empty_description": "請先在「筆記」功能中建立筆記，再回到這裡選擇。",
           "empty_title": "找不到筆記",
-          "loading": "正在載入筆記…"
+          "loading": "正在載入筆記…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "支援 PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3288,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "應用程式",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "小程式",
     "miniApps": "小程式",
     "pin_to_sidebar": "新增到側邊欄",
@@ -4216,7 +4249,7 @@
         "taskOutput": "檢視任務輸出",
         "taskStop": "停止任務",
         "taskUpdate": "更新任務",
-        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdown": "[to be translated]:To Markdown",
         "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "待辦寫入",
         "tool": "工具",
@@ -6091,6 +6124,7 @@
       "import_settings": {
         "button": "匯入 JSON 檔案",
         "chatgpt": "匯入 ChatGPT 資料",
+        "claude": "[to be translated]:Import from Claude",
         "title": "匯入外部應用程式資料"
       },
       "joplin": {
@@ -6646,6 +6680,7 @@
         "notice": {
           "downloadFailed": "下載失敗，請檢查網路後重試。",
           "inUse": "該模型仍被知識庫使用，已保留權重。",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "刪除失敗，請檢視記錄。"
         },
         "ocr": {
@@ -6740,7 +6775,7 @@
       },
       "sidebar": {
         "chat": {
-          "hiddenMessage": "助理是基礎功能，不支援隱藏"
+          "visible": "[to be translated]:Show Chat Assistant in Sidebar"
         },
         "disabled": "隱藏的圖示",
         "empty": "把要隱藏的功能從左側拖曳到這裡",

@@ -484,13 +484,24 @@ describe('LaunchpadPage', () => {
 
     render(<LaunchpadPage />)
 
-    expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toHaveTextContent('Remove from Sidebar')
-    expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toBeDisabled()
     expect(screen.getByTestId('menu-launchpad.pin-to-sidebar.knowledge')).toHaveTextContent('Add to Sidebar')
 
     await user.click(screen.getByTestId('menu-launchpad.pin-to-sidebar.knowledge'))
 
     expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([appFavorite('assistants'), appFavorite('knowledge')])
+  })
+
+  it('removes the chat assistant icon from the sidebar context menu', async () => {
+    const user = userEvent.setup()
+
+    render(<LaunchpadPage />)
+
+    expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toHaveTextContent('Remove from Sidebar')
+    expect(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants')).toBeEnabled()
+
+    await user.click(screen.getByTestId('menu-launchpad.unpin-from-sidebar.assistants'))
+
+    expect(mocks.setSidebarFavorites).toHaveBeenCalledWith([])
   })
 
   it('removes an existing sidebar app icon from the context menu', async () => {

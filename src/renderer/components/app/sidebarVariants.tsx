@@ -21,7 +21,6 @@ export interface SidebarVariantContext {
   t: (key: string) => string
   defaultPaintingProvider: string
   installedMiniApps: Map<string, MiniApp>
-  isRequiredApp: (id: SidebarAppId) => boolean
   openApp: (id: SidebarAppId) => void
   openMiniApp: (id: string) => void
   removeApp: (id: SidebarAppId) => void
@@ -60,7 +59,6 @@ const appVariant: SidebarVariantDescriptor<Extract<SidebarFavoriteItem, { type: 
           type: 'item',
           id: `sidebar.remove-app.${id}`,
           label: ctx.t('launchpad.unpin_from_sidebar'),
-          enabled: !ctx.isRequiredApp(id),
           onSelect: () => ctx.removeApp(id)
         }
       ]
