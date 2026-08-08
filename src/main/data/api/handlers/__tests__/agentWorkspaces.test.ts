@@ -5,6 +5,7 @@ const {
   listMock,
   findOrCreateByPathResultMock,
   getByIdMock,
+  getReferencesMock,
   updateMock,
   deleteWorkspaceCascadeMock,
   reorderMock,
@@ -13,6 +14,7 @@ const {
   listMock: vi.fn(),
   findOrCreateByPathResultMock: vi.fn(),
   getByIdMock: vi.fn(),
+  getReferencesMock: vi.fn(),
   updateMock: vi.fn(),
   deleteWorkspaceCascadeMock: vi.fn(),
   reorderMock: vi.fn(),
@@ -24,6 +26,7 @@ vi.mock('@data/services/AgentWorkspaceService', () => ({
     list: listMock,
     findOrCreateByPathResult: findOrCreateByPathResultMock,
     getById: getByIdMock,
+    getReferences: getReferencesMock,
     update: updateMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
@@ -130,6 +133,23 @@ describe('agentWorkspaceHandlers', () => {
     ).resolves.toBe(result)
 
     expect(deleteWorkspaceCascadeMock).toHaveBeenCalledWith(workspace.id)
+  })
+
+  it('delegates workspace reference lookup to AgentWorkspaceService', async () => {
+    const references = {
+      sessions: [{ id: 'session-1', name: 'Session' }],
+      channels: [{ id: 'channel-1', name: 'Channel' }],
+      tasks: [{ id: 'task-1', name: 'Task' }]
+    }
+    getReferencesMock.mockReturnValueOnce(references)
+
+    await expect(
+      agentWorkspaceHandlers['/agent-workspaces/:workspaceId/references'].GET({
+        params: { workspaceId: workspace.id }
+      } as never)
+    ).resolves.toBe(references)
+
+    expect(getReferencesMock).toHaveBeenCalledWith(workspace.id)
   })
 
   it('delegates order mutations', async () => {
