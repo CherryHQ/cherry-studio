@@ -178,7 +178,6 @@ export function DiagnosticUploadDialog({ onOpenChange, open }: DiagnosticUploadD
                     setInspectResult(null)
                   }}
                   options={rangeOptions}
-                  className="w-full"
                   disabled={status === 'uploading'}
                 />
               </section>
