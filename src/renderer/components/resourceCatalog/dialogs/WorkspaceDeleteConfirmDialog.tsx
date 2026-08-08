@@ -1,4 +1,12 @@
-import { Button, ConfirmDialog } from '@cherrystudio/ui'
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
@@ -79,15 +87,9 @@ export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: 
     if (!canConfirm || pendingRef.current) return
     pendingRef.current = true
     setPending(true)
+    let succeeded = false
     try {
-      let result: Awaited<ReturnType<typeof deleteWorkspace>>
-      try {
-        result = await deleteWorkspace({ params: { workspaceId: workspace.id } })
-      } catch (error) {
-        logger.error('Failed to delete workspace', error as Error, { workspaceId: workspace.id })
-        toast.error(formatErrorMessageWithPrefix(error, t('agent.session.workdir.delete.error.failed')))
-        throw error
-      }
+      const result = await deleteWorkspace({ params: { workspaceId: workspace.id } })
 
       closeConversationTabs('agents', result.deletedIds)
       try {
@@ -106,11 +108,17 @@ export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: 
         })
       }
       toast.success(t('common.delete_success'))
+      succeeded = true
+    } catch (error) {
+      logger.error('Failed to delete workspace', error as Error, { workspaceId: workspace.id })
+      toast.error(formatErrorMessageWithPrefix(error, t('agent.session.workdir.delete.error.failed')))
     } finally {
       pendingRef.current = false
       setPending(false)
     }
-  }, [canConfirm, closeConversationTabs, deleteWorkspace, invalidateCache, onDeleted, t, workspace.id])
+
+    if (succeeded) onClose()
+  }, [canConfirm, closeConversationTabs, deleteWorkspace, invalidateCache, onClose, onDeleted, t, workspace.id])
 
   const content = references ? (
     <div className="min-h-0 space-y-3 overflow-y-auto">
@@ -183,21 +191,30 @@ export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: 
   )
 
   return (
-    <ConfirmDialog
+    <Dialog
       open
       onOpenChange={(open) => {
         if (!open && !pendingRef.current) onClose()
-      }}
-      title={t('agent.session.workdir.delete.title')}
-      description={t('agent.session.workdir.delete.preview', { name: workspace.name })}
-      content={content}
-      confirmText={t('common.delete')}
-      cancelText={t('common.cancel')}
-      destructive
-      confirmLoading={pending}
-      confirmDisabled={!canConfirm}
-      contentClassName="max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-lg"
-      onConfirm={handleConfirm}
-    />
+      }}>
+      <DialogContent
+        motion="fade-scale"
+        showCloseButton={false}
+        closeOnOverlayClick={!pending}
+        className="max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{t('agent.session.workdir.delete.title')}</DialogTitle>
+          <DialogDescription>{t('agent.session.workdir.delete.preview', { name: workspace.name })}</DialogDescription>
+        </DialogHeader>
+        {content}
+        <DialogFooter>
+          <Button variant="outline" disabled={pending} onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="destructive" loading={pending} disabled={!canConfirm} onClick={() => void handleConfirm()}>
+            {t('common.delete')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
