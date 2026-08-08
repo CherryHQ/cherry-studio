@@ -1099,7 +1099,7 @@ describe('findCommandInShellEnv', () => {
       expect(spawn).toHaveBeenCalledWith('where', ['npx'], expect.any(Object))
     })
 
-it('should find .cmd launchers on Windows', async () => {
+    it('should find .cmd launchers on Windows', async () => {
       const mockChild = createMockChildProcess()
       vi.mocked(spawn).mockReturnValue(mockChild as never)
 
