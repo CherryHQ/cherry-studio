@@ -1,12 +1,15 @@
-import { useQuery } from '@data/hooks/useDataApi'
+import { useDataChange, useMutation, useQuery } from '@data/hooks/useDataApi'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invalidateMock = vi.hoisted(() => vi.fn())
+const refetchMock = vi.hoisted(() => vi.fn())
 const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => invalidateMock,
+  useDataChange: vi.fn(),
+  useMutation: vi.fn(),
   useQuery: vi.fn()
 }))
 
@@ -20,7 +23,7 @@ function mockSkillQuery() {
     isLoading: false,
     isRefreshing: false,
     error: undefined,
-    refetch: vi.fn()
+    refetch: refetchMock
   } as unknown as ReturnType<typeof useQuery>)
 }
 
@@ -29,6 +32,23 @@ describe('skillAdapter mutations', () => {
     vi.clearAllMocks()
     invalidateMock.mockResolvedValue(undefined)
     skillMocks.request.mockResolvedValue({ success: true, data: undefined })
+    vi.mocked(useMutation).mockReturnValue({
+      trigger: vi.fn(),
+      isLoading: false
+    } as unknown as ReturnType<typeof useMutation>)
+  })
+
+  it('updates the global enabled state through DataApi', async () => {
+    const trigger = vi.fn().mockResolvedValue({ id: 'skill-1', isGlobalEnabled: false })
+    vi.mocked(useMutation).mockReturnValue({ trigger, isLoading: false } as unknown as ReturnType<typeof useMutation>)
+    const { result } = renderHook(() => useSkillMutationsById('skill-1'))
+
+    await act(async () => {
+      await result.current.updateGlobalEnabled(false)
+    })
+
+    expect(useMutation).toHaveBeenCalledWith('PATCH', '/skills/skill-1', { refresh: ['/skills'] })
+    expect(trigger).toHaveBeenCalledWith({ body: { isGlobalEnabled: false } })
   })
 
   it('uninstalls skills through IPC and invalidates DataApi cache', async () => {
@@ -77,6 +97,7 @@ describe('skillAdapter reconcile-on-open', () => {
   it('reconciles the on-disk library and refreshes when the skill view opens', async () => {
     renderHook(() => skillAdapter.useList({ enabled: true }))
 
+    expect(useDataChange).toHaveBeenCalledWith('/skills', expect.any(Function))
     expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {})
     await waitFor(() => expect(invalidateMock).toHaveBeenCalledWith('/skills'))
   })
@@ -84,7 +105,17 @@ describe('skillAdapter reconcile-on-open', () => {
   it('does not reconcile while the skill view is disabled', async () => {
     renderHook(() => skillAdapter.useList({ enabled: false }))
 
+    expect(useDataChange).toHaveBeenCalledWith([], expect.any(Function))
     expect(skillMocks.request).not.toHaveBeenCalled()
     expect(invalidateMock).not.toHaveBeenCalled()
+  })
+
+  it('refetches the catalog after a cross-window data change', () => {
+    renderHook(() => skillAdapter.useList({ enabled: true }))
+
+    const listener = vi.mocked(useDataChange).mock.calls.at(-1)?.[1]
+    listener?.([])
+
+    expect(refetchMock).toHaveBeenCalledOnce()
   })
 })
