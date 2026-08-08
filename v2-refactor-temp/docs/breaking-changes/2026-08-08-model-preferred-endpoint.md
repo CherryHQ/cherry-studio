@@ -10,6 +10,8 @@ date: 2026-08-08
 
 A model on a provider that serves more than one chat protocol (doubao, dashscope, deepseek, azure-openai, and multi-endpoint aggregator models) now shows a **Preferred Endpoint** choice in the model drawer. Exactly one endpoint is always selected, and requests for that model use it.
 
+On aggregators (CherryIN, New API, AiOnly) this **replaces** the multi-select the edit drawer used to show. That control listed all eight protocols regardless of what the model actually speaks, and every edit overwrote the endpoint set the provider's own `/models` listing reported. Editing now offers exactly the protocols upstream reported for that model and changes only the route — the supported set stays as the provider reported it, which also keeps the code-agent, painting and TTS model filters reading the provider's answer instead of whatever was last clicked. Adding a model by hand is unchanged: with no upstream listing to go on, you still declare the set yourself.
+
 Routing resolves as `preferredEndpointType` → the first supported endpoint → the provider default, so models without an explicit choice behave exactly as before. Refreshing a provider's model list updates which endpoints a model supports without overwriting a choice the user made.
 
 Existing models are untouched: the new column starts empty for every stored model, so they keep routing on their supported-endpoint order exactly as before. Nothing is backfilled — an upgrade must not invent a preference the user never expressed.

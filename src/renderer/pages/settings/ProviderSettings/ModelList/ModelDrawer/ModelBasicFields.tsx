@@ -6,7 +6,6 @@ import type { EndpointType } from '@shared/data/types/model'
 import { type ReactNode, type Ref, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ModelEndpointTypeChips } from './ModelEndpointTypeChips'
 import { ModelEndpointTypeSelect } from './ModelEndpointTypeSelect'
 import { ModelPreferredEndpointSelect } from './ModelPreferredEndpointSelect'
 import type { ModelBasicFormState, ModelDrawerEndpointType } from './types'
@@ -14,8 +13,7 @@ import type { ModelBasicFormState, ModelDrawerEndpointType } from './types'
 interface ModelBasicFieldsProps {
   values: ModelBasicFormState
   showEndpointType: boolean
-  endpointTypeControl?: 'select' | 'chips'
-  /** Routable endpoints for this model; the picker only renders when there is more than one. */
+  /** Routable endpoints for this model. The caller decides when there is a choice worth showing. */
   preferredEndpointOptions?: readonly EndpointType[]
   preferredEndpointType?: EndpointType
   onPreferredEndpointTypeChange?: (next: EndpointType) => void
@@ -38,7 +36,6 @@ interface ModelBasicFieldsProps {
 export function ModelBasicFields({
   values,
   showEndpointType,
-  endpointTypeControl = 'select',
   preferredEndpointOptions,
   preferredEndpointType,
   onPreferredEndpointTypeChange,
@@ -59,9 +56,8 @@ export function ModelBasicFields({
 }: ModelBasicFieldsProps) {
   const { t } = useTranslation()
   const preferredEndpointLabelId = useId()
-  // One routable endpoint means there is nothing to choose.
   const showPreferredEndpoint =
-    (preferredEndpointOptions?.length ?? 0) > 1 &&
+    (preferredEndpointOptions?.length ?? 0) > 0 &&
     preferredEndpointType != null &&
     onPreferredEndpointTypeChange != null
 
@@ -144,11 +140,7 @@ export function ModelBasicFields({
           className={drawerClasses.field}
           help={endpointTypeError ? <div className={drawerClasses.errorText}>{endpointTypeError}</div> : null}>
           <div data-testid="provider-settings-model-endpoint-type-field">
-            {endpointTypeControl === 'chips' ? (
-              <ModelEndpointTypeChips value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
-            ) : (
-              <ModelEndpointTypeSelect value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
-            )}
+            <ModelEndpointTypeSelect value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
           </div>
         </ProviderField>
       )}

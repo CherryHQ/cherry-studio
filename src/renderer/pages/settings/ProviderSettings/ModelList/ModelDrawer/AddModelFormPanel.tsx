@@ -103,10 +103,12 @@ export default function AddModelFormPanel({
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
   const defaultChatEndpoint = providerChatEndpointTypes[0] ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
   // Only an aggregator's multi-select declares what the new model supports; elsewhere the form seeds
-  // `endpointTypes` with the provider default, which says nothing about the model.
-  const preferredEndpointOptions = provider
+  // `endpointTypes` with the provider default, which says nothing about the model. One candidate
+  // means the provider already determines the route, so there is nothing to ask.
+  const preferredEndpointCandidates = provider
     ? getPreferredEndpointCandidates(provider, mode === 'endpoint-types' ? formState.endpointTypes : undefined)
     : []
+  const preferredEndpointOptions = preferredEndpointCandidates.length > 1 ? preferredEndpointCandidates : []
   const activePreferredEndpoint =
     preferredEndpointOptions.find((candidate) => candidate === preferredEndpointType) ?? preferredEndpointOptions[0]
   const modelPurpose = inferModelPurpose(purposeFields)
