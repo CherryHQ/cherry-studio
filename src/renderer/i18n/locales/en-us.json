@@ -4320,6 +4320,14 @@
         "stderr": "stderr",
         "stdout": "stdout"
       },
+      "sessionCreate": {
+        "created": "Started a new session",
+        "creating": "Starting a new session",
+        "firstMessage": "First message",
+        "inheritedContext": "Using this agent and workspace",
+        "sessionId": "Session ID",
+        "untitled": "Untitled session"
+      },
       "status": {
         "done": "Done",
         "error": "Error",

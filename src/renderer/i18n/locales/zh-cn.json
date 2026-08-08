@@ -4320,6 +4320,14 @@
         "stderr": "标准错误",
         "stdout": "标准输出"
       },
+      "sessionCreate": {
+        "created": "已启动新会话",
+        "creating": "正在启动新会话",
+        "firstMessage": "首条消息",
+        "inheritedContext": "沿用当前智能体与工作区",
+        "sessionId": "会话 ID",
+        "untitled": "未命名会话"
+      },
       "status": {
         "done": "完成",
         "error": "错误",

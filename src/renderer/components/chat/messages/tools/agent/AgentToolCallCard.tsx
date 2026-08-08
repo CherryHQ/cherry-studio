@@ -1,3 +1,5 @@
+import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+
 import { useOptionalMessageListActions } from '../../MessageListProvider'
 import {
   AgentToolsType,
@@ -9,6 +11,7 @@ import { type ToolStatus, ToolStatusIndicator } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
 import { AgentToolDisclosure, AgentToolDisclosureLabel } from './AgentToolDisclosure'
+import { SessionCreateTool } from './SessionCreateTool'
 import { ToMarkdownTool } from './ToMarkdownTool'
 import { isValidAgentToolsType, renderTool } from './toolRendererRegistry'
 import { UnknownToolRenderer } from './UnknownToolRenderer'
@@ -61,11 +64,14 @@ export function AgentToolCallCard({
   showInlineDetails?: boolean
 }) {
   const actions = useOptionalMessageListActions()
-  const renderedItem = isValidAgentToolsType(toolName)
-    ? renderTool(toolName, input ?? {}, output, hasError)
-    : toolName === TO_MARKDOWN_RUNTIME_TOOL_NAME
-      ? ToMarkdownTool({ input, output })
-      : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
+  const renderedItem =
+    toolName === SESSION_CREATE_TOOL_NAME || toolName?.endsWith(`__${SESSION_CREATE_TOOL_NAME}`)
+      ? SessionCreateTool({ input, output, hasError })
+      : isValidAgentToolsType(toolName)
+        ? renderTool(toolName, input ?? {}, output, hasError)
+        : toolName === TO_MARKDOWN_RUNTIME_TOOL_NAME
+          ? ToMarkdownTool({ input, output })
+          : UnknownToolRenderer({ toolName: toolName ?? 'Tool', input, output })
   const openToolFlow =
     openFlowOnClick && actions?.openAgentToolFlow && toolCallId
       ? () =>
