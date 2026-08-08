@@ -1742,6 +1742,21 @@ export class MergeEngine {
       } else if (policy.strategy === 'local-priority') {
         // local non-empty wins; local empty (null/''/[]/{}) fills from backup
         if (isEmptyForRemoteFill(localVal) && !isEmptyForRemoteFill(backupVal)) nextVal = backupVal
+      } else if (policy.strategy === 'remote-overwrites-local') {
+        // backup-wins: a non-empty backup value overwrites local (even non-empty). Backup
+        // null/empty never overwrites (an empty backup would wipe local config). Overwriting
+        // a local NON-EMPTY value is destructive → disclose so it is auditable / undo-visible.
+        if (!isEmptyForRemoteFill(backupVal)) {
+          if (!isEmptyForRemoteFill(localVal) && !cellEqualForMerge(backupVal, localVal)) {
+            degradedToSkips.push({
+              kind: 'field_conflict',
+              table,
+              count: 1,
+              reason: `backup-wins overwrote local non-empty ('${policy.column}')`
+            })
+          }
+          if (!cellEqualForMerge(backupVal, localVal)) nextVal = backupVal
+        }
       }
       if (nextVal === undefined) continue
       // B12: record FIELD_MERGE telemetry — column count + strategy name ONLY (no values,

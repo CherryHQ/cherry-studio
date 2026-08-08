@@ -100,7 +100,7 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         table: table('user_provider'),
         column: column('apiKeys'),
         reason:
-          'holds encrypted API key credentials, merged via fieldMergePolicies (remote-fills-local-empty), not a soft ref'
+          'holds encrypted API key credentials, merged via fieldMergePolicies (remote-overwrites-local), not a soft ref'
       },
       {
         table: table('user_provider'),
@@ -168,11 +168,11 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // present and drop backup project/location/credentials. deep-merge keeps local type
     // and fills empty credential sub-fields from backup.
     fieldMergePolicies: [
-      {
-        table: table('user_provider'),
-        column: column('apiKeys'),
-        strategy: 'remote-fills-local-empty'
-      },
+      // API key credentials: backup-wins. A backup usually carries the user's latest key
+      // set (e.g. rotated/added on another machine) — overwrite local, disclosing any
+      // non-empty local value that was replaced so the change is auditable / undo-visible.
+      // Backup null/empty never overwrites (an empty backup must not wipe local keys).
+      { table: table('user_provider'), column: column('apiKeys'), strategy: 'remote-overwrites-local' },
       {
         table: table('user_provider'),
         column: column('authConfig'),

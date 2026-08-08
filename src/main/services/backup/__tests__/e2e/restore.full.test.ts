@@ -345,9 +345,12 @@ describe('e2e-restore real data / backfill + degrade', () => {
         name: string
         api_keys: string
       }
-      // FIELD_MERGE: local non-empty columns kept (not wholesale SKIP).
+      // FIELD_MERGE: name has no explicit policy → remote-fills-local-null keeps the local
+      // non-empty value. apiKeys is remote-overwrites-local (backup-wins) → backup key set
+      // overwrites the local one (a non-empty local overwrite is disclosed as field_conflict).
       expect(provider.name).toBe('local-name')
-      expect(provider.api_keys).toContain('key-local')
+      expect(provider.api_keys).toContain('key-from-backup')
+      expect(provider.api_keys).not.toContain('key-local')
       // Absent member INSERT — custom model from backup must land (the #1 production bug).
       expect(work.prepare(`SELECT id FROM user_model WHERE id='openai::gpt-4o-backup'`).get()).toBeDefined()
       expect(work.prepare(`SELECT model_id FROM message WHERE id='msg-1'`).get()).toMatchObject({

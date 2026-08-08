@@ -295,6 +295,77 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(row.api_keys).toContain('from-backup')
   })
 
+  it('remote-overwrites-local: backup apiKeys overwrite a NON-empty local set + disclose', async () => {
+    // apiKeys is backup-wins: the backup usually carries the user's latest key set. A non-empty
+    // backup overwrites local EVEN when local is non-empty (unlike remote-fills-local-empty),
+    // and overwriting a non-empty local value is disclosed (field_conflict) for audit/undo.
+    const now = Date.now()
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, ?, 1, ?, ?, ?)`
+      )
+      .run('openai', 'OpenAI', JSON.stringify([{ id: 'k-local', key: 'SECRET-LOCAL' }]), 'o-local', now, now)
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, ?, 1, ?, ?, ?)`
+      ).run('openai', 'OpenAI', JSON.stringify([{ id: 'k-backup', key: 'from-backup' }]), 'o-backup', now, now)
+    })
+
+    const result = (await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })) as { degradedToSkips: { kind: string; reason?: string }[] }
+
+    const row = dbh.sqlite.prepare(`SELECT api_keys FROM user_provider WHERE provider_id = 'openai'`).get() as {
+      api_keys: string
+    }
+    // Backup overwrote the non-empty local set.
+    expect(row.api_keys).toContain('from-backup')
+    expect(row.api_keys).not.toContain('SECRET-LOCAL')
+    // Destructive overwrite of a non-empty local value is disclosed.
+    expect(
+      result.degradedToSkips.some(
+        (d) => d.kind === 'field_conflict' && /backup-wins overwrote local non-empty/.test(d.reason ?? '')
+      )
+    ).toBe(true)
+  })
+
+  it('remote-overwrites-local: an empty backup never overwrites a non-empty local', async () => {
+    // Backup null/empty must not wipe local config — only a non-empty backup overwrites.
+    const now = Date.now()
+    dbh.sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, ?, 1, ?, ?, ?)`
+      )
+      .run('openai', 'OpenAI', JSON.stringify([{ id: 'k-local', key: 'SECRET-LOCAL' }]), 'o-local', now, now)
+    seedBackup((db) => {
+      db.prepare(
+        `INSERT INTO user_provider (provider_id, name, api_keys, is_enabled, order_key, created_at, updated_at)
+         VALUES (?, ?, ?, 1, ?, ?, ?)`
+      ).run('openai', 'OpenAI', '[]', 'o-backup', now, now)
+    })
+
+    const result = (await runMerge({
+      backupDbPath: backupPath,
+      domains: ['PROVIDERS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })) as { degradedToSkips: unknown[] }
+
+    const row = dbh.sqlite.prepare(`SELECT api_keys FROM user_provider WHERE provider_id = 'openai'`).get() as {
+      api_keys: string
+    }
+    // Empty backup did not wipe local.
+    expect(row.api_keys).toContain('SECRET-LOCAL')
+    // No destructive overwrite → no field_conflict disclosure.
+    expect(result.degradedToSkips).toHaveLength(0)
+  })
+
   it('local-priority tags: local empty fills from backup; non-empty local wins', async () => {
     const now = Date.now()
     const insertSkill = (db: Database.Database, id: string, folder: string, tags: string, name: string): void => {
@@ -1141,8 +1212,8 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     const providerStat = stats.get('user_provider')
     expect(providerStat).toBeDefined()
     expect(providerStat!.columns).toBeGreaterThanOrEqual(1)
-    // remote-fills-local-empty is the api_keys column policy (empty [] local fills from backup).
-    expect([...providerStat!.strategies]).toContain('remote-fills-local-empty')
+    // remote-overwrites-local is the api_keys column policy (backup credentials win).
+    expect([...providerStat!.strategies]).toContain('remote-overwrites-local')
     // No values are captured: the stat shape is {columns:number, strategies:Set<string>} only —
     // verify the serialized telemetry carries no key material by stringifying the whole map.
     const serialized = JSON.stringify([...stats.entries()])
