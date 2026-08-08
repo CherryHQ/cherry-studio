@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import { documentExts, knowledgeFileProcessingExts, knowledgeSupportedFileExts } from '../fileExtensions'
 
-// These three lists are easy to let drift apart (the original bug: `.xls` was a knowledge
-// processing ext but missing from `documentExts`, so its processed `.md` artifact was never
+// These three lists are easy to let drift apart (the original bug: artifact reservation keyed
+// off a different list than routing did, so `.xls`'s processed `.md` artifact was never
 // reserved). Pin the intended relationships so a future edit to one list can't silently
 // reintroduce that class of inconsistency, and pin the deliberate PDF-only narrowing of
 // the processing list so it can't be silently widened back.
