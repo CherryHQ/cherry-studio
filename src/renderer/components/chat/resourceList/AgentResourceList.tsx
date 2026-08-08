@@ -24,7 +24,6 @@ import { useTranslation } from 'react-i18next'
 import {
   buildResolvedIconTypeMenuAction,
   buildResolvedResourceEntityMenuAction,
-  type ConversationResourceMenuItem,
   renderAgentEntityIcon,
   ResourceList,
   SessionListOptionsMenu
@@ -48,14 +47,15 @@ type AgentResourceListProps = {
   activeAgentId?: string | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
+  manageAgentsActive?: boolean
   agentSessionsSource: AgentSessionsSource
   onAddAgent?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onManageAgents?: () => void | Promise<void>
   onSelectSession: (sessionId: string, session: AgentSessionEntity) => void
   onSelectedAgentClick?: () => void | Promise<void>
   onCreateSession: (agentId: string) => void | Promise<unknown>
   onShowMissingAgentSelection?: () => void | Promise<void>
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   /**
    * Called after the currently-active agent is deleted so the classic-layout page can
    * settle (select the latest remaining session / clear). This is the classic
@@ -68,14 +68,15 @@ export function AgentResourceList({
   activeAgentId,
   dataEnabled = true,
   historyRecordsActive = false,
+  manageAgentsActive = false,
   agentSessionsSource,
   onAddAgent,
   onOpenHistoryRecords,
+  onManageAgents,
   onSelectSession,
   onSelectedAgentClick,
   onCreateSession,
   onShowMissingAgentSelection,
-  resourceMenuItems,
   onActiveAgentDeleted
 }: AgentResourceListProps) {
   const { t } = useTranslation()
@@ -110,8 +111,6 @@ export function AgentResourceList({
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
   const [deletingAgentId, setDeletingAgentId] = useState<string | null>(null)
   const [editDialogTarget, setEditDialogTarget] = useState<ResourceEditDialogTarget | null>(null)
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const manageAgentsMenuItem = resourceMenuItems?.find((item) => item.id === 'agent-resource-view')
   const agentPinnedIdSet = useMemo(() => new Set(agentPinnedIds), [agentPinnedIds])
   const isAgentPinActionDisabled = isAgentPinsLoading || isAgentPinsRefreshing || isAgentPinsMutating
   const sessionItems = useMemo<SessionListItem[]>(
@@ -335,22 +334,22 @@ export function AgentResourceList({
       <ResourceEntityRail
         variant="agent"
         items={items}
-        selectedId={hasActiveResourceMenuItem ? null : selectedId}
-        selectedClickId={hasActiveResourceMenuItem ? null : activeAgentId}
+        selectedId={selectedId}
+        selectedClickId={manageAgentsActive ? null : activeAgentId}
+        selectionSuppressed={manageAgentsActive || historyRecordsActive}
         status={listStatus}
         ariaLabel={t('agent.sidebar_title')}
         defaultGroupLabel={t('agent.sidebar_title')}
         addIcon={<Plus />}
         addLabel={t('agent.add.title')}
-        historyRecordsActive={historyRecordsActive}
         onAdd={onAddAgent ?? (() => onShowMissingAgentSelection?.())}
         headerActions={
           <SessionListOptionsMenu
             historyRecordsActive={historyRecordsActive}
-            manageAgentsActive={manageAgentsMenuItem?.active}
+            manageAgentsActive={manageAgentsActive}
             mode={sessionDisplayMode}
             onChange={(nextMode) => void setSessionDisplayMode(nextMode)}
-            onManageAgents={manageAgentsMenuItem?.onSelect}
+            onManageAgents={onManageAgents}
             onOpenHistoryRecords={onOpenHistoryRecords}
           />
         }

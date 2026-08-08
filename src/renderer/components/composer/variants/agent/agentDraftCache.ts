@@ -1,17 +1,34 @@
 import { cacheService } from '@data/CacheService'
 import { isComposerInputTokenKind } from '@renderer/utils/composerTokenPolicy'
+import type { CacheAgentComposerDraft } from '@shared/data/cache/cacheValueTypes'
 import type { LocalSkill } from '@shared/types/skill'
 
-import { excludeComposerDraftTokens } from '../../composerDraft'
 import type { ComposerSerializedDraft, ComposerSerializedToken } from '../../tokens'
 
 const DRAFT_CACHE_TTL = 24 * 60 * 60 * 1000
 
-export const getAgentDraftCacheKey = (agentId: string) => `agent-session-draft-${agentId}`
+export type AgentComposerDraftCacheKey = `agent.composer_draft.session_${string}`
 
-export interface AgentComposerDraftCache {
-  text: string
-  tokens: ComposerSerializedToken[]
+export const getAgentDraftCacheKey = (sessionId: string) => `agent.composer_draft.session_${sessionId}` as const
+
+export type AgentComposerDraftCache = CacheAgentComposerDraft
+
+export interface RestoredAgentComposerDraftCache extends AgentComposerDraftCache {
+  shouldValidateSkills: boolean
+}
+
+interface AgentDraftCacheScope {
+  workspaceKey: string
+  agentId: string
+}
+
+const EMPTY_DRAFT_CACHE: AgentComposerDraftCache = {
+  text: '',
+  tokens: [],
+  files: [],
+  knowledgeBaseIds: [],
+  workspaceKey: '',
+  agentId: ''
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -45,38 +62,74 @@ export function getCachedSkillTokens(tokens: readonly ComposerSerializedToken[])
   return tokens.filter((token) => token.kind === 'skill')
 }
 
-/**
- * Input tokens retained in the live Agent composer draft. Files stay owned by attachment state;
- * the persistence boundary below additionally removes session-scoped knowledge.
- */
 export function getAgentDraftTokens(tokens: readonly ComposerSerializedToken[]) {
-  return tokens.filter((token) => token.kind !== 'file' && isComposerInputTokenKind(token.kind))
+  return tokens.filter((token) => isComposerInputTokenKind(token.kind))
 }
 
-/** Knowledge selection is session-scoped, while this cache is agent-scoped. */
-export function getCacheableAgentDraft(draft: ComposerSerializedDraft): AgentComposerDraftCache {
-  const withoutKnowledge = excludeComposerDraftTokens(draft, (token) => token.kind === 'knowledge')
+export function getCacheableAgentDraft(draft: ComposerSerializedDraft): ComposerSerializedDraft {
   return {
-    text: withoutKnowledge.text,
-    tokens: getAgentDraftTokens(withoutKnowledge.tokens)
+    text: draft.text,
+    tokens: getAgentDraftTokens(draft.tokens)
   }
 }
 
-export function readAgentDraftCache(cacheKey: string): AgentComposerDraftCache {
-  const cached = cacheService.getCasual<string | AgentComposerDraftCache>(cacheKey)
-  if (typeof cached === 'string') return { text: cached, tokens: [] }
-  if (!isRecord(cached) || typeof cached.text !== 'string' || !Array.isArray(cached.tokens)) {
-    return { text: '', tokens: [] }
+export function readAgentDraftCache(
+  cacheKey: AgentComposerDraftCacheKey,
+  scope: AgentDraftCacheScope
+): RestoredAgentComposerDraftCache {
+  const cached = cacheService.get(cacheKey)
+  if (!isRecord(cached)) {
+    return {
+      ...EMPTY_DRAFT_CACHE,
+      workspaceKey: scope.workspaceKey,
+      agentId: scope.agentId,
+      shouldValidateSkills: false
+    }
   }
 
-  return getCacheableAgentDraft({ text: cached.text, tokens: cached.tokens })
+  const cachedAgentId = typeof cached.agentId === 'string' ? cached.agentId : ''
+  if (cachedAgentId && cachedAgentId !== scope.agentId) {
+    return {
+      ...EMPTY_DRAFT_CACHE,
+      workspaceKey: scope.workspaceKey,
+      agentId: scope.agentId,
+      shouldValidateSkills: false
+    }
+  }
+
+  const draft = getCacheableAgentDraft({
+    text: typeof cached.text === 'string' ? cached.text : '',
+    tokens: Array.isArray(cached.tokens) ? cached.tokens : []
+  })
+  const cachedWorkspaceKey = typeof cached.workspaceKey === 'string' ? cached.workspaceKey : ''
+  const workspaceMatches = cachedWorkspaceKey === '' || cachedWorkspaceKey === scope.workspaceKey
+  const shouldValidateSkills =
+    (cached.shouldValidateSkills === true || !workspaceMatches) && getCachedSkillTokens(draft.tokens).length > 0
+
+  return {
+    ...draft,
+    files: Array.isArray(cached.files) ? cached.files : [],
+    knowledgeBaseIds: Array.isArray(cached.knowledgeBaseIds)
+      ? cached.knowledgeBaseIds.filter((id): id is string => typeof id === 'string')
+      : [],
+    workspaceKey: scope.workspaceKey,
+    agentId: scope.agentId,
+    shouldValidateSkills
+  }
 }
 
-export function hasAgentDraftCache(cacheKey: string): boolean {
-  return cacheService.hasCasual(cacheKey)
-}
-
-export function writeAgentDraftCache(cacheKey: string, text: string, tokens: readonly ComposerSerializedToken[]) {
-  const cacheableDraft = getCacheableAgentDraft({ text, tokens: [...tokens] })
-  cacheService.setCasual<AgentComposerDraftCache>(cacheKey, cacheableDraft, DRAFT_CACHE_TTL)
+export function writeAgentDraftCache(cacheKey: AgentComposerDraftCacheKey, draft: AgentComposerDraftCache) {
+  const cacheableDraft = getCacheableAgentDraft({ text: draft.text, tokens: [...draft.tokens] })
+  cacheService.set(
+    cacheKey,
+    {
+      ...cacheableDraft,
+      files: [...draft.files],
+      knowledgeBaseIds: [...draft.knowledgeBaseIds],
+      workspaceKey: draft.workspaceKey,
+      agentId: draft.agentId,
+      ...(draft.shouldValidateSkills && { shouldValidateSkills: true })
+    },
+    DRAFT_CACHE_TTL
+  )
 }

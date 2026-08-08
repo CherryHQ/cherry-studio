@@ -13,6 +13,8 @@ import {
   getCliConfigTargets,
   KIMI_CONFIG_PATH,
   OPENCODE_CONFIG_PATH,
+  PI_MODELS_PATH,
+  PI_SETTINGS_PATH,
   QWEN_CONFIG_PATH
 } from '@shared/utils/cliConfig'
 import { stringify as stringifyToml } from 'smol-toml'
@@ -25,9 +27,11 @@ import {
   buildGeminiSettingsConfig,
   buildKimiConfig,
   buildOpenCodeConfig,
+  buildPiModelsConfig,
+  buildPiSettingsConfig,
   buildQwenConfig
 } from './builders'
-import { CHERRY_PROVIDER_PREFIX, OPEN_CODE_ENDPOINTS } from './constants'
+import { CHERRY_PROVIDER_PREFIX, OPEN_CODE_ENDPOINTS, PI_ENDPOINTS } from './constants'
 import { parseDotenv, renderDotenvFile } from './dotenv'
 import { getDraftFile, makeDraftFile, readAndParseDraftFile, readDraftFileText } from './draftFiles'
 import {
@@ -71,7 +75,8 @@ import {
   resolveCodexBaseUrl,
   resolveGeminiBaseUrl,
   resolveOpenAIBaseUrl,
-  resolveOpenCodeNpmInfo
+  resolveOpenCodeNpmInfo,
+  resolvePiProviderInfo
 } from './resolvers'
 import {
   sanitizeClaudeConfigBlob,
@@ -774,6 +779,100 @@ const kimiAdapter: CliConfigAdapter = {
   }
 }
 
+const piAdapter: CliConfigAdapter = {
+  targets: getCliConfigTargets(CodeCli.PI),
+  providerBaseUrls: (provider) =>
+    PI_ENDPOINTS.flatMap((endpoint) => {
+      if (!provider.endpointConfigs?.[endpoint]?.baseUrl) return []
+      const baseUrl = normalizeUrl(resolvePiProviderInfo(provider, [endpoint]).baseUrl)
+      return baseUrl ? [baseUrl] : []
+    }),
+  sanitize: () => ({}),
+  async buildDraft(args, context) {
+    const { provider, apiKey, model, modelLabel, modelRecord } = context
+    const providerInfo = resolvePiProviderInfo(provider, modelRecord?.endpointTypes)
+    const providerKey = `${CHERRY_PROVIDER_PREFIX}${cliProviderKeyName(provider)}`
+    const models = await readAndParseDraftFile('pi-models', parseJsonOrThrow, args.files)
+    const settings = await readAndParseDraftFile('pi-settings', parseJsonOrThrow, args.files)
+    const input: Array<'image' | 'text'> = modelRecord?.inputModalities?.includes('image')
+      ? ['text', 'image']
+      : ['text']
+    return [
+      await makeDraftFile(
+        'pi-models',
+        renderJsonFile(
+          buildPiModelsConfig(models, {
+            api: providerInfo.api,
+            apiKey,
+            baseUrl: providerInfo.baseUrl,
+            contextWindow: modelRecord?.contextWindow,
+            headers: provider.settings?.extraHeaders,
+            input,
+            maxTokens: modelRecord?.maxOutputTokens,
+            model,
+            modelLabel: modelLabel ?? model,
+            providerKey,
+            reasoning: Boolean(modelRecord?.reasoning)
+          })
+        )
+      ),
+      await makeDraftFile('pi-settings', renderJsonFile(buildPiSettingsConfig(settings, { model, providerKey })))
+    ]
+  },
+  assertCredentials(context) {
+    const { baseUrl } = resolvePiProviderInfo(context.provider, context.modelRecord?.endpointTypes)
+    if (!context.apiKey || !baseUrl) throw new Error('Pi config is missing required fields (apiKey/baseUrl)')
+  },
+  updateDraftConfig(files) {
+    return files
+  },
+  async buildClearFiles() {
+    const files: CliConfigWriteFile[] = []
+    const models = await readValidatedJsonOrNull(await resolveAbs(PI_MODELS_PATH), 'Pi models config')
+    if (models) {
+      files.push({
+        target: 'pi-models',
+        content: renderJsonFile({
+          ...models,
+          providers: omitKeysByPrefix(asRecord(models.providers), CHERRY_PROVIDER_PREFIX)
+        })
+      })
+    }
+
+    const settings = await readValidatedJsonOrNull(await resolveAbs(PI_SETTINGS_PATH), 'Pi settings config')
+    if (settings) {
+      const next = { ...settings }
+      if (stringValue(next.defaultProvider)?.startsWith(CHERRY_PROVIDER_PREFIX)) {
+        delete next.defaultProvider
+        delete next.defaultModel
+      }
+      files.push({ target: 'pi-settings', content: renderJsonFile(next) })
+    }
+    return files
+  },
+  extractConnection(files) {
+    const models = parseJsonOrThrow(getDraftFile(files, 'pi-models')?.content ?? '')
+    const settings = parseJsonOrThrow(getDraftFile(files, 'pi-settings')?.content ?? '')
+    const providers = asRecord(models.providers)
+    const providerKey = findCherryProviderKey(providers)
+    if (!providerKey) return null
+    const provider = asRecord(providers[providerKey])
+    const configuredModels = Array.isArray(provider.models) ? provider.models : []
+    const defaultModel =
+      settings.defaultProvider === providerKey
+        ? stringValue(settings.defaultModel)
+        : stringValue(configuredModels[0]?.id)
+    return {
+      baseUrl: stringValue(provider.baseUrl),
+      apiKey: stringValue(provider.apiKey),
+      model: defaultModel
+    }
+  },
+  extractConfig() {
+    return {}
+  }
+}
+
 /**
  * The file-based CLI tools, one adapter each. Typed as a **total** record over
  * `FileConfiguredCli` (the key set of `CLI_CONFIG_TARGETS`), so omitting an adapter
@@ -785,7 +884,8 @@ export const CLI_CONFIG_ADAPTERS: Record<FileConfiguredCli, CliConfigAdapter> = 
   [CodeCli.OPEN_CODE]: openCodeAdapter,
   [CodeCli.GEMINI_CLI]: geminiAdapter,
   [CodeCli.QWEN_CODE]: qwenAdapter,
-  [CodeCli.KIMI_CODE]: kimiAdapter
+  [CodeCli.KIMI_CODE]: kimiAdapter,
+  [CodeCli.PI]: piAdapter
 }
 
 export function getAdapter(cliTool: string): CliConfigAdapter | undefined {
