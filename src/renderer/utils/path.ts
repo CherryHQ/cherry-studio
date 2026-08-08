@@ -1,4 +1,111 @@
 /**
+ * Pure-string path algebra for the renderer, which has no `node:path`.
+ *
+ * The comparison primitives below (`isSamePath` / `isPathInside` /
+ * `getRelativePath`) are **lexical**: they never consult the filesystem, so
+ * they resolve `.`/`..`, ignore Windows drive-letter case, and treat `/` and `\`
+ * interchangeably **on Windows drive paths only** — on POSIX a backslash is an
+ * ordinary filename character and is preserved. They are case-SENSITIVE on the
+ * path body and do not honour a case-insensitive mount. They are not a security
+ * or reachability primitive —
+ * when true on-disk identity matters, use the main-process `fs.realpath` gate
+ * (`WorkspaceFileGuard.resolveWorkspaceFile`) or `isSameFile`
+ * (`src/main/utils/file/fs.ts`) instead.
+ */
+
+import type { AbsoluteFilePath } from '@shared/types/file'
+import { canonicalizeFilePath } from '@shared/utils/file'
+
+/**
+ * A Windows drive path (`C:\…` / `C:/…`) — the only shape in which a backslash
+ * is a separator. On POSIX a backslash is an ordinary filename character.
+ */
+const isWindowsDrivePath = (path: string) => /^[A-Za-z]:[/\\]/.test(path)
+
+/**
+ * Byte-faithful canonical comparison form — or `null` when the path has no
+ * canonical form we can trust.
+ *
+ * The `\` → `/` fold is applied to **Windows drive paths only**. It is not
+ * redundant with `canonicalizeFilePath`, which normalizes Windows separators the
+ * other way (to `\`); it bridges that form to the `/` form used by the tree
+ * layer, `file://` URLs, and the relative paths returned below. It must NOT be
+ * applied to POSIX paths: there a backslash is a legal filename character, so
+ * folding it would make `/workspace/a\b.txt` — one file named `a\b.txt` — compare
+ * equal to `/workspace/a/b.txt`, an entirely different file.
+ * `canonicalizeFilePath` already draws this distinction (its POSIX branch splits
+ * on `/` only); the job here is to preserve it, not undo it.
+ *
+ * Two shapes yield `null`, both meaning "not provably anything":
+ *
+ * - **UNC** (`\\server\share\…`) — a valid `AbsoluteFilePath` that
+ *   `canonicalizeFilePath` rejects outright, since `\\server\share` is an
+ *   indivisible root that `..` must not escape.
+ * - **Leading `//`** — the forward-slash spelling of UNC on Windows, and
+ *   implementation-defined on POSIX. `canonicalizeFilePath` collapses the
+ *   leading `//` to `/`, so `//server/share/a.txt` would otherwise compare equal
+ *   to the unrelated `/server/share/a.txt`. Checked here on the raw input,
+ *   because the canonical form no longer carries the distinction. (Collapsing it
+ *   inside `canonicalizeFilePath` is arguably the real defect, but that function
+ *   produces the persisted `file_entry.externalPath` key and changing its output
+ *   requires a paired migration — see its "Rule-evolution discipline". Tracked
+ *   in #17429.)
+ *
+ * These are predicates, not parsers: a path we cannot canonicalize is simply not
+ * provably the same as, or inside, anything. So degrade to `null` rather than
+ * throwing out of a predicate and taking the caller down with it.
+ */
+const toComparable = (path: AbsoluteFilePath): string | null => {
+  if (path.startsWith('//')) return null
+  let canonical: string
+  try {
+    canonical = canonicalizeFilePath(path)
+  } catch {
+    return null
+  }
+  return isWindowsDrivePath(canonical) ? canonical.replace(/\\/g, '/') : canonical
+}
+
+/** Appends a separator unless `path` is a root, which already ends with one. */
+const asPrefix = (path: string) => (path.endsWith('/') ? path : `${path}/`)
+
+/** True iff `a` and `b` denote the same path. Un-canonicalizable input → `false`. */
+export const isSamePath = (a: AbsoluteFilePath, b: AbsoluteFilePath): boolean => {
+  const left = toComparable(a)
+  return left !== null && left === toComparable(b)
+}
+
+/**
+ * True iff `child` is a **proper** descendant of `parent` — equal paths are
+ * `false`, matching the main-side `isPathInside` (`src/main/utils/file/path.ts`).
+ * For "at or under", write `isSamePath(a, b) || isPathInside(a, b)`.
+ * Un-canonicalizable input → `false`.
+ */
+export const isPathInside = (child: AbsoluteFilePath, parent: AbsoluteFilePath): boolean => {
+  const childPath = toComparable(child)
+  const parentPath = toComparable(parent)
+  if (childPath === null || parentPath === null || childPath === parentPath) return false
+  return childPath.startsWith(asPrefix(parentPath))
+}
+
+/**
+ * `to` relative to `from` — or `null` if `to` is neither `from` itself nor a
+ * descendant of it. Equal paths give `''`. Never emits `../` climbs, and never
+ * returns an absolute path. Un-canonicalizable input → `null`.
+ *
+ * Separators in the result follow the input: `/`-separated for Windows drive
+ * paths, and verbatim for POSIX, where a backslash belongs to the filename.
+ */
+export const getRelativePath = (from: AbsoluteFilePath, to: AbsoluteFilePath): string | null => {
+  const fromPath = toComparable(from)
+  const toPath = toComparable(to)
+  if (fromPath === null || toPath === null) return null
+  if (fromPath === toPath) return ''
+  const prefix = asPrefix(fromPath)
+  return toPath.startsWith(prefix) ? toPath.slice(prefix.length) : null
+}
+
+/**
  * Joins a base path and a relative segment with a single separator, tolerating both `/` and `\`
  * and a trailing separator on `base`. Leading separators on `rel` are stripped so the result stays
  * anchored to `base`.
