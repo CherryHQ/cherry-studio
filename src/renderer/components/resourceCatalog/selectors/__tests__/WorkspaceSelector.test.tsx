@@ -330,7 +330,7 @@ describe('WorkspaceSelector', () => {
 
     await user.click(screen.getAllByRole('button', { name: 'Delete work directory' })[0])
 
-    const dialog = screen.getByRole('dialog')
+    const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveTextContent('cherry-studio')
     expect(dialog).toHaveTextContent('2 sessions')
     expect(dialog).toHaveTextContent('Fix workspace selector')
@@ -345,6 +345,14 @@ describe('WorkspaceSelector', () => {
     )
     expect(closeConversationTabsMock).toHaveBeenCalledWith('agents', ['session-alpha-recent', 'session-alpha-older'])
     expect(toastSuccessMock).toHaveBeenCalledWith('Deleted')
+  })
+
+  it('loads the session impact only while the selector or delete dialog is open', () => {
+    renderSelector()
+
+    expect(useRawAgentSessionsSourceMock).toHaveBeenLastCalledWith({ enabled: false })
+    openPopover()
+    expect(useRawAgentSessionsSourceMock).toHaveBeenLastCalledWith({ enabled: true })
   })
 
   it('does not allow deletion before the complete session impact is loaded', () => {

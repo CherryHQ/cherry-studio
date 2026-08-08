@@ -1,4 +1,7 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import { useMutation } from '@renderer/data/hooks/useDataApi'
+import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
@@ -7,47 +10,44 @@ import { FolderOpen, MousePointerClick } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+const logger = loggerService.withContext('WorkspaceDeleteConfirmDialog')
+
 interface WorkspaceDeleteConfirmDialogProps {
-  workspace: AgentWorkspaceEntity | null
+  workspace: AgentWorkspaceEntity
   sessions: readonly AgentSessionEntity[]
   onClose: () => void
-  onDelete: (workspace: AgentWorkspaceEntity) => Promise<void>
 }
 
-export function WorkspaceDeleteConfirmDialog({
-  workspace,
-  sessions,
-  onClose,
-  onDelete
-}: WorkspaceDeleteConfirmDialogProps) {
+export function WorkspaceDeleteConfirmDialog({ workspace, sessions, onClose }: WorkspaceDeleteConfirmDialogProps) {
   const { t } = useTranslation()
   const [pending, setPending] = useState(false)
+  const closeConversationTabs = useCloseConversationTabs()
+  const { trigger: deleteWorkspace } = useMutation('DELETE', '/agent-workspaces/:workspaceId', {
+    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
+  })
 
   const affectedSessions = useMemo(
     () =>
-      workspace
-        ? sessions
-            .filter((session) => session.workspaceId === workspace.id)
-            .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-        : [],
-    [sessions, workspace]
+      sessions
+        .filter((session) => session.workspaceId === workspace.id)
+        .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+    [sessions, workspace.id]
   )
 
   const handleConfirm = useCallback(async () => {
-    if (!workspace) return
-
     setPending(true)
     try {
-      await onDelete(workspace)
+      const result = await deleteWorkspace({ params: { workspaceId: workspace.id } })
+      closeConversationTabs('agents', result.deletedIds)
+      toast.success(t('common.delete_success'))
     } catch (error) {
+      logger.error('Failed to delete workspace', error as Error, { workspaceId: workspace.id })
       toast.error(formatErrorMessageWithPrefix(error, t('agent.session.workdir.delete.error.failed')))
       throw error
     } finally {
       setPending(false)
     }
-  }, [onDelete, t, workspace])
-
-  if (!workspace) return null
+  }, [closeConversationTabs, deleteWorkspace, t, workspace.id])
 
   return (
     <ConfirmDialog

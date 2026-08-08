@@ -1,7 +1,6 @@
 import { EmptyState, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from '@renderer/components/ModelSelector'
-import { WorkspaceDeleteConfirmDialog } from '@renderer/components/resourceCatalog/dialogs/delete'
 import Scrollbar from '@renderer/components/Scrollbar'
 import {
   DEFAULT_SELECTOR_CONTENT_HEIGHT,
@@ -11,15 +10,19 @@ import {
 } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useRawAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
-import { useCloseConversationTabs } from '@renderer/hooks/tab'
 import { toast } from '@renderer/services/toast'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { CircleSlash, Folder, FolderPlus, Trash2 } from 'lucide-react'
-import { type ReactElement, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { lazy, type ReactElement, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WorkspaceSelector')
 const DEFAULT_MIN_LIST_HEIGHT = 144
+const WorkspaceDeleteConfirmDialog = lazy(() =>
+  import('@renderer/components/resourceCatalog/dialogs/WorkspaceDeleteConfirmDialog').then((module) => ({
+    default: module.WorkspaceDeleteConfirmDialog
+  }))
+)
 
 type SharedProps = {
   trigger: ReactElement
@@ -63,15 +66,11 @@ export function WorkspaceSelector({
   const open = openProp ?? internalOpen
   const listboxId = useId()
   const listRef = useRef<HTMLDivElement>(null)
-  const closeConversationTabs = useCloseConversationTabs()
 
   const { data: workspaces, isLoading, refetch } = useQuery('/agent-workspaces')
   const sessionSource = useRawAgentSessionsSource({ enabled: open || deletingWorkspace !== null })
   const { trigger: createWorkspace, isLoading: isCreatingWorkspace } = useMutation('POST', '/agent-workspaces', {
     refresh: ['/agent-workspaces']
-  })
-  const { trigger: deleteWorkspace } = useMutation('DELETE', '/agent-workspaces/:workspaceId', {
-    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
   })
 
   const handleOpenChange = useCallback(
@@ -152,20 +151,6 @@ export function WorkspaceSelector({
       setDeletingWorkspace(workspace)
     },
     [handleOpenChange]
-  )
-
-  const handleDeleteWorkspace = useCallback(
-    async (workspace: AgentWorkspaceEntity) => {
-      try {
-        const result = await deleteWorkspace({ params: { workspaceId: workspace.id } })
-        closeConversationTabs('agents', result.deletedIds)
-        toast.success(t('common.delete_success'))
-      } catch (error) {
-        logger.error('Failed to delete workspace', error as Error, { workspaceId: workspace.id })
-        throw error
-      }
-    },
-    [closeConversationTabs, deleteWorkspace, t]
   )
 
   const canPreviewAffectedSessions = sessionSource.isFullyLoaded && !sessionSource.error
@@ -268,12 +253,15 @@ export function WorkspaceSelector({
         }}
       </SelectorShell>
 
-      <WorkspaceDeleteConfirmDialog
-        workspace={deletingWorkspace}
-        sessions={sessionSource.sessions}
-        onClose={() => setDeletingWorkspace(null)}
-        onDelete={handleDeleteWorkspace}
-      />
+      {deletingWorkspace ? (
+        <Suspense fallback={null}>
+          <WorkspaceDeleteConfirmDialog
+            workspace={deletingWorkspace}
+            sessions={sessionSource.sessions}
+            onClose={() => setDeletingWorkspace(null)}
+          />
+        </Suspense>
+      ) : null}
     </>
   )
 }
