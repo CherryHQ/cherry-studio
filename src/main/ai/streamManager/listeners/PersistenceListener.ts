@@ -18,7 +18,8 @@ import type { SerializedError } from '@shared/types/error'
 import {
   dropEmptyContentParts,
   finalizeInterruptedParts,
-  type PersistenceBackend
+  type PersistenceBackend,
+  stripHarnessEchoes
 } from '../persistence/PersistenceBackend'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
@@ -99,7 +100,10 @@ export class PersistenceListener implements StreamListener {
     const finalMessageForPersistence = finalMessage
       ? {
           ...finalMessage,
-          parts: finalizeInterruptedParts(dropEmptyContentParts(finalMessage.parts as CherryMessagePart[]), status)
+          parts: finalizeInterruptedParts(
+            dropEmptyContentParts(stripHarnessEchoes(finalMessage.parts as CherryMessagePart[])),
+            status
+          )
         }
       : finalMessage
     const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
