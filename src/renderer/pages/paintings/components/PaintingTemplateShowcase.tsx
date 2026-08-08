@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next'
 
 import type { PaintingTemplatePreset } from '../hooks/usePaintingTemplateCatalog'
 
+const VISIBLE_CARD_COUNT = 5
+
 const carouselPositions = [
   {
     x: 'calc(-50% - 23cqw)',
@@ -43,6 +45,24 @@ const carouselPositions = [
   }
 ] as const
 
+/** Computes a cyclic window of at most `VISIBLE_CARD_COUNT` items centered on `activeIndex`. */
+function getCyclicWindow(templates: readonly PaintingTemplatePreset[], activeIndex: number) {
+  const count = templates.length
+  if (count <= VISIBLE_CARD_COUNT) {
+    return templates.map((preset, index) => ({ preset, originalIndex: index }))
+  }
+
+  const half = Math.floor(VISIBLE_CARD_COUNT / 2)
+  const window: { preset: PaintingTemplatePreset; originalIndex: number }[] = []
+
+  for (let offset = -half; offset <= half; offset++) {
+    const index = (((activeIndex + offset) % count) + count) % count
+    window.push({ preset: templates[index], originalIndex: index })
+  }
+
+  return window
+}
+
 interface PaintingTemplateShowcaseProps {
   paintingId: string
   prompt: string
@@ -61,19 +81,16 @@ const PaintingTemplateShowcase: FC<PaintingTemplateShowcaseProps> = ({ paintingI
   const selectedStyleIndex = rememberedStyleIndex >= 0 ? rememberedStyleIndex : promptedStyleIndex
   const activeStyleIndex = selectedStyleIndex >= 0 ? selectedStyleIndex : 0
 
+  const visibleWindow = getCyclicWindow(templates, activeStyleIndex)
+
   return (
     <div
       className="relative flex max-h-[220px] min-h-0 w-full flex-1 items-center justify-center overflow-hidden [container-type:size]"
       role="group"
       aria-label={t('paintings.showcase.styles_label')}>
-      {templates.map((preset, index) => {
-        const isSelected = index === selectedStyleIndex
-        const middlePosition = Math.floor(templates.length / 2)
-        const relativePosition =
-          ((index - activeStyleIndex + middlePosition + templates.length) % templates.length) - middlePosition
-        const isHidden = Math.abs(relativePosition) > 2
-        const visiblePosition = Math.max(-2, Math.min(2, relativePosition))
-        const carouselPosition = carouselPositions[visiblePosition + 2] ?? carouselPositions[2]
+      {visibleWindow.map(({ preset, originalIndex }, slotIndex) => {
+        const isSelected = originalIndex === selectedStyleIndex
+        const carouselPosition = carouselPositions[slotIndex] ?? carouselPositions[2]
 
         return (
           <NormalTooltip
@@ -88,13 +105,11 @@ const PaintingTemplateShowcase: FC<PaintingTemplateShowcaseProps> = ({ paintingI
               type="button"
               variant="ghost"
               aria-pressed={isSelected}
-              aria-hidden={isHidden || undefined}
               aria-label={preset.label}
-              tabIndex={isHidden ? -1 : 0}
+              tabIndex={0}
               className={cn(
                 'group absolute top-1/2 left-1/2 h-[clamp(44px,min(18cqw,66cqh),148px)] w-[clamp(36px,min(14cqw,53cqh),118px)] overflow-visible rounded-xl p-0 opacity-100 transition-[transform,opacity,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform hover:z-50 hover:bg-transparent hover:shadow-lg focus-visible:z-50 focus-visible:ring-2 focus-visible:ring-muted-foreground focus-visible:ring-inset focus-visible:ring-offset-0',
                 carouselPosition.className,
-                isHidden && 'pointer-events-none opacity-0',
                 isSelected && 'shadow-md'
               )}
               style={{
