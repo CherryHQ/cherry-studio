@@ -28,9 +28,11 @@ import {
 import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
-import type { ActiveExecution } from '@shared/ai/transport'
+import { isRenderableConversationMessage } from '@renderer/utils/message/messageProjection'
+import type { ActiveExecution, ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { isBlankUserTurn } from '@shared/data/types/uiParts'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -46,6 +48,7 @@ export interface ChatTurnInput {
     userMessageParts?: CherryMessagePart[]
     reasoningEffort?: ReasoningEffortOption
     fastMode?: boolean
+    chatTarget?: ComposerChatTarget
   }
 }
 
@@ -59,8 +62,6 @@ interface UseChatRuntimeStateParams {
   messagesCacheMutate: UseTopicMessagesCacheParams['mutate']
   assistant?: Assistant
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
-  clearBranchDraft?: () => void
-  getBranchDraftAnchorId?: () => string | null
 }
 
 function mergeActiveExecutions(...sources: ActiveExecution[][]): ActiveExecution[] {
@@ -108,9 +109,7 @@ export function useChatRuntimeState({
   activeNodeId,
   messagesCacheMutate,
   assistant,
-  onBranchLiveStateChange,
-  clearBranchDraft,
-  getBranchDraftAnchorId
+  onBranchLiveStateChange
 }: UseChatRuntimeStateParams) {
   const { regenerate, stop, setMessages, activeExecutions } = useChatWithHistory(topic.id, initialMessages, refresh)
   const { isPending: isTopicStreamPending } = useTopicStreamStatus(topic.id)
@@ -145,7 +144,13 @@ export function useChatRuntimeState({
   const [branchLiveExecutions, setBranchLiveExecutions] = useState<ActiveExecution[]>([])
   const finishedBranchExecutionIdsRef = useRef<Set<string>>(new Set())
   const runtimeBranchLiveStatePublishedRef = useRef(false)
+  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
+  // an unchanged topic.id, and the fresh [] literals would defeat React's
+  // setState bail-out and force a full chat-runtime re-render per tab switch.
+  const branchLiveResetTopicIdRef = useRef(topic.id)
   useEffect(() => {
+    if (branchLiveResetTopicIdRef.current === topic.id) return
+    branchLiveResetTopicIdRef.current = topic.id
     finishedBranchExecutionIdsRef.current.clear()
     runtimeBranchLiveStatePublishedRef.current = false
     setBranchLiveMessages([])
@@ -198,7 +203,32 @@ export function useChatRuntimeState({
     liveAssistants,
     translationOverlay
   })
-  const displayMessages = useMemo(() => mergeMessagesById(messages, liveAssistants), [messages, liveAssistants])
+  const activeAwaitingInputMessageId = useMemo(
+    () =>
+      activeNodeId
+        ? (messages.find(
+            (message) =>
+              message.id === activeNodeId &&
+              isBlankUserTurn({
+                role: message.role,
+                status: message.metadata?.status,
+                parts: message.parts
+              })
+          )?.id ?? null)
+        : null,
+    [activeNodeId, messages]
+  )
+  const composerChatTarget = useMemo<ComposerChatTarget>(
+    () => ({
+      parentAnchorId: activeNodeId,
+      mode: activeAwaitingInputMessageId ? 'reserved-branch' : 'active-path'
+    }),
+    [activeAwaitingInputMessageId, activeNodeId]
+  )
+  const displayMessages = useMemo(
+    () => mergeMessagesById(messages.filter(isRenderableConversationMessage), liveAssistants),
+    [messages, liveAssistants]
+  )
 
   // Tool-approval card surface. Awaiting-approval tools render `null` inline
   // (see MessageMcpTool / AgentExecutionTimeline), so the composer override is
@@ -247,20 +277,30 @@ export function useChatRuntimeState({
   >({
     scopeKey: topic.id,
     historyAdapter,
-    ensureConversation: async () => {
+    ensureConversation: async ({ options }) => {
       if (isHistoryLoading) return null
-      const parentAnchorId = getBranchDraftAnchorId?.() ?? activeNodeId ?? null
-      return { topicId: topic.id, parentAnchorId }
+
+      return {
+        topicId: topic.id,
+        parentAnchorId: options?.chatTarget ? options.chatTarget.parentAnchorId : (activeNodeId ?? null)
+      }
     },
-    buildStreamRequest: ({ text, options }, conversation) => ({
-      trigger: 'submit-message',
-      topicId: conversation.topicId,
-      parentAnchorId: conversation.parentAnchorId ?? undefined,
-      userMessageParts: options?.userMessageParts ?? [{ type: 'text', text }],
-      mentionedModelIds: options?.mentionedModels,
-      reasoningEffort: options?.reasoningEffort,
-      ...(options?.fastMode ? { fastMode: true } : {})
-    }),
+    buildStreamRequest: ({ text, options }, conversation) => {
+      const requestOptions = {
+        topicId: conversation.topicId,
+        mentionedModelIds: options?.mentionedModels,
+        reasoningEffort: options?.reasoningEffort,
+        ...(options?.fastMode ? { fastMode: true as const } : {})
+      }
+
+      return {
+        ...requestOptions,
+        trigger: 'submit-message',
+        parentAnchorId: conversation.parentAnchorId ?? undefined,
+        userMessageParts: options?.userMessageParts ?? [{ type: 'text' as const, text }],
+        ...(options?.chatTarget ? { targetMode: options.chatTarget.mode } : {})
+      }
+    },
     refreshMetadata: ({ topicId }) => invalidateCache(['/topics', `/topics/${topicId}`])
   })
 
@@ -377,16 +417,13 @@ export function useChatRuntimeState({
   const sendMessage = useCallback(
     async (text: string, options?: ChatTurnInput['options']) => {
       try {
-        const ack = await turnController.send({ text, options })
-        if (ack?.mode === 'started') {
-          clearBranchDraft?.()
-        }
+        await turnController.send({ text, options })
       } catch (err) {
         logger.warn('failed to open conversation turn', err as Error)
         throw err
       }
     },
-    [clearBranchDraft, turnController]
+    [turnController]
   )
 
   return {
@@ -398,6 +435,7 @@ export function useChatRuntimeState({
     bindMessageListRuntime,
     locateMessage,
     sendMessage,
+    composerChatTarget,
     composerContext,
     translationOverlay,
     setTranslationOverlay

@@ -33,7 +33,6 @@ import {
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
 import { useModelById } from '@renderer/hooks/useModel'
 import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
-import { ipcApi } from '@renderer/ipc'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
@@ -45,7 +44,6 @@ import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { MessageCircle } from 'lucide-react'
 import type { FC, HTMLAttributes } from 'react'
@@ -615,14 +613,6 @@ const HomePage: FC = () => {
     },
     [createAndActivateEmptyTopic]
   )
-
-  useEffect(() => {
-    void ipcApi.request('window.main.set_minimum_size', { width: SECOND_MIN_WINDOW_WIDTH, height: MIN_WINDOW_HEIGHT })
-
-    return () => {
-      void ipcApi.request('window.main.reset_minimum_size')
-    }
-  }, [])
 
   const handleHistoryTopicSelect = useCallback(
     (topic: Topic, messageId?: string) => {

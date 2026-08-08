@@ -1007,6 +1007,10 @@
           "description": "接続されたチャンネル経由で通知を送信します",
           "label": "通知"
         },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
+          "label": "[to be translated]:Document to Markdown"
+        },
         "CherryWebFetch": {
           "description": "ウェブページを取得して読み取る",
           "label": "Web フェッチ"
@@ -1677,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "新しいブランチが作成されました",
-          "disabled": {
-            "active": "このノードはすでに選択されています。ここからブランチを延長するには、入力を続けてください。",
-            "latest": "このブランチの最後に既にいます。続けて入力して拡張してください。",
-            "no_follow_up": "このメッセージの後にはまだフォローアップがありません。このノードに切り替えて、代わりに入力を続けてください。"
-          },
           "label": "新しいブランチ"
         },
         "context": "新しいコンテキスト"
@@ -2989,6 +2988,28 @@
       "title": "ChatGPTの会話をインポート",
       "untitled_conversation": "無題の会話"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "ファイルのインポートを選択",
       "label": "外部データをインポートしてもよろしいですか？"
@@ -3027,10 +3048,20 @@
           "selected_notes": "{{count}} 個のノートが選択されています"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "既存のノートをナレッジベースのソースとして選択",
           "empty_description": "実際のノートリストが接続されると、ここに選択可能なノートが表示されます。現時点では、ファイル、フォルダー、URL、またはサイトマップを使用してください。",
           "empty_title": "ノートはまだ接続されていません",
-          "loading": "メモを読み込んでいます…"
+          "loading": "メモを読み込んでいます…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "PDF、DOCX、MD、XLSX、TXT、CSVに対応",
@@ -3289,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "アプリ",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "ミニアプリ",
     "miniApps": "アプリ",
     "pin_to_sidebar": "サイドバーに固定",
@@ -3359,11 +3391,6 @@
           },
           "heartbeat_interval": {
             "label": "ハートビート間隔（分）"
-          },
-          "instructions": {
-            "hint": "エージェントの役割と行動の境界を定義する",
-            "label": "システムプロンプト",
-            "placeholder": "エージェントに、それが何者であり、何ができるのかを伝えてください…"
           },
           "max_turns": {
             "help": "0 はデフォルトを使用することを意味します",
@@ -3559,8 +3586,7 @@
           "step": {
             "basic": "基本情報",
             "capability": "スキル",
-            "knowledge": "知識",
-            "persona": "ペルソナ"
+            "knowledge": "知識"
           },
           "submit": "作成",
           "submit_failed": "作成に失敗しました"
@@ -4223,6 +4249,8 @@
         "taskOutput": "タスク出力を表示",
         "taskStop": "タスクを停止",
         "taskUpdate": "タスクを更新",
+        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "やること 書く",
         "tool": "ツール",
         "webFetch": "ウェブフェッチ",
@@ -4273,6 +4301,8 @@
       "thinkingHeader": "考える",
       "truncated": "出力が切り捨てられました（元のサイズ: {{size}}）",
       "units": {
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
         "done_one": "[to be translated]:{{count}} Done",
         "done_other": "{{count}} 完了",
         "file_one": "[to be translated]:{{count}} file",
@@ -6017,11 +6047,41 @@
         "skip_file_data_title": "軽量バックアップ"
       },
       "clear_cache": {
+        "approximately": "約 {{size}}",
         "button": "キャッシュをクリア",
-        "confirm": "キャッシュをクリアすると、アプリのキャッシュデータ（ミニアプリデータを含む）が削除されます。この操作は元に戻せません。続行しますか？",
+        "calculating": "計算中…",
         "error": "キャッシュのクリアに失敗しました",
+        "legacy_warning": {
+          "confirm": "このまま選択",
+          "description": "クリーンアップが完了すると、この項目に含まれる v1 データは完全に削除されます。バックアップがない場合、これらのデータは復元できません。",
+          "message": "v1 データは完全に削除されます",
+          "title": "v1 の残存データを選択しますか？"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "v1 の残存データです。古い会話履歴や設定が含まれます。削除後は復元できません。",
+            "title": "v1 の残存データ"
+          },
+          "normal_cache": {
+            "description": "アプリの使用中に生成されたキャッシュと一時ファイルを削除して、ストレージの空き容量を増やします。チャット履歴や設定は削除されません。",
+            "title": "アプリのキャッシュ"
+          },
+          "orphaned_data": {
+            "description": "使用されていないファイル、ナレッジベースの残存データ、バックアップ復元用の一時ファイルを削除します。",
+            "title": "残存ファイルとナレッジベース"
+          },
+          "site_data": {
+            "description": "ウェブサイトとミニアプリが使用する Cookie とサイトストレージです。削除すると、ウェブサイトからログアウトする場合があります。",
+            "title": "ウェブサイトとミニアプリのデータ"
+          }
+        },
+        "partial_success": "クリーンアップは完了しましたが、一部の項目を削除できませんでした",
+        "selected_total": "選択項目の合計",
         "success": "キャッシュがクリアされました",
-        "title": "キャッシュをクリア"
+        "title": "キャッシュをクリア",
+        "total_partial": "{{size}} を集計済み（一部のサイズは不明）",
+        "unavailable": "計算できません",
+        "waiting_for_legacy_database": "古いデータベースが解放されるのを待っています。他の Cherry Studio ウィンドウを閉じてください。接続が閉じられるとクリーンアップが続行されます。"
       },
       "data": {
         "title": "データフォルダー"
@@ -6064,6 +6124,7 @@
       "import_settings": {
         "button": "JSONファイルをインポート",
         "chatgpt": "ChatGPTからインポート",
+        "claude": "[to be translated]:Import from Claude",
         "title": "外部アプリケーションデータをインポート"
       },
       "joplin": {
@@ -6435,6 +6496,23 @@
         "token_placeholder": "思源ノートトークンを入力してください"
       },
       "title": "データ設定",
+      "v1_remigration": {
+        "acknowledgement": "リスクを理解したうえで続行します。",
+        "back": "戻る",
+        "backup_acknowledgement": "データをバックアップしました",
+        "backup_button": "今すぐ完全バックアップ",
+        "backup_message": "続行する前に、現在のすべてのデータをバックアップしてください。続行すると、現在の v2 データは完全に削除され、この操作は元に戻せません。",
+        "button": "再移行",
+        "confirm": "再移行",
+        "confirm_countdown": "再移行（残り{{seconds}}秒）",
+        "dialog_title": "v1 データを再移行",
+        "error": "v1 データの再移行を開始できませんでした",
+        "final_confirmation": "現在の v2 データを削除し、v1 データを再移行しますか？",
+        "final_message": "現在の v2 データは完全に削除されます。この操作は元に戻せません。",
+        "final_retained": "元の v1 データは保持され、再起動後に再度インポートされます。",
+        "next": "次へ",
+        "title": "v1 データを再移行"
+      },
       "webdav": {
         "autoSync": {
           "label": "自動バックアップ",
@@ -6602,6 +6680,7 @@
         "notice": {
           "downloadFailed": "ダウンロードに失敗しました。接続を確認して、もう一度お試しください。",
           "inUse": "ナレッジベースによってまだ使用されている; ウェイトは保持された。",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "削除に失敗しました。詳細についてはログを確認してください。"
         },
         "ocr": {

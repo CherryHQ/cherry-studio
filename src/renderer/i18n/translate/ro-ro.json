@@ -1007,6 +1007,10 @@
           "description": "Trimite o notificare printr-un canal conectat",
           "label": "Notificare"
         },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
+          "label": "[to be translated]:Document to Markdown"
+        },
         "CherryWebFetch": {
           "description": "Preia și citește o pagină web",
           "label": "Preluare Web"
@@ -1677,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Ramură nouă creată",
-          "disabled": {
-            "active": "Acest nod este deja selectat. Continuați să tastați pentru a extinde ramura de aici.",
-            "latest": "Ești deja la sfârșitul acestei ramuri. Continuă să tastezi pentru a o extinde.",
-            "no_follow_up": "Nu există încă un mesaj de continuare după acest mesaj. Comută la acest nod și continuă să scrii în schimb."
-          },
           "label": "Ramură nouă"
         },
         "context": "Context nou"
@@ -2989,6 +2988,28 @@
       "title": "Importă conversații ChatGPT",
       "untitled_conversation": "Conversație fără titlu"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "Selectează fișierul de import",
       "label": "Ești sigur că vrei să imporți date externe?"
@@ -3027,10 +3048,20 @@
           "selected_notes": "{{count}} notițe selectate"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "Selectează notițele existente ca surse pentru baza de cunoștințe",
           "empty_description": "Creează notițe în funcția Notițe, apoi revino pentru a le selecta aici.",
           "empty_title": "Notele nu sunt încă conectate",
-          "loading": "Se încarcă notițele…"
+          "loading": "Se încarcă notițele…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Acceptă PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3289,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "Minapp-uri",
     "miniApps": "Mini-aplicații",
     "pin_to_sidebar": "Fixează în bara laterală",
@@ -3359,11 +3391,6 @@
           },
           "heartbeat_interval": {
             "label": "Interval de bătăi ale inimii (minute)"
-          },
-          "instructions": {
-            "hint": "Definește rolul agentului și limitele comportamentului său",
-            "label": "Prompt de sistem",
-            "placeholder": "Spune-i agentului cine este și ce poate face…"
           },
           "max_turns": {
             "help": "0 înseamnă să folosească valoarea implicită",
@@ -3559,8 +3586,7 @@
           "step": {
             "basic": "Informații de bază",
             "capability": "Abilități",
-            "knowledge": "Cunoștințe",
-            "persona": "Persoană"
+            "knowledge": "Cunoștințe"
           },
           "submit": "Creează",
           "submit_failed": "Crearea a eșuat"
@@ -4223,6 +4249,8 @@
         "taskOutput": "Vezi rezultatul sarcinii",
         "taskStop": "Oprește sarcina",
         "taskUpdate": "Actualizează sarcina",
+        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "Totul Scrie",
         "tool": "Unelte",
         "webFetch": "Preluare web",
@@ -4273,6 +4301,8 @@
       "thinkingHeader": "Se analizează",
       "truncated": "Ieșire trunchiată (original: {{size}})",
       "units": {
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
         "done_one": "{{count}} finalizat",
         "done_other": "{{count}} finalizate",
         "file_one": "{{count}} fișier",
@@ -6017,11 +6047,41 @@
         "skip_file_data_title": "Backup simplificat"
       },
       "clear_cache": {
+        "approximately": "Aprox. {{size}}",
         "button": "Golește memoria cache",
-        "confirm": "Golirea memoriei cache va șterge datele cache ale aplicației, inclusiv datele miniapp. Această acțiune este ireversibilă, continui?",
+        "calculating": "Se calculează…",
         "error": "Eroare la golirea memoriei cache",
+        "legacy_warning": {
+          "confirm": "Selectează oricum",
+          "description": "După finalizarea curățării, datele v1 incluse în această opțiune vor fi șterse definitiv. Fără o copie de siguranță, aceste date nu vor putea fi recuperate.",
+          "message": "Datele v1 vor fi șterse definitiv",
+          "title": "Selectați datele v1 rămase?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Date rămase din v1, inclusiv istoricul vechi al conversațiilor și setările. Ștergerea lor este ireversibilă.",
+            "title": "Date rămase din v1"
+          },
+          "normal_cache": {
+            "description": "Șterge cache-ul și fișierele temporare create în timpul utilizării aplicației pentru a elibera spațiu de stocare. Istoricul conversațiilor și setările nu sunt șterse.",
+            "title": "Cache-ul aplicației"
+          },
+          "orphaned_data": {
+            "description": "Elimină fișierele neutilizate, bazele de cunoștințe rămase și fișierele temporare de restaurare.",
+            "title": "Fișiere și baze de cunoștințe rămase"
+          },
+          "site_data": {
+            "description": "Cookie-uri și spațiu de stocare folosite de site-uri și miniaplicații. Este posibil să fiți deconectat de pe site-uri.",
+            "title": "Date pentru site-uri și miniaplicații"
+          }
+        },
+        "partial_success": "Curățarea s-a încheiat, dar unele elemente nu au putut fi șterse",
+        "selected_total": "Total selectat",
         "success": "Memoria cache a fost golită",
-        "title": "Golește memoria cache"
+        "title": "Golește memoria cache",
+        "total_partial": "Dimensiune calculată: {{size}}; unele dimensiuni sunt necunoscute",
+        "unavailable": "Nu se poate calcula",
+        "waiting_for_legacy_database": "Se așteaptă eliberarea bazei de date vechi. Închideți celelalte ferestre Cherry Studio; curățarea va continua după închiderea conexiunilor acestora."
       },
       "data": {
         "title": "Director de date"
@@ -6064,6 +6124,7 @@
       "import_settings": {
         "button": "Importă fișier Json",
         "chatgpt": "Importă din ChatGPT",
+        "claude": "[to be translated]:Import from Claude",
         "title": "Importă datele aplicației"
       },
       "joplin": {
@@ -6435,6 +6496,23 @@
         "token_placeholder": "Te rugăm să introduci tokenul SiYuan Note"
       },
       "title": "Setări date",
+      "v1_remigration": {
+        "acknowledgement": "Înțeleg riscul și doresc să continui.",
+        "back": "Înapoi",
+        "backup_acknowledgement": "Am făcut o copie de siguranță a datelor",
+        "backup_button": "Creează acum o copie de siguranță completă",
+        "backup_message": "Creează o copie de siguranță a tuturor datelor curente înainte de a continua. Dacă continui, datele v2 curente vor fi șterse definitiv, iar această acțiune nu poate fi anulată.",
+        "button": "Rulează din nou migrarea",
+        "confirm": "Rulează din nou migrarea",
+        "confirm_countdown": "Rulează din nou migrarea ({{seconds}} s)",
+        "dialog_title": "Rulează din nou migrarea datelor v1",
+        "error": "Migrarea datelor v1 nu a putut fi pornită din nou",
+        "final_confirmation": "Confirmă că dorești să ștergi datele v2 curente și să rulezi din nou migrarea datelor v1.",
+        "final_message": "Datele v2 curente vor fi șterse definitiv. Această acțiune nu poate fi anulată.",
+        "final_retained": "Datele v1 originale vor fi păstrate și importate din nou după repornire.",
+        "next": "Următorul",
+        "title": "Rulează din nou migrarea datelor v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Backup automat",
@@ -6602,6 +6680,7 @@
         "notice": {
           "downloadFailed": "Descărcarea a eșuat. Verifică conexiunea și încearcă din nou.",
           "inUse": "Încă utilizat de o bază de cunoștințe; greutățile au fost păstrate.",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "Eliminarea a eșuat. Verifică jurnalele pentru detalii."
         },
         "ocr": {

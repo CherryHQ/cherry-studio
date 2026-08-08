@@ -1007,6 +1007,10 @@
           "description": "Sendet eine Benachrichtigung über einen verbundenen Kanal",
           "label": "Benachrichtigen"
         },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
+          "label": "[to be translated]:Document to Markdown"
+        },
         "CherryWebFetch": {
           "description": "Ruft eine Webseite ab und liest sie",
           "label": "Web abrufen"
@@ -1677,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Neuer Branch erstellt",
-          "disabled": {
-            "active": "Dieser Knoten ist bereits ausgewählt. Tippen Sie weiter, um den Zweig von hier aus zu erweitern.",
-            "latest": "Sie sind bereits am Ende dieses Zweigs. Tippen Sie weiter, um ihn zu erweitern.",
-            "no_follow_up": "Nach dieser Nachricht gibt es noch keine Fortsetzung. Wechseln Sie zu diesem Knoten und schreiben Sie dort weiter."
-          },
           "label": "Branch"
         },
         "context": "Kontext löschen"
@@ -2989,6 +2988,28 @@
       "title": "ChatGPT-Unterhaltungen importieren",
       "untitled_conversation": "Unbenannte Unterhaltung"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "Importdatei auswählen",
       "label": "Sind Sie sicher, dass Sie externe Daten importieren möchten?"
@@ -3027,10 +3048,20 @@
           "selected_notes": "{{count}} Notizen ausgewählt"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "Wählen Sie vorhandene Notizen als Quellen für die Wissensdatenbank aus",
           "empty_description": "Erstellen Sie in der Notizfunktion Notizen und kehren Sie anschließend hierher zurück, um sie auszuwählen.",
           "empty_title": "Notizen sind noch nicht verbunden",
-          "loading": "Notizen werden geladen…"
+          "loading": "Notizen werden geladen…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Unterstützt PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3289,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "Apps",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "Minapps",
     "miniApps": "Mini-Apps",
     "pin_to_sidebar": "An Seitenleiste anheften",
@@ -3359,11 +3391,6 @@
           },
           "heartbeat_interval": {
             "label": "Heartbeat-Intervall (Minuten)"
-          },
-          "instructions": {
-            "hint": "Definiert die Rolle des Agenten und die Grenzen seines Verhaltens",
-            "label": "Systemaufforderung",
-            "placeholder": "Sagen Sie dem Agenten, wer er ist und was er kann…"
           },
           "max_turns": {
             "help": "0 bedeutet, den Standardwert zu verwenden",
@@ -3559,8 +3586,7 @@
           "step": {
             "basic": "Grundinformationen",
             "capability": "Fähigkeiten",
-            "knowledge": "Wissen",
-            "persona": "Persona"
+            "knowledge": "Wissen"
           },
           "submit": "Erstellen",
           "submit_failed": "Erstellen fehlgeschlagen"
@@ -4223,6 +4249,8 @@
         "taskOutput": "Aufgabenausgabe anzeigen",
         "taskStop": "Aufgabe stoppen",
         "taskUpdate": "Aufgabe aktualisieren",
+        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "Alles schreiben",
         "tool": "Werkzeug",
         "webFetch": "Web abrufen",
@@ -4273,6 +4301,8 @@
       "thinkingHeader": "Denken",
       "truncated": "Ausgabe gekürzt (Original: {{size}})",
       "units": {
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
         "done_one": "{{count}} Erledigt",
         "done_other": "{{count}} Erledigt",
         "file_one": "{{count}} Datei",
@@ -6017,11 +6047,41 @@
         "skip_file_data_title": "Kompaktes Backup"
       },
       "clear_cache": {
+        "approximately": "Ca. {{size}}",
         "button": "Cache löschen",
-        "confirm": "Cache leeren entfernt alle zwischengespeicherten Daten inkl. Mini-App-Daten. Nicht wiederherstellbar. Fortfahren?",
+        "calculating": "Wird berechnet…",
         "error": "Cache-Löschen fehlgeschlagen",
+        "legacy_warning": {
+          "confirm": "Trotzdem auswählen",
+          "description": "Nach Abschluss der Bereinigung werden die in dieser Option enthaltenen v1-Daten dauerhaft gelöscht. Ohne Sicherung können diese Daten nicht wiederhergestellt werden.",
+          "message": "v1-Daten werden dauerhaft gelöscht",
+          "title": "Verbleibende v1-Daten auswählen?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Verbleibende v1-Daten, einschließlich alter Chatverläufe und Einstellungen. Das Löschen kann nicht rückgängig gemacht werden.",
+            "title": "Verbleibende Daten aus v1"
+          },
+          "normal_cache": {
+            "description": "Entfernt Cache- und temporäre Dateien, die bei der Nutzung der App entstehen, um Speicherplatz freizugeben. Chatverläufe und Einstellungen werden nicht gelöscht.",
+            "title": "App-Cache"
+          },
+          "orphaned_data": {
+            "description": "Entfernt nicht mehr verwendete Dateien, verbliebene Wissensdatenbanken und temporäre Backup-Wiederherstellungsdateien.",
+            "title": "Übrig gebliebene Dateien und Wissensdatenbanken"
+          },
+          "site_data": {
+            "description": "Cookies und Website-Speicher, die von Websites und Mini-Apps verwendet werden. Möglicherweise werden Sie von Websites abgemeldet.",
+            "title": "Website- und Mini-App-Daten"
+          }
+        },
+        "partial_success": "Bereinigung abgeschlossen, einige Elemente konnten jedoch nicht gelöscht werden",
+        "selected_total": "Ausgewählte Elemente gesamt",
         "success": "Cache erfolgreich geleert",
-        "title": "Cache löschen"
+        "title": "Cache löschen",
+        "total_partial": "{{size}} erfasst; einige Größen sind unbekannt",
+        "unavailable": "Berechnung nicht möglich",
+        "waiting_for_legacy_database": "Warten auf die Freigabe der alten Datenbank. Schließen Sie andere Cherry-Studio-Fenster; die Bereinigung wird fortgesetzt, sobald deren Verbindungen geschlossen sind."
       },
       "data": {
         "title": "Datenverzeichnis"
@@ -6064,6 +6124,7 @@
       "import_settings": {
         "button": "JSON-Datei importieren",
         "chatgpt": "Import aus ChatGPT",
+        "claude": "[to be translated]:Import from Claude",
         "title": "Importiere Daten von externen Anwendungen"
       },
       "joplin": {
@@ -6435,6 +6496,23 @@
         "token_placeholder": "Bitte SiYuan-Token eingeben"
       },
       "title": "Dateneinstellungen",
+      "v1_remigration": {
+        "acknowledgement": "Ich verstehe das Risiko und möchte fortfahren.",
+        "back": "Zurück",
+        "backup_acknowledgement": "Ich habe meine Daten gesichert",
+        "backup_button": "Jetzt vollständige Sicherung erstellen",
+        "backup_message": "Sichern Sie alle aktuellen Daten, bevor Sie fortfahren. Beim Fortfahren werden Ihre aktuellen v2-Daten dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.",
+        "button": "Migration erneut ausführen",
+        "confirm": "Migration erneut ausführen",
+        "confirm_countdown": "Migration erneut ausführen ({{seconds}} s)",
+        "dialog_title": "v1-Datenmigration erneut ausführen",
+        "error": "Die erneute v1-Datenmigration konnte nicht gestartet werden",
+        "final_confirmation": "Möchten Sie die aktuellen v2-Daten wirklich löschen und die v1-Datenmigration erneut ausführen?",
+        "final_message": "Ihre aktuellen v2-Daten werden dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.",
+        "final_retained": "Ihre ursprünglichen v1-Daten bleiben erhalten und werden nach dem Neustart erneut importiert.",
+        "next": "Weiter",
+        "title": "v1-Datenmigration erneut ausführen"
+      },
       "webdav": {
         "autoSync": {
           "label": "Automatisches Backup",
@@ -6602,6 +6680,7 @@
         "notice": {
           "downloadFailed": "Download fehlgeschlagen. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
           "inUse": "Wird weiterhin von einer Wissensdatenbank verwendet; die Gewichte wurden beibehalten.",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "Entfernen fehlgeschlagen. Überprüfen Sie die Protokolle für Details."
         },
         "ocr": {

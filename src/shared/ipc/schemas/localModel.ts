@@ -1,7 +1,9 @@
 import {
   LOCAL_MODEL_DOWNLOAD_RESULTS,
+  LOCAL_MODEL_ERROR_CODES,
   LOCAL_MODEL_KINDS,
   LOCAL_MODEL_STATUSES,
+  type LocalModelErrorCode,
   type LocalModelKind
 } from '@shared/data/presets/localModel'
 import * as z from 'zod'
@@ -25,9 +27,11 @@ const modelInput = z.object({ model: z.enum(LOCAL_MODEL_KINDS) })
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const localModelRequestSchemas = {
+  // `errorCode` is present exactly when `status` is 'error' and says why (failed
+  // download vs. incomplete files on disk), so the cards can word the notice.
   'local_model.get_status': defineRoute({
     input: modelInput,
-    output: z.object({ status: z.enum(LOCAL_MODEL_STATUSES) })
+    output: z.object({ status: z.enum(LOCAL_MODEL_STATUSES), errorCode: z.enum(LOCAL_MODEL_ERROR_CODES).optional() })
   }),
   // All coalesced callers receive the same terminal result; only genuine failures reject.
   'local_model.download': defineRoute({
@@ -48,6 +52,7 @@ export type LocalModelEventSchemas = {
     model: LocalModelKind
     status: string
     percent: number
+    errorCode?: LocalModelErrorCode
     loaded?: number
     total?: number
     file?: string

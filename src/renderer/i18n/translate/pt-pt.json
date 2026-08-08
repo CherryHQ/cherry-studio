@@ -1007,6 +1007,10 @@
           "description": "Envia uma notificação através de um canal conectado",
           "label": "Notificar"
         },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
+          "label": "[to be translated]:Document to Markdown"
+        },
         "CherryWebFetch": {
           "description": "Obtém e lê uma página Web",
           "label": "Obter página Web"
@@ -1677,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Nova ramificação criada",
-          "disabled": {
-            "active": "Este nó já está selecionado. Continue a escrever para estender o ramo a partir daqui.",
-            "latest": "Já está no fim deste ramo. Continue a escrever para o prolongar.",
-            "no_follow_up": "Não há resposta após esta mensagem ainda. Mude para este nó e continue a escrever."
-          },
           "label": "Ramificação"
         },
         "context": "Limpar contexto"
@@ -2989,6 +2988,28 @@
       "title": "Importar Conversas do ChatGPT",
       "untitled_conversation": "Conversa Sem Título"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "Selecionar Ficheiro de Importação",
       "label": "Tem a certeza de que pretende importar dados externos?"
@@ -3027,10 +3048,20 @@
           "selected_notes": "{{count}} notas selecionadas"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "Selecione notas existentes como fontes da base de conhecimento",
           "empty_description": "As notas selecionáveis aparecerão aqui após a lista de notas reais ser conectada. Por enquanto, use ficheiros, pastas, URLs ou mapas do site.",
           "empty_title": "As notas ainda não estão conectadas",
-          "loading": "A carregar notas…"
+          "loading": "A carregar notas…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Suporta PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3289,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "Aplicações",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "Minapps",
     "miniApps": "Miniaplicações",
     "pin_to_sidebar": "Fixar na barra lateral",
@@ -3359,11 +3391,6 @@
           },
           "heartbeat_interval": {
             "label": "Intervalo de batimentos (minutos)"
-          },
-          "instructions": {
-            "hint": "Define o papel do agente e os limites do seu comportamento",
-            "label": "Prompt do sistema",
-            "placeholder": "Diga ao agente quem ele é e o que pode fazer…"
           },
           "max_turns": {
             "help": "0 significa usar o padrão",
@@ -3559,8 +3586,7 @@
           "step": {
             "basic": "Informações básicas",
             "capability": "Competências",
-            "knowledge": "Conhecimento",
-            "persona": "Persona"
+            "knowledge": "Conhecimento"
           },
           "submit": "Criar",
           "submit_failed": "Falha na criação"
@@ -4223,6 +4249,8 @@
         "taskOutput": "Ver saída da tarefa",
         "taskStop": "Parar tarefa",
         "taskUpdate": "Atualizar tarefa",
+        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "Fazer Escrever",
         "tool": "Ferramenta",
         "webFetch": "Obter página Web",
@@ -4273,6 +4301,8 @@
       "thinkingHeader": "A pensar",
       "truncated": "Saída truncada (original: {{size}})",
       "units": {
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
         "done_one": "{{count}} Concluído",
         "done_other": "{{count}} Concluído",
         "file_one": "{{count}} ficheiro",
@@ -6017,11 +6047,41 @@
         "skip_file_data_title": "Backup simplificado"
       },
       "clear_cache": {
+        "approximately": "Aprox. {{size}}",
         "button": "Limpar cache",
-        "confirm": "Limpar a cache eliminará os dados em cache da aplicação, incluindo os dados das miniaplicações. Esta ação não pode ser anulada. Pretende continuar?",
+        "calculating": "A calcular…",
         "error": "Falha ao limpar cache",
+        "legacy_warning": {
+          "confirm": "Selecionar mesmo assim",
+          "description": "Após a conclusão da limpeza, os dados da v1 incluídos nesta opção serão eliminados permanentemente. Sem uma cópia de segurança, não poderão ser recuperados.",
+          "message": "Os dados da v1 serão eliminados permanentemente",
+          "title": "Selecionar os dados residuais da v1?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Dados residuais da v1, incluindo históricos de conversas antigos e definições. A eliminação é irreversível.",
+            "title": "Dados residuais da v1"
+          },
+          "normal_cache": {
+            "description": "Limpa a cache e os ficheiros temporários criados durante a utilização da aplicação para libertar espaço de armazenamento. O histórico de conversas e as definições não são eliminados.",
+            "title": "Cache da aplicação"
+          },
+          "orphaned_data": {
+            "description": "Remove ficheiros não utilizados, bases de conhecimento residuais e ficheiros temporários de restauro.",
+            "title": "Ficheiros e bases de conhecimento residuais"
+          },
+          "site_data": {
+            "description": "Cookies e armazenamento de sites utilizados por sites e miniaplicações. Poderá terminar a sessão nos sites.",
+            "title": "Dados de sites e miniaplicações"
+          }
+        },
+        "partial_success": "A limpeza terminou, mas não foi possível eliminar alguns itens",
+        "selected_total": "Total selecionado",
         "success": "Cache limpo com sucesso",
-        "title": "Limpar cache"
+        "title": "Limpar cache",
+        "total_partial": "Tamanho contabilizado: {{size}}; alguns tamanhos são desconhecidos",
+        "unavailable": "Não foi possível calcular",
+        "waiting_for_legacy_database": "A aguardar que a base de dados antiga seja libertada. Feche as outras janelas do Cherry Studio; a limpeza continuará quando as respetivas ligações forem fechadas."
       },
       "data": {
         "title": "Pasta de dados"
@@ -6064,6 +6124,7 @@
       "import_settings": {
         "button": "Importar Ficheiro Json",
         "chatgpt": "Importar do ChatGPT",
+        "claude": "[to be translated]:Import from Claude",
         "title": "Importar Dados de Aplicações Externas"
       },
       "joplin": {
@@ -6435,6 +6496,23 @@
         "token_placeholder": "Por favor, introduza o token do Siyuan Notebook"
       },
       "title": "Configurações de dados",
+      "v1_remigration": {
+        "acknowledgement": "Compreendo o risco e pretendo continuar.",
+        "back": "Voltar",
+        "backup_acknowledgement": "Já fiz uma cópia de segurança dos meus dados",
+        "backup_button": "Criar agora uma cópia de segurança completa",
+        "backup_message": "Faça uma cópia de segurança de todos os dados atuais antes de continuar. Se continuar, os dados v2 atuais serão eliminados permanentemente e esta ação não pode ser anulada.",
+        "button": "Repetir migração",
+        "confirm": "Repetir migração",
+        "confirm_countdown": "Repetir migração ({{seconds}} s)",
+        "dialog_title": "Repetir a migração dos dados v1",
+        "error": "Não foi possível reiniciar a migração dos dados v1",
+        "final_confirmation": "Confirme que pretende eliminar os dados v2 atuais e repetir a migração dos dados v1.",
+        "final_message": "Os dados v2 atuais serão eliminados permanentemente. Esta ação não pode ser anulada.",
+        "final_retained": "Os dados v1 originais serão mantidos e novamente importados após reiniciar.",
+        "next": "Seguinte",
+        "title": "Repetir a migração dos dados v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Backup automático",
@@ -6602,6 +6680,7 @@
         "notice": {
           "downloadFailed": "A transferência falhou. Verifique a ligação e tente novamente.",
           "inUse": "Ainda utilizado por uma base de conhecimento; os pesos foram mantidos.",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "Falha na remoção. Verifique os registos para mais detalhes."
         },
         "ocr": {

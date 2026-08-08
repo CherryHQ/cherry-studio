@@ -40,7 +40,7 @@ export type {
 } from './FileManager'
 export { FileManager } from './FileManager'
 export { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
-export { DirectoryTreeManager } from './tree/DirectoryTreeManager'
+export { DirectoryTreeManager, DirectoryTreeStoppedError } from './tree/DirectoryTreeManager'
 
 // DanglingCache: interface and singleton are both exported for in-process
 // callers (orphanSweep, business services querying live state). External
