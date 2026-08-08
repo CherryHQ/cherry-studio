@@ -61,35 +61,29 @@ export default defineProvider({
   id: 'dmxapi',
   name: 'DMXAPI',
   defaultChatEndpoint: 'openai-chat-completions',
+  // Each endpoint declares the ids DMXAPI proxies to it; anything unclaimed is the openai-compatible
+  // passthrough on `defaultChatEndpoint`. Image / TTS / audio / embedding variants share these
+  // prefixes but not the protocol, so they are carved out per endpoint.
   endpointConfigs: {
     'anthropic-messages': {
       adapterFamily: 'dmxapi',
-      baseUrl: 'https://www.dmxapi.cn'
+      baseUrl: 'https://www.dmxapi.cn',
+      serves: { pattern: 'claude' }
     },
     'google-generate-content': {
       adapterFamily: 'dmxapi',
-      baseUrl: 'https://www.dmxapi.cn/v1beta/'
+      baseUrl: 'https://www.dmxapi.cn/v1beta/',
+      serves: { pattern: '^gemini-', except: 'image|imagen|tts|audio|embedding' }
     },
     'openai-chat-completions': {
       adapterFamily: 'dmxapi',
-      baseUrl: 'https://www.dmxapi.cn'
-    }
-  },
-  // Per-model dispatch onto the vendors' native endpoints, keyed by the raw api id. Ordered — first
-  // match wins, anything unmatched is the openai-compatible passthrough on `defaultChatEndpoint`.
-  // Image / TTS / audio / embedding variants share these prefixes but have their own routes.
-  modelRouting: [
-    { pattern: 'claude', endpointType: 'anthropic-messages' },
-    { pattern: '^gemini-', exclude: 'image|imagen|tts|audio|embedding', endpointType: 'google-generate-content' },
-    // Native OpenAI chat models go to @ai-sdk/openai's chat class, which reads the canonical `openai`
-    // namespace — not the `dmxapi` one this endpoint implies for the passthrough line.
-    {
-      pattern: '^(?:gpt-|o\\d)',
-      exclude: 'image|dall-e',
-      endpointType: 'openai-chat-completions',
+      baseUrl: 'https://www.dmxapi.cn',
+      // Native OpenAI chat models go to @ai-sdk/openai's chat class, which reads the canonical
+      // `openai` namespace — not the `dmxapi` one this endpoint implies for the passthrough line.
+      serves: { pattern: '^(?:gpt-|o\\d)', except: 'image|dall-e' },
       providerOptionsKey: 'openai'
     }
-  ],
+  },
   metadata: {
     website: {
       apiKey: 'https://www.dmxapi.cn/',

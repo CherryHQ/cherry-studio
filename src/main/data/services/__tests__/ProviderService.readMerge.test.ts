@@ -26,11 +26,14 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
               baseUrl: 'https://open.cherryin.net',
               modelsApiUrls: { default: 'https://open.cherryin.net/v1/models' }
             },
-            'openai-responses': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' },
+            'openai-responses': {
+              adapterFamily: 'cherryin',
+              baseUrl: 'https://open.cherryin.net',
+              serves: { pattern: '^o1' }
+            },
             'google-generate-content': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
           },
           defaultChatEndpoint: 'openai-chat-completions',
-          modelRouting: [{ pattern: '^o1', endpointType: 'openai-responses' }],
           apiFeatures: { serviceTier: false },
           reportedCostCurrency: 'USD'
         },
@@ -91,7 +94,8 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     })
     expect(provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]).toEqual({
       adapterFamily: 'cherryin',
-      baseUrl: 'https://open.cherryin.net'
+      baseUrl: 'https://open.cherryin.net',
+      serves: { pattern: '^o1' }
     })
     // End to end: the resolver no longer falls through to openai-compatible.
     expect(resolveAiSdkProviderId(provider, ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT)).not.toBe('openai-compatible')
@@ -169,7 +173,7 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     expect(provider.reportedCostCurrency).toBe('USD')
   })
 
-  it('carries registry modelRouting onto the runtime provider so per-model dispatch applies', async () => {
+  it("carries each endpoint's registry claim onto the runtime provider so per-model dispatch applies", async () => {
     await dbh.db.insert(userProviderTable).values({
       providerId: 'cherryin',
       presetProviderId: 'cherryin',
@@ -178,11 +182,11 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     })
 
     const provider = providerService.getByProviderId('cherryin')
-    expect(provider.modelRouting).toEqual([{ pattern: '^o1', endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES }])
+    expect(provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_RESPONSES]?.serves).toEqual({ pattern: '^o1' })
 
-    // End to end: a routed id leaves the default chat endpoint, an unrouted one
-    // stays on it. Without the projection both fall back to the default and the
-    // model speaks the wrong reasoning dialect (#17900).
+    // End to end: a claimed id leaves the default chat endpoint, an unclaimed one
+    // stays on it. The claim rides `endpointConfigs`, so it cannot go missing while
+    // the endpoint it names survives — the drift that made #17900 possible.
     const modelOf = (id: string) => ({ id, providerId: 'cherryin' }) as Model
     expect(resolveEffectiveEndpoint(provider, modelOf('o1-mini')).endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
     expect(resolveEffectiveEndpoint(provider, modelOf('gpt-4o')).endpointType).toBe(

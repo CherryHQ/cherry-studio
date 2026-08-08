@@ -2,12 +2,12 @@
  * AiHubMix model-class dispatch.
  *
  * AiHubMix is a multi-backend gateway: one registered provider that hands a chat model to one of
- * five AI SDK model classes. WHICH backend an id belongs to is registry data
- * (`ProviderConfig.modelRouting` in `providers/aihubmix.ts`), so request-time endpoint resolution
- * and the catalog's reasoning projection read one table and can never drift. This module only maps
- * that resolved route onto the model class `createChatModel` builds.
+ * five AI SDK model classes. WHICH backend a model belongs to is registry data — each endpoint in
+ * `providers/aihubmix.ts` declares the creators it `serves` — so request-time endpoint resolution
+ * and the catalog's reasoning projection read one declaration and can never drift. This module only
+ * maps that resolved route onto the model class `createChatModel` builds.
  */
-import type { ProviderModelRoute } from '@cherrystudio/provider-registry'
+import type { ResolvedModelRoute } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 
 /** Wire family AiHubMix routes a chat model to. */
@@ -17,7 +17,7 @@ export type AihubmixChatFamily = 'anthropic' | 'gemini' | 'openai-responses' | '
  * The model class for a routed model. An unrouted id is the openai-compatible
  * passthrough line — AiHubMix's default for everything it doesn't serve natively.
  */
-export function resolveAihubmixChatFamily(route: ProviderModelRoute | undefined): AihubmixChatFamily {
+export function resolveAihubmixChatFamily(route: ResolvedModelRoute | undefined): AihubmixChatFamily {
   switch (route?.endpointType) {
     case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
       return 'anthropic'

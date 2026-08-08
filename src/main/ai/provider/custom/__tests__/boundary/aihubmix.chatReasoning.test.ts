@@ -8,18 +8,18 @@
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
-import { registryModelRouting } from '../../../../__tests__/fixtures'
+import { registryEndpointConfigs } from '../../../../__tests__/fixtures'
 import { createAihubmix } from '../../aihubmix/aihubmixProvider'
 import { captureWithFetch } from './captureRequest'
 
-const MODEL_ROUTING = registryModelRouting('aihubmix')
+const ENDPOINT_CONFIGS = registryEndpointConfigs('aihubmix')
 
 const PROMPT: LanguageModelV3CallOptions['prompt'] = [{ role: 'user', content: [{ type: 'text', text: 'hi' }] }]
 
 describe('AiHubMix chat boundary — providerOptions.aihubmix reaches the wire', () => {
   it("serializes reasoningEffort 'none' from the aihubmix namespace as reasoning_effort", async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ modelRouting: MODEL_ROUTING, apiKey: 'sk', fetch })
+      createAihubmix({ endpointConfigs: ENDPOINT_CONFIGS, apiKey: 'sk', fetch })
         .languageModel('glm-5')
         .doGenerate({
           prompt: PROMPT,
@@ -33,7 +33,7 @@ describe('AiHubMix chat boundary — providerOptions.aihubmix reaches the wire',
 
   it('passes unknown aihubmix-namespace fields through to the body alongside an effort tier', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ modelRouting: MODEL_ROUTING, apiKey: 'sk', fetch })
+      createAihubmix({ endpointConfigs: ENDPOINT_CONFIGS, apiKey: 'sk', fetch })
         .languageModel('deepseek-v4')
         .doGenerate({
           prompt: PROMPT,
@@ -48,7 +48,12 @@ describe('AiHubMix chat boundary — providerOptions.aihubmix reaches the wire',
 describe('AiHubMix Gemini boundary — baseURL derives from the configured gateway URL', () => {
   it('routes the Gemini surface through a user-configured proxy baseURL', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ modelRouting: MODEL_ROUTING, apiKey: 'sk', baseURL: 'https://proxy.example.com/v1', fetch })
+      createAihubmix({
+        endpointConfigs: ENDPOINT_CONFIGS,
+        apiKey: 'sk',
+        baseURL: 'https://proxy.example.com/v1',
+        fetch
+      })
         .languageModel('gemini-2.5-pro')
         .doGenerate({ prompt: PROMPT } as LanguageModelV3CallOptions)
     )
@@ -58,7 +63,7 @@ describe('AiHubMix Gemini boundary — baseURL derives from the configured gatew
 
   it('keeps the official Gemini surface for the default baseURL', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ modelRouting: MODEL_ROUTING, apiKey: 'sk', fetch })
+      createAihubmix({ endpointConfigs: ENDPOINT_CONFIGS, apiKey: 'sk', fetch })
         .languageModel('gemini-2.5-pro')
         .doGenerate({ prompt: PROMPT } as LanguageModelV3CallOptions)
     )
@@ -69,7 +74,7 @@ describe('AiHubMix Gemini boundary — baseURL derives from the configured gatew
   it('uses the resolved Gemini endpoint when Chat and Gemini point at different proxies', async () => {
     const req = await captureWithFetch((fetch) =>
       createAihubmix({
-        modelRouting: MODEL_ROUTING,
+        endpointConfigs: ENDPOINT_CONFIGS,
         apiKey: 'sk',
         baseURL: 'https://chat.proxy.example/v1',
         endpointBaseURLs: {

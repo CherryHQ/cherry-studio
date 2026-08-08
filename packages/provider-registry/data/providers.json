@@ -100,19 +100,34 @@
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "aihubmix",
-          "baseUrl": "https://aihubmix.com"
+          "baseUrl": "https://aihubmix.com",
+          "serves": {
+            "pattern": "^claude"
+          }
         },
         "google-generate-content": {
           "adapterFamily": "aihubmix",
-          "baseUrl": "https://aihubmix.com/gemini/v1beta"
+          "baseUrl": "https://aihubmix.com/gemini/v1beta",
+          "serves": {
+            "except": "(?:no-think|-search)$|embedding",
+            "pattern": "^(?:gemini|imagen)"
+          }
         },
         "openai-chat-completions": {
           "adapterFamily": "aihubmix",
-          "baseUrl": "https://aihubmix.com/v1"
+          "baseUrl": "https://aihubmix.com/v1",
+          "providerOptionsKey": "openai",
+          "serves": {
+            "pattern": "gpt-4o(?:-mini)?-search-preview|o1-(?:mini|preview)"
+          }
         },
         "openai-responses": {
           "adapterFamily": "aihubmix",
-          "baseUrl": "https://aihubmix.com/v1"
+          "baseUrl": "https://aihubmix.com/v1",
+          "serves": {
+            "except": "gpt-4o-image|gpt-4o(?:-mini)?-search-preview|o1-(?:mini|preview)",
+            "pattern": "\\bgpt\\b|^o[134]"
+          }
         }
       },
       "id": "aihubmix",
@@ -124,27 +139,6 @@
           "official": "https://aihubmix.com"
         }
       },
-      "modelRouting": [
-        {
-          "endpointType": "anthropic-messages",
-          "pattern": "^claude"
-        },
-        {
-          "endpointType": "google-generate-content",
-          "exclude": "(?:no-think|-search)$|embedding",
-          "pattern": "^(?:gemini|imagen)"
-        },
-        {
-          "endpointType": "openai-chat-completions",
-          "pattern": "gpt-4o(?:-mini)?-search-preview|o1-(?:mini|preview)",
-          "providerOptionsKey": "openai"
-        },
-        {
-          "endpointType": "openai-responses",
-          "exclude": "gpt-4o-image",
-          "pattern": "\\bgpt\\b|^o[134]"
-        }
-      ],
       "name": "AiHubMix",
       "serverTools": [
         {
@@ -372,15 +366,27 @@
       "endpointConfigs": {
         "anthropic-messages": {
           "adapterFamily": "dmxapi",
-          "baseUrl": "https://www.dmxapi.cn"
+          "baseUrl": "https://www.dmxapi.cn",
+          "serves": {
+            "pattern": "claude"
+          }
         },
         "google-generate-content": {
           "adapterFamily": "dmxapi",
-          "baseUrl": "https://www.dmxapi.cn/v1beta/"
+          "baseUrl": "https://www.dmxapi.cn/v1beta/",
+          "serves": {
+            "except": "image|imagen|tts|audio|embedding",
+            "pattern": "^gemini-"
+          }
         },
         "openai-chat-completions": {
           "adapterFamily": "dmxapi",
-          "baseUrl": "https://www.dmxapi.cn"
+          "baseUrl": "https://www.dmxapi.cn",
+          "providerOptionsKey": "openai",
+          "serves": {
+            "except": "image|dall-e",
+            "pattern": "^(?:gpt-|o\\d)"
+          }
         }
       },
       "id": "dmxapi",
@@ -392,23 +398,6 @@
           "official": "https://www.dmxapi.cn/"
         }
       },
-      "modelRouting": [
-        {
-          "endpointType": "anthropic-messages",
-          "pattern": "claude"
-        },
-        {
-          "endpointType": "google-generate-content",
-          "exclude": "image|imagen|tts|audio|embedding",
-          "pattern": "^gemini-"
-        },
-        {
-          "endpointType": "openai-chat-completions",
-          "exclude": "image|dall-e",
-          "pattern": "^(?:gpt-|o\\d)",
-          "providerOptionsKey": "openai"
-        }
-      ],
       "name": "DMXAPI"
     },
     {
@@ -932,7 +921,10 @@
       "description": "Azure OpenAI - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "azure"
+          "adapterFamily": "azure",
+          "serves": {
+            "pattern": "^claude"
+          }
         },
         "openai-chat-completions": {
           "adapterFamily": "azure"
@@ -950,12 +942,6 @@
           "official": "https://azure.microsoft.com/en-us/products/ai-services/openai-service"
         }
       },
-      "modelRouting": [
-        {
-          "endpointType": "anthropic-messages",
-          "pattern": "^claude"
-        }
-      ],
       "name": "Azure OpenAI",
       "serverTools": [
         {
@@ -1003,7 +989,10 @@
       "description": "VertexAI - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "google-vertex"
+          "adapterFamily": "google-vertex",
+          "serves": {
+            "pattern": "^claude"
+          }
         },
         "google-generate-content": {
           "adapterFamily": "google-vertex"
@@ -1018,12 +1007,6 @@
           "official": "https://cloud.google.com/vertex-ai"
         }
       },
-      "modelRouting": [
-        {
-          "endpointType": "anthropic-messages",
-          "pattern": "^claude"
-        }
-      ],
       "name": "VertexAI",
       "serverTools": [
         {
@@ -2120,5 +2103,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "1b7078aca2c69507"
+  "version": "65d3d0a24316aad5"
 }

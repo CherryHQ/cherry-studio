@@ -1,5 +1,5 @@
 import { REASONING_FORMAT_PROFILES, type ReasoningWireProfile } from '@cherrystudio/provider-registry'
-import { registryModelRouting } from '@main/ai/__tests__/fixtures'
+import { registryEndpointConfigs } from '@main/ai/__tests__/fixtures'
 import { ENDPOINT_TYPE, type EndpointType, type Model, type RuntimeReasoning } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -219,9 +219,9 @@ describe('cross-dialect descriptor translation', () => {
     const dmxapi = {
       id: 'dmxapi',
       defaultChatEndpoint: endpoint,
-      endpointConfigs: { [endpoint]: { adapterFamily: 'dmxapi' } },
-      // Per-model dispatch is registry data carried onto the provider row.
-      modelRouting: registryModelRouting('dmxapi'),
+      // Per-model dispatch rides the shipped endpoint configs: this endpoint claims the native
+      // OpenAI ids and pins their namespace to `openai`, not the dmxapi passthrough one.
+      endpointConfigs: registryEndpointConfigs('dmxapi', { [endpoint]: { adapterFamily: 'dmxapi' } }),
       settings: {}
     } as Provider
     const gpt5 = {
@@ -241,7 +241,10 @@ describe('cross-dialect descriptor translation', () => {
     const endpoint = ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
     const nvidia = {
       id: 'nvidia',
-      endpointConfigs: { [endpoint]: { adapterFamily: 'openai-compatible' } }
+      endpointConfigs: {
+        ...registryEndpointConfigs('dmxapi'),
+        [endpoint]: { adapterFamily: 'openai-compatible' }
+      }
     } as Provider
     const gptOss = model('nvidia', 'gpt-oss-120b', endpoint, {
       selectableEfforts: ['low', 'medium', 'high'],

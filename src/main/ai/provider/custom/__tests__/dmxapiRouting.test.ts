@@ -1,16 +1,15 @@
-import type { ProviderModelRoute } from '@cherrystudio/provider-registry'
+import type { ResolvedModelRoute } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import { resolveDmxapiChatFamily } from '../dmxapi/dmxapiRouting'
 
-const route = (endpointType: ProviderModelRoute['endpointType']): ProviderModelRoute => ({
-  pattern: 'irrelevant',
+const route = (endpointType: ResolvedModelRoute['endpointType']): ResolvedModelRoute => ({
   endpointType,
   providerOptionsKey: 'irrelevant'
 })
 
-// Which ids reach which endpoint is registry data (packages/provider-registry `modelRouting`,
+// Which ids reach which endpoint is registry data (packages/provider-registry endpoint `serves`,
 // covered by its own test); this only maps that endpoint onto the SDK model class.
 describe('resolveDmxapiChatFamily', () => {
   it.each([

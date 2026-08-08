@@ -12,10 +12,10 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import type {
+  EndpointDispatchConfig,
   EndpointType,
   ProtoProviderModelOverride,
   ProtoReasoningSupport,
-  ProviderModelRoute,
   ReasoningControl
 } from '@cherrystudio/provider-registry'
 import { resolveModelEndpoint } from '@cherrystudio/provider-registry'
@@ -33,8 +33,7 @@ const overrides: ProtoProviderModelOverride[] = read('provider-models.json').ove
 const providers: Array<{
   id: string
   defaultChatEndpoint?: EndpointType | null
-  modelRouting?: ProviderModelRoute[]
-  endpointConfigs?: Record<string, { reasoningFormat?: never }>
+  endpointConfigs?: Partial<Record<EndpointType, EndpointDispatchConfig & { reasoningFormat?: never }>>
 }> = read('providers.json').providers
 
 const modelById = new Map(models.map((model) => [model.id, model]))
@@ -57,7 +56,7 @@ function collectOffEmissions(): OffEmission[] {
     // The endpoint the request will use — same resolver the runtime and the projection share.
     const { endpointType } = resolveModelEndpoint({
       endpointTypes: override.endpointTypes,
-      modelRouting: provider.modelRouting,
+      endpointConfigs: provider.endpointConfigs,
       modelId: override.apiModelId ?? override.modelId,
       defaultChatEndpoint: provider.defaultChatEndpoint
     })

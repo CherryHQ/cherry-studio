@@ -577,7 +577,7 @@ function buildVertexConfig(
     : undefined
 
   const modelId = ctx.model.apiModelId ?? ctx.model.id
-  // Claude reaches the anthropic endpoint through the registry's `modelRouting`, so the resolved
+  // Claude reaches the anthropic endpoint through the registry endpoint's `serves` claim, so the resolved
   // adapter family already says so — no second id test here (it would be a rule the reasoning
   // projection can't see).
   const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic'
@@ -677,7 +677,7 @@ function buildAzureConfig(
 ): ProviderConfig<'azure'> | ProviderConfig<'azure-anthropic'> | ProviderConfig<'azure-responses'> {
   const endpointType = ctx.endpointType
 
-  // Claude reaches this endpoint through the registry's `modelRouting` — no second id test here
+  // Claude reaches this endpoint through the registry endpoint's `serves` claim — no second id test here
   // (it would be a rule the reasoning projection can't see).
   if (endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES) {
     return {
@@ -767,7 +767,7 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
-      modelRouting: ctx.actualProvider.modelRouting
+      endpointConfigs: ctx.actualProvider.endpointConfigs
     }
   }
 }
@@ -780,7 +780,7 @@ function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
       ...ctx.baseConfig,
       endpointBaseURLs: buildEndpointBaseURLs(ctx.actualProvider),
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
-      modelRouting: ctx.actualProvider.modelRouting
+      endpointConfigs: ctx.actualProvider.endpointConfigs
     }
   }
 }

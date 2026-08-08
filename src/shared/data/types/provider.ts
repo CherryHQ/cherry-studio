@@ -17,7 +17,6 @@ import {
   ENDPOINT_TYPE,
   FastModeTransportSchema,
   objectValues,
-  ProviderModelRouteSchema,
   ServerToolConfigSchema
 } from '@cherrystudio/provider-registry'
 import * as z from 'zod'
@@ -244,7 +243,15 @@ export const EndpointConfigSchema = z.object({
   /** URLs for fetching available models via this endpoint type */
   modelsApiUrls: ModelsApiUrlsSchema.optional(),
   /** AI SDK adapter family that handles this endpoint. Carried over from the catalog */
-  adapterFamily: z.string().optional()
+  adapterFamily: z.string().optional(),
+  /**
+   * Which model ids this endpoint serves instead of the provider's default chat
+   * endpoint — a multi-backend gateway's per-model dispatch, carried from the
+   * registry at read time.
+   */
+  serves: z.object({ pattern: z.string(), except: z.string().optional() }).optional(),
+  /** Namespace override for the AI SDK class behind this endpoint. */
+  providerOptionsKey: z.string().optional()
 })
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
@@ -293,12 +300,6 @@ export const ProviderSchema = z.object({
   >,
   /** Default text generation endpoint type */
   defaultChatEndpoint: EndpointTypeSchema.optional(),
-  /**
-   * Per-model endpoint dispatch for multi-backend gateways (AiHubMix, DMXAPI),
-   * carried from the registry at read time. Absent ⇒ every model is served on
-   * {@link defaultChatEndpoint}.
-   */
-  modelRouting: z.array(ProviderModelRouteSchema).optional(),
   /**
    * Where the model list comes from. `'registry'` providers cannot enumerate
    * models over an API; the shipped catalog is returned instead. Carried from

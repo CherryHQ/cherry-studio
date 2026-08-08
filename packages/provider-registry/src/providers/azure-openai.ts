@@ -22,14 +22,14 @@ export default defineProvider({
       adapterFamily: 'azure'
     },
     // No baseUrl: every Azure deployment has its own host, so it comes from the row.
+    // Azure AI Foundry serves Anthropic's models over their native protocol; saying so here (rather
+    // than a `startsWith('claude')` inside the config builder) is what lets the reasoning projection
+    // resolve the same endpoint the request uses — otherwise Claude-on-Azure gets the openai-chat wire.
     'anthropic-messages': {
-      adapterFamily: 'azure'
+      adapterFamily: 'azure',
+      serves: { pattern: '^claude' }
     }
   },
-  // Azure AI Foundry serves Claude over the anthropic protocol. Declaring it here (instead of a
-  // `startsWith('claude')` inside the config builder) is what lets the reasoning projection resolve
-  // the same endpoint the request uses — otherwise Claude-on-Azure gets the openai-chat wire.
-  modelRouting: [{ pattern: '^claude', endpointType: 'anthropic-messages' }],
   serverTools: [
     {
       id: 'web-search',

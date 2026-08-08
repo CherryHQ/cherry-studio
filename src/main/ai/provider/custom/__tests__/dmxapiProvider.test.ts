@@ -32,10 +32,10 @@ vi.mock('../dmxapi/dmxapiTransport', async (importOriginal) => {
   }
 })
 
-import { registryModelRouting } from '../../../__tests__/fixtures'
+import { registryEndpointConfigs } from '../../../__tests__/fixtures'
 import { createDmxapiProvider } from '../dmxapi/dmxapiProvider'
 
-const MODEL_ROUTING = registryModelRouting('dmxapi')
+const ENDPOINT_CONFIGS = registryEndpointConfigs('dmxapi')
 
 describe('createDmxapiProvider', () => {
   afterEach(() => {
@@ -46,7 +46,7 @@ describe('createDmxapiProvider', () => {
 
   it('languageModel uses "dmxapi.chat" with Bearer auth at chat baseURL', () => {
     const provider = createDmxapiProvider({
-      modelRouting: MODEL_ROUTING,
+      endpointConfigs: ENDPOINT_CONFIGS,
       apiKey: 'sk',
       baseURL: 'https://www.dmxapi.cn'
     })
@@ -63,7 +63,7 @@ describe('createDmxapiProvider', () => {
 
   it('embeddingModel uses "dmxapi.embedding"', () => {
     const provider = createDmxapiProvider({
-      modelRouting: MODEL_ROUTING,
+      endpointConfigs: ENDPOINT_CONFIGS,
       apiKey: 'sk',
       baseURL: 'https://www.dmxapi.cn'
     })
@@ -72,7 +72,7 @@ describe('createDmxapiProvider', () => {
 
   it('imageModel returns an ImageGenerationModel with provider="dmxapi"', () => {
     const provider = createDmxapiProvider({
-      modelRouting: MODEL_ROUTING,
+      endpointConfigs: ENDPOINT_CONFIGS,
       apiKey: 'sk',
       baseURL: 'https://www.dmxapi.cn'
     })
@@ -82,12 +82,12 @@ describe('createDmxapiProvider', () => {
   })
 
   it('strips the OpenAI-compat suffix from baseURL to derive the transport host', () => {
-    createDmxapiProvider({ modelRouting: MODEL_ROUTING, apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1' })
+    createDmxapiProvider({ endpointConfigs: ENDPOINT_CONFIGS, apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1' })
     expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
   })
 
   it('keeps baseURL untouched when no OpenAI-compat suffix is present', () => {
-    createDmxapiProvider({ modelRouting: MODEL_ROUTING, apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
+    createDmxapiProvider({ endpointConfigs: ENDPOINT_CONFIGS, apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
     expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
   })
 })

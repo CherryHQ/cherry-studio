@@ -44,15 +44,13 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
  * fallback among `endpointConfigs`.
  */
 export function resolveEffectiveEndpoint(provider: Provider, model: Model): ResolvedEndpoint {
+  // A route can only come from an endpoint the provider declares, so an incomplete row cannot
+  // route to a backend that isn't there — the claim and the connection config are the same object.
   const { endpointType, route } = resolveModelEndpoint({
     endpointTypes: model.endpointTypes,
-    modelRouting: provider.modelRouting,
+    endpointConfigs: provider.endpointConfigs,
     modelId: model.apiModelId ?? model.id,
-    defaultChatEndpoint: provider.defaultChatEndpoint,
-    // Never route to an endpoint the provider row doesn't declare: fabricating connection config
-    // for an incomplete row drops `aiSdkProviderId` off the gateway family, which breaks both
-    // builder selection and the reasoning namespace.
-    acceptRoute: (candidate) => !!provider.endpointConfigs?.[candidate.endpointType]
+    defaultChatEndpoint: provider.defaultChatEndpoint
   })
   const providerOptionsKey = route && endpointType === route.endpointType ? route.providerOptionsKey : undefined
   return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }

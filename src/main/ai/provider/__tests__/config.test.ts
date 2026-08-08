@@ -16,7 +16,7 @@ import { net } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { makeModel } from '../../__tests__/fixtures/model'
-import { makeProvider, registryModelRouting } from '../../__tests__/fixtures/provider'
+import { makeProvider, registryEndpointConfigs } from '../../__tests__/fixtures/provider'
 import { customFetch } from '../../utils/customFetch'
 
 // Key-backed builders resolve their serving API key lazily; Vertex/Bedrock read
@@ -102,11 +102,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     const provider = makeProvider({
       id: 'vertex',
       authType: 'iam-gcp',
-      modelRouting: registryModelRouting('vertexai'),
       defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-      endpointConfigs: {
+      endpointConfigs: registryEndpointConfigs('vertexai', {
         [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' }
-      }
+      })
     })
     const model = makeModel({
       id: 'vertex::gemini-2.0-flash',
@@ -165,14 +164,13 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
-        modelRouting: registryModelRouting('vertexai'),
         defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
-        endpointConfigs: {
+        endpointConfigs: registryEndpointConfigs('vertexai', {
           [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: {
             baseUrl: 'https://us-central1-aiplatform.googleapis.com/v1',
             adapterFamily: 'google-vertex-anthropic'
           }
-        }
+        })
       })
       const model = makeModel({
         id: 'vertex::claude-3-7-sonnet',
@@ -203,14 +201,13 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
-        modelRouting: registryModelRouting('vertexai'),
         defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-        endpointConfigs: {
+        endpointConfigs: registryEndpointConfigs('vertexai', {
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
             baseUrl: 'https://us-central1-aiplatform.googleapis.com/v1',
             adapterFamily: 'google-vertex'
           }
-        }
+        })
       })
       const model = makeModel({
         id: 'vertex::gemini-2.0-flash',
@@ -243,14 +240,13 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
-        modelRouting: registryModelRouting('vertexai'),
         defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-        endpointConfigs: {
+        endpointConfigs: registryEndpointConfigs('vertexai', {
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
             baseUrl: 'https://us-central1-aiplatform.googleapis.com/v1',
             adapterFamily: 'google-vertex'
           }
-        }
+        })
       })
       const model = makeModel({
         id: 'vertex::gemini-2.0-flash',
@@ -274,14 +270,13 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
-        modelRouting: registryModelRouting('vertexai'),
         defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-        endpointConfigs: {
+        endpointConfigs: registryEndpointConfigs('vertexai', {
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
             // No baseUrl — the common case for a standard Vertex provider.
             adapterFamily: 'google-vertex'
           }
-        }
+        })
       })
       const model = makeModel({
         id: 'vertex::gemini-2.0-flash',
@@ -309,11 +304,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
         const provider = makeProvider({
           id: 'vertex',
           authType: 'iam-gcp',
-          modelRouting: registryModelRouting('vertexai'),
           defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-          endpointConfigs: {
+          endpointConfigs: registryEndpointConfigs('vertexai', {
             [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' }
-          }
+          })
         })
         const model = makeModel({
           id: `vertex::${apiModelId}`,
@@ -343,11 +337,10 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
-        modelRouting: registryModelRouting('vertexai'),
         defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-        endpointConfigs: {
+        endpointConfigs: registryEndpointConfigs('vertexai', {
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'google-vertex' }
-        }
+        })
       })
       const model = makeModel({ id: `vertex::${apiModelId}`, apiModelId })
 
@@ -361,14 +354,13 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'vertex',
         authType: 'iam-gcp',
-        modelRouting: registryModelRouting('vertexai'),
         defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
-        endpointConfigs: {
+        endpointConfigs: registryEndpointConfigs('vertexai', {
           [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
             baseUrl: 'https://us-central1-aiplatform.googleapis.com/v1',
             adapterFamily: 'google-vertex'
           }
-        }
+        })
       })
       const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT] })
 
@@ -449,16 +441,15 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
   describe('Azure routing (iam-azure → buildAzureConfig)', () => {
     it('routes an Azure provider with a Claude model id to azure-anthropic', async () => {
       // Azure rows carry no endpointTypes (its listing has no `supported_endpoint_types`), so the
-      // registry's `modelRouting` is what puts Claude on the anthropic surface.
+      // registry endpoint's `serves` claim is what puts Claude on the anthropic surface.
       const provider = makeProvider({
         id: 'azure-openai',
         authType: 'iam-azure',
-        modelRouting: registryModelRouting('azure-openai'),
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        endpointConfigs: {
+        endpointConfigs: registryEndpointConfigs('azure-openai', {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://myres.openai.azure.com' },
           [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'azure-anthropic' }
-        }
+        })
       })
       const model = makeModel({
         id: 'azure::claude',
@@ -1004,9 +995,8 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'my-dmxapi',
         presetProviderId: 'dmxapi',
-        modelRouting: registryModelRouting('dmxapi'),
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        endpointConfigs: {
+        endpointConfigs: registryEndpointConfigs('dmxapi', {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
             baseUrl: 'https://chat.dmx.example',
             adapterFamily: 'dmxapi'
@@ -1015,7 +1005,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
             baseUrl: 'https://gemini.dmx.example/custom/v1beta/',
             adapterFamily: 'dmxapi'
           }
-        }
+        })
       })
       const model = makeModel({
         id: 'my-dmxapi::gemini-2.5-pro',
@@ -1038,9 +1028,8 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       const provider = makeProvider({
         id: 'my-aihubmix',
         presetProviderId: 'aihubmix',
-        modelRouting: registryModelRouting('aihubmix'),
         defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        endpointConfigs: {
+        endpointConfigs: registryEndpointConfigs('aihubmix', {
           [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
             baseUrl: 'https://chat.aihubmix.example/v1',
             adapterFamily: 'aihubmix'
@@ -1057,7 +1046,7 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
             baseUrl: 'https://gemini.aihubmix.example/custom/v1beta',
             adapterFamily: 'aihubmix'
           }
-        }
+        })
       })
       const model = makeModel({
         id: 'my-aihubmix::gemini-2.5-flash',

@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import type { ProviderModelRoute } from '@cherrystudio/provider-registry'
+import type { EndpointDispatchConfig } from '@cherrystudio/provider-registry'
+import type { EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig, Provider } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
 
@@ -38,13 +39,24 @@ const providersPath = join(
 )
 
 /**
- * A gateway's shipped `modelRouting` table. Per-model endpoint dispatch is registry data that
- * `ProviderService` carries onto the provider row, so tests read the same declaration production
- * runs on instead of a hand-copied fixture.
+ * A gateway's shipped endpoint configs — each carries the ids it `serves`. Per-model dispatch is
+ * registry data that `ProviderService` carries onto the provider row, so tests read the same
+ * declaration production runs on instead of a hand-copied fixture.
  */
-export function registryModelRouting(providerId: string): ProviderModelRoute[] | undefined {
+export function registryEndpointConfigs<T extends Record<string, unknown>>(
+  providerId: string,
+  /** Per-endpoint row overrides, merged FIELD-WISE as `ProviderService` does — a custom baseUrl must
+   *  not drop the registry's `serves` claim for that endpoint. */
+  overrides?: Partial<Record<EndpointType, T>>
+): Partial<Record<EndpointType, EndpointDispatchConfig>> | undefined {
   const { providers } = JSON.parse(readFileSync(providersPath, 'utf8')) as {
-    providers: Array<{ id: string; modelRouting?: ProviderModelRoute[] }>
+    providers: Array<{ id: string; endpointConfigs?: Partial<Record<EndpointType, EndpointDispatchConfig>> }>
   }
-  return providers.find((provider) => provider.id === providerId)?.modelRouting
+  const shipped = providers.find((provider) => provider.id === providerId)?.endpointConfigs
+  if (!overrides) return shipped
+  const merged: Record<string, unknown> = { ...shipped }
+  for (const [endpointType, override] of Object.entries(overrides)) {
+    merged[endpointType] = { ...(shipped?.[endpointType as EndpointType] ?? {}), ...override }
+  }
+  return merged as Partial<Record<EndpointType, EndpointDispatchConfig>>
 }

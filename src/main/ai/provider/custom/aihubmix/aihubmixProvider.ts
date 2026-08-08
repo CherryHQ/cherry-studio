@@ -16,7 +16,7 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, Reran
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
-import { type ProviderModelRoute, resolveProviderModelRoute } from '@cherrystudio/provider-registry'
+import { type EndpointDispatchConfig, resolveProviderModelRoute } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 
 import { createAihubmixImageModel } from './aihubmixImageModel'
@@ -31,8 +31,11 @@ export interface AihubmixProviderSettings {
   endpointBaseURLs?: Partial<Record<EndpointType, string>>
   headers?: Record<string, string>
   fetch?: FetchFunction
-  /** Registry per-model endpoint dispatch (`ProviderConfig.modelRouting`), injected by `config.ts`. */
-  modelRouting?: ProviderModelRoute[]
+  /**
+   * Registry endpoint configs, injected by `config.ts`. Each declares the ids it `serves`, which is
+   * what picks the backend below.
+   */
+  endpointConfigs?: Partial<Record<EndpointType, EndpointDispatchConfig>>
 }
 
 export interface AihubmixProvider extends ProviderV3 {
@@ -125,7 +128,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
     })
 
   const createChatModel = (modelId: string): LanguageModelV3 => {
-    switch (resolveAihubmixChatFamily(resolveProviderModelRoute(options.modelRouting, modelId))) {
+    switch (resolveAihubmixChatFamily(resolveProviderModelRoute(options.endpointConfigs, modelId))) {
       case 'anthropic':
         return createAnthropicModel(modelId)
       case 'gemini':

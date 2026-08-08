@@ -6,7 +6,7 @@ import { ENDPOINT_TYPE, type EndpointType, MODEL_CAPABILITY, SERVER_TOOL } from 
 import type { StopCondition, Tool, ToolSet } from 'ai'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { makeAssistant, makeModel, makeProvider, registryModelRouting } from '../../../../__tests__/fixtures'
+import { makeAssistant, makeModel, makeProvider, registryEndpointConfigs } from '../../../../__tests__/fixtures'
 import type * as ResolveRequestContextSettingsModule from '../../../../contextBuild/resolveRequestContextSettings'
 import type { RequestContext } from '../../../../tools/adapters/aiSdk/context'
 import { registry } from '../../../../tools/adapters/aiSdk/registry'
@@ -782,11 +782,10 @@ describe('buildAgentParams assistant-less reasoning', () => {
     const provider = makeProvider({
       id: 'aihubmix',
       defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-      // Gemini ids reach the Google endpoint through the registry routing table.
-      modelRouting: registryModelRouting('aihubmix'),
+      // Gemini ids reach the Google endpoint through that endpoint's registry `serves` claim.
       endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'aihubmix' },
-        [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { adapterFamily: 'aihubmix' }
+        ...registryEndpointConfigs('aihubmix'),
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'aihubmix' }
       }
     })
     const model = makeModel({

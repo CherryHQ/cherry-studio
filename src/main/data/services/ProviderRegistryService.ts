@@ -20,7 +20,6 @@ import type {
   ProtoProviderModelOverride,
   ProtoReasoningSupport,
   ProviderModelReasoningContract,
-  ProviderModelRoute,
   ProviderReasoningFormat,
   ReasoningEffort as ReasoningEffortType,
   ReasoningFormatType,
@@ -33,6 +32,7 @@ import {
   buildPersistedEndpointConfigs,
   deriveLegacyReasoningFields,
   ENDPOINT_TYPE,
+  type EndpointDispatchConfig,
   inferAdapterFamily,
   inferReasoningControls,
   inferReasoningMembership,
@@ -91,7 +91,6 @@ export interface ProviderDisplayMetadata {
   /** Registry default chat endpoint, used when the row stores no override. */
   defaultChatEndpoint?: EndpointType
   /** Registry per-model endpoint dispatch, for gateways that serve each model on its vendor's endpoint. */
-  modelRouting?: ProviderModelRoute[]
 }
 
 /**
@@ -575,7 +574,7 @@ function isChatReasoningEndpointType(endpointType: EndpointType): boolean {
  */
 function resolveReasoningEndpointType(input: {
   endpointTypes?: EndpointType[]
-  modelRouting?: ProviderModelRoute[]
+  endpointConfigs?: Partial<Record<EndpointType, EndpointDispatchConfig>>
   modelId?: string
   defaultChatEndpoint?: EndpointType
 }): EndpointType | undefined {
@@ -699,8 +698,7 @@ class ProviderRegistryService {
         reportedCostCurrency: provider?.reportedCostCurrency,
         fastMode: provider?.fastMode,
         apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,
-        defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined,
-        modelRouting: provider?.modelRouting
+        defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })
@@ -754,6 +752,10 @@ class ProviderRegistryService {
         const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
         if (baseUrl !== undefined) config.baseUrl = baseUrl
         if (presetConfig?.modelsApiUrls !== undefined) config.modelsApiUrls = presetConfig.modelsApiUrls
+        // Registry-owned dispatch: which ids this endpoint claims, and the namespace its SDK class
+        // reads. Both belong to the CURRENT registry — a row never overrides them.
+        if (presetConfig?.serves !== undefined) config.serves = presetConfig.serves
+        if (presetConfig?.providerOptionsKey !== undefined) config.providerOptionsKey = presetConfig.providerOptionsKey
         merged[ep] = config
       }
       return Object.keys(merged).length > 0 ? merged : null
@@ -832,7 +834,7 @@ class ProviderRegistryService {
     const profileProvider = this.findProfileProvider(context)
     const endpointType = resolveReasoningEndpointType({
       endpointTypes: registryOverride?.endpointTypes,
-      modelRouting: profileProvider?.modelRouting,
+      endpointConfigs: profileProvider?.endpointConfigs,
       modelId: registryOverride?.apiModelId ?? fallbackModelId,
       defaultChatEndpoint: context.defaultChatEndpoint ?? profileProvider?.defaultChatEndpoint ?? undefined
     })
@@ -864,7 +866,7 @@ class ProviderRegistryService {
       endpointType ??
       resolveReasoningEndpointType({
         endpointTypes: model.endpointTypes,
-        modelRouting: profileProvider?.modelRouting,
+        endpointConfigs: profileProvider?.endpointConfigs,
         modelId: model.apiModelId ?? undefined,
         defaultChatEndpoint: provider.defaultChatEndpoint
       })

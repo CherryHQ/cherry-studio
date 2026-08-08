@@ -1,11 +1,11 @@
 import type { LanguageModelV3CallOptions } from '@ai-sdk/provider'
 import { describe, expect, it } from 'vitest'
 
-import { registryModelRouting } from '../../../../__tests__/fixtures'
+import { registryEndpointConfigs } from '../../../../__tests__/fixtures'
 import { createAihubmix } from '../../aihubmix/aihubmixProvider'
 import { captureWithFetch } from './captureRequest'
 
-const MODEL_ROUTING = registryModelRouting('aihubmix')
+const ENDPOINT_CONFIGS = registryEndpointConfigs('aihubmix')
 
 /**
  * AiHubMix → Anthropic tool-schema boundary.
@@ -44,7 +44,7 @@ function urlsSchemaFrom(body: unknown): Record<string, unknown> {
 describe('AiHubMix → Anthropic tool-schema boundary (patched @ai-sdk/anthropic)', () => {
   it('strips array maxItems/minItems from tool input_schema and folds them into description', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ modelRouting: MODEL_ROUTING, apiKey: 'sk', fetch })
+      createAihubmix({ endpointConfigs: ENDPOINT_CONFIGS, apiKey: 'sk', fetch })
         .languageModel('claude-sonnet-4-6')
         .doStream(
           callOptionsWithToolSchema({
@@ -69,7 +69,7 @@ describe('AiHubMix → Anthropic tool-schema boundary (patched @ai-sdk/anthropic
 
   it('strips string min/maxLength too', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ modelRouting: MODEL_ROUTING, apiKey: 'sk', fetch })
+      createAihubmix({ endpointConfigs: ENDPOINT_CONFIGS, apiKey: 'sk', fetch })
         .languageModel('claude-sonnet-4-6')
         .doStream(
           callOptionsWithToolSchema({
@@ -95,7 +95,7 @@ describe('AiHubMix → Anthropic tool-schema boundary (patched @ai-sdk/anthropic
   // does not allow ..." → 400). It must preserve an explicit `additionalProperties:true`.
   it('preserves an explicit additionalProperties:true on a nested object while defaulting others closed', async () => {
     const req = await captureWithFetch((fetch) =>
-      createAihubmix({ modelRouting: MODEL_ROUTING, apiKey: 'sk', fetch })
+      createAihubmix({ endpointConfigs: ENDPOINT_CONFIGS, apiKey: 'sk', fetch })
         .languageModel('claude-sonnet-4-6')
         .doStream(
           callOptionsWithToolSchema({

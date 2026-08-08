@@ -52,6 +52,8 @@ export interface PersistedEndpointConfig {
   baseUrl?: string
   modelsApiUrls?: { default?: string; embedding?: string; image?: string; reranker?: string }
   adapterFamily?: string
+  serves?: { pattern: string; except?: string }
+  providerOptionsKey?: string
 }
 
 /**
@@ -72,6 +74,10 @@ export function buildPersistedEndpointConfigs(
     if (regConfig.baseUrl) config.baseUrl = regConfig.baseUrl
     if (regConfig.modelsApiUrls) config.modelsApiUrls = regConfig.modelsApiUrls
     if (regConfig.adapterFamily) config.adapterFamily = regConfig.adapterFamily
+    // Per-model dispatch travels with the endpoint that declares it — dropping it here is what
+    // silently demoted every routed model to `defaultChatEndpoint`.
+    if (regConfig.serves) config.serves = regConfig.serves
+    if (regConfig.providerOptionsKey) config.providerOptionsKey = regConfig.providerOptionsKey
 
     if (Object.keys(config).length > 0) configs[k] = config
   }

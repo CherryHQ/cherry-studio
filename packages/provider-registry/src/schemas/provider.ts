@@ -134,28 +134,50 @@ export const RegistryEndpointConfigSchema = z.object({
    * registered in `appProviderIds`. Resolvers should prefer this over
    * heuristic id/baseUrl inference when present.
    */
-  adapterFamily: z.string().optional()
-})
-
-/**
- * One dispatch rule of a gateway's per-model endpoint routing. Rules are ordered
- * and the FIRST whose `pattern` matches (and whose `exclude` does not) wins; a
- * model matching nothing falls back to the provider's `defaultChatEndpoint`.
- */
-export const ProviderModelRouteSchema = z.object({
-  /** Case-insensitive regex tested against the RAW api model id. */
-  pattern: z.string(),
-  /** Ids the rule must NOT claim — vendor prefixes shared with image/tts SKUs. */
-  exclude: z.string().optional(),
-  /** Wire endpoint the gateway serves matching models on. */
-  endpointType: EndpointTypeSchema,
+  adapterFamily: z.string().optional(),
   /**
-   * ONLY when the namespace `resolveProviderOptionsKey` derives from the endpoint is wrong.
-   * The namespace follows the AI SDK class, which follows the provider's `adapterFamily` — the
-   * same anthropic backend reads `anthropic` under AiHubMix and `vertex` under Vertex, so it is
-   * not a property of the route. The lone exception is a gateway that hands some chat-completions
-   * models to a VENDOR class instead of its own compatible one (AiHubMix/DMXAPI's OpenAI SKUs
-   * read `openai` while the passthrough line reads the provider id).
+   * The models this host serves HERE rather than on its default chat endpoint —
+   * the per-model dispatch of a multi-backend gateway (AiHubMix, DMXAPI, Vertex,
+   * Azure), which fronts several vendors' native protocols behind one
+   * registration. Absent ⇒ the endpoint claims nothing and is reached only by a
+   * model's own `endpointTypes` or as `defaultChatEndpoint`.
+   *
+   * Which endpoint serves which models is genuinely per-provider — OpenRouter
+   * normalizes Claude onto chat-completions while AiHubMix proxies it to
+   * Anthropic's own protocol — so the claim lives on the endpoint making it,
+   * next to its `baseUrl` and `adapterFamily`. An endpoint the provider does not
+   * declare therefore cannot claim anything, which is what keeps a routed model
+   * off a nonexistent backend (#17900).
+   *
+   * The predicate is PROTOCOL MEMBERSHIP, not vendor identity, and the two are
+   * not the same set: `^(?:gemini|imagen)` deliberately excludes Gemma, Veo and
+   * Lyria, which Google also makes but does not serve over `generateContent`.
+   * Matching on the creator instead (`ownedBy`) routes all 16 of them to the
+   * wrong backend. It runs off the id because a gateway's `/models` list carries
+   * no `supported_endpoint_types` and user-added ids never pass through one.
+   */
+  serves: z
+    .object({
+      /** Case-insensitive regex tested against the RAW api model id. */
+      pattern: z.string(),
+      /**
+       * Ids the claim must NOT take — sibling SKUs sharing the prefix but not the
+       * protocol (Gemini's `-no-think` / `-search` / embedding variants, the
+       * OpenAI models with no Responses support). They fall through to
+       * `defaultChatEndpoint`. Prefer a model's own `endpointTypes` override when
+       * the id is in the catalog; this is for shapes that must also hold for ids
+       * the catalog never saw.
+       */
+      except: z.string().optional()
+    })
+    .optional(),
+  /**
+   * ONLY when the namespace `resolveProviderOptionsKey` derives from this endpoint is wrong.
+   * The namespace follows the AI SDK class, which follows `adapterFamily` — the same anthropic
+   * backend reads `anthropic` under AiHubMix and `vertex` under Vertex. The lone exception is a
+   * gateway that hands some chat-completions models to a VENDOR class instead of its own
+   * compatible one (AiHubMix/DMXAPI's OpenAI SKUs read `openai` while the passthrough line reads
+   * the provider id).
    */
   providerOptionsKey: z.string().optional()
 })
@@ -223,14 +245,6 @@ export const ProviderConfigSchema = z
     reportedCostCurrency: ZodCurrencySchema,
     /** Provider-owned Fast request transport. Effective support is declared per provider-model pair. */
     fastMode: z.object({ transport: FastModeTransportSchema }).optional(),
-    /**
-     * Per-model endpoint dispatch for multi-backend gateways (AiHubMix, DMXAPI):
-     * one registered provider that serves a model on the VENDOR's native endpoint,
-     * chosen by the model id. Their `/models` lists carry no
-     * `supported_endpoint_types` and user-added ids never pass through one, so the
-     * rule has to run off the id — see {@link resolveProviderModelRoute}.
-     */
-    modelRouting: z.array(ProviderModelRouteSchema).optional(),
     /** Additional metadata including website URLs */
     metadata: MetadataSchema.and(ProviderWebsiteSchema)
   })
@@ -255,6 +269,5 @@ export { ENDPOINT_TYPE } from './enums'
 export type ApiFeatures = z.infer<typeof ApiFeaturesSchema>
 export type ProviderReasoningFormat = z.infer<typeof ProviderReasoningFormatSchema>
 export type RegistryEndpointConfig = z.infer<typeof RegistryEndpointConfigSchema>
-export type ProviderModelRoute = z.infer<typeof ProviderModelRouteSchema>
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>
 export type ProviderList = z.infer<typeof ProviderListSchema>
