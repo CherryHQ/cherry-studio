@@ -10,6 +10,7 @@ import {
   ListResourcesRequestSchema,
   ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
+  type Progress,
   type Prompt as SdkPrompt,
   ReadResourceRequestSchema,
   type ReadResourceResult,
@@ -143,13 +144,27 @@ export function createMcpBridgeServer(mcpId: string, serverSnapshot?: McpServerE
     }
   })
 
-  rawServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+  rawServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+    // Relay upstream progress only when the client asked for it — the protocol keys
+    // progress notifications to the token it supplied, so without one there is nothing
+    // to address them to.
+    const progressToken = request.params._meta?.progressToken
+    const onProgress =
+      progressToken === undefined
+        ? undefined
+        : (progress: Progress) => {
+            extra
+              .sendNotification({ method: 'notifications/progress', params: { ...progress, progressToken } })
+              .catch((error) => logger.debug('MCP bridge: progress notification dropped', { mcpId, error }))
+          }
+
     try {
       logger.debug('MCP bridge: calling tool', { mcpId, tool: request.params.name })
       const result = await application.get('McpRuntimeService').callTool({
         serverId: serverConfig.id,
         name: request.params.name,
-        args: request.params.arguments
+        args: request.params.arguments,
+        onProgress
       })
       return result as CallToolResult
     } catch (error) {
