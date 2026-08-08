@@ -88,6 +88,7 @@ vi.mock('../streamAdapter', async (importActual) => {
       readonly finalizeOpenParts = vi.fn()
       // Mirrors the real adapter: session-scoped, content only flows inside a turn.
       private turnActive = false
+      private turnHasActivity = false
       private autonomous = false
       private pendingInit: any
 
@@ -99,7 +100,12 @@ vi.mock('../streamAdapter', async (importActual) => {
         return this.turnActive
       }
 
+      get hasTurnActivity() {
+        return this.turnHasActivity
+      }
+
       beginTurn() {
+        this.turnHasActivity = false
         this.turnActive = true
         if (this.pendingInit) {
           this.pendingInit = undefined
@@ -107,15 +113,20 @@ vi.mock('../streamAdapter', async (importActual) => {
         }
       }
 
+      private enqueue(chunk: any) {
+        if (chunk.type !== 'message-metadata') this.turnHasActivity = true
+        this.options.sink.enqueue(chunk)
+      }
+
       private emitInitMetadata() {
-        this.options.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
+        this.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
       }
 
       handleTruncationError(error: any) {
         if (!String(error?.message ?? '').includes('truncat')) return false
         this.turnActive = false
-        this.options.sink.enqueue({ type: 'text-delta', id: 'salvaged', delta: ' [truncated]' })
-        this.options.sink.enqueue({ type: 'finish', finishReason: { unified: 'length', raw: 'truncation' } })
+        this.enqueue({ type: 'text-delta', id: 'salvaged', delta: ' [truncated]' })
+        this.enqueue({ type: 'finish', finishReason: { unified: 'length', raw: 'truncation' } })
         return true
       }
 
@@ -210,21 +221,22 @@ vi.mock('../streamAdapter', async (importActual) => {
           return { type: 'continue' }
         }
         if (message.type === 'stream_event') {
-          this.options.sink.enqueue({ type: 'text-delta', id: 'text-1', delta: 'hello' })
+          this.enqueue({ type: 'text-delta', id: 'text-1', delta: 'hello' })
           return { type: 'continue' }
         }
         if (message.type === 'result') {
           this.options.onSessionId(message.session_id)
-          this.options.sink.enqueue({ type: 'finish', finishReason: { unified: 'stop', raw: 'end_turn' } })
           if (message.subtype !== 'success') {
-            // Mirrors the real adapter: a typed ClaudeCodeResultError, thrown before the turn flag
+            // Mirrors the real adapter: errors flush usage metadata, then throw before the turn flag
             // flips (the real flip happens after handleResultMessage returns, which a throw skips).
+            this.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
             throw new actualStreamAdapter.ClaudeCodeResultError(
               message.errors?.join('; ') || 'runtime failed',
               message.subtype,
               message.errors ?? []
             )
           }
+          this.enqueue({ type: 'finish', finishReason: { unified: 'stop', raw: 'end_turn' } })
           this.turnActive = false
           if (this.autonomous) {
             this.autonomous = false
@@ -2620,6 +2632,171 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('recovers corrupt resumed tool history before any non-metadata activity', async () => {
+    const corruptQueue = createAsyncQueue<any>()
+    const freshQueue = createAsyncQueue<any>()
+    const corruptQuery = { ...corruptQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet', resume: 'corrupt-token' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    mocks.createClaudeQuery.mockReturnValueOnce(corruptQuery).mockReturnValueOnce(freshQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'corrupt-token'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    corruptQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'corrupt-token',
+      usage: {},
+      errors: ['messages.2.content.1: `tool_use` ids must be unique']
+    })
+
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
+    expect(retrySpawn.options).toMatchObject({ model: 'sonnet', resume: undefined, spawnClaudeCodeProcess })
+    await expect(retrySpawn.prompt[Symbol.asyncIterator]().next()).resolves.toMatchObject({
+      value: { type: 'user', session_id: '' },
+      done: false
+    })
+
+    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'fresh-duplicate-recovery' })
+    freshQueue.push({ type: 'result', subtype: 'success', session_id: 'fresh-duplicate-recovery', usage: {} })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      seen.push(next.value)
+      if (next.value?.type === 'turn-complete' || next.done) break
+    }
+    expect(seen.map((event) => event?.type)).not.toContain('error')
+    expect(seen).toContainEqual(expect.objectContaining({ type: 'resume-token', token: 'fresh-duplicate-recovery' }))
+    expect(seen).toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
+    )
+    expect(seen).toContainEqual({ type: 'turn-complete' })
+    void connection.close()
+  })
+
+  it('does not replay corrupt tool history after the turn emitted non-metadata activity', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'corrupt-token'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({ type: 'stream_event', event: {}, session_id: 'corrupt-token' })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'text-delta', delta: 'hello' } }
+    })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'corrupt-token',
+      usage: {},
+      errors: ['tool_use ids must be unique']
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'message-metadata' } }
+    })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'error' } })
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('does not recover duplicate tool ids when no resume token exists', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'new-session',
+      usage: {},
+      errors: ['tool_use ids must be unique']
+    })
+
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token', token: 'new-session' } })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'message-metadata' } }
+    })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'error' } })
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('shares one recovery budget across stale and duplicate resume failures', async () => {
+    const staleQueue = createAsyncQueue<any>()
+    const corruptQueue = createAsyncQueue<any>()
+    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const corruptQuery = { ...corruptQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(corruptQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'stale-token'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    staleQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'stale-token',
+      usage: {},
+      errors: ['No conversation found with session ID: stale-token']
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+
+    corruptQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'fresh-corrupt-session',
+      usage: {},
+      errors: ['`tool_use` ids must be unique']
+    })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      seen.push(next.value)
+      if (next.value?.type === 'error' || next.done) break
+    }
+    expect(seen.map((event) => event?.type)).toContain('error')
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2)
+    void connection.close()
+  })
+
   it('surfaces the error normally when the retry without a resume token also fails', async () => {
     const staleQueue = createAsyncQueue<any>()
     const freshQueue = createAsyncQueue<any>()
@@ -2676,7 +2853,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     queryQueue.push({ type: 'result', subtype: 'error_during_execution', session_id: 'resume-init', usage: {} })
 
-    await expect(events.next()).resolves.toMatchObject({ value: { type: 'chunk', chunk: { type: 'finish' } } })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'message-metadata' } }
+    })
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'error' } })
     expect(mockMainLoggerService.error).toHaveBeenCalledWith(
       'Claude Code query loop failed',
