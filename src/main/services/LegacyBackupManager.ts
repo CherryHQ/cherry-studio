@@ -60,6 +60,14 @@ const BACKUP_OPERATION_DIR_PATTERN =
   /^(?:create|lan-create|extract|webdav-download|s3-download)-[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i
 const BACKUP_TEMP_ARCHIVE_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}-.+\.zip$/i
 
+const isSkippableLevelDbLockError = (sourcePath: string, error: unknown): error is NodeJS.ErrnoException => {
+  const parentDirectory = path.basename(path.dirname(sourcePath)).toLowerCase()
+  const isLevelDbDirectory = parentDirectory === 'leveldb' || parentDirectory.endsWith('.leveldb')
+  if (path.basename(sourcePath) !== 'LOCK' || !isLevelDbDirectory || !(error instanceof Error)) return false
+  const nodeError = error as NodeJS.ErrnoException
+  return nodeError.code === 'EBUSY' || nodeError.errno === -4082
+}
+
 interface DirectBackupMetadata {
   version: number
   timestamp: number
@@ -1729,7 +1737,15 @@ class BackupManager {
                 })
                 await fs.chmod(destPath, entry.stats.mode)
               } catch (error) {
-                await fs.remove(destPath).catch(() => {})
+                try {
+                  await fs.remove(destPath)
+                } catch {
+                  throw error
+                }
+                if (isSkippableLevelDbLockError(sourcePath, error)) {
+                  logger.warn('[BackupManager] Skipping locked file', { path: sourcePath })
+                  continue
+                }
                 throw error
               }
             } else if (entry.isSymlink) {
@@ -1737,11 +1753,11 @@ class BackupManager {
             } else {
               try {
                 await fs.copy(sourcePath, destPath)
-              } catch (copyError: any) {
+              } catch (copyError) {
                 // Skip files that are locked by another process (e.g., LevelDB LOCK file
                 // in Local Storage held by the renderer). These files are not needed for
                 // backup integrity and will be recreated on restore if needed.
-                if (copyError?.code === 'EBUSY' || copyError?.errno === -4082) {
+                if (isSkippableLevelDbLockError(sourcePath, copyError)) {
                   logger.warn('[BackupManager] Skipping locked file', { path: sourcePath })
                   continue
                 }

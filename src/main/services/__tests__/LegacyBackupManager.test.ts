@@ -1281,6 +1281,29 @@ describe('BackupManager direct v2 data compatibility', () => {
 describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
   let backupManager: BackupManager
 
+  const createBusyFileError = () =>
+    Object.assign(new Error('resource busy or locked, read'), {
+      code: 'EBUSY',
+      errno: -4082
+    })
+
+  const mockAutomaticCopyError = (error: Error) => {
+    vi.mocked(fs.createReadStream).mockReturnValue(
+      new Readable({
+        read() {
+          this.destroy(error)
+        }
+      }) as never
+    )
+    vi.mocked(fs.createWriteStream).mockReturnValue(
+      new Writable({
+        write(_chunk, _encoding, callback) {
+          callback()
+        }
+      }) as never
+    )
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     backupManager = new BackupManager()
@@ -1439,6 +1462,125 @@ describe('BackupManager.copyDirWithProgress - Symlink Handling', () => {
     expect(fs.remove).toHaveBeenCalledWith('/dest/large.bin')
     expect(fs.chmod).not.toHaveBeenCalled()
     expect(onProgress).not.toHaveBeenCalled()
+  })
+
+  it.each(['leveldb', 'indexeddb.leveldb'])(
+    'should skip a locked file in %s during an automatic backup copy',
+    async (parentDirectory) => {
+      const lockedFileError = createBusyFileError()
+      const sourceDirectory = `/src/${parentDirectory}`
+      const destinationDirectory = `/dest/${parentDirectory}`
+      const onProgress = vi.fn()
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+      mockAutomaticCopyError(lockedFileError)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress(sourceDirectory, destinationDirectory, onProgress, {
+          dereferenceSymlinks: false,
+          signal: new AbortController().signal
+        })
+      ).resolves.toBeUndefined()
+
+      expect(fs.remove).toHaveBeenCalledWith(`${destinationDirectory}/LOCK`)
+      expect(onProgress).not.toHaveBeenCalled()
+      expect(mockLogger.warn).toHaveBeenCalledWith('[BackupManager] Skipping locked file', {
+        path: `${sourceDirectory}/LOCK`
+      })
+    }
+  )
+
+  it('should reject a locked file error when removing the partial automatic backup copy fails', async () => {
+    const lockedFileError = createBusyFileError()
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+    vi.mocked(fs.remove).mockRejectedValueOnce(new Error('cleanup failed') as never)
+    mockAutomaticCopyError(lockedFileError)
+
+    await expect(
+      (backupManager as any).copyDirWithProgress('/src/leveldb', '/dest/leveldb', vi.fn(), {
+        dereferenceSymlinks: false,
+        signal: new AbortController().signal
+      })
+    ).rejects.toBe(lockedFileError)
+
+    expect(mockLogger.warn).not.toHaveBeenCalledWith(
+      '[BackupManager] Skipping locked file',
+      expect.objectContaining({ path: '/src/leveldb/LOCK' })
+    )
+  })
+
+  it.each(['.claude', 'notleveldb'])(
+    'should reject EBUSY for a LOCK file in non-LevelDB directory %s during an automatic backup copy',
+    async (parentDirectory) => {
+      const busyFileError = createBusyFileError()
+      const sourceDirectory = `/src/${parentDirectory}`
+      const destinationDirectory = `/dest/${parentDirectory}`
+      vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+      vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+      mockAutomaticCopyError(busyFileError)
+
+      await expect(
+        (backupManager as any).copyDirWithProgress(sourceDirectory, destinationDirectory, vi.fn(), {
+          dereferenceSymlinks: false,
+          signal: new AbortController().signal
+        })
+      ).rejects.toBe(busyFileError)
+
+      expect(fs.remove).toHaveBeenCalledWith(`${destinationDirectory}/LOCK`)
+    }
+  )
+
+  it('should skip a LevelDB LOCK file during a backup copy without a signal', async () => {
+    const lockedFileError = createBusyFileError()
+    const onProgress = vi.fn()
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+    vi.mocked(fs.copy).mockRejectedValueOnce(lockedFileError as never)
+
+    await expect(
+      (backupManager as any).copyDirWithProgress('/src/leveldb', '/dest/leveldb', onProgress, {
+        dereferenceSymlinks: false
+      })
+    ).resolves.toBeUndefined()
+
+    expect(onProgress).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith('[BackupManager] Skipping locked file', {
+      path: '/src/leveldb/LOCK'
+    })
+  })
+
+  it('should reject EBUSY for a non-LevelDB LOCK file during a backup copy without a signal', async () => {
+    const busyFileError = createBusyFileError()
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('LOCK')] as never)
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 0) as never)
+    vi.mocked(fs.copy).mockRejectedValueOnce(busyFileError as never)
+
+    await expect(
+      (backupManager as any).copyDirWithProgress('/src/.claude', '/dest/.claude', vi.fn(), {
+        dereferenceSymlinks: false
+      })
+    ).rejects.toBe(busyFileError)
+  })
+
+  it('should reject EBUSY for a non-lock file during an automatic backup copy', async () => {
+    const busyFileError = createBusyFileError()
+    vi.mocked(fs.readdir).mockResolvedValue([createDirent('messages.json')] as never)
+    vi.mocked(fs.lstat).mockResolvedValue(createStats('file', 42) as never)
+    mockAutomaticCopyError(busyFileError)
+
+    await expect(
+      (backupManager as any).copyDirWithProgress('/src', '/dest', vi.fn(), {
+        dereferenceSymlinks: false,
+        signal: new AbortController().signal
+      })
+    ).rejects.toBe(busyFileError)
+
+    expect(fs.remove).toHaveBeenCalledWith('/dest/messages.json')
+    expect(mockLogger.warn).not.toHaveBeenCalledWith(
+      '[BackupManager] Skipping locked file',
+      expect.objectContaining({ path: '/src/messages.json' })
+    )
   })
 
   it('should skip symlinks during restore copy', async () => {
