@@ -1664,15 +1664,38 @@ export async function importLegacySessionMessages(
  * legacy agent id, which that step rewrites alongside `agent.id`.
  */
 export function migrateAgentMcps(db: DbType, mcpServerIdMapping: Map<string, string> | undefined): void {
-  const rows = db.all<{ agentId: string; oldMcpId: string }>(
+  const legacyRows = db.all<{ agentId: string; mcps: string | null }>(
     sql.raw(
-      `SELECT DISTINCT a.id AS agentId, je.value AS oldMcpId
-       FROM agents_legacy.agents a, json_each(a.mcps) AS je
-       WHERE json_type(a.mcps) = 'array'
-         AND json_array_length(a.mcps) > 0
-         AND a.id IN (SELECT id FROM agent)`
+      `SELECT a.id AS agentId, a.mcps
+       FROM agents_legacy.agents a
+       WHERE a.id IN (SELECT id FROM agent)`
     )
   )
+  let normalizedAgentCount = 0
+  const rows = legacyRows.flatMap(({ agentId, mcps }) => {
+    if (mcps === null) return []
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(mcps)
+    } catch {
+      normalizedAgentCount++
+      return []
+    }
+
+    if (!Array.isArray(parsed)) {
+      normalizedAgentCount++
+      return []
+    }
+
+    const mcpIds = parsed.filter((mcpId): mcpId is string => typeof mcpId === 'string')
+    if (mcpIds.length !== parsed.length) normalizedAgentCount++
+    return Array.from(new Set(mcpIds), (oldMcpId) => ({ agentId, oldMcpId }))
+  })
+
+  if (normalizedAgentCount > 0) {
+    logger.warn('Normalized invalid legacy agent MCP configuration', { agentCount: normalizedAgentCount })
+  }
   if (rows.length === 0) return
 
   if (!mcpServerIdMapping) {

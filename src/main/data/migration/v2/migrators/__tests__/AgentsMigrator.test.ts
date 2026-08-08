@@ -471,9 +471,8 @@ describe('AgentsMigrator', () => {
   describe('migrateAgentMcps', () => {
     it('remaps legacy mcp ids to new ids and inserts junction rows', async () => {
       const all = vi.fn().mockReturnValue([
-        { agentId: 'agent-1', oldMcpId: 'mcp-a' },
-        { agentId: 'agent-1', oldMcpId: 'mcp-b' },
-        { agentId: 'agent-2', oldMcpId: 'mcp-a' }
+        { agentId: 'agent-1', mcps: JSON.stringify(['mcp-a', 'mcp-b']) },
+        { agentId: 'agent-2', mcps: JSON.stringify(['mcp-a']) }
       ])
       const run = vi.fn()
       const onConflictDoNothing = vi.fn().mockReturnValue({ run })
@@ -504,10 +503,7 @@ describe('AgentsMigrator', () => {
     })
 
     it('drops legacy refs whose id is missing from the mapping', async () => {
-      const all = vi.fn().mockReturnValue([
-        { agentId: 'agent-1', oldMcpId: 'mcp-a' },
-        { agentId: 'agent-1', oldMcpId: 'mcp-gone' }
-      ])
+      const all = vi.fn().mockReturnValue([{ agentId: 'agent-1', mcps: JSON.stringify(['mcp-a', 'mcp-gone']) }])
       const run = vi.fn()
       const onConflictDoNothing = vi.fn().mockReturnValue({ run })
       const valuesFn = vi.fn().mockReturnValue({ onConflictDoNothing })
@@ -535,7 +531,7 @@ describe('AgentsMigrator', () => {
     })
 
     it('throws when rows need remapping but the mapping is absent', async () => {
-      const all = vi.fn().mockReturnValue([{ agentId: 'agent-1', oldMcpId: 'mcp-a' }])
+      const all = vi.fn().mockReturnValue([{ agentId: 'agent-1', mcps: JSON.stringify(['mcp-a']) }])
       const insert = vi.fn()
 
       expect(() => migrateAgentMcps({ all, insert } as never, undefined)).toThrow(/mcpServerIdMapping not found/)
