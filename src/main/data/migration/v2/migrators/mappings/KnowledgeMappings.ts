@@ -472,6 +472,16 @@ const foldPathSegment = (segment: string): string => segment.normalize('NFC').to
  * for an empty input — which the `||` covers. The result is therefore always non-empty and never
  * `.`/`..`/a separator, which is what makes the joined path satisfy
  * `assertSafeKnowledgeRelativePath` by construction (see `expandLegacyDirectoryItem`).
+ *
+ * The native expansion deliberately does not do this: `chooseDirectoryPathPrefix` takes
+ * `path.basename` of a folder that exists on *this* machine and `expandDirectoryNode` reuses the
+ * `treePath` it just walked, so their segments are legal here by construction and sanitizing would
+ * only misname real files. Migration has no such guarantee — a v1 row can
+ * carry a path recorded on another OS (#15733) and there is no local file to check it against — so
+ * it must sanitize, and it is the only guarantor that the emitted path is readable at all. The
+ * asymmetry is visible exactly once: reindexing the container of a folder named `a<b` on POSIX
+ * moves it from the migrated `a_b` to the native `a<b`. Both are valid; see
+ * `README-KnowledgeMigrator.md` → "Directory and Legacy Sitemap Semantics".
  */
 const toSafePathSegment = (segment: string): string => sanitizeFilename(segment) || 'untitled'
 
