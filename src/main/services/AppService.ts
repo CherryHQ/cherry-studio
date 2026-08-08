@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { app } from 'electron'
 import fs from 'fs'
@@ -7,7 +8,19 @@ import path from 'path'
 
 const logger = loggerService.withContext('AppService')
 
-export class AppService {
+@Injectable('AppService')
+@ServicePhase(Phase.WhenReady)
+export class AppService extends BaseService {
+  protected async onInit(): Promise<void> {
+    const preferenceService = application.get('PreferenceService')
+    this.registerDisposable(
+      preferenceService.subscribeChange('app.launch_on_boot', (isLaunchOnBoot) => {
+        void this.setAppLaunchOnBoot(isLaunchOnBoot)
+      })
+    )
+    await this.setAppLaunchOnBoot(preferenceService.get('app.launch_on_boot'))
+  }
+
   public async setAppLaunchOnBoot(isLaunchOnBoot: boolean): Promise<void> {
     // Set login item settings for windows and mac
     // linux is not supported because it requires more file operations
@@ -65,5 +78,3 @@ export class AppService {
     }
   }
 }
-
-export const appService = new AppService()
