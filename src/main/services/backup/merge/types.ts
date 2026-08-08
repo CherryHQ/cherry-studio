@@ -32,6 +32,12 @@ export interface AggregateDecision {
    */
   readonly localCanonicalPrimaryKey?: readonly (string | number)[]
   readonly action: MergeAction
+  /**
+   * Why a 'skip' decision was reached (selected-domain filter, PK conflict, etc.). The write
+   * path uses it to disclose user-visible skips (e.g. a pin whose entity domain is not in this
+   * restore). undefined for non-skip actions or undifferentiated skips.
+   */
+  readonly skipReason?: string
   /** New root uuid for RENAME (renamable uuid-entity, single-column PK only). */
   readonly newRootKey?: string
   /** Resolved target Notes root for a planned note-add overlay. */

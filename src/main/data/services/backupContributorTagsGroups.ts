@@ -90,14 +90,7 @@ export const TAGS_GROUPS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       { table: table('tag'), column: column('color'), strategy: 'remote-fills-local-null' }
     ]
   },
-  // TODO(C/D track): selected-domain filtering for the polymorphic tables (codex
-  // review P2). pin.entityId / entity_tag.entityId point polymorphically (by
-  // entityType) into topics/sessions/knowledge/file/painting. In lite restore —
-  // TAGS_GROUPS included while KNOWLEDGE/FILE_STORAGE/PAINTINGS are excluded — the
-  // importer MUST drop pin/entity_tag rows whose target domain is omitted, else
-  // tags/pins attach to non-existent entities; the entityType→domain mapping must
-  // be exhaustive (a coverage/finalize check, plus selected-domain filtering on
-  // restore). Not a finalize concern; wired with the
-  // C/D restore track.
+  // selected-domain filtering for polymorphic pin/entity_tag is implemented in MergeEngine
+  // (pinEntityMap + entity_tag routing) with association_dropped disclosure (t3).
   operations: undefined
 })

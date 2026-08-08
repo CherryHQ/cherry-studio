@@ -1221,7 +1221,7 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(serialized).not.toContain('k1')
   })
 
-  it('skips pin rows whose polymorphic entityType maps outside selected domains', async () => {
+  it('skips pin rows whose polymorphic entityType maps outside selected domains + discloses', async () => {
     const now = Date.now()
     seedBackup((db) => {
       db.prepare(
@@ -1232,16 +1232,22 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
       ).run('pin-topic', 'topic', 'tpc-1', 'o2', now, now)
     })
 
-    await runMerge({
+    const result = (await runMerge({
       backupDbPath: backupPath,
       // lite-shaped: TOPICS selected, KNOWLEDGE not
       domains: ['TAGS_GROUPS', 'TOPICS'],
       skippedFileEntryIds: new Set<string>(),
       stagedFileEntryIds: new Set<string>()
-    })
+    })) as { degradedToSkips: { kind: string; reason?: string }[] }
 
     expect(dbh.sqlite.prepare(`SELECT id FROM pin WHERE id = 'pin-knowledge'`).get()).toBeUndefined()
     expect(dbh.sqlite.prepare(`SELECT id FROM pin WHERE id = 'pin-topic'`).get()).toBeDefined()
+    // t3: the dropped pin (entity domain not in this restore) is disclosed, mirroring entity_tag.
+    expect(
+      result.degradedToSkips.some(
+        (d) => d.kind === 'association_dropped' && /pin entity type 'knowledge'/.test(d.reason ?? '')
+      )
+    ).toBe(true)
   })
 
   it('SKIPs a uuid-entity root that collides on a secondary UNIQUE (note rootPath,path)', async () => {

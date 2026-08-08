@@ -903,7 +903,8 @@ export class MergeEngine {
                 identity: backupPrimaryKey,
                 backupPrimaryKey,
                 localCanonicalPrimaryKey: undefined,
-                action: 'skip'
+                action: 'skip',
+                skipReason: `pin entity type '${entityType}' maps to a domain not in this restore`
               })
               continue
             }
@@ -1302,6 +1303,16 @@ export class MergeEngine {
               String(decision.backupPrimaryKey[0]),
               String(decision.localCanonicalPrimaryKey[0])
             )
+          }
+          // t3: disclose a skipped row whose reason is user-visible (e.g. a pin whose entity
+          // domain is not in this restore). Mirrors entity_tag's association_dropped disclosure.
+          if (decision.skipReason !== undefined) {
+            degradedToSkips.push({
+              kind: 'association_dropped',
+              table: decision.aggregate.root,
+              count: 1,
+              reason: decision.skipReason
+            })
           }
           continue
         }
