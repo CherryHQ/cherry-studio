@@ -1,8 +1,10 @@
+import { EventEmitter } from 'node:events'
+
 import { BaseService } from '@main/core/lifecycle/BaseService'
 import { ServiceContainer } from '@main/core/lifecycle/ServiceContainer'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY } from '@shared/ai/agentSessionApiRetry'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
@@ -24,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   cacheGetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
   closeWarmQueries: vi.fn(),
+  closeAgentSessionWarm: vi.fn(),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
   ensureTraceId: vi.fn(),
@@ -268,7 +271,8 @@ describe('AgentSessionRuntimeService', () => {
           getShared: mocks.cacheGetShared,
           deleteShared: mocks.cacheDeleteShared
         }
-      if (name === 'ClaudeCodeWarmQueryManager') return { closeAll: mocks.closeWarmQueries }
+      if (name === 'ClaudeCodeWarmQueryManager')
+        return { closeAll: mocks.closeWarmQueries, closeAgentSessionWarm: mocks.closeAgentSessionWarm }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -4841,5 +4845,130 @@ describe('AgentSessionRuntimeService', () => {
     )
     expect(mocks.broadcastTopicError).not.toHaveBeenCalled()
     expect(service.isSessionBusy('session-1')).toBe(false)
+  })
+
+  describe('warm lease ownership (multi-window)', () => {
+    class FakeWebContents extends EventEmitter {
+      private destroyedFlag = false
+
+      isDestroyed(): boolean {
+        return this.destroyedFlag
+      }
+
+      destroy(): void {
+        this.destroyedFlag = true
+        this.emit('destroyed')
+      }
+    }
+
+    const createWebContents = () => new FakeWebContents()
+    const asSender = (fake: FakeWebContents) => fake as unknown as Electron.WebContents
+
+    let service: InstanceType<typeof AgentSessionRuntimeService>
+    let prime: MockInstance<(sessionId: string) => Promise<void>>
+    let releaseIdle: MockInstance<(sessionId: string) => void>
+
+    beforeEach(() => {
+      vi.useFakeTimers()
+      service = new AgentSessionRuntimeService()
+      prime = vi.spyOn(service, 'primeConnection').mockResolvedValue(undefined)
+      releaseIdle = vi.spyOn(service, 'releaseIdleConnection').mockImplementation(() => undefined)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('keeps the shared connection while another window still holds the session', () => {
+      const windowA = createWebContents()
+      const windowB = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.acquireWarmLease('session-1', asSender(windowB))
+
+      service.releaseWarmLease('session-1', asSender(windowA))
+      vi.runAllTimers()
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(releaseIdle).not.toHaveBeenCalled()
+
+      service.releaseWarmLease('session-1', asSender(windowB))
+      vi.runAllTimers()
+      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('session-1')
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+    })
+
+    it('tears down only after the full grace period with no re-acquire', () => {
+      const windowA = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.releaseWarmLease('session-1', asSender(windowA))
+
+      vi.advanceTimersByTime(9_999)
+      expect(releaseIdle).not.toHaveBeenCalled()
+
+      vi.advanceTimersByTime(1)
+      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('session-1')
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+    })
+
+    it('a re-acquire within the grace period cancels the teardown and skips the redundant prime', () => {
+      const windowA = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      expect(prime).toHaveBeenCalledTimes(1)
+
+      service.releaseWarmLease('session-1', asSender(windowA))
+      vi.advanceTimersByTime(5_000)
+      service.acquireWarmLease('session-1', asSender(windowA))
+
+      vi.runAllTimers()
+      expect(mocks.closeAgentSessionWarm).not.toHaveBeenCalled()
+      expect(releaseIdle).not.toHaveBeenCalled()
+      expect(prime).toHaveBeenCalledTimes(1)
+    })
+
+    it('re-primes when a second window acquires so the catalog is republished for it', () => {
+      const windowA = createWebContents()
+      const windowB = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.acquireWarmLease('session-1', asSender(windowB))
+
+      expect(prime).toHaveBeenCalledTimes(2)
+    })
+
+    it('reaps a destroyed window without a renderer release, deferring to remaining holders', () => {
+      const windowA = createWebContents()
+      const windowB = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.acquireWarmLease('session-1', asSender(windowB))
+
+      windowA.destroy()
+      vi.runAllTimers()
+      expect(releaseIdle).not.toHaveBeenCalled()
+
+      windowB.destroy()
+      vi.runAllTimers()
+      expect(mocks.closeAgentSessionWarm).toHaveBeenCalledWith('session-1')
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+    })
+
+    it('a destroyed window releases every session it held', () => {
+      const windowA = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.acquireWarmLease('session-2', asSender(windowA))
+
+      windowA.destroy()
+      vi.runAllTimers()
+      expect(releaseIdle).toHaveBeenCalledWith('session-1')
+      expect(releaseIdle).toHaveBeenCalledWith('session-2')
+    })
+
+    it('an unmanaged sender primes without a lease and its release defers to managed holders', () => {
+      const windowA = createWebContents()
+      service.acquireWarmLease('session-1', asSender(windowA))
+      service.acquireWarmLease('session-1', undefined)
+      expect(prime).toHaveBeenCalledTimes(2)
+
+      service.releaseWarmLease('session-1', undefined)
+      vi.runAllTimers()
+      expect(releaseIdle).not.toHaveBeenCalled()
+    })
   })
 })
