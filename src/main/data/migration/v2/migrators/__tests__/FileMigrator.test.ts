@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { FileEntrySchema } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
@@ -30,6 +31,14 @@ import { getAllMigrators } from '../migratorRegistry'
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const MOCK_USER_DATA = '/mock/userData'
+
+/**
+ * The path the migrator will actually probe for a given storage name. Built with `path.join`
+ * exactly as the production code does, so an `fs.existsSync` mock keyed on it matches on win32
+ * too — a hand-written `/`-joined string silently never matches there, which would leave the
+ * cross-platform cases below asserting nothing on the one platform they exist for.
+ */
+const storagePath = (storageName: string) => path.join(MOCK_USER_DATA, 'Data', 'Files', storageName)
 
 function makeInternalRow(overrides: Partial<FileMetadata> = {}): FileMetadata {
   return {
@@ -663,9 +672,7 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
     // Probe the storage name rebuilt from id+ext, not `row.name`: the migrator no longer reads
     // `name`, and asserting against it would leave this regression test blind to the deduped-row
     // case below (where the two differ).
-    vi.mocked(fs.existsSync).mockImplementation(
-      (p) => p === `${MOCK_USER_DATA}/Data/Files/${FIXTURE_WINDOWS_ROW.id}.png`
-    )
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(`${FIXTURE_WINDOWS_ROW.id}.png`))
     const { ctx, insertValues } = createMockContext([FIXTURE_WINDOWS_ROW])
     const m = new FileMigrator()
     await m.prepare(ctx as never)
@@ -696,9 +703,7 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
   it('recovers a deduped row whose double-extension name points at nothing', async () => {
     // Core regression: before rebuilding the storage name from id+ext, both internal checks
     // failed here (foreign-separator path, non-existent `{id}.png.png`) and the row was dropped.
-    vi.mocked(fs.existsSync).mockImplementation(
-      (p) => p === `${MOCK_USER_DATA}/Data/Files/${FIXTURE_DEDUP_WINDOWS_ROW.id}.png`
-    )
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(`${FIXTURE_DEDUP_WINDOWS_ROW.id}.png`))
     const { ctx, insertValues } = createMockContext([FIXTURE_DEDUP_WINDOWS_ROW])
     const m = new FileMigrator()
     const result = await m.prepare(ctx as never)
@@ -729,7 +734,7 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
     // `{id}.exe` candidate misses it. Dropping the raw candidate would trade one data-loss
     // bug for another.
     const row = makeInternalRow({ id: '33333333-3333-4333-8333-333333333333', ext: '.exe ', path: 'D:\\legacy\\x.exe' })
-    vi.mocked(fs.existsSync).mockImplementation((p) => p === `${MOCK_USER_DATA}/Data/Files/${row.id}.exe `)
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(`${row.id}.exe `))
     const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
     const result = await m.prepare(ctx as never)
@@ -741,7 +746,7 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
 
   it('recovers a bad size from the rebuilt storage path', async () => {
     const row = { ...FIXTURE_DEDUP_WINDOWS_ROW, size: 'big' } as unknown as FileMetadata
-    const physicalPath = `${MOCK_USER_DATA}/Data/Files/${FIXTURE_DEDUP_WINDOWS_ROW.id}.png`
+    const physicalPath = storagePath(`${FIXTURE_DEDUP_WINDOWS_ROW.id}.png`)
     vi.mocked(fs.existsSync).mockImplementation((p) => p === physicalPath)
     vi.mocked(fs.statSync).mockReturnValue({ size: 2048 } as never)
     const { ctx, insertValues } = createMockContext([row])
@@ -765,9 +770,7 @@ describe('FileMigrator lost original filename', () => {
   })
 
   it('warns that a deduped row lost its user-facing name and keeps the storage name', async () => {
-    vi.mocked(fs.existsSync).mockImplementation(
-      (p) => p === `${MOCK_USER_DATA}/Data/Files/${FIXTURE_DEDUP_WINDOWS_ROW.id}.png`
-    )
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(`${FIXTURE_DEDUP_WINDOWS_ROW.id}.png`))
     const { ctx, insertValues } = createMockContext([FIXTURE_DEDUP_WINDOWS_ROW])
     const m = new FileMigrator()
     const result = await m.prepare(ctx as never)
@@ -801,7 +804,7 @@ describe('FileMigrator lost original filename', () => {
       ext: 'png',
       path: `C:\\Users\\testuser\\AppData\\Roaming\\CherryStudio\\Data\\Files\\${id}.png`
     })
-    vi.mocked(fs.existsSync).mockImplementation((p) => p === `${MOCK_USER_DATA}/Data/Files/${id}.png`)
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(`${id}.png`))
     const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
     const result = await m.prepare(ctx as never)
@@ -823,7 +826,7 @@ describe('FileMigrator lost original filename', () => {
   it('warns for a deduped extensionless row', async () => {
     const id = '55555555-5555-4555-8555-555555555555'
     const row = makeInternalRow({ id, name: id, origin_name: id, ext: '', path: 'D:\\legacy\\README' })
-    vi.mocked(fs.existsSync).mockImplementation((p) => p === `${MOCK_USER_DATA}/Data/Files/${id}`)
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(id))
     const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
     const result = await m.prepare(ctx as never)
