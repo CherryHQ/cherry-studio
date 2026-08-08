@@ -1,12 +1,74 @@
+import { PosixRelativeFilePathSchema } from '@shared/utils/file'
 import { describe, expect, it } from 'vitest'
 
 import {
+  DirectoryItemDataSchema,
+  FileItemDataSchema,
   getKnowledgeItemConflictKey,
   getKnowledgeItemDisplayTitle,
   getKnowledgeNoteFirstLine,
   getKnowledgePathBasename,
+  KnowledgeRelativePathSchema,
   KnowledgeSearchResultSchema
 } from '../knowledge'
+
+describe('KnowledgeRelativePathSchema', () => {
+  it.each([
+    ['a deduped filename', '测试_2.pdf'],
+    ['a directory-expanded leaf', 'docs/a.pdf'],
+    ['a leading space, which sanitizeFilename does not strip', ' a.pdf'],
+    ['a backslash, which is one legal POSIX filename', 'a\\b.txt'],
+    ['a name that only Windows would refuse', 'CON.txt']
+  ])('accepts %s', (_label, value) => {
+    expect(KnowledgeRelativePathSchema.safeParse(value).success).toBe(true)
+  })
+
+  it.each([
+    ['the material root itself', '.'],
+    ['a climb landing back on the root', 'a/..'],
+    ['the empty string', ''],
+    ['an escape above the root', '../x'],
+    ['an absolute path', '/x'],
+    ['a null byte', 'a\0b']
+  ])('rejects %s', (_label, value) => {
+    expect(KnowledgeRelativePathSchema.safeParse(value).success).toBe(false)
+  })
+
+  it('returns the value unchanged — the old .trim() desynced a stored path from the file on disk', () => {
+    expect(KnowledgeRelativePathSchema.parse(' a.pdf')).toBe(' a.pdf')
+  })
+
+  it('owns the containment rule the shape brand deliberately does not', () => {
+    // `PosixRelativeFilePathSchema` accepts `../x` — it is a relative path, just one
+    // pointing outside its base. Keeping material inside the root is this layer's job.
+    expect(PosixRelativeFilePathSchema.safeParse('../escape.md').success).toBe(true)
+    expect(KnowledgeRelativePathSchema.safeParse('../escape.md').success).toBe(false)
+    expect(KnowledgeRelativePathSchema.safeParse('a/../../escape.md').success).toBe(false)
+  })
+
+  it('leaves the reserved .cherry prefix to the filesystem-boundary guard', () => {
+    // Shape is fine; `assertSafeKnowledgeRelativePath` owns the business rule.
+    expect(KnowledgeRelativePathSchema.safeParse('.cherry/index.sqlite').success).toBe(true)
+  })
+
+  it('does not judge whether the value could be restored onto Windows', () => {
+    // `CON.txt` and `a\b.txt` are storable POSIX names with no Windows spelling.
+    // That is a migration-time conflict, not a reason to refuse the row.
+    expect(KnowledgeRelativePathSchema.safeParse('CON.txt').success).toBe(true)
+    expect(KnowledgeRelativePathSchema.safeParse('a\\b.txt').success).toBe(true)
+  })
+
+  it('gates the persisted item data fields', () => {
+    expect(FileItemDataSchema.safeParse({ source: '/a/b.pdf', relativePath: 'b.pdf' }).success).toBe(true)
+    expect(FileItemDataSchema.safeParse({ source: '/a/b.pdf', relativePath: '../b.pdf' }).success).toBe(false)
+    expect(
+      FileItemDataSchema.safeParse({ source: '/a/b.pdf', relativePath: 'b.pdf', indexedRelativePath: '/tmp/b.md' })
+        .success
+    ).toBe(false)
+    expect(DirectoryItemDataSchema.safeParse({ source: '/a/docs', relativePath: 'docs_2' }).success).toBe(true)
+    expect(DirectoryItemDataSchema.safeParse({ source: '/a/docs', relativePath: '.' }).success).toBe(false)
+  })
+})
 
 describe('KnowledgeSearchResultSchema', () => {
   const result = {
