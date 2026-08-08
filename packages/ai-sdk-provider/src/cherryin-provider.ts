@@ -32,6 +32,9 @@ export const DEFAULT_CHERRYIN_GEMINI_BASE_URL = 'https://open.cherryin.net/v1bet
 
 const ANTHROPIC_PREFIX = /^anthropic\//i
 const GEMINI_PREFIX = /^google\//i
+/** DeepSeek models routed through the chat-completions path so the #18121
+ * reasoning_content patch applies and thinking-mode turns don't fail. */
+const DEEPSEEK_PREFIX = /^deepseek/i
 // const GEMINI_EXCLUDED_SUFFIXES = ['-nothink', '-search']
 
 type HeaderValue = string | undefined
@@ -111,6 +114,7 @@ const resolveApiKey = (options: CherryInProviderSettings): string =>
 
 const isAnthropicModel = (modelId: string) => ANTHROPIC_PREFIX.test(modelId)
 const isGeminiModel = (modelId: string) => GEMINI_PREFIX.test(modelId)
+const isDeepSeekModel = (modelId: string) => DEEPSEEK_PREFIX.test(modelId)
 const isQwenImageModel = (modelId: string) => {
   const normalized = modelId.toLowerCase()
   return normalized.includes('qwen') && normalized.includes('image')
@@ -311,6 +315,12 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
     }
     if (isGeminiModel(modelId)) {
       return createGeminiModel(modelId)
+    }
+    // DeepSeek thinking-mode models require `reasoning_content` on every
+    // assistant turn.  The chat-completions path has the #18121 patch that
+    // guarantees this; the Responses API path (default) drops it.  Fixes #18150.
+    if (isDeepSeekModel(modelId)) {
+      return createOpenAIChatModel(modelId, settings)
     }
     return new OpenAIResponsesLanguageModel(modelId, {
       provider: `${CHERRYIN_PROVIDER_NAME}.openai`,

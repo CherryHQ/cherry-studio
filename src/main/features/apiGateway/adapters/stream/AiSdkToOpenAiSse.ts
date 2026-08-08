@@ -362,7 +362,11 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
       role: 'assistant',
       content,
       refusal: null,
-      ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
+      // Always emit reasoning_content — DeepSeek thinking-mode dialects
+      // require the key on every assistant turn once one performed a tool
+      // call, even when this turn produced no reasoning.  An empty string
+      // is the same fallback @ai-sdk/deepseek already applies.  Fixes #18150.
+      reasoning_content: reasoningContent ?? '',
       ...(toolCallsArray.length > 0 ? { tool_calls: toolCallsArray } : {})
     }
 
