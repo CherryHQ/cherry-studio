@@ -338,6 +338,72 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
   })
 
+  it('1e. a maxMessages window revokes read_file/fs_read access to what slid out', async () => {
+    // The window is a boundary the USER drew, not a space-saving fold: leaving
+    // the raw-path context in place let the model pull the excluded attachment
+    // straight back in through read_file, defeating the setting.
+    const attachedMsg = fakeMsg('u1', 'user', 'here is the doc')
+    ;(attachedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/doc.txt',
+      filename: 'doc.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+    })
+    mockGetPathToNode.mockReturnValue([attachedMsg, fakeMsg('a1', 'assistant', 'ok'), fakeMsg('u2', 'user', '现在呢')])
+    maxMessagesOn(1)
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([])
+  })
+
+  it('1f. a maxMessages window keeps attachments that are still inside it', async () => {
+    const attachedMsg = fakeMsg('u2', 'user', 'read this')
+    ;(attachedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/doc.txt',
+      filename: 'doc.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+    })
+    mockGetPathToNode.mockReturnValue([fakeMsg('u1', 'user', 'older'), fakeMsg('a1', 'assistant', 'ok'), attachedMsg])
+    maxMessagesOn(1)
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
+      { fileEntryId: 'fe-1', handle: 'doc.txt', displayName: 'doc.txt' }
+    ])
+  })
+
+  it('1g. a served summary row keeps its folded prefix reachable inside a window', async () => {
+    // Folding is space-saving, not exclusion — and the summary row's manifest
+    // already advertises the handle, so revoking it would strand the model.
+    const foldedMsg = fakeMsg('u1', 'user', 'old question')
+    ;(foldedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/folded.txt',
+      filename: 'folded.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-folded' } }
+    })
+    const boundary = fakeMsg('a1', 'assistant', 'old answer')
+    boundary.compactionSummary = 'PRIOR_SUMMARY'
+    mockGetPathToNode.mockReturnValue([foldedMsg, boundary, fakeMsg('u2', 'user', 'now what')])
+    maxMessagesOn(2)
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    // Window keeps the synthetic summary row + the live user row.
+    expect(messages[0].id).toBe('compaction:a1')
+    expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
+      { fileEntryId: 'fe-folded', handle: 'folded.txt', displayName: 'folded.txt' }
+    ])
+  })
+
   it('2. over budget → summarize + persist on boundary + serve compacted view', async () => {
     // Use massive text so total tokens exceed 4000 * 0.8 = 3200 token trigger.
     // Each 'token '.repeat(700) block ≈ 700 tokens × 5 messages = 3500 > 3200.

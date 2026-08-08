@@ -54,6 +54,7 @@ import {
   estimateRowTokens,
   findDeepestMarker,
   planKeepBoundary,
+  summaryMessageId,
   summaryRow
 } from './compaction'
 import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
@@ -716,6 +717,29 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const manifestHandles = (endIdx: number) => collectFileAttachments(rawUI.slice(0, endIdx + 1)).map((a) => a.handle)
     const effective = applyDeepestMarker(rows, d >= 0 ? manifestHandles(d) : undefined)
 
+    /**
+     * Retained context scoped to a `maxMessages` window.
+     *
+     * An explicit window is a boundary the USER drew, unlike a compaction fold
+     * the system performs to save space — so what slid out has to stop being
+     * reachable through read_file / fs_read too. Leaving the raw-path context
+     * in place let the model pull an excluded attachment straight back in,
+     * defeating the setting (and kept read_file registered for an attachment
+     * no longer in the prompt).
+     *
+     * A SERVED summary row is the exception: it stands for the folded prefix,
+     * and its manifest already advertises those handles, so that prefix stays
+     * reachable. Collected from the same `rawUI` array in the same order, so
+     * handle dedup for the folded prefix matches `manifestHandles` exactly.
+     */
+    const retainedForWindow = (windowed: CompactionRow[]): RetainedContext => {
+      const servedIds = new Set(windowed.map((r) => r.id))
+      const keepsFoldedPrefix = d >= 0 && servedIds.has(summaryMessageId(rows[d].id))
+      return collectRetainedContext(
+        rawUI.filter((_, i) => (keepsFoldedPrefix && i <= d) || servedIds.has(rawMsgs[i].id))
+      )
+    }
+
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(
       models[0],
       assistantContextOverride
@@ -725,8 +749,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // Bounded scope (v1 contextCount successor): an explicit maxMessages IS the
     // context policy — serve the window and skip turn-start folding. Nothing
     // else rewrites history (the in-loop prepareStep hook still guards mid-loop
-    // growth); retainedContext spans the RAW path, so attachments and persisted
-    // outputs that slid out of the window stay readable via read_file/fs_read.
+    // growth).
     //
     // Deliberately NOT gated on `contextSettings.enabled`: that switch governs
     // offload + compression (what to do when the context grows too large),
@@ -734,7 +757,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // overflow policy silently served full history to someone who asked for
     // "last 1 message".
     if (contextSettings.maxMessages != null) {
-      return serve(applyMaxMessagesWindow(effective, contextSettings.maxMessages))
+      const windowed = applyMaxMessagesWindow(effective, contextSettings.maxMessages)
+      return { messages: windowed.map((r) => this.toServed(r)), retainedContext: retainedForWindow(windowed) }
     }
     if (!on) return serve(effective)
     if (!compressionModel) return serve(effective)
