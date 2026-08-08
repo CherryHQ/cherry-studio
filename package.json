@@ -125,6 +125,7 @@
     "tar": "^7.5.11",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
+    "which": "6.0.1",
     "ws": "^8.21.0"
   },
   "devDependencies": {
@@ -271,6 +272,7 @@
     "@types/unist": "3.0.3",
     "@types/use-sync-external-store": "^0.0.6",
     "@types/uuid": "^10.0.0",
+    "@types/which": "3.0.4",
     "@types/word-extractor": "^1",
     "@types/ws": "^8.18.1",
     "@typescript/native-preview": "7.0.0-dev.20260204.1",
