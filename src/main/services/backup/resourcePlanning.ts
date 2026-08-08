@@ -16,7 +16,7 @@
  * merge SKIP (avoids existsSync-only divergence → orphan blob / mixed entity).
  */
 
-import { existsSync, lstatSync } from 'node:fs'
+import { existsSync, lstatSync, statSync } from 'node:fs'
 import path from 'node:path'
 
 import { type PathResolvableEntry, resolvePhysicalPath } from '@main/services/file'
@@ -28,14 +28,28 @@ import Database from 'better-sqlite3'
 
 import { BackupArchiveCorruptError } from './errors'
 import type { BackupManifest } from './manifest'
+import { buildMergedNotesTreeSync } from './notesMergedTree'
 import { presetIncludesFiles, resolvePreset } from './presets'
 
-/** A file resource restricted to additive kinds (no overwrite/note-overwrite in this PR). */
+/** An additive resource (no overwrite). */
 export type AddFileResource = {
   readonly kind: 'blob-add' | 'dir-add' | 'note-add'
   readonly stagingPath: string
   readonly livePath: string
 }
+
+/** A directory-level near-atomic Notes tree swap (t5 dir-swap). */
+export type TreeSwapResource = {
+  readonly kind: 'notes-tree-swap'
+  readonly rootPath: string
+  readonly stagingPath: string
+  readonly livePath: string
+  readonly asideTreePath: string
+  readonly treeHash: string
+}
+
+/** Any resource the plan emits (additive or tree-swap). */
+export type PlannedResource = AddFileResource | TreeSwapResource
 
 /**
  * Roots planning resolves livePaths against + containment-checks. notesRoot is a
@@ -70,6 +84,16 @@ export interface PlanCtx {
   readonly workPath: string
   readonly userData: string
   readonly roots: PlanRoots
+  /**
+   * t5: when true, plan a directory-level notes-tree-swap (OVERWRITE semantics: the merged
+   * tree — local-only + backup-only, conflicts local-first — atomically replaces the live
+   * Notes tree, old tree parked aside for undo). Default false → additive note-add (MERGE
+   * semantics, current behavior). Tree-swap requires the notes root to be managed/in-
+   * userData on the same device as staging (rename atomicity); otherwise it falls back to
+   * additive. Gated by an explicit flag so the default restore stays non-destructive until a
+   * conflict-preview UI opts in.
+   */
+  readonly forceNotesTreeSwap?: boolean
 }
 
 /**
@@ -87,8 +111,8 @@ export interface ResourcePlan {
   readonly skippedKnowledgeBaseIds: Set<string>
   /** skill folderNames skipped due to conflict → merge must skip the root (same-source as file_entry / knowledge). */
   readonly skippedSkillFolderNames: Set<string>
-  /** Additive file resources (blob-add/dir-add/note-add only; no overwrite). Serialized into journal.fileResources. */
-  readonly resources: AddFileResource[]
+  /** Planned file resources (additive blob/dir/note-add, or a notes-tree-swap for a full dir-swap). Serialized into journal.fileResources. */
+  readonly resources: PlannedResource[]
   /** Planned note body path → resolved target Notes root. Merge imports an overlay only for these note-add entries. */
   readonly noteAdditions: ReadonlyMap<string, string>
   /** Pre-computed restore counts by class (knowledge vs skill stay distinguishable; not reverse-derived from resources). */
@@ -122,6 +146,15 @@ interface IdSqlRow {
 
 function archiveCorrupt(detail: string): never {
   throw new BackupArchiveCorruptError(detail)
+}
+
+/** True when two paths reside on the same filesystem device (same-volume rename is atomic). */
+function sameDevice(a: string, b: string): boolean {
+  try {
+    return statSync(a).dev === statSync(b).dev
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -295,7 +328,7 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
   const skippedFileEntryIds = new Set<string>()
   const skippedKnowledgeBaseIds = new Set<string>()
   const skippedSkillFolderNames = new Set<string>()
-  const resources: AddFileResource[] = []
+  const resources: PlannedResource[] = []
   const noteAdditions = new Map<string, string>()
   const skips: SkippedResource[] = []
   const counts: Record<ResourceClass, number> = { file: 0, knowledge: 0, skill: 0, note: 0 }
@@ -424,28 +457,65 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
         skips.push({ id: relPath, kind: 'note', reasonCode: 'notes_root_unavailable' })
       }
     } else if (notesRoot) {
-      for (const relPath of manifest.notes.paths) {
-        if (relPath.split(/[/\\]/).includes('..')) {
-          archiveCorrupt(`note relPath contains '..': ${relPath}`)
+      // t5: a forced directory-level notes-tree-swap (OVERWRITE semantics) replaces the live
+      // Notes tree atomically with a merged tree (local-only + backup-only, conflicts local-
+      // first). Requires the notes root to be in-userData AND on the same device as staging
+      // (same-volume rename is atomic; cross-volume is not). Falls back to additive otherwise.
+      const canTreeSwap =
+        ctx.forceNotesTreeSwap === true && isPathInside(notesRoot, userData) && sameDevice(notesRoot, workDir)
+      if (canTreeSwap) {
+        // Validate declared paths first (corrupt archive detection, same as additive).
+        for (const relPath of manifest.notes.paths) {
+          if (relPath.split(/[/\\]/).includes('..')) {
+            archiveCorrupt(`note relPath contains '..': ${relPath}`)
+          }
+          assertStagingFile(path.join(workDir, 'notes', relPath))
         }
-        const stagingAbs = path.join(workDir, 'notes', relPath)
-        assertStagingFile(stagingAbs)
-        const liveAbs = path.join(notesRoot, relPath)
-        if (!isPathInside(liveAbs, notesRoot) || !isPathInside(liveAbs, userData)) {
-          skips.push({ id: relPath, kind: 'note', reasonCode: 'outside_user_data' })
-          continue
-        }
-        if (existsSync(liveAbs)) {
-          skips.push({ id: relPath, kind: 'note', reasonCode: 'target_exists' })
-          continue
+        const mergedDir = path.join(workDir, 'notes-merged')
+        // aside sits OUTSIDE the staging tree (restore-staging/<rid>) so the terminal
+        // removeStagingTree cleanup does not delete the parked live tree (undo source).
+        const asideDir = path.join(userData, 'restore-aside', path.basename(workDir))
+        const merged = buildMergedNotesTreeSync(path.join(workDir, 'notes'), notesRoot, mergedDir, manifest.notes.paths)
+        for (const conflict of merged.conflicts) {
+          skips.push({ id: conflict.relPath, kind: 'note', reasonCode: 'tree_swap_local_first' })
         }
         resources.push({
-          kind: 'note-add' as const,
-          stagingPath: toRel(stagingAbs),
-          livePath: toRel(liveAbs)
+          kind: 'notes-tree-swap',
+          rootPath: toRel(notesRoot),
+          stagingPath: toRel(mergedDir),
+          livePath: toRel(notesRoot),
+          asideTreePath: toRel(asideDir),
+          treeHash: merged.treeHash
         })
-        noteAdditions.set(relPath, notesRoot)
-        counts.note += 1
+        // Merge still imports an overlay only for declared backup paths (noteAdditions gate).
+        for (const relPath of manifest.notes.paths) {
+          noteAdditions.set(relPath, notesRoot)
+        }
+        counts.note += manifest.notes.paths.length
+      } else {
+        for (const relPath of manifest.notes.paths) {
+          if (relPath.split(/[/\\]/).includes('..')) {
+            archiveCorrupt(`note relPath contains '..': ${relPath}`)
+          }
+          const stagingAbs = path.join(workDir, 'notes', relPath)
+          assertStagingFile(stagingAbs)
+          const liveAbs = path.join(notesRoot, relPath)
+          if (!isPathInside(liveAbs, notesRoot) || !isPathInside(liveAbs, userData)) {
+            skips.push({ id: relPath, kind: 'note', reasonCode: 'outside_user_data' })
+            continue
+          }
+          if (existsSync(liveAbs)) {
+            skips.push({ id: relPath, kind: 'note', reasonCode: 'target_exists' })
+            continue
+          }
+          resources.push({
+            kind: 'note-add' as const,
+            stagingPath: toRel(stagingAbs),
+            livePath: toRel(liveAbs)
+          })
+          noteAdditions.set(relPath, notesRoot)
+          counts.note += 1
+        }
       }
     }
   } finally {

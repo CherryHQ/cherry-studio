@@ -551,6 +551,65 @@ describe('planResources', () => {
     expect(plan.toRestore).toEqual([{ kind: 'note', count: 1 }])
   })
 
+  it('forceNotesTreeSwap emits a notes-tree-swap (merged tree replaces live, conflicts disclosed)', () => {
+    // Live has local-only + a conflicting note; backup has backup-only + the conflict.
+    writeStagingFile('notes/backup-only.md', '# backup')
+    writeStagingFile('notes/conflict.md', '# BACKUP')
+    writeFileSync(join(notesRoot, 'local-only.md'), '# local')
+    writeFileSync(join(notesRoot, 'conflict.md'), '# LOCAL')
+    const plan = planResources({
+      manifest: baseManifest({ notes: { paths: ['backup-only.md', 'conflict.md'] } }),
+      workDir,
+      backupDbPath,
+      workPath: workDbPath,
+      userData,
+      roots: roots(notesRoot),
+      forceNotesTreeSwap: true
+    })
+    // One tree-swap resource (rootPath/livePath/asideTreePath/treeHash present).
+    expect(plan.resources).toHaveLength(1)
+    const swap = plan.resources[0]!
+    expect(swap.kind).toBe('notes-tree-swap')
+    if (swap.kind !== 'notes-tree-swap') return
+    expect(swap.livePath).toBe('Notes')
+    expect(swap.asideTreePath).toBe('restore-aside/rst-1')
+    expect(swap.rootPath).toBe('Notes')
+    expect(swap.treeHash).toMatch(/^sha256-merkle-v1:[0-9a-f]{64}$/)
+    // Conflicts (same-path different content) disclosed as skips.
+    expect(plan.skips).toContainEqual({
+      id: 'conflict.md',
+      kind: 'note',
+      reasonCode: 'tree_swap_local_first'
+    })
+    // noteAdditions gates overlay import for both declared backup paths.
+    expect(plan.noteAdditions).toEqual(
+      new Map([
+        ['backup-only.md', notesRoot],
+        ['conflict.md', notesRoot]
+      ])
+    )
+  })
+
+  it('forceNotesTreeSwap falls back to additive when notesRoot is outside userData', () => {
+    // An external (custom) notes root is not in userData → canTreeSwap false → additive.
+    const externalNotes = mkdtempSync(join(tmpdir(), 'cs-plan-notes-ext-'))
+    try {
+      writeStagingFile('notes/a.md', '# a')
+      const plan = planResources({
+        manifest: baseManifest({ notes: { paths: ['a.md'] } }),
+        workDir,
+        backupDbPath,
+        workPath: workDbPath,
+        userData,
+        roots: roots(externalNotes),
+        forceNotesTreeSwap: true
+      })
+      expect(plan.resources.every((r) => r.kind === 'note-add')).toBe(true)
+    } finally {
+      rmSync(externalNotes, { recursive: true, force: true })
+    }
+  })
+
   it('skips notes when notesRoot is missing (records skips)', () => {
     writeStagingFile('notes/a.md', '# a')
     const plan = planResources(

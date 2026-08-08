@@ -10,6 +10,7 @@ import { readMigrationFiles } from 'drizzle-orm/migrator'
 import type { AppliedMigration } from './appliedChain'
 import { checkpointTruncateAssert } from './checkpoint'
 import { hashDbFile } from './hashDbFile'
+import { computeNotesTreeHashSync } from './notesTreeHash'
 import type { PromotionStep, RestoreJournal } from './restoreJournal'
 import { PROMOTION_STEP_ORDER, readRestoreJournal, writeRestoreJournal } from './restoreJournal'
 
@@ -73,8 +74,13 @@ export function assertRestoreJournalPathsInsideUserData(
   for (const entry of journal.fileResources) {
     assertPathInsideUserData(entry.stagingPath, userData)
     assertPathInsideUserData(entry.livePath, userData)
-    if (entry.asidePath !== undefined) {
-      assertPathInsideUserData(entry.asidePath, userData)
+    if (entry.kind === 'note-overwrite' || entry.kind === 'overwrite') {
+      if (entry.asidePath !== undefined) {
+        assertPathInsideUserData(entry.asidePath, userData)
+      }
+    } else if (entry.kind === 'notes-tree-swap') {
+      assertPathInsideUserData(entry.asideTreePath, userData)
+      assertPathInsideUserData(entry.rootPath, userData)
     }
   }
 }
@@ -607,6 +613,25 @@ function applyEntry(ctx: PromotionContext, entry: FileResource): void {
       moveIdempotent(resolveEntry(ctx, entry.stagingPath), live)
       return
     }
+    case 'notes-tree-swap': {
+      // t5: directory-level near-atomic Notes tree swap. Verify the staged merged tree's
+      // hash (a tampered/corrupt staging tree must NOT replace the live tree), then
+      // aside-first (live tree → aside) + swap (staging tree → live).
+      const staging = resolveEntry(ctx, entry.stagingPath)
+      const live = resolveEntry(ctx, entry.livePath)
+      const aside = resolveEntry(ctx, entry.asideTreePath)
+      const expectedHash = computeNotesTreeHashSync(staging)
+      if (expectedHash !== entry.treeHash) {
+        throw new Error(
+          `restore promotion notes-tree-swap: staging tree hash mismatch (expected ${entry.treeHash}, got ${expectedHash}) — refusing to replace the live Notes tree`
+        )
+      }
+      if (fs.existsSync(live) && !fs.existsSync(aside)) {
+        renameDurable(live, aside)
+      }
+      moveIdempotent(staging, live)
+      return
+    }
     default:
       assertNever(entry.kind)
   }
@@ -759,6 +784,15 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
       if (aside && fs.existsSync(aside)) {
         // `overwrite` covers both files and whole directories. A failed
         // promotion must clear either shape before restoring its aside.
+        fs.rmSync(live, { recursive: true, force: true })
+        renameDurable(aside, live)
+      }
+      return
+    }
+    case 'notes-tree-swap': {
+      // t5: restore the parked live tree (whole directory) from the aside.
+      const aside = resolveEntry(ctx, entry.asideTreePath)
+      if (fs.existsSync(aside)) {
         fs.rmSync(live, { recursive: true, force: true })
         renameDurable(aside, live)
       }

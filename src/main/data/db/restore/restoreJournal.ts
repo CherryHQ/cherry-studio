@@ -69,12 +69,46 @@ const RestoreDbSchema = z.strictObject({
   chain: z.array(AppliedMigrationSchema).min(1)
 })
 
-const FileResourceSchema = z.strictObject({
-  kind: z.enum(['blob-add', 'dir-add', 'note-add', 'note-overwrite', 'overwrite']),
-  stagingPath: z.string().min(1),
-  livePath: z.string().min(1),
-  asidePath: z.string().min(1).optional()
-})
+const FileResourceSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('blob-add'),
+    stagingPath: z.string().min(1),
+    livePath: z.string().min(1)
+  }),
+  z.strictObject({
+    kind: z.literal('dir-add'),
+    stagingPath: z.string().min(1),
+    livePath: z.string().min(1)
+  }),
+  z.strictObject({
+    kind: z.literal('note-add'),
+    stagingPath: z.string().min(1),
+    livePath: z.string().min(1)
+  }),
+  z.strictObject({
+    kind: z.literal('note-overwrite'),
+    stagingPath: z.string().min(1),
+    livePath: z.string().min(1),
+    asidePath: z.string().min(1).optional()
+  }),
+  z.strictObject({
+    kind: z.literal('overwrite'),
+    stagingPath: z.string().min(1),
+    livePath: z.string().min(1),
+    asidePath: z.string().min(1).optional()
+  }),
+  // t5: directory-level near-atomic Notes tree swap. The staging merged tree (local-only +
+  // backup-only, conflicts local-first) replaces the live tree; the old live tree is parked
+  // at asideTreePath for undo. treeHash is verified against the staging tree before the swap.
+  z.strictObject({
+    kind: z.literal('notes-tree-swap'),
+    rootPath: z.string().min(1),
+    stagingPath: z.string().min(1),
+    livePath: z.string().min(1),
+    asideTreePath: z.string().min(1),
+    treeHash: z.string().min(1)
+  })
+])
 
 /** A single file resource entry staged for preboot promotion. Exported for resource planning (ResourcePlan). */
 export type FileResource = z.infer<typeof FileResourceSchema>

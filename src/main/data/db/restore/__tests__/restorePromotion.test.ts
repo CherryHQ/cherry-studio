@@ -17,6 +17,7 @@ import { dirname, join } from 'node:path'
 import { applyMigrations } from '@data/db/applyMigrations'
 import { readAppliedChain } from '@data/db/restore/appliedChain'
 import { hashDbFile } from '@data/db/restore/hashDbFile'
+import { computeNotesTreeHashSync } from '@data/db/restore/notesTreeHash'
 import type * as RestoreJournalModule from '@data/db/restore/restoreJournal'
 import type { RestoreJournal } from '@data/db/restore/restoreJournal'
 import { readRestoreJournal, writeRestoreJournal } from '@data/db/restore/restoreJournal'
@@ -1312,6 +1313,79 @@ describe('runRestorePromotion', () => {
       writeFileSync(journalPath(), '{ definitely not a journal')
 
       expect(isLiveDbStranded()).toBe(false)
+    })
+  })
+
+  describe('notes-tree-swap (t5 dir-swap)', () => {
+    const mergedRel = `restore-staging/${RID}/notes-merged`
+    const asideRel = `restore-aside/${RID}`
+    const liveNotesRel = 'Notes'
+    const mergedDir = () => join(userData, mergedRel)
+    const asideDir = () => join(userData, asideRel)
+    const liveNotesDir = () => join(userData, liveNotesRel)
+
+    const seedSwapFixtures = (contents: Record<string, string>): string => {
+      // Build the merged staging tree and return its treeHash.
+      for (const [rel, content] of Object.entries(contents)) {
+        const full = join(mergedDir(), rel)
+        mkdirSync(join(full, '..'), { recursive: true })
+        writeFileSync(full, content)
+      }
+      return computeNotesTreeHashSync(mergedDir())
+    }
+
+    const buildSwapJournal = async (treeHash: string): Promise<RestoreJournal> =>
+      buildJournal({
+        fileResources: [
+          {
+            kind: 'notes-tree-swap',
+            rootPath: liveNotesRel,
+            stagingPath: mergedRel,
+            livePath: liveNotesRel,
+            asideTreePath: asideRel,
+            treeHash
+          }
+        ]
+      })
+
+    it('replaces the live Notes tree with the merged tree + parks the old tree aside', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      // Live has an existing note (must be parked aside, not lost).
+      mkdirSync(liveNotesDir(), { recursive: true })
+      writeFileSync(join(liveNotesDir(), 'old.md'), '# OLD')
+      const treeHash = seedSwapFixtures({ 'new.md': '# NEW' })
+
+      const journal = await buildSwapJournal(treeHash)
+      writeRestoreJournal(journal)
+
+      await runRestorePromotion()
+
+      // Promotion completed (diagnostic: confirms the swap ran rather than expired).
+      expect(journalState()).toBe('completed')
+      // Merged tree is now live; the old live tree is parked in the aside.
+      expect(existsSync(join(liveNotesDir(), 'new.md'))).toBe(true)
+      expect(existsSync(join(asideDir(), 'old.md'))).toBe(true)
+      // The merged staging dir was renamed away (now empty / gone at the staging path).
+      expect(existsSync(join(mergedDir(), 'new.md'))).toBe(false)
+    })
+
+    it('refuses the swap when the staging tree hash does not match (tamper guard)', async () => {
+      makeDb(livePath(), 'old')
+      makeDb(workPath(), 'new')
+      mkdirSync(liveNotesDir(), { recursive: true })
+      writeFileSync(join(liveNotesDir(), 'old.md'), '# OLD')
+      seedSwapFixtures({ 'new.md': '# NEW' })
+      // A wrong treeHash must NOT let a tampered tree replace the live tree. The throw
+      // happens post-commit (entries-applied step), so the gate swallows it and reverts;
+      // the observable contract is: the live Notes tree is untouched + new.md never landed.
+      const journal = await buildSwapJournal('sha256-merkle-v1:deadbeef')
+      writeRestoreJournal(journal)
+
+      await runRestorePromotion()
+
+      expect(readFileSync(join(liveNotesDir(), 'old.md'), 'utf8')).toBe('# OLD')
+      expect(existsSync(join(liveNotesDir(), 'new.md'))).toBe(false)
     })
   })
 })
