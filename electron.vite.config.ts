@@ -93,7 +93,8 @@ export default defineConfig({
         // preload requires explicit entry point configuration for multiple scripts
         input: {
           preload: resolve(__dirname, 'src/preload/preload.ts'),
-          simplest: resolve(__dirname, 'src/preload/simplest.ts') // Minimal preload
+          simplest: resolve(__dirname, 'src/preload/simplest.ts'), // Minimal preload
+          webview: resolve(__dirname, 'src/preload/webview.ts')
         },
         external: ['electron'],
         output: {

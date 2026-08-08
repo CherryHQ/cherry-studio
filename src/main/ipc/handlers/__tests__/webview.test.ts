@@ -13,6 +13,7 @@ vi.mock('electron', () => ({ webContents: { fromId: fromIdMock } }))
 import { webviewHandlers } from '../webview'
 
 const webviewService = {
+  getAnnotationsMarkdown: vi.fn(),
   printWebviewToPDF: vi.fn(),
   saveWebviewAsHTML: vi.fn()
 }
@@ -51,6 +52,13 @@ describe('webviewHandlers', () => {
     webviewService.printWebviewToPDF.mockResolvedValue('/tmp/out.pdf')
     expect(await webviewHandlers['webview.print_to_pdf']({ webviewId: 7 }, ctx)).toBe('/tmp/out.pdf')
     expect(webviewService.printWebviewToPDF).toHaveBeenCalledWith(7)
+  })
+
+  it('get_annotations_markdown validates through WebviewService and returns the resolved export', async () => {
+    webviewService.getAnnotationsMarkdown.mockResolvedValue('# Annotations')
+
+    expect(await webviewHandlers['webview.get_annotations_markdown']({ webviewId: 7 }, ctx)).toBe('# Annotations')
+    expect(webviewService.getAnnotationsMarkdown).toHaveBeenCalledWith(7, 'w1')
   })
 
   it('save_as_html delegates and returns null on cancel', async () => {

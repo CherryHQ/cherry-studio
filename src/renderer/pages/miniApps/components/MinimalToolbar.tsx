@@ -1,17 +1,20 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Button, Input, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { WebviewAnnotationControls } from '@renderer/components/WebviewAnnotationControls'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
+import { MiniAppUrlSchema } from '@shared/data/api/schemas/miniApps'
 import type { MiniApp } from '@shared/data/types/miniApp'
-import type { WebviewTag } from 'electron'
+import { WEBVIEW_ANNOTATION_LIMITS } from '@shared/types/webview'
+import type { DidNavigateEvent, DidNavigateInPageEvent, WebviewTag } from 'electron'
 import { ArrowLeft, ArrowRight, Code, ExternalLink, LayoutGrid, Link, RotateCw } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('MinimalToolbar')
@@ -23,27 +26,102 @@ const WEBVIEW_CHECK_MULTIPLIER = 2 // Exponential backoff multiplier
 const WEBVIEW_CHECK_MAX_ATTEMPTS = 30 // Stop after ~30 seconds total
 const NAVIGATION_UPDATE_DELAY_MS = 50
 const NAVIGATION_COMPLETE_DELAY_MS = 100
+const URL_SCHEME_PATTERN = /^[a-z][a-z\d+.-]*:/i
+const LOCAL_ADDRESS_PATTERN = /^(?:localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[?::1\]?)(?::\d+)?(?:[/?#]|$)/i
+
+function normalizeAddress(value: string): string | null {
+  const trimmedValue = value.trim()
+  if (!trimmedValue) return null
+
+  const url = URL_SCHEME_PATTERN.test(trimmedValue)
+    ? trimmedValue
+    : `${LOCAL_ADDRESS_PATTERN.test(trimmedValue) ? 'http' : 'https'}://${trimmedValue}`
+
+  return MiniAppUrlSchema.safeParse(url).success ? url : null
+}
+
+function isExternalUrl(value: string): boolean {
+  try {
+    const protocol = new URL(value).protocol
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
 
 interface Props {
   app: MiniApp
   webviewRef: React.RefObject<WebviewTag | null>
   currentUrl: string | null
+  isWebviewReady: boolean
+  isHostActive: boolean
   onReload: () => void
   onOpenDevTools: () => void
 }
 
-const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOpenDevTools }) => {
+const MinimalToolbar: FC<Props> = ({
+  app,
+  webviewRef,
+  currentUrl,
+  isWebviewReady,
+  isHostActive,
+  onReload,
+  onOpenDevTools
+}) => {
   const { t } = useTranslation()
   const { pinned, updateAppStatus, allApps } = useMiniApps()
   const [openLinkExternal, setOpenLinkExternal] = usePreference('feature.mini_app.open_link_external')
   const [canGoBack, setCanGoBack] = useState(false)
   const [canGoForward, setCanGoForward] = useState(false)
+  const [currentPageUrl, setCurrentPageUrl] = useState(currentUrl || app.url)
+  const [addressValue, setAddressValue] = useState(currentUrl || app.url)
   const canPinned = allApps.some((item) => item.appId === app.appId)
   const isPinned = pinned.some((item) => item.appId === app.appId)
-  const canOpenExternalLink = app.url.startsWith('http://') || app.url.startsWith('https://')
+  const canOpenExternalLink = isExternalUrl(currentPageUrl)
+  const annotationTarget = useMemo(
+    () => ({
+      id: `mini-app:${app.appId}`,
+      label: (app.nameKey ? t(app.nameKey) : app.name).trim().slice(0, WEBVIEW_ANNOTATION_LIMITS.targetLabel)
+    }),
+    [app.appId, app.name, app.nameKey, t]
+  )
 
   // Ref to track navigation update timeout
   const navigationUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const addressInputRef = useRef<HTMLInputElement | null>(null)
+  const isAddressEditingRef = useRef(false)
+  const previousAppIdRef = useRef(app.appId)
+
+  useEffect(() => {
+    const appChanged = previousAppIdRef.current !== app.appId
+    previousAppIdRef.current = app.appId
+    const nextUrl = currentUrl || app.url
+
+    setCurrentPageUrl(nextUrl)
+    if (appChanged || !isAddressEditingRef.current) {
+      isAddressEditingRef.current = false
+      setAddressValue(nextUrl)
+    }
+  }, [app.appId, app.url, currentUrl])
+
+  const updateCurrentPageUrl = useCallback((url: string) => {
+    if (!url) return
+    setCurrentPageUrl(url)
+    if (!isAddressEditingRef.current) {
+      setAddressValue(url)
+    }
+  }, [])
+
+  const restoreCurrentPageUrl = useCallback(() => {
+    let url = currentPageUrl
+    try {
+      url = webviewRef.current?.getURL() || url
+    } catch {
+      // The WebView may be detaching; the last committed URL is still safe to display.
+    }
+    updateCurrentPageUrl(url)
+    setAddressValue(url)
+  }, [currentPageUrl, updateCurrentPageUrl, webviewRef])
 
   // Update navigation state
   const updateNavigationState = useCallback(() => {
@@ -95,23 +173,29 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
     const attachListeners = () => {
       if (webviewRef.current && !listenersAttached) {
+        const attachedWebview = webviewRef.current
         // Update state immediately
         updateNavigationState()
+        try {
+          updateCurrentPageUrl(attachedWebview.getURL())
+        } catch {
+          logger.debug('WebView not ready for URL state update', { appId: app.appId })
+        }
 
         // Add navigation event listeners
-        const handleNavigation = () => {
+        const handleNavigation = (event: DidNavigateEvent | DidNavigateInPageEvent) => {
+          if ('isMainFrame' in event && !event.isMainFrame) return
+          updateCurrentPageUrl(event.url)
           scheduleNavigationUpdate(NAVIGATION_UPDATE_DELAY_MS)
         }
 
-        webviewRef.current.addEventListener('did-navigate', handleNavigation)
-        webviewRef.current.addEventListener('did-navigate-in-page', handleNavigation)
+        attachedWebview.addEventListener('did-navigate', handleNavigation)
+        attachedWebview.addEventListener('did-navigate-in-page', handleNavigation)
         listenersAttached = true
 
         navigationListener = () => {
-          if (webviewRef.current) {
-            webviewRef.current.removeEventListener('did-navigate', handleNavigation)
-            webviewRef.current.removeEventListener('did-navigate-in-page', handleNavigation)
-          }
+          attachedWebview.removeEventListener('did-navigate', handleNavigation)
+          attachedWebview.removeEventListener('did-navigate-in-page', handleNavigation)
           listenersAttached = false
         }
 
@@ -173,7 +257,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
       if (navigationListener) navigationListener()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [app.appId, updateNavigationState, scheduleNavigationUpdate]) // webviewRef excluded as it's a ref object
+  }, [app.appId, updateCurrentPageUrl, updateNavigationState, scheduleNavigationUpdate]) // webviewRef excluded as it's a ref object
 
   const handleGoBack = useCallback(() => {
     if (webviewRef.current) {
@@ -222,13 +306,70 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
   }, [setOpenLinkExternal, openLinkExternal])
 
   const handleOpenLink = useCallback(() => {
-    const urlToOpen = currentUrl || app.url
-    void ipcApi.request('system.shell.open_website', urlToOpen)
-  }, [currentUrl, app.url])
+    void ipcApi.request('system.shell.open_website', currentPageUrl)
+  }, [currentPageUrl])
+
+  const handleAddressSubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault()
+      const normalizedAddress = normalizeAddress(addressValue)
+      if (!normalizedAddress) {
+        toast.error(t('settings.miniApps.custom.url_invalid'))
+        restoreCurrentPageUrl()
+        return
+      }
+
+      const webview = webviewRef.current
+      if (!webview) {
+        toast.error(t('miniApp.error.load_failed'))
+        restoreCurrentPageUrl()
+        return
+      }
+
+      isAddressEditingRef.current = false
+      setAddressValue(normalizedAddress)
+      addressInputRef.current?.blur()
+
+      try {
+        void webview.loadURL(normalizedAddress).catch((error) => {
+          logger.error('Failed to navigate WebView from address bar', error as Error)
+          restoreCurrentPageUrl()
+          toast.error(t('miniApp.error.load_failed'))
+        })
+      } catch (error) {
+        logger.error('Failed to navigate WebView from address bar', error as Error)
+        restoreCurrentPageUrl()
+        toast.error(t('miniApp.error.load_failed'))
+      }
+    },
+    [addressValue, restoreCurrentPageUrl, t, webviewRef]
+  )
+
+  const handleAddressFocus = useCallback((event: React.FocusEvent<HTMLInputElement>) => {
+    isAddressEditingRef.current = true
+    event.currentTarget.select()
+  }, [])
+
+  const handleAddressBlur = useCallback(() => {
+    if (!isAddressEditingRef.current) return
+    isAddressEditingRef.current = false
+    restoreCurrentPageUrl()
+  }, [restoreCurrentPageUrl])
+
+  const handleAddressKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      isAddressEditingRef.current = false
+      restoreCurrentPageUrl()
+      event.currentTarget.blur()
+    },
+    [restoreCurrentPageUrl]
+  )
 
   return (
-    <div className="flex h-8.75 shrink-0 items-center justify-between bg-background px-3">
-      <div className="flex items-center gap-2">
+    <div className="flex h-8.75 shrink-0 items-center gap-2 bg-background px-3">
+      <div className="flex shrink-0 items-center gap-2">
         <div className="flex items-center gap-0.5">
           <Tooltip content={t('miniApp.popup.goBack')} placement="bottom">
             <Button
@@ -270,8 +411,37 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
         </div>
       </div>
 
-      <div className="flex items-center">
+      <form className="mx-1 min-w-0 flex-1" onSubmit={handleAddressSubmit}>
+        <Input
+          ref={addressInputRef}
+          type="text"
+          inputMode="url"
+          value={addressValue}
+          onChange={(event) => setAddressValue(event.target.value)}
+          onFocus={handleAddressFocus}
+          onBlur={handleAddressBlur}
+          onKeyDown={handleAddressKeyDown}
+          disabled={!isWebviewReady}
+          aria-label={t('settings.miniApps.custom.url')}
+          title={currentPageUrl}
+          placeholder={t('settings.miniApps.custom.url_placeholder')}
+          autoCapitalize="none"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          className="h-7 rounded-md border-input bg-background px-2.5 text-foreground-secondary text-xs shadow-none focus-visible:text-foreground"
+        />
+      </form>
+
+      <div className="flex shrink-0 items-center">
         <div className="flex items-center gap-0.5">
+          <WebviewAnnotationControls
+            webviewRef={webviewRef}
+            isWebviewReady={isWebviewReady}
+            isHostActive={isHostActive}
+            target={annotationTarget}
+          />
+
           {canOpenExternalLink && (
             <Tooltip content={t('miniApp.popup.openExternal')} placement="bottom">
               <Button
