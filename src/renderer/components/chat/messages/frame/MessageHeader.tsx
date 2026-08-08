@@ -1,4 +1,4 @@
-import { Checkbox, Tooltip } from '@cherrystudio/ui'
+import { Badge, Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -31,6 +31,14 @@ interface Props {
   contentSlot?: ReactNode
   footerSlot?: ReactNode
 }
+
+const DELIVERY_STATUS_LABEL_KEYS = {
+  accepted: 'agent.session_delivery.status.accepted',
+  consumed: 'agent.session_delivery.status.consumed',
+  delivering: 'agent.session_delivery.status.delivering',
+  failed: 'agent.session_delivery.status.failed',
+  queued: 'agent.session_delivery.status.queued'
+} as const
 
 const MessageHeader: FC<Props> = memo(
   ({ model, message, isGroupContextMessage, showModelIdentity = false, actionsSlot, contentSlot, footerSlot }) => {
@@ -71,6 +79,7 @@ const MessageHeader: FC<Props> = memo(
     }, [authorName, displayModel, message.role, t, userName])
 
     const isAssistantMessage = message.role === 'assistant'
+    const delivery = message.delivery
     const hiddenContentHoverClass = isAssistantMessage
       ? 'group-hover/header:opacity-100'
       : 'group-hover/message:opacity-100'
@@ -120,6 +129,23 @@ const MessageHeader: FC<Props> = memo(
               }}>
               {username}
             </span>
+            {!isAssistantMessage && delivery && (
+              <Tooltip
+                content={`${delivery.sender.agentId}/${delivery.sender.sessionId} → ${delivery.receiver.agentId}/${delivery.receiver.sessionId}`}>
+                <Badge
+                  variant="outline"
+                  className="h-5 max-w-[min(28rem,50vw)] gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs">
+                  <span className="truncate">
+                    {t('agent.session_delivery.from', {
+                      agent: delivery.sender.agentName,
+                      session: delivery.sender.sessionName
+                    })}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="shrink-0">{t(DELIVERY_STATUS_LABEL_KEYS[delivery.status])}</span>
+                </Badge>
+              </Tooltip>
+            )}
             {isAssistantMessage && showModelIdentity && displayModelName && (
               <span className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5">
                 <span aria-hidden="true" className="shrink-0">

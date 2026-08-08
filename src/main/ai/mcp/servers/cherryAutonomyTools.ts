@@ -12,11 +12,20 @@ import { application } from '@application'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentChannelWorkflowService } from '@data/services/AgentChannelWorkflowService'
 import { agentService } from '@data/services/AgentService'
+import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
+import { dispatchAcceptedAgentSessionDelivery } from '@main/ai/streamManager'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
+import {
+  AgentSessionDeliveryModeSchema,
+  SESSION_INBOX_TOOL_NAME,
+  SESSION_LIST_TOOL_NAME,
+  SESSION_SEND_TOOL_NAME
+} from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
@@ -40,6 +49,11 @@ export interface CherryAgentContext {
    * granted access. The autonomy tools ignore this field.
    */
   getKnowledgeBaseIds: () => string[]
+}
+
+type CherryAutonomyContext = CherryAgentContext & {
+  /** Trusted current Session identity injected by settingsBuilder; never accepted from tool args. */
+  sessionId: string
 }
 
 /**
@@ -252,16 +266,69 @@ const CONFIG_TOOL: Tool = {
   }
 }
 
-const AUTONOMY_TOOLS: readonly Tool[] = [CRON_TOOL, NOTIFY_TOOL, CONFIG_TOOL]
+const SESSION_LIST_TOOL: Tool = {
+  name: SESSION_LIST_TOOL_NAME,
+  description:
+    'List active Cherry Agent Sessions that can receive a message. Returns both agentId and sessionId for every address.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      agent_id: { type: 'string', description: 'Optional Agent id filter.' },
+      limit: { type: 'number', description: 'Maximum Sessions to return (default 50, max 100).' }
+    }
+  }
+}
+
+const SESSION_INBOX_TOOL: Tool = {
+  name: SESSION_INBOX_TOOL_NAME,
+  description:
+    'Read structured cross-Session delivery envelopes received by the current Session, including the stable replyTo address.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      limit: { type: 'number', description: 'Maximum deliveries to return (default 20, max 100).' }
+    }
+  }
+}
+
+const SESSION_SEND_TOOL: Tool = {
+  name: SESSION_SEND_TOOL_NAME,
+  description:
+    'Send a durable message to another Cherry Agent Session. Sender agentId/sessionId are injected by the trusted runtime and cannot be supplied by the caller.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      target_session_id: { type: 'string', description: 'Target sessionId returned by session_list or replyTo.' },
+      message: { type: 'string', description: 'Message for the target Agent.' },
+      mode: {
+        type: 'string',
+        enum: ['send-now', 'queue', 'auto'],
+        description: 'send-now may steer a busy turn; queue waits for a later FIFO turn; auto chooses safely.'
+      }
+    },
+    required: ['target_session_id', 'message']
+  }
+}
+
+const AUTONOMY_TOOLS: readonly Tool[] = [
+  CRON_TOOL,
+  NOTIFY_TOOL,
+  CONFIG_TOOL,
+  SESSION_LIST_TOOL,
+  SESSION_INBOX_TOOL,
+  SESSION_SEND_TOOL
+]
 
 export class CherryAutonomyTools {
   private agentId: string
+  private sessionId: string
   private workspace: AgentSessionWorkspaceSource
   private workspacePath: string
   private sourceChannelId: string | undefined
 
-  constructor(context: CherryAgentContext) {
+  constructor(context: CherryAutonomyContext) {
     this.agentId = context.agentId
+    this.sessionId = context.sessionId
     this.workspace = context.workspaceSource
     this.workspacePath = context.workspacePath
     this.sourceChannelId = context.sourceChannelId
@@ -293,6 +360,12 @@ export class CherryAutonomyTools {
         }
         case NOTIFY_TOOL_NAME:
           return await this.sendNotification(args)
+        case SESSION_LIST_TOOL_NAME:
+          return this.listSessions(args)
+        case SESSION_INBOX_TOOL_NAME:
+          return this.listSessionInbox(args)
+        case SESSION_SEND_TOOL_NAME:
+          return await this.sendSessionMessage(args)
         case CONFIG_TOOL_NAME: {
           const action = args.action
           switch (action) {
@@ -325,10 +398,89 @@ export class CherryAutonomyTools {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       logger.error(`Tool error: ${toolName}`, { agentId: this.agentId, error: message })
+      if (!(error instanceof AgentSessionDeliveryRoutingError)) {
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${message}` }],
+          isError: true
+        }
+      }
       return {
-        content: [{ type: 'text' as const, text: `Error: ${message}` }],
+        content: [{ type: 'text' as const, text: JSON.stringify({ ok: false, error: { code: error.code, message } }) }],
         isError: true
       }
+    }
+  }
+
+  private assertCurrentSessionIdentity(): void {
+    const session = agentSessionService.getById(this.sessionId)
+    if (session.agentId !== this.agentId) {
+      throw new AgentSessionDeliveryRoutingError('SENDER_FORBIDDEN', 'The active runtime no longer owns this Session')
+    }
+  }
+
+  private listSessions(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    const agentId = typeof args.agent_id === 'string' && args.agent_id.trim() ? args.agent_id.trim() : undefined
+    const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 50
+    const sessions = agentSessionService.listByCursor({ agentId, limit }).items.flatMap((session) => {
+      if (!session.agentId) return []
+      const agent = agentService.getAgent(session.agentId)
+      if (!agent) return []
+      return [
+        {
+          agentId: agent.id,
+          agentName: agent.name,
+          sessionId: session.id,
+          sessionName: session.name,
+          isCurrent: session.id === this.sessionId
+        }
+      ]
+    })
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ sessions }) }] }
+  }
+
+  private listSessionInbox(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 20
+    const deliveries = agentSessionMessageService.listSessionDeliveries(this.sessionId, limit).flatMap((message) =>
+      message.delivery
+        ? [
+            {
+              envelope: message.delivery,
+              content: (message.data.parts ?? [])
+                .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+                .map((part) => part.text)
+                .join('\n')
+            }
+          ]
+        : []
+    )
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ deliveries }) }] }
+  }
+
+  private async sendSessionMessage(args: Record<string, unknown>) {
+    const receiverSessionId = typeof args.target_session_id === 'string' ? args.target_session_id.trim() : ''
+    const content = typeof args.message === 'string' ? args.message.trim() : ''
+    const modeResult = AgentSessionDeliveryModeSchema.safeParse(args.mode ?? 'auto')
+    if (!receiverSessionId) throw new McpError(ErrorCode.InvalidParams, "'target_session_id' is required")
+    if (!content) throw new McpError(ErrorCode.InvalidParams, "'message' is required")
+    if (!modeResult.success) throw new McpError(ErrorCode.InvalidParams, "'mode' must be send-now, queue, or auto")
+
+    const accepted = agentSessionMessageService.acceptSessionDelivery({
+      senderAgentId: this.agentId,
+      senderSessionId: this.sessionId,
+      receiverSessionId,
+      content,
+      mode: modeResult.data
+    })
+    const disposition = await dispatchAcceptedAgentSessionDelivery(accepted)
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ ok: true, delivery: { ...accepted.delivery, status: disposition } })
+        }
+      ]
     }
   }
 

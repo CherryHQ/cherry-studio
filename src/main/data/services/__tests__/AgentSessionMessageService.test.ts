@@ -7,6 +7,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
@@ -69,6 +70,118 @@ describe('AgentSessionMessageService', () => {
 
     expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(true)
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
+  })
+
+  describe('cross-session delivery', () => {
+    async function seedAgent(id: string, name: string, deletedAt?: number) {
+      await dbh.db.insert(agentTable).values({
+        id,
+        type: 'claude-code',
+        name,
+        instructions: 'test',
+        orderKey: id,
+        deletedAt
+      })
+    }
+
+    it('persists same-Agent and cross-Agent envelopes before scheduling', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'same-target', agentId: 'agent-a', name: 'Same target', orderKey: 'b1' })
+      await seedSession({ id: 'cross-target', agentId: 'agent-b', name: 'Cross target', orderKey: 'b2' })
+
+      const sameAgent = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'same-target',
+        content: 'same agent work',
+        mode: 'auto'
+      })
+      const crossAgent = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'cross-target',
+        content: 'cross agent work',
+        mode: 'queue'
+      })
+
+      expect(sameAgent.delivery).toMatchObject({
+        sender: { agentId: 'agent-a', sessionId: 'sender' },
+        receiver: { agentId: 'agent-a', sessionId: 'same-target' },
+        replyTo: { agentId: 'agent-a', sessionId: 'sender' },
+        status: 'accepted'
+      })
+      expect(crossAgent.delivery).toMatchObject({
+        receiver: { agentId: 'agent-b', sessionId: 'cross-target' },
+        mode: 'queue',
+        status: 'accepted'
+      })
+      expect(agentSessionMessageService.listRecoverableSessionDeliveries().map((message) => message.id)).toEqual([
+        sameAgent.id,
+        crossAgent.id
+      ])
+    })
+
+    it('rejects a forged sender identity without writing a message', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+
+      expect(() =>
+        agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-b',
+          senderSessionId: 'sender',
+          receiverSessionId: 'target',
+          content: 'forged',
+          mode: 'auto'
+        })
+      ).toThrowError(expect.objectContaining<Partial<AgentSessionDeliveryRoutingError>>({ code: 'SENDER_FORBIDDEN' }))
+      expect(agentSessionMessageService.listSessionDeliveries('target')).toEqual([])
+    })
+
+    it('returns stable errors for missing, orphaned, and deleted targets', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-deleted', 'Deleted', Date.now())
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'orphan', name: 'Orphan', orderKey: 'b1' })
+      await seedSession({ id: 'deleted-target', agentId: 'agent-deleted', name: 'Deleted target', orderKey: 'b2' })
+
+      const send = (receiverSessionId: string) =>
+        agentSessionMessageService.acceptSessionDelivery({
+          senderAgentId: 'agent-a',
+          senderSessionId: 'sender',
+          receiverSessionId,
+          content: 'work',
+          mode: 'auto'
+        })
+
+      expect(() => send('missing')).toThrowError(expect.objectContaining({ code: 'TARGET_SESSION_NOT_FOUND' }))
+      expect(() => send('orphan')).toThrowError(expect.objectContaining({ code: 'TARGET_SESSION_ORPHANED' }))
+      expect(() => send('deleted-target')).toThrowError(expect.objectContaining({ code: 'TARGET_AGENT_DELETED' }))
+    })
+
+    it('keeps queued and delivering rows recoverable until terminal consumption', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-a', name: 'Target', orderKey: 'b1' })
+      const accepted = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'durable work',
+        mode: 'auto'
+      })
+
+      agentSessionMessageService.updateSessionDeliveryStatus('target', accepted.id, 'queued')
+      agentSessionMessageService.updateSessionDeliveryStatus('target', accepted.id, 'delivering')
+      expect(agentSessionMessageService.listRecoverableSessionDeliveries()).toHaveLength(1)
+
+      const consumed = agentSessionMessageService.updateSessionDeliveryStatus('target', accepted.id, 'consumed')
+      expect(consumed?.delivery).toMatchObject({ status: 'consumed', consumedAt: expect.any(String) })
+      expect(agentSessionMessageService.listRecoverableSessionDeliveries()).toEqual([])
+    })
   })
 
   describe('findPendingAssistantMessageIds + markMessagesError (boot reconcile)', () => {
