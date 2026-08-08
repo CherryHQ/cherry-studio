@@ -32,13 +32,19 @@ export function normalizeExt(ext: string | undefined | null): string | null {
  * 1. Canonical `{id}.{normalizedExt}` — what `uploadFile` ('.pdf'), `saveBase64Image` ('png') and
  *    the malformed dedup rows all actually wrote to disk, and what `FileMigrator.validate` and the
  *    v2 layout use.
- * 2. Raw `{id}{rawExt}` — only differs when `rawExt` is not `.${normalized}`, i.e. an ext with a
- *    trailing space or dot ('.exe '), whose on-disk name really does carry it on POSIX. This is
- *    the one case the old `row.name` lookup covered and the canonical form does not, so dropping
- *    it would trade one data-loss bug for another.
+ * 2. Raw `{id}{rawExt}` — differs whenever `rawExt` is not `.${normalized}`, e.g. a dotless ext
+ *    ('png') or one carrying a trailing space or dot ('.exe '). Only the latter names a real file:
+ *    on POSIX the on-disk name really does keep the trailing space. That is the one case the old
+ *    `row.name` lookup covered and the canonical form does not, so dropping this candidate would
+ *    trade one data-loss bug for another.
  *
- * Callers pass rows that already cleared `SafeExtSchema`, so `rawExt` is at worst
- * `{optional dot}{safe ext}{trailing dot/space}` — no separators, no NUL — and is safe to join.
+ * Candidate safety is the caller's: `FileMigrator` clears `SafeExtSchema` first, so its `rawExt` is
+ * at worst `{optional dot}{safe ext}{trailing dot/space}` — no separators, no NUL — and is safe to
+ * join. `KnowledgeMappings` does not; `hasCompleteFileMetadata` only asserts `typeof ext ===
+ * 'string'`, so a v1 row with a separator in `ext` produces a candidate that escapes the Files dir
+ * when joined. That gap predates this helper (the hand-built `{id}{ext}` it replaced had the same
+ * reach) and closing it means deciding skip semantics for the knowledge path too — do that
+ * deliberately rather than by widening this function.
  */
 export function legacyStorageNames(row: Pick<FileMetadata, 'id' | 'ext'>): string[] {
   const normalized = normalizeExt(row.ext)
@@ -61,8 +67,9 @@ export function legacyStorageNames(row: Pick<FileMetadata, 'id' | 'ext'>): strin
  *   `getFile`/`selectFile` row satisfies.
  *
  * Conjoined, each covers the other's blind spot. `count` is deliberately not used: in v1 it is a
- * reference count (`FileManager.addFile` increments it when a second message attaches the same
- * file), not an upload counter.
+ * reference count — the v1 *renderer*'s `FileManager.addFile` incremented it when a second message
+ * attached the same file (not the v2 main-process `services/file/FileManager` of the same name) —
+ * not an upload counter.
  */
 export function hasLostOriginalFilename(row: Pick<FileMetadata, 'id' | 'name' | 'origin_name' | 'ext'>): boolean {
   const ext = row.ext ?? ''
