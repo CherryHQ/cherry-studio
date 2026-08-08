@@ -32,6 +32,7 @@ import type { KnowledgeVectorSourceReader } from '../utils/KnowledgeVectorSource
 import { BaseMigrator } from './BaseMigrator'
 import {
   expandLegacyDirectoryItem,
+  foldPathSegment,
   inferKnowledgeItemStatus,
   type LegacyKnowledgeBase,
   type LegacyKnowledgeBaseWithIdentity,
@@ -705,7 +706,11 @@ export class KnowledgeMigrator extends BaseMigrator {
         // — and that assert sits on every read path (reindex admission / restore / preview), so it
         // would raise a bare Error instead of degrading gracefully. Treating it as taken lets it
         // fall to `.cherry_1` with no special case.
-        const reservedTopLevelNames = new Set<string>([CHERRY_META_DIR])
+        // Holds `foldPathSegment` keys, not literal names: `raw/docs` and `raw/Docs` are one
+        // directory on Windows and default macOS volumes, so two v1 folders differing only in case
+        // must not both claim it — deleting or re-indexing either container calls
+        // `removeDir(raw/<prefix>)` and would take the other's bytes while its rows survive.
+        const reservedTopLevelNames = new Set<string>([foldPathSegment(CHERRY_META_DIR)])
 
         for (const item of items) {
           this.sourceCount += 1
@@ -725,7 +730,7 @@ export class KnowledgeMigrator extends BaseMigrator {
             if (expanded) {
               // Commit the prefix claim here, not inside the expansion: a null expansion claims
               // nothing, and this is the same branch that commits the rows themselves.
-              reservedTopLevelNames.add(expanded.pathPrefix)
+              reservedTopLevelNames.add(foldPathSegment(expanded.pathPrefix))
 
               if (expanded.unrelatedSourceChildCount > 0) {
                 this.recordWarning(

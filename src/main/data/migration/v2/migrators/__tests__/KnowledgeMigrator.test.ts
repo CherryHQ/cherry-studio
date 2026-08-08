@@ -2280,6 +2280,48 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     }
   })
 
+  it('prepare dedupes folder prefixes that differ only in case', async () => {
+    // Distinct rows to SQLite, one directory to Windows and default macOS volumes. If both claimed
+    // their literal name, deleting or re-indexing either container would `removeDir` the shared
+    // `raw/` directory and take the other's bytes while its rows and index entries survived.
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
+    vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
+      kind: 'loaded',
+      sources: new Map([
+        ['loader-a', '/a/Docs/README.md'],
+        ['loader-b', '/b/docs/README.md'],
+        ['loader-c', '/c/DOCS/README.md']
+      ])
+    })
+
+    // The first folder is deliberately the mixed-case one: it forces the *claim* to be folded
+    // when it is committed to the reserved set, not just the candidate when it is tested. With
+    // only lowercase-first ordering, folding on one side alone would still pass.
+    await migrator.prepare(
+      directoryPrefixCtx([
+        legacyBase({
+          id: 'kb-1',
+          items: [
+            { id: 'dir-a', type: 'directory', content: '/a/Docs', uniqueId: 'd', uniqueIds: ['loader-a'] },
+            { id: 'dir-b', type: 'directory', content: '/b/docs', uniqueId: 'd', uniqueIds: ['loader-b'] },
+            { id: 'dir-c', type: 'directory', content: '/c/DOCS', uniqueId: 'd', uniqueIds: ['loader-c'] }
+          ]
+        })
+      ]) as any
+    )
+
+    const prefixOf = (legacyId: string) =>
+      migrator.preparedItems.find((item: any) => item.id === migrator.legacyItemIdRemap.get(legacyId)).data.relativePath
+    // Original casing is preserved for display; only the occupancy test folds.
+    expect(prefixOf('dir-a')).toBe('Docs')
+    expect(prefixOf('dir-b')).toBe('docs_1')
+    expect(prefixOf('dir-c')).toBe('DOCS_2')
+
+    const folded = migrator.preparedItems.map((item: any) => item.data.relativePath.toLowerCase())
+    expect(new Set(folded).size).toBe(folded.length)
+  })
+
   it('execute keeps the prefix reserved when the v1 file is listed before its folder', async () => {
     // The seeding pass must scan every directory item up front, not rely on the copy loop reaching
     // the folder first. v1 `items` is user insertion order, so the file legitimately comes first —
