@@ -105,6 +105,31 @@ describe('pasteHandling', () => {
     expect(setFiles).not.toHaveBeenCalled()
   })
 
+  it('falls back to text/plain when the clipboard only exposes that MIME type', async () => {
+    const clipboardText = 'y'.repeat(LONG_TEXT_PASTE_THRESHOLD + 1)
+    const preventDefault = vi.fn()
+    let files: ComposerAttachment[] = []
+    const setFiles = vi.fn((updater: (prevFiles: ComposerAttachment[]) => ComposerAttachment[]) => {
+      files = updater(files)
+    })
+    const event = {
+      preventDefault,
+      clipboardData: {
+        getData: (type: string) => (type === 'text/plain' ? clipboardText : ''),
+        files: []
+      }
+    } as unknown as ClipboardEvent
+
+    const handled = await pasteHandling.handlePaste(event, [], setFiles, undefined, '', undefined, (key) =>
+      key === 'chat.input.pasted_text_file_name' ? 'pasted text.txt' : key
+    )
+
+    expect(handled).toBe(true)
+    expect(preventDefault).toHaveBeenCalled()
+    expect(window.api.file.write).toHaveBeenCalledWith('/tmp/pasted_text.txt', clipboardText)
+    expect(files).toHaveLength(1)
+  })
+
   it('uses the clipboard image basename as the display name for a pasted screenshot', async () => {
     const tempImageFile: FileMetadata = {
       ...selectedFile,

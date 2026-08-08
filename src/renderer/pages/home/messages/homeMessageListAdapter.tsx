@@ -28,6 +28,7 @@ import {
   runMessageImageAction
 } from '@renderer/components/chat/messages/utils/messageImageRuntimeActions'
 import { getMessageListItemModel, toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
+import { withTerminalErrorFallback } from '@renderer/components/chat/messages/utils/terminalErrorFallback'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { useChatWrite } from '@renderer/hooks/chat/ChatWriteContext'
 import { useCommandHandler } from '@renderer/hooks/command'
@@ -781,12 +782,29 @@ export function useHomeMessageListProviderValue({
     [regenerateMessageUsingModel, t]
   )
 
+  const displayPartsByMessageId = useMemo(
+    () => withTerminalErrorFallback(messages, partsByMessageId, t('error.no_response')),
+    [messages, partsByMessageId, t]
+  )
+  const displayStreamingLayers = useMemo(() => {
+    if (!streamingLayers) return undefined
+
+    const historyPartsByMessageId = withTerminalErrorFallback(
+      messages,
+      streamingLayers.historyPartsByMessageId,
+      t('error.no_response')
+    )
+    if (historyPartsByMessageId === streamingLayers.historyPartsByMessageId) return streamingLayers
+
+    return { ...streamingLayers, historyPartsByMessageId }
+  }, [messages, streamingLayers, t])
+
   const state = useMemo<MessageListState>(
     () => ({
       topic,
       messages: messageItems,
-      partsByMessageId,
-      streamingLayers,
+      partsByMessageId: displayPartsByMessageId,
+      streamingLayers: displayStreamingLayers,
       isInitialLoading,
       isMessagesStale,
       hasOlder,
@@ -807,6 +825,8 @@ export function useHomeMessageListProviderValue({
       getTranslationLanguageLabel
     }),
     [
+      displayPartsByMessageId,
+      displayStreamingLayers,
       editingMessageId,
       getMessageActivityState,
       getMessageSiblings,
@@ -820,11 +840,9 @@ export function useHomeMessageListProviderValue({
       messageUiStateCache.getMessageUiState,
       messageItems,
       messageNavigation,
-      partsByMessageId,
       renderConfig,
       resolvedAssistantId,
       selectionController.selection,
-      streamingLayers,
       topic,
       translationLanguages,
       translationLanguagesStatus

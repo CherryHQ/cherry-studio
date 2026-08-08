@@ -2764,6 +2764,11 @@ export class AgentSessionRuntimeService extends BaseService {
     return new PersistenceListener({
       topicId: entry.topicId,
       modelId,
+      // The agent runtime deliberately supplies terminal status. An empty-parts
+      // `success` is a legitimate terminal state there (the agents renderer has
+      // its own empty-terminal fallback), so skip the empty-success guard that
+      // protects AI-SDK streaming turns.
+      rejectEmptySuccess: false,
       backend: new AgentSessionMessageBackend({
         sessionId: entry.sessionId,
         assistantMessageId,

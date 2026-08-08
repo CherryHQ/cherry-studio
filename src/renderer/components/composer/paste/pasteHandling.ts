@@ -38,8 +38,8 @@ export const handlePaste = async (
   t?: (key: string) => string
 ): Promise<boolean> => {
   try {
-    // 优先处理文本粘贴
-    const clipboardText = event.clipboardData?.getData('text')
+    // 优先处理文本粘贴（优先 text/plain，部分平台/剪贴板只暴露该 MIME）
+    const clipboardText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text')
     if (clipboardText) {
       // 1. 文本粘贴
       if (clipboardText.length > LONG_TEXT_PASTE_THRESHOLD) {

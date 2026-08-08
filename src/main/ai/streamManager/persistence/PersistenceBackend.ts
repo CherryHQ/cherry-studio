@@ -100,6 +100,33 @@ export function dropEmptyContentParts(parts: CherryMessagePart[]): CherryMessage
   return filtered.length === parts.length ? parts : filtered
 }
 
+/**
+ * Part types that render no visible content of their own — transport/state
+ * markers the renderer filters out (mirrors `messagePartLayouts.ts`
+ * `HIDDEN_PART_TYPES`). A terminal message made only of these (e.g. a lone
+ * `step-start` left behind by an empty stream) would otherwise persist as a
+ * "successful" empty bubble.
+ */
+const HIDDEN_MARKER_PART_TYPES: ReadonlySet<string> = new Set([
+  'step-start',
+  'source-url',
+  'source-document',
+  'data-citation',
+  'data-agent-task-event',
+  'data-knowledge-scope',
+  'data-clear'
+])
+
+/**
+ * True when at least one part carries content the renderer displays — i.e. not
+ * one of the hidden marker types above. Used to reject "success" streams that
+ * ended without producing any visible output. Call on already-stripped parts so
+ * empty text/reasoning parts don't count as content.
+ */
+export function hasRenderableContent(parts: CherryMessagePart[]): boolean {
+  return parts.some((part) => !HIDDEN_MARKER_PART_TYPES.has(part.type))
+}
+
 export interface PersistAssistantInput {
   /** Undefined when the stream errored before producing any chunks. */
   finalMessage?: CherryUIMessage
