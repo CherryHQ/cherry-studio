@@ -11,7 +11,8 @@ const EXPECTED_ACQUISITION_FACTS = [
   ['qwen-code', 'qwen', '@qwen-code/qwen-code', 'npm', 'npm:@qwen-code/qwen-code'],
   ['kimi-code', 'kimi', '@moonshot-ai/kimi-code', 'npm', 'npm:@moonshot-ai/kimi-code'],
   ['qoder-cli', 'qoderclicn', '@qodercn-ai/qoderclicn', 'npm', 'npm:@qodercn-ai/qoderclicn'],
-  ['github-copilot-cli', 'copilot', '@github/copilot', 'npm', 'npm:@github/copilot']
+  ['github-copilot-cli', 'copilot', '@github/copilot', 'npm', 'npm:@github/copilot'],
+  ['pi', 'pi', '@earendil-works/pi-coding-agent', 'npm', 'npm:@earendil-works/pi-coding-agent']
 ]
 
 describe('Code CLI acquisition catalog', () => {

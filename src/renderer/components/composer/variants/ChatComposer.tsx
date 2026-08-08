@@ -99,6 +99,9 @@ import { useLatest } from './shared/useLatest'
 
 const logger = loggerService.withContext('ChatComposer')
 const CHAT_MANAGED_TOKEN_KINDS = ['file', 'knowledge'] as const satisfies readonly ComposerDraftToken['kind'][]
+const CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
+  'file'
+] as const satisfies readonly ComposerDraftToken['kind'][]
 const CHAT_NEW_CONVERSATION_TOOL_ID = 'composer:new-conversation'
 const CHAT_CLEAR_CONTEXT_TOOL_ID = 'composer:clear-context'
 const EMPTY_MODELS: Model[] = []
@@ -170,6 +173,7 @@ interface SavedComposerDraft {
   files: ComposerAttachment[]
   mentionedModels: Model[]
   selectedKnowledgeBases: KnowledgeBase[]
+  knowledgeBaseIds: string[]
 }
 
 interface InputHistoryToolSnapshot extends Pick<SavedComposerDraft, 'files' | 'selectedKnowledgeBases'> {
@@ -207,8 +211,17 @@ type ChatComposerControlProps = Omit<ChatConversationControlsProps, 'side'> & {
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type ComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
 type ComposerUnifiedPanelControl = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[1]
-type ChatComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
+type ChatComposerControlSlots = Pick<
+  ComposerSurfaceProps,
+  'renderLeftControls' | 'renderBelowControls' | 'renderCompactControls'
+>
 type ChatComposerControlsRenderer = (props: ChatComposerControlProps) => ChatComposerControlSlots
+
+const renderChatPersistentCompactControls = (
+  props: ChatComposerControlProps,
+  inputAdapter: ComposerInputAdapter,
+  unifiedPanelControl: ComposerUnifiedPanelControl
+) => props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })
 
 const restoreComposerInputFocus = (inputAdapter: ComposerInputAdapter) => {
   window.requestAnimationFrame(() => inputAdapter?.focus())
@@ -273,7 +286,9 @@ const renderChatInputControls: ChatComposerControlsRenderer = (props) => ({
       unifiedPanelControl={unifiedPanelControl}
       renderContextControls={() => null}
     />
-  )
+  ),
+  renderCompactControls: (inputAdapter, unifiedPanelControl) =>
+    renderChatPersistentCompactControls(props, inputAdapter, unifiedPanelControl)
 })
 
 const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
@@ -311,7 +326,9 @@ const renderChatHomeInputControls: ChatComposerControlsRenderer = (props) => ({
       {props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })}
       <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
     </div>
-  )
+  ),
+  renderCompactControls: (inputAdapter, unifiedPanelControl) =>
+    renderChatPersistentCompactControls(props, inputAdapter, unifiedPanelControl)
 })
 
 function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | null }) {
@@ -344,15 +361,25 @@ function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | 
   )
 }
 
-type ChatComposerRootProps = ChatComposerProps & {
-  renderControls: ChatComposerControlsRenderer
-  forceNarrowLayout?: boolean
-  deferQuickPanel?: boolean
+interface ChatComposerPresentationProps {
+  compactWhenSingleLine?: boolean
 }
 
-type ChatPlacementDockedProps = Omit<ChatComposerProps, 'onDraftAssistantChange'>
+type ChatComposerRootProps = ChatComposerProps &
+  ChatComposerPresentationProps & {
+    renderControls: ChatComposerControlsRenderer
+    forceNarrowLayout?: boolean
+    deferQuickPanel?: boolean
+  }
+
+type ChatPlacementPresentationProps =
+  | { externalContextControls: true; compactWhenSingleLine?: boolean }
+  | { externalContextControls?: false; compactWhenSingleLine?: never }
+type ChatPlacementHomeProps = Omit<ChatComposerProps, 'externalContextControls'> & ChatPlacementPresentationProps
+type ChatPlacementDockedProps = Omit<ChatComposerProps, 'externalContextControls' | 'onDraftAssistantChange'> &
+  ChatPlacementPresentationProps
 type ChatPlacementComposerProps =
-  | (ChatComposerProps & { placement: 'home' })
+  | (ChatPlacementHomeProps & { placement: 'home' })
   | (ChatPlacementDockedProps & { placement: 'docked' })
 
 const ChatComposerRoot = ({
@@ -368,6 +395,7 @@ const ChatComposerRoot = ({
   onSend,
   chatTarget,
   sendDisabled,
+  compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
@@ -379,15 +407,16 @@ const ChatComposerRoot = ({
   const resolvedScopeKey = scopeKey ?? topic?.id
   const resolvedTopicId = topicId ?? topic?.id
   const resolvedAssistantId = assistantId ?? topic?.assistantId
+  const draftCacheScopeKey = resolvedTopicId ?? resolvedScopeKey ?? ''
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-  // Snapshot the global draft cache once per mount: files seed the tool provider synchronously so
+  // Snapshot the topic draft before mounting its tool provider: files seed the provider synchronously so
   // the surface's managed-token sync does not strip restored file tokens, and the same snapshot
   // feeds text/draftTokens in ChatComposerInner so files and tokens stay consistent.
-  const initialDraftRef = useRef<ChatComposerDraftCache | null>(null)
-  if (initialDraftRef.current === null) {
-    initialDraftRef.current = readChatDraftCache()
+  const initialDraftRef = useRef<{ scopeKey: string; draft: ChatComposerDraftCache } | null>(null)
+  if (initialDraftRef.current?.scopeKey !== draftCacheScopeKey) {
+    initialDraftRef.current = { scopeKey: draftCacheScopeKey, draft: readChatDraftCache(draftCacheScopeKey) }
   }
-  const initialDraft = initialDraftRef.current
+  const initialDraft = initialDraftRef.current.draft
   const initialState = useMemo(
     () => ({
       files: initialDraft.files,
@@ -403,6 +432,7 @@ const ChatComposerRoot = ({
   return (
     <MessageEditingProvider>
       <ComposerToolRuntimeProvider
+        key={draftCacheScopeKey}
         initialState={initialState}
         actions={{
           addNewTopic: () => actionsRef.current.addNewTopic(),
@@ -419,10 +449,12 @@ const ChatComposerRoot = ({
             externalContextControls={externalContextControls}
             onConversationControlsChange={onConversationControlsChange}
             initialDraft={initialDraft}
+            draftCacheScopeKey={draftCacheScopeKey}
             actionsRef={actionsRef}
             onSend={onSend}
             chatTarget={chatTarget}
             sendDisabled={sendDisabled}
+            compactWhenSingleLine={compactWhenSingleLine}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
             onNewTopic={onNewTopic}
@@ -437,9 +469,10 @@ const ChatComposerRoot = ({
   )
 }
 
-interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
+interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'>, ChatComposerPresentationProps {
   scopeKey: string
   initialDraft: ChatComposerDraftCache
+  draftCacheScopeKey: string
   actionsRef: React.RefObject<ProviderActionHandlers>
   renderControls: ChatComposerControlsRenderer
   forceNarrowLayout?: boolean
@@ -456,10 +489,12 @@ const ChatComposerInner = ({
   externalContextControls = false,
   onConversationControlsChange,
   initialDraft,
+  draftCacheScopeKey,
   actionsRef,
   onSend,
   chatTarget,
   sendDisabled = false,
+  compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
@@ -521,7 +556,27 @@ const ChatComposerInner = ({
   const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(() =>
     initialDraft.tokens.length ? initialDraft.tokens : undefined
   )
+  const surfaceGetDraftRef = useRef<ComposerSurfaceActions['getDraft']>(emptyActions.getDraft)
   const [draftTokenRevision, setDraftTokenRevision] = useState(0)
+  const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
+  const mentionedModelDraftRef = useRef({
+    mentionedModelIds: [...initialDraft.mentionedModelIds],
+    modelMultiSelectMode: initialDraft.modelMultiSelectMode
+  })
+  const shouldHydrateMentionedModelDraft =
+    Boolean(useMentionedModelSelector) &&
+    (initialDraft.mentionedModelIds.length > 0 || initialDraft.modelMultiSelectMode)
+  const [isMentionedModelDraftHydrated, setIsMentionedModelDraftHydrated] = useState(!shouldHydrateMentionedModelDraft)
+  const { models: draftModels, isLoading: isDraftModelsLoading } = useModels(
+    { enabled: true },
+    { fetchEnabled: shouldHydrateMentionedModelDraft && initialDraft.mentionedModelIds.length > 0 }
+  )
+  const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
+    initialDraft.knowledgeBaseIds.length === 0 ? JSON.stringify([]) : null
+  )
+  const [isKnowledgeBaseDraftHydrated, setIsKnowledgeBaseDraftHydrated] = useState(
+    initialDraft.knowledgeBaseIds.length === 0
+  )
   const quickPanel = useOptionalQuickPanel()
   const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
   const knowledgeBasePanelVisible = Boolean(
@@ -666,7 +721,8 @@ const ChatComposerInner = ({
     mentionedModelMultiSelectMode,
     handleMentionedModelsSelect: selectMentionedModels,
     handleMentionedModelMultiSelectModeChange: changeMentionedModelMultiSelectMode,
-    handleMentionedModelSelectorRestore: restoreMentionedModelSelector
+    handleMentionedModelSelectorRestore: restoreMentionedModelSelector,
+    restoreMentionedModelDraft
   } = useChatMentionedModels({
     enabled: useMentionedModelSelector,
     runtimeModel,
@@ -678,6 +734,42 @@ const ChatComposerInner = ({
     preserveExplicitSelectionOnRuntimeChange: !assistant && !assistantId,
     onModelSelect: handleModelSelect
   })
+
+  useEffect(() => {
+    if (isMentionedModelDraftHydrated || !useMentionedModelSelector) return
+    if (runtimeModelPending || (initialDraft.mentionedModelIds.length > 0 && isDraftModelsLoading)) return
+
+    const modelById = new Map(draftModels.map((model) => [model.id, model]))
+    const restoredModels = initialDraft.mentionedModelIds.flatMap((modelId) => {
+      const restoredModel = modelById.get(modelId)
+      return restoredModel ? [restoredModel] : []
+    })
+    if (initialDraft.mentionedModelIds.length > 0 && restoredModels.length === 0) {
+      restoreMentionedModelSelector()
+    } else {
+      restoreMentionedModelDraft(restoredModels, initialDraft.modelMultiSelectMode)
+    }
+    setIsMentionedModelDraftHydrated(true)
+  }, [
+    draftModels,
+    initialDraft.mentionedModelIds,
+    initialDraft.modelMultiSelectMode,
+    isDraftModelsLoading,
+    isMentionedModelDraftHydrated,
+    restoreMentionedModelDraft,
+    restoreMentionedModelSelector,
+    runtimeModelPending,
+    useMentionedModelSelector
+  ])
+
+  useEffect(() => {
+    if (!useMentionedModelSelector || !isMentionedModelDraftHydrated) return
+    mentionedModelDraftRef.current = {
+      mentionedModelIds: mentionedModels.map((model) => model.id),
+      modelMultiSelectMode: mentionedModelMultiSelectMode
+    }
+  }, [isMentionedModelDraftHydrated, mentionedModelMultiSelectMode, mentionedModels, useMentionedModelSelector])
+
   const exitInputHistoryPreview = useCallback(() => {
     const draft = takeDraftBeforeHistory()
     const tools = inputHistoryToolsRef.current
@@ -690,8 +782,14 @@ const ChatComposerInner = ({
     if (!historyPreview.draft) return
 
     const visibleDraft = actionsRef.current.getDraft()
-    writeChatDraftCache(visibleDraft.text, visibleDraft.tokens, filesRef.current)
-  }, [actionsRef, exitInputHistoryPreview, filesRef])
+    writeChatDraftCache(draftCacheScopeKey, {
+      text: visibleDraft.text,
+      tokens: visibleDraft.tokens,
+      files: filesRef.current,
+      knowledgeBaseIds: knowledgeBaseIdsRef.current,
+      ...mentionedModelDraftRef.current
+    })
+  }, [actionsRef, draftCacheScopeKey, exitInputHistoryPreview, filesRef])
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
       exitInputHistoryPreviewForModelChange()
@@ -866,13 +964,29 @@ const ChatComposerInner = ({
     setSelectedKnowledgeBases
   })
 
-  // Single owner of the global draft cache. Runs after ComposerSurface's effects have synced the
+  useEffect(() => {
+    if (isKnowledgeBaseDraftHydrated || isKnowledgeBasesLoading) return
+
+    const wantedIds = new Set(initialDraft.knowledgeBaseIds)
+    const restoredIds = selectableKnowledgeBases.filter((base) => wantedIds.has(base.id)).map((base) => base.id)
+    observedKnowledgeBaseSelectionKeyRef.current = JSON.stringify(restoredIds)
+    restoreKnowledgeBaseSelection(initialDraft.knowledgeBaseIds)
+    setIsKnowledgeBaseDraftHydrated(true)
+  }, [
+    initialDraft.knowledgeBaseIds,
+    isKnowledgeBaseDraftHydrated,
+    isKnowledgeBasesLoading,
+    restoreKnowledgeBaseSelection,
+    selectableKnowledgeBases
+  ])
+
+  // Single owner of the topic draft cache. Runs after ComposerSurface's effects have synced the
   // editor to the current text, so getDraft() serializes the live tokens consistently. Every
-  // persistable change is observed through text, files, or the editor token revision. The revision
-  // covers token-only edits whose serialized text stays unchanged; knowledge selection is
-  // intentionally excluded by writeChatDraftCache.
+  // persistable change is observed through text, files, knowledge bases, model selection, or the editor token revision.
+  // The revision covers token-only edits whose serialized text stays unchanged.
   const persistedOnceRef = useRef(false)
   useEffect(() => {
+    if (isInputHistoryActive || !isKnowledgeBaseDraftHydrated || !isMentionedModelDraftHydrated) return
     if (!persistedOnceRef.current) {
       persistedOnceRef.current = true
       return
@@ -882,8 +996,59 @@ const ChatComposerInner = ({
       return
     }
     if (editingMessage) return
-    writeChatDraftCache(text, actionsRef.current.getDraft().tokens, files)
-  }, [actionsRef, draftTokenRevision, editingMessage, files, text])
+    const selectedKnowledgeBaseIds = selectedKnowledgeBasesInScope.map((base) => base.id)
+    const selectedKnowledgeBaseIdsKey = JSON.stringify(selectedKnowledgeBaseIds)
+    if (observedKnowledgeBaseSelectionKeyRef.current === null) {
+      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
+    } else if (observedKnowledgeBaseSelectionKeyRef.current !== selectedKnowledgeBaseIdsKey) {
+      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
+      const selectableKnowledgeBaseIdSet = new Set(selectableKnowledgeBases.map((base) => base.id))
+      const unresolvedKnowledgeBaseIds = knowledgeBaseIdsRef.current.filter(
+        (id) => !selectableKnowledgeBaseIdSet.has(id)
+      )
+      knowledgeBaseIdsRef.current = [...new Set([...unresolvedKnowledgeBaseIds, ...selectedKnowledgeBaseIds])]
+    }
+    const draft = actionsRef.current.getDraft()
+    writeChatDraftCache(draftCacheScopeKey, {
+      text,
+      tokens: draft.tokens,
+      files,
+      knowledgeBaseIds: knowledgeBaseIdsRef.current,
+      ...mentionedModelDraftRef.current
+    })
+  }, [
+    actionsRef,
+    draftCacheScopeKey,
+    draftTokenRevision,
+    editingMessage,
+    files,
+    isInputHistoryActive,
+    isKnowledgeBaseDraftHydrated,
+    isMentionedModelDraftHydrated,
+    mentionedModelMultiSelectMode,
+    mentionedModels,
+    selectableKnowledgeBases,
+    selectedKnowledgeBasesInScope,
+    text
+  ])
+
+  const persistFinalDraft = useEffectEvent(() => {
+    if (isInputHistoryActive) return
+    const savedDraft = savedDraftBeforeEditingRef.current
+    if (editingMessage && !savedDraft) return
+    const draft = savedDraft ? { text: savedDraft.text, tokens: savedDraft.draftTokens } : surfaceGetDraftRef.current()
+    writeChatDraftCache(draftCacheScopeKey, {
+      text: savedDraft ? draft.text : text,
+      tokens: draft.tokens,
+      files: savedDraft?.files ?? filesRef.current,
+      knowledgeBaseIds: savedDraft?.knowledgeBaseIds ?? knowledgeBaseIdsRef.current,
+      mentionedModelIds:
+        savedDraft?.mentionedModels.map((model) => model.id) ?? mentionedModelDraftRef.current.mentionedModelIds,
+      modelMultiSelectMode: mentionedModelDraftRef.current.modelMultiSelectMode
+    })
+  })
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by topic.
+  useEffect(() => () => persistFinalDraft(), [draftCacheScopeKey])
 
   const restoreSavedDraft = useCallback(() => {
     const savedDraft = savedDraftBeforeEditingRef.current
@@ -946,7 +1111,8 @@ const ChatComposerInner = ({
         draftTokens: currentDraft.tokens,
         files: currentTools?.files ?? filesRef.current,
         mentionedModels: currentTools?.mentionedModels ?? mentionedModelsRef.current,
-        selectedKnowledgeBases: currentTools?.selectedKnowledgeBases ?? selectedKnowledgeBasesRef.current
+        selectedKnowledgeBases: currentTools?.selectedKnowledgeBases ?? selectedKnowledgeBasesRef.current,
+        knowledgeBaseIds: [...knowledgeBaseIdsRef.current]
       }
     } else {
       exitInputHistoryPreview()
@@ -1122,6 +1288,7 @@ const ChatComposerInner = ({
 
   const handleSurfaceActionsChange = useCallback(
     (actions: ComposerSurfaceActions) => {
+      surfaceGetDraftRef.current = actions.getDraft
       Object.assign(actionsRef.current, actions)
     },
     [actionsRef]
@@ -1330,6 +1497,86 @@ const ChatComposerInner = ({
     [files, selectedKnowledgeBasesInScope]
   )
 
+  /** `resend` = fork the user message and regenerate; otherwise save the edit in place. */
+  const commitEditedMessage = useCallback(
+    async (draft: ComposerSerializedDraft, resend: boolean) => {
+      if (!editingMessageForCurrentTopic) return
+      const editingSessionId = editingMessageForCurrentTopic.editingSessionId
+      if (editSaveInFlightSessionIdRef.current === editingSessionId) return
+
+      const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
+      if (!chatWrite) {
+        toast.error(t('message.error.operation_unavailable'))
+        return
+      }
+
+      if (isAssistantReply && !canEditAssistantMessageParts(editingMessageForCurrentTopic.parts)) {
+        toast.error(t('message.error.operation_unavailable'))
+        return
+      }
+
+      editSaveInFlightSessionIdRef.current = editingSessionId
+      setSavingEditingSessionId(editingSessionId)
+      try {
+        const editedParts = await buildEditedMessageParts(draft)
+        if (!editedParts) return
+
+        const savedParts = isAssistantReply
+          ? replaceComposerEditableMessageParts(editingMessageForCurrentTopic.parts, editedParts)
+          : editedParts
+        if (isAssistantReply || !resend) {
+          await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
+        } else {
+          const editedTurnOptions = isMentionedModelSelectorLocked
+            ? undefined
+            : {
+                reasoningEffort:
+                  assistantId && speedControlModel
+                    ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
+                    : assistantId
+                      ? reasoningEffort
+                      : 'default',
+                fastMode: fastMode && speedControlModel?.supportsFastMode === true
+              }
+          await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
+        }
+        if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
+          restoreSavedDraft()
+          stopEditing()
+        }
+      } catch (error) {
+        logger.warn('edited message save failed', { error, role: editingMessageForCurrentTopic.message.role })
+        toast.error(t('message.error.operation_unavailable'))
+      } finally {
+        if (editSaveInFlightSessionIdRef.current === editingSessionId) {
+          editSaveInFlightSessionIdRef.current = null
+          setSavingEditingSessionId((currentSessionId) =>
+            currentSessionId === editingSessionId ? null : currentSessionId
+          )
+        }
+      }
+    },
+    [
+      assistantId,
+      buildEditedMessageParts,
+      chatWrite,
+      editingMessageForCurrentTopic,
+      editingMessageForCurrentTopicRef,
+      fastMode,
+      isMentionedModelSelectorLocked,
+      reasoningEffort,
+      restoreSavedDraft,
+      speedControlModel,
+      stopEditing,
+      t
+    ]
+  )
+
+  const handleSaveEditedMessage = useCallback(
+    (draft: ComposerSerializedDraft) => commitEditedMessage(draft, false),
+    [commitEditedMessage]
+  )
+
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
       if (staleEditingMessage) {
@@ -1339,60 +1586,7 @@ const ChatComposerInner = ({
       }
 
       if (editingMessageForCurrentTopic) {
-        const editingSessionId = editingMessageForCurrentTopic.editingSessionId
-        if (editSaveInFlightSessionIdRef.current === editingSessionId) return
-
-        const isAssistantReply = editingMessageForCurrentTopic.message.role === 'assistant'
-        if (!chatWrite) {
-          toast.error(t('message.error.operation_unavailable'))
-          return
-        }
-
-        if (isAssistantReply && !canEditAssistantMessageParts(editingMessageForCurrentTopic.parts)) {
-          toast.error(t('message.error.operation_unavailable'))
-          return
-        }
-
-        editSaveInFlightSessionIdRef.current = editingSessionId
-        setSavingEditingSessionId(editingSessionId)
-        try {
-          const editedParts = await buildEditedMessageParts(draft)
-          if (!editedParts) return
-
-          const savedParts = isAssistantReply
-            ? replaceComposerEditableMessageParts(editingMessageForCurrentTopic.parts, editedParts)
-            : editedParts
-          if (isAssistantReply) {
-            await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
-          } else {
-            const editedTurnOptions = isMentionedModelSelectorLocked
-              ? undefined
-              : {
-                  reasoningEffort:
-                    assistantId && speedControlModel
-                      ? resolveComposerReasoningEffort(speedControlModel, reasoningEffort)
-                      : assistantId
-                        ? reasoningEffort
-                        : 'default',
-                  fastMode: fastMode && speedControlModel?.supportsFastMode === true
-                }
-            await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
-          }
-          if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
-            restoreSavedDraft()
-            stopEditing()
-          }
-        } catch (error) {
-          logger.warn('edited message save failed', { error, role: editingMessageForCurrentTopic.message.role })
-          toast.error(t('message.error.operation_unavailable'))
-        } finally {
-          if (editSaveInFlightSessionIdRef.current === editingSessionId) {
-            editSaveInFlightSessionIdRef.current = null
-            setSavingEditingSessionId((currentSessionId) =>
-              currentSessionId === editingSessionId ? null : currentSessionId
-            )
-          }
-        }
+        await commitEditedMessage(draft, true)
         return
       }
 
@@ -1449,32 +1643,25 @@ const ChatComposerInner = ({
       }
     },
     [
-      assistantId,
       buildQueuedPayload,
-      buildEditedMessageParts,
       canSteer,
-      chatWrite,
       clearCurrentDraft,
+      commitEditedMessage,
       editingMessageForCurrentTopic,
-      editingMessageForCurrentTopicRef,
       enqueueFollowup,
-      fastMode,
       files,
       handleModelSelect,
-      isMentionedModelSelectorLocked,
       loading,
       missingAssistantMessage,
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
-      reasoningEffort,
       selectedKnowledgeBases,
       selectedModelForMissingAssistantDefault,
       selectedModelForUnlinkedHome,
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,
-      speedControlModel,
       setFiles,
       setSelectedKnowledgeBases,
       setText,
@@ -1575,7 +1762,9 @@ const ChatComposerInner = ({
           onTextChange={handleTextChange}
           tokens={tokens}
           draftTokens={draftTokens}
-          managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
+          managedTokenKinds={
+            isKnowledgeBaseDraftHydrated ? CHAT_MANAGED_TOKEN_KINDS : CHAT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE
+          }
           onTokensChange={handleTokensChange}
           suggestionSources={entityReferenceSources}
           resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
@@ -1605,7 +1794,10 @@ const ChatComposerInner = ({
                   messageId: editingMessageForCurrentTopic.message.id,
                   highlightKey: editingMessageForCurrentTopic.editingSessionId,
                   onLocate: handleLocateEditingMessage,
-                  onCancel: handleCancelEditing
+                  onCancel: handleCancelEditing,
+                  // Assistant edits already save in place on send; only user edits need a save-only path.
+                  onSave:
+                    editingMessageForCurrentTopic.message.role === 'assistant' ? undefined : handleSaveEditedMessage
                 }
               : undefined
           }
@@ -1660,6 +1852,7 @@ const ChatComposerInner = ({
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           deferQuickPanel={deferQuickPanel}
           sendAccessory={sendAccessory}
+          compactWhenSingleLine={compactWhenSingleLine}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>

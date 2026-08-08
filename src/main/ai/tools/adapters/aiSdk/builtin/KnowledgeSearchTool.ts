@@ -33,7 +33,6 @@ const kbSearchTool = tool({
   description: KNOWLEDGE_SEARCH_DESCRIPTION,
   inputSchema: kbSearchInputSchema,
   outputSchema: knowledgeSearchResultSchema,
-  strict: true,
   execute: async ({ query, baseIds }, options) => {
     const { request } = getToolCallContext(options)
     return searchKnowledge(query, baseIds, request.knowledgeBaseIds ?? [])
