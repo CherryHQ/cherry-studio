@@ -778,8 +778,8 @@ describe('AgentPage', () => {
     expect(agentPageMocks.dataApiDelete).not.toHaveBeenCalled()
     expect(agentPageMocks.composerLaunchOptions).toMatchObject({
       initialDraft: {
-        text: 'Use the issue-reporter skill.',
-        tokens: [expect.objectContaining({ id: 'skill:issue-reporter', kind: 'skill' })]
+        text: 'Use the cherry-studio-feedback skill.',
+        tokens: [expect.objectContaining({ id: 'skill:cherry-studio-feedback', kind: 'skill' })]
       }
     })
     expect(agentPageMocks.navigate).toHaveBeenCalledWith({
