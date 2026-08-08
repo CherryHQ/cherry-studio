@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/cherryhq-cherry-studio-badge.png)](https://mseep.ai/app/cherryhq-cherry-studio)
+
 <div align="right" >
   <details>
     <summary >🌐 Language</summary>
