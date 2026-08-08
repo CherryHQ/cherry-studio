@@ -27,9 +27,9 @@ Decided per file part in `prepareChatMessages`
 | office (`docx/xlsx/pptx/odf`) | — | extracted text, inline (capped) |
 | text / code | — | decoded text, inline (capped) |
 | extensionless | — | decoded text when content is text; otherwise unsupported note |
-| audio | model is audio-capable | native audio part (inline) |
+| audio | model and resolved endpoint are audio-capable | native audio part (inline) |
 | audio | otherwise | short note ("can't process audio") |
-| video | model is video-capable | native video part (inline) |
+| video | model and resolved endpoint are video-capable | native video part (inline) |
 | video | otherwise | short note ("can't process video") |
 | other (binary: zip/exe/…) | — | short note ("unsupported file type") |
 
@@ -51,9 +51,9 @@ Decided per file part in `prepareChatMessages`
   cap below). The internal `fileEntryId` is never written into the prompt.
 
 Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway /
-external file parts (no `fileEntryId`) are still eagerly materialized, but an
-image is omitted for a non-vision model because it was never an explicit OCR
-fallback. Other gateway/external file types keep their existing behavior.
+external file parts (no `fileEntryId`) are still eagerly materialized, but
+image/audio/video parts are omitted when native support is false. Other
+gateway/external file types keep their existing behavior.
 
 ## The cap (the only context guard)
 
@@ -115,11 +115,12 @@ re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
 
 `resolveNativeFileSupport`
 (`src/main/ai/runtime/aiSdk/params/nativeFileSupport.ts`) derives the
-"native" column from `(provider, model)`: image/audio/video ride on the model
-capability alone (`isVision` / `isAudio` / `isVideo`, `@shared/utils/model`),
-while PDF additionally requires a first-party provider (`supportsNativePdf`).
-There is no `pdf-compatibility` middleware — native PDFs pass through inline,
-non-native PDFs go through extraction.
+"native" column from `(provider, model, resolved endpoint/runtime converter)`:
+image rides on the model capability (`isVision`, `@shared/utils/model`);
+audio/video require both the model capability and support from the selected AI
+SDK converter. PDF additionally requires a first-party provider
+(`supportsNativePdf`). There is no `pdf-compatibility` middleware — native PDFs
+pass through inline, non-native PDFs go through extraction.
 
 ## Invariants
 

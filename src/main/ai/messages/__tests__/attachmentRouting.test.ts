@@ -74,6 +74,20 @@ describe('prepareChatMessages — routing', () => {
     expect(extractMock).not.toHaveBeenCalled()
   })
 
+  it.each([
+    ['audio', 'mp3', 'audio/mpeg'],
+    ['video', 'mp4', 'video/mp4']
+  ] as const)('keeps a supported managed %s part inline', async (_kind, ext, mediaType) => {
+    getByIdMock.mockResolvedValueOnce({ ext })
+    resolveMock.mockImplementation(async (part) => part)
+
+    const [out] = await run([fileWithEntry('e1', `media.${ext}`, mediaType)], ALL)
+
+    expect(out.parts).toEqual([expect.objectContaining({ type: 'file', filename: `media.${ext}`, mediaType })])
+    expect(resolveMock).toHaveBeenCalledOnce()
+    expect(extractMock).not.toHaveBeenCalled()
+  })
+
   it('OCRs a non-vision image into inline text', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'png' })
     ocrMock.mockResolvedValueOnce('ocr body')
@@ -160,10 +174,16 @@ describe('prepareChatMessages — routing', () => {
     expect(textOf(textOut.parts)[0]).toBe('Attached file "a.pdf":\npdf body')
   })
 
-  it('notes audio it cannot read', async () => {
-    getByIdMock.mockResolvedValueOnce({ ext: 'mp3' })
-    const [out] = await run([fileWithEntry('e1', 'a.mp3', 'audio/mpeg')], NONE)
-    expect(textOf(out.parts)[0]).toContain("can't process the attached audio file")
+  it.each([
+    ['audio', 'mp3', 'audio/mpeg'],
+    ['video', 'mp4', 'video/mp4']
+  ] as const)('notes a managed %s part the endpoint cannot process', async (kind, ext, mediaType) => {
+    getByIdMock.mockResolvedValueOnce({ ext })
+
+    const [out] = await run([fileWithEntry('e1', `media.${ext}`, mediaType)], NONE)
+
+    expect(textOf(out.parts)[0]).toContain(`can't process the attached ${kind} file`)
+    expect(resolveMock).not.toHaveBeenCalled()
   })
 
   it('notes a binary/unsupported file instead of garbage-decoding it', async () => {
@@ -240,6 +260,53 @@ describe('prepareChatMessages — routing', () => {
     })
     expect(getByIdMock).not.toHaveBeenCalled()
     expect(out.parts).toEqual([{ type: 'file', url: 'data:inlined', mediaType: 'application/pdf' }])
+  })
+
+  it.each([
+    ['audio', 'wav', 'audio/wav'],
+    ['video', 'mp4', 'video/mp4']
+  ] as const)(
+    'omits a normalized legacy %s part when the endpoint does not accept it',
+    async (kind, ext, mediaType) => {
+      resolveMock.mockResolvedValueOnce({ type: 'file', url: `data:${mediaType};base64,AA`, mediaType })
+      const legacy = {
+        type: 'file',
+        url: `file:///x/legacy.${ext}`,
+        mediaType: 'application/octet-stream'
+      } as CherryMessagePart
+      const [out] = await prepareChatMessages([userMessage([legacy])] as UIMessage[], {
+        attachments: [],
+        nativeSupport: NONE,
+        isToolCapable: true
+      })
+
+      expect(getByIdMock).not.toHaveBeenCalled()
+      expect(out.parts).toEqual([
+        { type: 'text', text: `[${kind} attachment omitted: this model does not accept ${kind} input]` }
+      ])
+    }
+  )
+
+  it.each([
+    ['audio', 'wav', 'audio/wav'],
+    ['video', 'mp4', 'video/mp4']
+  ] as const)('keeps a normalized legacy %s part when the endpoint accepts it', async (_kind, ext, mediaType) => {
+    const materialized = { type: 'file', url: `data:${mediaType};base64,AA`, mediaType }
+    resolveMock.mockResolvedValueOnce(materialized)
+    const legacy = {
+      type: 'file',
+      url: `file:///x/legacy.${ext}`,
+      mediaType: 'application/octet-stream'
+    } as CherryMessagePart
+
+    const [out] = await prepareChatMessages([userMessage([legacy])] as UIMessage[], {
+      attachments: [],
+      nativeSupport: ALL,
+      isToolCapable: true
+    })
+
+    expect(getByIdMock).not.toHaveBeenCalled()
+    expect(out.parts).toEqual([materialized])
   })
 })
 
