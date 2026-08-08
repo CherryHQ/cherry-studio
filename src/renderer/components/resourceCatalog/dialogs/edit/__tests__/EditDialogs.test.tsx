@@ -1024,13 +1024,21 @@ describe('edit dialogs', () => {
     expectHelpTrigger('Custom parameters', 'Extra provider parameters.')
     fireEvent.click(screen.getByRole('switch', { name: 'Temperature' }))
 
-    // Each control PATCHes only the field it owns.
+    // Queued fields may share a PATCH, but every edited field must be persisted.
     await waitFor(() =>
-      expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { enableTemperature: true } } })
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({ settings: expect.objectContaining({ enableTemperature: true }) })
+      })
     )
-    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { knowledgeBaseIds: ['kb-1'] } })
-    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { mcpMode: 'manual' } } })
-    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { mcpServerIds: ['mcp-1'] } })
+    expect(updateAssistantMock).toHaveBeenCalledWith({
+      body: expect.objectContaining({ knowledgeBaseIds: ['kb-1'] })
+    })
+    expect(updateAssistantMock).toHaveBeenCalledWith({
+      body: expect.objectContaining({ settings: expect.objectContaining({ mcpMode: 'manual' }) })
+    })
+    expect(updateAssistantMock).toHaveBeenCalledWith({
+      body: expect.objectContaining({ mcpServerIds: ['mcp-1'] })
+    })
   })
 
   it('shows the default tool-call cap and clamps custom rounds at 1000', async () => {
