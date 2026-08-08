@@ -37,7 +37,7 @@ describe('buildMergedNotesTree (t5 dir-swap producer)', () => {
   it('keeps local-only notes and adds backup-only notes', async () => {
     await write(liveRoot, 'local-only.md', '# local')
     await write(backupTree, 'backup-only.md', '# backup')
-    const result = await buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['backup-only.md'])
+    const result = buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['backup-only.md'])
 
     expect(await readFile(join(mergedDir, 'local-only.md'), 'utf8')).toBe('# local')
     expect(await readFile(join(mergedDir, 'backup-only.md'), 'utf8')).toBe('# backup')
@@ -48,7 +48,7 @@ describe('buildMergedNotesTree (t5 dir-swap producer)', () => {
   it('keeps local content on a same-path conflict + discloses the dropped backup note', async () => {
     await write(liveRoot, 'shared.md', '# LOCAL')
     await write(backupTree, 'shared.md', '# BACKUP')
-    const result = await buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['shared.md'])
+    const result = buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['shared.md'])
 
     expect(await readFile(join(mergedDir, 'shared.md'), 'utf8')).toBe('# LOCAL')
     expect(result.conflicts).toEqual([{ relPath: 'shared.md', reason: 'same_path_different_content' }])
@@ -57,7 +57,7 @@ describe('buildMergedNotesTree (t5 dir-swap producer)', () => {
   it('treats identical same-path notes as a no-op (no conflict)', async () => {
     await write(liveRoot, 'same.md', '# same')
     await write(backupTree, 'same.md', '# same')
-    const result = await buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['same.md'])
+    const result = buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['same.md'])
     expect(result.conflicts).toEqual([])
     expect(await readFile(join(mergedDir, 'same.md'), 'utf8')).toBe('# same')
   })
@@ -66,7 +66,7 @@ describe('buildMergedNotesTree (t5 dir-swap producer)', () => {
     await write(liveRoot, 'sub/local.md', '# l')
     await write(backupTree, 'sub/backup.md', '# b')
     await write(backupTree, 'other/deep.md', '# d')
-    await buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['sub/backup.md', 'other/deep.md'])
+    buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['sub/backup.md', 'other/deep.md'])
     expect(await readFile(join(mergedDir, 'sub/local.md'), 'utf8')).toBe('# l')
     expect(await readFile(join(mergedDir, 'sub/backup.md'), 'utf8')).toBe('# b')
     expect(await readFile(join(mergedDir, 'other/deep.md'), 'utf8')).toBe('# d')
@@ -75,14 +75,14 @@ describe('buildMergedNotesTree (t5 dir-swap producer)', () => {
   it('builds a pure backup tree when the live root is absent (fresh install)', async () => {
     await rm(liveRoot, { recursive: true, force: true })
     await write(backupTree, 'fresh.md', '# fresh')
-    const result = await buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['fresh.md'])
+    const result = buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['fresh.md'])
     expect(await readFile(join(mergedDir, 'fresh.md'), 'utf8')).toBe('# fresh')
     expect(result.conflicts).toEqual([])
   })
 
   it('skips backup relPaths with a ".." segment (containment guard)', async () => {
     await write(backupTree, 'safe.md', '# safe')
-    const result = await buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['safe.md', '../escape.md'])
+    const result = buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['safe.md', '../escape.md'])
     expect(await readFile(join(mergedDir, 'safe.md'), 'utf8')).toBe('# safe')
     // escape never written
     expect(result.conflicts).toEqual([])

@@ -6,6 +6,7 @@ import { createPopup, popup, type PopupInjectedProps } from '@renderer/services/
 import { backupErrorCodes } from '@shared/ipc/errors/backup'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type {
+  ResourceClass,
   RestoreDegradationKind,
   RestoreResultSummary,
   RestoreSkipReasonCode,
@@ -34,6 +35,13 @@ const restoreDegradationI18nKeys = {
   attachment_unavailable: 'settings.data.backup.v2.restore.summary.degraded_kind.attachment_unavailable',
   resource_content_missing: 'settings.data.backup.v2.restore.summary.degraded_kind.resource_content_missing'
 } as const satisfies Record<RestoreDegradationKind, string>
+
+const resourceClassI18nKeys = {
+  file: 'settings.data.backup.v2.restore.summary.kind.file',
+  knowledge: 'settings.data.backup.v2.restore.summary.kind.knowledge',
+  skill: 'settings.data.backup.v2.restore.summary.kind.skill',
+  note: 'settings.data.backup.v2.restore.summary.kind.note'
+} as const satisfies Record<ResourceClass, string>
 
 /**
  * Disclosed lossy outcomes of a restore. Rendered both before relaunch (staged journal) and
@@ -70,6 +78,13 @@ type RestorePhase =
   | 'outcome'
 
 type RestoreOutcome = Extract<RestoreStatus, { readonly state: 'completed' | 'failed' | 'expired' }>
+
+const restoreOutcomeI18nKeys = {
+  completed: 'settings.data.backup.v2.restore.outcome.completed',
+  failed: 'settings.data.backup.v2.restore.outcome.failed',
+  expired: 'settings.data.backup.v2.restore.outcome.expired'
+} as const satisfies Record<RestoreOutcome['state'], string>
+
 
 /**
  * V2 restore popup. A sealed restore waits here for user-confirmed relaunch;
@@ -288,7 +303,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                     <ul className="mt-1 flex flex-col gap-0.5">
                       {summary.toRestore.map((item) => (
                         <li key={item.kind} className="flex justify-between">
-                          <span>{t(`settings.data.backup.v2.restore.summary.kind.${item.kind}`)}</span>
+                          <span>{t(resourceClassI18nKeys[item.kind])}</span>
                           <span>{item.count}</span>
                         </li>
                       ))}
@@ -302,7 +317,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                       {summary.toSkip.map((item) => (
                         <li key={`${item.kind}:${item.id}`} className="break-all">
                           <span className="text-foreground-secondary">
-                            [{t(`settings.data.backup.v2.restore.summary.kind.${item.kind}`)}]
+                            [{t(resourceClassI18nKeys[item.kind])}]
                           </span>{' '}
                           {item.id}
                           <div className="text-foreground-secondary text-xs">
@@ -326,7 +341,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
         {phase === 'outcome' && outcome && (
           <div className="flex flex-col gap-2 text-sm" data-testid="v2-restore-outcome">
             <div className={outcome.state === 'completed' ? undefined : 'text-destructive'}>
-              {t(`settings.data.backup.v2.restore.outcome.${outcome.state}`)}
+              {t(restoreOutcomeI18nKeys[outcome.state])}
             </div>
             {outcome.state !== 'completed' && outcome.reason ? (
               <div className="break-all text-foreground-secondary text-xs">{outcome.reason}</div>
