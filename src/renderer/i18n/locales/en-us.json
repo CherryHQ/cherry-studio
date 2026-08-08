@@ -318,7 +318,7 @@
         }
       },
       "info": {
-        "artifacts": "Deliverables",
+        "artifacts": "Outputs",
         "context_categories": {
           "autocompact_buffer": "Autocompact buffer",
           "custom_agents": "Custom agents",
@@ -334,7 +334,7 @@
         "context_usage": "Context usage",
         "label": "Session information",
         "more": "+{{count}} more",
-        "no_artifacts": "No declared deliverables",
+        "no_artifacts": "No declared outputs",
         "no_subagents": "No sub-agents",
         "shell_tasks": "Background commands",
         "subagents": "Sub-agents",
