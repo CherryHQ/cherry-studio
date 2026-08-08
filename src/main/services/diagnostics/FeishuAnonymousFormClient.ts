@@ -12,9 +12,11 @@ const UPLOAD_MOUNT_POINT = 'bitable_tmp_point'
 const MAX_REDIRECTS = 8
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 const MAX_UPLOAD_BYTES = 60 * 1024 * 1024
+const DIRECT_UPLOAD_MAX_BYTES = 4 * 1024 * 1024
 const REQUEST_TIMEOUT_MS = 30_000
 const CHUNK_UPLOAD_TIMEOUT_MS = 60_000
 const ALLOWED_FEISHU_HOSTNAMES = new Set([
+  'accounts.feishu.cn',
   'internal-api-drive-stream.feishu.cn',
   'internal-api-space.feishu.cn',
   'login.feishu.cn',
@@ -62,29 +64,63 @@ function assertAllowedUrl(value: string): void {
   if (!isAllowedFeishuUrl(value)) throw new FeishuUploadFailure('form_unavailable')
 }
 
-async function fetchWithTimeout(
+async function fetchWithTimeout<T>(
   browserSession: Session,
   url: string,
-  init: RequestInit = {},
+  init: RequestInit,
+  consume: (response: Response) => Promise<T> | T,
   timeoutMs = REQUEST_TIMEOUT_MS
-): Promise<Response> {
+): Promise<T> {
   assertAllowedUrl(url)
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    return await browserSession.fetch(url, { redirect: 'manual', ...init, signal: controller.signal })
+    const response = await browserSession.fetch(url, { ...init, redirect: 'manual', signal: controller.signal })
+    return await consume(response)
   } finally {
     clearTimeout(timeout)
   }
 }
 
 async function readJsonResponse(response: Response): Promise<JsonResponse> {
-  const contentLength = Number(response.headers.get('content-length') ?? 0)
-  if (!response.ok || !Number.isFinite(contentLength) || contentLength > MAX_RESPONSE_BYTES) {
+  const contentLengthHeader = response.headers.get('content-length')
+  if (!response.ok) {
+    await response.body?.cancel().catch(() => undefined)
     throw new Error('Invalid response')
   }
-  const text = await response.text()
-  if (Buffer.byteLength(text) > MAX_RESPONSE_BYTES) throw new Error('Response too large')
+  if (contentLengthHeader !== null) {
+    const normalizedContentLength = contentLengthHeader.trim()
+    const contentLength = Number(normalizedContentLength)
+    if (
+      !/^\d+$/.test(normalizedContentLength) ||
+      !Number.isSafeInteger(contentLength) ||
+      contentLength > MAX_RESPONSE_BYTES
+    ) {
+      await response.body?.cancel().catch(() => undefined)
+      throw new Error('Invalid response length')
+    }
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) throw new Error('Invalid response body')
+  const chunks: Buffer[] = []
+  let totalBytes = 0
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      totalBytes += value.byteLength
+      if (totalBytes > MAX_RESPONSE_BYTES) {
+        await reader.cancel().catch(() => undefined)
+        throw new Error('Response too large')
+      }
+      chunks.push(Buffer.from(value))
+    }
+  } finally {
+    reader.releaseLock()
+  }
+
+  const text = Buffer.concat(chunks, totalBytes).toString('utf8')
   const value = JSON.parse(text) as unknown
   if (!value || typeof value !== 'object' || typeof (value as JsonResponse).code !== 'number') {
     throw new Error('Invalid response body')
@@ -100,7 +136,6 @@ async function getCsrfToken(browserSession: Session): Promise<string> {
 function requestHeaders(csrfToken: string, command: string): HeadersInit {
   return {
     Accept: 'application/json, text/plain, */*',
-    'Content-Type': 'application/json',
     Origin: FORM_ORIGIN,
     Referer: DIAGNOSTIC_FEEDBACK_FORM_URL,
     'X-Command': command,
@@ -108,17 +143,38 @@ function requestHeaders(csrfToken: string, command: string): HeadersInit {
   }
 }
 
+function jsonRequestHeaders(csrfToken: string, command: string): HeadersInit {
+  return { ...requestHeaders(csrfToken, command), 'Content-Type': 'application/json' }
+}
+
+async function fetchJsonWithTimeout(
+  browserSession: Session,
+  url: string,
+  init: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS
+): Promise<JsonResponse> {
+  return fetchWithTimeout(browserSession, url, init, readJsonResponse, timeoutMs)
+}
+
 async function bootstrapGuestSession(browserSession: Session): Promise<void> {
   let currentUrl = DIAGNOSTIC_FEEDBACK_FORM_URL
   for (let redirectCount = 0; redirectCount <= MAX_REDIRECTS; redirectCount += 1) {
-    let response: Response
+    let response: { readonly location: string | null; readonly ok: boolean; readonly status: number }
     try {
-      response = await fetchWithTimeout(browserSession, currentUrl, { redirect: 'manual' })
+      response = await fetchWithTimeout(browserSession, currentUrl, {}, async (value) => {
+        const metadata = {
+          location: value.headers.get('location'),
+          ok: value.ok,
+          status: value.status
+        }
+        await value.body?.cancel().catch(() => undefined)
+        return metadata
+      })
     } catch {
       throw new FeishuUploadFailure('network_failed')
     }
     if ([301, 302, 303, 307, 308].includes(response.status)) {
-      const location = response.headers.get('location')
+      const { location } = response
       if (!location || redirectCount === MAX_REDIRECTS) {
         throw new FeishuUploadFailure('form_unavailable')
       }
@@ -157,23 +213,25 @@ export function resolveAttachmentFieldId(snapshot: unknown): string {
     throw new FeishuUploadFailure('form_changed')
   }
 
-  const visibleFields = fields.filter((fieldId): fieldId is string => {
-    if (typeof fieldId !== 'string') return false
+  const fieldMetadata = fields.map((fieldId) => {
+    if (typeof fieldId !== 'string') throw new FeishuUploadFailure('form_changed')
     const fieldInfo = recordFrom(fieldInfos[fieldId])
-    return fieldInfo?.visible !== false
-  })
-  const attachmentFields = visibleFields.filter((fieldId) => {
     const field = recordFrom(fieldMap[fieldId])
-    return field?.type === 17 && field?.fieldUIType === 'Attachment'
+    if (!fieldInfo || !field || typeof fieldInfo.visible !== 'boolean' || typeof fieldInfo.required !== 'boolean') {
+      throw new FeishuUploadFailure('form_changed')
+    }
+    return { field, fieldId, fieldInfo }
   })
-  const hasOtherRequiredField = visibleFields.some((fieldId) => {
-    if (attachmentFields.includes(fieldId)) return false
-    return recordFrom(fieldInfos[fieldId])?.required === true
+  const visibleFields = fieldMetadata.filter(({ fieldInfo }) => fieldInfo.visible)
+  const attachmentFields = visibleFields.filter(({ field }) => field.type === 17 && field.fieldUIType === 'Attachment')
+  const hasOtherRequiredField = visibleFields.some(({ fieldId, fieldInfo }) => {
+    if (attachmentFields.some((attachment) => attachment.fieldId === fieldId)) return false
+    return fieldInfo.required
   })
   if (attachmentFields.length !== 1 || hasOtherRequiredField) {
     throw new FeishuUploadFailure('form_changed')
   }
-  return attachmentFields[0]
+  return attachmentFields[0].fieldId
 }
 
 function requireObjectData(response: JsonResponse): Record<string, unknown> {
@@ -184,12 +242,10 @@ function requireObjectData(response: JsonResponse): Record<string, unknown> {
 
 async function getAttachmentFieldId(browserSession: Session, csrfToken: string): Promise<string> {
   const url = `${FORM_ORIGIN}/space/api/bitable/external/share/content_meta?shareToken=${SHARE_TOKEN}`
-  let response: Response
   try {
-    response = await fetchWithTimeout(browserSession, url, {
+    const json = await fetchJsonWithTimeout(browserSession, url, {
       headers: requestHeaders(csrfToken, 'api.bitable.external.share.content_meta')
     })
-    const json = await readJsonResponse(response)
     const snapshotText = requireObjectData(json).snapshot
     if (typeof snapshotText !== 'string' || Buffer.byteLength(snapshotText) > MAX_RESPONSE_BYTES) {
       throw new Error('Invalid form snapshot')
@@ -209,10 +265,10 @@ async function requestUploadCode(browserSession: Session, csrfToken: string, inp
     size: String(input.fileSize)
   })
   const url = `${FORM_ORIGIN}/space/api/bitable/external/share/uploadCode?${query.toString()}`
-  const response = await fetchWithTimeout(browserSession, url, {
+  const response = await fetchJsonWithTimeout(browserSession, url, {
     headers: requestHeaders(csrfToken, 'api.bitable.external.share.uploadCode')
   })
-  const uploadCode = requireObjectData(await readJsonResponse(response)).uploadCode
+  const uploadCode = requireObjectData(response).uploadCode
   if (typeof uploadCode !== 'string' || uploadCode.length === 0 || uploadCode.length > 4096) {
     throw new Error('Invalid upload authorization')
   }
@@ -227,16 +283,16 @@ interface PreparedUpload {
 
 async function prepareUpload(browserSession: Session, csrfToken: string, uploadCode: string): Promise<PreparedUpload> {
   const url = `${SPACE_API_ORIGIN}/space/api/box/upload/prepare/authcode/`
-  const response = await fetchWithTimeout(browserSession, url, {
+  const response = await fetchJsonWithTimeout(browserSession, url, {
     body: JSON.stringify({
       code: uploadCode,
       mount_node_token: SHARE_TOKEN,
       mount_point: UPLOAD_MOUNT_POINT
     }),
-    headers: requestHeaders(csrfToken, 'box.upload.prepare.authcode'),
+    headers: jsonRequestHeaders(csrfToken, 'space.api.box.upload.prepare.authcode'),
     method: 'POST'
   })
-  const data = requireObjectData(await readJsonResponse(response))
+  const data = requireObjectData(response)
   const blockSize = data.block_size
   const totalBlocks = data.num_blocks
   const uploadId = data.upload_id
@@ -244,7 +300,7 @@ async function prepareUpload(browserSession: Session, csrfToken: string, uploadC
     !Number.isInteger(blockSize) ||
     (blockSize as number) <= 0 ||
     !Number.isInteger(totalBlocks) ||
-    (totalBlocks as number) < 0 ||
+    (totalBlocks as number) <= 0 ||
     typeof uploadId !== 'string' ||
     uploadId.length === 0 ||
     uploadId.length > 4096
@@ -271,6 +327,42 @@ export function adler32(data: Uint8Array): string {
   return String(((b << 16) | a) >>> 0)
 }
 
+async function directUpload(
+  browserSession: Session,
+  csrfToken: string,
+  file: Buffer,
+  input: UploadInput
+): Promise<string> {
+  const query = new URLSearchParams({
+    checksum: adler32(file),
+    'ext[extra]': '',
+    mount_node_token: SHARE_TOKEN,
+    mount_point: UPLOAD_MOUNT_POINT,
+    name: input.fileName,
+    push_open_history_record: '0',
+    size: String(input.fileSize),
+    size_checker: 'false'
+  })
+  const url = `${SPACE_API_ORIGIN}/space/api/box/stream/upload/all/?${query.toString()}`
+  const body = new FormData()
+  body.append('file', new Blob([new Uint8Array(file)], { type: 'application/zip' }), input.fileName)
+  const response = await fetchJsonWithTimeout(
+    browserSession,
+    url,
+    {
+      body,
+      headers: requestHeaders(csrfToken, 'space.api.box.stream.upload.all'),
+      method: 'POST'
+    },
+    CHUNK_UPLOAD_TIMEOUT_MS
+  )
+  const fileToken = requireObjectData(response).file_token
+  if (typeof fileToken !== 'string' || fileToken.length === 0 || fileToken.length > 4096) {
+    throw new Error('Invalid uploaded attachment token')
+  }
+  return fileToken
+}
+
 async function uploadBlocks(
   browserSession: Session,
   csrfToken: string,
@@ -291,7 +383,7 @@ async function uploadBlocks(
       {
         body: block,
         headers: {
-          ...requestHeaders(csrfToken, 'box.stream.upload.merge_block'),
+          ...requestHeaders(csrfToken, 'space.api.box.stream.upload.merge_block'),
           'Content-Type': 'application/octet-stream',
           'x-block-list-checksum': adler32(block),
           'x-block-origin-size': String(prepared.blockSize),
@@ -299,9 +391,10 @@ async function uploadBlocks(
         },
         method: 'POST'
       },
+      readJsonResponse,
       CHUNK_UPLOAD_TIMEOUT_MS
     )
-    const successSequences = requireObjectData(await readJsonResponse(response)).success_seq_list
+    const successSequences = requireObjectData(response).success_seq_list
     if (!Array.isArray(successSequences) || !successSequences.includes(sequence)) {
       throw new Error('Upload block was not accepted')
     }
@@ -310,16 +403,16 @@ async function uploadBlocks(
 
 async function finishUpload(browserSession: Session, csrfToken: string, prepared: PreparedUpload): Promise<string> {
   const url = `${SPACE_API_ORIGIN}/space/api/box/upload/finish/`
-  const response = await fetchWithTimeout(browserSession, url, {
+  const response = await fetchJsonWithTimeout(browserSession, url, {
     body: JSON.stringify({
       num_blocks: prepared.totalBlocks,
       push_open_history_record: 0,
       upload_id: prepared.uploadId
     }),
-    headers: requestHeaders(csrfToken, 'box.upload.finish'),
+    headers: jsonRequestHeaders(csrfToken, 'space.api.box.upload.finish'),
     method: 'POST'
   })
-  const fileToken = requireObjectData(await readJsonResponse(response)).file_token
+  const fileToken = requireObjectData(response).file_token
   if (typeof fileToken !== 'string' || fileToken.length === 0 || fileToken.length > 4096) {
     throw new Error('Invalid uploaded attachment token')
   }
@@ -342,32 +435,35 @@ async function submitForm(
     size: input.fileSize,
     timeStamp: Date.now()
   }
-  let response: Response
+  let response: FeishuAnonymousFormUploadResult
   try {
-    response = await fetchWithTimeout(browserSession, url, {
-      body: JSON.stringify({
-        data: JSON.stringify({ [attachmentFieldId]: { type: 17, value: [attachment] } }),
-        preUploadEnable: true,
-        shareToken: SHARE_TOKEN
-      }),
-      headers: requestHeaders(csrfToken, 'api.bitable.share.content'),
-      method: 'POST'
-    })
+    response = await fetchWithTimeout(
+      browserSession,
+      url,
+      {
+        body: JSON.stringify({
+          data: JSON.stringify({ [attachmentFieldId]: { type: 17, value: [attachment] } }),
+          preUploadEnable: true,
+          shareToken: SHARE_TOKEN
+        }),
+        headers: jsonRequestHeaders(csrfToken, 'api.bitable.share.content'),
+        method: 'POST'
+      },
+      async (value) => {
+        if (value.status >= 400 && value.status < 500) {
+          await value.body?.cancel().catch(() => undefined)
+          return { reason: 'submission_rejected', status: 'manual_upload_required' } as const
+        }
+        const json = await readJsonResponse(value)
+        return json.code === 0
+          ? ({ status: 'uploaded' } as const)
+          : ({ reason: 'submission_rejected', status: 'manual_upload_required' } as const)
+      }
+    )
   } catch {
     return { status: 'submission_unknown' }
   }
-
-  if (response.status >= 400 && response.status < 500) {
-    return { reason: 'submission_rejected', status: 'manual_upload_required' }
-  }
-  try {
-    const json = await readJsonResponse(response)
-    return json.code === 0
-      ? { status: 'uploaded' }
-      : { reason: 'submission_rejected', status: 'manual_upload_required' }
-  } catch {
-    return { status: 'submission_unknown' }
-  }
+  return response
 }
 
 export class FeishuAnonymousFormClient {
@@ -397,11 +493,15 @@ export class FeishuAnonymousFormClient {
 
       let attachmentToken: string
       try {
-        const uploadCode = await requestUploadCode(browserSession, csrfToken, input)
-        const prepared = await prepareUpload(browserSession, csrfToken, uploadCode)
         const file = await readFile(input.filePath)
-        await uploadBlocks(browserSession, csrfToken, file, prepared)
-        attachmentToken = await finishUpload(browserSession, csrfToken, prepared)
+        if (input.fileSize <= DIRECT_UPLOAD_MAX_BYTES) {
+          attachmentToken = await directUpload(browserSession, csrfToken, file, input)
+        } else {
+          const uploadCode = await requestUploadCode(browserSession, csrfToken, input)
+          const prepared = await prepareUpload(browserSession, csrfToken, uploadCode)
+          await uploadBlocks(browserSession, csrfToken, file, prepared)
+          attachmentToken = await finishUpload(browserSession, csrfToken, prepared)
+        }
       } catch {
         return { reason: 'attachment_upload_failed', status: 'manual_upload_required' }
       }
