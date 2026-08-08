@@ -10,7 +10,12 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { dropEmptyContentParts, finalizeInterruptedParts, stripTransientStatusParts } from '../PersistenceBackend'
+import {
+  dropEmptyContentParts,
+  finalizeInterruptedParts,
+  stripHarnessEchoes,
+  stripTransientStatusParts
+} from '../PersistenceBackend'
 
 // AI SDK tool-call UIMessagePart shapes. The non-terminal states the helper
 // targets are anything NOT in {output-available, output-error, output-denied}.
@@ -324,5 +329,102 @@ describe('dropEmptyContentParts', () => {
     const result = dropEmptyContentParts([reasoning, textPart('')])
 
     expect(result).toEqual([reasoning])
+  })
+})
+
+// ---------------------------------------------------------------------------
+// stripHarnessEchoes
+// ---------------------------------------------------------------------------
+
+// Exact text of the Claude Agent SDK harness reminder that leaks into assistant
+// replies (#18175).  The regex in `stripHarnessEchoes` matches it verbatim so
+// we reuse the same text here to avoid drift between test and production.
+const TASK_TOOLS_REMINDER =
+  "The task tools haven't been used recently. " +
+  "If you're working on tasks that would benefit from tracking progress, consider using TaskCreate to add new tasks and TaskUpdate to update task status (set to in_progress when starting, completed when done). " +
+  'Also consider cleaning up the task list if it has become stale. ' +
+  'Only use these if relevant to the current work. ' +
+  'This is just a gentle reminder - ignore if not applicable.\n'
+
+describe('stripHarnessEchoes', () => {
+  it('strips the task-tools reminder from a text part', () => {
+    const parts: CherryMessagePart[] = [textPart(TASK_TOOLS_REMINDER)]
+
+    const result = stripHarnessEchoes(parts)
+
+    expect((result[0] as { text: string }).text).toBe('')
+  })
+
+  it('strips the task-tools reminder from a reasoning part', () => {
+    const parts: CherryMessagePart[] = [
+      { type: 'reasoning', text: TASK_TOOLS_REMINDER } as unknown as CherryMessagePart
+    ]
+
+    const result = stripHarnessEchoes(parts)
+
+    expect((result[0] as { text: string }).text).toBe('')
+  })
+
+  it('leaves the reminder prefix untouched when not a full match', () => {
+    // Partial text should not be stripped — false positives would lose real content.
+    const parts: CherryMessagePart[] = [textPart('The task tools are useful for tracking progress.')]
+
+    const result = stripHarnessEchoes(parts)
+
+    expect(result).toBe(parts) // same reference = nothing changed
+  })
+
+  it('leaves non-text / non-reasoning parts untouched', () => {
+    const tool = {
+      type: 'tool-search',
+      toolCallId: 't1',
+      toolName: 's',
+      state: 'output-available',
+      output: TASK_TOOLS_REMINDER // even if output contains it — only text/reasoning filtered
+    } as unknown as CherryMessagePart
+    const parts: CherryMessagePart[] = [tool]
+
+    const result = stripHarnessEchoes(parts)
+
+    expect(result).toBe(parts) // reference equality: nothing touched
+  })
+
+  it('returns the original array by reference when nothing is stripped', () => {
+    const parts: CherryMessagePart[] = [textPart('normal reply')]
+
+    const result = stripHarnessEchoes(parts)
+
+    expect(result).toBe(parts)
+  })
+
+  it('strips multiple occurrences of the reminder within a single part', () => {
+    const doubled = `${TASK_TOOLS_REMINDER}${TASK_TOOLS_REMINDER}`
+    const parts: CherryMessagePart[] = [textPart(doubled)]
+
+    const result = stripHarnessEchoes(parts)
+
+    expect((result[0] as { text: string }).text).toBe('')
+  })
+
+  it('strips the reminder when it is followed by real assistant text', () => {
+    // \n* at end of regex consumes both the reminder's trailing \n and the one
+    // after it, so the real reply starts flush.
+    const withReply = `${TASK_TOOLS_REMINDER}\nReal assistant reply here.`
+    const parts: CherryMessagePart[] = [textPart(withReply)]
+
+    const result = stripHarnessEchoes(parts)
+
+    expect((result[0] as { text: string }).text).toBe('Real assistant reply here.')
+  })
+
+  it('strips the reminder when it sits between real text on both sides', () => {
+    // \n* greedily eats trailing newlines, so after stripping only the \n
+    // before the reminder remains.
+    const sandwich = `I'll help with that.\n${TASK_TOOLS_REMINDER}\nHere is the answer.`
+    const parts: CherryMessagePart[] = [textPart(sandwich)]
+
+    const result = stripHarnessEchoes(parts)
+
+    expect((result[0] as { text: string }).text).toBe("I'll help with that.\nHere is the answer.")
   })
 })

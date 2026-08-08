@@ -19,6 +19,7 @@ import {
   dropEmptyContentParts,
   finalizeInterruptedParts,
   type PersistenceBackend,
+  stripHarnessEchoes,
   stripTransientStatusParts
 } from '../persistence/PersistenceBackend'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
@@ -102,7 +103,9 @@ export class PersistenceListener implements StreamListener {
       ? {
           ...finalMessage,
           parts: finalizeInterruptedParts(
-            dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts as CherryMessagePart[])),
+            dropEmptyContentParts(
+              stripHarnessEchoes(stripTransientStatusParts(finalMessage.parts as CherryMessagePart[]))
+            ),
             status
           )
         }

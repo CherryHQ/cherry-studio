@@ -95,6 +95,45 @@ export function finalizeInterruptedParts(
 }
 
 /**
+ * Strip known Claude Agent SDK harness-leak patterns from assistant text output.
+ *
+ * The Claude Agent SDK runtime injects system reminders (e.g. task-tool usage
+ * hints) into the model's system prompt.  Under long-session context pressure
+ * the model may echo these reminders verbatim into its own reply.  This function
+ * removes those known boilerplate paragraphs from `text` and `reasoning` parts
+ * before they are persisted, so they never appear in stored messages or the UI.
+ *
+ * Patterns are kept specific enough to avoid false positives.  Future SDK
+ * versions may introduce new reminder text — add entries to the list when they
+ * appear (and open a tracking issue for the upstream SDK harness).
+ */
+export function stripHarnessEchoes(parts: CherryMessagePart[]): CherryMessagePart[] {
+  // ---- known harness-leak patterns ------------------------------------------------
+  // Add a new RegExp entry for each SDK reminder that leaks (#18175).
+  const PATTERNS: RegExp[] = [
+    // Claude Agent SDK harness reminder about TaskCreate / TaskUpdate / TaskList.
+    // Injected as `SYSTEM_REMINDER` context; model may echo it verbatim (#18175).
+    /The task tools haven't been used recently\.\s+If you're working on tasks that would benefit from tracking progress, consider using TaskCreate to add new tasks and TaskUpdate to update task status\s*\(set to in_progress when starting, completed when done\)\.\s+Also consider cleaning up the task list if it has become stale\.\s+Only use these if relevant to the current work\.\s+This is just a gentle reminder\s*-\s*ignore if not applicable\.\n*/g
+  ]
+
+  let changed = false
+  const cleaned = parts.map((part) => {
+    if (part.type !== 'text' && part.type !== 'reasoning') return part
+    let text = part.text
+    for (const pattern of PATTERNS) {
+      const before = text.length
+      text = text.replace(pattern, '')
+      if (text.length !== before) {
+        changed = true
+      }
+    }
+    return text === part.text ? part : { ...part, text }
+  })
+
+  return changed ? cleaned : parts
+}
+
+/**
  * Drop parts that carry no renderable content — empty/whitespace-only `text`
  * and `reasoning` parts. The AI SDK accumulator can leave these behind at step
  * boundaries (e.g. a final text step that produced no output); persisting them
