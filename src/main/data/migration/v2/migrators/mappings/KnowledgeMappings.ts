@@ -15,7 +15,7 @@ import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
-import { hasLostOriginalFilename, legacyStorageNames } from './LegacyFileMappings'
+import { hasLostOriginalFilename, legacyStorageNames } from './legacyFileMappings'
 
 export type NewKnowledgeBase = typeof knowledgeBaseTable.$inferInsert
 export type NewKnowledgeItem = typeof knowledgeItemTable.$inferInsert

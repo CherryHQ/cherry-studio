@@ -14,7 +14,7 @@ import { inArray, sql } from 'drizzle-orm'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
-import { hasLostOriginalFilename, legacyStorageNames, normalizeExt } from './mappings/LegacyFileMappings'
+import { hasLostOriginalFilename, legacyStorageNames, normalizeExt } from './mappings/legacyFileMappings'
 
 const logger = loggerService.withContext('FileMigrator')
 

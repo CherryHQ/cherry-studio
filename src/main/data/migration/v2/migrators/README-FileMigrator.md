@@ -101,6 +101,6 @@ The migrator is safe to re-run. `MigrationEngine.verifyAndClearNewTables` clears
 ## Implementation Files
 
 - `FileMigrator.ts` — main migrator class
-- `mappings/LegacyFileMappings.ts` — v1 `files`-row semantics (`normalizeExt`, `legacyStorageNames`, `hasLostOriginalFilename`), shared with `KnowledgeMappings`
+- `mappings/legacyFileMappings.ts` — v1 `files`-row semantics (`normalizeExt`, `legacyStorageNames`, `hasLostOriginalFilename`), shared with `KnowledgeMappings`
 - `__tests__/FileMigrator.test.ts` — unit tests
-- `mappings/__tests__/LegacyFileMappings.test.ts` — table-driven cases, one row per v1 producer
+- `mappings/__tests__/legacyFileMappings.test.ts` — table-driven cases, one row per v1 producer

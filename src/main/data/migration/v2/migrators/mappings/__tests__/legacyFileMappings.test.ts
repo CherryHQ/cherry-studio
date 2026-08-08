@@ -1,7 +1,7 @@
 import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { describe, expect, it } from 'vitest'
 
-import { hasLostOriginalFilename, legacyStorageNames, normalizeExt } from '../LegacyFileMappings'
+import { hasLostOriginalFilename, legacyStorageNames, normalizeExt } from '../legacyFileMappings'
 
 const ID = '019606a0-0000-7000-8000-000000000101'
 
