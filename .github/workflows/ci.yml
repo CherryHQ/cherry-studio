@@ -77,7 +77,7 @@ jobs:
               - 'vitest.config.ts'
               - 'patches/**'
 
-  repository-checks:
+  basic-checks:
     runs-on: ubuntu-latest
     env:
       CI: true
@@ -86,7 +86,14 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: ${{ github.event_name == 'pull_request' && '0' || '1' }}
+          # The PR merge commit and its parents are enough for changeset comparison.
+          fetch-depth: ${{ github.event_name == 'pull_request' && '2' || '1' }}
+
+      - name: Prepare base reference
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: git update-ref "refs/remotes/origin/$BASE_REF" "$(git rev-parse HEAD^1)"
 
       # provider-registry data/*.json are generated from src/creators + src/providers.
       # The daily catalog workflow regenerates data without source changes, so exempt only
@@ -149,17 +156,16 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: pnpm changeset status --since="origin/$BASE_REF"
 
-      - name: Format Check
-        run: pnpm format:check
-
-      - name: Builtin Knowledge Check
-        run: pnpm build:builtin-knowledge:check
-
-      - name: i18n Check
-        run: pnpm i18n:check
-
-      - name: Skills Check
-        run: pnpm skills:check
+      - name: Read-only Checks
+        run: |
+          # Share one checkout/install while keeping independent checks parallel.
+          # Do not kill sibling checks on failure so every failure is reported.
+          pnpm exec concurrently \
+            --names "Lint,Type and Hardcoded Strings,Format and Repository" \
+            --prefix-colors "blue,yellow,cyan" \
+            "pnpm test:lint" \
+            "pnpm typecheck && pnpm i18n:hardcoded:strict" \
+            "pnpm format:check && pnpm build:builtin-knowledge:check && pnpm i18n:check && pnpm skills:check"
 
       - name: DB Migrations Check
         run: |
@@ -185,100 +191,6 @@ jobs:
             git --no-pager diff -- src/shared/utils/systemProviderId.ts
             exit 1
           fi
-
-  type-check:
-    runs-on: ubuntu-latest
-    env:
-      CI: true
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v6
-
-      - name: Install Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: ".node-version"
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v5
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      - name: Restore pnpm dependencies
-        uses: actions/cache/restore@v5
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
-      - name: Install Dependencies
-        run: pnpm install
-
-      - name: Type Check
-        run: pnpm typecheck
-
-      - name: Hardcoded Strings Check
-        run: pnpm i18n:hardcoded:strict
-
-  lint-check:
-    runs-on: ubuntu-latest
-    env:
-      CI: true
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.draft == false
-    steps:
-      - name: Check out Git repository
-        uses: actions/checkout@v6
-
-      - name: Install Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: ".node-version"
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v5
-
-      - name: Get pnpm store directory
-        id: pnpm-cache
-        shell: bash
-        run: echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_OUTPUT
-
-      - name: Restore pnpm dependencies
-        uses: actions/cache/restore@v5
-        with:
-          path: ${{ steps.pnpm-cache.outputs.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-pnpm-
-
-      - name: Install Dependencies
-        run: pnpm install
-
-      - name: Lint Check
-        run: pnpm test:lint
-
-  basic-checks:
-    runs-on: ubuntu-latest
-    needs: [repository-checks, type-check, lint-check]
-    if: >-
-      always() &&
-      (github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch' ||
-      github.event.pull_request.draft == false)
-    steps:
-      - name: Verify basic checks
-        env:
-          REPOSITORY_RESULT: ${{ needs.repository-checks.result }}
-          TYPE_RESULT: ${{ needs.type-check.result }}
-          LINT_RESULT: ${{ needs.lint-check.result }}
-        run: |
-          test "$REPOSITORY_RESULT" = "success"
-          test "$TYPE_RESULT" = "success"
-          test "$LINT_RESULT" = "success"
 
   main-test-shard:
     name: main-test (${{ matrix.shard }}/3)
@@ -417,7 +329,7 @@ jobs:
         run: pnpm test:scripts
 
   renderer-test-shard:
-    name: renderer-test (${{ matrix.shard }}/8)
+    name: renderer-test (${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
     needs: changes
     if: >-
@@ -433,7 +345,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6]
     env:
       CI: true
 
@@ -466,7 +378,7 @@ jobs:
         run: pnpm install
 
       - name: Renderer Test
-        run: pnpm test:renderer --shard=${{ matrix.shard }}/8
+        run: pnpm test:renderer --shard=${{ matrix.shard }}/6
 
   render-test:
     runs-on: ubuntu-latest
