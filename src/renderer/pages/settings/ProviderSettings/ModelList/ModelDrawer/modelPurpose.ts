@@ -10,7 +10,7 @@ import type { Provider } from '@shared/data/types/provider'
 import { matchesPreset } from '@shared/utils/provider'
 import { isSystemProviderId } from '@shared/utils/systemProviderId'
 
-import type { EndpointPickerPolicy, ModelDrawerMode } from './types'
+import type { ModelDrawerMode } from './types'
 
 export type ModelPurpose = 'chat' | 'image-generation' | 'image-edit'
 
@@ -71,30 +71,6 @@ export function getModelDrawerMode(provider: ModelDrawerProvider): ModelDrawerMo
   return 'legacy'
 }
 
-/**
- * Whether the drawer offers an endpoint picker for a model, and whether picking is mandatory.
- *
- * - `required` — aggregators (cherryin/aionly) whose model list spans several protocols: the endpoint
- *   cannot be inferred, so the user must state it.
- * - `optional` — an ordinary provider that serves more than one chat endpoint (doubao, dashscope,
- *   azure-openai…). Pinning is meaningful but not required: an empty selection means "inherit
- *   `provider.defaultChatEndpoint`", which is what request-time resolution already falls back to.
- * - `hidden` — nothing to choose (single endpoint), or `purpose` mode, which drives the endpoint
- *   through its own purpose + chat-protocol controls.
- */
-export function getEndpointPickerPolicy(
-  mode: ModelDrawerMode,
-  providerChatEndpointTypes: readonly ModelChatEndpointType[]
-): EndpointPickerPolicy {
-  if (mode === 'endpoint-types') {
-    return 'required'
-  }
-  if (mode === 'purpose') {
-    return 'hidden'
-  }
-  return providerChatEndpointTypes.length > 1 ? 'optional' : 'hidden'
-}
-
 export function getProviderChatEndpointTypes(provider: ProviderChatEndpoints): ModelChatEndpointType[] {
   const endpointTypes: ModelChatEndpointType[] = []
 
@@ -109,6 +85,34 @@ export function getProviderChatEndpointTypes(provider: ProviderChatEndpoints): M
   }
 
   return endpointTypes
+}
+
+/**
+ * The chat endpoints a model could be routed to. Two or more means the user has a real choice and the
+ * preferred-endpoint picker is worth showing; one or none means there is nothing to pick.
+ *
+ * A model that declares its own endpoints narrows the provider's list to those (a model may support
+ * fewer protocols than its host); aggregator models declare endpoints the provider config never lists,
+ * so an empty intersection falls back to what the model declares.
+ */
+export function getPreferredEndpointCandidates(
+  provider: ProviderChatEndpoints,
+  modelEndpointTypes?: readonly EndpointType[]
+): ModelChatEndpointType[] {
+  if (!modelEndpointTypes?.length) {
+    return getProviderChatEndpointTypes(provider)
+  }
+
+  // Declared but non-chat (embeddings, image, rerank) means this model is not routed over a chat
+  // protocol at all, so there is nothing to choose.
+  const declared = modelEndpointTypes.filter(isModelChatEndpointType)
+  if (declared.length === 0) {
+    return []
+  }
+
+  const providerEndpointTypes = getProviderChatEndpointTypes(provider)
+  const narrowed = declared.filter((endpointType) => providerEndpointTypes.includes(endpointType))
+  return narrowed.length > 0 ? narrowed : declared
 }
 
 export function inferModelPurpose(fields: ModelPurposeFields): ModelPurpose {

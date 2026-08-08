@@ -206,6 +206,20 @@ export function isSupportStreamOptionsProvider(provider: Provider): boolean {
   return provider.apiFeatures?.streamOptions ?? false
 }
 
+/**
+ * The endpoint protocol a model is called with.
+ *
+ * `preferredEndpointType` is the user's explicit routing choice; `endpointTypes` stays the
+ * capability set, and its first entry is the legacy route for rows written before the
+ * preference existed (and for registry presets whose array order encodes the same intent).
+ */
+export function getModelPreferredEndpoint(
+  model: Pick<Model, 'endpointTypes' | 'preferredEndpointType'>,
+  provider?: Pick<Provider, 'defaultChatEndpoint'>
+): EndpointType | undefined {
+  return model.preferredEndpointType ?? model.endpointTypes?.[0] ?? provider?.defaultChatEndpoint
+}
+
 function getServerTool(provider: Pick<Provider, 'serverTools'>, id: ServerTool) {
   return provider.serverTools?.find((tool) => tool.id === id)
 }
@@ -231,7 +245,7 @@ function resolveServerToolEndpoint(
   provider: Pick<Provider, 'defaultChatEndpoint'>,
   endpointType: EndpointType | undefined
 ): EndpointType | undefined {
-  return endpointType ?? model.endpointTypes?.[0] ?? provider.defaultChatEndpoint
+  return endpointType ?? getModelPreferredEndpoint(model, provider)
 }
 
 /** Model-side eligibility for a provider-native tool, compiled from the serving provider declaration. */

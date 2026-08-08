@@ -8,12 +8,11 @@ import {
 } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { getModelEndpointOptions, MODEL_ENDPOINT_OPTIONS } from '../helpers'
 import {
   applyModelPurpose,
-  getEndpointPickerPolicy,
   getInitialChatEndpointType,
   getModelDrawerMode,
+  getPreferredEndpointCandidates,
   getProviderChatEndpointTypes,
   inferModelPurpose,
   type ModelPurposeFields
@@ -35,41 +34,48 @@ describe('getModelDrawerMode', () => {
   })
 })
 
-describe('getEndpointPickerPolicy', () => {
-  const twoEndpoints = [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] as const
+describe('getPreferredEndpointCandidates', () => {
+  const doubao = {
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+    }
+  }
 
-  it('requires a choice for aggregators, whose model list spans protocols', () => {
-    expect(getEndpointPickerPolicy('endpoint-types', [])).toBe('required')
-    expect(getEndpointPickerPolicy('endpoint-types', twoEndpoints)).toBe('required')
+  it('offers every chat endpoint the provider serves when the model declares none', () => {
+    expect(getPreferredEndpointCandidates(doubao)).toEqual([
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_RESPONSES
+    ])
   })
 
-  it('offers an optional choice when an ordinary provider serves more than one chat endpoint', () => {
-    expect(getEndpointPickerPolicy('legacy', twoEndpoints)).toBe('optional')
+  it('narrows to what the model itself supports', () => {
+    expect(getPreferredEndpointCandidates(doubao, [ENDPOINT_TYPE.OPENAI_RESPONSES])).toEqual([
+      ENDPOINT_TYPE.OPENAI_RESPONSES
+    ])
   })
 
-  it('hides the picker when there is nothing to choose', () => {
-    expect(getEndpointPickerPolicy('legacy', [])).toBe('hidden')
-    expect(getEndpointPickerPolicy('legacy', [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])).toBe('hidden')
+  it('drops non-chat endpoints, leaving nothing to choose for an embedding model', () => {
+    expect(getPreferredEndpointCandidates(doubao, [ENDPOINT_TYPE.OPENAI_EMBEDDINGS])).toEqual([])
   })
 
-  it('hides the picker in purpose mode, which drives the endpoint from its own controls', () => {
-    expect(getEndpointPickerPolicy('purpose', twoEndpoints)).toBe('hidden')
-  })
-})
-
-describe('getModelEndpointOptions', () => {
-  it('narrows to the allowed endpoints while keeping the canonical order', () => {
+  it('trusts an aggregator model that declares endpoints the provider config never lists', () => {
     expect(
-      getModelEndpointOptions([ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).map(
-        (option) => option.id
-      )
-    ).toEqual([ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES])
+      getPreferredEndpointCandidates({ defaultChatEndpoint: undefined, endpointConfigs: undefined }, [
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      ])
+    ).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
   })
 
-  it('falls back to the full list rather than rendering an empty control', () => {
-    expect(getModelEndpointOptions([])).toBe(MODEL_ENDPOINT_OPTIONS)
-    expect(getModelEndpointOptions(undefined)).toBe(MODEL_ENDPOINT_OPTIONS)
-    expect(getModelEndpointOptions(['not-an-endpoint' as EndpointType])).toBe(MODEL_ENDPOINT_OPTIONS)
+  it('leaves a single-endpoint provider with nothing to pick', () => {
+    expect(
+      getPreferredEndpointCandidates({
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' } }
+      })
+    ).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
   })
 })
 

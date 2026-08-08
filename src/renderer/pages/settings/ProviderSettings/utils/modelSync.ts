@@ -92,6 +92,8 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
     }
   }
 
+  // `preferredEndpointType` is deliberately absent: refreshing what a provider supports must never
+  // rewrite the user's explicit route.
   const REGISTRY_FIELDS = [
     'name',
     'description',

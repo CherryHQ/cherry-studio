@@ -320,6 +320,27 @@ describe('resolveProviderVariant', () => {
 })
 
 describe('resolveEffectiveEndpoint', () => {
+  it('prefers model.preferredEndpointType over the supported-set order', () => {
+    const provider = makeProvider({
+      id: 'doubao',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com/v3/' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com/v3/responses/' }
+      }
+    })
+    const model = {
+      id: 'm',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+    } as never
+
+    const { endpointType, baseUrl } = resolveEffectiveEndpoint(provider, model)
+
+    expect(endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(baseUrl).toBe('https://ark.example.com/v3/responses/')
+  })
+
   it('prefers model.endpointTypes[0] over provider.defaultChatEndpoint', () => {
     const provider = makeProvider({
       id: 'minimax',

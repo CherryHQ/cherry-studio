@@ -3,7 +3,7 @@ import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { mapRegexToPatterns } from '@shared/utils/blacklistMatchPattern'
 import { getRawModelId, isOpenAIDeepResearchModel, isOpenAIWebSearchChatCompletionOnlyModel } from '@shared/utils/model'
-import { isBuiltinWebFetchAvailable, matchesPreset } from '@shared/utils/provider'
+import { getModelPreferredEndpoint, isBuiltinWebFetchAvailable, matchesPreset } from '@shared/utils/provider'
 
 import type { KimiFormulaCredentials } from '../provider/custom/moonshotProvider'
 import type { AppProviderId } from '../types'
@@ -193,9 +193,9 @@ export function buildProviderBuiltinWebSearchConfig(
       return { openrouter: openrouterWebConfig }
     }
     case 'cherryin': {
-      // cherryin proxies to a real endpoint forced via model.endpointTypes[0];
+      // cherryin proxies to a real endpoint forced per model;
       // map it to the AppProviderId whose web-search case applies.
-      const endpoint = model?.endpointTypes?.[0]
+      const endpoint = model ? getModelPreferredEndpoint(model) : undefined
       const proxied: AppProviderId | undefined =
         endpoint === ENDPOINT_TYPE.OPENAI_RESPONSES
           ? 'openai'

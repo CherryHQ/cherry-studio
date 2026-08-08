@@ -39,25 +39,6 @@ export const MODEL_ENDPOINT_OPTIONS = [
   { id: ENDPOINT_TYPE.JINA_RERANK, label: 'endpoint_type.jina-rerank' }
 ] as const
 
-export type ModelEndpointOption = (typeof MODEL_ENDPOINT_OPTIONS)[number]
-
-/**
- * Narrow the endpoint options to the endpoints a provider actually declares, preserving the canonical
- * option order. Used for the `optional` picker so an ordinary provider only offers endpoints it is
- * configured for; aggregators keep the full list, since they serve protocols beyond their chat config.
- * An empty/unmatched allowlist falls back to the full list rather than rendering an empty control.
- */
-export function getModelEndpointOptions(
-  allowedEndpointTypes?: readonly ModelDrawerEndpointType[]
-): readonly ModelEndpointOption[] {
-  if (!allowedEndpointTypes?.length) {
-    return MODEL_ENDPOINT_OPTIONS
-  }
-  const allowed = new Set<ModelDrawerEndpointType>(allowedEndpointTypes)
-  const narrowed = MODEL_ENDPOINT_OPTIONS.filter((option) => allowed.has(option.id))
-  return narrowed.length > 0 ? narrowed : MODEL_ENDPOINT_OPTIONS
-}
-
 export function getModelApiId(model: Model): string {
   return model.apiModelId ?? parseUniqueModelId(model.id).modelId
 }

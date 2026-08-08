@@ -177,7 +177,9 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('moves legacy sticky session pointers into the constrained relation', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    // Pin the baseline to the migration under test — "everything but the last entry" silently
+    // stops exercising it as soon as another migration is appended.
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0005_slow_obadiah_stane'))
     const now = Date.now()
     sqlite
       .prepare(

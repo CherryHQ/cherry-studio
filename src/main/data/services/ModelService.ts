@@ -61,6 +61,7 @@ const PRESET_DELTA_FIELDS = [
   'inputModalities',
   'outputModalities',
   'endpointTypes',
+  'preferredEndpointType',
   'contextWindow',
   'maxInputTokens',
   'maxOutputTokens',
@@ -144,6 +145,7 @@ export interface UserModelOverlay {
   inputModalities?: Modality[] | null
   outputModalities?: Modality[] | null
   endpointTypes?: EndpointType[] | null
+  preferredEndpointType?: EndpointType | null
   contextWindow?: number | null
   maxInputTokens?: number | null
   maxOutputTokens?: number | null
@@ -171,6 +173,9 @@ export function applyUserOverlay(baseline: Model, overlay: UserModelOverlay): Mo
   }
   if (overlay.endpointTypes != null) {
     result.endpointTypes = [...overlay.endpointTypes]
+  }
+  if (overlay.preferredEndpointType != null) {
+    result.preferredEndpointType = overlay.preferredEndpointType
   }
   if (overlay.inputModalities != null) {
     result.inputModalities = [...overlay.inputModalities]
@@ -254,6 +259,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'inputModalities',
   'outputModalities',
   'endpointTypes',
+  'preferredEndpointType',
   ['parameterSupport', 'parameters'],
   'supportsStreaming',
   'contextWindow',
@@ -280,6 +286,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     inputModalities: (dto.inputModalities ?? null) as Modality[] | null,
     outputModalities: (dto.outputModalities ?? null) as Modality[] | null,
     endpointTypes: (dto.endpointTypes ?? null) as EndpointType[] | null,
+    preferredEndpointType: (dto.preferredEndpointType ?? null) as EndpointType | null,
     contextWindow: dto.contextWindow ?? null,
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
@@ -344,6 +351,9 @@ function presetDeltaToNewUserModel(
     inputModalities: fields.has('inputModalities') ? ((dto.inputModalities ?? null) as Modality[] | null) : null,
     outputModalities: fields.has('outputModalities') ? ((dto.outputModalities ?? null) as Modality[] | null) : null,
     endpointTypes: fields.has('endpointTypes') ? ((dto.endpointTypes ?? null) as EndpointType[] | null) : null,
+    preferredEndpointType: fields.has('preferredEndpointType')
+      ? ((dto.preferredEndpointType ?? null) as EndpointType | null)
+      : null,
     contextWindow: fields.has('contextWindow') ? (dto.contextWindow ?? null) : null,
     maxInputTokens: fields.has('maxInputTokens') ? (dto.maxInputTokens ?? null) : null,
     maxOutputTokens: fields.has('maxOutputTokens') ? (dto.maxOutputTokens ?? null) : null,
@@ -365,6 +375,7 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
     inputModalities: row.inputModalities,
     outputModalities: row.outputModalities,
     endpointTypes: row.endpointTypes,
+    preferredEndpointType: row.preferredEndpointType,
     contextWindow: row.contextWindow,
     maxInputTokens: row.maxInputTokens,
     maxOutputTokens: row.maxOutputTokens,
@@ -407,6 +418,7 @@ function customRowToRuntimeModel(row: UserModelRow): Model {
     maxInputTokens: row.maxInputTokens ?? undefined,
     maxOutputTokens: row.maxOutputTokens ?? undefined,
     endpointTypes: row.endpointTypes ?? undefined,
+    preferredEndpointType: row.preferredEndpointType ?? undefined,
     supportsStreaming: row.supportsStreaming,
     // Strip legacy fields (notably `type`) and materialize the runtime-only
     // selection list until registry enrichment projects the active profile.

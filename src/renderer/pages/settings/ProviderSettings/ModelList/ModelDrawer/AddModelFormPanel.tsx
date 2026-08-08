@@ -16,7 +16,6 @@ import {
   buildModelInputModalities,
   getInitialAddModelFormState,
   getInitialModelClassification,
-  getModelEndpointOptions,
   splitModelIds
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
@@ -24,9 +23,9 @@ import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
 import {
   applyModelPurpose,
-  getEndpointPickerPolicy,
   getInitialChatEndpointType,
   getModelDrawerMode,
+  getPreferredEndpointCandidates,
   getProviderChatEndpointTypes,
   inferModelPurpose,
   type ModelPurposeFields
@@ -92,6 +91,8 @@ export default function AddModelFormPanel({
   const [classification, setClassification] = useState(() => getInitialModelClassification())
   const [modelIdTouched, setModelIdTouched] = useState(false)
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
+  // Undefined until the user picks: an untouched picker must not pin the model to today's default.
+  const [preferredEndpointType, setPreferredEndpointType] = useState<EndpointType | undefined>(undefined)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -100,12 +101,14 @@ export default function AddModelFormPanel({
 
   const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
-  const endpointPicker = getEndpointPickerPolicy(mode, providerChatEndpointTypes)
-  // Only the `optional` picker narrows to the provider's own chat endpoints; aggregators keep the full
-  // list because they also serve embedding/image/rerank protocols outside `endpointConfigs`.
-  const endpointTypeOptions =
-    endpointPicker === 'optional' ? getModelEndpointOptions(providerChatEndpointTypes) : undefined
   const defaultChatEndpoint = providerChatEndpointTypes[0] ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  // Only an aggregator's multi-select declares what the new model supports; elsewhere the form seeds
+  // `endpointTypes` with the provider default, which says nothing about the model.
+  const preferredEndpointOptions = provider
+    ? getPreferredEndpointCandidates(provider, mode === 'endpoint-types' ? formState.endpointTypes : undefined)
+    : []
+  const activePreferredEndpoint =
+    preferredEndpointOptions.find((candidate) => candidate === preferredEndpointType) ?? preferredEndpointOptions[0]
   const modelPurpose = inferModelPurpose(purposeFields)
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
 
@@ -115,6 +118,7 @@ export default function AddModelFormPanel({
     setClassification(getInitialModelClassification(prefill?.model))
     setModelIdTouched(false)
     setEndpointTypeTouched(false)
+    setPreferredEndpointType(undefined)
     setShowMoreSettings(false)
     setSubmitError(null)
   }, [defaultChatEndpoint, prefill])
@@ -178,9 +182,10 @@ export default function AddModelFormPanel({
         endpointTypes:
           submittedPurposeFields != null
             ? [...submittedPurposeFields.endpointTypes]
-            : endpointPicker !== 'hidden' && values.endpointTypes?.length
+            : mode === 'endpoint-types' && values.endpointTypes?.length
               ? [...values.endpointTypes]
               : undefined,
+        ...(preferredEndpointType ? { preferredEndpointType } : {}),
         capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
         inputModalities: submittedPurposeFields?.inputModalities ?? classifiedInputModalities,
         outputModalities: submittedPurposeFields?.outputModalities,
@@ -198,6 +203,7 @@ export default function AddModelFormPanel({
       mode,
       modelPurpose,
       models,
+      preferredEndpointType,
       prefill?.model,
       provider,
       providerId,
@@ -218,8 +224,7 @@ export default function AddModelFormPanel({
       return
     }
 
-    // An `optional` picker may be left empty — that means "inherit the provider default".
-    if (endpointPicker === 'required' && !(formState.endpointTypes?.length ?? 0)) {
+    if (mode === 'endpoint-types' && !(formState.endpointTypes?.length ?? 0)) {
       setEndpointTypeTouched(true)
       return
     }
@@ -353,8 +358,10 @@ export default function AddModelFormPanel({
         <div className={drawerClasses.fieldList}>
           <ModelBasicFields
             values={formState}
-            showEndpointType={endpointPicker !== 'hidden'}
-            endpointTypeOptions={endpointTypeOptions}
+            showEndpointType={mode === 'endpoint-types'}
+            preferredEndpointOptions={preferredEndpointOptions}
+            preferredEndpointType={activePreferredEndpoint}
+            onPreferredEndpointTypeChange={setPreferredEndpointType}
             showRequiredIndicator
             layout="horizontal"
             modelIdAutoFocus
@@ -362,11 +369,7 @@ export default function AddModelFormPanel({
             modelIdError={
               modelIdTouched && !formState.modelId.trim() ? t('settings.models.add.model_id.required') : undefined
             }
-            endpointTypeError={
-              endpointTypeTouched && endpointPicker === 'required'
-                ? t('settings.models.add.endpoint_type.required')
-                : undefined
-            }
+            endpointTypeError={endpointTypeTouched ? t('settings.models.add.endpoint_type.required') : undefined}
             onModelIdChange={handleModelIdChange}
             onNameChange={(value) => setFormState((current) => ({ ...current, name: value }))}
             onGroupChange={(value) => setFormState((current) => ({ ...current, group: value }))}

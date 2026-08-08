@@ -455,6 +455,7 @@
         "expand_all": "Ανάπτυξη όλων",
         "no_workdir": "Κανένας κατάλογος εργασίας",
         "show_more": "Ανάπτυξη οθόνης",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "Αυτή την εβδομάδα",
         "today": "Σήμερα",
         "unknown_agent": "Άγνωστος πράκτορας",
@@ -7264,6 +7265,9 @@
         },
         "model_type": {
           "label": "Τύπος Μοντέλου"
+        },
+        "preferred_endpoint": {
+          "label": "[to be translated]:Preferred Endpoint"
         },
         "purpose": {
           "chat": {

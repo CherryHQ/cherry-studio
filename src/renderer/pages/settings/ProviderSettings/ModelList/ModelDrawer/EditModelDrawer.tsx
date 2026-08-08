@@ -16,6 +16,7 @@ import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import { getModelPreferredEndpoint } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,7 +32,6 @@ import {
   buildModelInputModalities,
   getInitialModelClassification,
   getModelApiId,
-  getModelEndpointOptions,
   MODEL_DRAWER_CURRENCY_SYMBOLS,
   readCurrency
 } from './helpers'
@@ -40,9 +40,9 @@ import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
 import {
   applyModelPurpose,
-  getEndpointPickerPolicy,
   getInitialChatEndpointType,
   getModelDrawerMode,
+  getPreferredEndpointCandidates,
   getProviderChatEndpointTypes,
   inferModelPurpose,
   type ModelPurposeFields
@@ -67,6 +67,7 @@ interface BuildPatchOverrides {
   name?: string
   group?: string
   endpointTypes?: EndpointType[]
+  preferredEndpointType?: EndpointType
   purposeFields?: ModelPurposeFields
   classification?: ModelClassificationState
   supportsStreaming?: boolean
@@ -118,6 +119,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
+  const [preferredEndpointType, setPreferredEndpointType] = useState<EndpointType | undefined>(undefined)
   const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>({})
   const [showMoreSettings, setShowMoreSettings] = useState(true)
   const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
@@ -135,12 +137,15 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
 
   const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
-  const endpointPicker = getEndpointPickerPolicy(mode, providerChatEndpointTypes)
-  // Only the `optional` picker narrows to the provider's own chat endpoints; aggregators keep the full
-  // list because they also serve embedding/image/rerank protocols outside `endpointConfigs`.
-  const endpointTypeOptions =
-    endpointPicker === 'optional' ? getModelEndpointOptions(providerChatEndpointTypes) : undefined
   const defaultChatEndpoint = providerChatEndpointTypes[0]
+  const preferredEndpointOptions = provider ? getPreferredEndpointCandidates(provider, endpointTypes) : []
+  // State holds this session's choice only; everything else derives from the model, so the picker
+  // still shows the right chip when the provider resolves after the first render.
+  const effectivePreferredEndpoint =
+    preferredEndpointType ?? (model ? getModelPreferredEndpoint(model, provider ?? undefined) : undefined)
+  const activePreferredEndpoint =
+    preferredEndpointOptions.find((candidate) => candidate === effectivePreferredEndpoint) ??
+    preferredEndpointOptions[0]
   const modelPurpose = inferModelPurpose(purposeFields)
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
@@ -158,6 +163,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setName(model.name)
     setGroup(model.group ?? '')
     setEndpointTypes(model.endpointTypes?.length ? [...model.endpointTypes] : [])
+    setPreferredEndpointType(undefined)
     setPurposeFields({
       endpointTypes: model.endpointTypes,
       capabilities: model.capabilities,
@@ -188,6 +194,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         outputModalities: patch.outputModalities,
         supportsStreaming: patch.supportsStreaming,
         endpointTypes: patch.endpointTypes,
+        preferredEndpointType: patch.preferredEndpointType,
         contextWindow: patch.contextWindow,
         maxInputTokens: patch.maxInputTokens,
         maxOutputTokens: patch.maxOutputTokens,
@@ -250,9 +257,10 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           ? { endpointTypes: [...resolvedPurposeFields.endpointTypes] }
           : hasEndpointTypesOverride
             ? {
-                endpointTypes: endpointPicker !== 'hidden' ? [...(overrides.endpointTypes ?? [])] : undefined
+                endpointTypes: mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
               }
             : {}),
+        ...(overrides?.preferredEndpointType ? { preferredEndpointType: overrides.preferredEndpointType } : {}),
         ...(resolvedPurposeFields
           ? {
               capabilities: resolvedPurposeFields.capabilities,
@@ -429,9 +437,14 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 maxOutputTokens,
                 endpointTypes
               }}
-              showEndpointType={endpointPicker !== 'hidden'}
-              endpointTypeOptions={endpointTypeOptions}
+              showEndpointType={mode === 'endpoint-types'}
               endpointTypeControl="chips"
+              preferredEndpointOptions={preferredEndpointOptions}
+              preferredEndpointType={activePreferredEndpoint}
+              onPreferredEndpointTypeChange={(next) => {
+                setPreferredEndpointType(next)
+                autoSave({ preferredEndpointType: next })
+              }}
               modelIdDisabled
               modelIdAction={
                 <button
