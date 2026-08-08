@@ -49,6 +49,7 @@ interface BuilderContext {
   model: Model
   baseConfig: BaseConfig
   apiKeyOverride?: string
+  sessionId?: string
   endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
@@ -61,6 +62,7 @@ type ApiKeyBuilderContext = BuilderContext & {
 interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
   resolvedEndpoint?: ResolvedEndpoint
+  sessionId?: string
 }
 
 export interface ResolvedProviderAiSdkConfig {
@@ -180,6 +182,7 @@ export async function resolveProviderAiSdkConfig(
     // for a key they never serve with.
     baseConfig: { baseURL, apiKey: '' },
     apiKeyOverride: options?.apiKeyOverride,
+    sessionId: options?.sessionId,
     endpointType,
     endpoint,
     aiSdkProviderId
@@ -187,6 +190,10 @@ export async function resolveProviderAiSdkConfig(
 
   const builders: ConfigBuilderEntry[] = [
     { match: (p) => p.id === SystemProviderIds.copilot, build: withProviderAuth('oauth', buildCopilotConfig) },
+    {
+      match: (p) => matchesPreset(p, SystemProviderIds.opencode),
+      build: withSelectedApiKey(buildOpenCodeGoConfig)
+    },
     { match: (p) => p.id === OPENAI_CODEX_PROVIDER_ID, build: withProviderAuth('oauth', buildCodexConfig) },
     { match: (p) => p.id === GROK_CLI_PROVIDER_ID, build: withProviderAuth('oauth', buildGrokCliConfig) },
     { match: (p) => p.id === CHERRYAI_PROVIDER_ID, build: withSelectedApiKey(buildCherryAIConfig) },
@@ -358,6 +365,20 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
       name: ctx.actualProvider.id
     }
   }
+}
+
+function buildOpenCodeGoConfig(ctx: BuilderContext): ProviderConfig {
+  const config =
+    ctx.aiSdkProviderId === 'openai-compatible' ? buildOpenAICompatibleConfig(ctx) : buildGenericProviderConfig(ctx)
+  const providerSettings = config.providerSettings as { headers?: Record<string, string | undefined> }
+  const headers = providerSettings.headers
+  const hasExplicitSession = Object.keys(headers ?? {}).some((name) => name.toLowerCase() === 'x-opencode-session')
+
+  if (ctx.sessionId && !hasExplicitSession) {
+    providerSettings.headers = { 'x-opencode-session': ctx.sessionId, ...headers }
+  }
+
+  return config
 }
 
 /**
