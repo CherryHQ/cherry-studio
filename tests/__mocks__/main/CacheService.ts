@@ -6,7 +6,7 @@ import type {
   ProcessKey,
   SharedCacheKey
 } from '@shared/data/cache/cacheSchemas'
-import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
+import type { CacheEntry, CacheSyncBatchMessage, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import { isEqual } from 'es-toolkit/compat'
 import { vi } from 'vitest'
 
@@ -25,7 +25,9 @@ const mockSharedCache = new Map<string, CacheEntry>()
 const mockPersistCache = new Map<string, unknown>()
 
 // Mock broadcast tracking
-const mockBroadcastCalls: Array<{ message: CacheSyncMessage; senderWindowId?: number }> = []
+type MockCacheSyncMessage = CacheSyncMessage | CacheSyncBatchMessage
+
+const mockBroadcastCalls: Array<{ message: MockCacheSyncMessage; senderWindowId?: number }> = []
 
 /**
  * Mock CacheService class
@@ -119,6 +121,25 @@ export class MockMainCacheService {
       }
     })
   })
+
+  public setSharedMany = vi.fn(
+    (entries: ReadonlyArray<{ key: SharedCacheKey; value: unknown; ttl?: number }>): void => {
+      const keys = new Set<string>()
+      for (const { key } of entries) {
+        if (keys.has(key)) throw new Error(`CacheService.setSharedMany: duplicate key "${key}"`)
+        keys.add(key)
+      }
+
+      const syncEntries = entries.map(({ key, value, ttl }) => {
+        const expireAt = ttl ? Date.now() + ttl : undefined
+        mockSharedCache.set(key, { value, expireAt })
+        return { key, value, expireAt }
+      })
+      if (syncEntries.length > 0) {
+        mockBroadcastCalls.push({ message: { type: 'shared', entries: syncEntries } })
+      }
+    }
+  )
 
   public hasShared = vi.fn(<K extends SharedCacheKey>(key: K): boolean => {
     const entry = mockSharedCache.get(key)
@@ -337,14 +358,14 @@ export const MockMainCacheServiceUtils = {
   /**
    * Get broadcast call history for testing
    */
-  getBroadcastHistory: (): Array<{ message: CacheSyncMessage; senderWindowId?: number }> => {
+  getBroadcastHistory: (): Array<{ message: MockCacheSyncMessage; senderWindowId?: number }> => {
     return [...mockBroadcastCalls]
   },
 
   /**
    * Simulate cache sync broadcast
    */
-  simulateCacheSync: (message: CacheSyncMessage, senderWindowId?: number) => {
+  simulateCacheSync: (message: MockCacheSyncMessage, senderWindowId?: number) => {
     mockBroadcastCalls.push({ message, senderWindowId })
   },
 

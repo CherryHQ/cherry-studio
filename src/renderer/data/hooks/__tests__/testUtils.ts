@@ -24,6 +24,7 @@ export function installCacheApiMock(broadcastSync = vi.fn()) {
       cache: {
         broadcastSync,
         onSync: vi.fn(),
+        onSyncBatch: vi.fn(),
         getAllShared: vi.fn(async () => ({}))
       }
     }

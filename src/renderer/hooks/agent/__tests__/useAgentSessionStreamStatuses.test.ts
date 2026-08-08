@@ -34,6 +34,7 @@ beforeEach(() => {
       cache: {
         broadcastSync: vi.fn(),
         onSync: vi.fn(),
+        onSyncBatch: vi.fn(),
         getAllShared: vi.fn(async () => ({}))
       }
     }

@@ -32,6 +32,7 @@ import type {
   CacheEntryDetail,
   CacheStats,
   CacheSubscriber,
+  CacheSyncBatchMessage,
   CacheSyncMessage,
   CacheTierSummary
 } from '@shared/data/cache/cacheTypes'
@@ -1136,48 +1137,63 @@ export class CacheService {
    * Setup IPC listeners for receiving cache sync messages from other windows
    */
   private setupIpcListeners(): void {
-    if (!window.api?.cache?.onSync) {
+    if (!window.api?.cache?.onSync || !window.api.cache.onSyncBatch) {
       logger.warn('Cache sync API not available')
       return
     }
 
-    // Listen for cache sync messages from other windows
     window.api.cache.onSync((message: CacheSyncMessage) => {
-      if (message.type === 'shared') {
-        if (message.value === undefined) {
-          // Deletion tombstone: physically remove and always notify so
-          // observers see the value disappear (unlike main's
-          // subscribeSharedChange, renderer hooks must re-render on it).
-          this.sharedCache.delete(message.key)
-          this.notifySubscribers(message.key)
-          return
-        }
-
-        const existingEntry = this.sharedCache.get(message.key)
-
-        // Equal-value update (e.g. Main's TTL-only refresh): renew expireAt in
-        // place, keep the old value reference, and skip notification. Compared
-        // against the raw local entry value (NOT TTL-aware) — snapshot readers
-        // reflect the physical Map, so their observable value never changed and
-        // notifying would only cause re-renders plus reference churn.
-        if (existingEntry && isEqual(existingEntry.value, message.value)) {
-          existingEntry.expireAt = message.expireAt
-          return
-        }
-
-        // Handle set - use expireAt directly (absolute timestamp from sender)
-        const entry: CacheEntry = {
-          value: message.value,
-          expireAt: message.expireAt
-        }
-        this.sharedCache.set(message.key, entry)
-        this.notifySubscribers(message.key)
-      } else if (message.type === 'persist') {
-        // Update persist cache (other windows only update memory, not localStorage)
-        this.persistCache.set(message.key as RendererPersistCacheKey, message.value)
-        this.notifySubscribers(message.key)
-      }
+      const changedKey = this.applyInboundSync(message)
+      if (changedKey) this.notifySubscribers(changedKey)
     })
+    window.api.cache.onSyncBatch((message: CacheSyncBatchMessage) => this.applyInboundSyncBatch(message))
+  }
+
+  private applyInboundSyncBatch(message: CacheSyncBatchMessage): void {
+    const changedKeys: string[] = []
+    for (const entry of message.entries) {
+      const changedKey = this.applyInboundSync({ type: message.type, ...entry })
+      if (changedKey) changedKeys.push(changedKey)
+    }
+    for (const key of changedKeys) this.notifySubscribers(key)
+  }
+
+  /** Apply one inbound value without notifying; the caller controls batch notification ordering. */
+  private applyInboundSync(message: CacheSyncMessage): string | null {
+    if (message.type === 'shared') {
+      if (message.value === undefined) {
+        // Deletion tombstone: physically remove and always notify so
+        // observers see the value disappear (unlike main's
+        // subscribeSharedChange, renderer hooks must re-render on it).
+        this.sharedCache.delete(message.key)
+        return message.key
+      }
+
+      const existingEntry = this.sharedCache.get(message.key)
+
+      // Equal-value update (e.g. Main's TTL-only refresh): renew expireAt in
+      // place, keep the old value reference, and skip notification. Compared
+      // against the raw local entry value (NOT TTL-aware) — snapshot readers
+      // reflect the physical Map, so their observable value never changed and
+      // notifying would only cause re-renders plus reference churn.
+      if (existingEntry && isEqual(existingEntry.value, message.value)) {
+        existingEntry.expireAt = message.expireAt
+        return null
+      }
+
+      // Handle set - use expireAt directly (absolute timestamp from sender)
+      const entry: CacheEntry = {
+        value: message.value,
+        expireAt: message.expireAt
+      }
+      this.sharedCache.set(message.key, entry)
+      return message.key
+    } else if (message.type === 'persist') {
+      // Update persist cache (other windows only update memory, not localStorage)
+      this.persistCache.set(message.key as RendererPersistCacheKey, message.value)
+      return message.key
+    }
+    return null
   }
 
   /**
