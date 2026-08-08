@@ -40,6 +40,31 @@ const DELIVERY_STATUS_LABEL_KEYS = {
   queued: 'agent.session_delivery.status.queued'
 } as const
 
+export const AgentSessionDeliveryBadge: FC<{
+  delivery: NonNullable<MessageListItem['delivery']>
+}> = ({ delivery }) => {
+  const { t } = useTranslation()
+  const senderSessionLabel = delivery.sender.sessionName.trim() || delivery.sender.sessionId
+
+  return (
+    <Tooltip
+      content={`${delivery.sender.agentId}/${delivery.sender.sessionId} → ${delivery.receiver.agentId}/${delivery.receiver.sessionId}`}>
+      <Badge
+        variant="outline"
+        className="h-5 max-w-[min(28rem,50vw)] gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs">
+        <span className="truncate">
+          {t('agent.session_delivery.from', {
+            agent: delivery.sender.agentName,
+            session: senderSessionLabel
+          })}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span className="shrink-0">{t(DELIVERY_STATUS_LABEL_KEYS[delivery.status])}</span>
+      </Badge>
+    </Tooltip>
+  )
+}
+
 const MessageHeader: FC<Props> = memo(
   ({ model, message, isGroupContextMessage, showModelIdentity = false, actionsSlot, contentSlot, footerSlot }) => {
     const { theme } = useTheme()
@@ -129,23 +154,7 @@ const MessageHeader: FC<Props> = memo(
               }}>
               {username}
             </span>
-            {!isAssistantMessage && delivery && (
-              <Tooltip
-                content={`${delivery.sender.agentId}/${delivery.sender.sessionId} → ${delivery.receiver.agentId}/${delivery.receiver.sessionId}`}>
-                <Badge
-                  variant="outline"
-                  className="h-5 max-w-[min(28rem,50vw)] gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs">
-                  <span className="truncate">
-                    {t('agent.session_delivery.from', {
-                      agent: delivery.sender.agentName,
-                      session: delivery.sender.sessionName
-                    })}
-                  </span>
-                  <span aria-hidden="true">·</span>
-                  <span className="shrink-0">{t(DELIVERY_STATUS_LABEL_KEYS[delivery.status])}</span>
-                </Badge>
-              </Tooltip>
-            )}
+            {!isAssistantMessage && delivery && <AgentSessionDeliveryBadge delivery={delivery} />}
             {isAssistantMessage && showModelIdentity && displayModelName && (
               <span className="flex min-w-0 shrink items-center gap-1 text-foreground-tertiary text-xs leading-5">
                 <span aria-hidden="true" className="shrink-0">
