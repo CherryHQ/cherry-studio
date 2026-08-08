@@ -116,6 +116,8 @@ export interface BeginAgentSessionTurnInput {
   traceId?: string
   /** Author snapshot (agent + nested model) stamped onto every assistant row this turn produces. */
   messageSnapshot?: MessageSnapshot
+  /** Only an untouched session's initial turn may run the two-stage automatic naming flow. */
+  shouldAutoName?: boolean
 }
 
 export interface AgentSessionRuntimeHandle {
@@ -155,6 +157,8 @@ type AgentSessionTurn = {
   modelId: UniqueModelId
   /** Immutable author snapshot captured when this exact turn was submitted. */
   messageSnapshot?: MessageSnapshot
+  /** Whether this initial turn owns the session's one automatic AI naming attempt. */
+  shouldAutoName?: boolean
   reasoningEffort: ReasoningEffortOption
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
@@ -406,6 +410,7 @@ export class AgentSessionRuntimeService extends BaseService {
       userMessage,
       modelId: input.modelId,
       messageSnapshot,
+      shouldAutoName: input.shouldAutoName === true,
       reasoningEffort: input.reasoningEffort ?? 'default',
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
       fastMode: input.fastMode === true,
@@ -2551,7 +2556,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * `startNextTurn` this sends NOTHING to the connection (the steer is already in flight via the
    * PreToolUse hook) — the turn is pre-`admitted` so `admitTurn` no-ops, and the still-streaming SDK
    * turn's post-steer chunks are owned by the steer-transition state until A2 opens its stream.
-   * The steer message is reused only for rename/seed context — U2 is already a persisted row.
+   * The steer message is reused only for seed context — U2 is already a persisted row.
    */
   private async startContinuationTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
     const transition = entry.runtimeState.execution
@@ -2751,6 +2756,11 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     const { assistantMessageId, modelId } = currentTurn
     const userText = extractMessageText(userMessage)
+    const afterPersist = currentTurn.shouldAutoName
+      ? async (finalMessage: CherryUIMessage) => {
+          await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
+        }
+      : undefined
     return new PersistenceListener({
       topicId: entry.topicId,
       modelId,
@@ -2764,9 +2774,7 @@ export class AgentSessionRuntimeService extends BaseService {
         assistantMessageId,
         modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
-        afterPersist: async (finalMessage) => {
-          await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
-        }
+        afterPersist
       }),
       onPersistFailed: (error) =>
         application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error)
