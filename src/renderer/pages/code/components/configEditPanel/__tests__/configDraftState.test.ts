@@ -15,7 +15,8 @@ vi.mock('@renderer/pages/code/cliConfig', async (importOriginal) => {
   return { ...actual, readCliConfigFiles: mocks.readCliConfigFiles }
 })
 
-const { loadInitialConfigDraft } = await import('../configDraftState')
+const { createManagedConfigDraft, loadInitialConfigDraft } = await import('../configDraftState')
+const { extractConfigFromCliConfigDraft } = await import('@renderer/pages/code/cliConfig')
 
 const GATEWAY_BASE_URL = 'http://127.0.0.1:23333'
 
@@ -136,5 +137,83 @@ describe('loadInitialConfigDraft (cherry gateway)', () => {
     expect(env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe('deepseek:deepseek-chat')
     expect(env.ANTHROPIC_MODEL).toBeUndefined()
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('cs-sk-gateway')
+  })
+})
+
+describe('createManagedConfigDraft (config-only preview)', () => {
+  it('updates the existing Codex preview without a selected model', async () => {
+    const files: CliConfigFileDraft[] = [
+      {
+        target: 'codex-config',
+        label: 'Codex config.toml',
+        path: '/home/.codex/config.toml',
+        language: 'toml',
+        content: [
+          'model = "existing-model"',
+          'model_provider = "cherry-existing"',
+          '[model_providers.cherry-existing]',
+          'base_url = "https://example.com/v1"',
+          'wire_api = "responses"'
+        ].join('\n')
+      },
+      {
+        target: 'codex-auth',
+        label: 'Codex auth.json',
+        path: '/home/.codex/auth.json',
+        language: 'json',
+        content: JSON.stringify({ OPENAI_API_KEY: 'test-key' })
+      }
+    ]
+
+    const draft = await createManagedConfigDraft({
+      cliTool: CodeCli.OPENAI_CODEX,
+      modelId: undefined,
+      config: { goalMode: true },
+      files
+    })
+
+    expect(extractConfigFromCliConfigDraft(CodeCli.OPENAI_CODEX, draft.files)).toEqual({ goalMode: true })
+  })
+
+  it('updates the existing OpenCode preview without a selected model', async () => {
+    const files: CliConfigFileDraft[] = [
+      {
+        target: 'opencode-config',
+        label: 'OpenCode opencode.json',
+        path: '/home/.config/opencode/opencode.json',
+        language: 'json',
+        content: JSON.stringify({
+          provider: {
+            'cherry-existing': {
+              npm: '@ai-sdk/openai-compatible',
+              options: { apiKey: 'test-key', baseURL: 'https://example.com/v1' },
+              models: { 'existing-model': { name: 'Existing Model' } }
+            }
+          }
+        })
+      }
+    ]
+
+    const draft = await createManagedConfigDraft({
+      cliTool: CodeCli.OPEN_CODE,
+      modelId: undefined,
+      config: { autoCompact: true },
+      files
+    })
+
+    const config = JSON.parse(draft.files[0].content)
+    expect(config.compaction.auto).toBe(true)
+    expect(config).not.toHaveProperty('autoCompact')
+
+    const disabledDraft = await createManagedConfigDraft({
+      cliTool: CodeCli.OPEN_CODE,
+      modelId: undefined,
+      config: {},
+      files: draft.files
+    })
+
+    expect(disabledDraft.error).toBe('')
+    const disabledConfig = JSON.parse(disabledDraft.files[0].content)
+    expect(disabledConfig).not.toHaveProperty('compaction')
   })
 })
