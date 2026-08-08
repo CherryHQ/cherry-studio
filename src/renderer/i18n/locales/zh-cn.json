@@ -6775,7 +6775,7 @@
       },
       "sidebar": {
         "chat": {
-          "hiddenMessage": "助手是基础功能，不支持隐藏"
+          "visible": "在侧边栏显示对话助手"
         },
         "disabled": "隐藏的图标",
         "empty": "把要隐藏的功能从左侧拖拽到这里",

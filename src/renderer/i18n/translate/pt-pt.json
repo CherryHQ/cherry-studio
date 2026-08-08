@@ -1008,8 +1008,8 @@
           "label": "Notificar"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "[to be translated]:Markdown is easier for the agent to read",
+          "label": "[to be translated]:File to Markdown"
         },
         "CherryWebFetch": {
           "description": "Obtém e lê uma página Web",
@@ -2988,6 +2988,28 @@
       "title": "Importar Conversas do ChatGPT",
       "untitled_conversation": "Conversa Sem Título"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "Selecionar Ficheiro de Importação",
       "label": "Tem a certeza de que pretende importar dados externos?"
@@ -3026,10 +3048,20 @@
           "selected_notes": "{{count}} notas selecionadas"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "Selecione notas existentes como fontes da base de conhecimento",
           "empty_description": "As notas selecionáveis aparecerão aqui após a lista de notas reais ser conectada. Por enquanto, use ficheiros, pastas, URLs ou mapas do site.",
           "empty_title": "As notas ainda não estão conectadas",
-          "loading": "A carregar notas…"
+          "loading": "A carregar notas…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Suporta PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3288,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "Aplicações",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "Minapps",
     "miniApps": "Miniaplicações",
     "pin_to_sidebar": "Fixar na barra lateral",
@@ -4216,7 +4249,7 @@
         "taskOutput": "Ver saída da tarefa",
         "taskStop": "Parar tarefa",
         "taskUpdate": "Atualizar tarefa",
-        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdown": "[to be translated]:To Markdown",
         "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "Fazer Escrever",
         "tool": "Ferramenta",
@@ -6091,6 +6124,7 @@
       "import_settings": {
         "button": "Importar Ficheiro Json",
         "chatgpt": "Importar do ChatGPT",
+        "claude": "[to be translated]:Import from Claude",
         "title": "Importar Dados de Aplicações Externas"
       },
       "joplin": {
@@ -6646,6 +6680,7 @@
         "notice": {
           "downloadFailed": "A transferência falhou. Verifique a ligação e tente novamente.",
           "inUse": "Ainda utilizado por uma base de conhecimento; os pesos foram mantidos.",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "Falha na remoção. Verifique os registos para mais detalhes."
         },
         "ocr": {
@@ -6740,7 +6775,7 @@
       },
       "sidebar": {
         "chat": {
-          "hiddenMessage": "O assistente é uma funcionalidade básica e não pode ser ocultada"
+          "visible": "[to be translated]:Show Chat Assistant in Sidebar"
         },
         "disabled": "Ícones ocultos",
         "empty": "Arraste as funcionalidades que deseja ocultar da esquerda para cá",

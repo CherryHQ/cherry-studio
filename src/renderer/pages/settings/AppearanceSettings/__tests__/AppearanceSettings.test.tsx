@@ -3,7 +3,7 @@ import { toast } from '@renderer/services/toast'
 import { type MenuPresentationMode, ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AppearanceSettings, { confirmMenuPresentationModeChange } from '../AppearanceSettings'
@@ -371,4 +371,55 @@ describe('AppearanceSettings selectors', () => {
 
     expect(screen.queryByText('settings.display.custom.css.migration_notice')).not.toBeInTheDocument()
   })
+
+  it('shows the chat assistant as visible when it is in the sidebar favorites', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [{ type: 'app', id: 'assistants' }])
+
+    const { container } = render(<AppearanceSettings />)
+
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
+    })
+
+    const sidebarSection = getSidebarSettingsSection(container)!
+    expect(sidebarSection).toBeDefined()
+    expect(within(sidebarSection).getByText('settings.display.sidebar.chat.visible')).toBeInTheDocument()
+    expect(within(sidebarSection).getByRole('checkbox')).toHaveProperty('checked', true)
+  })
+
+  it('hides the chat assistant when the sidebar toggle is turned off', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [{ type: 'app', id: 'assistants' }])
+
+    const { container } = render(<AppearanceSettings />)
+
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
+    })
+
+    const sidebarSection = getSidebarSettingsSection(container)!
+    fireEvent.click(within(sidebarSection).getByRole('checkbox'))
+
+    await waitFor(() => {
+      expect(MockUsePreferenceUtils.getPreferenceValue('ui.sidebar.favorites')).toEqual([])
+    })
+  })
+
+  it('shows the chat assistant toggle as off when it is not in the sidebar favorites', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('ui.sidebar.favorites', [{ type: 'app', id: 'translate' }])
+
+    const { container } = render(<AppearanceSettings />)
+
+    await waitFor(() => {
+      expect(mocks.request).toHaveBeenCalledWith('system.get_fonts')
+    })
+
+    const sidebarSection = getSidebarSettingsSection(container)!
+    expect(within(sidebarSection).getByRole('checkbox')).toHaveProperty('checked', false)
+  })
 })
+
+function getSidebarSettingsSection(container: HTMLElement) {
+  return Array.from(container.querySelectorAll('section')).find(
+    (section) => section.querySelector('h2')?.textContent === 'settings.display.sidebar.title'
+  )
+}

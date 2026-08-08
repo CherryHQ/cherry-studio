@@ -13,7 +13,6 @@ import {
   getSidebarFavoriteKey,
   getSidebarMenuPath,
   isMessageOnlyConversationUrl,
-  REQUIRED_SIDEBAR_FAVORITES,
   resolveSidebarActiveItem,
   tabBelongsToApp
 } from '@renderer/utils/sidebar'
@@ -35,7 +34,6 @@ import UserPopup from '../UserPopup'
 import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVariants'
 
 const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
-const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 
 function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
   if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return undefined
@@ -120,7 +118,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   const handleRemoveSidebarFavorite = useCallback(
     (favorite: SidebarAppId) => {
-      if (REQUIRED_SIDEBAR_FAVORITE_SET.has(favorite)) return
       setAppPinned(favorite, false)
     },
     [setAppPinned]
@@ -217,7 +214,6 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       t,
       defaultPaintingProvider,
       installedMiniApps: openableMiniAppById,
-      isRequiredApp: (id) => REQUIRED_SIDEBAR_FAVORITE_SET.has(id),
       openApp: handleNavigate,
       openMiniApp: handleOpenMiniAppTab,
       removeApp: handleRemoveSidebarFavorite,

@@ -12,7 +12,9 @@ import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
 import { useMainWindowNavigation } from '@renderer/hooks/tab'
 import { useStorageMonitorNotification } from '@renderer/hooks/useStorageMonitorNotification'
 import { useWindowRuntime } from '@renderer/hooks/useWindowRuntime'
-import { useEffect } from 'react'
+import { getSidebarDefaultLandingUrl } from '@renderer/utils/sidebar'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
+import { useEffect, useMemo } from 'react'
 
 import { useAppUpdateHandler } from './hooks/useAppUpdateHandler'
 import { useAutoBackupEvents } from './hooks/useAutoBackupEvents'
@@ -60,9 +62,26 @@ function MainWindowRuntime(): null {
 
 export function MainWindowContent(): React.ReactElement {
   const [providerSetupStatus] = usePreference('app.onboarding.provider_setup.status')
+  const [sidebarFavorites] = usePreference('ui.sidebar.favorites')
+  const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
+
+  // Land on the first visible sidebar app instead of always defaulting to the chat
+  // assistant. Computed fresh per render but only consumed once at mount by
+  // TabsProvider, so a mid-session sidebar reorder is a no-op for the session.
+  const initialDefaultTab = useMemo<Tab>(
+    () => ({
+      id: 'home',
+      type: 'route',
+      url: getSidebarDefaultLandingUrl(sidebarFavorites, defaultPaintingProvider) || '/app/chat',
+      title: '',
+      lastAccessTime: Date.now(),
+      isDormant: false
+    }),
+    [defaultPaintingProvider, sidebarFavorites]
+  )
 
   return (
-    <TabsProvider>
+    <TabsProvider initialDefaultTab={initialDefaultTab}>
       {providerSetupStatus === 'pending' ? <OnboardingPage /> : <AppShell />}
       <MainWindowRuntime />
       <PopupHost />

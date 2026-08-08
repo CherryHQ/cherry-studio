@@ -5,6 +5,7 @@ import {
   getOrderedLaunchpadApps,
   getOrderedVisibleSidebarFavoriteItems,
   getOrderedVisibleSidebarFavorites,
+  getSidebarDefaultLandingUrl,
   getSidebarFavoriteItems,
   getSidebarMenuPath,
   getSidebarMiniAppFavoriteIds,
@@ -32,7 +33,7 @@ describe('sidebar config helpers', () => {
     ).toEqual(['translate', 'assistants', 'agents'])
   })
 
-  it('sanitizes ordered visible sidebar favorites and keeps required favorites visible', () => {
+  it('sanitizes ordered visible sidebar favorites preserving stored order', () => {
     expect(
       getOrderedVisibleSidebarFavorites([
         appFavorite('translate'),
@@ -40,7 +41,7 @@ describe('sidebar config helpers', () => {
         appFavorite('translate'),
         appFavorite('agents')
       ])
-    ).toEqual(['assistants', 'translate', 'agents'])
+    ).toEqual(['translate', 'agents'])
   })
 
   it('ignores mini app favorites when reading system sidebar favorites', () => {
@@ -54,22 +55,17 @@ describe('sidebar config helpers', () => {
     ).toEqual(['translate', 'assistants', 'agents'])
   })
 
-  it('returns the full mixed list interleaved in stored order with required apps forced in', () => {
+  it('returns the full mixed list interleaved in stored order', () => {
     expect(
       getOrderedVisibleSidebarFavoriteItems([
         appFavorite('translate'),
         miniAppFavorite('calculator'),
         appFavorite('agents')
       ])
-    ).toEqual([
-      appFavorite('assistants'),
-      appFavorite('translate'),
-      miniAppFavorite('calculator'),
-      appFavorite('agents')
-    ])
+    ).toEqual([appFavorite('translate'), miniAppFavorite('calculator'), appFavorite('agents')])
   })
 
-  it('does not prepend a required app that is already present at any position', () => {
+  it('does not alter the stored mixed order', () => {
     expect(getOrderedVisibleSidebarFavoriteItems([miniAppFavorite('calculator'), appFavorite('assistants')])).toEqual([
       miniAppFavorite('calculator'),
       appFavorite('assistants')
@@ -121,6 +117,20 @@ describe('sidebar config helpers', () => {
     ])
   })
 
+  it('resolves the default landing url from the first visible app in stored order', () => {
+    expect(getSidebarDefaultLandingUrl([appFavorite('translate'), appFavorite('agents')], 'zhipu')).toBe(
+      '/app/translate'
+    )
+    expect(getSidebarDefaultLandingUrl([appFavorite('assistants'), appFavorite('agents')], 'zhipu')).toBe('/app/chat')
+    expect(getSidebarDefaultLandingUrl([appFavorite('paintings')], 'zhipu')).toBe('/app/paintings/zhipu')
+  })
+
+  it('returns an empty default landing url when no app is visible', () => {
+    expect(getSidebarDefaultLandingUrl(undefined, 'zhipu')).toBe('')
+    expect(getSidebarDefaultLandingUrl([], 'zhipu')).toBe('')
+    expect(getSidebarDefaultLandingUrl([miniAppFavorite('calculator')], 'zhipu')).toBe('')
+  })
+
   it('resolves menu paths and active items with the paintings provider route', () => {
     expect(getSidebarMenuPath('paintings', 'zhipu')).toBe('/app/paintings/zhipu')
     expect(resolveSidebarActiveItem('/app/paintings/zhipu')).toBe('paintings')
@@ -165,9 +175,8 @@ describe('sidebar favorites mutations', () => {
     ).toEqual([appFavorite('assistants'), miniAppFavorite('calculator')])
   })
 
-  it('never unpins a required app', () => {
+  it('unpins the chat assistant like any other app', () => {
     expect(setSidebarAppPinned([appFavorite('assistants'), appFavorite('knowledge')], 'assistants', false)).toEqual([
-      appFavorite('assistants'),
       appFavorite('knowledge')
     ])
   })
@@ -231,11 +240,10 @@ describe('reorderSidebarFavorites (mixed cross-type reorder)', () => {
     ).toEqual([miniAppFavorite('calculator'), appFavorite('assistants')])
   })
 
-  it('keeps a required app once when the requested reorder omits it', () => {
-    const reordered = reorderSidebarFavorites([appFavorite('knowledge')], [appFavorite('knowledge')])
-
-    expect(reordered).toEqual([appFavorite('knowledge'), appFavorite('assistants')])
-    expect(reordered.filter((item) => item.type === 'app' && item.id === 'assistants')).toHaveLength(1)
+  it('drops an app omitted from the requested reorder', () => {
+    expect(reorderSidebarFavorites([appFavorite('knowledge')], [appFavorite('knowledge')])).toEqual([
+      appFavorite('knowledge')
+    ])
   })
 })
 
