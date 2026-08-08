@@ -58,9 +58,7 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
     for (const span of changedSpans) {
       const existing = nodesById.get(span.id)
       if (existing) {
-        const children = existing.children
         Object.assign(existing, span)
-        existing.children = children
       } else {
         nodesById.set(span.id, { ...span, children: [], percent: 100, start: 0 })
       }
@@ -138,6 +136,14 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
         const changedRoots = applySpanChanges(result.spans, result.reset)
         const matchedSpans = changedRoots ?? rootsRef.current
 
+        // Publish on every change to the node map, INCLUDING a reset that emptied it. `spans` is what
+        // renders while `nodesByIdRef` resolves clicks and the selection, so letting the two diverge
+        // leaves rows on screen that answer to neither.
+        if (changedRoots) {
+          updatePercentAndStart(changedRoots)
+          setSpans(changedRoots)
+        }
+
         if (matchedSpans.length === 0) {
           emptyCountRef.current++
           if (emptyCountRef.current >= EMPTY_POLL_LIMIT && lastSpanCount === 0) {
@@ -147,10 +153,6 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
         } else {
           emptyCountRef.current = 0
           lastSpanCount = matchedSpans.length
-          if (changedRoots) {
-            updatePercentAndStart(matchedSpans)
-            setSpans(matchedSpans)
-          }
         }
 
         const allEnded = matchedSpans.length > 0 && matchedSpans.every((e) => e.endTime && e.endTime > 0)

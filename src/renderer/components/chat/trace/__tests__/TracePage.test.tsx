@@ -93,6 +93,36 @@ describe('TracePage', () => {
     expect(screen.getByText('after')).toBeInTheDocument()
   })
 
+  // A mid-stream reset (trace evicted, or local trace data cleared) empties the id map that resolves
+  // clicks and the selection. Leaving the rendered rows behind would strand them: visible, but
+  // unresolvable by every handler.
+  it('clears the rendered spans when a reset arrives mid-stream with nothing left', async () => {
+    mocks.getData
+      .mockResolvedValueOnce({
+        reset: true,
+        cursor: { historyVersion: '1:100', liveRevision: 4 },
+        spans: [{ id: 'span-1', parentId: null, name: 'ai.turn', startTime: 1, endTime: null }]
+      })
+      .mockResolvedValue({
+        reset: true,
+        cursor: { historyVersion: null, liveRevision: 0 },
+        spans: []
+      })
+
+    render(<TracePageHarness visible />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(screen.getByText('ai.turn')).toBeInTheDocument()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(screen.queryByText('ai.turn')).not.toBeInTheDocument()
+    expect(screen.getByText('trace.noTraceList')).toBeInTheDocument()
+  })
+
   it('does not overlap polls while the previous IPC request is pending', async () => {
     let resolveRequest: ((value: unknown) => void) | undefined
     mocks.getData.mockImplementation(

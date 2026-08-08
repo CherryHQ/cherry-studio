@@ -48,6 +48,30 @@ function estimateEventBytes(event: TimedEvent): number {
   }
 }
 
+// The MAX_PENDING_* caps above bound only the ORPHAN buffer: once a span is stored, events were
+// appended to it without any limit, and Claude Code streams them for the whole turn. A measured span
+// reached ~1.5k events / ~20 MiB, which is then parsed into the main heap, structure-cloned over IPC
+// and retained by the renderer whole — so cap what a single stored span keeps. Held well under
+// MAX_TRACE_FILE_BYTES so one span cannot consume the entire file budget on its own.
+const MAX_SPAN_EVENTS = 200
+const MAX_SPAN_EVENT_BYTES = 2 * 1024 * 1024
+
+/**
+ * Trim a span's events to the retention budget, dropping oldest first. Measures backwards from the
+ * newest and stops at the budget, so an oversized array is never walked in full. The newest event is
+ * always kept: one event larger than the budget caps out instead of emptying the span.
+ */
+function capSpanEvents(events: TimedEvent[]): TimedEvent[] {
+  if (events.length <= 1) return events
+  const countStart = Math.max(0, events.length - MAX_SPAN_EVENTS)
+  let bytes = 0
+  for (let index = events.length - 1; index >= countStart; index--) {
+    bytes += estimateEventBytes(events[index])
+    if (bytes > MAX_SPAN_EVENT_BYTES) return events.slice(Math.min(index + 1, events.length - 1))
+  }
+  return countStart === 0 ? events : events.slice(countStart)
+}
+
 /** Union spans by id; `overrides` (e.g. the live, fresher copy) wins over `base` (e.g. the history file). */
 function mergeSpansById(base: SpanEntity[], overrides: SpanEntity[]): SpanEntity[] {
   const byId = new Map<string, SpanEntity>()
@@ -213,7 +237,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private appendEventsToSpan(span: SpanEntity, events: TimedEvent[]): void {
     if (events.length === 0) return
-    span.events = Array.isArray(span.events) ? [...span.events, ...events] : [...events]
+    span.events = capSpanEvents(Array.isArray(span.events) ? [...span.events, ...events] : [...events])
     this.store.setSpan(span)
   }
 
@@ -370,10 +394,13 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     this.store.setSpan(savedEntity)
   }
 
-  /** Union span events by name+time, preserving existing (incl. log-derived) events; never shrink. */
+  /**
+   * Union span events by name+time, preserving existing (incl. log-derived) events. Only ever shrinks
+   * at the retention budget — the other place a stored span's events accumulate, so it caps too.
+   */
   private mergeEvents(saved: TimedEvent[] | undefined, incoming: TimedEvent[] | undefined): TimedEvent[] | undefined {
     if (!incoming || incoming.length === 0) return saved
-    if (!saved || saved.length === 0) return incoming
+    if (!saved || saved.length === 0) return capSpanEvents(incoming)
     const eventKey = (event: TimedEvent) =>
       `${event.name}@${Array.isArray(event.time) ? `${event.time[0]}.${event.time[1]}` : String(event.time)}`
     const seen = new Set<string>()
@@ -384,7 +411,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       seen.add(key)
       merged.push(event)
     }
-    return merged
+    return capSpanEvents(merged)
   }
 
   private mergeAttributes(savedEntity: SpanEntity, value: unknown): void {

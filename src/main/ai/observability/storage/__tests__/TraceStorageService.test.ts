@@ -306,6 +306,38 @@ describe('TraceStorageService', () => {
     expect(service['pendingEvents'].has('span-9')).toBe(true)
   })
 
+  // The MAX_PENDING_* caps guard only the orphan buffer; once the span is stored, addSpanEvent
+  // appended to it without limit. Claude Code streams events for a whole turn, and a measured span
+  // reached ~1.5k events / ~20 MiB that then crossed IPC and sat in the renderer heap whole.
+  it('caps the events a stored span retains, keeping the most recent', async () => {
+    await service._doInit()
+    service.saveEntity(span({ id: 'cc', traceId: 'trace', topicId: 'topic' }))
+
+    for (let i = 0; i < 250; i++) {
+      service.addSpanEvent('trace', 'cc', timedEvent(`event-${i}`))
+    }
+
+    const names = service['store'].getSpan('cc')?.events?.map((e) => e.name) ?? []
+    expect(names).toHaveLength(200)
+    expect(names.at(0)).toBe('event-50')
+    expect(names.at(-1)).toBe('event-249')
+  })
+
+  // Raw API bodies make the count cap alone useless — a handful of events can carry tens of MiB. The
+  // newest event is kept even when it alone busts the budget, so a span never renders empty.
+  it('caps a stored span by bytes, keeping the newest event when one event exceeds the budget', async () => {
+    await service._doInit()
+    service.saveEntity(span({ id: 'big', traceId: 'trace', topicId: 'topic' }))
+
+    const bigEvent = (name: string): TimedEvent =>
+      ({ name, time: [0, 0], attributes: { body: 'x'.repeat(3 * 1024 * 1024) } }) as TimedEvent
+    for (const name of ['body-0', 'body-1', 'body-2']) {
+      service.addSpanEvent('trace', 'big', bigEvent(name))
+    }
+
+    expect(service['store'].getSpan('big')?.events?.map((e) => e.name)).toEqual(['body-2'])
+  })
+
   // A container trace file accumulates every turn of a session, and each viewer resync parses the
   // WHOLE file into the main heap, the IPC payload and the renderer's node map. Without retention
   // that grows without bound, so the oldest spans must age out of the file.
