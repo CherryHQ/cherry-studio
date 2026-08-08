@@ -3,8 +3,8 @@ import '@data/services/ProviderRegistryService'
 
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { providerService } from '@data/services/ProviderService'
-import { resolveAiSdkProviderId } from '@main/ai/provider/endpoint'
-import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { resolveAiSdkProviderId, resolveEffectiveEndpoint } from '@main/ai/provider/endpoint'
+import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
@@ -30,6 +30,7 @@ vi.mock('@cherrystudio/provider-registry/node', () => {
             'google-generate-content': { adapterFamily: 'cherryin', baseUrl: 'https://open.cherryin.net' }
           },
           defaultChatEndpoint: 'openai-chat-completions',
+          modelRouting: [{ pattern: '^o1', endpointType: 'openai-responses' }],
           apiFeatures: { serviceTier: false },
           reportedCostCurrency: 'USD'
         },
@@ -166,6 +167,27 @@ describe('ProviderService read-time registry merge (#17096)', () => {
     expect(provider.apiFeatures.serviceTier).toBe(false)
     expect(provider.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
     expect(provider.reportedCostCurrency).toBe('USD')
+  })
+
+  it('carries registry modelRouting onto the runtime provider so per-model dispatch applies', async () => {
+    await dbh.db.insert(userProviderTable).values({
+      providerId: 'cherryin',
+      presetProviderId: 'cherryin',
+      name: 'CherryIN',
+      orderKey: 'a0'
+    })
+
+    const provider = providerService.getByProviderId('cherryin')
+    expect(provider.modelRouting).toEqual([{ pattern: '^o1', endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES }])
+
+    // End to end: a routed id leaves the default chat endpoint, an unrouted one
+    // stays on it. Without the projection both fall back to the default and the
+    // model speaks the wrong reasoning dialect (#17900).
+    const modelOf = (id: string) => ({ id, providerId: 'cherryin' }) as Model
+    expect(resolveEffectiveEndpoint(provider, modelOf('o1-mini')).endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+    expect(resolveEffectiveEndpoint(provider, modelOf('gpt-4o')).endpointType).toBe(
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    )
   })
 
   it('persists apiFeatures as a delta: single-key PATCH merges, baseline echoes vanish', async () => {

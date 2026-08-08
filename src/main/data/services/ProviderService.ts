@@ -255,6 +255,9 @@ function rowToRuntimeProvider(row: UserProviderRow): Provider {
       providerRegistryService.mergeEndpointConfigs(row.endpointConfigs, row.providerId, row.presetProviderId) ??
       undefined,
     defaultChatEndpoint: row.defaultChatEndpoint ?? presetMetadata.defaultChatEndpoint,
+    // Per-model endpoint dispatch is registry-owned like the fields above: it
+    // decides which wire (and so which reasoning dialect) a model id speaks.
+    modelRouting: presetMetadata.modelRouting,
     modelListSource: presetMetadata.modelListSource,
     authMethods: presetMetadata.authMethods,
     authOptional: presetMetadata.authOptional,
