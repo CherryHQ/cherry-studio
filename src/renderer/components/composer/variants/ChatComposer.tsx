@@ -24,6 +24,7 @@ import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/compo
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
+import EditMessageSavePopup from '@renderer/components/popups/EditMessageSavePopup'
 import { type QuickPanelListItem, useOptionalQuickPanel } from '@renderer/components/QuickPanel'
 import { ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { useCache } from '@renderer/data/hooks/useCache'
@@ -1402,7 +1403,19 @@ const ChatComposerInner = ({
                         : 'default',
                   fastMode: fastMode && speedControlModel?.supportsFastMode === true
                 }
-            await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
+            // Editing a user message no longer regenerates the conversation by
+            // default: ask the user whether to save the content only, or save
+            // and regenerate (which branches the tree and spends tokens).
+            const choice = await EditMessageSavePopup.show({ regenerateDisabled: isPending })
+            if (choice === null) {
+              // Cancelled — keep editing.
+              return
+            }
+            if (choice === 'save-and-regenerate') {
+              await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
+            } else {
+              await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
+            }
           }
           if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
             restoreSavedDraft()

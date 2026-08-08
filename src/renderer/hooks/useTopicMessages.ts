@@ -169,6 +169,13 @@ export interface UseTopicMessagesResult {
   isStale: boolean
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
+  /**
+   * Live messages in this topic hidden from the active-branch view (not on
+   * the root→activeNode path and not an alternative reply of a visible
+   * reply-group). Read off `pages[0]` per the pagination guide's extension
+   * convention; the value is topic-level, so any page carries the same count.
+   */
+  followingBranchCount: number
   /** Load the next (older) page of branch history. */
   loadOlder: () => void
   /** Whether older pages remain on the server. */
@@ -221,6 +228,7 @@ export function useTopicMessages(
     [pages, topicId]
   )
   const activeNodeId = pages[0]?.activeNodeId ?? null
+  const followingBranchCount = pages[0]?.followingBranchCount ?? 0
 
   // On remount with stale SWR cache, SWR may expose cached data while it
   // revalidates. Track freshness per topic so the loading gate blocks stale
@@ -272,6 +280,7 @@ export function useTopicMessages(
     isStale,
     refresh,
     activeNodeId,
+    followingBranchCount,
     loadOlder: loadNext,
     hasOlder: hasNext,
     mutate: mutate

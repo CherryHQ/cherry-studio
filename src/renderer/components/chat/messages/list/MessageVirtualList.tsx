@@ -65,6 +65,8 @@ export interface MessageVirtualListProps<T> {
   getItemKey(item: T, index: number): string
   /** Render function for one item. */
   renderItem(item: T, index: number): ReactNode
+  /** Optional content rendered after the last item (inside the scroll content). */
+  renderFooter?: (() => ReactNode) | ReactNode
   /** Initial pixel estimate per item; refined as items are measured. */
   estimateSize?: number
   /** Items rendered off-screen on each side for smooth scroll. */
@@ -105,6 +107,7 @@ export function MessageVirtualList<T>({
   items,
   getItemKey,
   renderItem,
+  renderFooter,
   estimateSize,
   overscan = 6,
   onReachTop,
@@ -272,6 +275,11 @@ export function MessageVirtualList<T>({
               </Virtualizer>
             )}
           </ScrollOwnershipProvider>
+          {renderFooter != null && (
+            <div data-message-virtual-list-footer>
+              {typeof renderFooter === 'function' ? renderFooter() : renderFooter}
+            </div>
+          )}
         </div>
         {/* Outside the content wrapper so runtime-owned freeze slack does not
             inflate the natural content size observed above. */}

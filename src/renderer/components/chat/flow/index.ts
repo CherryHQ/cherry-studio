@@ -5,6 +5,7 @@ export type { TopicMessageFlowLiveNode, TopicMessageFlowLiveState } from './topi
 export { buildTopicMessageFlowLiveState, mergeTopicMessageFlowLiveTree } from './topicMessageFlowLiveTree'
 export { default as TopicMessageFlowNode } from './TopicMessageFlowNode'
 export type {
+  TopicMessageFlowDirection,
   TopicMessageFlowEdgeData,
   TopicMessageFlowGraph,
   TopicMessageFlowGraphEdge,

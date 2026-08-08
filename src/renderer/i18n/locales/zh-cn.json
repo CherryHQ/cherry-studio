@@ -1664,6 +1664,12 @@
         "inline": "缓存 {{hit_rate}}%",
         "tooltip": "缓存读取 {{cache_read}} / 写入 {{cache_write}} / 未缓存 {{no_cache}} · 节省 {{saved}} 输入 Token"
       },
+      "edit_save": {
+        "description": "保存修改后的消息，还是保存并重新生成回复（会创建新分支）？",
+        "save_and_regenerate": "保存并重新生成",
+        "save_only": "仅保存",
+        "title": "保存修改后的消息"
+      },
       "editing_current": "这条消息正在输入框中编辑",
       "flow": {
         "branches": "分支",
@@ -1671,11 +1677,18 @@
           "created": "已复制为新对话",
           "label": "复制为新对话"
         },
+        "direction_down": "根节点在上方",
+        "direction_toggle": "切换树状图方向",
+        "direction_up": "根节点在下方",
         "nodes": "节点",
         "status": {
           "awaiting_input": "待输入"
         },
         "title": "分支管理"
+      },
+      "following_branch": {
+        "notice": "此处之后还有 {{count}} 条对话在其它分支",
+        "open": "查看分支"
       },
       "more": "更多操作",
       "new": {

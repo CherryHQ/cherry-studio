@@ -73,6 +73,7 @@ const ChatContent: FC<Props> = ({
     isStale: isHistoryStale,
     refresh,
     activeNodeId,
+    followingBranchCount,
     loadOlder,
     hasOlder,
     mutate: messagesCacheMutate
@@ -97,6 +98,7 @@ const ChatContent: FC<Props> = ({
       siblingsMap={siblingsMap}
       refresh={refresh}
       activeNodeId={activeNodeId}
+      followingBranchCount={followingBranchCount}
       loadOlder={loadOlder}
       hasOlder={hasOlder}
       messagesCacheMutate={messagesCacheMutate}
@@ -119,6 +121,7 @@ interface InnerProps extends Props {
   siblingsMap: ReturnType<typeof useTopicMessages>['siblingsMap']
   refresh: () => Promise<CherryUIMessage[]>
   activeNodeId: string | null
+  followingBranchCount: number
   loadOlder: () => void
   hasOlder: boolean
   messagesCacheMutate: ReturnType<typeof useTopicMessages>['mutate']
@@ -142,6 +145,7 @@ const ChatContentInner: FC<InnerProps> = ({
   siblingsMap,
   refresh,
   activeNodeId,
+  followingBranchCount,
   loadOlder,
   hasOlder,
   messagesCacheMutate
@@ -225,6 +229,7 @@ const ChatContentInner: FC<InnerProps> = ({
         isMessagesStale={isHistoryStale}
         loadOlder={loadOlder}
         hasOlder={hasOlder}
+        followingBranchCount={followingBranchCount}
         openCitationsPanel={onOpenCitationsPanel}
         onStartBranchDraft={reserveBranch}
       />

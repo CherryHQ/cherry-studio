@@ -1664,6 +1664,12 @@
         "inline": "Cache {{hit_rate}}%",
         "tooltip": "Cache read {{cache_read}} / write {{cache_write}} / no cache {{no_cache}} · saved {{saved}} input tokens"
       },
+      "edit_save": {
+        "description": "Save the edited message, or save it and generate a new reply on a new branch?",
+        "save_and_regenerate": "Save & Regenerate",
+        "save_only": "Save Only",
+        "title": "Save Edited Message"
+      },
       "editing_current": "This message is being edited in the composer",
       "flow": {
         "branches": "branches",
@@ -1671,11 +1677,18 @@
           "created": "Copied to a new conversation",
           "label": "Copy as New Conversation"
         },
+        "direction_down": "Root at top",
+        "direction_toggle": "Toggle tree direction",
+        "direction_up": "Root at bottom",
         "nodes": "nodes",
         "status": {
           "awaiting_input": "Awaiting input"
         },
         "title": "Branch Management"
+      },
+      "following_branch": {
+        "notice": "{{count}} more message(s) continue in another branch after this point",
+        "open": "View branches"
       },
       "more": "More actions",
       "new": {
