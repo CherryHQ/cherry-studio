@@ -8,8 +8,9 @@
 // natural-key identity: user_provider.providerId is the business identity (a stable
 // provider key like 'openai'/'anthropic'), so cross-device merges line up without
 // UUID collisions. conflictDefault derives to FIELD_MERGE (natural-key →
-// FIELD_MERGE, §6.2) — column-level merge keeps the local API key and fills in
-// fields only present remotely, preventing API key loss on restore.
+// FIELD_MERGE, §6.2) — column-level merge applies backup-wins for apiKeys (a backup
+// usually carries the user's latest key set) and deep-merge for authConfig, so the
+// restored provider carries the backup's credentials.
 //
 // renamable:false — user_model.id is a derived key ("providerId::modelId",
 // deterministic: the same provider+model pair yields the SAME id across devices —
@@ -31,8 +32,9 @@ import { deepFreeze } from '@main/data/db/backup/freeze'
  * PROVIDERS domain. user_provider (natural-key providerId) is the aggregate root;
  * user_model (natural-key id, UNIQUE [providerId, modelId]) is an include member
  * via providerId. conflictDefault derives to FIELD_MERGE (natural-key →
- * FIELD_MERGE, §6.2). fieldMergePolicies keep local API keys and fill remote-only
- * credential columns; uniqueMergeRules merge models by the business unique pair.
+ * FIELD_MERGE, §6.2). fieldMergePolicies: apiKeys uses remote-overwrites-local
+ * (backup-wins — a backup carries the user's latest key set) and authConfig uses
+ * deep-merge; uniqueMergeRules merge models by the business unique pair.
  */
 export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
   domain: 'PROVIDERS',
@@ -94,8 +96,8 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // jsonSoftReference or listed here with a reason).
     exemptJsonCols: [
       // ── user_provider ──────────────────────────────────────────────────────
-      // Credentials — merged via fieldMergePolicies (remote-fills-local-empty),
-      // NOT jsonSoftReferences: they hold secrets, not entity links.
+      // Credentials — merged via fieldMergePolicies (apiKeys: remote-overwrites-local;
+      // authConfig: deep-merge), NOT jsonSoftReferences: they hold secrets, not entity links.
       {
         table: table('user_provider'),
         column: column('apiKeys'),
@@ -162,7 +164,8 @@ export const PROVIDERS_CONTRIBUTOR = deepFreeze<BackupContributor>({
     // Merge user_model by its non-PK business UNIQUE pair so a provider's models
     // line up across devices without colliding on the derived `id` PK.
     uniqueMergeRules: [{ table: table('user_model'), uniqueColumns: columns(['providerId', 'modelId']) }],
-    // Credential columns. apiKeys: remote-fills-local-empty (seeded [] is empty).
+    // Credential columns. apiKeys: remote-overwrites-local (backup-wins — seeded [] is empty,
+    // so a backup carrying keys overwrites; null/empty backup never wipes local).
     // authConfig: deep-merge — seeded skeletons ship `{type:'iam-gcp',project:'',...}`
     // with a non-empty `type`, so whole-cell remote-fills-local-empty would treat them as
     // present and drop backup project/location/credentials. deep-merge keeps local type

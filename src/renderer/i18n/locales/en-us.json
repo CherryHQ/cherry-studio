@@ -5857,6 +5857,7 @@
               "degraded_kind": {
                 "association_dropped": "Some associations will be dropped because one side is unavailable.",
                 "attachment_unavailable": "Some message attachments are not included in this archive.",
+                "backup_overwrote_local": "Some local values were replaced with the backup's values.",
                 "field_conflict": "Some fields conflicted and will keep the local value.",
                 "ref_cleared": "Some links could not be preserved and will be cleared.",
                 "resource_content_missing": "Some items will restore without their file content.",
@@ -5875,7 +5876,8 @@
                 "local_record_exists": "A local item with the same identity already exists.",
                 "notes_root_unavailable": "No managed Notes folder is configured.",
                 "outside_user_data": "The destination is outside the app data directory.",
-                "target_exists": "The destination already exists."
+                "target_exists": "The destination already exists.",
+                "tree_swap_local_first": "A local note at the same path was kept; the backup copy was not applied."
               },
               "unavailable": "The detailed summary is unavailable, but the sealed restore can still continue after restart.",
               "will_restore": "Will restore",

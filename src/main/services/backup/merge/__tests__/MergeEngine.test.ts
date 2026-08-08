@@ -326,10 +326,11 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     // Backup overwrote the non-empty local set.
     expect(row.api_keys).toContain('from-backup')
     expect(row.api_keys).not.toContain('SECRET-LOCAL')
-    // Destructive overwrite of a non-empty local value is disclosed.
+    // Destructive overwrite of a non-empty local value is disclosed with the DISTINCT
+    // backup_overwrote_local kind (not field_conflict, whose i18n says "keep the local value").
     expect(
       result.degradedToSkips.some(
-        (d) => d.kind === 'field_conflict' && /backup-wins overwrote local non-empty/.test(d.reason ?? '')
+        (d) => d.kind === 'backup_overwrote_local' && /backup-wins overwrote local non-empty/.test(d.reason ?? '')
       )
     ).toBe(true)
   })
@@ -1248,6 +1249,35 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
         (d) => d.kind === 'association_dropped' && /pin entity type 'knowledge'/.test(d.reason ?? '')
       )
     ).toBe(true)
+  })
+
+  it('aggregates same-reason pin skips into one disclosure (not one-per-row)', async () => {
+    // Many knowledge pins dropped by a selected-domain filter (KNOWLEDGE stripped) must emit ONE
+    // aggregated {count:N} record, not N {count:1} — mirrors importPolymorphicAssociationRows.
+    const now = Date.now()
+    seedBackup((db) => {
+      const insert = db.prepare(
+        `INSERT INTO pin (id, entity_type, entity_id, order_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)`
+      )
+      insert.run('pin-kb-1', 'knowledge', 'kb-1', 'o1', now, now)
+      insert.run('pin-kb-2', 'knowledge', 'kb-2', 'o2', now, now)
+      insert.run('pin-kb-3', 'knowledge', 'kb-3', 'o3', now, now)
+    })
+
+    const result = (await runMerge({
+      backupDbPath: backupPath,
+      // TAGS_GROUPS selected but KNOWLEDGE not → all 3 knowledge pins skip with the same reason
+      domains: ['TAGS_GROUPS', 'TOPICS'],
+      skippedFileEntryIds: new Set<string>(),
+      stagedFileEntryIds: new Set<string>()
+    })) as { degradedToSkips: { kind: string; count: number; reason?: string }[] }
+
+    // Exactly ONE aggregated disclosure for the knowledge-pin drops, count = 3.
+    const knowledgeDrops = result.degradedToSkips.filter(
+      (d) => d.kind === 'association_dropped' && /pin entity type 'knowledge'/.test(d.reason ?? '')
+    )
+    expect(knowledgeDrops).toHaveLength(1)
+    expect(knowledgeDrops[0].count).toBe(3)
   })
 
   it('SKIPs a uuid-entity root that collides on a secondary UNIQUE (note rootPath,path)', async () => {

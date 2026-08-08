@@ -5234,20 +5234,7 @@
       "button": "Selectează fișierul de backup",
       "label": "Ești sigur că vrei să restaurezi datele?"
     },
-    "content": "Operațiunea de restaurare va suprascrie toate datele actuale ale aplicației cu datele din backup. Te rugăm să reții că procesul de restaurare poate dura ceva timp, îți mulțumim pentru răbdare.",
     "messages_paused": "O restaurare din copie de rezervă este în desfășurare; mesajele noi sunt întrerupte până la finalizarea acesteia.",
-    "progress": {
-      "completed": "Restaurare finalizată",
-      "copying_files": "Se copiază fișierele... {{progress}}%",
-      "extracted": "Extragere reușită",
-      "extracting": "Se extrage backup-ul...",
-      "preparing": "Se pregătește restaurarea...",
-      "reading_data": "Se citesc datele...",
-      "restoring_data": "Restaurare fișiere...",
-      "restoring_database": "Restaurare bază de date...",
-      "title": "Progres restaurare",
-      "validating": "Se validează copia de rezervă..."
-    },
     "title": "Restaurare date"
   },
   "richEditor": {
@@ -5870,6 +5857,7 @@
               "degraded_kind": {
                 "association_dropped": "[to be translated]:Some associations will be dropped because one side is unavailable.",
                 "attachment_unavailable": "[to be translated]:Some message attachments are not included in this archive.",
+                "backup_overwrote_local": "[to be translated]:Some local values were replaced with the backup's values.",
                 "field_conflict": "[to be translated]:Some fields conflicted and will keep the local value.",
                 "ref_cleared": "[to be translated]:Some links could not be preserved and will be cleared.",
                 "resource_content_missing": "[to be translated]:Some items will restore without their file content.",
@@ -5884,13 +5872,12 @@
               },
               "none": "[to be translated]:No resource files to restore",
               "pending_hint": "[to be translated]:The restore is staged and will apply after restart. Summary of this restore:",
-              "relaunch_failed": "[to be translated]:Restart failed. Click to try again.",
-              "restart_button": "[to be translated]:Restart now",
               "skip_reason": {
                 "local_record_exists": "[to be translated]:A local item with the same identity already exists.",
                 "notes_root_unavailable": "[to be translated]:No managed Notes folder is configured.",
                 "outside_user_data": "[to be translated]:The destination is outside the app data directory.",
-                "target_exists": "[to be translated]:The destination already exists."
+                "target_exists": "[to be translated]:The destination already exists.",
+                "tree_swap_local_first": "[to be translated]:A local note at the same path was kept; the backup copy was not applied."
               },
               "unavailable": "[to be translated]:The detailed summary is unavailable, but the sealed restore can still continue after restart.",
               "will_restore": "[to be translated]:Will restore",

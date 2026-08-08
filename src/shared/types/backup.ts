@@ -73,7 +73,10 @@ export const RestoreSkipReasonCodeSchema = z.enum([
   'local_record_exists',
   'target_exists',
   'notes_root_unavailable',
-  'outside_user_data'
+  'outside_user_data',
+  // dir-swap (notes-tree-swap): a same-path .md conflict resolved local-first (local content
+  // kept, backup dropped) — distinct from target_exists because the local row IS the target.
+  'tree_swap_local_first'
 ])
 
 export type RestoreSkipReasonCode = z.infer<typeof RestoreSkipReasonCodeSchema>
@@ -96,6 +99,10 @@ export interface RestoreSkippedResource {
  *   an endpoint is unavailable in the merged DB
  * - `field_conflict`: a column merge kept the local value on an irreconcilable conflict
  *   (e.g. a discriminated-union `type` mismatch), so the backup value is not applied
+ * - `backup_overwrote_local`: a `remote-overwrites-local` field merge replaced a non-empty
+ *   local value with the backup value (backup-wins) — destructive, so disclosed distinctly
+ *   from `field_conflict` (which keeps local). The UI must tell the user the LOCAL value
+ *   was replaced, not kept.
  * - `attachment_unavailable`: an imported message references an attachment blob this
  *   archive did not carry
  * - `resource_content_missing`: the export shipped a resource's DB row without its file
@@ -107,6 +114,7 @@ export const RestoreDegradationKindSchema = z.enum([
   'rows_skipped',
   'association_dropped',
   'field_conflict',
+  'backup_overwrote_local',
   'attachment_unavailable',
   'resource_content_missing'
 ])

@@ -5857,6 +5857,7 @@
               "degraded_kind": {
                 "association_dropped": "部分关联的一端不可用，该关联将被丢弃。",
                 "attachment_unavailable": "部分消息附件未包含在此备份文件中。",
+                "backup_overwrote_local": "部分本地值已被备份中的值覆盖。",
                 "field_conflict": "部分字段存在冲突，将保留本地值。",
                 "ref_cleared": "部分关联无法保留，将被清空。",
                 "resource_content_missing": "部分项目将在缺少文件内容的情况下恢复。",
@@ -5875,7 +5876,8 @@
                 "local_record_exists": "本地已存在同一项目。",
                 "notes_root_unavailable": "尚未配置受管理的笔记目录。",
                 "outside_user_data": "目标位置不在应用数据目录内。",
-                "target_exists": "目标位置已存在。"
+                "target_exists": "目标位置已存在。",
+                "tree_swap_local_first": "同路径的本地笔记已保留，未应用备份中的副本。"
               },
               "unavailable": "详细恢复清单不可用，但已封存的恢复任务仍可在重启后继续。",
               "will_restore": "将恢复",

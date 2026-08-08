@@ -20,7 +20,8 @@ const restoreSkipReasonI18nKeys = {
   local_record_exists: 'settings.data.backup.v2.restore.summary.skip_reason.local_record_exists',
   target_exists: 'settings.data.backup.v2.restore.summary.skip_reason.target_exists',
   notes_root_unavailable: 'settings.data.backup.v2.restore.summary.skip_reason.notes_root_unavailable',
-  outside_user_data: 'settings.data.backup.v2.restore.summary.skip_reason.outside_user_data'
+  outside_user_data: 'settings.data.backup.v2.restore.summary.skip_reason.outside_user_data',
+  tree_swap_local_first: 'settings.data.backup.v2.restore.summary.skip_reason.tree_swap_local_first'
 } as const satisfies Record<RestoreSkipReasonCode, string>
 
 const restoreDegradationI18nKeys = {
@@ -29,6 +30,7 @@ const restoreDegradationI18nKeys = {
   rows_skipped: 'settings.data.backup.v2.restore.summary.degraded_kind.rows_skipped',
   association_dropped: 'settings.data.backup.v2.restore.summary.degraded_kind.association_dropped',
   field_conflict: 'settings.data.backup.v2.restore.summary.degraded_kind.field_conflict',
+  backup_overwrote_local: 'settings.data.backup.v2.restore.summary.degraded_kind.backup_overwrote_local',
   attachment_unavailable: 'settings.data.backup.v2.restore.summary.degraded_kind.attachment_unavailable',
   resource_content_missing: 'settings.data.backup.v2.restore.summary.degraded_kind.resource_content_missing'
 } as const satisfies Record<RestoreDegradationKind, string>

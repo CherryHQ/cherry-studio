@@ -5234,20 +5234,7 @@
       "button": "選擇備份檔案",
       "label": "確定要復原資料嗎？"
     },
-    "content": "復原操作將使用備份資料覆蓋目前所有應用程式資料。請注意，復原過程可能需要一些時間，感謝您的耐心等待",
     "messages_paused": "正在進行備份還原；新訊息已暫停，直到還原完成。",
-    "progress": {
-      "completed": "復原完成",
-      "copying_files": "複製檔案... {{progress}}%",
-      "extracted": "解壓成功",
-      "extracting": "解開備份...",
-      "preparing": "準備復原...",
-      "reading_data": "讀取資料...",
-      "restoring_data": "復原檔案...",
-      "restoring_database": "復原資料庫...",
-      "title": "復原進度",
-      "validating": "驗證備份..."
-    },
     "title": "資料復原"
   },
   "richEditor": {
@@ -5870,6 +5857,7 @@
               "degraded_kind": {
                 "association_dropped": "[to be translated]:Some associations will be dropped because one side is unavailable.",
                 "attachment_unavailable": "[to be translated]:Some message attachments are not included in this archive.",
+                "backup_overwrote_local": "[to be translated]:Some local values were replaced with the backup's values.",
                 "field_conflict": "[to be translated]:Some fields conflicted and will keep the local value.",
                 "ref_cleared": "[to be translated]:Some links could not be preserved and will be cleared.",
                 "resource_content_missing": "[to be translated]:Some items will restore without their file content.",
@@ -5884,13 +5872,12 @@
               },
               "none": "[to be translated]:No resource files to restore",
               "pending_hint": "[to be translated]:The restore is staged and will apply after restart. Summary of this restore:",
-              "relaunch_failed": "[to be translated]:Restart failed. Click to try again.",
-              "restart_button": "[to be translated]:Restart now",
               "skip_reason": {
                 "local_record_exists": "[to be translated]:A local item with the same identity already exists.",
                 "notes_root_unavailable": "[to be translated]:No managed Notes folder is configured.",
                 "outside_user_data": "[to be translated]:The destination is outside the app data directory.",
-                "target_exists": "[to be translated]:The destination already exists."
+                "target_exists": "[to be translated]:The destination already exists.",
+                "tree_swap_local_first": "[to be translated]:A local note at the same path was kept; the backup copy was not applied."
               },
               "unavailable": "[to be translated]:The detailed summary is unavailable, but the sealed restore can still continue after restart.",
               "will_restore": "[to be translated]:Will restore",
