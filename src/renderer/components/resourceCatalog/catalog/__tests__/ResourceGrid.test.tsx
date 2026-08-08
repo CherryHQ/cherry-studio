@@ -11,10 +11,11 @@ import { ResourceCardMenu } from '../ResourceCardMenu'
 import { ResourceCard } from '../ResourceCards'
 import { ResourceGrid } from '../ResourceGrid'
 
-const { deleteGroupMock, updateGroupMock, updateAssistantMock } = vi.hoisted(() => ({
+const { deleteGroupMock, updateGroupMock, updateAssistantMock, updateSkillGlobalEnabledMock } = vi.hoisted(() => ({
   deleteGroupMock: vi.fn(),
   updateGroupMock: vi.fn(),
-  updateAssistantMock: vi.fn()
+  updateAssistantMock: vi.fn(),
+  updateSkillGlobalEnabledMock: vi.fn()
 }))
 
 vi.mock('react-i18next', () => ({
@@ -45,13 +46,16 @@ vi.mock('react-i18next', () => ({
           'library.toolbar.all_groups': '全部分组',
           'library.toolbar.group_button': '分组',
           'library.type.assistant': '助手',
-          'library.type.skill': '技能'
+          'library.type.skill': '技能',
+          'settings.skills.globalToggle': '全局启用技能',
+          'settings.skills.toggleFailed': '更新技能全局状态失败'
         }) satisfies Record<string, string>
       )[key] ?? key
   })
 }))
 
-vi.mock('@cherrystudio/ui', async () => {
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@cherrystudio/ui')>()
   const React = await vi.importActual<typeof ReactModule>('react')
   const PopoverContext = React.createContext<{
     open: boolean
@@ -337,6 +341,7 @@ vi.mock('@cherrystudio/ui', async () => {
       </div>
     ),
     Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
+    Switch: actual.Switch,
     Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     TabsList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     TabsTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>
@@ -346,6 +351,10 @@ vi.mock('@cherrystudio/ui', async () => {
 vi.mock('@renderer/hooks/resourceCatalog', () => ({
   useAssistantMutationsById: () => ({
     updateAssistant: updateAssistantMock
+  }),
+  useSkillMutationsById: () => ({
+    updateGlobalEnabled: updateSkillGlobalEnabledMock,
+    isUpdating: false
   })
 }))
 
@@ -412,7 +421,7 @@ function createAgentResource(): ResourceItem {
   }
 }
 
-function createSkillResource(version: string | null = null): ResourceItem {
+function createSkillResource(version: string | null = null, isGlobalEnabled = true): ResourceItem {
   return {
     id: 'skill-1',
     type: 'skill',
@@ -421,7 +430,7 @@ function createSkillResource(version: string | null = null): ResourceItem {
     avatar: 'S',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: { version } as Extract<ResourceItem, { type: 'skill' }>['raw']
+    raw: { version, isGlobalEnabled } as Extract<ResourceItem, { type: 'skill' }>['raw']
   }
 }
 
@@ -780,6 +789,27 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it('toggles a Skill globally from its settings card without opening the card', async () => {
+    const user = userEvent.setup()
+    const onEdit = vi.fn()
+    updateSkillGlobalEnabledMock.mockResolvedValueOnce({})
+
+    render(
+      <ResourceCard
+        resource={createSkillResource(null, true)}
+        variant="settings"
+        {...getResourceCardProps({ onEdit })}
+      />
+    )
+
+    const toggle = screen.getByRole('switch', { name: '全局启用技能' })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+    await user.click(toggle)
+
+    expect(updateSkillGlobalEnabledMock).toHaveBeenCalledWith(false)
+    expect(onEdit).not.toHaveBeenCalled()
+  })
+
   it('shows the Skill version tag only when a version is available', () => {
     const { rerender } = render(<ResourceCard resource={createSkillResource('1.2.3')} {...getResourceCardProps()} />)
 
