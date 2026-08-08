@@ -160,8 +160,10 @@ function toFileEntry(
     // left by incomplete v1 deletes. Do not fabricate an external entry —
     // downstream migrators (Chat/Painting) already resolve file associations
     // against file_entry, so skipping cannot create dangling FKs.
+    // Carry `origin_name`: this warning is the only trace a permanently dropped row leaves, and a
+    // uuid alone tells the user nothing about which of their files went missing.
     onWarning(
-      `Orphan file row id=${row.id}: no physical file and path is not internal; skipping. path=${JSON.stringify(row.path)}`
+      `Orphan file row id=${row.id} (${JSON.stringify(row.origin_name || row.name)}): no physical file and path is not internal; skipping. path=${JSON.stringify(row.path)}`
     )
     return null
   }
@@ -191,7 +193,9 @@ function toFileEntry(
 
   const name = deriveSafeName(row.origin_name || row.name, row.id, onWarning)
 
-  // Emitted after every skip branch, so only rows that actually migrate are reported. The same
+  // Emitted after every skip branch that can actually fire, so a row reported here really did
+  // migrate. (The schema probe below still returns null, but it is unreachable by construction —
+  // see its own comment; if that ever changes, move this warning past it.) The same
   // corrupted `origin_name` also reaches ChatMappings' `filename`, which deliberately stays quiet:
   // it would repeat once per message referencing the file, while this fires once per file row.
   if (hasLostOriginalFilename(row)) {
