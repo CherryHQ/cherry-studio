@@ -11,6 +11,7 @@ import { ConversationGreeting } from '@renderer/components/chat/shell/Conversati
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import type {
   ChatComposerResolvedContext,
+  ChatContextUsageSource,
   ChatConversationControlsChangeHandler
 } from '@renderer/components/composer/variants/ChatComposer'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
@@ -18,6 +19,7 @@ import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import { isUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
 import { useEffect, useMemo, useRef } from 'react'
@@ -161,6 +163,17 @@ const ChatContentInner: FC<InnerProps> = ({
   })
   const locateRuntimeMessage = runtime.locateMessage
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
+  const contextUsage = useMemo<ChatContextUsageSource | null>(() => {
+    if (isHistoryStale) return null
+
+    const activeMessage = uiMessages.find((message) => message.id === activeNodeId)
+    const contextTokens = activeMessage?.metadata?.stats?.contextTokens
+    const modelId = activeMessage?.metadata?.modelId
+    if (activeMessage?.role !== 'assistant' || typeof contextTokens !== 'number' || !isUniqueModelId(modelId)) {
+      return null
+    }
+    return { contextTokens, modelId }
+  }, [activeNodeId, isHistoryStale, uiMessages])
 
   useEffect(() => {
     if (!locateMessageId) {
@@ -221,6 +234,7 @@ const ChatContentInner: FC<InnerProps> = ({
     <ChatComposerSlot
       placement="home"
       topic={topic}
+      contextUsage={contextUsage}
       onSend={runtime.sendMessage}
       chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}
@@ -233,6 +247,7 @@ const ChatContentInner: FC<InnerProps> = ({
     <ChatComposerSlot
       placement="docked"
       topic={topic}
+      contextUsage={contextUsage}
       onSend={runtime.sendMessage}
       chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}

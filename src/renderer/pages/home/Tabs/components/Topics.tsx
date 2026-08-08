@@ -12,16 +12,15 @@ import type {
 import { useOptionalRightPanelActions, useOptionalRightPanelState } from '@renderer/components/chat/panes/Shell'
 import {
   buildResourceListGroupDropAnchor,
-  type ConversationResourceMenuItem,
+  CONVERSATION_ROW_STATUS_TITLE_CLASS,
+  ConversationRowStatus,
+  type ConversationRowStatusValue,
   renderAssistantEntityIcon,
   resolveDefaultCollapsedGroupIds,
-  RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS,
-  RESOURCE_LIST_TITLE_FADE_CLASS,
-  RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
-  RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS,
   ResourceList,
   type ResourceListGroupHeaderKind,
   type ResourceListItemReorderPayload,
+  type ResourceListPresentation,
   type ResourceListReorderPayload,
   type ResourceListRevealRequest,
   type ResourceListSection,
@@ -86,7 +85,7 @@ import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import dayjs from 'dayjs'
-import { CircleAlert, FilePenLine, Loader2, MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
+import { FilePenLine, MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
 import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -138,16 +137,17 @@ interface Props {
   assistantIdFilter?: string | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
+  manageAssistantsActive?: boolean
   onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
   onAddAssistant?: () => void | Promise<void>
   onCreateTopicAfterClear?: (payload: AddNewTopicPayload) => void | Promise<void>
   onNewTopic?: (payload?: AddNewTopicWithReusePayload) => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onManageAssistants?: () => void | Promise<void>
   onSetPanePosition?: (position: TopicTabPosition) => void | Promise<void>
   panePosition?: TopicTabPosition
-  presentation?: 'sidebar' | 'right-panel'
+  presentation?: ResourceListPresentation
   revealRequest?: ResourceListRevealRequest
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   setActiveTopic: (topic: Topic) => void
 }
 
@@ -245,16 +245,17 @@ export function Topics({
   assistantIdFilter,
   dataEnabled = true,
   historyRecordsActive,
+  manageAssistantsActive = false,
   onActiveAssistantDeleted,
   onAddAssistant,
   onCreateTopicAfterClear,
   onNewTopic,
   onOpenHistoryRecords,
+  onManageAssistants,
   onSetPanePosition,
   panePosition,
-  presentation = 'sidebar',
+  presentation = 'left-panel',
   revealRequest,
-  resourceMenuItems,
   setActiveTopic
 }: Props) {
   const { t } = useTranslation()
@@ -818,9 +819,7 @@ export function Topics({
         ? 'empty'
         : 'idle'
   const dragReady = isAssistantDisplayMode && isFullyLoaded && !isLoadingAll && !isRefreshing
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
-  const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
+  const hasActiveCenterSurface = manageAssistantsActive || historyRecordsActive
   const openAssistantEditor = useCallback((assistantId: string) => {
     setEditDialogTarget({ kind: 'assistant', id: assistantId })
   }, [])
@@ -1073,7 +1072,7 @@ export function Topics({
         if (assistantIconType === 'none') return undefined
 
         return (
-          <span className="flex size-6 items-center justify-center rounded-full bg-sidebar-accent text-muted-foreground">
+          <span className="flex size-6 items-center justify-center rounded-full bg-background-subtle text-muted-foreground">
             <Unlink aria-hidden="true" />
           </span>
         )
@@ -1091,13 +1090,14 @@ export function Topics({
     },
     [assistantById, assistantIconType, defaultModelId, isAssistantDisplayMode]
   )
-  // See Sessions: assistants are entities, everything else here only gathers rows. The unlinked
-  // bucket gathers rows too, but it stands in the assistant run rather than above it, so it takes
-  // the bucket voice without the module break that would read as a section starting.
+  // See Sessions: assistants are entities; pinned, time and unlinked groups only gather rows, so
+  // they use the recessed bucket voice while staying on the shared row rhythm.
   const getGroupHeaderKind = useCallback((group: { id: string }): ResourceListGroupHeaderKind => {
-    if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return 'inline-bucket'
-
-    return group.id === TOPIC_PINNED_GROUP_ID || group.id.startsWith('topic:time:') ? 'bucket' : 'entity'
+    return group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID ||
+      group.id === TOPIC_PINNED_GROUP_ID ||
+      group.id.startsWith('topic:time:')
+      ? 'bucket'
+      : 'entity'
   }, [])
 
   const getGroupHeaderTooltip = useCallback(
@@ -1349,8 +1349,8 @@ export function Topics({
   return (
     <>
       <TopicResourceList<Topic>
-        key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-sidebar'}
-        className={cn(isRightPanel && 'h-full min-h-0 border-r-0')}
+        key={isRightPanel ? `topic-resource-panel:${assistantIdFilter ?? 'blank'}` : 'topic-resource-left-panel'}
+        presentation={presentation}
         items={visibleFilteredTopics}
         status={listStatus}
         selectedId={hasActiveCenterSurface ? null : activeTopic?.id}
@@ -1383,13 +1383,11 @@ export function Topics({
         onGroupHeaderSelectItem={handleGroupHeaderSelectTopic}
         onReorder={handleTopicReorder}
         onCollapsedStateChange={handleTopicCollapsedStateChange}>
-        <ResourceList.Header className={cn('gap-1', isRightPanel && 'pb-1')}>
+        <ResourceList.Header>
           {isRightPanel ? (
             <ResourceList.Search
               aria-label={t('chat.topics.search.title')}
-              className={RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS}
               placeholder={t('chat.topics.search.placeholder')}
-              wrapperClassName="pt-1"
             />
           ) : showHeaderCreateItem && isAssistantDisplayMode ? (
             <ResourceList.HeaderItem
@@ -1402,10 +1400,10 @@ export function Topics({
               actions={
                 <TopicListOptionsMenu
                   historyRecordsActive={historyRecordsActive}
-                  manageAssistantsActive={manageAssistantsMenuItem?.active}
+                  manageAssistantsActive={manageAssistantsActive}
                   mode={displayMode}
                   onChange={handleTopicDisplayModeChange}
-                  onManageAssistants={manageAssistantsMenuItem?.onSelect}
+                  onManageAssistants={onManageAssistants}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                   sectionIds={topicAssistantSectionIds}
                 />
@@ -1423,10 +1421,10 @@ export function Topics({
               actions={
                 <TopicListOptionsMenu
                   historyRecordsActive={historyRecordsActive}
-                  manageAssistantsActive={manageAssistantsMenuItem?.active}
+                  manageAssistantsActive={manageAssistantsActive}
                   mode={displayMode}
                   onChange={handleTopicDisplayModeChange}
-                  onManageAssistants={manageAssistantsMenuItem?.onSelect}
+                  onManageAssistants={onManageAssistants}
                   onOpenHistoryRecords={onOpenHistoryRecords}
                 />
               }
@@ -1434,10 +1432,10 @@ export function Topics({
           ) : (
             <TopicListOptionsMenu
               historyRecordsActive={historyRecordsActive}
-              manageAssistantsActive={manageAssistantsMenuItem?.active}
+              manageAssistantsActive={manageAssistantsActive}
               mode={displayMode}
               onChange={handleTopicDisplayModeChange}
-              onManageAssistants={manageAssistantsMenuItem?.onSelect}
+              onManageAssistants={onManageAssistants}
               onOpenHistoryRecords={onOpenHistoryRecords}
               sectionIds={isAssistantDisplayMode ? topicAssistantSectionIds : undefined}
             />
@@ -1454,7 +1452,6 @@ export function Topics({
           exportMenuOptions={exportMenuOptions as TopicExportMenuOptions}
           isNewlyRenamed={isNewlyRenamed}
           isRenaming={isRenaming}
-          isRightPanel={isRightPanel}
           listRef={listRef}
           notesPath={notesPath}
           onAutoRename={handleAutoRename}
@@ -1552,7 +1549,6 @@ interface TopicListBodyProps {
   exportMenuOptions: TopicExportMenuOptions
   isNewlyRenamed: (topicId: string) => boolean
   isRenaming: (topicId: string) => boolean
-  isRightPanel: boolean
   listRef: RefObject<HTMLDivElement | null>
   notesPath: string
   onAutoRename: (topic: Topic) => Promise<void>
@@ -1572,7 +1568,7 @@ interface TopicListBodyProps {
   variant: TopicListBodyVariant
 }
 
-type TopicRowSharedProps = Omit<TopicListBodyProps, 'activeTopic' | 'isRightPanel' | 'listRef' | 'variant'>
+type TopicRowSharedProps = Omit<TopicListBodyProps, 'activeTopic' | 'listRef' | 'variant'>
 
 function TopicListBody(props: TopicListBodyProps) {
   const { t } = useTranslation()
@@ -1584,7 +1580,6 @@ function TopicListBody(props: TopicListBodyProps) {
     exportMenuOptions,
     isNewlyRenamed,
     isRenaming,
-    isRightPanel,
     listRef,
     notesPath,
     onAutoRename,
@@ -1663,7 +1658,6 @@ function TopicListBody(props: TopicListBodyProps) {
     <ResourceList.Body<Topic>
       listRef={listRef}
       draggable={variant === 'draggable'}
-      virtualClassName={cn('pt-0', isRightPanel ? 'pb-8' : 'pb-3')}
       errorFallback={<ResourceList.ErrorState message={t('error.boundary.default.message')} />}
       emptyFallback={
         <div className="mx-auto flex h-full w-full max-w-sm items-center justify-center break-words px-5 py-10 text-center text-muted-foreground text-xs">
@@ -1730,8 +1724,16 @@ const TopicRow = memo(function TopicRow({
   // selected row too — only the completion dot (green) is a read-receipt that
   // clears once the row is opened (`!isActive`). Awaiting approval is shown as
   // a badge instead of a spinner because the turn needs user action.
-  const hasTopicStreamIndicator =
-    (isTopicStreamPending || isTopicStreamErrored || (!isActive && isTopicStreamFulfilled)) && !isTopicAwaitingApproval
+  const conversationRowStatus = isTopicAwaitingApproval
+    ? 'approval'
+    : isTopicStreamPending
+      ? 'pending'
+      : isTopicStreamErrored
+        ? 'error'
+        : !isActive && isTopicStreamFulfilled
+          ? 'done'
+          : null
+  const hasTopicStreamIndicator = conversationRowStatus !== null && conversationRowStatus !== 'approval'
   const showPinAction = !rowState.renaming
   const showLeadingSlot = displayMode !== 'time' && !topic.pinned
   const isConfirmingDeletion = deletingTopicId === topic.id
@@ -1782,15 +1784,15 @@ const TopicRow = memo(function TopicRow({
       />
       {!rowState.renaming && (
         <ResourceList.ItemTitle
+          fade
           title={topicName}
           className={cn(
             nameAnimationClassName,
-            RESOURCE_LIST_TITLE_FADE_CLASS,
-            topic.pinned ? RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS : RESOURCE_LIST_TITLE_FADE_YIELD_CLASS,
             // The stream indicator is an absolute overlay (keeps no flex space),
-            // so the title needs a standing yield for its dot zone. The draft
-            // indicator stays in flow and reserves its own space.
-            hasTopicStreamIndicator && 'mr-7'
+            // so the title needs a standing yield for its dot zone; on hover the
+            // overlay fades out, the standing yield closes, and the in-flow action rail expands.
+            // The draft indicator needs no yield — it stays in flow and reserves its own space.
+            hasTopicStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
           )}
           onDoubleClick={(event) => {
             event.stopPropagation()
@@ -1802,13 +1804,9 @@ const TopicRow = memo(function TopicRow({
       {!rowState.renaming && (
         <TopicTrailingStatus
           topicId={topic.id}
-          awaitingApprovalLabel={t('agent.toolPermission.pendingBadge')}
           draftLabel={t('chat.topics.draft')}
           isActive={isActive}
-          isAwaitingApproval={isTopicAwaitingApproval}
-          isErrored={isTopicStreamErrored}
-          isFulfilled={!isActive && isTopicStreamFulfilled}
-          isPending={isTopicStreamPending}
+          status={conversationRowStatus}
         />
       )}
       <ResourceList.ItemActions active={isConfirmingDeletion}>
@@ -1869,38 +1867,24 @@ const TopicRow = memo(function TopicRow({
 const TOPIC_DRAFT_INDICATOR_CLASS =
   'pointer-events-none flex size-5 max-w-5 shrink-0 items-center justify-center overflow-hidden opacity-100 transition-[margin,max-width,opacity] duration-150 group-hover:-ml-1.5 group-hover:max-w-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:-ml-1.5 group-has-[[data-resource-list-item-actions][data-active=true]]:-ml-1.5 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0'
 
-const TOPIC_AWAITING_APPROVAL_BADGE_CLASS =
-  'pointer-events-none max-w-28 shrink-0 truncate rounded-full border border-warning-border bg-warning-subtle px-1.5 font-medium text-[10px] text-warning-subtle-foreground leading-4 transition-[max-width,padding,opacity] duration-150 group-hover:max-w-0 group-hover:px-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:px-0 group-has-[[data-resource-list-item-actions][data-active=true]]:px-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0'
-
 const TopicTrailingStatus = ({
   topicId,
-  awaitingApprovalLabel,
   draftLabel,
   isActive,
-  isAwaitingApproval,
-  isErrored,
-  isFulfilled,
-  isPending
+  status
 }: {
   topicId: string
-  awaitingApprovalLabel: string
   draftLabel: string
   isActive: boolean
-  isAwaitingApproval: boolean
-  isErrored: boolean
-  isFulfilled: boolean
-  isPending: boolean
+  status: ConversationRowStatusValue | null
 }) => {
-  if (isAwaitingApproval) {
+  if (status) {
     return (
-      <span data-testid="topic-awaiting-approval-badge" className={TOPIC_AWAITING_APPROVAL_BADGE_CLASS}>
-        {awaitingApprovalLabel}
-      </span>
+      <ConversationRowStatus
+        status={status}
+        testId={status === 'approval' ? 'topic-awaiting-approval-badge' : 'topic-stream-indicator'}
+      />
     )
-  }
-
-  if (isPending || isErrored || isFulfilled) {
-    return <TopicStreamIndicator isErrored={isErrored} isFulfilled={isFulfilled} isPending={isPending} />
   }
 
   // The active row's draft is the text visible in the composer right below it,
@@ -1923,48 +1907,6 @@ const TopicDraftIndicator = ({ topicId, label }: { topicId: string; label: strin
   return (
     <span aria-label={label} className={TOPIC_DRAFT_INDICATOR_CLASS} role="img">
       <FilePenLine aria-hidden="true" className="size-3 text-foreground-tertiary" />
-    </span>
-  )
-}
-
-const TopicStreamIndicator = ({
-  isErrored,
-  isFulfilled,
-  isPending
-}: {
-  isErrored: boolean
-  isFulfilled: boolean
-  isPending: boolean
-}) => {
-  const { t } = useTranslation()
-
-  if (!isPending && !isFulfilled && !isErrored) return null
-
-  const statusLabel = isPending
-    ? t('message.tools.status.running')
-    : isErrored
-      ? t('message.tools.status.error')
-      : t('message.tools.status.done')
-
-  return (
-    // Absolute overlay at the actions' resting spot: it fades out on hover /
-    // focus / delete-confirm so the pin + delete buttons take its place (the
-    // dot/spinner and the actions are mutually exclusive, never side by side).
-    <span
-      aria-label={statusLabel}
-      className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex size-5 shrink-0 items-center justify-center opacity-100 transition-opacity duration-150 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0"
-      data-testid="topic-stream-indicator"
-      role="img">
-      {isPending ? (
-        // A spinner reads as "running", where the old pulsing amber dot looked
-        // like a warning. Error uses a distinct icon instead of relying on
-        // red/green color alone; completion remains a green read-receipt dot.
-        <Loader2 aria-hidden="true" className="size-3 animate-spin text-foreground-tertiary" />
-      ) : isErrored ? (
-        <CircleAlert aria-hidden="true" className="size-3 text-error" />
-      ) : (
-        <span aria-hidden="true" className="size-1.25 rounded-full bg-success" />
-      )}
     </span>
   )
 }

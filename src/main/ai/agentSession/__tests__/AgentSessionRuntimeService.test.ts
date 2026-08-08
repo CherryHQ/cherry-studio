@@ -2971,7 +2971,11 @@ describe('AgentSessionRuntimeService', () => {
 
   it('persists assistant turns with the latest resume token', async () => {
     const service = new AgentSessionRuntimeService()
-    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const handle = service.beginTurn({
+      ...baseTurnInput,
+      userMessage: userMessage('user-1'),
+      shouldAutoName: true
+    })
     getEntry(service).lastResumeToken = 'resume-1'
 
     await persistenceListener(handle).onDone({
@@ -2996,6 +3000,19 @@ describe('AgentSessionRuntimeService', () => {
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }]
     })
+  })
+
+  it('does not auto-name non-initial assistant turns', async () => {
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+
+    await persistenceListener(handle).onDone({
+      status: 'success',
+      isTopicDone: true,
+      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [{ type: 'text', text: 'hi' }] }
+    })
+
+    expect(mocks.maybeRenameAgentSession).not.toHaveBeenCalled()
   })
 
   it('persists empty paused terminals to the active assistant placeholder', async () => {
