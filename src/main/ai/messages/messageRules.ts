@@ -63,21 +63,54 @@ export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelM
   )
 }
 
+/** Intersection of the provider rules: OpenAI `^[a-zA-Z0-9_-]{1,64}$`, Gemini's leading letter/underscore. */
+const WIRE_TOOL_NAME = /^[A-Za-z_][A-Za-z0-9_-]{0,63}$/
+
+function toWireToolName(name: string): string {
+  const sanitized = name.replace(/[^A-Za-z0-9_-]/g, '_')
+  return (/^[A-Za-z_]/.test(sanitized) ? sanitized : `_${sanitized}`).slice(0, 64)
+}
+
+/**
+ * Make every `dynamic-tool` name wire-legal. The v1 migrator joins `"{server}: {tool}"` into
+ * `toolName` for display (`ChatMappings`), and unlike v1 — which never replayed tool blocks —
+ * v2 sends that field as `function_call.name`, which providers reject (#18199). Call and
+ * result share one part, so the pair stays consistent; v2 wire ids are already legal, so this
+ * is a no-op for them.
+ */
+export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[]): T[] {
+  let out: T[] | undefined
+  messages.forEach((message, messageIndex) => {
+    let parts: T['parts'] | undefined
+    message.parts.forEach((part, partIndex) => {
+      if (part.type !== 'dynamic-tool' || WIRE_TOOL_NAME.test(part.toolName)) return
+      parts ??= [...message.parts]
+      parts[partIndex] = { ...part, toolName: toWireToolName(part.toolName) }
+    })
+    if (parts) {
+      out ??= [...messages]
+      out[messageIndex] = { ...message, parts }
+    }
+  })
+  return out ?? messages
+}
+
 /**
  * The message-shaping pipeline `Agent.stream` runs on its conversion input
  * (`originalMessages` stays un-shaped upstream, so none of this leaks to the UI):
  *
  * render persisted tool-output envelopes back into their <persisted-output> markers →
- * strip unsupported audio/video → convert, dropping incomplete tool calls that
- * would otherwise dangle without a result → merge adjacent same-role turns left by
- * drops → placeholder any turn that still converted to empty content. See #16195.
+ * make legacy v1 tool names wire-legal → strip unsupported audio/video → convert,
+ * dropping incomplete tool calls that would otherwise dangle without a result → merge
+ * adjacent same-role turns left by drops → placeholder any turn that still converted
+ * to empty content. See #16195.
  */
 export async function toModelMessages(
   messages: UIMessage[],
   caps?: MediaCapabilities,
   tools?: ToolSet
 ): Promise<ModelMessage[]> {
-  const rendered = renderPersistedToolOutputs(messages)
+  const rendered = sanitizeDynamicToolNames(renderPersistedToolOutputs(messages))
   const shaped = stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(model))
