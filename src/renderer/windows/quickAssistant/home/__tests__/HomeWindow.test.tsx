@@ -1,8 +1,10 @@
 import '@testing-library/jest-dom/vitest'
 
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import { fireEvent, render, screen } from '@testing-library/react'
 import type React from 'react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
   quickAssistantId: '',
@@ -24,7 +26,7 @@ const state = vi.hoisted(() => ({
   resetTemporaryTopic: vi.fn()
 }))
 
-import HomeWindow from '../HomeWindow'
+import HomeWindow, { finalizeLiveMessages } from '../HomeWindow'
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: { request: vi.fn(), on: vi.fn(() => () => {}) },
@@ -140,6 +142,44 @@ vi.mock('../../chat/ChatWindow', () => ({
 vi.mock('../../translate/TranslateWindow', () => ({
   default: () => <div data-testid="translate-window" />
 }))
+
+describe('finalizeLiveMessages', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('finalizes streaming content parts without replacing unchanged messages', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1500)
+    const liveMessage = {
+      id: 'live-message',
+      role: 'assistant',
+      parts: [
+        { type: 'text', text: 'answer', state: 'streaming' },
+        {
+          type: 'reasoning',
+          text: 'thinking',
+          state: 'streaming',
+          providerMetadata: { cherry: { startedAt: 1000 } }
+        }
+      ]
+    } as CherryUIMessage
+    const unchangedMessage = {
+      id: 'done-message',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'done', state: 'done' }]
+    } as CherryUIMessage
+
+    const result = finalizeLiveMessages([liveMessage, unchangedMessage])
+
+    expect(result[0].parts[0]).toMatchObject({ type: 'text', state: 'done' })
+    expect(result[0].parts[1]).toMatchObject({ type: 'reasoning', state: 'done' })
+    expect(readCherryMeta(result[0].parts[1] as CherryMessagePart)).toMatchObject({
+      startedAt: 1000,
+      thinkingMs: 500
+    })
+    expect(result[1]).toBe(unchangedMessage)
+  })
+})
 
 describe('HomeWindow', () => {
   beforeEach(() => {
