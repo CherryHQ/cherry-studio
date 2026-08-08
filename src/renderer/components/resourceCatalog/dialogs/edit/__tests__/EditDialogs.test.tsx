@@ -284,6 +284,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.preview': 'Preview',
           'common.remove': 'Remove',
           'common.required_field': 'Required',
+          'common.retry': 'Retry',
           'common.save': 'Save',
           'common.undo': 'Undo',
           'error.no_response': 'No response',
@@ -830,7 +831,7 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('advances the agent form baseline before a queued follow-up save', async () => {
+  it('queues an edit made while an agent save is in flight and sends only that field', async () => {
     let resolveFirstSave: (() => void) | undefined
     updateAgentMock.mockImplementationOnce(
       () =>
@@ -854,7 +855,7 @@ describe('edit dialogs', () => {
     })
   })
 
-  it('preserves skill baseline initialization while an unrelated save is pending', async () => {
+  it('seeds the skill draft from the refreshed projection while an unrelated save is pending', async () => {
     installedSkillsState.current = {
       ...installedSkillsState.current,
       refreshing: true
@@ -1022,18 +1023,14 @@ describe('edit dialogs', () => {
     expectHelpTrigger('Max tool call rounds', 'Caps tool-call rounds at 100.')
     expectHelpTrigger('Custom parameters', 'Extra provider parameters.')
     fireEvent.click(screen.getByRole('switch', { name: 'Temperature' }))
+
+    // Each control PATCHes only the field it owns.
     await waitFor(() =>
-      expect(updateAssistantMock).toHaveBeenCalledWith({
-        body: expect.objectContaining({
-          knowledgeBaseIds: ['kb-1'],
-          mcpServerIds: ['mcp-1'],
-          settings: expect.objectContaining({
-            enableTemperature: true,
-            mcpMode: 'manual'
-          })
-        })
-      })
+      expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { enableTemperature: true } } })
     )
+    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { knowledgeBaseIds: ['kb-1'] } })
+    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { mcpMode: 'manual' } } })
+    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { mcpServerIds: ['mcp-1'] } })
   })
 
   it('shows the default tool-call cap and clamps custom rounds at 1000', async () => {
@@ -1068,15 +1065,9 @@ describe('edit dialogs', () => {
 
     expect(maxToolCallsInput).toHaveValue(1000)
     await waitFor(() =>
-      expect(updateAssistantMock).toHaveBeenCalledWith({
-        body: expect.objectContaining({
-          settings: expect.objectContaining({
-            enableMaxToolCalls: true,
-            maxToolCalls: 1000
-          })
-        })
-      })
+      expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { maxToolCalls: 1000 } } })
     )
+    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { settings: { enableMaxToolCalls: true } } })
   })
 
   it('polishes and restores assistant prompts through the shared action', async () => {
@@ -1150,16 +1141,15 @@ describe('edit dialogs', () => {
     expectHelpTrigger('Environment variables', 'One KEY=VALUE per line')
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'FOO=bar' } })
 
-    await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
-    const body = vi.mocked(updateAgentMock).mock.calls[0][0].body
-    expect(body).not.toHaveProperty('allowedTools')
-    expect(body.configuration).toHaveProperty('max_turns', undefined)
-    expect(body.configuration).toEqual(
-      expect.objectContaining({
-        env_vars: { FOO: 'bar' },
-        permission_mode: 'plan'
-      })
-    )
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    const bodies = vi.mocked(updateAgentMock).mock.calls.map(([call]) => call.body)
+    for (const body of bodies) {
+      expect(body).not.toHaveProperty('allowedTools')
+      // Every configuration write clears the retired field this dialog never surfaces.
+      expect(body.configuration).toHaveProperty('max_turns', undefined)
+    }
+    expect(bodies[0].configuration).toEqual({ permission_mode: 'plan', max_turns: undefined })
+    expect(bodies[1].configuration).toEqual({ env_vars: { FOO: 'bar' }, max_turns: undefined })
   })
 
   it('shows agent tool categories directly in the left tab list', async () => {
@@ -1264,7 +1254,7 @@ describe('edit dialogs', () => {
     expect(screen.getByTestId('skill-catalog-picker')).toHaveAttribute('data-mode', 'edit')
   })
 
-  it('waits for background skill refresh before initializing the editable baseline', async () => {
+  it('waits for background skill refresh before seeding the editable skill draft', async () => {
     installedSkillsState.current = {
       ...installedSkillsState.current,
       refreshing: true
@@ -1307,22 +1297,19 @@ describe('edit dialogs', () => {
     expect(screen.getByRole('tab', { name: 'MCP' })).toHaveAttribute('aria-selected', 'true')
   })
 
-  it('auto-saves agent skill toggles after a debounce', async () => {
+  it('saves an agent skill toggle immediately as a single skill update', async () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('技能')
 
     fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
-    // Not persisted synchronously — the debounce is still pending.
-    expect(updateAgentMock).not.toHaveBeenCalled()
 
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
-        body: expect.objectContaining({
-          skillUpdates: [{ skillId: 'skill-1', isEnabled: true }]
-        })
+        body: { skillUpdates: [{ skillId: 'skill-1', isEnabled: true }] }
       })
     )
+    expect(updateAgentMock).toHaveBeenCalledTimes(1)
   })
 
   it('uses the same MCP server list presentation in assistant and agent editing', async () => {
@@ -1470,8 +1457,7 @@ describe('edit dialogs', () => {
         body: expect.objectContaining({ name: 'Updated Assistant' })
       })
     )
-    // The close now awaits the flush and only closes once it settles.
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('persists the latest edit made while an earlier save is still in flight', async () => {
@@ -1504,7 +1490,17 @@ describe('edit dialogs', () => {
     })
   })
 
-  it('prompts without closing or retrying an unchanged failed assistant save', async () => {
+  it('flags an emptied name instead of persisting it', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: '  ' } })
+
+    expect(await screen.findByText('Required')).toBeInTheDocument()
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    expect(updateAssistantMock).not.toHaveBeenCalled()
+  })
+
+  it('closes the assistant dialog even when the final save fails', async () => {
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
@@ -1512,78 +1508,55 @@ describe('edit dialogs', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    expect(await screen.findByText('Save failed')).toBeInTheDocument()
-    expect(toast.error).toHaveBeenCalledWith('Save failed')
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
-    const saveAttemptsAfterFailure = updateAssistantMock.mock.calls.length
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-    await new Promise((resolve) => setTimeout(resolve, 700))
-
-    expect(toast.error).toHaveBeenCalledTimes(2)
-    expect(updateAssistantMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    // A rejected field save is reported, never used to trap the user in the dialog.
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Save failed'))
+    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { name: 'Closing Edit' } })
   })
 
-  it('retries saving when the form changes after a failed close', async () => {
-    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
+  it('closes the agent dialog even when the final save fails', async () => {
+    updateAgentMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Save failed'))
+    expect(updateAgentMock).toHaveBeenCalledWith({ body: { name: 'Closing Agent' } })
+  })
+
+  it('resends the rejected field when the user retries from the save banner', async () => {
+    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Retry Me' } })
+    await screen.findByText('Save failed')
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: { name: 'Retry Me' } })
+    await waitFor(() => expect(screen.queryByText('Save failed')).not.toBeInTheDocument())
+  })
+
+  it('replaces a rejected field value with the next edit instead of resending it', async () => {
+    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     const nameInput = screen.getByLabelText('Name')
-    fireEvent.change(nameInput, { target: { value: 'First Closing Edit' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    fireEvent.change(nameInput, { target: { value: 'Failed Edit' } })
+    await screen.findByText('Save failed')
 
-    await screen.findByText('Save failed', undefined, { timeout: 5000 })
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
-    const saveAttemptsAfterFailure = updateAssistantMock.mock.calls.length
+    fireEvent.change(nameInput, { target: { value: 'Newer Edit' } })
 
-    fireEvent.change(nameInput, { target: { value: 'Retry Closing Edit' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-
-    await waitFor(() => expect(updateAssistantMock.mock.calls.length).toBeGreaterThan(saveAttemptsAfterFailure))
-    expect(updateAssistantMock).toHaveBeenLastCalledWith({
-      body: expect.objectContaining({ name: 'Retry Closing Edit' })
-    })
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: { name: 'Newer Edit' } })
   })
 
-  it('clears the failed assistant save snapshot when reopened within the exit-animation window', async () => {
-    // The host (useResourceCatalogController) keeps this dialog instance mounted for
-    // DIALOG_EXIT_ANIMATION_MS after `open` goes false, so a reopen within that window
-    // reuses the SAME component instance instead of remounting — simulate that with
-    // `rerender` rather than a fresh `render`.
-    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
-    const onOpenChange = vi.fn()
-    const { rerender } = render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
-
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Repro Edit' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-
-    await screen.findByText('Save failed', undefined, { timeout: 5000 })
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
-
-    // Simulate an external close, then reopen on the same instance before it unmounts.
-    rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={onOpenChange} />)
-    rerender(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
-    const saveAttemptsBeforeRetry = updateAssistantMock.mock.calls.length
-
-    // Make the exact same edit again. The new editing session must not mistake it
-    // for the prior session's failed snapshot and block the save.
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Repro Edit' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
-    expect(updateAssistantMock.mock.calls.length).toBeGreaterThan(saveAttemptsBeforeRetry)
-    expect(updateAssistantMock).toHaveBeenLastCalledWith({
-      body: expect.objectContaining({ name: 'Repro Edit' })
-    })
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
-  })
-
-  it('reuses the in-flight save when closing mid-save instead of racing a second one', async () => {
+  it('does not race a second save when closing mid-save', async () => {
     let resolveSave: (() => void) | undefined
     updateAssistantMock.mockImplementationOnce(
       () =>
@@ -1597,47 +1570,13 @@ describe('edit dialogs', () => {
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mid Save' } })
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
 
-    // Close while that save is still in flight: no second concurrent save, and the
-    // dialog must not close until the in-flight save settles.
+    // Closing joins the in-flight save's queue rather than starting a second one,
+    // and does not wait for it.
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    expect(onOpenChange).toHaveBeenCalledWith(false)
 
     resolveSave?.()
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
-    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('prompts without closing or retrying an unchanged failed agent save', async () => {
-    updateAgentMock.mockRejectedValueOnce(new Error('Network down'))
-    const onOpenChange = vi.fn()
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
-
-    const nameInput = screen.getByLabelText('Name')
-    fireEvent.change(nameInput, { target: { value: 'Closing Agent' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-
-    expect(await screen.findByText('Save failed')).toBeInTheDocument()
-    expect(toast.error).toHaveBeenCalledWith('Save failed')
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
-    const saveAttemptsAfterFailure = updateAgentMock.mock.calls.length
-
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-    await new Promise((resolve) => setTimeout(resolve, 700))
-
-    expect(toast.error).toHaveBeenCalledTimes(2)
-    expect(updateAgentMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(onOpenChange).not.toHaveBeenCalledWith(false)
-
-    fireEvent.change(nameInput, { target: { value: 'Retry Agent' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-
-    await waitFor(() => expect(updateAgentMock.mock.calls.length).toBeGreaterThan(saveAttemptsAfterFailure))
-    expect(updateAgentMock).toHaveBeenLastCalledWith({
-      body: expect.objectContaining({ name: 'Retry Agent' })
-    })
-    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
   })
 })

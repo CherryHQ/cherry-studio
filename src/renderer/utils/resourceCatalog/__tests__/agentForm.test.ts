@@ -1,13 +1,7 @@
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { describe, expect, it } from 'vitest'
 
-import {
-  type AgentFormState,
-  applyAgentFormPatch,
-  buildInitialAgentFormState,
-  diffAgentSaveIntent,
-  diffAgentUpdate
-} from '../agentForm'
+import { agentEnvVarsFromText, buildInitialAgentFormState } from '../agentForm'
 
 function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
   return {
@@ -85,174 +79,15 @@ describe('buildInitialAgentFormState', () => {
   })
 })
 
-describe('applyAgentFormPatch', () => {
-  it('normalizes the patched permission mode', () => {
-    const draft = buildInitialAgentFormState()
-    const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' })
-
-    expect(next.permissionMode).toBe('acceptEdits')
-  })
-
-  it('keeps other fields untouched when patching permission mode', () => {
-    const draft = buildInitialAgentFormState(
-      createAgent({ configuration: { permission_mode: 'bypassPermissions', avatar: '🚀' } })
-    )
-    const next = applyAgentFormPatch(draft, { permissionMode: 'default' })
-
-    expect(next.permissionMode).toBe('default')
-    expect(next.avatar).toBe('🚀')
-  })
-})
-
-describe('diffAgentSaveIntent', () => {
-  it('wraps update diffs for the edit dialog save handler', () => {
-    const agent = createAgent()
-    const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, name: 'Renamed' }
-
-    expect(diffAgentSaveIntent(next, baseline)).toEqual({
-      kind: 'update',
-      payload: { name: 'Renamed' }
-    })
-  })
-})
-
-describe('diffAgentUpdate', () => {
-  it('returns null when nothing changed', () => {
-    const agent = createAgent()
-    const baseline = buildInitialAgentFormState(agent)
-    expect(diffAgentUpdate(baseline, baseline)).toBeNull()
-  })
-
-  it('includes only changed top-level keys in the PATCH payload', () => {
-    const agent = createAgent()
-    const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, name: 'Renamed', instructions: 'new prompt' }
-
-    const result = diffAgentUpdate(baseline, next)
-    expect(result?.dto).toEqual({
-      name: 'Renamed',
-      instructions: 'new prompt'
+describe('agentEnvVarsFromText', () => {
+  it('parses KEY=VALUE lines, dropping blanks and keeping `=` inside values', () => {
+    expect(agentEnvVarsFromText('DEBUG=1\n\nURL=https://x?a=b\n')).toEqual({
+      DEBUG: '1',
+      URL: 'https://x?a=b'
     })
   })
 
-  it('emits knowledgeBaseIds when the bound knowledge bases change', () => {
-    const agent = createAgent({ knowledgeBaseIds: ['kb-1'] })
-    const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, knowledgeBaseIds: ['kb-2'] }
-
-    const result = diffAgentUpdate(baseline, next)
-
-    expect(result?.dto).toEqual({ knowledgeBaseIds: ['kb-2'] })
-  })
-
-  it('does not emit knowledgeBaseIds when the bound knowledge base set is only reordered', () => {
-    const agent = createAgent({ knowledgeBaseIds: ['kb-1', 'kb-2'] })
-    const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, knowledgeBaseIds: ['kb-2', 'kb-1'] }
-
-    expect(diffAgentUpdate(baseline, next)).toBeNull()
-  })
-
-  it('includes skillUpdates when the enabled skill set changes', () => {
-    const agent = createAgent()
-    const baseline = buildInitialAgentFormState(agent, ['skill-1'])
-    const next = { ...baseline, skillIds: ['skill-2'] }
-
-    const result = diffAgentUpdate(baseline, next)
-
-    expect(result?.dto).toEqual({
-      skillUpdates: [
-        { skillId: 'skill-1', isEnabled: false },
-        { skillId: 'skill-2', isEnabled: true }
-      ]
-    })
-  })
-
-  it('does not emit skillUpdates when the enabled skill set is only reordered', () => {
-    const agent = createAgent()
-    const baseline = buildInitialAgentFormState(agent, ['skill-1', 'skill-2'])
-    const next = { ...baseline, skillIds: ['skill-2', 'skill-1'] }
-
-    expect(diffAgentUpdate(baseline, next)).toBeNull()
-  })
-
-  it('preserves UniqueModelIds in the PATCH payload without legacy conversion', () => {
-    const agent = createAgent({
-      model: 'anthropic::claude-sonnet-4-5',
-      planModel: 'anthropic::claude-haiku-4-5',
-      smallModel: 'anthropic::claude-opus-4-5'
-    })
-    const baseline = buildInitialAgentFormState(agent)
-    const next: AgentFormState = {
-      ...baseline,
-      model: 'anthropic::claude-sonnet-4-6',
-      planModel: 'anthropic::claude-haiku-4-6',
-      smallModel: ''
-    }
-
-    const result = diffAgentUpdate(baseline, next)
-
-    expect(result?.dto).toMatchObject({
-      model: 'anthropic::claude-sonnet-4-6',
-      planModel: 'anthropic::claude-haiku-4-6',
-      smallModel: undefined
-    })
-  })
-
-  it('emits only edited configuration keys and explicitly removes max_turns', () => {
-    const agent = createAgent({
-      configuration: { avatar: '🤖', plugin_state: 'keep-me', max_turns: 10 }
-    })
-    const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, avatar: '🚀' }
-
-    const result = diffAgentUpdate(baseline, next)
-    // Main preserves plugin_state by merging this intent into the latest row.
-    expect(result?.dto.configuration).toEqual({
-      avatar: '🚀',
-      max_turns: undefined
-    })
-  })
-
-  it('round-trips env_vars through the textarea format', () => {
-    const agent = createAgent({ configuration: { env_vars: { A: '1' } } })
-    const baseline = buildInitialAgentFormState(agent)
-    // User appends a line via the textarea control.
-    const next = { ...baseline, envVarsText: 'A=1\nB=2' }
-
-    const result = diffAgentUpdate(baseline, next)
-    expect(result?.dto.configuration).toMatchObject({
-      env_vars: {
-        A: '1',
-        B: '2'
-      }
-    })
-  })
-
-  it('preserves env var value whitespace after the first equals sign', () => {
-    const agent = createAgent({ configuration: { env_vars: {} } })
-    const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, envVarsText: 'TOKEN= abc \nEMPTY=  \nSPACED_KEY =value=with=equals' }
-
-    const result = diffAgentUpdate(baseline, next)
-    expect(result?.dto.configuration).toMatchObject({
-      env_vars: {
-        TOKEN: ' abc ',
-        EMPTY: '  ',
-        SPACED_KEY: 'value=with=equals'
-      }
-    })
-  })
-
-  it('persists the explicit default permission mode when switching back from another mode', () => {
-    const agent = createAgent({ configuration: { permission_mode: 'plan' } })
-    const baseline = buildInitialAgentFormState(agent)
-    const next = { ...baseline, permissionMode: 'default' }
-
-    const result = diffAgentUpdate(baseline, next)
-    expect(result?.dto.configuration).toMatchObject({
-      permission_mode: 'default'
-    })
+  it('treats a line without `=` as an empty value', () => {
+    expect(agentEnvVarsFromText(' DEBUG ')).toEqual({ DEBUG: '' })
   })
 })

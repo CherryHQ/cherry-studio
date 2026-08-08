@@ -31,12 +31,13 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { toast } from '@renderer/services/toast'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { ArrowUpRight, ChevronDown, Database, HelpCircle, Trash2, X } from 'lucide-react'
-import { type ComponentProps, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ComponentProps, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { type FieldValues, type Path, type UseFormReturn, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { AddCatalogPopover, type CatalogItem } from './CatalogPicker'
 import { DialogModelFrame, DialogModelTrigger, EmojiAvatarPicker } from './DialogFormFields'
+import type { DirectSaveStatus } from './useDirectFieldSave'
 
 // Vertical submenu / nav item preset — kept in sync with the settings sidebar's
 // settingsSubmenuItemClassName so the edit-dialog rail and settings nav read identically.
@@ -114,81 +115,6 @@ export function getSelectedModelLabel(selection: UniqueModelId | Model | undefin
   if (!selection) return null
   if (typeof selection === 'string') return selection
   return selection.name
-}
-
-export function setFormValues<TValues extends FieldValues>(form: UseFormReturn<TValues>, patch: Partial<TValues>) {
-  Object.entries(patch).forEach(([key, value]) => {
-    form.setValue(key as never, value as never, { shouldDirty: true })
-  })
-}
-
-/**
- * Debounced auto-save for the edit dialogs. Re-arms whenever `changeKey` changes
- * (a serialized snapshot of the pending diff) and fires `onSave` after `delay`ms
- * of quiet. `changeKey === null` means nothing to save.
- *
- * Saves are serialized: only one runs at a time. If the state moves on while a
- * save is in flight, a single follow-up pass is queued and runs (with the latest
- * `onSave`) once the current save settles — so the last edit is never dropped.
- *
- * Returns a `flush()` that runs/awaits the serialized save immediately; callers
- * (e.g. the close path) await it to persist pending edits before proceeding,
- * reusing the same queue instead of racing a second concurrent save.
- */
-export function useDebouncedAutoSave({
-  enabled,
-  changeKey,
-  onSave,
-  delay = 500
-}: {
-  enabled: boolean
-  changeKey: string | null
-  onSave: () => void | Promise<void>
-  delay?: number
-}): () => Promise<void> {
-  const onSaveRef = useRef(onSave)
-  const changeKeyRef = useRef(changeKey)
-  const savingRef = useRef(false)
-  // `changeKey` captured when the in-flight save started; a follow-up pass is
-  // only queued when the state has moved past it.
-  const savedKeyRef = useRef<string | null>(null)
-  const pendingRef = useRef(false)
-  const inFlightRef = useRef<Promise<void>>(Promise.resolve())
-
-  useEffect(() => {
-    onSaveRef.current = onSave
-    changeKeyRef.current = changeKey
-  })
-
-  const flush = useCallback((): Promise<void> => {
-    if (savingRef.current) {
-      // A save is already running; queue one more pass only if the latest state
-      // differs from what that save captured (otherwise it already covers it).
-      if (changeKeyRef.current !== savedKeyRef.current) pendingRef.current = true
-      return inFlightRef.current
-    }
-    savingRef.current = true
-    inFlightRef.current = (async () => {
-      try {
-        do {
-          pendingRef.current = false
-          savedKeyRef.current = changeKeyRef.current
-          await onSaveRef.current()
-        } while (pendingRef.current)
-      } finally {
-        savingRef.current = false
-      }
-    })()
-    return inFlightRef.current
-  }, [])
-
-  useEffect(() => {
-    if (!enabled || changeKey === null) return
-    const handle = setTimeout(() => void flush(), delay)
-    return () => clearTimeout(handle)
-  }, [enabled, changeKey, delay, flush])
-
-  return flush
 }
 
 const HelpIconButton = ({
@@ -269,13 +195,16 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   portalContainer,
   formLabel = true,
   disabled = false,
-  onOpenKnowledgePage
+  onOpenKnowledgePage,
+  onValueChange
 }: {
   form: UseFormReturn<TValues>
   portalContainer: HTMLElement | null
   formLabel?: boolean
   disabled?: boolean
   onOpenKnowledgePage?: () => void
+  /** Takes over the write so a property editor can persist the new binding itself. */
+  onValueChange?: (knowledgeBaseIds: string[]) => void
 }) {
   const { t } = useTranslation()
   const { data, isLoading } = useQuery('/knowledge-bases', {
@@ -286,6 +215,8 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
   const fieldName = 'knowledgeBaseIds' as Path<TValues>
   const watchedValue = useWatch({ control: form.control, name: fieldName })
   const value = useMemo(() => (watchedValue ?? []) as string[], [watchedValue])
+  const setKnowledgeBaseIds = (nextValue: string[]) =>
+    onValueChange ? onValueChange(nextValue) : form.setValue(fieldName, nextValue as never, { shouldDirty: true })
 
   const { catalog, linkedItems } = useMemo(() => {
     const byId = new Map(bases.map((base) => [base.id, base]))
@@ -306,8 +237,6 @@ export function KnowledgeBaseField<TValues extends KnowledgeBaseFieldValues>({
     return { catalog: items, linkedItems: linked }
   }, [bases, t, value])
 
-  const setKnowledgeBaseIds = (nextValue: string[]) =>
-    form.setValue(fieldName, nextValue as never, { shouldDirty: true })
   const remove = (id: string) => setKnowledgeBaseIds(value.filter((itemId) => itemId !== id))
   const add = (id: string) => setKnowledgeBaseIds([...value, id])
 
@@ -396,8 +325,9 @@ export function EditDialogShell<TValues extends FieldValues>({
   form,
   onActiveTabChange,
   onOpenChange,
+  onRetrySave,
   open,
-  rootError,
+  saveStatus,
   setDialogContentElement,
   tabs,
   title,
@@ -406,17 +336,24 @@ export function EditDialogShell<TValues extends FieldValues>({
 }: {
   activeTab: string
   children: ReactNode
+  /**
+   * Draft store for the controls inside. The shell has no submit path — each
+   * field persists itself — so this only supplies the `FormItem`/`FormMessage`
+   * context the field primitives read.
+   */
   form: UseFormReturn<TValues>
   groupExpansion?: EditDialogGroupExpansion
   groupPresentation?: EditDialogGroupPresentation
   onActiveTabChange: (tab: string) => void
   onOpenChange: (open: boolean) => void
+  onRetrySave?: () => void
   open: boolean
-  rootError?: string
+  saveStatus?: DirectSaveStatus
   setDialogContentElement: (element: HTMLDivElement | null) => void
   tabs: EditDialogTab[]
   title: string
 }) {
+  const { t } = useTranslation()
   const scrollContainerRef = useRef<HTMLDivElement | null>(null)
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(() =>
     getDefaultExpandedGroupIds(tabs, groupExpansion)
@@ -463,13 +400,10 @@ export function EditDialogShell<TValues extends FieldValues>({
         ref={setDialogContentElement}
         className={cn('flex h-[min(600px,76vh)] flex-col gap-0 p-0 sm:max-w-180', resourceDialogCloseButtonClassName)}>
         <Form {...form}>
-          {/* Clipping lives on the form (rounded-[inherit]), not DialogContent: the dialog's
+          {/* Clipping lives here (rounded-[inherit]), not on DialogContent: the dialog's
               transform makes it the containing block for portaled fixed poppers (model selector),
               so overflow-hidden on DialogContent would clip them. */}
-          <form
-            id="resource-edit-dialog-form"
-            onSubmit={(event) => event.preventDefault()}
-            className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[inherit]">
             {/* Header — title, matching the create wizard's top bar. */}
             <div className={resourceDialogHeaderClassName}>
               <div className="min-w-0">
@@ -553,13 +487,25 @@ export function EditDialogShell<TValues extends FieldValues>({
                 </Scrollbar>
                 {/* Always-present bottom band: insets scrolling lists from the dialog's
                     rounded-3xl corners so content never clips into them mid-scroll, and
-                    surfaces the save error inline when present. */}
-                <div className="flex min-h-6 shrink-0 items-center px-6 pb-4" aria-live="polite">
-                  {rootError ? <p className="text-destructive text-xs">{rootError}</p> : null}
+                    reports a failed field save without ever trapping the user in the dialog. */}
+                <div className="flex min-h-6 shrink-0 items-center gap-2 px-6 pb-4" aria-live="polite">
+                  {saveStatus === 'failed' ? (
+                    <>
+                      <p className="text-destructive text-xs">{t('library.config.dialogs.edit.save_failed')}</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={onRetrySave}
+                        className="h-auto min-h-0 px-1 py-0 text-xs underline-offset-2 hover:underline">
+                        {t('common.retry')}
+                      </Button>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </Tabs>
-          </form>
+          </div>
         </Form>
       </DialogContent>
     </Dialog>
@@ -573,7 +519,8 @@ export function AvatarField({
   fallback,
   portalContainer,
   size,
-  layout = 'stacked'
+  layout = 'stacked',
+  onValueChange
 }: {
   form: UseFormReturn<any>
   emojiPickerOpen: boolean
@@ -582,6 +529,8 @@ export function AvatarField({
   portalContainer: HTMLElement | null
   size?: 'sm' | 'md'
   layout?: 'stacked' | 'row'
+  /** Takes over the write so a property editor can persist the new avatar itself. */
+  onValueChange?: (avatar: string) => void
 }) {
   const { t } = useTranslation()
   const avatar = form.watch('avatar')
@@ -600,7 +549,7 @@ export function AvatarField({
             fallback={fallback}
             open={emojiPickerOpen}
             onOpenChange={setEmojiPickerOpen}
-            onChange={field.onChange}
+            onChange={onValueChange ?? field.onChange}
             ariaLabel={t('library.config.dialogs.create.avatar_aria')}
             portalContainer={portalContainer}
             size={size}
@@ -619,7 +568,8 @@ export function TextInputField({
   description,
   placeholder,
   required = false,
-  layout = 'stacked'
+  layout = 'stacked',
+  onValueChange
 }: {
   form: UseFormReturn<any>
   name: 'name' | 'description'
@@ -628,6 +578,8 @@ export function TextInputField({
   placeholder?: string
   required?: boolean
   layout?: 'stacked' | 'row'
+  /** Takes over the write so a property editor can persist each keystroke itself. */
+  onValueChange?: (value: string) => void
 }) {
   const { t } = useTranslation()
 
@@ -651,11 +603,15 @@ export function TextInputField({
                 value={field.value}
                 rows={2}
                 placeholder={placeholder}
-                onValueChange={field.onChange}
+                onValueChange={onValueChange ?? field.onChange}
                 className="min-h-16"
               />
             ) : (
-              <Input {...field} placeholder={placeholder} />
+              <Input
+                {...field}
+                placeholder={placeholder}
+                onChange={onValueChange ? (event) => onValueChange(event.target.value) : field.onChange}
+              />
             )}
           </FormControl>
           {description ? (
