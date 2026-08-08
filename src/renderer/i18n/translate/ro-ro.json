@@ -455,7 +455,7 @@
         "expand_all": "Extinde tot",
         "no_workdir": "Niciun director de lucru",
         "show_more": "Extinde afișarea",
-        "tasks": "[to be translated]:Tasks",
+        "tasks": "Sarcini",
         "this_week": "Săptămâna aceasta",
         "today": "Astăzi",
         "unknown_agent": "Agent necunoscut",
@@ -1008,8 +1008,8 @@
           "label": "Notificare"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "Convertește un document local (PDF, Office, EPUB, CSV) în Markdown astfel încât agentul să îl poată citi",
+          "label": "Document în Markdown"
         },
         "CherryWebFetch": {
           "description": "Preia și citește o pagină web",
@@ -2988,6 +2988,28 @@
       "title": "Importă conversații ChatGPT",
       "untitled_conversation": "Conversație fără titlu"
     },
+    "claude": {
+      "assistant_name": "Import Claude",
+      "button": "Selectați fișierul",
+      "description": "Importuri de text, gândire și utilizare de instrumente; imaginile și atașamentele nu sunt incluse",
+      "error": {
+        "invalid_json": "Format de fișier JSON invalid",
+        "no_conversations": "Nu s-au găsit conversații în fișier",
+        "no_valid_conversations": "Nu există conversații valide de importat",
+        "unknown": "Import eșuat, vă rugăm să verificați formatul fișierului"
+      },
+      "help": {
+        "step1": "1. Conectați-vă la Claude, accesați Setări > Confidențialitate > Exportați datele",
+        "step2": "2. Așteptați fișierul de export prin e-mail",
+        "step3": "3. Extrageți fișierul descărcat și găsiți conversations.json",
+        "title": "Cum se exportă conversațiile Claude?"
+      },
+      "importing": "Importare conversații...",
+      "selecting": "Se selectează fișierul...",
+      "success": "Importate cu succes {{topics}} conversații cu {{messages}} mesaje",
+      "title": "Importă conversațiile Claude",
+      "untitled_conversation": "Conversație fără titlu"
+    },
     "confirm": {
       "button": "Selectează fișierul de import",
       "label": "Ești sigur că vrei să imporți date externe?"
@@ -3026,10 +3048,20 @@
           "selected_notes": "{{count}} notițe selectate"
         },
         "note": {
+          "create": {
+            "content_label": "Conținut",
+            "content_placeholder": "Scrieți conținutul notei aici…",
+            "title_label": "Titlu",
+            "title_placeholder": "Dă un nume acestei note"
+          },
           "description": "Selectează notițele existente ca surse pentru baza de cunoștințe",
           "empty_description": "Creează notițe în funcția Notițe, apoi revino pentru a le selecta aici.",
           "empty_title": "Notele nu sunt încă conectate",
-          "loading": "Se încarcă notițele…"
+          "loading": "Se încarcă notițele…",
+          "mode": {
+            "create": "Notă nouă",
+            "import": "Importă notițe"
+          }
         },
         "placeholder": {
           "supported_formats": "Acceptă PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3288,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
+    "manage_sidebar": "Gestionează bara laterală",
     "minapps": "Minapp-uri",
     "miniApps": "Mini-aplicații",
     "pin_to_sidebar": "Fixează în bara laterală",
@@ -4216,8 +4249,8 @@
         "taskOutput": "Vezi rezultatul sarcinii",
         "taskStop": "Oprește sarcina",
         "taskUpdate": "Actualizează sarcina",
-        "toMarkdown": "[to be translated]:Convert Document",
-        "toMarkdownOutput": "[to be translated]:Markdown",
+        "toMarkdown": "Convertiți documentul",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Totul Scrie",
         "tool": "Unelte",
         "webFetch": "Preluare web",
@@ -4268,8 +4301,8 @@
       "thinkingHeader": "Se analizează",
       "truncated": "Ieșire trunchiată (original: {{size}})",
       "units": {
-        "char_one": "[to be translated]:{{count}} char",
-        "char_other": "[to be translated]:{{count}} chars",
+        "char_one": "{{count}} caractere",
+        "char_other": "{{count}} caractere",
         "done_one": "{{count}} finalizat",
         "done_other": "{{count}} finalizate",
         "file_one": "{{count}} fișier",
@@ -6091,6 +6124,7 @@
       "import_settings": {
         "button": "Importă fișier Json",
         "chatgpt": "Importă din ChatGPT",
+        "claude": "Import din Claude",
         "title": "Importă datele aplicației"
       },
       "joplin": {
@@ -6646,6 +6680,7 @@
         "notice": {
           "downloadFailed": "Descărcarea a eșuat. Verifică conexiunea și încearcă din nou.",
           "inUse": "Încă utilizat de o bază de cunoștințe; greutățile au fost păstrate.",
+          "incompleteCache": "Fișierele modelului sunt incomplete. Reîncercați descărcarea pentru a le repara.",
           "removeFailed": "Eliminarea a eșuat. Verifică jurnalele pentru detalii."
         },
         "ocr": {
