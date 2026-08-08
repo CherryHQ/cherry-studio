@@ -7,5 +7,5 @@
  */
 
 import './styles.css'
-import 'katex/dist/contrib/copy-tex'
-import 'katex/dist/contrib/mhchem'
+import 'katex/contrib/copy-tex'
+import 'katex/contrib/mhchem'
