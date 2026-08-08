@@ -47,6 +47,10 @@ describe('chooseTool', () => {
     expect(testIdOf(chooseTool(resp('web_search')))).toBe('web-card')
   })
 
+  it('routes session_create to the dedicated agent card', () => {
+    expect(testIdOf(chooseTool(resp('session_create')))).toBe('agent-card')
+  })
+
   it('routes provider-executed web search wire names to the web card', () => {
     expect(testIdOf(chooseTool(resp('web_search', 'provider')))).toBe('web-card')
     expect(testIdOf(chooseTool(resp('webSearch', 'provider')))).toBe('web-card')
