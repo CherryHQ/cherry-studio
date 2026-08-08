@@ -1,12 +1,46 @@
 import { beforeAll, describe, expect, it } from 'vitest'
 
 import { parseMigrationRegistry } from '../migration-registry'
-import { CHERRY_PRODUCT_VARIABLE_TOKENS } from '../theme-contract'
 import {
   loadMigrationContractSources,
   type MigrationContractSources,
   validateMigrationContractSources
 } from '../validate-migration-contract'
+
+const EXACT_FORMER_PREFIXED_PRODUCT_API_TOKENS = [
+  'background-subtle',
+  'foreground-tertiary',
+  'foreground-disabled',
+  'border-subtle',
+  'border-strong',
+  'border-selected',
+  'success',
+  'success-subtle',
+  'success-subtle-foreground',
+  'success-border',
+  'warning',
+  'warning-subtle',
+  'warning-subtle-foreground',
+  'warning-border',
+  'info',
+  'info-subtle',
+  'info-subtle-foreground',
+  'info-border',
+  'error',
+  'error-subtle',
+  'error-subtle-foreground',
+  'error-border',
+  'code-block',
+  'inline-code',
+  'inline-code-foreground',
+  'reference',
+  'reference-foreground',
+  'reference-subtle',
+  'highlight',
+  'highlight-foreground',
+  'highlight-accent',
+  'chat-user'
+] as const
 
 interface MutableMigrationRule {
   source: unknown
@@ -155,18 +189,8 @@ describe('validateMigrationContractSources', () => {
     const registry = JSON.parse(sources.migrationRegistry) as {
       rules: Array<{ source: string; target: string | null; strategy: string }>
     }
-    // A new public product token does not imply that a historical --cs-* API existed for it.
-    const productTokensWithoutPrefixedPredecessors = new Set<(typeof CHERRY_PRODUCT_VARIABLE_TOKENS)[number]>([
-      'resource-list-row-hover',
-      'resource-list-row-active',
-      'resource-list-row-active-foreground',
-      'resource-list-row-selected',
-      'resource-list-row-selected-foreground'
-    ])
 
-    for (const token of CHERRY_PRODUCT_VARIABLE_TOKENS.filter(
-      (token) => token !== 'link' && !productTokensWithoutPrefixedPredecessors.has(token)
-    )) {
+    for (const token of EXACT_FORMER_PREFIXED_PRODUCT_API_TOKENS) {
       expect(registry.rules).toContainEqual({
         source: `--cs-${token}`,
         target: `--${token}`,
