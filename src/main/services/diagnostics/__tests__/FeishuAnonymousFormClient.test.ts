@@ -7,8 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { adler32, FeishuAnonymousFormClient, resolveAttachmentFieldId } from '../FeishuAnonymousFormClient'
 
-const DIRECT_UPLOAD_LIMIT_BYTES = 4 * 1024 * 1024
+const MULTI_BLOCK_FILE_BYTES = 4 * 1024 * 1024 + 1
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
+const FORM_ORIGIN = 'https://mcnnox2fhjfq.feishu.cn'
+const FORM_URL = `${FORM_ORIGIN}/share/base/form/shrcnufZiSDrvRPIzSKeqcbBbub`
 
 function jsonResponse(value: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(value), {
@@ -16,6 +18,14 @@ function jsonResponse(value: unknown, init?: ResponseInit): Response {
     status: 200,
     ...init
   })
+}
+
+function guestSessionResponse(authToken: string | null = 'guest-auth-token'): Response {
+  const response = new Response('<html></html>', { status: 200 })
+  const url = new URL(FORM_URL)
+  if (authToken !== null) url.searchParams.set('auth_token', authToken)
+  Object.defineProperty(response, 'url', { value: url.toString() })
+  return response
 }
 
 function formSnapshot(extra: Record<string, unknown> = {}) {
@@ -42,7 +52,21 @@ function formSnapshot(extra: Record<string, unknown> = {}) {
 
 type MockResponse = Error | Response | ((url: string, init?: RequestInit) => Promise<Response> | Response)
 
+type BeforeRequestListener = (
+  details: { readonly url: string },
+  callback: (response: { readonly cancel?: boolean }) => void
+) => void
+type BeforeRedirectListener = (details: { readonly redirectURL: string }) => void
+
 function createSessionMock(responses: MockResponse[]) {
+  let beforeRequestListener: BeforeRequestListener | null = null
+  let beforeRedirectListener: BeforeRedirectListener | null = null
+  const onBeforeRequest = vi.fn((filter: unknown, listener?: BeforeRequestListener) => {
+    beforeRequestListener = filter === null ? null : (listener ?? null)
+  })
+  const onBeforeRedirect = vi.fn((filter: unknown, listener?: BeforeRedirectListener) => {
+    beforeRedirectListener = filter === null ? null : (listener ?? null)
+  })
   const fetch = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(async (url, init) => {
     const response = responses.shift()
     if (!response) throw new Error('Unexpected request')
@@ -54,9 +78,28 @@ function createSessionMock(responses: MockResponse[]) {
     clearCache: vi.fn(async () => undefined),
     clearStorageData: vi.fn(async () => undefined),
     cookies: { get: vi.fn(async () => [{ value: 'csrf-value' }]) },
-    fetch
+    fetch,
+    webRequest: { onBeforeRedirect, onBeforeRequest }
   } as unknown as Session
-  return { browserSession, fetch }
+  return {
+    browserSession,
+    fetch,
+    onBeforeRedirect,
+    onBeforeRequest,
+    triggerBeforeRedirect: (redirectURL: string) => {
+      if (!beforeRedirectListener) throw new Error('No onBeforeRedirect listener')
+      beforeRedirectListener({ redirectURL })
+    },
+    triggerBeforeRequest: (url: string) => {
+      if (!beforeRequestListener) throw new Error('No onBeforeRequest listener')
+      let canceled: boolean | undefined
+      beforeRequestListener({ url }, (response) => {
+        canceled = response.cancel === true
+      })
+      if (canceled === undefined) throw new Error('onBeforeRequest did not respond')
+      return canceled
+    }
+  }
 }
 
 describe('FeishuAnonymousFormClient', () => {
@@ -74,32 +117,40 @@ describe('FeishuAnonymousFormClient', () => {
     await rm(workDir, { force: true, recursive: true })
   })
 
-  function successfulDirectResponses(
+  function successfulPreparedResponses(
     finalResponse: MockResponse = jsonResponse({ code: 0, data: {} })
   ): MockResponse[] {
     return [
-      new Response('<html></html>', { status: 200 }),
+      guestSessionResponse(),
       jsonResponse({ code: 0, data: { snapshot: JSON.stringify(formSnapshot()) } }),
+      jsonResponse({ code: 0, data: { uploadCode: 'upload-code' } }),
+      jsonResponse({ code: 0, data: { block_size: 4 * 1024 * 1024, num_blocks: 1, upload_id: 'upload-id' } }),
+      jsonResponse({ code: 0, data: { success_seq_list: [0] } }),
       jsonResponse({ code: 0, data: { file_token: 'attachment-token' } }),
       finalResponse
     ]
   }
 
-  it('uses direct upload for a small attachment and submits the live field exactly once', async () => {
-    const { browserSession, fetch } = createSessionMock(successfulDirectResponses())
+  it('uses prepared upload for a small attachment and submits the live field exactly once', async () => {
+    const { browserSession, fetch } = createSessionMock(successfulPreparedResponses())
     const client = new FeishuAnonymousFormClient(() => browserSession)
 
     await expect(client.upload({ fileName: 'diagnostics.zip', filePath, fileSize: 8 })).resolves.toEqual({
       status: 'uploaded'
     })
 
-    expect(fetch).toHaveBeenCalledTimes(4)
-    const directUploadCall = fetch.mock.calls.find(([url]) => String(url).includes('/box/stream/upload/all/'))
-    expect(directUploadCall).toBeDefined()
-    expect(directUploadCall?.[1]?.body).toBeInstanceOf(FormData)
-    expect(new Headers(directUploadCall?.[1]?.headers).get('content-type')).toBeNull()
-    expect(new Headers(directUploadCall?.[1]?.headers).get('x-command')).toBe('space.api.box.stream.upload.all')
-    expect(fetch.mock.calls.some(([url]) => String(url).includes('/uploadCode'))).toBe(false)
+    expect(fetch).toHaveBeenCalledTimes(7)
+    expect(fetch.mock.calls.some(([url]) => String(url).includes('/uploadCode'))).toBe(true)
+    expect(fetch.mock.calls.some(([url]) => String(url).includes('/box/stream/upload/all/'))).toBe(false)
+    const prepareCall = fetch.mock.calls.find(([url]) => String(url).includes('/box/upload/prepare/authcode/'))
+    const finishCall = fetch.mock.calls.find(([url]) => String(url).includes('/box/upload/finish/'))
+    expect(new URL(String(prepareCall?.[0])).origin).toBe(FORM_ORIGIN)
+    expect(new URL(String(finishCall?.[0])).origin).toBe(FORM_ORIGIN)
+    for (const [, init] of fetch.mock.calls.slice(1)) {
+      expect(new Headers(init?.headers).get('x-auth-token')).toBe('guest-auth-token')
+    }
+    const blockCall = fetch.mock.calls.find(([url]) => String(url).includes('/merge_block/'))
+    expect(new Headers(blockCall?.[1]?.headers).get('referer')).toBe(`${FORM_ORIGIN}/`)
     expect(fetch.mock.calls.filter(([url]) => String(url).endsWith('/api/bitable/share/content'))).toHaveLength(1)
     const submitCall = fetch.mock.calls.at(-1)
     if (!submitCall) throw new Error('Expected a final form submission')
@@ -123,12 +174,12 @@ describe('FeishuAnonymousFormClient', () => {
     expect(browserSession.clearCache).toHaveBeenCalledOnce()
   })
 
-  it('uploads every prepared block for an attachment above the direct-upload limit', async () => {
-    const file = Buffer.alloc(DIRECT_UPLOAD_LIMIT_BYTES + 1, 1)
+  it('uploads every prepared block for a multi-block attachment', async () => {
+    const file = Buffer.alloc(MULTI_BLOCK_FILE_BYTES, 1)
     const blockSize = 2 * 1024 * 1024
     await writeFile(filePath, file)
     const { browserSession, fetch } = createSessionMock([
-      new Response('<html></html>', { status: 200 }),
+      guestSessionResponse(),
       jsonResponse({ code: 0, data: { snapshot: JSON.stringify(formSnapshot()) } }),
       jsonResponse({ code: 0, data: { uploadCode: 'upload-code' } }),
       jsonResponse({ code: 0, data: { block_size: blockSize, num_blocks: 3, upload_id: 'upload-id' } }),
@@ -149,39 +200,106 @@ describe('FeishuAnonymousFormClient', () => {
     expect(fetch.mock.calls.some(([url]) => String(url).includes('/box/stream/upload/all/'))).toBe(false)
   })
 
-  it.each(['https://accounts.feishu.cn/accounts/page/login', 'https://login.feishu.cn/accounts/v1/guest'])(
-    'follows and validates a guest-login redirect through %s',
-    async (redirectUrl) => {
-      const redirect = new Response(null, {
-        headers: { location: redirectUrl },
-        status: 302
-      })
-      const responses = successfulDirectResponses()
-      responses.unshift(redirect)
-      const { browserSession, fetch } = createSessionMock(responses)
-      const client = new FeishuAnonymousFormClient(() => browserSession)
+  it('follows guarded guest-login redirects and removes the temporary listeners', async () => {
+    const responses = successfulPreparedResponses()
+    const { browserSession, fetch, onBeforeRedirect, onBeforeRequest, triggerBeforeRedirect, triggerBeforeRequest } =
+      createSessionMock([
+        (url, init) => {
+          expect(url).toBe('https://mcnnox2fhjfq.feishu.cn/share/base/form/shrcnufZiSDrvRPIzSKeqcbBbub')
+          expect(init?.redirect).toBe('follow')
+          expect(triggerBeforeRequest(url)).toBe(false)
+          triggerBeforeRedirect('https://accounts.feishu.cn/accounts/page/login')
+          expect(triggerBeforeRequest('https://accounts.feishu.cn/accounts/page/login')).toBe(false)
+          triggerBeforeRedirect('https://login.feishu.cn/accounts/v1/guest')
+          expect(triggerBeforeRequest('https://login.feishu.cn/accounts/v1/guest')).toBe(false)
+          expect(triggerBeforeRequest(`${FORM_URL}?auth_token=guest-auth-token`)).toBe(false)
+          return new Response('<html></html>', { status: 200 })
+        },
+        ...responses.slice(1)
+      ])
+    const client = new FeishuAnonymousFormClient(() => browserSession)
 
-      await expect(client.upload({ fileName: 'diagnostics.zip', filePath, fileSize: 8 })).resolves.toEqual({
-        status: 'uploaded'
-      })
-      expect(fetch.mock.calls[1][0]).toBe(redirectUrl)
-    }
-  )
+    await expect(client.upload({ fileName: 'diagnostics.zip', filePath, fileSize: 8 })).resolves.toEqual({
+      status: 'uploaded'
+    })
+
+    expect(fetch).toHaveBeenCalledTimes(7)
+    expect(onBeforeRequest).toHaveBeenLastCalledWith(null)
+    expect(onBeforeRedirect).toHaveBeenLastCalledWith(null)
+  })
 
   it.each(['https://example.com/login', 'https://unexpected.feishu.cn/login'])(
-    'rejects a guest redirect to %s',
+    'rejects a guest redirect to %s and removes the temporary listeners',
     async (redirectUrl) => {
-      const redirect = new Response(null, { headers: { location: redirectUrl }, status: 302 })
-      const { browserSession, fetch } = createSessionMock([redirect])
+      const { browserSession, onBeforeRedirect, onBeforeRequest, triggerBeforeRedirect, triggerBeforeRequest } =
+        createSessionMock([
+          () => {
+            triggerBeforeRedirect(redirectUrl)
+            expect(triggerBeforeRequest(redirectUrl)).toBe(true)
+            throw new Error('redirect blocked')
+          }
+        ])
       const client = new FeishuAnonymousFormClient(() => browserSession)
 
       await expect(client.upload({ fileName: 'diagnostics.zip', filePath, fileSize: 8 })).resolves.toEqual({
         reason: 'form_unavailable',
         status: 'manual_upload_required'
       })
-      expect(fetch).toHaveBeenCalledOnce()
+      expect(onBeforeRequest).toHaveBeenLastCalledWith(null)
+      expect(onBeforeRedirect).toHaveBeenLastCalledWith(null)
     }
   )
+
+  it('rejects a guest-login chain after eight redirects', async () => {
+    const redirectUrl = 'https://login.feishu.cn/accounts/v1/guest'
+    const { browserSession, triggerBeforeRedirect, triggerBeforeRequest } = createSessionMock([
+      () => {
+        for (let redirectCount = 0; redirectCount < 8; redirectCount += 1) {
+          triggerBeforeRedirect(redirectUrl)
+          expect(triggerBeforeRequest(redirectUrl)).toBe(false)
+        }
+        triggerBeforeRedirect(redirectUrl)
+        expect(triggerBeforeRequest(redirectUrl)).toBe(true)
+        throw new Error('too many redirects')
+      }
+    ])
+    const client = new FeishuAnonymousFormClient(() => browserSession)
+
+    await expect(client.upload({ fileName: 'diagnostics.zip', filePath, fileSize: 8 })).resolves.toEqual({
+      reason: 'form_unavailable',
+      status: 'manual_upload_required'
+    })
+  })
+
+  it('reports a genuine guest-session fetch failure as a network error and removes the temporary listeners', async () => {
+    const { browserSession, onBeforeRedirect, onBeforeRequest } = createSessionMock([new Error('offline')])
+    const client = new FeishuAnonymousFormClient(() => browserSession)
+
+    await expect(client.upload({ fileName: 'diagnostics.zip', filePath, fileSize: 8 })).resolves.toEqual({
+      reason: 'network_failed',
+      status: 'manual_upload_required'
+    })
+    expect(onBeforeRequest).toHaveBeenLastCalledWith(null)
+    expect(onBeforeRedirect).toHaveBeenLastCalledWith(null)
+  })
+
+  it.each([
+    ['missing', null],
+    ['oversized', 'x'.repeat(4097)]
+  ])('rejects a %s guest auth token', async (_label, authToken) => {
+    const { browserSession, fetch, onBeforeRedirect, onBeforeRequest } = createSessionMock([
+      guestSessionResponse(authToken)
+    ])
+    const client = new FeishuAnonymousFormClient(() => browserSession)
+
+    await expect(client.upload({ fileName: 'diagnostics.zip', filePath, fileSize: 8 })).resolves.toEqual({
+      reason: 'form_unavailable',
+      status: 'manual_upload_required'
+    })
+    expect(fetch).toHaveBeenCalledOnce()
+    expect(onBeforeRequest).toHaveBeenLastCalledWith(null)
+    expect(onBeforeRedirect).toHaveBeenLastCalledWith(null)
+  })
 
   it('falls back when an in-memory guest session cannot be created', async () => {
     const client = new FeishuAnonymousFormClient(() => {
@@ -205,7 +323,7 @@ describe('FeishuAnonymousFormClient', () => {
       }
     })
     const { browserSession, fetch } = createSessionMock([
-      new Response('<html></html>', { status: 200 }),
+      guestSessionResponse(),
       jsonResponse({ code: 0, data: { snapshot: JSON.stringify(changedSnapshot) } })
     ])
     const client = new FeishuAnonymousFormClient(() => browserSession)
@@ -218,7 +336,7 @@ describe('FeishuAnonymousFormClient', () => {
   })
 
   it('does not submit when attachment upload fails', async () => {
-    const responses = successfulDirectResponses()
+    const responses = successfulPreparedResponses()
     responses[2] = jsonResponse({ code: 1, data: {} })
     const { browserSession, fetch } = createSessionMock(responses)
     const client = new FeishuAnonymousFormClient(() => browserSession)
@@ -231,20 +349,20 @@ describe('FeishuAnonymousFormClient', () => {
   })
 
   it('reports an uncertain result without retrying an interrupted final submission', async () => {
-    const responses = successfulDirectResponses()
-    responses[3] = new Error('connection closed')
+    const responses = successfulPreparedResponses()
+    responses[6] = new Error('connection closed')
     const { browserSession, fetch } = createSessionMock(responses)
     const client = new FeishuAnonymousFormClient(() => browserSession)
 
     await expect(client.upload({ fileName: 'diagnostics.zip', filePath, fileSize: 8 })).resolves.toEqual({
       status: 'submission_unknown'
     })
-    expect(fetch).toHaveBeenCalledTimes(4)
+    expect(fetch).toHaveBeenCalledTimes(7)
     expect(fetch.mock.calls.filter(([url]) => String(url).endsWith('/api/bitable/share/content'))).toHaveLength(1)
   })
 
   it('treats a nonzero final response code as an explicit rejection', async () => {
-    const { browserSession } = createSessionMock(successfulDirectResponses(jsonResponse({ code: 4, data: {} })))
+    const { browserSession } = createSessionMock(successfulPreparedResponses(jsonResponse({ code: 4, data: {} })))
     const client = new FeishuAnonymousFormClient(() => browserSession)
 
     await expect(client.upload({ fileName: 'diagnostics.zip', filePath, fileSize: 8 })).resolves.toEqual({
@@ -264,10 +382,7 @@ describe('FeishuAnonymousFormClient', () => {
       }),
       { headers: { 'content-length': '1' }, status: 200 }
     )
-    const { browserSession, fetch } = createSessionMock([
-      new Response('<html></html>', { status: 200 }),
-      oversizedResponse
-    ])
+    const { browserSession, fetch } = createSessionMock([guestSessionResponse(), oversizedResponse])
     const client = new FeishuAnonymousFormClient(() => browserSession)
 
     await expect(client.upload({ fileName: 'diagnostics.zip', filePath, fileSize: 8 })).resolves.toEqual({
@@ -297,10 +412,7 @@ describe('FeishuAnonymousFormClient', () => {
         }),
         { status: 200 }
       )
-    const { browserSession, fetch } = createSessionMock([
-      new Response('<html></html>', { status: 200 }),
-      stalledResponse
-    ])
+    const { browserSession, fetch } = createSessionMock([guestSessionResponse(), stalledResponse])
     const client = new FeishuAnonymousFormClient(() => browserSession)
 
     const upload = client.upload({ fileName: 'diagnostics.zip', filePath, fileSize: 8 })
