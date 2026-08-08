@@ -15,7 +15,10 @@
   --border-subtle: var(--cs-border-subtle);
   --border-strong: var(--cs-border-strong);
   --border-selected: var(--cs-border-selected);
+  --control-accent: var(--cs-theme-control-accent);
+  --control-accent-foreground: var(--cs-theme-control-accent-foreground);
   --link: var(--cs-blue-600);
+  --icon-stroke: var(--cs-icon-stroke);
 
   /* Feedback */
   --success: var(--cs-success);

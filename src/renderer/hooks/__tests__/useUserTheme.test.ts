@@ -19,7 +19,7 @@ describe('useUserTheme', () => {
 
     act(() => result.current.initUserTheme({ colorPrimary: primary }))
 
-    expect(document.documentElement.style.getPropertyValue('--cs-theme-primary-foreground')).toBe(foreground)
+    expect(document.documentElement.style.getPropertyValue('--cs-theme-control-accent-foreground')).toBe(foreground)
   })
 
   it('keeps user font inputs in the renderer-owned namespace', () => {

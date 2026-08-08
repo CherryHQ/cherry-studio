@@ -13,6 +13,9 @@
   --cs-font-weight-medium: 500;
   --cs-font-weight-bold: 700;
 
+  /* Iconography */
+  --cs-icon-stroke: 1.6;
+
   /* Font Sizes - Body */
   --cs-font-size-body-xs: 0.75rem; /* 12px */
   --cs-font-size-body-sm: 0.875rem; /* 14px */

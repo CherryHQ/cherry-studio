@@ -39,8 +39,8 @@ contract use `styles/theme.css`.
 
 ## 3. Runtime inputs and local implementation variables
 
-The current registered runtime inputs are `--cs-theme-primary` and `--cs-theme-primary-foreground`. Host theme
-logic writes them as a pair, deriving the foreground for contrast; only the semantic layer may consume them.
+The registered runtime inputs are `--cs-theme-control-accent` and `--cs-theme-control-accent-foreground`. Host
+theme logic writes them as a pair, deriving the foreground for contrast; only the semantic layer may consume them.
 They are not stable product variables, component APIs, or Tailwind colors.
 
 Renderer-only runtime inputs use the owner-local `--app-*` namespace instead of the shared `--cs-*` namespace.
@@ -122,7 +122,10 @@ Stable product variables are allowed in new code when no official Shadcn role ex
 | `--border-subtle` | Very quiet `border-color` |
 | `--border-strong` | Higher-emphasis structural `border-color` |
 | `--border-selected` | Selected-state `border-color`; focus remains `--ring` |
-| `--link` | Clickable text `color`; independent default blue, separate from `--primary` |
+| `--control-accent` | User-selected accent for checked controls and interactive selection state |
+| `--control-accent-foreground` | Contrast-safe content on a `--control-accent` surface |
+| `--link` | Clickable text `color`; fixed blue (`--cs-blue-600` light / `--cs-blue-400` dark) |
+| `--icon-stroke` | Default `stroke-width` for product Lucide icons |
 
 ### Feedback families
 

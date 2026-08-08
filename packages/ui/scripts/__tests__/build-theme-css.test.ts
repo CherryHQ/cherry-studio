@@ -67,6 +67,8 @@ describe('buildThemeContractCss', () => {
     expect(css).toContain('--color-foreground-tertiary: var(--foreground-tertiary);')
     expect(css).toContain('--color-foreground-disabled: var(--foreground-disabled);')
     expect(css).toContain('--color-border-selected: var(--border-selected);')
+    expect(css).toContain('--color-control-accent: var(--control-accent);')
+    expect(css).toContain('--color-control-accent-foreground: var(--control-accent-foreground);')
     expect(css).toContain('--color-link: var(--link);')
     expect(css).toContain('--color-ring: var(--ring);')
     expect(css).not.toContain('--color-primary: var(--cs-theme-primary);')

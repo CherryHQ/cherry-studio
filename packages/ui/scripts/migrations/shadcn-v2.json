@@ -85,6 +85,12 @@
     { "source": "--cs-border-subtle", "target": "--border-subtle", "strategy": "exact" },
     { "source": "--cs-border-strong", "target": "--border-strong", "strategy": "exact" },
     { "source": "--cs-border-selected", "target": "--border-selected", "strategy": "exact" },
+    { "source": "--cs-control-accent", "target": "--control-accent", "strategy": "exact" },
+    {
+      "source": "--cs-control-accent-foreground",
+      "target": "--control-accent-foreground",
+      "strategy": "exact"
+    },
     { "source": "--cs-success", "target": "--success", "strategy": "exact" },
     { "source": "--cs-success-subtle", "target": "--success-subtle", "strategy": "exact" },
     {
@@ -113,12 +119,8 @@
       "strategy": "exact"
     },
     { "source": "--cs-error-border", "target": "--error-border", "strategy": "exact" },
-    {
-      "source": "--cs-link",
-      "target": null,
-      "strategy": "review",
-      "reason": "The historical link followed the runtime accent text input, while the product link now uses an independent mode-aware blue."
-    },
+    { "source": "--cs-link", "target": "--link", "strategy": "exact" },
+    { "source": "--cs-icon-stroke", "target": "--icon-stroke", "strategy": "exact" },
     { "source": "--cs-code-block", "target": "--code-block", "strategy": "exact" },
     { "source": "--cs-inline-code", "target": "--inline-code", "strategy": "exact" },
     {

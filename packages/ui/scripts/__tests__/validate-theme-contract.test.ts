@@ -21,21 +21,35 @@ describe('validateThemeContractSources', () => {
     expect(() => validateThemeContractSources(sources)).not.toThrow()
   })
 
-  it('pairs the runtime primary with an adaptive foreground and an independent ring', async () => {
+  it('routes the runtime accent through a paired product semantic and keeps primary neutral', async () => {
     const sources = await loadSources()
 
-    expect(sources.themeInput).toContain('--cs-theme-primary-foreground: var(--cs-primary-foreground);')
-    expect(sources.shadcn).toContain('--primary-foreground: var(--cs-theme-primary-foreground);')
+    expect(sources.themeInput).toContain('--cs-theme-control-accent: var(--cs-brand-500);')
+    expect(sources.themeInput).toContain('--cs-theme-control-accent-foreground: var(--cs-neutral-950);')
+    expect(sources.shadcn).toContain('--primary: var(--cs-primary);')
+    expect(sources.product).toContain('--control-accent: var(--cs-theme-control-accent);')
+    expect(sources.product).toContain('--control-accent-foreground: var(--cs-theme-control-accent-foreground);')
     expect(sources.shadcn).toContain('--ring: var(--cs-ring);')
-    expect(sources.shadcn).not.toContain('--ring: color-mix(in srgb, var(--primary)')
   })
 
-  it('keeps product links independent from the runtime primary', async () => {
+  it('keeps product links on the fixed light and dark blue scale', async () => {
     const sources = await loadSources()
 
     expect(sources.product).toContain('--link: var(--cs-blue-600);')
     expect(sources.product).toContain('--link: var(--cs-blue-400);')
+    expect(sources.product).not.toContain('--link: var(--control-accent);')
     expect(sources.product).not.toContain('--link: var(--primary);')
+  })
+
+  it('preserves the v2 light and dark foundation palette', async () => {
+    const sources = await loadSources()
+
+    expect(sources.providerColors).toContain('--cs-background: #ffffff;')
+    expect(sources.providerColors).toContain('--cs-foreground: #1a1c1f;')
+    expect(sources.providerColors).toContain('--cs-sidebar: #f7f8f7;')
+    expect(sources.providerColors).toContain('--cs-background: #1515148c;')
+    expect(sources.providerColors).toContain('--cs-foreground: #e8e9eb;')
+    expect(sources.providerColors).toContain('--cs-sidebar: #1c1d1a;')
   })
 
   it('rejects cross-layer duplicate ownership', async () => {
@@ -48,7 +62,7 @@ describe('validateThemeContractSources', () => {
   it('rejects an upward dependency from the foundation layer', async () => {
     const sources = await loadSources()
     sources.providerColors = sources.providerColors.replace(
-      '--cs-primary: var(--cs-brand-500);',
+      '--cs-primary: var(--cs-neutral-900);',
       '--cs-primary: var(--background);'
     )
 
@@ -58,7 +72,7 @@ describe('validateThemeContractSources', () => {
   it('rejects a product dependency from the foundation layer', async () => {
     const sources = await loadSources()
     sources.providerColors = sources.providerColors.replace(
-      '--cs-primary: var(--cs-brand-500);',
+      '--cs-primary: var(--cs-neutral-900);',
       '--cs-primary: var(--success);'
     )
 
@@ -84,7 +98,7 @@ describe('validateThemeContractSources', () => {
   it('resolves references with whitespace after var opening', async () => {
     const sources = await loadSources()
     sources.providerColors = sources.providerColors.replace(
-      '--cs-primary: var(--cs-brand-500);',
+      '--cs-primary: var(--cs-neutral-900);',
       '--cs-primary: var( --cs-missing-primary);'
     )
 
@@ -114,7 +128,7 @@ describe('validateThemeContractSources', () => {
 
   it('rejects an upper-layer dependency from a runtime input', async () => {
     const sources = await loadSources()
-    sources.themeInput = sources.themeInput.replace('var(--cs-primary)', 'var(--primary)')
+    sources.themeInput = sources.themeInput.replace('var(--cs-brand-500)', 'var(--primary)')
 
     expect(() => validateThemeContractSources(sources)).toThrow(/runtime input .* cannot depend on upper-layer/)
   })
@@ -154,7 +168,7 @@ describe('validateThemeContractSources', () => {
   it('rejects unresolved references introduced by a dark override', async () => {
     const sources = await loadSources()
     sources.providerColors = sources.providerColors.replace(
-      '--cs-background: oklch(0.209 0 0 / 0.55);',
+      '--cs-background: #1515148c;',
       '--cs-background: var( --cs-missing-dark-background);'
     )
 
