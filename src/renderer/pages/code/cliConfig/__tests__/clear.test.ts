@@ -78,7 +78,12 @@ describe('clearCliConfig', () => {
       'goals = true',
       'other = true'
     ].join('\n')
-    existing['/resolved~/.codex/auth.json'] = JSON.stringify({ OPENAI_API_KEY: 'sk', user: 'keep' })
+    existing['/resolved~/.codex/auth.json'] = JSON.stringify({
+      auth_mode: 'apikey',
+      OPENAI_API_KEY: 'sk',
+      tokens: { access_token: 'oauth-access' },
+      user: 'keep'
+    })
 
     await clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })
 
@@ -87,7 +92,19 @@ describe('clearCliConfig', () => {
       model_providers: { userprov: { base_url: 'https://user.example' } },
       features: { other: true }
     })
-    expect(JSON.parse(writes['/resolved~/.codex/auth.json'])).toEqual({ user: 'keep' })
+    expect(JSON.parse(writes['/resolved~/.codex/auth.json'])).toEqual({
+      auth_mode: 'chatgpt',
+      tokens: { access_token: 'oauth-access' },
+      user: 'keep'
+    })
+  })
+
+  it('codex: removes stale API-key auth mode when no official login can be restored', async () => {
+    existing['/resolved~/.codex/auth.json'] = JSON.stringify({ auth_mode: 'apikey' })
+
+    await clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })
+
+    expect(JSON.parse(writes['/resolved~/.codex/auth.json'])).toEqual({})
   })
 
   it('opencode: strips only cherry-* providers and the cherry-addressed top-level model', async () => {

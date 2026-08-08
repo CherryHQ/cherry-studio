@@ -457,8 +457,9 @@ describe('writeCliConfigDraft', () => {
       expect(writes).toEqual([])
     })
 
-    it('merges OPENAI_API_KEY into auth.json, preserving unrelated OAuth keys', async () => {
+    it('switches auth.json from ChatGPT OAuth to API-key mode while preserving the official login', async () => {
       existing['/resolved~/.codex/auth.json'] = JSON.stringify({
+        auth_mode: 'chatgpt',
         tokens: { id_token: 'oauth-jwt', access_token: 'oauth-access' }
       })
       mockGet({
@@ -473,6 +474,7 @@ describe('writeCliConfigDraft', () => {
       })
 
       const authParsed = JSON.parse(findWrite('auth.json')!.content)
+      expect(authParsed.auth_mode).toBe('apikey')
       expect(authParsed.tokens).toEqual({ id_token: 'oauth-jwt', access_token: 'oauth-access' })
       expect(authParsed.OPENAI_API_KEY).toBe('sk-secret')
     })

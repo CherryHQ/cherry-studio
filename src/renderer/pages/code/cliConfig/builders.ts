@@ -133,7 +133,19 @@ export function buildCodexConfig(
 }
 
 export function buildCodexAuthConfig(existingAuth: Record<string, any>, apiKey: string): Record<string, any> {
-  return { ...existingAuth, OPENAI_API_KEY: apiKey }
+  return { ...existingAuth, auth_mode: 'apikey', OPENAI_API_KEY: apiKey }
+}
+
+export function clearCodexApiKeyAuth(existingAuth: Record<string, any>): Record<string, any> {
+  const nextAuth = { ...existingAuth }
+  delete nextAuth.OPENAI_API_KEY
+
+  if (nextAuth.auth_mode === 'apikey') {
+    if (Object.keys(asRecord(nextAuth.tokens)).length > 0) nextAuth.auth_mode = 'chatgpt'
+    else delete nextAuth.auth_mode
+  }
+
+  return nextAuth
 }
 
 function buildOpenCodeModelOptions(
