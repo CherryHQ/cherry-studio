@@ -20,6 +20,11 @@ export interface StreamLifecycle {
    * only see the shared-cache entry, so it must be rebroadcast here.
    */
   onApprovalPendingChanged(stream: ActiveStream): void
+  /**
+   * Called when any execution's stall state changes (stalled or cleared).
+   * The stall info is read from the execution's `stalled` / `stalledReason` fields.
+   */
+  onStallChanged(stream: ActiveStream): void
   /** Called once when `isTopicDone` flips; read `stream.status` for the final status. */
   onTerminal(stream: ActiveStream): void
   /** Returning false short-circuits `attach` to `'not-found'`. */

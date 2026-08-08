@@ -1,3 +1,4 @@
+import type { StallReason } from '@shared/ai/transport'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
 import { BeatLoader } from 'react-spinners'
@@ -6,6 +7,8 @@ interface PlaceholderBlockProps {
   isProcessing: boolean
   createdAt: string
   status?: PlaceholderStatus
+  stalled?: boolean
+  stalledReason?: StallReason
 }
 
 export type PlaceholderStatus = 'generating' | 'preparing' | 'thinking' | 'usingTools'
@@ -15,6 +18,11 @@ const PLACEHOLDER_LABEL_KEYS: Record<PlaceholderStatus, string> = {
   preparing: 'message.tools.placeholder.preparing',
   thinking: 'message.tools.placeholder.thinking',
   usingTools: 'message.tools.placeholder.usingTools'
+}
+
+const STALL_LABEL_KEYS: Record<StallReason, string> = {
+  tool_stall: 'message.tools.placeholder.stalled.tool',
+  no_progress: 'message.tools.placeholder.stalled.no_progress'
 }
 
 type Translate = (key: string, options?: Record<string, number | string>) => string
@@ -55,10 +63,27 @@ export function formatPlaceholderElapsed(elapsedMs: number, t: Translate): strin
   return t('message.tools.placeholder.elapsed.seconds', { seconds })
 }
 
-const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({ isProcessing, status = 'preparing' }) => {
+const PlaceholderBlock: React.FC<PlaceholderBlockProps> = ({
+  isProcessing,
+  status = 'preparing',
+  stalled = false,
+  stalledReason
+}) => {
   const { t } = useTranslation()
 
   if (isProcessing) {
+    if (stalled) {
+      const stallKey = stalledReason ? STALL_LABEL_KEYS[stalledReason] : undefined
+      const stallLabel = stallKey ? t(stallKey) : t('message.tools.placeholder.stalled')
+      return (
+        <div
+          className="flex min-h-7 select-none flex-row items-center gap-1.5 py-0.5 text-[13px] text-amber-500 leading-5"
+          data-testid="message-status-placeholder-stalled">
+          <span data-testid="message-status-text-stalled">{stallLabel}</span>
+          <BeatLoader color="currentColor" size={4} speedMultiplier={0.8} />
+        </div>
+      )
+    }
     return (
       <div
         className="flex min-h-7 select-none flex-row items-center gap-1.5 py-0.5 text-[13px] text-foreground-tertiary leading-5"

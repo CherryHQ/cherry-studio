@@ -1,5 +1,5 @@
 import { application } from '@application'
-import type { ActiveExecution, TopicStreamStatus } from '@shared/ai/transport'
+import type { ActiveExecution, StallReason, TopicStreamStatus } from '@shared/ai/transport'
 
 import type { ActiveStream } from '../types'
 import type { StreamLifecycle } from './StreamLifecycle'
@@ -12,6 +12,8 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
   const broadcast = (stream: ActiveStream, status: TopicStreamStatus) => {
     const activeExecutions: ActiveExecution[] = []
     const awaitingApprovalAnchors: ActiveExecution[] = []
+    let stalled = false
+    let stalledReason: StallReason | undefined
 
     for (const [modelId, exec] of stream.executions) {
       const entry: ActiveExecution = { executionId: modelId, anchorMessageId: exec.anchorMessageId }
@@ -19,6 +21,11 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       // Main-side authoritative approval-anchor identity; renderer reads this
       // instead of inferring from `parts` / SWR-lagged status.
       if (exec.pendingApprovalToolCallIds?.size) awaitingApprovalAnchors.push(entry)
+      // Collect stall state from any stalled execution
+      if (exec.stalled) {
+        stalled = true
+        stalledReason = stalledReason ?? exec.stalledReason
+      }
     }
 
     const cacheService = application.get('CacheService')
@@ -30,7 +37,9 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       turnId: stream.turnId,
       activeExecutions,
       awaitingApprovalAnchors,
-      lastCompletedAt
+      lastCompletedAt,
+      stalled: stalled || undefined,
+      stalledReason
     })
   }
 
@@ -43,6 +52,9 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       broadcast(stream, 'streaming')
     },
     onApprovalPendingChanged(stream) {
+      broadcast(stream, stream.status)
+    },
+    onStallChanged(stream) {
       broadcast(stream, stream.status)
     },
     onTerminal(stream) {

@@ -1,6 +1,6 @@
 import type { Span } from '@opentelemetry/api'
 import type { CompactionAnchorData } from '@shared/ai/compaction'
-import type { StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
+import type { StallReason, StreamChunkPayload, TopicStreamStatus } from '@shared/ai/transport'
 import type { CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
@@ -19,6 +19,7 @@ export type {
   AiStreamDetachRequest,
   AiStreamOpenRequest,
   AiStreamOpenResponse,
+  StallReason,
   StreamChunkPayload,
   StreamDonePayload,
   StreamErrorPayload,
@@ -128,6 +129,17 @@ export interface StreamExecution {
   runtimeTiming: MessageRuntimeTimingCollector
   /** OTel root span set as active context around `runExecutionLoop`. */
   rootSpan?: Span
+  // ── Stall detection tracking ────────────────────────────────────────
+  /** Timestamp (ms) when the current active tool call started. */
+  toolCallStartedAt?: number
+  /** ID of the currently active tool call (from tool-input-start / tool-input-available). */
+  activeToolCallId?: string
+  /** Timestamp (ms) of the last text-delta chunk received. */
+  lastTextContentAt?: number
+  /** Whether a stall warning is currently active for this execution. */
+  stalled?: boolean
+  /** Human-readable stall reason, if stalled. */
+  stalledReason?: StallReason
 }
 
 // ── ActiveStream ────────────────────────────────────────────────────

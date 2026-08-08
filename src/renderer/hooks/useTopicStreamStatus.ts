@@ -4,7 +4,7 @@
 
 import { loggerService } from '@logger'
 import { useSharedCache, useSharedCacheValue } from '@renderer/data/hooks/useCache'
-import { type ActiveExecution, classifyTurn, type TopicStreamStatus } from '@shared/ai/transport'
+import { type ActiveExecution, classifyTurn, type StallReason, type TopicStreamStatus } from '@shared/ai/transport'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useTopicStreamStatus')
@@ -26,6 +26,10 @@ interface TopicStreamStatusView {
    */
   isFulfilled: boolean
   markSeen: () => void
+  /** True when a stall has been detected (tool stuck too long or no progress). */
+  stalled: boolean
+  /** Stall reason key, suitable for i18n lookup. */
+  stalledReason: StallReason | undefined
 }
 
 export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
@@ -46,6 +50,8 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
   const flags = classifyTurn(status)
   const isPending = flags.isStreamLive
   const isFulfilled = status === 'done' && lastCompletedAt !== lastSeenCompletion
+  const stalled = entry?.stalled ?? false
+  const stalledReason = entry?.stalledReason
 
   const markSeen = useCallback(() => {
     if (lastCompletedAt != null && lastCompletedAt !== lastSeenCompletion) {
@@ -53,7 +59,7 @@ export function useTopicStreamStatus(topicId: string): TopicStreamStatusView {
     }
   }, [lastCompletedAt, lastSeenCompletion, setLastSeenCompletion])
 
-  return { status, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen }
+  return { status, activeExecutions, awaitingApprovalAnchors, isPending, isFulfilled, markSeen, stalled, stalledReason }
 }
 
 export function useTopicAwaitingApproval(topicId: string): boolean {
