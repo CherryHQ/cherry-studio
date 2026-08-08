@@ -66,9 +66,14 @@ export interface UseTopicMessagesCacheParams {
   mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>
 }
 
-export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCacheParams) {
+export function getTopicBranchCachePaths(topicId: string) {
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
+  return [messagesCachePath, treeCachePath]
+}
+
+export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCacheParams) {
+  const [messagesCachePath, treeCachePath] = getTopicBranchCachePaths(topicId)
   const branchCachePaths = [messagesCachePath, treeCachePath]
 
   /**

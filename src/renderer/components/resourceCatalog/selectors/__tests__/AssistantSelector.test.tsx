@@ -171,7 +171,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.dialogs.create.step.basic': 'Basic info',
           'library.config.dialogs.create.step.capability': 'Capabilities',
           'library.config.dialogs.create.step.knowledge': 'Knowledge',
-          'library.config.dialogs.create.step.persona': 'Persona',
           'library.config.dialogs.edit.assistant_description': 'Edit the essentials for this assistant.',
           'library.config.dialogs.edit.assistant_title': 'Edit Assistant',
           'library.config.dialogs.edit.basic_tab': 'Basic',

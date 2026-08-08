@@ -1007,6 +1007,10 @@
           "description": "透過已連接的頻道傳送通知",
           "label": "通知"
         },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
+          "label": "[to be translated]:Document to Markdown"
+        },
         "CherryWebFetch": {
           "description": "擷取並讀取網頁",
           "label": "網頁擷取"
@@ -1677,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "新分支已建立",
-          "disabled": {
-            "active": "目前已定位到這個節點，繼續輸入即可從這裡延續。",
-            "latest": "目前已在最新分支末端，繼續輸入即可延續這個分支。",
-            "no_follow_up": "這則訊息後還沒有後續對話，切換到該節點後繼續輸入即可。"
-          },
           "label": "分支"
         },
         "context": "新上下文"
@@ -2989,6 +2988,28 @@
       "title": "匯入 ChatGPT 對話",
       "untitled_conversation": "未命名對話"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "選擇匯入檔案",
       "label": "確定要匯入外部資料嗎？"
@@ -3027,10 +3048,20 @@
           "selected_notes": "已選 {{count}} 個筆記"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "選擇現有筆記作為知識庫資料來源",
           "empty_description": "請先在「筆記」功能中建立筆記，再回到這裡選擇。",
           "empty_title": "找不到筆記",
-          "loading": "正在載入筆記…"
+          "loading": "正在載入筆記…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "支援 PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3289,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "應用程式",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "小程式",
     "miniApps": "小程式",
     "pin_to_sidebar": "新增到側邊欄",
@@ -3359,11 +3391,6 @@
           },
           "heartbeat_interval": {
             "label": "心跳間隔（分鐘）"
-          },
-          "instructions": {
-            "hint": "定義 Agent 的角色與行為界限",
-            "label": "系統提示詞",
-            "placeholder": "告訴 Agent 它是誰，以及它能做什麼……"
           },
           "max_turns": {
             "help": "0 表示使用預設值",
@@ -3559,8 +3586,7 @@
           "step": {
             "basic": "基本資訊",
             "capability": "技能",
-            "knowledge": "知識庫",
-            "persona": "設定人格"
+            "knowledge": "知識庫"
           },
           "submit": "建立",
           "submit_failed": "建立失敗"
@@ -4223,6 +4249,8 @@
         "taskOutput": "檢視任務輸出",
         "taskStop": "停止任務",
         "taskUpdate": "更新任務",
+        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "待辦寫入",
         "tool": "工具",
         "webFetch": "網頁擷取",
@@ -4273,6 +4301,8 @@
       "thinkingHeader": "思考",
       "truncated": "輸出已截斷（原始大小：{{size}}）",
       "units": {
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
         "done_one": "[to be translated]:{{count}} Done",
         "done_other": "{{count}} 完成",
         "file_one": "[to be translated]:{{count}} file",
@@ -6017,11 +6047,41 @@
         "skip_file_data_title": "精簡備份"
       },
       "clear_cache": {
+        "approximately": "約 {{size}}",
         "button": "清除快取",
-        "confirm": "清除快取將刪除應用程式快取資料，包括小工具資料。此操作無法還原，是否繼續？",
+        "calculating": "計算中…",
         "error": "清除快取失敗",
+        "legacy_warning": {
+          "confirm": "仍要選擇",
+          "description": "清理完成後，此選項包含的 v1 版本資料將被永久刪除。如果沒有備份，這些資料將無法復原。",
+          "message": "v1 版本資料將被永久刪除",
+          "title": "確認選擇 v1 版本遺留資料？"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "v1 版本遺留資料，包括舊的對話記錄和設定。清理後無法復原。",
+            "title": "v1 版本遺留資料"
+          },
+          "normal_cache": {
+            "description": "清理使用應用程式時產生的快取和暫存檔，以釋放儲存空間，不會刪除對話記錄和設定。",
+            "title": "應用程式快取"
+          },
+          "orphaned_data": {
+            "description": "清理不再使用的檔案、知識庫殘留和備份還原暫存檔。",
+            "title": "殘留檔案與知識庫"
+          },
+          "site_data": {
+            "description": "網站和小程式使用的 Cookie 與網站儲存空間；清理後可能需要重新登入網站。",
+            "title": "網站與小程式資料"
+          }
+        },
+        "partial_success": "清理已完成，但部分項目無法清除",
+        "selected_total": "所選項目總計",
         "success": "快取清除成功",
-        "title": "清除快取"
+        "title": "清除快取",
+        "total_partial": "已統計 {{size}}，部分大小未知",
+        "unavailable": "無法統計",
+        "waiting_for_legacy_database": "正在等待舊版資料庫釋放。請關閉其他 Cherry Studio 視窗，連線關閉後將繼續清理。"
       },
       "data": {
         "title": "資料目錄"
@@ -6064,6 +6124,7 @@
       "import_settings": {
         "button": "匯入 JSON 檔案",
         "chatgpt": "匯入 ChatGPT 資料",
+        "claude": "[to be translated]:Import from Claude",
         "title": "匯入外部應用程式資料"
       },
       "joplin": {
@@ -6435,6 +6496,23 @@
         "token_placeholder": "請輸入思源筆記 Token"
       },
       "title": "資料",
+      "v1_remigration": {
+        "acknowledgement": "我已了解風險並願意繼續。",
+        "back": "上一步",
+        "backup_acknowledgement": "我已備份資料",
+        "backup_button": "立即完整備份",
+        "backup_message": "請先完整備份目前資料。繼續操作將永久刪除目前的 v2 資料，此操作無法復原。",
+        "button": "重新遷移",
+        "confirm": "重新遷移",
+        "confirm_countdown": "重新遷移（{{seconds}} 秒）",
+        "dialog_title": "重新遷移 v1 資料",
+        "error": "重新遷移 v1 資料啟動失敗",
+        "final_confirmation": "確認刪除目前的 v2 資料並重新遷移 v1 資料？",
+        "final_message": "目前的 v2 資料將被永久刪除，此操作無法復原。",
+        "final_retained": "原始 v1 資料會保留，並在重新啟動後再次匯入。",
+        "next": "下一步",
+        "title": "重新遷移 v1 資料"
+      },
       "webdav": {
         "autoSync": {
           "label": "自動備份",
@@ -6602,6 +6680,7 @@
         "notice": {
           "downloadFailed": "下載失敗，請檢查網路後重試。",
           "inUse": "該模型仍被知識庫使用，已保留權重。",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "刪除失敗，請檢視記錄。"
         },
         "ocr": {

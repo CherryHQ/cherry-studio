@@ -8,6 +8,7 @@ import {
   FileEdit,
   FileSearch,
   FileText,
+  FileType,
   FolderSearch,
   Globe,
   ListTodo,
@@ -26,7 +27,7 @@ import { useTranslation } from 'react-i18next'
 
 import { PlaceholderShimmerText } from '../blocks/PlaceholderShimmerText'
 import { useOptionalMessageListUi } from '../MessageListProvider'
-import { AgentToolsType } from './shared/agentToolTypes'
+import { AgentToolsType, TO_MARKDOWN_RUNTIME_TOOL_NAME } from './shared/agentToolTypes'
 import { type ToolStatus, ToolStatusIndicator, useIsStreaming } from './shared/GenericTools'
 
 type Translate = (key: string, options?: Record<string, string>) => string
@@ -85,7 +86,8 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.EnterWorktree]: { icon: <DoorOpen size={14} /> },
   [AgentToolsType.ExitWorktree]: { icon: <DoorOpen size={14} /> },
   [AgentToolsType.Workflow]: { icon: <WorkflowIcon size={14} />, labelKey: 'message.tools.labels.workflow' },
-  [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' }
+  [AgentToolsType.Skill]: { icon: <ToolCase size={14} />, labelKey: 'message.tools.labels.skill' },
+  [TO_MARKDOWN_RUNTIME_TOOL_NAME]: { icon: <FileType size={14} />, labelKey: 'message.tools.labels.toMarkdown' }
 }
 
 const getAgentToolIcon = (toolName: string): ReactNode => TOOL_HEADER_UI[toolName]?.icon ?? <Wrench size={14} />

@@ -21,8 +21,7 @@ export interface TracePageProps {
 
 export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload = false }) => {
   const [spans, setSpans] = useState<TraceNode[]>([])
-  const [selectedNode, setSelectedNode] = useState<TraceNode | null>(null)
-  const [showList, setShowList] = useState(true)
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [pollError, setPollError] = useState<string | null>(null)
   const failureCountRef = useRef(0)
   const emptyCountRef = useRef(0)
@@ -88,22 +87,32 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
   }, [])
 
   const handleNodeClick = (nodeId: string) => {
-    const latestNode = findNodeById(spans, nodeId)
-    if (latestNode) {
-      setSelectedNode(latestNode)
-      setShowList(false)
+    if (findNodeById(spans, nodeId)) {
+      setSelectedNodeId(nodeId)
     }
   }
 
   const handleShowList = () => {
-    setShowList(true)
-    setSelectedNode(null)
+    setSelectedNodeId(null)
   }
 
+  // Derived at render: the poll merge rebuilds node objects, so resolving the
+  // selection by id here replaces the former setSpans → effect →
+  // setSelectedNode chain (an extra render pass per poll tick). A node that
+  // vanished from the trace resolves to null and falls back to the list view.
+  const selectedNode = selectedNodeId ? findNodeById(spans, selectedNodeId) : null
+  const showList = !selectedNode
+
+  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
+  // an unchanged key, and clearing here would wipe the loaded trace before the
+  // refreshed poll result arrives.
+  const resetKeyRef = useRef(`${topicId}:${traceId}`)
   useEffect(() => {
+    const key = `${topicId}:${traceId}`
+    if (resetKeyRef.current === key) return
+    resetKeyRef.current = key
     setSpans([])
-    setSelectedNode(null)
-    setShowList(true)
+    setSelectedNodeId(null)
   }, [topicId, traceId])
 
   useEffect(() => {
@@ -179,18 +188,6 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
       }
     }
   }, [topicId, traceId, reload, getRootSpans, updatePercentAndStart, mergeTraceNodes])
-
-  useEffect(() => {
-    if (selectedNode) {
-      const latest = findNodeById(spans, selectedNode.id)
-      if (!latest) {
-        setShowList(true)
-        setSelectedNode(null)
-      } else if (latest !== selectedNode) {
-        setSelectedNode(latest)
-      }
-    }
-  }, [spans, selectedNode, findNodeById])
 
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-card text-card-foreground">

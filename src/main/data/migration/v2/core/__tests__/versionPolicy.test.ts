@@ -59,39 +59,40 @@ describe('checkUpgradePathCompatibility', () => {
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'v2_gateway_skipped',
-      details: { previousVersion: '1.9.12', currentVersion: '2.1.0', gatewayVersion: '2.0.0' }
+      details: { previousVersion: '1.9.12', currentVersion: '2.1.0', gatewayVersion: '2.0.x' }
     })
   })
 
-  it('#7 blocks when current is v2.0.1 (strict v2.0.0 requirement)', () => {
-    const result = check({ previousVersion: '1.9.12', versionLogExists: true, currentAppVersion: '2.0.1' })
-    expect(result).toStrictEqual({
-      outcome: 'block',
-      reason: 'v2_gateway_skipped',
-      details: { previousVersion: '1.9.12', currentVersion: '2.0.1', gatewayVersion: '2.0.0' }
-    })
+  it('#7 passes when v1.9.13 upgrades directly to v2.0.1', () => {
+    const result = check({ previousVersion: '1.9.13', versionLogExists: true, currentAppVersion: '2.0.1' })
+    expect(result).toStrictEqual({ outcome: 'pass' })
   })
 
-  it('#8 passes for v2 internal upgrade (2.0.0 -> 2.1.0)', () => {
+  it('#8 passes for later v2.0.x patch releases', () => {
+    const result = check({ previousVersion: '1.9.13', versionLogExists: true, currentAppVersion: '2.0.99' })
+    expect(result).toStrictEqual({ outcome: 'pass' })
+  })
+
+  it('#9 passes for v2 internal upgrade (2.0.0 -> 2.1.0)', () => {
     const result = check({ previousVersion: '2.0.0', versionLogExists: true, currentAppVersion: '2.1.0' })
     expect(result).toStrictEqual({ outcome: 'pass' })
   })
 
-  it('#9 blocks when previous is 2.0.0-beta (pre-release < 2.0.0)', () => {
+  it('#10 blocks when previous is 2.0.0-beta (pre-release < 2.0.0)', () => {
     const result = check({ previousVersion: '2.0.0-beta', versionLogExists: true, currentAppVersion: '2.1.0' })
     expect(result).toStrictEqual({
       outcome: 'block',
       reason: 'v2_gateway_skipped',
-      details: { previousVersion: '2.0.0-beta', currentVersion: '2.1.0', gatewayVersion: '2.0.0' }
+      details: { previousVersion: '2.0.0-beta', currentVersion: '2.1.0', gatewayVersion: '2.0.x' }
     })
   })
 
-  it('#10 passes when version.log exists but no previous version found', () => {
+  it('#11 passes when version.log exists but no previous version found', () => {
     const result = check({ previousVersion: null, versionLogExists: true, currentAppVersion: '2.0.0' })
     expect(result).toStrictEqual({ outcome: 'pass' })
   })
 
-  it('#11 passes when previous version is above V1_REQUIRED (1.9.13)', () => {
+  it('#12 passes when previous version is above V1_REQUIRED (1.9.13)', () => {
     const result = check({ previousVersion: '1.9.13', versionLogExists: true, currentAppVersion: '2.0.0' })
     expect(result).toStrictEqual({ outcome: 'pass' })
   })

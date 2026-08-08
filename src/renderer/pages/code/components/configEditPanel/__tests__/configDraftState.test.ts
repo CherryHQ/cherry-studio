@@ -1,5 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -101,5 +102,39 @@ describe('loadInitialConfigDraft (cherry gateway)', () => {
     expect(env.ANTHROPIC_AUTH_TOKEN).toBe('cs-sk-gateway')
     expect(env.ANTHROPIC_MODEL).toBe('deepseek:deepseek-chat')
     expect(settings!.content).not.toContain('sk-REAL')
+  })
+
+  it('rebuilds detailed Claude role models through gateway addresses', async () => {
+    const model = {
+      id: 'deepseek::deepseek-chat',
+      providerId: 'deepseek',
+      apiModelId: 'deepseek-chat'
+    } as unknown as Model
+    const detailedConfig = {
+      env: {
+        ANTHROPIC_DEFAULT_FABLE_MODEL: 'deepseek:deepseek-chat',
+        ANTHROPIC_DEFAULT_FABLE_MODEL_NAME: 'deepseek:deepseek-chat'
+      }
+    }
+
+    const draft = await loadInitialConfigDraft({
+      cliTool: CodeCli.CLAUDE_CODE,
+      providerId: CLI_API_GATEWAY_PROVIDER_ID,
+      isCurrentProvider: false,
+      initialModelId: undefined,
+      initialConfig: detailedConfig,
+      initialClaudeModelMode: 'detailed',
+      initialDraftSeed: { ...initialDraftSeed, modelId: undefined, config: detailedConfig },
+      connectionMatchesProvider: () => true,
+      gateway,
+      gatewayModels: new Map<UniqueModelId, Model>([[model.id, model]])
+    })
+
+    expect(draft.error).toBe('')
+    const settings = draft.files.find((file) => file.target === 'claude-settings')
+    const env = JSON.parse(settings!.content).env
+    expect(env.ANTHROPIC_DEFAULT_FABLE_MODEL).toBe('deepseek:deepseek-chat')
+    expect(env.ANTHROPIC_MODEL).toBeUndefined()
+    expect(env.ANTHROPIC_AUTH_TOKEN).toBe('cs-sk-gateway')
   })
 })

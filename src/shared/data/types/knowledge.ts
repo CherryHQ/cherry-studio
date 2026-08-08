@@ -1,4 +1,5 @@
 import { AbsoluteFilePathSchema } from '@shared/types/file'
+import { sanitizeFilename } from '@shared/utils/file'
 import * as z from 'zod'
 
 import { GroupIdSchema } from './group'
@@ -797,12 +798,54 @@ export function getKnowledgeNoteFirstLine(content: string): string {
   )
 }
 
+const SNAPSHOT_TITLE_MAX = 80
+
+/**
+ * File stem a captured note snapshot is stored under, derived from the note's title, falling back to
+ * `note` when sanitizing leaves nothing usable.
+ *
+ * Lives here rather than beside the capture code because the same slug is the note's identity: an
+ * add-input has no snapshot yet, so detection has to predict the name an already-indexed note was
+ * stored under (`Q4: plan` → `Q4_ plan`) or a re-add of an ordinary title would never be detected.
+ * For the same reason the title is reduced to its first line *before* sanitizing — a `source` can
+ * legitimately be the whole note body (the v1 migrator's fallback), and newlines are control
+ * characters, so sanitizing it whole would fold the body into the name as `Title__- item`.
+ */
+export function deriveNoteSnapshotSlug(source: string): string {
+  // Trim after truncating: `sanitizeFilename` only strips *trailing* whitespace, and it turns a tab
+  // landing on the cut into an `_` first, so an 80-char cut would otherwise keep a stray separator.
+  const sanitized = sanitizeFilename(getKnowledgeNoteFirstLine(source).slice(0, SNAPSHOT_TITLE_MAX).trim())
+  if (sanitized && sanitized !== 'untitled') {
+    return sanitized
+  }
+  return 'note'
+}
+
+/**
+ * A note's name, shared by its display title and its conflict key so the two cannot name different
+ * items. Falls back in the order the name actually becomes available: the deduped `raw/` snapshot
+ * name once indexed (`Alpha_2.md` → `Alpha_2`), else the user-supplied title, else the first content
+ * line for notes carrying no title at all.
+ *
+ * The title is read one line at a time because it is not always one: the v1 migrator falls back to
+ * the whole note body when a legacy note has no `sourceUrl` (see `KnowledgeMappings`), and rendering
+ * an entire note as its own row title is worse than the first line it used to show.
+ *
+ * Keying detection off the body's first line instead would split the two axes apart: notes the user
+ * gave distinct titles could not coexist if their bodies opened with the same line, and `replace`
+ * would purge an existing note the conflict dialog had named after a title the user never typed.
+ */
+function getKnowledgeNoteName(data: KnowledgeItemTitleSource['data']): string {
+  const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
+  return snapshotName || getKnowledgeNoteFirstLine(data.source || '') || getKnowledgeNoteFirstLine(data.content || '')
+}
+
 /**
  * User-facing display name for a knowledge item or add-input. Prefers the
  * `relativePath` — the deduped name stored under `raw/` (e.g. `测试_2.pdf`) — so
  * that same-name items kept side by side ("保留全部") stay distinguishable:
  * - file: relativePath basename (always set at add-time) else source basename
- * - note: captured snapshot name (set on first index) else first content line
+ * - note: see {@link getKnowledgeNoteName}
  * - url: captured snapshot name (set on first index) else the raw url
  * - directory: deduped `raw/` directory prefix (set on first expansion, e.g. `docs_2`)
  *   else the original folder's source basename
@@ -814,10 +857,8 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
       return getKnowledgePathBasename(data.relativePath || data.source || '')
     case 'directory':
       return getKnowledgePathBasename(data.relativePath || data.source || '')
-    case 'note': {
-      const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
-      return snapshotName || getKnowledgeNoteFirstLine(data.content || '')
-    }
+    case 'note':
+      return getKnowledgeNoteName(data)
     case 'url': {
       const snapshotName = data.relativePath ? getKnowledgePathBasename(data.relativePath).replace(/\.md$/i, '') : ''
       return snapshotName || data.url || data.source || ''
@@ -832,10 +873,12 @@ export function getKnowledgeItemDisplayTitle(item: KnowledgeItemTitleSource): st
  * relativePath yet, so it keys off the source basename and detection still fires;
  * an existing item keys off its deduped relativePath, so `replace` targets only
  * the one colliding copy (relativePath `test.md`) instead of every item sharing a
- * source basename (`test.md`, `test_2.md`, `test_3.md`). url/note stay separate
- * from the display title: url keys off the raw `data.url` (exact, no normalization)
- * and note off its first line, because their deduped name is a post-index snapshot
- * name absent at add-time — keying off it would miss real duplicate urls/notes.
+ * source basename (`test.md`, `test_2.md`, `test_3.md`). note keys off the same
+ * {@link getKnowledgeNoteName} the display title uses, normalized through
+ * {@link deriveNoteSnapshotSlug} while it is still a raw title, so an add-input matches the slug an
+ * already-indexed note is stored under. url stays separate from its display title: it keys off the
+ * raw `data.url` (exact, no normalization) because its deduped name is a post-index snapshot name
+ * absent at add-time — keying off that would miss real duplicate urls.
  */
 export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): string {
   const data = item.data
@@ -843,8 +886,13 @@ export function getKnowledgeItemConflictKey(item: KnowledgeItemTitleSource): str
     case 'file':
     case 'directory':
       return getKnowledgePathBasename(data.relativePath || data.source || '')
-    case 'note':
-      return getKnowledgeNoteFirstLine(data.content || '')
+    case 'note': {
+      const name = getKnowledgeNoteName(data)
+      // An unnamed note has no real name to collide on — keep the empty key so detection skips it.
+      if (!name) return ''
+      // A stored snapshot name is already a slug; only a raw title still needs normalizing.
+      return data.relativePath ? name : deriveNoteSnapshotSlug(name)
+    }
     case 'url':
       return (data.url || '').trim()
   }

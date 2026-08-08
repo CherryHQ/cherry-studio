@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  agentSessionMessageFileRefSchema,
+  agentSessionMessageSourceType,
   allSourceTypes,
   chatMessageFileRefSchema,
   chatMessageSourceType,
@@ -27,7 +29,14 @@ describe('FileRefSourceType', () => {
     // FK-constrained association table — see ref/index.ts.
     // The user avatar deliberately has no variant: it is persisted only in the
     // `app.user.avatar` preference (no ref table).
-    expect([...allSourceTypes]).toEqual(['chat_message', 'painting', 'job', 'provider_logo', 'mini_app_logo'])
+    expect([...allSourceTypes]).toEqual([
+      'chat_message',
+      'agent_session_message',
+      'painting',
+      'job',
+      'provider_logo',
+      'mini_app_logo'
+    ])
   })
 })
 
@@ -56,6 +65,23 @@ describe('chatMessageFileRefSchema', () => {
     for (const role of ['source', 'preview', 'thumbnail', '']) {
       expect(() => chatMessageFileRefSchema.parse(makeChatMessageRef({ role }))).toThrow()
     }
+  })
+})
+
+describe('agentSessionMessageFileRefSchema', () => {
+  it('accepts only attachment refs owned by an agent-session message', () => {
+    const ref = {
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: agentSessionMessageSourceType,
+      sourceId: MESSAGE_ID,
+      role: 'attachment',
+      createdAt: TS,
+      updatedAt: TS
+    }
+
+    expect(agentSessionMessageFileRefSchema.parse(ref)).toEqual(ref)
+    expect(() => agentSessionMessageFileRefSchema.parse({ ...ref, role: 'tool_output' })).toThrow()
   })
 })
 

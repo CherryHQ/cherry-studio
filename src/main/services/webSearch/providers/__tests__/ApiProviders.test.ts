@@ -1736,5 +1736,108 @@ describe('main web search API providers', () => {
       expect(result.results[0].content).toBe('Fallback Description')
       expect(result.results[1].content).toBe('')
     })
+
+    it('matches Firecrawl scrape requests and parsed content snapshots', async () => {
+      fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('firecrawl-scrape-response.json')))
+
+      const provider = createProviderDriver(
+        FirecrawlProvider,
+        createProvider({
+          id: 'firecrawl',
+          name: 'Firecrawl',
+          apiKeys: ['firecrawl-key'],
+          capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.firecrawl.example' }]
+        })
+      )
+
+      const result = await provider.fetchUrls('https://example.com', runtimeConfig)
+
+      expect({
+        fetchRequest: toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined]),
+        result
+      }).toMatchInlineSnapshot(`
+        {
+          "fetchRequest": {
+            "body": {
+              "formats": [
+                "markdown",
+              ],
+              "url": "https://example.com",
+            },
+            "headers": {
+              "authorization": "Bearer firecrawl-key",
+              "content-type": "application/json",
+              "http-referer": "https://cherry-ai.com",
+              "x-title": "Cherry Studio",
+            },
+            "method": "POST",
+            "url": "https://api.firecrawl.example/v2/scrape",
+          },
+          "result": {
+            "capability": "fetchUrls",
+            "inputs": [
+              "https://example.com",
+            ],
+            "providerId": "firecrawl",
+            "query": "https://example.com",
+            "results": [
+              {
+                "content": "# Example Domain
+
+        This domain is for use in documentation examples without needing permission. Avoid use in operations.
+
+        [Learn more](https://iana.org/domains/example)",
+                "sourceInput": "https://example.com",
+                "title": "Example Domain",
+                "url": "https://example.com",
+              },
+            ],
+          },
+        }
+      `)
+    })
+
+    it('scrapes without an api key using the free quota', async () => {
+      fetchMock.mockResolvedValueOnce(createJsonResponse(loadFixtureJson('firecrawl-scrape-response.json')))
+
+      const provider = createProviderDriver(
+        FirecrawlProvider,
+        createProvider({
+          id: 'firecrawl',
+          name: 'Firecrawl',
+          apiKeys: [],
+          capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.firecrawl.dev' }]
+        })
+      )
+
+      const result = await provider.fetchUrls('https://example.com', runtimeConfig)
+
+      expect(result.results[0].title).toBe('Example Domain')
+      const request = toRequestSnapshot(fetchMock.mock.calls[0] as [string, RequestInit | undefined])
+      expect(request.headers.authorization).toBeUndefined()
+    })
+
+    it('rejects scrape responses that report failure or return no markdown', async () => {
+      fetchMock
+        .mockResolvedValueOnce(createJsonResponse({ success: false, error: 'Rate limit exceeded' }))
+        .mockResolvedValueOnce(createJsonResponse({ success: true, data: { markdown: '   ' } }))
+
+      const provider = createProviderDriver(
+        FirecrawlProvider,
+        createProvider({
+          id: 'firecrawl',
+          name: 'Firecrawl',
+          apiKeys: ['test-key'],
+          capabilities: [{ feature: 'fetchUrls', apiHost: 'https://api.firecrawl.example' }]
+        })
+      )
+
+      await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
+        'Firecrawl scrape failed: Rate limit exceeded'
+      )
+      await expect(provider.fetchUrls('https://example.com/article', runtimeConfig)).rejects.toThrow(
+        'Firecrawl scrape returned empty content for https://example.com/article'
+      )
+    })
   })
 })

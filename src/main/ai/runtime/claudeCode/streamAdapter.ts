@@ -478,6 +478,7 @@ export class ClaudeCodeStreamAdapter {
   private readonly flowContexts: FlowContext[] = []
   /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
   private pendingInit?: Extract<SDKMessage, { subtype: 'init' }>
+  private turnHasActivity = false
 
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
@@ -497,7 +498,7 @@ export class ClaudeCodeStreamAdapter {
    */
   private createTurnContext(sink = this.sink): StreamContext {
     return {
-      sink,
+      sink: this.createActivityTrackingSink(sink),
       options: this.streamOptions,
       toolStates: new Map(),
       activeTaskTools: new Map(),
@@ -519,13 +520,27 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
+  private createActivityTrackingSink(sink: StreamSink): StreamSink {
+    return {
+      enqueue: (chunk) => {
+        if (chunk.type !== 'message-metadata') this.turnHasActivity = true
+        sink.enqueue(chunk)
+      }
+    }
+  }
+
   /** Whether a turn is open. Turn-scoped session status (an API retry) is gated on this. */
   get isTurnActive(): boolean {
     return this.turnActive
   }
 
+  get hasTurnActivity(): boolean {
+    return this.turnHasActivity
+  }
+
   /** Opens a turn on the session-scoped adapter, discarding the previous turn's state wholesale. */
   beginTurn(): void {
+    this.turnHasActivity = false
     this.ctx = this.createTurnContext()
     this.turnActive = true
     this.autonomousTurn = false
@@ -656,7 +671,7 @@ export class ClaudeCodeStreamAdapter {
 
   private detachFlowContexts(): void {
     for (const flow of this.flowContexts) {
-      flow.stream.sink = this.createFlowSink(flow.rootToolCallId)
+      flow.stream.sink = this.createActivityTrackingSink(this.createFlowSink(flow.rootToolCallId))
     }
   }
 

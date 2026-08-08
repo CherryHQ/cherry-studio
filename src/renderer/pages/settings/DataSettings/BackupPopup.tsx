@@ -17,7 +17,11 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-type Props = PopupInjectedProps<any>
+interface OwnProps {
+  forceFullBackup?: boolean
+}
+
+type Props = OwnProps & PopupInjectedProps<void>
 
 type ProgressStageType = 'preparing' | 'copying_database' | 'copying_files' | 'compressing' | 'completed'
 
@@ -27,7 +31,7 @@ interface ProgressData {
   total: number
 }
 
-const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
+const PopupContainer: React.FC<Props> = ({ forceFullBackup = false, open, resolve }) => {
   const [progressData, setProgressData] = useState<ProgressData>()
   const [submitting, setSubmitting] = useState(false)
   const { t } = useTranslation()
@@ -46,8 +50,8 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   const onOk = async () => {
     setSubmitting(true)
     try {
-      await backup(skipBackupFile)
-      resolve({})
+      await backup(forceFullBackup ? false : skipBackupFile)
+      resolve()
     } catch (error) {
       toast.error(getLocalizedBackupErrorMessage(error))
       setProgressData(undefined)
@@ -56,7 +60,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   }
 
   const onCancel = () => {
-    resolve({})
+    resolve()
   }
 
   const getProgressText = () => {
@@ -111,6 +115,6 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
   )
 }
 
-const BackupPopup = createPopup<Record<string, never>, any>(PopupContainer, { dismissResult: {} })
+const BackupPopup = createPopup<OwnProps, void>(PopupContainer)
 
 export default BackupPopup

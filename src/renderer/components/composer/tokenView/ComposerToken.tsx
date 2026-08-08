@@ -8,6 +8,7 @@ import {
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import Favicon from '@renderer/components/icons/FallbackFavicon'
 import { ipcApi } from '@renderer/ipc'
+import { ImagePreviewService } from '@renderer/services/ImagePreviewService'
 import { COMPOSER_FILE_KIND, type ComposerFileKind, FILE_TYPE } from '@renderer/types/file'
 import { formatFileSize } from '@renderer/utils/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
@@ -482,9 +483,16 @@ interface ComposerTokenHoverPopoverProps {
   content: ReactNode | ((controls: { closePopover: () => void }) => ReactNode)
   ariaLabel: string
   contentClassName?: string
+  onActivate?: () => void
 }
 
-function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassName }: ComposerTokenHoverPopoverProps) {
+function ComposerTokenHoverPopover({
+  trigger,
+  content,
+  ariaLabel,
+  contentClassName,
+  onActivate
+}: ComposerTokenHoverPopoverProps) {
   const [popoverOpen, setPopoverOpen] = useState(false)
   const openTimerRef = useRef<number | null>(null)
   const closeTimerRef = useRef<number | null>(null)
@@ -600,7 +608,12 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         event.stopPropagation()
-        openPopover('keyboard')
+        if (onActivate) {
+          closePopover()
+          onActivate()
+        } else {
+          openPopover('keyboard')
+        }
         return
       }
 
@@ -610,7 +623,18 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
         closePopover()
       }
     },
-    [closePopover, openPopover]
+    [closePopover, onActivate, openPopover]
+  )
+
+  const handleTriggerClick = useCallback(
+    (event: ReactMouseEvent<HTMLElement>) => {
+      if (!onActivate || (event.target as HTMLElement | null)?.closest('[data-composer-token-remove]')) return
+
+      stopTokenActionEvent(event)
+      closePopover()
+      onActivate()
+    },
+    [closePopover, onActivate]
   )
 
   useEffect(
@@ -632,6 +656,7 @@ function ComposerTokenHoverPopover({ trigger, content, ariaLabel, contentClassNa
       onMouseLeave={scheduleClosePopover}
       onMouseMove={scheduleOpenPopover}
       onPointerDown={markPointerOpenReason}
+      onClick={handleTriggerClick}
       onBlur={handleTriggerBlur}
       onKeyDownCapture={handleTriggerKeyDown}>
       {trigger}
@@ -677,6 +702,10 @@ export function FileComposerToken(props: FileComposerTokenProps) {
     ? props.readOnlyFilePreview.url
     : undefined
   const presentation = getFileTokenPresentation(file, label, imagePreviewUrl)
+  const openImagePreview = useCallback(() => {
+    if (!presentation.previewUrl) return
+    void ImagePreviewService.show(presentation.previewUrl)
+  }, [presentation.previewUrl])
   const title = props.token.description ?? props.token.promptText ?? label
   const accessibleTitle = props.readOnly ? label : title
   const removeLabel = removeLabelProp ?? 'Remove'
@@ -769,6 +798,7 @@ export function FileComposerToken(props: FileComposerTokenProps) {
       trigger={chipElement}
       ariaLabel={accessibleTitle}
       contentClassName={presentation.previewUrl ? 'rounded-lg border-0 bg-transparent' : undefined}
+      onActivate={presentation.previewUrl ? openImagePreview : undefined}
       content={
         <FileTokenPreviewCard
           file={file}

@@ -168,9 +168,8 @@ vi.mock('@renderer/components/chat/primitives', async (importActual) => ({
   EmptyState: () => <div data-testid="empty-state" />
 }))
 
-vi.mock('@renderer/components/chat/agent/ContextUsageSummary', () => ({
-  ContextUsageSummary: () => <div data-testid="context-usage" />,
-  getAgentContextUsageColor: () => 'success'
+vi.mock('@renderer/components/chat/agent/AgentContextUsageSummary', () => ({
+  AgentContextUsageSummary: () => <div data-testid="context-usage" />
 }))
 
 vi.mock('@renderer/components/chat/messages/MessageList', () => ({

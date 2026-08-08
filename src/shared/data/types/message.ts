@@ -565,6 +565,8 @@ export interface TreeNode {
   role: ContentMessageRole
   /** Derived from the message's hidden `data-clear` part. */
   isContextBoundary?: boolean
+  /** Whether this is an empty successful user leaf awaiting composer input. */
+  isAwaitingInput?: boolean
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */

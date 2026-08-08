@@ -106,7 +106,13 @@ All three streaming endpoints are thin route wrappers that call
 1. **Resolve model.** Read `params.model`, split on the first `:` into
    `providerId` / `modelId`, build a `uniqueModelId` via `createUniqueModelId`.
    `params.stream === true` selects streaming vs. JSON.
-2. **Convert input.** `MessageConverterFactory.create(inputFormat, …)` returns
+2. **Validate trusted Agent history.** After the request proves it is an
+   internal Agent request, Anthropic-format history is checked before conversion.
+   Deeply identical duplicate `tool_use` / `tool_result` blocks are
+   losslessly folded; conflicting reuse of an ID returns HTTP 400. This condition
+   depends only on the internal proof and Anthropic input format, not the target
+   provider.
+3. **Convert input.** `MessageConverterFactory.create(inputFormat, …)` returns
    the dialect's `IMessageConverter`, which yields:
    - `toUIMessages(params)` → AI SDK `UIMessage[]` (a system/instructions
      prompt becomes a leading `role: 'system'` message).
@@ -116,15 +122,15 @@ All three streaming endpoints are thin route wrappers that call
      `topK`, `maxOutputTokens`, `stopSequences`).
    - `extractProviderOptions(provider, params)` → reasoning/thinking options
      (the `Provider` is loaded best-effort from `ProviderService`).
-3. **Assemble overrides.** Sampling + tools + provider options are merged into a
+4. **Assemble overrides.** Sampling + tools + provider options are merged into a
    single `CallOverrides` object — the gateway is **assistant-agnostic**, so
    everything is passed per-request (merged at highest precedence inside
    `buildAgentParams`).
-4. **Pick the output adapter.** `StreamAdapterFactory.createAdapter(outputFormat)`
+5. **Pick the output adapter.** `StreamAdapterFactory.createAdapter(outputFormat)`
    + `.getFormatter(outputFormat)` give the `IStreamAdapter` (state machine that
    turns `UIMessageChunk`s into dialect events) and the `ISseFormatter` (event →
    SSE string).
-5. **Drive the stream.** With `streamId = "gateway-<uuid>"`, call
+6. **Drive the stream.** With `streamId = "gateway-<uuid>"`, call
    `AiStreamManager.streamPrompt({ streamId, uniqueModelId, messages, listener,
    callOverrides, contextOwner: 'caller', idleTimeoutMs })`. Caller ownership
    keeps externally managed history out of Cherry's context-build and in-loop
@@ -140,7 +146,7 @@ All three streaming endpoints are thin route wrappers that call
    - **Non-streaming**: a plain `StreamListener` feeds every chunk into the
      adapter to accumulate state, then `adapter.buildNonStreamingResponse()` is
      returned as a JSON `Response`.
-6. **Abort & timeout.** The route's `request.signal` (client disconnect) calls
+7. **Abort & timeout.** The route's `request.signal` (client disconnect) calls
    `aiStreamManager.abort(streamId, …)`. An idle (no-chunk) timeout —
    **20 minutes** (`GATEWAY_STREAM_IDLE_TIMEOUT_MS`) — and any mid-stream abort
    surface as a **failure**, not a truncated success. Before streaming response

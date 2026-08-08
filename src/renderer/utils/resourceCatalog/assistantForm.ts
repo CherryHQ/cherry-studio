@@ -16,7 +16,6 @@ type CustomParameter = AssistantSettings['customParameters'][number]
 const UI_DEFAULT_TEMPERATURE = 1.0
 const UI_DEFAULT_TOP_P = 1
 const UI_DEFAULT_MAX_TOKENS = 4096
-const UI_DEFAULT_MAX_TOOL_CALLS = 20
 
 /**
  * Flat form state for the Assistant edit dialog. Every editable field lives
@@ -105,7 +104,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     maxTokens: settings.maxTokens ?? UI_DEFAULT_MAX_TOKENS,
     enableMaxTokens: settings.enableMaxTokens ?? false,
     streamOutput: settings.streamOutput ?? true,
-    maxToolCalls: settings.maxToolCalls ?? UI_DEFAULT_MAX_TOOL_CALLS,
+    maxToolCalls: settings.maxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.maxToolCalls,
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,

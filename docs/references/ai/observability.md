@@ -50,6 +50,10 @@ Collection and persistence are main-process only. Spans live in
 on the terminal event. The renderer trace viewer (`TracePage`) reads the persisted
 spans on demand through the `trace.getData` IPC — it never collects spans itself.
 
+Trace history is stored under `{userData}/Runtime/trace/<topicId>/<traceId>`.
+The previous `~/.cherrystudio/trace` location is no longer written; it remains a
+cleanup-only target of the `normal_cache` (App cache) option.
+
 ## AdapterTracer
 
 `src/main/ai/observability/adapters/aiSdk/adapterTracer.ts` wraps the OTel `Tracer` returned

@@ -1007,6 +1007,10 @@
           "description": "Отправляет уведомление через подключенный канал",
           "label": "Уведомить"
         },
+        "CherryToMarkdown": {
+          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
+          "label": "[to be translated]:Document to Markdown"
+        },
         "CherryWebFetch": {
           "description": "Получает и читает веб-страницу",
           "label": "Веб-запрос"
@@ -1677,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Новая ветка создана",
-          "disabled": {
-            "active": "Этот узел уже выбран. Продолжайте ввод, чтобы расширить ветвь отсюда.",
-            "latest": "Вы уже находитесь в конце этой ветки. Продолжайте вводить текст, чтобы расширить её.",
-            "no_follow_up": "После этого сообщения пока нет продолжения. Переключитесь на этот узел и продолжайте вводить текст."
-          },
           "label": "Новая ветка"
         },
         "context": "Новый контекст"
@@ -2989,6 +2988,28 @@
       "title": "Импортировать диалоги ChatGPT",
       "untitled_conversation": "Безымянный разговор"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "Выберите файл для импорта",
       "label": "Вы уверены, что хотите импортировать внешние данные?"
@@ -3027,10 +3048,20 @@
           "selected_notes": "{{count}} заметок выбрано"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "Выберите существующие заметки в качестве источников базы знаний",
           "empty_description": "Создайте заметки в разделе «Заметки», затем вернитесь сюда и выберите их.",
           "empty_title": "Заметки ещё не связаны",
-          "loading": "Загрузка заметок…"
+          "loading": "Загрузка заметок…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Поддерживает PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3289,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "Приложения",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "Мини-приложения",
     "miniApps": "Приложения",
     "pin_to_sidebar": "Закрепить на боковой панели",
@@ -3359,11 +3391,6 @@
           },
           "heartbeat_interval": {
             "label": "Интервал между ударами сердца (минуты)"
-          },
-          "instructions": {
-            "hint": "Определяет роль агента и границы его поведения",
-            "label": "Системный промпт",
-            "placeholder": "Сообщите агенту, кто он и что умеет делать…"
           },
           "max_turns": {
             "help": "0 означает использовать значение по умолчанию",
@@ -3559,8 +3586,7 @@
           "step": {
             "basic": "Основная информация",
             "capability": "Навыки",
-            "knowledge": "Знание",
-            "persona": "Персона"
+            "knowledge": "Знание"
           },
           "submit": "Создать",
           "submit_failed": "Создание не удалось"
@@ -4223,6 +4249,8 @@
         "taskOutput": "Просмотреть вывод задачи",
         "taskStop": "Остановить задачу",
         "taskUpdate": "Обновить задачу",
+        "toMarkdown": "[to be translated]:Convert Document",
+        "toMarkdownOutput": "[to be translated]:Markdown",
         "todoWrite": "Написать",
         "tool": "Инструмент",
         "webFetch": "Веб-запрос",
@@ -4273,6 +4301,8 @@
       "thinkingHeader": "Мышление",
       "truncated": "Вывод усечён (оригинал: {{size}})",
       "units": {
+        "char_one": "[to be translated]:{{count}} char",
+        "char_other": "[to be translated]:{{count}} chars",
         "done_one": "Готово: {{count}}",
         "done_other": "Готово: {{count}}",
         "file_one": "{{count}} файл",
@@ -6017,11 +6047,41 @@
         "skip_file_data_title": "Упрощенная резервная копия"
       },
       "clear_cache": {
+        "approximately": "Примерно {{size}}",
         "button": "Очистка кэша",
-        "confirm": "Очистка кэша удалит данные приложения. Это действие необратимо, продолжить?",
+        "calculating": "Вычисление…",
         "error": "Ошибка при очистке кэша",
+        "legacy_warning": {
+          "confirm": "Всё равно выбрать",
+          "description": "После завершения очистки данные v1, включённые в этот пункт, будут удалены навсегда. Без резервной копии восстановить их будет невозможно.",
+          "message": "Данные v1 будут удалены навсегда",
+          "title": "Выбрать оставшиеся данные v1?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Оставшиеся данные v1, включая старую историю диалогов и настройки. После удаления восстановить их нельзя.",
+            "title": "Оставшиеся данные v1"
+          },
+          "normal_cache": {
+            "description": "Удаляет кэш и временные файлы, созданные при использовании приложения, чтобы освободить место. История чатов и настройки не удаляются.",
+            "title": "Кэш приложения"
+          },
+          "orphaned_data": {
+            "description": "Удаляет неиспользуемые файлы, оставшиеся базы знаний и временные файлы восстановления.",
+            "title": "Оставшиеся файлы и базы знаний"
+          },
+          "site_data": {
+            "description": "Файлы cookie и хранилища сайтов, используемые сайтами и мини-приложениями. Возможно, потребуется снова войти на сайты.",
+            "title": "Данные сайтов и мини-приложений"
+          }
+        },
+        "partial_success": "Очистка завершена, но некоторые элементы удалить не удалось",
+        "selected_total": "Всего выбрано",
         "success": "Кэш очищен",
-        "title": "Очистка кэша"
+        "title": "Очистка кэша",
+        "total_partial": "Учтено {{size}}; размер некоторых данных неизвестен",
+        "unavailable": "Не удалось вычислить",
+        "waiting_for_legacy_database": "Ожидание освобождения старой базы данных. Закройте другие окна Cherry Studio; очистка продолжится после закрытия их подключений."
       },
       "data": {
         "title": "Каталог данных"
@@ -6064,6 +6124,7 @@
       "import_settings": {
         "button": "Импортировать файл JSON",
         "chatgpt": "Импорт из ChatGPT",
+        "claude": "[to be translated]:Import from Claude",
         "title": "Импорт внешних данных приложения"
       },
       "joplin": {
@@ -6435,6 +6496,23 @@
         "token_placeholder": "Введите токен SiYuan Note"
       },
       "title": "Настройки данных",
+      "v1_remigration": {
+        "acknowledgement": "Я понимаю риск и хочу продолжить.",
+        "back": "Назад",
+        "backup_acknowledgement": "Резервная копия данных создана",
+        "backup_button": "Создать полную резервную копию",
+        "backup_message": "Перед продолжением создайте резервную копию всех текущих данных. При продолжении текущие данные v2 будут удалены без возможности восстановления.",
+        "button": "Повторить миграцию",
+        "confirm": "Повторить миграцию",
+        "confirm_countdown": "Повторить миграцию ({{seconds}} с)",
+        "dialog_title": "Повторная миграция данных v1",
+        "error": "Не удалось повторно запустить миграцию данных v1",
+        "final_confirmation": "Подтвердите удаление текущих данных v2 и повторную миграцию данных v1.",
+        "final_message": "Текущие данные v2 будут удалены без возможности восстановления.",
+        "final_retained": "Исходные данные v1 будут сохранены и повторно импортированы после перезапуска.",
+        "next": "Далее",
+        "title": "Повторная миграция данных v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Автоматическое резервное копирование",
@@ -6602,6 +6680,7 @@
         "notice": {
           "downloadFailed": "Не удалось загрузить. Проверьте подключение и попробуйте снова.",
           "inUse": "Всё ещё используется базой знаний; веса были сохранены.",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "Не удалось удалить. Проверьте журналы для получения подробностей."
         },
         "ocr": {

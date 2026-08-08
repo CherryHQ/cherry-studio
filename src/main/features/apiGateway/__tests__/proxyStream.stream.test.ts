@@ -19,6 +19,10 @@ const {
   mockResolveAgentSessionUsage,
   mockIsInternalAgentRequest,
   mockToUIMessages,
+  mockToAiSdkTools,
+  mockExtractStreamOptions,
+  mockExtractProviderOptions,
+  mockLoggerWarn,
   captured
 } = vi.hoisted(() => ({
   mockStreamPrompt: vi.fn(),
@@ -28,6 +32,12 @@ const {
   mockResolveAgentSessionUsage: vi.fn(),
   mockIsInternalAgentRequest: vi.fn(),
   mockToUIMessages: vi.fn<(params: MessageCreateParams) => CherryUIMessage[]>(),
+  mockToAiSdkTools: vi.fn(() => undefined),
+  mockExtractStreamOptions: vi.fn(() => ({})),
+  mockExtractProviderOptions: vi.fn<
+    (provider: unknown, model: unknown, params: MessageCreateParams, maxOutputTokens?: number) => undefined
+  >(() => undefined),
+  mockLoggerWarn: vi.fn(),
   captured: { listener: undefined as StreamListener | undefined }
 }))
 
@@ -56,7 +66,7 @@ vi.mock('@data/services/ModelService', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: {
-    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
+    withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: mockLoggerWarn, error: vi.fn() }))
   }
 }))
 
@@ -65,9 +75,9 @@ vi.mock('../adapters', () => ({
   MessageConverterFactory: {
     create: () => ({
       toUIMessages: mockToUIMessages,
-      toAiSdkTools: () => undefined,
-      extractStreamOptions: () => ({}),
-      extractProviderOptions: () => undefined
+      toAiSdkTools: mockToAiSdkTools,
+      extractStreamOptions: mockExtractStreamOptions,
+      extractProviderOptions: mockExtractProviderOptions
     })
   },
   StreamAdapterFactory: {
@@ -225,6 +235,118 @@ async function processAndCaptureStreamMessages(
 }
 
 describe('processMessage (internal Agent continuation normalization)', () => {
+  it('repairs internal Anthropic tool history before every conversion step for an OpenAI Responses target', async () => {
+    useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const call = {
+      type: 'tool_use' as const,
+      id: 'c1',
+      name: 'read_file',
+      input: { path: '/tmp/secret-input' }
+    }
+    const output = {
+      type: 'tool_result' as const,
+      tool_use_id: 'c1',
+      content: 'SECRET_RESULT'
+    }
+    const params = createAnthropicParams(
+      'gpt-5',
+      [
+        { role: 'assistant', content: [call, structuredClone(call)] },
+        { role: 'user', content: [output, structuredClone(output)] }
+      ],
+      true,
+      'openai'
+    )
+    const snapshot = structuredClone(params)
+
+    await processAndCaptureStreamMessages(params)
+
+    const effectiveParams = mockToUIMessages.mock.calls[0][0]
+    expect(effectiveParams).not.toBe(params)
+    expect(effectiveParams.messages[0].content).toEqual([call])
+    expect(effectiveParams.messages[1].content).toEqual([output])
+    expect(mockToAiSdkTools).toHaveBeenCalledWith(effectiveParams)
+    expect(mockExtractStreamOptions).toHaveBeenCalledWith(effectiveParams)
+    expect(mockExtractProviderOptions.mock.calls[0][2]).toBe(effectiveParams)
+    expect(params).toEqual(snapshot)
+    expect(mockLoggerWarn).toHaveBeenCalledWith('Repaired duplicate tool history in internal Agent request', {
+      providerId: 'openai',
+      modelId: 'gpt-5',
+      duplicateToolUseCount: 1,
+      duplicateToolResultCount: 1
+    })
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain('/tmp/secret-input')
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain('SECRET_RESULT')
+  })
+
+  it('leaves duplicate external Anthropic history unchanged', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(false)
+    const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
+    const params = createAnthropicParams('claude-opus-5', [
+      { role: 'assistant', content: [call, structuredClone(call)] }
+    ])
+
+    await processAndCaptureStreamMessages(params)
+
+    expect(mockToUIMessages).toHaveBeenCalledWith(params)
+    expect(mockToAiSdkTools).toHaveBeenCalledWith(params)
+    expect(mockExtractStreamOptions).toHaveBeenCalledWith(params)
+    expect(mockExtractProviderOptions.mock.calls[0][2]).toBe(params)
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
+
+  it('leaves duplicate internal history unchanged for a non-Anthropic input format', async () => {
+    useGatewayModel('gpt-5', ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const call = { type: 'tool_use' as const, id: 'c1', name: 'read_file', input: {} }
+    const params = createAnthropicParams(
+      'gpt-5',
+      [{ role: 'assistant', content: [call, structuredClone(call)] }],
+      true,
+      'openai'
+    )
+
+    await processAndCaptureStreamMessages(params, 'openai')
+
+    expect(mockToUIMessages).toHaveBeenCalledWith(params)
+    expect(mockLoggerWarn).not.toHaveBeenCalled()
+  })
+
+  it('rejects conflicting internal history before conversion or stream startup', async () => {
+    useGatewayModel('claude-opus-5')
+    mockIsInternalAgentRequest.mockReturnValue(true)
+    const controller = new AbortController()
+    controller.abort()
+    const params = createAnthropicParams('claude-opus-5', [
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 'c1', name: 'read_file', input: { path: '/tmp/secret-input' } },
+          { type: 'tool_use', id: 'c1', name: 'write_file', input: { content: 'SECRET_WRITE' } }
+        ]
+      }
+    ])
+
+    await expect(
+      processMessage({
+        params,
+        inputFormat: 'anthropic',
+        outputFormat: 'anthropic',
+        signal: controller.signal,
+        requestHeaders: new Headers({ 'x-cherry-internal-usage-token': 'proof' })
+      })
+    ).rejects.toMatchObject({ status: 400, message: expect.stringMatching(/tool_use ids must be unique/i) })
+    expect(mockToUIMessages).not.toHaveBeenCalled()
+    expect(mockToAiSdkTools).not.toHaveBeenCalled()
+    expect(mockExtractStreamOptions).not.toHaveBeenCalled()
+    expect(mockExtractProviderOptions).not.toHaveBeenCalled()
+    expect(mockStreamPrompt).not.toHaveBeenCalled()
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain('/tmp/secret-input')
+    expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain('SECRET_WRITE')
+  })
+
   it('appends a continuation for an internal Agent request without mutating config params', async () => {
     useGatewayModel('claude-opus-5')
     mockIsInternalAgentRequest.mockReturnValue(true)

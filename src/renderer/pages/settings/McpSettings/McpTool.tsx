@@ -1,5 +1,7 @@
+import '@cherrystudio/ui/components/composites/markdown/styles'
+
 import type { ColumnDef } from '@cherrystudio/ui'
-import { Badge, ColFlex, DataTable, Flex, InfoTooltip, RequiredMark, Switch, Tooltip } from '@cherrystudio/ui'
+import { Badge, ColFlex, DataTable, Flex, InfoTooltip, Markdown, RequiredMark, Switch, Tooltip } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
 import type { McpTool } from '@renderer/types/tool'
@@ -9,8 +11,6 @@ import type { Key } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { McpDetailItem, McpDetailList } from './McpDetailList'
-
 interface McpToolsSectionProps {
   tools: McpTool[]
   server: McpServer
@@ -18,6 +18,22 @@ interface McpToolsSectionProps {
   onToggleTool: (tool: McpTool, enabled: boolean) => void
   onToggleAutoApprove: (tool: McpTool, autoApprove: boolean) => void
 }
+
+const MAX_NESTING_DEPTH = 5
+
+interface SchemaProperty {
+  type?: string
+  description?: string
+  enum?: Array<string | number | boolean | null>
+  properties?: Record<string, SchemaProperty>
+  required?: string[]
+  items?: SchemaProperty
+}
+
+type SchemaProperties = Record<string, SchemaProperty>
+
+const getToolSchemaProperties = (tool: McpTool): SchemaProperties | undefined =>
+  tool.inputSchema?.properties as SchemaProperties | undefined
 
 const AutoApproveCell = ({
   tool,
@@ -68,7 +84,7 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
     onToggleAutoApprove(tool, checked)
   }
 
-  const getTypeBadgeClass = (type: string) => {
+  const getTypeBadgeClass = (type: string | undefined) => {
     switch (type) {
       case 'string':
         return 'border-primary/30 bg-primary/10 text-primary'
@@ -85,75 +101,101 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
     }
   }
 
-  const MAX_NESTING_DEPTH = 5
-
-  // Render a single property's value (type badge, description, enum, nested properties)
-  const renderPropertyValue = (prop: any, depth: number = 0) => {
-    const itemType = prop.type === 'array' && prop.items?.type ? `${prop.items.type}[]` : prop.type
+  // Render a single schema property and its nested children as a tree node.
+  const renderProperty = (key: string, property: SchemaProperty, required: boolean, depth: number = 0) => {
+    const { type, description, items } = property
+    const itemsType = items?.type
+    const itemType = type === 'array' && itemsType ? `${itemsType}[]` : type
 
     return (
-      <ColFlex className="gap-1">
-        <Flex className="items-center gap-2">
-          {itemType && <Badge className={getTypeBadgeClass(prop.type)}>{itemType}</Badge>}
+      <div key={key} data-schema-property={key} className="min-w-0 border-border border-b py-2 last:border-b-0">
+        <Flex className="min-w-0 items-start gap-2">
+          <Flex className="w-40 shrink-0 items-center gap-1">
+            <span className="wrap-anywhere min-w-0 font-semibold">{key}</span>
+            {required && (
+              <Tooltip content={t('common.required_field')}>
+                <RequiredMark />
+              </Tooltip>
+            )}
+          </Flex>
+          {itemType && <Badge className={`shrink-0 ${getTypeBadgeClass(type)}`}>{itemType}</Badge>}
+          {description && (
+            <span className="wrap-break-word min-w-0 flex-1 text-muted-foreground text-sm leading-5">
+              {description}
+            </span>
+          )}
         </Flex>
-        {prop.description && <p className="m-0 text-muted-foreground text-sm leading-5">{prop.description}</p>}
-        {prop.enum && (
-          <div className="mt-1">
+        {property.enum && (
+          <div className="mt-1 ml-42 flex flex-wrap items-center gap-1.5">
             <span className="text-muted-foreground text-sm">
               {t('settings.mcp.tools.inputSchema.enum.allowedValues')}
             </span>
-            <div className="mt-1 flex flex-wrap gap-1">
-              {prop.enum.map((value: string, idx: number) => (
-                <Badge key={idx} variant="outline">
-                  {value}
-                </Badge>
-              ))}
-            </div>
+            {property.enum.map((enumValue, index) => (
+              <Badge key={index} variant="outline">
+                {String(enumValue)}
+              </Badge>
+            ))}
           </div>
         )}
         {depth < MAX_NESTING_DEPTH &&
-          prop.type === 'object' &&
-          prop.properties &&
-          renderSchemaProperties(prop.properties, prop.required, depth + 1)}
-        {depth < MAX_NESTING_DEPTH &&
-          prop.type === 'array' &&
-          prop.items?.type === 'object' &&
-          prop.items.properties && (
-            <div className="mt-1">
-              <span className="text-muted-foreground text-sm italic">items:</span>
-              {renderSchemaProperties(prop.items.properties, prop.items.required, depth + 1)}
-            </div>
-          )}
-      </ColFlex>
+          type === 'object' &&
+          property.properties &&
+          renderSchemaProperties(property.properties, property.required, depth + 1)}
+        {depth < MAX_NESTING_DEPTH && type === 'array' && itemsType === 'object' && items?.properties && (
+          <div className="mt-2">
+            <span className="text-muted-foreground text-sm italic">items:</span>
+            {renderSchemaProperties(items.properties, items.required, depth + 1)}
+          </div>
+        )}
+      </div>
     )
   }
 
-  const renderSchemaProperties = (properties: Record<string, any>, required?: string[], depth: number = 0) => {
+  const renderSchemaProperties = (
+    properties: SchemaProperties,
+    required: readonly string[] = [],
+    depth: number = 0
+  ) => {
     return (
-      <McpDetailList className="mt-1 select-text">
-        {Object.entries(properties).map(([key, prop]: [string, any]) => (
-          <McpDetailItem
-            key={key}
-            label={
-              <Flex className="gap-1">
-                <span className="font-medium">{key}</span>
-                {required?.includes(key) && (
-                  <Tooltip content={t('common.required_field')}>
-                    <RequiredMark />
-                  </Tooltip>
-                )}
-              </Flex>
-            }>
-            {renderPropertyValue(prop, depth)}
-          </McpDetailItem>
-        ))}
-      </McpDetailList>
+      <div
+        className={
+          depth === 0
+            ? 'mt-1 min-w-0 select-text overflow-hidden rounded-md border border-border bg-background px-3'
+            : 'mt-2 ml-3 min-w-0 select-text border-border border-l pl-3'
+        }>
+        {Object.entries(properties).map(([key, property]) =>
+          renderProperty(key, property, required.includes(key), depth)
+        )}
+      </div>
     )
   }
 
   const renderToolProperties = (tool: McpTool) => {
-    if (!tool.inputSchema?.properties) return null
-    return renderSchemaProperties(tool.inputSchema.properties, tool.inputSchema.required)
+    const properties = getToolSchemaProperties(tool)
+    const hasInputSchema = Boolean(properties && Object.keys(properties).length > 0)
+    if (!tool.description && !hasInputSchema) return null
+
+    return (
+      <ColFlex className="gap-4">
+        {tool.description && (
+          <div>
+            <h4 className="mb-2 font-bold text-foreground text-sm">{t('common.description')}</h4>
+            <Markdown
+              id={`mcp-tool-description-${tool.id}`}
+              footnoteLabel={t('common.footnotes')}
+              className="font-normal text-muted-foreground text-sm">
+              {tool.description}
+            </Markdown>
+          </div>
+        )}
+        {hasInputSchema && properties && (
+          <div>
+            <h4 className="mb-2 font-bold text-foreground text-sm">{t('settings.mcp.tools.inputSchema.label')}</h4>
+            {renderSchemaProperties(properties, tool.inputSchema.required)}
+          </div>
+        )}
+      </ColFlex>
+    )
   }
 
   const filteredTools = useMemo(() => {
@@ -172,24 +214,22 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
     {
       id: 'name',
       header: () => <span className="font-medium">{t('settings.mcp.tools.availableTools')}</span>,
-      meta: { width: 400, maxWidth: 400 },
+      meta: { width: 400, maxWidth: 400, className: 'overflow-hidden' },
       cell: ({ row }) => {
         const tool = row.original
 
         return (
-          <ColFlex className="gap-1">
-            <Flex className="items-center gap-1">
+          <ColFlex className="min-w-0 gap-1 overflow-hidden">
+            <Flex className="min-w-0 items-center gap-1">
               <span className="truncate text-foreground text-sm" title={tool.name}>
                 {tool.name}
               </span>
               <InfoTooltip content={`ID: ${tool.id}`} />
             </Flex>
             {tool.description && (
-              <Tooltip content={tool.description} fullWidthTrigger>
-                <p className="m-0 line-clamp-1 block w-full min-w-0 text-[13px] text-muted-foreground leading-5">
-                  {tool.description}
-                </p>
-              </Tooltip>
+              <p className="m-0 line-clamp-1 w-full min-w-0 max-w-full overflow-hidden text-[13px] text-muted-foreground leading-5">
+                {tool.description}
+              </p>
             )}
           </ColFlex>
         )
@@ -236,7 +276,11 @@ const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
       expandedRowKeys={expandedRowKeys}
       onExpandedRowChange={setExpandedRowKeys}
       renderExpandedRow={(tool) => renderToolProperties(tool)}
-      getCanExpand={(tool) => Boolean(tool.inputSchema?.properties)}
+      getCanExpand={(tool) => {
+        const properties = getToolSchemaProperties(tool)
+        return Boolean(tool.description) || Boolean(properties && Object.keys(properties).length)
+      }}
+      tableLayout="fixed"
       className="bg-transparent [&_[data-slot=table-cell]]:bg-transparent [&_[data-slot=table-head]]:bg-transparent [&_[data-slot=table-header]]:bg-transparent [&_[data-slot=table-header]_[data-slot=table-row]]:bg-transparent"
       rowClassName="bg-transparent"
     />

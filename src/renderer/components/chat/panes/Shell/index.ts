@@ -21,5 +21,6 @@ export {
   useOptionalRightPanelActions,
   useOptionalRightPanelState,
   useRightPanelActions,
+  useRightPanelPresentationMaximized,
   useRightPanelState
 } from './RightPanel'

@@ -67,7 +67,7 @@ After migration, every main capability the renderer can reach is enumerated in `
 | Class | Destination | Notes |
 |---|---|---|
 | **A** typed event (~35, the bulk) | IpcApi `broadcast`/`send` + `useIpcOn` | window lifecycle/state, theme, selection, MCP/adapter notifications, update progress, etc. |
-| **B** topic stream (5) | service-held listener + directed `send` | `Ai_StreamChunk`/`_Done`/`_Error`, `File_TreeMutation`; keep 16ms/2048 batching + multi-window attach |
+| **B** topic stream (5) | service-held listener + directed `send` | `Ai_StreamChunk`/`_Done`/`_Error`, `file.tree.mutation` (migrated); keep 16ms/2048 batching + multi-window attach |
 | **C** infrastructure (2) | **not collected** | `Preference_Changed`, `Cache_Sync` — stay in their subsystems |
 | **D** special addressing (5) | `ctx.senderId`-based directed `send` | `CherryIN_OAuthResult` ×4 (reply to the initiator window), migration progress |
 

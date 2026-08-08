@@ -1,7 +1,12 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { isDarwinX64 } from '@main/core/platform'
-import type { LocalModelDownloadResult, LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
+import type {
+  LocalModelDownloadResult,
+  LocalModelErrorCode,
+  LocalModelKind,
+  LocalModelStatus
+} from '@shared/data/presets/localModel'
 
 const logger = loggerService.withContext('LocalModelDownloadService')
 
@@ -9,10 +14,14 @@ const logger = loggerService.withContext('LocalModelDownloadService')
 export interface LocalModelDownloadProgress {
   status: string
   percent: number
+  errorCode?: LocalModelErrorCode
   loaded?: number
   total?: number
   file?: string
 }
+
+/** On-disk presence of a local model's files: one mutually exclusive state. */
+export type LocalModelFilesState = 'absent' | 'incomplete' | 'ready'
 
 /**
  * Shared on-disk download lifecycle for the local models (embedding + OCR): the
@@ -33,8 +42,8 @@ export abstract class LocalModelDownloadService {
   /** Tags broadcasts + error logs; selects which renderer card this drives. */
   protected abstract readonly kind: LocalModelKind
 
-  /** Whether the model's files are fully present on disk. */
-  protected abstract isReady(): boolean
+  /** Single on-disk probe behind {@link getStatusInfo}'s not-downloading statuses. */
+  protected abstract modelFilesState(): LocalModelFilesState
 
   /** Download the model; must broadcast its own terminal `ready` on success. */
   protected abstract performDownload(signal: AbortSignal): Promise<void>
@@ -42,7 +51,12 @@ export abstract class LocalModelDownloadService {
   /** Delete the model from disk. Returns whether it was actually removed. */
   abstract remove(): Promise<{ removed: boolean }>
 
-  /** Best-effort cleanup after a failed download (e.g. drop partials). */
+  /**
+   * Best-effort teardown after a failed or cancelled download (e.g. release an inference
+   * worker). Not a place to delete model files: both download paths write through a temp
+   * file they rename only on completion, so failure leaves no partials — while the weights
+   * already on disk may predate this attempt entirely.
+   */
   protected cleanupAfterError(): Promise<void> {
     return Promise.resolve()
   }
@@ -62,12 +76,24 @@ export abstract class LocalModelDownloadService {
   }
 
   getStatus(): LocalModelStatus {
+    return this.getStatusInfo().status
+  }
+
+  /** {@link getStatus} plus why an `error` status arose, for the cards' notice text. */
+  getStatusInfo(): { status: LocalModelStatus; errorCode?: LocalModelErrorCode } {
     // Unconditional on Intel Mac — the cards hide instead of offering a
     // download that would fail once it reaches the inference worker.
-    if (isDarwinX64) return 'unsupported'
-    if (this.downloading) return 'downloading'
-    if (this.lastDownloadFailed) return 'error'
-    return this.isReady() ? 'ready' : 'not_downloaded'
+    if (isDarwinX64) return { status: 'unsupported' }
+    if (this.downloading) return { status: 'downloading' }
+    if (this.lastDownloadFailed) return { status: 'error', errorCode: 'download_failed' }
+    switch (this.modelFilesState()) {
+      case 'ready':
+        return { status: 'ready' }
+      case 'incomplete':
+        return { status: 'error', errorCode: 'incomplete_cache' }
+      case 'absent':
+        return { status: 'not_downloaded' }
+    }
   }
 
   async download(): Promise<LocalModelDownloadResult> {
@@ -94,7 +120,7 @@ export abstract class LocalModelDownloadService {
         return 'ready'
       } catch (error) {
         if (signal.aborted) {
-          // User-initiated cancel — not a failure. Drop partials, but stay quiet:
+          // User-initiated cancel — not a failure. Run teardown, but stay quiet:
           // no error log and no `status: 'error'` broadcast (the cards render that
           // as "download failed"). Every coalesced caller receives the same result.
           await this.safeCleanupAfterError()
@@ -104,7 +130,7 @@ export abstract class LocalModelDownloadService {
         logger.error(`local ${this.kind} model download failed`, error as Error)
         await this.safeCleanupAfterError()
         this.lastDownloadFailed = true
-        this.broadcast({ status: 'error', percent: 0 })
+        this.broadcast({ status: 'error', percent: 0, errorCode: 'download_failed' })
         throw error
       } finally {
         this.downloading = false

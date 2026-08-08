@@ -20,10 +20,17 @@ import {
 import { composerInputTokenComponentByKind, ComposerToken, FileComposerToken } from '../tokenView'
 
 const ipcRequestMock = vi.hoisted(() => vi.fn())
+const imagePreviewShowMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: ipcRequestMock
+  }
+}))
+
+vi.mock('@renderer/services/ImagePreviewService', () => ({
+  ImagePreviewService: {
+    show: imagePreviewShowMock
   }
 }))
 
@@ -204,6 +211,8 @@ const readPastedTextMock = vi.fn()
 beforeEach(() => {
   ipcRequestMock.mockReset()
   ipcRequestMock.mockResolvedValue(undefined)
+  imagePreviewShowMock.mockReset()
+  imagePreviewShowMock.mockResolvedValue(undefined)
   readPastedTextMock.mockReset()
   readPastedTextMock.mockResolvedValue('第一段粘贴文本\n第二段粘贴文本')
   Object.defineProperty(window, 'api', {
@@ -286,22 +295,18 @@ function getTokenTrigger(container: HTMLElement, kind: string) {
   return trigger as HTMLElement
 }
 
-function openFileTokenPopover(container: HTMLElement) {
-  return openTokenPopover(container, 'file')
+async function openFileTokenPopover(container: HTMLElement) {
+  const user = userEvent.setup()
+  const trigger = getFileTokenTrigger(container)
+  await user.hover(trigger)
+  await waitFor(() => expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'true'))
+  return trigger
 }
 
 function expectNoComposerTokenPopover(container: HTMLElement) {
   expect(container.querySelector('[data-popover-trigger="true"]')).toBeNull()
   expect(screen.queryByTestId('composer-token-popover')).toBeNull()
   expect(screen.queryByTestId('composer-token-popover-content')).toBeNull()
-}
-
-function openTokenPopover(container: HTMLElement, kind: string) {
-  const trigger = getTokenTrigger(container, kind)
-  fireEvent.focus(trigger)
-  fireEvent.keyDown(trigger, { key: 'Enter' })
-  expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'true')
-  return trigger
 }
 
 function expectFileTokenVariant(container: HTMLElement, variant: string) {
@@ -353,7 +358,7 @@ describe('ComposerToken', () => {
     expectTokenPathTooltip(container, '/Users/jd/Notes/Project Notes')
   })
 
-  it('renders image file tokens with image variant metadata and preview', () => {
+  it('renders image file tokens with image variant metadata and preview', async () => {
     const { container } = render(
       <ComposerToken
         token={{
@@ -374,7 +379,7 @@ describe('ComposerToken', () => {
     )
 
     expectFileTokenVariant(container, 'image')
-    openFileTokenPopover(container)
+    await openFileTokenPopover(container)
     const popoverContent = screen.getByTestId('composer-token-popover-content')
     expect(popoverContent).not.toHaveTextContent('avatar-preview.png')
     expect(popoverContent).not.toHaveTextContent('PNG')
@@ -391,7 +396,8 @@ describe('ComposerToken', () => {
     expect(popoverContent.querySelector('[data-file-token-image-preview-error]')).toBeInTheDocument()
   })
 
-  it('renders input raster images as chips with a thumbnail in the icon slot', () => {
+  it('renders input raster images as chips with a thumbnail in the icon slot', async () => {
+    const user = userEvent.setup()
     const onRemove = vi.fn()
     const { container } = render(
       <FileComposerToken
@@ -429,11 +435,16 @@ describe('ComposerToken', () => {
 
     const removeButton = screen.getByRole('button', { name: '删除' })
 
-    openFileTokenPopover(container)
+    const trigger = await openFileTokenPopover(container)
     expect(screen.getByAltText('avatar-preview.png')).toBeInTheDocument()
 
-    fireEvent.click(removeButton)
+    await user.click(trigger)
+    expect(imagePreviewShowMock).toHaveBeenCalledWith('file:///tmp/avatar-preview.png')
+    expect(screen.getByTestId('composer-token-popover')).toHaveAttribute('data-open', 'false')
+
+    await user.click(removeButton)
     expect(onRemove).toHaveBeenCalledTimes(1)
+    expect(imagePreviewShowMock).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the default image icon for SVG input files', () => {

@@ -185,6 +185,12 @@ export const WEB_SEARCH_PROVIDER_PRESET_MAP = {
         requiresApiHost: true,
         requiresApiKey: false,
         apiHost: 'https://api.firecrawl.dev'
+      },
+      {
+        feature: 'fetchUrls',
+        requiresApiHost: true,
+        requiresApiKey: false,
+        apiHost: 'https://api.firecrawl.dev'
       }
     ]
   }

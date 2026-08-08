@@ -11,7 +11,7 @@ import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { parseDataUrl } from '@shared/utils/dataUrl'
-import type { DynamicToolUIPart, FileUIPart, TextUIPart, ToolSet } from 'ai'
+import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
 import mime from 'mime'
 
@@ -82,6 +82,16 @@ function functionOutputToConversion(callId: string, output: FunctionCallOutput['
 }
 
 /**
+ * The reasoning chain a client echoed back. `content` (`reasoning_text`) is the raw chain and
+ * wins; `summary` is the fallback, since that is what most clients round-trip. Encrypted-only
+ * items carry nothing readable — they resolve to `''` and are skipped.
+ */
+function reasoningItemText(item: OpenAI.Responses.ResponseReasoningItem): string {
+  const content = item.content?.map((part) => part.text).join('') ?? ''
+  return content || (item.summary?.map((part) => part.text).join('') ?? '')
+}
+
+/**
  * Extended ResponseCreateParams with reasoning_effort
  */
 export type ResponsesCreateParams = ResponseCreateParams & {
@@ -98,6 +108,8 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
    * `instructions` become a leading system UIMessage. `function_call` +
    * `function_call_output` items are paired into a single assistant
    * `dynamic-tool` part so `convertToModelMessages` rebuilds the call/result.
+   * `reasoning` items become assistant reasoning parts — thinking-mode upstreams
+   * require the chain back once a turn performed a tool call.
    */
   toUIMessages(params: ResponsesCreateParams): CherryUIMessage[] {
     const messages: CherryUIMessage[] = []
@@ -134,6 +146,16 @@ export class OpenAiResponsesMessageConverter implements IMessageConverter<Respon
     }
 
     for (const item of inputArray) {
+      // reasoning → assistant reasoning part. Emitted just ahead of the message or
+      // function_call it belongs to, and `coalesceConsecutiveSameRole` merges the two.
+      if ('type' in item && item.type === 'reasoning') {
+        const text = reasoningItemText(item)
+        if (text) {
+          const part: ReasoningUIPart = { type: 'reasoning', text }
+          messages.push({ id: nextUIMessageId(), role: 'assistant', parts: [part] })
+        }
+        continue
+      }
       // EasyInputMessage (role + content)
       if ('role' in item && 'content' in item) {
         const converted = this.convertEasyInputMessage(item as EasyInputMessage)

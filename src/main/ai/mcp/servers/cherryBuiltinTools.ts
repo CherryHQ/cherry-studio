@@ -18,8 +18,9 @@
  *   `…__kb_manage`) — owns knowledge-base exposure and per-call scope authorization.
  * - {@link CherryCliTools} (`…__cli_list`, `…__cli_search`, `…__cli_install`) —
  *   delegates live discovery and approved installation to BinaryManager.
- * - {@link CherryDocumentTools} (`…__to_markdown`) — converts workspace documents
- *   with Cherry's bundled converter and writes agent-private temporary Markdown.
+ * - {@link CherryDocumentTools} (`…__to_markdown`) — converts workspace, agent-data, and
+ *   session-attachment documents with Cherry's bundled converter and writes agent-private
+ *   temporary Markdown.
  *
  * Context-bound providers act on the session via the {@link CherryAgentContext}
  * passed at construction.

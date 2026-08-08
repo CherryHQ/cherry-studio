@@ -138,7 +138,6 @@ const TopicMessageFlowCanvas = ({
 
   const handleNodeClick = useCallback<NodeMouseHandler<TopicMessageFlowNodeModel>>(
     (_event, node) => {
-      if (node.data.isInputDraft) return
       onNodeSelect(node.data.messageId)
     },
     [onNodeSelect]

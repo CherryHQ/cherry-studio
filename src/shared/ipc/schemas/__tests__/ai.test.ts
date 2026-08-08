@@ -34,6 +34,33 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
   })
 })
 
+describe('ai.stream.open IPC schema', () => {
+  const openStream = aiRequestSchemas['ai.stream.open'].input
+
+  it('preserves reserved-branch target intent at the renderer-to-main boundary', () => {
+    expect(
+      openStream.parse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'reserved-user',
+        userMessageParts: [{ type: 'text', text: 'continue branch' }],
+        targetMode: 'reserved-branch'
+      })
+    ).toMatchObject({ targetMode: 'reserved-branch' })
+  })
+
+  it('rejects an unknown target mode', () => {
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [],
+        targetMode: 'current-stream'
+      }).success
+    ).toBe(false)
+  })
+})
+
 describe('ai.agent.create IPC schema', () => {
   const createAgent = aiRequestSchemas['ai.agent.create'].input
   const base = {

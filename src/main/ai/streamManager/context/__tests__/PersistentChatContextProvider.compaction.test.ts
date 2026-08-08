@@ -55,6 +55,7 @@ vi.mock('@main/data/services/MessageService', () => ({
     getPathToNode: mockGetPathToNode,
     setCompactionSummary: mockSetCompactionSummary,
     getById: vi.fn(),
+    isAwaitingInputLeaf: vi.fn(() => false),
     create: vi.fn(),
     update: vi.fn(),
     createUserMessageWithPlaceholders: vi.fn(),

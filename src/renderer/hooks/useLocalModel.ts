@@ -1,9 +1,19 @@
 import { ipcApi, useIpcOn } from '@renderer/ipc'
-import type { LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
+import type { LocalModelErrorCode, LocalModelKind, LocalModelStatus } from '@shared/data/presets/localModel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+/**
+ * Status and its error cause form one value: every transition replaces both, so a
+ * status written by one path can never be displayed with an errorCode left behind
+ * by another (e.g. a transport-failed retry showing the incomplete-cache notice).
+ */
+interface LocalModelState {
+  status: LocalModelStatus
+  errorCode: LocalModelErrorCode | null
+}
+
 export function useLocalModel(model: LocalModelKind) {
-  const [status, setStatus] = useState<LocalModelStatus>('not_downloaded')
+  const [state, setState] = useState<LocalModelState>({ status: 'not_downloaded', errorCode: null })
   const [isStatusResolved, setIsStatusResolved] = useState(false)
   const [percent, setPercent] = useState(0)
   const mountedRef = useRef(true)
@@ -12,7 +22,7 @@ export function useLocalModel(model: LocalModelKind) {
     try {
       const result = await ipcApi.request('local_model.get_status', { model })
       if (mountedRef.current) {
-        setStatus(result.status)
+        setState({ status: result.status, errorCode: result.errorCode ?? null })
         setIsStatusResolved(true)
       }
     } catch {
@@ -37,20 +47,20 @@ export function useLocalModel(model: LocalModelKind) {
     setPercent(progress.percent)
     setIsStatusResolved(true)
     if (progress.status === 'ready') {
-      setStatus('ready')
+      setState({ status: 'ready', errorCode: null })
     } else if (progress.status === 'error') {
-      setStatus('error')
+      setState({ status: 'error', errorCode: progress.errorCode ?? 'download_failed' })
     } else if (progress.status === 'not_downloaded') {
-      setStatus('not_downloaded')
+      setState({ status: 'not_downloaded', errorCode: null })
       setPercent(0)
     } else {
-      setStatus('downloading')
+      setState({ status: 'downloading', errorCode: null })
     }
   })
 
   const download = useCallback(async () => {
     if (mountedRef.current) {
-      setStatus('downloading')
+      setState({ status: 'downloading', errorCode: null })
       setPercent(0)
     }
 
@@ -60,18 +70,18 @@ export function useLocalModel(model: LocalModelKind) {
         return false
       }
       if (result.result === 'cancelled') {
-        setStatus('not_downloaded')
+        setState({ status: 'not_downloaded', errorCode: null })
         setPercent(0)
         return false
       }
-      setStatus('ready')
+      setState({ status: 'ready', errorCode: null })
       setPercent(100)
       return true
     } catch (error) {
       if (!mountedRef.current) {
         return false
       }
-      setStatus('error')
+      setState({ status: 'error', errorCode: 'download_failed' })
       throw error
     }
   }, [model])
@@ -81,7 +91,7 @@ export function useLocalModel(model: LocalModelKind) {
       await ipcApi.request('local_model.cancel', { model })
     } finally {
       if (mountedRef.current) {
-        setStatus('not_downloaded')
+        setState({ status: 'not_downloaded', errorCode: null })
         setPercent(0)
       }
     }
@@ -90,11 +100,11 @@ export function useLocalModel(model: LocalModelKind) {
   const remove = useCallback(async () => {
     const result = await ipcApi.request('local_model.remove', { model })
     if (result.removed && mountedRef.current) {
-      setStatus('not_downloaded')
+      setState({ status: 'not_downloaded', errorCode: null })
       setPercent(0)
     }
     return result
   }, [model])
 
-  return { status, isStatusResolved, percent, download, cancel, remove }
+  return { status: state.status, errorCode: state.errorCode, isStatusResolved, percent, download, cancel, remove }
 }

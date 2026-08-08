@@ -658,11 +658,10 @@
       "description": "New API - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "newapi",
-          "baseUrl": "http://localhost:3000"
+          "adapterFamily": "newapi"
         },
         "google-generate-content": {
-          "baseUrl": "http://localhost:3000"
+          "adapterFamily": "newapi"
         },
         "openai-chat-completions": {
           "adapterFamily": "newapi",
@@ -672,7 +671,7 @@
           }
         },
         "openai-responses": {
-          "baseUrl": "http://localhost:3000"
+          "adapterFamily": "newapi"
         }
       },
       "id": "new-api",
@@ -2074,5 +2073,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "7e60b48af9eec108"
+  "version": "ba4bb4de74be847b"
 }

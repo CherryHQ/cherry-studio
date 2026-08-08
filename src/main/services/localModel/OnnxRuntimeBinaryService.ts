@@ -112,8 +112,7 @@ class OnnxRuntimeBinaryService {
     const extractDir = path.join(tmpDir, `extract-${process.platform}-${process.arch}`)
 
     try {
-      await this.downloadTarball(tarballPath, signal, onProgress)
-      await this.verifyTarball(tarballPath)
+      await this.downloadVerifiedTarball(tarballPath, signal, onProgress)
       await this.extractLeaf(tarballPath, extractDir, leaf)
       await this.installLeaf(extractDir, leaf)
     } finally {
@@ -125,9 +124,12 @@ class OnnxRuntimeBinaryService {
 
   /** Streams the npm tarball to a temp file, reporting byte-progress (mirrors
    * LocalOcrDownloadService.fetchToFile's streaming-pipeline style). Tries each registry
-   * mirror in region order; the first that responds OK wins (same fallback shape as
-   * LocalOcrDownloadService.downloadFile). */
-  private async downloadTarball(
+   * mirror in region order; the first that delivers a sha256-matching tarball wins (same
+   * fallback shape as LocalOcrDownloadService.downloadFile). The checksum is part of the
+   * per-mirror attempt, not a step after it: a mirror that serves a stale/corrupt/
+   * intercepted tarball fails the same way an unreachable one does, so the next mirror
+   * still gets its turn instead of the whole download failing on the first bad tarball. */
+  private async downloadVerifiedTarball(
     dest: string,
     signal: AbortSignal,
     onProgress?: (fraction: number) => void
@@ -137,6 +139,7 @@ class OnnxRuntimeBinaryService {
     for (const url of urls) {
       try {
         await this.downloadTarballFrom(url, dest, signal, onProgress)
+        await this.verifyTarball(dest)
         return
       } catch (error) {
         if (signal.aborted) throw error

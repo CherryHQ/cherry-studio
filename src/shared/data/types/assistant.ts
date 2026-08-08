@@ -28,6 +28,12 @@ export type McpMode = z.infer<typeof McpModeSchema>
  */
 export const DEFAULT_MCP_MODE: McpMode = 'manual'
 
+/** Accepted range for `settings.maxToolCalls`. The editor's spinner bounds and main's
+ *  `resolveToolCallLimit` validation must agree, or a value the UI accepts silently
+ *  falls back to the default at request time. */
+export const MIN_TOOL_CALLS = 1
+export const MAX_TOOL_CALLS = 1000
+
 /**
  * Assistant settings — inference parameters + context source toggles.
  * Stored as a single JSON column in the database.
@@ -99,7 +105,7 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   streamOutput: true,
   reasoning_effort: 'default',
   mcpMode: DEFAULT_MCP_MODE,
-  maxToolCalls: 20,
+  maxToolCalls: 100,
   enableMaxToolCalls: true,
   enableWebSearch: false,
   enableGenerateImage: false,

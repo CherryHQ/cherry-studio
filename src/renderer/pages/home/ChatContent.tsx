@@ -11,6 +11,7 @@ import { ConversationGreeting } from '@renderer/components/chat/shell/Conversati
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import type {
   ChatComposerResolvedContext,
+  ChatContextUsageSource,
   ChatConversationControlsChangeHandler
 } from '@renderer/components/composer/variants/ChatComposer'
 import { ChatWriteProvider } from '@renderer/hooks/chat/ChatWriteContext'
@@ -18,6 +19,7 @@ import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import { useTopicMessages } from '@renderer/hooks/useTopicMessages'
 import type { Topic } from '@renderer/types/topic'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import { isUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { FC } from 'react'
 import { useEffect, useMemo, useRef } from 'react'
@@ -25,6 +27,7 @@ import { useTranslation } from 'react-i18next'
 
 import ChatComposerSlot from './ChatComposerSlot'
 import ChatMain from './ChatMain'
+import { useTopicBranchActions } from './hooks/useTopicBranchActions'
 import type { AddNewTopicPayload } from './types'
 import { useChatRuntimeState } from './useChatRuntimeState'
 
@@ -36,9 +39,6 @@ interface Props {
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
-  clearBranchDraft?: () => void
-  getBranchDraftAnchorId?: () => string | null
-  onStartBranchDraft?: MessageListActions['startMessageBranch']
   assistantContext?: ChatComposerResolvedContext
   providers?: Provider[]
   onConversationControlsChange?: ChatConversationControlsChangeHandler
@@ -62,9 +62,6 @@ const ChatContent: FC<Props> = ({
   locateMessageId,
   onLocateMessageHandled,
   onBranchLiveStateChange,
-  clearBranchDraft,
-  getBranchDraftAnchorId,
-  onStartBranchDraft,
   assistantContext,
   providers,
   onConversationControlsChange
@@ -90,9 +87,6 @@ const ChatContent: FC<Props> = ({
       locateMessageId={locateMessageId}
       onLocateMessageHandled={onLocateMessageHandled}
       onBranchLiveStateChange={onBranchLiveStateChange}
-      clearBranchDraft={clearBranchDraft}
-      getBranchDraftAnchorId={getBranchDraftAnchorId}
-      onStartBranchDraft={onStartBranchDraft}
       assistantContext={assistantContext}
       providers={providers}
       onConversationControlsChange={onConversationControlsChange}
@@ -138,9 +132,6 @@ const ChatContentInner: FC<InnerProps> = ({
   locateMessageId,
   onLocateMessageHandled,
   onBranchLiveStateChange,
-  clearBranchDraft,
-  getBranchDraftAnchorId,
-  onStartBranchDraft,
   assistantContext,
   providers,
   onConversationControlsChange,
@@ -156,6 +147,7 @@ const ChatContentInner: FC<InnerProps> = ({
   messagesCacheMutate
 }) => {
   const { t } = useTranslation()
+  const { reserveBranch } = useTopicBranchActions(topic.id)
   const assistant = assistantContext?.assistant
   const locateLoadRequestRef = useRef<string | undefined>(undefined)
   const runtime = useChatRuntimeState({
@@ -167,12 +159,21 @@ const ChatContentInner: FC<InnerProps> = ({
     activeNodeId,
     messagesCacheMutate,
     assistant,
-    onBranchLiveStateChange,
-    clearBranchDraft,
-    getBranchDraftAnchorId
+    onBranchLiveStateChange
   })
   const locateRuntimeMessage = runtime.locateMessage
   const siblingsContextValue = useMemo(() => ({ siblingsMap, activeNodeId }), [siblingsMap, activeNodeId])
+  const contextUsage = useMemo<ChatContextUsageSource | null>(() => {
+    if (isHistoryStale) return null
+
+    const activeMessage = uiMessages.find((message) => message.id === activeNodeId)
+    const contextTokens = activeMessage?.metadata?.stats?.contextTokens
+    const modelId = activeMessage?.metadata?.modelId
+    if (activeMessage?.role !== 'assistant' || typeof contextTokens !== 'number' || !isUniqueModelId(modelId)) {
+      return null
+    }
+    return { contextTokens, modelId }
+  }, [activeNodeId, isHistoryStale, uiMessages])
 
   useEffect(() => {
     if (!locateMessageId) {
@@ -225,7 +226,7 @@ const ChatContentInner: FC<InnerProps> = ({
         loadOlder={loadOlder}
         hasOlder={hasOlder}
         openCitationsPanel={onOpenCitationsPanel}
-        onStartBranchDraft={onStartBranchDraft}
+        onStartBranchDraft={reserveBranch}
       />
     </div>
   )
@@ -233,7 +234,9 @@ const ChatContentInner: FC<InnerProps> = ({
     <ChatComposerSlot
       placement="home"
       topic={topic}
+      contextUsage={contextUsage}
       onSend={runtime.sendMessage}
+      chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}
       composerContext={runtime.composerContext}
       assistantContext={assistantContext}
@@ -244,7 +247,9 @@ const ChatContentInner: FC<InnerProps> = ({
     <ChatComposerSlot
       placement="docked"
       topic={topic}
+      contextUsage={contextUsage}
       onSend={runtime.sendMessage}
+      chatTarget={runtime.composerChatTarget}
       onNewTopic={onNewTopic}
       onCreateEmptyTopic={onCreateEmptyTopic}
       sendDisabled={isHistoryLoading}

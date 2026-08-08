@@ -43,6 +43,11 @@ vi.mock('@main/services/file', async () => {
         super('stale')
       }
     },
+    DirectoryTreeStoppedError: class DirectoryTreeStoppedError extends Error {
+      constructor() {
+        super('DirectoryTreeManager stopped during in-flight builder creation')
+      }
+    },
     assertOutsideManagedStorageMutation: assertOutsideManagedStorageMutationMock,
     dispatchHandle,
     getMetadataByPath: getMetadataByPathMock,
@@ -54,9 +59,10 @@ vi.mock('@main/services/file', async () => {
   }
 })
 
-import { ContentCommittedMetadataPendingError } from '@main/services/file'
+import { ContentCommittedMetadataPendingError, DirectoryTreeStoppedError } from '@main/services/file'
 import { PathStaleVersionError } from '@main/utils/file'
 import { fileErrorCodes } from '@shared/ipc/errors/file'
+import { IpcError } from '@shared/ipc/errors/IpcError'
 
 import { fileHandlers } from '../file'
 
@@ -91,15 +97,31 @@ const fileManager = {
   batchCreateInternalEntries: vi.fn()
 }
 
+const directoryTreeManager = {
+  create: vi.fn(),
+  activateTree: vi.fn(),
+  dispose: vi.fn(),
+  rename: vi.fn()
+}
+
+const senderWebContents = { id: 7 }
+const windowManager = { getWindow: vi.fn() }
+
 beforeEach(() => {
   vi.clearAllMocks()
+  windowManager.getWindow.mockImplementation((id: string) =>
+    id === 'win-1' ? { webContents: senderWebContents } : undefined
+  )
   appGetMock.mockImplementation((name: string) => {
     if (name === 'FileManager') return fileManager
+    if (name === 'DirectoryTreeManager') return directoryTreeManager
+    if (name === 'WindowManager') return windowManager
     throw new Error(`Unexpected application.get(${name})`)
   })
 })
 
 const ctx = { senderId: null }
+const windowCtx = { senderId: 'win-1' }
 
 describe('fileHandlers', () => {
   it('does not expose the pure-SQL content-hash lookup through IpcApi', () => {
@@ -368,5 +390,74 @@ describe('fileHandlers', () => {
 
     await expect(fileHandlers['file.batch_create_internal_entries']({ items }, ctx)).resolves.toBe(result)
     expect(fileManager.batchCreateInternalEntries).toHaveBeenCalledWith(items)
+  })
+
+  it('creates a directory tree addressed to the caller window WebContents', async () => {
+    const created = { treeId: 't-1', revision: 0, snapshot: { kind: 'directory', path: '/tmp/ws', basename: 'ws' } }
+    directoryTreeManager.create.mockResolvedValueOnce(created)
+
+    await expect(
+      fileHandlers['file.tree.create']({ rootPath: '/tmp/ws' as AbsoluteFilePath, options: { maxDepth: 1 } }, windowCtx)
+    ).resolves.toBe(created)
+
+    expect(directoryTreeManager.create).toHaveBeenCalledWith(senderWebContents, '/tmp/ws', { maxDepth: 1 })
+  })
+
+  it('refuses to create a directory tree for a sender that is not a managed window', async () => {
+    await expect(
+      fileHandlers['file.tree.create']({ rootPath: '/tmp/ws' as AbsoluteFilePath, options: undefined }, ctx)
+    ).rejects.toThrow('managed window sender')
+    expect(directoryTreeManager.create).not.toHaveBeenCalled()
+  })
+
+  it('maps a shutdown-in-flight create to the DIRECTORY_TREE_STOPPED code', async () => {
+    directoryTreeManager.create.mockRejectedValueOnce(new DirectoryTreeStoppedError())
+
+    // Without the code the router would normalize it to INTERNAL and the renderer
+    // would toast a shutdown as a real failure.
+    const error = await fileHandlers['file.tree.create'](
+      { rootPath: '/tmp/ws' as AbsoluteFilePath, options: undefined },
+      windowCtx
+    ).catch((e: unknown) => e)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect((error as IpcError).code).toBe(fileErrorCodes.DIRECTORY_TREE_STOPPED)
+  })
+
+  it('delegates activate / dispose / rename with the caller as the claimed owner', async () => {
+    directoryTreeManager.activateTree.mockReturnValueOnce(true)
+    directoryTreeManager.rename.mockReturnValueOnce(true)
+
+    await expect(fileHandlers['file.tree.activate']({ treeId: 't-1', revision: 3 }, windowCtx)).resolves.toBe(true)
+    await expect(fileHandlers['file.tree.dispose']({ treeId: 't-1' }, windowCtx)).resolves.toBeUndefined()
+    await expect(
+      fileHandlers['file.tree.rename'](
+        { treeId: 't-1', oldPath: '/tmp/a.md' as AbsoluteFilePath, newName: 'b.md' },
+        windowCtx
+      )
+    ).resolves.toBe(true)
+
+    // The manager compares this id against the consumer's owner, so a treeId alone
+    // does not authorize anything.
+    expect(directoryTreeManager.activateTree).toHaveBeenCalledWith('t-1', 3, senderWebContents.id)
+    expect(directoryTreeManager.dispose).toHaveBeenCalledWith('t-1', senderWebContents.id)
+    expect(directoryTreeManager.rename).toHaveBeenCalledWith('t-1', '/tmp/a.md', 'b.md', senderWebContents.id)
+  })
+
+  it('refuses tree follow-ups from a sender that is not a managed window', async () => {
+    await expect(fileHandlers['file.tree.activate']({ treeId: 't-1', revision: 3 }, ctx)).resolves.toBe(false)
+    await expect(
+      fileHandlers['file.tree.rename'](
+        { treeId: 't-1', oldPath: '/tmp/a.md' as AbsoluteFilePath, newName: 'b.md' },
+        ctx
+      )
+    ).resolves.toBe(false)
+    await expect(fileHandlers['file.tree.dispose']({ treeId: 't-1' }, ctx)).resolves.toBeUndefined()
+
+    // No claimed owner means no way to authorize, so nothing reaches the manager —
+    // notably `dispose` must not fall through to the unauthenticated internal path.
+    expect(directoryTreeManager.activateTree).not.toHaveBeenCalled()
+    expect(directoryTreeManager.rename).not.toHaveBeenCalled()
+    expect(directoryTreeManager.dispose).not.toHaveBeenCalled()
   })
 })

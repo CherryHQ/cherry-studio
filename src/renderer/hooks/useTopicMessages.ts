@@ -16,6 +16,7 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
+import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type {
   BranchMessage,
   BranchMessagesResponse,
@@ -44,13 +45,13 @@ interface DisplayBranchMessage {
  * of the same model). Mixed cohorts — user @mentioned N models AND
  * regenerated one of them — produce N buckets, one per model.
  *
- * Fallback key when `modelId` is missing (legacy / defensive): the member's
- * own id, guaranteeing a singleton bucket that behaves like a distinct model.
+ * Imported messages may only carry model identity in `messageSnapshot`, so
+ * resolve both sources before falling back to a singleton bucket.
  */
 function bucketAssistantSiblingsByModel(members: SharedMessage[]): Map<string, SharedMessage[]> {
   const buckets = new Map<string, SharedMessage[]>()
   for (const m of members) {
-    const key = m.modelId ?? m.id
+    const key = resolveUniqueModelId(m.modelId, m.messageSnapshot?.model) ?? m.id
     const bucket = buckets.get(key)
     if (bucket) bucket.push(m)
     else buckets.set(key, [m])

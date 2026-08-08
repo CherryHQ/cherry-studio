@@ -13,6 +13,12 @@ import {
   type NodeProxyConfig,
   normalizeProxyBypassRules
 } from './proxyEnv'
+import {
+  createProxyRoutingSnapshot,
+  normalizeProxyEndpoint,
+  type ProxyEndpoint,
+  type ProxyRoutingSnapshot
+} from './proxyRouting'
 
 // This well-known symbol is used by Node.js built-in undici to store the global dispatcher.
 // Derived from undici (bundled with Node 22). If undici changes this symbol name in a future
@@ -64,6 +70,9 @@ export class NodeProxyController {
   private proxyDispatcher: Dispatcher | null = null
   private proxyAgent: ProxyAgent | null = null
   private currentConfigKey: string | null = null
+  private proxyEndpoint: ProxyEndpoint | null = null
+  private normalizedBypassRules: string[] = []
+  private routingVersion = 0
   private readonly proxyBypassRuleMatcher = new ProxyBypassRuleMatcher()
 
   private readonly originalGlobalDispatcher: Dispatcher
@@ -96,11 +105,19 @@ export class NodeProxyController {
       return
     }
 
+    const proxyEndpoint = normalizeProxyEndpoint(proxyUrl)
     this.proxyBypassRuleMatcher.updateByPassRules(normalizedByPassRules, this.logger)
     this.setEnvironment(proxyUrl, normalizedByPassRules)
-    this.setGlobalFetchProxy(proxyUrl)
+    this.setGlobalFetchProxy(proxyEndpoint)
     this.setGlobalHttpProxy(proxyUrl)
+    this.proxyEndpoint = proxyEndpoint
+    this.normalizedBypassRules = normalizedByPassRules
+    this.routingVersion += 1
     this.currentConfigKey = configKey
+  }
+
+  getRoutingSnapshot(): ProxyRoutingSnapshot {
+    return createProxyRoutingSnapshot(this.routingVersion, this.proxyEndpoint, this.normalizedBypassRules)
   }
 
   private setEnvironment(url: string | undefined, normalizedByPassRules: string[]): void {
@@ -199,8 +216,8 @@ export class NodeProxyController {
     }
   }
 
-  private setGlobalFetchProxy(proxyUrl: string | undefined) {
-    if (!proxyUrl) {
+  private setGlobalFetchProxy(endpoint: ProxyEndpoint | null) {
+    if (!endpoint) {
       setGlobalDispatcher(this.originalGlobalDispatcher)
       globalDispatcherRegistry[SOCKS_DISPATCHER_SYMBOL] = this.originalSocksDispatcher
       void this.proxyDispatcher?.close()
@@ -209,17 +226,9 @@ export class NodeProxyController {
       return
     }
 
-    let url: URL
-    try {
-      url = new URL(proxyUrl)
-    } catch {
-      this.logger?.error?.(`Invalid proxy URL: ${proxyUrl}`)
-      return
-    }
-
     axios.defaults.adapter = 'fetch'
 
-    if (url.protocol === 'http:' || url.protocol === 'https:') {
+    if (endpoint.kind === 'http') {
       this.proxyDispatcher = new SelectiveDispatcher(
         new EnvHttpProxyAgent(),
         this.originalGlobalDispatcher,
@@ -232,11 +241,11 @@ export class NodeProxyController {
 
     this.proxyDispatcher = new SelectiveDispatcher(
       socksDispatcher({
-        port: parseInt(url.port),
-        type: url.protocol === 'socks4:' ? 4 : 5,
-        host: url.hostname,
-        userId: url.username || undefined,
-        password: url.password || undefined
+        port: endpoint.port,
+        type: endpoint.version,
+        host: endpoint.host,
+        userId: endpoint.userId,
+        password: endpoint.password
       }),
       this.originalSocksDispatcher,
       (origin) => this.proxyBypassRuleMatcher.isByPass(origin, this.logger),

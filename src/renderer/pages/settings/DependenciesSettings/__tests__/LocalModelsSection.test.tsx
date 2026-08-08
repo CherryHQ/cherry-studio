@@ -124,6 +124,66 @@ describe('LocalModelsSection', () => {
     await user.click(within(embeddingCard()).getByText('common.retry'))
 
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.download', { model: 'embedding' }))
+    expect(mockRequest).not.toHaveBeenCalledWith('local_model.remove', { model: 'embedding' })
+  })
+
+  it('replaces a stale incomplete-cache notice when the retry itself fails in transport', async () => {
+    const user = userEvent.setup()
+    mockRequest.mockImplementation((route: string, input?: { model: string }) => {
+      if (route === 'local_model.get_status') {
+        return Promise.resolve(
+          input?.model === 'embedding'
+            ? { status: 'error', errorCode: 'incomplete_cache' }
+            : { status: 'not_downloaded' }
+        )
+      }
+      if (route === 'local_model.download') return Promise.reject(new Error('ipc transport failed'))
+      return Promise.resolve()
+    })
+
+    render(<LocalModelsSection />)
+    await waitFor(() =>
+      expect(
+        within(embeddingCard()).getByText('settings.dependencies.localModels.notice.incompleteCache')
+      ).toBeInTheDocument()
+    )
+
+    await user.click(within(embeddingCard()).getByText('common.retry'))
+
+    // The failed retry is a download/transport failure — the repair wording must not
+    // survive it via an errorCode left behind by the earlier status probe.
+    await waitFor(() =>
+      expect(
+        within(embeddingCard()).getByText('settings.dependencies.localModels.notice.downloadFailed')
+      ).toBeInTheDocument()
+    )
+    expect(
+      within(embeddingCard()).queryByText('settings.dependencies.localModels.notice.incompleteCache')
+    ).not.toBeInTheDocument()
+  })
+
+  it('words an incomplete-cache error as repair-by-redownload, not a connection problem', async () => {
+    mockRequest.mockImplementation((route: string, input?: { model: string }) => {
+      if (route === 'local_model.get_status') {
+        return Promise.resolve(
+          input?.model === 'embedding'
+            ? { status: 'error', errorCode: 'incomplete_cache' }
+            : { status: 'not_downloaded' }
+        )
+      }
+      return Promise.resolve()
+    })
+
+    render(<LocalModelsSection />)
+
+    await waitFor(() =>
+      expect(
+        within(embeddingCard()).getByText('settings.dependencies.localModels.notice.incompleteCache')
+      ).toBeInTheDocument()
+    )
+    // The generic connection wording would be wrong on both counts here.
+    expect(screen.queryByText('settings.dependencies.localModels.notice.downloadFailed')).not.toBeInTheDocument()
+    expect(within(embeddingCard()).getByText('common.retry')).toBeInTheDocument()
   })
 
   it('shows an explicit unsupported state once both cards report unsupported (e.g. Intel Mac)', async () => {

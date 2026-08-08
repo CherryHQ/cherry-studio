@@ -2,7 +2,7 @@ import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -171,6 +171,8 @@ vi.mock('@renderer/pages/code/cliConfig', () => ({
   cliConfigConnectionMatchesProvider: () => false,
   extractConfigFromCliConfigDraft: (...args: unknown[]) => extractConfigFromCliConfigDraftMock(...args),
   extractConnectionFromCliConfigDraft: (...args: unknown[]) => extractConnectionFromCliConfigDraftMock(...args),
+  gatewayExpectedModel: () => undefined,
+  gatewayModelIdFromAddress: () => undefined,
   getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
     const env = config.env as Record<string, string> | undefined
     return env?.ANTHROPIC_DEFAULT_FABLE_MODEL ? `${providerId}::${env.ANTHROPIC_DEFAULT_FABLE_MODEL}` : undefined
@@ -267,6 +269,8 @@ function renderPanel(
     cliTool?: CodeCli
     isCurrentProvider?: boolean
     providerConfig?: CliProviderConfig | null
+    provider?: Provider
+    gateway?: { provider: Provider; apiKey: string }
   } = {}
 ) {
   readCliConfigFilesMock.mockResolvedValue(cliConfigFiles)
@@ -282,7 +286,7 @@ function renderPanel(
     <ConfigEditPanel
       onClose={onClose}
       cliTool={options.cliTool ?? CodeCli.CLAUDE_CODE}
-      provider={provider}
+      provider={options.provider ?? provider}
       providerConfig={
         options.providerConfig === undefined
           ? { modelId: 'anthropic::claude-old' as UniqueModelId, config: {} }
@@ -290,6 +294,7 @@ function renderPanel(
       }
       isCurrentProvider={options.isCurrentProvider ?? true}
       modelFilter={() => true}
+      gateway={options.gateway}
       onSubmit={onSubmit}
     />
   )
@@ -343,6 +348,22 @@ describe('ConfigEditPanel', () => {
     fireEvent.click(screen.getByText('code.model_mode.detailed'))
 
     expect(screen.queryByTestId('model-selector')).not.toBeInTheDocument()
+    expect(screen.getByTestId('claude-config-fields-advanced')).toBeInTheDocument()
+  })
+
+  it('offers common and detailed Claude model modes for the unified gateway', async () => {
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    renderPanel(vi.fn(), {
+      isCurrentProvider: false,
+      provider: gatewayProvider,
+      providerConfig: null,
+      gateway: { provider: gatewayProvider, apiKey: 'cs-sk-gateway' }
+    })
+
+    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+
+    expect(screen.getByText('code.model_mode.common')).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByText('code.model_mode.detailed'))
     expect(screen.getByTestId('claude-config-fields-advanced')).toBeInTheDocument()
   })
 

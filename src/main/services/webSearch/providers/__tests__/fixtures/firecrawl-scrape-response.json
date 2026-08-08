@@ -1,0 +1,22 @@
+{
+  "data": {
+    "markdown": "# Example Domain\n\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\n\n[Learn more](https://iana.org/domains/example)",
+    "metadata": {
+      "cacheState": "hit",
+      "cachedAt": "2026-08-07T03:40:06.568Z",
+      "concurrencyLimited": false,
+      "contentType": "text/html",
+      "creditsUsed": 1,
+      "favicon": "data:,",
+      "language": "en",
+      "proxyUsed": "basic",
+      "scrapeId": "019fda4f-2ba7-7227-b096-8ee26d80d3f0",
+      "sourceURL": "https://example.com",
+      "statusCode": 200,
+      "title": "Example Domain",
+      "url": "https://example.com/",
+      "viewport": "width=device-width, initial-scale=1"
+    }
+  },
+  "success": true
+}

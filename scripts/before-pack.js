@@ -4,6 +4,8 @@ const fs = require('fs')
 const path = require('path')
 const { parse } = require('yaml')
 
+const { ensureLinuxNativeArtifact } = require('./linux-native/download')
+
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
 const packages = [
@@ -110,6 +112,18 @@ exports.default = async function (context) {
   const platform = platformToArch[platformName]
 
   assertPrebuiltPackages(platform, arch)
+
+  if (platform === 'linux') {
+    const linuxArch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
+    if (!linuxArch) throw new Error(`Unsupported Linux packaging architecture: ${context.arch}`)
+
+    const projectRoot = path.join(__dirname, '..')
+    const artifact = ensureLinuxNativeArtifact({ projectRoot, arch: linuxArch })
+    process.stdout.write(
+      `${artifact.cached ? 'Verified cached' : 'Downloaded'} GLIBC-compatible better-sqlite3 for ` +
+        `linux-${linuxArch} (${artifact.inspection.sha256})\n`
+    )
+  }
 
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)
   execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch}`, { stdio: 'inherit' })

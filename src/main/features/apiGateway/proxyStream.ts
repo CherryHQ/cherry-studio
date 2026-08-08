@@ -16,6 +16,7 @@
  * `Response`. The Elysia route handlers return this `Response` directly.
  */
 
+import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
@@ -30,6 +31,7 @@ import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 import { appendInternalAgentContinuation } from './utils/agentContinuation'
+import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
 import { resolveGatewayModelAddress } from './utils/models'
 
 const logger = loggerService.withContext('ProxyStreamService')
@@ -159,7 +161,35 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   })
 
   const provider: Provider = config.provider ?? resolvedProvider
-  const shouldNormalizeAgentContinuation = inputFormat === 'anthropic' && isInternalAgentRequest
+  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalAgentRequest
+  let effectiveParams = params
+
+  if (isInternalAnthropicAgentRequest) {
+    const anthropicParams = params as MessageCreateParams
+    const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
+
+    if (normalization.status === 'conflict') {
+      logger.warn('Rejected conflicting tool history in internal Agent request', {
+        providerId,
+        modelId,
+        toolUseId: normalization.toolUseId,
+        reason: normalization.reason,
+        firstLocation: normalization.firstLocation,
+        duplicateLocation: normalization.duplicateLocation
+      })
+      throw asClientError(new Error('Invalid Anthropic tool history: tool_use ids must be unique'))
+    }
+
+    if (normalization.status === 'repaired') {
+      effectiveParams = { ...anthropicParams, messages: normalization.messages }
+      logger.warn('Repaired duplicate tool history in internal Agent request', {
+        providerId,
+        modelId,
+        duplicateToolUseCount: normalization.duplicateToolUseCount,
+        duplicateToolResultCount: normalization.duplicateToolResultCount
+      })
+    }
+  }
 
   // 2. Build converter and extract messages / tools / sampling / provider options.
   const converter = MessageConverterFactory.create(inputFormat, {
@@ -167,16 +197,16 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     openRouterReasoningCache
   })
 
-  const convertedMessages = converter.toUIMessages(params)
-  const messages = shouldNormalizeAgentContinuation
+  const convertedMessages = converter.toUIMessages(effectiveParams)
+  const messages = isInternalAnthropicAgentRequest
     ? appendInternalAgentContinuation(convertedMessages)
     : convertedMessages
-  const tools = converter.toAiSdkTools?.(params)
-  const streamOptions = converter.extractStreamOptions(params)
+  const tools = converter.toAiSdkTools?.(effectiveParams)
+  const streamOptions = converter.extractStreamOptions(effectiveParams)
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
   const extractedProviderOptions =
-    converter.extractProviderOptions(provider, model, params, streamOptions.maxOutputTokens) ?? {}
+    converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {}
   const providerOptions = applyFastModeToProviderOptions(
     provider,
     model,

@@ -26,6 +26,7 @@ const {
   knowledgeBaseCreateMock,
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
+  knowledgeBaseListAllIdsMock,
   knowledgeBaseListMock,
   knowledgeBaseUpdateMock,
   knowledgeItemCreateActiveMock,
@@ -66,6 +67,7 @@ const {
   knowledgeBaseCreateMock: vi.fn(),
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
+  knowledgeBaseListAllIdsMock: vi.fn(),
   knowledgeBaseListMock: vi.fn(),
   knowledgeBaseUpdateMock: vi.fn(),
   knowledgeItemCreateActiveMock: vi.fn(),
@@ -158,6 +160,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
     create: knowledgeBaseCreateMock,
     delete: knowledgeBaseDeleteMock,
     getById: knowledgeBaseGetByIdMock,
+    listAllIds: knowledgeBaseListAllIdsMock,
     list: knowledgeBaseListMock,
     update: knowledgeBaseUpdateMock
   }
@@ -323,6 +326,7 @@ describe('KnowledgeService', () => {
     knowledgeBaseCreateMock.mockReturnValue(createBase())
     knowledgeBaseDeleteMock.mockReturnValue(undefined)
     knowledgeBaseGetByIdMock.mockReturnValue(createBase())
+    knowledgeBaseListAllIdsMock.mockReturnValue(new Set())
     knowledgeBaseUpdateMock.mockImplementation((_id: string, patch: Partial<KnowledgeBase>) => createBase(patch))
     fsStatMock.mockResolvedValue({
       isFile: () => true,
@@ -566,6 +570,41 @@ describe('KnowledgeService', () => {
 
     expect(deleteStoreMock).toHaveBeenCalledWith('kb-1')
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
+  })
+
+  it('removes orphan artifacts only when the base is still unowned', async () => {
+    const service = new KnowledgeService()
+
+    await expect(service.removeOrphanBaseArtifacts('orphan-base')).resolves.toBe(true)
+    expect(deleteStoreMock).toHaveBeenCalledWith('orphan-base')
+
+    knowledgeBaseListAllIdsMock.mockReturnValueOnce(new Set(['owned-base']))
+    await expect(service.removeOrphanBaseArtifacts('owned-base')).resolves.toBe(false)
+    expect(deleteStoreMock).not.toHaveBeenCalledWith('owned-base')
+  })
+
+  it('serializes orphan cleanup and artifact creation for the same base', async () => {
+    const service = new KnowledgeService()
+    const cleanupEntered = createDeferred()
+    const releaseCleanup = createDeferred()
+    const base = createBase({ id: 'kb-1' })
+    deleteStoreMock.mockImplementationOnce(async () => {
+      cleanupEntered.resolve()
+      await releaseCleanup.promise
+    })
+    knowledgeBaseCreateMock.mockReturnValueOnce(base)
+
+    const cleanup = service.removeOrphanBaseArtifacts(base.id)
+    await cleanupEntered.promise
+    const creation = service.createBase({ name: 'KB', dimensions: 3, embeddingModelId: 'provider::embed' })
+    await flushMicrotasks()
+
+    expect(getIndexStoreMock).not.toHaveBeenCalled()
+
+    releaseCleanup.resolve()
+    await expect(cleanup).resolves.toBe(true)
+    await expect(creation).resolves.toBe(base)
+    expect(getIndexStoreMock).toHaveBeenCalledWith(base)
   })
 
   it('deletes base jobs before vector artifacts and SQLite base', async () => {

@@ -1,4 +1,4 @@
-import { getKnowledgePathBasename, type KnowledgeItemOf } from '@shared/data/types/knowledge'
+import { getKnowledgeNoteFirstLine, getKnowledgePathBasename, type KnowledgeItemOf } from '@shared/data/types/knowledge'
 
 type KnowledgeItemLifecycle<TItem extends { error: unknown; status: string }> = TItem extends unknown
   ? Pick<TItem, 'error' | 'status'>
@@ -47,7 +47,10 @@ const createContainerLifecycle = (
 export const createNoteItem = ({
   id,
   content = '会议纪要',
-  source = id,
+  // A note's `source` is its title — the drafted one, or the imported file's name. Defaulting it to
+  // the body's opening line matches the ordinary case where the two agree; pass it explicitly to
+  // exercise a note whose title differs from its first line.
+  source = getKnowledgeNoteFirstLine(content),
   status = 'completed'
 }: {
   id: string

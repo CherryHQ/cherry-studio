@@ -150,6 +150,16 @@ export class KnowledgeBaseService {
     }))
   }
 
+  listAllIds(): Set<string> {
+    return new Set(
+      this.db
+        .select({ id: knowledgeBaseTable.id })
+        .from(knowledgeBaseTable)
+        .all()
+        .map(({ id }) => id)
+    )
+  }
+
   list(query: ListKnowledgeBasesQuery): OffsetPaginationResponse<KnowledgeBaseListItem> {
     const { page, limit } = query
     const offset = (page - 1) * limit

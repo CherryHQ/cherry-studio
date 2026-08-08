@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 
-import type { InferenceModelSource } from './inferenceProtocol'
+import type { EmbeddingModelDir, InferenceModelSource } from './inferenceProtocol'
 import { type InferenceProgress, InferenceServiceBase } from './InferenceServiceBase'
 
 /** Local text-embedding inference (transformers.js / Qwen3-Embedding) in its own
@@ -18,16 +18,13 @@ export class EmbeddingInferenceService extends InferenceServiceBase {
     return application.getPath('feature.embedding.models')
   }
 
-  /** Embed texts off the main thread; loads the model first if it is not cached. */
-  async embed(
-    texts: string[],
-    source: InferenceModelSource,
-    modelRepo: string,
-    dtype: string,
-    signal?: AbortSignal
-  ): Promise<number[][]> {
-    const result = await this.send({ type: 'embedding.embed', modelRepo, dtype, source, texts }, { signal })
-    return result.embeddings ?? []
+  /** Embed texts off the main thread, loading the model from `modelDir` if it is not cached in memory. */
+  async embed(texts: string[], modelDir: EmbeddingModelDir, dtype: string, signal?: AbortSignal): Promise<number[][]> {
+    const result = await this.send({ type: 'embedding.embed', modelDir, dtype, texts }, { signal })
+    // A missing field is a protocol violation — silently embedding nothing would
+    // poison every downstream consumer (empty vectors indexed as real ones).
+    if (!result.embeddings) throw new Error('inference worker returned an embed result without embeddings')
+    return result.embeddings
   }
 
   /** Download/load the embedding model, reporting progress (used by the model card). */
@@ -46,12 +43,14 @@ export class EmbeddingInferenceService extends InferenceServiceBase {
    * localEmbeddingTokenLimit.ts, which transitively requires onnxruntime-node). */
   async countTokens(
     texts: string[],
-    source: InferenceModelSource,
-    modelRepo: string,
+    modelDir: EmbeddingModelDir,
     dtype: string,
     signal?: AbortSignal
   ): Promise<number[]> {
-    const result = await this.send({ type: 'embedding.countTokens', modelRepo, dtype, source, texts }, { signal })
-    return result.tokenCounts ?? []
+    const result = await this.send({ type: 'embedding.countTokens', modelDir, dtype, texts }, { signal })
+    // Same protocol guard as embed: `[count] = []` would make every chunk-size
+    // comparison silently false instead of failing the indexing request.
+    if (!result.tokenCounts) throw new Error('inference worker returned a countTokens result without token counts')
+    return result.tokenCounts
   }
 }

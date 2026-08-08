@@ -12,6 +12,8 @@ const mocks = vi.hoisted(() => ({
   getAgent: vi.fn(),
   getModelByKey: vi.fn(),
   applicationGet: vi.fn(),
+  getPhysicalPath: vi.fn(),
+  probeReadable: vi.fn(),
   consumeWarmQuery: vi.fn(),
   prepareTrace: vi.fn(),
   refreshTraceContext: vi.fn(),
@@ -56,6 +58,10 @@ vi.mock('@main/ai/messages/fileProcessor', () => ({
   materializeNativeFilePart: mocks.materializeNativeFilePart
 }))
 
+vi.mock('@main/utils/file', () => ({
+  probeReadable: mocks.probeReadable
+}))
+
 vi.mock('../settingsBuilder', async (importActual) => ({
   ...(await importActual<typeof SettingsBuilderModule>()),
   registerMcpSessionCatalogSync: mocks.registerMcpSessionCatalogSync
@@ -82,6 +88,7 @@ vi.mock('../streamAdapter', async (importActual) => {
       readonly finalizeOpenParts = vi.fn()
       // Mirrors the real adapter: session-scoped, content only flows inside a turn.
       private turnActive = false
+      private turnHasActivity = false
       private autonomous = false
       private pendingInit: any
 
@@ -93,7 +100,12 @@ vi.mock('../streamAdapter', async (importActual) => {
         return this.turnActive
       }
 
+      get hasTurnActivity() {
+        return this.turnHasActivity
+      }
+
       beginTurn() {
+        this.turnHasActivity = false
         this.turnActive = true
         if (this.pendingInit) {
           this.pendingInit = undefined
@@ -101,15 +113,20 @@ vi.mock('../streamAdapter', async (importActual) => {
         }
       }
 
+      private enqueue(chunk: any) {
+        if (chunk.type !== 'message-metadata') this.turnHasActivity = true
+        this.options.sink.enqueue(chunk)
+      }
+
       private emitInitMetadata() {
-        this.options.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
+        this.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
       }
 
       handleTruncationError(error: any) {
         if (!String(error?.message ?? '').includes('truncat')) return false
         this.turnActive = false
-        this.options.sink.enqueue({ type: 'text-delta', id: 'salvaged', delta: ' [truncated]' })
-        this.options.sink.enqueue({ type: 'finish', finishReason: { unified: 'length', raw: 'truncation' } })
+        this.enqueue({ type: 'text-delta', id: 'salvaged', delta: ' [truncated]' })
+        this.enqueue({ type: 'finish', finishReason: { unified: 'length', raw: 'truncation' } })
         return true
       }
 
@@ -204,21 +221,22 @@ vi.mock('../streamAdapter', async (importActual) => {
           return { type: 'continue' }
         }
         if (message.type === 'stream_event') {
-          this.options.sink.enqueue({ type: 'text-delta', id: 'text-1', delta: 'hello' })
+          this.enqueue({ type: 'text-delta', id: 'text-1', delta: 'hello' })
           return { type: 'continue' }
         }
         if (message.type === 'result') {
           this.options.onSessionId(message.session_id)
-          this.options.sink.enqueue({ type: 'finish', finishReason: { unified: 'stop', raw: 'end_turn' } })
           if (message.subtype !== 'success') {
-            // Mirrors the real adapter: a typed ClaudeCodeResultError, thrown before the turn flag
+            // Mirrors the real adapter: errors flush usage metadata, then throw before the turn flag
             // flips (the real flip happens after handleResultMessage returns, which a throw skips).
+            this.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
             throw new actualStreamAdapter.ClaudeCodeResultError(
               message.errors?.join('; ') || 'runtime failed',
               message.subtype,
               message.errors ?? []
             )
           }
+          this.enqueue({ type: 'finish', finishReason: { unified: 'stop', raw: 'end_turn' } })
           this.turnActive = false
           if (this.autonomous) {
             this.autonomous = false
@@ -233,11 +251,17 @@ vi.mock('../streamAdapter', async (importActual) => {
 })
 
 const { ClaudeCodeRuntimeDriver } = await import('../ClaudeCodeRuntimeDriver')
+const { spawnClaudeCodeProcess } = await import('../ClaudeCodeProcessManager')
 
 function createAsyncQueue<T>() {
   const items: T[] = []
   const waiters: Array<(value: IteratorResult<T>) => void> = []
   let closed = false
+
+  const close = () => {
+    closed = true
+    while (waiters.length > 0) waiters.shift()?.({ value: undefined as T, done: true })
+  }
 
   return {
     push(item: T) {
@@ -245,11 +269,12 @@ function createAsyncQueue<T>() {
       if (waiter) waiter({ value: item, done: false })
       else items.push(item)
     },
-    close() {
-      closed = true
-      while (waiters.length > 0) waiters.shift()?.({ value: undefined as T, done: true })
-    },
+    close,
     iterable: {
+      return: vi.fn(async () => {
+        close()
+        return { value: undefined, done: true } as IteratorResult<T>
+      }),
       [Symbol.asyncIterator](): AsyncIterator<T> {
         return {
           next: () => {
@@ -262,6 +287,16 @@ function createAsyncQueue<T>() {
       }
     }
   }
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
 }
 
 function userMessage() {
@@ -289,9 +324,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
       }
       if (name === 'ClaudeCodeTraceBridgeService')
         return { prepareTrace: mocks.prepareTrace, refreshTraceContext: mocks.refreshTraceContext }
+      if (name === 'FileManager') return { getPhysicalPath: mocks.getPhysicalPath }
       throw new Error(`Unexpected application.get(${name})`)
     })
     mocks.consumeWarmQuery.mockResolvedValue(undefined)
+    mocks.getPhysicalPath.mockImplementation((id: string) => `/managed/${id}`)
+    mocks.probeReadable.mockResolvedValue('readable')
     mocks.prepareTrace.mockResolvedValue(undefined)
     mocks.collectFileAttachments.mockReturnValue([])
     mocks.prepareChatMessages.mockImplementation(async (messages) => messages)
@@ -407,6 +445,66 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('passes the host spawn wrapper to the cold SDK query path', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const ignoredSpawn = vi.fn()
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet', spawnClaudeCodeProcess: ignoredSpawn },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+
+    expect(mocks.createClaudeQuery.mock.calls[0][0].options.spawnClaudeCodeProcess).toBe(spawnClaudeCodeProcess)
+    void connection.close()
+  })
+
+  it('waits for the SDK query cleanup promise when closing a connection', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const cleanup = createDeferred<IteratorResult<void>>()
+    const query = {
+      ...queryQueue.iterable,
+      interrupt: vi.fn(),
+      close: vi.fn(),
+      return: vi.fn(() => cleanup.promise)
+    }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+
+    const closing = Promise.resolve(connection.close())
+    const repeatedClosing = Promise.resolve(connection.close())
+    expect(repeatedClosing).toBe(closing)
+    let settled = false
+    void closing.then(() => {
+      settled = true
+    })
+    await Promise.resolve()
+
+    expect(query.close).toHaveBeenCalledOnce()
+    expect(query.return).toHaveBeenCalledExactlyOnceWith(undefined)
+    expect(settled).toBe(false)
+
+    cleanup.resolve({ value: undefined, done: true })
+    await expect(Promise.all([closing, repeatedClosing])).resolves.toEqual([undefined, undefined])
+  })
+
   it('rejects the SDK-owned /fast command before it enters the input queue', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -490,7 +588,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/spec.pdf'
+              text: 'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": /tmp/spec.pdf'
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -537,7 +635,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         message: {
           role: 'user',
           content:
-            'inspect this archive\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/BUNDLE.ZIP'
+            'inspect this archive\n\nAttached files (read them with your tools using these absolute paths):\n- "BUNDLE.ZIP": /managed/entry-archive'
         }
       },
       done: false
@@ -719,7 +817,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
           content: [
             {
               type: 'text',
-              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/diagram.bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png'
+              text: 'inspect these images\n\nAttached files (read them with your tools using these absolute paths):\n- "diagram.bmp": /managed/entry-bmp\n\nUnavailable attachments: missing.png, empty.png, missing-url.png'
             },
             { type: 'image', source: { type: 'base64', media_type: 'image/png', data: 'QUJD' } }
           ]
@@ -734,22 +832,14 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
-  it('routes first-party non-image attachments to extracted text before sending', async () => {
+  it.each([
+    ['PDF', 'spec.pdf', 'application/pdf'],
+    ['HTML', 'page.html', 'text/html'],
+    ['plain text', 'notes.txt', 'text/plain']
+  ])('sends first-party %s attachments as current managed paths', async (_label, filename, mediaType) => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
     mocks.createClaudeQuery.mockReturnValue(query)
-    mocks.collectFileAttachments.mockReturnValueOnce([
-      { fileEntryId: 'entry-1', handle: 'spec.pdf', displayName: 'spec.pdf' }
-    ])
-    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
-      {
-        ...message,
-        parts: [
-          { type: 'text', text: 'summarize this' },
-          { type: 'text', text: 'Attached file "spec.pdf":\nextracted PDF body' }
-        ]
-      }
-    ])
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
@@ -763,12 +853,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
         ...userMessage(),
         data: {
           parts: [
-            { type: 'text', text: 'summarize this' },
+            { type: 'text', text: 'inspect this' },
             {
               type: 'file',
-              url: 'file:///tmp/spec.pdf',
-              mediaType: 'application/pdf',
-              filename: 'spec.pdf',
+              url: `file:///stale/location/${filename}`,
+              mediaType,
+              filename,
               providerMetadata: { cherry: { fileEntryId: 'entry-1' } }
             }
           ]
@@ -780,17 +870,106 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content: 'summarize this\nAttached file "spec.pdf":\nextracted PDF body'
+          content: `inspect this\n\nAttached files (read them with your tools using these absolute paths):\n- ${JSON.stringify(filename)}: /managed/entry-1`
         }
       },
       done: false
     })
-    expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
-      attachments: [{ fileEntryId: 'entry-1', handle: 'spec.pdf', displayName: 'spec.pdf' }],
-      nativeSupport: { image: true, pdf: false, audio: false, video: false },
-      isToolCapable: false
-    })
+    expect(mocks.getPhysicalPath).toHaveBeenCalledWith('entry-1')
+    expect(mocks.prepareChatMessages).not.toHaveBeenCalled()
     expect(mocks.materializeNativeFilePart).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it.each([
+    [
+      'the entry row is gone',
+      () =>
+        mocks.getPhysicalPath.mockImplementationOnce(() => {
+          throw new Error('not found')
+        })
+    ],
+    ['the resolved path no longer exists', () => mocks.probeReadable.mockResolvedValueOnce('missing')]
+  ])('reports an attachment as unavailable when %s', async (_label, arrange) => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    arrange()
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect this' },
+            {
+              type: 'file',
+              url: 'file:///stale/location/gone.pdf',
+              mediaType: 'application/pdf',
+              filename: 'gone.pdf',
+              providerMetadata: { cherry: { fileEntryId: 'entry-gone' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: { message: { role: 'user', content: 'inspect this\n\nUnavailable attachments: gone.pdf' } },
+      done: false
+    })
+    void connection.close()
+  })
+
+  it('still announces a path whose readability cannot be verified', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    // EACCES / a stalled network volume must not be treated as deletion.
+    mocks.probeReadable.mockResolvedValueOnce('unverifiable')
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'inspect this' },
+            {
+              type: 'file',
+              url: 'file:///stale/location/slow.pdf',
+              mediaType: 'application/pdf',
+              filename: 'slow.pdf',
+              providerMetadata: { cherry: { fileEntryId: 'entry-slow' } }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content:
+            'inspect this\n\nAttached files (read them with your tools using these absolute paths):\n- "slow.pdf": /managed/entry-slow'
+        }
+      },
+      done: false
+    })
     void connection.close()
   })
 
@@ -809,15 +988,6 @@ describe('ClaudeCodeRuntimeDriver', () => {
       sdkModelId: 'sonnet-sdk',
       initializeTimeoutMs: 100
     })
-    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
-      {
-        ...message,
-        parts: [
-          { type: 'text', text: 'summarize this' },
-          { type: 'text', text: 'Attached file contents' }
-        ]
-      }
-    ])
     const connection = await new ClaudeCodeRuntimeDriver().connect({
       sessionId: 'session-1',
       agentId: 'agent-1',
@@ -857,22 +1027,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content: `summarize this\nAttached file contents\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/BUNDLE.ZIP\n\nAttachment manifest:\n- "spec.pdf" (handle: ${handle})\n- "BUNDLE.ZIP" (handle: ${archiveHandle})`
+          content: `summarize this\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": /managed/entry-secret\n- "BUNDLE.ZIP": /managed/entry-archive-secret\n\nAttachment manifest:\n- "spec.pdf" (handle: ${handle})\n- "BUNDLE.ZIP" (handle: ${archiveHandle})`
         }
       },
       done: false
     })
-    expect(mocks.prepareChatMessages).toHaveBeenCalledWith([expect.objectContaining({ id: 'user-1', role: 'user' })], {
-      attachments: [
-        { fileEntryId: 'entry-secret', handle, displayName: 'spec.pdf' },
-        { fileEntryId: 'entry-archive-secret', handle: archiveHandle, displayName: 'BUNDLE.ZIP' }
-      ],
-      nativeSupport: { image: true, pdf: false, audio: false, video: false },
-      isToolCapable: true
-    })
-    const serializedInput = JSON.stringify(await nextInput)
-    expect(serializedInput).not.toContain('entry-secret')
-    expect(serializedInput).not.toContain('entry-archive-secret')
+    expect(mocks.prepareChatMessages).not.toHaveBeenCalled()
     void connection.close()
   })
 
@@ -922,13 +1082,12 @@ describe('ClaudeCodeRuntimeDriver', () => {
       value: {
         message: {
           role: 'user',
-          content: `inspect this archive\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/BUNDLE.ZIP\n\nAttachment manifest:\n- "BUNDLE.ZIP" (handle: ${archiveHandle})`
+          content: `inspect this archive\n\nAttached files (read them with your tools using these absolute paths):\n- "BUNDLE.ZIP": /managed/entry-archive-secret\n\nAttachment manifest:\n- "BUNDLE.ZIP" (handle: ${archiveHandle})`
         }
       },
       done: false
     })
     expect(mocks.prepareChatMessages).not.toHaveBeenCalled()
-    expect(JSON.stringify(await nextInput)).not.toContain('entry-archive-secret')
     void connection.close()
   })
 
@@ -1024,7 +1183,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
         message: {
           role: 'user',
           content:
-            'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- /tmp/pixel.png'
+            'describe this\n\nAttached files (read them with your tools using these absolute paths):\n- "pixel.png": /tmp/pixel.png'
         }
       },
       done: false
@@ -2449,7 +2608,7 @@ describe('ClaudeCodeRuntimeDriver', () => {
     // user message with its per-message resume cleared.
     await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
     const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
-    expect(retrySpawn.options).toMatchObject({ model: 'sonnet', resume: undefined })
+    expect(retrySpawn.options).toMatchObject({ model: 'sonnet', resume: undefined, spawnClaudeCodeProcess })
     const replayed = await retrySpawn.prompt[Symbol.asyncIterator]().next()
     expect(replayed.value).toMatchObject({ type: 'user', session_id: '' })
 
@@ -2470,6 +2629,171 @@ describe('ClaudeCodeRuntimeDriver', () => {
     expect(seen).toContainEqual(
       expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
     )
+    void connection.close()
+  })
+
+  it('recovers corrupt resumed tool history before any non-metadata activity', async () => {
+    const corruptQueue = createAsyncQueue<any>()
+    const freshQueue = createAsyncQueue<any>()
+    const corruptQuery = { ...corruptQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const freshQuery = { ...freshQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.buildRequest.mockResolvedValue({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet', resume: 'corrupt-token' },
+      settings: {},
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    mocks.createClaudeQuery.mockReturnValueOnce(corruptQuery).mockReturnValueOnce(freshQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'corrupt-token'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    corruptQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'corrupt-token',
+      usage: {},
+      errors: ['messages.2.content.1: `tool_use` ids must be unique']
+    })
+
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+    const retrySpawn = mocks.createClaudeQuery.mock.calls[1][0]
+    expect(retrySpawn.options).toMatchObject({ model: 'sonnet', resume: undefined, spawnClaudeCodeProcess })
+    await expect(retrySpawn.prompt[Symbol.asyncIterator]().next()).resolves.toMatchObject({
+      value: { type: 'user', session_id: '' },
+      done: false
+    })
+
+    freshQueue.push({ type: 'system', subtype: 'init', session_id: 'fresh-duplicate-recovery' })
+    freshQueue.push({ type: 'result', subtype: 'success', session_id: 'fresh-duplicate-recovery', usage: {} })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      seen.push(next.value)
+      if (next.value?.type === 'turn-complete' || next.done) break
+    }
+    expect(seen.map((event) => event?.type)).not.toContain('error')
+    expect(seen).toContainEqual(expect.objectContaining({ type: 'resume-token', token: 'fresh-duplicate-recovery' }))
+    expect(seen).toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'data-conversation-reset' }) })
+    )
+    expect(seen).toContainEqual({ type: 'turn-complete' })
+    void connection.close()
+  })
+
+  it('does not replay corrupt tool history after the turn emitted non-metadata activity', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'corrupt-token'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({ type: 'stream_event', event: {}, session_id: 'corrupt-token' })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'text-delta', delta: 'hello' } }
+    })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'corrupt-token',
+      usage: {},
+      errors: ['tool_use ids must be unique']
+    })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'message-metadata' } }
+    })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'error' } })
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('does not recover duplicate tool ids when no resume token exists', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'new-session',
+      usage: {},
+      errors: ['tool_use ids must be unique']
+    })
+
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'resume-token', token: 'new-session' } })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'message-metadata' } }
+    })
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'error' } })
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
+    void connection.close()
+  })
+
+  it('shares one recovery budget across stale and duplicate resume failures', async () => {
+    const staleQueue = createAsyncQueue<any>()
+    const corruptQueue = createAsyncQueue<any>()
+    const staleQuery = { ...staleQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const corruptQuery = { ...corruptQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValueOnce(staleQuery).mockReturnValueOnce(corruptQuery)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any,
+      resumeToken: 'stale-token'
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    staleQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'stale-token',
+      usage: {},
+      errors: ['No conversation found with session ID: stale-token']
+    })
+    await vi.waitFor(() => expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2))
+
+    corruptQueue.push({
+      type: 'result',
+      subtype: 'error_during_execution',
+      session_id: 'fresh-corrupt-session',
+      usage: {},
+      errors: ['`tool_use` ids must be unique']
+    })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      seen.push(next.value)
+      if (next.value?.type === 'error' || next.done) break
+    }
+    expect(seen.map((event) => event?.type)).toContain('error')
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2)
     void connection.close()
   })
 
@@ -2529,7 +2853,9 @@ describe('ClaudeCodeRuntimeDriver', () => {
 
     queryQueue.push({ type: 'result', subtype: 'error_during_execution', session_id: 'resume-init', usage: {} })
 
-    await expect(events.next()).resolves.toMatchObject({ value: { type: 'chunk', chunk: { type: 'finish' } } })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'message-metadata' } }
+    })
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'error' } })
     expect(mockMainLoggerService.error).toHaveBeenCalledWith(
       'Claude Code query loop failed',

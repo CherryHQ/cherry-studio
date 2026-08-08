@@ -181,6 +181,9 @@ vi.mock('@renderer/components/composer/ComposerSurface', () => {
         <div data-testid="composer-below-controls">
           {props.renderBelowControls?.(inputAdapter, unifiedPanelControl)}
         </div>
+        <div data-testid="composer-compact-controls">
+          {props.compactWhenSingleLine ? props.renderCompactControls?.(inputAdapter, unifiedPanelControl) : null}
+        </div>
         <div data-testid="composer-send-accessory">{sendAccessory}</div>
       </div>
     )
@@ -502,6 +505,7 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 
 vi.mock('@renderer/hooks/useModel', () => ({
   useDefaultModel: () => ({ setDefaultModel: mocks.setDefaultModel }),
+  useModelById: (modelId?: string) => ({ model: modelId ? { ...model, id: modelId, contextWindow: 100 } : undefined }),
   useModels: (...args: unknown[]) => {
     mocks.modelHookArgs.push(args)
     return { models: [mocks.model ?? model, modelB] }
@@ -799,6 +803,19 @@ describe('ChatComposer', () => {
       within(screen.getByTestId('composer-send-accessory')).queryByRole('button', { name: 'tool menu' })
     ).not.toBeInTheDocument()
     expect(mocks.surfaceProps?.narrowMode).toBe(false)
+  })
+
+  it('renders context usage after the speed control next to the send action', () => {
+    render(<ChatComposer topic={topic} contextUsage={{ contextTokens: 42, modelId: model.id }} onSend={vi.fn()} />)
+
+    const sendAccessory = screen.getByTestId('composer-send-accessory')
+    const speedControl = within(sendAccessory).getByTestId('chat-speed-control')
+    const indicator = within(sendAccessory).getByRole('meter', {
+      name: 'agent.right_pane.info.context_usage 42%'
+    })
+    expect(speedControl.compareDocumentPosition(indicator)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(indicator).toHaveAttribute('tabindex', '0')
+    expect(indicator).toHaveAttribute('aria-valuenow', '42')
   })
 
   it('uses page-owned context without querying or rendering duplicate context controls', async () => {
@@ -1228,6 +1245,39 @@ describe('ChatComposer', () => {
     expect(screen.getByText('Assistant 1')).toBeInTheDocument()
     expect(screen.getByText('Model A')).toBeInTheDocument()
   })
+
+  it.each(['home', 'docked'] as const)(
+    'forwards compact presentation and keeps pinned shortcuts available for %s placement',
+    (placement) => {
+      const webSearchLauncher = {
+        id: 'web-search',
+        kind: 'command',
+        label: 'chat.input.web_search.label',
+        icon: <span data-testid="web-search-icon" />,
+        sources: ['popover'],
+        active: false
+      }
+      mocks.toolLaunchers = [webSearchLauncher]
+      mocks.toolLaunchersVersion = 1
+
+      render(
+        <ChatPlacementComposer
+          placement={placement}
+          topic={topic}
+          onSend={vi.fn()}
+          externalContextControls
+          compactWhenSingleLine
+        />
+      )
+
+      expect(mocks.surfaceProps?.compactWhenSingleLine).toBe(true)
+      expect(
+        within(screen.getByTestId('composer-compact-controls')).getByRole('button', {
+          name: 'chat.input.web_search.label'
+        })
+      ).toBeInTheDocument()
+    }
+  )
 
   it('does not enable skill marker paste handling', () => {
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
@@ -2081,6 +2131,40 @@ describe('ChatComposer', () => {
     expect(queueContent.props.items.map((entry: any) => entry.id)).toContain(itemId)
     expect(toast.error).toHaveBeenCalledWith('chat.input.send_failed')
     expect(MockUseCacheUtils.getPersistCacheValue('ui.composer.input_history')).toEqual([])
+  })
+
+  it('keeps a queued reserved-branch message bound to its captured target until the stream is idle', async () => {
+    mocks.topicPending = true
+    const onSend = vi.fn().mockResolvedValue(undefined)
+    const reservedTarget = { parentAnchorId: 'reserved-user', mode: 'reserved-branch' } as const
+    const view = render(<ChatComposer topic={topic} chatTarget={reservedTarget} onSend={onSend} />)
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'reserved follow-up', tokens: [] })
+    })
+
+    let queueContent = mocks.surfaceProps?.queueContent as any
+    const queuedItem = queueContent.props.items[0]
+    expect(queuedItem.payload.chatTarget).toEqual(reservedTarget)
+    expect(queueContent.props.isSteerDisabled(queuedItem)).toBe(true)
+    expect(onSend).not.toHaveBeenCalled()
+
+    mocks.topicPending = false
+    view.rerender(
+      <ChatComposer
+        topic={topic}
+        chatTarget={{ parentAnchorId: 'different-active-node', mode: 'active-path' }}
+        onSend={onSend}
+      />
+    )
+    queueContent = mocks.surfaceProps?.queueContent as any
+    expect(queueContent.props.isSteerDisabled(queueContent.props.items[0])).toBe(false)
+
+    await act(async () => {
+      await queueContent.props.onSteer(queuedItem.id)
+    })
+
+    expect(onSend).toHaveBeenCalledWith('reserved follow-up', expect.objectContaining({ chatTarget: reservedTarget }))
   })
 
   describe('input history', () => {

@@ -20,18 +20,18 @@ function broadcastSpy() {
 /** Minimal concrete subclass exercising the base lifecycle in isolation. */
 class TestDownloadService extends LocalModelDownloadService {
   protected readonly kind = 'embedding' as const
-  ready = false
+  filesState: 'absent' | 'incomplete' | 'ready' = 'absent'
   failWith: Error | null = null
   cleanupCalls = 0
   cleanupError: Error | null = null
 
-  protected isReady(): boolean {
-    return this.ready
+  protected modelFilesState() {
+    return this.filesState
   }
 
   protected async performDownload(): Promise<void> {
     if (this.failWith) throw this.failWith
-    this.ready = true
+    this.filesState = 'ready'
     this.broadcast({ status: 'ready', percent: 100 })
   }
 
@@ -41,7 +41,7 @@ class TestDownloadService extends LocalModelDownloadService {
   }
 
   async remove(): Promise<{ removed: boolean }> {
-    this.ready = false
+    this.filesState = 'absent'
     return { removed: true }
   }
 }
@@ -71,6 +71,7 @@ describe('LocalModelDownloadService', () => {
     expect(broadcastSpy()).toHaveBeenCalledWith('local_model.download_progress', {
       model: 'embedding',
       status: 'error',
+      errorCode: 'download_failed',
       percent: 0
     })
     expect(service.getStatus()).toBe('error')
@@ -94,6 +95,7 @@ describe('LocalModelDownloadService', () => {
     expect(broadcastSpy()).toHaveBeenCalledWith('local_model.download_progress', {
       model: 'embedding',
       status: 'error',
+      errorCode: 'download_failed',
       percent: 0
     })
   })

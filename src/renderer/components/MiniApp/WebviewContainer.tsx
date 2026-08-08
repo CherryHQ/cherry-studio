@@ -93,6 +93,12 @@ const WebviewContainer = memo(
           // Set link opening behavior for this webview
           void ipcApi.request('webview.set_open_link_external', { webviewId, isExternal: openLinkExternal })
         }
+
+        if (!loadCallbackFired) {
+          loadCallbackFired = true
+          logger.debug(`Calling onLoadedCallback from dom-ready for app: ${appid}`)
+          onLoadedCallback(appid)
+        }
       }
 
       const handleStartNavigation = (event: DidStartNavigationEvent) => {

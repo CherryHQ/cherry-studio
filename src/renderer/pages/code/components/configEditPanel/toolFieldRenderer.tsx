@@ -1,4 +1,4 @@
-import type { Model } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 import type { ReactNode } from 'react'
 
@@ -59,10 +59,12 @@ export function renderClaudeDetailedModelSlot({
   onChange,
   providerId,
   modelFilter,
-  onSettingsNavigate
+  onSettingsNavigate,
+  gatewayModels
 }: Omit<ToolFieldRenderOptions, 'cliTool' | 'section'> & {
   hint: ReactNode
   onSettingsNavigate?: (navigate: () => void) => void
+  gatewayModels?: Map<UniqueModelId, Model>
 }): ReactNode {
   return (
     <>
@@ -75,6 +77,7 @@ export function renderClaudeDetailedModelSlot({
         providerId={providerId}
         modelFilter={modelFilter}
         onSettingsNavigate={onSettingsNavigate}
+        gatewayModels={gatewayModels}
       />
     </>
   )

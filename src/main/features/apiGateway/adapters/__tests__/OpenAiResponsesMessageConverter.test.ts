@@ -188,6 +188,37 @@ describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
     expect(part).toMatchObject({ type: 'dynamic-tool', state: 'input-available', input: { raw: 'not-json' } })
   })
 
+  it('maps an echoed reasoning item to an assistant reasoning part, ahead of the call it preceded', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        input: [
+          { type: 'reasoning', id: 'rs_1', summary: [{ type: 'summary_text', text: 'weigh options' }] },
+          { type: 'function_call', call_id: 'c1', name: 'f', arguments: '{}' }
+        ] as ResponsesCreateParams['input']
+      })
+    )
+    expect(msgs[0]).toMatchObject({ role: 'assistant', parts: [{ type: 'reasoning', text: 'weigh options' }] })
+    expect(msgs[1]?.parts[0]).toMatchObject({ type: 'dynamic-tool', toolCallId: 'c1' })
+  })
+
+  it('prefers reasoning_text content over summary, and skips an item carrying neither', () => {
+    const msgs = converter.toUIMessages(
+      params({
+        input: [
+          {
+            type: 'reasoning',
+            id: 'rs_1',
+            summary: [{ type: 'summary_text', text: 'short' }],
+            content: [{ type: 'reasoning_text', text: 'the raw chain' }]
+          },
+          { type: 'reasoning', id: 'rs_2', summary: [], encrypted_content: 'opaque' }
+        ] as ResponsesCreateParams['input']
+      })
+    )
+    expect(msgs).toHaveLength(1)
+    expect(msgs[0]).toMatchObject({ parts: [{ type: 'reasoning', text: 'the raw chain' }] })
+  })
+
   it('returns an empty list when there is no input', () => {
     expect(converter.toUIMessages(params({}))).toEqual([])
   })

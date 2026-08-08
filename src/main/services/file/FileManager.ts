@@ -179,6 +179,7 @@ import { observeExternalAccess } from './internal/observe'
 import {
   type DbSweepReport,
   type FileSweepReport,
+  inspectFileSweep,
   type OrphanReport,
   runDbSweep,
   runFileSweep
@@ -642,6 +643,12 @@ export interface IFileManager {
 
   // ─── Orphan sweep ───
 
+  /** Inspect the FS-level orphan plan without deleting files. */
+  inspectOrphanFiles(): Promise<FileSweepReport>
+
+  /** Run only the FS-level orphan-file cleanup pass. */
+  cleanupOrphanFiles(): Promise<FileSweepReport>
+
   /**
    * Run the scan-based entry cleanup pass, then the FS-level orphan sweep
    * (architecture §10) and the DB-level zero-ref entry
@@ -886,6 +893,14 @@ export class FileManager extends BaseService implements IFileManager {
       )
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
+  }
+
+  inspectOrphanFiles(): Promise<FileSweepReport> {
+    return inspectFileSweep({ fileEntryService: this.deps.fileEntryService })
+  }
+
+  cleanupOrphanFiles(): Promise<FileSweepReport> {
+    return runFileSweep({ fileEntryService: this.deps.fileEntryService })
   }
 
   /**
