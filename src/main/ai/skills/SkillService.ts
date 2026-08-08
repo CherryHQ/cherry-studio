@@ -79,9 +79,9 @@ export class SkillService {
   /**
    * List installed skills.
    *
-   * When `agentId` is provided, each skill's `isEnabled` field reflects the
-   * per-agent enablement state from `agent_skill`. Without `agentId`,
-   * the field is forced to `false`.
+   * Without `agentId`, the global catalog includes disabled skills and forces
+   * `isEnabled` to false. With `agentId`, globally disabled skills are omitted
+   * and `isEnabled` reflects the per-agent state of the remaining skills.
    */
   async getById(id: string): Promise<InstalledSkill | null> {
     return agentGlobalSkillService.getById(id)
@@ -689,8 +689,7 @@ export class SkillService {
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
-          contentHash,
-          isEnabled: false
+          contentHash
         })
         inserted = agentGlobalSkillService.getById(insertedRow.id) ?? undefined
       })
@@ -1207,8 +1206,7 @@ export class SkillService {
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
-          contentHash,
-          isEnabled: false
+          contentHash
         })
         logger.info('Adopted library skill into catalog', { folderName })
       }
@@ -1516,8 +1514,7 @@ export class SkillService {
           author: metadata.author ?? null,
           version: metadata.version ?? null,
           tags,
-          contentHash: sourceHash,
-          isEnabled: false
+          contentHash: sourceHash
         })
       }
 

@@ -1,5 +1,6 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { Dialog, DialogContent, DialogTitle } from '@cherrystudio/ui'
+import type { InstalledSkill } from '@shared/data/types/agent'
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
@@ -71,6 +72,41 @@ function SkillPickerDialog({ onOpenChange }: { onOpenChange: (open: boolean) => 
 }
 
 describe('SkillCatalogPicker', () => {
+  it('hides globally disabled skills from Agent selection and bulk enablement', async () => {
+    const user = userEvent.setup()
+    const onSelectedIdsChange = vi.fn()
+    const enabledSkill = {
+      id: 'enabled-skill',
+      name: 'Enabled Skill',
+      source: 'local',
+      isGlobalEnabled: true
+    } as InstalledSkill
+    const disabledSkill = {
+      id: 'disabled-skill',
+      name: 'Disabled Skill',
+      source: 'local',
+      isGlobalEnabled: false
+    } as InstalledSkill
+
+    render(
+      <SkillCatalogPicker
+        mode="edit"
+        skills={[enabledSkill, disabledSkill]}
+        loading={false}
+        selectedIds={[]}
+        onSelectedIdsChange={onSelectedIdsChange}
+        emptyLabel="No skills"
+        portalContainer={null}
+      />
+    )
+
+    expect(screen.getByText('Enabled Skill')).toBeInTheDocument()
+    expect(screen.queryByText('Disabled Skill')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('switch', { name: 'library.config.agent.section.tools.skills_enable_all' }))
+    expect(onSelectedIdsChange).toHaveBeenCalledWith(['enabled-skill'])
+  })
+
   it('dismisses the add menu without closing its parent dialog', async () => {
     const user = userEvent.setup()
     const onOpenChange = vi.fn()
