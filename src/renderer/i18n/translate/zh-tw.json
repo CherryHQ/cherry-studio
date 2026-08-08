@@ -3482,14 +3482,14 @@
       "basic": {
         "context_compress_enabled": "自動壓縮",
         "context_compress_model": "壓縮模型",
-        "context_compress_model_follow": "預設",
-        "context_count": "上下文數量",
+        "context_compress_model_follow": "[to be translated]:Follow current model",
+        "context_count": "[to be translated]:Recent messages kept",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
         "context_inherited_compress_off": "[to be translated]:auto-compress off",
         "context_inherited_compress_on": "[to be translated]:auto-compress on",
-        "context_management": "上下文管理",
+        "context_management": "[to be translated]:Customize context management",
         "context_truncate_threshold": "工具輸出截斷閾值（字元）",
         "creative": "創意",
         "custom_params": "自訂參數",
@@ -3506,10 +3506,10 @@
             "hint": "當接近上下文視窗限制時自動摘要較早的對話內容"
           },
           "context_count": {
-            "hint": "保留作為上下文之近期訊息數量"
+            "hint": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit"
           },
           "context_management": {
-            "hint": "覆寫此助理的全域上下文管理設定；停用時會繼承全域設定"
+            "hint": "[to be translated]:Use this assistant’s own context-management settings; off follows the global settings"
           },
           "context_truncate_threshold": {
             "hint": "工具輸出超過此字元數後，會自上下文移除並截斷"
@@ -7429,7 +7429,7 @@
         "enabled": "[to be translated]:Enable context management",
         "enabled_description": "[to be translated]:Manage conversation context automatically: offload oversized tool outputs and compress history near the window limit. When off, nothing is managed and over-window requests fail",
         "max_messages": "[to be translated]:Recent messages kept",
-        "max_messages_description": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Not affected by the switch below; assistants can override this",
+        "max_messages_description": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Assistants can override this",
         "max_messages_unlimited": "[to be translated]:Unlimited",
         "title": "[to be translated]:Context Management",
         "truncate_threshold": "[to be translated]:Tool-output truncation threshold (chars)",

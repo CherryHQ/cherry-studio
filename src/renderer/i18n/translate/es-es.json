@@ -3482,14 +3482,14 @@
       "basic": {
         "context_compress_enabled": "Compresión automática",
         "context_compress_model": "Modelo de compresión",
-        "context_compress_model_follow": "Predeterminado",
-        "context_count": "Recuento de contexto",
+        "context_compress_model_follow": "[to be translated]:Follow current model",
+        "context_count": "[to be translated]:Recent messages kept",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
         "context_inherited_compress_off": "[to be translated]:auto-compress off",
         "context_inherited_compress_on": "[to be translated]:auto-compress on",
-        "context_management": "Gestión de contexto",
+        "context_management": "[to be translated]:Customize context management",
         "context_truncate_threshold": "Umbral de truncamiento de salida de herramienta (caracteres)",
         "creative": "Creativo",
         "custom_params": "Parámetros personalizados",
@@ -3506,10 +3506,10 @@
             "hint": "Resumir automáticamente los turnos anteriores al acercarse a la ventana de contexto"
           },
           "context_count": {
-            "hint": "Número de mensajes recientes conservados como contexto"
+            "hint": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit"
           },
           "context_management": {
-            "hint": "Anular la configuración global de gestión de contexto para este asistente; desactivado hereda la configuración global"
+            "hint": "[to be translated]:Use this assistant’s own context-management settings; off follows the global settings"
           },
           "context_truncate_threshold": {
             "hint": "Las salidas de la herramienta que superen esta cantidad de caracteres se descargan y se truncan"
@@ -7429,7 +7429,7 @@
         "enabled": "[to be translated]:Enable context management",
         "enabled_description": "[to be translated]:Manage conversation context automatically: offload oversized tool outputs and compress history near the window limit. When off, nothing is managed and over-window requests fail",
         "max_messages": "[to be translated]:Recent messages kept",
-        "max_messages_description": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Not affected by the switch below; assistants can override this",
+        "max_messages_description": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Assistants can override this",
         "max_messages_unlimited": "[to be translated]:Unlimited",
         "title": "[to be translated]:Context Management",
         "truncate_threshold": "[to be translated]:Tool-output truncation threshold (chars)",

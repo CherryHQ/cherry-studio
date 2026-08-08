@@ -3482,14 +3482,14 @@
       "basic": {
         "context_compress_enabled": "Comprimare automată",
         "context_compress_model": "Model de compresie",
-        "context_compress_model_follow": "Implicit",
-        "context_count": "Număr de contexte",
+        "context_compress_model_follow": "[to be translated]:Follow current model",
+        "context_count": "[to be translated]:Recent messages kept",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
         "context_inherited_compress_off": "[to be translated]:auto-compress off",
         "context_inherited_compress_on": "[to be translated]:auto-compress on",
-        "context_management": "Gestionarea contextului",
+        "context_management": "[to be translated]:Customize context management",
         "context_truncate_threshold": "Prag de trunchiere a ieșirii instrumentului (caractere)",
         "creative": "Creativ",
         "custom_params": "Parametri personalizați",
@@ -3506,10 +3506,10 @@
             "hint": "Rezuma automat conversațiile mai vechi când te apropii de limita contextului"
           },
           "context_count": {
-            "hint": "Numărul de mesaje recente păstrate ca context"
+            "hint": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit"
           },
           "context_management": {
-            "hint": "Suprascrie setările globale de gestionare a contextului pentru acest asistent; dezactivat moștenește setările globale"
+            "hint": "[to be translated]:Use this assistant’s own context-management settings; off follows the global settings"
           },
           "context_truncate_threshold": {
             "hint": "Ieșirile instrumentelor care depășesc acest număr de caractere sunt descărcate și trunchiate"
@@ -7429,7 +7429,7 @@
         "enabled": "[to be translated]:Enable context management",
         "enabled_description": "[to be translated]:Manage conversation context automatically: offload oversized tool outputs and compress history near the window limit. When off, nothing is managed and over-window requests fail",
         "max_messages": "[to be translated]:Recent messages kept",
-        "max_messages_description": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Not affected by the switch below; assistants can override this",
+        "max_messages_description": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Assistants can override this",
         "max_messages_unlimited": "[to be translated]:Unlimited",
         "title": "[to be translated]:Context Management",
         "truncate_threshold": "[to be translated]:Tool-output truncation threshold (chars)",

@@ -7425,7 +7425,7 @@
         "enabled": "Enable context management",
         "enabled_description": "Manage conversation context automatically: offload oversized tool outputs and compress history near the window limit. When off, nothing is managed and over-window requests fail",
         "max_messages": "Recent messages kept",
-        "max_messages_description": "Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Not affected by the switch below; assistants can override this",
+        "max_messages_description": "Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Assistants can override this",
         "max_messages_unlimited": "Unlimited",
         "title": "Context Management",
         "truncate_threshold": "Tool-output truncation threshold (chars)",

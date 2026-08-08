@@ -3482,14 +3482,14 @@
       "basic": {
         "context_compress_enabled": "Автосжатие",
         "context_compress_model": "Модель сжатия",
-        "context_compress_model_follow": "По умолчанию",
-        "context_count": "Количество контекста",
+        "context_compress_model_follow": "[to be translated]:Follow current model",
+        "context_count": "[to be translated]:Recent messages kept",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
         "context_inherited_compress_off": "[to be translated]:auto-compress off",
         "context_inherited_compress_on": "[to be translated]:auto-compress on",
-        "context_management": "Управление контекстом",
+        "context_management": "[to be translated]:Customize context management",
         "context_truncate_threshold": "Порог усечения вывода инструмента (символы)",
         "creative": "Креативный",
         "custom_params": "Пользовательские параметры",
@@ -3506,10 +3506,10 @@
             "hint": "Автоматически суммировать старые сообщения при приближении к лимиту контекстного окна"
           },
           "context_count": {
-            "hint": "Количество последних сообщений, сохраняемых в качестве контекста"
+            "hint": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit"
           },
           "context_management": {
-            "hint": "Переопределить глобальные настройки управления контекстом для этого ассистента; off наследует глобальные настройки"
+            "hint": "[to be translated]:Use this assistant’s own context-management settings; off follows the global settings"
           },
           "context_truncate_threshold": {
             "hint": "Выводы инструмента, превышающие это количество символов, выгружаются и обрезаются"
@@ -7429,7 +7429,7 @@
         "enabled": "[to be translated]:Enable context management",
         "enabled_description": "[to be translated]:Manage conversation context automatically: offload oversized tool outputs and compress history near the window limit. When off, nothing is managed and over-window requests fail",
         "max_messages": "[to be translated]:Recent messages kept",
-        "max_messages_description": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Not affected by the switch below; assistants can override this",
+        "max_messages_description": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Assistants can override this",
         "max_messages_unlimited": "[to be translated]:Unlimited",
         "title": "[to be translated]:Context Management",
         "truncate_threshold": "[to be translated]:Tool-output truncation threshold (chars)",

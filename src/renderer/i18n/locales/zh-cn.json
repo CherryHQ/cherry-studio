@@ -7425,7 +7425,7 @@
         "enabled": "启用上下文管理",
         "enabled_description": "自动管理对话上下文：转存超长工具输出，并在接近窗口上限时压缩历史。关闭后不做处理，超出模型窗口的请求将失败",
         "max_messages": "保留最近消息数",
-        "max_messages_description": "仅发送最近若干条消息，更早的消息不进入上下文；留空表示不限制。不受上方总开关影响，助手可单独覆盖",
+        "max_messages_description": "仅发送最近若干条消息，更早的消息不进入上下文；留空表示不限制。助手可单独覆盖",
         "max_messages_unlimited": "不限制",
         "title": "上下文管理",
         "truncate_threshold": "工具输出截断阈值(字符)",
