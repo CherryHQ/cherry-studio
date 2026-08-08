@@ -22,8 +22,8 @@ const LEGACY_FILE_ID = '019606a0-0000-7000-8000-000000000101'
 
 // Keep the filename-bearing fields distinct so each assertion below can independently tell
 // where a value came from: `id`+`ext` (the v1 storage name `{id}{ext}`) feeds
-// `fileCopy.storageName`, `origin_name` (user-facing) feeds `relativePath`, `path` (stale column)
-// feeds `data.source`, and `name` is a deliberate DISTRACTOR that must NOT feed storageName
+// `fileCopy.storageNames`, `origin_name` (user-facing) feeds `relativePath`, `path` (stale column)
+// feeds `data.source`, and `name` is a deliberate DISTRACTOR that must NOT feed storageNames
 // (v1's dedup path emits a malformed double-extension `name`). A crossed wiring fails the asserts.
 const fileMetadata = {
   id: LEGACY_FILE_ID,
@@ -470,7 +470,7 @@ describe('KnowledgeMappings', () => {
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
       },
-      fileCopy: { storageName: `${LEGACY_FILE_ID}.pdf` }
+      fileCopy: { storageNames: [`${LEGACY_FILE_ID}.pdf`] }
     })
   })
 
@@ -508,7 +508,7 @@ describe('KnowledgeMappings', () => {
           relativePath: 'stored-019606a0.pdf'
         }
       }),
-      fileCopy: { storageName: `${LEGACY_FILE_ID}.pdf` }
+      fileCopy: { storageNames: [`${LEGACY_FILE_ID}.pdf`] }
     })
     // The fallback leaves a diagnostic trail in the migration log.
     expect(warnings).toHaveLength(1)
@@ -596,7 +596,7 @@ describe('KnowledgeMappings', () => {
         status: 'completed',
         error: null
       }),
-      fileCopy: { storageName: `${LEGACY_FILE_ID}.pdf` }
+      fileCopy: { storageNames: [`${LEGACY_FILE_ID}.pdf`] }
     })
   })
 
@@ -1041,6 +1041,32 @@ describe('expandLegacyDirectoryItem', () => {
     expect(result.children[0].data.relativePath).toBe('docs/known.md')
     expect(result.childLoaderRemap.has('orphan')).toBe(false)
     expect(result.childLoaderRemap.get('known')).toBe(result.children[0].id)
+  })
+
+  it('mints one child per distinct loader id even when v1 repeats one', () => {
+    // Without the guard the second pass mints another child and overwrites the remap, so the first
+    // one ends up `completed` with no vectors pointing at it — an empty shell that reads as healthy
+    // and escapes the re-attribution warning, which counts loader ids rather than children.
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: '/tmp/docs',
+        uniqueIds: ['dup', 'dup', 'other']
+      },
+      new Map([
+        ['dup', '/tmp/docs/a.md'],
+        ['other', '/tmp/docs/b.md']
+      ]),
+      new Set()
+    )
+
+    expect(result).not.toBeNull()
+    if (!result) return
+
+    expect(result.children.map((child) => child.data.relativePath)).toEqual(['docs/a.md', 'docs/b.md'])
+    expect(result.childLoaderRemap.get('dup')).toBe(result.children[0].id)
   })
 
   it('returns null when no loader id resolves to a source so the caller keeps the tombstone', () => {

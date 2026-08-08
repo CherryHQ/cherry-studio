@@ -154,8 +154,8 @@ export class KnowledgeMigrator extends BaseMigrator {
   private seenLegacyItemIds = new Set<string>()
   private legacyBaseIdRemap = new Map<string, string>()
   private legacyItemIdRemap = new Map<string, string>()
-  // New item id → v1 storage filename, so `execute` can copy the upload into the v2 KB dir.
-  private fileStorageNameByItemId = new Map<string, string>()
+  // New item id → v1 storage-name candidates, so `execute` can copy the upload into the v2 KB dir.
+  private fileStorageNameByItemId = new Map<string, string[]>()
   // migrated base id → (v1 directory child file's loader id → synthesized v2 child item id);
   // handed to the vector migrator via sharedData so it re-attributes the folder's vectors to
   // those children. Scoped per base because v1 loader ids are path/content hashes
@@ -183,7 +183,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.seenLegacyItemIds = new Set<string>()
     this.legacyBaseIdRemap = new Map<string, string>()
     this.legacyItemIdRemap = new Map<string, string>()
-    this.fileStorageNameByItemId = new Map<string, string>()
+    this.fileStorageNameByItemId = new Map<string, string[]>()
     this.directoryChildLoaderRemap = new Map<string, Map<string, string>>()
     this.migratedDirectoryChildItemIds = new Set<string>()
     this.resurrectedEmbeddingModels = new Map<UniqueModelId, Omit<InsertUserModelRow, 'orderKey'>>()
@@ -727,9 +727,11 @@ export class KnowledgeMigrator extends BaseMigrator {
               // loss as a migration warning rather than reflecting it on the container's status,
               // because a container with all-`completed` children reconciles back to `completed`
               // (reconcileContainers) and a per-container marker would not persist.
-              const embeddedFileCount = (item.uniqueIds ?? []).filter(
-                (loaderId) => typeof loaderId === 'string' && loaderId.trim() !== ''
-              ).length
+              // Distinct ids, matching what the expansion mints: a repeated loader id is one file
+              // booked twice, so counting it twice would report a drop that never happened.
+              const embeddedFileCount = new Set(
+                (item.uniqueIds ?? []).filter((loaderId) => typeof loaderId === 'string' && loaderId.trim() !== '')
+              ).size
               if (expanded.children.length < embeddedFileCount) {
                 this.recordWarning(
                   `Knowledge directory item ${item.id} in base ${validBase.id}: re-attributed vectors for ${expanded.children.length} of ${embeddedFileCount} embedded files; the rest had no migratable vectors and were dropped — re-index the folder to recover them`
@@ -782,7 +784,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           this.legacyItemIdRemap.set(item.id!, itemResult.value.id!)
           this.preparedItems.push(itemResult.value)
           if (itemResult.fileCopy) {
-            this.fileStorageNameByItemId.set(itemResult.value.id!, itemResult.fileCopy.storageName)
+            this.fileStorageNameByItemId.set(itemResult.value.id!, itemResult.fileCopy.storageNames)
           }
         }
       }
@@ -1052,9 +1054,11 @@ export class KnowledgeMigrator extends BaseMigrator {
    *
    * Relative-path ownership across the two phases: `prepare` pins each migrated folder's
    * top-level prefix (immutable once written), `execute` names and copies the real files (free to
-   * take a `_N` suffix). Hence the reserved set below starts from the folder prefixes. The reverse
-   * order is not available — a file's final name depends on `ctx.paths.filesDataDir` and
-   * `fileProcessorId`, and `prepare` performs no file I/O.
+   * take a `_N` suffix). Hence the reserved set below starts from the folder prefixes. What forces
+   * that direction is not which phase *can* compute a name, but what a name is already load-bearing
+   * for: a prefix is a live item row, index material and display name the moment `prepare` writes
+   * it, while a file's `relativePath` is not committed anywhere until this loop runs. So the
+   * prefixes cannot yield and the filenames can.
    */
   private async copyKnowledgeFilesForBase(
     ctx: MigrationContext,
@@ -1103,16 +1107,21 @@ export class KnowledgeMigrator extends BaseMigrator {
       const relativePath = reserveImportedFileRelativePath(data.relativePath, reserveArtifact, reservedPaths)
       data.relativePath = relativePath
 
-      const storageName = this.fileStorageNameByItemId.get(item.id)
-      if (!storageName) {
+      const storageNames = this.fileStorageNameByItemId.get(item.id)
+      if (!storageNames?.length) {
         this.recordWarning(`Knowledge file item ${item.id} is missing a storage name; skipping file copy`)
         continue
       }
 
-      const sourcePath = path.join(ctx.paths.filesDataDir, storageName)
-      if (!fs.existsSync(sourcePath)) {
+      // Walk the candidates rather than probing one name: v1 is inconsistent about the leading dot
+      // (`saveBase64Image` stored `ext: 'png'` for a file written as `{id}.png`), so a single
+      // reconstruction would miss a file that is right there — and `FileMigrator` would find it in
+      // the same run, leaving the row migrated but its knowledge item wrongly reported as missing.
+      const candidatePaths = storageNames.map((storageName) => path.join(ctx.paths.filesDataDir, storageName))
+      const sourcePath = candidatePaths.find((candidate) => fs.existsSync(candidate))
+      if (!sourcePath) {
         this.recordWarning(
-          `Knowledge file source missing for item ${item.id}; item kept but not reindexable: ${sourcePath}`
+          `Knowledge file source missing for item ${item.id}; item kept but not reindexable: ${candidatePaths[0]}`
         )
         continue
       }

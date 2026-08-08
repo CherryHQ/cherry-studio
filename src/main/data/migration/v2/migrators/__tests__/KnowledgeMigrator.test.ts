@@ -1,5 +1,6 @@
 import fs from 'node:fs'
 
+import { assertSafeKnowledgeRelativePath, CHERRY_META_DIR } from '@main/features/knowledge'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_BASE_ERROR_MISSING_VECTOR_STORE,
@@ -2226,6 +2227,110 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     }
   })
 
+  it('execute keeps the prefix reserved when the v1 file is listed before its folder', async () => {
+    // The seeding pass must scan every directory item up front, not rely on the copy loop reaching
+    // the folder first. v1 `items` is user insertion order, so the file legitimately comes first —
+    // and if the file won `raw/docs`, deleting or re-indexing the folder would removeDir its bytes.
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
+    vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
+      kind: 'loaded',
+      sources: new Map([['loader-a', '/docs/a.md']])
+    })
+
+    await migrator.prepare(
+      directoryPrefixCtx(
+        [
+          legacyBase({
+            id: 'kb-dir',
+            items: [
+              { id: 'item-file', type: 'file', content: 'file-docs' },
+              { id: 'item-directory', type: 'directory', content: '/docs', uniqueId: 'd', uniqueIds: ['loader-a'] }
+            ]
+          })
+        ],
+        [
+          {
+            id: 'file-docs',
+            name: 'file-docs',
+            origin_name: 'docs',
+            path: '/legacy/docs',
+            size: 8,
+            ext: '',
+            type: 'document',
+            created_at: '2025-01-01T00:00:00.000Z',
+            count: 1
+          }
+        ]
+      ) as any
+    )
+    expect(await runExecute(migrator)).toMatchObject({ success: true })
+
+    const container = migrator.preparedItems.find((item: any) => item.type === 'directory')
+    const fileItem = migrator.preparedItems.find((item: any) => item.id === migrator.legacyItemIdRemap.get('item-file'))
+    expect(container.data.relativePath).toBe('docs')
+    expect(fileItem.data.relativePath).toBe('docs_1')
+  })
+
+  it('prepare yields the reserved meta dir to a v1 folder literally named .cherry', async () => {
+    // `.cherry` is the control dir sibling to `raw/`, and assertSafeKnowledgeRelativePath rejects
+    // it as a material path — so an unseeded set would emit a relativePath that throws on every
+    // read (getKnowledgeBaseFilePath sits on reindex admission, restore filtering and preview).
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
+    vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
+      kind: 'loaded',
+      sources: new Map([['loader-a', '/.cherry/a.md']])
+    })
+
+    await migrator.prepare(
+      directoryPrefixCtx([
+        legacyBase({
+          id: 'kb-dir',
+          items: [
+            { id: 'item-directory', type: 'directory', content: '/.cherry', uniqueId: 'd', uniqueIds: ['loader-a'] }
+          ]
+        })
+      ]) as any
+    )
+
+    const container = migrator.preparedItems.find((item: any) => item.type === 'directory')
+    expect(container.data.relativePath).toBe(`${CHERRY_META_DIR}_1`)
+    for (const item of migrator.preparedItems) {
+      expect(() => assertSafeKnowledgeRelativePath(item.data.relativePath)).not.toThrow()
+    }
+  })
+
+  it('execute yields the reserved meta dir to a v1 file literally named .cherry', async () => {
+    // Same hazard on the copy side: `raw/.cherry` would collide with the control dir itself.
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
+
+    await migrator.prepare(
+      directoryPrefixCtx(
+        [legacyBase({ id: 'kb-file', items: [{ id: 'item-file', type: 'file', content: 'file-cherry' }] })],
+        [
+          {
+            id: 'file-cherry',
+            name: 'file-cherry',
+            origin_name: CHERRY_META_DIR,
+            path: '/legacy/.cherry',
+            size: 8,
+            ext: '',
+            type: 'document',
+            created_at: '2025-01-01T00:00:00.000Z',
+            count: 1
+          }
+        ]
+      ) as any
+    )
+    expect(await runExecute(migrator)).toMatchObject({ success: true })
+
+    const fileItem = migrator.preparedItems.find((item: any) => item.id === migrator.legacyItemIdRemap.get('item-file'))
+    expect(fileItem.data.relativePath).toBe(`${CHERRY_META_DIR}_1`)
+    expect(() => assertSafeKnowledgeRelativePath(fileItem.data.relativePath)).not.toThrow()
+  })
+
   it('prepare records one aggregated warning per folder for sources outside the folder path', async () => {
     // One warning per container, not per child: warnings are an unbounded array rendered in
     // full to the user at the end of migration.
@@ -2262,6 +2367,42 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     )
     expect(outsideWarnings).toHaveLength(1)
     expect(outsideWarnings[0]).toContain('2 embedded file(s)')
+  })
+
+  it('prepare does not report a drop when a folder booked the same loader id twice', async () => {
+    // Expansion mints one child per *distinct* loader id, so the "re-attributed N of M" count must
+    // dedupe too — otherwise a repeated id reads as a file whose vectors were dropped, and the
+    // warning tells the user to re-index a folder that migrated completely.
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
+    vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
+      kind: 'loaded',
+      sources: new Map([
+        ['loader-a', '/docs/a.md'],
+        ['loader-b', '/docs/b.md']
+      ])
+    })
+
+    await migrator.prepare(
+      directoryPrefixCtx([
+        legacyBase({
+          id: 'kb-dir',
+          items: [
+            {
+              id: 'item-directory',
+              type: 'directory',
+              content: '/docs',
+              uniqueId: 'd',
+              uniqueIds: ['loader-a', 'loader-a', 'loader-b']
+            }
+          ]
+        })
+      ]) as any
+    )
+
+    const children = migrator.preparedItems.filter((item: any) => item.type === 'file')
+    expect(children.map((child: any) => child.data.relativePath)).toEqual(['docs/a.md', 'docs/b.md'])
+    expect(migrator.warnings.some((warning: string) => warning.includes('re-attributed vectors'))).toBe(false)
   })
 
   it('execute exposes legacy to migrated base and item id remaps for vector migration', async () => {

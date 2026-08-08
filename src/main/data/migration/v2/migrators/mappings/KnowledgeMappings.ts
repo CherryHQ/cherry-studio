@@ -15,7 +15,7 @@ import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
-import { hasLostOriginalFilename } from './LegacyFileMappings'
+import { hasLostOriginalFilename, legacyStorageNames } from './LegacyFileMappings'
 
 export type NewKnowledgeBase = typeof knowledgeBaseTable.$inferInsert
 export type NewKnowledgeItem = typeof knowledgeItemTable.$inferInsert
@@ -95,7 +95,7 @@ export type KnowledgeBaseTransformResult = { ok: true; value: NewKnowledgeBase }
  * physical file lives at `<filesDataDir>/<storageName>` (v1 storage name =
  * `{id}{ext}`), never at the stale `path` column (#15733).
  */
-export type KnowledgeItemFileCopy = { storageName: string }
+export type KnowledgeItemFileCopy = { storageNames: string[] }
 
 export type KnowledgeItemTransformResult =
   | { ok: true; value: NewKnowledgeItem; fileCopy?: KnowledgeItemFileCopy }
@@ -327,13 +327,12 @@ export const transformKnowledgeItem = (
       )
     }
     data = { source: file.path, relativePath }
-    // Locate the physical upload by reconstructing the v1 storage name from `{id}{ext}` (see the
-    // KnowledgeItemFileCopy doc), NOT by trusting `file.name`: v1 FileStorage.findDuplicateFile
-    // returns a malformed `name` on a second upload (double extension `a1b2.pdf.pdf` + origin_name
-    // set to the storage name), so `file.name` would resolve to a path that does not exist and the
-    // bytes would never reach raw/. `{id}{ext}` is the real on-disk name for both normal and
-    // deduplicated uploads, so it copies correctly in either case.
-    fileCopy = { storageName: `${file.id}${file.ext}` }
+    // Locate the physical upload through the same candidate list `FileMigrator` uses, so one
+    // migration run cannot resolve the same row two ways. Never `file.name`: v1
+    // FileStorage.findDuplicateFile returns a malformed `name` on a second upload (double
+    // extension `a1b2.pdf.pdf` + origin_name set to the storage name), which resolves to a path
+    // that does not exist, so the bytes would never reach raw/.
+    fileCopy = { storageNames: legacyStorageNames(file) }
   } else if (item.type === 'url') {
     if (typeof item.content !== 'string' || item.content.trim() === '') {
       return {
@@ -574,6 +573,12 @@ export const expandLegacyDirectoryItem = (
 
   for (const loaderId of item.uniqueIds ?? []) {
     if (typeof loaderId !== 'string' || loaderId.trim() === '') {
+      continue
+    }
+    // One child per distinct loader id. A repeated id would otherwise mint a second child and
+    // overwrite the remap, leaving the first one `completed` with zero vectors — an empty shell
+    // that looks healthy and is not counted by the re-attribution warning.
+    if (childLoaderRemap.has(loaderId)) {
       continue
     }
     const source = loaderSourceMap.get(loaderId)
