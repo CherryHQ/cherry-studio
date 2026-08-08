@@ -3478,9 +3478,14 @@
       "basic": {
         "context_compress_enabled": "自动压缩",
         "context_compress_model": "压缩模型",
-        "context_compress_model_follow": "默认",
-        "context_count": "上下文数",
-        "context_management": "上下文管理",
+        "context_compress_model_follow": "跟随当前模型",
+        "context_count": "保留最近消息数",
+        "context_count_unlimited": "不限制",
+        "context_globally_disabled": "全局已关闭上下文管理，此处的转存与压缩设置暂不生效",
+        "context_inherited": "当前跟随全局设置：{{compress}}，工具输出超过 {{threshold}} 字符时转存",
+        "context_inherited_compress_off": "自动压缩已关闭",
+        "context_inherited_compress_on": "自动压缩已开启",
+        "context_management": "自定义上下文管理",
         "context_truncate_threshold": "工具输出截断阈值(字符)",
         "creative": "创意",
         "custom_params": "自定义参数",
@@ -3497,10 +3502,10 @@
             "hint": "接近上下文窗口上限时自动摘要较早的对话"
           },
           "context_count": {
-            "hint": "保留为上下文的最近消息数量"
+            "hint": "仅发送最近若干条消息，更早的消息不进入上下文；留空表示不限制"
           },
           "context_management": {
-            "hint": "开启后此助手使用自定义的上下文管理设置,关闭时跟随全局设置"
+            "hint": "此助手使用独立的上下文管理设置，关闭时跟随全局设置"
           },
           "context_truncate_threshold": {
             "hint": "超过该字符数的工具输出会被转存并截断"
@@ -7412,6 +7417,20 @@
         "use_all_keys": "使用密钥"
       },
       "collapse_all": "全部折叠",
+      "context_management": {
+        "compress_enabled": "自动压缩",
+        "compress_enabled_description": "接近上下文窗口上限时自动摘要较早的对话。助手可单独覆盖",
+        "compress_model": "压缩模型",
+        "compress_model_follow": "跟随当前模型",
+        "enabled": "启用上下文管理",
+        "enabled_description": "自动管理对话上下文：转存超长工具输出，并在接近窗口上限时压缩历史。关闭后不做处理，超出模型窗口的请求将失败",
+        "max_messages": "保留最近消息数",
+        "max_messages_description": "仅发送最近若干条消息，更早的消息不进入上下文；留空表示不限制。不受上方总开关影响，助手可单独覆盖",
+        "max_messages_unlimited": "不限制",
+        "title": "上下文管理",
+        "truncate_threshold": "工具输出截断阈值(字符)",
+        "truncate_threshold_description": "超过该字符数的工具输出会被转存为文件并截断，模型可按需读回。助手可单独覆盖"
+      },
       "default_assistant_model": "默认助手模型",
       "default_assistant_model_description": "助手没有模型时使用这个模型",
       "docs": "模型文档",

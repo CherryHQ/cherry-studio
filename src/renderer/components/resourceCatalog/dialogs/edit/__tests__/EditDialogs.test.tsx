@@ -258,7 +258,9 @@ vi.mock('react-i18next', async (importOriginal) => {
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string, fallback?: string) =>
+      // Second arg is a fallback string OR an interpolation options object;
+      // an object resolves to the mapped value / key, never to itself.
+      t: (key: string, fallbackOrOptions?: string | Record<string, unknown>) =>
         ({
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
@@ -320,6 +322,11 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.model_config': 'Model',
           'library.config.basic.field.description.hint': 'Short assistant summary.',
           'library.config.basic.field.description.placeholder': 'Describe this assistant',
+          'library.config.basic.context_management': 'Customize context management',
+          'library.config.basic.context_inherited': 'Following the global settings',
+          'library.config.basic.context_count': 'Recent messages kept',
+          'library.config.basic.context_truncate_threshold': 'Tool-output truncation threshold',
+          'library.config.basic.context_count_unlimited': 'Unlimited',
           'library.config.basic.custom_params': 'Custom parameters',
           'library.config.basic.custom_params_add': 'Add parameter',
           'library.config.basic.custom_params_name': 'Parameter name',
@@ -422,7 +429,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.mcp.runtimeStatus.unavailable': 'Unavailable',
           'settings.title': 'Settings'
         })[key] ??
-        fallback ??
+        (typeof fallbackOrOptions === 'string' ? fallbackOrOptions : undefined) ??
         key
     })
   }
@@ -1034,6 +1041,54 @@ describe('edit dialogs', () => {
         })
       })
     )
+  })
+
+  it('names the context override for what it does and states what is inherited while off', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Model')
+
+    // The switch overrides the globals — it does not turn context management
+    // off, so it must not be named after the feature.
+    const overrideSwitch = await screen.findByRole('switch', { name: 'Customize context management' })
+    expect(overrideSwitch).not.toBeChecked()
+    expect(screen.getByText('Following the global settings')).toBeVisible()
+    // Offload/compression fields belong to the override and stay hidden…
+    expect(screen.queryByLabelText('Tool-output truncation threshold')).not.toBeInTheDocument()
+
+    fireEvent.click(overrideSwitch)
+
+    expect(await screen.findByLabelText('Tool-output truncation threshold')).toBeInTheDocument()
+    expect(screen.queryByText('Following the global settings')).not.toBeInTheDocument()
+  })
+
+  it('keeps the message limit outside the override, since scope is not an overflow policy', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Model')
+
+    // …while the scope control is reachable with the override off.
+    const overrideSwitch = await screen.findByRole('switch', { name: 'Customize context management' })
+    expect(overrideSwitch).not.toBeChecked()
+    expect(screen.getByLabelText('Recent messages kept')).toBeInTheDocument()
+  })
+
+  it('expresses "no message limit" as an empty named field rather than a second switch', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Model')
+
+    const input = await screen.findByLabelText('Recent messages kept')
+    // No stored override → unlimited, shown as an empty field with a placeholder.
+    expect(input).toHaveValue(null)
+    expect(input).toHaveAttribute('placeholder', 'Unlimited')
+    // The limit is one control, not a switch plus a number.
+    expect(screen.queryByRole('switch', { name: 'Recent messages kept' })).not.toBeInTheDocument()
+
+    fireEvent.focus(input)
+    fireEvent.change(input, { target: { value: '5' } })
+    fireEvent.blur(input)
+    expect(input).toHaveValue(5)
   })
 
   it('shows the default tool-call cap and clamps custom rounds at 1000', async () => {

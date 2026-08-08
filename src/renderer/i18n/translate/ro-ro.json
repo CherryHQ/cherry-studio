@@ -2988,6 +2988,28 @@
       "title": "Importă conversații ChatGPT",
       "untitled_conversation": "Conversație fără titlu"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "Selectează fișierul de import",
       "label": "Ești sigur că vrei să imporți date externe?"
@@ -3026,10 +3048,20 @@
           "selected_notes": "{{count}} notițe selectate"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "Selectează notițele existente ca surse pentru baza de cunoștințe",
           "empty_description": "Creează notițe în funcția Notițe, apoi revino pentru a le selecta aici.",
           "empty_title": "Notele nu sunt încă conectate",
-          "loading": "Se încarcă notițele…"
+          "loading": "Se încarcă notițele…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Acceptă PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3288,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "Minapp-uri",
     "miniApps": "Mini-aplicații",
     "pin_to_sidebar": "Fixează în bara laterală",
@@ -3451,6 +3484,11 @@
         "context_compress_model": "Model de compresie",
         "context_compress_model_follow": "Implicit",
         "context_count": "Număr de contexte",
+        "context_count_unlimited": "[to be translated]:Unlimited",
+        "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
+        "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
+        "context_inherited_compress_off": "[to be translated]:auto-compress off",
+        "context_inherited_compress_on": "[to be translated]:auto-compress on",
         "context_management": "Gestionarea contextului",
         "context_truncate_threshold": "Prag de trunchiere a ieșirii instrumentului (caractere)",
         "creative": "Creativ",
@@ -6091,6 +6129,7 @@
       "import_settings": {
         "button": "Importă fișier Json",
         "chatgpt": "Importă din ChatGPT",
+        "claude": "[to be translated]:Import from Claude",
         "title": "Importă datele aplicației"
       },
       "joplin": {
@@ -6646,6 +6685,7 @@
         "notice": {
           "downloadFailed": "Descărcarea a eșuat. Verifică conexiunea și încearcă din nou.",
           "inUse": "Încă utilizat de o bază de cunoștințe; greutățile au fost păstrate.",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "Eliminarea a eșuat. Verifică jurnalele pentru detalii."
         },
         "ocr": {
@@ -7381,6 +7421,20 @@
         "use_all_keys": "Cheie(i)"
       },
       "collapse_all": "Restrânge tot",
+      "context_management": {
+        "compress_enabled": "[to be translated]:Auto compress",
+        "compress_enabled_description": "[to be translated]:Summarize older turns automatically when nearing the context window. Assistants can override this",
+        "compress_model": "[to be translated]:Compression model",
+        "compress_model_follow": "[to be translated]:Follow current model",
+        "enabled": "[to be translated]:Enable context management",
+        "enabled_description": "[to be translated]:Manage conversation context automatically: offload oversized tool outputs and compress history near the window limit. When off, nothing is managed and over-window requests fail",
+        "max_messages": "[to be translated]:Recent messages kept",
+        "max_messages_description": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Not affected by the switch below; assistants can override this",
+        "max_messages_unlimited": "[to be translated]:Unlimited",
+        "title": "[to be translated]:Context Management",
+        "truncate_threshold": "[to be translated]:Tool-output truncation threshold (chars)",
+        "truncate_threshold_description": "[to be translated]:Tool outputs beyond this many characters are offloaded to a file and truncated; the model can read them back on demand. Assistants can override this"
+      },
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "docs": "Documentația modelului",

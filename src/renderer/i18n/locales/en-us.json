@@ -3478,9 +3478,14 @@
       "basic": {
         "context_compress_enabled": "Auto-compress",
         "context_compress_model": "Compression model",
-        "context_compress_model_follow": "Default",
-        "context_count": "Context count",
-        "context_management": "Context management",
+        "context_compress_model_follow": "Follow current model",
+        "context_count": "Recent messages kept",
+        "context_count_unlimited": "Unlimited",
+        "context_globally_disabled": "Context management is off globally, so the offload and compression settings here have no effect",
+        "context_inherited": "Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
+        "context_inherited_compress_off": "auto-compress off",
+        "context_inherited_compress_on": "auto-compress on",
+        "context_management": "Customize context management",
         "context_truncate_threshold": "Tool-output truncation threshold (chars)",
         "creative": "Creative",
         "custom_params": "Custom parameters",
@@ -3497,10 +3502,10 @@
             "hint": "Summarize older turns automatically when nearing the context window"
           },
           "context_count": {
-            "hint": "Number of recent messages kept as context"
+            "hint": "Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit"
           },
           "context_management": {
-            "hint": "Override global context-management settings for this assistant; off inherits the global settings"
+            "hint": "Use this assistant’s own context-management settings; off follows the global settings"
           },
           "context_truncate_threshold": {
             "hint": "Tool outputs beyond this many characters are offloaded and truncated"
@@ -7412,6 +7417,20 @@
         "use_all_keys": "Key(s)"
       },
       "collapse_all": "Collapse all",
+      "context_management": {
+        "compress_enabled": "Auto compress",
+        "compress_enabled_description": "Summarize older turns automatically when nearing the context window. Assistants can override this",
+        "compress_model": "Compression model",
+        "compress_model_follow": "Follow current model",
+        "enabled": "Enable context management",
+        "enabled_description": "Manage conversation context automatically: offload oversized tool outputs and compress history near the window limit. When off, nothing is managed and over-window requests fail",
+        "max_messages": "Recent messages kept",
+        "max_messages_description": "Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Not affected by the switch below; assistants can override this",
+        "max_messages_unlimited": "Unlimited",
+        "title": "Context Management",
+        "truncate_threshold": "Tool-output truncation threshold (chars)",
+        "truncate_threshold_description": "Tool outputs beyond this many characters are offloaded to a file and truncated; the model can read them back on demand. Assistants can override this"
+      },
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Used when an assistant has no model.",
       "docs": "Model docs",

@@ -45,12 +45,18 @@ export interface AssistantFormState {
   customParameters: CustomParameter[]
   mcpMode: AssistantSettings['mcpMode']
   // context management (P2-D assistant override). `contextOverrideEnabled`
-  // is the "自定义/customize" master switch: false → settings.contextSettings
-  // is written as null (inherit globals); true → the three fields below form
+  // is the "自定义/customize" master switch for the OFFLOAD + COMPRESSION
+  // settings: false → those inherit the globals; true → the fields below form
   // the override object.
   contextOverrideEnabled: boolean
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
+  /**
+   * Serve only the last N messages; null = unlimited. Independent of
+   * `contextOverrideEnabled` — it decides how much history a request carries,
+   * not what happens when the context overflows, and it persists on its own.
+   */
+  contextMaxMessages: number | null
   /** null = no explicit pick (follow the global / current model). */
   contextCompressModelId: string | null
   // relations
@@ -78,12 +84,18 @@ function buildAssistantSettingsFromForm(
     mcpMode: form.mcpMode,
     // null = clear the override (inherit globals). The `enabled` kill-switch
     // is deliberately not written here — it stays a global/topic-layer concern.
+    // Absent (not null) = unlimited — the override schema has no null.
+    // maxMessages rides the same object but is independent of the override
+    // switch, so it must survive when only it is set.
     contextSettings: form.contextOverrideEnabled
       ? {
           truncateThreshold: form.contextTruncateThreshold,
+          ...(form.contextMaxMessages !== null ? { maxMessages: form.contextMaxMessages } : {}),
           compress: { enabled: form.contextCompressEnabled, modelId: form.contextCompressModelId }
         }
-      : null
+      : form.contextMaxMessages !== null
+        ? { maxMessages: form.contextMaxMessages }
+        : null
   }
 }
 
@@ -108,11 +120,13 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
-    // null/absent contextSettings → override off; show the global defaults as
-    // placeholders (the section seeds live global values on toggle-on).
-    contextOverrideEnabled: ctx != null,
+    // Override is on only when an offload/compression field is stored — a
+    // contextSettings carrying nothing but maxMessages is the scope control
+    // saved on its own, not a customization of the globals.
+    contextOverrideEnabled: ctx != null && (ctx.truncateThreshold !== undefined || ctx.compress !== undefined),
     contextCompressEnabled: ctx?.compress?.enabled ?? DEFAULT_CONTEXT_SETTINGS.compress.enabled,
     contextTruncateThreshold: ctx?.truncateThreshold ?? DEFAULT_CONTEXT_SETTINGS.truncateThreshold,
+    contextMaxMessages: ctx?.maxMessages ?? null,
     contextCompressModelId: ctx?.compress?.modelId ?? null,
     groupId: assistant.groupId,
     knowledgeBaseIds: assistant.knowledgeBaseIds ?? [],
@@ -176,6 +190,9 @@ export function diffAssistantUpdate(
     baseline.enableMaxToolCalls !== form.enableMaxToolCalls ||
     baseline.mcpMode !== form.mcpMode ||
     baseline.contextOverrideEnabled !== form.contextOverrideEnabled ||
+    // Always compared: the scope control persists whether or not the
+    // offload/compression override is on.
+    baseline.contextMaxMessages !== form.contextMaxMessages ||
     // Sub-fields only matter while the override is on, so an ON→OFF→ON round
     // trip that lands back on the baseline values fires no spurious PATCH.
     (form.contextOverrideEnabled &&

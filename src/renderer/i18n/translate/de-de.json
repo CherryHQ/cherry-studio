@@ -2988,6 +2988,28 @@
       "title": "ChatGPT-Unterhaltungen importieren",
       "untitled_conversation": "Unbenannte Unterhaltung"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "Importdatei auswählen",
       "label": "Sind Sie sicher, dass Sie externe Daten importieren möchten?"
@@ -3026,10 +3048,20 @@
           "selected_notes": "{{count}} Notizen ausgewählt"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "Wählen Sie vorhandene Notizen als Quellen für die Wissensdatenbank aus",
           "empty_description": "Erstellen Sie in der Notizfunktion Notizen und kehren Sie anschließend hierher zurück, um sie auszuwählen.",
           "empty_title": "Notizen sind noch nicht verbunden",
-          "loading": "Notizen werden geladen…"
+          "loading": "Notizen werden geladen…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Unterstützt PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3288,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "Apps",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "Minapps",
     "miniApps": "Mini-Apps",
     "pin_to_sidebar": "An Seitenleiste anheften",
@@ -3451,6 +3484,11 @@
         "context_compress_model": "Komprimierungsmodell",
         "context_compress_model_follow": "Standard",
         "context_count": "Kontextzählung",
+        "context_count_unlimited": "[to be translated]:Unlimited",
+        "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
+        "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
+        "context_inherited_compress_off": "[to be translated]:auto-compress off",
+        "context_inherited_compress_on": "[to be translated]:auto-compress on",
         "context_management": "Kontextverwaltung",
         "context_truncate_threshold": "Zeichengrenzwert für Tool-Ausgabe-Abkürzung",
         "creative": "Kreativ",
@@ -6091,6 +6129,7 @@
       "import_settings": {
         "button": "JSON-Datei importieren",
         "chatgpt": "Import aus ChatGPT",
+        "claude": "[to be translated]:Import from Claude",
         "title": "Importiere Daten von externen Anwendungen"
       },
       "joplin": {
@@ -6646,6 +6685,7 @@
         "notice": {
           "downloadFailed": "Download fehlgeschlagen. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
           "inUse": "Wird weiterhin von einer Wissensdatenbank verwendet; die Gewichte wurden beibehalten.",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "Entfernen fehlgeschlagen. Überprüfen Sie die Protokolle für Details."
         },
         "ocr": {
@@ -7381,6 +7421,20 @@
         "use_all_keys": "Schlüssel verwenden"
       },
       "collapse_all": "Alle einklappen",
+      "context_management": {
+        "compress_enabled": "[to be translated]:Auto compress",
+        "compress_enabled_description": "[to be translated]:Summarize older turns automatically when nearing the context window. Assistants can override this",
+        "compress_model": "[to be translated]:Compression model",
+        "compress_model_follow": "[to be translated]:Follow current model",
+        "enabled": "[to be translated]:Enable context management",
+        "enabled_description": "[to be translated]:Manage conversation context automatically: offload oversized tool outputs and compress history near the window limit. When off, nothing is managed and over-window requests fail",
+        "max_messages": "[to be translated]:Recent messages kept",
+        "max_messages_description": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit. Not affected by the switch below; assistants can override this",
+        "max_messages_unlimited": "[to be translated]:Unlimited",
+        "title": "[to be translated]:Context Management",
+        "truncate_threshold": "[to be translated]:Tool-output truncation threshold (chars)",
+        "truncate_threshold_description": "[to be translated]:Tool outputs beyond this many characters are offloaded to a file and truncated; the model can read them back on demand. Assistants can override this"
+      },
       "default_assistant_model": "Standard-Assistent-Modell",
       "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "docs": "Modelldokumentation",

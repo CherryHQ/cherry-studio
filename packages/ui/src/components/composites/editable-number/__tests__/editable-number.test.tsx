@@ -49,4 +49,26 @@ describe('EditableNumber', () => {
     expect(input).toHaveValue(4)
     expect(onChange).not.toHaveBeenCalled()
   })
+
+  // The props are a closed set — anything not listed never reaches the DOM, so
+  // `FormControl`'s id (paired with `FormLabel htmlFor`) silently vanished and
+  // every field built this way had an unnamed input.
+  it('forwards id and aria attributes so the input can be named', () => {
+    render(
+      <>
+        <label htmlFor="ctx-form-item">Recent messages kept</label>
+        <EditableNumber value={5} id="ctx-form-item" aria-describedby="ctx-hint" aria-invalid />
+      </>
+    )
+
+    expect(screen.getByLabelText('Recent messages kept')).toBe(screen.getByRole('spinbutton'))
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-describedby', 'ctx-hint')
+    expect(screen.getByRole('spinbutton')).toHaveAttribute('aria-invalid', 'true')
+  })
+
+  it('names a standalone field through aria-label', () => {
+    render(<EditableNumber value={5} aria-label="Tool-output truncation threshold" />)
+
+    expect(screen.getByLabelText('Tool-output truncation threshold')).toBe(screen.getByRole('spinbutton'))
+  })
 })
