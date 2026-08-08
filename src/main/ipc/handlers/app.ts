@@ -46,7 +46,9 @@ export const appHandlers: IpcHandlersFor<typeof appRequestSchemas> = {
     return application.get('PreferenceService').get('app.zoom_factor')
   },
   'app.set_spell_check_enabled': async (isEnable) => {
+    BrowserWindow.getAllWindows().forEach((window) => window.webContents.session.setSpellCheckerEnabled(isEnable))
     webContents.getAllWebContents().forEach((w) => w.session.setSpellCheckerEnabled(isEnable))
+    await application.get('PreferenceService').set('app.spell_check.enabled', isEnable)
   },
   'app.data_reset.request': async () => requestDataReset(),
   'app.migration_v2.rerun': async () => requestV1Remigration(),
