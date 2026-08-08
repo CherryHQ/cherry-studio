@@ -38,6 +38,18 @@ describe('buildMcpToolWireId', () => {
     expect(idCard).not.toBe(invoice)
   })
 
+  it('romanizes Chinese names so the readable slug survives', () => {
+    const id = buildMcpToolWireId({ serverId: 'server-a', serverName: '票据 OCR', toolName: '识别发票' })
+
+    expect(id).toMatch(/^mcp__piaoJuOcr__shiBieFaPiao_[0-9a-f]{20}$/)
+  })
+
+  it('leaves ASCII names untouched by romanization', () => {
+    const id = buildMcpToolWireId({ serverId: 'server-a', serverName: 'MySQL', toolName: 'search_issues' })
+
+    expect(id).toMatch(/^mcp__mysql__searchIssues_[0-9a-f]{20}$/)
+  })
+
   it('is deterministic, identifier-safe, and at most 63 characters', () => {
     const input = { serverId: 'server-a', serverName: '数据库'.repeat(40), toolName: '123 查询'.repeat(40) }
     const first = buildMcpToolWireId(input)
