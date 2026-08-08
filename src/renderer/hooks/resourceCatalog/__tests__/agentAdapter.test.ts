@@ -43,14 +43,14 @@ describe('useAgentMutationsById', () => {
     const patchCall = useMutationMock.mock.calls.find(([method]) => method === 'PATCH')
     const refresh = patchCall?.[2].refresh as (ctx: { args?: { body?: object } }) => string[]
 
-    expect(refresh({ args: { body: { name: 'Renamed' } } })).toEqual(['/agents', '/agents/*'])
+    expect(refresh({ args: { body: { name: 'Renamed' } } })).toEqual(['/agents', '/agents/agent-1'])
     expect(refresh({ args: { body: { skillUpdates: [{ skillId: 'skill-1', isEnabled: true }] } } })).toEqual([
       '/agents',
-      '/agents/*',
+      '/agents/agent-1',
       '/skills'
     ])
-    expect(refresh({ args: { body: { skillUpdates: [] } } })).toEqual(['/agents', '/agents/*', '/skills'])
-    expect(refresh({ args: undefined })).toEqual(['/agents', '/agents/*'])
+    expect(refresh({ args: { body: { skillUpdates: [] } } })).toEqual(['/agents', '/agents/agent-1', '/skills'])
+    expect(refresh({ args: undefined })).toEqual(['/agents', '/agents/agent-1'])
   })
 })
 

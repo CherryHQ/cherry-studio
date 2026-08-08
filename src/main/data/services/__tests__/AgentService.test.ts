@@ -378,6 +378,19 @@ describe('AgentService', () => {
       })
     })
 
+    it('clears a sub-model override on an explicit null and leaves omitted ones alone', async () => {
+      const created = await insertAgent({
+        model: TEST_MODEL_ID,
+        planModel: TEST_MODEL_ID,
+        smallModel: TEST_MODEL_ID
+      })
+
+      const updated = agentService.updateAgent(created.id, { planModel: null })
+
+      expect(updated?.planModel).toBeUndefined()
+      expect(updated?.smallModel).toBe(TEST_MODEL_ID)
+    })
+
     it('preserves an explicit reasoning tombstone while changing the model', async () => {
       const created = await insertAgent({
         configuration: { avatar: '🤖', reasoning_effort: 'high' }

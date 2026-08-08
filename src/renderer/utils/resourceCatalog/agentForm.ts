@@ -1,10 +1,5 @@
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import {
-  DEFAULT_HEARTBEAT_ENABLED,
-  DEFAULT_HEARTBEAT_INTERVAL,
-  normalizePermissionMode
-} from '@renderer/utils/agent/permissionMode'
-import type { AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import { DEFAULT_HEARTBEAT_ENABLED, DEFAULT_HEARTBEAT_INTERVAL } from '@renderer/utils/agent/permissionMode'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -16,9 +11,8 @@ import type { UniqueModelId } from '@shared/data/types/model'
  * Flat, controlled form-state for the Agent create/edit dialogs.
  *
  * Every editable field (one per `AgentBase` column + the common
- * `configuration.*` sub-keys surfaced by the dialog) lives on this object.
- * The dialog diffs it against the baseline at save time and emits a minimal
- * `UpdateAgentDto`.
+ * `configuration.*` sub-keys surfaced by the dialog) lives on this object. It
+ * seeds the dialog's draft; each control then persists its own field.
  */
 export interface AgentFormState {
   name: string
@@ -78,7 +72,7 @@ function envVarsToText(raw: unknown): string {
 }
 
 /** Reverse of `envVarsToText` — record of `KEY -> VALUE`, empty lines dropped. */
-function envVarsFromText(text: string): Record<string, string> {
+export function agentEnvVarsFromText(text: string): Record<string, string> {
   const entries = text
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0)
@@ -110,162 +104,5 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds:
     envVarsText: envVarsToText(cfg.env_vars),
     heartbeatEnabled: cfg.heartbeat_enabled ?? DEFAULT_HEARTBEAT_ENABLED,
     heartbeatInterval: asNumber(cfg.heartbeat_interval) || DEFAULT_HEARTBEAT_INTERVAL
-  }
-}
-
-export function applyAgentFormPatch(current: AgentFormState, patch: Partial<AgentFormState>): AgentFormState {
-  const next: AgentFormState = { ...current, ...patch }
-
-  if (Object.prototype.hasOwnProperty.call(patch, 'permissionMode')) {
-    next.permissionMode = normalizePermissionMode(patch.permissionMode)
-  }
-
-  return next
-}
-
-/** Result of {@link diffAgentUpdate}. */
-export interface AgentDiffResult {
-  dto: UpdateAgentDto
-}
-
-/**
- * Compute a minimal `UpdateAgentDto` by comparing `next` to `baseline`. Returns
- * `null` when no editable agent field changed.
- *
- * `configuration` contains only the keys edited by this form. Main merges those
- * keys into the latest persisted configuration inside the write transaction.
- * `max_turns` is explicitly removed whenever this form changes configuration,
- * because that retired field is intentionally not surfaced by the dialog.
- */
-export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState): AgentDiffResult | null {
-  const dto: UpdateAgentDto = {}
-  let dirty = false
-
-  if (baseline.name !== next.name) {
-    dto.name = next.name
-    dirty = true
-  }
-  if (baseline.description !== next.description) {
-    dto.description = next.description
-    dirty = true
-  }
-  if (baseline.model !== next.model) {
-    if (next.model) dto.model = next.model
-    dirty = true
-  }
-  if (baseline.planModel !== next.planModel) {
-    dto.planModel = next.planModel || undefined
-    dirty = true
-  }
-  if (baseline.smallModel !== next.smallModel) {
-    dto.smallModel = next.smallModel || undefined
-    dirty = true
-  }
-  if (baseline.instructions !== next.instructions) {
-    dto.instructions = next.instructions
-    dirty = true
-  }
-  if (!arraysEqual(baseline.mcps, next.mcps)) {
-    dto.mcps = next.mcps
-    dirty = true
-  }
-  if (!stringSetsEqual(baseline.knowledgeBaseIds, next.knowledgeBaseIds)) {
-    dto.knowledgeBaseIds = next.knowledgeBaseIds
-    dirty = true
-  }
-  const skillUpdates = diffSkillUpdates(baseline.skillIds, next.skillIds)
-  if (skillUpdates.length > 0) {
-    dto.skillUpdates = skillUpdates
-    dirty = true
-  }
-  if (!arraysEqual(baseline.disabledTools, next.disabledTools)) {
-    dto.disabledTools = next.disabledTools
-    dirty = true
-  }
-
-  const cfgPatch: AgentConfiguration = {}
-  let cfgDirty = false
-
-  if (baseline.avatar !== next.avatar) {
-    cfgPatch.avatar = next.avatar
-    cfgDirty = true
-  }
-  if (baseline.permissionMode !== next.permissionMode) {
-    cfgPatch.permission_mode = normalizePermissionMode(next.permissionMode)
-    cfgDirty = true
-  }
-  if (baseline.envVarsText !== next.envVarsText) {
-    cfgPatch.env_vars = envVarsFromText(next.envVarsText)
-    cfgDirty = true
-  }
-  if (baseline.heartbeatEnabled !== next.heartbeatEnabled) {
-    cfgPatch.heartbeat_enabled = next.heartbeatEnabled
-    cfgDirty = true
-  }
-  if (baseline.heartbeatInterval !== next.heartbeatInterval) {
-    if (next.heartbeatEnabled) {
-      cfgPatch.heartbeat_enabled = true
-    }
-    cfgPatch.heartbeat_interval = next.heartbeatInterval
-    cfgDirty = true
-  }
-
-  if (cfgDirty) {
-    dto.configuration = { ...cfgPatch, max_turns: undefined }
-    dirty = true
-  }
-
-  if (!dirty) return null
-
-  return { dto }
-}
-
-function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
-  return true
-}
-
-function stringSetsEqual(a: readonly string[], b: readonly string[]): boolean {
-  const aSet = new Set(a)
-  const bSet = new Set(b)
-  return aSet.size === bSet.size && [...aSet].every((value) => bSet.has(value))
-}
-
-function diffSkillUpdates(baselineSkillIds: readonly string[], nextSkillIds: readonly string[]): AgentSkillUpdateDto[] {
-  const baselineSet = new Set(baselineSkillIds)
-  const nextSet = new Set(nextSkillIds)
-  const updates: AgentSkillUpdateDto[] = []
-
-  for (const skillId of baselineSkillIds) {
-    if (!nextSet.has(skillId)) updates.push({ skillId, isEnabled: false })
-  }
-  for (const skillId of nextSkillIds) {
-    if (!baselineSet.has(skillId)) updates.push({ skillId, isEnabled: true })
-  }
-
-  return updates
-}
-
-// ---------------------------------------------------------------------------
-// Unified save intent
-// ---------------------------------------------------------------------------
-
-/**
- * Single "what should save do next?" value consumed by edit dialog save
- * handlers.
- */
-export type AgentSaveIntent = { kind: 'update'; payload: UpdateAgentDto }
-
-/**
- * Resolve the current form into a save intent. Returns `null` when
- * there's nothing to do.
- */
-export function diffAgentSaveIntent(form: AgentFormState, baseline: AgentFormState): AgentSaveIntent | null {
-  const result = diffAgentUpdate(baseline, form)
-  if (!result) return null
-  return {
-    kind: 'update',
-    payload: result.dto
   }
 }

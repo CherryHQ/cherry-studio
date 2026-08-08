@@ -2,7 +2,7 @@ import type { Assistant } from '@shared/data/types/assistant'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { useAssistantMutations, useImportAssistantMutation } from '../assistantAdapter'
+import { useAssistantMutations, useAssistantMutationsById, useImportAssistantMutation } from '../assistantAdapter'
 
 const createTriggerMock = vi.hoisted(() => vi.fn())
 const importTriggerMock = vi.hoisted(() => vi.fn())
@@ -58,6 +58,25 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
     ...overrides
   }
 }
+
+describe('useAssistantMutationsById', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useMutationMock.mockReturnValue({
+      trigger: createTriggerMock,
+      isLoading: false,
+      error: undefined
+    })
+  })
+
+  it('refreshes only the edited assistant detail alongside the list', () => {
+    renderHook(() => useAssistantMutationsById('assistant-1'))
+
+    expect(useMutationMock).toHaveBeenCalledWith('PATCH', '/assistants/assistant-1', {
+      refresh: ['/assistants', '/assistants/assistant-1']
+    })
+  })
+})
 
 describe('useAssistantMutations', () => {
   beforeEach(() => {

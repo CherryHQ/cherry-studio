@@ -1,20 +1,5 @@
-export {
-  type AgentDiffResult,
-  type AgentFormState,
-  type AgentSaveIntent,
-  applyAgentFormPatch,
-  buildInitialAgentFormState,
-  diffAgentSaveIntent,
-  diffAgentUpdate
-} from './agentForm'
-export {
-  type AssistantDiffResult,
-  type AssistantFormState,
-  type AssistantSaveIntent,
-  diffAssistantSaveIntent,
-  diffAssistantUpdate,
-  initialAssistantFormState
-} from './assistantForm'
+export { agentEnvVarsFromText, type AgentFormState, buildInitialAgentFormState } from './agentForm'
+export { type AssistantFormState, initialAssistantFormState } from './assistantForm'
 export {
   type AssistantConfigMcpMode,
   MCP_MODE_OPTIONS,

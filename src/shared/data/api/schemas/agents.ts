@@ -209,6 +209,13 @@ export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
 export const UpdateAgentSchema = AgentEntitySchema.pick(AGENT_MUTABLE_FIELDS).partial().extend({
   configuration: AgentConfigurationSchema.partial().optional(),
   /**
+   * `null` clears the sub-model override, omission leaves it unchanged. Without
+   * the nullable form there is no wire value for "clear": an omitted key and an
+   * explicit `undefined` are both skipped by the column patch in AgentService.
+   */
+  planModel: UniqueModelIdSchema.nullable().optional(),
+  smallModel: UniqueModelIdSchema.nullable().optional(),
+  /**
    * Per-skill enablement changes for this agent. Omitted means "leave skills
    * unchanged"; an empty array is a no-op. The server applies each update
    * without replacing unrelated skill rows.
