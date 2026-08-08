@@ -8,6 +8,7 @@
  */
 
 import {
+  useDataChange,
   useInfiniteFlatItems,
   useInfiniteQuery,
   useInvalidateCache,
@@ -260,6 +261,10 @@ export const useSessions = (
   }, [loadAll, hasMore, isLoading, isRefreshing, loadNext])
 
   const reload = useCallback(() => refresh(), [refresh])
+  const refreshFromDataChange = useCallback(() => {
+    if (enabled !== false) void refresh()
+  }, [enabled, refresh])
+  useDataChange('/agent-sessions', refreshFromDataChange)
 
   const loadMore = useCallback(() => {
     if (!isLoadingMore && hasMore) {

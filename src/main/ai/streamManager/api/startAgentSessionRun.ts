@@ -8,23 +8,67 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import { agentChatContextProvider } from '../context/AgentChatContextProvider'
-import type { StreamListener } from '../types'
+import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
 const logger = loggerService.withContext('AgentSessionDelivery')
 
 class AgentSessionDeliveryListener implements StreamListener {
   readonly id: string
+  private replied = false
 
-  constructor(deliveryId: string) {
-    this.id = `agent-delivery:${deliveryId}`
+  constructor(private readonly message: AgentSessionMessageEntity) {
+    this.id = `agent-delivery:${message.delivery?.id ?? message.id}`
   }
 
   onChunk(): void {}
-  onDone(): void {}
-  onPaused(): void {}
-  onError(): void {}
+
+  async onDone(result: StreamDoneResult): Promise<void> {
+    await this.reply(this.extractText(result.finalMessage) || 'Session completed without a text response.')
+  }
+
+  async onPaused(result: StreamPausedResult): Promise<void> {
+    await this.reply(this.extractText(result.finalMessage) || 'Session paused without a text response.')
+  }
+
+  async onError(result: StreamErrorResult): Promise<void> {
+    const partial = this.extractText(result.finalMessage)
+    const error = result.error.message ?? 'Unknown error'
+    await this.reply(partial ? `${partial}\n\nSession ended with an error: ${error}` : `Session failed: ${error}`)
+  }
+
   isAlive(): boolean {
     return true
+  }
+
+  private extractText(message: StreamDoneResult['finalMessage']): string {
+    return (message?.parts ?? [])
+      .flatMap((part) => (part.type === 'text' ? [part.text] : []))
+      .join('')
+      .trim()
+  }
+
+  private async reply(content: string): Promise<void> {
+    const delivery = this.message.delivery
+    if (!delivery?.expectsReply || this.replied) return
+    this.replied = true
+
+    try {
+      const reply = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: delivery.receiver.agentId,
+        senderSessionId: delivery.receiver.sessionId,
+        receiverSessionId: delivery.replyTo.sessionId,
+        content,
+        mode: 'auto'
+      })
+      await dispatchAcceptedAgentSessionDelivery(reply)
+    } catch (error) {
+      logger.error('Failed to return Agent Session delivery result', {
+        deliveryId: delivery.id,
+        senderSessionId: delivery.receiver.sessionId,
+        receiverSessionId: delivery.replyTo.sessionId,
+        error
+      })
+    }
   }
 }
 
@@ -169,7 +213,7 @@ export async function dispatchAcceptedAgentSessionDelivery(
     const result = await startAgentSessionRun({
       sessionId: message.sessionId,
       userParts: message.data.parts ?? [],
-      listeners: [new AgentSessionDeliveryListener(message.delivery.id)],
+      listeners: [new AgentSessionDeliveryListener(message)],
       headless: true,
       deliveryMessage: message,
       queueOnly: message.delivery.mode === 'queue'

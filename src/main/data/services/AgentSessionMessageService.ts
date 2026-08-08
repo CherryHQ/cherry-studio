@@ -34,6 +34,8 @@ import {
   AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
   AGENT_SESSION_MESSAGES_MAX_LIMIT
 } from '@shared/data/api/schemas/agentSessionMessages'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/search'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import {
@@ -44,7 +46,7 @@ import {
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
 import { and, desc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm'
-import { v7 as uuidv7, validate as isUuid } from 'uuid'
+import { v4 as uuidv4, v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
 import { type SearchFetchContext, searchWithCursor } from './utils/ftsSearch'
@@ -616,93 +618,154 @@ export class AgentSessionMessageService {
     const content = input.content.trim()
     if (!content) throw DataApiErrorFactory.validation({ content: ['must not be empty'] })
 
-    const saved = application.get('DbService').withWriteTx((tx) => {
-      const [sender] = tx
-        .select({ agentId: sessionTable.agentId, agentName: agentTable.name, sessionName: sessionTable.name })
-        .from(sessionTable)
-        .leftJoin(agentTable, and(eq(sessionTable.agentId, agentTable.id), isNull(agentTable.deletedAt)))
-        .where(eq(sessionTable.id, input.senderSessionId))
-        .limit(1)
-        .all()
-      if (!sender || sender.agentId !== input.senderAgentId || sender.agentName === null) {
-        throw new AgentSessionDeliveryRoutingError(
-          AGENT_SESSION_DELIVERY_ERROR_CODES.SENDER_FORBIDDEN,
-          'The active runtime no longer owns the sender Session'
-        )
-      }
-
-      const [receiverSession] = tx
-        .select({ agentId: sessionTable.agentId, sessionName: sessionTable.name })
-        .from(sessionTable)
-        .where(eq(sessionTable.id, input.receiverSessionId))
-        .limit(1)
-        .all()
-      if (!receiverSession) {
-        throw new AgentSessionDeliveryRoutingError(
-          AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_NOT_FOUND,
-          `Target Session not found: ${input.receiverSessionId}`
-        )
-      }
-      if (!receiverSession.agentId) {
-        throw new AgentSessionDeliveryRoutingError(
-          AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_ORPHANED,
-          `Target Session has no Agent: ${input.receiverSessionId}`
-        )
-      }
-      const [receiverAgent] = tx
-        .select({ name: agentTable.name })
-        .from(agentTable)
-        .where(and(eq(agentTable.id, receiverSession.agentId), isNull(agentTable.deletedAt)))
-        .limit(1)
-        .all()
-      if (!receiverAgent) {
-        throw new AgentSessionDeliveryRoutingError(
-          AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_AGENT_DELETED,
-          `Target Agent is deleted: ${receiverSession.agentId}`
-        )
-      }
-
-      const id = uuidv7()
-      const acceptedAt = new Date().toISOString()
-      const senderAddress = {
-        agentId: input.senderAgentId,
-        sessionId: input.senderSessionId,
-        agentName: sender.agentName,
-        sessionName: sender.sessionName
-      }
-      const delivery: AgentSessionDelivery = {
-        id,
-        sender: senderAddress,
-        receiver: {
-          agentId: receiverSession.agentId,
-          sessionId: input.receiverSessionId,
-          agentName: receiverAgent.name,
-          sessionName: receiverSession.sessionName
-        },
-        replyTo: senderAddress,
-        mode: input.mode,
-        status: 'accepted',
-        acceptedAt,
-        scheduledAt: null,
-        consumedAt: null,
-        failedAt: null,
-        error: null
-      }
-
-      return this.saveMessageTx(tx, {
-        sessionId: input.receiverSessionId,
-        message: {
-          id,
-          role: 'user',
-          status: 'success',
-          data: { parts: [{ type: 'text', text: content }] },
-          delivery
-        }
-      }).entity
-    })
+    const saved = application
+      .get('DbService')
+      .withWriteTx((tx) => this.acceptSessionDeliveryTx(tx, { ...input, content }))
 
     this.publishDeliveryChange(saved.id, 'membership')
     return saved
+  }
+
+  /** Atomically create a same-Agent Session and persist its first durable delivery. */
+  createSessionWithDelivery(input: {
+    senderAgentId: string
+    senderSessionId: string
+    sessionName: string
+    workspace: AgentSessionWorkspaceSource
+    content: string
+  }): { session: AgentSessionEntity; message: AgentSessionMessageEntity } {
+    const content = input.content.trim()
+    if (!content) throw DataApiErrorFactory.validation({ content: ['must not be empty'] })
+
+    const sessionId = uuidv4()
+    const message = withSqliteErrors(
+      () =>
+        application.get('DbService').withWriteTx((tx) => {
+          agentSessionService.createTx(tx, sessionId, {
+            agentId: input.senderAgentId,
+            name: input.sessionName,
+            workspace: input.workspace
+          })
+          return this.acceptSessionDeliveryTx(tx, {
+            senderAgentId: input.senderAgentId,
+            senderSessionId: input.senderSessionId,
+            receiverSessionId: sessionId,
+            content,
+            mode: 'auto',
+            expectsReply: true
+          })
+        }),
+      {
+        ...defaultHandlersFor('Session', sessionId),
+        foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
+      }
+    )
+
+    const session = agentSessionService.getById(sessionId)
+    notifyDataApiDataChange([
+      { endpoint: '/agent-sessions', kind: 'membership', entityIds: [sessionId] },
+      ...(input.workspace.type === 'system'
+        ? [{ endpoint: '/agent-workspaces' as const, kind: 'membership' as const, entityIds: [session.workspaceId] }]
+        : []),
+      { endpoint: '/agent-sessions/:sessionId/messages', kind: 'membership', entityIds: [message.id] }
+    ])
+    return { session, message }
+  }
+
+  private acceptSessionDeliveryTx(
+    tx: DbOrTx,
+    input: {
+      senderAgentId: string
+      senderSessionId: string
+      receiverSessionId: string
+      content: string
+      mode: AgentSessionDeliveryMode
+      expectsReply?: true
+    }
+  ): AgentSessionMessageEntity {
+    const [sender] = tx
+      .select({ agentId: sessionTable.agentId, agentName: agentTable.name, sessionName: sessionTable.name })
+      .from(sessionTable)
+      .leftJoin(agentTable, and(eq(sessionTable.agentId, agentTable.id), isNull(agentTable.deletedAt)))
+      .where(eq(sessionTable.id, input.senderSessionId))
+      .limit(1)
+      .all()
+    if (!sender || sender.agentId !== input.senderAgentId || sender.agentName === null) {
+      throw new AgentSessionDeliveryRoutingError(
+        AGENT_SESSION_DELIVERY_ERROR_CODES.SENDER_FORBIDDEN,
+        'The active runtime no longer owns the sender Session'
+      )
+    }
+
+    const [receiverSession] = tx
+      .select({ agentId: sessionTable.agentId, sessionName: sessionTable.name })
+      .from(sessionTable)
+      .where(eq(sessionTable.id, input.receiverSessionId))
+      .limit(1)
+      .all()
+    if (!receiverSession) {
+      throw new AgentSessionDeliveryRoutingError(
+        AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_NOT_FOUND,
+        `Target Session not found: ${input.receiverSessionId}`
+      )
+    }
+    if (!receiverSession.agentId) {
+      throw new AgentSessionDeliveryRoutingError(
+        AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_ORPHANED,
+        `Target Session has no Agent: ${input.receiverSessionId}`
+      )
+    }
+    const [receiverAgent] = tx
+      .select({ name: agentTable.name })
+      .from(agentTable)
+      .where(and(eq(agentTable.id, receiverSession.agentId), isNull(agentTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (!receiverAgent) {
+      throw new AgentSessionDeliveryRoutingError(
+        AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_AGENT_DELETED,
+        `Target Agent is deleted: ${receiverSession.agentId}`
+      )
+    }
+
+    const id = uuidv7()
+    const acceptedAt = new Date().toISOString()
+    const senderAddress = {
+      agentId: input.senderAgentId,
+      sessionId: input.senderSessionId,
+      agentName: sender.agentName,
+      sessionName: sender.sessionName
+    }
+    const delivery: AgentSessionDelivery = {
+      id,
+      sender: senderAddress,
+      receiver: {
+        agentId: receiverSession.agentId,
+        sessionId: input.receiverSessionId,
+        agentName: receiverAgent.name,
+        sessionName: receiverSession.sessionName
+      },
+      replyTo: senderAddress,
+      ...(input.expectsReply ? { expectsReply: true as const } : {}),
+      mode: input.mode,
+      status: 'accepted',
+      acceptedAt,
+      scheduledAt: null,
+      consumedAt: null,
+      failedAt: null,
+      error: null
+    }
+
+    return this.saveMessageTx(tx, {
+      sessionId: input.receiverSessionId,
+      message: {
+        id,
+        role: 'user',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: input.content }] },
+        delivery
+      }
+    }).entity
   }
 
   listRecoverableSessionDeliveries(): AgentSessionMessageEntity[] {
