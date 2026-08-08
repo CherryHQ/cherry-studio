@@ -442,6 +442,7 @@ describe('GroupedSortableVirtualList', () => {
     expect(within(overlay).getByText('Item Alpha')).toBeInTheDocument()
     expect(overlay.firstElementChild).toHaveStyle({ height: '32px', width: '180px' })
     expect(overlay.firstElementChild).toHaveClass('pointer-events-none')
+    expect(overlay.firstElementChild).toHaveAttribute('data-drag-overlay', 'true')
     expect(overlay.firstElementChild).not.toHaveClass('opacity-85', 'shadow-sm', 'ring-1')
     expect(screen.getAllByText('Item Alpha')[0].parentElement).toHaveStyle({ opacity: '0.5' })
     expect(screen.getAllByText('Item Alpha')[0].parentElement).not.toHaveClass(
