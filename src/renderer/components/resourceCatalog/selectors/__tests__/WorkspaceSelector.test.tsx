@@ -1,17 +1,30 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createWorkspaceMock, refetchWorkspacesMock, selectFolderMock, useMutationMock, useQueryMock } = vi.hoisted(
-  () => ({
-    createWorkspaceMock: vi.fn(),
-    refetchWorkspacesMock: vi.fn(),
-    selectFolderMock: vi.fn(),
-    useMutationMock: vi.fn(),
-    useQueryMock: vi.fn()
-  })
-)
+const {
+  closeConversationTabsMock,
+  createWorkspaceMock,
+  deleteWorkspaceMock,
+  refetchWorkspacesMock,
+  selectFolderMock,
+  toastSuccessMock,
+  useMutationMock,
+  useQueryMock,
+  useRawAgentSessionsSourceMock
+} = vi.hoisted(() => ({
+  closeConversationTabsMock: vi.fn(),
+  createWorkspaceMock: vi.fn(),
+  deleteWorkspaceMock: vi.fn(),
+  refetchWorkspacesMock: vi.fn(),
+  selectFolderMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
+  useMutationMock: vi.fn(),
+  useQueryMock: vi.fn(),
+  useRawAgentSessionsSourceMock: vi.fn()
+}))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
@@ -23,20 +36,50 @@ vi.mock('@renderer/data/hooks/useDataApi', () => ({
   useQuery: useQueryMock
 }))
 
+vi.mock('@renderer/hooks/resourceViewSources', () => ({
+  useRawAgentSessionsSource: useRawAgentSessionsSourceMock
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => closeConversationTabsMock
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: {
+    error: vi.fn(),
+    success: toastSuccessMock
+  }
+}))
+
 vi.mock('react-i18next', async (importOriginal) => {
   const actual = await importOriginal<typeof ReactI18next>()
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string) =>
-        ({
+      t: (key: string, options?: { count?: number; name?: string }) => {
+        const translations: Record<string, string> = {
+          'agent.session.new': 'New task',
+          'agent.session.workdir.delete.disk_preserved': 'The folder on disk and its files will not be deleted.',
+          'agent.session.workdir.delete.empty': 'This work directory has no related sessions.',
+          'agent.session.workdir.delete.preview': `The sessions below will also be deleted with “${options?.name}”.`,
+          'agent.session.workdir.delete.preview_failed': 'Related sessions could not be loaded',
+          'agent.session.workdir.delete.preview_loading': 'Loading related sessions…',
+          'agent.session.workdir.delete.sessions_count': `${options?.count} sessions`,
+          'agent.session.workdir.delete.sessions_title': 'Sessions to be deleted',
+          'agent.session.workdir.delete.title': 'Delete work directory',
+          'agent.session.workdir.delete.trigger': 'Delete work directory',
           'agent.session.workspace_selector.create_failed': 'Failed to add work directory',
           'agent.session.workspace_selector.create_new': 'Add new work directory',
           'agent.session.workspace_selector.empty_text': 'No work directories',
           'agent.session.workspace_selector.no_project': 'No work directory',
           'agent.session.workspace_selector.search_placeholder': 'Search work directories',
-          'agent.session.workspace_selector.select_failed': 'Failed to select folder'
-        })[key] ?? key
+          'agent.session.workspace_selector.select_failed': 'Failed to select folder',
+          'common.cancel': 'Cancel',
+          'common.delete': 'Delete',
+          'common.delete_success': 'Deleted'
+        }
+        return translations[key] ?? key
+      }
     })
   }
 })
@@ -74,6 +117,42 @@ const CREATED_WORKSPACE = {
   updatedAt: '2026-01-03T00:00:00.000Z'
 }
 
+const SESSIONS = [
+  {
+    id: 'session-alpha-recent',
+    agentId: 'agent-1',
+    name: 'Fix workspace selector',
+    isNameManuallyEdited: false,
+    workspaceId: 'workspace-alpha',
+    workspace: WORKSPACES[0],
+    orderKey: 'a0',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-04T00:00:00.000Z'
+  },
+  {
+    id: 'session-alpha-older',
+    agentId: 'agent-1',
+    name: 'Review delete dialog',
+    isNameManuallyEdited: true,
+    workspaceId: 'workspace-alpha',
+    workspace: WORKSPACES[0],
+    orderKey: 'a1',
+    createdAt: '2026-01-02T00:00:00.000Z',
+    updatedAt: '2026-01-03T00:00:00.000Z'
+  },
+  {
+    id: 'session-beta',
+    agentId: 'agent-1',
+    name: 'Unrelated session',
+    isNameManuallyEdited: false,
+    workspaceId: 'workspace-beta',
+    workspace: WORKSPACES[1],
+    orderKey: 'a2',
+    createdAt: '2026-01-03T00:00:00.000Z',
+    updatedAt: '2026-01-05T00:00:00.000Z'
+  }
+]
+
 beforeAll(() => {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -101,12 +180,28 @@ beforeEach(() => {
     refetch: refetchWorkspacesMock,
     mutate: vi.fn()
   })
-  useMutationMock.mockReturnValue({
-    trigger: createWorkspaceMock,
-    isLoading: false,
+  useMutationMock.mockImplementation((method: string, path: string) => {
+    if (method === 'DELETE' && path === '/agent-workspaces/:workspaceId') {
+      return {
+        trigger: deleteWorkspaceMock,
+        isLoading: false,
+        error: undefined
+      }
+    }
+
+    return {
+      trigger: createWorkspaceMock,
+      isLoading: false,
+      error: undefined
+    }
+  })
+  useRawAgentSessionsSourceMock.mockReturnValue({
+    sessions: SESSIONS,
+    isFullyLoaded: true,
     error: undefined
   })
   createWorkspaceMock.mockResolvedValue(CREATED_WORKSPACE)
+  deleteWorkspaceMock.mockResolvedValue({ deletedIds: ['session-alpha-recent', 'session-alpha-older'] })
   refetchWorkspacesMock.mockResolvedValue(undefined)
   selectFolderMock.mockResolvedValue(null)
 
@@ -226,5 +321,41 @@ describe('WorkspaceSelector', () => {
     )
     expect(refetchWorkspacesMock).toHaveBeenCalled()
     expect(onChange).toHaveBeenCalledWith('workspace-created')
+  })
+
+  it('previews every affected session before deleting a workspace', async () => {
+    const user = userEvent.setup()
+    renderSelector()
+    openPopover()
+
+    await user.click(screen.getAllByRole('button', { name: 'Delete work directory' })[0])
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveTextContent('cherry-studio')
+    expect(dialog).toHaveTextContent('2 sessions')
+    expect(dialog).toHaveTextContent('Fix workspace selector')
+    expect(dialog).toHaveTextContent('Review delete dialog')
+    expect(dialog).not.toHaveTextContent('Unrelated session')
+    expect(dialog).toHaveTextContent('/Users/jd/cherry-studio')
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() =>
+      expect(deleteWorkspaceMock).toHaveBeenCalledWith({ params: { workspaceId: 'workspace-alpha' } })
+    )
+    expect(closeConversationTabsMock).toHaveBeenCalledWith('agents', ['session-alpha-recent', 'session-alpha-older'])
+    expect(toastSuccessMock).toHaveBeenCalledWith('Deleted')
+  })
+
+  it('does not allow deletion before the complete session impact is loaded', () => {
+    useRawAgentSessionsSourceMock.mockReturnValue({
+      sessions: SESSIONS.slice(0, 1),
+      isFullyLoaded: false,
+      error: undefined
+    })
+    renderSelector()
+    openPopover()
+
+    expect(screen.getAllByRole('button', { name: 'Delete work directory' })[0]).toBeDisabled()
   })
 })

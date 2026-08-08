@@ -497,9 +497,17 @@
       "workdir": {
         "delete": {
           "content": "Deleting this work directory will also delete all tasks under it. Only database records are removed; the actual folder on disk will not be deleted.",
+          "disk_preserved": "The folder on disk and its files will not be deleted.",
+          "empty": "This work directory has no related sessions.",
           "error": {
             "failed": "Failed to delete the work directory"
           },
+          "preview": "The sessions below will also be deleted with “{{name}}”. This action cannot be undone.",
+          "preview_failed": "Related sessions could not be loaded, so this work directory cannot be deleted yet",
+          "preview_loading": "Loading related sessions…",
+          "sessions_count_one": "{{count}} session",
+          "sessions_count_other": "{{count}} sessions",
+          "sessions_title": "Sessions to be deleted",
           "title": "Delete work directory",
           "trigger": "Delete work directory"
         },
