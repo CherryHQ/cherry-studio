@@ -1002,4 +1002,21 @@ describe('AgentToolRenderer', () => {
       expect(container.textContent).toContain('npm install')
     })
   })
+
+  it('renders PowerShell provider calls with their command and output', () => {
+    const toolResponse = createToolResponse({
+      tool: { id: 'PowerShell', name: 'PowerShell', description: 'Execute command', type: 'provider' },
+      status: 'done',
+      arguments: { command: 'Get-ChildItem' },
+      response: 'Directory: C:\\workspace'
+    })
+
+    render(<MessageTool toolResponse={toolResponse} />)
+
+    const container = screen.getByTestId('collapse-content-PowerShell')
+    fireEvent.click(screen.getByRole('button'))
+    expect(container).toBeVisible()
+    expect(container).toHaveTextContent('Get-ChildItem')
+    expect(container).toHaveTextContent('Directory: C:\\workspace')
+  })
 })

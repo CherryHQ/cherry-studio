@@ -60,6 +60,7 @@ export const AgentToolsType = {
   TaskOutput: 'TaskOutput',
   TaskStop: 'TaskStop',
   Bash: 'Bash',
+  PowerShell: 'PowerShell',
   Search: 'Search',
   Glob: 'Glob',
   TodoWrite: 'TodoWrite',
@@ -118,6 +119,13 @@ export type TaskStopToolOutput = TaskStopOutput | string
 
 export type BashToolInput = BashInput
 export type BashToolOutput = BashOutput | string
+
+export interface PowerShellToolInput {
+  command: string
+  timeout?: number
+  description?: string
+}
+export type PowerShellToolOutput = string
 
 export type SearchToolInput = string
 export type SearchToolOutput = string
@@ -288,6 +296,7 @@ export type ToolInput =
   | TaskOutputToolInput
   | TaskStopToolInput
   | BashToolInput
+  | PowerShellToolInput
   | BashOutputToolInput
   | SearchToolInput
   | GlobToolInput
@@ -357,6 +366,7 @@ export interface ToolInputMap {
   [AgentToolsType.TaskOutput]: TaskOutputToolInput
   [AgentToolsType.TaskStop]: TaskStopToolInput
   [AgentToolsType.Bash]: BashToolInput
+  [AgentToolsType.PowerShell]: PowerShellToolInput
   [AgentToolsType.Search]: SearchToolInput
   [AgentToolsType.Glob]: GlobToolInput
   [AgentToolsType.TodoWrite]: TodoWriteToolInput
@@ -393,6 +403,7 @@ export interface ToolOutputMap {
   [AgentToolsType.TaskOutput]: TaskOutputToolOutput
   [AgentToolsType.TaskStop]: TaskStopToolOutput
   [AgentToolsType.Bash]: BashToolOutput
+  [AgentToolsType.PowerShell]: PowerShellToolOutput
   [AgentToolsType.Search]: SearchToolOutput
   [AgentToolsType.Glob]: GlobToolOutput
   [AgentToolsType.TodoWrite]: TodoWriteToolOutput

@@ -2,7 +2,7 @@ import { AgentToolsType, type ToolInputMap, type ToolOutputMap, type ToolRendere
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { AgentTool } from './AgentTool'
 import { BashOutputTool } from './BashOutputTool'
-import { BashTool } from './BashTool'
+import { BashTool, PowerShellTool } from './BashTool'
 import { EditTool } from './EditTool'
 import { ExitPlanModeTool } from './ExitPlanModeTool'
 import { GlobTool } from './GlobTool'
@@ -29,6 +29,7 @@ export const toolRenderers: ToolRenderersMap = {
   [AgentToolsType.TaskOutput]: TaskOutputTool,
   [AgentToolsType.TaskStop]: TaskStopTool,
   [AgentToolsType.Bash]: BashTool,
+  [AgentToolsType.PowerShell]: PowerShellTool,
   [AgentToolsType.Search]: SearchTool,
   [AgentToolsType.Glob]: GlobTool,
   [AgentToolsType.WebSearch]: WebSearchTool,

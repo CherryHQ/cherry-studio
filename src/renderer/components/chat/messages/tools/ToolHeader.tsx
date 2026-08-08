@@ -67,6 +67,7 @@ export const TOOL_HEADER_UI: Record<string, { icon: ReactNode; labelKey?: string
   [AgentToolsType.TaskOutput]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskOutput' },
   [AgentToolsType.TaskStop]: { icon: <ListTodo size={14} />, labelKey: 'message.tools.labels.taskStop' },
   [AgentToolsType.Bash]: { icon: <Terminal size={14} />, labelKey: 'message.tools.labels.bash' },
+  [AgentToolsType.PowerShell]: { icon: <Terminal size={14} /> },
   [AgentToolsType.BashOutput]: { icon: <Terminal size={14} />, labelKey: 'message.tools.labels.bashOutput' },
   [AgentToolsType.Search]: { icon: <Search size={14} />, labelKey: 'message.tools.labels.search' },
   [AgentToolsType.Glob]: { icon: <FolderSearch size={14} />, labelKey: 'message.tools.labels.glob' },
@@ -176,7 +177,13 @@ function truncateCommandPreview(command: string): string {
 }
 
 function getCommandPreview(toolName: string, args: unknown): { text: string; fullText: string } | undefined {
-  if (toolName !== AgentToolsType.Bash && toolName !== AgentToolsType.BashOutput) return undefined
+  if (
+    toolName !== AgentToolsType.Bash &&
+    toolName !== AgentToolsType.PowerShell &&
+    toolName !== AgentToolsType.BashOutput
+  ) {
+    return undefined
+  }
 
   const command = getStringArg(args, 'command')
   if (!command) return undefined
@@ -427,6 +434,7 @@ export function getReadableToolActivity(
         description: getTaskIdTarget(args, t) ?? t('message.tools.activity.taskList')
       }
     case AgentToolsType.Bash:
+    case AgentToolsType.PowerShell:
     case AgentToolsType.BashOutput:
       return getCommandActivity(args, active, t)
     case AgentToolsType.Glob:
