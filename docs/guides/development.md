@@ -87,7 +87,9 @@ CS_DEV_USER_DATA_SUFFIX=DevQuito pnpm dev
 CS_DEV_USER_DATA_SUFFIX=DevParis pnpm dev
 ```
 
-Blank values are ignored and fall back to `Dev`.
+The suffix must be a single portable path component (ASCII letters, digits,
+`.`, `_`, `-`, no trailing dot). Blank or invalid values are ignored and fall
+back to `Dev`.
 
 ### Debug
 

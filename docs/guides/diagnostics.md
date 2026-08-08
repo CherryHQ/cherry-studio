@@ -31,7 +31,7 @@ CS_DIAGNOSTICS=1 "./Cherry Studio-<version>-<arch>.AppImage"
 
 ### Output
 
-Both dev and packaged runs write to the **app logs directory** (`~/Library/Logs/CherryStudio/` on macOS; `application.getPath('app.logs')`): signals stream into `app.<date>.log`, and the CPU profile lands beside it as `boot-whenReady.cpuprofile`.
+Both dev and packaged runs write to the **app logs directory** (`application.getPath('app.logs')` — on macOS `~/Library/Logs/CherryStudio/` for packaged runs and `~/Library/Logs/CherryStudioDev/` for dev, which diverts its logs like it does userData using the same suffix: `Dev` by default, replaced by `CS_DEV_USER_DATA_SUFFIX` when set): signals stream into `app.<date>.log`, and the CPU profile lands beside it as `boot-whenReady.cpuprofile`.
 
 ## Signals
 
