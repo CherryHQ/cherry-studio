@@ -1,7 +1,8 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger, Tooltip } from '@cherrystudio/ui'
+import AppLogo from '@renderer/assets/images/logo.png'
 import type { SidebarVisibleLayout } from '@renderer/components/Sidebar'
+import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import { useOpenReleaseNotes } from '@renderer/hooks/useOpenReleaseNotes'
-import { ipcApi } from '@renderer/ipc'
 import { BookOpen, CircleQuestionMark, Github, MessageSquareText, Sparkles } from 'lucide-react'
 import { lazy, Suspense, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -12,6 +13,7 @@ const GITHUB_REPOSITORY_URL = 'https://github.com/CherryHQ/cherry-studio'
 
 export function HelpMenu({ layout }: { layout: SidebarVisibleLayout }) {
   const { t, i18n } = useTranslation()
+  const { openSmartMiniApp } = useMiniAppPopup()
   const openReleaseNotes = useOpenReleaseNotes()
   const [menuOpen, setMenuOpen] = useState(false)
   const [feedbackDialogMounted, setFeedbackDialogMounted] = useState(false)
@@ -27,9 +29,23 @@ export function HelpMenu({ layout }: { layout: SidebarVisibleLayout }) {
     const language = i18n.resolvedLanguage ?? i18n.language
     const url =
       language === 'zh-CN' || language === 'zh-TW'
-        ? 'https://docs.cherry-ai.com/'
-        : 'https://docs.cherry-ai.com/docs/en-us'
-    return ipcApi.request('system.shell.open_website', url)
+        ? 'https://docs.cherryai.com.cn/'
+        : 'https://docs.cherryai.com.cn/docs/en-us'
+    openSmartMiniApp({
+      appId: 'cherrystudio-guide',
+      name: t('help.guide'),
+      url,
+      logo: AppLogo
+    })
+  }
+
+  const openGitHubRepository = () => {
+    openSmartMiniApp({
+      appId: 'cherrystudio-github',
+      name: t('help.star'),
+      url: GITHUB_REPOSITORY_URL,
+      logo: 'github'
+    })
   }
 
   const openFeedback = () => {
@@ -106,7 +122,7 @@ export function HelpMenu({ layout }: { layout: SidebarVisibleLayout }) {
               className="h-8"
               icon={<Github size={16} />}
               label={t('help.star')}
-              onClick={() => runAfterClose(() => ipcApi.request('system.shell.open_website', GITHUB_REPOSITORY_URL))}
+              onClick={() => runAfterClose(openGitHubRepository)}
             />
           </MenuList>
         </PopoverContent>

@@ -6,17 +6,17 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  ipcRequest: vi.fn(),
   language: 'en-US',
-  openReleaseNotes: vi.fn()
+  openReleaseNotes: vi.fn(),
+  openSmartMiniApp: vi.fn()
 }))
 
 vi.mock('@renderer/hooks/useOpenReleaseNotes', () => ({
   useOpenReleaseNotes: () => mocks.openReleaseNotes
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (...args: unknown[]) => mocks.ipcRequest(...args) }
+vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
+  useMiniAppPopup: () => ({ openSmartMiniApp: mocks.openSmartMiniApp })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -46,7 +46,6 @@ afterEach(() => {
 
 beforeEach(() => {
   mocks.language = 'en-US'
-  mocks.ipcRequest.mockResolvedValue(undefined)
 })
 
 async function openMenu() {
@@ -83,17 +82,25 @@ describe('HelpMenu', () => {
   })
 
   it.each([
-    ['zh-CN', 'https://docs.cherry-ai.com/'],
-    ['zh-TW', 'https://docs.cherry-ai.com/'],
-    ['en-US', 'https://docs.cherry-ai.com/docs/en-us']
-  ])('opens the language-specific guide for %s', async (language, expectedUrl) => {
+    ['zh-CN', 'https://docs.cherryai.com.cn/'],
+    ['zh-TW', 'https://docs.cherryai.com.cn/'],
+    ['en-US', 'https://docs.cherryai.com.cn/docs/en-us']
+  ])('opens the language-specific guide in app content for %s', async (language, expectedUrl) => {
     mocks.language = language
     render(<HelpMenu layout="full" />)
     const user = await openMenu()
 
     await user.click(screen.getByRole('button', { name: 'help.guide' }))
 
-    await waitFor(() => expect(mocks.ipcRequest).toHaveBeenCalledWith('system.shell.open_website', expectedUrl))
+    await waitFor(() =>
+      expect(mocks.openSmartMiniApp).toHaveBeenCalledWith(
+        expect.objectContaining({
+          appId: 'cherrystudio-guide',
+          name: 'help.guide',
+          url: expectedUrl
+        })
+      )
+    )
   })
 
   it('opens the feedback dialog from the secondary menu action', async () => {
@@ -115,17 +122,19 @@ describe('HelpMenu', () => {
     expect(screen.getByTestId('feedback-shell')).toHaveAttribute('data-open', 'false')
   })
 
-  it('opens the repository for the GitHub Star action', async () => {
+  it('opens the repository in app content for the GitHub Star action', async () => {
     render(<HelpMenu layout="icon" />)
     const user = await openMenu()
 
     await user.click(screen.getByRole('button', { name: 'help.star' }))
 
     await waitFor(() =>
-      expect(mocks.ipcRequest).toHaveBeenCalledWith(
-        'system.shell.open_website',
-        'https://github.com/CherryHQ/cherry-studio'
-      )
+      expect(mocks.openSmartMiniApp).toHaveBeenCalledWith({
+        appId: 'cherrystudio-github',
+        name: 'help.star',
+        url: 'https://github.com/CherryHQ/cherry-studio',
+        logo: 'github'
+      })
     )
   })
 
