@@ -123,16 +123,20 @@ describe('QuickPhrasesToolRuntime', () => {
     render(<QuickPhrasesToolRuntime launcher={launcher} setInputValue={vi.fn()} />)
 
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
+    expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', { enabled: false })
 
     const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
-    quickPhrasesLauncher.action?.({
-      parentPanel,
-      queryAnchor: 0,
-      quickPanel: {} as never,
-      source: 'root-panel',
-      triggerInfo
+    act(() => {
+      quickPhrasesLauncher.action?.({
+        parentPanel,
+        queryAnchor: 0,
+        quickPanel: {} as never,
+        source: 'root-panel',
+        triggerInfo
+      })
     })
 
+    await waitFor(() => expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', { enabled: true }))
     expect(mocks.quickPanelClose).not.toHaveBeenCalled()
     expect(mocks.setTimeoutTimer).not.toHaveBeenCalledWith(
       'openQuickPhrasesRootMenu',
@@ -157,12 +161,14 @@ describe('QuickPhrasesToolRuntime', () => {
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
 
     const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
-    quickPhrasesLauncher.action?.({
-      parentPanel: { list: [], symbol: '/' },
-      queryAnchor: 0,
-      quickPanel: {} as never,
-      source: 'root-panel',
-      triggerInfo: { type: 'button' }
+    act(() => {
+      quickPhrasesLauncher.action?.({
+        parentPanel: { list: [], symbol: '/' },
+        queryAnchor: 0,
+        quickPanel: {} as never,
+        source: 'root-panel',
+        triggerInfo: { type: 'button' }
+      })
     })
 
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
@@ -190,12 +196,14 @@ describe('QuickPhrasesToolRuntime', () => {
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
 
     const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
-    quickPhrasesLauncher.action?.({
-      parentPanel: { list: [], symbol: '/' },
-      queryAnchor: 0,
-      quickPanel: {} as never,
-      source: 'root-panel',
-      triggerInfo: { type: 'button' }
+    act(() => {
+      quickPhrasesLauncher.action?.({
+        parentPanel: { list: [], symbol: '/' },
+        queryAnchor: 0,
+        quickPanel: {} as never,
+        source: 'root-panel',
+        triggerInfo: { type: 'button' }
+      })
     })
 
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]
@@ -220,12 +228,14 @@ describe('QuickPhrasesToolRuntime', () => {
     await waitFor(() => expect(launcher.registerLaunchers).toHaveBeenCalled())
 
     const [quickPhrasesLauncher] = vi.mocked(launcher.registerLaunchers).mock.calls[0][0]
-    quickPhrasesLauncher.action?.({
-      parentPanel: { list: [], symbol: '/' },
-      queryAnchor: 0,
-      quickPanel: {} as never,
-      source: 'root-panel',
-      triggerInfo: { type: 'button' }
+    act(() => {
+      quickPhrasesLauncher.action?.({
+        parentPanel: { list: [], symbol: '/' },
+        queryAnchor: 0,
+        quickPanel: {} as never,
+        source: 'root-panel',
+        triggerInfo: { type: 'button' }
+      })
     })
 
     const panelOptions = mocks.quickPanelOpen.mock.calls[0][0]

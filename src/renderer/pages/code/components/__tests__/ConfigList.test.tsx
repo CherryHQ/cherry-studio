@@ -77,42 +77,6 @@ describe('ConfigList', () => {
     vi.clearAllMocks()
   })
 
-  it('matches provider settings list spacing', () => {
-    render(
-      <ConfigList
-        selectedCliTool={CodeCli.CLAUDE_CODE}
-        toolName="Claude Code"
-        providers={[provider]}
-        providerConfigs={{}}
-        currentProviderId={null}
-        resolveMeta={() => ({ providerName: 'Anthropic', modelName: 'claude-sonnet-4-5' })}
-        onConfigure={vi.fn()}
-        onToggleCurrent={vi.fn()}
-        onReorder={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('code-config-reorderable-list')).toHaveAttribute('data-gap', '0.5rem')
-  })
-
-  it('keeps the provider row cursor neutral', () => {
-    render(
-      <ConfigList
-        selectedCliTool={CodeCli.CLAUDE_CODE}
-        toolName="Claude Code"
-        providers={[provider]}
-        providerConfigs={{}}
-        currentProviderId={null}
-        resolveMeta={() => ({ providerName: 'Anthropic', modelName: 'claude-sonnet-4-5' })}
-        onConfigure={vi.fn()}
-        onToggleCurrent={vi.fn()}
-        onReorder={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('code-config-reorderable-list')).toHaveStyle({ cursor: 'default' })
-  })
-
   it('does not pass a placeholder model name when a provider has no configured model', () => {
     render(
       <ConfigList

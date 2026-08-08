@@ -12,14 +12,19 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { canonOf } from '../../scripts/canonicalize'
+import { canonOf, prefixHit } from '../../scripts/canonicalize'
+import { CREATORS } from '../creators'
+import { isServerToolModelEligible } from '../patterns/serverToolModelEligibility'
+import { SERVER_TOOL } from '../schemas/enums'
 import { ModelListSchema } from '../schemas/model'
+import { ProviderListSchema } from '../schemas/provider'
 import { ProviderModelListSchema } from '../schemas/provider-models'
 import { ReasoningWireProfileSchema } from '../schemas/reasoningWire'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const modelsRaw = JSON.parse(readFileSync(join(dataDir, 'models.json'), 'utf8'))
 const providerModelsRaw = JSON.parse(readFileSync(join(dataDir, 'provider-models.json'), 'utf8'))
+const providersRaw = JSON.parse(readFileSync(join(dataDir, 'providers.json'), 'utf8'))
 const models = modelsRaw.models as Array<{
   id: string
   name: string
@@ -36,6 +41,8 @@ const overrides = providerModelsRaw.overrides as Array<{
   apiModelId?: string
   name?: string
 }>
+const providers = ProviderListSchema.parse(providersRaw).providers
+const providerModelOverrides = ProviderModelListSchema.parse(providerModelsRaw).overrides
 
 // normalized creator id: lowercase, alphanumerics joined by single hyphens (size/version kept)
 const NORMALIZED = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -57,6 +64,17 @@ describe('catalog invariants (data/*.json)', () => {
       name,
       ownedBy
     })
+  })
+
+  // `listProviderPresetModels` sends `apiModelId ?? modelId` on the wire, so a row whose canonical key
+  // is not the served id must carry `apiModelId` — otherwise the canonical spelling (`glm-5-2` for
+  // `glm-5.2`) goes out and 404s. Generation derives both from the authored id; this catches a row
+  // that reached the catalog without passing through that split.
+  it('every override either is keyed canonically or carries a wire id', () => {
+    const leaking = overrides
+      .filter((override) => !override.apiModelId && canonOf(override.modelId) !== override.modelId)
+      .map((override) => `${override.providerId}/${override.modelId}`)
+    expect(leaking).toEqual([])
   })
 
   it('base model ids are unique', () => {
@@ -83,6 +101,22 @@ describe('catalog invariants (data/*.json)', () => {
     expect(ids.filter((id) => canonOf(id) !== id)).toEqual([])
   })
 
+  it('assigns overlapping creator prefixes to the most specific owner', () => {
+    const wrongOwner = models
+      .map((model) => {
+        const mostSpecific = CREATORS.flatMap((creator) =>
+          (creator.idPrefixes ?? [])
+            .filter((prefix) => prefixHit(model.id, prefix))
+            .map((prefix) => ({ creatorId: creator.id, prefix }))
+        ).sort((a, b) => b.prefix.length - a.prefix.length)[0]
+        return mostSpecific && mostSpecific.creatorId !== model.ownedBy
+          ? `${model.id}: ${model.ownedBy} != ${mostSpecific.creatorId} (${mostSpecific.prefix})`
+          : undefined
+      })
+      .filter(Boolean)
+    expect(wrongOwner).toEqual([])
+  })
+
   it('every override resolves to a base row or carries a standalone name', () => {
     const broken = overrides
       .filter((o) => !baseIds.has(o.modelId) && !o.name)
@@ -90,25 +124,43 @@ describe('catalog invariants (data/*.json)', () => {
     expect(broken).toEqual([])
   })
 
-  // Image-generation models must not advertise web-search — it leaks a text capability onto image rows.
+  // OpenCode Go is one base URL over three wire protocols picked per model, and its served list comes
+  // from models.dev — so a newly synced model lands here unpinned and silently falls back to
+  // chat/completions (#17860). Classify it against models.dev's per-model `provider.npm`.
+  it('pins an endpoint on every OpenCode Go model', () => {
+    const unpinned = providerModelOverrides
+      .filter((o) => o.providerId === 'opencode' && !o.endpointTypes?.length)
+      .map((o) => o.modelId)
+    expect(unpinned).toEqual([])
+  })
+
+  it('does not encode provider-native web search as a generic model capability', () => {
+    expect(models.filter((model) => model.capabilities?.includes('web-search')).map((model) => model.id)).toEqual([])
+  })
+
+  // Image-generation models must not inherit web-search eligibility — it leaks a server tool onto image rows.
   // The sole exception is gemini-3 image (Nano Banana Pro), which genuinely grounds on Google Search;
   // every other image model (e.g. gemini-2.5-flash-image) must not carry it. The generator already strips
   // PREFIX-inherited web-search from image rows; this catches a HAND-LISTED `web-search` slipping back in.
-  it('no image-generation model carries web-search except allowlisted gemini-3 image models', () => {
+  it('no image-generation model is web-search eligible except allowlisted gemini-3 image models', () => {
     const WEB_SEARCH_IMAGE_ALLOWLIST = new Set(['gemini-3-pro-image', 'gemini-3-pro-image-preview'])
     const offenders = models
-      .filter((m) => m.capabilities?.includes('image-generation') && m.capabilities?.includes('web-search'))
-      .map((m) => m.id)
+      .filter((model) => model.capabilities?.includes('image-generation'))
+      .filter((model) =>
+        providers.some((provider) => isServerToolModelEligible(model.id, provider.id, SERVER_TOOL.WEB_SEARCH))
+      )
+      .map((model) => model.id)
       .filter((id) => !WEB_SEARCH_IMAGE_ALLOWLIST.has(id))
     expect(offenders).toEqual([])
   })
 
-  // web-search is a text-chat capability: a model that doesn't converse in text on both sides (TTS is
-  // text→audio, transcription is audio→text, embedders output vector) must never carry it. The generator
-  // gates prefix-inherited web-search by modality; this catches any row slipping back in.
-  it('no non-text-chat model carries web-search (tts / transcription / embedding)', () => {
+  // Web search is a text-chat server tool: a model that doesn't converse in text on both sides (TTS is
+  // text→audio, transcription is audio→text, embedders output vector) must never be eligible.
+  it('no non-text-chat model is web-search eligible (tts / transcription / embedding)', () => {
     const offenders = models
-      .filter((m) => m.capabilities?.includes('web-search'))
+      .filter((model) =>
+        providers.some((provider) => isServerToolModelEligible(model.id, provider.id, SERVER_TOOL.WEB_SEARCH))
+      )
       .filter(
         (m) => !(m.inputModalities ?? ['text']).includes('text') || !(m.outputModalities ?? ['text']).includes('text')
       )
@@ -187,6 +239,22 @@ describe('catalog invariants (data/*.json)', () => {
   it('provider-models.json conforms to ProviderModelListSchema', () => {
     const r = ProviderModelListSchema.safeParse(providerModelsRaw)
     expect(r.success ? [] : r.error.issues.slice(0, 5)).toEqual([])
+  })
+
+  it('Fast transports belong only to Codex and Claude Code', () => {
+    expect(providers.filter((provider) => provider.fastMode).map((provider) => provider.id)).toEqual([
+      'claude-code',
+      'openai-codex'
+    ])
+  })
+
+  it('Fast provider-model declarations require a provider transport', () => {
+    const fastProviders = new Set(providers.filter((provider) => provider.fastMode).map((provider) => provider.id))
+    expect(
+      providerModelOverrides
+        .filter((override) => override.supportsFastMode && !fastProviders.has(override.providerId))
+        .map((override) => `${override.providerId}/${override.modelId}`)
+    ).toEqual([])
   })
 
   it('budget wire operations require an explicit budget policy', () => {

@@ -284,7 +284,27 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         }
       }
     ],
-    fileRefSourcePolicies: [],
+    fileRefSourcePolicies: [
+      // agent_session_message file refs are owned by AGENTS (source domain) and bundled
+      // with the agent_session tree in full backups (#11 coverage). Mirrors TOPICS'
+      // chat_message policy — agent_session_message_file_ref keeps agent-uploaded
+      // attachment bytes alive for exactly as long as the message.
+      {
+        sourceType: 'agent_session_message',
+        ownerDomain: 'AGENTS',
+        resourcePolicy: 'include-with-owner',
+        sourceTable: table('agent_session_message')
+      },
+      // job_schedule holds agent.task jobs whose input/mask payloads are referenced from
+      // job_file_ref (image jobs). AGENTS owns job_schedule, so it owns the job sourceType
+      // too — the ref keeps input bytes alive for a job still queued or mid-poll (#11).
+      {
+        sourceType: 'job',
+        ownerDomain: 'AGENTS',
+        resourcePolicy: 'include-with-owner',
+        sourceTable: table('job_schedule')
+      }
+    ],
     jsonSoftReferences: [
       // agent_session_message.data embeds attachment fileEntryId soft refs (tolerant —
       // missing blob degrades to a toast + orphan check, no identity propagation, §5.4).

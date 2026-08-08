@@ -33,6 +33,7 @@ function makeCache() {
     rollbackBranch: vi.fn(async () => {}),
     clearBranchCache: vi.fn(async () => {}),
     deleteMessageTrigger: vi.fn(async () => ({ deletedIds: [] })),
+    deleteMessageGroupTrigger: vi.fn(async () => ({ deletedIds: [] })),
     patchMessageTrigger: vi.fn(async () => {}),
     createSiblingTrigger: vi.fn(async () => ({})),
     createMessageTrigger: vi.fn(async () => ({})),
@@ -41,22 +42,25 @@ function makeCache() {
   } as unknown as Parameters<typeof useChatWriteActions>[0]['cache']
 }
 
-const uiMsg = (id: string, role: string, parentId: string | null, isContextBoundary = false): any => ({
+const uiMsg = (
+  id: string,
+  role: string,
+  parentId: string | null,
+  isContextBoundary = false,
+  status = 'success'
+): any => ({
   id,
   role,
   parts: isContextBoundary ? [{ type: 'data-clear', data: {} }] : [],
-  metadata: { parentId }
+  metadata: { parentId, status }
 })
 
 function renderActions(
-  rootId: string | null,
   uiMessages: ReturnType<typeof uiMsg>[],
   cache = makeCache(),
   activeNodeId = uiMessages.at(-1)?.id ?? null,
   startNewContextBlocked = false
 ) {
-  const captureLocalSendScrollEligibility = vi.fn()
-  const onLocalSendStarted = vi.fn()
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn(async () => {})
   const setMessages = vi.fn()
@@ -65,15 +69,12 @@ function renderActions(
       topic: { id: 't1' } as Topic,
       uiMessages,
       activeNodeId,
-      rootId,
       regenerate,
       setMessages,
       stop: vi.fn(async () => {}),
       refresh: vi.fn(async () => []),
       cache,
       seedReservedMessages: vi.fn(async () => {}),
-      captureLocalSendScrollEligibility,
-      onLocalSendStarted,
       scrollToBottom,
       startNewContextBlocked
     })
@@ -82,8 +83,6 @@ function renderActions(
     actions: result.current.actions,
     result,
     cache,
-    captureLocalSendScrollEligibility,
-    onLocalSendStarted,
     scrollToBottom,
     regenerate
   }
@@ -111,7 +110,7 @@ describe('useChatWriteActions — clear context', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('does nothing when the topic has no active message', async () => {
-    const { actions, cache, scrollToBottom } = renderActions('vroot', [], makeCache(), null)
+    const { actions, cache, scrollToBottom } = renderActions([], makeCache(), null)
 
     expect(actions.canStartNewContext).toBe(false)
     await actions.startNewContext()
@@ -131,15 +130,12 @@ describe('useChatWriteActions — clear context', () => {
         topic: { id: 't1' } as Topic,
         uiMessages: [uiMsg('u1', 'user', 'vroot')],
         activeNodeId: 'u1',
-        rootId: 'vroot',
         regenerate: vi.fn(async () => {}),
         setMessages: vi.fn(),
         stop: vi.fn(async () => {}),
         refresh: vi.fn(async () => []),
         cache,
         seedReservedMessages,
-        captureLocalSendScrollEligibility: vi.fn(),
-        onLocalSendStarted: vi.fn(),
         scrollToBottom,
         startNewContextBlocked: false
       })
@@ -171,7 +167,7 @@ describe('useChatWriteActions — clear context', () => {
   })
 
   it('does not start while the shared write gate is blocked', async () => {
-    const { actions, cache } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot')], makeCache(), 'u1', true)
+    const { actions, cache } = renderActions([uiMsg('u1', 'user', 'vroot')], makeCache(), 'u1', true)
 
     expect(actions.canStartNewContext).toBe(false)
     await act(async () => {
@@ -183,7 +179,7 @@ describe('useChatWriteActions — clear context', () => {
   })
 
   it('removes the active clear marker without cascading and rolls the cache forward immediately', async () => {
-    const { actions, cache, scrollToBottom } = renderActions('vroot', [
+    const { actions, cache, scrollToBottom } = renderActions([
       uiMsg('u1', 'user', 'vroot'),
       uiMsg('clear-1', 'user', 'u1', true)
     ])
@@ -204,7 +200,7 @@ describe('useChatWriteActions — clear context', () => {
     const cache = makeCache()
     const error = new Error('create failed')
     vi.mocked(cache.createMessageTrigger).mockRejectedValueOnce(error)
-    const { actions, scrollToBottom } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot')], cache)
+    const { actions, scrollToBottom } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
 
     await act(async () => {
       await expect(actions.startNewContext()).rejects.toBe(error)
@@ -218,11 +214,7 @@ describe('useChatWriteActions — clear context', () => {
     const cache = makeCache()
     const error = new Error('delete failed')
     vi.mocked(cache.deleteMessageTrigger).mockRejectedValueOnce(error)
-    const { actions } = renderActions(
-      'vroot',
-      [uiMsg('u1', 'user', 'vroot'), uiMsg('clear-1', 'user', 'u1', true)],
-      cache
-    )
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), uiMsg('clear-1', 'user', 'u1', true)], cache)
 
     await act(async () => {
       await expect(actions.startNewContext()).rejects.toBe(error)
@@ -240,7 +232,7 @@ describe('useChatWriteActions — clear context', () => {
           resolveCreate = resolve as typeof resolveCreate
         }) as never
     )
-    const { actions, result } = renderActions('vroot', [uiMsg('u1', 'user', 'vroot')], cache)
+    const { actions, result } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
 
     expect(result.current.actions.canStartNewContext).toBe(true)
     let first!: Promise<void>
@@ -267,81 +259,119 @@ describe('useChatWriteActions — first-turn delete', () => {
   // vroot → u1(user) → a1(assistant). rootId = 'vroot'.
   const tree = () => [uiMsg('u1', 'user', 'vroot'), uiMsg('a1', 'assistant', 'u1')]
 
-  it('reports first-turn deletion availability from the authoritative root id', () => {
-    const { actions } = renderActions('vroot', tree())
+  it('treats the first turn like any other loaded message', () => {
+    const { actions } = renderActions(tree())
 
-    expect(actions.getMessageDeleteAvailability('u1')).toEqual({ enabled: false, reason: 'first-turn' })
+    expect(actions.getMessageDeleteAvailability('u1')).toEqual({ enabled: true })
     expect(actions.getMessageDeleteAvailability('a1')).toEqual({ enabled: true })
   })
 
-  it('rejects direct first-turn deletion before any write', async () => {
+  it('splices a first-turn message onto the virtual root without cascading', async () => {
     const cache = makeCache()
-    const { actions } = renderActions('vroot', tree(), cache)
+    const { actions } = renderActions(tree(), cache)
 
-    await expect(actions.deleteMessage('u1')).rejects.toThrow()
+    await actions.deleteMessage('u1')
 
-    expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
-    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+    expect(cache.deleteMessageTrigger).toHaveBeenCalledWith({ params: { id: 'u1' }, query: { cascade: false } })
+    expect(invalidateMessages).toHaveBeenCalledWith(['u1'])
   })
 
-  it('rejects a multi-select plan containing a first-turn user before deleting its assistant first', async () => {
+  it('accepts a multi-select plan containing the first turn', async () => {
     const cache = makeCache()
-    const { actions } = renderActions('vroot', tree(), cache)
+    const { actions } = renderActions(tree(), cache)
 
-    await expect(actions.deleteMessage('a1', { selectedMessageIds: ['u1', 'a1'] })).rejects.toThrow()
+    await actions.deleteMessage('a1', { selectedMessageIds: ['u1', 'a1'] })
 
+    expect(cache.deleteMessageTrigger).toHaveBeenCalledWith({ params: { id: 'a1' }, query: { cascade: false } })
+  })
+
+  it('rejects a multi-select plan containing a generating message before any write', async () => {
+    const cache = makeCache()
+    const messages = [uiMsg('u1', 'user', 'vroot'), uiMsg('a1', 'assistant', 'u1', false, 'pending')]
+    const { actions } = renderActions(messages, cache)
+
+    await expect(actions.deleteMessage('u1', { selectedMessageIds: ['u1', 'a1'] })).rejects.toThrow()
     expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
     expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
   })
 
   it('splices a deeper (non-first-turn) message', async () => {
-    const { actions, cache } = renderActions('vroot', tree())
+    const { actions, cache } = renderActions(tree())
     await actions.deleteMessage('a1', { selectedMessageIds: ['a1'] })
     expect(cache.deleteMessageTrigger).toHaveBeenCalledWith({ params: { id: 'a1' }, query: { cascade: false } })
     expect(invalidateMessages).toHaveBeenCalledWith(['a1'])
   })
 
-  it('rejects deletion before the authoritative root id is available', async () => {
-    const { actions, cache } = renderActions(null, tree())
+  it('rejects a single-message deletion through shared availability while it is generating', async () => {
+    const cache = makeCache()
+    const { actions } = renderActions([uiMsg('a1', 'assistant', 'u1', false, 'pending')], cache)
 
-    expect(actions.getMessageDeleteAvailability('u1')).toEqual({ enabled: false, reason: 'root-unavailable' })
-    await expect(actions.deleteMessage('u1')).rejects.toThrow()
+    expect(actions.getMessageDeleteAvailability('a1')).toEqual({ enabled: false, reason: 'generating' })
+    await expect(actions.deleteMessage('a1')).rejects.toThrow()
     expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
     expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
   })
 
-  it('rejects group deletion when the parent message is outside the loaded page', async () => {
-    const cache = makeCache()
-    const { actions } = renderActions('vroot', [uiMsg('a1', 'assistant', 'u1')], cache)
+  it('does not couple deletion availability to root metadata loading', async () => {
+    const { actions, cache } = renderActions(tree())
 
-    expect(actions.getMessageDeleteAvailability('u1')).toEqual({
+    expect(actions.getMessageDeleteAvailability('u1')).toEqual({ enabled: true })
+    await actions.deleteMessage('u1')
+    expect(cache.deleteMessageTrigger).toHaveBeenCalledWith({ params: { id: 'u1' }, query: { cascade: false } })
+  })
+
+  it('rejects group deletion when any reply is outside the loaded page', async () => {
+    const cache = makeCache()
+    const { actions } = renderActions([uiMsg('a1', 'assistant', 'u1')], cache)
+
+    expect(actions.getMessageDeleteAvailability('missing')).toEqual({
       enabled: false,
-      reason: 'message-unavailable'
+      reason: 'not-loaded'
     })
-    await expect(actions.deleteMessageGroup('u1')).rejects.toThrow()
+    await expect(actions.deleteMessageGroup(['a1', 'missing'])).rejects.toThrow()
     expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
-    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+    expect(cache.deleteMessageGroupTrigger).not.toHaveBeenCalled()
   })
 
-  it('deleteMessageGroup on a first-turn group (parent = rootId) clears the topic', async () => {
+  it('splices multi-model replies without deleting their user-message parent', async () => {
     const cache = makeCache()
-    vi.mocked(cache.clearTopicMessagesTrigger).mockResolvedValueOnce({ deletedIds: ['u1', 'a1'] })
-    const { actions } = renderActions('vroot', tree(), cache)
-    await actions.deleteMessageGroup('vroot')
-    expect(cache.clearTopicMessagesTrigger).toHaveBeenCalledWith({ params: { topicId: 't1' } })
+    vi.mocked(cache.deleteMessageGroupTrigger).mockResolvedValueOnce({ deletedIds: ['a1', 'a2'] })
+    const messages = [...tree(), uiMsg('a2', 'assistant', 'u1')]
+    const { actions } = renderActions(messages, cache)
+
+    await actions.deleteMessageGroup(['a1', 'a2'])
+
+    expect(cache.deleteMessageGroupTrigger).toHaveBeenCalledWith({ params: { id: 'a1' } })
+    expect(cache.seedOptimisticBranch).toHaveBeenCalledTimes(2)
     expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
-    expect(invalidateMessages).toHaveBeenCalledWith(['u1', 'a1'])
+    expect(invalidateMessages).toHaveBeenCalledWith(['a1', 'a2'])
   })
 
-  it.each([
-    [null, 'a1'],
-    ['vroot', 'u1']
-  ])('rejects unavailable message group deletion (rootId: %s, id: %s)', async (rootId, id) => {
-    const { actions, cache } = renderActions(rootId, tree())
+  it('reconciles optimistic state with the authoritative deleted ids', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.deleteMessageGroupTrigger).mockResolvedValueOnce({ deletedIds: ['a1-old', 'a1', 'a2'] })
+    const messages = [...tree(), uiMsg('a2', 'assistant', 'u1')]
+    const { actions } = renderActions(messages, cache)
 
-    await expect(actions.deleteMessageGroup(id)).rejects.toThrow()
+    await actions.deleteMessageGroup(['a1', 'a2'])
+
+    expect(cache.deleteMessageGroupTrigger).toHaveBeenCalledWith({ params: { id: 'a1' } })
+    expect(cache.seedOptimisticBranch).toHaveBeenCalledTimes(2)
+    const reconcile = vi.mocked(cache.seedOptimisticBranch).mock.calls[1][0]
+    reconcile([])
+    expect(cache.branchWithoutIds).toHaveBeenLastCalledWith([], new Set(['a1-old', 'a1', 'a2']))
+    expect(invalidateMessages).toHaveBeenCalledWith(['a1-old', 'a1', 'a2'])
+  })
+
+  it('rejects group deletion through shared availability while a reply is generating', async () => {
+    const cache = makeCache()
+    const messages = [uiMsg('a1', 'assistant', 'u1', false, 'pending')]
+    const { actions } = renderActions(messages, cache)
+
+    expect(actions.getMessageDeleteAvailability('a1')).toEqual({ enabled: false, reason: 'generating' })
+    await expect(actions.deleteMessageGroup(['a1'])).rejects.toThrow()
     expect(cache.seedOptimisticBranch).not.toHaveBeenCalled()
-    expect(cache.deleteMessageTrigger).not.toHaveBeenCalled()
+    expect(cache.deleteMessageGroupTrigger).not.toHaveBeenCalled()
   })
 })
 
@@ -350,7 +380,7 @@ describe('useChatWriteActions — edit message', () => {
 
   it('optimistically patches branch messages and persists edited parts', async () => {
     const editedParts = [{ type: 'text', text: 'edited' }]
-    const { actions, cache } = renderActions('vroot', [uiMsg('m1', 'user', 'vroot')])
+    const { actions, cache } = renderActions([uiMsg('m1', 'user', 'vroot')])
 
     await actions.editMessage('m1', editedParts as any)
 
@@ -386,7 +416,7 @@ describe('useChatWriteActions — edit message', () => {
   it('rolls back the optimistic branch when persisting edited parts fails', async () => {
     const editedParts = [{ type: 'text', text: 'edited' }]
     const error = new Error('patch failed')
-    const { actions, cache } = renderActions('vroot', [uiMsg('m1', 'user', 'vroot')])
+    const { actions, cache } = renderActions([uiMsg('m1', 'user', 'vroot')])
     vi.mocked(cache.patchMessageTrigger).mockRejectedValueOnce(error)
 
     await expect(actions.editMessage('m1', editedParts as any)).rejects.toBe(error)
@@ -403,24 +433,53 @@ describe('useChatWriteActions — edit message', () => {
 describe('useChatWriteActions — regenerate', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('marks regeneration as a local send before waiting for the stream to finish', async () => {
-    const { actions, captureLocalSendScrollEligibility, onLocalSendStarted, regenerate } = renderActions('vroot', [
-      uiMsg('u1', 'user', 'vroot'),
-      uiMsg('a1', 'assistant', 'u1')
-    ])
+  it('waits for regeneration to finish', async () => {
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), uiMsg('a1', 'assistant', 'u1')])
     let finishRegenerate: (() => void) | undefined
     regenerate.mockImplementationOnce(() => new Promise<void>((resolve) => (finishRegenerate = resolve)))
 
     const request = actions.regenerate('a1')
 
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      regenerate.mock.invocationCallOrder[0]
-    )
-    expect(onLocalSendStarted).toHaveBeenCalledOnce()
+    expect(regenerate).toHaveBeenCalledOnce()
 
     finishRegenerate?.()
     await request
+  })
+
+  it('inherits the persisted turn options when retrying an assistant message', async () => {
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
+
+    await actions.regenerate('a1')
+
+    expect(regenerate).toHaveBeenCalledWith({
+      messageId: 'a1',
+      body: expect.objectContaining({
+        parentAnchorId: 'u1',
+        reasoningEffort: 'high',
+        fastMode: true
+      })
+    })
+  })
+
+  it('inherits the active assistant turn options when resending its user message', async () => {
+    streamOpen.mockReset()
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.metadata.isActiveBranch = true
+    assistantMessage.metadata.turnOptions = { reasoningEffort: 'minimal', fastMode: false }
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
+
+    await actions.resend('u1')
+
+    expect(streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        parentAnchorId: 'u1',
+        reasoningEffort: 'minimal',
+        fastMode: false
+      })
+    )
   })
 })
 
@@ -440,45 +499,57 @@ describe('useChatWriteActions — fork and resend', () => {
     }
   }
 
-  it('marks a successful edit-and-resend as a local send', async () => {
+  it('opens a stream after a successful edit-and-resend', async () => {
     const cache = makeCache()
     vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
-    const { actions, captureLocalSendScrollEligibility, onLocalSendStarted } = renderActions(
-      'vroot',
-      [uiMsg('u1', 'user', 'vroot')],
-      cache
-    )
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
 
-    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any, {
+      reasoningEffort: 'high',
+      fastMode: true
+    })
 
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(captureLocalSendScrollEligibility.mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(cache.createSiblingTrigger).mock.invocationCallOrder[0]
-    )
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
         topicId: 't1',
-        parentAnchorId: 'forked-user'
+        parentAnchorId: 'forked-user',
+        reasoningEffort: 'high',
+        fastMode: true
       })
     )
-    expect(onLocalSendStarted).toHaveBeenCalledOnce()
   })
 
-  it('does not mark edit-and-resend when stream open is blocked', async () => {
+  it('inherits the source turn options when a historical multi-model user message is edited', async () => {
+    const cache = makeCache()
+    vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
+    streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
+    const firstAssistant = uiMsg('a1', 'assistant', 'u1')
+    firstAssistant.metadata.modelId = 'provider::model-a'
+    firstAssistant.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    const secondAssistant = uiMsg('a2', 'assistant', 'u1')
+    secondAssistant.metadata.modelId = 'provider::model-b'
+    secondAssistant.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), firstAssistant, secondAssistant], cache)
+
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+
+    expect(streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mentionedModelIds: ['provider::model-a', 'provider::model-b'],
+        reasoningEffort: 'high',
+        fastMode: true
+      })
+    )
+  })
+
+  it('rejects edit-and-resend when stream open is blocked', async () => {
     const cache = makeCache()
     vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
     streamOpen.mockResolvedValueOnce({ mode: 'blocked', message: 'blocked' })
-    const { actions, captureLocalSendScrollEligibility, onLocalSendStarted } = renderActions(
-      'vroot',
-      [uiMsg('u1', 'user', 'vroot')],
-      cache
-    )
+    const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
 
     await expect(actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)).rejects.toThrow('blocked')
-
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-    expect(onLocalSendStarted).not.toHaveBeenCalled()
   })
 })

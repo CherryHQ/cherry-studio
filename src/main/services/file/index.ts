@@ -39,8 +39,8 @@ export type {
   ReadResult
 } from './FileManager'
 export { FileManager } from './FileManager'
-export { StaleVersionError } from './FileManager'
-export { DirectoryTreeManager } from './tree/DirectoryTreeManager'
+export { ContentCommittedMetadataPendingError, StaleVersionError } from './FileManager'
+export { DirectoryTreeManager, DirectoryTreeStoppedError } from './tree/DirectoryTreeManager'
 
 // DanglingCache: interface and singleton are both exported for in-process
 // callers (orphanSweep, business services querying live state). External
@@ -82,10 +82,11 @@ export { safeOpen, showInFolder } from './system'
 export { dispatchHandle } from './internal/dispatch'
 
 // Path-level content helpers for FileHandle routes and the path-only conditional write.
-export { readByPath, writeIfUnchangedByPath } from './utils/content'
+export { readByPath, readChunkByPath, writeIfUnchangedByPath } from './utils/content'
 
 // Live on-disk metadata by path (`fs.stat` projection). Consumed by the File
 // IPC batch-metadata handler.
+export { assertOutsideManagedStorageMutation } from './utils/managedStorageGuard'
 export { getMetadataByPath } from './utils/metadata'
 
 // Path resolution for FileEntry → on-disk path (internal UUID store / external).

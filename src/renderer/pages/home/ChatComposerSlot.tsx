@@ -1,11 +1,14 @@
+import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import {
   type ChatComposerResolvedContext,
+  type ChatContextUsageSource,
   type ChatConversationControlsChangeHandler,
   ChatPlacementComposer
 } from '@renderer/components/composer/variants/ChatComposer'
 import type { Topic } from '@renderer/types/topic'
+import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -14,14 +17,16 @@ import type { AddNewTopicPayload } from './types'
 
 interface ChatComposerSlotBaseProps {
   topic: Topic
+  contextUsage: ChatContextUsageSource | null
   onSend: (
     text: string,
     options?: {
       mentionedModels?: UniqueModelId[]
       userMessageParts?: CherryMessagePart[]
+      chatTarget?: ComposerChatTarget
     }
   ) => Promise<void>
-  captureLocalSendScrollEligibility?: () => void
+  chatTarget: ComposerChatTarget
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   onCreateEmptyTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   composerContext?: ComposerContextValue
@@ -37,8 +42,9 @@ type ChatComposerSlotProps =
 export default function ChatComposerSlot({
   placement,
   topic,
+  contextUsage,
   onSend,
-  captureLocalSendScrollEligibility,
+  chatTarget,
   onNewTopic,
   onCreateEmptyTopic,
   sendDisabled,
@@ -47,20 +53,23 @@ export default function ChatComposerSlot({
   providers,
   onConversationControlsChange
 }: ChatComposerSlotProps) {
+  const compactWhenSingleLine = useRightPanelPresentationMaximized()
   const fallback =
     placement === 'home' ? (
       <ChatPlacementComposer
         placement="home"
         scopeKey={topic.id}
         topicId={topic.id}
+        contextUsage={contextUsage}
         assistantId={topic.assistantId}
         onSend={onSend}
-        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
+        chatTarget={chatTarget}
         onNewTopic={onNewTopic}
         onCreateEmptyTopic={onCreateEmptyTopic}
         resolvedContext={assistantContext}
         resolvedProviders={providers}
         externalContextControls
+        compactWhenSingleLine={compactWhenSingleLine}
         onConversationControlsChange={onConversationControlsChange}
       />
     ) : (
@@ -68,15 +77,17 @@ export default function ChatComposerSlot({
         placement="docked"
         scopeKey={topic.id}
         topicId={topic.id}
+        contextUsage={contextUsage}
         assistantId={topic.assistantId}
         onSend={onSend}
-        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
+        chatTarget={chatTarget}
         onNewTopic={onNewTopic}
         onCreateEmptyTopic={onCreateEmptyTopic}
         sendDisabled={sendDisabled}
         resolvedContext={assistantContext}
         resolvedProviders={providers}
         externalContextControls
+        compactWhenSingleLine={compactWhenSingleLine}
         onConversationControlsChange={onConversationControlsChange}
       />
     )

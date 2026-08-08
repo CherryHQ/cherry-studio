@@ -150,7 +150,7 @@ export const FileGrid = memo(function FileGrid({
                             file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')
                           }
                           title={file.origin === 'external' ? t('files.remove_from_library') : t('files.delete.label')}
-                          className="!text-muted-foreground/70 hover:!text-destructive size-6 min-h-0 rounded bg-background/80 p-0 shadow-xs backdrop-blur-sm transition-colors">
+                          className="!text-muted-foreground hover:!text-destructive size-6 min-h-0 rounded bg-background/80 p-0 shadow-xs backdrop-blur-sm transition-colors">
                           <Trash2 className="size-3" />
                         </Button>
                       </div>

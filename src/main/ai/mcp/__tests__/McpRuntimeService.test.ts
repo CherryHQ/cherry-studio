@@ -20,6 +20,20 @@ vi.mock('@data/services/McpServerService', () => ({
   }
 }))
 
+const shellEnvMock = vi.hoisted(() => ({
+  getShellEnv: vi.fn().mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
+}))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: shellEnvMock.getShellEnv
+}))
+
+const commandResolverMock = vi.hoisted(() => ({
+  findCommandInShellEnv: vi.fn().mockResolvedValue('C:\\Tools\\npx.exe')
+}))
+vi.mock('@main/utils/commandResolver', () => ({
+  findCommandInShellEnv: commandResolverMock.findCommandInShellEnv
+}))
+
 // Mock the MCP SDK transports + Client so we can drive the transport-fallback path without
 // a real network server. SSE connect throws a 405 (mirrors the issue); streamableHttp succeeds.
 const mcpSdkMock = vi.hoisted(() => {
@@ -82,12 +96,22 @@ const mcpSdkMock = vi.hoisted(() => {
       this.code = code
     }
   }
+  const stdioTransports: Array<{ env?: Record<string, string> }> = []
+  class StdioClientTransport {
+    kind = 'stdio' as const
+    stderr = null
+    constructor(params: { env?: Record<string, string> }) {
+      stdioTransports.push(params)
+    }
+  }
   return {
     SseError,
     SSEClientTransport,
     StreamableHTTPClientTransport,
     Client,
     StreamableHTTPError,
+    StdioClientTransport,
+    stdioTransports,
     clients,
     state: { failStreamable: false, failStreamableCode: 503 }
   }
@@ -103,6 +127,9 @@ vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
 }))
 vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
   Client: mcpSdkMock.Client
+}))
+vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
+  StdioClientTransport: mcpSdkMock.StdioClientTransport
 }))
 
 const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
@@ -130,6 +157,57 @@ function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void
   })
   return { promise, resolve }
 }
+
+describe('McpRuntimeService stdio environment', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpSdkMock.stdioTransports.length = 0
+    shellEnvMock.getShellEnv.mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
+  })
+
+  it('canonicalizes a mixed-case Windows Path key to PATH before crossing the MCP SDK boundary', async () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+
+    const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
+    expect(Object.keys(transportEnv ?? {}).filter((key) => key.toLowerCase() === 'path')).toEqual(['PATH'])
+    expect(transportEnv?.PATH).toBe('C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows')
+    platformSpy.mockRestore()
+  })
+
+  it('preserves distinct PATH key casing on POSIX', async () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    shellEnvMock.getShellEnv.mockResolvedValue({ PATH: '/shell/bin', Path: 'shell-metadata' })
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      env: { Path: 'server-metadata' },
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+
+    const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
+    expect(transportEnv?.PATH).toBe('/shell/bin')
+    expect(transportEnv?.Path).toBe('server-metadata')
+    platformSpy.mockRestore()
+  })
+})
 
 describe('McpRuntimeService.setServerStatus', () => {
   beforeEach(() => {
@@ -242,6 +320,46 @@ describe('McpRuntimeService.closeClientsForServer', () => {
     expect(closeA).toHaveBeenCalledTimes(1)
     expect(closeB).not.toHaveBeenCalled()
     expect((service as any).clients.has(serverKeyFor('server-2'))).toBe(true)
+  })
+})
+
+describe('McpRuntimeService stale client cleanup (issue #18144)', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+  })
+
+  const server = {
+    id: 'server-1',
+    name: 'srv',
+    command: 'python',
+    args: ['server.py'],
+    isActive: true
+  } as McpServer
+
+  it.each([
+    ['ping resolves falsy', vi.fn().mockResolvedValue(false)],
+    ['ping throws', vi.fn().mockRejectedValue(new Error('timeout'))]
+  ])('closes the dead client instead of orphaning its process when %s', async (_label, ping) => {
+    const service = new McpRuntimeService()
+    const close = vi.fn().mockResolvedValue(undefined)
+    ;(service as any).clients.set(service.getServerKey(server), { close, ping })
+
+    await (service as any).getOrCreateClient(server)
+
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+
+  it('still reconnects when closing the dead client throws', async () => {
+    const service = new McpRuntimeService()
+    const close = vi.fn().mockRejectedValue(new Error('transport already gone'))
+    const ping = vi.fn().mockResolvedValue(false)
+    const key = service.getServerKey(server)
+    ;(service as any).clients.set(key, { close, ping })
+
+    await expect((service as any).getOrCreateClient(server)).resolves.toBeDefined()
+    expect((service as any).clients.get(key)?.ping).not.toBe(ping)
   })
 })
 

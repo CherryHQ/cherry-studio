@@ -11,6 +11,7 @@ import {
 } from '@renderer/components/SettingsPrimitives'
 import { WebdavBackupManager } from '@renderer/components/WebdavBackupManager'
 import { useWebdavBackupModal, WebdavBackupModal } from '@renderer/components/WebdavModals'
+import { useBackupSyncState } from '@renderer/hooks/useBackupSyncState'
 import { useNutstoreSso } from '@renderer/hooks/useNutstoreSso'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -18,10 +19,7 @@ import {
   backupToNutstore,
   checkConnection,
   createDirectory,
-  getNutstoreSyncState,
-  restoreFromNutstore,
-  startNutstoreAutoSync,
-  stopNutstoreAutoSync
+  restoreFromNutstore
 } from '@renderer/services/NutstoreService'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
@@ -42,7 +40,7 @@ const SYNC_STATUS_COLOR = 'color-mix(in oklch, var(--foreground) 66.6667%, trans
 const NutstoreSettings: FC = () => {
   const { theme } = useTheme()
   const { t } = useTranslation()
-  const nutstoreSyncState = getNutstoreSyncState()
+  const nutstoreSyncState = useBackupSyncState('nutstore')
 
   const [nutstoreAutoSync, setNutstoreAutoSync] = usePreference('data.backup.nutstore.auto_sync')
   const [nutstoreMaxBackups, setNutstoreMaxBackups] = usePreference('data.backup.nutstore.max_backups')
@@ -101,7 +99,7 @@ const NutstoreSettings: FC = () => {
     if (confirmedLogout) {
       void setNutstoreToken('')
       void setNutstorePath('')
-      void setNutstoreAutoSync(false)
+      await setNutstoreAutoSync(false)
       setNutstoreUsername('')
     }
   }, [setNutstorePath, setNutstoreToken, setNutstoreAutoSync, t])
@@ -133,10 +131,8 @@ const NutstoreSettings: FC = () => {
     await setNutstoreSyncInterval(value)
     if (value === 0) {
       await setNutstoreAutoSync(false)
-      stopNutstoreAutoSync()
     } else {
       await setNutstoreAutoSync(true)
-      void startNutstoreAutoSync()
     }
   }
 
@@ -187,7 +183,7 @@ const NutstoreSettings: FC = () => {
         {!nutstoreSyncState.syncing && nutstoreSyncState.lastSyncError && (
           <WarnTooltip
             content={`${t('settings.data.webdav.syncError')}: ${nutstoreSyncState.lastSyncError}`}
-            iconProps={{ style: { color: 'red' } }}
+            iconProps={{ style: { color: 'var(--error)' } }}
           />
         )}
         {nutstoreSyncState.lastSyncTime && (
@@ -247,7 +243,7 @@ const NutstoreSettings: FC = () => {
         <>
           <SettingRow>
             <SettingRowTitle>{t('settings.data.nutstore.username')}</SettingRowTitle>
-            <span className="text-foreground-muted">{nutstoreUsername}</span>
+            <span className="text-foreground-tertiary">{nutstoreUsername}</span>
           </SettingRow>
 
           <SettingDivider />

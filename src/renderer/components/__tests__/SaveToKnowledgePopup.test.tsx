@@ -93,14 +93,8 @@ vi.mock('@renderer/components/tags/CustomTag', () => ({
   default: ({ children }: { children: React.ReactNode }) => <span>{children}</span>
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, loading, ...props }: React.ComponentProps<'button'> & { loading?: boolean }) => (
-    <button type="button" {...props}>
-      {loading ? 'loading' : children}
-    </button>
-  ),
-  ColFlex: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
-  Combobox: ({
+vi.mock('@renderer/components/KnowledgeBaseSelector', () => ({
+  KnowledgeBaseSelector: ({
     onChange,
     options = [],
     value
@@ -116,7 +110,16 @@ vi.mock('@cherrystudio/ui', () => ({
         </option>
       ))}
     </select>
+  )
+}))
+
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, loading, ...props }: React.ComponentProps<'button'> & { loading?: boolean }) => (
+    <button type="button" {...props}>
+      {loading ? 'loading' : children}
+    </button>
   ),
+  ColFlex: ({ children, ...props }: React.ComponentProps<'div'>) => <div {...props}>{children}</div>,
   Dialog: ({ children, open }: { children: React.ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
   DialogContent: ({
     children,

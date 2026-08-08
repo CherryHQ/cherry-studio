@@ -16,6 +16,7 @@ import {
   type ResourceListContextValue,
   type ResourceListGroup,
   type ResourceListItemBase,
+  type ResourceListMeta,
   type ResourceListSection,
   useResourceListActions,
   useResourceListControlsState,
@@ -30,7 +31,12 @@ import {
   ResourceListGroupHeaderContextMenuOwner,
   SectionHeader
 } from './ResourceListGroups'
-import { RESOURCE_LIST_DEFAULT_ROW_SIZE, RESOURCE_LIST_ROW_HEIGHT_CLASS } from './resourceListLayout'
+import {
+  RESOURCE_LIST_DEFAULT_ROW_SIZE,
+  RESOURCE_LIST_MODULE_START_ROW_CLASS,
+  RESOURCE_LIST_MODULE_START_ROW_SIZE,
+  RESOURCE_LIST_ROW_HEIGHT_CLASS
+} from './resourceListLayout'
 
 const SCROLLBAR_AUTO_HIDE_DELAY = 1200
 const SCROLLBAR_FADE_STEP = 140
@@ -89,6 +95,7 @@ type ResourceListVirtualFooter = {
 }
 
 type ResourceListVirtualGroupData = ResourceListGroup & {
+  __resourceListBoundaryId?: string
   __resourceListKind?: 'section'
 }
 
@@ -118,8 +125,25 @@ type ResourceListVirtualRow<T extends ResourceListItemBase> = GroupedVirtualList
 
 const estimateResourceListChromeSize = () => RESOURCE_LIST_DEFAULT_ROW_SIZE
 
+/**
+ * A header opens a new module when it labels a group of rows rather than naming one: section
+ * headers, and bucket group headers (time ranges, pinned). Entity headers — an agent, an assistant,
+ * a workdir — are rows in their own right and stay on the shared rhythm, and so does an
+ * `inline-bucket`, which sits among them as the fallback for rows whose owner is gone. The list's
+ * first header never gets the break: there is nothing above it to separate from.
+ */
+function isModuleStartHeader<T extends ResourceListItemBase>(
+  meta: ResourceListMeta<T>,
+  header: ResourceListVirtualHeader,
+  groupIndex: number
+) {
+  if (groupIndex === 0) return false
+  if (header.type === 'section') return true
+  return meta.getGroupHeaderKind?.(header.group) === 'bucket'
+}
+
 function toSectionVirtualGroup(section: ResourceListSection): ResourceListVirtualGroupData {
-  return { ...section, __resourceListKind: 'section' }
+  return { ...section, __resourceListBoundaryId: section.id, __resourceListKind: 'section' }
 }
 
 function isSectionVirtualGroup(group: ResourceListVirtualGroupData) {
@@ -185,7 +209,7 @@ function buildVirtualGroups<T extends ResourceListItemBase>(view: ResourceListCo
   const groups: ResourceListVirtualGroup<T>[] = []
   let itemIndex = 0
 
-  const appendGroup = (group: ResourceListContextValue<T>['view']['groups'][number]) => {
+  const appendGroup = (group: ResourceListContextValue<T>['view']['groups'][number], boundaryId?: string) => {
     const items: ResourceListVirtualItem<T>[] = []
 
     for (const item of group.items) {
@@ -194,7 +218,7 @@ function buildVirtualGroups<T extends ResourceListItemBase>(view: ResourceListCo
     }
 
     groups.push({
-      group: group.group,
+      group: boundaryId ? { ...group.group, __resourceListBoundaryId: boundaryId } : group.group,
       header: group.group.label ? { type: 'group', group: group.group } : undefined,
       items,
       footer:
@@ -219,7 +243,7 @@ function buildVirtualGroups<T extends ResourceListItemBase>(view: ResourceListCo
       }
 
       for (const group of section.groups) {
-        appendGroup(group)
+        appendGroup(group, showSectionHeaders ? section.section.id : undefined)
       }
     }
     return groups
@@ -505,9 +529,24 @@ export function VirtualItems<T extends ResourceListItemBase>({
     (virtualItem: ResourceListVirtualItem<T>) => estimateItemSize(virtualItem.itemIndex),
     [estimateItemSize]
   )
-  const renderGroupHeader = useCallback((header: ResourceListVirtualHeader) => {
-    return header.type === 'section' ? <SectionHeader section={header.section} /> : <GroupHeader group={header.group} />
-  }, [])
+  const renderGroupHeader = useCallback(
+    (header: ResourceListVirtualHeader, _group: ResourceListVirtualGroupData, groupIndex: number) => {
+      const className = isModuleStartHeader(meta, header, groupIndex) ? RESOURCE_LIST_MODULE_START_ROW_CLASS : undefined
+      return header.type === 'section' ? (
+        <SectionHeader section={header.section} className={className} />
+      ) : (
+        <GroupHeader group={header.group} className={className} />
+      )
+    },
+    [meta]
+  )
+  const estimateGroupHeaderSize = useCallback(
+    (header: ResourceListVirtualHeader, _group: ResourceListVirtualGroupData, groupIndex: number) =>
+      isModuleStartHeader(meta, header, groupIndex)
+        ? RESOURCE_LIST_MODULE_START_ROW_SIZE
+        : RESOURCE_LIST_DEFAULT_ROW_SIZE,
+    [meta]
+  )
   const renderVirtualItem = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => (
       <VirtualItemRow groupHeaderIconVisible={hasGroupHeaderIcon(meta, virtualItem)}>
@@ -561,7 +600,7 @@ export function VirtualItems<T extends ResourceListItemBase>({
         getItemKey={getVirtualRowKey}
         onScroll={handleScroll}
         overscan={6}
-        estimateGroupHeaderSize={estimateResourceListChromeSize}
+        estimateGroupHeaderSize={estimateGroupHeaderSize}
         estimateItemSize={estimateVirtualItemSize}
         estimateGroupFooterSize={estimateResourceListChromeSize}
         renderGroupHeader={renderGroupHeader}
@@ -614,6 +653,10 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
   })
   const isScrolling = stage !== 'idle'
   const getGroupId = useCallback((group: ResourceListVirtualGroupData) => group.id, [])
+  const getGroupBoundaryId = useCallback(
+    (group: ResourceListVirtualGroupData) => group.__resourceListBoundaryId ?? group.id,
+    []
+  )
   const getVirtualItemId = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => getItemId(virtualItem.item),
     [getItemId]
@@ -652,8 +695,13 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     [actions]
   )
   const canDragGroup = useCallback(
-    (group: ResourceListVirtualGroupData, groupIndex: number) =>
-      !isSectionVirtualGroup(group) && (canDragGroupMeta?.(group, groupIndex) ?? true),
+    (group: ResourceListVirtualGroupData, groupIndex: number) => {
+      if (isSectionVirtualGroup(group)) {
+        return canDragGroupMeta?.(group, groupIndex) ?? false
+      }
+
+      return canDragGroupMeta?.(group, groupIndex) ?? true
+    },
     [canDragGroupMeta]
   )
   const canDragVirtualItem = useCallback(
@@ -683,7 +731,9 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
       sourceIndex?: number
       targetIndex?: number
     }) => {
-      if (isSectionVirtualGroup(payload.activeGroup) || isSectionVirtualGroup(payload.overGroup)) return false
+      const activeIsSection = isSectionVirtualGroup(payload.activeGroup)
+      const overIsSection = isSectionVirtualGroup(payload.overGroup)
+      if (activeIsSection !== overIsSection) return false
 
       return (
         canDropGroupMeta?.({
@@ -692,7 +742,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
           overType: payload.overType,
           sourceIndex: payload.sourceIndex ?? -1,
           targetIndex: payload.targetIndex ?? -1
-        }) ?? true
+        }) ?? !activeIsSection
       )
     },
     [canDropGroupMeta]
@@ -731,9 +781,24 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     },
     [canDropItemMeta]
   )
-  const renderGroupHeader = useCallback((header: ResourceListVirtualHeader) => {
-    return header.type === 'section' ? <SectionHeader section={header.section} /> : <GroupHeader group={header.group} />
-  }, [])
+  const renderGroupHeader = useCallback(
+    (header: ResourceListVirtualHeader, _group: ResourceListVirtualGroupData, groupIndex: number) => {
+      const className = isModuleStartHeader(meta, header, groupIndex) ? RESOURCE_LIST_MODULE_START_ROW_CLASS : undefined
+      return header.type === 'section' ? (
+        <SectionHeader section={header.section} className={className} />
+      ) : (
+        <GroupHeader group={header.group} className={className} />
+      )
+    },
+    [meta]
+  )
+  const estimateGroupHeaderSize = useCallback(
+    (header: ResourceListVirtualHeader, _group: ResourceListVirtualGroupData, groupIndex: number) =>
+      isModuleStartHeader(meta, header, groupIndex)
+        ? RESOURCE_LIST_MODULE_START_ROW_SIZE
+        : RESOURCE_LIST_DEFAULT_ROW_SIZE,
+    [meta]
+  )
   const renderVirtualItem = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => (
       <VirtualItemRow groupHeaderIconVisible={hasGroupHeaderIcon(meta, virtualItem)}>
@@ -788,9 +853,10 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         onScroll={handleScroll}
         overscan={6}
         getGroupId={getGroupId}
+        getGroupBoundaryId={getGroupBoundaryId}
         getItemId={getVirtualItemId}
         dragCapabilities={dragCapabilities}
-        estimateGroupHeaderSize={estimateResourceListChromeSize}
+        estimateGroupHeaderSize={estimateGroupHeaderSize}
         estimateItemSize={estimateVirtualItemSize}
         estimateGroupFooterSize={estimateResourceListChromeSize}
         canDragGroup={canDragGroup}

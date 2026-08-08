@@ -2,10 +2,10 @@ import attachmentTool from './definitions/attachmentTool'
 import generateImageTool from './definitions/generateImageTool'
 import knowledgeBaseTool from './definitions/knowledgeBaseTool'
 import mcpStatusTool from './definitions/mcpStatusTool'
+import noteReferenceTool from './definitions/noteReferenceTool'
 import permissionModeTool from './definitions/permissionModeTool'
 import quickPhrasesTool from './definitions/quickPhrasesTool'
 import slashCommandsTool from './definitions/slashCommandsTool'
-import thinkingTool from './definitions/thinkingTool'
 import webSearchTool from './definitions/webSearchTool'
 import type { ComposerToolScope, ToolContext, ToolDefinition } from './types'
 
@@ -18,13 +18,13 @@ import type { ComposerToolScope, ToolContext, ToolDefinition } from './types'
 export const BUILTIN_COMPOSER_TOOLS: ToolDefinition<any, any>[] = [
   attachmentTool,
   quickPhrasesTool,
-  thinkingTool,
   webSearchTool,
   knowledgeBaseTool,
   generateImageTool,
   slashCommandsTool,
   permissionModeTool,
-  mcpStatusTool
+  mcpStatusTool,
+  noteReferenceTool
 ]
 
 export const getAllTools = (): ToolDefinition<any, any>[] => BUILTIN_COMPOSER_TOOLS

@@ -4,17 +4,15 @@ import { useCallback, useRef } from 'react'
 
 import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
-import { createDefaultPainting } from '../model/paintingPipeline'
+import { createDefaultPainting, type PaintingDraftDefaults } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
-import type { ModelOption } from '../model/types/paintingModel'
 
 const logger = loggerService.withContext('paintings/usePaintingList')
 
 interface UsePaintingListInput {
   painting: PaintingData
   setCurrentPainting: (painting: PaintingData) => void
-  currentProviderId: string
-  modelOptions: ModelOption[]
+  draftDefaults: PaintingDraftDefaults
   historyItems: PaintingData[]
   cancelGeneration: (paintingId: string) => void
 }
@@ -22,7 +20,7 @@ interface UsePaintingListInput {
 /**
  * Owns the painting list-item write-side lifecycle: add / remove.
  *
- * - `add()` seeds a fresh in-memory draft on the current provider. It is NOT
+ * - `add()` seeds a fresh in-memory draft from the configured defaults. It is NOT
  *   persisted — like the page's mount-time draft, it only reaches DataApi when
  *   the user generates (`usePaintingGeneration` creates the row for an unsaved
  *   draft). This keeps blank paintings from piling up in the strip on every click.
@@ -36,16 +34,13 @@ interface UsePaintingListInput {
 export function usePaintingList({
   painting,
   setCurrentPainting,
-  currentProviderId,
-  modelOptions,
+  draftDefaults,
   historyItems,
   cancelGeneration
 }: UsePaintingListInput) {
   const { updatePainting, deletePainting, refresh } = usePaintings()
-  const modelOptionsRef = useRef<ModelOption[]>([])
   const historyItemsRef = useRef<PaintingData[]>([])
   const paintingRef = useRef(painting)
-  modelOptionsRef.current = modelOptions
   historyItemsRef.current = historyItems
   paintingRef.current = painting
 
@@ -75,8 +70,8 @@ export function usePaintingList({
   )
 
   const add = useCallback(() => {
-    setCurrentPainting(createDefaultPainting(currentProviderId))
-  }, [currentProviderId, setCurrentPainting])
+    setCurrentPainting(createDefaultPainting(draftDefaults))
+  }, [draftDefaults, setCurrentPainting])
 
   const selectNextAfterDelete = useCallback(
     async (deletedId: string) => {

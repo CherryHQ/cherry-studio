@@ -17,7 +17,7 @@ import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding
 import type { EndpointType, Model } from '@shared/data/types/model'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp } from '@shared/utils/api'
+import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp, withoutTrailingApiVersion } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
 import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider, matchesPreset } from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
@@ -27,14 +27,17 @@ import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
+import { stripArkUnsupportedIncludes } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import type { ServingAuthMethod, ServingCredentialReceipt } from './credential'
+import { appendDashScopeWebExtractor } from './custom/dashscope/dashscopeWebExtractor'
 import { dmxapiUsesCustomTransport } from './custom/dmxapi/dmxapiProvider'
 import { resolveAiSdkProviderId, type ResolvedEndpoint, resolveEffectiveEndpoint } from './endpoint'
 import { buildGrokCliRequestHeaders, rewriteGrokCliResponsesBody } from './grokCli'
 import { isVertexMaasModelId, normalizeVertexCredentials } from './vertex'
+import { transformZhipuRequestBody } from './zhipuWebSearch'
 
 interface BaseConfig {
   baseURL: string
@@ -207,6 +210,56 @@ export async function resolveProviderAiSdkConfig(
     {
       match: (p, id) => p.id === SystemProviderIds.dashscope && id === 'openai-compatible',
       build: withSelectedApiKey(buildDashScopeConfig)
+    },
+    // Zhipu chat is OpenAI-compatible, but BigModel's built-in web search rides the
+    // tools array, which providerOptions cannot reach — the body transform moves the
+    // web_search marker into `tools` (see zhipuWebSearch.ts).
+    {
+      match: (p, id) => id === 'openai-compatible' && matchesPreset(p, 'zhipu'),
+      build: withSelectedApiKey((ctx) => {
+        const config = buildOpenAICompatibleConfig(ctx)
+        config.providerSettings.transformRequestBody = transformZhipuRequestBody
+        return config
+      })
+    },
+    // Moonshot chat routes to its extension so the `$web_search` echo-tool factory
+    // resolves under providerId 'moonshot'; the provider's transformRequestBody
+    // rewrites the declaration to Kimi's builtin_function shape (moonshotProvider.ts).
+    {
+      match: (p, id) => id === 'openai-compatible' && matchesPreset(p, 'moonshot'),
+      build: withSelectedApiKey((ctx) => ({
+        providerId: 'moonshot',
+        endpoint: ctx.endpoint,
+        providerSettings: {
+          ...ctx.baseConfig,
+          ...buildCommonOptions(ctx),
+          includeUsage: ctx.actualProvider.apiFeatures.streamOptions
+        }
+      }))
+    },
+    // Doubao's built-in search rides the generic OpenAI Responses adapter, which auto-adds
+    // `include: web_search_call.action.sources` alongside the web_search tool. Ark accepts the
+    // tool but 400s on that include, so strip it on the way out (arkResponses.ts).
+    {
+      match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.doubao),
+      build: withSelectedApiKey((ctx) => {
+        const config = buildGenericProviderConfig(ctx)
+        config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
+          customFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
+        return config
+      })
+    },
+    // DashScope's web_extractor (help.aliyun.com/zh/model-studio/web-extractor) is a Responses tool that
+    // must accompany web_search and needs thinking mode. @ai-sdk/openai drops any tool id it does not
+    // know, so it is appended to the serialized body (dashscopeWebExtractor.ts) rather than via a factory.
+    {
+      match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.dashscope),
+      build: withSelectedApiKey((ctx) => {
+        const config = buildGenericProviderConfig(ctx)
+        config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
+          customFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
+        return config
+      })
     },
     // modelscope / ppio / doubao / dmxapi: chat & embedding are OpenAI-compatible, but IMAGE
     // generation needs the bespoke transport inside the extension provider
@@ -584,6 +637,8 @@ function mapCherryinEndpointType(epType: string | undefined): CherryInProviderSe
       return 'openai-response'
     case ENDPOINT_TYPE.JINA_RERANK:
       return 'jina-rerank'
+    case ENDPOINT_TYPE.OPENAI_EMBEDDINGS:
+      return 'embedding'
     default:
       return 'openai'
   }
@@ -737,16 +792,18 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
   }
 }
 
-/** NewAPI forwards to different upstream SDKs; per-endpoint suffix rules. */
+/**
+ * NewAPI multiplexes every protocol over ONE host, so the version segment belongs to the ROUTE, not
+ * the host: `/v1` for chat / responses / messages (the Anthropic SDK appends `/messages` to it) and
+ * `/v1beta` for Gemini. Whatever version the user typed is therefore dropped and re-derived per
+ * endpoint — otherwise a `/v1beta` host reaches chat as `/v1beta/chat/completions` (404) and a `/v1`
+ * host reaches Gemini without its `/v1beta`. A `#`-terminated host still opts out entirely.
+ */
 function formatNewApiBaseURL(baseURL: string, endpointType: EndpointType | undefined): string {
-  switch (endpointType) {
-    case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
-      return formatApiHost(baseURL, true, 'v1beta')
-    case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
-      return formatApiHost(baseURL, false)
-    default:
-      return formatApiHost(baseURL, true)
-  }
+  const host = withoutTrailingApiVersion(baseURL)
+  return endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+    ? formatApiHost(host, true, 'v1beta')
+    : formatApiHost(host, true)
 }
 
 function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {

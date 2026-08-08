@@ -3,11 +3,13 @@ import { loggerService } from '@logger'
 import { createLatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ProxyMode, UnifiedPreferenceKeyType } from '@shared/data/preference/preferenceTypes'
+import { HTML_ARTIFACT_PREVIEW_PARTITION } from '@shared/utils/htmlArtifact'
 import type { ProxyConfig } from 'electron'
 import { app, session } from 'electron'
 import { getSystemProxy } from 'os-proxy-config'
 
 import { NodeProxyController } from './NodeProxyController'
+import type { ProxyRoutingSnapshot } from './proxyRouting'
 
 const logger = loggerService.withContext('ProxyService')
 
@@ -73,6 +75,12 @@ export class ProxyService extends BaseService {
    */
   get appliedProxyKey(): string | null {
     return this.appliedKey
+  }
+
+  /** Routing policy for isolated runtimes. All proxy/bypass semantics stay in main. */
+  async getRoutingSnapshot(): Promise<ProxyRoutingSnapshot> {
+    await this.proxyReconciler.flush()
+    return this.getNodeProxyController().getRoutingSnapshot()
   }
 
   /**
@@ -158,7 +166,11 @@ export class ProxyService extends BaseService {
   }
 
   private async setSessionsProxy(config: ProxyConfig): Promise<void> {
-    const sessions = [session.defaultSession, session.fromPartition('persist:webview')]
+    const sessions = [
+      session.defaultSession,
+      session.fromPartition('persist:webview'),
+      session.fromPartition(HTML_ARTIFACT_PREVIEW_PARTITION)
+    ]
     // Await the session AND app proxy config together so a one-shot apply can't fail
     // silently and callers can rely on the proxy being in effect once this resolves.
     await Promise.all([...sessions.map((s) => s.setProxy(config)), app.setProxy(config)])

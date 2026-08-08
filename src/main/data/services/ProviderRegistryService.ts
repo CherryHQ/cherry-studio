@@ -23,7 +23,9 @@ import type {
   ProviderReasoningFormat,
   ReasoningEffort as ReasoningEffortType,
   ReasoningFormatType,
-  ReasoningWireProfile
+  ReasoningWireDialect,
+  ReasoningWireProfile,
+  ServerToolConfig
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import {
@@ -36,7 +38,12 @@ import {
   inferReasoningOwnedBy,
   MODEL_CAPABILITY,
   REASONING_EFFORT,
-  REASONING_FORMAT_PROFILES
+  REASONING_FORMAT_PROFILES,
+  selectFormatWire,
+  stripBedrockDottedVendorPrefix,
+  stripBedrockRevision,
+  stripDateSnapshot,
+  stripVariantQuantDateSuffixes
 } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
@@ -75,8 +82,12 @@ export interface ProviderDisplayMetadata {
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
   authOptional?: boolean
+  /** Registry capability: provider-native tools served by this host. */
+  serverTools?: ServerToolConfig[]
   /** Registry-owned currency for provider-reported cost amounts. */
   reportedCostCurrency?: Currency
+  /** Registry-owned Fast request transport. */
+  fastMode?: ProtoProviderConfig['fastMode']
   /** Registry default API feature flags — the delta baseline under row overrides. */
   apiFeatures?: ApiFeatures
   /** Registry default chat endpoint, used when the row stores no override. */
@@ -206,11 +217,14 @@ export function resolveReasoningProfileFromRegistry(input: {
   endpointType: EndpointType | undefined
   format?: ProviderReasoningFormat
   contract?: ProviderModelReasoningContract
+  wireDialect?: ReasoningWireDialect
 }): ResolvedReasoningProfile {
   const endpointDefault = input.endpointType ? DEFAULT_FORMAT_BY_ENDPOINT[input.endpointType] : undefined
   const formatType = input.format?.type ?? endpointDefault ?? 'openai-chat'
   const formatDefault = REASONING_FORMAT_PROFILES[formatType]
-  const wire = input.contract?.wire ?? input.format?.wire ?? formatDefault.wire
+  // Priority is unchanged; only the last-resort default becomes dialect-aware,
+  // so per-model contracts and endpoint-wide wires still win outright.
+  const wire = input.contract?.wire ?? input.format?.wire ?? selectFormatWire(formatDefault, input.wireDialect)
 
   return { format: formatType, support: input.contract?.support, wire }
 }
@@ -301,6 +315,79 @@ export function inferCustomModelReasoning(
   if (!controls) return undefined
   const proto: ProtoReasoningSupport = { controls, ...deriveLegacyReasoningFields(controls) }
   return projectRuntimeReasoning(proto, profile)
+}
+
+/** Tokens that must stay upper-cased when a raw id is prettified (a lowercase word would mis-title-case). */
+const MODEL_NAME_ACRONYMS: Record<string, string> = {
+  api: 'API',
+  asr: 'ASR',
+  glm: 'GLM',
+  gpt: 'GPT',
+  hd: 'HD',
+  llm: 'LLM',
+  mt: 'MT',
+  ocr: 'OCR',
+  tts: 'TTS',
+  vl: 'VL'
+}
+
+/** Title-case a single id token: acronyms upper-case, a leading lowercase letter capitalized, existing casing preserved. */
+function titleCaseIdToken(token: string): string {
+  const acronym = MODEL_NAME_ACRONYMS[token.toLowerCase()]
+  if (acronym) return acronym
+  if (/^[a-z]/.test(token)) return token.charAt(0).toUpperCase() + token.slice(1)
+  return token
+}
+
+/** The trailing tokens `id` carries beyond `stem` (`stem` is a suffix-stripped prefix of `id`), separator trimmed. */
+function trailingRemainder(id: string, stem: string): string {
+  return id.length > stem.length ? id.slice(stem.length).replace(/^[-:@._]+/, '') : ''
+}
+
+/** Prettify one slash-less id segment: keep a trailing dated snapshot atomic in parens, split the rest on `-`, title-case each token. */
+function prettifyIdSegment(segment: string): string {
+  const stem = stripDateSnapshot(segment)
+  const date = trailingRemainder(segment, stem)
+  const pretty = stem.split('-').filter(Boolean).map(titleCaseIdToken).join(' ')
+  return date ? `${pretty} (${date})` : pretty
+}
+
+/**
+ * Display name for a model resolved against a provider's live `/models` list. The raw id is the only
+ * per-SKU identity, so the name must stay distinguishable between sibling ids that share one canonical
+ * catalog entry (`MiniMax-M2.1` vs `MiniMax/MiniMax-M2.1`, `qwen-plus` vs `qwen-plus-2025-12-01`).
+ *
+ * - Exact apiModelId match → the curated/override name verbatim (authoritative — never decorated).
+ * - Fuzzy (normalized) match → curated name plus a distinguishing suffix for the tokens normalization
+ *   stripped: a trailing dated snapshot / `:variant` / quant tag goes in parens (via the same canonical
+ *   stripper the matcher uses), and a vendor-namespace prefix — slash (`MiniMax/…`) or dotted Bedrock
+ *   ARN (`MiniMax.…`, `us.anthropic.…`) — is rendered `Prefix: `. A hyphen aggregator prefix
+ *   (`aihubmix-…`) is a prefix, not a stripped suffix, so it leaves no remainder and keeps the clean
+ *   curated name.
+ * - No catalog match → the raw id prettified.
+ */
+function deriveResolvedModelName(rawId: string, curatedName: string | null, canonicalApiId: string | null): string {
+  if (curatedName && canonicalApiId && rawId === canonicalApiId) return curatedName
+
+  const slashIdx = rawId.lastIndexOf('/')
+  const afterSlash = slashIdx >= 0 ? rawId.slice(slashIdx + 1) : rawId
+  // Normalization folds the dotted vendor prefix away, so the decoration has to restore it — otherwise
+  // `MiniMax.MiniMax-M2.1` and the bare `MiniMax-M2.1` resolve to the same name despite distinct ids.
+  const tail = afterSlash.slice(afterSlash.length - stripBedrockDottedVendorPrefix(afterSlash.toLowerCase()).length)
+
+  let name: string
+  if (curatedName) {
+    const suffix = trailingRemainder(tail, stripBedrockRevision(stripVariantQuantDateSuffixes(tail)))
+    name = suffix ? `${curatedName} (${suffix})` : curatedName
+  } else {
+    name = prettifyIdSegment(tail)
+  }
+
+  const namespaces = [
+    ...(slashIdx >= 0 ? rawId.slice(0, slashIdx).split('/').map(titleCaseIdToken) : []),
+    ...(tail.length < afterSlash.length ? [afterSlash.slice(0, afterSlash.length - tail.length - 1)] : [])
+  ]
+  return namespaces.length > 0 ? `${namespaces.join(': ')}: ${name}` : name
 }
 
 /** Create a minimal custom model used when a model ID has no registry match. */
@@ -405,6 +492,7 @@ export function mergePresetModel(
     endpointTypes,
     supportsStreaming: true,
     reasoning,
+    ...(catalogOverride?.supportsFastMode ? { supportsFastMode: true } : {}),
     parameterSupport: parameterSupport as RuntimeParameterSupport | undefined,
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
@@ -506,7 +594,8 @@ function mergeReasoningSupport(
     controls: override?.controls ?? preset?.controls,
     supportedEfforts: override?.supportedEfforts ?? preset?.supportedEfforts,
     thinkingTokenLimits: override?.thinkingTokenLimits ?? preset?.thinkingTokenLimits,
-    defaultEffort: override?.defaultEffort ?? preset?.defaultEffort
+    defaultEffort: override?.defaultEffort ?? preset?.defaultEffort,
+    wireDialect: override?.wireDialect ?? preset?.wireDialect
   }
 }
 
@@ -661,7 +750,9 @@ class ProviderRegistryService {
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
         authOptional: provider?.authOptional,
+        serverTools: provider?.serverTools,
         reportedCostCurrency: provider?.reportedCostCurrency,
+        fastMode: provider?.fastMode,
         apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,
         defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
       }
@@ -808,7 +899,8 @@ class ProviderRegistryService {
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType,
       format: endpointType ? profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat : undefined,
-      contract
+      contract,
+      wireDialect: reasoning?.wireDialect
     })
     return { ...resolved, support: reasoning }
   }
@@ -840,16 +932,25 @@ class ProviderRegistryService {
       if (contract) break
     }
 
+    const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
+    const support = mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
+
+    // The dialect is a CATALOG fact that is deliberately not persisted on the
+    // row (`projectRuntimeReasoning` drops it), so a catalog-backed CUSTOM row —
+    // resolvable `apiModelId`, no `presetModelId` — must re-resolve it here.
+    // Without this the row silently takes the newer wire and Claude <=4.5 /
+    // Gemini 2.x emit a dialect their API rejects. Support resolution above is
+    // untouched: controls still come from the row, only the dialect is looked up.
+    const wireDialect =
+      support?.wireDialect ?? this.getLoader().findModel(model.apiModelId ?? '')?.reasoning?.wireDialect
+
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType: effectiveEndpoint,
       format: effectiveEndpoint ? profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat : undefined,
-      contract
+      contract,
+      wireDialect
     })
-    const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
-    return {
-      ...resolved,
-      support: mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
-    }
+    return { ...resolved, support }
   }
 
   resolveRegistryModelProfile(
@@ -954,20 +1055,23 @@ class ProviderRegistryService {
           reasoningProfile.wire,
           reasoningProfile.support
         )
-        // `mergePresetModel` keys `id` off the canonical `presetModel.id`, which collapses providers that
-        // serve one canonical model under several apiModelIds (e.g. tokenhub's dated 原厂直供 variants both
-        // resolve to `deepseek-v4-flash`). Mirror `listProviderRegistryModels`: rebuild the unique id from
-        // the exact apiModelId and keep the canonical `presetModelId`, so sync/reconcile (which key on
-        // `model.id`) don't drop or mis-diff the dated variant against the undated row.
-        const apiModelId = model.apiModelId ?? registryOverride?.apiModelId ?? modelId
+        // The raw fetched id IS the exact model the provider serves, so it must be the `apiModelId` that
+        // gets sent on the wire and the identity the unique `id` is built from — otherwise a fuzzy
+        // (normalized) match would collapse distinct SKUs onto the canonical spelling (`MiniMax/MiniMax-M2.1`
+        // → `MiniMax-M2.1`, `qwen-plus-2025-12-01` → `qwen-plus`), mis-routing the request and colliding
+        // ids. `presetModelId` keeps the canonical link for metadata; `deriveResolvedModelName` keeps the
+        // display name distinguishable between siblings that share one canonical entry.
+        const canonicalApiId = model.apiModelId ?? registryOverride?.apiModelId ?? null
         results.push({
           ...model,
-          id: createUniqueModelId(providerId, apiModelId),
-          apiModelId,
+          id: createUniqueModelId(providerId, modelId),
+          apiModelId: modelId,
+          name: deriveResolvedModelName(modelId, model.name, canonicalApiId),
           presetModelId: presetModel.id
         })
       } else {
-        results.push(createCustomModel(providerId, modelId, reasoningProfile.wire))
+        const custom = createCustomModel(providerId, modelId, reasoningProfile.wire)
+        results.push({ ...custom, name: deriveResolvedModelName(modelId, null, null) })
       }
     }
 

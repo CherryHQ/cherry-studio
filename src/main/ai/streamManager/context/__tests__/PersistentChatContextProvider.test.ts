@@ -126,6 +126,77 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     ])
   })
 
+  it('fills a reserved branch and creates its assistant placeholder when the topic is idle', async () => {
+    const reservedBranch = messageService.reserveBranch('a1', false)
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: reservedBranch.id,
+        userMessageParts: [{ type: 'text', text: 'continue on reserved branch' }],
+        targetMode: 'reserved-branch'
+      },
+      { hasLiveStream: false }
+    )
+
+    expect(prepared.userMessageId).toBe(reservedBranch.id)
+    expect(messageService.getById(reservedBranch.id)).toMatchObject({
+      data: { parts: [{ type: 'text', text: 'continue on reserved branch' }] },
+      modelId: MODEL_ID
+    })
+    expect(messageService.getChildrenByParentId(reservedBranch.id)).toHaveLength(1)
+    expect(flatten(prepared.models[0].request.messages!)).toEqual([
+      { role: 'user', text: 'first question' },
+      { role: 'assistant', text: PARTIAL },
+      { role: 'user', text: 'continue on reserved branch' }
+    ])
+  })
+
+  it('rejects a reserved-branch submit during a live stream without changing the reservation', async () => {
+    const reservedBranch = messageService.reserveBranch('a1', false)
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'submit-message',
+          topicId: 'topic-1',
+          parentAnchorId: reservedBranch.id,
+          userMessageParts: [{ type: 'text', text: 'wait for the current turn' }],
+          targetMode: 'reserved-branch'
+        },
+        { hasLiveStream: true }
+      )
+    ).rejects.toThrow('Cannot submit a reserved branch while a stream is live on this topic')
+
+    expect(messageService.getById(reservedBranch.id).data).toEqual({ parts: [] })
+    expect(messageService.getChildrenByParentId(reservedBranch.id)).toEqual([])
+  })
+
+  it('does not degrade stale reserved intent into a steer after the node has already been filled', async () => {
+    const reservedBranch = messageService.reserveBranch('a1', false)
+    messageService.update(reservedBranch.id, { data: { parts: [{ type: 'text', text: 'already filled' }] } })
+
+    await expect(
+      provider.prepareDispatch(
+        makeSubscriber(),
+        {
+          trigger: 'submit-message',
+          topicId: 'topic-1',
+          parentAnchorId: reservedBranch.id,
+          userMessageParts: [{ type: 'text', text: 'duplicate send' }],
+          targetMode: 'reserved-branch'
+        },
+        { hasLiveStream: true }
+      )
+    ).rejects.toThrow('Cannot submit a reserved branch while a stream is live on this topic')
+
+    expect(messageService.getById(reservedBranch.id).data.parts).toEqual([{ type: 'text', text: 'already filled' }])
+    expect(messageService.getChildrenByParentId(reservedBranch.id)).toEqual([])
+  })
+
   it('sends only messages after the latest clear marker on the selected branch', async () => {
     await dbh.db.insert(messageTable).values([
       {
@@ -293,7 +364,12 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     vi.mocked(resolveAssistantModelId).mockClear()
     const prepared = await provider.prepareDispatch(
       makeSubscriber(),
-      { trigger: 'steer-continuation', topicId: 'topic-1', userMessageId: 'u2' } as MainSteerContinuationRequest,
+      {
+        trigger: 'steer-continuation',
+        topicId: 'topic-1',
+        userMessageId: 'u2',
+        fastMode: false
+      } satisfies MainSteerContinuationRequest,
       { hasLiveStream: false }
     )
 
@@ -540,6 +616,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
           topicId: 'topic-1',
           role: 'assistant',
           data: {
+            turnOptions: { reasoningEffort: 'high', fastMode: true },
             parts: [
               { type: 'text', text: 'let me call a tool' },
               {
@@ -623,6 +700,7 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       | undefined
     expect(toolPart?.state).toBe('approval-responded')
     expect(toolPart?.approval).toEqual({ id: APPROVAL_ID, approved: true })
+    expect(anchor.data.turnOptions).toEqual({ reasoningEffort: 'high', fastMode: true })
   })
 
   it("reuses the anchor's model and re-anchors history on the assistant row (no new placeholder)", async () => {
@@ -658,6 +736,8 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
       completedAt: 2_000,
       spans: []
     })
+    expect(prepared.models[0].request.reasoningEffort).toBe('high')
+    expect(prepared.models[0].request.fastMode).toBe(true)
 
     // No placeholder row was created — the path to the anchor is unchanged.
     const afterCount = messageService.getPathToNode('a1').length

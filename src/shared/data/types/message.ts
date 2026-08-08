@@ -1,5 +1,6 @@
 import { CURRENCY, objectValues } from '@cherrystudio/provider-registry'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
+import { type ReasoningEffortOption, ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import type {
   DataUIPart,
   DynamicToolUIPart,
@@ -31,9 +32,10 @@ export type MessageId = z.infer<typeof MessageIdSchema>
  * Materialized statistics for one assistant message.
  *
  * Usage, request counts, costs, and provider performance are projections of
- * immutable `ai_usage_record` rows. Runtime timing is message-owned and
- * written by runtime persistence. Scalar timing fields are historical
- * compatibility data read only when `runtimeTiming` is absent.
+ * immutable `ai_usage_record` rows. Runtime timing and the durable-compaction
+ * context anchor are message-owned and written by runtime persistence. Scalar
+ * timing fields are historical compatibility data read only when
+ * `runtimeTiming` is absent.
  */
 const MessageProviderPerformanceSchema = z.strictObject({
   measuredOutputTokens: z.number().nonnegative(),
@@ -76,6 +78,11 @@ export const MessageStatsSchema = z.strictObject({
   inputTokens: z.number().optional(),
   outputTokens: z.number().optional(),
   totalTokens: z.number().optional(),
+  /**
+   * Real end-of-turn context size: the last step's total tokens, rather than
+   * the cumulative per-invocation sum. Message-owned durable-compaction anchor.
+   */
+  contextTokens: z.number().optional(),
 
   /** Input token breakdown (cache accounting). Mirrors v6 `inputTokenDetails`. */
   inputTokenDetails: z
@@ -119,7 +126,7 @@ export const MessageStatsSchema = z.strictObject({
   timeThinkingMs: z.number().optional()
 })
 export type MessageStats = z.infer<typeof MessageStatsSchema>
-export type MessageRuntimeStatsInput = Readonly<Pick<MessageStats, 'runtimeTiming'>>
+export type MessageRuntimeStatsInput = Readonly<Pick<MessageStats, 'runtimeTiming' | 'contextTokens'>>
 
 // ============================================================================
 // Message Data
@@ -127,6 +134,12 @@ export type MessageRuntimeStatsInput = Readonly<Pick<MessageStats, 'runtimeTimin
 
 /** Cherry-specific UIMessagePart with our custom DataUIPart types baked in. */
 export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
+
+/** Request controls frozen when an assistant turn is created. */
+export interface AssistantTurnOptions {
+  reasoningEffort?: ReasoningEffortOption
+  fastMode?: boolean
+}
 
 /**
  * Message data field structure — the type for the `data` column in the
@@ -138,6 +151,8 @@ export type CherryMessagePart = UIMessagePart<CherryDataPartTypes, UITools>
  */
 export interface MessageData {
   parts?: CherryMessagePart[]
+  /** Main-authoritative request controls for resuming this assistant turn. */
+  turnOptions?: AssistantTurnOptions
 }
 
 // ── Cherry-specific UI message types ────────────────────────────────
@@ -173,6 +188,8 @@ export interface CherryUIMessageMetadata {
   messageSnapshot?: MessageSnapshot
   /** Persistence status: mirrors the DB row's `status` column. */
   status?: MessageStatus
+  /** Main-authoritative request controls frozen with the persisted assistant row. */
+  turnOptions?: AssistantTurnOptions
   /**
    * Whether this message is on the currently-active branch of the topic tree. Seeded `true` on
    * locally-reserved skeletons (the row being created is the active leaf). The full branch-tree
@@ -382,6 +399,16 @@ export const MessageDataSchema = z.custom<MessageData>((value) => {
   if (typeof value !== 'object' || value === null) return false
   const v = value as MessageData
   if (v.parts !== undefined && !Array.isArray(v.parts)) return false
+  if (v.turnOptions !== undefined) {
+    if (typeof v.turnOptions !== 'object' || v.turnOptions === null || Array.isArray(v.turnOptions)) return false
+    if (
+      v.turnOptions.reasoningEffort !== undefined &&
+      !ReasoningEffortOptionSchema.safeParse(v.turnOptions.reasoningEffort).success
+    ) {
+      return false
+    }
+    if (v.turnOptions.fastMode !== undefined && typeof v.turnOptions.fastMode !== 'boolean') return false
+  }
   return true
 })
 
@@ -512,6 +539,8 @@ export const MessageSchema = z.strictObject({
   messageSnapshot: MessageSnapshotSchema.nullable().optional(),
   /** Statistics: token usage, performance metrics */
   stats: MessageStatsSchema.nullable().optional(),
+  /** Durable compaction marker: rolling summary covering the conversation up to & incl. this row. */
+  compactionSummary: z.string().nullable().optional(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),
   /** Last update timestamp (ISO string) */
@@ -536,6 +565,8 @@ export interface TreeNode {
   role: ContentMessageRole
   /** Derived from the message's hidden `data-clear` part. */
   isContextBoundary?: boolean
+  /** Whether this is an empty successful user leaf awaiting composer input. */
+  isAwaitingInput?: boolean
   /** Content preview (first 50 characters) */
   preview: string
   /** Model identifier */

@@ -1,10 +1,10 @@
-// Backup IPC schemas — v2 modular backup export pipeline.
+// Backup IPC schemas — v2 modular backup export pipeline + v1 auto-backup events.
 //
 // Two blocks per the framework's two-axis model (see ipc-overview.md):
 //   - Request schemas are zod *values* (renderer→main, untrusted → always parsed).
 //   - Event schemas are pure *types* (main→renderer, main is the TCB → not parsed).
 //
-// Routes:
+// v2 routes:
 //   - backup.start_backup: kick off a .cherrybackup export (full/lite preset → output path).
 //     Returns the backupId (cancel/progress routing key) + final archive path.
 //   - backup.cancel: abort the active export whose id matches backupId (no-op if no
@@ -14,11 +14,16 @@
 //   - backup.restore_acknowledge: user has seen a terminal outcome → clear the journal.
 //   - backup.progress (event): per-step progress ticks during the export.
 //   - backup.restore_summary (event): pre-relaunch restore disclosure (will restore / will skip).
+// v1 auto-backup routes (main):
+//   - backup.get_auto_sync_state / acknowledge_auto_sync_notification / manual_completion.record
+//   - backup.auto_sync_state_changed (event)
 //
 // The `note` overlay rows + DB copy travel in both presets; Notes markdown bodies +
 // file blobs are full-preset file resources (orchestrator-enforced, not a route concern).
 
 import {
+  AUTO_BACKUP_TYPES,
+  type AutoBackupEvent,
   type BackupProgressUpdate,
   type RestoreResultSummary,
   RestoreResultSummarySchema,
@@ -36,8 +41,24 @@ const restoreStatusSchema: z.ZodType<RestoreStatus> = z.discriminatedUnion('stat
   z.strictObject({ state: z.literal('expired'), reason: z.string().optional() })
 ])
 
+const autoBackupTypeSchema = z.enum(AUTO_BACKUP_TYPES)
+const eventFields = { id: z.number().int().positive(), type: autoBackupTypeSchema }
+const autoBackupEventSchema = z.discriminatedUnion('status', [
+  z.object({ ...eventFields, status: z.literal('running') }),
+  z.object({ ...eventFields, status: z.literal('stopped') }),
+  z.object({ ...eventFields, status: z.literal('succeeded'), timestamp: z.number() }),
+  z.object({
+    ...eventFields,
+    status: z.literal('warning'),
+    timestamp: z.number(),
+    reason: z.literal('cleanup_failed')
+  }),
+  z.object({ ...eventFields, status: z.literal('failed'), timestamp: z.number(), errorMessage: z.string() })
+])
+
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const backupRequestSchemas = {
+  // v2 modular export/restore pipeline.
   'backup.start_backup': defineRoute({
     input: z.strictObject({
       preset: z.enum(['full', 'lite']),
@@ -67,6 +88,19 @@ export const backupRequestSchemas = {
   'backup.restore_acknowledge': defineRoute({
     input: z.void(),
     output: z.object({ cleared: z.boolean() })
+  }),
+  // v1 auto-backup sync state (webdav/s3/local/nutstore).
+  'backup.get_auto_sync_state': defineRoute({
+    input: z.void(),
+    output: z.object({ events: z.array(autoBackupEventSchema), pendingNotifications: z.array(autoBackupEventSchema) })
+  }),
+  'backup.acknowledge_auto_sync_notification': defineRoute({
+    input: z.object({ type: autoBackupTypeSchema, id: z.number().int().positive() }),
+    output: z.void()
+  }),
+  'backup.manual_completion.record': defineRoute({
+    input: z.object({ type: autoBackupTypeSchema }),
+    output: z.void()
   })
 }
 
@@ -84,4 +118,6 @@ export type BackupEventSchemas = {
   // disclosure raise whole-batch clean-expire risk at the preboot gate). Promotion has
   // not applied yet, so consumers must render future-tense copy.
   'backup.restore_summary': RestoreResultSummary
+  // v1 auto-backup sync state change event.
+  'backup.auto_sync_state_changed': AutoBackupEvent
 }

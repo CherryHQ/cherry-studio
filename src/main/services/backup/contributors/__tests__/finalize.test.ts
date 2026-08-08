@@ -101,7 +101,9 @@ const buildFixture = (): BackupContributor[] => [
   }),
   contributor('AGENTS', ['agent_global_skill'], {
     fileRefSourcePolicies: [
-      { sourceType: 'temp_session', ownerDomain: 'excluded', resourcePolicy: 'runtime-only-exclude' }
+      { sourceType: 'temp_session', ownerDomain: 'excluded', resourcePolicy: 'runtime-only-exclude' },
+      { sourceType: 'agent_session_message', ownerDomain: 'AGENTS', resourcePolicy: 'include-with-owner' },
+      { sourceType: 'job', ownerDomain: 'AGENTS', resourcePolicy: 'include-with-owner' }
     ]
   }),
   contributor('MINIAPPS', ['mini_app'], {

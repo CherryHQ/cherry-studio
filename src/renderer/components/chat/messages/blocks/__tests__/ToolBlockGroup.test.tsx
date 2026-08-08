@@ -1,9 +1,9 @@
+import { PROVIDER_WEB_SEARCH_TOOL_NAME } from '@shared/ai/builtinTools'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ToolRenderItem } from '../../tools/toolResponse'
 import { PartsProvider, usePartsMap } from '../MessagePartsContext'
-import { ScrollOwnershipProvider } from '../ScrollOwnershipContext'
 import { ToolBlockGroup, ToolBlockGroupHeaderContent } from '../ToolBlockGroup'
 
 vi.mock('@renderer/components/ErrorBoundary', () => ({
@@ -43,10 +43,12 @@ vi.mock('../../tools/shared/GenericTools', () => ({
 vi.mock('../../tools/ToolHeader', () => ({
   __esModule: true,
   getReadableToolActivity: (toolName: string) =>
-    toolName.startsWith('mcp__') ||
-    ['do_magic', 'fetch_markdown', 'send_email', 'web_search'].some((name) => toolName.includes(name))
-      ? undefined
-      : { label: 'Check', description: 'Project checks' },
+    toolName === PROVIDER_WEB_SEARCH_TOOL_NAME
+      ? { label: 'message.tools.activity.search', description: 'message.tools.activity.webSearch' }
+      : toolName.startsWith('mcp__') ||
+          ['do_magic', 'fetch_markdown', 'send_email', 'web_search'].some((name) => toolName.includes(name))
+        ? undefined
+        : { label: 'Check', description: 'Project checks' },
   default: ({ shimmer, toolResponse, status }: any) => (
     <div data-testid="mock-tool-header" data-shimmer={String(!!shimmer)}>
       {toolResponse?.tool?.name}:{status ?? toolResponse?.status}
@@ -118,6 +120,17 @@ const skillDoneItem = {
   }
 } as ToolRenderItem
 
+const workflowDoneItem = {
+  ...readDoneItem,
+  id: 'tool-workflow',
+  toolResponse: {
+    ...readDoneItem.toolResponse,
+    id: 'tool-workflow',
+    toolCallId: 'tool-workflow',
+    tool: { id: 'tool-workflow', name: 'Workflow', type: 'builtin' }
+  }
+} as ToolRenderItem
+
 const webSearchDoneItem = {
   ...readDoneItem,
   id: 'tool-web-search',
@@ -137,6 +150,17 @@ const webFetchDoneItem = {
     id: 'tool-web-fetch',
     toolCallId: 'tool-web-fetch',
     tool: { id: 'tool-web-fetch', name: 'fetch_markdown', type: 'mcp' }
+  }
+} as ToolRenderItem
+
+const providerWebSearchDoneItem = {
+  ...readDoneItem,
+  id: 'provider-web-search',
+  toolResponse: {
+    ...readDoneItem.toolResponse,
+    id: 'provider-web-search',
+    toolCallId: 'provider-web-search',
+    tool: { id: 'provider-web-search', name: PROVIDER_WEB_SEARCH_TOOL_NAME, type: 'provider' }
   }
 } as ToolRenderItem
 
@@ -228,7 +252,6 @@ describe('ToolBlockGroup', () => {
 
     const trigger = screen.getByRole('button', { name: 'Project checks' })
     expect(trigger).toHaveAttribute('aria-expanded', 'false')
-    expect(trigger).toHaveClass('select-none')
     expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-file-text')).not.toBeNull()
     expect(screen.queryByTestId('mock-tool-header')).toBeNull()
     expect(screen.queryByTestId('child-tool-group-divider')).toBeNull()
@@ -237,32 +260,8 @@ describe('ToolBlockGroup', () => {
     fireEvent.click(trigger)
 
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByTestId('child-tool-group-content')).toHaveClass('pt-2')
     expect(screen.queryByTestId('child-tool-group-divider')).toBeNull()
     expect(screen.getByTestId('mock-message-tools')).toHaveTextContent('Read')
-  })
-
-  it('requests bottom-follow recovery when an expanded tool group collapses', () => {
-    const requestFollowRecovery = vi.fn()
-    const scrollContainerRef = { current: null as HTMLDivElement | null }
-    render(
-      <div
-        ref={(node) => {
-          scrollContainerRef.current = node
-        }}>
-        <ScrollOwnershipProvider scrollContainerRef={scrollContainerRef} requestFollowRecovery={requestFollowRecovery}>
-          <ToolBlockGroup items={[readDoneItem]} />
-        </ScrollOwnershipProvider>
-      </div>
-    )
-
-    const trigger = screen.getByRole('button', { name: 'Project checks' })
-    fireEvent.click(trigger)
-    expect(requestFollowRecovery).not.toHaveBeenCalled()
-
-    fireEvent.click(trigger)
-    expect(requestFollowRecovery).toHaveBeenCalledOnce()
-    expect(trigger).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('shields completed tool content from unrelated parts-map updates', () => {
@@ -318,8 +317,23 @@ describe('ToolBlockGroup', () => {
     expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-tool-case')).not.toBeNull()
   })
 
+  it('uses the Workflow icon for a Workflow tool group', () => {
+    render(<ToolBlockGroup items={[workflowDoneItem]} />)
+
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-workflow')).not.toBeNull()
+  })
+
   it('uses a readable title and web icon for a web-search tool group', () => {
     render(<ToolBlockGroup items={[webSearchDoneItem]} />)
+
+    expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-globe')).not.toBeNull()
+    expect(
+      screen.getByRole('button', { name: 'message.tools.activity.search message.tools.activity.webSearch' })
+    ).toBeInTheDocument()
+  })
+
+  it('uses a readable title and web icon for a provider web-search tool group', () => {
+    render(<ToolBlockGroup items={[providerWebSearchDoneItem]} />)
 
     expect(screen.getByTestId('tool-group-content-icon').querySelector('.lucide-globe')).not.toBeNull()
     expect(

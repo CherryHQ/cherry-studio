@@ -73,6 +73,12 @@ const mockIpcApiService = {
   broadcastToType: vi.fn()
 }
 
+/** Minimal JobManager mock for handler registration and startup enqueues. */
+export const mockJobManager = {
+  registerHandler: vi.fn(),
+  enqueue: vi.fn(() => ({ id: 'mock-job-id', snapshot: {}, finished: Promise.resolve({}) }))
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -82,7 +88,8 @@ export const defaultServiceInstances = {
   FileManager: MockMainFileManagerExport.fileManager,
   MainWindowService: mockMainWindowService,
   WindowManager: mockWindowManager,
-  IpcApiService: mockIpcApiService
+  IpcApiService: mockIpcApiService,
+  JobManager: mockJobManager
 } as const
 
 /** Type for per-service overrides */

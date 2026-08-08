@@ -1,5 +1,14 @@
 import { defineProvider } from './types'
 
+const webFetchModels = [
+  'claude-opus-4',
+  'claude-sonnet-4',
+  'claude-haiku-4',
+  'claude-3-5-haiku',
+  'claude-3-5-sonnet',
+  'claude-3-7-sonnet'
+]
+
 /**
  * Models that need an explicit 1M-context twin, paired with their catalog name.
  *
@@ -48,9 +57,13 @@ export default defineProvider({
   defaultChatEndpoint: 'anthropic-messages',
   modelListSource: 'registry',
   authMethods: ['external-cli'],
+  fastMode: { transport: 'claude-code' },
   endpointConfigs: {
     'anthropic-messages': { adapterFamily: 'anthropic', baseUrl: 'https://api.anthropic.com' }
   },
+  // url-context only, no web-search: web_fetch is free while web_search bills
+  // per use, which the subscription OAuth credential cannot be charged for.
+  serverTools: [{ id: 'url-context', modelScope: 'model-dependent', modelIdPrefixes: webFetchModels }],
   metadata: {
     website: {
       official: 'https://www.anthropic.com/claude-code',
@@ -67,9 +80,14 @@ export default defineProvider({
     // Each extended-context model is served twice: the plain id, and its `[1m]`
     // twin. The plain row pins `apiModelId` to its own id so it always claims the
     // canonical `providerId::modelId` slot, whatever order the rows are indexed in.
-    ...EXTENDED_CONTEXT_MODELS.flatMap(([modelId, name]) => [
-      { modelId, apiModelId: modelId },
-      { modelId, apiModelId: `${modelId}[1m]`, name: `${name} (1M context)` }
-    ])
+    ...EXTENDED_CONTEXT_MODELS.flatMap(([modelId, name]) => {
+      const supportsFastMode = modelId === 'claude-opus-5' || modelId === 'claude-opus-4-8'
+      const fastModeOverride = supportsFastMode ? { supportsFastMode: true } : {}
+
+      return [
+        { modelId, apiModelId: modelId, ...fastModeOverride },
+        { modelId, apiModelId: `${modelId}[1m]`, name: `${name} (1M context)`, ...fastModeOverride }
+      ]
+    })
   ]
 })

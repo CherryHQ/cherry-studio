@@ -138,7 +138,6 @@ const TopicMessageFlowCanvas = ({
 
   const handleNodeClick = useCallback<NodeMouseHandler<TopicMessageFlowNodeModel>>(
     (_event, node) => {
-      if (node.data.isInputDraft) return
       onNodeSelect(node.data.messageId)
     },
     [onNodeSelect]
@@ -210,7 +209,7 @@ const TopicMessageFlowCanvas = ({
     return (
       <div
         className={cn(
-          'relative flex h-full min-h-[320px] items-center justify-center rounded-md border border-border bg-muted/20 text-foreground-muted text-sm',
+          'relative flex h-full min-h-[320px] items-center justify-center rounded-md border border-border bg-muted/20 text-foreground-tertiary text-sm',
           className
         )}
         data-testid="topic-message-flow-empty">

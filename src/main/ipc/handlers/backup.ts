@@ -12,10 +12,11 @@ function assertBackupSender(senderId: string | null): asserts senderId is string
 
 /**
  * Thin adapters for the backup request routes: each delegates to BackupService
- * (business logic + export lifecycle + cancel/progress routing stay there).
- * Side-effecting backup routes require a managed window caller (`ctx.senderId`).
+ * (v2 export/restore lifecycle) or AutoBackupService (v1 auto-sync state).
+ * Side-effecting v2 routes require a managed window caller (`ctx.senderId`).
  */
 export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
+  // v2 modular export/restore pipeline (managed-window gated).
   'backup.start_backup': async ({ preset, outputPath, overwrite }, { senderId }) => {
     assertBackupSender(senderId)
     const result = await application.get('BackupService').startBackup({ preset, outputPath, overwrite })
@@ -41,5 +42,13 @@ export const backupHandlers: IpcHandlersFor<typeof backupRequestSchemas> = {
   'backup.restore_acknowledge': async (_input, { senderId }) => {
     assertBackupSender(senderId)
     return application.get('BackupService').acknowledgeRestoreOutcome()
+  },
+  // v1 auto-backup sync state (read-only / idempotent — no sender gate).
+  'backup.get_auto_sync_state': async () => application.get('AutoBackupService').getStateSnapshot(),
+  'backup.acknowledge_auto_sync_notification': async ({ type, id }) => {
+    application.get('AutoBackupService').acknowledgeNotification(type, id)
+  },
+  'backup.manual_completion.record': async ({ type }) => {
+    application.get('AutoBackupService').recordManualBackupCompletion(type)
   }
 }

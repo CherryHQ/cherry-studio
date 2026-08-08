@@ -200,7 +200,23 @@ describe('AGENTS contributor', () => {
     )
   })
 
-  it('declares no fileRefSourcePolicies (no AGENTS-owned FileRefSourceType)', () => {
-    expect(AGENTS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([])
+  it('declares the AGENTS-owned FileRefSourceTypes (agent_session_message + job)', () => {
+    // AGENTS owns agent_session_message (attachment refs) and job_schedule (image-job
+    // input/mask refs) — both are include-with-owner so their file bytes bundle with the
+    // owning tree in full backups (#11 coverage).
+    expect(AGENTS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([
+      {
+        sourceType: 'agent_session_message',
+        ownerDomain: 'AGENTS',
+        resourcePolicy: 'include-with-owner',
+        sourceTable: 'agent_session_message'
+      },
+      {
+        sourceType: 'job',
+        ownerDomain: 'AGENTS',
+        resourcePolicy: 'include-with-owner',
+        sourceTable: 'job_schedule'
+      }
+    ])
   })
 })

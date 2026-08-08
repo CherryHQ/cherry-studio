@@ -133,7 +133,6 @@ describe('MessageMenuBar', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
-        topic={topic}
         isLastMessage
         isAssistantMessage
         isProcessing={false}
@@ -142,13 +141,13 @@ describe('MessageMenuBar', () => {
     )
 
     expect(container.querySelector('.message-tokens')).toBeNull()
+    expect(container.querySelector('[data-ui~="part:message-actions"]')).not.toBeNull()
   })
 
   it('shows assistant token usage in the bubble footer toolbar', () => {
     const { container } = renderWithProvider(
       <MessageMenuBar
         message={assistantMessage}
-        topic={topic}
         isLastMessage
         isAssistantMessage
         isProcessing={false}

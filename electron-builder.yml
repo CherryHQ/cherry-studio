@@ -79,6 +79,8 @@ asarUnpack:
   - "node_modules/@img/sharp-*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
+  - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/@firecrawl/anydoc-*/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
@@ -154,50 +156,54 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.0-rc.2 - Model Routing, Clear Context & v2 Stabilization
+    Cherry Studio 2.0.2 - New Features and Fixes
 
     ✨ New Features
-    - [Knowledge] Added a Select All control when importing notes into a knowledge base.
-    - [Claude Code] Claude Code provider now offers Claude Opus 5 and Claude Sonnet 5, plus 1M-context variants of Opus 4.6/4.7/4.8/5 and Sonnet 4.6.
-    - [Chat] Home Chat can now start a fresh model context without creating a new conversation. Use Cmd/Ctrl+K or the input QuickPanel; the optional eraser button remains hidden by default and can be enabled from toolbar customization.
+    - [Import] Import Claude (Anthropic) conversation history; ChatGPT and Claude imports now preserve message branches
+    - [Providers] Built-in web search and URL context support for DeepSeek, OpenRouter, and Dashscope
+    - [Settings] Selective cache cleanup with per-item and total size estimates, plus optional removal of old-version leftover data
+    - [Settings] Workflow to safely rerun retained v1 data migration with risk acknowledgement and optional backup
+    - [Chat] Branches now persist empty input nodes, stay stable in the branch canvas, and can be removed from the node context menu
 
     🐛 Bug Fixes
-    - [Chat] Fixed chat message toolbar icon buttons (edit, copy, regenerate, delete, save to notes) missing accessible names, so screen readers and keyboard users can now identify them.
-    - [Models] Fixed incorrect model grouping for providers that return flat model IDs.
-    - [Agent] Editing an assistant or agent now keeps the edit dialog open after each automatic save.
-    - [Chat] Fixed message-list flickering and ghosting when reversing direction while dragging the scrollbar thumb.
-    - [MCP] MCP JSON import now supports configurations containing multiple servers.
-    - [Agent] Changing the app language now updates existing agent sessions on their next turn instead of retaining the previous response-language instruction.
-    - [Chat] Fixed drag selection so messages leave the multi-select set when the selection box shrinks.
-    - [Agent] Fixed OpenCode Go and other mixed-endpoint providers returning a 400 error in new Agent Sessions by routing each model through its declared protocol.
-    - [Chat] Conversations and agent sessions without a valid owner are now consistently labeled Unlinked Assistant or Unlinked Agent while preserving their titles.
-    - [MCP] Fixed MCP server environment variables and headers remaining configured after all entries are cleared.
-    - [Notes] Opening an existing note no longer steals focus or jumps the caret to the end of the document; only new (empty) notes automatically focus the editor.
-    - [Migration] Migrated Agent tasks now preserve managed workspace files and relocate available Claude session caches while surfacing unavailable resume data through the normal runtime error.
-    - [Migration] Fixed model endpoint routing after migrating from Cherry Studio v1, including NewAPI-compatible providers.
-    - [Data] Existing v1 clear-context boundaries are preserved during migration when they have not already been discarded by an earlier v2 preview migration.
+    - [Local Model] Local embedding model downloads fall back to the other mirror when one is unreachable, keep inference fully offline once weights are on disk, and explain an incomplete cache instead of reporting a generic connection error
+    - [Local Model] Local model downloads failing behind a SOCKS proxy, and proxy bypass rules are now honored for every redirect hop
+    - [Migration] Agent data migration no longer fails on Windows symbolic links; symlinked entries are skipped so the rest migrates successfully
+    - [Migration] V1 users can upgrade directly to any v2.0.x release while v2.1.0 and later remain gated
+    - [Providers] New API providers no longer require a URL for every protocol: one API host now serves the OpenAI, Anthropic, Gemini, and Responses endpoints, each with its correct version segment
+    - [MCP] MCP server settings no longer lose unsaved edits during refreshes, and tool details show full descriptions with clearer nested input schemas
+    - [Agent] WeChat channel QR login now starts when the channel is bound to an agent, and the channel reconnects automatically after app restart
+    - [Composer] Image attachment tokens open the shared full-size image preview when clicked or activated with the keyboard
+    - [Agent] Agent right pane Files tree no longer shows empty when the workspace already contained files; directory-tree updates were being lost during subscription setup
+    - [Chat] Tool-heavy tasks no longer stop early at 20 tool-call rounds: the default "Max tool call rounds" is raised to 100 and the maximum to 1000
+    - [Claude Code] Claude agent CLI subprocesses are no longer left running in the background after quitting the app
+
+    ⚡ Performance
+    - [Chat] Switching back to a chat tab no longer re-highlights expanded tool responses, re-loads generated images, re-runs error diagnosis, rebuilds file-tree watchers, or re-polls finished traces — tab switches are smoother and previously loaded content stays in place
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.0-rc.2 - 模型路由、清除上下文与 v2 稳定化
+    Cherry Studio 2.0.2 - 新功能与问题修复
 
     ✨ 新功能
-    - [知识库] 在向知识库导入笔记时新增“全选”控件。
-    - [Claude Code] Claude Code 服务商现已提供 Claude Opus 5 与 Claude Sonnet 5，以及 Opus 4.6/4.7/4.8/5 和 Sonnet 4.6 的 1M 上下文变体。
-    - [聊天] 主聊天现可在不新建对话的情况下开启全新的模型上下文。使用 Cmd/Ctrl+K 或输入框快捷面板；可选的橡皮擦按钮默认隐藏，可在工具栏自定义中开启。
+    - [Import] 支持 Claude（Anthropic）对话历史导入；ChatGPT 和 Claude 导入现在会保留消息分支
+    - [Providers] DeepSeek、OpenRouter、Dashscope 新增内置联网搜索与 URL 上下文支持
+    - [Settings] 缓存清理支持按项查看占用大小，可选清理旧版本残留数据
+    - [Settings] 新增 v1 数据重新迁移流程，含风险确认与可选完整备份
+    - [Chat] 对话分支现在会持久化空输入节点，在分支画布中保持稳定，并支持从节点右键菜单删除
 
     🐛 问题修复
-    - [聊天] 修复了聊天消息工具栏图标按钮（编辑、复制、重新生成、删除、保存到笔记）缺少无障碍名称的问题，屏幕阅读器与键盘用户现可识别它们。
-    - [模型] 修复了返回扁平模型 ID 的服务商的模型分组错误。
-    - [智能体] 编辑助手或智能体时，每次自动保存后编辑对话框现保持打开。
-    - [聊天] 修复了反向拖动滚动条滑块时消息列表的闪烁与残影问题。
-    - [MCP] MCP JSON 导入现支持包含多个服务器的配置。
-    - [智能体] 更改应用语言后，已有智能体会话在下一轮对话中随即更新，不再沿用旧的回复语言指令。
-    - [聊天] 修复了拖选：当选择框缩小时，消息会移出多选集合。
-    - [智能体] 修复了 OpenCode Go 等混合端点服务商在新智能体会话中返回 400 错误的问题，现按各模型声明的协议进行路由。
-    - [聊天] 没有有效属主的对话与智能体会话现统一标记为“未关联助手”或“未关联智能体”，并保留标题。
-    - [MCP] 修复了 MCP 服务器环境变量与请求头在所有条目清空后仍保留配置的问题。
-    - [笔记] 打开已有笔记不再抢占焦点或将光标跳到文档末尾；仅新建（空白）笔记会自动聚焦编辑器。
-    - [迁移] 迁移后的智能体任务现保留受管工作区文件，并迁移可用的 Claude 会话缓存，不可用的恢复数据通过常规运行时错误展示。
-    - [迁移] 修复了从 Cherry Studio v1 迁移后的模型端点路由，含 NewAPI 兼容服务商。
-    - [数据] 既有 v1 的清除上下文边界在迁移时被保留（未被早期 v2 预览迁移丢弃的情况下）。
+    - [Local Model] 修复本地 Embedding 模型下载：单个镜像不可用时自动切换到备用镜像，模型缓存到本地后推理完全离线，缓存损坏时给出明确提示而非笼统的网络错误
+    - [Local Model] 修复 SOCKS 代理环境下本地模型下载失败的问题，并对下载过程中的每次重定向跳转应用代理绕过规则
+    - [Migration] 修复 Windows 上符号链接导致 Agent 数据迁移失败的问题：跳过符号链接项，确保其余数据正常迁移
+    - [Migration] v1 用户可直接升级到任意 v2.0.x 版本，v2.1.0 及之后版本仍受迁移网关保护
+    - [Providers] New API 服务商不再需要为每个协议分别填写 URL：一个 API Host 即可同时承载 OpenAI、Anthropic、Gemini、Responses 端点，并各自使用正确的版本段
+    - [MCP] 修复 MCP 服务器设置在刷新时丢失未保存编辑的问题，工具详情展示完整描述并清晰呈现嵌套输入 schema
+    - [Agent] 修复微信渠道绑定到 Agent 后才启动二维码登录的问题，并支持应用重启后自动重连
+    - [Composer] 图片附件 Token 支持点击或键盘激活时打开共享的全屏图片预览
+    - [Agent] 修复 Agent 右侧面板在工作区已有文件时仍显示为空的问题：目录树更新在订阅建立过程中被丢失
+    - [Chat] 工具密集型任务不再在 20 轮工具调用后提前停止：默认"最大工具调用轮数"提升到 100，上限提升到 1000
+    - [Claude Code] 修复退出应用后 Claude Agent CLI 子进程仍在后台残留的问题
+
+    ⚡ 性能优化
+    - [Chat] 切换回聊天标签页时不再重新高亮工具响应、重新加载生成图片、重新运行错误诊断、重建文件树监听或重新轮询已完成的 trace，标签切换更顺滑，已加载内容保持不变
     <!--LANG:END-->

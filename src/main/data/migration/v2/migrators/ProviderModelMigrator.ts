@@ -42,7 +42,12 @@ import { isEqual } from 'es-toolkit/compat'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
-import { type OldLlmSettings, transformModel, transformProvider } from './mappings/ProviderModelMappings'
+import {
+  buildProviderApiKeys,
+  type OldLlmSettings,
+  transformModel,
+  transformProvider
+} from './mappings/ProviderModelMappings'
 import v1ProviderModelBaselineJson from './mappings/v1-provider-model-baseline.json'
 import { legacyChatModelToUniqueId } from './transformers/ModelTransformers'
 import {
@@ -320,12 +325,13 @@ export class ProviderModelMigrator extends BaseMigrator {
   /**
    * Project a legacy model snapshot into sparse preset deltas.
    *
-   * Registry matching follows the runtime path: resolve the effective preset
-   * provider, use its provider-model override, and synthesize provider-exclusive
-   * models when no global model entry exists. User ownership is then compared
-   * with the pinned final-v1 provider/model snapshot. For a model absent from
-   * that snapshot, only `capabilities[].isUserSelected` is provable provenance;
-   * all other fields inherit the current registry.
+   * Registry matching follows the runtime path: a provider preset enables its
+   * provider-model override, while global model matching remains available to
+   * fully custom providers. Provider-exclusive models are synthesized only from
+   * a valid preset provider's override. User ownership is then compared with the
+   * pinned final-v1 provider/model snapshot. For a model absent from that
+   * snapshot, only `capabilities[].isUserSelected` is provable provenance; all
+   * other fields inherit the current registry.
    */
   private projectModelDeltaRow(
     row: Omit<InsertUserModelRow, 'orderKey'>,
@@ -333,16 +339,33 @@ export class ProviderModelMigrator extends BaseMigrator {
     legacy: LegacyModel
   ): Omit<InsertUserModelRow, 'orderKey'> {
     const presetProvider = this.resolveEffectivePresetProvider(providerRow)
-    if (!presetProvider) return row
-
     const endpointTypes =
-      row.endpointTypes ?? (presetProvider.id === 'cherryin' ? inferCherryInEndpointTypes(row.modelId) : null)
+      row.endpointTypes ?? (presetProvider?.id === 'cherryin' ? inferCherryInEndpointTypes(row.modelId) : null)
     const loader = this.getLoader()
-    const registryOverride = loader.findOverride(presetProvider.id, row.modelId)
+    const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, row.modelId) : null
     const presetModel: ProtoModelConfig | null =
       loader.findModel(registryOverride?.modelId ?? row.modelId) ??
       (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
     if (!presetModel) return endpointTypes === row.endpointTypes ? row : { ...row, endpointTypes }
+
+    const hasExplicitCapabilitySelection =
+      legacy.capabilities?.some(
+        (capability) => capability.type !== 'web_search' && capability.isUserSelected !== undefined
+      ) ?? false
+    if (!presetProvider) {
+      return {
+        ...row,
+        presetModelId: presetModel.id,
+        capabilities: hasExplicitCapabilitySelection ? row.capabilities : null,
+        inputModalities: null,
+        outputModalities: null,
+        contextWindow: null,
+        maxInputTokens: null,
+        maxOutputTokens: null,
+        reasoning: null,
+        parameters: null
+      }
+    }
 
     const v1Model = V1_PROVIDER_MODEL_BASELINE.providers[presetProvider.id]?.models[row.modelId]
     const v1Row = v1Model
@@ -356,8 +379,6 @@ export class ProviderModelMigrator extends BaseMigrator {
           row.providerId
         )
       : null
-    const hasExplicitCapabilitySelection =
-      legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
     const endpointTypesAreV1Delta = v1Row ? !isEqual(endpointTypes, v1Row.endpointTypes) : false
     const endpointTypesNeedFallback = endpointTypes !== null && !isEqual(endpointTypes, registryOverride?.endpointTypes)
 
@@ -533,7 +554,14 @@ export class ProviderModelMigrator extends BaseMigrator {
         // for built-in providers, initials for custom ones).
         const logo = ctx.sources.dexieSettings.get<string>(`image://provider-${provider.id}`)
         const logoFile = logo
-          ? await prepareBase64ImageFileEntry(ctx.paths.filesDataDir, providerLogoSlot(provider.id), logo)
+          ? await prepareBase64ImageFileEntry(
+              ctx.paths.filesDataDir,
+              providerLogoSlot(provider.id),
+              logo,
+              // Ref-backed slot (`provider_logo`), same as the live `bindLogoImage`
+              // path: reclaim when the provider is deleted or its logo replaced.
+              'delete_when_unreferenced'
+            )
           : null
         if (logoFile) {
           providerLogoFiles.push(logoFile)
@@ -695,6 +723,12 @@ export class ProviderModelMigrator extends BaseMigrator {
       for (const provider of sampleProviders) {
         const sourceProvider = this.providers.find((item) => item.id === provider.providerId)
         if (sourceProvider?.apiKey && (!provider.apiKeys || provider.apiKeys.length === 0)) {
+          if (buildProviderApiKeys(sourceProvider, this.settings).length === 0) {
+            logger.warn('Legacy provider API key contained no migratable entries; continuing without API keys', {
+              providerId: provider.providerId
+            })
+            continue
+          }
           errors.push({
             key: `missing_api_key_${provider.providerId}`,
             message: `Provider ${provider.providerId} should include migrated API keys`

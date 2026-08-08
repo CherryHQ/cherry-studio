@@ -7,7 +7,7 @@
  * `useChatWrite()`.
  */
 
-import type { CherryMessagePart } from '@shared/data/types/message'
+import type { AssistantTurnOptions, CherryMessagePart } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import { createContext, use } from 'react'
 
@@ -18,9 +18,7 @@ export interface DeleteMessageOptions {
   selectedMessageIds?: readonly string[]
 }
 
-export type MessageDeleteAvailability =
-  | { enabled: true }
-  | { enabled: false; reason: 'first-turn' | 'root-unavailable' | 'message-unavailable' }
+export type MessageDeleteAvailability = { enabled: true } | { enabled: false; reason: 'not-loaded' | 'generating' }
 
 /** Chat write actions injected via React Context. Operations delegate to DataApi + useChat. */
 /** Options carried alongside a regenerate request. */
@@ -32,6 +30,8 @@ export interface RegenerateOptions {
    * group becomes a side-by-side comparison of different models.
    */
   modelId?: UniqueModelId
+  /** Explicit request controls; when omitted, the source assistant turn is inherited. */
+  turnOptions?: AssistantTurnOptions
 }
 
 export interface ChatWriteActions {
@@ -43,7 +43,7 @@ export interface ChatWriteActions {
   resend: (messageId?: string) => Promise<void>
   getMessageDeleteAvailability: (id: string) => MessageDeleteAvailability
   deleteMessage: (id: string, options?: DeleteMessageOptions) => Promise<void>
-  deleteMessageGroup: (id: string) => Promise<void>
+  deleteMessageGroup: (messageIds: readonly string[]) => Promise<void>
   pause: () => void
   clearTopicMessages: () => Promise<void>
   editMessage: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
@@ -52,7 +52,11 @@ export interface ChatWriteActions {
    * then regenerate the assistant response anchored at that sibling. The source
    * message stays intact, including for the first root user message.
    */
-  forkAndResend: (messageId: string, editedParts: CherryMessagePart[]) => Promise<void>
+  forkAndResend: (
+    messageId: string,
+    editedParts: CherryMessagePart[],
+    turnOptions?: AssistantTurnOptions
+  ) => Promise<void>
   /**
    * Pin `messageId` as the topic's active node. The scroll view truncates
    * there; the user's next message becomes the new leaf and the tree forks.

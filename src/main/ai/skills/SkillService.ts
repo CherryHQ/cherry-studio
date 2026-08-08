@@ -39,7 +39,7 @@ const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 
 // ZIP extraction limits
 const MAX_EXTRACTED_SIZE = 100 * 1024 * 1024 // 100MB
-const MAX_FILES_COUNT = 1000
+const MAX_FILES_COUNT = 2000
 const MAX_FOLDER_NAME_LENGTH = 80
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'
@@ -240,24 +240,48 @@ export class SkillService {
    */
   async listLocal(workdir: string): Promise<Array<{ name: string; description?: string; filename: string }>> {
     const results: Array<{ name: string; description?: string; filename: string }> = []
+
+    for (const skill of await this.listLocalSkillDirectories(workdir)) {
+      try {
+        const metadata = await parseSkillMetadata(skill.path, skill.name, 'skills', {
+          calculateSize: false
+        })
+        results.push({ name: metadata.name, description: metadata.description, filename: skill.name })
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
+        logger.warn('Failed to parse skill metadata; skipping', {
+          skillsDir: path.dirname(skill.path),
+          entry: skill.name,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      }
+    }
+
+    return results
+  }
+
+  /**
+   * List only the directory names needed by the Claude SDK skills whitelist.
+   * The SDK owns SKILL.md parsing; this path only verifies that a skill file
+   * exists after applying the same local/symlink ownership filter as listLocal.
+   */
+  async listLocalFolderNames(workdir: string): Promise<string[]> {
+    const names: string[] = []
+    for (const skill of await this.listLocalSkillDirectories(workdir)) {
+      if (await findSkillMdPath(skill.path)) names.push(skill.name)
+    }
+    return names
+  }
+
+  private async listLocalSkillDirectories(workdir: string): Promise<Array<{ name: string; path: string }>> {
     const skillsDir = path.join(workdir, '.claude', 'skills')
+    const results: Array<{ name: string; path: string }> = []
 
     try {
       const entries = await fs.promises.readdir(skillsDir, { withFileTypes: true })
       for (const entry of entries) {
         if (!(await this.isLocalSkillDirectoryEntry(skillsDir, entry))) continue
-        try {
-          const skillPath = path.join(skillsDir, entry.name)
-          const metadata = await parseSkillMetadata(skillPath, entry.name, 'skills')
-          results.push({ name: metadata.name, description: metadata.description, filename: entry.name })
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue
-          logger.warn('Failed to parse skill metadata; skipping', {
-            skillsDir,
-            entry: entry.name,
-            error: error instanceof Error ? error.message : String(error)
-          })
-        }
+        results.push({ name: entry.name, path: path.join(skillsDir, entry.name) })
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return results
