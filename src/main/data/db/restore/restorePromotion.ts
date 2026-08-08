@@ -134,6 +134,8 @@ export async function runRestorePromotion(): Promise<void> {
       // exists, and completed is cleared only by the next startRestore), so re-run
       // the idempotent delete here on every boot that sees a terminal journal.
       removeStagingTree(journal.restoreId)
+      // Reclaim stranded notes-tree-swap aside trees too (same crash gap as staging).
+      removeTerminalAsideTrees(journal)
       return
     case 'staged':
       return promoteStaged(journal)
@@ -633,7 +635,7 @@ function applyEntry(ctx: PromotionContext, entry: FileResource): void {
       return
     }
     default:
-      assertNever(entry.kind)
+      assertNever(entry)
   }
 }
 
@@ -799,7 +801,7 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
       return
     }
     default:
-      assertNever(entry.kind)
+      assertNever(entry)
   }
 }
 
@@ -810,6 +812,11 @@ function inverseEntry(ctx: PromotionContext, entry: FileResource): void {
  * tree (the staging tree's lifecycle is wholly owned by this state machine).
  * The gate shell removes the terminal journal only after its stranded-DB
  * safety check, so the crash net can still locate the parked aside.
+ *
+ * Aside trees (notes-tree-swap undo trees) are also reclaimed here: by any terminal
+ * state the aside has either been swapped away (completed — old live tree replaced)
+ * or restored by the inverse pass (failed/expired — aside→live done in rollback/revert).
+ * A stranded aside would leak the user's pre-restore tree indefinitely.
  */
 function finalize(
   ctx: PromotionContext,
@@ -819,6 +826,61 @@ function finalize(
 ): void {
   writeRestoreJournal({ ...ctx.journal, state, step, reason } as RestoreJournal)
   removeStagingTree(ctx.journal.restoreId)
+  removeAsideTrees(ctx)
+}
+
+/**
+ * Remove every notes-tree-swap aside tree for this restore. The asideTreePath is
+ * userData-relative (validated by assertRestoreJournalPathsInsideUserData at context
+ * build), so resolve + best-effort rmSync. Idempotent (force:true no-ops when gone);
+ * a stuck aside (AV/file lock) is logged, not thrown — it strands old data but never
+ * blocks the terminal journal write that just happened.
+ */
+function removeAsideTrees(ctx: PromotionContext): void {
+  for (const entry of ctx.journal.fileResources) {
+    if (entry.kind !== 'notes-tree-swap') continue
+    const aside = resolveEntry(ctx, entry.asideTreePath)
+    if (!fs.existsSync(aside)) continue
+    try {
+      fs.rmSync(aside, { recursive: true, force: true })
+    } catch (error) {
+      logger.warn('Failed to clear notes-tree-swap aside tree — will strand until next sweep', {
+        restoreId: ctx.journal.restoreId,
+        aside,
+        error
+      })
+    }
+  }
+}
+
+/**
+ * Terminal-journal variant: clear stranded notes-tree-swap aside trees without a full
+ * PromotionContext (a terminal journal is not re-buildable into a context). asideTreePath is
+ * userData-relative; validate containment before rmSync (the journal is a disk file). Used by
+ * the every-boot sweep over a terminal journal that survived a crash between finalize and its
+ * aside rmSync.
+ */
+function removeTerminalAsideTrees(journal: RestoreJournal): void {
+  const userData = application.getPath('app.userdata')
+  for (const entry of journal.fileResources) {
+    if (entry.kind !== 'notes-tree-swap') continue
+    let aside: string
+    try {
+      aside = assertPathInsideUserData(entry.asideTreePath, userData)
+    } catch {
+      continue // tampered path — leave for the corrupt-journal path, never rmSync blind
+    }
+    if (!fs.existsSync(aside)) continue
+    try {
+      fs.rmSync(aside, { recursive: true, force: true })
+    } catch (error) {
+      logger.warn('Failed to clear stranded terminal notes-tree-swap aside tree', {
+        restoreId: journal.restoreId,
+        aside,
+        error
+      })
+    }
+  }
 }
 
 /**

@@ -153,6 +153,12 @@ export function buildPathRegistry() {
     // durable (see restoreJournal.ts). Never relocate the two independently.
     'feature.backup.restore.file': path.join(appUserDataData, 'restore-journal.json'),
     'feature.backup.restore.staging': path.join(appUserData, 'restore-staging'),
+    // Parked-aside trees for directory-level restores (notes-tree-swap). Sits OUTSIDE the
+    // staging tree so terminal removeStagingTree(restoreId) cleanup does not delete a parked
+    // undo tree; per-restore sub-dirs are created under here by the promotion step. Owned by
+    // src/main/data/db/restore/ (cleanup) — must be reachable via getPath so the GC sweep and
+    // crash-recovery can discover + clear stranded aside trees.
+    'feature.backup.restore.aside': path.join(appUserData, 'restore-aside'),
 
     // Stored in the profile it authorizes for reset.
     'feature.data_reset.marker_file': path.join(appUserData, 'data-reset.pending.json'),

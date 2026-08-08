@@ -1363,9 +1363,12 @@ describe('runRestorePromotion', () => {
 
       // Promotion completed (diagnostic: confirms the swap ran rather than expired).
       expect(journalState()).toBe('completed')
-      // Merged tree is now live; the old live tree is parked in the aside.
+      // Merged tree is now live.
       expect(existsSync(join(liveNotesDir(), 'new.md'))).toBe(true)
-      expect(existsSync(join(asideDir(), 'old.md'))).toBe(true)
+      // The old live tree was parked aside DURING the swap, then reclaimed on the completed
+      // finalize (no stranded aside leak across restores).
+      expect(existsSync(join(asideDir(), 'old.md'))).toBe(false)
+      expect(existsSync(asideDir())).toBe(false)
       // The merged staging dir was renamed away (now empty / gone at the staging path).
       expect(existsSync(join(mergedDir(), 'new.md'))).toBe(false)
     })

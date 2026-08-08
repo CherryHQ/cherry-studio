@@ -87,4 +87,24 @@ describe('buildMergedNotesTree (t5 dir-swap producer)', () => {
     // escape never written
     expect(result.conflicts).toEqual([])
   })
+
+  it('preserves non-.md co-located files in the live tree (whole-tree copy, not .md-only)', async () => {
+    // The Notes root may be an arbitrary user folder co-locating non-markdown attachments
+    // (blueprint §3.6 :419). The merged tree must carry EVERY live file so the atomic dir
+    // swap does not silently delete them — the backup only carries .md bodies.
+    await write(liveRoot, 'note.md', '# note')
+    await write(liveRoot, 'images/diagram.png', 'PNG-BYTES')
+    await write(liveRoot, 'attachments/spec.pdf', 'PDF-BYTES')
+    await write(liveRoot, 'canvas/whiteboard.canvas', '{"nodes":[]}')
+    await write(backupTree, 'backup-note.md', '# backup')
+    await buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['backup-note.md'])
+
+    // .md updated/added.
+    expect(await readFile(join(mergedDir, 'note.md'), 'utf8')).toBe('# note')
+    expect(await readFile(join(mergedDir, 'backup-note.md'), 'utf8')).toBe('# backup')
+    // Non-.md local files preserved verbatim (not dropped by a .md-only copy).
+    expect(await readFile(join(mergedDir, 'images/diagram.png'), 'utf8')).toBe('PNG-BYTES')
+    expect(await readFile(join(mergedDir, 'attachments/spec.pdf'), 'utf8')).toBe('PDF-BYTES')
+    expect(await readFile(join(mergedDir, 'canvas/whiteboard.canvas'), 'utf8')).toBe('{"nodes":[]}')
+  })
 })

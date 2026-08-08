@@ -297,7 +297,8 @@ export class ImportOrchestrator {
         backupDbPath: archiveContext.backupDbPath,
         workPath,
         userData: this.deps.userData,
-        roots: this.deps.planRoots
+        roots: this.deps.planRoots,
+        asideRoot: application.getPath('feature.backup.restore.aside')
       })
       this.assertNotCancelled(options)
 

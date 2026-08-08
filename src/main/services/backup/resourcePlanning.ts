@@ -85,6 +85,14 @@ export interface PlanCtx {
   readonly userData: string
   readonly roots: PlanRoots
   /**
+   * Root for parked-aside undo trees (notes-tree-swap). When set, per-restore aside sub-dirs
+   * live under it (out of the staging tree so terminal staging cleanup does not delete them).
+   * Should be `application.getPath('feature.backup.restore.aside')` in production so the path
+   * is registry-owned and discoverable by the GC sweep. Falls back to a userData-relative
+   * `restore-aside` dir for pure/unit callers that do not inject a registry path.
+   */
+  readonly asideRoot?: string
+  /**
    * t5: when true, plan a directory-level notes-tree-swap (OVERWRITE semantics: the merged
    * tree — local-only + backup-only, conflicts local-first — atomically replaces the live
    * Notes tree, old tree parked aside for undo). Default false → additive note-add (MERGE
@@ -473,8 +481,12 @@ export function planResources(ctx: PlanCtx): ResourcePlan {
         }
         const mergedDir = path.join(workDir, 'notes-merged')
         // aside sits OUTSIDE the staging tree (restore-staging/<rid>) so the terminal
-        // removeStagingTree cleanup does not delete the parked live tree (undo source).
-        const asideDir = path.join(userData, 'restore-aside', path.basename(workDir))
+        // removeStagingTree cleanup does not delete the parked live tree (undo source). The
+        // asideRoot is registry-owned (application.getPath('feature.backup.restore.aside')) so
+        // the GC sweep + crash-recovery can discover + clear stranded aside trees; per-restore
+        // sub-dir is keyed by the staging basename (restoreId).
+        const asideRoot = ctx.asideRoot ?? path.join(userData, 'restore-aside')
+        const asideDir = path.join(asideRoot, path.basename(workDir))
         const merged = buildMergedNotesTreeSync(path.join(workDir, 'notes'), notesRoot, mergedDir, manifest.notes.paths)
         for (const conflict of merged.conflicts) {
           skips.push({ id: conflict.relPath, kind: 'note', reasonCode: 'tree_swap_local_first' })

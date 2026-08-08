@@ -568,7 +568,7 @@ describe('planResources', () => {
     })
     // One tree-swap resource (rootPath/livePath/asideTreePath/treeHash present).
     expect(plan.resources).toHaveLength(1)
-    const swap = plan.resources[0]!
+    const swap = plan.resources[0]
     expect(swap.kind).toBe('notes-tree-swap')
     if (swap.kind !== 'notes-tree-swap') return
     expect(swap.livePath).toBe('Notes')

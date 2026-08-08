@@ -9,12 +9,24 @@
 // tree is written to a sibling `mergedDir`. Conflicts are reported as disclosure entries so
 // the restore summary can tell the user which backup notes were kept-as-local.
 //
+// Live-tree preservation is WHOLE-TREE, not .md-only: the Notes root may live in an arbitrary
+// user folder (blueprint §3.6 :419) that co-locates non-markdown attachments (images, PDFs,
+// .canvas, …). The backup itself only carries .md bodies (collectNotesMarkdown), so the backup
+// overlay applies only to declared .md paths — but the live copy must carry EVERY file so the
+// atomic dir swap does not silently delete the user's non-markdown co-located files. Only the
+// .md leaves are ever overlaid by backup; a non-.md file at a backup-declared path is left as
+// the live original (backup never staged it). The treeHash still digests .md leaves only (that
+// is the backup's content contract; non-.md files are pass-through local data).
+//
 // Synchronous: planResources runs inline (no await) so the plan + journal are written in one
 // synchronous block before the merge write tx opens.
 import { copyFileSync, type Dirent, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { computeNotesTreeHashSync } from '@data/db/restore/notesTreeHash'
+
+/** A regular file's leaf is markdown iff its name ends in .md (case-insensitive). */
+const isMarkdownName = (name: string): boolean => name.toLowerCase().endsWith('.md')
 
 export interface MergedNoteConflict {
   readonly relPath: string
@@ -47,18 +59,24 @@ export function buildMergedNotesTreeSync(
   mkdirSync(mergedDir, { recursive: true })
   const conflicts: MergedNoteConflict[] = []
 
-  // 1. Copy the live tree (local-only preserved). Fresh install (no live root) → no-op.
+  // 1. Copy the live tree WHOLE (all regular files, not just .md). The Notes root may be an
+  //    arbitrary user folder co-locating non-markdown attachments (blueprint §3.6 :419) — a
+  //    .md-only copy would make the atomic dir swap silently delete them. Fresh install (no
+  //    live root) → no-op.
   copyLiveTreeSync(liveNotesRoot, mergedDir)
 
-  // 2. Overlay each declared backup note. Same-path conflicts are local-first.
+  // 2. Overlay each declared backup note (.md only — collectNotesMarkdown stages .md bodies).
+  //    Same-path conflicts are local-first; a non-.md file squatting a declared backup path is
+  //    left as the live original (backup never staged it).
   for (const relPath of backupRelPaths) {
     if (relPath.split(/[/\\]/).includes('..')) continue // containment guard (planner also checks)
     const backupPath = join(backupTreeDir, relPath)
     const mergedPath = join(mergedDir, relPath)
     if (!isFileSync(backupPath)) continue
     if (isFileSync(mergedPath)) {
-      // Conflict: local-only already wrote this relPath. Keep local, drop backup only if differ.
-      if (!sameContentSync(backupPath, mergedPath)) {
+      // Conflict: an existing file already occupies this relPath. Keep local, drop backup only
+      // when the content differs. (A non-.md local file at a .md backup path stays as-is.)
+      if (isMarkdownName(relPath) && !sameContentSync(backupPath, mergedPath)) {
         conflicts.push({ relPath, reason: 'same_path_different_content' })
       }
       continue
@@ -71,7 +89,13 @@ export function buildMergedNotesTreeSync(
   return { mergedDir, treeHash: computeNotesTreeHashSync(mergedDir), conflicts }
 }
 
-/** Recursively copy the .md leaves of the live tree into the merged dir. */
+/**
+ * Recursively copy the WHOLE live tree (every regular file, not just .md) into the merged dir.
+ * The Notes root may be an arbitrary user folder that co-locates non-markdown attachments
+ * (blueprint §3.6 :419); a .md-only copy would make the atomic dir swap silently delete them.
+ * Symlinks are skipped (never followed out of the root). The backup overlay step handles .md
+ * update separately — this pass is pure local-data preservation.
+ */
 function copyLiveTreeSync(liveRoot: string, mergedDir: string): void {
   let liveExists: boolean
   try {
@@ -93,7 +117,9 @@ function copyLiveTreeSync(liveRoot: string, mergedDir: string): void {
       const childAbs = join(dirPath, entry.name)
       if (entry.isDirectory()) {
         walk(childAbs, childRel)
-      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')) {
+      } else if (entry.isFile()) {
+        // Copy EVERY regular file (.md + non-.md attachments alike) so the dir swap preserves
+        // local data the backup does not carry. The treeHash digests .md leaves only.
         const dest = join(mergedDir, childRel)
         mkdirSync(dirname(dest), { recursive: true })
         copyFileSync(childAbs, dest)
