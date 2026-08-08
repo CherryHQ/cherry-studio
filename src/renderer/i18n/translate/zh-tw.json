@@ -147,6 +147,7 @@
       }
     },
     "composer": {
+      "background_running_one": "{{count}} 個背景工作正在執行",
       "background_running_other": "{{count}} 個背景任務正在執行"
     },
     "delete": {
@@ -260,6 +261,7 @@
         }
       },
       "file_tree": "檔案樹",
+      "items_one": "{{count}} 件商品",
       "items_other": "{{count}} 個項目",
       "maximize": "最大化",
       "minimize": "最小化",
@@ -343,6 +345,7 @@
         "agent": "Agent",
         "context": "上下文",
         "no_tasks": "沒有進行中的任務",
+        "run_task_live_one": "{{count}} 直播中",
         "run_task_live_other": "{{count}} 個執行中",
         "run_tasks": "子任務",
         "selected_tool": "選取的工具",
@@ -350,6 +353,7 @@
         "stop_run_task_failed": "無法停止任務",
         "task_count": "{{completed}} / {{total}} 完成",
         "tasks": "任務",
+        "tool_uses_one": "{{count}} 個工具呼叫",
         "tool_uses_other": "{{count}} 個工具呼叫",
         "tools_active": "活躍",
         "tools_done": "完成",
@@ -451,12 +455,14 @@
         "expand_all": "展開全部",
         "no_workdir": "無工作目錄",
         "show_more": "展開顯示",
+        "tasks": "任務",
         "this_week": "本週",
         "today": "今天",
         "unknown_agent": "未連結的 Agent",
         "unknown_agent_tip": "這是一個沒有 Agent 的歷史工作階段群組，並非實際的 Agent。此群組僅供檢視，無法繼續執行。",
         "yesterday": "昨天"
       },
+      "label_one": "會議",
       "label_other": "工作階段",
       "list": {
         "title": "任務"
@@ -1000,6 +1006,10 @@
         "CherryNotify": {
           "description": "透過已連接的頻道傳送通知",
           "label": "通知"
+        },
+        "CherryToMarkdown": {
+          "description": "將本機文件（PDF、Office、EPUB、CSV）轉換為 Markdown，以便代理程式讀取",
+          "label": "文件轉 Markdown"
         },
         "CherryWebFetch": {
           "description": "擷取並讀取網頁",
@@ -1671,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "新分支已建立",
-          "disabled": {
-            "active": "目前已定位到這個節點，繼續輸入即可從這裡延續。",
-            "latest": "目前已在最新分支末端，繼續輸入即可延續這個分支。",
-            "no_follow_up": "這則訊息後還沒有後續對話，切換到該節點後繼續輸入即可。"
-          },
           "label": "分支"
         },
         "context": "新上下文"
@@ -1736,12 +1741,6 @@
       "top": "回到頂端"
     },
     "resend": "重新傳送",
-    "resource_view": {
-      "menu": {
-        "agent": "Agent",
-        "assistant": "助理"
-      }
-    },
     "save": {
       "file": {
         "title": "儲存到本機檔案"
@@ -1914,6 +1913,7 @@
         "time": "時間",
         "title": "顯示模式"
       },
+      "draft": "草稿",
       "edit": {
         "placeholder": "輸入新名稱",
         "title": "編輯對話名稱",
@@ -2158,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Qwen Code"
     },
@@ -2165,6 +2166,7 @@
     "config_json_hint": "貼上或編輯原始 JSON，可與上方參數雙向同步",
     "configure": "設定",
     "configuring_provider": "設定 {{provider}}",
+    "count_one": "{{count}} 項",
     "count_other": "{{count}} 個",
     "current_config": "目前",
     "current_config_settings": "目前設定",
@@ -2293,10 +2295,12 @@
     "add_success": "新增成功",
     "advanced_settings": "進階設定",
     "agent": "Agent",
+    "agent_one": "代理人",
     "agent_other": "Agent",
     "all": "全部",
     "and": "與",
     "assistant": "Agent",
+    "assistant_one": "助理",
     "assistant_other": "助理",
     "avatar": "頭像",
     "back": "回上一頁",
@@ -2980,6 +2984,28 @@
       "title": "匯入 ChatGPT 對話",
       "untitled_conversation": "未命名對話"
     },
+    "claude": {
+      "assistant_name": "Claude 匯入",
+      "button": "選擇檔案",
+      "description": "匯入文字、思考過程及工具使用；圖片與附件不包含在內",
+      "error": {
+        "invalid_json": "無效的 JSON 檔案格式",
+        "no_conversations": "檔案中未找到對話",
+        "no_valid_conversations": "沒有可匯入的有效對話",
+        "unknown": "匯入失敗，請檢查檔案格式"
+      },
+      "help": {
+        "step1": "1. 登入 Claude，前往「設定」>「隱私」>「匯出資料」",
+        "step2": "2. 等待透過電子郵件收到匯出檔案",
+        "step3": "3. 解壓縮下載的檔案並找到 conversations.json",
+        "title": "如何匯出 Claude 對話？"
+      },
+      "importing": "匯入對話中...",
+      "selecting": "選擇檔案中...",
+      "success": "成功匯入 {{topics}} 個對話，包含 {{messages}} 則訊息",
+      "title": "匯入 Claude 對話",
+      "untitled_conversation": "未命名對話"
+    },
     "confirm": {
       "button": "選擇匯入檔案",
       "label": "確定要匯入外部資料嗎？"
@@ -3018,10 +3044,20 @@
           "selected_notes": "已選 {{count}} 個筆記"
         },
         "note": {
+          "create": {
+            "content_label": "內容",
+            "content_placeholder": "在此處撰寫備註內容…",
+            "title_label": "標題",
+            "title_placeholder": "為此筆記命名"
+          },
           "description": "選擇現有筆記作為知識庫資料來源",
           "empty_description": "請先在「筆記」功能中建立筆記，再回到這裡選擇。",
           "empty_title": "找不到筆記",
-          "loading": "正在載入筆記…"
+          "loading": "正在載入筆記…",
+          "mode": {
+            "create": "新筆記",
+            "import": "匯入說明"
+          }
         },
         "placeholder": {
           "supported_formats": "支援 PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3232,6 +3268,7 @@
       "action": "重建知識庫",
       "default_name": "{{name}}_複本",
       "failed_to_restore": "知識庫重建失敗",
+      "skipped_missing_sources_one": "已跳過 {{count}} 個來源已不存在的項目",
       "skipped_missing_sources_other": "已略過 {{count}} 個來源已遺失的項目",
       "submit": "重建",
       "title": "重建知識庫"
@@ -3279,6 +3316,7 @@
   },
   "launchpad": {
     "apps": "應用程式",
+    "manage_sidebar": "管理側邊欄",
     "minapps": "小程式",
     "miniApps": "小程式",
     "pin_to_sidebar": "新增到側邊欄",
@@ -3349,11 +3387,6 @@
           },
           "heartbeat_interval": {
             "label": "心跳間隔（分鐘）"
-          },
-          "instructions": {
-            "hint": "定義 Agent 的角色與行為界限",
-            "label": "系統提示詞",
-            "placeholder": "告訴 Agent 它是誰，以及它能做什麼……"
           },
           "max_turns": {
             "help": "0 表示使用預設值",
@@ -3549,8 +3582,7 @@
           "step": {
             "basic": "基本資訊",
             "capability": "技能",
-            "knowledge": "知識庫",
-            "persona": "設定人格"
+            "knowledge": "知識庫"
           },
           "submit": "建立",
           "submit_failed": "建立失敗"
@@ -4213,6 +4245,8 @@
         "taskOutput": "檢視任務輸出",
         "taskStop": "停止任務",
         "taskUpdate": "更新任務",
+        "toMarkdown": "轉換文件",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "待辦寫入",
         "tool": "工具",
         "webFetch": "網頁擷取",
@@ -4263,11 +4297,19 @@
       "thinkingHeader": "思考",
       "truncated": "輸出已截斷（原始大小：{{size}}）",
       "units": {
+        "char_one": "{{count}} 字元",
+        "char_other": "{{count}} 個字元",
+        "done_one": "{{count}} 完成",
         "done_other": "{{count}} 完成",
+        "file_one": "{{count}} 個檔案",
         "file_other": "{{count}} 個檔案",
+        "item_one": "{{count}} 個項目",
         "item_other": "{{count}} 個項目",
+        "line_one": "{{count}} 行",
         "line_other": "{{count}} 行",
+        "plan_one": "{{count}} 方案",
         "plan_other": "{{count}} 個方案",
+        "result_one": "{{count}} 個結果",
         "result_other": "{{count}} 個結果"
       },
       "workflow": {
@@ -5142,9 +5184,11 @@
     "search_placeholder": "搜尋外掛...",
     "search_placeholder_skills": "搜尋技能...",
     "showing_results": "顯示 {{count}} 個外掛",
+    "showing_results_one": "顯示 {{count}} 個外掛程式",
     "showing_results_other": "顯示 {{count}} 個外掛",
     "showing_results_plural": "顯示 {{count}} 個外掛",
     "showing_results_skills": "顯示 {{count}} 個技能",
+    "showing_results_skills_one": "顯示 {{count}} 個技能",
     "showing_results_skills_other": "顯示 {{count}} 個技能",
     "showing_results_skills_plural": "顯示 {{count}} 個技能",
     "skills": "技能",
@@ -5866,6 +5910,7 @@
             "title": "應用程式記錄"
           },
           "summary": "{{count}} 個檔案，約 {{size}}",
+          "summary_one": "{{count}} 個檔案，約 {{size}}",
           "summary_other": "{{count}} 個檔案，約 {{size}}",
           "system": {
             "description": "包含應用程式、系統與裝置詳細資訊。最近當機 {{crashCount}} 次；不會收集當機檔案。",
@@ -5998,11 +6043,41 @@
         "skip_file_data_title": "精簡備份"
       },
       "clear_cache": {
+        "approximately": "約 {{size}}",
         "button": "清除快取",
-        "confirm": "清除快取將刪除應用程式快取資料，包括小工具資料。此操作無法還原，是否繼續？",
+        "calculating": "計算中…",
         "error": "清除快取失敗",
+        "legacy_warning": {
+          "confirm": "仍要選擇",
+          "description": "清理完成後，此選項包含的 v1 版本資料將被永久刪除。如果沒有備份，這些資料將無法復原。",
+          "message": "v1 版本資料將被永久刪除",
+          "title": "確認選擇 v1 版本遺留資料？"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "v1 版本遺留資料，包括舊的對話記錄和設定。清理後無法復原。",
+            "title": "v1 版本遺留資料"
+          },
+          "normal_cache": {
+            "description": "清理使用應用程式時產生的快取和暫存檔，以釋放儲存空間，不會刪除對話記錄和設定。",
+            "title": "應用程式快取"
+          },
+          "orphaned_data": {
+            "description": "清理不再使用的檔案、知識庫殘留和備份還原暫存檔。",
+            "title": "殘留檔案與知識庫"
+          },
+          "site_data": {
+            "description": "網站和小程式使用的 Cookie 與網站儲存空間；清理後可能需要重新登入網站。",
+            "title": "網站與小程式資料"
+          }
+        },
+        "partial_success": "清理已完成，但部分項目無法清除",
+        "selected_total": "所選項目總計",
         "success": "快取清除成功",
-        "title": "清除快取"
+        "title": "清除快取",
+        "total_partial": "已統計 {{size}}，部分大小未知",
+        "unavailable": "無法統計",
+        "waiting_for_legacy_database": "正在等待舊版資料庫釋放。請關閉其他 Cherry Studio 視窗，連線關閉後將繼續清理。"
       },
       "data": {
         "title": "資料目錄"
@@ -6040,10 +6115,12 @@
         "title": "匯出選單設定",
         "yuque": "匯出到語雀"
       },
+      "hour_interval_one": "{{count}} 小時",
       "hour_interval_other": "{{count}} 小時",
       "import_settings": {
         "button": "匯入 JSON 檔案",
         "chatgpt": "匯入 ChatGPT 資料",
+        "claude": "從 Claude 匯入",
         "title": "匯入外部應用程式資料"
       },
       "joplin": {
@@ -6128,12 +6205,14 @@
           "select_error_write_permission": "新路徑沒有寫入權限",
           "select_title": "選擇備份目錄"
         },
+        "hour_interval_one": "{{count}} 小時",
         "hour_interval_other": "{{count}} 小時",
         "lastSync": "上次備份",
         "maxBackups": {
           "label": "最大備份數",
           "unlimited": "無限制"
         },
+        "minute_interval_one": "{{count}} 分鐘",
         "minute_interval_other": "{{count}} 分鐘",
         "noSync": "等待下次備份",
         "restore": {
@@ -6180,6 +6259,7 @@
           "title": "使用快速模型為匯出的訊息命名標題"
         }
       },
+      "minute_interval_one": "{{count}} 分鐘",
       "minute_interval_other": "{{count}} 分鐘",
       "notion": {
         "api_key": "Notion 金鑰",
@@ -6412,6 +6492,23 @@
         "token_placeholder": "請輸入思源筆記 Token"
       },
       "title": "資料",
+      "v1_remigration": {
+        "acknowledgement": "我已了解風險並願意繼續。",
+        "back": "上一步",
+        "backup_acknowledgement": "我已備份資料",
+        "backup_button": "立即完整備份",
+        "backup_message": "請先完整備份目前資料。繼續操作將永久刪除目前的 v2 資料，此操作無法復原。",
+        "button": "重新遷移",
+        "confirm": "重新遷移",
+        "confirm_countdown": "重新遷移（{{seconds}} 秒）",
+        "dialog_title": "重新遷移 v1 資料",
+        "error": "重新遷移 v1 資料啟動失敗",
+        "final_confirmation": "確認刪除目前的 v2 資料並重新遷移 v1 資料？",
+        "final_message": "目前的 v2 資料將被永久刪除，此操作無法復原。",
+        "final_retained": "原始 v1 資料會保留，並在重新啟動後再次匯入。",
+        "next": "下一步",
+        "title": "重新遷移 v1 資料"
+      },
       "webdav": {
         "autoSync": {
           "label": "自動備份",
@@ -6471,9 +6568,11 @@
           "label": "WebDAV 主機位址",
           "placeholder": "http://localhost:8080"
         },
+        "hour_interval_one": "{{count}} 小時",
         "hour_interval_other": "{{count}} 小時",
         "lastSync": "上次備份時間",
         "maxBackups": "最大備份數量",
+        "minute_interval_one": "{{count}} 分鐘",
         "minute_interval_other": "{{count}} 分鐘",
         "noSync": "等待下次備份",
         "password": "WebDAV 密碼",
@@ -6577,6 +6676,7 @@
         "notice": {
           "downloadFailed": "下載失敗，請檢查網路後重試。",
           "inUse": "該模型仍被知識庫使用，已保留權重。",
+          "incompleteCache": "模型檔案不完整。請重新下載以修復。",
           "removeFailed": "刪除失敗，請檢視記錄。"
         },
         "ocr": {
@@ -8383,6 +8483,7 @@
         "shareLabel": "佔比",
         "title": "探索",
         "top": "Top",
+        "totalEntries_one": "{{count}} 項目",
         "totalEntries_other": "{{count}} 筆記錄"
       },
       "groupBy": {
@@ -8423,6 +8524,7 @@
       "title": "用量分析",
       "tooltip": {
         "cost": "成本 {{value}}",
+        "requests_one": "{{count}} 個請求",
         "requests_other": "{{count}} 個請求",
         "tokens": "{{value}} Token"
       },

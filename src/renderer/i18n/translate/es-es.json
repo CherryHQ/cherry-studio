@@ -147,7 +147,6 @@
       }
     },
     "composer": {
-      "background_running_many": "{{count}} tareas en segundo plano en ejecución",
       "background_running_one": "{{count}} tarea en segundo plano en ejecución",
       "background_running_other": "{{count}} tareas en segundo plano en ejecución"
     },
@@ -262,7 +261,6 @@
         }
       },
       "file_tree": "Árbol de archivos",
-      "items_many": "{{count}} elementos",
       "items_one": "{{count}} elemento",
       "items_other": "{{count}} elementos",
       "maximize": "Maximizar",
@@ -347,7 +345,6 @@
         "agent": "Agente",
         "context": "Contexto",
         "no_tasks": "Sin tareas activas",
-        "run_task_live_many": "{{count}} en curso",
         "run_task_live_one": "{{count}} en curso",
         "run_task_live_other": "{{count}} en curso",
         "run_tasks": "Subtareas",
@@ -356,7 +353,6 @@
         "stop_run_task_failed": "Error al detener la tarea",
         "task_count": "{{completed}} / {{total}} completado",
         "tasks": "Tareas",
-        "tool_uses_many": "{{count}} llamadas a herramientas",
         "tool_uses_one": "{{count}} llamada a herramienta",
         "tool_uses_other": "{{count}} llamadas a herramientas",
         "tools_active": "Activo",
@@ -459,13 +455,13 @@
         "expand_all": "Expandir todo",
         "no_workdir": "Sin carpeta de trabajo",
         "show_more": "Expandir pantalla",
+        "tasks": "Tareas",
         "this_week": "Esta semana",
         "today": "Hoy",
         "unknown_agent": "Agente desconocido",
         "unknown_agent_tip": "Este es un grupo de sesión histórico sin agente, no un agente real. Es solo de visualización y no puede continuar ejecutándose.",
         "yesterday": "Ayer"
       },
-      "label_many": "Sesiones",
       "label_one": "Sesión",
       "label_other": "Sesiones",
       "list": {
@@ -1010,6 +1006,10 @@
         "CherryNotify": {
           "description": "Envía una notificación a través de un canal conectado",
           "label": "Notificar"
+        },
+        "CherryToMarkdown": {
+          "description": "Convierte un documento local (PDF, Office, EPUB, CSV) a Markdown para que el agente pueda leerlo",
+          "label": "Documento a Markdown"
         },
         "CherryWebFetch": {
           "description": "Obtiene y lee una página web",
@@ -1681,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Nueva rama creada",
-          "disabled": {
-            "active": "Este nodo ya está seleccionado. Continúa escribiendo para extender la rama desde aquí.",
-            "latest": "Ya estás al final de esta rama. Continúa escribiendo para extenderla.",
-            "no_follow_up": "Todavía no hay seguimiento después de este mensaje. Cambia a este nodo y continúa escribiendo en su lugar."
-          },
           "label": "Rama nueva"
         },
         "context": "Limpiar contexto"
@@ -1746,12 +1741,6 @@
       "top": "Volver arriba"
     },
     "resend": "Reenviar",
-    "resource_view": {
-      "menu": {
-        "agent": "Agentes",
-        "assistant": "Asistentes"
-      }
-    },
     "save": {
       "file": {
         "title": "Guardar en archivo local"
@@ -1924,6 +1913,7 @@
         "time": "Tiempo",
         "title": "Modo de visualización"
       },
+      "draft": "Borrador",
       "edit": {
         "placeholder": "Introduce nuevo nombre",
         "title": "Editar nombre del tema",
@@ -2168,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Código Qwen"
     },
@@ -2175,7 +2166,6 @@
     "config_json_hint": "Pega o edita JSON en bruto; se mantiene sincronizado con los campos de arriba",
     "configure": "Configurar",
     "configuring_provider": "Configurar {{provider}}",
-    "count_many": "{{count}} elementos",
     "count_one": "{{count}} elemento",
     "count_other": "{{count}} elementos",
     "current_config": "Actual",
@@ -2305,13 +2295,11 @@
     "add_success": "Añadido con éxito",
     "advanced_settings": "Configuración avanzada",
     "agent": "Agente",
-    "agent_many": "Agentes",
     "agent_one": "Agente",
     "agent_other": "Agentes",
     "all": "Todo",
     "and": "y",
     "assistant": "Agente inteligente",
-    "assistant_many": "Asistentes",
     "assistant_one": "Asistente",
     "assistant_other": "Asistentes",
     "avatar": "Avatar",
@@ -2996,6 +2984,28 @@
       "title": "Importar conversaciones de ChatGPT",
       "untitled_conversation": "Conversación Sin Título"
     },
+    "claude": {
+      "assistant_name": "Importación de Claude",
+      "button": "Seleccionar archivo",
+      "description": "Importa texto, pensamiento y uso de herramientas; imágenes y archivos adjuntos no están incluidos",
+      "error": {
+        "invalid_json": "Formato de archivo JSON inválido",
+        "no_conversations": "No se encontraron conversaciones en el archivo",
+        "no_valid_conversations": "No hay conversaciones válidas para importar",
+        "unknown": "Error de importación, por favor verifique el formato del archivo"
+      },
+      "help": {
+        "step1": "1. Inicia sesión en Claude, ve a Configuración > Privacidad > Exportar Datos",
+        "step2": "2. Espere el archivo de exportación por correo electrónico",
+        "step3": "3. Extraiga el archivo descargado y busque conversations.json",
+        "title": "¿Cómo exportar conversaciones de Claude?"
+      },
+      "importing": "Importando conversaciones...",
+      "selecting": "Seleccionando archivo...",
+      "success": "Importadas con éxito {{topics}} conversaciones con {{messages}} mensajes",
+      "title": "Importar Conversaciones de Claude",
+      "untitled_conversation": "Conversación sin título"
+    },
     "confirm": {
       "button": "Seleccionar Archivo de Importación",
       "label": "¿Estás seguro de que quieres importar datos externos?"
@@ -3034,10 +3044,20 @@
           "selected_notes": "{{count}} notas seleccionadas"
         },
         "note": {
+          "create": {
+            "content_label": "Contenido",
+            "content_placeholder": "Escribe el contenido de la nota aquí…",
+            "title_label": "Título",
+            "title_placeholder": "Nombre esta nota"
+          },
           "description": "Selecciona notas existentes como fuentes de base de conocimiento",
           "empty_description": "Las notas seleccionables aparecerán aquí después de que se conecte la lista de notas reales. Por ahora, usa archivos, carpetas, URLs o mapas del sitio.",
           "empty_title": "Las notas aún no están conectadas",
-          "loading": "Cargando notas…"
+          "loading": "Cargando notas…",
+          "mode": {
+            "create": "Nueva nota",
+            "import": "Notas de importación"
+          }
         },
         "placeholder": {
           "supported_formats": "Soporta PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3248,7 +3268,6 @@
       "action": "Reconstruir la base de conocimientos",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Error al reconstruir la base de conocimientos",
-      "skipped_missing_sources_many": "Se omitieron {{count}} elementos cuya fuente ya no existe",
       "skipped_missing_sources_one": "Se omitió {{count}} elemento cuya fuente ya no existe",
       "skipped_missing_sources_other": "Se omitieron {{count}} elementos cuyo origen ya no existe",
       "submit": "Reconstruir",
@@ -3297,6 +3316,7 @@
   },
   "launchpad": {
     "apps": "Aplicaciones",
+    "manage_sidebar": "Administrar barra lateral",
     "minapps": "Minapps",
     "miniApps": "Miniaplicaciones",
     "pin_to_sidebar": "Anclar a la barra lateral",
@@ -3367,11 +3387,6 @@
           },
           "heartbeat_interval": {
             "label": "Intervalo de latidos (minutos)"
-          },
-          "instructions": {
-            "hint": "Define el rol del agente y los límites de su comportamiento",
-            "label": "Indicación del sistema",
-            "placeholder": "Dile al agente quién es y y qué puede hacer…"
           },
           "max_turns": {
             "help": "0 significa usar el valor predeterminado",
@@ -3567,8 +3582,7 @@
           "step": {
             "basic": "Información básica",
             "capability": "Habilidades",
-            "knowledge": "Conocimiento",
-            "persona": "Persona"
+            "knowledge": "Conocimiento"
           },
           "submit": "Crear",
           "submit_failed": "Creación fallida"
@@ -4231,6 +4245,8 @@
         "taskOutput": "Ver salida de la tarea",
         "taskStop": "Detener tarea",
         "taskUpdate": "Actualizar tarea",
+        "toMarkdown": "Convertir Documento",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Todo Escribir",
         "tool": "Herramienta",
         "webFetch": "Obtención Web",
@@ -4281,22 +4297,18 @@
       "thinkingHeader": "Pensamiento",
       "truncated": "Salida truncada (original: {{size}})",
       "units": {
-        "done_many": "{{count}} completados",
+        "char_one": "{{count}} carácter",
+        "char_other": "{{count}} caracteres",
         "done_one": "{{count}} completado",
         "done_other": "{{count}} completados",
-        "file_many": "{{count}} archivos",
         "file_one": "{{count}} archivo",
         "file_other": "{{count}} archivos",
-        "item_many": "{{count}} elementos",
         "item_one": "{{count}} elemento",
         "item_other": "{{count}} elementos",
-        "line_many": "{{count}} líneas",
         "line_one": "{{count}} línea",
         "line_other": "{{count}} líneas",
-        "plan_many": "{{count}} planes",
         "plan_one": "{{count}} plan",
         "plan_other": "{{count}} planes",
-        "result_many": "{{count}} resultados",
         "result_one": "{{count}} resultado",
         "result_other": "{{count}} resultados"
       },
@@ -5172,12 +5184,10 @@
     "search_placeholder": "Buscar complemento...",
     "search_placeholder_skills": "Habilidades de búsqueda...",
     "showing_results": "Mostrar {{count}} complementos",
-    "showing_results_many": "Mostrando {{count}} complementos",
     "showing_results_one": "Mostrando {{count}} complemento",
     "showing_results_other": "Mostrando {{count}} complementos",
     "showing_results_plural": "Mostrar {{count}} complementos",
     "showing_results_skills": "Mostrando {{count}} habilidad",
-    "showing_results_skills_many": "Mostrando {{count}} habilidades",
     "showing_results_skills_one": "Mostrando {{count}} habilidad",
     "showing_results_skills_other": "Mostrando {{count}} habilidades",
     "showing_results_skills_plural": "Mostrando {{count}} habilidades",
@@ -5900,7 +5910,6 @@
             "title": "Registros de la aplicación"
           },
           "summary": "{{count}} archivos, unos {{size}}",
-          "summary_many": "{{count}} archivos, unos {{size}}",
           "summary_one": "{{count}} archivo, unos {{size}}",
           "summary_other": "{{count}} archivos, unos {{size}}",
           "system": {
@@ -6034,11 +6043,41 @@
         "skip_file_data_title": "Copia de seguridad reducida"
       },
       "clear_cache": {
+        "approximately": "Aprox. {{size}}",
         "button": "Limpiar caché",
-        "confirm": "Limpiar caché eliminará los datos de la caché de la aplicación, incluyendo los datos de las aplicaciones mini. Esta acción no se puede deshacer, ¿desea continuar?",
+        "calculating": "Calculando…",
         "error": "Error al limpiar la caché",
+        "legacy_warning": {
+          "confirm": "Seleccionar de todos modos",
+          "description": "Cuando finalice la limpieza, los datos de v1 incluidos en esta opción se eliminarán permanentemente. Sin una copia de seguridad, no podrán recuperarse.",
+          "message": "Los datos de v1 se eliminarán permanentemente",
+          "title": "¿Seleccionar los datos residuales de v1?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Datos residuales de v1, incluidos los historiales de conversaciones antiguos y la configuración. No se pueden recuperar después de eliminarlos.",
+            "title": "Datos residuales de v1"
+          },
+          "normal_cache": {
+            "description": "Limpia la caché y los archivos temporales generados al usar la aplicación para liberar espacio de almacenamiento. No elimina el historial de conversaciones ni la configuración.",
+            "title": "Caché de la aplicación"
+          },
+          "orphaned_data": {
+            "description": "Elimina archivos sin uso, bases de conocimiento residuales y archivos temporales de restauración.",
+            "title": "Archivos y bases de conocimiento residuales"
+          },
+          "site_data": {
+            "description": "Cookies y almacenamiento de sitios web utilizados por sitios web y miniaplicaciones. Es posible que se cierre tu sesión en los sitios web.",
+            "title": "Datos de sitios web y miniaplicaciones"
+          }
+        },
+        "partial_success": "La limpieza ha finalizado, pero no se pudieron borrar algunos elementos",
+        "selected_total": "Total seleccionado",
         "success": "Caché limpia con éxito",
-        "title": "Limpiar caché"
+        "title": "Limpiar caché",
+        "total_partial": "Tamaño contabilizado: {{size}}; algunos tamaños son desconocidos",
+        "unavailable": "No se puede calcular",
+        "waiting_for_legacy_database": "Esperando a que se libere la base de datos antigua. Cierra las demás ventanas de Cherry Studio; la limpieza continuará cuando se cierren sus conexiones."
       },
       "data": {
         "title": "Carpeta de datos"
@@ -6076,12 +6115,12 @@
         "title": "Exportar configuración del menú",
         "yuque": "Exportar a Yuque"
       },
-      "hour_interval_many": "{{count}} horas",
       "hour_interval_one": "{{count}} hora",
       "hour_interval_other": "{{count}} horas",
       "import_settings": {
         "button": "Importar archivo Json",
         "chatgpt": "Importar desde ChatGPT",
+        "claude": "Importar desde Claude",
         "title": "Importar datos de aplicaciones externas"
       },
       "joplin": {
@@ -6166,7 +6205,6 @@
           "select_error_write_permission": "La nueva ruta no tiene permisos de escritura",
           "select_title": "Seleccionar carpeta de copia de seguridad"
         },
-        "hour_interval_many": "{{count}} horas",
         "hour_interval_one": "{{count}} hora",
         "hour_interval_other": "{{count}} horas",
         "lastSync": "Última copia de seguridad",
@@ -6174,7 +6212,6 @@
           "label": "Número máximo de copias de seguridad",
           "unlimited": "Ilimitado"
         },
-        "minute_interval_many": "{{count}} minutos",
         "minute_interval_one": "{{count}} minuto",
         "minute_interval_other": "{{count}} minutos",
         "noSync": "Esperando próxima copia de seguridad",
@@ -6222,7 +6259,6 @@
           "title": "Usar el modelo rápido para nombrar el título de los mensajes exportados"
         }
       },
-      "minute_interval_many": "{{count}} minutos",
       "minute_interval_one": "{{count}} minuto",
       "minute_interval_other": "{{count}} minutos",
       "notion": {
@@ -6456,6 +6492,23 @@
         "token_placeholder": "Por favor ingrese el token de Siyuan Notas"
       },
       "title": "Configuración de datos",
+      "v1_remigration": {
+        "acknowledgement": "Entiendo el riesgo y quiero continuar.",
+        "back": "Atrás",
+        "backup_acknowledgement": "He realizado una copia de seguridad de mis datos",
+        "backup_button": "Crear una copia de seguridad completa ahora",
+        "backup_message": "Haz una copia de seguridad de todos los datos actuales antes de continuar. Al continuar, tus datos v2 actuales se eliminarán permanentemente y esta acción no se puede deshacer.",
+        "button": "Repetir migración",
+        "confirm": "Repetir migración",
+        "confirm_countdown": "Repetir migración ({{seconds}} s)",
+        "dialog_title": "Repetir la migración de datos de v1",
+        "error": "No se pudo volver a iniciar la migración de datos de v1",
+        "final_confirmation": "Confirma que quieres eliminar los datos v2 actuales y repetir la migración de datos de v1.",
+        "final_message": "Tus datos v2 actuales se eliminarán permanentemente. Esta acción no se puede deshacer.",
+        "final_retained": "Tus datos v1 originales se conservarán y se importarán de nuevo después de reiniciar.",
+        "next": "Siguiente",
+        "title": "Repetir la migración de datos de v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Sincronización automática",
@@ -6515,12 +6568,10 @@
           "label": "Dirección WebDAV",
           "placeholder": "http://localhost:8080"
         },
-        "hour_interval_many": "{{count}} horas",
         "hour_interval_one": "{{count}} hora",
         "hour_interval_other": "{{count}} horas",
         "lastSync": "Última copia de seguridad",
         "maxBackups": "Número máximo de copias de seguridad",
-        "minute_interval_many": "{{count}} minutos",
         "minute_interval_one": "{{count}} minuto",
         "minute_interval_other": "{{count}} minutos",
         "noSync": "Esperando la próxima copia de seguridad",
@@ -6625,6 +6676,7 @@
         "notice": {
           "downloadFailed": "La descarga falló. Comprueba tu conexión e inténtalo de nuevo.",
           "inUse": "Todavía utilizado por una base de conocimientos; los pesos se mantuvieron.",
+          "incompleteCache": "Los archivos del modelo están incompletos. Reintenta la descarga para repararlos.",
           "removeFailed": "Error al eliminar. Consulta los registros para más detalles."
         },
         "ocr": {
@@ -8431,7 +8483,6 @@
         "shareLabel": "Compartir",
         "title": "Explorar",
         "top": "Superior",
-        "totalEntries_many": "{{count}} entradas",
         "totalEntries_one": "{{count}} entrada",
         "totalEntries_other": "{{count}} entradas"
       },
@@ -8473,7 +8524,6 @@
       "title": "Análisis de Uso",
       "tooltip": {
         "cost": "Costo {{value}}",
-        "requests_many": "{{count}} solicitudes",
         "requests_one": "{{count}} solicitud",
         "requests_other": "{{count}} solicitudes",
         "tokens": "{{value}} tokens"

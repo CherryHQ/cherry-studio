@@ -472,6 +472,23 @@ export const CursorIcon = (props: SVGProps<SVGSVGElement>) => {
   )
 }
 
+// https://learn.microsoft.com/en-us/windows/terminal
+export const WindowsTerminalIcon = (props: SVGProps<SVGSVGElement>) => {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+      <rect x="2.75" y="3.25" width="18.5" height="17.5" rx="3.5" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M7 8.5 10.5 12 7 15.5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M12 15.5h5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 // https://zed.dev/brand
 export const ZedIcon = (props: SVGProps<SVGSVGElement>) => {
   return (

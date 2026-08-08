@@ -38,6 +38,7 @@ Redux deliberately clears `messages[]` to reduce storage size. The migrator merg
 3. **Block Inlining**
    - Old: `message.blocks: string[]` (IDs) + separate `message_blocks` table
    - New: `message.data.blocks: MessageDataBlock[]` (inline JSON)
+   - Migration indexing decodes one legacy block at a time, then batches serialized rows by count and character budget before writing them to the file-backed temporary SQLite table. This prevents large inline image/tool payloads from accumulating in a record-count-only in-memory batch.
 
 4. **Citation Migration**
    - Old: Separate `CitationMessageBlock` with `response`, `knowledge`, `memories`

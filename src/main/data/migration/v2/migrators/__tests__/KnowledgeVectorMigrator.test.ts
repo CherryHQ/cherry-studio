@@ -3045,7 +3045,10 @@ describe('KnowledgeVectorMigrator', () => {
         migratedItems: [
           createMigratedItem(MIGRATED_SITEMAP_URL_ITEM_ID, {
             type: 'note',
-            data: { source: 'Meeting notes', content: 'original note body' }
+            // A legacy note with no sourceUrl migrates with `source = content`, so a multi-line
+            // source is the ordinary shape here — and the one that folds the body into the
+            // snapshot name if the slug is not reduced to the title line first.
+            data: { source: 'Meeting notes\n\n- item one', content: 'original note body' }
           })
         ],
         reduxData: {
@@ -3087,7 +3090,7 @@ describe('KnowledgeVectorMigrator', () => {
       expect(migrationCtx.db.updateCalls).toHaveLength(1)
       expect(migrationCtx.db.updateCalls[0].values).toEqual({
         data: {
-          source: 'Meeting notes',
+          source: 'Meeting notes\n\n- item one',
           content: 'original note body',
           relativePath: 'Meeting notes.md'
         }

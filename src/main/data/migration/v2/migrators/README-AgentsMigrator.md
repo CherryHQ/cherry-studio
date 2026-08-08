@@ -78,17 +78,13 @@ For each migrated Agent:
 - Imported resume tokens remain unchanged. If the latest Claude transcript
   cannot be made available, the normal runtime resume attempt surfaces the
   failure to the user.
-- A symlinked v1 Agent root is treated as an external user workspace: identity
-  may be read from its resolved directory, but the target is never removed.
-- Identity symlinks are followed only when they resolve inside the source
-  workspace and are materialized as ordinary files/directories.
-- Ordinary workspace symlinks remain links. Targets under identity entries are
-  rewritten to Agent data; other internal targets are rewritten to the new
-  Session workspace; external and dangling targets retain their meaning.
+- A symlinked v1 Agent root is skipped without following or removing it.
+- Identity and ordinary workspace symlinks are skipped. Migration copies only
+  regular files and directories so link permissions or unsupported link targets
+  cannot block the rest of the migration.
 - Ordinary workspace content is scanned once. The first verified private
   staging copy is reused as the regular-content source for later Sessions, so
-  migration does not need an additional full-size template. Symlinks are
-  omitted while cloning and recreated with each Session's rewritten target.
+  migration does not need an additional full-size template.
 
 Before reading or copying Agent identity and workspace content, migration
 validates every exact v2 target against every v1 source, then clears the final
@@ -163,6 +159,8 @@ remain excluded for as long as v1 downgrade support exists.
 ## Intentionally dropped data
 
 - v1 scheduled-task run logs.
+- Malformed or non-array legacy Agent MCP payloads, and non-string entries in
+  MCP arrays. Valid string MCP IDs in mixed arrays are retained.
 - Dangling Agent/MCP, Agent/skill, channel/task, and other relationship rows
   that cannot satisfy v2 foreign keys.
 - Additional legacy accessible paths after the primary workspace.

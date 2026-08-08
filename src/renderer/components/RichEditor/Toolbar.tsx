@@ -22,11 +22,16 @@ interface ToolbarItemInternal {
 // Group ordering for toolbar layout
 const TOOLBAR_GROUP_ORDER = ['formatting', 'text', 'blocks', 'structure', 'media', 'history']
 
-function getToolbarItems(): ToolbarItemInternal[] {
+function getToolbarItems(enableImageInsertion: boolean, disabledCommands: readonly string[]): ToolbarItemInternal[] {
   const items: ToolbarItemInternal[] = []
+  const disabledCommandIds = new Set(disabledCommands)
+
+  if (!enableImageInsertion) {
+    disabledCommandIds.add('image')
+  }
 
   TOOLBAR_GROUP_ORDER.forEach((groupName, groupIndex) => {
-    const groupCommands = getCommandsByGroup(groupName)
+    const groupCommands = getCommandsByGroup(groupName).filter((command) => !disabledCommandIds.has(command.id))
 
     if (groupCommands.length > 0 && groupIndex > 0) {
       items.push({ id: `divider-${groupIndex}`, type: 'divider' })
@@ -78,7 +83,14 @@ const getTooltipText = (t: TFunction, command: FormattingCommand): string => {
   return tooltipMap[command] || command
 }
 
-export const Toolbar: React.FC<ToolbarProps> = ({ editor, formattingState, onCommand, scrollContainer }) => {
+export const Toolbar: React.FC<ToolbarProps> = ({
+  editor,
+  formattingState,
+  onCommand,
+  scrollContainer,
+  enableImageInsertion = true,
+  disabledCommands = []
+}) => {
   const { t } = useTranslation()
   const [showImageUploader, setShowImageUploader] = useState(false)
   const [showMathInput, setShowMathInput] = useState(false)
@@ -108,6 +120,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, formattingState, onCom
     }
 
     const handleImageUploader = (event: CustomEvent) => {
+      if (!enableImageInsertion) return
       const { onImageSelect, onCancel } = event.detail
       setPlaceholderCallbacks((prev) => ({ ...prev, onImageSelect, onImageCancel: onCancel }))
       setShowImageUploader(true)
@@ -120,7 +133,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, formattingState, onCom
       window.removeEventListener('openMathDialog', handleMathDialog as EventListener)
       window.removeEventListener('openImageUploader', handleImageUploader as EventListener)
     }
-  }, [])
+  }, [enableImageInsertion])
 
   if (!editor) {
     return null
@@ -145,7 +158,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, formattingState, onCom
     setShowImageUploader(false)
   }
 
-  const toolbarItems = getToolbarItems()
+  const toolbarItems = getToolbarItems(enableImageInsertion, disabledCommands)
 
   return (
     <ToolbarWrapper data-testid="rich-editor-toolbar">
@@ -184,25 +197,27 @@ export const Toolbar: React.FC<ToolbarProps> = ({ editor, formattingState, onCom
           </Tooltip>
         )
       })}
-      <ImageUploader
-        visible={showImageUploader}
-        onImageSelect={(imageUrl) => {
-          if (placeholderCallbacks.onImageSelect) {
-            placeholderCallbacks.onImageSelect(imageUrl)
-            setPlaceholderCallbacks((prev) => ({ ...prev, onImageSelect: undefined, onImageCancel: undefined }))
-          } else {
-            handleImageSelect(imageUrl)
-          }
-          setShowImageUploader(false)
-        }}
-        onClose={() => {
-          if (placeholderCallbacks.onImageCancel) {
-            placeholderCallbacks.onImageCancel()
-            setPlaceholderCallbacks((prev) => ({ ...prev, onImageSelect: undefined, onImageCancel: undefined }))
-          }
-          setShowImageUploader(false)
-        }}
-      />
+      {enableImageInsertion && (
+        <ImageUploader
+          visible={showImageUploader}
+          onImageSelect={(imageUrl) => {
+            if (placeholderCallbacks.onImageSelect) {
+              placeholderCallbacks.onImageSelect(imageUrl)
+              setPlaceholderCallbacks((prev) => ({ ...prev, onImageSelect: undefined, onImageCancel: undefined }))
+            } else {
+              handleImageSelect(imageUrl)
+            }
+            setShowImageUploader(false)
+          }}
+          onClose={() => {
+            if (placeholderCallbacks.onImageCancel) {
+              placeholderCallbacks.onImageCancel()
+              setPlaceholderCallbacks((prev) => ({ ...prev, onImageSelect: undefined, onImageCancel: undefined }))
+            }
+            setShowImageUploader(false)
+          }}
+        />
+      )}
       <MathInputDialog
         visible={showMathInput}
         defaultValue={placeholderCallbacks.mathDefaultValue || ''}

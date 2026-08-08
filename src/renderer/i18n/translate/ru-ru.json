@@ -147,8 +147,6 @@
       }
     },
     "composer": {
-      "background_running_few": "{{count}} фоновые задачи выполняются",
-      "background_running_many": "{{count}} фоновых задач выполняются",
       "background_running_one": "{{count}} фоновая задача выполняется",
       "background_running_other": "{{count}} фоновой задачи выполняется"
     },
@@ -263,8 +261,6 @@
         }
       },
       "file_tree": "Дерево файлов",
-      "items_few": "{{count}} элемента",
-      "items_many": "{{count}} элементов",
       "items_one": "{{count}} элемент",
       "items_other": "{{count}} элемента",
       "maximize": "Максимизировать",
@@ -349,8 +345,6 @@
         "agent": "Агент",
         "context": "Контекст",
         "no_tasks": "Нет активных задач",
-        "run_task_live_few": "{{count}} активные задачи",
-        "run_task_live_many": "{{count}} активных задач",
         "run_task_live_one": "{{count}} активная задача",
         "run_task_live_other": "{{count}} активной задачи",
         "run_tasks": "Подзадачи",
@@ -359,8 +353,6 @@
         "stop_run_task_failed": "Не удалось остановить задачу",
         "task_count": "{{completed}} / {{total}} завершено",
         "tasks": "Задачи",
-        "tool_uses_few": "{{count}} вызова инструмента",
-        "tool_uses_many": "{{count}} вызовов инструмента",
         "tool_uses_one": "{{count}} вызов инструмента",
         "tool_uses_other": "{{count}} вызова инструмента",
         "tools_active": "Активный",
@@ -463,14 +455,13 @@
         "expand_all": "Развернуть все",
         "no_workdir": "Нет рабочего каталога",
         "show_more": "Развернуть дисплей",
+        "tasks": "Задачи",
         "this_week": "На этой неделе",
         "today": "Сегодня",
         "unknown_agent": "Неизвестный агент",
         "unknown_agent_tip": "Это историческая группа сеансов без агента, а не фактический агент. Она доступна только для просмотра и не может продолжить работу.",
         "yesterday": "Вчера"
       },
-      "label_few": "Сессии",
-      "label_many": "Сессий",
       "label_one": "Сессия",
       "label_other": "Сессии",
       "list": {
@@ -1015,6 +1006,10 @@
         "CherryNotify": {
           "description": "Отправляет уведомление через подключенный канал",
           "label": "Уведомить"
+        },
+        "CherryToMarkdown": {
+          "description": "Преобразует локальный документ (PDF, Office, EPUB, CSV) в Markdown, чтобы агент мог его прочитать",
+          "label": "Документ в Markdown"
         },
         "CherryWebFetch": {
           "description": "Получает и читает веб-страницу",
@@ -1686,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Новая ветка создана",
-          "disabled": {
-            "active": "Этот узел уже выбран. Продолжайте ввод, чтобы расширить ветвь отсюда.",
-            "latest": "Вы уже находитесь в конце этой ветки. Продолжайте вводить текст, чтобы расширить её.",
-            "no_follow_up": "После этого сообщения пока нет продолжения. Переключитесь на этот узел и продолжайте вводить текст."
-          },
           "label": "Новая ветка"
         },
         "context": "Новый контекст"
@@ -1751,12 +1741,6 @@
       "top": "Вернуться наверх"
     },
     "resend": "Переотправить",
-    "resource_view": {
-      "menu": {
-        "agent": "Агенты",
-        "assistant": "Ассистенты"
-      }
-    },
     "save": {
       "file": {
         "title": "Сохранить в локальный файл"
@@ -1929,6 +1913,7 @@
         "time": "Время",
         "title": "Режим отображения"
       },
+      "draft": "Проект",
       "edit": {
         "placeholder": "Введите новый заголовок",
         "title": "Редактировать заголовок",
@@ -2173,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Пи",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Код Qwen"
     },
@@ -2180,8 +2166,6 @@
     "config_json_hint": "Вставьте или отредактируйте исходный JSON; он синхронизируется с полями выше",
     "configure": "Настроить",
     "configuring_provider": "Настроить {{provider}}",
-    "count_few": "{{count}} элемента",
-    "count_many": "{{count}} элементов",
     "count_one": "{{count}} элемент",
     "count_other": "{{count}} элемента",
     "current_config": "Текущий",
@@ -2311,15 +2295,11 @@
     "add_success": "Успешно добавлено",
     "advanced_settings": "Дополнительные настройки",
     "agent": "Агент",
-    "agent_few": "Агента",
-    "agent_many": "Агентов",
     "agent_one": "Агент",
     "agent_other": "Агента",
     "all": "Все",
     "and": "и",
     "assistant": "Ассистент",
-    "assistant_few": "Ассистента",
-    "assistant_many": "Ассистентов",
     "assistant_one": "Ассистент",
     "assistant_other": "Ассистента",
     "avatar": "Аватар",
@@ -3004,6 +2984,28 @@
       "title": "Импортировать диалоги ChatGPT",
       "untitled_conversation": "Безымянный разговор"
     },
+    "claude": {
+      "assistant_name": "Импорт Claude",
+      "button": "Выбрать файл",
+      "description": "Импортирует текст, рассуждения и использование инструментов; изображения и вложения не включены",
+      "error": {
+        "invalid_json": "Неверный формат файла JSON",
+        "no_conversations": "В файле не найдено бесед",
+        "no_valid_conversations": "Нет допустимых бесед для импорта",
+        "unknown": "Импорт не удался, проверьте формат файла"
+      },
+      "help": {
+        "step1": "1. Войдите в Claude, перейдите в Настройки > Конфиденциальность > Экспорт данных",
+        "step2": "2. Дождитесь получения файла экспорта по электронной почте",
+        "step3": "3. Извлеките загруженный файл и найдите conversations.json",
+        "title": "Как экспортировать разговоры с Claude?"
+      },
+      "importing": "Импортирование разговоров...",
+      "selecting": "Выбор файла...",
+      "success": "Успешно импортировано {{topics}} бесед с {{messages}} сообщениями",
+      "title": "Импорт бесед Claude",
+      "untitled_conversation": "Безымянный разговор"
+    },
     "confirm": {
       "button": "Выберите файл для импорта",
       "label": "Вы уверены, что хотите импортировать внешние данные?"
@@ -3042,10 +3044,20 @@
           "selected_notes": "{{count}} заметок выбрано"
         },
         "note": {
+          "create": {
+            "content_label": "Содержание",
+            "content_placeholder": "Напишите здесь содержание заметки…",
+            "title_label": "Название",
+            "title_placeholder": "Назовите эту заметку"
+          },
           "description": "Выберите существующие заметки в качестве источников базы знаний",
           "empty_description": "Создайте заметки в разделе «Заметки», затем вернитесь сюда и выберите их.",
           "empty_title": "Заметки ещё не связаны",
-          "loading": "Загрузка заметок…"
+          "loading": "Загрузка заметок…",
+          "mode": {
+            "create": "Новая заметка",
+            "import": "Импортные примечания"
+          }
         },
         "placeholder": {
           "supported_formats": "Поддерживает PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3256,8 +3268,6 @@
       "action": "Пересобрать базу знаний",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Не удалось восстановить базу знаний",
-      "skipped_missing_sources_few": "Пропущено {{count}} элемента, источники которых больше не существуют",
-      "skipped_missing_sources_many": "Пропущено {{count}} элементов, источники которых больше не существуют",
       "skipped_missing_sources_one": "Пропущен {{count}} элемент, источник которого больше не существует",
       "skipped_missing_sources_other": "Пропущено {{count}} элемента, источники которых больше не существуют",
       "submit": "Перестроить",
@@ -3306,6 +3316,7 @@
   },
   "launchpad": {
     "apps": "Приложения",
+    "manage_sidebar": "Управление боковой панелью",
     "minapps": "Мини-приложения",
     "miniApps": "Приложения",
     "pin_to_sidebar": "Закрепить на боковой панели",
@@ -3376,11 +3387,6 @@
           },
           "heartbeat_interval": {
             "label": "Интервал между ударами сердца (минуты)"
-          },
-          "instructions": {
-            "hint": "Определяет роль агента и границы его поведения",
-            "label": "Системный промпт",
-            "placeholder": "Сообщите агенту, кто он и что умеет делать…"
           },
           "max_turns": {
             "help": "0 означает использовать значение по умолчанию",
@@ -3576,8 +3582,7 @@
           "step": {
             "basic": "Основная информация",
             "capability": "Навыки",
-            "knowledge": "Знание",
-            "persona": "Персона"
+            "knowledge": "Знание"
           },
           "submit": "Создать",
           "submit_failed": "Создание не удалось"
@@ -4240,6 +4245,8 @@
         "taskOutput": "Просмотреть вывод задачи",
         "taskStop": "Остановить задачу",
         "taskUpdate": "Обновить задачу",
+        "toMarkdown": "Конвертировать документ",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Написать",
         "tool": "Инструмент",
         "webFetch": "Веб-запрос",
@@ -4290,28 +4297,18 @@
       "thinkingHeader": "Мышление",
       "truncated": "Вывод усечён (оригинал: {{size}})",
       "units": {
-        "done_few": "Готово: {{count}}",
-        "done_many": "Готово: {{count}}",
+        "char_one": "{{count}} симв",
+        "char_other": "{{count}} символов",
         "done_one": "Готово: {{count}}",
         "done_other": "Готово: {{count}}",
-        "file_few": "{{count}} файла",
-        "file_many": "{{count}} файлов",
         "file_one": "{{count}} файл",
         "file_other": "{{count}} файла",
-        "item_few": "{{count}} элемента",
-        "item_many": "{{count}} элементов",
         "item_one": "{{count}} элемент",
         "item_other": "{{count}} элемента",
-        "line_few": "{{count}} строки",
-        "line_many": "{{count}} строк",
         "line_one": "{{count}} строка",
         "line_other": "{{count}} строки",
-        "plan_few": "{{count}} плана",
-        "plan_many": "{{count}} планов",
         "plan_one": "{{count}} план",
         "plan_other": "{{count}} плана",
-        "result_few": "{{count}} результата",
-        "result_many": "{{count}} результатов",
         "result_one": "{{count}} результат",
         "result_other": "{{count}} результата"
       },
@@ -5187,14 +5184,10 @@
     "search_placeholder": "Поиск плагинов...",
     "search_placeholder_skills": "Навыки поиска...",
     "showing_results": "Показано плагинов: {{count}}",
-    "showing_results_few": "Показано {{count}} плагина",
-    "showing_results_many": "Показано {{count}} плагинов",
     "showing_results_one": "Показан {{count}} плагин",
     "showing_results_other": "Показано {{count}} плагина",
     "showing_results_plural": "Отображение {{count}} плагинов",
     "showing_results_skills": "Показано навыков: {{count}}",
-    "showing_results_skills_few": "Показано {{count}} навыка",
-    "showing_results_skills_many": "Показано {{count}} навыков",
     "showing_results_skills_one": "Показан {{count}} навык",
     "showing_results_skills_other": "Показано {{count}} навыка",
     "showing_results_skills_plural": "Показано {{count}} навыков",
@@ -5917,8 +5910,6 @@
             "title": "Журналы приложения"
           },
           "summary": "{{count}} файлов, около {{size}}",
-          "summary_few": "{{count}} файла, около {{size}}",
-          "summary_many": "{{count}} файлов, около {{size}}",
           "summary_one": "{{count}} файл, около {{size}}",
           "summary_other": "{{count}} файла, около {{size}}",
           "system": {
@@ -6052,11 +6043,41 @@
         "skip_file_data_title": "Упрощенная резервная копия"
       },
       "clear_cache": {
+        "approximately": "Примерно {{size}}",
         "button": "Очистка кэша",
-        "confirm": "Очистка кэша удалит данные приложения. Это действие необратимо, продолжить?",
+        "calculating": "Вычисление…",
         "error": "Ошибка при очистке кэша",
+        "legacy_warning": {
+          "confirm": "Всё равно выбрать",
+          "description": "После завершения очистки данные v1, включённые в этот пункт, будут удалены навсегда. Без резервной копии восстановить их будет невозможно.",
+          "message": "Данные v1 будут удалены навсегда",
+          "title": "Выбрать оставшиеся данные v1?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Оставшиеся данные v1, включая старую историю диалогов и настройки. После удаления восстановить их нельзя.",
+            "title": "Оставшиеся данные v1"
+          },
+          "normal_cache": {
+            "description": "Удаляет кэш и временные файлы, созданные при использовании приложения, чтобы освободить место. История чатов и настройки не удаляются.",
+            "title": "Кэш приложения"
+          },
+          "orphaned_data": {
+            "description": "Удаляет неиспользуемые файлы, оставшиеся базы знаний и временные файлы восстановления.",
+            "title": "Оставшиеся файлы и базы знаний"
+          },
+          "site_data": {
+            "description": "Файлы cookie и хранилища сайтов, используемые сайтами и мини-приложениями. Возможно, потребуется снова войти на сайты.",
+            "title": "Данные сайтов и мини-приложений"
+          }
+        },
+        "partial_success": "Очистка завершена, но некоторые элементы удалить не удалось",
+        "selected_total": "Всего выбрано",
         "success": "Кэш очищен",
-        "title": "Очистка кэша"
+        "title": "Очистка кэша",
+        "total_partial": "Учтено {{size}}; размер некоторых данных неизвестен",
+        "unavailable": "Не удалось вычислить",
+        "waiting_for_legacy_database": "Ожидание освобождения старой базы данных. Закройте другие окна Cherry Studio; очистка продолжится после закрытия их подключений."
       },
       "data": {
         "title": "Каталог данных"
@@ -6094,13 +6115,12 @@
         "title": "Настройки меню экспорта",
         "yuque": "Экспорт в Yuque"
       },
-      "hour_interval_few": "{{count}} часа",
-      "hour_interval_many": "{{count}} часов",
       "hour_interval_one": "{{count}} час",
       "hour_interval_other": "{{count}} часа",
       "import_settings": {
         "button": "Импортировать файл JSON",
         "chatgpt": "Импорт из ChatGPT",
+        "claude": "Импорт из Claude",
         "title": "Импорт внешних данных приложения"
       },
       "joplin": {
@@ -6185,8 +6205,6 @@
           "select_error_write_permission": "Новый путь не имеет разрешения на запись",
           "select_title": "Выберите каталог для резервных копий"
         },
-        "hour_interval_few": "{{count}} часа",
-        "hour_interval_many": "{{count}} часов",
         "hour_interval_one": "{{count}} час",
         "hour_interval_other": "{{count}} часа",
         "lastSync": "Последнее копирование",
@@ -6194,8 +6212,6 @@
           "label": "Максимальное количество резервных копий",
           "unlimited": "Без ограничений"
         },
-        "minute_interval_few": "{{count}} минуты",
-        "minute_interval_many": "{{count}} минут",
         "minute_interval_one": "{{count}} минута",
         "minute_interval_other": "{{count}} минуты",
         "noSync": "Ожидание следующего копирования",
@@ -6243,8 +6259,6 @@
           "title": "Использование быстрой модели для наименования заголовков экспортированных сообщений"
         }
       },
-      "minute_interval_few": "{{count}} минуты",
-      "minute_interval_many": "{{count}} минут",
       "minute_interval_one": "{{count}} минута",
       "minute_interval_other": "{{count}} минуты",
       "notion": {
@@ -6478,6 +6492,23 @@
         "token_placeholder": "Введите токен SiYuan Note"
       },
       "title": "Настройки данных",
+      "v1_remigration": {
+        "acknowledgement": "Я понимаю риск и хочу продолжить.",
+        "back": "Назад",
+        "backup_acknowledgement": "Резервная копия данных создана",
+        "backup_button": "Создать полную резервную копию",
+        "backup_message": "Перед продолжением создайте резервную копию всех текущих данных. При продолжении текущие данные v2 будут удалены без возможности восстановления.",
+        "button": "Повторить миграцию",
+        "confirm": "Повторить миграцию",
+        "confirm_countdown": "Повторить миграцию ({{seconds}} с)",
+        "dialog_title": "Повторная миграция данных v1",
+        "error": "Не удалось повторно запустить миграцию данных v1",
+        "final_confirmation": "Подтвердите удаление текущих данных v2 и повторную миграцию данных v1.",
+        "final_message": "Текущие данные v2 будут удалены без возможности восстановления.",
+        "final_retained": "Исходные данные v1 будут сохранены и повторно импортированы после перезапуска.",
+        "next": "Далее",
+        "title": "Повторная миграция данных v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Автоматическое резервное копирование",
@@ -6537,14 +6568,10 @@
           "label": "Хост WebDAV",
           "placeholder": "http://localhost:8080"
         },
-        "hour_interval_few": "{{count}} часа",
-        "hour_interval_many": "{{count}} часов",
         "hour_interval_one": "{{count}} час",
         "hour_interval_other": "{{count}} часа",
         "lastSync": "Последняя синхронизация",
         "maxBackups": "Максимальное количество резервных копий",
-        "minute_interval_few": "{{count}} минуты",
-        "minute_interval_many": "{{count}} минут",
         "minute_interval_one": "{{count}} минута",
         "minute_interval_other": "{{count}} минуты",
         "noSync": "Ожидание следующего резервного копирования",
@@ -6649,6 +6676,7 @@
         "notice": {
           "downloadFailed": "Не удалось загрузить. Проверьте подключение и попробуйте снова.",
           "inUse": "Всё ещё используется базой знаний; веса были сохранены.",
+          "incompleteCache": "Файлы модели неполные. Повторите загрузку, чтобы исправить их.",
           "removeFailed": "Не удалось удалить. Проверьте журналы для получения подробностей."
         },
         "ocr": {
@@ -8455,8 +8483,6 @@
         "shareLabel": "Поделиться",
         "title": "Исследовать",
         "top": "Верхний",
-        "totalEntries_few": "{{count}} записи",
-        "totalEntries_many": "{{count}} записей",
         "totalEntries_one": "{{count}} запись",
         "totalEntries_other": "{{count}} записи"
       },
@@ -8498,8 +8524,6 @@
       "title": "Аналитика использования",
       "tooltip": {
         "cost": "Стоимость {{value}}",
-        "requests_few": "{{count}} запроса",
-        "requests_many": "{{count}} запросов",
         "requests_one": "{{count}} запрос",
         "requests_other": "{{count}} запроса",
         "tokens": "{{value}} токенов"

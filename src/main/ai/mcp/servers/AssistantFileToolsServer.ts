@@ -1,7 +1,5 @@
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
-import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
-import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
+import { listAgentSessionAttachments } from '@main/ai/messages/agentSessionAttachments'
 import {
   READ_FILE_DESCRIPTION,
   readFile,
@@ -24,8 +22,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { READ_FILE_TOOL_NAME, readFileInputSchema } from '@shared/ai/builtinTools'
-import { AGENT_SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/agentSessionMessages'
-import type { CherryUIMessage } from '@shared/data/types/message'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('McpServer:AssistantFileTools')
@@ -39,25 +35,6 @@ interface AssistantFileToolHandler {
   description: string
   inputSchema: z.ZodType
   run: (args: unknown, signal: AbortSignal) => Promise<unknown>
-}
-
-function listSessionAttachments(sessionId: string): FileAttachmentRef[] {
-  const messages: CherryUIMessage[] = []
-  let cursor: string | undefined
-
-  do {
-    const page = agentSessionMessageService.listSessionMessages(sessionId, {
-      cursor,
-      limit: AGENT_SESSION_MESSAGES_MAX_LIMIT
-    })
-    for (const message of page.items) {
-      if (message.role !== 'user') continue
-      messages.push({ id: message.id, role: 'user', parts: message.data.parts } as CherryUIMessage)
-    }
-    cursor = page.nextCursor
-  } while (cursor)
-
-  return collectAssistantFileAttachments(messages.reverse())
 }
 
 function toTool(name: string, handler: AssistantFileToolHandler): Tool {
@@ -77,7 +54,7 @@ export class AssistantFileToolsServer {
         inputSchema: readFileInputSchema,
         run: async (args, signal) => {
           const input = readFileInputSchema.parse(args)
-          const result = await readFile(input, { attachments: listSessionAttachments(context.sessionId) }, signal)
+          const result = await readFile(input, { attachments: listAgentSessionAttachments(context.sessionId) }, signal)
           const output = readFileModelOutput(result)
           if (output.type !== 'text') throw new Error('read_file returned an unexpected output type')
           return output.value
@@ -90,7 +67,7 @@ export class AssistantFileToolsServer {
           saveAttachmentToWorkspace(
             context.workspacePath,
             saveAttachmentInputSchema.parse(args),
-            listSessionAttachments(context.sessionId),
+            listAgentSessionAttachments(context.sessionId),
             signal
           )
       },
