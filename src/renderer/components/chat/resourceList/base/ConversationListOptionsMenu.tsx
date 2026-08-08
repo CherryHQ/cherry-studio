@@ -69,7 +69,7 @@ export function ConversationListOptionsMenu<TMode extends string>({
           <ListFilter className="block" />
         </ResourceList.HeaderActionButton>
       </PopoverTrigger>
-      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-fit min-w-32 rounded-xl p-1.5">
+      <PopoverContent align="end" side="bottom" sideOffset={4} className="w-44 p-1">
         <MenuList>
           <div className="px-2.5 py-1 font-normal text-muted-foreground text-xs">{title}</div>
           {options.map((option) => (
