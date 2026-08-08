@@ -234,6 +234,28 @@ describe('MergeEngine cross-machine agent_workspace.path rebase (t2)', () => {
     expect(row.path).toBe(join(hostSystemWorkspacesRoot, '2026-03-09', 'sess-b'))
   })
 
+  it('preserves the full Agents tail for a malformed system path lacking /system/', async () => {
+    // A system ws whose path was authored without the /system/ segment (legacy/external source)
+    // must still rebase faithfully: the full tail after /Agents/ ({date}/{sessionId}) is kept so
+    // the host tree layout matches buildSystemWorkspacePath, and two sibling sessions do NOT
+    // collapse onto the same UNIQUE(path) via a bare basename fallback.
+    seedBackup((db) => {
+      insertWorkspace(db, 'ws-malformed', '/home/src/Data/Agents/2026-01-01/sess-a', {
+        type: 'system',
+        name: 'sess-a'
+      })
+    })
+
+    await runMerge(wsCtx())
+
+    expect(countWorkspaces()).toBe(1)
+    const row = dbh.sqlite.prepare(`SELECT path FROM agent_workspace WHERE id = 'ws-malformed'`).get() as {
+      path: string
+    }
+    // date+sessionId preserved (not reduced to bare 'sess-a' basename).
+    expect(row.path).toBe(join(hostSystemWorkspacesRoot, '2026-01-01', 'sess-a'))
+  })
+
   it('disambiguates two user workspaces sharing a basename (no UNIQUE(path) abort)', async () => {
     // Two backup user workspaces whose final path segment coincides (common — users name dirs
     // 'proj' / 'workspace'). Both absent locally → both rebase to {root}/proj. agent_workspace.path

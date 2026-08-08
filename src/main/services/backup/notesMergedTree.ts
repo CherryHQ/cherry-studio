@@ -20,7 +20,7 @@
 //
 // Synchronous: planResources runs inline (no await) so the plan + journal are written in one
 // synchronous block before the merge write tx opens.
-import { copyFileSync, type Dirent, mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { copyFileSync, type Dirent, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { computeNotesTreeHashSync } from '@data/db/restore/notesTreeHash'
@@ -73,6 +73,14 @@ export function buildMergedNotesTreeSync(
     const backupPath = join(backupTreeDir, relPath)
     const mergedPath = join(mergedDir, relPath)
     if (!isFileSync(backupPath)) continue
+    if (isDirectorySync(mergedPath)) {
+      // Type clash: the live tree has a DIRECTORY at this relPath (e.g. a folder literally named
+      // 'foo.md') while the backup declares a .md FILE here. copyFileSync onto a directory throws
+      // EISDIR and aborts the whole restore with a misleading generic error. Treat it as a
+      // local-first conflict (keep the live dir, drop the backup note) and disclose it instead.
+      conflicts.push({ relPath, reason: 'same_path_different_content' })
+      continue
+    }
     if (isFileSync(mergedPath)) {
       // Conflict: an existing file already occupies this relPath. Keep local, drop backup only
       // when the content differs. (A non-.md local file at a .md backup path stays as-is.)
@@ -137,11 +145,14 @@ function isFileSync(p: string): boolean {
   }
 }
 
-function sameContentSync(a: string, b: string): boolean {
-  return readFileSync(a).equals(readFileSync(b))
+function isDirectorySync(p: string): boolean {
+  try {
+    return statSync(p).isDirectory()
+  } catch {
+    return false
+  }
 }
 
-/** Remove a merged tree built by buildMergedNotesTreeSync (cleanup on failure / retry). */
-export function removeMergedNotesTree(mergedDir: string): void {
-  rmSync(mergedDir, { recursive: true, force: true })
+function sameContentSync(a: string, b: string): boolean {
+  return readFileSync(a).equals(readFileSync(b))
 }

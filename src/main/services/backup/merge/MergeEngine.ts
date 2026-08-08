@@ -730,9 +730,18 @@ export class MergeEngine {
           return { path: posix.join(hostRoot, tail), rebased: false }
         }
       }
-      // Malformed system path (no /system/ segment) — fall back to basename as sessionId.
-      const base = posix.basename(normalized)
-      return { path: posix.join(hostRoot, base), rebased: false }
+      // Malformed system path (no /system/ segment) — preserve the full tail after the
+      // managed /Agents/ root so the date+sessionId bucketing survives (basename alone drops
+      // the date dir and lets two sibling sessions collide on UNIQUE(path)). Falling back to
+      // the whole trailing path keeps the rebase faithful to buildSystemWorkspacePath's
+      // {date}/{sessionId} shape without relying on the /system/ marker.
+      const agentsMarker = '/Agents/'
+      const agentsIdx = normalized.lastIndexOf(agentsMarker)
+      const tail = agentsIdx >= 0 ? normalized.slice(agentsIdx + agentsMarker.length) : posix.basename(normalized)
+      if (tail && !tail.startsWith('../')) {
+        return { path: posix.join(hostRoot, tail), rebased: false }
+      }
+      return { path: posix.join(hostRoot, posix.basename(normalized)), rebased: false }
     }
     // user workspace: the custom dir isn't carried by the archive. Rebase to a placeholder
     // ONLY when no local workspace already has this path — a same-machine restore keeps the
@@ -2502,7 +2511,13 @@ export class MergeEngine {
           notnull: number
         }[]
         const nullableCols = fkColumns.filter((c) => colNullability.find((t) => t.name === c)?.notnull === 0)
-        const setNullPolicy = onDelete === 'SET NULL' || onDelete === 'SET DEFAULT'
+        // SET DEFAULT is deliberately NOT treated as SET NULL: SQLite would assign the column's
+        // DEFAULT clause value, not NULL, and nullifying it silently violates the FK's declared
+        // repair semantics (blueprint §429 "set default → reject", finalize #19). finalize #19
+        // already rejects any contributor declaring a SET DEFAULT FK, so this branch is a latent
+        // safety net — a future migration adding one falls through to the no-action path (prune /
+        // partial-NULL) rather than mis-nullifying. Only SET NULL clears columns to NULL.
+        const setNullPolicy = onDelete === 'SET NULL'
         let setCols: string[] | null = null
         if (setNullPolicy) {
           setCols = nullableCols.length > 0 ? nullableCols : null

@@ -88,23 +88,25 @@ describe('buildMergedNotesTree (t5 dir-swap producer)', () => {
     expect(result.conflicts).toEqual([])
   })
 
-  it('preserves non-.md co-located files in the live tree (whole-tree copy, not .md-only)', async () => {
-    // The Notes root may be an arbitrary user folder co-locating non-markdown attachments
-    // (blueprint §3.6 :419). The merged tree must carry EVERY live file so the atomic dir
-    // swap does not silently delete them — the backup only carries .md bodies.
-    await write(liveRoot, 'note.md', '# note')
-    await write(liveRoot, 'images/diagram.png', 'PNG-BYTES')
-    await write(liveRoot, 'attachments/spec.pdf', 'PDF-BYTES')
-    await write(liveRoot, 'canvas/whiteboard.canvas', '{"nodes":[]}')
-    await write(backupTree, 'backup-note.md', '# backup')
-    await buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['backup-note.md'])
+  it('treats a live directory squatting a backup .md path as a local-first conflict (no EISDIR)', async () => {
+    // The live tree has a DIRECTORY at relPath 'foo.md' (non-empty, so copyLiveTreeSync recreates
+    // it in the merged tree) while the backup declares 'foo.md' as a FILE. copyFileSync onto a
+    // directory throws EISDIR and would abort the whole restore with a misleading generic error.
+    // The merge must keep the live dir, drop the backup note, disclose the type clash (same
+    // local-first contract as a content conflict).
+    await write(liveRoot, 'foo.md/inside.md', '# inside')
+    await write(backupTree, 'foo.md', '# backup file')
+    await write(backupTree, 'other.md', '# ok')
+    const result = buildMergedNotesTreeSync(backupTree, liveRoot, mergedDir, ['foo.md', 'other.md'])
 
-    // .md updated/added.
-    expect(await readFile(join(mergedDir, 'note.md'), 'utf8')).toBe('# note')
-    expect(await readFile(join(mergedDir, 'backup-note.md'), 'utf8')).toBe('# backup')
-    // Non-.md local files preserved verbatim (not dropped by a .md-only copy).
-    expect(await readFile(join(mergedDir, 'images/diagram.png'), 'utf8')).toBe('PNG-BYTES')
-    expect(await readFile(join(mergedDir, 'attachments/spec.pdf'), 'utf8')).toBe('PDF-BYTES')
-    expect(await readFile(join(mergedDir, 'canvas/whiteboard.canvas'), 'utf8')).toBe('{"nodes":[]}')
+    // The live directory survives (its contents were copied); the backup .md file was NOT copied
+    // over it (which would have thrown EISDIR).
+    const stat = await import('node:fs/promises').then((m) => m.stat(join(mergedDir, 'foo.md')))
+    expect(stat.isDirectory()).toBe(true)
+    expect(await readFile(join(mergedDir, 'foo.md/inside.md'), 'utf8')).toBe('# inside')
+    // The backup note at the clashing path was dropped (disclosed), not copied over the dir.
+    expect(result.conflicts).toEqual([{ relPath: 'foo.md', reason: 'same_path_different_content' }])
+    // The non-clashing backup note is still added.
+    expect(await readFile(join(mergedDir, 'other.md'), 'utf8')).toBe('# ok')
   })
 })
