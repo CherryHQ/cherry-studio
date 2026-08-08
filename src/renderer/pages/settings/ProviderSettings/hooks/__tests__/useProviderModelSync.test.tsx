@@ -8,6 +8,7 @@ const dataApiGetMock = vi.fn()
 const useModelsMock = vi.fn()
 const useProviderMock = vi.fn()
 const createModelsMock = vi.fn()
+const updateModelsMock = vi.fn()
 const fetchResolvedProviderModelsMock = vi.fn()
 const resolveCreateModelEndpointTypesMock = vi.fn()
 
@@ -21,7 +22,9 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
     createModels: createModelsMock,
-    isCreating: false
+    updateModels: updateModelsMock,
+    isCreating: false,
+    isBulkUpdating: false
   })
 }))
 
@@ -46,6 +49,7 @@ describe('useProviderModelSync', () => {
     useModelsMock.mockReturnValue({ models: [] })
     useProviderMock.mockReturnValue({ provider: { id: 'openai' } })
     createModelsMock.mockResolvedValue([])
+    updateModelsMock.mockResolvedValue([])
     dataApiGetMock.mockResolvedValue([])
     resolveCreateModelEndpointTypesMock.mockReturnValue(undefined)
   })
@@ -85,6 +89,60 @@ describe('useProviderModelSync', () => {
       query: { providerId: 'zhipu' }
     })
     expect(fetchResolvedProviderModelsMock).not.toHaveBeenCalled()
+    expect(createModelsMock).not.toHaveBeenCalled()
+  })
+
+  it('updates only provider-declared reasoning metadata for existing Ollama models', async () => {
+    const reasoning = {
+      controls: [{ kind: 'toggle' as const }],
+      selectableEfforts: ['none' as const, 'auto' as const]
+    }
+    const existingModels = [
+      {
+        id: 'ollama::acme-thinker:latest',
+        providerId: 'ollama',
+        apiModelId: 'acme-thinker:latest',
+        presetModelId: null,
+        name: 'Acme Thinker',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+    ] as any
+    fetchResolvedProviderModelsMock.mockResolvedValueOnce([
+      {
+        ...existingModels[0],
+        capabilities: ['reasoning'],
+        reasoning,
+        providerDeclaredReasoning: reasoning
+      }
+    ])
+    updateModelsMock.mockResolvedValueOnce([
+      {
+        ...existingModels[0],
+        capabilities: ['reasoning'],
+        reasoning
+      }
+    ])
+    useProviderMock.mockReturnValue({ provider: { id: 'ollama', defaultChatEndpoint: 'ollama-chat' } })
+
+    const { result } = renderHook(() => useProviderModelSync('ollama', { existingModels }))
+
+    await act(async () => {
+      await result.current.syncProviderModels()
+    })
+
+    expect(fetchResolvedProviderModelsMock).toHaveBeenCalledWith('ollama')
+    expect(updateModelsMock).toHaveBeenCalledWith([
+      {
+        uniqueModelId: 'ollama::acme-thinker:latest',
+        patch: {
+          capabilities: ['reasoning'],
+          reasoning
+        }
+      }
+    ])
     expect(createModelsMock).not.toHaveBeenCalled()
   })
 

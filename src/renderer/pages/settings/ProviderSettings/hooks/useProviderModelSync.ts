@@ -3,7 +3,9 @@ import { loggerService } from '@logger'
 import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { MODELS_BATCH_MAX_ITEMS } from '@shared/data/api/schemas/models'
-import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
+import { isOllamaProvider } from '@shared/utils/provider'
+import { isEqual } from 'es-toolkit/compat'
 import { useCallback } from 'react'
 
 import { chunkArray } from '../utils/chunkArray'
@@ -26,7 +28,7 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
   )
   const models = options.existingModels ?? fallbackModelsQuery.models
   const { provider } = useProvider(providerId)
-  const { createModels, isCreating } = useModelMutations()
+  const { createModels, updateModels, isCreating, isBulkUpdating } = useModelMutations()
 
   const syncProviderModels = useCallback(
     async (endpointProvider = provider) => {
@@ -45,7 +47,8 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
               query: { providerId }
             })
 
-      if (latestModels.length > 0) {
+      const shouldRefreshReasoning = endpointProvider ? isOllamaProvider(endpointProvider) : false
+      if (latestModels.length > 0 && !shouldRefreshReasoning) {
         logger.info('Skipping provider model creation because models already exist', {
           providerId,
           modelCount: latestModels.length
@@ -61,13 +64,43 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
         logger.info('No remote provider models were resolved for sync', {
           providerId
         })
-        return []
+        return latestModels
       }
 
       logger.info('Resolved remote provider models for sync', {
         providerId,
         resolvedModelCount: resolvedModels.length
       })
+
+      if (latestModels.length > 0) {
+        const localById = new Map(latestModels.map((model) => [model.id, model]))
+        const reasoningUpdates = resolvedModels.flatMap((model) => {
+          const local = localById.get(model.id)
+          const reasoning = model.providerDeclaredReasoning
+          if (!local || !reasoning) {
+            return []
+          }
+
+          const patch = {
+            ...(!isEqual(local.reasoning, reasoning) ? { reasoning } : {}),
+            ...(!local.presetModelId && !local.capabilities.includes(MODEL_CAPABILITY.REASONING)
+              ? { capabilities: [...local.capabilities, MODEL_CAPABILITY.REASONING] }
+              : {})
+          }
+          return Object.keys(patch).length > 0 ? [{ uniqueModelId: local.id, patch }] : []
+        })
+        if (reasoningUpdates.length === 0) {
+          return latestModels
+        }
+
+        const updatedModels = await updateModels(reasoningUpdates)
+        const updatedById = new Map(updatedModels.map((model) => [model.id, model]))
+        logger.info('Updated provider-declared reasoning for existing models', {
+          providerId,
+          updatedModelCount: updatedModels.length
+        })
+        return latestModels.map((model) => updatedById.get(model.id) ?? model)
+      }
 
       const existingModelIds = new Set<UniqueModelId>(latestModels.map((model) => model.id))
       const payload = resolvedModels
@@ -103,11 +136,11 @@ export function useProviderModelSync(providerId: string, options: UseProviderMod
 
       return [...latestModels, ...createdModels]
     },
-    [createModels, models, provider, providerId]
+    [createModels, models, provider, providerId, updateModels]
   )
 
   return {
     syncProviderModels,
-    isSyncingModels: isCreating
+    isSyncingModels: isCreating || isBulkUpdating
   }
 }

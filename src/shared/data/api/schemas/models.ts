@@ -15,6 +15,7 @@ import {
   MODEL_CAPABILITY,
   objectValues,
   ParameterSupportDbSchema,
+  ReasoningConfigSchema,
   RuntimeModelPricingSchema,
   type UniqueModelId,
   UniqueModelIdSchema
@@ -63,6 +64,8 @@ export const CreateModelSchema = z.strictObject({
   supportsStreaming: z.boolean().optional(),
   /** Parameter support (DB form) */
   parameterSupport: ParameterSupportDbSchema.optional(),
+  /** Provider-declared intrinsic reasoning metadata */
+  reasoning: ReasoningConfigSchema.optional(),
   /** Pricing configuration */
   pricing: RuntimeModelPricingSchema.optional()
 })

@@ -146,6 +146,7 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'endpointTypes',
       'parameterSupport',
       'supportsStreaming',
+      'reasoning',
       'contextWindow',
       'maxInputTokens',
       'maxOutputTokens',
@@ -1565,6 +1566,48 @@ describe('ModelService — reasoning descriptor enrichment', () => {
       .from(userModelTable)
       .where(and(eq(userModelTable.providerId, 'ollama'), eq(userModelTable.modelId, 'acme-thinker:latest')))
     expect(row.reasoning).toMatchObject({ controls: [{ kind: 'toggle' }] })
+  })
+
+  it('persists provider-declared Ollama reasoning over a matching registry preset', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('ollama', 'Ollama'))
+    const nativeReasoning = {
+      controls: [{ kind: 'toggle' as const }],
+      selectableEfforts: ['none' as const, 'auto' as const]
+    }
+    const registryData = {
+      presetModel: {
+        id: 'qwen3-32b',
+        name: 'Qwen3 32B',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        reasoning: {
+          controls: [{ kind: 'budget' as const, min: 1024, max: 38_912 }, { kind: 'toggle' as const }]
+        }
+      } as any,
+      registryOverride: null,
+      reasoningProfile: OLLAMA_REASONING_PROFILE
+    }
+    lookupModelMock.mockReturnValue(registryData)
+
+    const [created] = modelService.create([
+      {
+        dto: {
+          providerId: 'ollama',
+          modelId: 'qwen3:32b',
+          reasoning: nativeReasoning
+        },
+        registryData
+      }
+    ])
+
+    expect(created.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING])
+    expect(created.reasoning).toEqual(nativeReasoning)
+
+    const [row] = await dbh.db
+      .select()
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, 'ollama'), eq(userModelTable.modelId, 'qwen3:32b')))
+    expect(row.capabilities).toBeNull()
+    expect(row.reasoning).toEqual(nativeReasoning)
   })
 })
 

@@ -69,6 +69,51 @@ describe('fetchResolvedProviderModels', () => {
     })
   })
 
+  it('keeps provider-declared Ollama reasoning while enriching other registry metadata', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'ollama::qwen3:32b',
+        providerId: 'ollama',
+        apiModelId: 'qwen3:32b',
+        name: 'qwen3:32b',
+        capabilities: [MODEL_CAPABILITY.REASONING],
+        reasoning: {
+          controls: [{ kind: 'toggle' }],
+          selectableEfforts: ['none', 'auto']
+        }
+      }
+    ])
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'ollama::qwen3:32b',
+        providerId: 'ollama',
+        apiModelId: 'qwen3:32b',
+        presetModelId: 'qwen3-32b',
+        name: 'Qwen3 32B',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        reasoning: {
+          controls: [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }],
+          selectableEfforts: ['none', 'low', 'medium', 'high']
+        }
+      }
+    ])
+
+    const [model] = await fetchResolvedProviderModels('ollama')
+
+    expect(model).toMatchObject({
+      presetModelId: 'qwen3-32b',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      },
+      providerDeclaredReasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      }
+    })
+  })
+
   it('uses the resolved friendly name when the provider only echoes the raw id', async () => {
     listModelsMock.mockResolvedValueOnce([
       {
@@ -234,11 +279,44 @@ describe('toCreateModelDto', () => {
         controls: [{ kind: 'toggle' }],
         selectableEfforts: ['none', 'auto']
       },
+      providerDeclaredReasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      },
       supportsStreaming: true,
       isEnabled: true,
       isHidden: false
     } as Model)
 
     expect(dto.capabilities).toEqual([MODEL_CAPABILITY.REASONING])
+    expect(dto.reasoning).toEqual({
+      controls: [{ kind: 'toggle' }],
+      selectableEfforts: ['none', 'auto']
+    })
+  })
+
+  it('keeps registry capabilities inherited for a preset-backed model with provider reasoning', () => {
+    const dto = toCreateModelDto('ollama', {
+      id: 'ollama::qwen3:32b' as UniqueModelId,
+      providerId: 'ollama',
+      apiModelId: 'qwen3:32b',
+      presetModelId: 'qwen3-32b',
+      name: 'Qwen3 32B',
+      capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
+      reasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      },
+      providerDeclaredReasoning: {
+        controls: [{ kind: 'toggle' }],
+        selectableEfforts: ['none', 'auto']
+      },
+      supportsStreaming: true,
+      isEnabled: true,
+      isHidden: false
+    } as Model)
+
+    expect(dto.capabilities).toBeUndefined()
+    expect(dto.reasoning?.controls).toEqual([{ kind: 'toggle' }])
   })
 })
