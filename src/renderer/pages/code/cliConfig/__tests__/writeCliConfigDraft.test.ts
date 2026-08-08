@@ -832,6 +832,24 @@ describe('writeCliConfigDraft', () => {
       const parsed = JSON.parse(opencodeWrite().content)
       expect(parsed.permission).toBe('ask')
     })
+
+    it('writes automatic compaction to the OpenCode config file', async () => {
+      mockGet({
+        '/providers/deepseek': () => openaiCompatProvider,
+        '/providers/deepseek/api-keys': () => ({ keys: [enabledKey] }),
+        '/models/': () => null
+      })
+
+      await writeCliConfigDraft({
+        cliTool: CodeCli.OPEN_CODE,
+        modelId: 'deepseek::deepseek-chat',
+        configBlob: { autoCompact: true }
+      })
+
+      const parsed = JSON.parse(opencodeWrite().content)
+      expect(parsed.compaction.auto).toBe(true)
+      expect(parsed).not.toHaveProperty('autoCompact')
+    })
   })
 
   describe('gemini-cli (~/.gemini/.env + settings.json)', () => {

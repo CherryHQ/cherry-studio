@@ -468,6 +468,10 @@ const openCodeAdapter: CliConfigAdapter = {
     if (!existing) return []
     const next: Record<string, any> = { ...existing }
     for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
+    const compaction = { ...asRecord(next.compaction) }
+    delete compaction.auto
+    if (Object.keys(compaction).length > 0) next.compaction = compaction
+    else delete next.compaction
     // Only drop the top-level model when it points at a cherry-* provider (about to be
     // removed below — keeping it would leave a dangling reference); a user's own value
     // referencing their own provider stays.
@@ -497,7 +501,7 @@ const openCodeAdapter: CliConfigAdapter = {
   extractConfig(files) {
     const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
     const out: Record<string, any> = {}
-    if (config.autoCompact === true) out.autoCompact = true
+    if (asRecord(config.compaction).auto === true) out.autoCompact = true
     if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
     const providers = asRecord(config.provider)
     const providerKey = findCherryProviderKey(providers)
