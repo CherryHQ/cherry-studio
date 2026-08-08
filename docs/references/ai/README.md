@@ -20,6 +20,7 @@ plus the renderer-side transport that connects to them.
 | Document | What it covers |
 |---|---|
 | [Agent Loop](./agent-loop.md) | Main-process `Agent.stream()`: single-pass stream, hook composition, observer pattern, error/abort semantics |
+| [Agent Prompt Layers](./agent-prompt-layers.md) | Agent System Prompt, workspace `system.md`, `SOUL.md`, precedence, update boundary, and variable lifecycle |
 | [Params Pipeline](./params-pipeline.md) | `buildAgentParams` + `RequestFeature` model: how capabilities, plugins, tools, and provider-specific quirks are composed |
 | [Tool Registry](./tool-registry.md) | Built-in tools (knowledge / web search), MCP tools, meta-tools (`tool_search` / `tool_inspect` / `tool_invoke` / `tool_exec`), deferred exposition |
 | [Chat Attachments](./chat-attachments.md) | How attached files reach the model: native file parts when supported, capped extracted text otherwise, `read_file` for overflow paging |
@@ -39,9 +40,9 @@ plus the renderer-side transport that connects to them.
 
 > **Scope of the focused docs.** The reference documents in this folder map
 > the **chat / stream pipeline** (dispatch → stream manager → runtime →
-> tools → persistence → renderer transport). The `agents/`, `channels/`,
-> `skills/`, and `mcp/` subsystems are mapped in the tree below but do not
-> yet have dedicated deep-dive docs.
+> tools → persistence → renderer transport). The `channels/`, `skills/`, and
+> `mcp/` subsystems are mapped in the tree below but do not yet have dedicated
+> deep-dive docs.
 
 ```
 src/main/ai/

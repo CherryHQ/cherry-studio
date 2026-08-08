@@ -16,7 +16,7 @@
 
 ## 1. Problem
 
-Some business entities own file references through dedicated association tables (`chat_message_file_ref`, `painting_file_ref`). Those tables are FK-constrained on both sides: deleting a `file_entry` cascades and removes association rows, and deleting the owning business entity cascades and removes association rows.
+Some business entities own file references through dedicated association tables (`chat_message_file_ref`, `agent_session_message_file_ref`, `painting_file_ref`). Those tables are FK-constrained on both sides: deleting a `file_entry` cascades and removes association rows, and deleting the owning business entity cascades and removes association rows.
 
 The second path leaves permanent garbage today:
 
@@ -80,7 +80,7 @@ Files that follow an owning business object's lifecycle are `delete_when_unrefer
 
 **Type rule**: `cleanupPolicy` is **required** in the TS creation surfaces (`CreateFileEntryRowSchema`, `CreateInternalEntryParams` / `EnsureExternalEntryParams` IPC schemas) so every caller makes an explicit choice at compile time. The DB default `'manual'` exists only as the safe backstop for migration and raw-SQL paths — a forgotten assignment leaks (recoverable) instead of deleting (unrecoverable).
 
-**Materialization time = owning-object persistence time.** A `delete_when_unreferenced` entry is never materialized ahead of the business row that will reference it, so no draft ever holds an orphaned, unreferenced entry for the cleanup pass to reclaim. Chat obeys this via `buildFileParts`, which promotes composer attachments to `FileEntry`s at **send** time, when the message row and its `chat_message_file_ref` land together. Painting obeys it the same way: the composer holds lean attachments during the draft and materializes them at **generate** time (`usePaintingComposerInputFiles.materializeInputs`, invoked from `handleSendDraft`), when the painting row and its `painting_file_ref role='input'` are persisted. A never-generated draft persists no input entries at all; an input added to a persisted painting but not regenerated is not committed until the next generate (which keeps a painting's inputs consistent with its output).
+**Materialization time = owning-object persistence time.** A `delete_when_unreferenced` entry is never materialized ahead of the business row that will reference it, so no draft ever holds an orphaned, unreferenced entry for the cleanup pass to reclaim. Chat obeys this via `buildFileParts`, which promotes composer attachments to `FileEntry`s at **send** time, when the message row and its `chat_message_file_ref` land together. Agent sessions use the same send-time materialization and persist `agent_session_message_file_ref` with the user message. Painting obeys it the same way: the composer holds lean attachments during the draft and materializes them at **generate** time (`usePaintingComposerInputFiles.materializeInputs`, invoked from `handleSendDraft`), when the painting row and its `painting_file_ref role='input'` are persisted. A never-generated draft persists no input entries at all; an input added to a persisted painting but not regenerated is not committed until the next generate (which keeps a painting's inputs consistent with its output).
 
 _History_: an earlier design eagerly materialized painting inputs during the draft and protected them with a CacheService-backed **temp-session ref** held for the draft window. That hold — and the entire temp-session ref subsystem — was removed in favor of the delayed materialization above, which closes the draft-window gap at the root instead of patching it.
 
@@ -109,8 +109,9 @@ Reuses the anti-join skeleton of `FileEntryService.findManualUnreferenced`:
 SELECT id FROM file_entry
 WHERE cleanup_policy = 'delete_when_unreferenced'
   AND created_at < :now - :grace
-  AND NOT EXISTS (SELECT 1 FROM chat_message_file_ref    r WHERE r.file_entry_id = file_entry.id)
-  AND NOT EXISTS (SELECT 1 FROM painting_file_ref        r WHERE r.file_entry_id = file_entry.id)
+  AND NOT EXISTS (SELECT 1 FROM chat_message_file_ref          r WHERE r.file_entry_id = file_entry.id)
+  AND NOT EXISTS (SELECT 1 FROM agent_session_message_file_ref r WHERE r.file_entry_id = file_entry.id)
+  AND NOT EXISTS (SELECT 1 FROM painting_file_ref              r WHERE r.file_entry_id = file_entry.id)
   AND NOT EXISTS (SELECT 1 FROM job_file_ref             r WHERE r.file_entry_id = file_entry.id)
   AND NOT EXISTS (SELECT 1 FROM provider_logo_file_ref   r WHERE r.file_entry_id = file_entry.id)
   AND NOT EXISTS (SELECT 1 FROM mini_app_logo_file_ref   r WHERE r.file_entry_id = file_entry.id)
@@ -123,7 +124,7 @@ The `job_file_ref` clause is what keeps async image-generation job inputs alive:
 The window this protects is **within one process run**, not across a restart: image-generation jobs are `recovery: 'abandon'` (see `imageGenerationJobHandler`), so a non-terminal job is cancelled at startup rather than resumed. The ref still matters — a long poll easily outlives the 1h grace window and can overlap several interval passes — but nothing depends on it surviving to a later session.
 
 - `deleted_at` is **not** filtered: a trashed zero-ref auto entry is reclaimed too (the user already discarded it, and trash auto-expiry is deferred).
-- All **five** tables registered in `persistentFileRefTablesBySourceType` must appear — the two logo slots included, since §4.1 claims logo entries are protected by exactly these refs. Auditing coverage against a shortened example is how a reader concludes, wrongly, that logo entries are unprotected.
+- All **six** tables registered in `persistentFileRefTablesBySourceType` must appear — the two logo slots included, since §4.1 claims logo entries are protected by exactly these refs. Auditing coverage against a shortened example is how a reader concludes, wrongly, that logo entries are unprotected.
 - Each ref table carries a `file_entry_id` index that backs its `NOT EXISTS` probe: the collection tables through their unique `(file_entry_id, source_id, role)`, the two logo slots (which have no `role` column) through their own `*_entry_id_idx`. At desktop scale the query is single-digit ms. A partial index on `cleanup_policy = 'delete_when_unreferenced'` is the first cheap lever if it ever measures slow (§11).
 - The `NOT EXISTS` clauses MUST be generated from the `persistentFileRefTablesBySourceType` registry (`schemas/fileRelations.ts`), never hand-enumerated. A ref table missing from the anti-join makes its entire source's files look unreferenced — a catastrophe the fraction threshold (§5.3) cannot reliably catch (a source holding <50% of entries slips under it). Registry-driven generation plus a test asserting coverage of every registered table makes the omission structurally impossible.
 
@@ -199,7 +200,7 @@ A failed candidate is logged and simply retried on the next pass — no attempt 
 | New persistent ref races the delete | Serialized writes decide order. Ref insert commits first → step 3 sees it. Delete commits first → ref insert fails FK validation (same failure mode the business flow already has against explicit `permanentDelete`). |
 | Send pipeline: entry created, refs not yet written | Protected by the 1h `created_at` grace window; a crashed send's orphan is collected after the window. |
 | Policy upgraded to `manual` (ensureExternal reuse) between query and tx | Step 2 re-check skips; counted as `gonePinned`. |
-| Crash after row delete, before unlink | Blob becomes an FS orphan; `runFileSweep` reclaims it on the weekly floor in `FileManager.fileSweepTick` (the `File_RunSweep` IPC has no renderer caller). |
+| Crash after row delete, before unlink | Blob becomes an FS orphan; `runFileSweep` reclaims it on the weekly floor in `FileManager.fileSweepTick`, or earlier when the cache-cleanup UI runs the direct FS-only cleanup (the `File_RunSweep` IPC has no renderer caller). |
 | Unlink fails outright (EACCES / EBUSY / EIO) | Row is still deleted and `unlinkFailures` incremented — the row is the source of truth, and keeping it would retry the same failing unlink forever. Same FS-orphan fate as the row above. |
 | Staged restore pending when the pass fires | Gate closed (§5.5): outcome `'skipped'`, nothing examined. A restore's blobs are on disk but not yet referenced by the live DB — exactly what the pass would reclaim. |
 | Staged restore pending when the **FS sweep** fires | Same stand-aside (`aborted` / `pending-restore`), and it deliberately does **not** consume the weekly floor — see below. The next idle tick retries, so the previous session's crash orphans are collected as soon as the restore promotes rather than a week later. |

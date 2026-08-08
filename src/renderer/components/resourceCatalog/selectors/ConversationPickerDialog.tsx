@@ -256,8 +256,8 @@ export function ConversationPickerDialog<T extends ConversationPickerItem>({
                     </span>
                     {createRow.tag ? (
                       // The neutral strong fill, not a semantic intent colour: `--{success,info,…}` are
-                      // reserved for status feedback (DESIGN.md §Semantic Status), and this tag marks an
-                      // action, not a state. Neutral-first also keeps it loud without adding a hue.
+                      // reserved for status feedback, and this tag marks an action, not a state. Neutral-first
+                      // also keeps it loud without adding a hue.
                       <Badge className="shrink-0 border-0 bg-neutral-900 font-normal text-white dark:bg-neutral-100 dark:text-neutral-900">
                         {createRow.tag}
                       </Badge>

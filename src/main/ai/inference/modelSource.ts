@@ -9,6 +9,9 @@ import type { InferenceModelSource } from './inferenceProtocol'
  *     revision}` triple as env values and fetches the model itself.
  *   - the OCR download service builds explicit per-file URLs from the same table
  *     via {@link resolveModelFileUrl} and fetches the weights directly.
+ *
+ * Download-time only. Embedding inference never consults this table: it loads the
+ * cached model by absolute path, which is what keeps it off the network entirely.
  */
 export type ModelSourceId = 'huggingface' | 'modelscope'
 
@@ -25,6 +28,14 @@ const SOURCES: Record<ModelSourceId, InferenceModelSource> = {
   }
 }
 
+/**
+ * The exhaustive mirror set. LocalEmbeddingDownloadService's on-disk cache probe must cover
+ * it whole: each mirror's revision lands in its own cache layout, so a probe that skipped one
+ * would report a perfectly good download as incomplete — and, since that probe is also what
+ * hands inference its model directory, would leave a downloaded model unusable.
+ */
+export const ALL_MODEL_SOURCE_IDS = Object.keys(SOURCES) as readonly ModelSourceId[]
+
 export function getModelSource(id: ModelSourceId): InferenceModelSource {
   return SOURCES[id]
 }
@@ -39,8 +50,8 @@ export function defaultModelSourceId(inChina: boolean): ModelSourceId {
   return inChina ? 'modelscope' : 'huggingface'
 }
 
-/** Mirrors to try in order: the region default first, the other as fallback. */
-export function modelSourceOrder(inChina: boolean): ModelSourceId[] {
+/** A permutation of {@link ALL_MODEL_SOURCE_IDS}: the region default first, the other as fallback. */
+export function modelSourceOrder(inChina: boolean): [ModelSourceId, ...ModelSourceId[]] {
   return defaultModelSourceId(inChina) === 'modelscope' ? ['modelscope', 'huggingface'] : ['huggingface', 'modelscope']
 }
 
