@@ -949,7 +949,10 @@ async function buildToolPermissions(
     }
 
     const hasLiveTurnStream = interactionState.userResponse === 'stream'
-    const isBackgroundAgent = typeof opts.agentID === 'string' && opts.agentID.length > 0
+    // A headless turn (channel / scheduled) is unattended work with no approval UI, like a sub-agent.
+    // Resolved per turn, so an interactive turn on a channel-linked session still prompts.
+    const isBackgroundAgent =
+      (typeof opts.agentID === 'string' && opts.agentID.length > 0) || interactionState.currentTurn === 'headless'
     const requiresUserResponse =
       HEADLESS_INTERACTIVE_TOOLS.includes(toolName as (typeof HEADLESS_INTERACTIVE_TOOLS)[number]) ||
       opts.matchedAskRule !== undefined
@@ -964,7 +967,8 @@ async function buildToolPermissions(
 
     // Interactive background requests are rendered as independent assistant messages. This is
     // intentionally separate from "has a live turn": the parent turn may be complete while its
-    // background agent is still waiting for the user. Channel/scheduled runs remain fail-closed.
+    // background agent is still waiting for the user. Tools needing a user-authored answer stay
+    // fail-closed on channel/scheduled runs — they have no responder.
     if (
       (!hasLiveTurnStream && !requiresUserResponse) ||
       (requiresUserResponse &&

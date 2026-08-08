@@ -1,3 +1,4 @@
+import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
 import { describe, expect, it } from 'vitest'
 
 import { makeEntitiesCodec, makeTextFieldCodec } from '../outputCodec'
@@ -45,11 +46,11 @@ describe('makeEntitiesCodec', () => {
     expect(codec.deflate(value)).toBeNull()
   })
 
-  it('snippet trims and caps at 300 chars with an ellipsis', () => {
+  it('snippet uses the shared citation preview cap', () => {
     expect(codec.snippet('  short  ')).toBe('short')
-    const long = 'y'.repeat(500)
+    const long = 'y'.repeat(CITATION_SNIPPET_MAX_CHARS + 200)
     const s = codec.snippet(long)
-    expect(s).toHaveLength(301)
+    expect(s).toHaveLength(CITATION_SNIPPET_MAX_CHARS + 1)
     expect(s.endsWith('…')).toBe(true)
   })
 })

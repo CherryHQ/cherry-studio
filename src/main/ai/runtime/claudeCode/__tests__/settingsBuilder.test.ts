@@ -2174,6 +2174,34 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
+    // A channel/scheduled turn has no approval UI, so an ordinary tool must not be denied for
+    // lacking a responder — but an interactive turn on the same session must still prompt.
+    it.each([
+      ['headless', { behavior: 'allow', updatedInput: { command: 'pwd' } }, false],
+      ['interactive', undefined, true]
+    ] as const)('resolves an ordinary tool per turn kind: %s', async (currentTurn, expected, registers) => {
+      const getInteractionState = vi.fn(() => ({
+        currentTurn,
+        userResponse: currentTurn === 'headless' ? 'unavailable' : 'stream'
+      }))
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const settings = await buildClaudeCodeSessionSettings(sessionWith(`warm-${currentTurn}`), {} as never)
+      settings.approvalEmitter!.emit = vi.fn()
+
+      const call = settings.canUseTool!('Bash', { command: 'pwd' }, {
+        signal: { aborted: false },
+        toolUseID: `tu-${currentTurn}`
+      } as never)
+
+      if (expected) await expect(call).resolves.toEqual(expected)
+      expect(mocks.approvalRegister).toHaveBeenCalledTimes(registers ? 1 : 0)
+    })
+
     it('emits an independent AskUserQuestion interaction for a background agent', () => {
       mocks.applicationGet.mockImplementation((name: string) => {
         if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }

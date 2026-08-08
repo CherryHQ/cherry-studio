@@ -36,7 +36,6 @@ import { dialog, net, shell } from 'electron'
 import * as fs from 'fs'
 import { writeFileSync } from 'fs'
 import { readFile } from 'fs/promises'
-import officeParser from 'officeparser'
 import * as path from 'path'
 import { PDFDocument } from 'pdf-lib'
 import { v4 as uuidv4 } from 'uuid'
@@ -426,6 +425,8 @@ class FileStorage {
           return extracted.getBody()
         }
 
+        // Delayed loading: officeparser (and the pdf stack it drags in) stays out of the boot path.
+        const { default: officeParser } = await import('officeparser')
         const data = await officeParser.parseOfficeAsync(filePath, {
           tempFilesLocation: this.tempDir
         })

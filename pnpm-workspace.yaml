@@ -59,6 +59,10 @@ overrides:
   # @ai-sdk/google-vertex — resolves to the single patched build. 3.0.103 includes
   # the upstream thinking fix; our patch handles tool schemas and unknown-model limits.
   '@ai-sdk/anthropic': '3.0.103'
+  # Same reason: packages/aiCore and @openrouter/ai-sdk-provider peer-depend on `ai`
+  # with ranges, which used to resolve to a second, unpatched copy. Pin every instance
+  # to the patched build so the app runs exactly one `ai` module.
+  ai: '6.0.185'
 
 patchedDependencies:
   '@napi-rs/system-ocr@1.1.0': patches/@napi-rs-system-ocr-npm-1.1.0-59e7a78e8b.patch
@@ -72,7 +76,6 @@ patchedDependencies:
   '@ai-sdk/google@3.0.64': patches/@ai-sdk__google@3.0.64.patch
   '@ai-sdk/anthropic': patches/@ai-sdk__anthropic.patch
   '@ai-sdk/deepseek@2.0.30': patches/@ai-sdk__deepseek@2.0.30.patch
-  'ai@6.0.143': patches/ai@6.0.143.patch
   '@tiptap/extension-drag-handle@3.26.1': patches/@tiptap__extension-drag-handle@3.26.1.patch
   '@tiptap/markdown@3.26.1': patches/@tiptap__markdown@3.26.1.patch
   '@openrouter/ai-sdk-provider@2.10.0': patches/@openrouter__ai-sdk-provider@2.10.0.patch
@@ -80,6 +83,7 @@ patchedDependencies:
   emoji-picker-react@4.19.1: patches/emoji-picker-react@4.19.1.patch
   '@ai-sdk/xai@3.0.111': patches/@ai-sdk__xai@3.0.111.patch
   '@ai-sdk/openai-compatible@2.0.62': patches/@ai-sdk__openai-compatible@2.0.62.patch
+  ai@6.0.185: patches/ai@6.0.185.patch
 
 allowBuilds:
   '@j178/prek': true

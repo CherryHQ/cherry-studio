@@ -7,7 +7,8 @@ export enum CodeCli {
   QWEN_CODE = 'qwen-code',
   KIMI_CODE = 'kimi-code',
   QODER_CLI = 'qoder-cli',
-  GITHUB_COPILOT_CLI = 'github-copilot-cli'
+  GITHUB_COPILOT_CLI = 'github-copilot-cli',
+  PI = 'pi'
 }
 
 /**
@@ -31,7 +32,8 @@ export const LOGIN_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.OPENAI_CODEX,
   CodeCli.GEMINI_CLI,
   CodeCli.QWEN_CODE,
-  CodeCli.KIMI_CODE
+  CodeCli.KIMI_CODE,
+  CodeCli.PI
 ])
 
 /**
@@ -68,7 +70,8 @@ export const GATEWAY_CAPABLE_CLI_TOOLS: ReadonlySet<CodeCli> = new Set([
   CodeCli.GEMINI_CLI,
   CodeCli.OPEN_CODE,
   CodeCli.QWEN_CODE,
-  CodeCli.KIMI_CODE
+  CodeCli.KIMI_CODE,
+  CodeCli.PI
 ])
 
 export enum TerminalApp {

@@ -455,9 +455,9 @@ vi.mock('../Tabs/HomeTabs', () => ({
   default: ({
     historyRecordsActive,
     assistantTopicsSource,
+    onManageAssistants,
     onOpenHistoryRecords,
     onSetPanePosition,
-    resourceMenuItems,
     revealRequest,
     setActiveTopic
   }: any) => {
@@ -497,13 +497,11 @@ vi.mock('../Tabs/HomeTabs', () => ({
             </button>
           </>
         )}
-        {resourceMenuItems
-          ?.filter((item: { id: string }) => item.id === 'assistant-resource-view')
-          .map((item: { id: string; onSelect: () => void | Promise<void> }) => (
-            <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-              assistants.presets.manage.title
-            </button>
-          ))}
+        {onManageAssistants && (
+          <button type="button" onClick={() => void onManageAssistants()}>
+            assistants.presets.manage.title
+          </button>
+        )}
       </div>
     )
   }
@@ -579,11 +577,11 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     historyRecordsActive,
     onAddAssistant,
     onActiveAssistantDeleted,
+    onManageAssistants,
     onOpenHistoryRecords,
     assistantTopicsSource,
     onCreateTopic,
-    onSelectedAssistantClick,
-    resourceMenuItems
+    onSelectedAssistantClick
   }: {
     activeAssistantId?: string | null
     historyRecordsActive?: boolean
@@ -591,9 +589,9 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
     onCreateTopic?: (assistantId: string | null) => void | Promise<void>
+    onManageAssistants?: () => void | Promise<void>
     onOpenHistoryRecords?: () => void | Promise<void>
     onSelectedAssistantClick?: () => void | Promise<void>
-    resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => {
     homeMocks.assistantResourceListTopicsSource = assistantTopicsSource
 
@@ -617,13 +615,11 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
         <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
           Toggle selected assistant pane
         </button>
-        {resourceMenuItems
-          ?.filter((item) => item.id === 'assistant-resource-view')
-          .map((item) => (
-            <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-              assistants.presets.manage.title
-            </button>
-          ))}
+        {onManageAssistants && (
+          <button type="button" onClick={() => void onManageAssistants()}>
+            assistants.presets.manage.title
+          </button>
+        )}
       </div>
     )
   }

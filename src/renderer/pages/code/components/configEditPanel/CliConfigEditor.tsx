@@ -32,6 +32,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
   if (!files.length) return null
 
   const updateFile = (target: string, content: string) => {
+    if (files.find((file) => file.target === target)?.content === content) return
     onChange(files.map((file) => (file.target === target ? { ...file, content } : file)))
   }
 

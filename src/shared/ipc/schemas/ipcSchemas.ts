@@ -10,6 +10,7 @@ import { citationRequestSchemas } from './citation'
 import { codeCliRequestSchemas } from './codeCli'
 import { diagnosticsRequestSchemas } from './diagnostics'
 import { exportRequestSchemas } from './export'
+import { externalAppRequestSchemas } from './externalApp'
 import { type FileEventSchemas, fileRequestSchemas } from './file'
 import { fileProcessingRequestSchemas } from './fileProcessing'
 import { knowledgeRequestSchemas } from './knowledge'
@@ -53,6 +54,7 @@ export const ipcRequestSchemas = {
   ...codeCliRequestSchemas,
   ...diagnosticsRequestSchemas,
   ...exportRequestSchemas,
+  ...externalAppRequestSchemas,
   ...fileRequestSchemas,
   ...fileProcessingRequestSchemas,
   ...knowledgeRequestSchemas,

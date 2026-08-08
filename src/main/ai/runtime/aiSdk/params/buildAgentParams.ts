@@ -127,7 +127,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride
+    request.apiKeyOverride,
+    request.chatId
   )
   applyHttpTrace(sdkConfig, request.chatId, model)
   // Prefer the request-carried retained context: the persistent chat provider
@@ -284,11 +285,13 @@ async function resolveSdkConfig(
   provider: Provider,
   model: Model,
   resolvedEndpoint: ResolvedEndpoint,
-  apiKeyOverride?: string
+  apiKeyOverride?: string,
+  sessionId?: string
 ): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
   const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
     apiKeyOverride,
-    resolvedEndpoint
+    resolvedEndpoint,
+    sessionId
   })
   return {
     sdkConfig: {
@@ -359,9 +362,8 @@ export async function resolveTools(
 }> {
   const { mcpToolIds, hasAnyKnowledgeBase } = signals ?? (await resolveRequestToolSignals(request))
   if (mcpToolIds.size) {
-    // Scope the registry sync to servers that actually own a selected tool —
-    // avoids paying the per-server `listTools` round-trip for every active
-    // server when only one was picked for this request.
+    // Reconcile selected tool ids against every active server's cache-only catalog,
+    // resolving ownership by exact id without MCP network round trips.
     await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
   }
 

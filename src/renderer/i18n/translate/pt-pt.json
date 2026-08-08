@@ -455,7 +455,7 @@
         "expand_all": "Expandir tudo",
         "no_workdir": "Sem pasta de trabalho",
         "show_more": "Expandir exibição",
-        "tasks": "[to be translated]:Tasks",
+        "tasks": "Tarefas",
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_agent": "Agente desconhecido",
@@ -1008,8 +1008,8 @@
           "label": "Notificar"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "Converte um documento local (PDF, Office, EPUB, CSV) para Markdown para que o agente possa lê-lo",
+          "label": "Documento para Markdown"
         },
         "CherryWebFetch": {
           "description": "Obtém e lê uma página Web",
@@ -1741,12 +1741,6 @@
       "top": "Voltar ao topo"
     },
     "resend": "Reenviar",
-    "resource_view": {
-      "menu": {
-        "agent": "Agentes",
-        "assistant": "Assistentes"
-      }
-    },
     "save": {
       "file": {
         "title": "Guardar em Ficheiro Local"
@@ -1919,6 +1913,7 @@
         "time": "Tempo",
         "title": "Modo de exibição"
       },
+      "draft": "Rascunho",
       "edit": {
         "placeholder": "Introduza novo nome",
         "title": "Editar nome do tópico",
@@ -2163,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Qwen Code"
     },
@@ -2988,6 +2984,28 @@
       "title": "Importar Conversas do ChatGPT",
       "untitled_conversation": "Conversa Sem Título"
     },
+    "claude": {
+      "assistant_name": "Importação Claude",
+      "button": "Selecionar Arquivo",
+      "description": "Importa texto, pensamento e uso de ferramentas; imagens e anexos não estão incluídos",
+      "error": {
+        "invalid_json": "Formato de arquivo JSON inválido",
+        "no_conversations": "Nenhuma conversa encontrada no arquivo",
+        "no_valid_conversations": "Nenhuma conversa válida para importar",
+        "unknown": "Falha na importação, verifique o formato do arquivo"
+      },
+      "help": {
+        "step1": "1. Inicie sessão no Claude, vá a Definições > Privacidade > Exportar Dados",
+        "step2": "2. Aguarde o arquivo de exportação por e-mail",
+        "step3": "3. Extraia o arquivo baixado e localize o conversations.json",
+        "title": "Como exportar conversas do Claude?"
+      },
+      "importing": "Importando conversas...",
+      "selecting": "Selecionando arquivo...",
+      "success": "Importadas com sucesso {{topics}} conversas com {{messages}} mensagens",
+      "title": "Importar Conversas do Claude",
+      "untitled_conversation": "Conversa Sem Título"
+    },
     "confirm": {
       "button": "Selecionar Ficheiro de Importação",
       "label": "Tem a certeza de que pretende importar dados externos?"
@@ -3026,10 +3044,20 @@
           "selected_notes": "{{count}} notas selecionadas"
         },
         "note": {
+          "create": {
+            "content_label": "Conteúdo",
+            "content_placeholder": "Escreva o conteúdo da nota aqui…",
+            "title_label": "Título",
+            "title_placeholder": "Nome esta nota"
+          },
           "description": "Selecione notas existentes como fontes da base de conhecimento",
           "empty_description": "As notas selecionáveis aparecerão aqui após a lista de notas reais ser conectada. Por enquanto, use ficheiros, pastas, URLs ou mapas do site.",
           "empty_title": "As notas ainda não estão conectadas",
-          "loading": "A carregar notas…"
+          "loading": "A carregar notas…",
+          "mode": {
+            "create": "Nova nota",
+            "import": "Notas de importação"
+          }
         },
         "placeholder": {
           "supported_formats": "Suporta PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3288,6 +3316,7 @@
   },
   "launchpad": {
     "apps": "Aplicações",
+    "manage_sidebar": "Gerenciar Barra Lateral",
     "minapps": "Minapps",
     "miniApps": "Miniaplicações",
     "pin_to_sidebar": "Fixar na barra lateral",
@@ -4216,8 +4245,8 @@
         "taskOutput": "Ver saída da tarefa",
         "taskStop": "Parar tarefa",
         "taskUpdate": "Atualizar tarefa",
-        "toMarkdown": "[to be translated]:Convert Document",
-        "toMarkdownOutput": "[to be translated]:Markdown",
+        "toMarkdown": "Converter Documento",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Fazer Escrever",
         "tool": "Ferramenta",
         "webFetch": "Obter página Web",
@@ -4268,8 +4297,8 @@
       "thinkingHeader": "A pensar",
       "truncated": "Saída truncada (original: {{size}})",
       "units": {
-        "char_one": "[to be translated]:{{count}} char",
-        "char_other": "[to be translated]:{{count}} chars",
+        "char_one": "{{count}} caractere",
+        "char_other": "{{count}} caracteres",
         "done_one": "{{count}} Concluído",
         "done_other": "{{count}} Concluído",
         "file_one": "{{count}} ficheiro",
@@ -6091,6 +6120,7 @@
       "import_settings": {
         "button": "Importar Ficheiro Json",
         "chatgpt": "Importar do ChatGPT",
+        "claude": "Importar do Claude",
         "title": "Importar Dados de Aplicações Externas"
       },
       "joplin": {
@@ -6646,6 +6676,7 @@
         "notice": {
           "downloadFailed": "A transferência falhou. Verifique a ligação e tente novamente.",
           "inUse": "Ainda utilizado por uma base de conhecimento; os pesos foram mantidos.",
+          "incompleteCache": "Os arquivos do modelo estão incompletos. Tente fazer o download novamente para repará-los.",
           "removeFailed": "Falha na remoção. Verifique os registos para mais detalhes."
         },
         "ocr": {

@@ -64,6 +64,28 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it('passes the conversation id to provider configuration as the session id', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'explicit', id: 'key', masked: 'sk-****' }
+    })
+    const provider = makeProvider({ id: 'opencode' })
+    const model = makeModel({ id: 'opencode::glm-5', providerId: 'opencode', apiModelId: 'glm-5' })
+
+    await buildAgentParams({
+      request: { chatId: 'topic-123' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(resolveProviderAiSdkConfigMock).toHaveBeenLastCalledWith(
+      provider,
+      model,
+      expect.objectContaining({ sessionId: 'topic-123' })
+    )
+  })
+
   it('uses the resolved Vertex MaaS adapter, wire profile, and provider-options namespace', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {

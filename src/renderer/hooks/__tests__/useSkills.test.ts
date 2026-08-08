@@ -208,6 +208,21 @@ describe('useInstalledSkills', () => {
     ])
   })
 
+  it('reports loading before the first local skill request resolves for a workspace', async () => {
+    let resolveLocalSkills!: (value: { success: true; data: [] }) => void
+    listLocalSkillsMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveLocalSkills = resolve
+      })
+    )
+
+    const { result } = renderHook(() => useAvailableSkills('agent-1', '/repo'))
+
+    expect(result.current.loading).toBe(true)
+    await act(async () => resolveLocalSkills({ success: true, data: [] }))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+  })
+
   it('dedupes local skills already represented by enabled global skills', async () => {
     useQueryMock.mockReturnValue({
       data: [createSkill({ id: 'global-pdf', name: 'PDF', folderName: 'pdf', isEnabled: true })],

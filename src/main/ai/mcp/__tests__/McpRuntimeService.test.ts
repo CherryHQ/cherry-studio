@@ -323,6 +323,46 @@ describe('McpRuntimeService.closeClientsForServer', () => {
   })
 })
 
+describe('McpRuntimeService stale client cleanup (issue #18144)', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+  })
+
+  const server = {
+    id: 'server-1',
+    name: 'srv',
+    command: 'python',
+    args: ['server.py'],
+    isActive: true
+  } as McpServer
+
+  it.each([
+    ['ping resolves falsy', vi.fn().mockResolvedValue(false)],
+    ['ping throws', vi.fn().mockRejectedValue(new Error('timeout'))]
+  ])('closes the dead client instead of orphaning its process when %s', async (_label, ping) => {
+    const service = new McpRuntimeService()
+    const close = vi.fn().mockResolvedValue(undefined)
+    ;(service as any).clients.set(service.getServerKey(server), { close, ping })
+
+    await (service as any).getOrCreateClient(server)
+
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+
+  it('still reconnects when closing the dead client throws', async () => {
+    const service = new McpRuntimeService()
+    const close = vi.fn().mockRejectedValue(new Error('transport already gone'))
+    const ping = vi.fn().mockResolvedValue(false)
+    const key = service.getServerKey(server)
+    ;(service as any).clients.set(key, { close, ping })
+
+    await expect((service as any).getOrCreateClient(server)).resolves.toBeDefined()
+    expect((service as any).clients.get(key)?.ping).not.toBe(ping)
+  })
+})
+
 describe('MCP IPC payload validation (mcp-services-5)', () => {
   it('rejects a malformed callTool payload (missing serverId/name)', () => {
     expect(McpCallToolPayloadSchema.safeParse({}).success).toBe(false)

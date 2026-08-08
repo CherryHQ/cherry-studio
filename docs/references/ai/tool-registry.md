@@ -5,7 +5,8 @@
 ```ts
 interface ToolEntry {
   name: string         // wire-name, what the LLM emits in tool_calls
-  namespace: string    // grouping for `tool_search` (web, kb, mcp:<id>, meta)
+  namespace: string    // ownership key (web, kb, mcp:<serverId>, meta) — never shown to the model
+  namespaceLabel?: string // what `tool_search` groups by and shows; defaults to `namespace`
   description: string  // one-line summary for `tool_search`
   defer: 'never' | 'always' | 'auto'
   tool: Tool           // AI SDK Tool (schema + execute + needsApproval + toModelOutput)
@@ -30,11 +31,16 @@ unambiguous):
 | Source | Name pattern | Example |
 |---|---|---|
 | Built-in | fixed wire name (`<namespace>_<verb>`) | `web_search`, `kb_search` |
-| MCP | `mcp__<camelCase(server)>__<camelCase(tool)>` | `mcp__gmail__sendMessage` |
+| MCP (AI SDK) | `mcp__<server-slug>__<tool-slug>_<identity-digest>` | `mcp__gmail__sendMessage_a1b2c3d4e5f60718293a` |
 | Meta | `tool_<verb>` | `tool_search`, `tool_invoke`, `tool_inspect` (`tool_exec` is defined but not injected — see below) |
 
 The built-in wire names live in `@shared/ai/builtinTools` (single-underscore,
 e.g. `web_search`); they are not derived from a `__` segment convention like MCP.
+The AI SDK MCP digest is derived from the stable server id plus the original
+protocol tool name. The readable slugs romanize Han characters (`tiny-pinyin`)
+so CJK names still produce a meaningful segment; kana and Hangul do not
+romanize and fall back to `server` / `tool` plus the digest. Claude Code keeps
+its separate runtime naming contract.
 
 ## Built-in tools
 
@@ -60,14 +66,15 @@ tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
 
 - `resolveAssistantMcpToolIds` — assistant's enabled MCP servers + per-tool
   disable list → set of tool ids.
-- `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — reads each
-  selected server's tools from the catalog via `McpCatalogService.listTools`
-  (cache-only; see [Tool catalog reads](#tool-catalog-reads-never-block-on-mcp)),
-  registers each as a `ToolEntry` whose `tool.execute` proxies through
-  the MCP transport. **Scope:** only servers owning a selected tool are
-  synced. Because the read is last-known-good cache, a server is only evicted
-  from the registry when its cache is genuinely empty — a transient blip can no
-  longer drop a still-active server's tools.
+- `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — scans active servers'
+  cache-only catalogs via `McpCatalogService.listTools`, matches full tool ids,
+  and registers only exact selections as `ToolEntry` objects whose
+  `tool.execute` proxies through the MCP transport. The scan stops early once
+  every selected id has been claimed. Ownership uses the stable
+  `namespace: mcp:<serverId>`; display names never determine it, and
+  `namespaceLabel: mcp:<serverName>` is what `tool_search` groups by and shows
+  the model. Because reads are last-known-good cache snapshots, a transient
+  catalog failure does not evict a still-active server's prior entries.
 
 The sync is idempotent; a stale entry is overwritten on the next sync.
 

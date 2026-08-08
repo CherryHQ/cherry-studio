@@ -924,6 +924,42 @@ describe('MessagePartsRenderer', () => {
       expect(second).toContain('https://first.example')
     })
 
+    it('renders citations from a deferred agent lookup skeleton', () => {
+      renderParts([
+        {
+          type: 'dynamic-tool',
+          toolName: 'mcp__cherry-tools__web_search',
+          toolCallId: 'search-1',
+          state: 'output-available',
+          input: { query: 'q' },
+          output: {
+            $deferredToolResult: { topicId: 'agent-session:s1', messageId: 'm1', toolCallId: 'search-1' },
+            skeleton: {
+              content: [
+                {
+                  id: '70536f0b-1',
+                  title: 'Entertainment news',
+                  url: 'https://example.com/news',
+                  content: 'summary'
+                }
+              ],
+              metadata: {
+                type: 'mcp',
+                serverName: 'cherry-tools',
+                serverId: 'cherry-tools'
+              }
+            }
+          }
+        },
+        { type: 'text', text: 'Entertainment update. [cite:70536f0b-1]' }
+      ] as unknown as CherryMessagePart[])
+
+      const content = screen.getByTestId('mock-markdown').textContent ?? ''
+      expect(content).toContain("data-citation='1'")
+      expect(content).toContain('https://example.com/news')
+      expect(content).not.toContain('[cite:70536f0b-1]')
+    })
+
     it('renders video and error value parts', () => {
       renderParts([
         { type: 'data-video', data: { filePath: '/tmp/v.mp4' } },
