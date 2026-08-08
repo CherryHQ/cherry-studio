@@ -294,6 +294,103 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       expect(settings.location).toBe('us-central1')
     })
 
+    it.each(['https://aiplatform.googleapis.com', 'https://us-central1-aiplatform.googleapis.com'])(
+      'treats the bare Google aiplatform host %s as the SDK default (REGRESSION)',
+      async (baseUrl) => {
+        getAuthConfigMock.mockReturnValue(vertexAuth)
+        const provider = makeProvider({
+          id: 'vertex',
+          authType: 'iam-gcp',
+          defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+          endpointConfigs: {
+            [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+              baseUrl,
+              adapterFamily: 'google-vertex'
+            }
+          }
+        })
+        const model = makeModel({
+          id: 'vertex::gemini-2.0-flash',
+          apiModelId: 'gemini-2.0-flash',
+          endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+        })
+
+        const config = await providerToAiSdkConfig(provider, model)
+        const settings = config.providerSettings as Record<string, unknown>
+
+        expect(config.providerId).toBe('google-vertex')
+        expect(settings.baseURL).toBeUndefined()
+        expect(settings.project).toBe('my-project')
+        expect(settings.location).toBe('us-central1')
+      }
+    )
+
+    it('preserves a proxy URL whose path ends with the official hostname (REGRESSION)', async () => {
+      getAuthConfigMock.mockReturnValue(vertexAuth)
+      const provider = makeProvider({
+        id: 'vertex',
+        authType: 'iam-gcp',
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl: 'https://proxy.example.com/aiplatform.googleapis.com',
+            adapterFamily: 'google-vertex'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'vertex::gemini-2.0-flash',
+        apiModelId: 'gemini-2.0-flash',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('google-vertex')
+      expect(settings.baseURL).toBe('https://proxy.example.com/aiplatform.googleapis.com/v1beta/publishers/google')
+      expect(settings.project).toBe('my-project')
+      expect(settings.location).toBe('us-central1')
+    })
+
+    it.each([
+      ['an official URL with an API path', 'https://aiplatform.googleapis.com/v1'],
+      ['an insecure official URL', 'http://aiplatform.googleapis.com'],
+      ['an official URL with a query', 'https://aiplatform.googleapis.com?proxy=1'],
+      ['an official URL with a fragment', 'https://aiplatform.googleapis.com#proxy'],
+      ['an official URL with an empty trailing query marker', 'https://aiplatform.googleapis.com?'],
+      ['an official URL with the explicit no-version marker', 'https://aiplatform.googleapis.com#'],
+      ['an official URL with credentials', 'https://user:secret@aiplatform.googleapis.com'],
+      ['an official URL with a non-default port', 'https://aiplatform.googleapis.com:8443'],
+      ['a lookalike hostname without the regional separator', 'https://proxyaiplatform.googleapis.com']
+    ])('preserves %s as an explicit Vertex endpoint (REGRESSION)', async (_case, baseUrl) => {
+      getAuthConfigMock.mockReturnValue(vertexAuth)
+      const provider = makeProvider({
+        id: 'vertex',
+        authType: 'iam-gcp',
+        defaultChatEndpoint: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
+            baseUrl,
+            adapterFamily: 'google-vertex'
+          }
+        }
+      })
+      const model = makeModel({
+        id: 'vertex::gemini-2.0-flash',
+        apiModelId: 'gemini-2.0-flash',
+        endpointTypes: [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]
+      })
+
+      const config = await providerToAiSdkConfig(provider, model)
+      const settings = config.providerSettings as Record<string, unknown>
+
+      expect(config.providerId).toBe('google-vertex')
+      expect(settings.baseURL).toBeDefined()
+      expect(settings.project).toBe('my-project')
+      expect(settings.location).toBe('us-central1')
+    })
+
     it.each(['meta/llama-4-scout-17b-16e-instruct-maas', 'google/gemma-4-26b-a4b-it-maas'])(
       'routes MaaS Vertex model %s to the google-vertex-maas adapter',
       async (apiModelId) => {

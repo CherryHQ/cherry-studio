@@ -19,7 +19,13 @@ import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost, formatOllamaApiHost, isWithTrailingSharp, withoutTrailingApiVersion } from '@shared/utils/api'
 import { isGenerateImageModel } from '@shared/utils/model'
-import { isAzureOpenAIProvider, isGeminiProvider, isOllamaProvider, matchesPreset } from '@shared/utils/provider'
+import {
+  isAzureOpenAIProvider,
+  isGeminiProvider,
+  isOllamaProvider,
+  isVertexProvider,
+  matchesPreset
+} from '@shared/utils/provider'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import { isEmpty } from 'es-toolkit/compat'
 
@@ -68,9 +74,38 @@ export interface ResolvedProviderAiSdkConfig {
   credentialReceipt: ServingCredentialReceipt
 }
 
+function isDefaultVertexApiHost(baseURL: string): boolean {
+  // URL normalizes trailing empty query/fragment markers to empty strings, but they are
+  // meaningful to the existing endpoint formatter (notably `#` disables version appending).
+  if (baseURL.includes('?') || baseURL.includes('#')) return false
+
+  try {
+    const url = new URL(baseURL)
+    const isGoogleApiHost =
+      url.hostname === 'aiplatform.googleapis.com' || url.hostname.endsWith('-aiplatform.googleapis.com')
+
+    return (
+      url.protocol === 'https:' &&
+      isGoogleApiHost &&
+      url.pathname === '/' &&
+      !url.search &&
+      !url.hash &&
+      !url.username &&
+      !url.password &&
+      !url.port
+    )
+  } catch {
+    return false
+  }
+}
+
 /** Applies endpoint-/provider-specific formatting (API version, Ollama/Gemini paths). */
 function formatBaseURL(baseURL: string, provider: Provider, endpointType?: EndpointType): string {
   if (!baseURL) return ''
+
+  // A bare Google Vertex host selects the standard service; it is not a proxy override.
+  // Leave it empty so the SDK derives the project/location resource path from iam-gcp auth.
+  if (isVertexProvider(provider) && isDefaultVertexApiHost(baseURL)) return ''
 
   const appendApiVersion = !isWithTrailingSharp(baseURL)
 
