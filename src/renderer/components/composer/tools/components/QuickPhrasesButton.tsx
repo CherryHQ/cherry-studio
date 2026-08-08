@@ -180,7 +180,8 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     () => ({
       title: t('settings.prompts.title'),
       list: phraseItems,
-      symbol: ComposerPanelSymbol.QuickPhrases
+      symbol: ComposerPanelSymbol.QuickPhrases,
+      trackInputQuery: true
     }),
     [phraseItems, t]
   )
@@ -203,7 +204,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
         ...quickPanelOpenOptionsRef.current,
         parentPanel,
         queryAnchor,
-        triggerInfo
+        triggerInfo: triggerInfo ?? { type: 'button' }
       })
     },
     [openQuickPanelContext]

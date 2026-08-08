@@ -3,7 +3,6 @@ import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickP
 import { KNOWLEDGE_BASE_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
-  type QuickPanelCallBackOptions,
   type QuickPanelInputAdapter,
   type QuickPanelListItem,
   type QuickPanelOpenOptions,
@@ -70,7 +69,6 @@ const useKnowledgeBaseToolController = ({
   const selectedBasesRef = useRef<KnowledgeBase[]>(selectedBases ?? [])
   const configuredBasesRef = useRef<KnowledgeBase[]>([])
   const tRef = useRef(t)
-  const disposeCloseOnInputAfterSelectionRef = useRef<(() => void) | undefined>(undefined)
   const configuredKnowledgeBaseIdsKey = getKnowledgeBaseIdsKey(configuredKnowledgeBaseIds)
 
   const configuredBases = useMemo(() => {
@@ -93,34 +91,6 @@ const useKnowledgeBaseToolController = ({
   const resolvedDisabledReason = isDisabled ? (disabledReason ?? fallbackDisabledReason) : undefined
   const selectedBaseIds = useMemo(() => new Set((selectedBases ?? []).map((base) => base.id)), [selectedBases])
 
-  const disposeCloseOnInputAfterSelection = useCallback(() => {
-    disposeCloseOnInputAfterSelectionRef.current?.()
-    disposeCloseOnInputAfterSelectionRef.current = undefined
-  }, [])
-
-  const closeKnowledgeBasePanelOnNextInput = useCallback(
-    ({ context, inputAdapter }: Pick<QuickPanelCallBackOptions, 'context' | 'inputAdapter'>) => {
-      disposeCloseOnInputAfterSelection()
-      if (!inputAdapter?.subscribeInput) return
-
-      const initialText = inputAdapter.getText()
-      const initialCursorOffset = inputAdapter.getCursorOffset?.() ?? initialText.length
-
-      disposeCloseOnInputAfterSelectionRef.current = inputAdapter.subscribeInput((event) => {
-        if (event?.isComposing) return
-        if (event?.cause === 'state-sync') return
-
-        const nextText = inputAdapter.getText()
-        const nextCursorOffset = inputAdapter.getCursorOffset?.() ?? nextText.length
-        if (nextText === initialText && nextCursorOffset === initialCursorOffset) return
-
-        disposeCloseOnInputAfterSelection()
-        context.close('knowledge_base_input_resumed')
-      })
-    },
-    [disposeCloseOnInputAfterSelection]
-  )
-
   const buildKnowledgeBaseItems = useCallback((): QuickPanelListItem[] => {
     return configuredBases.map((base) => ({
       id: `knowledge-base:${base.id}`,
@@ -129,7 +99,7 @@ const useKnowledgeBaseToolController = ({
       filterText: [base.name, base.id].join(' '),
       icon: <FileSearch />,
       isSelected: selectedBaseIds.has(base.id),
-      action: ({ context, inputAdapter, item }) => {
+      action: ({ item }) => {
         const nextSelectedIds = new Set(selectedBasesRef.current.map((selectedBase) => selectedBase.id))
         if (item.isSelected) {
           nextSelectedIds.add(base.id)
@@ -139,10 +109,13 @@ const useKnowledgeBaseToolController = ({
         const nextSelectedBases = configuredBasesRef.current.filter((candidate) => nextSelectedIds.has(candidate.id))
         selectedBasesRef.current = nextSelectedBases
         onSelectRef.current(nextSelectedBases)
-        closeKnowledgeBasePanelOnNextInput({ context, inputAdapter })
       }
     }))
-  }, [closeKnowledgeBasePanelOnNextInput, configuredBases, language, selectedBaseIds])
+    // `t` is read through a ref and `language` stands in for it: depending on `t` directly would
+    // rebuild the list on every render, and the list feeds an effect that pushes it back into the
+    // panel — an update loop. `language` rebuilds it only when the translations actually change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configuredBases, language, selectedBaseIds])
 
   const knowledgeBaseItems = useMemo(() => buildKnowledgeBaseItems(), [buildKnowledgeBaseItems])
 
@@ -168,7 +141,6 @@ const useKnowledgeBaseToolController = ({
     }) => {
       if (isDisabled) return
       setDataRequested(true)
-      disposeCloseOnInputAfterSelection()
       const inputQueryCleared = clearKnowledgeBaseInputQuery(inputAdapter, queryAnchor, triggerInfo)
       actionQuickPanel.open({
         title: t('chat.input.knowledge_base'),
@@ -178,17 +150,11 @@ const useKnowledgeBaseToolController = ({
         queryAnchor: inputQueryCleared ? undefined : queryAnchor,
         triggerInfo: inputQueryCleared ? { type: 'button' } : (triggerInfo ?? { type: 'button' }),
         multiple: true,
-        onClose: disposeCloseOnInputAfterSelection
+        trackInputQuery: true
       })
     },
-    [disposeCloseOnInputAfterSelection, isDisabled, knowledgeBaseItems, t]
+    [isDisabled, knowledgeBaseItems, t]
   )
-
-  useEffect(() => {
-    return () => {
-      disposeCloseOnInputAfterSelection()
-    }
-  }, [disposeCloseOnInputAfterSelection])
 
   useEffect(() => {
     const disposeLauncher = launcher.registerLaunchers([
