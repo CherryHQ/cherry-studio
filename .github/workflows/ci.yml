@@ -239,8 +239,36 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
-      - name: Main Process Test
-        run: pnpm test:main --shard=${{ matrix.shard }}/3
+      - name: Main and Package Tests
+        shell: bash
+        env:
+          AI_CORE_CHANGED: ${{ needs.changes.outputs.ai-core }}
+          UI_CHANGED: ${{ needs.changes.outputs.ui }}
+          SHARED_CHANGED: ${{ needs.changes.outputs.shared }}
+          PROVIDER_REGISTRY_CHANGED: ${{ needs.changes.outputs.provider-registry }}
+          SCRIPTS_CHANGED: ${{ needs.changes.outputs.scripts }}
+          TEST_INFRA_CHANGED: ${{ needs.changes.outputs.test-infra }}
+        run: |
+          projects=(--project main)
+
+          if [[ "$AI_CORE_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
+            projects+=(--project aiCore)
+          fi
+          if [[ "$UI_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
+            projects+=(--project ui)
+          fi
+          if [[ "$SHARED_CHANGED" == "true" || "$PROVIDER_REGISTRY_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
+            projects+=(--project shared)
+          fi
+          if [[ "$PROVIDER_REGISTRY_CHANGED" == "true" || "$SHARED_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
+            projects+=(--project provider-registry)
+          fi
+          if [[ "$SCRIPTS_CHANGED" == "true" || "$PROVIDER_REGISTRY_CHANGED" == "true" || "$TEST_INFRA_CHANGED" == "true" || "${{ github.event_name }}" != "pull_request" ]]; then
+            projects+=(--project scripts)
+          fi
+
+          pnpm rebuild:node
+          pnpm exec vitest run "${projects[@]}" --shard=${{ matrix.shard }}/3
 
   general-test:
     runs-on: ubuntu-latest
@@ -269,14 +297,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     if: >-
-      needs.changes.outputs.shared == 'true' ||
-      needs.changes.outputs.ai-core == 'true' ||
-      needs.changes.outputs.ui == 'true' ||
-      needs.changes.outputs.provider-registry == 'true' ||
-      needs.changes.outputs.scripts == 'true' ||
-      needs.changes.outputs.test-infra == 'true' ||
-      github.event_name == 'push' ||
-      github.event_name == 'workflow_dispatch'
+      (needs.changes.outputs.ui == 'true' ||
+      needs.changes.outputs.scripts == 'true') &&
+      needs.changes.outputs.main != 'true' &&
+      needs.changes.outputs.shared != 'true' &&
+      needs.changes.outputs.ai-core != 'true' &&
+      needs.changes.outputs.provider-registry != 'true' &&
+      needs.changes.outputs.test-infra != 'true' &&
+      github.event_name == 'pull_request'
     env:
       CI: true
 
@@ -329,7 +357,7 @@ jobs:
         run: pnpm test:scripts
 
   renderer-test-shard:
-    name: renderer-test (${{ matrix.shard }}/6)
+    name: renderer-test (${{ matrix.shard }}/5)
     runs-on: ubuntu-latest
     needs: changes
     if: >-
@@ -345,7 +373,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: [1, 2, 3, 4, 5]
     env:
       CI: true
 
@@ -378,7 +406,7 @@ jobs:
         run: pnpm install
 
       - name: Renderer Test
-        run: pnpm test:renderer --shard=${{ matrix.shard }}/6
+        run: pnpm test:renderer --shard=${{ matrix.shard }}/5
 
   render-test:
     runs-on: ubuntu-latest
