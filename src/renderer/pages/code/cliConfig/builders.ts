@@ -136,16 +136,29 @@ export function buildCodexAuthConfig(existingAuth: Record<string, any>, apiKey: 
   return { ...existingAuth, auth_mode: 'apikey', OPENAI_API_KEY: apiKey }
 }
 
-export function clearCodexApiKeyAuth(existingAuth: Record<string, any>): Record<string, any> {
+function hasRestorableCodexChatgptAuth(auth: Record<string, any>): boolean {
+  const tokens = asRecord(auth.tokens)
+  const hasCompleteTokens = ['id_token', 'access_token', 'refresh_token'].every(
+    (key) => typeof tokens[key] === 'string' && tokens[key].trim().length > 0
+  )
+  const lastRefresh = auth.last_refresh
+  const hasValidLastRefresh =
+    typeof lastRefresh === 'string' &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(lastRefresh) &&
+    Number.isFinite(Date.parse(lastRefresh))
+  return hasCompleteTokens && hasValidLastRefresh
+}
+
+export function clearCodexApiKeyAuth(existingAuth: Record<string, any>): Record<string, any> | null {
   const nextAuth = { ...existingAuth }
   delete nextAuth.OPENAI_API_KEY
 
-  if (nextAuth.auth_mode === 'apikey') {
-    if (Object.keys(asRecord(nextAuth.tokens)).length > 0) nextAuth.auth_mode = 'chatgpt'
-    else delete nextAuth.auth_mode
+  if (hasRestorableCodexChatgptAuth(nextAuth)) {
+    nextAuth.auth_mode = 'chatgpt'
+    return nextAuth
   }
 
-  return nextAuth
+  return null
 }
 
 function buildOpenCodeModelOptions(

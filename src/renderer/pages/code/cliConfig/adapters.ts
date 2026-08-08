@@ -350,7 +350,10 @@ const codexAdapter: CliConfigAdapter = {
       files.push({ target: 'codex-config', content: stringifyToml(next) })
     }
     if (existingAuth && (existingAuth.OPENAI_API_KEY !== undefined || existingAuth.auth_mode === 'apikey')) {
-      files.push({ target: 'codex-auth', content: renderJsonFile(clearCodexApiKeyAuth(existingAuth)) })
+      const nextAuth = clearCodexApiKeyAuth(existingAuth)
+      files.push(
+        nextAuth ? { target: 'codex-auth', content: renderJsonFile(nextAuth) } : { target: 'codex-auth', delete: true }
+      )
     }
     return files
   },

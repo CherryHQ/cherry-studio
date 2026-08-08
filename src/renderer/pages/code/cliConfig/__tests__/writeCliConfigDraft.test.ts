@@ -102,13 +102,15 @@ describe('writeCliConfigDraft', () => {
         }
       }
     })
-    // The disk write is main-process now (`code_cli.write_config` carries
-    // `{ target, content }`, never a path). Translate each target back to the
+    // The disk mutation is main-process now (`code_cli.write_config` carries
+    // a target, never a path). Translate each write target back to the
     // same `/resolved~/…` path so the content fixtures stay unchanged.
     mocks.request.mockImplementation(async (_route: string, input: { files: CliConfigWriteFile[] }) => {
       for (const file of input.files) {
-        written = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
-        writes.push(written)
+        if ('delete' in file) throw new Error('writeCliConfigDraft must not delete config files')
+        const nextWrite = { path: `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`, content: file.content }
+        written = nextWrite
+        writes.push(nextWrite)
       }
       return { success: true }
     })

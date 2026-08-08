@@ -14,10 +14,12 @@ vi.mock('@renderer/ipc', () => ({
 
 let existing: Record<string, string>
 let writes: Record<string, string>
+let deletes: string[]
 
 beforeEach(() => {
   existing = {}
   writes = {}
+  deletes = []
   // Clearing still reads the on-disk configs renderer-side to strip the
   // Cherry-managed keys; only the rewrite crosses to the main process.
   Object.defineProperty(window, 'api', {
@@ -37,7 +39,9 @@ beforeEach(() => {
   mocks.request.mockReset()
   mocks.request.mockImplementation(async (_route: string, input: { files: CliConfigWriteFile[] }) => {
     for (const file of input.files) {
-      writes[`/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`] = file.content
+      const resolvedPath = `/resolved${CLI_CONFIG_FILE_SPECS[file.target].path}`
+      if ('delete' in file) deletes.push(resolvedPath)
+      else writes[resolvedPath] = file.content
     }
     return { success: true }
   })
@@ -81,7 +85,13 @@ describe('clearCliConfig', () => {
     existing['/resolved~/.codex/auth.json'] = JSON.stringify({
       auth_mode: 'apikey',
       OPENAI_API_KEY: 'sk',
-      tokens: { access_token: 'oauth-access' },
+      tokens: {
+        id_token: 'oauth-id-token',
+        access_token: 'oauth-access',
+        refresh_token: 'oauth-refresh',
+        account_id: 'account-id'
+      },
+      last_refresh: '2026-08-08T00:00:00.000Z',
       user: 'keep'
     })
 
@@ -94,17 +104,63 @@ describe('clearCliConfig', () => {
     })
     expect(JSON.parse(writes['/resolved~/.codex/auth.json'])).toEqual({
       auth_mode: 'chatgpt',
-      tokens: { access_token: 'oauth-access' },
+      tokens: {
+        id_token: 'oauth-id-token',
+        access_token: 'oauth-access',
+        refresh_token: 'oauth-refresh',
+        account_id: 'account-id'
+      },
+      last_refresh: '2026-08-08T00:00:00.000Z',
       user: 'keep'
     })
   })
 
-  it('codex: removes stale API-key auth mode when no official login can be restored', async () => {
+  it('codex: deletes stale API-key auth when no official login can be restored', async () => {
     existing['/resolved~/.codex/auth.json'] = JSON.stringify({ auth_mode: 'apikey' })
 
     await clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })
 
-    expect(JSON.parse(writes['/resolved~/.codex/auth.json'])).toEqual({})
+    expect(writes['/resolved~/.codex/auth.json']).toBeUndefined()
+    expect(deletes).toContain('/resolved~/.codex/auth.json')
+  })
+
+  it('codex: deletes legacy key-only auth instead of leaving a false ChatGPT login', async () => {
+    existing['/resolved~/.codex/auth.json'] = JSON.stringify({ OPENAI_API_KEY: 'sk' })
+
+    await clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })
+
+    expect(writes['/resolved~/.codex/auth.json']).toBeUndefined()
+    expect(deletes).toContain('/resolved~/.codex/auth.json')
+  })
+
+  it('codex: deletes auth with incomplete OAuth tokens instead of restoring ChatGPT mode', async () => {
+    existing['/resolved~/.codex/auth.json'] = JSON.stringify({
+      auth_mode: 'apikey',
+      OPENAI_API_KEY: 'sk',
+      tokens: { access_token: 'oauth-access' }
+    })
+
+    await clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })
+
+    expect(writes['/resolved~/.codex/auth.json']).toBeUndefined()
+    expect(deletes).toContain('/resolved~/.codex/auth.json')
+  })
+
+  it('codex: deletes auth when complete OAuth tokens have no last refresh timestamp', async () => {
+    existing['/resolved~/.codex/auth.json'] = JSON.stringify({
+      auth_mode: 'apikey',
+      OPENAI_API_KEY: 'sk',
+      tokens: {
+        id_token: 'oauth-id-token',
+        access_token: 'oauth-access',
+        refresh_token: 'oauth-refresh'
+      }
+    })
+
+    await clearCliConfig({ cliTool: CodeCli.OPENAI_CODEX })
+
+    expect(writes['/resolved~/.codex/auth.json']).toBeUndefined()
+    expect(deletes).toContain('/resolved~/.codex/auth.json')
   })
 
   it('opencode: strips only cherry-* providers and the cherry-addressed top-level model', async () => {
@@ -278,7 +334,7 @@ describe('clearCliConfig', () => {
       cliTool: CodeCli.OPENAI_CODEX,
       files: [
         { target: 'codex-config', content: expect.stringContaining('user_key = "keep"') },
-        { target: 'codex-auth', content: expect.any(String) }
+        { target: 'codex-auth', delete: true }
       ]
     })
   })
