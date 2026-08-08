@@ -1,47 +1,77 @@
-// 32px row surface + 4px breathing room, matching the settings sidebar's 32px menu items. The list
-// is dense by design: the surface owns the height, and the gap is the smallest one that still
-// separates two filled rows.
-export const RESOURCE_LIST_DEFAULT_ROW_SIZE = 36
-
-export const RESOURCE_LIST_ROW_HEIGHT_CLASS = 'h-[36px]'
-
-/**
- * Rows sit on one rhythm; the only break in it is between modules. A header that opens a new module
- * (a section, or a bucket group such as a time range) grows by 8px and bottom-aligns its pill, so
- * the extra space lands above the label instead of splitting it from the rows it introduces.
- */
-export const RESOURCE_LIST_MODULE_START_ROW_SIZE = 44
-
-export const RESOURCE_LIST_MODULE_START_ROW_CLASS = 'h-[44px] items-end'
+// 32px row surface + 4px breathing room, the same rhythm the settings sidebar uses (DESIGN.md puts
+// menu items at 32px). Keep the measured size and rendered class together: virtual-list estimates
+// must never drift from the row that they describe.
+export const RESOURCE_LIST_DEFAULT_ROW_LAYOUT = {
+  className: 'h-9',
+  size: 36
+} as const
 
 export const RESOURCE_LIST_VISUAL_ROW_CLASS = 'h-8 rounded-lg'
 
-// Hover takes the lightest surface there is (`background-subtle`), leaving `sidebar-accent` free to
-// mean "selected" one step above it — see RESOURCE_LIST_SELECTED_ROW_CLASS. Hover moves the fill and
-// NOTHING else: recolouring the text used to pull structure labels up to the content shade, so the
-// two voices collapsed into one for as long as the pointer sat there.
-export const RESOURCE_LIST_INTERACTIVE_ROW_CLASS = 'hover:bg-background-subtle focus-visible:bg-background-subtle'
+export type ResourceListPresentation = 'left-panel' | 'right-panel'
+
+type ResourceListPresentationClassNames = {
+  body: string
+  frame: string
+  header?: string
+  searchIconPadding: string
+  searchInput: string
+  searchWrapper?: string
+}
+
+/**
+ * Placement changes geometry, not product identity. Both presentations sit on the page background
+ * and share row semantics; this map owns the small structural differences between the left
+ * navigation pane and the classic-layout right panel.
+ */
+export const RESOURCE_LIST_PRESENTATION_CLASS_NAMES: Record<
+  ResourceListPresentation,
+  ResourceListPresentationClassNames
+> = {
+  'left-panel': {
+    body: 'pt-0 pb-3',
+    frame: 'border-border border-r-[0.5px]',
+    searchIconPadding: 'pl-6',
+    searchInput: 'h-7 rounded-full text-[10px] md:text-[10px] placeholder:text-[10px]'
+  },
+  'right-panel': {
+    body: 'pt-0 pb-8',
+    frame: 'h-full',
+    header: 'pb-1',
+    searchIconPadding: 'pl-7',
+    searchInput: 'h-8 rounded-lg text-xs md:text-xs placeholder:text-xs',
+    searchWrapper: 'pt-1'
+  }
+}
+
+// ResourceList spans left- and right-panel hosts. Hover is the quiet product surface and preserves
+// each row's existing foreground hierarchy; persistent states own explicit product surface pairs.
+export const RESOURCE_LIST_INTERACTIVE_ROW_CLASS =
+  'hover:bg-resource-list-row-hover focus-visible:bg-resource-list-row-hover'
+
+export const RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS = 'has-[:focus-visible]:bg-resource-list-row-hover'
+
+export const RESOURCE_LIST_ACTIVE_ROW_CLASS =
+  'bg-resource-list-row-active text-resource-list-row-active-foreground hover:bg-resource-list-row-active focus-visible:bg-resource-list-row-active'
+
+export const RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS =
+  'group-data-[active-descendant=true]:text-resource-list-row-active-foreground group-data-[selected=true]:text-resource-list-row-selected-foreground'
 
 export const RESOURCE_LIST_TEXT_START_PADDING_CLASS = 'pl-9'
 
 export const RESOURCE_LIST_LEADING_SLOT_BASE_CLASS = 'flex size-6 shrink-0 items-center justify-center'
 
-export const RESOURCE_LIST_ITEM_LEADING_SLOT_CLASS =
-  'rounded-lg text-muted-foreground group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:text-foreground [&_svg]:size-4 [&_svg]:shrink-0'
+export const RESOURCE_LIST_ITEM_LEADING_SLOT_CLASS = `rounded-lg text-muted-foreground ${RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS} [&_svg]:size-4 [&_svg]:shrink-0`
 
 export const RESOURCE_LIST_GROUP_HEADER_LEADING_SLOT_CLASS =
   'rounded-lg text-inherit [&_svg]:size-4 [&_svg]:text-inherit'
 
 export const RESOURCE_LIST_LEADING_ACTION_SLOT_CLASS = RESOURCE_LIST_LEADING_SLOT_BASE_CLASS
 
-// Active sidebar rows use `sidebar-accent`, so that's the fill — a lighter surface than a
-// general-purpose `accent`, which the label's `font-medium` makes up for. The text colour never
-// changes; weight is the only thing selection adds to it.
-//
-// The hover fill has to be restated here: `hover:bg-*` out-specifies a plain `bg-*`, so without this
-// the row would go LIGHTER under the pointer — the open conversation would look like any hovered row.
+// Selection is persistent, so hover and focus must not replace it with the quieter interactive fill.
+// Weight is the only additional emphasis selection adds.
 export const RESOURCE_LIST_SELECTED_ROW_CLASS =
-  'bg-sidebar-accent text-foreground shadow-none hover:bg-sidebar-accent focus-visible:bg-sidebar-accent'
+  'bg-resource-list-row-selected text-resource-list-row-selected-foreground shadow-none hover:bg-resource-list-row-selected focus-visible:bg-resource-list-row-selected'
 
 /**
  * ONE type voice for every label in the list — structure headers, entity rows and item titles all
@@ -58,43 +88,17 @@ export const RESOURCE_LIST_LABEL_CLASS = 'font-normal text-[13px] leading-5'
  * SINGLE constant 16px mask band hugging the title's right edge. mask-image
  * cannot transition, so it is never swapped — in-flow trailing siblings (e.g.
  * the awaiting-approval badge) keep flex space so the fade hugs them at rest,
- * and yielding to the hover actions is done purely with animatable geometry
- * (the margins in RESOURCE_LIST_TITLE_FADE_YIELD_CLASS), letting the fade
+ * and yielding to the hover actions is done purely with animatable geometry,
+ * letting the fade
  * slide continuously with the edge. Absolutely-positioned trailing elements
  * (e.g. the right-panel detached stream indicator) keep NO space — consumers
  * must add a standing margin for those themselves. Margin, not padding: the
  * mask clips at the border-box edge, so a padding reserve would hard-crop the
  * text at the content edge instead of fading it.
  *
- * Group headers reuse the same band but yield differently: their hover actions
- * are absolutely positioned, so the animated reserve lives in the header
- * button's own padding-right instead of a margin on the label.
+ * Group headers reuse the same band. Their in-flow action rail expands from a
+ * zero max-width, so the flex label yields directly without a separate padding
+ * reserve.
  */
 export const RESOURCE_LIST_TITLE_FADE_CLASS =
-  'overflow-hidden text-clip whitespace-nowrap transition-[margin] duration-150 [mask-image:linear-gradient(to_right,#000_calc(100%-16px),transparent)]'
-
-/**
- * Companion to RESOURCE_LIST_TITLE_FADE_CLASS: shift the faded edge left of
- * the hover actions ONLY while they are actually visible — pointer hover,
- * keyboard focus inside the actions, or the forced-active dot/delete-confirm
- * state. All three variants reserve the same two-icon zone (mr-12, the icon
- * zone plus ~12px of breathing room so the fading text never touches the
- * icons): the forced-active :has() variant out-specifies group-hover, so any
- * smaller margin there would win the cascade while the row is hovered — the
- * normal way delete-confirm is entered — and slide the title under the pin
- * icon. NOT group-focus-within: clicking a row focuses it and would pin the
- * yield while the icons stay hidden.
- */
-export const RESOURCE_LIST_TITLE_FADE_YIELD_CLASS =
-  'group-has-[[data-resource-list-item-actions][data-active=true]]:mr-12 group-has-[[data-resource-list-item-actions]:focus-within]:mr-12 group-hover:mr-12'
-
-/**
- * Same yield for rows that reveal a single action (a pinned row drops delete): reserving the
- * two-icon zone there would open a visibly empty gap where the second icon isn't.
- */
-export const RESOURCE_LIST_TITLE_FADE_YIELD_SINGLE_ACTION_CLASS =
-  'group-has-[[data-resource-list-item-actions][data-active=true]]:mr-7 group-has-[[data-resource-list-item-actions]:focus-within]:mr-7 group-hover:mr-7'
-
-/** Compact search input used by the right-panel presentation of the topic/session lists (classic layout). */
-export const RESOURCE_LIST_RIGHT_PANEL_SEARCH_INPUT_CLASS =
-  'h-8 rounded-lg border-border-subtle bg-background-subtle pl-7 pr-2 text-xs shadow-none md:text-xs placeholder:text-xs placeholder:text-muted-foreground focus-visible:border-ring focus-visible:bg-background focus-visible:ring-0'
+  'overflow-hidden text-clip whitespace-nowrap [mask-image:linear-gradient(to_right,#000_calc(100%-16px),transparent)]'

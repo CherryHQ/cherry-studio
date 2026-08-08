@@ -122,6 +122,8 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
+  // Per-topic composer draft. Renderer memory only; app restart discards it.
+  'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
@@ -145,6 +147,8 @@ export type UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
+  // Per-session composer draft. Renderer memory only; app restart discards it.
+  'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
 
   // Translate page state management
   /** Input text */
@@ -204,6 +208,14 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.web_search.searching': false,
+  'chat.composer_draft.${topicId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    mentionedModelIds: [],
+    modelMultiSelectMode: false
+  },
   'chat.scroll_anchor.${topicId}': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
@@ -221,6 +233,14 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': {},
+  'agent.composer_draft.${sessionId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    workspaceKey: '',
+    agentId: ''
+  },
 
   // Translate page state management
   'translate.input': '',

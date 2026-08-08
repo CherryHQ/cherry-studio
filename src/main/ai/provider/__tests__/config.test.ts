@@ -142,6 +142,55 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
     expect(resolved.credentialReceipt).toEqual({ attribution: 'unknown' })
   })
 
+  describe('OpenCode Go session header', () => {
+    const model = makeModel({
+      id: 'custom-opencode::glm-5',
+      apiModelId: 'glm-5',
+      providerId: 'custom-opencode',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+    })
+
+    it('uses the conversation id for providers derived from the OpenCode preset', async () => {
+      const provider = makeProvider({
+        id: 'custom-opencode',
+        presetProviderId: 'opencode',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://opencode.ai/zen/go/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        }
+      })
+
+      const config = await providerToAiSdkConfig(provider, model, { sessionId: 'topic-123' })
+      const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
+
+      expect(headers).toMatchObject({ 'x-opencode-session': 'topic-123' })
+    })
+
+    it('keeps an explicitly configured session header', async () => {
+      const provider = makeProvider({
+        id: 'custom-opencode',
+        presetProviderId: 'opencode',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
+            baseUrl: 'https://opencode.ai/zen/go/v1',
+            adapterFamily: 'openai-compatible'
+          }
+        },
+        settings: { extraHeaders: { 'X-OpenCode-Session': 'configured-session' } }
+      })
+
+      const config = await providerToAiSdkConfig(provider, model, { sessionId: 'topic-123' })
+      const headers = (config.providerSettings as { headers?: Record<string, string | undefined> }).headers
+
+      expect(headers).toMatchObject({ 'X-OpenCode-Session': 'configured-session' })
+      expect(headers).not.toHaveProperty('x-opencode-session')
+    })
+  })
+
   describe('Vertex routing (google-vertex AND google-vertex-anthropic → buildVertexConfig)', () => {
     const vertexAuth: AuthConfig = {
       type: 'iam-gcp',

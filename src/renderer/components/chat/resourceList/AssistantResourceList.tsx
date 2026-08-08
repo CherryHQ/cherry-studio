@@ -26,7 +26,6 @@ import { useTranslation } from 'react-i18next'
 import {
   buildResolvedIconTypeMenuAction,
   buildResolvedResourceEntityMenuAction,
-  type ConversationResourceMenuItem,
   renderAssistantEntityIcon,
   ResourceList,
   TopicListOptionsMenu
@@ -49,14 +48,15 @@ type AssistantResourceListProps = {
   activeAssistantId?: string | null
   dataEnabled?: boolean
   historyRecordsActive?: boolean
+  manageAssistantsActive?: boolean
   assistantTopicsSource: AssistantTopicsSource
   onAddAssistant?: () => void | Promise<void>
   onOpenHistoryRecords?: () => void
+  onManageAssistants?: () => void | Promise<void>
   onSelectTopic: (topic: Topic) => void | boolean
   onCreateTopicAfterClear?: (assistantId: string) => void | Promise<void>
   onSelectedAssistantClick?: () => void | Promise<void>
   onCreateTopic: (assistantId: string | null) => void | Promise<void>
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   /**
    * Called after the currently-active assistant is deleted so the classic-layout page
    * can settle (select the latest remaining topic / fall back). This is the old
@@ -69,14 +69,15 @@ export function AssistantResourceList({
   activeAssistantId,
   dataEnabled = true,
   historyRecordsActive = false,
+  manageAssistantsActive = false,
   assistantTopicsSource,
   onAddAssistant,
   onOpenHistoryRecords,
+  onManageAssistants,
   onSelectTopic,
   onCreateTopicAfterClear,
   onSelectedAssistantClick,
   onCreateTopic,
-  resourceMenuItems,
   onActiveAssistantDeleted
 }: AssistantResourceListProps) {
   const { t } = useTranslation()
@@ -86,8 +87,6 @@ export function AssistantResourceList({
   const [topicDisplayMode, setTopicDisplayMode] = usePreference('topic.tab.display_mode')
   // Keep the persisted legacy token (`tags`) for preference compatibility; runtime grouping uses Group rows.
   const isGroupGrouping = assistantSortType === 'tags'
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const manageAssistantsMenuItem = resourceMenuItems?.find((item) => item.id === 'assistant-resource-view')
   const {
     assistants,
     hasLoaded: hasAssistantsLoaded,
@@ -499,23 +498,23 @@ export function AssistantResourceList({
       <ResourceEntityRail
         variant="assistant"
         items={items}
-        selectedId={hasActiveResourceMenuItem ? null : selectedId}
-        selectedClickId={hasActiveResourceMenuItem ? null : activeAssistantEntityId}
+        selectedId={selectedId}
+        selectedClickId={manageAssistantsActive ? null : activeAssistantEntityId}
+        selectionSuppressed={manageAssistantsActive || historyRecordsActive}
         status={listStatus}
         ariaLabel={t('assistants.abbr')}
         defaultGroupLabel={t('assistants.abbr')}
         groupByGroup={isGroupGrouping}
         addIcon={<Plus />}
         addLabel={t('chat.add.assistant.title')}
-        historyRecordsActive={historyRecordsActive}
         onAdd={onAddAssistant ?? (() => onCreateTopic(null))}
         headerActions={
           <TopicListOptionsMenu
             historyRecordsActive={historyRecordsActive}
-            manageAssistantsActive={manageAssistantsMenuItem?.active}
+            manageAssistantsActive={manageAssistantsActive}
             mode={topicDisplayMode}
             onChange={(nextMode) => void setTopicDisplayMode(nextMode)}
-            onManageAssistants={manageAssistantsMenuItem?.onSelect}
+            onManageAssistants={onManageAssistants}
             onOpenHistoryRecords={onOpenHistoryRecords}
           />
         }

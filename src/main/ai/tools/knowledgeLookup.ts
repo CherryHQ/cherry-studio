@@ -425,8 +425,8 @@ function readTree(
 /**
  * kb_list dispatch: list the user's bases, or — when a `baseId` is supplied — outline that one
  * base's structure. One tool with two modes (see KNOWLEDGE_LIST_DESCRIPTION); both cores share the
- * `{ error }` contract, so this only routes by the presence of `baseId`. AI-SDK adapters normalize
- * their strict-schema sentinels before calling this core; MCP callers omit unused fields directly.
+ * `{ error }` contract, so this only routes by the presence of `baseId`. Both callers (AI-SDK tool
+ * and MCP bridge) omit the fields their mode does not use, so no sentinel translation happens here.
  */
 export async function listOrOutlineKnowledge(
   input: { query?: string; groupId?: string; baseId?: string; maxDepth?: number },
@@ -441,7 +441,7 @@ export async function listOrOutlineKnowledge(
 /** Longest a derived note title (its first line) may be before it is truncated. */
 const NOTE_TITLE_MAX_CHARS = 80
 
-/** kb_manage input shape shared after AI-SDK strict sentinels have been normalized. */
+/** kb_manage input shape — the fields the chosen `action` does not use are simply absent. */
 type ManageKnowledgeInput = {
   baseId: string
   action: 'add' | 'delete' | 'refresh'

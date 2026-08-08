@@ -14,17 +14,24 @@ import { getShellEnv } from './shellEnv'
 
 const logger = loggerService.withContext('Utils:ProcessRunner')
 
-/**
- * Strip proxy-related variables from an environment map in place.
- * Used before spawning child processes that must not inherit Cherry's proxy
- * settings (e.g. Bun, which does not support HTTPS proxies).
- */
-export const removeEnvProxy = (env: Record<string, string>) => {
-  delete env.HTTPS_PROXY
-  delete env.HTTP_PROXY
-  delete env.grpc_proxy
-  delete env.http_proxy
-  delete env.https_proxy
+const PROXY_ENV_KEYS = new Set([
+  'CHERRY_STUDIO_NODE_PROXY_RULES',
+  'CHERRY_STUDIO_NODE_PROXY_BYPASS_RULES',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'ALL_PROXY',
+  'SOCKS_PROXY',
+  'NO_PROXY',
+  'GRPC_PROXY'
+])
+
+/** Strip Cherry-managed proxy settings from an environment map in place. */
+export const removeEnvProxy = (env: NodeJS.ProcessEnv) => {
+  for (const key of Object.keys(env)) {
+    if (PROXY_ENV_KEYS.has(key.toUpperCase())) {
+      delete env[key]
+    }
+  }
 }
 
 export function runInstallScript(scriptPath: string, extraEnv?: Record<string, string>): Promise<void> {

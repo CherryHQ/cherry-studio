@@ -185,7 +185,12 @@ const ollamaFetcher: ModelFetcher = {
       responseSchema: OllamaTagsResponseSchema,
       abortSignal: signal
     })
-    return dedup(response.models, (m) => m.name).map((m) => toModel(m.name, provider, { ownedBy: 'ollama' }))
+    return dedup(response.models, (m) => m.name).map((m) =>
+      toModel(m.name, provider, {
+        ownedBy: 'ollama',
+        capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : []
+      })
+    )
   }
 }
 

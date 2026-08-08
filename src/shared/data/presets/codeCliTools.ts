@@ -61,6 +61,12 @@ export const CODE_CLI_TOOL_PRESETS = Object.freeze([
     executable: 'copilot',
     packageName: '@github/copilot',
     install: 'npm'
+  }),
+  defineCodeCliTool({
+    id: CodeCli.PI,
+    executable: 'pi',
+    packageName: '@earendil-works/pi-coding-agent',
+    install: 'npm'
   })
 ] as const satisfies readonly Readonly<CodeCliToolPreset>[])
 

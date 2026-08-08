@@ -97,8 +97,6 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Ingrese su Client Secret de QQ Bot",
         "description": "Recibir y responder mensajes a través de la API oficial de QQ Bot.",
-        "mentionOnlyHint": "[to be translated]:When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
-        "mentionOnlyLabel": "[to be translated]:@Mention only",
         "title": "QQ",
         "whoamiTip": "💡 Consejo: Envíe /whoami al bot para obtener su ID de chat en el formato correcto."
       },
@@ -457,7 +455,7 @@
         "expand_all": "Expandir todo",
         "no_workdir": "Sin carpeta de trabajo",
         "show_more": "Expandir pantalla",
-        "tasks": "[to be translated]:Tasks",
+        "tasks": "Tareas",
         "this_week": "Esta semana",
         "today": "Hoy",
         "unknown_agent": "Agente desconocido",
@@ -1010,8 +1008,8 @@
           "label": "Notificar"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "Convierte un documento local (PDF, Office, EPUB, CSV) a Markdown para que el agente pueda leerlo",
+          "label": "Documento a Markdown"
         },
         "CherryWebFetch": {
           "description": "Obtiene y lee una página web",
@@ -1743,12 +1741,6 @@
       "top": "Volver arriba"
     },
     "resend": "Reenviar",
-    "resource_view": {
-      "menu": {
-        "agent": "Agentes",
-        "assistant": "Asistentes"
-      }
-    },
     "save": {
       "file": {
         "title": "Guardar en archivo local"
@@ -1921,6 +1913,7 @@
         "time": "Tiempo",
         "title": "Modo de visualización"
       },
+      "draft": "Borrador",
       "edit": {
         "placeholder": "Introduce nuevo nombre",
         "title": "Editar nombre del tema",
@@ -2165,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Código Qwen"
     },
@@ -2991,26 +2985,26 @@
       "untitled_conversation": "Conversación Sin Título"
     },
     "claude": {
-      "assistant_name": "[to be translated]:Claude Import",
-      "button": "[to be translated]:Select File",
-      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "assistant_name": "Importación de Claude",
+      "button": "Seleccionar archivo",
+      "description": "Importa texto, pensamiento y uso de herramientas; imágenes y archivos adjuntos no están incluidos",
       "error": {
-        "invalid_json": "[to be translated]:Invalid JSON file format",
-        "no_conversations": "[to be translated]:No conversations found in file",
-        "no_valid_conversations": "[to be translated]:No valid conversations to import",
-        "unknown": "[to be translated]:Import failed, please check file format"
+        "invalid_json": "Formato de archivo JSON inválido",
+        "no_conversations": "No se encontraron conversaciones en el archivo",
+        "no_valid_conversations": "No hay conversaciones válidas para importar",
+        "unknown": "Error de importación, por favor verifique el formato del archivo"
       },
       "help": {
-        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
-        "step2": "[to be translated]:2. Wait for the export file via email",
-        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
-        "title": "[to be translated]:How to export Claude conversations?"
+        "step1": "1. Inicia sesión en Claude, ve a Configuración > Privacidad > Exportar Datos",
+        "step2": "2. Espere el archivo de exportación por correo electrónico",
+        "step3": "3. Extraiga el archivo descargado y busque conversations.json",
+        "title": "¿Cómo exportar conversaciones de Claude?"
       },
-      "importing": "[to be translated]:Importing conversations...",
-      "selecting": "[to be translated]:Selecting file...",
-      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
-      "title": "[to be translated]:Import Claude Conversations",
-      "untitled_conversation": "[to be translated]:Untitled Conversation"
+      "importing": "Importando conversaciones...",
+      "selecting": "Seleccionando archivo...",
+      "success": "Importadas con éxito {{topics}} conversaciones con {{messages}} mensajes",
+      "title": "Importar Conversaciones de Claude",
+      "untitled_conversation": "Conversación sin título"
     },
     "confirm": {
       "button": "Seleccionar Archivo de Importación",
@@ -3051,18 +3045,18 @@
         },
         "note": {
           "create": {
-            "content_label": "[to be translated]:Content",
-            "content_placeholder": "[to be translated]:Write the note content here…",
-            "title_label": "[to be translated]:Title",
-            "title_placeholder": "[to be translated]:Name this note"
+            "content_label": "Contenido",
+            "content_placeholder": "Escribe el contenido de la nota aquí…",
+            "title_label": "Título",
+            "title_placeholder": "Nombre esta nota"
           },
           "description": "Selecciona notas existentes como fuentes de base de conocimiento",
           "empty_description": "Las notas seleccionables aparecerán aquí después de que se conecte la lista de notas reales. Por ahora, usa archivos, carpetas, URLs o mapas del sitio.",
           "empty_title": "Las notas aún no están conectadas",
           "loading": "Cargando notas…",
           "mode": {
-            "create": "[to be translated]:New note",
-            "import": "[to be translated]:Import notes"
+            "create": "Nueva nota",
+            "import": "Notas de importación"
           }
         },
         "placeholder": {
@@ -3322,7 +3316,7 @@
   },
   "launchpad": {
     "apps": "Aplicaciones",
-    "manage_sidebar": "[to be translated]:Manage Sidebar",
+    "manage_sidebar": "Administrar barra lateral",
     "minapps": "Minapps",
     "miniApps": "Miniaplicaciones",
     "pin_to_sidebar": "Anclar a la barra lateral",
@@ -4251,8 +4245,8 @@
         "taskOutput": "Ver salida de la tarea",
         "taskStop": "Detener tarea",
         "taskUpdate": "Actualizar tarea",
-        "toMarkdown": "[to be translated]:Convert Document",
-        "toMarkdownOutput": "[to be translated]:Markdown",
+        "toMarkdown": "Convertir Documento",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Todo Escribir",
         "tool": "Herramienta",
         "webFetch": "Obtención Web",
@@ -4303,8 +4297,8 @@
       "thinkingHeader": "Pensamiento",
       "truncated": "Salida truncada (original: {{size}})",
       "units": {
-        "char_one": "[to be translated]:{{count}} char",
-        "char_other": "[to be translated]:{{count}} chars",
+        "char_one": "{{count}} carácter",
+        "char_other": "{{count}} caracteres",
         "done_one": "{{count}} completado",
         "done_other": "{{count}} completados",
         "file_one": "{{count}} archivo",
@@ -6126,7 +6120,7 @@
       "import_settings": {
         "button": "Importar archivo Json",
         "chatgpt": "Importar desde ChatGPT",
-        "claude": "[to be translated]:Import from Claude",
+        "claude": "Importar desde Claude",
         "title": "Importar datos de aplicaciones externas"
       },
       "joplin": {
@@ -6682,7 +6676,7 @@
         "notice": {
           "downloadFailed": "La descarga falló. Comprueba tu conexión e inténtalo de nuevo.",
           "inUse": "Todavía utilizado por una base de conocimientos; los pesos se mantuvieron.",
-          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
+          "incompleteCache": "Los archivos del modelo están incompletos. Reintenta la descarga para repararlos.",
           "removeFailed": "Error al eliminar. Consulta los registros para más detalles."
         },
         "ocr": {
