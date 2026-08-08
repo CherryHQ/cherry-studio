@@ -8,22 +8,26 @@ const {
   closeConversationTabsMock,
   createWorkspaceMock,
   deleteWorkspaceMock,
+  invalidateCacheMock,
+  refetchReferencesMock,
   refetchWorkspacesMock,
   selectFolderMock,
+  toastErrorMock,
   toastSuccessMock,
   useMutationMock,
-  useQueryMock,
-  useRawAgentSessionsSourceMock
+  useQueryMock
 } = vi.hoisted(() => ({
   closeConversationTabsMock: vi.fn(),
   createWorkspaceMock: vi.fn(),
   deleteWorkspaceMock: vi.fn(),
+  invalidateCacheMock: vi.fn(),
+  refetchReferencesMock: vi.fn(),
   refetchWorkspacesMock: vi.fn(),
   selectFolderMock: vi.fn(),
+  toastErrorMock: vi.fn(),
   toastSuccessMock: vi.fn(),
   useMutationMock: vi.fn(),
-  useQueryMock: vi.fn(),
-  useRawAgentSessionsSourceMock: vi.fn()
+  useQueryMock: vi.fn()
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -32,12 +36,9 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => invalidateCacheMock,
   useMutation: useMutationMock,
   useQuery: useQueryMock
-}))
-
-vi.mock('@renderer/hooks/resourceViewSources', () => ({
-  useRawAgentSessionsSource: useRawAgentSessionsSourceMock
 }))
 
 vi.mock('@renderer/hooks/tab', () => ({
@@ -46,7 +47,7 @@ vi.mock('@renderer/hooks/tab', () => ({
 
 vi.mock('@renderer/services/toast', () => ({
   toast: {
-    error: vi.fn(),
+    error: toastErrorMock,
     success: toastSuccessMock
   }
 }))
@@ -59,13 +60,19 @@ vi.mock('react-i18next', async (importOriginal) => {
       t: (key: string, options?: { count?: number; name?: string }) => {
         const translations: Record<string, string> = {
           'agent.session.new': 'New task',
+          'agent.session.workdir.delete.channels_count': `${options?.count} channels`,
+          'agent.session.workdir.delete.channels_empty': 'No channels will be changed.',
+          'agent.session.workdir.delete.channels_title': 'Channels changed to no work directory',
           'agent.session.workdir.delete.disk_preserved': 'The folder on disk and its files will not be deleted.',
-          'agent.session.workdir.delete.empty': 'This work directory has no related sessions.',
-          'agent.session.workdir.delete.preview': `The sessions below will also be deleted with “${options?.name}”.`,
-          'agent.session.workdir.delete.preview_failed': 'Related sessions could not be loaded',
-          'agent.session.workdir.delete.preview_loading': 'Loading related sessions…',
+          'agent.session.workdir.delete.preview': `Deleting “${options?.name}” shows every impact.`,
+          'agent.session.workdir.delete.preview_failed': 'The deletion impact could not be loaded',
+          'agent.session.workdir.delete.preview_loading': 'Loading deletion impact…',
           'agent.session.workdir.delete.sessions_count': `${options?.count} sessions`,
+          'agent.session.workdir.delete.sessions_empty': 'No sessions will be deleted.',
           'agent.session.workdir.delete.sessions_title': 'Sessions to be deleted',
+          'agent.session.workdir.delete.tasks_count': `${options?.count} scheduled tasks`,
+          'agent.session.workdir.delete.tasks_empty': 'No scheduled tasks will be changed.',
+          'agent.session.workdir.delete.tasks_title': 'Scheduled tasks changed to no work directory',
           'agent.session.workdir.delete.title': 'Delete work directory',
           'agent.session.workdir.delete.trigger': 'Delete work directory',
           'agent.session.workspace_selector.create_failed': 'Failed to add work directory',
@@ -76,7 +83,9 @@ vi.mock('react-i18next', async (importOriginal) => {
           'agent.session.workspace_selector.select_failed': 'Failed to select folder',
           'common.cancel': 'Cancel',
           'common.delete': 'Delete',
-          'common.delete_success': 'Deleted'
+          'common.delete_success': 'Deleted',
+          'common.retry': 'Retry',
+          'common.unnamed': 'Unnamed'
         }
         return translations[key] ?? key
       }
@@ -153,6 +162,21 @@ const SESSIONS = [
   }
 ]
 
+const REFERENCES = {
+  sessions: SESSIONS.slice(0, 2).map(({ id, name }) => ({ id, name })),
+  channels: [{ id: 'channel-alpha', name: 'Release bot' }],
+  tasks: [{ id: 'task-alpha', name: 'Nightly review' }]
+}
+
+let referencesQueryResult: {
+  data: typeof REFERENCES | undefined
+  isLoading: boolean
+  isRefreshing: boolean
+  error: Error | undefined
+  refetch: typeof refetchReferencesMock
+  mutate: ReturnType<typeof vi.fn>
+}
+
 beforeAll(() => {
   globalThis.ResizeObserver = class {
     observe() {}
@@ -172,13 +196,24 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
-  useQueryMock.mockReturnValue({
-    data: WORKSPACES,
+  referencesQueryResult = {
+    data: REFERENCES,
     isLoading: false,
     isRefreshing: false,
     error: undefined,
-    refetch: refetchWorkspacesMock,
+    refetch: refetchReferencesMock,
     mutate: vi.fn()
+  }
+  useQueryMock.mockImplementation((path: string) => {
+    if (path === '/agent-workspaces/:workspaceId/references') return referencesQueryResult
+    return {
+      data: WORKSPACES,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: refetchWorkspacesMock,
+      mutate: vi.fn()
+    }
   })
   useMutationMock.mockImplementation((method: string, path: string) => {
     if (method === 'DELETE' && path === '/agent-workspaces/:workspaceId') {
@@ -195,13 +230,10 @@ beforeEach(() => {
       error: undefined
     }
   })
-  useRawAgentSessionsSourceMock.mockReturnValue({
-    sessions: SESSIONS,
-    isFullyLoaded: true,
-    error: undefined
-  })
   createWorkspaceMock.mockResolvedValue(CREATED_WORKSPACE)
   deleteWorkspaceMock.mockResolvedValue({ deletedIds: ['session-alpha-recent', 'session-alpha-older'] })
+  invalidateCacheMock.mockResolvedValue(undefined)
+  refetchReferencesMock.mockResolvedValue(undefined)
   refetchWorkspacesMock.mockResolvedValue(undefined)
   selectFolderMock.mockResolvedValue(null)
 
@@ -323,7 +355,7 @@ describe('WorkspaceSelector', () => {
     expect(onChange).toHaveBeenCalledWith('workspace-created')
   })
 
-  it('previews every affected session before deleting a workspace', async () => {
+  it('previews every affected resource before deleting a workspace', async () => {
     const user = userEvent.setup()
     renderSelector()
     openPopover()
@@ -336,6 +368,10 @@ describe('WorkspaceSelector', () => {
     expect(dialog).toHaveTextContent('Fix workspace selector')
     expect(dialog).toHaveTextContent('Review delete dialog')
     expect(dialog).not.toHaveTextContent('Unrelated session')
+    expect(dialog).toHaveTextContent('1 channels')
+    expect(dialog).toHaveTextContent('Release bot')
+    expect(dialog).toHaveTextContent('1 scheduled tasks')
+    expect(dialog).toHaveTextContent('Nightly review')
     expect(dialog).toHaveTextContent('/Users/jd/cherry-studio')
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))
@@ -344,26 +380,49 @@ describe('WorkspaceSelector', () => {
       expect(deleteWorkspaceMock).toHaveBeenCalledWith({ params: { workspaceId: 'workspace-alpha' } })
     )
     expect(closeConversationTabsMock).toHaveBeenCalledWith('agents', ['session-alpha-recent', 'session-alpha-older'])
+    expect(invalidateCacheMock).toHaveBeenCalledWith([
+      '/agent-sessions/session-alpha-recent',
+      '/agent-sessions/session-alpha-older'
+    ])
     expect(toastSuccessMock).toHaveBeenCalledWith('Deleted')
   })
 
-  it('loads the session impact only while the selector or delete dialog is open', () => {
-    renderSelector()
-
-    expect(useRawAgentSessionsSourceMock).toHaveBeenLastCalledWith({ enabled: false })
+  it('resets the parent when the deleted workspace is selected', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(
+      <WorkspaceSelector trigger={<button type="button">Open</button>} value="workspace-alpha" onChange={onChange} />
+    )
     openPopover()
-    expect(useRawAgentSessionsSourceMock).toHaveBeenLastCalledWith({ enabled: true })
+
+    await user.click(screen.getAllByRole('button', { name: 'Delete work directory' })[0])
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(null))
   })
 
-  it('does not allow deletion before the complete session impact is loaded', () => {
-    useRawAgentSessionsSourceMock.mockReturnValue({
-      sessions: SESSIONS.slice(0, 1),
-      isFullyLoaded: false,
-      error: undefined
-    })
+  it('does not allow confirmation while a cached impact is refreshing', async () => {
+    referencesQueryResult = { ...referencesQueryResult, isRefreshing: true }
+    const user = userEvent.setup()
     renderSelector()
     openPopover()
 
-    expect(screen.getAllByRole('button', { name: 'Delete work directory' })[0]).toBeDisabled()
+    await user.click(screen.getAllByRole('button', { name: 'Delete work directory' })[0])
+
+    expect(await screen.findByRole('button', { name: 'Delete' })).toBeDisabled()
+    expect(screen.getByText('Loading deletion impact…')).toBeInTheDocument()
+  })
+
+  it('keeps the dialog open and reports a failed deletion', async () => {
+    const user = userEvent.setup()
+    deleteWorkspaceMock.mockRejectedValueOnce(new Error('delete failed'))
+    renderSelector()
+    openPopover()
+
+    await user.click(screen.getAllByRole('button', { name: 'Delete work directory' })[0])
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledOnce())
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 })

@@ -1,7 +1,10 @@
 import { application } from '@application'
+import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentChannelService } from '@data/services/AgentChannelService'
+import { getDataService } from '@data/services/dataServiceRegistry'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
@@ -9,10 +12,11 @@ import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentWorkspaceEntity,
+  type AgentWorkspaceReferences,
   AgentWorkspaceTypeSchema,
   type UpdateAgentWorkspaceDto
 } from '@shared/data/api/schemas/agentWorkspaces'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq } from 'drizzle-orm'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -99,6 +103,24 @@ export class AgentWorkspaceService {
     const [row] = tx.select().from(agentWorkspaceTable).where(predicate).limit(1).all()
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
     return row
+  }
+
+  getReferences(id: string): AgentWorkspaceReferences {
+    const db = application.get('DbService').getDb()
+    this.getRowByIdTx(db, id)
+
+    const sessions = db
+      .select({ id: sessionsTable.id, name: sessionsTable.name })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, id))
+      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .all()
+
+    return {
+      sessions,
+      channels: agentChannelService.listWorkspaceReferencesTx(db, id),
+      tasks: getDataService('AgentTaskService').listWorkspaceReferencesTx(db, id)
+    }
   }
 
   findOrCreateByPath(rawPath: string, options: { name?: string } = {}): AgentWorkspaceEntity {

@@ -10,18 +10,11 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/WorkspaceDeleteConfirmDial
 
 describe('WorkspaceSelector lazy boundary', () => {
   it(
-    'does not evaluate the workspace delete dialog when the selector module loads',
+    'evaluates the workspace delete dialog only when it is imported on demand',
     async () => {
       await import('../WorkspaceSelector')
 
       expect(deleteDialogEvaluated).not.toHaveBeenCalled()
-    },
-    PROBE_TIMEOUT
-  )
-
-  it(
-    'loads the workspace delete dialog module on demand',
-    async () => {
       await import('@renderer/components/resourceCatalog/dialogs/WorkspaceDeleteConfirmDialog')
 
       expect(deleteDialogEvaluated).toHaveBeenCalledTimes(1)

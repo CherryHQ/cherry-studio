@@ -9,7 +9,6 @@ import {
   type SelectorShellProps
 } from '@renderer/components/SelectorShell'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import { useRawAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { toast } from '@renderer/services/toast'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { CircleSlash, Folder, FolderPlus, Trash2 } from 'lucide-react'
@@ -38,6 +37,8 @@ type SharedProps = {
 export type WorkspaceSelectorProps = SharedProps & {
   value: string | null | undefined
   onChange: (value: string | null) => void | Promise<void>
+  /** Clear a selected value after deletion. Session-backed consumers opt out because the session itself is deleted. */
+  clearSelectionOnDelete?: boolean
 }
 
 function workspaceMatchesSearch(workspace: AgentWorkspaceEntity, searchValue: string) {
@@ -57,7 +58,8 @@ export function WorkspaceSelector({
   mountStrategy,
   disabled,
   value,
-  onChange
+  onChange,
+  clearSelectionOnDelete = true
 }: WorkspaceSelectorProps) {
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
@@ -68,7 +70,6 @@ export function WorkspaceSelector({
   const listRef = useRef<HTMLDivElement>(null)
 
   const { data: workspaces, isLoading, refetch } = useQuery('/agent-workspaces')
-  const sessionSource = useRawAgentSessionsSource({ enabled: open || deletingWorkspace !== null })
   const { trigger: createWorkspace, isLoading: isCreatingWorkspace } = useMutation('POST', '/agent-workspaces', {
     refresh: ['/agent-workspaces']
   })
@@ -153,12 +154,14 @@ export function WorkspaceSelector({
     [handleOpenChange]
   )
 
-  const canPreviewAffectedSessions = sessionSource.isFullyLoaded && !sessionSource.error
-  const deleteActionHint = sessionSource.error
-    ? t('agent.session.workdir.delete.preview_failed')
-    : canPreviewAffectedSessions
-      ? t('agent.session.workdir.delete.trigger')
-      : t('agent.session.workdir.delete.preview_loading')
+  const handleWorkspaceDeleted = useCallback(
+    async (workspaceId: string) => {
+      if (clearSelectionOnDelete && workspaceId === selectedId) {
+        await onChange(null)
+      }
+    },
+    [clearSelectionOnDelete, onChange, selectedId]
+  )
 
   const renderWorkspaceRow = (workspace: AgentWorkspaceEntity) => {
     const selected = workspace.id === selectedId
@@ -170,9 +173,9 @@ export function WorkspaceSelector({
           showSelectedIndicator={selected}
           leading={<Folder className="size-4 text-muted-foreground" />}
           actions={
-            <Tooltip content={deleteActionHint} delay={300}>
+            <Tooltip content={t('agent.session.workdir.delete.trigger')} delay={300}>
               <ModelSelectorRowActionButton
-                disabled={disabled || !canPreviewAffectedSessions}
+                disabled={disabled}
                 aria-label={t('agent.session.workdir.delete.trigger')}
                 onClick={() => handleRequestDeleteWorkspace(workspace)}>
                 <Trash2 className="size-3.5" />
@@ -257,7 +260,7 @@ export function WorkspaceSelector({
         <Suspense fallback={null}>
           <WorkspaceDeleteConfirmDialog
             workspace={deletingWorkspace}
-            sessions={sessionSource.sessions}
+            onDeleted={handleWorkspaceDeleted}
             onClose={() => setDeletingWorkspace(null)}
           />
         </Suspense>

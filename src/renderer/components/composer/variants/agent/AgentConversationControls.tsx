@@ -320,6 +320,7 @@ function WorkspaceControl({
     <WorkspaceSelector
       value={selectorValue}
       onChange={onWorkspaceChange}
+      clearSelectionOnDelete={false}
       side={side}
       align="start"
       mountStrategy="lazy-keep"

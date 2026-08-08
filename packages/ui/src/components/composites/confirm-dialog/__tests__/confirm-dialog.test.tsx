@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
-import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { ConfirmDialog } from '../index'
 
@@ -31,5 +32,26 @@ describe('ConfirmDialog', () => {
       'data-[state=open]:slide-in-from-bottom-4',
       'data-[state=closed]:slide-out-to-bottom-4'
     )
+  })
+
+  it('keeps the dialog open when confirmation rejects', async () => {
+    const user = userEvent.setup()
+    const onConfirm = vi.fn().mockRejectedValue(new Error('failed'))
+    const onOpenChange = vi.fn()
+    render(
+      <ConfirmDialog
+        open
+        title="Confirm action"
+        onConfirm={onConfirm}
+        onOpenChange={onOpenChange}
+        confirmText="Confirm"
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Confirm' }))
+
+    await waitFor(() => expect(onConfirm).toHaveBeenCalledOnce())
+    expect(onOpenChange).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: 'Confirm action' })).toBeInTheDocument()
   })
 })
