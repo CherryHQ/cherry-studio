@@ -113,14 +113,18 @@ const MAX_AUTO_COMPACT_WINDOW = 1_000_000
  */
 const AUTO_COMPACT_ESTIMATE_MARGIN = 0.02
 /**
- * Percentage of the input budget at which Claude Code starts compacting, passed
- * through the CLI's `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` knob. The value is an
- * integer percentage, not a 0-1 fraction.
+ * Percentage of the auto-compact window at which compaction triggers, passed
+ * through `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (integer 1-100, not a 0-1 fraction).
  *
- * Left at the CLI's own default, compaction starts late enough that a turn whose
- * tool results land in one burst can jump the budget and fail outright — and a
- * failed turn cannot compact its way out, because compaction replays the same
- * oversized history. 80 buys roughly a fifth of the window as landing room.
+ * The knob only ever lowers the threshold — the CLI ignores values above its own
+ * default (https://code.claude.com/docs/en/env-vars). So this is a ceiling, not a
+ * setting: compaction starts at 80% of the window *or earlier*, never later. That
+ * one-way behavior is what makes a flat default safe to ship for every model.
+ *
+ * Left at the CLI's default, compaction starts late enough that a turn whose tool
+ * results land in one burst can jump the remaining headroom and fail outright —
+ * and a failed turn cannot compact its way out, because compaction replays the
+ * same oversized history. 80 keeps roughly a fifth of the window as landing room.
  *
  * Deliberate ceiling: one flat percentage for every model. Make it per-model if
  * agents on small windows start compacting too eagerly to make progress.
