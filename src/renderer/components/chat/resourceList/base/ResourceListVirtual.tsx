@@ -179,7 +179,8 @@ function VirtualItemRow({
       data-resource-list-item-row="true"
       className={cn(
         ITEM_ROW_CLASS,
-        !groupHeaderIconVisible && '[&_[role=option]]:!px-2.5 [&_[data-resource-list-leading-slot=true]]:hidden'
+        !groupHeaderIconVisible &&
+          '[&_[role=option]]:!px-2.5 [&_[data-resource-list-item-actions=true]]:!-mr-1 [&_[data-resource-list-leading-slot=true]]:hidden'
       )}>
       {children}
     </div>

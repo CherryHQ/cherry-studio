@@ -1741,12 +1741,6 @@
       "top": "Back to top"
     },
     "resend": "Resend",
-    "resource_view": {
-      "menu": {
-        "agent": "Agents",
-        "assistant": "Assistants"
-      }
-    },
     "save": {
       "file": {
         "title": "Save to Local File"

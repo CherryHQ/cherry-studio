@@ -896,7 +896,8 @@ describe('ResourceList', () => {
 
     expect(screen.getByTestId('resource-row')).toHaveClass(
       'hover:bg-resource-list-row-hover',
-      'focus-visible:bg-resource-list-row-hover'
+      'focus-visible:bg-resource-list-row-hover',
+      'has-[:focus-visible]:bg-resource-list-row-hover'
     )
     expect(screen.getByTestId('resource-row')).not.toHaveClass(
       'hover:text-resource-list-row-active-foreground',
@@ -923,7 +924,7 @@ describe('ResourceList', () => {
     // The action rail owns its intrinsic layout reserve; Item no longer needs to inspect React child types.
     expect(
       screen.getByRole('button', { name: 'Item action' }).closest('[data-resource-list-item-actions]')
-    ).toHaveClass('max-w-0', 'group-hover:max-w-full', 'focus-within:max-w-full')
+    ).toHaveClass('grid-cols-[0fr]', 'group-hover:grid-cols-[1fr]', 'focus-within:grid-cols-[1fr]')
   })
 
   it('owns left- and right-panel presentation styling without sidebar semantics', () => {
@@ -1650,7 +1651,8 @@ describe('ResourceList', () => {
     )
     expect(screen.getByTestId('gamma-leading-slot').closest('[data-resource-list-item-row="true"]')).toHaveClass(
       '[&_[data-resource-list-leading-slot=true]]:hidden',
-      '[&_[role=option]]:!px-2.5'
+      '[&_[role=option]]:!px-2.5',
+      '[&_[data-resource-list-item-actions=true]]:!-mr-1'
     )
   })
 

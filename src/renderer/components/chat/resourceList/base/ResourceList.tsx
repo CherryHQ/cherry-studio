@@ -24,6 +24,7 @@ import { GroupHeader, GroupShowMore } from './ResourceListGroups'
 import {
   RESOURCE_LIST_ACTIVE_ROW_CLASS,
   RESOURCE_LIST_DEFAULT_ROW_LAYOUT,
+  RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
   RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
   RESOURCE_LIST_LABEL_CLASS,
   RESOURCE_LIST_PRESENTATION_CLASS_NAMES,
@@ -424,6 +425,7 @@ function Item<T extends ResourceListItemBase>({
         RESOURCE_LIST_LABEL_CLASS,
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
+        !rowState.active && !rowState.selected && RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
         rowState.active && !rowState.selected && RESOURCE_LIST_ACTIVE_ROW_CLASS,
         rowState.selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
         rowState.revealFocused && 'animation-resource-list-reveal-focus',
@@ -601,19 +603,20 @@ type ItemActionsProps = ComponentProps<'div'> & {
   ref?: Ref<HTMLDivElement>
 }
 
-function ItemActions({ active, className, ref, ...props }: ItemActionsProps) {
+function ItemActions({ active, children, className, ref, ...props }: ItemActionsProps) {
   return (
     <div
       ref={ref}
       data-active={active || undefined}
       data-resource-list-item-actions="true"
       className={cn(
-        '-ml-1.5 -mr-1 pointer-events-none flex max-w-0 shrink-0 items-center gap-0 overflow-hidden opacity-0 transition-[max-width,opacity] duration-150 group-has-[[data-resource-list-leading-slot=true]]:mr-0 motion-reduce:transition-none',
-        'focus-within:pointer-events-auto focus-within:max-w-full focus-within:opacity-100 group-hover:pointer-events-auto group-hover:max-w-full group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:max-w-full data-[active=true]:opacity-100',
+        '-ml-1.5 -mr-1 pointer-events-none grid shrink-0 grid-cols-[0fr] opacity-0 transition-[grid-template-columns,opacity] duration-150 group-has-[[data-resource-list-leading-slot=true]]:mr-0 motion-reduce:transition-none',
+        'focus-within:pointer-events-auto focus-within:grid-cols-[1fr] focus-within:opacity-100 group-hover:pointer-events-auto group-hover:grid-cols-[1fr] group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:grid-cols-[1fr] data-[active=true]:opacity-100',
         className
       )}
-      {...props}
-    />
+      {...props}>
+      <div className="flex min-w-0 items-center overflow-hidden">{children}</div>
+    </div>
   )
 }
 
