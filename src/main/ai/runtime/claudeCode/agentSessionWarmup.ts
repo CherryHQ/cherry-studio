@@ -821,9 +821,20 @@ function resolveRuntimeModelRef(
   }
 }
 
+/**
+ * The Claude Agent SDK only ever speaks Anthropic Messages, so the direct route asks the shared
+ * resolver for that dialect instead of taking the in-app-chat default (`endpointTypes[0]`). A model
+ * that declares `anthropic-messages` behind another dialect — DeepSeek V4 Flash lists it third — would
+ * otherwise be pushed onto the gateway, which re-serializes the SDK's native thinking blocks into a
+ * dialect that cannot carry them back. The resolver declines the preference when the model does not
+ * declare the endpoint or the provider configures no base URL for it, which this comparison detects.
+ */
 function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   if (!ref.provider || !ref.model) return false
-  return resolveEffectiveEndpoint(ref.provider, ref.model).endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  return (
+    resolveEffectiveEndpoint(ref.provider, ref.model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType ===
+    ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  )
 }
 
 async function resolveApiGatewayRuntime(sessionId: string): Promise<{
