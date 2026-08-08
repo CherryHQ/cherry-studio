@@ -90,6 +90,14 @@ vi.mock('../../WindowControls', () => ({
   WindowControls: () => null
 }))
 
+vi.mock('../HelpMenu', () => ({
+  HelpMenu: ({ layout }: { layout: string }) => (
+    <button aria-label="Help & Feedback" type="button">
+      help-{layout}
+    </button>
+  )
+}))
+
 import { ShellTabBarActions, SidebarShellActions } from '../ShellTabBarActions'
 
 afterEach(() => {
@@ -202,6 +210,7 @@ describe('ShellTabBarActions', () => {
       'text-muted-foreground',
       'dark:text-muted-foreground'
     )
+    expect(screen.getByRole('button', { name: 'Help & Feedback' })).toHaveTextContent('help-icon')
   })
 
   it('opens the settings tab from the sidebar footer action', async () => {
@@ -222,5 +231,6 @@ describe('ShellTabBarActions', () => {
     expect(screen.getByRole('button', { name: /settings/i })).toHaveClass('justify-start', 'text-foreground')
     expect(screen.getByRole('button', { name: /settings/i })).not.toHaveClass('text-muted-foreground')
     expect(screen.getByRole('button', { name: /settings/i })).toHaveTextContent('Settings')
+    expect(screen.getByRole('button', { name: 'Help & Feedback' })).toHaveTextContent('help-full')
   })
 })
