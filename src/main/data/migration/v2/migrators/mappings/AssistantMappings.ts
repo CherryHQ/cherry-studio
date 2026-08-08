@@ -215,6 +215,20 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   // life with a value that future PATCHes will reject.
   const sanitized = sanitizeLegacySettings(legacySettings)
   const settings: InsertAssistantRow['settings'] = { ...DEFAULT_ASSISTANT_SETTINGS, ...sanitized }
+  // v1 `contextCount` → v2 `contextSettings.maxMessages`. v1 sentinels:
+  // MAX_CONTEXT_COUNT (100) meant unlimited (omit the field); 0 meant "no
+  // history", which v2 expresses as maxMessages 1 (v1's user-start filter made
+  // 1 behave the same way). The per-field sanitiser drops the legacy key
+  // itself (no such column in the v2 schema), so map it explicitly here.
+  const legacyContextCount = legacySettings.contextCount
+  if (
+    typeof legacyContextCount === 'number' &&
+    Number.isInteger(legacyContextCount) &&
+    legacyContextCount >= 0 &&
+    legacyContextCount < 100
+  ) {
+    settings.contextSettings = { ...settings.contextSettings, maxMessages: Math.max(1, legacyContextCount) }
+  }
 
   return {
     assistant: {

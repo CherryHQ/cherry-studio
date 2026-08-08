@@ -195,8 +195,16 @@ function fakeMsgWithContextTokens(
 
 function compressionOn(compressionModel: unknown = { languageModel: {}, contextWindow: null }) {
   mockResolveRequestContextSettings.mockResolvedValue({
-    contextSettings: { enabled: true, truncateThreshold: 0.9, compress: { enabled: true } },
+    contextSettings: { enabled: true, truncateThreshold: 0.9, maxMessages: null, compress: { enabled: true } },
     compressionModel
+  })
+}
+
+/** Bounded scope: maxMessages set → serve the last-N window, skip folding. */
+function maxMessagesOn(maxMessages: number, enabled = true) {
+  mockResolveRequestContextSettings.mockResolvedValue({
+    contextSettings: { enabled, truncateThreshold: 0.9, maxMessages, compress: { enabled: true } },
+    compressionModel: { languageModel: {}, contextWindow: null }
   })
 }
 
@@ -275,6 +283,59 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(ids).toContain('u1')
     expect(ids).toContain('a1')
     expect(ids).toContain('u2')
+  })
+
+  it('1b. maxMessages set → serves the last-N window and skips turn-start folding even over budget', async () => {
+    // Same over-budget shape as test 2 — without maxMessages this WOULD fold.
+    const BIG = 'token '.repeat(700)
+    const path = [
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG)
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    maxMessagesOn(3)
+
+    const { messages } = await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+    expect(mockSetCompactionSummary).not.toHaveBeenCalled()
+    expect(messages.map((m) => m.id)).toEqual(['u2', 'a2', 'u3'])
+  })
+
+  it('1c. maxMessages=1 serves only the current user message (stateless assistant)', async () => {
+    const path = [
+      fakeMsg('u1', 'user', 'hello'),
+      fakeMsg('a1', 'assistant', 'hi'),
+      fakeMsg('u2', 'user', 'translate this')
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    maxMessagesOn(1)
+
+    const { messages } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+  })
+
+  it('1d. maxMessages still bounds the window when the context-management master switch is off', async () => {
+    // The master switch governs offload + compression (what happens when the
+    // context overflows); it must not silently serve full history to someone
+    // who asked for "last 1 message".
+    const path = [
+      fakeMsg('u1', 'user', 'hello'),
+      fakeMsg('a1', 'assistant', 'hi'),
+      fakeMsg('u2', 'user', 'translate this')
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    maxMessagesOn(1, false)
+
+    const { messages } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
   })
 
   it('2. over budget → summarize + persist on boundary + serve compacted view', async () => {

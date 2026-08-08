@@ -231,5 +231,24 @@ describe('AssistantMappings', () => {
         // maxTokens and mcpMode stay at DEFAULT (sanitiser dropped invalid).
       })
     })
+
+    it('maps v1 contextCount to contextSettings.maxMessages, honoring the sentinels', () => {
+      const maxMessagesOf = (contextCount: unknown) =>
+        transformAssistant({ id: 'ast-16', settings: { contextCount } as never }).assistant.settings.contextSettings
+          ?.maxMessages
+
+      expect(maxMessagesOf(5)).toBe(5)
+      // 0 (no history) and 1 behaved identically in v1 → both floor to 1.
+      expect(maxMessagesOf(0)).toBe(1)
+      expect(maxMessagesOf(1)).toBe(1)
+      // MAX_CONTEXT_COUNT (100) meant unlimited → no override written.
+      expect(
+        transformAssistant({ id: 'ast-17', settings: { contextCount: 100 } as never }).assistant.settings
+      ).toStrictEqual(DEFAULT_ASSISTANT_SETTINGS)
+      // Garbage stays out.
+      expect(
+        transformAssistant({ id: 'ast-18', settings: { contextCount: 2.5 } as never }).assistant.settings
+      ).toStrictEqual(DEFAULT_ASSISTANT_SETTINGS)
+    })
   })
 })

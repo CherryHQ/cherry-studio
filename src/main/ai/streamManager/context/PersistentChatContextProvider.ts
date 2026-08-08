@@ -38,6 +38,7 @@ import type { ModelMessage, UIMessage, UIMessageChunk } from 'ai'
 
 import { resolveMinContextWindow } from '../../contextBuild/resolveContextWindow'
 import { resolveRequestContextSettings } from '../../contextBuild/resolveRequestContextSettings'
+import { applyMaxMessagesWindow } from '../../messages/maxMessagesWindow'
 import { toModelMessages } from '../../messages/messageRules'
 import { applyTurnInputAttributes, startAiChildTurnSpan } from '../../observability'
 import { wrapSteerReminder } from '../../steerReminder'
@@ -721,6 +722,20 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
     const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
+    // Bounded scope (v1 contextCount successor): an explicit maxMessages IS the
+    // context policy — serve the window and skip turn-start folding. Nothing
+    // else rewrites history (the in-loop prepareStep hook still guards mid-loop
+    // growth); retainedContext spans the RAW path, so attachments and persisted
+    // outputs that slid out of the window stay readable via read_file/fs_read.
+    //
+    // Deliberately NOT gated on `contextSettings.enabled`: that switch governs
+    // offload + compression (what to do when the context grows too large),
+    // while this decides how much history is sent at all. Gating scope on the
+    // overflow policy silently served full history to someone who asked for
+    // "last 1 message".
+    if (contextSettings.maxMessages != null) {
+      return serve(applyMaxMessagesWindow(effective, contextSettings.maxMessages))
+    }
     if (!on) return serve(effective)
     if (!compressionModel) return serve(effective)
 

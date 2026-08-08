@@ -21,6 +21,14 @@ describe('resolveContextSettings', () => {
     expect(out.enabled).toBe(true) // global floor
   })
 
+  it('maxMessages merges topic ?? assistant ?? globals (null = unlimited)', () => {
+    expect(resolveContextSettings({ globals }).maxMessages).toBeNull()
+    expect(resolveContextSettings({ globals, assistant: { maxMessages: 5 } }).maxMessages).toBe(5)
+    expect(
+      resolveContextSettings({ globals, assistant: { maxMessages: 5 }, topic: { maxMessages: 1 } }).maxMessages
+    ).toBe(1)
+  })
+
   it('explicit compress.modelId from any layer wins; else null', () => {
     expect(resolveContextSettings({ globals }).compress.modelId).toBeNull()
     const out = resolveContextSettings({

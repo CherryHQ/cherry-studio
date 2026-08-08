@@ -28,6 +28,7 @@ export function resolveContextSettings(input: ResolveContextSettingsInput): Effe
   return {
     enabled: topic?.enabled ?? assistant?.enabled ?? globals.enabled,
     truncateThreshold: topic?.truncateThreshold ?? assistant?.truncateThreshold ?? globals.truncateThreshold,
+    maxMessages: topic?.maxMessages ?? assistant?.maxMessages ?? globals.maxMessages,
     compress: {
       enabled: topic?.compress?.enabled ?? assistant?.compress?.enabled ?? globals.compress.enabled,
       // `??` treats null/undefined alike: users disable compression via
