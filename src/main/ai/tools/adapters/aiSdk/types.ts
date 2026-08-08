@@ -26,6 +26,11 @@ export interface ToolApplyScope {
   }
   /** Server allowlist + per-tool disable already applied. */
   readonly mcpToolIds: ReadonlySet<string>
+  /**
+   * In-scope MCP servers that declared the `resources` capability — gates the `mcp_resource_*`
+   * tools. Empty (the default) means no server can serve a resource, so neither tool is exposed.
+   */
+  readonly mcpResourceServerIds?: ReadonlySet<string>
   /** True when the request carries first-party file attachments — gates the `read_file` tool. Defaults to false. */
   readonly hasFileAttachments?: boolean
   /** True when the user has at least one knowledge base — gates the `kb_*` tools. Defaults to false. */

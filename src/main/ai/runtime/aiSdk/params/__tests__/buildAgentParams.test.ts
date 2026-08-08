@@ -45,9 +45,16 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'KnowledgeService') return { hasAnyBase: () => true }
       if (name === 'PreferenceService') return { get: preferenceGetMock }
+      // No connected MCP server in these tests, so nothing declares the resources capability.
+      if (name === 'McpRuntimeService') return { getConnectedServerCapabilities: () => undefined }
       throw new Error(`unexpected service: ${name}`)
     }
   }
+}))
+
+// No MCP servers configured in these tests — keeps the MCP tool/resource resolution off the DB.
+vi.mock('@main/data/services/McpServerService', () => ({
+  mcpServerService: { list: () => ({ items: [] }) }
 }))
 
 const {
