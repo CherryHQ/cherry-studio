@@ -158,18 +158,48 @@ const TranslatePage: FC = () => {
   const [translateOutput, setTranslateOutput] = useCache('translate.output')
   const [isDetecting, setIsDetecting] = useCache('translate.detecting')
 
-  const { reset: smoothReset, update: smoothUpdate } = useSmoothStream({ onUpdate: setTranslateOutput })
-
+  const smoothUpdateRef = useRef<(text: string, isComplete: boolean) => void>(() => {})
   const {
     translate: runTranslate,
     isTranslating,
     cancel
   } = useTranslate({
     loggerContext: 'TranslatePage',
-    onResponse: smoothUpdate
+    onResponse: (text, isComplete) => smoothUpdateRef.current(text, isComplete)
   })
 
   const [renderedMarkdown, setRenderedMarkdown] = useState<string>('')
+  const [renderedFor, setRenderedFor] = useState<string>('')
+  const markdownRenderSeq = useRef(0)
+  const settledTextRef = useRef('')
+  const translateOutputRef = useRef(translateOutput)
+  useEffect(() => {
+    translateOutputRef.current = translateOutput
+  })
+  const [settledTick, setSettledTick] = useState(0)
+  const { reset: smoothResetBase, update: smoothUpdate } = useSmoothStream({
+    onUpdate: setTranslateOutput,
+    streamDone: !isTranslating,
+    initialText: translateOutput,
+    onSettled: () => {
+      settledTextRef.current = translateOutputRef.current
+      setSettledTick((tick) => tick + 1)
+    }
+  })
+  smoothUpdateRef.current = smoothUpdate
+
+  // A new stream discards whatever Markdown the previous output settled into:
+  // drop it up front and invalidate any in-flight parse.
+  const smoothReset = useCallback(
+    (text = '') => {
+      markdownRenderSeq.current += 1
+      settledTextRef.current = ''
+      setRenderedMarkdown('')
+      setRenderedFor('')
+      smoothResetBase(text)
+    },
+    [smoothResetBase]
+  )
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -402,23 +432,40 @@ const TranslatePage: FC = () => {
     [isScrollSyncEnabled]
   )
 
+  // Markdown/Shiki parses the whole document, so running it per streamed
+  // frame grows quadratically. Streamed output stays plain text; the single
+  // parse happens when useSmoothStream reports the queue drained, and the
+  // sequence guard keeps a slow parse from overwriting newer output.
   useEffect(() => {
-    let cancelled = false
-    const render = async () => {
-      if (!enableMarkdown || !translateOutput) {
-        setRenderedMarkdown('')
-        return
-      }
-      const markdown = await shikiMarkdownIt(translateOutput)
-      if (!cancelled) {
-        setRenderedMarkdown(markdown)
-      }
+    if (!enableMarkdown) {
+      markdownRenderSeq.current += 1
+      setRenderedMarkdown('')
+      setRenderedFor('')
+      return
     }
-    void render()
+    const text = translateOutputRef.current
+    // Only the settle may start a parse. Toggling Markdown or the Shiki
+    // theme mid-stream would otherwise freeze a partial snapshot into HTML
+    // while the stream is still playing out.
+    if (!text || text !== settledTextRef.current) {
+      if (!text) {
+        setRenderedMarkdown('')
+        setRenderedFor('')
+      }
+      return
+    }
+    const seq = ++markdownRenderSeq.current
+    let cancelled = false
+    void shikiMarkdownIt(text).then((markdown) => {
+      if (!cancelled && seq === markdownRenderSeq.current) {
+        setRenderedMarkdown(markdown)
+        setRenderedFor(text)
+      }
+    })
     return () => {
       cancelled = true
     }
-  }, [enableMarkdown, shikiMarkdownIt, translateOutput])
+  }, [enableMarkdown, settledTick, shikiMarkdownIt])
 
   const modelSelectorFilter = useCallback((model: SelectorModel) => !isNonChatModel(model), [])
 
@@ -785,7 +832,7 @@ const TranslatePage: FC = () => {
             <TranslateOutputPane
               ref={outputTextRef}
               translatedContent={translateOutput}
-              renderedMarkdown={renderedMarkdown}
+              renderedMarkdown={renderedFor === translateOutput ? renderedMarkdown : ''}
               enableMarkdown={enableMarkdown}
               translating={isTranslating || isDetecting}
               copied={copied}
