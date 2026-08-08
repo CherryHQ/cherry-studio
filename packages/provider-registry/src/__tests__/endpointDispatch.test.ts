@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest'
 
 import aihubmix from '../providers/aihubmix'
 import dmxapi from '../providers/dmxapi'
-import { resolveProviderModelRoute } from '../utils/modelRouting'
+import { resolveProviderModelRoute } from '../registry-utils'
 
 /**
  * `passthrough` = no endpoint claims the model (the gateway's openai-compatible line, served on

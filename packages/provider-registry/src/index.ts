@@ -93,18 +93,23 @@ export { deriveLegacyReasoningFields } from './utils/reasoningControls'
 // Model ID normalization utilities
 export { normalizeModelId } from './utils/normalize'
 
-// Gateway per-model endpoint dispatch
-export type { EndpointDispatchConfig, ModelEndpointInput, ResolvedModelRoute } from './utils/modelRouting'
-export { resolveModelEndpoint, resolveProviderModelRoute } from './utils/modelRouting'
-
 // Pure lookup and transformation utilities (no fs dependency)
-export type { ModelLookupResult, PersistedEndpointConfig } from './registry-utils'
+export type {
+  EndpointDispatchConfig,
+  ModelEndpointInput,
+  ModelLookupResult,
+  PersistedEndpointConfig,
+  ResolvedModelEndpoint,
+  ResolvedModelRoute
+} from './registry-utils'
 export {
   buildPersistedEndpointConfigs,
   endpointImpliedCapability,
   inferAdapterFamily,
   lookupRegistryModel,
-  lookupRegistryProvider
+  lookupRegistryProvider,
+  resolveModelEndpoint,
+  resolveProviderModelRoute
 } from './registry-utils'
 
 // Shared vendor identity regex — consumed by @shared capability inference
