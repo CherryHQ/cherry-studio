@@ -849,7 +849,7 @@ describe('Model drawers', () => {
     ])
   })
 
-  it('auto-saves New API endpoint type changes from the edit drawer', async () => {
+  it('offers only the endpoints the aggregator reported for this model', async () => {
     const user = userEvent.setup()
     useProviderMock.mockReturnValue({
       provider: { id: 'new-api', name: 'New API' }
@@ -867,7 +867,8 @@ describe('Model drawers', () => {
             name: 'claude-4-sonnet',
             group: 'Anthropic',
             capabilities: [],
-            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+            // What upstream `/models` reported in `supported_endpoint_types`.
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -878,22 +879,65 @@ describe('Model drawers', () => {
       />
     )
 
-    const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
-    expect(within(endpointField).getByRole('button', { name: 'endpoint_type.openai-response' })).toHaveAttribute(
-      'aria-pressed',
-      'true'
-    )
+    // The old multi-select offered all eight protocols regardless of what this model speaks.
+    expect(screen.queryByTestId('provider-settings-model-endpoint-type-field')).not.toBeInTheDocument()
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    expect(
+      within(preferredField)
+        .getAllByRole('radio')
+        .map((radio) => radio.getAttribute('value'))
+    ).toEqual([ENDPOINT_TYPE.OPENAI_RESPONSES, ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
+    expect(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' })).toBeChecked()
     expect(updateModelMock).not.toHaveBeenCalled()
 
-    await user.click(within(endpointField).getByRole('button', { name: 'endpoint_type.openai' }))
+    await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.anthropic' }))
 
+    // Routing moves; the upstream-owned supported set is never rewritten.
     expect(updateModelMock).toHaveBeenCalledWith(
       'new-api',
       'claude-4-sonnet',
       expect.objectContaining({
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
+        preferredEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointTypes: undefined
       })
     )
+  })
+
+  it('keeps a single-endpoint aggregator model showing which protocol it speaks', () => {
+    useProviderMock.mockReturnValue({
+      provider: { id: 'cherryin', name: 'CherryIN' }
+    })
+
+    render(
+      <EditModelDrawer
+        providerId="cherryin"
+        open
+        onClose={vi.fn()}
+        model={
+          {
+            id: 'cherryin::agent/kimi-k2.5',
+            providerId: 'cherryin',
+            name: 'Kimi K2.5',
+            group: 'agent',
+            capabilities: [],
+            endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES],
+            supportsStreaming: true,
+            pricing: {
+              input: { perMillionTokens: 0, currency: 'USD' },
+              output: { perMillionTokens: 0, currency: 'USD' }
+            }
+          } as any
+        }
+      />
+    )
+
+    // Nothing to choose, but which protocol an aggregator routes a model over is not implied by
+    // the provider, so it stays on screen rather than disappearing.
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    const radios = within(preferredField).getAllByRole('radio')
+    expect(radios).toHaveLength(1)
+    expect(radios[0]).toBeChecked()
+    expect(radios[0]).toHaveAttribute('value', ENDPOINT_TYPE.ANTHROPIC_MESSAGES)
   })
 
   it('auto-saves an endpoint switch as a routing preference, leaving the supported set alone', async () => {
@@ -950,7 +994,8 @@ describe('Model drawers', () => {
     )
   })
 
-  it('shows and preserves the image-edit endpoint when adding another endpoint type', async () => {
+  it('never rewrites the upstream endpoint set from the edit drawer', async () => {
+    const user = userEvent.setup()
     useProviderMock.mockReturnValue({
       provider: { id: 'cherryin', name: 'CherryIN' }
     })
@@ -967,7 +1012,7 @@ describe('Model drawers', () => {
             name: 'qwen-image-edit',
             group: 'Image',
             capabilities: [],
-            endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -978,64 +1023,20 @@ describe('Model drawers', () => {
       />
     )
 
-    const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
-    expect(within(endpointField).getByText('endpoint_type.image-edit')).toBeInTheDocument()
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.image-edit' }))
 
-    await act(async () => {
-      fireEvent.click(within(endpointField).getByRole('button', { name: 'endpoint_type.openai' }))
-    })
-
+    // Single-select over the upstream set: the route moves, the set itself cannot be narrowed,
+    // extended, or emptied from here — which is what the old multi-select allowed.
+    const patches = updateModelMock.mock.calls.map(([, , patch]) => patch)
+    expect(patches).not.toHaveLength(0)
+    for (const patch of patches) {
+      expect(patch.endpointTypes).toBeUndefined()
+    }
     expect(updateModelMock).toHaveBeenCalledWith(
       'cherryin',
       'qwen-image-edit',
-      expect.objectContaining({
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_IMAGE_EDIT]
-      })
-    )
-  })
-
-  it('allows clearing the last endpoint type from the edit drawer', async () => {
-    useProviderMock.mockReturnValue({
-      provider: { id: 'cherryin', name: 'CherryIN' }
-    })
-
-    render(
-      <EditModelDrawer
-        providerId="cherryin"
-        open
-        onClose={vi.fn()}
-        model={
-          {
-            id: 'cherryin::claude-4-sonnet',
-            providerId: 'cherryin',
-            name: 'claude-4-sonnet',
-            group: 'Anthropic',
-            capabilities: [],
-            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
-            supportsStreaming: true,
-            pricing: {
-              input: { perMillionTokens: 0, currency: 'USD' },
-              output: { perMillionTokens: 0, currency: 'USD' }
-            }
-          } as any
-        }
-      />
-    )
-
-    const responseEndpointButton = within(screen.getByTestId('provider-settings-model-endpoint-type-field')).getByRole(
-      'button',
-      { name: 'endpoint_type.openai-response' }
-    )
-    expect(responseEndpointButton).not.toHaveAttribute('aria-disabled')
-
-    await act(async () => {
-      fireEvent.click(responseEndpointButton)
-    })
-
-    expect(updateModelMock).toHaveBeenCalledWith(
-      'cherryin',
-      'claude-4-sonnet',
-      expect.objectContaining({ endpointTypes: [] })
+      expect.objectContaining({ preferredEndpointType: ENDPOINT_TYPE.OPENAI_IMAGE_EDIT })
     )
   })
 })

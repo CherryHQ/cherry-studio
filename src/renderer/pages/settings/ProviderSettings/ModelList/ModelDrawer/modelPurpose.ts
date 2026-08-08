@@ -43,7 +43,7 @@ export interface ApplyModelPurposeOptions {
 }
 
 type ModelDrawerProvider = Pick<Provider, 'id' | 'presetProviderId'>
-type ProviderChatEndpoints = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'>
+export type ProviderChatEndpoints = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'>
 
 function isModelChatEndpointType(endpointType: string | undefined): endpointType is ModelChatEndpointType {
   return MODEL_CHAT_ENDPOINT_TYPES.some((candidate) => candidate === endpointType)
