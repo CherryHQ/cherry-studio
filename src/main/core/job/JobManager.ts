@@ -10,8 +10,8 @@ import {
   type Disposable,
   Injectable,
   Phase,
-  ServicePhase,
-  SHUTDOWN_TIMEOUT_MS
+  SERVICE_STOP_TIMEOUT_MS,
+  ServicePhase
 } from '@main/core/lifecycle'
 import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
@@ -60,6 +60,17 @@ const DELAYED_PROMOTION_INTERVAL_MS = 5 * 60 * 1000 // 5min
  * test fixture skips this wait via fake timers, then awaits `_recoveryDone`.
  */
 const JOB_MANAGER_STARTUP_DELAY_MS = 60_000
+
+/**
+ * Budget for draining in-flight jobs in `onStop`. Deliberately under the
+ * framework's per-service ceiling so this drain gives up first and the cleanup
+ * after it still runs — at or above the ceiling the timeout branch would be
+ * unreachable, and the framework would abandon JobManager mid-drain instead.
+ *
+ * Module-private on purpose: this is JobManager's own pacing against the
+ * framework, not a knob anyone else should read or reuse.
+ */
+const JOB_DRAIN_TIMEOUT_MS = SERVICE_STOP_TIMEOUT_MS - 500
 
 /**
  * Sentinel thrown via `controller.abort(new JobHandlerTimeoutError())` when a
@@ -518,7 +529,7 @@ export class JobManager extends BaseService {
     if (inFlight.length === 0) {
       logger.info('JobManager.onStop: no in-flight jobs')
     } else {
-      const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), SHUTDOWN_TIMEOUT_MS))
+      const timeout = new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), JOB_DRAIN_TIMEOUT_MS))
       // Executed signals are resolve-only (never reject), so Promise.all
       // cannot short-circuit on a rejection.
       const winner = await Promise.race([Promise.all(executedSignals).then(() => 'done' as const), timeout])
@@ -526,7 +537,7 @@ export class JobManager extends BaseService {
       if (winner === 'timeout') {
         logger.warn('JobManager.onStop timed out — pending jobs will be recovered on next start', {
           inFlight: inFlight.length,
-          timeoutMs: SHUTDOWN_TIMEOUT_MS
+          timeoutMs: JOB_DRAIN_TIMEOUT_MS
         })
       } else {
         logger.info('JobManager.onStop: all in-flight jobs settled')
