@@ -26,6 +26,18 @@ export interface EditableNumberProps {
    * stacked form layouts. Defaults to `false` to preserve existing call sites.
    */
   block?: boolean
+  /**
+   * Forwarded to the inner `<input>` so the field can be named. `FormControl`
+   * supplies `id` (matching `FormLabel`'s `htmlFor`); standalone call sites
+   * outside a `FormItem` pass `aria-label` instead. Without these the input has
+   * no accessible name — the props are a closed set, so anything not listed
+   * here never reaches the DOM.
+   */
+  id?: string
+  'aria-label'?: string
+  'aria-labelledby'?: string
+  'aria-describedby'?: string
+  'aria-invalid'?: React.AriaAttributes['aria-invalid']
 }
 
 const sizeClasses: Record<NonNullable<EditableNumberProps['size']>, string> = {
@@ -94,7 +106,12 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
   suffix,
   prefix,
   formatter,
-  block = false
+  block = false,
+  id,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-describedby': ariaDescribedBy,
+  'aria-invalid': ariaInvalid
 }) => {
   const [isEditing, setIsEditing] = React.useState(false)
   const [inputValue, setInputValue] = React.useState(() => toInputValue(value, precision))
@@ -182,6 +199,15 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
     <div className={cn('relative', block ? 'block w-full' : 'inline-block')}>
       <input
         ref={inputRef}
+        id={id}
+        // Without this the prop only reached the display overlay, which renders
+        // solely when a formatter/prefix/suffix is set — so a plain field's
+        // placeholder was silently dropped.
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
+        aria-describedby={ariaDescribedBy}
+        aria-invalid={ariaInvalid}
         type="number"
         value={inputValue}
         min={min}

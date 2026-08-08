@@ -260,6 +260,36 @@ describe('context-management override (P2-D)', () => {
     })
   })
 
+  it('persists maxMessages on its own while the offload/compression override is off', () => {
+    // Scope (how much history is sent) is independent of the override switch
+    // (what happens when the context overflows).
+    const baseline = initialAssistantFormState(createAssistant())
+    const form = { ...baseline, contextMaxMessages: 1 }
+
+    const result = diffAssistantUpdate(form, baseline, createAssistant())
+    expect(result?.dto.settings?.contextSettings).toEqual({ maxMessages: 1 })
+  })
+
+  it('reads a maxMessages-only contextSettings as override-off', () => {
+    const assistant = createAssistant({
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings: { maxMessages: 5 } } as AssistantSettings
+    })
+    const form = initialAssistantFormState(assistant)
+    expect(form.contextOverrideEnabled).toBe(false)
+    expect(form.contextMaxMessages).toBe(5)
+  })
+
+  it('clears back to null when the message limit is emptied', () => {
+    const assistant = createAssistant({
+      settings: { ...DEFAULT_ASSISTANT_SETTINGS, contextSettings: { maxMessages: 5 } } as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, contextMaxMessages: null }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+    expect(result?.dto.settings?.contextSettings).toBeNull()
+  })
+
   it('does not PATCH when sub-fields change while the override is off', () => {
     const baseline = initialAssistantFormState(createAssistant())
     const form = { ...baseline, contextTruncateThreshold: 999 }

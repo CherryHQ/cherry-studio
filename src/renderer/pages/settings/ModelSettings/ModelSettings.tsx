@@ -25,6 +25,7 @@ import type { FC, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { ContextManagementSettings } from './ContextManagementSettings'
 import { DefaultModelSelector } from './DefaultModelSelector'
 import { TopicNamingSettings } from './TopicNamingSettings'
 
@@ -273,6 +274,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             </>
           )}
         </SettingGroup>
+        {!compact && <ContextManagementSettings />}
       </ContainerComponent>
       {showSettingsButton && (
         <>

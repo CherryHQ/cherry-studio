@@ -195,8 +195,16 @@ function fakeMsgWithContextTokens(
 
 function compressionOn(compressionModel: unknown = { languageModel: {}, contextWindow: null }) {
   mockResolveRequestContextSettings.mockResolvedValue({
-    contextSettings: { enabled: true, truncateThreshold: 0.9, compress: { enabled: true } },
+    contextSettings: { enabled: true, truncateThreshold: 0.9, maxMessages: null, compress: { enabled: true } },
     compressionModel
+  })
+}
+
+/** Bounded scope: maxMessages set → serve the last-N window, skip folding. */
+function maxMessagesOn(maxMessages: number, enabled = true) {
+  mockResolveRequestContextSettings.mockResolvedValue({
+    contextSettings: { enabled, truncateThreshold: 0.9, maxMessages, compress: { enabled: true } },
+    compressionModel: { languageModel: {}, contextWindow: null }
   })
 }
 
@@ -275,6 +283,125 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(ids).toContain('u1')
     expect(ids).toContain('a1')
     expect(ids).toContain('u2')
+  })
+
+  it('1b. maxMessages set → serves the last-N window and skips turn-start folding even over budget', async () => {
+    // Same over-budget shape as test 2 — without maxMessages this WOULD fold.
+    const BIG = 'token '.repeat(700)
+    const path = [
+      fakeMsg('u1', 'user', BIG),
+      fakeMsg('a1', 'assistant', BIG),
+      fakeMsg('u2', 'user', BIG),
+      fakeMsg('a2', 'assistant', BIG),
+      fakeMsg('u3', 'user', BIG)
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    maxMessagesOn(3)
+
+    const { messages } = await makeHistory('u3')
+
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+    expect(mockSetCompactionSummary).not.toHaveBeenCalled()
+    expect(messages.map((m) => m.id)).toEqual(['u2', 'a2', 'u3'])
+  })
+
+  it('1c. maxMessages=1 serves only the current user message (stateless assistant)', async () => {
+    const path = [
+      fakeMsg('u1', 'user', 'hello'),
+      fakeMsg('a1', 'assistant', 'hi'),
+      fakeMsg('u2', 'user', 'translate this')
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    maxMessagesOn(1)
+
+    const { messages } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+  })
+
+  it('1d. maxMessages still bounds the window when the context-management master switch is off', async () => {
+    // The master switch governs offload + compression (what happens when the
+    // context overflows); it must not silently serve full history to someone
+    // who asked for "last 1 message".
+    const path = [
+      fakeMsg('u1', 'user', 'hello'),
+      fakeMsg('a1', 'assistant', 'hi'),
+      fakeMsg('u2', 'user', 'translate this')
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    maxMessagesOn(1, false)
+
+    const { messages } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(mockSummarizeModelMessages).not.toHaveBeenCalled()
+  })
+
+  it('1e. a maxMessages window revokes read_file/fs_read access to what slid out', async () => {
+    // The window is a boundary the USER drew, not a space-saving fold: leaving
+    // the raw-path context in place let the model pull the excluded attachment
+    // straight back in through read_file, defeating the setting.
+    const attachedMsg = fakeMsg('u1', 'user', 'here is the doc')
+    ;(attachedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/doc.txt',
+      filename: 'doc.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+    })
+    mockGetPathToNode.mockReturnValue([attachedMsg, fakeMsg('a1', 'assistant', 'ok'), fakeMsg('u2', 'user', '现在呢')])
+    maxMessagesOn(1)
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([])
+  })
+
+  it('1f. a maxMessages window keeps attachments that are still inside it', async () => {
+    const attachedMsg = fakeMsg('u2', 'user', 'read this')
+    ;(attachedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/doc.txt',
+      filename: 'doc.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-1' } }
+    })
+    mockGetPathToNode.mockReturnValue([fakeMsg('u1', 'user', 'older'), fakeMsg('a1', 'assistant', 'ok'), attachedMsg])
+    maxMessagesOn(1)
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
+      { fileEntryId: 'fe-1', handle: 'doc.txt', displayName: 'doc.txt' }
+    ])
+  })
+
+  it('1g. a served summary row keeps its folded prefix reachable inside a window', async () => {
+    // Folding is space-saving, not exclusion — and the summary row's manifest
+    // already advertises the handle, so revoking it would strand the model.
+    const foldedMsg = fakeMsg('u1', 'user', 'old question')
+    ;(foldedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/folded.txt',
+      filename: 'folded.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-folded' } }
+    })
+    const boundary = fakeMsg('a1', 'assistant', 'old answer')
+    boundary.compactionSummary = 'PRIOR_SUMMARY'
+    mockGetPathToNode.mockReturnValue([foldedMsg, boundary, fakeMsg('u2', 'user', 'now what')])
+    maxMessagesOn(2)
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    // Window keeps the synthetic summary row + the live user row.
+    expect(messages[0].id).toBe('compaction:a1')
+    expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
+      { fileEntryId: 'fe-folded', handle: 'folded.txt', displayName: 'folded.txt' }
+    ])
   })
 
   it('2. over budget → summarize + persist on boundary + serve compacted view', async () => {

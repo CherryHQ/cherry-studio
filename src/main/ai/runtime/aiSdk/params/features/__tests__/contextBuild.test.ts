@@ -28,7 +28,12 @@ vi.mock('@main/ai/contextBuild/persistedOutputAdapter', () => ({
 }))
 
 import type { RequestScope } from '../../scope'
-import { buildContextOptions, contextBuildFeature, resolveInFlightTruncateThreshold } from '../contextBuild'
+import {
+  buildContextOptions,
+  contextBuildFeature,
+  hasAnchorRow,
+  resolveInFlightTruncateThreshold
+} from '../contextBuild'
 
 const CACHE_MARK = { anthropic: { cacheControl: { type: 'ephemeral' } } }
 const BIG = 150_000
@@ -65,6 +70,7 @@ interface ScopeOverrides {
   model?: Partial<RequestScope['model']>
   request?: Partial<RequestScope['request']>
   requestContext?: Partial<RequestScope['requestContext']>
+  canOffloadToolOutputs?: boolean
 }
 
 function makeScope(overrides: ScopeOverrides = {}): RequestScope {
@@ -74,7 +80,11 @@ function makeScope(overrides: ScopeOverrides = {}): RequestScope {
     request: { ...overrides.request },
     requestContext: { requestId: 'anchor-1', persistedOutputPaths: new Set<string>(), ...overrides.requestContext },
     contextSettings: overrides.contextSettings ?? DEFAULT_CONTEXT_SETTINGS,
-    compressionModel: overrides.compressionModel ?? null
+    compressionModel: overrides.compressionModel ?? null,
+    // Anchored, enabled, cherry-owned — the normal chat turn. The anchor lookup
+    // itself now happens once in buildAgentParams and arrives on the scope, so
+    // storage routing reads this flag rather than re-querying the row.
+    canOffloadToolOutputs: overrides.canOffloadToolOutputs ?? true
   } as never
 }
 
@@ -231,25 +241,50 @@ describe('buildContextOptions — storage routing', () => {
   })
 
   it('no message row (temp chat / one-shot streamPrompt) → no storage', () => {
-    // Real MessageService.getById throws NOT_FOUND for missing rows — it never returns null.
-    getByIdMock.mockImplementation(() => {
-      throw DataApiErrorFactory.notFound('Message', 'anchor-1')
-    })
-    const opts = buildContextOptions(makeScope())!
+    const opts = buildContextOptions(makeScope({ canOffloadToolOutputs: false }))!
     expect(opts.truncate?.storage).toBeUndefined()
     expect(adapterFactoryMock).not.toHaveBeenCalled()
+    // The row was resolved upstream; storage routing must not query it again.
+    expect(getByIdMock).not.toHaveBeenCalled()
   })
 
   it('non-anchored oversized results still truncate inline (no files, no marker path)', async () => {
-    getByIdMock.mockImplementation(() => {
-      throw DataApiErrorFactory.notFound('Message', 'anchor-1')
-    })
-    const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope())
+    const out = await runTransform(makePrompt('mcp__srv__dump', BIG), makeScope({ canOffloadToolOutputs: false }))
     const { value } = toolOutput(out)
     expect(value.length).toBeLessThan(10_000)
     expect(value).toContain('--- truncated')
     expect(value).not.toContain('<persisted-output>')
     expect(fs.readdirSync(tmpDir)).toHaveLength(0)
+  })
+})
+
+// The anchor lookup moved out of resolveTruncateStorage so it can gate fs_read's
+// admission too (a request that cannot mint a marker has no use for the tool
+// that reads one back). It runs once per request in buildAgentParams.
+describe('hasAnchorRow', () => {
+  it('reports an anchored request when the id resolves to a message row', () => {
+    expect(hasAnchorRow('anchor-1')).toBe(true)
+    expect(getByIdMock).toHaveBeenCalledWith('anchor-1')
+  })
+
+  it('treats a missing row as non-anchored (temp chat / one-shot streamPrompt)', () => {
+    // Real MessageService.getById throws NOT_FOUND for missing rows — it never returns null.
+    getByIdMock.mockImplementation(() => {
+      throw DataApiErrorFactory.notFound('Message', 'anchor-1')
+    })
+    expect(hasAnchorRow('anchor-1')).toBe(false)
+  })
+
+  it('skips the lookup entirely when the request carries no message id', () => {
+    expect(hasAnchorRow(undefined)).toBe(false)
+    expect(getByIdMock).not.toHaveBeenCalled()
+  })
+
+  it('rethrows anything that is not a missing row', () => {
+    getByIdMock.mockImplementation(() => {
+      throw new Error('db is on fire')
+    })
+    expect(() => hasAnchorRow('anchor-1')).toThrow('db is on fire')
   })
 })
 

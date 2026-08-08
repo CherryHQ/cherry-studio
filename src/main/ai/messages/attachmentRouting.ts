@@ -27,6 +27,8 @@
 import { isAbortError } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { ATTACHMENT_CHARS_PER_TOKEN, ATTACHMENT_INLINE_WINDOW_RATIO } from '@main/ai/constants'
+import { resolveContextWindow } from '@main/ai/contextBuild/resolveContextWindow'
 import type { FileAttachmentRef } from '@main/ai/messages/attachmentTypes'
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk'
 import { surrogateSafeEnd } from '@main/ai/utils/textPaging'
@@ -82,6 +84,31 @@ export interface PrepareChatContext {
   /** Inline cap per file. */
   cap: number
   signal?: AbortSignal
+}
+
+/**
+ * Per-file inline budget: the attachment share of the model's context window,
+ * split across the request's attachments, never below `READ_FILE_PAGE_SIZE`.
+ *
+ * A flat cap is the wrong unit — 8000 chars is ~0.8% of a 1M window, so a
+ * 40k-char document was inlined at 20% and needed four more `read_file`
+ * round-trips to be seen at all. Paging only pays off when the model needs a
+ * fraction of the document; when it needs all of it, the content ends up in
+ * the window anyway and the round-trips are pure cost.
+ *
+ * Split by attachment count (native files included, so the split only errs
+ * conservative) rather than shared through a mutable counter — the routing
+ * pass runs messages in parallel, so a running budget would make the cap
+ * order-dependent.
+ *
+ * No window known → the flat page size stands alone; a window-derived budget
+ * would be a guess.
+ */
+export function resolveAttachmentInlineCap(contextWindow: number | undefined, attachmentCount: number): number {
+  const window = resolveContextWindow(contextWindow)
+  if (window === null) return READ_FILE_PAGE_SIZE
+  const budget = window * ATTACHMENT_INLINE_WINDOW_RATIO * ATTACHMENT_CHARS_PER_TOKEN
+  return Math.max(READ_FILE_PAGE_SIZE, Math.floor(budget / Math.max(1, attachmentCount)))
 }
 
 function isNative(ext: string, fileType: FileType, ns: NativeFileSupport): boolean {
@@ -239,8 +266,11 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
  */
 export async function prepareChatMessages<T extends UIMessage = UIMessage>(
   messages: T[],
-  ctx: Omit<PrepareChatContext, 'cap'> & { cap?: number }
+  ctx: Omit<PrepareChatContext, 'cap'> & { cap?: number; contextWindow?: number }
 ): Promise<T[]> {
-  const full: PrepareChatContext = { ...ctx, cap: ctx.cap ?? READ_FILE_PAGE_SIZE }
+  const full: PrepareChatContext = {
+    ...ctx,
+    cap: ctx.cap ?? resolveAttachmentInlineCap(ctx.contextWindow, ctx.attachments.length)
+  }
   return Promise.all(messages.map((message) => prepareChatMessage(message, full)))
 }

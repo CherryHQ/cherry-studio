@@ -26,6 +26,8 @@ export type ContextSettingsCompressOverride = z.infer<typeof ContextSettingsComp
 export const ContextSettingsOverrideSchema = z.object({
   enabled: z.boolean().optional(),
   truncateThreshold: z.number().int().positive().optional(),
+  /** Serve only the last N messages (v1 contextCount successor). Absent = unlimited. */
+  maxMessages: z.number().int().min(1).optional(),
   compress: ContextSettingsCompressOverrideSchema.partial().optional()
 })
 export type ContextSettingsOverride = z.infer<typeof ContextSettingsOverrideSchema>
@@ -40,6 +42,8 @@ export type ContextSettingsOverride = z.infer<typeof ContextSettingsOverrideSche
 export const EffectiveContextSettingsSchema = z.object({
   enabled: z.boolean(),
   truncateThreshold: z.number().int().positive(),
+  /** Serve only the last N messages; null = unlimited. */
+  maxMessages: z.number().int().min(1).nullable(),
   compress: z.object({
     enabled: z.boolean(),
     modelId: z.string().nullable()
@@ -53,6 +57,7 @@ export type EffectiveContextSettings = z.infer<typeof EffectiveContextSettingsSc
 export const DEFAULT_CONTEXT_SETTINGS: EffectiveContextSettings = {
   enabled: true,
   truncateThreshold: 50_000,
+  maxMessages: null,
   compress: {
     enabled: true,
     modelId: null
