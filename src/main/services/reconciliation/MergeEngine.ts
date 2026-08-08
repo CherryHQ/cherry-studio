@@ -44,7 +44,14 @@ import {
   derivePolymorphicAssociationDescriptors,
   POLYMORPHIC_ENTITY_TYPE_ROOT_TABLE
 } from './polymorphicAssociationDeriver'
-import type { AggregateDecision, DegradedSkip, IdentityMap, MergeContext, MergeResult, ReconcileDegradationKind } from './types'
+import type {
+  AggregateDecision,
+  DegradedSkip,
+  IdentityMap,
+  MergeContext,
+  MergeResult,
+  ReconcileDegradationKind
+} from './types'
 
 const logger = loggerService.withContext('MergeEngine')
 

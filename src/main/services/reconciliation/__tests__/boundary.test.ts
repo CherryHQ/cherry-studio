@@ -1,0 +1,96 @@
+// Boundary assertion: the reconciliation engine may import only the SHARED side of
+// contributorTypes (entity-graph vocabulary), never the backup-lifecycle hook side
+// (BackupContextBase / BackupPhase / RowTransformContext / ...). Documentation rots; this test
+// goes red the moment someone lets the engine reach across that line.
+//
+// See ../README.md §2 for the four-segment boundary and the 16-symbol shared whitelist.
+import { readdirSync, readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { describe, expect, it } from 'vitest'
+
+const PKG_DIR = dirname(fileURLToPath(import.meta.url)) // …/reconciliation/__tests__
+const SRC_DIR = dirname(PKG_DIR) // …/reconciliation — scan this, excluding __tests__/
+
+// The full shared-side export set of contributorTypes.ts (README §2, segments 1 + the shared
+// entries of segment 3 + segment 4). Anything imported from contributorTypes that is NOT in this
+// set is a backup-lifecycle hook type crossing the boundary.
+const SHARED_WHITELIST = new Set([
+  // Segment 1 (:20-192) — reference + identity classification
+  'ReferenceKind',
+  'IdentityClass',
+  'JsonSoftRefKind',
+  'EntityReference',
+  'AggregateMember',
+  'AggregateBoundary',
+  'RowScope',
+  'FileRefSourcePolicy',
+  'JsonSoftReferencePolicy',
+  'JsonEntityIdSelector',
+  'OmittedReferenceOverride',
+  'UniqueMergeRule',
+  'FieldMergePolicy',
+  // Segment 3 (:357-438) — the shared entries
+  'EntityGraphSchema',
+  'BackupContributorPolicy',
+  // Segment 4 (:439-471)
+  'ReadonlyBackupRegistry'
+])
+
+/** Source .ts files in the package root (NOT __tests__/ — those are test fixtures). */
+function listSourceFiles(): string[] {
+  return readdirSync(SRC_DIR)
+    .filter((name) => name.endsWith('.ts') && name !== 'index.ts')
+    .map((name) => join(SRC_DIR, name))
+}
+
+// Match `import type { … } from '…contributorTypes'`. `[^}]*` stops at the first closing brace,
+// so each import block is matched independently and cannot run across a `from` clause into the
+// next import. Captures the comma-separated symbol block.
+const CONTRIBUTOR_TYPES_IMPORT =
+  /import\s+type\s+\{([^}]*)\}\s*from\s*['"]@main\/data\/db\/backup\/contributorTypes['"]/g
+
+/** Extract the imported symbol names from one file's contributorTypes import(s). */
+function extractContributorTypeImports(source: string): string[] {
+  const symbols: string[] = []
+  let match: RegExpExecArray | null
+  CONTRIBUTOR_TYPES_IMPORT.lastIndex = 0
+  while ((match = CONTRIBUTOR_TYPES_IMPORT.exec(source)) !== null) {
+    // The captured group is the comma-separated symbol block. Strip line comments + block
+    // comments, split on commas, and keep only the imported name (drop `as Alias`).
+    const cleaned = match[1].replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
+    for (const raw of cleaned.split(',')) {
+      const name = raw.split(/\s+as\s+/)[0].trim()
+      if (name) symbols.push(name)
+    }
+  }
+  return symbols
+}
+
+describe('reconciliation ↔ contributorTypes boundary', () => {
+  const files = listSourceFiles()
+
+  it('scans at least the known source files (guard against a path-resolution regression)', () => {
+    const names = files.map((f) => f.split('/').pop())
+    // The six engine modules — if any is missing the test would pass vacuously.
+    for (const expected of ['MergeEngine.ts', 'types.ts', 'ftsCentral.ts', 'junctionDeriver.ts']) {
+      expect(names, `expected ${expected} in the scanned set`).toContain(expected)
+    }
+  })
+
+  it('every contributorTypes import is inside the shared whitelist', () => {
+    const violations: string[] = []
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8')
+      const imported = extractContributorTypeImports(source)
+      for (const symbol of imported) {
+        if (!SHARED_WHITELIST.has(symbol)) {
+          violations.push(`${file.split('/').pop()}: ${symbol}`)
+        }
+      }
+    }
+    // Fail with the exact offending symbols + files so the fix is obvious, not "1 assertion failed".
+    expect(violations, `backup-lifecycle hook types leaked into the engine:\n${violations.join('\n')}`).toEqual([])
+  })
+})
