@@ -619,13 +619,14 @@ function renderTopicList({
   onAddAssistant = vi.fn(),
   onCreateTopicAfterClear = vi.fn(),
   historyRecordsActive,
+  manageAssistantsActive,
   onNewTopic = vi.fn(),
+  onManageAssistants,
   onOpenHistoryRecords = vi.fn(),
   onSetPanePosition,
   panePosition,
   presentation,
-  revealRequest,
-  resourceMenuItems
+  revealRequest
 }: {
   activeTopic?: Topic
   assistantTopicsSource?: AssistantTopicsSource
@@ -634,13 +635,14 @@ function renderTopicList({
   onAddAssistant?: ComponentProps<typeof Topics>['onAddAssistant']
   onCreateTopicAfterClear?: OnNewTopicMock
   historyRecordsActive?: ComponentProps<typeof Topics>['historyRecordsActive']
+  manageAssistantsActive?: ComponentProps<typeof Topics>['manageAssistantsActive']
   onNewTopic?: OnNewTopicMock
+  onManageAssistants?: ComponentProps<typeof Topics>['onManageAssistants']
   onOpenHistoryRecords?: Mock<() => void>
   onSetPanePosition?: ComponentProps<typeof Topics>['onSetPanePosition']
   panePosition?: ComponentProps<typeof Topics>['panePosition']
-  presentation?: 'sidebar' | 'right-panel'
+  presentation?: ComponentProps<typeof Topics>['presentation']
   revealRequest?: ResourceListRevealRequest
-  resourceMenuItems?: ComponentProps<typeof Topics>['resourceMenuItems']
 } = {}) {
   const setActiveTopic = vi.fn()
   const renderNode = (nextRevealRequest = revealRequest, nextActiveTopic = activeTopic) => (
@@ -649,17 +651,18 @@ function renderTopicList({
       assistantTopicsSource={assistantTopicsSource ?? createAssistantTopicsSource()}
       assistantIdFilter={assistantIdFilter}
       historyRecordsActive={historyRecordsActive}
+      manageAssistantsActive={manageAssistantsActive}
       onActiveAssistantDeleted={onActiveAssistantDeleted}
       onAddAssistant={onAddAssistant}
       setActiveTopic={setActiveTopic}
       onCreateTopicAfterClear={onCreateTopicAfterClear}
       onNewTopic={onNewTopic}
+      onManageAssistants={onManageAssistants}
       onOpenHistoryRecords={onOpenHistoryRecords}
       onSetPanePosition={onSetPanePosition}
       panePosition={panePosition}
       presentation={presentation}
       revealRequest={nextRevealRequest}
-      resourceMenuItems={resourceMenuItems}
     />
   )
   const view = render(renderNode())
@@ -3120,26 +3123,14 @@ describe('Topics', () => {
     )
   })
 
-  it('moves the assistant resource entry into the topic options menu', () => {
+  it('keeps assistant management in the topic options menu and suppresses conversation selection while active', () => {
     const onSelect = vi.fn()
     renderTopicList({
       activeTopic: createRendererTopic({ id: 'topic-a', name: 'Alpha topic' }),
-      resourceMenuItems: [
-        {
-          active: true,
-          id: 'assistant-library',
-          label: 'Assistant library',
-          onSelect: vi.fn()
-        },
-        {
-          id: 'assistant-resource-view',
-          label: 'Assistants',
-          onSelect
-        }
-      ]
+      manageAssistantsActive: true,
+      onManageAssistants: onSelect
     })
 
-    expect(screen.queryByRole('button', { name: 'Assistants' })).not.toBeInTheDocument()
     expect(getTopicRow('Alpha topic')).not.toHaveAttribute('data-selected')
 
     fireEvent.click(screen.getByLabelText('Display mode'))

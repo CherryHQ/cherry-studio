@@ -1,4 +1,6 @@
+import { NormalTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { ContextUsageMeter, ContextUsageSummary } from '@renderer/components/chat/contextUsage'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/components/chat/editing/MessageEditingContext'
 import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
@@ -31,7 +33,7 @@ import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useModels } from '@renderer/hooks/useModel'
+import { useModelById, useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -129,8 +131,14 @@ export interface ChatConversationControlsSnapshot {
 
 export type ChatConversationControlsChangeHandler = (snapshot: ChatConversationControlsSnapshot | null) => void
 
+export interface ChatContextUsageSource {
+  contextTokens: number
+  modelId: UniqueModelId
+}
+
 export interface ChatComposerProps {
   topic?: Topic
+  contextUsage?: ChatContextUsageSource | null
   scopeKey?: string
   topicId?: string
   assistantId?: string
@@ -199,8 +207,17 @@ type ChatComposerControlProps = Omit<ChatConversationControlsProps, 'side'> & {
 type ComposerSurfaceProps = React.ComponentProps<typeof ComposerSurface>
 type ComposerInputAdapter = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[0]
 type ComposerUnifiedPanelControl = Parameters<NonNullable<ComposerSurfaceProps['renderLeftControls']>>[1]
-type ChatComposerControlSlots = Pick<ComposerSurfaceProps, 'renderLeftControls' | 'renderBelowControls'>
+type ChatComposerControlSlots = Pick<
+  ComposerSurfaceProps,
+  'renderLeftControls' | 'renderBelowControls' | 'renderCompactControls'
+>
 type ChatComposerControlsRenderer = (props: ChatComposerControlProps) => ChatComposerControlSlots
+
+const renderChatPersistentCompactControls = (
+  props: ChatComposerControlProps,
+  inputAdapter: ComposerInputAdapter,
+  unifiedPanelControl: ComposerUnifiedPanelControl
+) => props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })
 
 const restoreComposerInputFocus = (inputAdapter: ComposerInputAdapter) => {
   window.requestAnimationFrame(() => inputAdapter?.focus())
@@ -265,7 +282,9 @@ const renderChatInputControls: ChatComposerControlsRenderer = (props) => ({
       unifiedPanelControl={unifiedPanelControl}
       renderContextControls={() => null}
     />
-  )
+  ),
+  renderCompactControls: (inputAdapter, unifiedPanelControl) =>
+    renderChatPersistentCompactControls(props, inputAdapter, unifiedPanelControl)
 })
 
 const renderChatHomeControls: ChatComposerControlsRenderer = (props) => ({
@@ -303,22 +322,65 @@ const renderChatHomeInputControls: ChatComposerControlsRenderer = (props) => ({
       {props.renderPersistentToolShortcuts?.({ inputAdapter, unifiedPanelControl })}
       <ComposerToolMenuControls inputAdapter={inputAdapter} unifiedPanelControl={unifiedPanelControl} />
     </div>
-  )
+  ),
+  renderCompactControls: (inputAdapter, unifiedPanelControl) =>
+    renderChatPersistentCompactControls(props, inputAdapter, unifiedPanelControl)
 })
 
-type ChatComposerRootProps = ChatComposerProps & {
-  renderControls: ChatComposerControlsRenderer
-  forceNarrowLayout?: boolean
-  deferQuickPanel?: boolean
+function ChatComposerContextUsage({ usage }: { usage?: ChatContextUsageSource | null }) {
+  const { t } = useTranslation()
+  const { model } = useModelById(usage?.modelId)
+  const maxTokens = model?.contextWindow
+  if (!usage || !model || typeof maxTokens !== 'number' || maxTokens <= 0) return null
+
+  const percentage = (usage.contextTokens / maxTokens) * 100
+  const label = t('agent.right_pane.info.context_usage')
+
+  return (
+    <NormalTooltip
+      side="top"
+      sideOffset={8}
+      showArrow={false}
+      contentProps={{
+        className:
+          'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md dark:bg-card dark:text-card-foreground'
+      }}
+      content={
+        <ContextUsageSummary
+          title={label}
+          emptyLabel={t('common.none')}
+          data={{ usedTokens: usage.contextTokens, maxTokens, percentage, modelName: model.name }}
+        />
+      }>
+      <ContextUsageMeter label={label} percentage={percentage} />
+    </NormalTooltip>
+  )
 }
 
-type ChatPlacementDockedProps = Omit<ChatComposerProps, 'onDraftAssistantChange'>
+interface ChatComposerPresentationProps {
+  compactWhenSingleLine?: boolean
+}
+
+type ChatComposerRootProps = ChatComposerProps &
+  ChatComposerPresentationProps & {
+    renderControls: ChatComposerControlsRenderer
+    forceNarrowLayout?: boolean
+    deferQuickPanel?: boolean
+  }
+
+type ChatPlacementPresentationProps =
+  | { externalContextControls: true; compactWhenSingleLine?: boolean }
+  | { externalContextControls?: false; compactWhenSingleLine?: never }
+type ChatPlacementHomeProps = Omit<ChatComposerProps, 'externalContextControls'> & ChatPlacementPresentationProps
+type ChatPlacementDockedProps = Omit<ChatComposerProps, 'externalContextControls' | 'onDraftAssistantChange'> &
+  ChatPlacementPresentationProps
 type ChatPlacementComposerProps =
-  | (ChatComposerProps & { placement: 'home' })
+  | (ChatPlacementHomeProps & { placement: 'home' })
   | (ChatPlacementDockedProps & { placement: 'docked' })
 
 const ChatComposerRoot = ({
   topic,
+  contextUsage,
   scopeKey,
   topicId,
   assistantId,
@@ -329,6 +391,7 @@ const ChatComposerRoot = ({
   onSend,
   chatTarget,
   sendDisabled,
+  compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
@@ -373,6 +436,7 @@ const ChatComposerRoot = ({
           <ChatComposerInner
             scopeKey={resolvedScopeKey}
             topicId={resolvedTopicId}
+            contextUsage={contextUsage}
             assistantId={resolvedAssistantId}
             resolvedContext={resolvedContext}
             resolvedProviders={resolvedProviders}
@@ -383,6 +447,7 @@ const ChatComposerRoot = ({
             onSend={onSend}
             chatTarget={chatTarget}
             sendDisabled={sendDisabled}
+            compactWhenSingleLine={compactWhenSingleLine}
             useMentionedModelSelector={useMentionedModelSelector}
             onDraftAssistantChange={onDraftAssistantChange}
             onNewTopic={onNewTopic}
@@ -397,7 +462,7 @@ const ChatComposerRoot = ({
   )
 }
 
-interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
+interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'>, ChatComposerPresentationProps {
   scopeKey: string
   initialDraft: ChatComposerDraftCache
   actionsRef: React.RefObject<ProviderActionHandlers>
@@ -409,6 +474,7 @@ interface ChatComposerInnerProps extends Omit<ChatComposerProps, 'scopeKey'> {
 const ChatComposerInner = ({
   scopeKey,
   topicId,
+  contextUsage,
   assistantId,
   resolvedContext,
   resolvedProviders,
@@ -419,6 +485,7 @@ const ChatComposerInner = ({
   onSend,
   chatTarget,
   sendDisabled = false,
+  compactWhenSingleLine = false,
   useMentionedModelSelector,
   onDraftAssistantChange,
   onNewTopic,
@@ -1524,15 +1591,20 @@ const ChatComposerInner = ({
     onMentionedModelMultiSelectModeChange: handleMentionedModelMultiSelectModeChange,
     onMentionedModelSelectorRestore: handleMentionedModelSelectorRestore
   })
-  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = speedControlModel ? (
-    <ComposerSpeedControl
-      model={speedControlModel}
-      reasoningEffort={reasoningEffort}
-      fastMode={fastMode}
-      onReasoningEffortChange={handleReasoningEffortChange}
-      onFastModeChange={setFastMode}
-    />
-  ) : null
+  const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
+    <>
+      {speedControlModel ? (
+        <ComposerSpeedControl
+          model={speedControlModel}
+          reasoningEffort={reasoningEffort}
+          fastMode={fastMode}
+          onReasoningEffortChange={handleReasoningEffortChange}
+          onFastModeChange={setFastMode}
+        />
+      ) : null}
+      <ChatComposerContextUsage usage={contextUsage} />
+    </>
+  )
 
   return (
     <ComposerToolDerivedStateProvider
@@ -1637,6 +1709,7 @@ const ChatComposerInner = ({
           onToolLauncherSelect={(launcher, options) => dispatchLauncher(launcher, options)}
           deferQuickPanel={deferQuickPanel}
           sendAccessory={sendAccessory}
+          compactWhenSingleLine={compactWhenSingleLine}
           {...controlSlots}
         />
       </ComposerPinnedToolsProvider>

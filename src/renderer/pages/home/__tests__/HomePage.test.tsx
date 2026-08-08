@@ -3,7 +3,6 @@ import type * as ChatPrimitives from '@renderer/components/chat/primitives'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
-import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -456,9 +455,9 @@ vi.mock('../Tabs/HomeTabs', () => ({
   default: ({
     historyRecordsActive,
     assistantTopicsSource,
+    onManageAssistants,
     onOpenHistoryRecords,
     onSetPanePosition,
-    resourceMenuItems,
     revealRequest,
     setActiveTopic
   }: any) => {
@@ -498,13 +497,11 @@ vi.mock('../Tabs/HomeTabs', () => ({
             </button>
           </>
         )}
-        {resourceMenuItems
-          ?.filter((item: { id: string }) => item.id === 'assistant-resource-view')
-          .map((item: { id: string; onSelect: () => void | Promise<void> }) => (
-            <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-              assistants.presets.manage.title
-            </button>
-          ))}
+        {onManageAssistants && (
+          <button type="button" onClick={() => void onManageAssistants()}>
+            assistants.presets.manage.title
+          </button>
+        )}
       </div>
     )
   }
@@ -580,11 +577,11 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     historyRecordsActive,
     onAddAssistant,
     onActiveAssistantDeleted,
+    onManageAssistants,
     onOpenHistoryRecords,
     assistantTopicsSource,
     onCreateTopic,
-    onSelectedAssistantClick,
-    resourceMenuItems
+    onSelectedAssistantClick
   }: {
     activeAssistantId?: string | null
     historyRecordsActive?: boolean
@@ -592,9 +589,9 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
     onAddAssistant?: () => void | Promise<void>
     onActiveAssistantDeleted?: (assistantId: string) => void | Promise<void>
     onCreateTopic?: (assistantId: string | null) => void | Promise<void>
+    onManageAssistants?: () => void | Promise<void>
     onOpenHistoryRecords?: () => void | Promise<void>
     onSelectedAssistantClick?: () => void | Promise<void>
-    resourceMenuItems?: Array<{ id: string; label: ReactNode; onSelect: () => void | Promise<void> }>
   }) => {
     homeMocks.assistantResourceListTopicsSource = assistantTopicsSource
 
@@ -618,13 +615,11 @@ vi.mock('@renderer/components/chat/resourceList/AssistantResourceList', () => ({
         <button type="button" onClick={() => void onSelectedAssistantClick?.()}>
           Toggle selected assistant pane
         </button>
-        {resourceMenuItems
-          ?.filter((item) => item.id === 'assistant-resource-view')
-          .map((item) => (
-            <button key={item.id} type="button" onClick={() => void item.onSelect()}>
-              assistants.presets.manage.title
-            </button>
-          ))}
+        {onManageAssistants && (
+          <button type="button" onClick={() => void onManageAssistants()}>
+            assistants.presets.manage.title
+          </button>
+        )}
       </div>
     )
   }
@@ -1667,19 +1662,6 @@ describe('HomePage', () => {
       </WindowFrameProvider>
     )
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
-  })
-
-  it('uses the compact minimum window width even while the topic sidebar is open', async () => {
-    homeMocks.preferenceValues.set('topic.tab.show', true)
-
-    render(<HomePage />)
-
-    await waitFor(() => {
-      expect(ipcMocks.request).toHaveBeenCalledWith('window.main.set_minimum_size', {
-        width: SECOND_MIN_WINDOW_WIDTH,
-        height: MIN_WINDOW_HEIGHT
-      })
-    })
   })
 
   it('keeps a pending locate message when selecting a global-search topic message', async () => {

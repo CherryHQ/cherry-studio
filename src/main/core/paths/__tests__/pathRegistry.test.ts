@@ -54,6 +54,31 @@ describe('buildPathRegistry', () => {
     expect(registry['feature.binary.data.isolated.appdata']).toBe(path.join(miseRoot, 'appdata'))
   })
 
+  it('stores active traces under userData Runtime and keeps the old path cleanup-only', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['feature.trace']).toBe(path.join('/mock/userData', 'Runtime', 'trace'))
+    expect(registry['v1.trace']).toBe(path.join(registry['cherry.home'], 'trace'))
+    expect(shouldAutoEnsure('feature.trace')).toBe(true)
+    expect(shouldAutoEnsure('v1.trace')).toBe(false)
+  })
+
+  it('keeps the old CLI install root cleanup-only', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['v1.cli.install']).toBe(path.join(registry['cherry.home'], 'install'))
+    expect(shouldAutoEnsure('v1.cli.install')).toBe(false)
+  })
+
+  it('keeps the root database and Claude config cleanup-only', () => {
+    const registry = buildPathRegistry()
+
+    expect(registry['v1.database.file']).toBe(path.join('/mock/userData', 'cherrystudio.sqlite'))
+    expect(registry['v1.agents.claude']).toBe(path.join('/mock/userData', '.claude'))
+    expect(shouldAutoEnsure('v1.database.file')).toBe(false)
+    expect(shouldAutoEnsure('v1.agents.claude')).toBe(false)
+  })
+
   it('falls back when Electron cannot resolve an optional user system path', () => {
     getPathMock.mockImplementation((key: string) => {
       if (key === 'documents') {
@@ -234,6 +259,13 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns false for the bundled Cherry Assistant product manifest', () => {
       expect(shouldAutoEnsure('feature.agents.assistant.manifest.file')).toBe(false)
+    })
+
+    it('does not auto-create the persist:webview session directory', () => {
+      const registry = buildPathRegistry()
+
+      expect(registry['app.session.webview']).toBe(path.join('/mock/sessionData', 'Partitions', 'webview'))
+      expect(shouldAutoEnsure('app.session.webview')).toBe(false)
     })
   })
 

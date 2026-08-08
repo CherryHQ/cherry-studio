@@ -3,7 +3,8 @@ import '@testing-library/jest-dom/vitest'
 
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import type { SidebarFavoriteItem } from '@shared/data/preference/preferenceTypes'
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -104,6 +105,7 @@ vi.mock('@renderer/utils/routeTitle', () => ({
       '/app/agents': 'Work',
       '/app/chat': 'Chat',
       '/app/files': 'Files',
+      '/app/launchpad': 'Launchpad',
       '/app/translate': 'Translate'
     })[url] ?? 'Chat'
 }))
@@ -227,7 +229,7 @@ vi.mock('../../Sidebar', async () => {
           <div data-testid="ui-sidebar" data-width={width} />
           <div data-testid="sidebar-items">
             {items?.map((item) => (
-              <div key={item.key}>
+              <div key={item.key} role="group" aria-label={item.label}>
                 <button
                   type="button"
                   data-testid={`sidebar-item-${parseEntryKey(item.key).id}`}
@@ -249,7 +251,7 @@ vi.mock('../../Sidebar', async () => {
           </div>
           <div data-testid="sidebar-mini-app-section">
             {dockedTabs?.map((miniTab) => (
-              <div key={miniTab.key}>
+              <div key={miniTab.key} role="group" aria-label={miniTab.label}>
                 <button
                   type="button"
                   data-active={miniTab.isActive(activeState) ? 'true' : 'false'}
@@ -280,6 +282,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string }) => {
       if (key === 'common.search') return 'Search'
+      if (key === 'launchpad.manage_sidebar') return 'Manage Sidebar'
       return options?.defaultValue ?? key
     }
   })
@@ -401,6 +404,23 @@ describe('app Sidebar', () => {
     expect(mocks.setSidebarFavorites).not.toHaveBeenCalled()
   })
 
+  it('opens the launchpad in a new tab from the manage sidebar context menu', async () => {
+    const user = userEvent.setup()
+    mocks.sidebarFavorites = [appFavorite('knowledge')]
+
+    render(<Sidebar />)
+
+    const knowledgeItem = screen.getByRole('group', { name: 'knowledge' })
+    const manageSidebar = within(knowledgeItem).getByRole('button', { name: 'Manage Sidebar' })
+
+    await user.click(manageSidebar)
+
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/launchpad', {
+      forceNew: true,
+      title: 'Launchpad'
+    })
+  })
+
   it('renders favorite mini apps directly in the sidebar mini app section', () => {
     configureMiniApps(['calculator', 'weather'], [calculatorMiniApp, weatherMiniApp])
     mocks.activeTab = {
@@ -419,10 +439,10 @@ describe('app Sidebar', () => {
     expect(screen.getByTestId('sidebar-mini-app-calculator')).toHaveAttribute('data-active', 'true')
     expect(screen.getByTestId('sidebar-mini-app-weather')).toHaveTextContent('Weather')
     expect(
-      Array.from(screen.getByTestId('sidebar-mini-app-section').querySelectorAll('button')).map(
-        (button) => button.textContent
-      )
-    ).toEqual(['Calculator', 'launchpad.unpin_from_sidebar', 'Weather', 'launchpad.unpin_from_sidebar'])
+      within(screen.getByTestId('sidebar-mini-app-section'))
+        .getAllByRole('group')
+        .map((group) => group.getAttribute('aria-label'))
+    ).toEqual(['Calculator', 'Weather'])
   })
 
   it('removes a sidebar mini app favorite from the context menu', () => {
@@ -437,6 +457,17 @@ describe('app Sidebar', () => {
       appFavorite('mini_app'),
       miniAppFavorite('weather')
     ])
+  })
+
+  it('offers the manage sidebar action for mini app favorites', () => {
+    mocks.sidebarFavorites = []
+    mocks.sidebarMiniAppFavorites = [miniAppFavorite('calculator')]
+    mocks.allApps = [calculatorMiniApp]
+
+    render(<Sidebar />)
+
+    const calculatorItem = screen.getByRole('group', { name: 'Calculator' })
+    expect(within(calculatorItem).getByRole('button', { name: 'Manage Sidebar' })).toBeInTheDocument()
   })
 
   it('reorders sidebar favorites through a single mixed drag', () => {

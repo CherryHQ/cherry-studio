@@ -19,7 +19,14 @@ describe('CLI_TOOLS', () => {
 describe('LOGIN_CAPABLE_CLI_TOOLS', () => {
   it('covers exactly the tools that offer the virtual own-login option', () => {
     expect([...LOGIN_CAPABLE_CLI_TOOLS].sort()).toEqual(
-      [CodeCli.CLAUDE_CODE, CodeCli.OPENAI_CODEX, CodeCli.GEMINI_CLI, CodeCli.QWEN_CODE, CodeCli.KIMI_CODE].sort()
+      [
+        CodeCli.CLAUDE_CODE,
+        CodeCli.OPENAI_CODEX,
+        CodeCli.GEMINI_CLI,
+        CodeCli.QWEN_CODE,
+        CodeCli.KIMI_CODE,
+        CodeCli.PI
+      ].sort()
     )
   })
 

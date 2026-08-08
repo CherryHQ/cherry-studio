@@ -126,8 +126,6 @@ export class AgentChatContextProvider implements ChatContextProvider {
           data: { parts: userMessageParts }
         }
       })
-      // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
-      topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedUserMessage.data)
 
       application.get('AgentSessionRuntimeService').enqueueUserMessage(sessionId, userMessage, {
         headless: req.headless === true,
@@ -146,6 +144,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
       }
     }
 
+    // Match normal topics: only the first turn of an untouched conversation may auto-name.
+    // Later idle turns still create a fresh runtime entry, so runtime state alone cannot
+    // distinguish them from the initial turn; persisted messages are the durable boundary.
+    const shouldAutoNameInitialTurn = !agentSessionMessageService.hasSessionMessages(sessionId)
     const assistantMessageId = uuidv7()
 
     // Container trace: one trace tree per session. The turn's `ai.turn` span is a
@@ -196,8 +198,10 @@ export class AgentChatContextProvider implements ChatContextProvider {
       turnTrace.end('error', error instanceof Error ? error : new Error(String(error)))
       throw error
     }
-    // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
-    topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
+    if (shouldAutoNameInitialTurn) {
+      // Fire-and-forget is safe: the naming service isolates errors and rechecks state before writing.
+      topicNamingService.maybeRenameAgentSessionFromFirstUserMessage(sessionId, savedMessages[0]?.data)
+    }
 
     // Author the turn span's input/identity here (where the agent + user message live).
     applyTurnInputAttributes(turnTrace.rootSpan, {
@@ -220,7 +224,8 @@ export class AgentChatContextProvider implements ChatContextProvider {
       userMessage,
       headless: req.headless === true,
       traceId,
-      messageSnapshot
+      messageSnapshot,
+      shouldAutoName: shouldAutoNameInitialTurn
     })
 
     return {
