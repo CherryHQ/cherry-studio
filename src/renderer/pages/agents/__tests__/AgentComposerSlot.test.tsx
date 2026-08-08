@@ -83,7 +83,7 @@ describe('AgentComposerSlot', () => {
 
   it('forwards one-shot launch options to the real composer', () => {
     const launchOptions = {
-      initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] },
+      initialDraft: { text: 'Use the cherry-studio-feedback skill.', tokens: [] },
       onSent: vi.fn()
     }
 
