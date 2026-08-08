@@ -194,6 +194,17 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.warnings.push(message)
   }
 
+  /**
+   * Build the execute() result's warnings: only the execute-phase slice of `this.warnings`.
+   * prepare()'s warnings were already returned to the engine, which merges prepare + execute
+   * (`MigrationEngine.run`), so re-returning them lists every prepare warning
+   * twice in the completion dialog — which renders them un-deduped and un-truncated.
+   */
+  private buildExecuteWarnings(prepareWarningCount: number): string[] | undefined {
+    const executeWarnings = this.warnings.slice(prepareWarningCount)
+    return executeWarnings.length > 0 ? executeWarnings : undefined
+  }
+
   private recordSkippedWarning(reason: string, message: string): void {
     const bucket = this.skippedWarnings.get(reason) ?? { count: 0, samples: [] }
     bucket.count += 1
@@ -802,7 +813,10 @@ export class KnowledgeMigrator extends BaseMigrator {
       return {
         success: true,
         itemCount: this.sourceCount,
-        warnings: this.warnings.length > 0 ? this.warnings : undefined
+        // A snapshot, not `this.warnings` itself: the engine holds this result until execute()
+        // finishes, and execute() keeps pushing onto the same array — handing out the live
+        // reference would grow the prepare result to include execute's warnings too.
+        warnings: this.warnings.length > 0 ? [...this.warnings] : undefined
       }
     } catch (error) {
       logger.error('KnowledgeMigrator.prepare failed', error as Error)
@@ -902,6 +916,9 @@ export class KnowledgeMigrator extends BaseMigrator {
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
     this.skippedPreparedItemIds = new Set<string>()
+    // Warnings collected so far are prepare()'s and were already returned to the engine; capture
+    // the boundary so execute() surfaces only its own (see buildExecuteWarnings).
+    const prepareWarningCount = this.warnings.length
 
     if (this.preparedBases.length === 0 && this.preparedItems.length === 0) {
       await this.dropDanglingAssistantKnowledgeBaseRefs(ctx)
@@ -1021,7 +1038,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       return {
         success: true,
         processedCount: processed,
-        warnings: this.warnings.length > 0 ? this.warnings : undefined
+        warnings: this.buildExecuteWarnings(prepareWarningCount)
       }
     } catch (error) {
       logger.error('KnowledgeMigrator.execute failed', error as Error)
@@ -1029,7 +1046,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         success: false,
         processedCount: processed,
         error: error instanceof Error ? error.message : String(error),
-        warnings: this.warnings.length > 0 ? this.warnings : undefined
+        warnings: this.buildExecuteWarnings(prepareWarningCount)
       }
     }
   }

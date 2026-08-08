@@ -2084,6 +2084,59 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     ...overrides
   })
 
+  it('execute returns only its own warnings so the engine merge does not duplicate them', async () => {
+    // MigrationEngine concatenates prepare().warnings with execute().warnings, and the completion
+    // dialog renders the result un-deduped and un-truncated. Returning the full `this.warnings`
+    // from execute therefore lists every prepare warning twice.
+    const migrator = new KnowledgeMigrator() as any
+    vi.spyOn(migrator, 'resolveDimensionsForBase').mockResolvedValue({ dimensions: 1024, reason: 'ok' })
+    vi.spyOn(migrator, 'loadLoaderSourceMap').mockResolvedValue({
+      kind: 'loaded',
+      // Recorded outside the container's folder — triggers prepare's aggregated fallback warning.
+      sources: new Map([['loader-a', '/elsewhere/a.md']])
+    })
+
+    const prepareResult = await migrator.prepare(
+      directoryPrefixCtx(
+        [
+          legacyBase({
+            id: 'kb-dir',
+            items: [
+              { id: 'item-directory', type: 'directory', content: '/docs', uniqueId: 'd', uniqueIds: ['loader-a'] },
+              { id: 'item-file', type: 'file', content: 'file-doc' }
+            ]
+          })
+        ],
+        [
+          {
+            id: 'file-doc',
+            name: 'file-doc.pdf',
+            origin_name: 'report.pdf',
+            path: '/legacy/report.pdf',
+            size: 8,
+            ext: '.pdf',
+            type: 'document',
+            created_at: '2025-01-01T00:00:00.000Z',
+            count: 1
+          }
+        ]
+      ) as any
+    )
+
+    // `existsSync` is reset to falsy in beforeEach, so the copy pass warns as well.
+    const executeResult = await runExecute(migrator)
+
+    const prepareWarnings: string[] = prepareResult.warnings ?? []
+    const executeWarnings: string[] = executeResult.warnings ?? []
+    expect(prepareWarnings.some((warning) => warning.includes('outside the folder path'))).toBe(true)
+    expect(executeWarnings.some((warning) => warning.includes('Knowledge file source missing'))).toBe(true)
+    // The prepare-phase warning must not come back a second time from execute.
+    expect(executeWarnings.some((warning) => warning.includes('outside the folder path'))).toBe(false)
+
+    const merged = [...prepareWarnings, ...executeWarnings]
+    expect(new Set(merged).size).toBe(merged.length)
+  })
+
   it('execute keeps a copied file from claiming a migrated directory prefix', async () => {
     // A v1 file literally named `docs` would otherwise own `raw/docs` — and then deleting or
     // re-indexing the `docs` container would recursively remove it, since both paths call
