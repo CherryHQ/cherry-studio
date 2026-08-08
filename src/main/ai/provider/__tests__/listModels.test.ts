@@ -112,7 +112,7 @@ describe('listModels — Ollama capabilities', () => {
     })
   }
 
-  it('maps the native thinking capability to an on/off reasoning control', async () => {
+  it('maps native thinking support to the reasoning capability without declaring controls', async () => {
     aiSdkGetFromApiMock.mockResolvedValueOnce({
       value: {
         models: [
@@ -134,37 +134,13 @@ describe('listModels — Ollama capabilities', () => {
 
     expect(models[0]).toMatchObject({
       apiModelId: 'qwen3:32b-q4_K_M',
-      capabilities: [MODEL_CAPABILITY.REASONING],
-      reasoning: {
-        controls: [{ kind: 'toggle' }],
-        selectableEfforts: ['none', 'auto']
-      }
+      capabilities: [MODEL_CAPABILITY.REASONING]
     })
+    expect(models[0].reasoning).toBeUndefined()
     expect(models[1]).toMatchObject({ capabilities: [] })
     expect(models[1].reasoning).toBeUndefined()
     expect(aiSdkGetFromApiMock.mock.calls[0][0]).toMatchObject({
       url: 'http://ollama.test:11434/api/tags'
-    })
-  })
-
-  it('maps GPT-OSS thinking to its native effort levels', async () => {
-    aiSdkGetFromApiMock.mockResolvedValueOnce({
-      value: {
-        models: [
-          {
-            name: 'gpt-oss:20b',
-            capabilities: ['completion', 'thinking'],
-            details: { family: 'gptoss' }
-          }
-        ]
-      }
-    })
-
-    const [model] = await listModels(makeOllamaProvider())
-
-    expect(model.reasoning).toEqual({
-      controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
-      selectableEfforts: ['low', 'medium', 'high']
     })
   })
 })

@@ -4,13 +4,7 @@ import { ipcApi } from '@renderer/ipc'
 import type { CreateModelDto } from '@shared/data/api/schemas/models'
 import type { ProviderPreset } from '@shared/data/api/schemas/providers'
 import type { ConcreteApiPaths } from '@shared/data/api/types'
-import {
-  type EndpointType as RuntimeEndpointType,
-  type Model,
-  MODEL_CAPABILITY,
-  parseUniqueModelId,
-  type RuntimeReasoning
-} from '@shared/data/types/model'
+import { type EndpointType as RuntimeEndpointType, type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isNewApiProvider } from '@shared/utils/provider'
 import { isEmpty } from 'es-toolkit/compat'
@@ -34,11 +28,6 @@ type ProviderResolveModelsPath = Extract<ConcreteApiPaths, `/providers/${string}
 type ProviderPresetPath = Extract<ConcreteApiPaths, `/providers/${string}/preset`>
 type ModelSyncProviderEndpointSource = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
 
-export type ProviderResolvedModel = Model & {
-  /** Reasoning metadata reported by the provider before registry enrichment. */
-  providerDeclaredReasoning?: RuntimeReasoning
-}
-
 export function resolveCreateModelEndpointTypes(
   provider: ModelSyncProviderEndpointSource | null | undefined,
   model: Pick<Model, 'endpointTypes'>
@@ -60,21 +49,19 @@ function getRawModelId(model: Pick<Partial<Model>, 'apiModelId' | 'id'>): string
 
 export function toCreateModelDto(
   providerId: string,
-  model: ProviderResolvedModel,
+  model: Model,
   endpointTypes?: RuntimeEndpointType[]
 ): CreateModelDto {
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
-  const providerReasoning = model.providerDeclaredReasoning
-  const capabilities = providerReasoning && !model.presetModelId ? [MODEL_CAPABILITY.REASONING] : undefined
+  const capabilities = !model.presetModelId && model.capabilities?.length ? model.capabilities : undefined
 
   return {
     providerId,
     modelId,
     name: model.name,
     group: model.group,
-    ...(capabilities ? { capabilities } : {}),
-    ...(providerReasoning ? { reasoning: providerReasoning } : {}),
+    ...(capabilities ? { capabilities: [...capabilities] } : {}),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {})
   }
 }
@@ -127,8 +114,6 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
 
   return filteredModels.map((fetched) => {
     const base = fetched as Model
-    const providerDeclaredReasoning =
-      base.reasoning && base.capabilities.includes(MODEL_CAPABILITY.REASONING) ? base.reasoning : undefined
     const apiId = fetched.apiModelId ?? ''
     // `resolveModels` keys every result by the exact raw id it was sent, so an exact lookup always hits —
     // no fuzzy fallback needed (a slash/dot-stripping fallback used to overlay siblings onto one canonical
@@ -152,21 +137,13 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
       if (field === 'name' && keepFetchedName) {
         continue
       }
-      if (field === 'reasoning' && providerDeclaredReasoning) {
-        continue
-      }
-      if (field === 'capabilities' && providerDeclaredReasoning) {
-        merged.capabilities = Array.from(new Set([...(registry.capabilities ?? []), MODEL_CAPABILITY.REASONING]))
-        continue
-      }
-
       const value = registry[field]
       if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
         ;(merged as Record<string, unknown>)[field] = value
       }
     }
 
-    return providerDeclaredReasoning ? { ...merged, providerDeclaredReasoning } : merged
+    return merged
   })
 }
 
@@ -176,7 +153,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
  * surfaces upstream failures so the UI can show a real reason rather than
  * a silent empty list.
  */
-export async function fetchResolvedProviderModels(providerId: string): Promise<ProviderResolvedModel[]> {
+export async function fetchResolvedProviderModels(providerId: string): Promise<Model[]> {
   try {
     logger.info('Fetching provider models via IPC', { providerId })
     const fetched = await ipcApi.request('ai.provider.model.list', { providerId, throwOnError: true })

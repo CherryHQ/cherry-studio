@@ -69,18 +69,14 @@ describe('fetchResolvedProviderModels', () => {
     })
   })
 
-  it('keeps provider-declared Ollama reasoning while enriching other registry metadata', async () => {
+  it('uses registry reasoning controls while preserving discovered thinking support', async () => {
     listModelsMock.mockResolvedValueOnce([
       {
         id: 'ollama::qwen3:32b',
         providerId: 'ollama',
         apiModelId: 'qwen3:32b',
         name: 'qwen3:32b',
-        capabilities: [MODEL_CAPABILITY.REASONING],
-        reasoning: {
-          controls: [{ kind: 'toggle' }],
-          selectableEfforts: ['none', 'auto']
-        }
+        capabilities: [MODEL_CAPABILITY.REASONING]
       }
     ])
     dataApiGetMock.mockResolvedValueOnce([
@@ -90,7 +86,7 @@ describe('fetchResolvedProviderModels', () => {
         apiModelId: 'qwen3:32b',
         presetModelId: 'qwen3-32b',
         name: 'Qwen3 32B',
-        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
         reasoning: {
           controls: [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }],
           selectableEfforts: ['none', 'low', 'medium', 'high']
@@ -104,12 +100,8 @@ describe('fetchResolvedProviderModels', () => {
       presetModelId: 'qwen3-32b',
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
       reasoning: {
-        controls: [{ kind: 'toggle' }],
-        selectableEfforts: ['none', 'auto']
-      },
-      providerDeclaredReasoning: {
-        controls: [{ kind: 'toggle' }],
-        selectableEfforts: ['none', 'auto']
+        controls: [{ kind: 'budget', min: 1024, max: 38_912 }, { kind: 'toggle' }],
+        selectableEfforts: ['none', 'low', 'medium', 'high']
       }
     })
   })
@@ -246,11 +238,12 @@ describe('toCreateModelDto', () => {
     })
   })
 
-  it('does not forward model capabilities in the create DTO (resolved server-side from the registry)', () => {
+  it('does not forward capabilities for a preset-backed model', () => {
     const dto = toCreateModelDto('ppio', {
       id: 'ppio::bge-reranker-v2-m3' as UniqueModelId,
       providerId: 'ppio',
       apiModelId: 'bge-reranker-v2-m3',
+      presetModelId: 'bge-reranker-v2-m3',
       name: 'BGE Reranker',
       group: 'rerankers',
       capabilities: [MODEL_CAPABILITY.RERANK, MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_GENERATION],
@@ -268,34 +261,22 @@ describe('toCreateModelDto', () => {
     })
   })
 
-  it('forwards a provider-declared reasoning capability when reasoning metadata is present', () => {
+  it('forwards all discovered capabilities for a custom model', () => {
     const dto = toCreateModelDto('ollama', {
       id: 'ollama::acme-thinker:latest' as UniqueModelId,
       providerId: 'ollama',
       apiModelId: 'acme-thinker:latest',
       name: 'Acme Thinker',
-      capabilities: [MODEL_CAPABILITY.REASONING],
-      reasoning: {
-        controls: [{ kind: 'toggle' }],
-        selectableEfforts: ['none', 'auto']
-      },
-      providerDeclaredReasoning: {
-        controls: [{ kind: 'toggle' }],
-        selectableEfforts: ['none', 'auto']
-      },
+      capabilities: [MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL],
       supportsStreaming: true,
       isEnabled: true,
       isHidden: false
     } as Model)
 
-    expect(dto.capabilities).toEqual([MODEL_CAPABILITY.REASONING])
-    expect(dto.reasoning).toEqual({
-      controls: [{ kind: 'toggle' }],
-      selectableEfforts: ['none', 'auto']
-    })
+    expect(dto.capabilities).toEqual([MODEL_CAPABILITY.REASONING, MODEL_CAPABILITY.FUNCTION_CALL])
   })
 
-  it('keeps registry capabilities inherited for a preset-backed model with provider reasoning', () => {
+  it('keeps registry capabilities inherited for a preset-backed thinking model', () => {
     const dto = toCreateModelDto('ollama', {
       id: 'ollama::qwen3:32b' as UniqueModelId,
       providerId: 'ollama',
@@ -303,20 +284,11 @@ describe('toCreateModelDto', () => {
       presetModelId: 'qwen3-32b',
       name: 'Qwen3 32B',
       capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING],
-      reasoning: {
-        controls: [{ kind: 'toggle' }],
-        selectableEfforts: ['none', 'auto']
-      },
-      providerDeclaredReasoning: {
-        controls: [{ kind: 'toggle' }],
-        selectableEfforts: ['none', 'auto']
-      },
       supportsStreaming: true,
       isEnabled: true,
       isHidden: false
     } as Model)
 
     expect(dto.capabilities).toBeUndefined()
-    expect(dto.reasoning?.controls).toEqual([{ kind: 'toggle' }])
   })
 })

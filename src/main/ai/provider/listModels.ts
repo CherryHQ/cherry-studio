@@ -174,31 +174,6 @@ function pickPreferredString(values: Array<unknown>): string | undefined {
   return undefined
 }
 
-function getOllamaReasoningMetadata(model: OllamaModelResponseItem): Partial<Model> {
-  if (!model.capabilities?.includes('thinking')) {
-    return {}
-  }
-
-  const isGptOss = model.details?.family === 'gptoss' || model.details?.families?.includes('gptoss')
-  if (isGptOss) {
-    return {
-      capabilities: [MODEL_CAPABILITY.REASONING],
-      reasoning: {
-        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
-        selectableEfforts: ['low', 'medium', 'high']
-      }
-    }
-  }
-
-  return {
-    capabilities: [MODEL_CAPABILITY.REASONING],
-    reasoning: {
-      controls: [{ kind: 'toggle' }],
-      selectableEfforts: ['none', 'auto']
-    }
-  }
-}
-
 const ollamaFetcher: ModelFetcher = {
   match: (p) => isOllamaProvider(p),
   fetch: async (provider, signal) => {
@@ -214,7 +189,7 @@ const ollamaFetcher: ModelFetcher = {
     return dedup(response.models, (m) => m.name).map((m) =>
       toModel(m.name, provider, {
         ownedBy: 'ollama',
-        ...getOllamaReasoningMetadata(m)
+        capabilities: m.capabilities?.includes('thinking') ? [MODEL_CAPABILITY.REASONING] : []
       })
     )
   }

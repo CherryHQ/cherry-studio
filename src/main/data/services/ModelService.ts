@@ -65,7 +65,6 @@ const PRESET_DELTA_FIELDS = [
   'maxInputTokens',
   'maxOutputTokens',
   'supportsStreaming',
-  'reasoning',
   'parameters',
   'pricing'
 ] as const
@@ -257,7 +256,6 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'endpointTypes',
   ['parameterSupport', 'parameters'],
   'supportsStreaming',
-  'reasoning',
   'contextWindow',
   'maxInputTokens',
   'maxOutputTokens',
@@ -286,7 +284,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
     maxInputTokens: dto.maxInputTokens ?? null,
     maxOutputTokens: dto.maxOutputTokens ?? null,
     supportsStreaming: dto.supportsStreaming ?? true,
-    reasoning: dto.reasoning ?? null,
+    reasoning: null,
     parameters: dto.parameterSupport ?? null,
     pricing: dto.pricing ?? null,
     isEnabled: true,
@@ -350,7 +348,7 @@ function presetDeltaToNewUserModel(
     maxInputTokens: fields.has('maxInputTokens') ? (dto.maxInputTokens ?? null) : null,
     maxOutputTokens: fields.has('maxOutputTokens') ? (dto.maxOutputTokens ?? null) : null,
     supportsStreaming: fields.has('supportsStreaming') ? (dto.supportsStreaming ?? null) : null,
-    reasoning: fields.has('reasoning') ? (dto.reasoning ?? null) : null,
+    reasoning: null,
     parameters: fields.has('parameters') ? (dto.parameterSupport ?? null) : null,
     pricing: fields.has('pricing') ? (dto.pricing ?? null) : null,
     isEnabled: true,
@@ -358,16 +356,12 @@ function presetDeltaToNewUserModel(
   }
 }
 
-function applyStoredPresetDeltas(baseline: Model, row: UserModelRow, useStoredReasoning: boolean): Model {
-  const capabilities = row.capabilities ?? baseline.capabilities
+function applyStoredPresetDeltas(baseline: Model, row: UserModelRow): Model {
   return applyUserOverlay(baseline, {
     name: row.name,
     description: row.description,
     group: row.group,
-    capabilities:
-      useStoredReasoning && row.reasoning && !capabilities.includes(MODEL_CAPABILITY.REASONING)
-        ? [...capabilities, MODEL_CAPABILITY.REASONING]
-        : row.capabilities,
+    capabilities: row.capabilities,
     inputModalities: row.inputModalities,
     outputModalities: row.outputModalities,
     endpointTypes: row.endpointTypes,
@@ -375,7 +369,6 @@ function applyStoredPresetDeltas(baseline: Model, row: UserModelRow, useStoredRe
     maxInputTokens: row.maxInputTokens,
     maxOutputTokens: row.maxOutputTokens,
     supportsStreaming: row.supportsStreaming,
-    reasoning: useStoredReasoning ? row.reasoning : null,
     parameterSupport: row.parameters as RuntimeParameterSupport | null,
     pricing: row.pricing
   })
@@ -443,7 +436,7 @@ function applyStoredModelState(model: Model, row: UserModelRow): Model {
 
 function createPresetFallback(row: UserModelRow, profile?: ResolvedReasoningProfile['wire']): Model {
   const baseline = createCustomModel(row.providerId, row.modelId, profile)
-  return applyStoredModelState(applyStoredPresetDeltas(baseline, row, false), row)
+  return applyStoredModelState(applyStoredPresetDeltas(baseline, row), row)
 }
 
 class ModelService {
@@ -485,7 +478,12 @@ class ModelService {
       const inferred =
         inferCustomModelReasoning(dto.modelId, registryData?.reasoningProfile.wire, { declaredReasoning }) ??
         (declaredReasoning && registryData?.reasoningProfile.format === 'ollama'
-          ? projectRuntimeReasoning({ controls: [{ kind: 'toggle' }] }, registryData.reasoningProfile.wire)
+          ? projectRuntimeReasoning(
+              {
+                controls: [{ kind: 'toggle' }, { kind: 'effort', values: ['low', 'medium', 'high'] }]
+              },
+              registryData.reasoningProfile.wire
+            )
           : undefined)
       if (inferred) dtoValues.reasoning = inferred
     }
@@ -670,7 +668,7 @@ class ModelService {
             reasoningProfile.wire,
             reasoningProfile.support
           )
-          const resolved = applyStoredPresetDeltas(baseline, row, reasoningProfile.format === 'ollama')
+          const resolved = applyStoredPresetDeltas(baseline, row)
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel.imageGeneration
           return applyStoredModelState(imageGeneration ? { ...resolved, imageGeneration } : resolved, row)
         } catch (error) {
@@ -700,9 +698,7 @@ class ModelService {
         const ownedBy = registryOverride?.ownedBy ?? presetModel?.ownedBy ?? inferReasoningOwnedBy(modelId)
         if (ownedBy) updates.ownedBy = ownedBy
         let reasoning: RuntimeReasoning | undefined
-        if (reasoningProfile.format === 'ollama' && model.reasoning?.controls?.length) {
-          reasoning = projectRuntimeReasoning(model.reasoning, reasoningProfile.wire)
-        } else if (presetModel) {
+        if (presetModel) {
           reasoning = mergePresetModel(
             presetModel,
             registryOverride,
