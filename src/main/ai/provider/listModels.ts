@@ -103,7 +103,6 @@ const ApiErrorSchema = z.object({
 
 type ApiError = z.infer<typeof ApiErrorSchema>
 type OpenAIModelResponseItem = z.infer<typeof OpenAIModelsResponseSchema>['data'][number]
-type OllamaModelResponseItem = z.infer<typeof OllamaTagsResponseSchema>['models'][number]
 
 async function getFromApi<T>({
   url,
