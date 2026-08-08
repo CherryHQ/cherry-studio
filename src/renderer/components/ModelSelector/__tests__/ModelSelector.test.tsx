@@ -364,11 +364,14 @@ describe('ModelSelector', () => {
   })
 
   it('marks the empty option selected after the configure action', () => {
+    const customIcon = <span data-testid="custom-empty-option-icon" />
+
     render(
       <ModelSelector
         open
         multiple={false}
         noneOptionLabel="No model"
+        noneOptionIcon={customIcon}
         trigger={<button type="button">open</button>}
         onSelect={vi.fn()}
       />
@@ -376,6 +379,7 @@ describe('ModelSelector', () => {
 
     expect(mocks.bottomActions.map((action) => action.label)).toEqual(['models.action.configure_custom', 'No model'])
     expect(mocks.bottomActions[1]).toMatchObject({ type: 'selectable', selected: true })
+    expect(mocks.bottomActions[1].icon).toBe(customIcon)
   })
 
   it('omits the empty option from required single and multi selectors', () => {

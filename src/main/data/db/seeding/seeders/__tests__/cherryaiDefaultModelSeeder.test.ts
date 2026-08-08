@@ -74,6 +74,7 @@ describe('CherryAiDefaultModelSeeder', () => {
       isHidden: false
     })
     await expectSeededDefaultModelPreferences()
+    expect(await readPreferenceValue('topic.naming.model_id')).toBeUndefined()
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Self-healed missing CherryAI default provider', {
       providerId: CHERRYAI_PROVIDER_ID
     })

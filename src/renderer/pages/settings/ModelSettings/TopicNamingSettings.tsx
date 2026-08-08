@@ -17,7 +17,7 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
-import { CircleHelp } from 'lucide-react'
+import { CircleHelp, Rocket } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,8 +36,7 @@ export const TopicNamingSettings = () => {
 
   const handleSelectModel = useCallback(
     (selected: Model | undefined) => {
-      if (!selected) return
-      void setTopicNamingModelId(selected.id)
+      void setTopicNamingModelId(selected?.id ?? null)
     },
     [setTopicNamingModelId]
   )
@@ -66,7 +65,13 @@ export const TopicNamingSettings = () => {
               providers={providers}
               filter={chatModelFilter}
               onSelect={handleSelectModel}
-              placeholder={t('settings.models.empty')}
+              noneOptionLabel={t('settings.models.topic_naming.follow_quick')}
+              noneOptionIcon={<Rocket className="size-3.5" />}
+              placeholder={
+                topicNamingModelId === null
+                  ? t('settings.models.topic_naming.follow_quick')
+                  : t('settings.models.empty')
+              }
             />
           </div>
         </RowFlex>

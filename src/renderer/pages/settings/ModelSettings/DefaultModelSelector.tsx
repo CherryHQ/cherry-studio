@@ -6,7 +6,7 @@ import { cn } from '@renderer/utils/style'
 import { type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { ChevronDown } from 'lucide-react'
-import type { ComponentProps, FC } from 'react'
+import type { ComponentProps, FC, ReactNode } from 'react'
 
 export interface ModelSelectorTriggerProps extends Omit<ComponentProps<typeof Button>, 'children' | 'onSelect'> {
   model?: Model
@@ -17,6 +17,8 @@ export interface ModelSelectorTriggerProps extends Omit<ComponentProps<typeof Bu
 
 export interface DefaultModelSelectorProps extends ModelSelectorTriggerProps {
   filter: (model: Model) => boolean
+  noneOptionLabel?: string
+  noneOptionIcon?: ReactNode
   onSelect: (model: Model | undefined) => void
 }
 
@@ -67,11 +69,15 @@ export const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
   placeholder,
   compact,
   filter,
+  noneOptionLabel,
+  noneOptionIcon,
   onSelect
 }) => (
   <ModelSelector
     multiple={false}
     value={model}
+    noneOptionLabel={noneOptionLabel}
+    noneOptionIcon={noneOptionIcon}
     onSelect={onSelect}
     filter={filter}
     trigger={

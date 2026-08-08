@@ -7533,6 +7533,7 @@
       },
       "topic_naming": {
         "auto": "Conversation Auto Naming",
+        "follow_quick": "Follow Quick Model",
         "label": "Conversation naming",
         "model": "Naming Model",
         "prompt": "Conversation Naming Prompt"

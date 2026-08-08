@@ -7,7 +7,6 @@ import { loggerService } from '@logger'
 import type { AiGenerateRequest } from '@main/ai/AiService'
 import { WindowType } from '@main/core/window/types'
 import { messageService } from '@main/data/services/MessageService'
-import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import type { Message, MessageData, UIMessage } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import type { Topic } from '@shared/data/types/topic'
@@ -208,6 +207,7 @@ export class TopicNamingService {
       ]
 
       const uniqueModelId = this.resolveNamingModelId()
+      if (!uniqueModelId) return
       const title = await this.generateSummaryTitle(
         assistantId,
         uniqueModelId,
@@ -306,6 +306,7 @@ export class TopicNamingService {
       if (session.isNameManuallyEdited) return
       if (!canAutoRenameAgentSessionName(session.name, userText)) return
       const uniqueModelId = this.resolveNamingModelId()
+      if (!uniqueModelId) return
 
       const structuredConversation: StructuredMessage[] = [
         { role: 'user', mainText: cleanMarkdownImages(userText) },
@@ -405,7 +406,7 @@ export class TopicNamingService {
     return (configuredPrompt || FALLBACK_PROMPT).replaceAll('{{language}}', language)
   }
 
-  private resolveNamingModelId(): UniqueModelId {
+  private resolveNamingModelId(): UniqueModelId | null {
     const preferenceService = application.get('PreferenceService')
 
     const configured = preferenceService.get('topic.naming.model_id')
@@ -418,20 +419,19 @@ export class TopicNamingService {
       )
     }
 
-    // A title is a lightweight summary, so prefer the user's own quick-assistant model over the
-    // managed CherryAI default whenever the dedicated naming model is unset or unusable.
     const quickModelId = this.toUsableNamingModelId(preferenceService.get('feature.quick_assistant.model_id'))
     if (quickModelId) return quickModelId
 
-    return CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+    const defaultModelId = this.toUsableNamingModelId(preferenceService.get('chat.default_model_id'))
+    if (defaultModelId) return defaultModelId
+
+    return null
   }
 
   /**
    * Validate a `providerId::modelId` candidate for topic naming. Returns the id when usable, else
-   * `null`. A candidate is rejected when it fails to parse, its model no longer exists, or its
-   * provider is an external-CLI (agent-only) provider — those reuse a CLI's own login, hold no
-   * app-side credential, and cannot serve a generation request, so they can never name a topic
-   * (capability-derived, so any such provider is covered without keying on a specific id).
+   * `null`. A candidate is rejected when it fails to parse, its provider or model is missing, or
+   * its provider is external-CLI-only.
    */
   private toUsableNamingModelId(candidate: string | null | undefined): UniqueModelId | null {
     const parsed = UniqueModelIdSchema.safeParse(candidate)

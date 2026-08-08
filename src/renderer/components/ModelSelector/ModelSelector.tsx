@@ -279,6 +279,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   // `emitSelection` / `normalizeSelectedIdsFromValue`).
   const multiple = props.multiple
   const noneOptionLabel = props.multiple ? undefined : props.noneOptionLabel
+  const noneOptionIcon = props.multiple ? undefined : props.noneOptionIcon
   const selectionType = props.selectionType
   const selectedValue = props.value
   const [internalOpen, setInternalOpen] = useState(false)
@@ -851,7 +852,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     if (noneOptionLabel) {
       actions.push({
         type: 'selectable',
-        icon: <CircleSlash className="size-3.5" />,
+        icon: noneOptionIcon ?? <CircleSlash className="size-3.5" />,
         label: noneOptionLabel,
         selected: rawSelectedModelIds.length === 0,
         onClick: handleSelectNone
@@ -859,7 +860,14 @@ export function ModelSelector(props: ModelSelectorProps) {
     }
 
     return actions
-  }, [handleNavigateToCustomModelSettings, handleSelectNone, noneOptionLabel, rawSelectedModelIds.length, t])
+  }, [
+    handleNavigateToCustomModelSettings,
+    handleSelectNone,
+    noneOptionIcon,
+    noneOptionLabel,
+    rawSelectedModelIds.length,
+    t
+  ])
 
   const initialListHeight = Math.min(listHeight, MODEL_SELECTOR_CONTENT_HEIGHT)
 

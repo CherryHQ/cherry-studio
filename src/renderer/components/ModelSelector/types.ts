@@ -40,6 +40,7 @@ export interface ModelSelectorSingleModelProps extends ModelSelectorCommonProps 
   selectionType?: 'model'
   value?: Model
   noneOptionLabel?: string
+  noneOptionIcon?: ReactNode
   onSelect: (model: Model | undefined) => void
 }
 
@@ -48,6 +49,7 @@ export interface ModelSelectorSingleIdProps extends ModelSelectorCommonProps {
   selectionType: 'id'
   value?: UniqueModelId
   noneOptionLabel?: string
+  noneOptionIcon?: ReactNode
   onSelect: (modelId: UniqueModelId | undefined) => void
 }
 
