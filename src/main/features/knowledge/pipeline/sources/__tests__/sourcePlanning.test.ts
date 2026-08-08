@@ -39,11 +39,17 @@ function createFileItem(source: string): KnowledgeItemOf<'file'> {
 }
 
 describe('planKnowledgeItemSource', () => {
-  it.each(['pdf', 'doc', 'docx', 'pptx', 'xlsx', 'xls'])(
-    'routes supported document .%s files to file processing when a processor is configured',
+  it('routes PDFs to file processing when a processor is configured', () => {
+    expect(planKnowledgeItemSource(createBase(), createFileItem('/docs/source.pdf'))).toEqual({
+      kind: 'needsFileProcessing'
+    })
+  })
+
+  it.each(['doc', 'docx', 'pptx', 'xlsx', 'xls'])(
+    'indexes .%s directly even with a processor configured — AnydocReader already reads it',
     (ext) => {
       expect(planKnowledgeItemSource(createBase(), createFileItem(`/docs/source.${ext}`))).toEqual({
-        kind: 'needsFileProcessing'
+        kind: 'index-documents'
       })
     }
   )
