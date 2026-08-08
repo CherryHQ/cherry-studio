@@ -63,6 +63,10 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       table('agent'),
       table('agent_session'),
       table('agent_session_message'),
+      // agent_session_message_file_ref: cascade member of agent_session_message (sourceId →
+      // agent_session_message). Keeps agent-uploaded attachment bytes alive for exactly as
+      // long as the message — bundled with the agent_session tree in full backups.
+      table('agent_session_message_file_ref'),
       table('agent_workspace'),
       table('agent_channel'),
       table('agent_channel_task'),
@@ -88,6 +92,15 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         referencedDomain: 'AGENTS',
         kind: 'owning'
       },
+      // agent_session.taskScheduleId → job_schedule (AGENTS): same-domain optional
+      // (onDelete set null). The session's optional link to its periodic-run schedule.
+      // #25-required (owned-table FK must be declared).
+      {
+        table: table('agent_session'),
+        column: column('taskScheduleId'),
+        referencedDomain: 'AGENTS',
+        kind: 'optional'
+      },
 
       // ── agent_session_message ──────────────────────────────────────────────
       // agent_session_message.sessionId → agent_session: same-domain owning (cascade).
@@ -104,6 +117,23 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         column: column('modelId'),
         referencedDomain: 'PROVIDERS',
         kind: 'optional'
+      },
+      // ── agent_session_message_file_ref ─────────────────────────────────────
+      // sourceId → agent_session_message: same-domain owning (cascade). Nested member of
+      // agent_session_message (#14/#15) — bundles attachment refs with the message tree.
+      {
+        table: table('agent_session_message_file_ref'),
+        column: column('sourceId'),
+        referencedDomain: 'AGENTS',
+        kind: 'owning'
+      },
+      // fileEntryId → file_entry (FILE_STORAGE): cross-domain junction (cascade-prune with
+      // FILE_STORAGE, same shape as chat_message_file_ref). #25-required.
+      {
+        table: table('agent_session_message_file_ref'),
+        column: column('fileEntryId'),
+        referencedDomain: 'FILE_STORAGE',
+        kind: 'junction'
       },
 
       // ── agent_channel ──────────────────────────────────────────────────────
@@ -199,6 +229,7 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       mirrorPk('agent'),
       mirrorPk('agent_session'),
       mirrorPk('agent_session_message'),
+      mirrorPk('agent_session_message_file_ref'),
       mirrorPk('agent_workspace'),
       mirrorPk('agent_channel'),
       mirrorPk('agent_channel_task'),
@@ -212,7 +243,17 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       {
         root: table('agent_session'),
         identityKey: columns(['id']),
-        members: [{ table: table('agent_session_message'), viaColumn: column('sessionId'), cascade: 'include' }],
+        members: [
+          { table: table('agent_session_message'), viaColumn: column('sessionId'), cascade: 'include' },
+          // Nested member: agent_session_message_file_ref.sourceId → agent_session_message.
+          // Bundles attachment refs with the message tree (mirrors chat_message_file_ref).
+          {
+            table: table('agent_session_message_file_ref'),
+            viaColumn: column('sourceId'),
+            parent: table('agent_session_message'),
+            cascade: 'include'
+          }
+        ],
         renamable: false
       },
       // agent_workspace: natural-key (path UNIQUE), FIELD_MERGE, non-renamable.
@@ -268,6 +309,7 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
           // its job_schedule rows are not AGENTS-backed and are excluded here.
           'file-processing.background': 'excluded', // FILE_PROCESSING concern
           'file-processing.remote-poll': 'excluded', // FILE_PROCESSING concern
+          'file.contenthash-backfill': 'excluded', // FILE_STORAGE concern (FileManager backfill job)
           'knowledge.prepare-root': 'excluded', // KNOWLEDGE concern
           'knowledge.index-documents': 'excluded', // KNOWLEDGE concern
           'knowledge.check-file-processing-result': 'excluded', // KNOWLEDGE concern
@@ -296,13 +338,13 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
         sourceTable: table('agent_session_message')
       },
       // job_schedule holds agent.task jobs whose input/mask payloads are referenced from
-      // job_file_ref (image jobs). AGENTS owns job_schedule, so it owns the job sourceType
-      // too — the ref keeps input bytes alive for a job still queued or mid-poll (#11).
+      // job_file_ref. The `job` table itself is runtime (ALWAYS_STRIP — image-job queue),
+      // so the `job` FileRefSourceType is runtime-only-exclude: no job row survives into a
+      // backup, so its file refs have no owner to bundle with (#11 coverage via exclude).
       {
         sourceType: 'job',
-        ownerDomain: 'AGENTS',
-        resourcePolicy: 'include-with-owner',
-        sourceTable: table('job_schedule')
+        ownerDomain: 'excluded',
+        resourcePolicy: 'runtime-only-exclude'
       }
     ],
     jsonSoftReferences: [

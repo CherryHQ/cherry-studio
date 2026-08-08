@@ -5,11 +5,12 @@ import { describe, expect, it } from 'vitest'
 import { AGENTS_CONTRIBUTOR } from '../backupContributorAgents'
 
 describe('AGENTS contributor', () => {
-  it('owns the 10 agent tables (9 graph tables + job_schedule row-scope)', () => {
+  it('owns the 11 agent tables (9 graph tables + agent_session_message_file_ref + job_schedule row-scope)', () => {
     expect(AGENTS_CONTRIBUTOR.schema.tables).toEqual([
       table('agent'),
       table('agent_session'),
       table('agent_session_message'),
+      table('agent_session_message_file_ref'),
       table('agent_workspace'),
       table('agent_channel'),
       table('agent_channel_task'),
@@ -110,7 +111,14 @@ describe('AGENTS contributor', () => {
     expect(session!.identityKey).toEqual(['id'])
     expect(session!.renamable).toBe(false)
     expect(session!.members).toEqual([
-      expect.objectContaining({ table: table('agent_session_message'), viaColumn: 'sessionId', cascade: 'include' })
+      expect.objectContaining({ table: table('agent_session_message'), viaColumn: 'sessionId', cascade: 'include' }),
+      // Nested member: agent_session_message_file_ref.sourceId → agent_session_message.
+      expect.objectContaining({
+        table: table('agent_session_message_file_ref'),
+        viaColumn: 'sourceId',
+        parent: table('agent_session_message'),
+        cascade: 'include'
+      })
     ])
   })
 
@@ -200,10 +208,10 @@ describe('AGENTS contributor', () => {
     )
   })
 
-  it('declares the AGENTS-owned FileRefSourceTypes (agent_session_message + job)', () => {
-    // AGENTS owns agent_session_message (attachment refs) and job_schedule (image-job
-    // input/mask refs) — both are include-with-owner so their file bytes bundle with the
-    // owning tree in full backups (#11 coverage).
+  it('declares the AGENTS-owned + runtime-excluded FileRefSourceTypes', () => {
+    // agent_session_message is owned by AGENTS (include-with-owner — attachment refs bundle
+    // with the message tree). `job` is runtime-only-excluded: the `job` table is ALWAYS_STRIP
+    // (image-job queue), so its file refs have no owner to bundle with (#11 via exclude).
     expect(AGENTS_CONTRIBUTOR.schema.fileRefSourcePolicies).toEqual([
       {
         sourceType: 'agent_session_message',
@@ -213,9 +221,8 @@ describe('AGENTS contributor', () => {
       },
       {
         sourceType: 'job',
-        ownerDomain: 'AGENTS',
-        resourcePolicy: 'include-with-owner',
-        sourceTable: 'job_schedule'
+        ownerDomain: 'excluded',
+        resourcePolicy: 'runtime-only-exclude'
       }
     ])
   })

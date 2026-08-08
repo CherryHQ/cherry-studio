@@ -76,6 +76,7 @@ export const DB_TABLES = [
   'agent_mcp_server',
   'agent_session',
   'agent_session_message',
+  'agent_session_message_file_ref',
   'agent_skill',
   'agent_workspace',
   'ai_usage_record',
@@ -88,6 +89,7 @@ export const DB_TABLES = [
   'file_entry',
   'group',
   'job',
+  'job_file_ref',
   'job_schedule',
   'knowledge_base',
   'knowledge_item',
@@ -189,6 +191,7 @@ export const DB_COLUMNS_BY_TABLE = {
     },
     { name: 'description', dbName: 'description', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'workspaceId', dbName: 'workspaceId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'taskScheduleId', dbName: 'taskScheduleId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'traceId', dbName: 'traceId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'orderKey', dbName: 'orderKey', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
@@ -212,6 +215,14 @@ export const DB_COLUMNS_BY_TABLE = {
       sqlType: 'text'
     },
     { name: 'ftsRowid', dbName: 'ftsRowid', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
+    { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
+  ],
+  agent_session_message_file_ref: [
+    { name: 'id', dbName: 'id', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
+    { name: 'fileEntryId', dbName: 'fileEntryId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'sourceId', dbName: 'sourceId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'role', dbName: 'role', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
   ],
@@ -324,7 +335,9 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'name', dbName: 'name', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'ext', dbName: 'ext', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'size', dbName: 'size', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'contentHash', dbName: 'contentHash', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'externalPath', dbName: 'externalPath', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'cleanupPolicy', dbName: 'cleanupPolicy', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'deletedAt', dbName: 'deletedAt', isPrimaryKey: false, isNullable: true, sqlType: 'integer' }
@@ -357,6 +370,14 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'cancelRequested', dbName: 'cancelRequested', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'metadata', dbName: 'metadata', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'timeoutMs', dbName: 'timeoutMs', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
+    { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
+    { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
+  ],
+  job_file_ref: [
+    { name: 'id', dbName: 'id', isPrimaryKey: true, isNullable: false, sqlType: 'text' },
+    { name: 'fileEntryId', dbName: 'fileEntryId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'sourceId', dbName: 'sourceId', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
+    { name: 'role', dbName: 'role', isPrimaryKey: false, isNullable: false, sqlType: 'text' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' }
   ],
@@ -456,6 +477,7 @@ export const DB_COLUMNS_BY_TABLE = {
     { name: 'modelId', dbName: 'modelId', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'messageSnapshot', dbName: 'messageSnapshot', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'stats', dbName: 'stats', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
+    { name: 'compactionSummary', dbName: 'compactionSummary', isPrimaryKey: false, isNullable: true, sqlType: 'text' },
     { name: 'ftsRowid', dbName: 'ftsRowid', isPrimaryKey: false, isNullable: true, sqlType: 'integer' },
     { name: 'createdAt', dbName: 'createdAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
     { name: 'updatedAt', dbName: 'updatedAt', isPrimaryKey: false, isNullable: false, sqlType: 'integer' },
@@ -673,6 +695,12 @@ export const DB_PRIMARY_KEYS = {
   },
   agent_session: { table: 'agent_session', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   agent_session_message: { table: 'agent_session_message', columns: ['id'], kind: 'uuid-v7', ambiguous: false },
+  agent_session_message_file_ref: {
+    table: 'agent_session_message_file_ref',
+    columns: ['id'],
+    kind: 'uuid-v4',
+    ambiguous: false
+  },
   agent_skill: { table: 'agent_skill', columns: ['agentId', 'skillId'], kind: 'composite', ambiguous: false },
   agent_workspace: { table: 'agent_workspace', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   ai_usage_record: { table: 'ai_usage_record', columns: ['id'], kind: 'uuid-v7', ambiguous: false },
@@ -700,6 +728,7 @@ export const DB_PRIMARY_KEYS = {
   file_entry: { table: 'file_entry', columns: ['id'], kind: 'uuid-v7', ambiguous: false },
   group: { table: 'group', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   job: { table: 'job', columns: ['id'], kind: 'uuid-v7', ambiguous: false },
+  job_file_ref: { table: 'job_file_ref', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   job_schedule: { table: 'job_schedule', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   knowledge_base: { table: 'knowledge_base', columns: ['id'], kind: 'uuid-v4', ambiguous: false },
   knowledge_item: { table: 'knowledge_item', columns: ['id'], kind: 'uuid-v7', ambiguous: false },
@@ -751,11 +780,16 @@ export const DB_FOREIGN_KEYS = {
   ],
   agent_session: [
     { columns: ['agentId'], targetTable: 'agent', targetColumns: ['id'], onDelete: 'set null' },
-    { columns: ['workspaceId'], targetTable: 'agent_workspace', targetColumns: ['id'], onDelete: 'cascade' }
+    { columns: ['workspaceId'], targetTable: 'agent_workspace', targetColumns: ['id'], onDelete: 'cascade' },
+    { columns: ['taskScheduleId'], targetTable: 'job_schedule', targetColumns: ['id'], onDelete: 'set null' }
   ],
   agent_session_message: [
     { columns: ['sessionId'], targetTable: 'agent_session', targetColumns: ['id'], onDelete: 'cascade' },
     { columns: ['modelId'], targetTable: 'user_model', targetColumns: ['id'], onDelete: 'set null' }
+  ],
+  agent_session_message_file_ref: [
+    { columns: ['fileEntryId'], targetTable: 'file_entry', targetColumns: ['id'], onDelete: 'cascade' },
+    { columns: ['sourceId'], targetTable: 'agent_session_message', targetColumns: ['id'], onDelete: 'cascade' }
   ],
   agent_skill: [
     { columns: ['agentId'], targetTable: 'agent', targetColumns: ['id'], onDelete: 'cascade' },
@@ -786,6 +820,10 @@ export const DB_FOREIGN_KEYS = {
   job: [
     { columns: ['scheduleId'], targetTable: 'job_schedule', targetColumns: ['id'], onDelete: 'set null' },
     { columns: ['parentId'], targetTable: 'job', targetColumns: ['id'], onDelete: 'set null' }
+  ],
+  job_file_ref: [
+    { columns: ['fileEntryId'], targetTable: 'file_entry', targetColumns: ['id'], onDelete: 'cascade' },
+    { columns: ['sourceId'], targetTable: 'job', targetColumns: ['id'], onDelete: 'cascade' }
   ],
   job_schedule: [],
   knowledge_base: [
@@ -866,8 +904,9 @@ export const DB_UNIQUE_KEYS = {
   agent_global_skill: [{ columns: ['folderName'] }],
   agent_knowledge_base: [],
   agent_mcp_server: [],
-  agent_session: [],
+  agent_session: [{ columns: ['taskScheduleId'] }],
   agent_session_message: [{ columns: ['ftsRowid'] }],
+  agent_session_message_file_ref: [{ columns: ['fileEntryId', 'sourceId', 'role'] }],
   agent_skill: [],
   agent_workspace: [{ columns: ['path'] }],
   ai_usage_record: [{ columns: ['requestId'] }],
@@ -880,6 +919,7 @@ export const DB_UNIQUE_KEYS = {
   file_entry: [],
   group: [],
   job: [],
+  job_file_ref: [{ columns: ['fileEntryId', 'sourceId', 'role'] }],
   job_schedule: [{ columns: ['type', 'name'] }],
   knowledge_base: [],
   knowledge_item: [{ columns: ['baseId', 'id'] }],
@@ -916,6 +956,7 @@ export const DB_JSON_COLUMNS = {
   agent_mcp_server: [],
   agent_session: [],
   agent_session_message: ['data', 'messageSnapshot', 'stats'],
+  agent_session_message_file_ref: [],
   agent_skill: [],
   agent_workspace: [],
   ai_usage_record: ['costBreakdown', 'pricingSnapshot'],
@@ -928,6 +969,7 @@ export const DB_JSON_COLUMNS = {
   file_entry: [],
   group: [],
   job: ['input', 'output', 'error', 'metadata'],
+  job_file_ref: [],
   job_schedule: ['trigger', 'jobInputTemplate', 'catchUpPolicy', 'metadata'],
   knowledge_base: [],
   knowledge_item: ['data'],
@@ -968,5 +1010,5 @@ export const DB_FTS_VIRTUAL_TABLES = {
 
 // 5. Generation metadata for diagnostics. Excluded from byte-for-byte CHECK.
 export const BACKUP_REFS_META = {
-  generatedAt: '2026-07-30T05:55:10.663Z'
+  generatedAt: '2026-08-08T07:11:11.696Z'
 } as const

@@ -101,9 +101,10 @@ const buildFixture = (): BackupContributor[] => [
   }),
   contributor('AGENTS', ['agent_global_skill'], {
     fileRefSourcePolicies: [
-      { sourceType: 'temp_session', ownerDomain: 'excluded', resourcePolicy: 'runtime-only-exclude' },
       { sourceType: 'agent_session_message', ownerDomain: 'AGENTS', resourcePolicy: 'include-with-owner' },
-      { sourceType: 'job', ownerDomain: 'AGENTS', resourcePolicy: 'include-with-owner' }
+      // `job` is runtime-only-excluded: the `job` table is ALWAYS_STRIP, so its file refs
+      // have no owner to bundle with (#11 via exclude).
+      { sourceType: 'job', ownerDomain: 'excluded', resourcePolicy: 'runtime-only-exclude' }
     ]
   }),
   contributor('MINIAPPS', ['mini_app'], {

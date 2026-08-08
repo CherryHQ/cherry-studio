@@ -36,6 +36,9 @@ export const USER_DATA_WIPE = [
   'version.log',
   'restore-journal.json',
   'restore-staging',
+  // restore-aside: parked live-tree undo source for a notes-tree-swap restore. Same
+  // lifecycle as restore-staging (transient, reclaimed on terminal/quake) — wiped on reset.
+  'restore-aside',
   '.claude',
   '.copilot_token',
   'config.json',

@@ -18,7 +18,7 @@ import { fileErrorCodes } from '@shared/ipc/errors/file'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import type { fileRequestSchemas } from '@shared/ipc/schemas/file'
 import type { IpcHandlersFor, WindowId } from '@shared/ipc/types'
-import { AbsoluteFilePathSchema, type CreateInternalEntryIpcParams } from '@shared/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { dialog } from 'electron'
 
 const logger = loggerService.withContext('fileHandlers')

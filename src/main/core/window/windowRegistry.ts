@@ -173,7 +173,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     behavior: {
       // Hidden-by-default helper window: do not bring the macOS Dock icon back in tray mode.
       macShowInDock: false
-    }
+    },
+    mutationCapable: false
   },
 
   // Detached tab window — multi-instance, one per user-detached Tab.

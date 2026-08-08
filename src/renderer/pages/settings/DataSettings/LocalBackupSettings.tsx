@@ -34,21 +34,13 @@ const LocalBackupSettings: React.FC = () => {
   const [localBackupSkipBackupFile, setLocalBackupSkipBackupFile] = usePreference('data.backup.local.skip_backup_file')
   const [localBackupSyncInterval, setLocalBackupSyncInterval] = usePreference('data.backup.local.sync_interval')
 
-  const [resolvedLocalBackupDir, setResolvedLocalBackupDir] = useState<string | undefined>(undefined)
   const [localBackupDirDraft, setLocalBackupDirDraft] = useState(localBackupDir)
-  const [backupManagerVisible, setBackupManagerVisible] = useState(false)
 
   const [appInfo, setAppInfo] = useState<AppInfo>()
 
   useEffect(() => {
     void ipcApi.request('app.get_info').then(setAppInfo)
   }, [])
-
-  useEffect(() => {
-    if (localBackupDir) {
-      void window.api.resolvePath(localBackupDir).then(setResolvedLocalBackupDir)
-    }
-  }, [localBackupDir])
 
   useEffect(() => {
     setLocalBackupDirDraft(localBackupDir)
@@ -114,7 +106,6 @@ const LocalBackupSettings: React.FC = () => {
     if (await checkLocalBackupDirValid(value)) {
       await setLocalBackupDir(value)
       setLocalBackupDirDraft(value)
-      setResolvedLocalBackupDir(await window.api.resolvePath(value))
 
       await setLocalBackupAutoSync(true)
       return

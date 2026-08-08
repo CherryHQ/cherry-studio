@@ -24,7 +24,16 @@ import type { FileRefSourceType } from '@shared/data/types/file'
  *
  * finalize invariant #4 asserts no contributor owns these.
  */
-export const ALWAYS_STRIP_PHYSICAL_TABLES: readonly string[] = ['app_state', 'job', 'ai_usage_record']
+export const ALWAYS_STRIP_PHYSICAL_TABLES: readonly string[] = [
+  'app_state',
+  'job',
+  // job_file_ref.sourceId → job (cascade). `job` is runtime (image-job queue, ALWAYS_STRIP),
+  // so job_file_ref is its runtime附属: its purpose is to keep a running job's input bytes
+  // alive (anti-reclaim). With no `job` row surviving into backup, the ref has no owner to
+  // hang off and would dangle. Stripped together with job.
+  'job_file_ref',
+  'ai_usage_record'
+]
 
 /**
  * FTS5 virtual tables — NOT independently stripped on export. They are external-content
@@ -69,7 +78,11 @@ export const INFRASTRUCTURE_TABLES: ReadonlySet<string> = new Set<string>(['__dr
  * covered (runtime-only-exclude, backup-architecture §8.5 invariant #11) so they need no
  * contributor owner.
  *
- * - temp_session: runtime temp-session refs live in CacheService (no table) —
- *   backup-architecture §5.1 / §8.5 invariant #11 (temp_session in-memory-only + runtime-excluded).
+ * Empty today: the previous `temp_session` sourceType was removed when the FileRefSchema
+ * union was narrowed to the 6 on-disk ref tables (chat_message / agent_session_message /
+ * painting / job / provider_logo / mini_app_logo). Each of those is now backed by a real
+ * sqliteTable and owned by a contributor (or runtime-excluded via ALWAYS_STRIP, like `job`).
+ * Kept as an empty typed array so the runtime-only-exclude contract is still expressible
+ * should a future in-memory sourceType reappear.
  */
-export const RUNTIME_EXCLUDED_FILE_REF_SOURCES: readonly FileRefSourceType[] = ['temp_session']
+export const RUNTIME_EXCLUDED_FILE_REF_SOURCES: readonly FileRefSourceType[] = []

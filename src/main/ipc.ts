@@ -176,7 +176,6 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_Mkdir, rejectDuringRestore(fileManager.mkdir.bind(fileManager)))
   ipcMain.handle(IpcChannel.File_Write, rejectDuringRestore(fileManager.writeFile.bind(fileManager)))
   ipcMain.handle(IpcChannel.File_SaveImage, rejectDuringRestore(fileManager.saveImage.bind(fileManager)))
-  ipcMain.handle(IpcChannel.File_SavePastedImage, rejectDuringRestore(fileManager.savePastedImage.bind(fileManager)))
   ipcMain.handle(IpcChannel.File_BinaryImage, fileManager.binaryImage.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))
   ipcMain.handle(IpcChannel.File_ListDirectoryEntries, (_e, dirPath, options) =>

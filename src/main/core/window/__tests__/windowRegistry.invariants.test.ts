@@ -63,7 +63,8 @@ describe('WINDOW_TYPE_REGISTRY mutationCapable classification (a1)', () => {
       [WindowType.QuickAssistant]: true,
       [WindowType.SelectionAction]: true,
       [WindowType.SelectionToolbar]: false,
-      [WindowType.Print]: false
+      [WindowType.Print]: false,
+      [WindowType.McpBrowser]: false
     }
     for (const [type, value] of Object.entries(expected)) {
       const actual = WINDOW_TYPE_REGISTRY[type as WindowType]?.mutationCapable
