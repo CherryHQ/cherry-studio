@@ -22,6 +22,55 @@ function span(overrides: Partial<SpanEntity>): SpanEntity {
 }
 
 describe('TraceSpanStore eviction', () => {
+  it('returns only spans changed after a live revision and requests a reset after deletion', () => {
+    const store = new TraceSpanStore()
+
+    store.setSpan(span({ id: 'a', traceId: 'trace-a', name: 'first' }))
+    const initial = store.getSpanChanges({ traceId: 'trace-a' })
+
+    expect(initial.reset).toBe(true)
+    expect(initial.spans.map((item) => item.id)).toEqual(['a'])
+
+    store.setSpan(span({ id: 'a', traceId: 'trace-a', name: 'updated' }))
+    const changed = store.getSpanChanges({ traceId: 'trace-a' }, initial.revision)
+
+    expect(changed.reset).toBe(false)
+    expect(changed.spans).toMatchObject([{ id: 'a', name: 'updated' }])
+
+    store.clearSpans(['a'])
+    const cleared = store.getSpanChanges({ traceId: 'trace-a' }, changed.revision)
+
+    expect(cleared.reset).toBe(true)
+    expect(cleared.spans).toEqual([])
+  })
+
+  // One deletion marker per trace id ever flushed would grow for the life of the process. Markers
+  // must stay bounded WITHOUT letting a stale cursor silently miss the deletion a dropped marker
+  // recorded — an evicted marker has to keep forcing a resync.
+  it('bounds deletion markers while still forcing a resync for cursors older than an evicted marker', () => {
+    const store = new TraceSpanStore()
+
+    store.setSpan(span({ id: 'old', traceId: 'trace-old' }))
+    const stale = store.getSpanChanges({ traceId: 'trace-old' })
+    store.clearSpans(['old'])
+
+    // Push trace-old's marker out of the bounded map.
+    for (let i = 0; i < 1_000; i++) {
+      store.setSpan(span({ id: `s${i}`, traceId: `t${i}` }))
+      store.clearSpans([`s${i}`])
+    }
+
+    expect(store['traceResetRevisions'].size).toBeLessThanOrEqual(1_000)
+    expect(store.getSpanChanges({ traceId: 'trace-old' }, stale.revision).reset).toBe(true)
+
+    // The conservative floor must not force a resync on cursors newer than everything evicted.
+    store.setSpan(span({ id: 'fresh', traceId: 'trace-fresh' }))
+    const fresh = store.getSpanChanges({ traceId: 'trace-fresh' })
+    store.setSpan(span({ id: 'fresh', traceId: 'trace-fresh', name: 'updated' }))
+
+    expect(store.getSpanChanges({ traceId: 'trace-fresh' }, fresh.revision).reset).toBe(false)
+  })
+
   it('evicts the oldest fully-ended trace when the span cap is exceeded', () => {
     const store = new TraceSpanStore(2)
 
