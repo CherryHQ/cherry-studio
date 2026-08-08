@@ -22,6 +22,11 @@ const mockCreateChannel = vi.fn()
 const mockGetChannel = vi.fn()
 const mockUpdateChannel = vi.fn()
 const mockDeleteChannel = vi.fn()
+const mockGetSession = vi.fn()
+const mockListSessions = vi.fn()
+const mockAcceptSessionDelivery = vi.fn()
+const mockListSessionDeliveries = vi.fn()
+const mockDispatchSessionDelivery = vi.fn()
 
 // Task reads stay on AgentTaskService; task commands (create / delete) go
 // through the AgentJobsService routed via the application mock below.
@@ -36,6 +41,32 @@ vi.mock('@data/services/AgentService', () => ({
     getAgent: mockGetAgent,
     updateAgent: mockUpdateAgent
   }
+}))
+
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
+    getById: mockGetSession,
+    listByCursor: mockListSessions
+  }
+}))
+
+vi.mock('@data/services/AgentSessionMessageService', () => ({
+  AgentSessionDeliveryRoutingError: class extends Error {
+    constructor(
+      readonly code: string,
+      message: string
+    ) {
+      super(message)
+    }
+  },
+  agentSessionMessageService: {
+    acceptSessionDelivery: mockAcceptSessionDelivery,
+    listSessionDeliveries: mockListSessionDeliveries
+  }
+}))
+
+vi.mock('@main/ai/streamManager', () => ({
+  dispatchAcceptedAgentSessionDelivery: mockDispatchSessionDelivery
 }))
 
 vi.mock('@application', async () => {
@@ -93,6 +124,7 @@ function createServer(agentId = 'agent_test', workspacePath = WORKSPACE_PATH) {
   // getKnowledgeBaseIds is required on CherryAgentContext but unused by the autonomy tools.
   return new CherryAutonomyTools({
     agentId,
+    sessionId: 'session_test',
     workspaceSource: WORKSPACE_SOURCE,
     workspacePath,
     getKnowledgeBaseIds: () => []
@@ -112,13 +144,86 @@ async function callTool(
 describe('CherryAutonomyTools', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent_test' })
+    mockListSessions.mockReturnValue({ items: [], nextCursor: undefined })
+    mockListSessionDeliveries.mockReturnValue([])
   })
 
   it('should list all tools', () => {
     const server = createServer()
     const tools = server.tools()
-    expect(tools).toHaveLength(3)
-    expect(tools.map((t) => t.name)).toEqual(['cron', 'notify', 'config'])
+    expect(tools).toHaveLength(6)
+    expect(tools.map((t) => t.name)).toEqual([
+      'cron',
+      'notify',
+      'config',
+      'session_list',
+      'session_inbox',
+      'session_send'
+    ])
+  })
+
+  describe('session tools', () => {
+    it('discovers active Session addresses without exposing workspace data', async () => {
+      mockListSessions.mockReturnValue({
+        items: [
+          { id: 'session_test', agentId: 'agent_test', name: 'Current' },
+          { id: 'session_b', agentId: 'agent_b', name: 'Build' }
+        ]
+      })
+      mockGetAgent.mockImplementation((id: string) =>
+        id === 'agent_test' ? { id, name: 'Agent A' } : { id, name: 'Agent B' }
+      )
+
+      const result = await callTool(createServer(), { limit: 10 }, 'session_list')
+      const payload = JSON.parse(result.content[0].text)
+
+      expect(payload.sessions).toEqual([
+        {
+          agentId: 'agent_test',
+          agentName: 'Agent A',
+          sessionId: 'session_test',
+          sessionName: 'Current',
+          isCurrent: true
+        },
+        {
+          agentId: 'agent_b',
+          agentName: 'Agent B',
+          sessionId: 'session_b',
+          sessionName: 'Build',
+          isCurrent: false
+        }
+      ])
+    })
+
+    it('injects the trusted current identity when sending across Agents', async () => {
+      const accepted = {
+        id: 'message-1',
+        sessionId: 'session_b',
+        delivery: { id: 'delivery-1', status: 'accepted' }
+      }
+      mockAcceptSessionDelivery.mockReturnValue(accepted)
+      mockDispatchSessionDelivery.mockResolvedValue('queued')
+
+      const result = await callTool(
+        createServer('agent_test'),
+        { target_session_id: 'session_b', message: 'Implement this', mode: 'auto' },
+        'session_send'
+      )
+
+      expect(mockAcceptSessionDelivery).toHaveBeenCalledWith({
+        senderAgentId: 'agent_test',
+        senderSessionId: 'session_test',
+        receiverSessionId: 'session_b',
+        content: 'Implement this',
+        mode: 'auto'
+      })
+      expect(mockDispatchSessionDelivery).toHaveBeenCalledWith(accepted)
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        ok: true,
+        delivery: { id: 'delivery-1', status: 'queued' }
+      })
+    })
   })
 
   describe('add action', () => {

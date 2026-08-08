@@ -757,6 +757,7 @@ export class AgentSessionRuntimeService extends BaseService {
       messageSnapshot?: MessageSnapshot
       reasoningEffort?: ReasoningEffortOption
       fastMode?: boolean
+      allowRedirect?: boolean
     } = {}
   ): void {
     const entry = this.entries.get(sessionId)
@@ -793,6 +794,7 @@ export class AgentSessionRuntimeService extends BaseService {
       turn &&
       this.isTurnLive(entry, turn) &&
       canRedirectOnCurrentConfig &&
+      opts.allowRedirect !== false &&
       this.currentConnection(entry)?.redirect?.({
         message,
         systemReminder: true,
@@ -839,7 +841,17 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     if (completedTurn) this.markFlowMessagePersisted(entry, completedTurn.assistantMessageId)
     if (completedTurn) {
+      const execution = entry.runtimeState.execution
+      const completedDeliveryMessages =
+        execution.kind === 'steer-transition' && execution.continuationTurn === completedTurn
+          ? execution.inputs.map((input) => input.message)
+          : [completedTurn.userMessage]
       this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
+      for (const message of new Map(completedDeliveryMessages.map((message) => [message.id, message])).values()) {
+        if (message.delivery) {
+          agentSessionMessageService.updateSessionDeliveryStatus(entry.sessionId, message.id, 'consumed')
+        }
+      }
     }
 
     // Connection stays warm across turns (no per-turn close) — only `closeSession`/idle TTL tears it
@@ -1545,6 +1557,11 @@ export class AgentSessionRuntimeService extends BaseService {
           inputs: event.inputs,
           headless: this.currentTurn(entry)?.headless === true && event.inputs.every((input) => input.headless === true)
         })
+        for (const input of event.inputs) {
+          if (input.message.delivery) {
+            agentSessionMessageService.updateSessionDeliveryStatus(entry.sessionId, input.message.id, 'delivering')
+          }
+        }
         break
       case 'steer-undelivered':
         // Steers stashed via redirect() that this turn ended before injecting → queue them as the
@@ -2413,6 +2430,12 @@ export class AgentSessionRuntimeService extends BaseService {
           entry.modelId,
           serializeError(new Error(`Agent ${entry.agentId} has no model configured`))
         )
+      if (nextMessage.delivery) {
+        agentSessionMessageService.updateSessionDeliveryStatus(entry.sessionId, nextMessage.id, 'failed', {
+          code: 'TARGET_UNAVAILABLE',
+          message: `Agent ${entry.agentId} has no model configured`
+        })
+      }
       this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
       this.markTurnTerminal(entry.sessionId, 'error')
       return
@@ -2446,6 +2469,12 @@ export class AgentSessionRuntimeService extends BaseService {
       rootSpan?.setStatus({ code: SpanStatusCode.ERROR, message: 'Placeholder save failed' })
       rootSpan?.end()
       application.get('AiStreamManager').terminateHeldTopicStream(entry.topicId, entry.modelId, serializeError(error))
+      if (nextMessage.delivery) {
+        agentSessionMessageService.updateSessionDeliveryStatus(entry.sessionId, nextMessage.id, 'failed', {
+          code: 'TARGET_UNAVAILABLE',
+          message: error instanceof Error ? error.message : String(error)
+        })
+      }
       this.markTurnTerminal(entry.sessionId, 'error')
       return
     }
@@ -2469,6 +2498,9 @@ export class AgentSessionRuntimeService extends BaseService {
       headless
     }
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn: nextTurn })
+    if (nextMessage.delivery) {
+      agentSessionMessageService.updateSessionDeliveryStatus(entry.sessionId, nextMessage.id, 'delivering')
+    }
 
     const messages = createRuntimeSeedMessages(nextMessage, assistantMessageId)
     // Author the turn span's input/identity here (the runtime owns its continuation turns).

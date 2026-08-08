@@ -90,6 +90,34 @@ remain in `pendingTurns` until terminal persistence releases runtime ownership.
 A normal turn whose stream is still `unopened` is queued for the same reason;
 steering is only valid after that turn's stream is `open`.
 
+## Cross-Session delivery
+
+Agent Sessions communicate through the same host-owned message and runtime path; provider
+processes never connect to one another. Each `cherry-tools` instance receives its trusted
+`agentId` and `sessionId` from `settingsBuilder` and exposes:
+
+- `session_list` — discover active `{ agentId, sessionId }` addresses;
+- `session_send` — accept a durable message for one target Session;
+- `session_inbox` — inspect structured delivery envelopes and their stable `replyTo` address.
+
+`session_send` accepts only the target and content. `AgentSessionMessageService` revalidates the
+runtime-bound sender Session and target Agent inside the write transaction, then stores the target
+user row with a Main-authored delivery envelope before scheduling. The envelope records sender,
+receiver, reply target, mode, status, and lifecycle timestamps; renderer message edits cannot alter
+it because it is a separate column, not part of editable `MessageData`.
+
+After commit, `startAgentSessionRun` reuses the per-topic dispatch lock and this runtime's existing
+busy/idle paths. Idle targets start immediately. Busy `send-now`/`auto` deliveries may use the
+existing safe redirect and otherwise enter `pendingTurns`; `queue` always enters the FIFO. Terminal
+persistence marks the input `consumed`. On startup `AiStreamManager.onAllReady` scans
+`accepted`/`queued`/`delivering` rows and resubmits them through the same lock. This is durable
+at-least-once recovery: a crash can repeat an unconsumed delivery, while distributed exactly-once
+is intentionally outside the MVP.
+
+The Claude Code adapter prepends a versioned `cherry.session-delivery.v1` JSON envelope to the
+current SDK user input. Attribution remains a structured database fact and is also available from
+`session_inbox`; the prompt projection is not the source of truth.
+
 When a steer **is** injected mid-turn, the driver emits a
 `steer-boundary` just before the model's post-steer assistant message.
 The host then **rolls** the assistant row: it finalises the pre-steer

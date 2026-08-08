@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { notifyDataApiDataChange } from '@data/dataApiDataChange'
+import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable as sessionTable } from '@data/db/schemas/agentSession'
 import {
   type AgentSessionMessageRow as SessionMessageRow,
@@ -14,6 +15,13 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
+import {
+  AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES,
+  type AgentSessionDelivery,
+  type AgentSessionDeliveryError,
+  type AgentSessionDeliveryMode,
+  type AgentSessionDeliveryStatus
+} from '@shared/ai/agentSessionDelivery'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type {
@@ -35,7 +43,7 @@ import {
 } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import { isToolUIPart } from 'ai'
-import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageRuntimeStats } from './AiUsageRecordService'
@@ -78,7 +86,27 @@ type SaveAgentSessionMessageParams = {
   sessionId: string
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
-  message: CreateAgentSessionMessageDto
+  message: CreateAgentSessionMessageDto & { delivery?: AgentSessionDelivery }
+}
+
+export const AGENT_SESSION_DELIVERY_ERROR_CODES = {
+  SENDER_FORBIDDEN: 'SENDER_FORBIDDEN',
+  TARGET_AGENT_DELETED: 'TARGET_AGENT_DELETED',
+  TARGET_SESSION_NOT_FOUND: 'TARGET_SESSION_NOT_FOUND',
+  TARGET_SESSION_ORPHANED: 'TARGET_SESSION_ORPHANED'
+} as const
+
+export type AgentSessionDeliveryErrorCode =
+  (typeof AGENT_SESSION_DELIVERY_ERROR_CODES)[keyof typeof AGENT_SESSION_DELIVERY_ERROR_CODES]
+
+export class AgentSessionDeliveryRoutingError extends Error {
+  constructor(
+    readonly code: AgentSessionDeliveryErrorCode,
+    message: string
+  ) {
+    super(message)
+    this.name = 'AgentSessionDeliveryRoutingError'
+  }
 }
 
 type SaveAgentSessionMessageOptions =
@@ -388,6 +416,7 @@ export class AgentSessionMessageService {
       messageSnapshot: row.messageSnapshot,
       stats: row.stats,
       runtimeResumeToken: row.runtimeResumeToken,
+      delivery: row.delivery,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
     }
@@ -457,6 +486,7 @@ export class AgentSessionMessageService {
       const messageSnapshot =
         message.messageSnapshot === undefined ? existingRow.messageSnapshot : message.messageSnapshot
       const stats = mergeMessageRuntimeStats(existingRow.stats, runtimeStats) ?? null
+      const delivery = message.delivery === undefined ? existingRow.delivery : message.delivery
 
       withSqliteErrors(
         () =>
@@ -470,6 +500,7 @@ export class AgentSessionMessageService {
               messageSnapshot,
               stats,
               runtimeResumeToken: runtimeResumeTokenToPersist,
+              delivery,
               updatedAt: updatedAtMs
             })
             .where(eq(sessionMessagesTable.id, existingRow.id))
@@ -489,6 +520,7 @@ export class AgentSessionMessageService {
           messageSnapshot,
           stats,
           runtimeResumeToken: runtimeResumeTokenToPersist,
+          delivery,
           updatedAt: updatedAtMs
         }),
         dataChange: 'projection'
@@ -505,6 +537,7 @@ export class AgentSessionMessageService {
       messageSnapshot: message.messageSnapshot,
       stats: mergeMessageRuntimeStats(undefined, runtimeStats) ?? null,
       runtimeResumeToken,
+      delivery: message.delivery,
       createdAt: timestampMs,
       updatedAt: timestampMs
     }
@@ -566,6 +599,188 @@ export class AgentSessionMessageService {
       }
     }
     return saved
+  }
+
+  /**
+   * Persist one cross-session user message and its trusted sender/receiver envelope atomically.
+   * The caller supplies only its runtime-bound identity; both addresses are re-read in this
+   * transaction so a stale or forged tool context cannot impersonate another Session.
+   */
+  acceptSessionDelivery(input: {
+    senderAgentId: string
+    senderSessionId: string
+    receiverSessionId: string
+    content: string
+    mode: AgentSessionDeliveryMode
+  }): AgentSessionMessageEntity {
+    const content = input.content.trim()
+    if (!content) throw DataApiErrorFactory.validation({ content: ['must not be empty'] })
+
+    const saved = application.get('DbService').withWriteTx((tx) => {
+      const [sender] = tx
+        .select({ agentId: sessionTable.agentId, agentName: agentTable.name, sessionName: sessionTable.name })
+        .from(sessionTable)
+        .leftJoin(agentTable, and(eq(sessionTable.agentId, agentTable.id), isNull(agentTable.deletedAt)))
+        .where(eq(sessionTable.id, input.senderSessionId))
+        .limit(1)
+        .all()
+      if (!sender || sender.agentId !== input.senderAgentId || sender.agentName === null) {
+        throw new AgentSessionDeliveryRoutingError(
+          AGENT_SESSION_DELIVERY_ERROR_CODES.SENDER_FORBIDDEN,
+          'The active runtime no longer owns the sender Session'
+        )
+      }
+
+      const [receiverSession] = tx
+        .select({ agentId: sessionTable.agentId, sessionName: sessionTable.name })
+        .from(sessionTable)
+        .where(eq(sessionTable.id, input.receiverSessionId))
+        .limit(1)
+        .all()
+      if (!receiverSession) {
+        throw new AgentSessionDeliveryRoutingError(
+          AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_NOT_FOUND,
+          `Target Session not found: ${input.receiverSessionId}`
+        )
+      }
+      if (!receiverSession.agentId) {
+        throw new AgentSessionDeliveryRoutingError(
+          AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_SESSION_ORPHANED,
+          `Target Session has no Agent: ${input.receiverSessionId}`
+        )
+      }
+      const [receiverAgent] = tx
+        .select({ name: agentTable.name })
+        .from(agentTable)
+        .where(and(eq(agentTable.id, receiverSession.agentId), isNull(agentTable.deletedAt)))
+        .limit(1)
+        .all()
+      if (!receiverAgent) {
+        throw new AgentSessionDeliveryRoutingError(
+          AGENT_SESSION_DELIVERY_ERROR_CODES.TARGET_AGENT_DELETED,
+          `Target Agent is deleted: ${receiverSession.agentId}`
+        )
+      }
+
+      const id = uuidv7()
+      const acceptedAt = new Date().toISOString()
+      const senderAddress = {
+        agentId: input.senderAgentId,
+        sessionId: input.senderSessionId,
+        agentName: sender.agentName,
+        sessionName: sender.sessionName
+      }
+      const delivery: AgentSessionDelivery = {
+        id,
+        sender: senderAddress,
+        receiver: {
+          agentId: receiverSession.agentId,
+          sessionId: input.receiverSessionId,
+          agentName: receiverAgent.name,
+          sessionName: receiverSession.sessionName
+        },
+        replyTo: senderAddress,
+        mode: input.mode,
+        status: 'accepted',
+        acceptedAt,
+        scheduledAt: null,
+        consumedAt: null,
+        failedAt: null,
+        error: null
+      }
+
+      return this.saveMessageTx(tx, {
+        sessionId: input.receiverSessionId,
+        message: {
+          id,
+          role: 'user',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: content }] },
+          delivery
+        }
+      }).entity
+    })
+
+    this.publishDeliveryChange(saved.id, 'membership')
+    return saved
+  }
+
+  listRecoverableSessionDeliveries(): AgentSessionMessageEntity[] {
+    const statuses = AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES.map((status) => sql`${status}`)
+    return application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          isNotNull(sessionMessagesTable.delivery),
+          sql`json_extract(${sessionMessagesTable.delivery}, '$.status') IN (${sql.join(statuses, sql`, `)})`
+        )
+      )
+      .orderBy(sessionMessagesTable.createdAt, sessionMessagesTable.id)
+      .all()
+      .map((row) => this.rowToEntity(row))
+  }
+
+  listSessionDeliveries(sessionId: string, limit = 20): AgentSessionMessageEntity[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.sessionId, sessionId), isNotNull(sessionMessagesTable.delivery)))
+      .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
+      .limit(Math.min(Math.max(limit, 1), 100))
+      .all()
+      .map((row) => this.rowToEntity(row))
+  }
+
+  updateSessionDeliveryStatus(
+    sessionId: string,
+    messageId: string,
+    status: AgentSessionDeliveryStatus,
+    error: AgentSessionDeliveryError | null = null
+  ): AgentSessionMessageEntity | null {
+    const updated = application.get('DbService').withWriteTx((tx) => {
+      const existing = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existing?.delivery) return null
+      if (existing.delivery.status === 'consumed' || existing.delivery.status === 'failed') {
+        return this.rowToEntity(existing)
+      }
+
+      const timestamp = new Date().toISOString()
+      const delivery: AgentSessionDelivery = {
+        ...existing.delivery,
+        status,
+        scheduledAt:
+          status === 'queued' || status === 'delivering'
+            ? (existing.delivery.scheduledAt ?? timestamp)
+            : existing.delivery.scheduledAt,
+        consumedAt: status === 'consumed' ? timestamp : existing.delivery.consumedAt,
+        failedAt: status === 'failed' ? timestamp : existing.delivery.failedAt,
+        error: status === 'failed' ? error : existing.delivery.error
+      }
+      const [row] = tx
+        .update(sessionMessagesTable)
+        .set({ delivery })
+        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+        .returning()
+        .all()
+      return this.rowToEntity(row)
+    })
+    if (updated) this.publishDeliveryChange(messageId, 'projection')
+    return updated
+  }
+
+  private publishDeliveryChange(messageId: string, kind: 'membership' | 'projection'): void {
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind,
+        entityIds: [messageId]
+      }
+    ])
   }
 
   /** Reject ownership changes before any message row is written in this transaction. */

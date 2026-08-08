@@ -5,6 +5,7 @@ import type { Citation } from '@renderer/types/message'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type { McpTool } from '@renderer/types/tool'
 import type { Topic } from '@renderer/types/topic'
+import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
@@ -197,6 +198,7 @@ export interface MessageListItem {
   siblingsGroupId?: number
   isActiveBranch?: boolean
   stats?: MessageStats
+  delivery?: AgentSessionDelivery
   mentions?: Array<{
     id: string
     name: string

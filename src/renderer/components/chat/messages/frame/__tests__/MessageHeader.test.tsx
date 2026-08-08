@@ -17,6 +17,7 @@ vi.mock('@cherrystudio/ui', () => ({
     <div className={className}>{children}</div>
   ),
   AvatarImage: ({ className }: { className?: string }) => <div className={className} />,
+  Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Checkbox: ({
     className,
     ...props
@@ -66,7 +67,10 @@ vi.mock('../../MessageListProvider', () => ({
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({
+    t: (key: string, values?: { agent?: string; session?: string }) =>
+      key === 'agent.session_delivery.from' ? `From ${values?.agent} / ${values?.session}` : key
+  })
 }))
 
 const createMessage = (role: 'assistant' | 'user' = 'assistant', extra: Record<string, unknown> = {}) =>
@@ -171,5 +175,31 @@ describe('MessageHeader', () => {
     const { container } = render(<MessageHeader message={createMessage()} />)
 
     expect(container.querySelector('[data-message-select-checkbox]')).not.toBeNull()
+  })
+
+  it('shows durable sender attribution and delivery state on a received message', () => {
+    const sender = { agentId: 'agent-a', sessionId: 'session-a', agentName: 'Agent A', sessionName: 'Research' }
+    const { getByText } = render(
+      <MessageHeader
+        message={createMessage('user', {
+          delivery: {
+            id: 'delivery-1',
+            sender,
+            receiver: { agentId: 'agent-b', sessionId: 'session-b', agentName: 'Agent B', sessionName: 'Build' },
+            replyTo: sender,
+            mode: 'auto',
+            status: 'queued',
+            acceptedAt: '2026-06-06T00:00:00.000Z',
+            scheduledAt: '2026-06-06T00:00:01.000Z',
+            consumedAt: null,
+            failedAt: null,
+            error: null
+          }
+        })}
+      />
+    )
+
+    expect(getByText('From Agent A / Research')).toBeTruthy()
+    expect(getByText('agent.session_delivery.status.queued')).toBeTruthy()
   })
 })

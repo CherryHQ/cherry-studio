@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   getLastRuntimeResumeToken: vi.fn(),
   findPendingAssistantMessageIds: vi.fn(),
   markMessagesError: vi.fn(),
+  updateSessionDeliveryStatus: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
@@ -52,7 +53,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
     findPendingAssistantMessageIds: mocks.findPendingAssistantMessageIds,
-    markMessagesError: mocks.markMessagesError
+    markMessagesError: mocks.markMessagesError,
+    updateSessionDeliveryStatus: mocks.updateSessionDeliveryStatus
   }
 }))
 
@@ -103,6 +105,25 @@ function userMessage(id: string, knowledgeBaseIds: string[] = []) {
     createdAt: '',
     updatedAt: ''
   } as any
+}
+
+function deliveryUserMessage(id: string) {
+  const message = userMessage(id)
+  const sender = { agentId: 'agent-a', sessionId: 'sender', agentName: 'A', sessionName: 'Sender' }
+  message.delivery = {
+    id: `delivery-${id}`,
+    sender,
+    receiver: { agentId: 'agent-1', sessionId: 'session-1', agentName: 'B', sessionName: 'Target' },
+    replyTo: sender,
+    mode: 'send-now',
+    status: 'queued',
+    acceptedAt: new Date().toISOString(),
+    scheduledAt: new Date().toISOString(),
+    consumedAt: null,
+    failedAt: null,
+    error: null
+  }
+  return message
 }
 
 function terminalListener(handle: { listeners: any[] }) {
@@ -364,6 +385,33 @@ describe('AgentSessionRuntimeService', () => {
       service.markTurnTerminal('session-1', 'success')
       expect(service.isSessionBusy('session-1')).toBe(false)
       expect(service.hasBusySessions()).toBe(false)
+    })
+
+    it('marks a durable cross-session input consumed only at the terminal boundary', () => {
+      const sender = { agentId: 'agent-a', sessionId: 'sender', agentName: 'A', sessionName: 'Sender' }
+      const message = {
+        ...userMessage('delivery-message'),
+        sessionId: 'session-1',
+        delivery: {
+          id: 'delivery-1',
+          sender,
+          receiver: { agentId: 'agent-1', sessionId: 'session-1', agentName: 'B', sessionName: 'Target' },
+          replyTo: sender,
+          mode: 'auto',
+          status: 'delivering',
+          acceptedAt: new Date().toISOString(),
+          scheduledAt: new Date().toISOString(),
+          consumedAt: null,
+          failedAt: null,
+          error: null
+        }
+      }
+      const service = new AgentSessionRuntimeService()
+      service.beginTurn({ ...baseTurnInput, userMessage: message })
+
+      expect(mocks.updateSessionDeliveryStatus).not.toHaveBeenCalled()
+      service.markTurnTerminal('session-1', 'success')
+      expect(mocks.updateSessionDeliveryStatus).toHaveBeenCalledWith('session-1', 'delivery-message', 'consumed')
     })
 
     it('stays busy throughout the next-turn drain, closing the clobber window', async () => {
@@ -4220,7 +4268,8 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
-      const steerMessage = userMessage('user-2')
+      const steerMessage = deliveryUserMessage('user-2')
+      const secondSteerMessage = deliveryUserMessage('user-3')
       const continuationSnapshot = {
         id: 'agent-1',
         name: 'Renamed Before Steer',
@@ -4228,10 +4277,14 @@ describe('AgentSessionRuntimeService', () => {
         model: { id: 'claude-sonnet-4-5', name: 'Claude Sonnet', provider: 'claude-code' }
       }
       service.enqueueUserMessage('session-1', steerMessage, { messageSnapshot: continuationSnapshot })
+      service.enqueueUserMessage('session-1', secondSteerMessage, { messageSnapshot: continuationSnapshot })
       expect(service.getActiveUsageContext('session-1')?.assistantMessageId).toBe('assistant-1')
 
-      // The driver echoes the redirected input verbatim, so its attributes ride the round-trip.
-      const injected = [{ message: steerMessage, systemReminder: true, messageSnapshot: continuationSnapshot }]
+      // The driver echoes the redirected inputs verbatim, so their attributes ride the round-trip.
+      const injected = [
+        { message: steerMessage, systemReminder: true, messageSnapshot: continuationSnapshot },
+        { message: secondSteerMessage, systemReminder: true, messageSnapshot: continuationSnapshot }
+      ]
       const onSteerInjected = connect.mock.calls[0]?.[0].onSteerInjected
       expect(onSteerInjected).toEqual(expect.any(Function))
       onSteerInjected(injected)
@@ -4247,6 +4300,8 @@ describe('AgentSessionRuntimeService', () => {
       // message_start emits this boundary and opens the visible A2 row with the exact same id.
       events.push({ type: 'steer-boundary', inputs: injected })
       await vi.waitFor(() => expect(getEntry(service).runtimeState.execution.kind).toBe('steer-transition'))
+      expect(mocks.updateSessionDeliveryStatus).toHaveBeenCalledWith('session-1', 'user-2', 'delivering')
+      expect(mocks.updateSessionDeliveryStatus).toHaveBeenCalledWith('session-1', 'user-3', 'delivering')
       await expect(reader.read()).resolves.toMatchObject({ done: true })
       void terminalListener(handle).onDone({ status: 'success', isTopicDone: false })
       await vi.waitFor(() => expect(getEntry(service).currentTurn.userMessage.id).toBe('user-2'))
@@ -4263,6 +4318,11 @@ describe('AgentSessionRuntimeService', () => {
           messageSnapshot: continuationSnapshot
         }
       })
+
+      const continuationTurnId = getEntry(service).currentTurn.turnId
+      service.markTurnTerminal('session-1', 'success', continuationTurnId)
+      expect(mocks.updateSessionDeliveryStatus).toHaveBeenCalledWith('session-1', 'user-2', 'consumed')
+      expect(mocks.updateSessionDeliveryStatus).toHaveBeenCalledWith('session-1', 'user-3', 'consumed')
 
       void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)

@@ -542,6 +542,16 @@
         "inaccessible": "工作区路径不可访问：{{path}}"
       }
     },
+    "session_delivery": {
+      "from": "来自 {{agent}} / {{session}}",
+      "status": {
+        "accepted": "已接受",
+        "consumed": "已消费",
+        "delivering": "投递中",
+        "failed": "失败",
+        "queued": "排队中"
+      }
+    },
     "settings": {
       "advance": {
         "envVars": {

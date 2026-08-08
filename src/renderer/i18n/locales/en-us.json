@@ -542,6 +542,16 @@
         "inaccessible": "Workspace path is not accessible: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "From {{agent}} / {{session}}",
+      "status": {
+        "accepted": "Accepted",
+        "consumed": "Consumed",
+        "delivering": "Delivering",
+        "failed": "Failed",
+        "queued": "Queued"
+      }
+    },
     "settings": {
       "advance": {
         "envVars": {

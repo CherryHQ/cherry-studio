@@ -524,6 +524,16 @@
         "inaccessible": "Путь к рабочей области недоступен: {{path}}"
       }
     },
+    "session_delivery": {
+      "from": "[to be translated]:From {{agent}} / {{session}}",
+      "status": {
+        "accepted": "[to be translated]:Accepted",
+        "consumed": "[to be translated]:Consumed",
+        "delivering": "[to be translated]:Delivering",
+        "failed": "[to be translated]:Failed",
+        "queued": "[to be translated]:Queued"
+      }
+    },
     "settings": {
       "advance": {
         "envVars": {
