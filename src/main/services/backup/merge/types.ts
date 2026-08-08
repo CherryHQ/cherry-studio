@@ -43,6 +43,18 @@ export interface AggregateDecision {
    * keeps the backup machine's absolute path and cannot be joined by the host renderer.
    */
   readonly noteHostPath?: string
+  /**
+   * True when this agent_workspace row's path was rebased to a managed placeholder
+   * (user workspace whose custom dir isn't carried by the archive). The write path
+   * discloses it as content-missing so the user knows the workspace dir is absent on host.
+   */
+  readonly workspaceRebased?: boolean
+  /**
+   * Resolved host-form path for a cross-machine agent_workspace row (rebased by scanAggregates
+   * before identity lookup). The write path re-selects the row from backup.sqlite (machine-
+   * specific path), so the rebased value must be carried here to overwrite it on write.
+   */
+  readonly workspaceRebasedPath?: string
 }
 
 /** Endpoint of a junction reference (root or member table + the FK column into it). */
@@ -205,6 +217,14 @@ export interface MergeContext {
    * at missing files (§3.5). undefined = legacy callers / unit stubs (do not strip).
    */
   readonly includeFiles?: boolean
+  /**
+   * This host's managed agent system-workspaces root (feature.agents.system_workspaces).
+   * Cross-machine restore rebases agent_workspace.path (a natural-key identityKey stored as
+   * a machine-specific absolute dir) to this root BEFORE identity lookup, so a backup
+   * workspace matches the host's same-named workspace instead of duplicating. undefined =
+   * legacy callers / unit stubs (do not rebase).
+   */
+  readonly hostSystemWorkspacesRoot?: string
 }
 
 /** Merge engine entry signature — invoked by ImportOrchestrator inside the staging spine. */

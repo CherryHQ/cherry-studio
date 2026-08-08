@@ -622,6 +622,104 @@ export class MergeEngine {
   }
 
   /**
+   * Resolve a backup `agent_workspace` row's path to this host's form (cross-machine rebase).
+   *
+   * agent_workspace is a natural-key aggregate whose identityKey is `path` (UNIQUE non-PK).
+   * `path` stores a MACHINE-SPECIFIC absolute dir:
+   *   - system (type='system'): managed, {userData}/Data/Agents/system/{YYYY-MM-DD}/{sessionId}
+   *   - user (type='user'): an arbitrary absolute dir the user picked
+   *
+   * On a cross-machine restore the backup path never byte-matches the host path → identity
+   * lookup misses → the backup workspace INSERTs as a DUPLICATE and t4's workspaceId rewrite
+   * has no anchor. Rebase the path to the host's managed system-workspaces root BEFORE identity
+   * lookup so the portable tail matches:
+   *   - system: the /system/{YYYY-MM-DD}/{sessionId} tail → joined under the host root (faithful).
+   *   - user: basename → {hostRoot}/{basename} (placeholder; the archive does not carry the
+   *     custom dir) + `rebased: true` so the caller discloses content missing on the host.
+   *
+   * Returns undefined when no rebase applies (no host root / non-absolute path) — the caller
+   * leaves the path untouched.
+   */
+  private resolveWorkspacePathTarget(
+    backupRow: Record<string, unknown>,
+    hostSystemWorkspacesRoot: string | undefined,
+    localUserPaths?: ReadonlySet<string>
+  ): { path: string; rebased: boolean } | undefined {
+    if (hostSystemWorkspacesRoot === undefined) return undefined
+    const normalizePathValue = (p: string): string => p.replace(/\\/g, '/')
+    const rawPath = String(backupRow[physicalColumn('path')] ?? '')
+    if (!rawPath) return undefined
+    const normalized = normalizePathValue(rawPath)
+    // normalizeWorkspacePath rejects non-absolute in production; guard defensively so a
+    // malformed/legacy relative path is not silently rewritten to a wrong host location.
+    // Accept both POSIX absolute (/...) and Windows drive-absolute (C:\... → C:/...).
+    const isAbsolute = normalized.startsWith('/') || /^[A-Za-z]:\//.test(normalized)
+    if (!isAbsolute) return undefined
+    const type = String(backupRow[physicalColumn('type')] ?? 'user')
+    const hostRoot = normalizePathValue(hostSystemWorkspacesRoot)
+    if (type === 'system') {
+      // Extract the portable tail after the managed /system/ segment. The full path is
+      // {agentsDataDir}/Agents/system/{YYYY-MM-DD}/{sessionId}; everything after /system/
+      // is machine-independent.
+      const marker = '/system/'
+      const idx = normalized.lastIndexOf(marker)
+      if (idx >= 0) {
+        const tail = normalized.slice(idx + marker.length)
+        if (tail && !tail.startsWith('../')) {
+          return { path: posix.join(hostRoot, tail), rebased: false }
+        }
+      }
+      // Malformed system path (no /system/ segment) — fall back to basename as sessionId.
+      const base = posix.basename(normalized)
+      return { path: posix.join(hostRoot, base), rebased: false }
+    }
+    // user workspace: the custom dir isn't carried by the archive. Rebase to a placeholder
+    // ONLY when no local workspace already has this path — a same-machine restore keeps the
+    // original path so identity lookup still matches (FIELD_MERGE, no duplicate).
+    if (localUserPaths !== undefined && localUserPaths.has(normalized)) return undefined
+    const base = posix.basename(normalized)
+    return { path: posix.join(hostRoot, base), rebased: true }
+  }
+
+  /**
+   * Rebase every agent_workspace backup row's path to the host form, in place. Used by
+   * scanAggregates as a pre-pass over backupRoots so the subsequent identity lookup sees
+   * the rebased (host-form) paths. Rows whose path cannot be rebased (no host root /
+   * non-absolute) are left untouched.
+   *
+   * system ws always rebases (managed dir). user ws rebases only when its path is ABSENT
+   * from local work.sqlite — a same-machine restore (backup path == a local path) must keep
+   * the original path so the identity lookup still matches and FIELD_MERGEs instead of
+   * duplicating.
+   */
+  private rebaseWorkspacePaths(
+    backupRoots: Record<string, unknown>[],
+    ctx: MergeContext,
+    workSqlite: Database.Database,
+    rebasedWorkspaceRows: WeakSet<Record<string, unknown>>
+  ): void {
+    // Collect local user workspace paths once (byte-exact + forward-slash normalized) so a
+    // user ws that already exists locally is NOT rebased away from its matching local row.
+    const localUserPaths = new Set<string>()
+    try {
+      const rows = workSqlite.prepare(`SELECT path FROM agent_workspace WHERE type = 'user'`).all() as {
+        path: string
+      }[]
+      const norm = (p: string): string => p.replace(/\\/g, '/')
+      for (const r of rows) localUserPaths.add(norm(r.path))
+    } catch {
+      // table empty / missing — nothing to protect
+    }
+    for (const row of backupRoots) {
+      const target = this.resolveWorkspacePathTarget(row, ctx.hostSystemWorkspacesRoot, localUserPaths)
+      if (target !== undefined) {
+        row[physicalColumn('path')] = target.path
+        if (target.rebased) rebasedWorkspaceRows.add(row)
+      }
+    }
+  }
+
+  /**
    * Scan work.sqlite (merge base) + backup.sqlite for each aggregate root and produce
    * a decision per backup root. Runs BEFORE the write tx (read-only on both DBs).
    *
@@ -640,6 +738,10 @@ export class MergeEngine {
       throw new MergeStrategyNotImplementedError(`userStrategy ${ctx.userStrategy}`)
     }
     const forceSkip = ctx.userStrategy === 'SKIP'
+    // t2: tracks agent_workspace backup rows whose path was rebased to a managed placeholder
+    // (user ws whose custom dir isn't archived) — set per-domain by rebaseWorkspacePaths,
+    // read in the per-row loop to flag disclosure.
+    const rebasedWorkspaceRows = new WeakSet<Record<string, unknown>>()
     // PREFERENCES platformSpecificKeys — exclude cross-platform keys on backfill (§6.1).
     const platformSpecificKeys =
       this.registry.getPolicy('PREFERENCES').platformSpecificKeys ?? ([] as readonly string[])
@@ -671,6 +773,16 @@ export class MergeEngine {
               )
               .all(rootScope.filter.value) as Record<string, unknown>[])
           : (backupDb.prepare(`SELECT * FROM ${quoteIdent(agg.root)}`).all() as Record<string, unknown>[])
+        // t2: cross-machine path rebase for agent_workspace. Must run BEFORE identity
+        // lookup — path is the natural-key identityKey, so the rebased value is what the
+        // prefetched identity tuple + per-row lookup must see. rebases backupRoots in place;
+        // per-row disclosure (user ws = placeholder) is set on the decision below and pushed
+        // by the write path (scanAggregates stays pure read-only). system ws always rebases
+        // (managed, faithful); user ws rebases only when its path is ABSENT from local (same-
+        // machine restore keeps the original path so identity still matches).
+        if (agg.root === 'agent_workspace') {
+          this.rebaseWorkspacePaths(backupRoots, ctx, workSqlite, rebasedWorkspaceRows)
+        }
         // pin is polymorphic (no FK) — skip rows whose entityType maps to a domain
         // outside this restore (e.g. lite archive with knowledge pins but KNOWLEDGE stripped).
         const pinEntityMap =
@@ -840,6 +952,17 @@ export class MergeEngine {
               action = 'field-merge'
             }
           }
+          // t2: a user workspace whose path was rebased to a managed placeholder (custom
+          // dir isn't archived) → disclose content missing on the host. Tracked by
+          // rebaseWorkspacePaths (resolveWorkspacePathTarget sets rebased=true only for a
+          // user ws whose path is absent from local — same-machine keeps the original path).
+          const workspaceRebased = agg.root === 'agent_workspace' && rebasedWorkspaceRows.has(backupRow)
+          // Carry the rebased host-form path so the write path (which re-selects from
+          // backup.sqlite) overwrites the machine-specific value on insert/merge.
+          const workspaceRebasedPath =
+            agg.root === 'agent_workspace' && ctx.hostSystemWorkspacesRoot !== undefined
+              ? String(backupRow[physicalColumn('path')])
+              : undefined
           decisions.push({
             aggregate: agg,
             identity: backupPrimaryKey,
@@ -847,7 +970,9 @@ export class MergeEngine {
             localCanonicalPrimaryKey,
             action,
             noteRootPath,
-            noteHostPath
+            noteHostPath,
+            workspaceRebased: workspaceRebased || undefined,
+            workspaceRebasedPath
           })
         }
       }
@@ -1196,6 +1321,19 @@ export class MergeEngine {
     if (decision.noteHostPath !== undefined) {
       backupRoot[physicalColumn('path')] = decision.noteHostPath
     }
+    // t2: overwrite agent_workspace.path with the rebased host-form value (the row was
+    // re-selected from backup.sqlite with the machine-specific path).
+    if (decision.workspaceRebasedPath !== undefined) {
+      backupRoot[physicalColumn('path')] = decision.workspaceRebasedPath
+    }
+    if (decision.workspaceRebased) {
+      degradedToSkips.push({
+        kind: 'resource_content_missing',
+        table: agg.root,
+        count: 1,
+        reason: 'user workspace path rebased to managed placeholder; dir contents not carried by archive (t2)'
+      })
+    }
 
     const domain = this.registry.getTableOwner(agg.root)
     const policies =
@@ -1273,6 +1411,19 @@ export class MergeEngine {
     }
     if (decision.noteHostPath !== undefined) {
       rootRow[physicalColumn('path')] = decision.noteHostPath
+    }
+    // t2: overwrite agent_workspace.path with the rebased host-form value (the row was
+    // re-selected from backup.sqlite with the machine-specific path).
+    if (decision.workspaceRebasedPath !== undefined) {
+      rootRow[physicalColumn('path')] = decision.workspaceRebasedPath
+    }
+    if (decision.workspaceRebased) {
+      degradedToSkips.push({
+        kind: 'resource_content_missing',
+        table: agg.root,
+        count: 1,
+        reason: 'user workspace path rebased to managed placeholder; dir contents not carried by archive (t2)'
+      })
     }
     // B1 R1 P0-1: rewrite the root row's cross-aggregate owning FKs through the
     // identityMap BEFORE insert. The only owning FK in B1's owning set is

@@ -21,6 +21,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { applyMigrations } from '@main/data/db/applyMigrations'
 import type { ExportResourceDegradation } from '@main/data/db/backup/contributorTypes'
@@ -323,7 +324,8 @@ export class ImportOrchestrator {
         skippedKnowledgeBaseIds: plan.skippedKnowledgeBaseIds,
         skippedSkillFolderNames: plan.skippedSkillFolderNames,
         resourcePlan: plan,
-        includeFiles: presetIncludesFiles(archiveContext.manifest.preset)
+        includeFiles: presetIncludesFiles(archiveContext.manifest.preset),
+        hostSystemWorkspacesRoot: application.getPath('feature.agents.system_workspaces')
       }
       const result = await this.deps.mergeBackupIntoWork(workSqlite, workDb, ctx)
       // Merge degradations (dangling-ref repair, junction / polymorphic drops, field
