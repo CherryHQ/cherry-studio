@@ -1,3 +1,4 @@
+import { assertSafeKnowledgeRelativePath, CHERRY_META_DIR } from '@main/features/knowledge'
 import {
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
   KNOWLEDGE_ITEM_ERROR_DIRECTORY_NOT_MIGRATED,
@@ -515,6 +516,44 @@ describe('KnowledgeMappings', () => {
     expect(warnings[0]).toContain('blank v1 filename')
   })
 
+  it('transformKnowledgeItem reports a filename lost by the v1 duplicate-upload bug', () => {
+    // v1 FileStorage.findDuplicateFile overwrote origin_name with the storage name on a second
+    // upload of the same bytes. The name is unrecoverable, so the item migrates under the id —
+    // but silently showing it as if the user had chosen it is what this warning prevents.
+    const warnings: string[] = []
+    const dedupedFile = {
+      ...fileMetadata,
+      name: `${LEGACY_FILE_ID}.pdf.pdf`,
+      origin_name: `${LEGACY_FILE_ID}.pdf`
+    }
+    const result = transformKnowledgeItem(
+      'kb-1',
+      { id: 'file-lost-name', type: 'file', content: LEGACY_FILE_ID },
+      { noteById: new Map(), filesById: new Map([[LEGACY_FILE_ID, dedupedFile]]) },
+      (msg) => warnings.push(msg)
+    )
+
+    expect(result.ok && result.value.data).toStrictEqual({
+      source: '/tmp/source-on-disk.pdf',
+      relativePath: `${LEGACY_FILE_ID}.pdf`
+    })
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('file-lost-name')
+    expect(warnings[0]).toContain('the original filename was lost')
+  })
+
+  it('transformKnowledgeItem stays quiet for a normal upload', () => {
+    const warnings: string[] = []
+    transformKnowledgeItem(
+      'kb-1',
+      { id: 'file-ok', type: 'file', content: LEGACY_FILE_ID },
+      { noteById: new Map(), filesById: new Map([[LEGACY_FILE_ID, fileMetadata]]) },
+      (msg) => warnings.push(msg)
+    )
+
+    expect(warnings).toEqual([])
+  })
+
   it('transformKnowledgeItem clears blank legacy processing errors for idle and completed items', () => {
     const idleResult = transformKnowledgeItem(
       'kb-1',
@@ -750,36 +789,41 @@ describe('expandLegacyDirectoryItem', () => {
       new Map([
         ['LocalPathLoader_a', '/tmp/docs/a.md'],
         ['LocalPathLoader_b', '/tmp/docs/b.md']
-      ])
+      ]),
+      new Set()
     )
 
     expect(result).not.toBeNull()
     if (!result) return
 
-    // Container: a completed `directory` rooted at the folder path, no parent. It is
-    // `completed` (not the tombstone `failed`) precisely because its children carry
-    // migrated vectors — the folder is searchable, not an empty shell.
+    // Container: a completed `directory` rooted at the folder path, no parent, owning a
+    // top-level raw/ prefix just like a native expansion. It is `completed` (not the
+    // tombstone `failed`) precisely because its children carry migrated vectors — the
+    // folder is searchable, not an empty shell.
     expect(result.container).toStrictEqual({
       id: expect.stringMatching(UUIDV7_PATTERN),
       baseId: 'kb-1',
       groupId: null,
       type: 'directory',
-      data: { source: '/tmp/docs' },
+      data: { source: '/tmp/docs', relativePath: 'docs' },
       status: 'completed',
       error: null,
       createdAt: 1735689600000,
       updatedAt: 1738454400000
     })
+    expect(result.pathPrefix).toBe('docs')
+    expect(result.unrelatedSourceChildCount).toBe(0)
 
-    // One completed `file` child per loader id, parented to the container, each
-    // carrying its external source and a virtual relativePath equal to its own id.
+    // One completed `file` child per loader id, parented to the container, each carrying its
+    // external source plus a `<prefix>/<subpath>` relativePath — the same shape a native
+    // directory expansion produces, except no byte is ever written under raw/<prefix>.
     const [childA, childB] = result.children
     expect(childA).toStrictEqual({
       id: expect.stringMatching(UUIDV7_PATTERN),
       baseId: 'kb-1',
       groupId: result.container.id,
       type: 'file',
-      data: { source: '/tmp/docs/a.md', relativePath: childA.id },
+      data: { source: '/tmp/docs/a.md', relativePath: 'docs/a.md' },
       status: 'completed',
       error: null,
       createdAt: 1735689600000,
@@ -790,7 +834,7 @@ describe('expandLegacyDirectoryItem', () => {
       baseId: 'kb-1',
       groupId: result.container.id,
       type: 'file',
-      data: { source: '/tmp/docs/b.md', relativePath: childB.id },
+      data: { source: '/tmp/docs/b.md', relativePath: 'docs/b.md' },
       status: 'completed',
       error: null,
       createdAt: 1735689600000,
@@ -803,7 +847,7 @@ describe('expandLegacyDirectoryItem', () => {
     expect(result.childLoaderRemap.get('LocalPathLoader_b')).toBe(childB.id)
   })
 
-  it('keeps same-named files in different folders collision-free via the virtual per-id relativePath', () => {
+  it('keeps same-named files in different folders collision-free via their subtree paths', () => {
     const result = expandLegacyDirectoryItem(
       'kb-1',
       {
@@ -815,18 +859,166 @@ describe('expandLegacyDirectoryItem', () => {
       new Map([
         ['L1', '/tmp/project/api/README.md'],
         ['L2', '/tmp/project/web/README.md']
-      ])
+      ]),
+      new Set()
     )
 
     expect(result).not.toBeNull()
     if (!result) return
 
-    // Two same-named README.md sources expand without collision: the relativePath is
-    // each child's own id (no copy into the base, so no shared raw/ path to clash on).
+    // Two same-named README.md sources stay distinct because each keeps the subdirectory it
+    // came from — which is also what makes them unique in the index store's UNIQUE
+    // material.relative_path column.
     const [childA, childB] = result.children
-    expect(childA.id).not.toBe(childB.id)
-    expect(childA.data).toStrictEqual({ source: '/tmp/project/api/README.md', relativePath: childA.id })
-    expect(childB.data).toStrictEqual({ source: '/tmp/project/web/README.md', relativePath: childB.id })
+    expect(childA.data).toStrictEqual({
+      source: '/tmp/project/api/README.md',
+      relativePath: 'project/api/README.md'
+    })
+    expect(childB.data).toStrictEqual({
+      source: '/tmp/project/web/README.md',
+      relativePath: 'project/web/README.md'
+    })
+  })
+
+  it('derives child paths from Windows sources on any host platform', () => {
+    // v1 rows can carry foreign-platform paths (#15733). Using node:path here would make the
+    // same v1 export migrate to different names on macOS and on Windows.
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      {
+        id: 'dir-1',
+        type: 'directory',
+        content: 'C:\\Users\\me\\docs',
+        uniqueIds: ['L1']
+      },
+      new Map([['L1', 'C:\\Users\\me\\docs\\api\\README.md']]),
+      new Set()
+    )
+
+    expect(result?.pathPrefix).toBe('docs')
+    expect(result?.children[0].data).toStrictEqual({
+      source: 'C:\\Users\\me\\docs\\api\\README.md',
+      relativePath: 'docs/api/README.md'
+    })
+  })
+
+  it('tolerates trailing and duplicated separators in v1 paths', () => {
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      { id: 'dir-1', type: 'directory', content: '/tmp/docs/', uniqueIds: ['L1'] },
+      new Map([['L1', '/tmp//docs//a.md']]),
+      new Set()
+    )
+
+    expect(result?.children[0].data.relativePath).toBe('docs/a.md')
+  })
+
+  it('matches the container case-insensitively but keeps each segment original casing', () => {
+    // A cross-platform restore can leave the folder path and its files differing in case.
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      { id: 'dir-1', type: 'directory', content: 'C:\\Users\\Me\\Docs', uniqueIds: ['L1'] },
+      new Map([['L1', 'c:\\users\\me\\docs\\API\\readme.md']]),
+      new Set()
+    )
+
+    expect(result?.children[0].data.relativePath).toBe('Docs/API/readme.md')
+  })
+
+  it('dedupes the container prefix against names the base already uses', () => {
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      { id: 'dir-1', type: 'directory', content: '/tmp/docs', uniqueIds: ['L1'] },
+      new Map([['L1', '/tmp/docs/a.md']]),
+      new Set(['docs'])
+    )
+
+    expect(result?.pathPrefix).toBe('docs_1')
+    expect(result?.container.data).toStrictEqual({ source: '/tmp/docs', relativePath: 'docs_1' })
+    expect(result?.children[0].data.relativePath).toBe('docs_1/a.md')
+  })
+
+  it('keeps a folder named .cherry away from the reserved meta dir', () => {
+    // A bare `.cherry` prefix is rejected by assertSafeKnowledgeRelativePath, which sits on
+    // every read path — it would raise instead of degrading to "source missing".
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      { id: 'dir-1', type: 'directory', content: '/tmp/.cherry', uniqueIds: ['L1'] },
+      new Map([['L1', '/tmp/.cherry/a.md']]),
+      new Set([CHERRY_META_DIR])
+    )
+
+    expect(result?.pathPrefix).toBe('.cherry_1')
+    expect(() => assertSafeKnowledgeRelativePath(result!.container.data.relativePath!)).not.toThrow()
+    expect(() => assertSafeKnowledgeRelativePath(result!.children[0].data.relativePath!)).not.toThrow()
+  })
+
+  it('falls back to the file name when a v1 source is not under the folder', () => {
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      { id: 'dir-1', type: 'directory', content: '/tmp/docs', uniqueIds: ['L1', 'L2'] },
+      new Map([
+        ['L1', '/tmp/docs/a.md'],
+        ['L2', '/other/place/b.md']
+      ]),
+      new Set()
+    )
+
+    expect(result?.children[0].data.relativePath).toBe('docs/a.md')
+    expect(result?.children[1].data.relativePath).toBe('docs/b.md')
+    expect(result?.unrelatedSourceChildCount).toBe(1)
+  })
+
+  it('suffixes fallback names and sanitized names that collide', () => {
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      { id: 'dir-1', type: 'directory', content: '/tmp/docs', uniqueIds: ['L1', 'L2', 'L3', 'L4'] },
+      new Map([
+        // Two out-of-folder sources sharing a filename.
+        ['L1', '/other/x/report.md'],
+        ['L2', '/other/y/report.md'],
+        // Two in-folder sources that sanitize onto the same path.
+        ['L3', '/tmp/docs/a<b.md'],
+        ['L4', '/tmp/docs/a>b.md']
+      ]),
+      new Set()
+    )
+
+    const paths = result!.children.map((child) => child.data.relativePath)
+    expect(paths).toEqual(['docs/report.md', 'docs/report_1.md', 'docs/a_b.md', 'docs/a_b_1.md'])
+    // The whole point of the suffixing: material.relative_path is UNIQUE.
+    expect(new Set(paths).size).toBe(paths.length)
+  })
+
+  it('sanitizes traversal and empty segments into safe knowledge paths', () => {
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      { id: 'dir-1', type: 'directory', content: '/tmp/docs', uniqueIds: ['L1', 'L2'] },
+      new Map([
+        ['L1', '/tmp/docs/sub/../x.md'],
+        ['L2', '/tmp/docs/./nested//y.md']
+      ]),
+      new Set()
+    )
+
+    const paths = result!.children.map((child) => child.data.relativePath!)
+    expect(paths).toEqual(['docs/sub/untitled/x.md', 'docs/nested/y.md'])
+    for (const relativePath of paths) {
+      expect(() => assertSafeKnowledgeRelativePath(relativePath)).not.toThrow()
+      expect(relativePath.split('/')).not.toContain('..')
+    }
+  })
+
+  it('falls back to a root prefix when the folder path has no named segment', () => {
+    const result = expandLegacyDirectoryItem(
+      'kb-1',
+      { id: 'dir-1', type: 'directory', content: '/', uniqueIds: ['L1'] },
+      new Map([['L1', '/tmp/a.md']]),
+      new Set()
+    )
+
+    expect(result?.pathPrefix).toBe('root')
+    expect(result?.children[0].data.relativePath).toBe('root/tmp/a.md')
   })
 
   it('skips loader ids whose source cannot be resolved and keeps the rest', () => {
@@ -838,13 +1030,15 @@ describe('expandLegacyDirectoryItem', () => {
         content: '/tmp/docs',
         uniqueIds: ['known', 'orphan']
       },
-      new Map([['known', '/tmp/docs/known.md']])
+      new Map([['known', '/tmp/docs/known.md']]),
+      new Set()
     )
 
     expect(result).not.toBeNull()
     if (!result) return
 
     expect(result.children).toHaveLength(1)
+    expect(result.children[0].data.relativePath).toBe('docs/known.md')
     expect(result.childLoaderRemap.has('orphan')).toBe(false)
     expect(result.childLoaderRemap.get('known')).toBe(result.children[0].id)
   })
@@ -855,7 +1049,8 @@ describe('expandLegacyDirectoryItem', () => {
       expandLegacyDirectoryItem(
         'kb-1',
         { id: 'dir-1', type: 'directory', content: '/tmp/docs', uniqueIds: ['orphan'] },
-        new Map()
+        new Map(),
+        new Set()
       )
     ).toBeNull()
 
@@ -864,7 +1059,8 @@ describe('expandLegacyDirectoryItem', () => {
       expandLegacyDirectoryItem(
         'kb-1',
         { id: 'dir-1', type: 'directory', content: '/tmp/docs' },
-        new Map([['x', '/tmp/docs/x.md']])
+        new Map([['x', '/tmp/docs/x.md']]),
+        new Set()
       )
     ).toBeNull()
   })
@@ -874,7 +1070,8 @@ describe('expandLegacyDirectoryItem', () => {
       expandLegacyDirectoryItem(
         'kb-1',
         { id: 'dir-1', type: 'directory', content: '   ', uniqueIds: ['L1'] },
-        new Map([['L1', '/tmp/docs/a.md']])
+        new Map([['L1', '/tmp/docs/a.md']]),
+        new Set()
       )
     ).toBeNull()
   })

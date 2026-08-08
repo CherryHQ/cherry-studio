@@ -1,4 +1,5 @@
 import type { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import { sanitizeFilename } from '@main/utils/legacyFile'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -14,6 +15,7 @@ import type { FileMetadata } from '@shared/data/types/legacyFile'
 import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
+import { hasLostOriginalFilename } from './LegacyFileMappings'
 
 export type NewKnowledgeBase = typeof knowledgeBaseTable.$inferInsert
 export type NewKnowledgeItem = typeof knowledgeItemTable.$inferInsert
@@ -316,6 +318,13 @@ export const transformKnowledgeItem = (
       onWarning?.(
         `Knowledge file item ${item.id} has a blank v1 filename; falling back to ${JSON.stringify(relativePath)}`
       )
+    } else if (hasLostOriginalFilename(file)) {
+      // Mutually exclusive with the blank case above (this one requires a non-empty origin_name),
+      // and both say "the name is not what the user chose" — one notice is enough.
+      onWarning?.(
+        `Knowledge file item ${item.id}: the original filename was lost by a legacy v1 duplicate-upload bug and ` +
+          `cannot be recovered. The file is migrated intact as ${JSON.stringify(relativePath)}.`
+      )
     }
     data = { source: file.path, relativePath }
     // Locate the physical upload by reconstructing the v1 storage name from `{id}{ext}` (see the
@@ -439,6 +448,34 @@ export const transformKnowledgeItem = (
   }
 }
 
+/**
+ * Segments of a v1-persisted path, treating both `/` and `\` as separators: a v1 row can carry
+ * foreign-platform paths (#15733), and `node:path` is platform-dependent, so the same v1 export
+ * migrated on macOS and on Windows would otherwise yield two different `relativePath`s — hence
+ * two different display names and two different Concept IDs. Same reasoning as
+ * `FileMigrator.basenameAnySep`. `+` folds repeated separators; the filter drops the empty
+ * segments a leading/trailing separator produces, plus no-op `.` segments.
+ */
+const splitLegacyPathSegments = (value: string): string[] =>
+  value.split(/[\\/]+/).filter((segment) => segment !== '' && segment !== '.')
+
+/**
+ * Comparison key for "is this the same directory segment?". A cross-platform restore can leave the
+ * folder path and its files' paths differing in case or Unicode composition, so containment is
+ * tested on the folded key while the emitted path always keeps the original casing. `toLowerCase`
+ * (not `toLocaleLowerCase`) to keep this free of locale surprises such as tr-TR's I→ı.
+ */
+const foldPathSegment = (segment: string): string => segment.normalize('NFC').toLowerCase()
+
+/**
+ * Sanitize one path segment. `sanitizeFilename` strips separators, control characters, Windows
+ * reserved names and trailing dots/space (so `..` collapses to `untitled`), and only returns ''
+ * for an empty input — which the `||` covers. The result is therefore always non-empty and never
+ * `.`/`..`/a separator, which is what makes the joined path satisfy
+ * `assertSafeKnowledgeRelativePath` by construction (see `expandLegacyDirectoryItem`).
+ */
+const toSafePathSegment = (segment: string): string => sanitizeFilename(segment) || 'untitled'
+
 /** A v1 `directory` item expanded into a v2 container plus one `file` child per embedded file. */
 export interface ExpandedDirectoryItem {
   container: NewKnowledgeItem
@@ -448,6 +485,19 @@ export interface ExpandedDirectoryItem {
    * vector migrator can re-attribute the folder's vectors to the right child.
    */
   childLoaderRemap: Map<string, string>
+  /**
+   * The top-level `raw/` name this expansion claimed. The caller must add it to its per-base
+   * set of taken top-level names — but only for a non-null result, since a null expansion
+   * claims nothing.
+   */
+  pathPrefix: string
+  /**
+   * How many children recorded a v1 source outside the folder path (inconsistent v1 data) and
+   * were therefore named by filename alone. Returned as a count rather than per-child warnings
+   * because migration warnings are an unbounded array rendered in full to the user — one folder
+   * with 5000 files must not emit 5000 notices. The caller emits one aggregate warning.
+   */
+  unrelatedSourceChildCount: number
 }
 
 /**
@@ -458,12 +508,36 @@ export interface ExpandedDirectoryItem {
  * directoryTask). `loaderSourceMap` maps each loader id to its source file path
  * (the legacy vector DB's `source` column).
  *
- * Children carry the external `source` path and a **virtual** `relativePath` (their
- * own id): the file is never copied into the base (v1 never stored the folder inside Cherry, so
- * there is nothing to copy) and the v1 `source` path is untrustworthy, so search uses the migrated
- * vectors directly and the child is never read from disk. Re-indexing such a child is rejected
- * because its source file no longer exists on disk (it would otherwise destroy the only copy of its
- * vectors); rebuilding the folder means deleting it and re-adding it.
+ * Paths mirror a native v2 directory expansion exactly: the container claims a deduped top-level
+ * `raw/` prefix (`docs`, `docs_1`, … — the same scheme as `chooseDirectoryPathPrefix`) and each
+ * child gets `<prefix>/<path relative to the folder>`, derived purely from the v1 `source` strings.
+ * That keeps the display name, the Concept ID and `material.relative_path` readable instead of
+ * opaque ids.
+ *
+ * **No byte is ever copied**: `raw/<prefix>` does not exist, so a child is still not readable from
+ * disk and `assertSubtreesCanReindex` still rejects re-indexing it on the missing-source check
+ * (path-shaped is not the same as path-backed). Search reads the migrated vectors instead;
+ * rebuilding the folder means re-indexing the container (which then fills `raw/<prefix>` for real)
+ * or deleting and re-adding it.
+ *
+ * Two questions this shape invites:
+ * - Children deliberately do NOT reserve a processed-artifact (`.md`) slot: they are never handed
+ *   to the file processor, so reserving would only push a real sibling `docs/report.md` to
+ *   `docs/report_1.md` for nothing — and would drag base-level `fileProcessorId` into this mapping.
+ * - A child's `relativePath` now carries a real extension, so `needsFileProcessing` would return
+ *   true for it — but no processing job can ever be scheduled: `planKnowledgeItemSource` is only
+ *   reached from `scheduleItem`, whose three entry points (`addItems` for newly created items,
+ *   `prepareRootJobHandler` for leaves it just created, `reindexSubtreeJobHandler` for the roots it
+ *   reset) cannot reach a migrated child.
+ *
+ * Invariant, relied on by every read path: because each segment goes through `toSafePathSegment`
+ * and the prefix is deduped against a set seeded with `CHERRY_META_DIR`, the emitted paths always
+ * satisfy `assertSafeKnowledgeRelativePath`. Violating it would turn the graceful "source missing"
+ * of reindex admission / restore filtering / preview into a bare `Error`, since
+ * `getKnowledgeBaseFilePath` asserts on every one of those paths.
+ *
+ * `reservedTopLevelNames` is read-only: a null result claims no prefix, so committing the claim is
+ * the caller's job (see `pathPrefix`).
  *
  * Returns `null` when the directory's `content` (folder path) is blank, or when no child
  * file can be resolved (vector DB unreadable/empty, or the directory carries no loader ids)
@@ -472,17 +546,31 @@ export interface ExpandedDirectoryItem {
 export const expandLegacyDirectoryItem = (
   baseId: string,
   item: LegacyKnowledgeItem,
-  loaderSourceMap: Map<string, string>
+  loaderSourceMap: Map<string, string>,
+  reservedTopLevelNames: ReadonlySet<string>
 ): ExpandedDirectoryItem | null => {
   if (typeof item.content !== 'string' || item.content.trim() === '') {
     return null
   }
+
+  const containerSegments = splitLegacyPathSegments(item.content)
+  const containerFold = containerSegments.map(foldPathSegment)
+  // A folder name is not a filename: `report.v2` must dedupe to `report.v2_1`, not `report_1.v2`
+  // — hence splitExtension=false, matching chooseDirectoryPathPrefix. A path of only separators
+  // leaves no segment, so fall back to `root` the way the native chooser does.
+  const pathPrefix = nextFreeKnowledgeRelativePath(
+    toSafePathSegment(containerSegments.at(-1) ?? 'root'),
+    (candidate) => !reservedTopLevelNames.has(candidate),
+    false
+  )
 
   const createdAt = toTimestamp(item.created_at)
   const updatedAt = toTimestamp(item.updated_at)
   const containerId = uuidv7()
   const children: NewKnowledgeItem[] = []
   const childLoaderRemap = new Map<string, string>()
+  const usedChildPaths = new Set<string>()
+  let unrelatedSourceChildCount = 0
 
   for (const loaderId of item.uniqueIds ?? []) {
     if (typeof loaderId !== 'string' || loaderId.trim() === '') {
@@ -492,16 +580,40 @@ export const expandLegacyDirectoryItem = (
     if (typeof source !== 'string' || source.trim() === '') {
       continue
     }
+
+    const sourceSegments = splitLegacyPathSegments(source)
+    let subSegments: string[]
+    if (
+      sourceSegments.length > containerSegments.length &&
+      containerFold.every((segment, index) => segment === foldPathSegment(sourceSegments[index]))
+    ) {
+      subSegments = sourceSegments.slice(containerSegments.length)
+    } else {
+      // v1 booked a file that is not under this folder against this directory item (inconsistent
+      // data, or a restore that rewrote paths). Fall back to the filename alone: still readable,
+      // and still inside this container's prefix namespace.
+      subSegments = sourceSegments.slice(-1)
+      unrelatedSourceChildCount += 1
+    }
+    if (subSegments.length === 0) {
+      subSegments = ['untitled']
+    }
+
+    // Two distinct v1 sources can collapse onto one path (`a<b.md` / `a>b.md` both sanitize to
+    // `a_b.md`, or two fallbacks share a filename). The later one takes `_N`: `material.relative_path`
+    // is UNIQUE, and a duplicate makes KnowledgeVectorMigrator's per-base catch wipe the whole
+    // base's index.
+    const desiredPath = [pathPrefix, ...subSegments.map(toSafePathSegment)].join('/')
+    const relativePath = nextFreeKnowledgeRelativePath(desiredPath, (candidate) => !usedChildPaths.has(candidate))
+    usedChildPaths.add(relativePath)
+
     const childId = uuidv7()
     children.push({
       id: childId,
       baseId,
       groupId: containerId,
       type: 'file',
-      // Virtual relativePath (the child's own id): the source file is not copied into the base, so
-      // this never resolves to a raw/ file. Search reads the migrated vectors, not the file; reindex
-      // is rejected because that raw/ file does not exist on disk (see assertSubtreesCanReindex).
-      data: { source, relativePath: childId },
+      data: { source, relativePath },
       status: 'completed',
       error: null,
       createdAt,
@@ -519,12 +631,12 @@ export const expandLegacyDirectoryItem = (
     baseId,
     groupId: null,
     type: 'directory',
-    data: { source: item.content },
+    data: { source: item.content, relativePath: pathPrefix },
     status: 'completed',
     error: null,
     createdAt,
     updatedAt
   }
 
-  return { container, children, childLoaderRemap }
+  return { container, children, childLoaderRemap, pathPrefix, unrelatedSourceChildCount }
 }

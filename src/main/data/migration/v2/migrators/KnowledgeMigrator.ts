@@ -9,7 +9,11 @@ import { type InsertUserModelRow, userModelTable } from '@data/db/schemas/userMo
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { insertManyWithOrderKey } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
-import { needsProcessedArtifactReservation, reserveImportedFileRelativePath } from '@main/features/knowledge'
+import {
+  CHERRY_META_DIR,
+  needsProcessedArtifactReservation,
+  reserveImportedFileRelativePath
+} from '@main/features/knowledge'
 import { copy, ensureDir } from '@main/utils/file'
 import { sanitizeFilename } from '@main/utils/legacyFile'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
@@ -682,6 +686,16 @@ export class KnowledgeMigrator extends BaseMigrator {
 
         const directoryLoaderSources = directoryLoaderResult.sources
 
+        // Top-level `raw/` names this base has handed out, so two migrated folders never claim the
+        // same prefix. Deliberately a per-base local rather than a migrator field: the `raw/`
+        // namespace is per base, and sharing it across bases would push the second base's `docs`
+        // to `docs_1` for nothing. Seeded with CHERRY_META_DIR because a v1 folder literally named
+        // `.cherry` would otherwise yield a prefix that `assertSafeKnowledgeRelativePath` rejects
+        // — and that assert sits on every read path (reindex admission / restore / preview), so it
+        // would raise a bare Error instead of degrading gracefully. Treating it as taken lets it
+        // fall to `.cherry_1` with no special case.
+        const reservedTopLevelNames = new Set<string>([CHERRY_META_DIR])
+
         for (const item of items) {
           this.sourceCount += 1
 
@@ -691,8 +705,23 @@ export class KnowledgeMigrator extends BaseMigrator {
           // folder falls through to transformKnowledgeItem so its real status is preserved
           // instead of being silently promoted to a fully `completed` container.
           if (this.isExpandableCompletedDirectory(item)) {
-            const expanded = expandLegacyDirectoryItem(preparedBase.id!, item, directoryLoaderSources)
+            const expanded = expandLegacyDirectoryItem(
+              preparedBase.id!,
+              item,
+              directoryLoaderSources,
+              reservedTopLevelNames
+            )
             if (expanded) {
+              // Commit the prefix claim here, not inside the expansion: a null expansion claims
+              // nothing, and this is the same branch that commits the rows themselves.
+              reservedTopLevelNames.add(expanded.pathPrefix)
+
+              if (expanded.unrelatedSourceChildCount > 0) {
+                this.recordWarning(
+                  `Knowledge directory item ${item.id} in base ${validBase.id}: ${expanded.unrelatedSourceChildCount} embedded file(s) recorded a v1 source outside the folder path and were named by filename only`
+                )
+              }
+
               // Partial re-attribution: some embedded files had no migratable vectors and were
               // dropped. The resolved children are correct and stay `completed`; we surface the
               // loss as a migration warning rather than reflecting it on the container's status,
@@ -1020,6 +1049,12 @@ export class KnowledgeMigrator extends BaseMigrator {
    * prospective processed-markdown (`.md`) sibling slot. Without this, a base holding both
    * `report.pdf` and a real `report.md` would later hard-fail reindex when the processor tries
    * to write `report.md` onto the existing sibling.
+   *
+   * Relative-path ownership across the two phases: `prepare` pins each migrated folder's
+   * top-level prefix (immutable once written), `execute` names and copies the real files (free to
+   * take a `_N` suffix). Hence the reserved set below starts from the folder prefixes. The reverse
+   * order is not available — a file's final name depends on `ctx.paths.filesDataDir` and
+   * `fileProcessorId`, and `prepare` performs no file I/O.
    */
   private async copyKnowledgeFilesForBase(
     ctx: MigrationContext,
@@ -1027,7 +1062,26 @@ export class KnowledgeMigrator extends BaseMigrator {
     fileProcessorId: string | null | undefined,
     items: NewKnowledgeItem[]
   ): Promise<void> {
-    const reservedPaths = new Set<string>()
+    // Seed the migrated folders' prefixes before naming any file. A directory container pinned
+    // `raw/<prefix>` back in `prepare` and can no longer move (its DB row, its index-store
+    // material and its display name all read from it), whereas a file name is only finalized here
+    // and is free to take a `_N` suffix — so the file yields, not the folder. Without this, a v1
+    // file literally named `docs` would own `raw/docs`, and deleting or re-indexing the `docs`
+    // container would recursively remove it (`deleteKnowledgeItemFiles` /
+    // `deletePreviousLeafExpansion` both `removeDir(raw/docs)`). Child paths need no seeding:
+    // they always carry a `<prefix>/` segment while a copied file name is always a single segment.
+    // CHERRY_META_DIR is seeded for the same reason it is in `prepare` — `raw/.cherry` is a
+    // relativePath that throws on every read.
+    const reservedPaths = new Set<string>([CHERRY_META_DIR])
+    for (const item of items) {
+      if (item.type !== 'directory') {
+        continue
+      }
+      const directoryRelativePath = (item.data as { relativePath?: unknown }).relativePath
+      if (typeof directoryRelativePath === 'string') {
+        reservedPaths.add(directoryRelativePath)
+      }
+    }
 
     for (const item of items) {
       if (item.type !== 'file' || !item.id) {
@@ -1036,6 +1090,10 @@ export class KnowledgeMigrator extends BaseMigrator {
 
       // Synthesized directory-child files live at their external data.source and are never
       // copied into the base — skip dedup/copy (search uses the migrated vectors instead).
+      // Their `<prefix>/<subpath>` was already finalized and made unique during expansion, so
+      // running them through reserveImportedFileRelativePath here would rewrite a settled path
+      // (with base-wide rather than per-folder `_N` semantics) and could reserve a `.md`
+      // artifact slot they will never produce.
       if (this.migratedDirectoryChildItemIds.has(item.id)) {
         continue
       }

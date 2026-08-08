@@ -193,6 +193,9 @@ describe('KnowledgeMigrator legacy file copy (integration)', () => {
     expect(readFileSync(path.join(knowledgeBaseDir, baseId, 'raw', relativePath), 'utf8')).toBe('DUP')
     const warnings = (migrator as unknown as { warnings: string[] }).warnings
     expect(warnings.some((w) => w.includes('source missing'))).toBe(false)
+    // The bytes survive, but the user-facing name did not — say so rather than silently
+    // presenting the storage name as if the user had chosen it.
+    expect(warnings.some((w) => w.includes('the original filename was lost'))).toBe(true)
   })
 
   it('falls back to the storage name when a legacy file has a blank origin_name', async () => {
