@@ -173,6 +173,18 @@ describe('api', () => {
       )
     })
 
+    it('preserves an explicit default port as a custom Vertex override', () => {
+      expect(formatVertexApiHost({ ...baseInput, apiHost: 'https://aiplatform.googleapis.com:443' })).toBe(
+        'https://aiplatform.googleapis.com:443/v1'
+      )
+    })
+
+    it('preserves the trailing-sharp no-version contract on an official host', () => {
+      expect(formatVertexApiHost({ ...baseInput, apiHost: 'https://aiplatform.googleapis.com#' })).toBe(
+        'https://aiplatform.googleapis.com'
+      )
+    })
+
     it('appends api version to custom host', () => {
       expect(formatVertexApiHost({ ...baseInput, apiHost: 'https://custom.googleapis.com/vertex' })).toBe(
         'https://custom.googleapis.com/vertex/v1'

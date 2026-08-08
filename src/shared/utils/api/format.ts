@@ -207,6 +207,31 @@ export function formatApiHost(host?: string, supportApiVersion: boolean = true, 
   }
 }
 
+/** Whether a URL is a Google Vertex API host with no path override. */
+export function isBareVertexApiHost(host: string): boolean {
+  try {
+    const trimmedHost = host.trim()
+    const url = new URL(trimmedHost)
+    const authority = trimmedHost.match(/^[a-z][a-z\d+.-]*:\/\/([^/?#]*)/i)?.[1] ?? ''
+    const hasExplicitPort = /:\d+$/.test(authority)
+    const hasTrailingSharp = trimmedHost.endsWith('#')
+    const isOfficialHost =
+      url.hostname === 'aiplatform.googleapis.com' || url.hostname.endsWith('-aiplatform.googleapis.com')
+    const isHttpProtocol = url.protocol === 'http:' || url.protocol === 'https:'
+    return (
+      isHttpProtocol &&
+      isOfficialHost &&
+      !hasExplicitPort &&
+      !hasTrailingSharp &&
+      url.pathname === '/' &&
+      !url.search &&
+      !url.hash
+    )
+  } catch {
+    return false
+  }
+}
+
 /**
  * Normalise an Ollama base URL: strip trailing `/v1` / `/api` / `/chat`,
  * append `/api`.
