@@ -6817,7 +6817,6 @@
         "title": "Auto Update"
       },
       "avatar": {
-        "builtin": "Builtin avatar",
         "reset": "Reset avatar"
       },
       "backup": {
@@ -7900,6 +7899,12 @@
           "help": "Used for /images/generations; leave blank to use the default chat endpoint Base URL",
           "label": "Image Generation Base URL"
         }
+      },
+      "logo": {
+        "builtin": "Choose built-in icon",
+        "label": "Provider icon",
+        "reset": "Reset icon",
+        "upload": "Upload image"
       },
       "logo_upload_failed": "Failed to process the selected image",
       "misc": "Other",

@@ -154,8 +154,9 @@ const ChannelLogModal: FC<{
     <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onClose()}>
       <DialogContent className="max-w-150">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <span>{`${channelName} — ${t('agent.channels.logs')}`}</span>
+          {/* pr-8 keeps the copy action clear of the absolutely positioned close button. */}
+          <DialogTitle className="flex min-w-0 items-center gap-2 pr-8">
+            <span className="min-w-0 truncate">{`${channelName} — ${t('agent.channels.logs')}`}</span>
             {logs.length > 0 && <CopyButton textToCopy={logsText} size={14} />}
           </DialogTitle>
         </DialogHeader>
