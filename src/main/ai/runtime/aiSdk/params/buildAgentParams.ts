@@ -396,7 +396,7 @@ export async function resolveTools(
   // Meta-tools must see request-materialized entries rather than the process-wide static entries.
   const requestRegistry = new ToolRegistry()
   for (const entry of activeEntries) requestRegistry.register(entry)
-  const exposed = applyDeferExposition(tools, requestRegistry, model.contextWindow)
+  const exposed = await applyDeferExposition(tools, requestRegistry, model.contextWindow)
   const hasCitableTools = activeEntries.some(
     (entry) => CITABLE_BUILTIN_TOOL_NAMES.has(entry.name) && !clientToolNames.has(entry.name)
   )
