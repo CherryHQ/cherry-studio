@@ -1,54 +1,42 @@
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
-import {
-  type ConversationCenterResourceDefinition,
-  useConversationCenterSurface
-} from '../useConversationCenterSurface'
+import { useConversationCenterSurface } from '../useConversationCenterSurface'
 
 describe('useConversationCenterSurface', () => {
-  const definitions = [
-    {
-      id: 'agent-resource-view',
-      kind: 'agent',
-      label: 'Agents'
-    }
-  ] satisfies readonly ConversationCenterResourceDefinition<'agent'>[]
+  const resourceKinds = ['agent'] as const
 
-  it('opens and toggles a resource center surface from a menu item', () => {
+  it('opens and toggles a resource center surface', () => {
     const { result } = renderHook(() =>
       useConversationCenterSurface({
         conversationKey: 'session:one',
-        resourceDefinitions: definitions
+        resourceKinds
       })
     )
 
     expect(result.current.activeResourceKind).toBeNull()
     expect(result.current.historyActive).toBe(false)
-    expect(result.current.resourceMenuItems?.[0]?.active).toBe(false)
 
     act(() => {
-      void result.current.resourceMenuItems?.[0]?.onSelect()
+      result.current.toggleResource('agent')
     })
 
     expect(result.current.activeResourceKind).toBe('agent')
     expect(result.current.historyActive).toBe(false)
-    expect(result.current.resourceMenuItems?.[0]?.active).toBe(true)
 
     act(() => {
-      void result.current.resourceMenuItems?.[0]?.onSelect()
+      result.current.toggleResource('agent')
     })
 
     expect(result.current.activeResourceKind).toBeNull()
     expect(result.current.historyActive).toBe(false)
-    expect(result.current.resourceMenuItems?.[0]?.active).toBe(false)
   })
 
   it('keeps history and resource surfaces mutually exclusive', () => {
     const { result } = renderHook(() =>
       useConversationCenterSurface({
         conversationKey: 'session:one',
-        resourceDefinitions: definitions
+        resourceKinds
       })
     )
 
@@ -60,7 +48,7 @@ describe('useConversationCenterSurface', () => {
     expect(result.current.activeResourceKind).toBeNull()
 
     act(() => {
-      void result.current.resourceMenuItems?.[0]?.onSelect()
+      result.current.toggleResource('agent')
     })
 
     expect(result.current.historyActive).toBe(false)
@@ -86,7 +74,7 @@ describe('useConversationCenterSurface', () => {
       ({ conversationKey }) =>
         useConversationCenterSurface({
           conversationKey,
-          resourceDefinitions: definitions
+          resourceKinds
         }),
       { initialProps: { conversationKey: 'session:one' } }
     )
@@ -102,19 +90,19 @@ describe('useConversationCenterSurface', () => {
     expect(result.current.activeResourceKind).toBeNull()
   })
 
-  it('hides menu items and clears the active surface while disabled', () => {
+  it('clears the active surface while disabled', () => {
     const { result, rerender } = renderHook(
       ({ disabled }) =>
         useConversationCenterSurface({
           conversationKey: 'session:one',
           disabled,
-          resourceDefinitions: definitions
+          resourceKinds
         }),
       { initialProps: { disabled: false } }
     )
 
     act(() => {
-      void result.current.resourceMenuItems?.[0]?.onSelect()
+      result.current.toggleResource('agent')
     })
     expect(result.current.activeResourceKind).toBe('agent')
 
@@ -122,6 +110,5 @@ describe('useConversationCenterSurface', () => {
 
     expect(result.current.activeResourceKind).toBeNull()
     expect(result.current.historyActive).toBe(false)
-    expect(result.current.resourceMenuItems).toBeUndefined()
   })
 })

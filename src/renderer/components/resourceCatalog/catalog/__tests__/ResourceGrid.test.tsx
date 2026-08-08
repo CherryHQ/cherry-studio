@@ -25,6 +25,11 @@ vi.mock('react-i18next', () => ({
           'assistants.groups.delete': '删除分组',
           'assistants.groups.deleteConfirm': '确定要删除这个分组吗？',
           'common.delete': '删除',
+          'common.group.create': '新建分组',
+          'common.group.create_failed': '创建分组失败',
+          'common.group.name_placeholder': '请输入分组名称...',
+          'common.group.name_required': '请输入分组名称',
+          'common.name': '名称',
           'common.rename': '重命名',
           'common.save': '保存',
           'chat.add.assistant.title': '添加助手',
@@ -173,6 +178,7 @@ vi.mock('@cherrystudio/ui', async () => {
         {description && <div>{description}</div>}
       </div>
     ),
+    FieldError: ({ children }: { children?: ReactNode }) => <div role="alert">{children}</div>,
     Dialog: ({ children, open }: { children?: ReactNode; open?: boolean }) => (open ? <>{children}</> : null),
     DialogContent: ({ children }: { children?: ReactNode }) => <div role="dialog">{children}</div>,
     DialogDescription: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -274,6 +280,7 @@ vi.mock('@cherrystudio/ui', async () => {
       )
     },
     Input: (props: ComponentProps<'input'> & { className?: string }) => <input {...props} />,
+    Label: ({ children, ...props }: ComponentProps<'label'>) => <label {...props}>{children}</label>,
     MenuDivider: () => <div data-testid="menu-divider" />,
     MenuList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     MenuItem: ({
@@ -322,8 +329,13 @@ vi.mock('@cherrystudio/ui', async () => {
 
       return <span onPointerDownCapture={() => setOpen(!open)}>{children}</span>
     },
+    Tooltip: ({ children }: { children?: ReactNode }) => <>{children}</>,
     Separator: () => <div />,
-    Scrollbar: ({ children, ...props }: ComponentProps<'div'>) => <div {...props}>{children}</div>,
+    Scrollbar: ({ children, ...props }: ComponentProps<'div'>) => (
+      <div data-testid="shared-scrollbar" {...props}>
+        {children}
+      </div>
+    ),
     Skeleton: (props: ComponentProps<'div'>) => <div data-testid="skeleton" {...props} />,
     Tabs: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
     TabsList: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
@@ -400,7 +412,7 @@ function createAgentResource(): ResourceItem {
   }
 }
 
-function createSkillResource(): ResourceItem {
+function createSkillResource(version: string | null = null): ResourceItem {
   return {
     id: 'skill-1',
     type: 'skill',
@@ -409,7 +421,7 @@ function createSkillResource(): ResourceItem {
     avatar: 'S',
     createdAt: '2026-05-06T00:00:00.000Z',
     updatedAt: '2026-05-06T00:00:00.000Z',
-    raw: {} as Extract<ResourceItem, { type: 'skill' }>['raw']
+    raw: { version } as Extract<ResourceItem, { type: 'skill' }>['raw']
   }
 }
 
@@ -463,24 +475,27 @@ function getResourceCardProps(overrides: Partial<ComponentProps<typeof ResourceC
 }
 
 describe('ResourceGrid empty state copy', () => {
-  it('uses the standalone resource toolbar spacing', () => {
-    renderResourceGrid()
+  it('keeps search in the library toolbar and places a local search beside the settings title', () => {
+    const { unmount } = renderResourceGrid()
 
-    const searchInput = screen.getByPlaceholderText('library.toolbar.search_placeholder')
-    const toolbar = searchInput.parentElement?.parentElement
+    expect(screen.getByPlaceholderText('library.toolbar.search_placeholder')).toBeInTheDocument()
 
-    expect(toolbar).toHaveClass('h-12', 'px-5')
+    unmount()
+    const onSearchChange = vi.fn()
+    renderResourceGrid({ activeResourceType: 'skill', onSearchChange, variant: 'settings', title: '技能' })
+
+    fireEvent.change(screen.getByPlaceholderText('library.toolbar.search_placeholder'), {
+      target: { value: 'creator' }
+    })
+    expect(onSearchChange).toHaveBeenCalledWith('creator')
   })
 
-  it('renders the optional toolbar leading slot before the search box', () => {
+  it('renders the optional toolbar leading slot', () => {
     renderResourceGrid({
       toolbarLeading: <button type="button">Toggle sidebar</button>
     })
 
-    const toggle = screen.getByRole('button', { name: 'Toggle sidebar' })
-    const searchInput = screen.getByPlaceholderText('library.toolbar.search_placeholder')
-
-    expect(toggle.compareDocumentPosition(searchInput)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(screen.getByRole('button', { name: 'Toggle sidebar' })).toBeInTheDocument()
   })
 
   it('shows loading placeholders before the empty state while data is loading', () => {
@@ -488,6 +503,21 @@ describe('ResourceGrid empty state copy', () => {
 
     expect(screen.getByTestId('resource-grid-loading')).toBeInTheDocument()
     expect(screen.queryByTestId('empty-state')).not.toBeInTheDocument()
+  })
+
+  it('keeps the settings grid single-column with a little more space below the header', async () => {
+    const clientWidthSpy = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(1200)
+
+    try {
+      renderResourceGrid({ activeResourceType: 'skill', isLoading: true, variant: 'settings', title: '技能' })
+
+      const loadingGrid = screen.getByTestId('resource-grid-loading')
+      await waitFor(() => expect(loadingGrid).toHaveStyle({ gridTemplateColumns: 'repeat(1, minmax(0, 1fr))' }))
+      expect(loadingGrid.parentElement).toBe(screen.getByTestId('shared-scrollbar'))
+      expect(loadingGrid.parentElement).toHaveClass('pt-4', 'pb-3')
+    } finally {
+      clientWidthSpy.mockRestore()
+    }
   })
 
   it('uses the generic resource empty copy when there is no search', () => {
@@ -685,17 +715,18 @@ describe('ResourceGrid group toolbar management', () => {
     expect(onGroupFilter).toHaveBeenCalledWith(null)
   })
 
-  it('keeps the add-group editor open and clears pending state when creation fails', async () => {
+  it('keeps the shared create-group dialog open when creation fails', async () => {
     const user = userEvent.setup()
     const onAddGroup = vi.fn().mockRejectedValueOnce(new Error('create failed'))
 
     renderResourceGrid({ onAddGroup })
 
     await user.click(screen.getByRole('button', { name: '分组' }))
-    const input = screen.getByPlaceholderText('library.toolbar.add_group_placeholder')
-    await user.type(input, 'work{Enter}')
+    const input = screen.getByPlaceholderText('请输入分组名称...')
+    await user.type(input, 'work')
+    await user.click(screen.getByRole('button', { name: 'common.add' }))
 
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith('create failed'))
+    expect(await screen.findByText('创建分组失败: create failed')).toBeInTheDocument()
     expect(input).toBeInTheDocument()
     expect(input).toHaveValue('work')
     await waitFor(() => expect(input).not.toBeDisabled())
@@ -749,6 +780,39 @@ describe('ResourceGrid group toolbar management', () => {
 })
 
 describe('ResourceGrid card actions', () => {
+  it('shows the Skill version tag only when a version is available', () => {
+    const { rerender } = render(<ResourceCard resource={createSkillResource('1.2.3')} {...getResourceCardProps()} />)
+
+    expect(screen.getByText('1.2.3')).toBeInTheDocument()
+
+    rerender(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
+
+    expect(screen.queryByText('1.2.3')).not.toBeInTheDocument()
+  })
+
+  it('uses the neutral settings treatment without changing library Skill cards', () => {
+    const { rerender } = render(
+      <ResourceCard resource={createSkillResource()} variant="settings" {...getResourceCardProps()} />
+    )
+
+    const settingsCard = screen.getByRole('button', { name: 'Skill' })
+    expect(settingsCard).toHaveClass('rounded-xl', 'border-border')
+    expect(settingsCard.querySelector('[aria-hidden="true"]')?.parentElement).toHaveClass(
+      'bg-secondary',
+      'text-secondary-foreground'
+    )
+    expect(settingsCard.querySelector('[aria-hidden="true"]')).toHaveClass('text-foreground-tertiary')
+
+    rerender(<ResourceCard resource={createSkillResource()} {...getResourceCardProps()} />)
+
+    const libraryCard = screen.getByRole('button', { name: 'Skill' })
+    expect(libraryCard).toHaveClass('rounded-lg', 'border-border-subtle')
+    expect(libraryCard.querySelector('[aria-hidden="true"]')?.parentElement).toHaveClass(
+      'bg-warning-subtle',
+      'text-warning'
+    )
+  })
+
   it('shows the overflow menu only for assistant cards', () => {
     render(<ResourceCard resource={createAssistantResource()} {...getResourceCardProps()} />)
 

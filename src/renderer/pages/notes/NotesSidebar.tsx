@@ -4,7 +4,7 @@ import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import NotesSidebarHeader from '@renderer/pages/notes/NotesSidebarHeader'
 import { findNode } from '@renderer/services/NotesTreeService'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import { FilePlus, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
+import { FilePlus, FileText, Folder, FolderUp, Loader2, Upload, X } from 'lucide-react'
 import type { FC } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,6 +30,8 @@ interface NotesSidebarProps {
   sortType: NotesSortType
   selectedFolderId?: string | null
 }
+
+const renderNoteFileIcon = () => <FileText size={16} className="shrink-0" />
 
 const collectExpandedIds = (nodes: NotesTreeNode[], result: Set<string>): Set<string> => {
   for (const node of nodes) {
@@ -323,6 +325,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
 
   return (
     <div
+      data-ui="notes.navigation"
       className="relative isolate flex h-full min-h-0 w-62.5 min-w-62.5 flex-col rounded-tl-lg border-border border-r bg-background"
       onDragOver={(e) => {
         e.preventDefault()
@@ -381,6 +384,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 selectedId={selectedId}
                 onSelectedChange={handleFileTreeSelectedChange}
                 onMove={handleMove}
+                fileIcon={renderNoteFileIcon}
                 renameSlot={renameSlot}
                 animationSlot={animationSlot}
                 renderRowExtras={renderRowExtras}
@@ -393,7 +397,7 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
         {!isShowStarred && !isShowSearch && (
           <div
             className="mt-1.5 mb-3 flex cursor-pointer items-center gap-2 px-3.5 py-1 text-muted-foreground text-xs italic hover:text-foreground"
-            onClick={handleSelectFolder}>
+            onClick={handleSelectFiles}>
             <FilePlus size={14} className="shrink-0" />
             <span>{t('notes.drop_markdown_hint')}</span>
           </div>

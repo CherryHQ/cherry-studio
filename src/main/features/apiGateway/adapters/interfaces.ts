@@ -14,17 +14,21 @@ import type { Provider } from '@shared/data/types/provider'
 import type { ToolSet, UIMessageChunk } from 'ai'
 
 /**
- * Token usage projection carried on `message-metadata` UIMessageChunks emitted
- * by main's `AiService.streamText`. Mirrors the Cherry `MessageStats` projection
- * (`promptTokens` = input, `completionTokens` = output, `thoughtsTokens` =
- * reasoning). There is no raw input/output token field and no cache-token
- * breakdown on this channel.
+ * Token usage carried on `message-metadata` UIMessageChunks emitted by main's
+ * `AiService.streamText`: the nested `stats` snapshot (Cherry `MessageStats`,
+ * AI SDK v6 names) is the single carrier — the gateway SSE adapters read the
+ * input/output totals from it, plus the reasoning breakdown for dialects that
+ * expose one (Gemini's `usageMetadata.thoughtsTokenCount`).
  */
 export interface GatewayUsageMetadata {
-  totalTokens?: number
-  promptTokens?: number
-  completionTokens?: number
-  thoughtsTokens?: number
+  stats?: {
+    totalTokens?: number
+    inputTokens?: number
+    outputTokens?: number
+    outputTokenDetails?: {
+      reasoningTokens?: number
+    }
+  }
 }
 
 /**
@@ -108,6 +112,8 @@ export interface StreamAdapterOptions {
   messageId?: string
   /** Initial input token count */
   inputTokens?: number
+  /** Restore a provider-safe tool name to the identity expected by the API client. */
+  toClientToolName?: (toolName: string) => string
 }
 
 /**
@@ -129,6 +135,9 @@ export interface IMessageConverter<TInputParams = unknown> {
    * tools): the model emits the call and the gateway forwards it to the client.
    */
   toAiSdkTools?(params: TInputParams): ToolSet | undefined
+
+  /** Restore a provider-safe tool name before returning a tool call to the API client. */
+  toClientToolName?(toolName: string): string
 
   /**
    * Extract stream/generation options from input params

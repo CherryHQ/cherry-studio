@@ -13,7 +13,7 @@ import {
   useUpdateKnowledgeBase
 } from '../useKnowledgeBase'
 
-type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId'>
+type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
 
 const mockUseQuery = vi.fn()
 const mockUseMutation = vi.fn()
@@ -105,6 +105,22 @@ describe('useKnowledgeBases', () => {
     expect(result.current.error).toBe(error)
     expect(result.current.refetch).toBe(refetch)
   })
+
+  it('passes an explicit activation boundary to DataApi', () => {
+    mockUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: undefined,
+      refetch: vi.fn()
+    })
+
+    renderHook(() => useKnowledgeBases({ enabled: false }))
+
+    expect(mockUseQuery).toHaveBeenCalledWith('/knowledge-bases', {
+      query: { page: 1, limit: 100 },
+      enabled: false
+    })
+  })
 })
 
 describe('useCreateKnowledgeBase', () => {
@@ -177,6 +193,35 @@ describe('useCreateKnowledgeBase', () => {
     })
   })
 
+  it('forwards the embedding model with its dimensions when one is picked', async () => {
+    const createdBase = createKnowledgeBase({
+      id: 'base-5',
+      name: 'Base 5',
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: 1536
+    })
+    mockIpcRequest.mockResolvedValueOnce(createdBase)
+    const input: CreateKnowledgeBaseInput = {
+      name: 'Base 5',
+      embeddingModelId: '  openai::text-embedding-3-small  ',
+      dimensions: 1536
+    }
+
+    const { result } = renderHook(() => useCreateKnowledgeBase())
+
+    await act(async () => {
+      await result.current.createBase(input)
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.create_base', {
+      base: {
+        name: 'Base 5',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        dimensions: 1536
+      }
+    })
+  })
+
   it('keeps create rejected when runtime IPC fails without refreshing the list', async () => {
     const createError = new Error('create failed')
     mockIpcRequest.mockRejectedValueOnce(createError)
@@ -241,6 +286,35 @@ describe('useRestoreKnowledgeBase', () => {
     expect(restored).toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
     expect(result.current.isRestoring).toBe(false)
     expect(result.current.restoreError).toBeUndefined()
+  })
+
+  it('restores a BM25-only knowledge base with a null embedding config', async () => {
+    const restoredBase = createKnowledgeBase({
+      id: 'restored-base',
+      name: 'Legacy KB BM25',
+      embeddingModelId: null,
+      dimensions: null
+    })
+    mockIpcRequest.mockResolvedValueOnce({ base: restoredBase, skippedMissingSourceCount: 0 })
+
+    const { result } = renderHook(() => useRestoreKnowledgeBase())
+
+    await act(async () => {
+      await result.current.restoreBase({
+        sourceBaseId: 'source-base',
+        name: 'Legacy KB BM25',
+        embeddingModelId: null,
+        dimensions: null
+      })
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.restore_base', {
+      sourceBaseId: 'source-base',
+      name: 'Legacy KB BM25',
+      embeddingModelId: null,
+      dimensions: null
+    })
+    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
   })
 
   it('keeps restore rejected when runtime IPC fails without refreshing the list', async () => {

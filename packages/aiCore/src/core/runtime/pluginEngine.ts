@@ -83,6 +83,27 @@ export class PluginEngine<T extends string = RegisteredProviderId> {
   }
 
   /**
+   * Run the `transformParams` chain over settings that are supplied ONCE at
+   * construction time instead of per request — the agent path (`createAgent` →
+   * `ToolLoopAgent`) never enters `executeStreamWithPlugins`, so without this a
+   * `transformParams`-only plugin (e.g. `providerToolPlugin`, which injects the
+   * provider-native web-search / url-context tool) is silently inert there.
+   *
+   * `model` is the already-resolved LanguageModel so plugins can read
+   * `context.model.provider` for aggregator-style capability resolution.
+   */
+  async transformAgentSettings<TSettings extends Record<string, any>>(
+    model: LanguageModel,
+    settings: TSettings
+  ): Promise<TSettings> {
+    const context = createContext<T, TSettings>(this.providerId, model, settings)
+    // Same variance-safe narrowing as `executeStreamWithPlugins`: only the stored plugin array needs
+    // a cast, after which params and context type-check against the manager's own generics.
+    const manager = new PluginManager<TSettings>(this.basePlugins as AiPlugin<TSettings>[])
+    return manager.executeTransformParams(settings, context)
+  }
+
+  /**
    * Resolve modelId through the plugin pipeline (configureContext → resolveModel → wrapLanguageModel).
    * Returns a middleware-wrapped LanguageModel ready for external consumers like ToolLoopAgent.
    *

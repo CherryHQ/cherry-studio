@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
-import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ComponentProps, ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -189,6 +189,37 @@ describe('ModelSettings', () => {
     await waitFor(() => expect(harness.setDefaultModel).toHaveBeenCalledWith(selectedModel))
     expect(harness.setQuickModel).not.toHaveBeenCalled()
     expect(harness.setTranslateModel).not.toHaveBeenCalled()
+  })
+
+  it('combines the onboarding provider filter with non-chat model filtering', () => {
+    render(
+      <ModelSettings
+        modelFilter={(model) => model.providerId !== 'cherryai'}
+        showPaintingModel={false}
+        showSettingsButton={false}
+      />
+    )
+
+    const filter = harness.selectorFilters[0]!
+    expect(filter(createModel('openai', 'gpt-4o'))).toBe(true)
+    expect(filter(createModel('cherryai', 'qwen'))).toBe(false)
+    expect(
+      filter({ ...createModel('openai', 'text-embedding-3-small'), capabilities: [MODEL_CAPABILITY.EMBEDDING] })
+    ).toBe(false)
+    expect(
+      filter({
+        ...createModel('new-api', 'opaque-embedding-model'),
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]
+      })
+    ).toBe(false)
+    expect(
+      filter({
+        ...createModel('openai', 'whisper-1'),
+        capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION],
+        inputModalities: ['audio'],
+        outputModalities: ['text']
+      })
+    ).toBe(false)
   })
 
   it('shows retry controls and restricts fallback selection to chat models', () => {

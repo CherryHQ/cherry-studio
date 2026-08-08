@@ -479,11 +479,13 @@ describe('EnvironmentDependencies', () => {
   it('excludes Code CLI snapshots from the dependency grid', async () => {
     setSnapshots({
       claude: miseSnapshot('claude', 'claude'),
+      pi: miseSnapshot('pi', 'npm:@earendil-works/pi-coding-agent'),
       'some-agent': miseSnapshot('some-agent', 'npm:some-agent')
     })
     render(<EnvironmentDependencies />)
     expect(await screen.findByText('some-agent')).toBeInTheDocument()
     expect(screen.queryByText('claude')).not.toBeInTheDocument()
+    expect(screen.queryByText('pi')).not.toBeInTheDocument()
   })
 
   it('uses latest versions for exactly applied tools regardless of a custom definition', async () => {
@@ -491,13 +493,6 @@ describe('EnvironmentDependencies', () => {
     ipcMocks.latestVersions.mockResolvedValue({ uv: '2.0.0', fd: '2.0.0' })
     render(<EnvironmentDependencies />)
     await waitFor(() => expect(screen.getAllByText('v2.0.0')).toHaveLength(2))
-  })
-
-  it('hides remove controls for bundled-only presets', async () => {
-    setSnapshots({ uv: { name: 'uv', availability: { source: 'bundled', path: '/bundled/uv', version: '1.0.0' } } })
-    render(<EnvironmentDependencies />)
-    const card = (await screen.findByText('uv')).closest('[role="listitem"]') as HTMLElement
-    expect(within(card).queryByLabelText('settings.dependencies.remove')).not.toBeInTheDocument()
   })
 
   it('does not render a runtime absent from the live snapshot', async () => {

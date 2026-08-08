@@ -17,6 +17,8 @@ export interface RichEditorProps {
   onPaste?: (event: ClipboardEvent) => string
   /** Whether the editor is editable */
   editable?: boolean
+  /** Whether to focus the end of the document when the editor mounts or becomes editable */
+  autoFocus?: boolean
   /** Whether to show the table of contents component */
   showTableOfContents?: boolean
   /** Custom CSS class name */
@@ -52,6 +54,12 @@ export interface RichEditorProps {
   fontSize?: number
   /** Whether to enable spell check */
   enableSpellCheck?: boolean
+  /** Accessible name for the editing surface, for editors with no visible label */
+  ariaLabel?: string
+  /** Whether users can insert images */
+  enableImageInsertion?: boolean
+  /** Toolbar and slash-menu commands hidden for this editor instance */
+  disabledCommands?: readonly string[]
 }
 
 export interface ToolbarItem {
@@ -229,6 +237,10 @@ export interface ToolbarProps {
   onCommand: (command: FormattingCommand) => void
   /** Scroll container reference to prevent scrolling when dialogs open */
   scrollContainer?: React.RefObject<HTMLDivElement | null>
+  /** Whether image insertion controls are enabled */
+  enableImageInsertion?: boolean
+  /** Toolbar commands hidden for this editor instance */
+  disabledCommands?: readonly string[]
 }
 
 // Command System Types for Slash Commands

@@ -1,10 +1,16 @@
 import {
+  createOverlayRefreshHandoff,
+  useMessageStreamingLayers
+} from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
+import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
+import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
@@ -12,16 +18,14 @@ import {
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import { useStableStringArray } from '@renderer/hooks/useStableStringArray'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -31,7 +35,7 @@ type AskUserQuestionApprovalPart = CherryMessagePart & {
   output?: unknown
 }
 
-export type AgentSendOptions = { body?: Record<string, unknown> }
+export type AgentSendOptions = AgentComposerSendOptions
 
 export interface AgentTurnInput {
   text: string
@@ -39,7 +43,7 @@ export interface AgentTurnInput {
 }
 
 export function getAgentTurnParts(input: AgentTurnInput): CherryMessagePart[] {
-  const parts = input.options?.body?.userMessageParts as CherryMessagePart[] | undefined
+  const parts = input.options?.body?.userMessageParts
   return parts ?? (input.text ? [{ type: 'text', text: input.text }] : [])
 }
 
@@ -158,7 +162,8 @@ export function useAgentChatRuntimeState({
       trigger: 'submit-message',
       topicId: conversation.topicId,
       userMessageParts: getAgentTurnParts(input),
-      reasoningEffort: input.options?.body?.reasoningEffort as ReasoningEffortOption | undefined
+      reasoningEffort: input.options?.body?.reasoningEffort,
+      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
     }),
     []
   )
@@ -177,67 +182,39 @@ export function useAgentChatRuntimeState({
   const deleteMessage = useCallback(
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
+      invalidateCachedMessageUiStates([messageId])
       setMessages((current) => current.filter((message) => message.id !== messageId))
     },
     [deleteSessionMessage, setMessages]
   )
-
-  const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const next: Record<string, CherryMessagePart[]> = {}
-    for (const message of uiMessages) {
-      next[message.id] = (message.parts ?? []) as CherryMessagePart[]
-    }
-    return next
-  }, [uiMessages])
 
   const {
     overlay,
     liveAssistants,
     reset: resetOverlay
   } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages)
-  const liveMessageIdCandidates = useMemo(
-    () =>
-      Array.from(
-        new Set([
-          ...activeExecutions.flatMap((execution) => (execution.anchorMessageId ? [execution.anchorMessageId] : [])),
-          ...liveAssistants.map((message) => message.id)
-        ])
-      ),
-    [activeExecutions, liveAssistants]
-  )
-  const liveMessageIds = useStableStringArray(liveMessageIdCandidates)
-  const streamingLayers = useMemo<MessageStreamingLayers>(
-    () => ({ historyPartsByMessageId: basePartsMap, liveMessageIds }),
-    [basePartsMap, liveMessageIds]
-  )
+  const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
+    messages: uiMessages,
+    overlay,
+    executions: activeExecutions,
+    liveAssistants
+  })
   const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
     Record<string, unknown>
   >({})
 
-  // Deterministic overlay→DB handoff: the overlay's `onFinish` is suppressed when
-  // the execution leaves `activeExecutions` at terminal, so a torn-down turn's
-  // live card would otherwise override the finalized DB row. Refresh then drop the
-  // overlay off the terminal status edge (excludes awaiting-approval, which keeps
-  // its card). `refresh()` before `reset()` avoids flashing the stale base parts.
-  useTopicOverlayHandoffOnTerminal(sessionTopicId, async () => {
-    try {
-      await refresh()
-    } finally {
-      resetOverlay()
-    }
-  })
+  // Deterministic overlay→DB handoff at terminal (see hook docs).
+  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay))
 
+  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
+  // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
+  // setState bail-out and force a re-render on every tab switch.
+  const optimisticInputsResetTopicIdRef = useRef(sessionTopicId)
   useEffect(() => {
+    if (optimisticInputsResetTopicIdRef.current === sessionTopicId) return
+    optimisticInputsResetTopicIdRef.current = sessionTopicId
     setOptimisticAskUserQuestionInputsByToolCallId({})
   }, [sessionTopicId])
-
-  const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const next = { ...basePartsMap }
-    for (const [messageId, parts] of Object.entries(overlay)) {
-      if (parts.length) next[messageId] = parts
-    }
-    return next
-  }, [basePartsMap, overlay])
 
   useEffect(() => {
     setOptimisticAskUserQuestionInputsByToolCallId((current) => {

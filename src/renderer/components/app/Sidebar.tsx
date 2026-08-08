@@ -6,16 +6,17 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSidebarFavorites } from '@renderer/hooks/useSidebarFavorites'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarAppId } from '@renderer/utils/sidebar'
 import {
+  getSidebarApp,
   getSidebarFavoriteKey,
   getSidebarMenuPath,
+  isMessageOnlyConversationUrl,
   REQUIRED_SIDEBAR_FAVORITES,
-  resolveSidebarActiveItem
+  resolveSidebarActiveItem,
+  tabBelongsToApp
 } from '@renderer/utils/sidebar'
-import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import type { Ref } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -36,11 +37,6 @@ import { resolveSidebarEntry, type SidebarVariantContext } from './sidebarVarian
 const MINI_APP_ROUTE_PREFIX = '/app/mini-app/'
 const REQUIRED_SIDEBAR_FAVORITE_SET = new Set<SidebarAppId>(REQUIRED_SIDEBAR_FAVORITES)
 
-function getResourceListRevealSource(menuItemId: SidebarAppId): ResourceListRevealSource | null {
-  if (menuItemId === 'assistants' || menuItemId === 'agents') return menuItemId
-  return null
-}
-
 function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
   if (!url?.startsWith(MINI_APP_ROUTE_PREFIX)) return undefined
   const appId = url.slice(MINI_APP_ROUTE_PREFIX.length).split(/[/?#]/, 1)[0]
@@ -50,9 +46,9 @@ function getMiniAppIdFromUrl(url: string | undefined): string | undefined {
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
-  const { favorites, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
+  const { favorites, miniAppFavoriteIds, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
   const { activeTab, updateTab, openTab } = useTabs()
-  const { miniApps, pinned } = useMiniApps()
+  const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
   // Sidebar width — persisted across restarts. Dragging through the
@@ -135,17 +131,25 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const handleNavigate = useCallback(
     (menuItemId: string) => {
       const menuId = menuItemId as SidebarAppId
+      const app = getSidebarApp(menuId)
       const path = getSidebarMenuPath(menuId, defaultPaintingProvider)
-      if (!path || activeTab?.url === path) return
+      if (!app || !path) return
+
+      // Conversation apps: any owned tab is already "there" — its URL carries its own
+      // conversation, and re-entering through the route interceptor would just rebind
+      // it. Message-only viewers are not an app entry, so they navigate like any
+      // foreign tab. Apps without sub-instances keep exact-URL matching.
+      const isActiveTarget =
+        !!activeTab &&
+        (app.conversationRoute
+          ? tabBelongsToApp(app, activeTab.url) && !isMessageOnlyConversationUrl(activeTab.url)
+          : activeTab.url === path)
+      if (isActiveTarget) return
 
       const title = getDefaultRouteTitle(path)
-      const revealSource = getResourceListRevealSource(menuId)
 
       if (activeTab?.isPinned) {
-        const openedId = openTab(path, { forceNew: true, title })
-        if (revealSource) {
-          emitResourceListReveal({ source: revealSource, tabId: openedId })
-        }
+        openTab(path, { forceNew: true, title })
         return
       }
 
@@ -154,21 +158,18 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           url: path,
           title,
           icon: undefined,
-          metadata: clearTabInstanceMetadata(activeTab.metadata)
+          metadata: undefined
         })
-        if (revealSource) {
-          emitResourceListReveal({ source: revealSource, tabId: activeTab.id })
-        }
         return
       }
 
-      const openedId = openTab(path, { forceNew: true, title })
-      if (revealSource) {
-        emitResourceListReveal({ source: revealSource, tabId: openedId })
-      }
+      openTab(path, { forceNew: true, title })
     },
-    [activeTab, updateTab, openTab, defaultPaintingProvider]
+    [activeTab, defaultPaintingProvider, openTab, updateTab]
   )
+  const handleOpenLaunchpad = useCallback(() => {
+    openTab('/app/launchpad', { title: getDefaultRouteTitle('/app/launchpad'), forceNew: true })
+  }, [openTab])
   const handleOpenSettingsTab = useCallback(() => {
     openSettingsTab('/settings/provider')
   }, [])
@@ -195,7 +196,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           url: path,
           title,
           icon,
-          metadata: clearTabInstanceMetadata(activeTab.metadata)
+          metadata: undefined
         })
         return
       }
@@ -237,8 +238,27 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // favorites order. Unrenderable rows (no route/icon, or an uninstalled mini app)
   // are dropped here but stay in the preference.
   const entries = useMemo(
-    () => favorites.flatMap((favorite) => resolveSidebarEntry(favorite, variantContext) ?? []),
-    [favorites, variantContext]
+    () =>
+      favorites.flatMap((favorite) => {
+        const entry = resolveSidebarEntry(favorite, variantContext)
+        if (!entry) return []
+
+        return [
+          {
+            ...entry,
+            contextMenuItems: [
+              ...(entry.contextMenuItems ?? []),
+              {
+                type: 'item' as const,
+                id: `sidebar.manage.${entry.key}`,
+                label: t('launchpad.manage_sidebar'),
+                onSelect: handleOpenLaunchpad
+              }
+            ]
+          }
+        ]
+      }),
+    [favorites, handleOpenLaunchpad, t, variantContext]
   )
 
   // A single drag reorders the whole mixed list. arrayMove yields the new entry
@@ -269,7 +289,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   }
 
   return (
-    <div ref={ref} id="app-sidebar" className="relative h-full [-webkit-app-region:no-drag]">
+    <div ref={ref} id="app-sidebar" data-ui="app.sidebar" className="relative h-full [-webkit-app-region:no-drag]">
       <UISidebar
         width={activeSidebarWidth}
         setWidth={setSidebarWidth}

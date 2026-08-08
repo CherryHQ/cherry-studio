@@ -66,4 +66,37 @@ describe('AgentSessionMessages', () => {
       })
     )
   })
+
+  it('anchors background status to the latest assistant with content instead of an empty pending placeholder', () => {
+    const settledAssistant = {
+      id: 'assistant-settled',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Main answer' }]
+    }
+    const pendingAssistant = {
+      id: 'assistant-pending',
+      role: 'assistant',
+      parts: []
+    }
+
+    render(
+      <AgentSessionMessages
+        agentId="agent-1"
+        sessionId="session-1"
+        messages={[settledAssistant, { id: 'user-follow-up', role: 'user', parts: [] }, pendingAssistant] as any}
+        partsByMessageId={{
+          'assistant-settled': [{ type: 'text', text: 'Main answer' }] as any
+        }}
+        isLoading={false}
+      />
+    )
+
+    expect(useAgentMessageListProviderValueMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messageTail: expect.objectContaining({
+          messageId: 'assistant-settled'
+        })
+      })
+    )
+  })
 })

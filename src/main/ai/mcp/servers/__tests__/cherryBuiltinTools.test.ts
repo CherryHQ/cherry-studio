@@ -81,6 +81,14 @@ const makeKnowledgeTools = (allowedIds: string[]) =>
     workspacePath: '/tmp/workspace',
     getKnowledgeBaseIds: () => allowedIds
   })
+const makeUnrestrictedKnowledgeTools = () =>
+  new CherryKnowledgeTools({
+    agentId: 'agent_test',
+    workspaceSource: { type: 'system' as const },
+    workspacePath: '/tmp/workspace',
+    canAccessAllKnowledgeBases: () => true,
+    getKnowledgeBaseIds: () => []
+  })
 const callCherryBuiltinTool = (name: string, args: unknown, sig: AbortSignal, allowedIds: string[] = KB_SCOPE) =>
   KB_TOOL_NAMES.has(name) ? makeKnowledgeTools(allowedIds).call(name, args) : callCherryBuiltinToolRaw(name, args, sig)
 const listCherryBuiltinTools = (allowedIds: string[] = KB_SCOPE) => [
@@ -149,6 +157,18 @@ describe('cherryBuiltinTools', () => {
     expect(names).toEqual(['generate_image', 'report_artifacts', 'web_fetch', 'web_search'])
   })
 
+  it('exposes every kb_* tool for unrestricted built-in Assistant access', async () => {
+    const knowledge = makeUnrestrictedKnowledgeTools()
+    expect(knowledge.tools().map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
+    )
+
+    listBases.mockResolvedValue([])
+    await knowledge.call('kb_list', {})
+
+    expect(listBases).toHaveBeenCalledOnce()
+  })
+
   it('keeps runtime knowledge tools aligned with the shared wire-name registry', () => {
     const runtimeWireNames = makeKnowledgeTools(['kb-1'])
       .tools()
@@ -174,7 +194,9 @@ describe('cherryBuiltinTools', () => {
 
     expect(searchKeywords).toHaveBeenCalledWith({ keywords: ['hello'] }, { signal })
     expect(result.isError).toBeFalsy()
-    expect(JSON.parse(textOf(result))).toEqual([{ id: 1, title: 'A', url: 'https://a.com', content: 'about A' }])
+    expect(JSON.parse(textOf(result))).toEqual([
+      { id: expect.stringMatching(/^[0-9a-f]{8}-1$/), title: 'A', url: 'https://a.com', content: 'about A' }
+    ])
   })
 
   it('routes web_fetch through WebSearchService', async () => {
@@ -263,7 +285,10 @@ describe('cherryBuiltinTools', () => {
 
     expect(kbSearch).toHaveBeenCalledWith('b1', 'topic')
     expect(kbSearch).toHaveBeenCalledWith('b2', 'topic')
-    expect(JSON.parse(textOf(result))[0]).toMatchObject({ id: 1, content: 'doc' })
+    expect(JSON.parse(textOf(result))[0]).toMatchObject({
+      id: expect.stringMatching(/^[0-9a-f]{8}-1$/),
+      content: 'doc'
+    })
   })
 
   it('scopes kb_search to the bound bases, dropping model-provided baseIds outside the binding', async () => {
@@ -276,13 +301,15 @@ describe('cherryBuiltinTools', () => {
     expect(kbSearch).not.toHaveBeenCalledWith('b2', 'topic')
   })
 
-  it('rejects a direct kb_* call when the agent has no bound knowledge base', async () => {
+  it('rejects a direct kb_* call when the effective knowledge scope is empty', async () => {
     const result = await callCherryBuiltinTool('kb_search', { query: 'topic', baseIds: ['b1'] }, signal, [])
 
     expect(result.isError).toBe(true)
-    expect(textOf(result)).toContain('no knowledge base bound')
+    // "in scope", not "bound": an empty scope means no binding AND no composer selection, so naming
+    // only the binding would send the model after the wrong remedy.
+    expect(textOf(result)).toContain('no knowledge base in scope')
     expect(kbSearch).not.toHaveBeenCalled()
-    expect(loggerWarn).toHaveBeenCalledWith('Rejected direct knowledge tool call without a bound knowledge base', {
+    expect(loggerWarn).toHaveBeenCalledWith('Rejected direct knowledge tool call with an empty knowledge scope', {
       tool: 'kb_search'
     })
   })
@@ -330,6 +357,7 @@ describe('cherryBuiltinTools', () => {
     expect(kbReadConcept).toHaveBeenCalledWith('b1', 'docs/intro.md', { charStart: 0, charEnd: 11 })
     expect(result.isError).toBeFalsy()
     expect(JSON.parse(textOf(result))).toMatchObject({
+      id: expect.stringMatching(/^[0-9a-f]{8}-1$/),
       conceptId: 'docs/intro.md',
       type: 'file',
       content: 'hello world'
@@ -376,7 +404,12 @@ describe('cherryBuiltinTools', () => {
     })
     // read mode must NOT run when a pattern is present.
     expect(kbReadConcept).not.toHaveBeenCalled()
-    expect(JSON.parse(textOf(result))).toMatchObject({ conceptId: 'docs/intro.md', type: 'note', totalMatches: 1 })
+    expect(JSON.parse(textOf(result))).toMatchObject({
+      id: expect.stringMatching(/^[0-9a-f]{8}-1$/),
+      conceptId: 'docs/intro.md',
+      type: 'note',
+      totalMatches: 1
+    })
   })
 
   it('returns a no-matches hint (not an error) when kb_read grep mode finds nothing', async () => {
@@ -677,6 +710,8 @@ describe('cherryBuiltinTools', () => {
 describe('CherryBuiltinToolsServer autonomy tool registration', () => {
   const agentContext = {
     agentId: 'agent_1',
+    agentDataPath: '/tmp/agent-data',
+    sessionId: 'session-1',
     workspaceSource: { type: 'system' as const },
     workspacePath: '/tmp/workspace',
     getKnowledgeBaseIds: () => KB_SCOPE
@@ -687,7 +722,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     const handlers = (server.mcpServer.server as any)._requestHandlers
     const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
     const names = result.tools.map((t: any) => t.name)
-    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config']))
+    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config', 'to_markdown']))
     expect(names).toEqual(expect.arrayContaining(listCherryBuiltinTools(['kb-1']).map((t) => t.name)))
   })
 
@@ -696,12 +731,31 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     const handlers = (server.mcpServer.server as any)._requestHandlers
     const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
     const names = result.tools.map((t: any) => t.name)
-    // Autonomy + stateless builtins stay; only the knowledge tools drop out.
-    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config', 'web_search', 'generate_image']))
+    // Autonomy, document conversion, and stateless builtins stay; only the knowledge tools drop out.
+    expect(names).toEqual(
+      expect.arrayContaining(['cron', 'notify', 'config', 'to_markdown', 'web_search', 'generate_image'])
+    )
     expect(names).not.toContain('kb_search')
     expect(names).not.toContain('kb_read')
     expect(names).not.toContain('kb_list')
     expect(names).not.toContain('kb_manage')
+  })
+
+  it('exposes CLI management to every agent, including the built-in Assistant', async () => {
+    const normal = new CherryBuiltinToolsServer(agentContext)
+    const assistant = new CherryBuiltinToolsServer({ ...agentContext, canAccessAllKnowledgeBases: () => true })
+    const normalHandlers = (normal.mcpServer.server as any)._requestHandlers
+    const assistantHandlers = (assistant.mcpServer.server as any)._requestHandlers
+
+    const normalNames = (await normalHandlers.get('tools/list')({ method: 'tools/list', params: {} }, {})).tools.map(
+      (tool: any) => tool.name
+    )
+    const assistantNames = (
+      await assistantHandlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
+    ).tools.map((tool: any) => tool.name)
+
+    expect(normalNames).toEqual(expect.arrayContaining(['cli_list', 'cli_search', 'cli_install']))
+    expect(assistantNames).toEqual(expect.arrayContaining(['cli_list', 'cli_search', 'cli_install']))
   })
 
   it('rejects a previously bound base after the live scope narrows', async () => {

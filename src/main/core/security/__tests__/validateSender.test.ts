@@ -1,46 +1,84 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
 import type { IpcMainInvokeEvent } from 'electron'
 import { describe, expect, it } from 'vitest'
 
-import { isTrustedSenderUrl, validateSender } from '../validateSender'
+import { isAppRendererUrl, validateSender } from '../validateSender'
 
 // A representative packaged app root (asar bundle); the renderer entry lives under it.
 const APP_ROOT = '/Applications/CherryStudio.app/Contents/Resources/app.asar'
 
-describe('isTrustedSenderUrl', () => {
+describe('isAppRendererUrl', () => {
   it('trusts a packaged app page whose file path is inside the app root', () => {
-    expect(isTrustedSenderUrl(`file://${APP_ROOT}/out/renderer/index.html`, null, APP_ROOT)).toBe(true)
+    expect(isAppRendererUrl(`file://${APP_ROOT}/out/renderer/index.html`, null, APP_ROOT)).toBe(true)
+  })
+
+  it('trusts a packaged app page when the launch path reaches the app through a directory link', () => {
+    const fixtureRoot = mkdtempSync(join(tmpdir(), 'cherry-sender-link-'))
+    const realProgramsDir = join(fixtureRoot, 'real-programs')
+    const linkedProgramsDir = join(fixtureRoot, 'linked-programs')
+    const appRootFromLaunchPath = join(linkedProgramsDir, 'Cherry Studio', 'resources', 'app.asar')
+    const realAppRoot = join(realProgramsDir, 'Cherry Studio', 'resources', 'app.asar')
+
+    try {
+      mkdirSync(dirname(realAppRoot), { recursive: true })
+      writeFileSync(realAppRoot, '')
+      symlinkSync(realProgramsDir, linkedProgramsDir, process.platform === 'win32' ? 'junction' : 'dir')
+
+      const rendererPath = join(realpathSync.native(realAppRoot), 'out', 'renderer', 'windows', 'main', 'index.html')
+
+      expect(isAppRendererUrl(pathToFileURL(rendererPath).href, null, appRootFromLaunchPath)).toBe(true)
+    } finally {
+      rmSync(fixtureRoot, { recursive: true, force: true })
+    }
   })
 
   it('rejects a file:// page outside the app root (downloaded/exported HTML)', () => {
-    expect(isTrustedSenderUrl('file:///Users/victim/Downloads/evil.html', null, APP_ROOT)).toBe(false)
+    expect(isAppRendererUrl('file:///Users/victim/Downloads/evil.html', null, APP_ROOT)).toBe(false)
   })
 
   it('rejects a file:// path that merely shares a prefix with the app root', () => {
-    expect(isTrustedSenderUrl(`file://${APP_ROOT}-evil/index.html`, null, APP_ROOT)).toBe(false)
+    expect(isAppRendererUrl(`file://${APP_ROOT}-evil/index.html`, null, APP_ROOT)).toBe(false)
   })
 
   it('rejects file:// urls with percent-encoded path separators (encoded-traversal attempt)', () => {
     // `%2f` is an encoded slash: fileURLToPath throws ERR_INVALID_FILE_URL_PATH → caught → false.
-    expect(isTrustedSenderUrl(`file://${APP_ROOT}/..%2f..%2fevil.html`, null, APP_ROOT)).toBe(false)
+    expect(isAppRendererUrl(`file://${APP_ROOT}/..%2f..%2fevil.html`, null, APP_ROOT)).toBe(false)
     // `%2e%2e` are encoded dots with real slashes: decode to `../../` and normalize outside the root.
-    expect(isTrustedSenderUrl(`file://${APP_ROOT}/%2e%2e/%2e%2e/evil.html`, null, APP_ROOT)).toBe(false)
+    expect(isAppRendererUrl(`file://${APP_ROOT}/%2e%2e/%2e%2e/evil.html`, null, APP_ROOT)).toBe(false)
   })
 
   it('trusts a frame whose origin matches the dev server', () => {
-    expect(isTrustedSenderUrl('http://localhost:5173/index.html', 'http://localhost:5173', APP_ROOT)).toBe(true)
+    expect(isAppRendererUrl('http://localhost:5173/index.html', 'http://localhost:5173', APP_ROOT)).toBe(true)
   })
 
   it('rejects an origin that does not match the dev server', () => {
-    expect(isTrustedSenderUrl('http://localhost:6666/index.html', 'http://localhost:5173', APP_ROOT)).toBe(false)
+    expect(isAppRendererUrl('http://localhost:6666/index.html', 'http://localhost:5173', APP_ROOT)).toBe(false)
+    expect(isAppRendererUrl('https://localhost:5173/index.html', 'http://localhost:5173', APP_ROOT)).toBe(false)
+    expect(isAppRendererUrl('http://127.0.0.1:5173/index.html', 'http://localhost:5173', APP_ROOT)).toBe(false)
+  })
+
+  it('rejects a remote url that merely carries the dev-server address as text', () => {
+    // Regression guard: a substring check would have let this navigate in-window.
+    expect(
+      isAppRendererUrl('https://evil.example.com/?next=http://localhost:5173', 'http://localhost:5173', APP_ROOT)
+    ).toBe(false)
+  })
+
+  it('rejects a malformed dev server url', () => {
+    expect(isAppRendererUrl('http://localhost:5173/index.html', 'not a url', APP_ROOT)).toBe(false)
   })
 
   it('rejects remote https origins (MiniApp / webview SSRF vector)', () => {
-    expect(isTrustedSenderUrl('https://evil.example.com/page', null, APP_ROOT)).toBe(false)
+    expect(isAppRendererUrl('https://evil.example.com/page', null, APP_ROOT)).toBe(false)
   })
 
   it('rejects empty or malformed urls', () => {
-    expect(isTrustedSenderUrl('', null, APP_ROOT)).toBe(false)
-    expect(isTrustedSenderUrl('not a url', null, APP_ROOT)).toBe(false)
+    expect(isAppRendererUrl('', null, APP_ROOT)).toBe(false)
+    expect(isAppRendererUrl('not a url', null, APP_ROOT)).toBe(false)
   })
 })
 

@@ -11,6 +11,7 @@ import {
 const STYLE_ID = 'cherry-rich-editor-style-helpers'
 
 const STYLE_CONTENT = `
+@layer app {
 .RichEditorWrapper {
   display: flex;
   flex-direction: column;
@@ -75,7 +76,7 @@ const STYLE_CONTENT = `
 }
 
 .ToolbarWrapper::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in oklch, var(--foreground) 44.4444%, transparent);
+  background: var(--scrollbar-thumb-hover);
 }
 
 .ToolbarButton {
@@ -252,7 +253,7 @@ const STYLE_CONTENT = `
 .TableOfContentsWrapper .toc-item a {
   display: block;
   padding: 0.25rem 0.5rem;
-  color: color-mix(in oklch, var(--foreground) 66.6667%, transparent);
+  color: var(--muted-foreground);
   text-decoration: none;
   border-radius: 4px;
   font-size: 0.9rem;
@@ -278,7 +279,7 @@ const STYLE_CONTENT = `
 .TableOfContentsWrapper .toc-empty-state {
   text-align: center;
   padding: 2rem 1rem;
-  color: color-mix(in oklch, var(--foreground) 44.4444%, transparent);
+  color: var(--foreground-tertiary);
 }
 
 .TableOfContentsWrapper .toc-empty-state p {
@@ -408,6 +409,7 @@ const STYLE_CONTENT = `
     visibility 0.15s ease;
   backdrop-filter: blur(6px);
   z-index: 40;
+}
 }
 `
 

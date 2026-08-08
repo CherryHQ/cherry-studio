@@ -3,7 +3,6 @@ import * as path from 'node:path'
 
 import { WindowType } from '@main/core/window/types'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
-import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -96,7 +95,7 @@ function createService() {
 function mockRenameInputs() {
   mocks.getTopic.mockReturnValue({
     id: 'topic-1',
-    name: 'Old Topic',
+    name: '',
     isNameManuallyEdited: false
   })
   mocks.getMessageById.mockReturnValue({
@@ -111,7 +110,6 @@ describe('TopicNamingService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
-    MockMainCacheServiceUtils.resetMocks()
     mockMainLoggerService.warn.mockClear()
     mockMainLoggerService.debug.mockClear()
     MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', true)
@@ -186,7 +184,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id is invalid; falling back to managed CherryAI default model',
+      'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
       { configured: 'bad-value' }
     )
   })
@@ -209,7 +207,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id points to a missing model; falling back to managed CherryAI default model',
+      'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
       { configured: 'ghost::missing' }
     )
   })
@@ -283,7 +281,7 @@ describe('TopicNamingService', () => {
     mocks.getTopic
       .mockReturnValueOnce({
         id: 'topic-1',
-        name: 'Old Topic',
+        name: '',
         isNameManuallyEdited: false
       })
       .mockReturnValueOnce({
@@ -308,7 +306,7 @@ describe('TopicNamingService', () => {
     mocks.getTopic
       .mockReturnValueOnce({
         id: 'topic-1',
-        name: 'First user text',
+        name: 'Hello there',
         isNameManuallyEdited: false
       })
       .mockReturnValueOnce({
@@ -323,6 +321,54 @@ describe('TopicNamingService', () => {
     } as never)
 
     expect(mocks.getTopic).toHaveBeenCalledTimes(2)
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
+    expect(mocks.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('does not first-message rename a topic that already has a real title', async () => {
+    mocks.getTopic.mockReturnValue({
+      id: 'topic-1',
+      name: 'Existing Title',
+      isNameManuallyEdited: false
+    })
+
+    createService().maybeRenameFromFirstUserMessage('topic-1', 'message-1')
+
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
+    expect(mocks.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('allows summary rename while the topic still has the first-message temporary title', async () => {
+    mocks.getTopic.mockReturnValue({
+      id: 'topic-1',
+      name: 'Hello there',
+      isNameManuallyEdited: false
+    })
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', {
+      name: 'Generated Title',
+      isNameManuallyEdited: false
+    })
+  })
+
+  it('does not summary-rename a topic that already has a generated title', async () => {
+    mocks.getTopic.mockReturnValue({
+      id: 'topic-1',
+      name: 'Generated Title',
+      isNameManuallyEdited: false
+    })
+
+    await createService().maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'Assistant response' }]
+    } as never)
+
+    expect(mocks.generateText).not.toHaveBeenCalled()
     expect(mocks.updateTopic).not.toHaveBeenCalled()
     expect(mocks.broadcast).not.toHaveBeenCalled()
   })
@@ -551,7 +597,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id points to an external-CLI (agent-only) provider; falling back to managed CherryAI default model',
+      'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
       { configured: 'claude-code::haiku' }
     )
   })
@@ -594,5 +640,77 @@ describe('TopicNamingService', () => {
     // surrogate with no preceding high one) — exactly what a mid-pair cut leaves.
     const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/
     expect(LONE_SURROGATE.test(renamedTo.name)).toBe(false)
+  })
+
+  describe('inFlightWrites registry', () => {
+    // Entries self-remove a couple of microtasks after their promise settles
+    // (trackNamingWrite chains `.catch().finally()` off the returned promise).
+    const flushSettles = () => new Promise((resolve) => setImmediate(resolve))
+
+    beforeEach(async () => {
+      // Let deletion chains from earlier tests land before asserting absolute sizes —
+      // the registry is module-level, shared across service instances.
+      await flushSettles()
+    })
+
+    it('maybeRenameAgentSession registers synchronously and self-removes on settle', async () => {
+      mocks.getSession.mockReturnValue({
+        id: 'session-1',
+        agentId: 'agent-1',
+        name: 'common.unnamed',
+        isNameManuallyEdited: false
+      })
+      const service = createService()
+
+      const pending = service.maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Agent response' }]
+      } as never)
+
+      // Registered at method entry, before any await — a detached spawn is
+      // captured before its caller's promise resolves.
+      expect(service.inFlightWrites().size).toBe(1)
+      const [agentKey] = [...service.inFlightWrites().keys()]
+      expect(agentKey).toMatch(/^agent-session:session-1#\d+$/)
+
+      await pending
+      await flushSettles()
+      expect(service.inFlightWrites().size).toBe(0)
+    })
+
+    it('maybeRenameFromConversationSummary registers under the topic: prefix', async () => {
+      const service = createService()
+
+      const pending = service.maybeRenameFromConversationSummary('topic-1', 'assistant-1', 'message-1', {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Assistant response' }]
+      } as never)
+
+      expect(service.inFlightWrites().size).toBe(1)
+      const [topicKey] = [...service.inFlightWrites().keys()]
+      expect(topicKey).toMatch(/^topic:topic-1#\d+$/)
+
+      await pending
+      await flushSettles()
+      expect(service.inFlightWrites().size).toBe(0)
+    })
+
+    it('removes the entry and resolves even when the rename path no-ops', async () => {
+      MockMainPreferenceServiceUtils.setPreferenceValue('topic.naming.enabled', false)
+      const service = createService()
+
+      const pending = service.maybeRenameAgentSession('agent-1', 'session-1', 'User request', {
+        role: 'assistant',
+        parts: [{ type: 'text', text: 'Agent response' }]
+      } as never)
+
+      // Even the disabled early return was registered first…
+      expect(service.inFlightWrites().size).toBe(1)
+      // …and the wrapper never rejects.
+      await expect(pending).resolves.toBeUndefined()
+      await flushSettles()
+      expect(service.inFlightWrites().size).toBe(0)
+      expect(mocks.generateText).not.toHaveBeenCalled()
+    })
   })
 })

@@ -9,6 +9,7 @@ import {
   useProviderActions,
   useProviderApiKeys,
   useProviderAuthConfig,
+  useProviderById,
   useProviderDisplayName,
   useProviderMutations,
   useProviders
@@ -52,7 +53,7 @@ describe('useProviders', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
-  it('should return empty array when data is undefined', () => {
+  it('should return a stable empty array when data is undefined', () => {
     mockUseQuery.mockImplementation(() => ({
       data: undefined,
       isLoading: true,
@@ -62,24 +63,11 @@ describe('useProviders', () => {
       mutate: vi.fn()
     }))
 
-    const { result } = renderHook(() => useProviders())
+    const { result, rerender } = renderHook(() => useProviders())
+    const firstProviders = result.current.providers
 
     expect(result.current.providers).toEqual([])
     expect(result.current.isLoading).toBe(true)
-  })
-
-  it('should keep the empty fallback array reference stable across rerenders', () => {
-    mockUseQuery.mockImplementation(() => ({
-      data: undefined,
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      refetch: vi.fn().mockResolvedValue(undefined),
-      mutate: vi.fn()
-    }))
-
-    const { result, rerender } = renderHook(() => useProviders())
-    const firstProviders = result.current.providers
 
     rerender()
 
@@ -258,17 +246,32 @@ describe('useProvider', () => {
     expect(result.current.error).toBe(mockError)
     expect(result.current.refetch).toBe(mockRefetch)
   })
+})
 
-  it('should include mutation functions', () => {
-    const { result } = renderHook(() => useProvider('openai'))
+describe('useProviderById', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
-    expect(result.current.updateProvider).toBeDefined()
-    expect(result.current.enableProvider).toBeDefined()
-    expect(result.current.deleteProvider).toBeDefined()
-    expect(result.current.updateAuthConfig).toBeDefined()
-    expect(result.current.updateApiKeys).toBeDefined()
-    expect(result.current.addApiKey).toBeDefined()
-    expect(result.current.deleteApiKey).toBeDefined()
+  it('reads the provider without registering provider mutations', () => {
+    mockUseQuery.mockImplementation(() => ({
+      data: mockProvider1,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn()
+    }))
+
+    const { result } = renderHook(() => useProviderById('openai'))
+
+    expect(result.current.provider).toBe(mockProvider1)
+    expect(mockUseQuery).toHaveBeenCalledWith('/providers/:providerId', {
+      params: { providerId: 'openai' },
+      enabled: true,
+      swrOptions: { keepPreviousData: false }
+    })
+    expect(mockUseMutation).not.toHaveBeenCalled()
   })
 })
 

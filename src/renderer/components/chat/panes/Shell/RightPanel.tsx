@@ -45,6 +45,13 @@ export interface RightPanelCapability<TScope> {
   resolve: (scope: TScope) => RightPanelInstance | null
 }
 
+/** Shape every right-pane module exposes; apply with `satisfies` to keep component types precise. */
+export interface RightPanelComposition {
+  Scope: ComponentType<any>
+  Viewport: ComponentType<any>
+  Shortcuts: ComponentType<any>
+}
+
 interface ResolvedRightPanelEntry<TScope = unknown> extends RightPanelInstance {
   component: ComponentType<RightPanelComponentProps<TScope>>
 }
@@ -106,6 +113,7 @@ interface RightPanelRenderContextValue {
 const RightPanelRenderContext = createContext<RightPanelRenderContextValue | null>(null)
 const RightPanelStateContext = createContext<RightPanelState | null>(null)
 const RightPanelActionsContext = createContext<RightPanelControllerActions | null>(null)
+const RightPanelPresentationMaximizedContext = createContext(false)
 
 function resolveRightPanelEntries<TScope>(
   capabilities: readonly RightPanelCapability<TScope>[],
@@ -377,11 +385,18 @@ export function RightPanelProvider<TScope>({
 
   return (
     <RightPanelActionsContext value={actions}>
-      <RightPanelStateContext value={state}>
-        <RightPanelRenderContext value={renderValue}>{children}</RightPanelRenderContext>
-      </RightPanelStateContext>
+      <RightPanelPresentationMaximizedContext value={presentationMaximized}>
+        <RightPanelStateContext value={state}>
+          <RightPanelRenderContext value={renderValue}>{children}</RightPanelRenderContext>
+        </RightPanelStateContext>
+      </RightPanelPresentationMaximizedContext>
     </RightPanelActionsContext>
   )
+}
+
+/** Effective maximized presentation shared by shell layout and composer consumers. */
+export function useRightPanelPresentationMaximized(): boolean {
+  return use(RightPanelPresentationMaximizedContext)
 }
 
 export function useRightPanelState(): RightPanelState {
@@ -538,7 +553,7 @@ function RightPanelKeyboardShortcut() {
   return null
 }
 
-export function RightPanelViewport({ children }: { children: ReactNode }) {
+export function RightPanelViewport({ children = <RightPanel /> }: { children?: ReactNode }) {
   const state = useRightPanelState()
   const actions = useRightPanelControllerActions()
 

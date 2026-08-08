@@ -16,9 +16,14 @@
  *   notifies, and self-configures the agent.
  * - {@link CherryKnowledgeTools} (`…__kb_search`, `…__kb_read`, `…__kb_list`,
  *   `…__kb_manage`) — owns knowledge-base exposure and per-call scope authorization.
+ * - {@link CherryCliTools} (`…__cli_list`, `…__cli_search`, `…__cli_install`) —
+ *   delegates live discovery and approved installation to BinaryManager.
+ * - {@link CherryDocumentTools} (`…__to_markdown`) — converts workspace, agent-data, and
+ *   session-attachment documents with Cherry's bundled converter and writes agent-private
+ *   temporary Markdown.
  *
- * Both act on the session's agent via the {@link CherryAgentContext} passed at
- * construction.
+ * Context-bound providers act on the session via the {@link CherryAgentContext}
+ * passed at construction.
  */
 
 import { application } from '@application'
@@ -60,9 +65,12 @@ import {
 import * as z from 'zod'
 
 import { type CherryAgentContext, CherryAutonomyTools } from './cherryAutonomyTools'
+import { CherryCliTools } from './cherryCliTools'
+import { type CherryDocumentContext, CherryDocumentTools } from './cherryDocumentTools'
 import { CherryKnowledgeTools } from './cherryKnowledgeTools'
 
 export type { CherryAgentContext }
+export type CherryBuiltinToolsContext = CherryAgentContext & CherryDocumentContext
 
 const logger = loggerService.withContext('McpServer:CherryBuiltinTools')
 
@@ -212,17 +220,31 @@ export async function callCherryBuiltinTool(name: string, args: unknown, signal:
 export class CherryBuiltinToolsServer {
   public mcpServer: McpServer
 
-  constructor(agentContext: CherryAgentContext) {
+  constructor(agentContext: CherryBuiltinToolsContext) {
     const autonomy = new CherryAutonomyTools(agentContext)
     const knowledge = new CherryKnowledgeTools(agentContext)
+    const cli = new CherryCliTools()
+    const documents = new CherryDocumentTools(agentContext)
     this.mcpServer = new McpServer({ name: 'cherry-tools', version: '1.0.0' }, { capabilities: { tools: {} } })
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [...listCherryBuiltinTools(), ...knowledge.tools(), ...autonomy.tools()]
+      tools: [
+        ...listCherryBuiltinTools(),
+        ...knowledge.tools(),
+        ...autonomy.tools(),
+        ...cli.tools(),
+        ...documents.tools()
+      ]
     }))
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
       const { name } = request.params
+      if (cli.handles(name)) {
+        return cli.call(name, request.params.arguments)
+      }
+      if (documents.handles(name)) {
+        return documents.call(request.params.arguments, extra.signal)
+      }
       if (autonomy.handles(name)) {
-        return autonomy.call(name, (request.params.arguments ?? {}) as Record<string, string | undefined>)
+        return autonomy.call(name, request.params.arguments ?? {})
       }
       if (knowledge.handles(name)) {
         return knowledge.call(name, request.params.arguments)

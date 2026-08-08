@@ -51,7 +51,7 @@ const getBlockMessageMock = vi.fn()
 const defaultMigrationPaths = {
   userData: '/mock/userData',
   versionLogFile: '/mock/version.log',
-  databaseFile: '/mock/userData/cherrystudio.sqlite'
+  databaseFile: '/mock/userData/Data/cherrystudio.sqlite'
 }
 const defaultResolveResult = {
   paths: defaultMigrationPaths,
@@ -222,7 +222,7 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
-      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith('/mock/userData')
+      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith(defaultMigrationPaths)
       expect(migrationWindowCreateMock).toHaveBeenCalledTimes(1)
       expect(migrationWindowWaitForReadyMock).toHaveBeenCalledTimes(1)
       // Success path should NOT unregister handlers — the migration window
@@ -297,7 +297,7 @@ describe('runV2MigrationGate', () => {
       expect(showErrorBoxMock).toHaveBeenCalledTimes(1)
       const [title, message] = showErrorBoxMock.mock.calls[0]
       expect(title).toContain('Database Schema Out of Sync')
-      expect(message).toContain('/mock/userData/cherrystudio.sqlite')
+      expect(message).toContain('/mock/userData/Data/cherrystudio.sqlite')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })
 
@@ -340,7 +340,7 @@ describe('runV2MigrationGate', () => {
       expect(message).toContain('DB unavailable')
       // Dev surfaces BOTH possibilities (incompatible data vs migration bug) + the DB path,
       // and explicitly does NOT assert "just delete the DB".
-      expect(message).toContain('/mock/userData/cherrystudio.sqlite')
+      expect(message).toContain('/mock/userData/Data/cherrystudio.sqlite')
       expect(message).toContain('Do NOT just delete the DB')
       expect(appQuitMock).toHaveBeenCalledTimes(1)
     })

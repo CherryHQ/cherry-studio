@@ -9,6 +9,17 @@ const ui = (role: UIMessage['role'], parts: UIMessage['parts'], id = 'm'): UIMes
 // toModelMessages runs the exact Agent.stream order; these guard each step so deleting
 // one (coalesce, ignoreIncompleteToolCalls, the empty-content placeholder) fails a test.
 describe('toModelMessages', () => {
+  it('keeps knowledge scope out of provider messages', async () => {
+    const model = await toModelMessages([
+      ui('user', [
+        { type: 'text', text: 'search this' },
+        { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } }
+      ])
+    ])
+
+    expect(model).toEqual([{ role: 'user', content: [{ type: 'text', text: 'search this' }] }])
+  })
+
   it('rescues a data-error-only assistant turn (#16195)', async () => {
     const model = await toModelMessages([
       ui('user', [{ type: 'text', text: 'Q' }], 'u1'),
@@ -56,13 +67,13 @@ describe('toModelMessages', () => {
     ])
   })
 
-  it('strips media the model cannot accept', async () => {
+  it('strips gated media the model cannot accept', async () => {
     const model = await toModelMessages(
-      [ui('user', [{ type: 'file', mediaType: 'image/png', url: 'data:application/octet-stream;base64,AA' }])],
-      { image: false, video: true, audio: true }
+      [ui('user', [{ type: 'file', mediaType: 'video/mp4', url: 'data:application/octet-stream;base64,AA' }])],
+      { image: true, video: false, audio: true }
     )
     expect(model).toEqual([
-      { role: 'user', content: [{ type: 'text', text: expect.stringContaining('image attachment omitted') }] }
+      { role: 'user', content: [{ type: 'text', text: expect.stringContaining('video attachment omitted') }] }
     ])
   })
 
@@ -106,6 +117,31 @@ describe('toModelMessages', () => {
     })
     expect(JSON.stringify(model)).not.toContain(imageData)
     expect(messages).toEqual(originalMessages)
+  })
+
+  it('replays a completed legacy MCP tool name unchanged', async () => {
+    const legacyToolName = 'mcp__mysql__executeSql'
+    const model = await toModelMessages([
+      ui('assistant', [
+        {
+          type: 'dynamic-tool',
+          toolName: legacyToolName,
+          toolCallId: 'legacy-call',
+          state: 'output-available',
+          input: { sql: 'select 1' },
+          output: { ok: true }
+        }
+      ])
+    ])
+
+    expect(model[0]).toMatchObject({
+      role: 'assistant',
+      content: [expect.objectContaining({ type: 'tool-call', toolName: legacyToolName })]
+    })
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ type: 'tool-result', toolName: legacyToolName })]
+    })
   })
 })
 

@@ -18,10 +18,9 @@ import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
-import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
-import { type ChannelConfig, ChannelConfigSchema } from '@shared/data/types/channel'
+import { ChannelConfigSchema } from '@shared/data/types/channel'
 import QRCode from 'qrcode'
 
 const logger = loggerService.withContext('McpServer:CherryAutonomyTools')
@@ -32,9 +31,13 @@ export interface CherryAgentContext {
   workspaceSource: AgentSessionWorkspaceSource
   workspacePath: string
   sourceChannelId?: string
+  /** Built-in Assistant can use every knowledge base without a configured binding. Re-read live so deletion fails closed. */
+  canAccessAllKnowledgeBases?: () => boolean
   /**
-   * Read the knowledge bases this agent is currently bound to. An empty list means
-   * the agent has no knowledge access. The autonomy tools ignore this field.
+   * Read this agent's effective knowledge scope — `resolveKnowledgeBaseScope(binding,
+   * composerSelection)`, not the raw binding. The binding half is re-read live; the composer
+   * selection half is frozen when the connection is built. An empty list means neither source
+   * granted access. The autonomy tools ignore this field.
    */
   getKnowledgeBaseIds: () => string[]
 }
@@ -150,7 +153,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
     required: ['app_id', 'app_secret', 'encrypt_key', 'verification_token', 'domain'],
     optional: ['allowed_chat_ids'],
     description:
-      'Feishu/Lark bot. Full credentials are required when adding via this tool. QR-based (re)connection is available via reconnect_channel or the settings UI. domain must be "feishu" or "lark".'
+      'Feishu/Lark bot. Set auth_mode to "qr" to register interactively without config. For credential setup, provide all required fields and set domain to "feishu" or "lark".'
   },
   qq: {
     required: ['app_id', 'client_secret'],
@@ -161,7 +164,7 @@ const CHANNEL_CONFIG_SCHEMAS: Record<string, { required: string[]; optional: str
     required: ['token_path'],
     optional: ['allowed_chat_ids'],
     description:
-      'WeChat via local WeChat desktop client bridge. token_path is required when adding via this tool. QR-based (re)connection is available via reconnect_channel or the settings UI.'
+      'WeChat via local WeChat desktop client bridge. Set auth_mode to "qr" to log in interactively without config. For an existing login, provide its token_path.'
   },
   discord: {
     required: ['bot_token'],
@@ -230,7 +233,14 @@ const CONFIG_TOOL: Tool = {
       },
       config: {
         type: 'object',
-        description: "Adapter-specific configuration (required for 'add_channel', optional for 'update_channel')"
+        description:
+          "Adapter-specific configuration (required for credential-based 'add_channel', optional for QR authentication and 'update_channel')"
+      },
+      auth_mode: {
+        type: 'string',
+        enum: ['credentials', 'qr'],
+        description:
+          'Authentication mode for add_channel. Use "qr" only with WeChat or Feishu for interactive setup; defaults to "credentials".'
       },
       enabled: {
         type: 'boolean',
@@ -265,7 +275,7 @@ export class CherryAutonomyTools {
     return AUTONOMY_TOOLS.some((tool) => tool.name === toolName)
   }
 
-  async call(toolName: string, args: Record<string, string | undefined>): Promise<CallToolResult> {
+  async call(toolName: string, args: Record<string, unknown>): Promise<CallToolResult> {
     try {
       switch (toolName) {
         case CRON_TOOL_NAME: {
@@ -394,14 +404,14 @@ export class CherryAutonomyTools {
     }
   }
 
-  private async sendNotification(args: Record<string, string | undefined>) {
-    const message = args.message?.trim()
-    const filePath = args.file_path?.trim()
+  private async sendNotification(args: Record<string, unknown>) {
+    const message = typeof args.message === 'string' ? args.message.trim() : undefined
+    const filePath = typeof args.file_path === 'string' ? args.file_path.trim() : undefined
     if (!message && !filePath) {
       throw new McpError(ErrorCode.InvalidParams, "Provide 'message', 'file_path', or both for notify")
     }
 
-    const targetChannelId = args.channel_id
+    const targetChannelId = typeof args.channel_id === 'string' ? args.channel_id : undefined
     let adapters = application.get('ChannelManager').getAgentAdapters(this.agentId)
 
     if (targetChannelId) {
@@ -532,13 +542,23 @@ export class CherryAutonomyTools {
   }
 
   private async configAddChannel(args: Record<string, unknown>) {
-    const type = args.type as string | undefined
-    const name = args.name as string | undefined
-    const channelConfig = args.config as Record<string, unknown> | undefined
-    const enabled = args.enabled as boolean | undefined
+    const type = typeof args.type === 'string' ? args.type : undefined
+    const name = typeof args.name === 'string' ? args.name : undefined
+    const authMode = typeof args.auth_mode === 'string' ? args.auth_mode : 'credentials'
+    const enabled = typeof args.enabled === 'boolean' ? args.enabled : undefined
+    const rawConfig = args.config
 
     if (!type) throw new McpError(ErrorCode.InvalidParams, "'type' is required for add_channel")
     if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for add_channel")
+    if (rawConfig !== undefined && (typeof rawConfig !== 'object' || rawConfig === null || Array.isArray(rawConfig))) {
+      throw new McpError(ErrorCode.InvalidParams, "'config' must be an object")
+    }
+    if (args.auth_mode !== undefined && typeof args.auth_mode !== 'string') {
+      throw new McpError(ErrorCode.InvalidParams, "'auth_mode' must be a string")
+    }
+    if (args.enabled !== undefined && typeof args.enabled !== 'boolean') {
+      throw new McpError(ErrorCode.InvalidParams, "'enabled' must be a boolean")
+    }
 
     const schema = CHANNEL_CONFIG_SCHEMAS[type]
     if (!schema) {
@@ -548,21 +568,69 @@ export class CherryAutonomyTools {
       )
     }
 
-    // Validate required config fields
-    const cfg = channelConfig ?? {}
-    for (const field of schema.required) {
-      if (!cfg[field]) {
-        throw new McpError(ErrorCode.InvalidParams, `Missing required config field "${field}" for ${type} channel`)
+    if (authMode !== 'credentials' && authMode !== 'qr') {
+      throw new McpError(ErrorCode.InvalidParams, `Unknown auth_mode "${authMode}", expected credentials/qr`)
+    }
+    if (authMode === 'qr' && type !== 'wechat' && type !== 'feishu') {
+      throw new McpError(ErrorCode.InvalidParams, `QR authentication is not supported for ${type} channels`)
+    }
+    if (authMode === 'qr' && enabled === false) {
+      throw new McpError(ErrorCode.InvalidParams, 'QR authentication requires the channel to be enabled')
+    }
+
+    let cfg: object = rawConfig ?? {}
+    if (authMode === 'qr' && type === 'wechat') {
+      cfg = { ...rawConfig, token_path: '' }
+    } else if (authMode === 'qr' && type === 'feishu') {
+      const unverifiedChannels = channelService
+        .listChannels({ agentId: this.agentId, type: 'feishu' })
+        .filter((channel) => channel.type === 'feishu' && !(channel.config.app_id && channel.config.app_secret))
+
+      if (unverifiedChannels.length > 1) {
+        const channelIds = unverifiedChannels.map((channel) => channel.id).join(', ')
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `Multiple unverified Feishu channels already exist (${channelIds}). Use reconnect_channel with the intended channel_id instead of creating another channel.`
+        )
+      }
+
+      const existingChannel = unverifiedChannels[0]
+      cfg = {
+        allowed_chat_ids: [],
+        domain: 'feishu',
+        ...existingChannel?.config,
+        ...rawConfig,
+        app_id: '',
+        app_secret: '',
+        encrypt_key: '',
+        verification_token: ''
+      }
+
+      if (existingChannel) {
+        const config = ChannelConfigSchema.parse({ type, ...cfg })
+        channelService.updateChannel(existingChannel.id, {
+          name,
+          config,
+          isActive: true
+        })
+        return await this.configReconnectChannel({ channel_id: existingChannel.id })
+      }
+    }
+    if (authMode === 'credentials') {
+      for (const field of schema.required) {
+        if (!(field in cfg) || !cfg[field]) {
+          throw new McpError(ErrorCode.InvalidParams, `Missing required config field "${field}" for ${type} channel`)
+        }
       }
     }
 
-    const channelType = type as ChannelConfig['type']
-    const config = ChannelConfigSchema.parse({ type: channelType, ...cfg })
+    const config = ChannelConfigSchema.parse({ type, ...cfg })
+    const channelType = config.type
 
     // For channels that use QR-based setup (WeChat login, Feishu app registration),
     // connect is blocking (waits for QR scan), so run sync in background
     // and wait only for the QR URL to return it to the agent.
-    const needsQr = type === 'wechat' || (type === 'feishu' && !cfg.app_id && !cfg.app_secret)
+    const needsQr = authMode === 'qr'
 
     if (needsQr) {
       const newChannel = channelService.createChannel({
@@ -705,7 +773,8 @@ export class CherryAutonomyTools {
     if (channel.agentId !== this.agentId)
       throw new McpError(ErrorCode.InvalidParams, `Channel "${channelId}" not found`)
 
-    const needsQr = channel.type === 'wechat' || (channel.type === 'feishu' && !channel.config.app_id)
+    const needsQr =
+      channel.type === 'wechat' || (channel.type === 'feishu' && !(channel.config.app_id && channel.config.app_secret))
 
     const channelManager = application.get('ChannelManager')
     if (!needsQr) {
@@ -760,7 +829,7 @@ export class CherryAutonomyTools {
   }
 
   private configRename(args: Record<string, unknown>) {
-    const name = args.name as string | undefined
+    const name = typeof args.name === 'string' ? args.name : undefined
     if (!name || !name.trim()) throw new McpError(ErrorCode.InvalidParams, "'name' is required for rename")
 
     agentService.updateAgent(this.agentId, { name: name.trim() })
@@ -772,13 +841,8 @@ export class CherryAutonomyTools {
   }
 
   private configCompleteBootstrap() {
-    const agent = agentService.getAgent(this.agentId)
-    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
-
-    const existingConfig = agent.configuration
-    agentService.updateAgent(this.agentId, {
-      configuration: { ...existingConfig, bootstrap_completed: true } as AgentConfiguration
-    })
+    const updated = agentService.updateAgent(this.agentId, { configuration: { bootstrap_completed: true } })
+    if (!updated) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
     logger.info('Bootstrap marked as completed', { agentId: this.agentId })
     return {
@@ -789,13 +853,8 @@ export class CherryAutonomyTools {
   }
 
   private configResetBootstrap() {
-    const agent = agentService.getAgent(this.agentId)
-    if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
-
-    const existingConfig = agent.configuration
-    agentService.updateAgent(this.agentId, {
-      configuration: { ...existingConfig, bootstrap_completed: false } as AgentConfiguration
-    })
+    const updated = agentService.updateAgent(this.agentId, { configuration: { bootstrap_completed: false } })
+    if (!updated) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
 
     logger.info('Bootstrap reset', { agentId: this.agentId })
     return {
@@ -821,8 +880,8 @@ export class CherryAutonomyTools {
     }
   }
 
-  private async removeJob(args: Record<string, string | undefined>) {
-    const id = args.id
+  private async removeJob(args: Record<string, unknown>) {
+    const id = typeof args.id === 'string' ? args.id : undefined
     if (!id) throw new McpError(ErrorCode.InvalidParams, "'id' is required for remove")
 
     const deleted = await application.get('AgentJobsService').deleteTask(this.agentId, id)

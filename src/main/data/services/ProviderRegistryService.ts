@@ -23,7 +23,9 @@ import type {
   ProviderReasoningFormat,
   ReasoningEffort as ReasoningEffortType,
   ReasoningFormatType,
-  ReasoningWireProfile
+  ReasoningWireDialect,
+  ReasoningWireProfile,
+  ServerToolConfig
 } from '@cherrystudio/provider-registry'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import {
@@ -36,15 +38,36 @@ import {
   inferReasoningOwnedBy,
   MODEL_CAPABILITY,
   REASONING_EFFORT,
-  REASONING_FORMAT_PROFILES
+  REASONING_FORMAT_PROFILES,
+  selectFormatWire,
+  stripBedrockDottedVendorPrefix,
+  stripBedrockRevision,
+  stripDateSnapshot,
+  stripVariantQuantDateSuffixes
 } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import type { StoredEndpointConfigOverride } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type { ProviderPreset, ProviderPresetField } from '@shared/data/api/schemas/providers'
-import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
-import { createUniqueModelId } from '@shared/data/types/model'
-import type { EndpointConfig, Provider, ProviderWebsites } from '@shared/data/types/provider'
+import type {
+  Currency,
+  ImageGenerationSupport,
+  Model,
+  RuntimeModelPricing,
+  RuntimeParameterSupport,
+  RuntimeReasoning
+} from '@shared/data/types/model'
+import { createUniqueModelId, CURRENCY } from '@shared/data/types/model'
+import type {
+  ApiFeatures,
+  EndpointConfig,
+  Provider,
+  ProviderWebsites,
+  RuntimeApiFeatures
+} from '@shared/data/types/provider'
+import { DEFAULT_API_FEATURES } from '@shared/data/types/provider'
+import { isEqual } from 'es-toolkit/compat'
 
 import { getDataService, registerDataService } from './dataServiceRegistry'
 
@@ -59,10 +82,49 @@ export interface ProviderDisplayMetadata {
   authMethods?: ('api-key' | 'oauth' | 'external-cli')[]
   /** Registry capability: serves requests without any credential (default false). */
   authOptional?: boolean
+  /** Registry capability: provider-native tools served by this host. */
+  serverTools?: ServerToolConfig[]
+  /** Registry-owned currency for provider-reported cost amounts. */
+  reportedCostCurrency?: Currency
+  /** Registry-owned Fast request transport. */
+  fastMode?: ProtoProviderConfig['fastMode']
+  /** Registry default API feature flags — the delta baseline under row overrides. */
+  apiFeatures?: ApiFeatures
+  /** Registry default chat endpoint, used when the row stores no override. */
+  defaultChatEndpoint?: EndpointType
+}
+
+/**
+ * The effective apiFeatures baseline for a preset: registry declarations
+ * layered over the app defaults. Rows store only deltas from this.
+ */
+export function buildApiFeaturesBaseline(presetApiFeatures: ApiFeatures | null | undefined): RuntimeApiFeatures {
+  return { ...DEFAULT_API_FEATURES, ...presetApiFeatures }
+}
+
+/**
+ * Reduce a (possibly full-snapshot) apiFeatures object to the delta against
+ * its baseline — key absence means "use the baseline". Returns null when
+ * nothing differs, so a renderer echoing the merged runtime snapshot
+ * degrades to a clean delta instead of freezing the baseline into the row.
+ */
+export function diffApiFeatures(
+  merged: ApiFeatures | null | undefined,
+  baseline: Readonly<ApiFeatures>
+): ApiFeatures | null {
+  if (!merged) return null
+  const delta: Record<string, boolean> = {}
+  for (const [key, value] of Object.entries(merged)) {
+    if (value !== undefined && value !== baseline[key as keyof ApiFeatures]) {
+      delta[key] = value
+    }
+  }
+  return Object.keys(delta).length > 0 ? (delta as ApiFeatures) : null
 }
 
 export interface ListProviderRegistryModelsOptions {
   providerId?: string
+  presetProviderId?: string | null
   disabled?: boolean
 }
 
@@ -97,18 +159,72 @@ export interface ResolvedReasoningProfile {
   support?: ProtoReasoningSupport
 }
 
-export type ReasoningProviderContext = Pick<Provider, 'id' | 'presetProviderId' | 'defaultChatEndpoint'>
+export interface ReasoningProviderContext {
+  id: Provider['id']
+  presetProviderId?: Provider['presetProviderId'] | null
+  defaultChatEndpoint?: Provider['defaultChatEndpoint']
+}
+
+function isEmptyPricingEcho(value: unknown): boolean {
+  if (!value || typeof value !== 'object') return false
+  const pricing = value as Partial<RuntimeModelPricing>
+  const isEmptyTier = (tier: RuntimeModelPricing['input'] | undefined) =>
+    tier != null && (tier.perMillionTokens === 0 || tier.perMillionTokens === null)
+  return (
+    isEmptyTier(pricing.input) &&
+    isEmptyTier(pricing.output) &&
+    !pricing.cacheRead &&
+    !pricing.cacheWrite &&
+    !pricing.perImage &&
+    !pricing.perMinute
+  )
+}
+
+function normalizePricingForComparison(pricing: RuntimeModelPricing): RuntimeModelPricing {
+  const normalizeTier = (tier: RuntimeModelPricing['input']): RuntimeModelPricing['input'] => ({
+    perMillionTokens: tier.perMillionTokens,
+    currency: tier.currency ?? CURRENCY.USD
+  })
+
+  return {
+    input: normalizeTier(pricing.input),
+    output: normalizeTier(pricing.output),
+    ...(pricing.cacheRead ? { cacheRead: normalizeTier(pricing.cacheRead) } : {}),
+    ...(pricing.cacheWrite ? { cacheWrite: normalizeTier(pricing.cacheWrite) } : {}),
+    ...(pricing.perImage ? { perImage: pricing.perImage } : {}),
+    ...(pricing.perMinute ? { perMinute: pricing.perMinute } : {})
+  }
+}
+
+/**
+ * Compare user-visible pricing with a registry baseline. The v1 editor
+ * materialized an absent price as 0/0, so that empty echo is baseline-equal
+ * when the registry has no price.
+ */
+export function matchesModelPricingBaseline(value: unknown, baseline: unknown): boolean {
+  if (baseline === undefined && isEmptyPricingEcho(value)) return true
+  if (value && baseline) {
+    return isEqual(
+      normalizePricingForComparison(value as RuntimeModelPricing),
+      normalizePricingForComparison(baseline as RuntimeModelPricing)
+    )
+  }
+  return isEqual(value, baseline)
+}
 
 /** Resolve profile data without consulting model/provider ids or regexes. */
 export function resolveReasoningProfileFromRegistry(input: {
   endpointType: EndpointType | undefined
   format?: ProviderReasoningFormat
   contract?: ProviderModelReasoningContract
+  wireDialect?: ReasoningWireDialect
 }): ResolvedReasoningProfile {
   const endpointDefault = input.endpointType ? DEFAULT_FORMAT_BY_ENDPOINT[input.endpointType] : undefined
   const formatType = input.format?.type ?? endpointDefault ?? 'openai-chat'
   const formatDefault = REASONING_FORMAT_PROFILES[formatType]
-  const wire = input.contract?.wire ?? input.format?.wire ?? formatDefault.wire
+  // Priority is unchanged; only the last-resort default becomes dialect-aware,
+  // so per-model contracts and endpoint-wide wires still win outright.
+  const wire = input.contract?.wire ?? input.format?.wire ?? selectFormatWire(formatDefault, input.wireDialect)
 
   return { format: formatType, support: input.contract?.support, wire }
 }
@@ -201,6 +317,79 @@ export function inferCustomModelReasoning(
   return projectRuntimeReasoning(proto, profile)
 }
 
+/** Tokens that must stay upper-cased when a raw id is prettified (a lowercase word would mis-title-case). */
+const MODEL_NAME_ACRONYMS: Record<string, string> = {
+  api: 'API',
+  asr: 'ASR',
+  glm: 'GLM',
+  gpt: 'GPT',
+  hd: 'HD',
+  llm: 'LLM',
+  mt: 'MT',
+  ocr: 'OCR',
+  tts: 'TTS',
+  vl: 'VL'
+}
+
+/** Title-case a single id token: acronyms upper-case, a leading lowercase letter capitalized, existing casing preserved. */
+function titleCaseIdToken(token: string): string {
+  const acronym = MODEL_NAME_ACRONYMS[token.toLowerCase()]
+  if (acronym) return acronym
+  if (/^[a-z]/.test(token)) return token.charAt(0).toUpperCase() + token.slice(1)
+  return token
+}
+
+/** The trailing tokens `id` carries beyond `stem` (`stem` is a suffix-stripped prefix of `id`), separator trimmed. */
+function trailingRemainder(id: string, stem: string): string {
+  return id.length > stem.length ? id.slice(stem.length).replace(/^[-:@._]+/, '') : ''
+}
+
+/** Prettify one slash-less id segment: keep a trailing dated snapshot atomic in parens, split the rest on `-`, title-case each token. */
+function prettifyIdSegment(segment: string): string {
+  const stem = stripDateSnapshot(segment)
+  const date = trailingRemainder(segment, stem)
+  const pretty = stem.split('-').filter(Boolean).map(titleCaseIdToken).join(' ')
+  return date ? `${pretty} (${date})` : pretty
+}
+
+/**
+ * Display name for a model resolved against a provider's live `/models` list. The raw id is the only
+ * per-SKU identity, so the name must stay distinguishable between sibling ids that share one canonical
+ * catalog entry (`MiniMax-M2.1` vs `MiniMax/MiniMax-M2.1`, `qwen-plus` vs `qwen-plus-2025-12-01`).
+ *
+ * - Exact apiModelId match → the curated/override name verbatim (authoritative — never decorated).
+ * - Fuzzy (normalized) match → curated name plus a distinguishing suffix for the tokens normalization
+ *   stripped: a trailing dated snapshot / `:variant` / quant tag goes in parens (via the same canonical
+ *   stripper the matcher uses), and a vendor-namespace prefix — slash (`MiniMax/…`) or dotted Bedrock
+ *   ARN (`MiniMax.…`, `us.anthropic.…`) — is rendered `Prefix: `. A hyphen aggregator prefix
+ *   (`aihubmix-…`) is a prefix, not a stripped suffix, so it leaves no remainder and keeps the clean
+ *   curated name.
+ * - No catalog match → the raw id prettified.
+ */
+function deriveResolvedModelName(rawId: string, curatedName: string | null, canonicalApiId: string | null): string {
+  if (curatedName && canonicalApiId && rawId === canonicalApiId) return curatedName
+
+  const slashIdx = rawId.lastIndexOf('/')
+  const afterSlash = slashIdx >= 0 ? rawId.slice(slashIdx + 1) : rawId
+  // Normalization folds the dotted vendor prefix away, so the decoration has to restore it — otherwise
+  // `MiniMax.MiniMax-M2.1` and the bare `MiniMax-M2.1` resolve to the same name despite distinct ids.
+  const tail = afterSlash.slice(afterSlash.length - stripBedrockDottedVendorPrefix(afterSlash.toLowerCase()).length)
+
+  let name: string
+  if (curatedName) {
+    const suffix = trailingRemainder(tail, stripBedrockRevision(stripVariantQuantDateSuffixes(tail)))
+    name = suffix ? `${curatedName} (${suffix})` : curatedName
+  } else {
+    name = prettifyIdSegment(tail)
+  }
+
+  const namespaces = [
+    ...(slashIdx >= 0 ? rawId.slice(0, slashIdx).split('/').map(titleCaseIdToken) : []),
+    ...(tail.length < afterSlash.length ? [afterSlash.slice(0, afterSlash.length - tail.length - 1)] : [])
+  ]
+  return namespaces.length > 0 ? `${namespaces.join(': ')}: ${name}` : name
+}
+
 /** Create a minimal custom model used when a model ID has no registry match. */
 export function createCustomModel(
   providerId: string,
@@ -248,6 +437,7 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
     inputModalities: override.inputModalities,
     outputModalities: override.outputModalities,
     pricing: override.pricing as ProtoModelConfig['pricing'],
+    parameterSupport: override.parameterSupport as ProtoModelConfig['parameterSupport'],
     imageGeneration: override.imageGeneration
   }
 }
@@ -255,8 +445,8 @@ export function synthesizePresetFromOverride(override: ProtoProviderModelOverrid
 /**
  * Two-layer merge: preset → override. No user data involved.
  *
- * Used by `resolveModels` and (via composition with `applyUserOverlay` in ModelService)
- * by `ModelService.create` and the migrator.
+ * Used by registry resolution, ModelService delta comparison/read hydration,
+ * and the v2 migrator.
  */
 export function mergePresetModel(
   presetModel: ProtoModelConfig,
@@ -276,6 +466,7 @@ export function mergePresetModel(
     maxOutputTokens,
     maxInputTokens,
     pricing,
+    parameterSupport,
     replaceWith
   } = applyPresetAndOverride(presetModel, catalogOverride)
 
@@ -301,6 +492,8 @@ export function mergePresetModel(
     endpointTypes,
     supportsStreaming: true,
     reasoning,
+    ...(catalogOverride?.supportsFastMode ? { supportsFastMode: true } : {}),
+    parameterSupport: parameterSupport as RuntimeParameterSupport | undefined,
     pricing,
     isEnabled: !(catalogOverride?.disabled ?? false),
     isHidden: false,
@@ -322,36 +515,46 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
     ? [...presetModel.outputModalities]
     : undefined
   let endpointTypes: EndpointType[] | undefined = undefined
-  const name = presetModel.name ?? presetModel.id
+  const name = catalogOverride?.name ?? presetModel.name ?? presetModel.id
   const description = presetModel.description
   let contextWindow = presetModel.contextWindow
   let maxOutputTokens = presetModel.maxOutputTokens
   let maxInputTokens = presetModel.maxInputTokens
+  const mergedPricing = presetModel.pricing
+    ? { ...presetModel.pricing, ...catalogOverride?.pricing }
+    : catalogOverride?.pricing
   let pricing: RuntimeModelPricing | undefined
+  const parameterSupport = presetModel.parameterSupport
+    ? { ...presetModel.parameterSupport, ...catalogOverride?.parameterSupport }
+    : catalogOverride?.parameterSupport
   let replaceWith: string | undefined
 
-  if (presetModel.pricing) {
+  if (mergedPricing?.input && mergedPricing.output) {
     pricing = {
       input: {
-        perMillionTokens: presetModel.pricing.input?.perMillionTokens ?? null,
-        currency: presetModel.pricing.input?.currency
+        perMillionTokens: mergedPricing.input.perMillionTokens ?? null,
+        currency: mergedPricing.input.currency
       },
       output: {
-        perMillionTokens: presetModel.pricing.output?.perMillionTokens ?? null,
-        currency: presetModel.pricing.output?.currency
+        perMillionTokens: mergedPricing.output.perMillionTokens ?? null,
+        currency: mergedPricing.output.currency
       },
-      cacheRead: presetModel.pricing.cacheRead
+      cacheRead: mergedPricing.cacheRead
         ? {
-            perMillionTokens: presetModel.pricing.cacheRead.perMillionTokens ?? null,
-            currency: presetModel.pricing.cacheRead.currency
+            perMillionTokens: mergedPricing.cacheRead.perMillionTokens ?? null,
+            currency: mergedPricing.cacheRead.currency
           }
         : undefined,
-      cacheWrite: presetModel.pricing.cacheWrite
+      cacheWrite: mergedPricing.cacheWrite
         ? {
-            perMillionTokens: presetModel.pricing.cacheWrite.perMillionTokens ?? null,
-            currency: presetModel.pricing.cacheWrite.currency
+            perMillionTokens: mergedPricing.cacheWrite.perMillionTokens ?? null,
+            currency: mergedPricing.cacheWrite.currency
           }
-        : undefined
+        : undefined,
+      perImage: mergedPricing.perImage
+        ? { price: mergedPricing.perImage.price, unit: mergedPricing.perImage.unit }
+        : undefined,
+      perMinute: mergedPricing.perMinute ? { price: mergedPricing.perMinute.price } : undefined
     }
   }
 
@@ -377,6 +580,7 @@ function applyPresetAndOverride(presetModel: ProtoModelConfig, catalogOverride: 
     maxOutputTokens,
     maxInputTokens,
     pricing,
+    parameterSupport,
     replaceWith
   }
 }
@@ -390,7 +594,8 @@ function mergeReasoningSupport(
     controls: override?.controls ?? preset?.controls,
     supportedEfforts: override?.supportedEfforts ?? preset?.supportedEfforts,
     thinkingTokenLimits: override?.thinkingTokenLimits ?? preset?.thinkingTokenLimits,
-    defaultEffort: override?.defaultEffort ?? preset?.defaultEffort
+    defaultEffort: override?.defaultEffort ?? preset?.defaultEffort,
+    wireDialect: override?.wireDialect ?? preset?.wireDialect
   }
 }
 
@@ -494,13 +699,18 @@ class ProviderRegistryService {
     presetProviderId?: string | null,
     lookupPersistedPreset = true
   ): ProtoProviderConfig | null {
+    // A persisted null is authoritative provenance for a fully custom
+    // provider. Do not let a future registry entry with the same id silently
+    // reclassify the row as a preset.
+    if (presetProviderId === null) return null
+
     const direct = this.findRegistryProvider(providerId)
     if (direct) return direct
 
-    let fallbackId = presetProviderId
-    if (!fallbackId && lookupPersistedPreset) {
+    let fallbackId: string | null | undefined = presetProviderId
+    if (fallbackId === undefined && lookupPersistedPreset) {
       try {
-        fallbackId = getDataService('ProviderService').getByProviderId(providerId).presetProviderId
+        fallbackId = getDataService('ProviderService').getByProviderId(providerId).presetProviderId ?? null
       } catch (error) {
         if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
           return null
@@ -509,31 +719,8 @@ class ProviderRegistryService {
       }
     }
 
+    if (fallbackId === null) return null
     return fallbackId ? (this.findRegistryProvider(fallbackId) ?? null) : null
-  }
-
-  resolveAdapterFamilies(
-    endpointConfigs: Partial<Record<EndpointType, EndpointConfig>> | null | undefined,
-    presetProviderId?: string | null
-  ): Partial<Record<EndpointType, EndpointConfig>> | null {
-    if (!endpointConfigs || Object.keys(endpointConfigs).length === 0) return null
-
-    const presetProvider = presetProviderId ? this.findRegistryProvider(presetProviderId) : undefined
-    const presetConfigs = presetProvider
-      ? (buildPersistedEndpointConfigs(presetProvider.endpointConfigs) as Partial<
-          Record<EndpointType, EndpointConfig>
-        > | null)
-      : null
-
-    const result: Partial<Record<EndpointType, EndpointConfig>> = {}
-    for (const [key, config] of Object.entries(endpointConfigs)) {
-      if (!config) continue
-      const ep = key as EndpointType
-      result[ep] = config.adapterFamily
-        ? config
-        : { ...config, adapterFamily: presetConfigs?.[ep]?.adapterFamily ?? inferAdapterFamily(ep) }
-    }
-    return result
   }
 
   /**
@@ -553,7 +740,7 @@ class ProviderRegistryService {
     }
   }
 
-  getProviderDisplayMetadata(providerId: string, presetProviderId?: string): ProviderDisplayMetadata {
+  getProviderDisplayMetadata(providerId: string, presetProviderId?: string | null): ProviderDisplayMetadata {
     try {
       const provider = this.resolveProviderPreset(providerId, presetProviderId, false)
 
@@ -562,11 +749,71 @@ class ProviderRegistryService {
         websites: provider?.metadata?.website,
         modelListSource: provider?.modelListSource,
         authMethods: provider?.authMethods,
-        authOptional: provider?.authOptional
+        authOptional: provider?.authOptional,
+        serverTools: provider?.serverTools,
+        reportedCostCurrency: provider?.reportedCostCurrency,
+        fastMode: provider?.fastMode,
+        apiFeatures: (provider?.apiFeatures as ApiFeatures | undefined) ?? undefined,
+        defaultChatEndpoint: provider?.defaultChatEndpoint ?? undefined
       }
     } catch (error) {
       logger.warn('Failed to load provider display metadata', { providerId, presetProviderId, error })
       return {}
+    }
+  }
+
+  /**
+   * Merge persisted endpoint configs with the CURRENT registry at read time
+   * (#17096). The seeder is insert-only, so a row's endpoint set freezes at
+   * first seed — registry additions (new endpoint types, changed
+   * adapterFamily/modelsApiUrls) would otherwise never reach existing rows.
+   *
+   * Ownership per field: `adapterFamily` / `modelsApiUrls` are registry-owned
+   * (registry wins, row is a legacy fallback); `baseUrl` is user-owned (row
+   * wins). The key set is the union of registry and row keys, so a registry
+   * that gains an endpoint type surfaces it with zero data migration.
+   *
+   * Custom providers (no registry preset) keep their row configs, with
+   * `adapterFamily` inferred from the endpoint type when absent — mirroring
+   * the historical write-path backfill. Outputs are rebuilt field by field,
+   * so legacy registry-only row fields (e.g. `reasoningFormatType`) never
+   * cross into runtime state.
+   */
+  mergeEndpointConfigs(
+    rowConfigs: Partial<Record<EndpointType, StoredEndpointConfigOverride>> | null | undefined,
+    providerId: string,
+    presetProviderId?: string | null
+  ): Partial<Record<EndpointType, EndpointConfig>> | null {
+    try {
+      // lookupPersistedPreset=false — called from rowToRuntimeProvider; a DB
+      // read-back here would recurse (same guard as getProviderDisplayMetadata).
+      const preset = this.resolveProviderPreset(providerId, presetProviderId, false)
+      const presetConfigs = preset
+        ? (buildPersistedEndpointConfigs(preset.endpointConfigs) as Partial<
+            Record<EndpointType, EndpointConfig>
+          > | null)
+        : null
+
+      if (!rowConfigs && !presetConfigs) return null
+
+      const keys = new Set([...Object.keys(presetConfigs ?? {}), ...Object.keys(rowConfigs ?? {})]) as Set<EndpointType>
+      const merged: Partial<Record<EndpointType, EndpointConfig>> = {}
+      for (const ep of keys) {
+        const presetConfig = presetConfigs?.[ep]
+        const rowConfig = rowConfigs?.[ep]
+        if (!presetConfig && !rowConfig) continue
+        const config: EndpointConfig = {
+          adapterFamily: presetConfig?.adapterFamily ?? rowConfig?.adapterFamily ?? inferAdapterFamily(ep)
+        }
+        const baseUrl = rowConfig?.baseUrl ?? presetConfig?.baseUrl
+        if (baseUrl !== undefined) config.baseUrl = baseUrl
+        if (presetConfig?.modelsApiUrls !== undefined) config.modelsApiUrls = presetConfig.modelsApiUrls
+        merged[ep] = config
+      }
+      return Object.keys(merged).length > 0 ? merged : null
+    } catch (error) {
+      logger.warn('Failed to merge registry endpoint configs', { providerId, presetProviderId, error })
+      return rowConfigs ?? null
     }
   }
 
@@ -577,7 +824,7 @@ class ProviderRegistryService {
   getProviderPreset(
     providerId: string,
     fields: readonly ProviderPresetField[],
-    presetProviderId?: string
+    presetProviderId?: string | null
   ): ProviderPreset {
     const presetProvider = this.resolveProviderPreset(providerId, presetProviderId, false)
     const result: ProviderPreset = {}
@@ -601,10 +848,13 @@ class ProviderRegistryService {
     const registryProvider = this.findRegistryProvider(providerId)
     try {
       const provider = getDataService('ProviderService').getByProviderId(providerId)
+      const presetProviderId = provider.presetProviderId ?? null
       return {
         id: provider.id,
-        presetProviderId: provider.presetProviderId,
-        defaultChatEndpoint: provider.defaultChatEndpoint ?? registryProvider?.defaultChatEndpoint ?? undefined
+        presetProviderId,
+        defaultChatEndpoint:
+          provider.defaultChatEndpoint ??
+          (presetProviderId === null ? undefined : (registryProvider?.defaultChatEndpoint ?? undefined))
       }
     } catch (error) {
       if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
@@ -619,7 +869,8 @@ class ProviderRegistryService {
     }
   }
 
-  private findProfileProvider(context: Pick<Provider, 'id' | 'presetProviderId'>) {
+  private findProfileProvider(context: Pick<ReasoningProviderContext, 'id' | 'presetProviderId'>) {
+    if (context.presetProviderId === null) return undefined
     return (
       this.findRegistryProvider(context.id) ??
       (context.presetProviderId ? this.findRegistryProvider(context.presetProviderId) : undefined)
@@ -648,7 +899,8 @@ class ProviderRegistryService {
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType,
       format: endpointType ? profileProvider?.endpointConfigs?.[endpointType]?.reasoningFormat : undefined,
-      contract
+      contract,
+      wireDialect: reasoning?.wireDialect
     })
     return { ...resolved, support: reasoning }
   }
@@ -680,16 +932,25 @@ class ProviderRegistryService {
       if (contract) break
     }
 
+    const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
+    const support = mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
+
+    // The dialect is a CATALOG fact that is deliberately not persisted on the
+    // row (`projectRuntimeReasoning` drops it), so a catalog-backed CUSTOM row —
+    // resolvable `apiModelId`, no `presetModelId` — must re-resolve it here.
+    // Without this the row silently takes the newer wire and Claude <=4.5 /
+    // Gemini 2.x emit a dialect their API rejects. Support resolution above is
+    // untouched: controls still come from the row, only the dialect is looked up.
+    const wireDialect =
+      support?.wireDialect ?? this.getLoader().findModel(model.apiModelId ?? '')?.reasoning?.wireDialect
+
     const resolved = resolveReasoningProfileFromRegistry({
       endpointType: effectiveEndpoint,
       format: effectiveEndpoint ? profileProvider?.endpointConfigs?.[effectiveEndpoint]?.reasoningFormat : undefined,
-      contract
+      contract,
+      wireDialect
     })
-    const presetReasoning = this.getLoader().findModel(matchedOverride?.modelId ?? model.presetModelId ?? '')?.reasoning
-    return {
-      ...resolved,
-      support: mergeReasoningSupport(presetReasoning ?? model.reasoning, contract?.support)
-    }
+    return { ...resolved, support }
   }
 
   resolveRegistryModelProfile(
@@ -735,20 +996,13 @@ class ProviderRegistryService {
     reasoningProfile: ResolvedReasoningProfile
   } {
     const loader = this.getLoader()
-    const presetProvider = this.resolveProviderPreset(providerId)
-    const registryProviderId = presetProvider?.id ?? providerId
-    const registryOverride = loader.findOverride(registryProviderId, modelId)
+    const providerContext = providerContextCache?.get(providerId) ?? this.getEffectiveProviderContext(providerId)
+    providerContextCache?.set(providerId, providerContext)
+    const presetProvider = this.resolveProviderPreset(providerId, providerContext.presetProviderId, false)
+    const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
     const presetModel =
       loader.findModel(registryOverride?.modelId ?? modelId) ??
       (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
-    // Provider context reads the provider row from the DB; when an
-    // optional cache is supplied (batch enrichment in `ModelService.list`),
-    // resolve it once per provider instead of once per model.
-    let providerContext = providerContextCache?.get(providerId)
-    if (!providerContext) {
-      providerContext = this.getEffectiveProviderContext(providerId)
-      providerContextCache?.set(providerId, providerContext)
-    }
 
     return {
       presetModel,
@@ -776,9 +1030,8 @@ class ProviderRegistryService {
    */
   resolveModels(providerId: string, modelIds: string[]): Model[] {
     const loader = this.getLoader()
-    const presetProvider = this.resolveProviderPreset(providerId)
-    const registryProviderId = presetProvider?.id ?? providerId
     const providerContext = this.getEffectiveProviderContext(providerId)
+    const presetProvider = this.resolveProviderPreset(providerId, providerContext.presetProviderId, false)
 
     const results: Model[] = []
     const seen = new Set<string>()
@@ -788,7 +1041,7 @@ class ProviderRegistryService {
       seen.add(modelId)
 
       // O(1) lookup with exact match + normalized fallback
-      const registryOverride = loader.findOverride(registryProviderId, modelId)
+      const registryOverride = presetProvider ? loader.findOverride(presetProvider.id, modelId) : null
       const presetModel =
         loader.findModel(registryOverride?.modelId ?? modelId) ??
         (registryOverride ? synthesizePresetFromOverride(registryOverride) : null)
@@ -802,20 +1055,23 @@ class ProviderRegistryService {
           reasoningProfile.wire,
           reasoningProfile.support
         )
-        // `mergePresetModel` keys `id` off the canonical `presetModel.id`, which collapses providers that
-        // serve one canonical model under several apiModelIds (e.g. tokenhub's dated 原厂直供 variants both
-        // resolve to `deepseek-v4-flash`). Mirror `listProviderRegistryModels`: rebuild the unique id from
-        // the exact apiModelId and keep the canonical `presetModelId`, so sync/reconcile (which key on
-        // `model.id`) don't drop or mis-diff the dated variant against the undated row.
-        const apiModelId = model.apiModelId ?? registryOverride?.apiModelId ?? modelId
+        // The raw fetched id IS the exact model the provider serves, so it must be the `apiModelId` that
+        // gets sent on the wire and the identity the unique `id` is built from — otherwise a fuzzy
+        // (normalized) match would collapse distinct SKUs onto the canonical spelling (`MiniMax/MiniMax-M2.1`
+        // → `MiniMax-M2.1`, `qwen-plus-2025-12-01` → `qwen-plus`), mis-routing the request and colliding
+        // ids. `presetModelId` keeps the canonical link for metadata; `deriveResolvedModelName` keeps the
+        // display name distinguishable between siblings that share one canonical entry.
+        const canonicalApiId = model.apiModelId ?? registryOverride?.apiModelId ?? null
         results.push({
           ...model,
-          id: createUniqueModelId(providerId, apiModelId),
-          apiModelId,
+          id: createUniqueModelId(providerId, modelId),
+          apiModelId: modelId,
+          name: deriveResolvedModelName(modelId, model.name, canonicalApiId),
           presetModelId: presetModel.id
         })
       } else {
-        results.push(createCustomModel(providerId, modelId, reasoningProfile.wire))
+        const custom = createCustomModel(providerId, modelId, reasoningProfile.wire)
+        results.push({ ...custom, name: deriveResolvedModelName(modelId, null, null) })
       }
     }
 
@@ -865,7 +1121,11 @@ class ProviderRegistryService {
     const includeDisabled = options.disabled ?? false
 
     if (options.providerId) {
-      const presetProvider = this.resolveProviderPreset(options.providerId)
+      const presetProvider = this.resolveProviderPreset(
+        options.providerId,
+        options.presetProviderId,
+        options.presetProviderId === undefined
+      )
       return presetProvider ? this.listProviderPresetModels(options.providerId, presetProvider, includeDisabled) : []
     }
 

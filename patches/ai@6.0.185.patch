@@ -1,0 +1,180 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 23c5e351eb34a71f5a19576761effd709af3dd9f..3a73d985abb8a69fc0a716c88e859316f2388bad 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -5041,7 +5041,7 @@ type GenerateImagePrompt = string | {
+  *
+  * @returns A result object that contains the generated images.
+  */
+-declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImagesPerCall, size, aspectRatio, seed, providerOptions, maxRetries: maxRetriesArg, abortSignal, headers, }: {
++declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImagesPerCall, size, aspectRatio, seed, providerOptions, maxRetries: maxRetriesArg, abortSignal, headers, experimental_download: download, }: {
+     /**
+      * The image model to use.
+      */
+@@ -5100,6 +5100,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
+      * Only applicable for HTTP-based providers.
+      */
+     headers?: Record<string, string>;
++    /**
++     * Custom download function to use for URLs.
++     *
++     * By default, files are downloaded if the model returns URLs instead of binary data.
++     */
++    experimental_download?: DownloadFunction | undefined;
+ }): Promise<GenerateImageResult>;
+ 
+ /**
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 23c5e351eb34a71f5a19576761effd709af3dd9f..3a73d985abb8a69fc0a716c88e859316f2388bad 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -5041,7 +5041,7 @@ type GenerateImagePrompt = string | {
+  *
+  * @returns A result object that contains the generated images.
+  */
+-declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImagesPerCall, size, aspectRatio, seed, providerOptions, maxRetries: maxRetriesArg, abortSignal, headers, }: {
++declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImagesPerCall, size, aspectRatio, seed, providerOptions, maxRetries: maxRetriesArg, abortSignal, headers, experimental_download: download, }: {
+     /**
+      * The image model to use.
+      */
+@@ -5100,6 +5100,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
+      * Only applicable for HTTP-based providers.
+      */
+     headers?: Record<string, string>;
++    /**
++     * Custom download function to use for URLs.
++     *
++     * By default, files are downloaded if the model returns URLs instead of binary data.
++     */
++    experimental_download?: DownloadFunction | undefined;
+ }): Promise<GenerateImageResult>;
+ 
+ /**
+diff --git a/dist/index.js b/dist/index.js
+index 5774837d8961e535a03b2037c58bdcff45cf1916..cae38d61759ba3654a920856c269f5aa057fb3f2 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -9647,7 +9647,8 @@ async function generateImage({
+   providerOptions,
+   maxRetries: maxRetriesArg,
+   abortSignal,
+-  headers
++  headers,
++  experimental_download: download2
+ }) {
+   var _a21, _b;
+   const model = resolveImageModel(modelArg);
+@@ -9696,21 +9697,37 @@ async function generateImage({
+     outputTokens: void 0,
+     totalTokens: void 0
+   };
++  const downloadFn = download2 != null ? download2 : createDefaultDownloadFunction();
+   for (const result of results) {
+-    images.push(
+-      ...result.images.map(
+-        (image) => {
+-          var _a22;
+-          return new DefaultGeneratedFile({
+-            data: image,
+-            mediaType: (_a22 = detectMediaType({
+-              data: image,
+-              signatures: imageMediaTypeSignatures
+-            })) != null ? _a22 : "image/png"
+-          });
++    const processedImages = await Promise.all(
++      result.images.map(async (image) => {
++        var _a22;
++        if (typeof image === "string" && image.startsWith("data:")) {
++          const { mediaType, base64Content } = splitDataUrl(image);
++          if (mediaType != null && base64Content != null) {
++            return new DefaultGeneratedFile({ data: base64Content, mediaType });
++          }
+         }
+-      )
++        if (typeof image === "string" && (image.startsWith("http://") || image.startsWith("https://"))) {
++          const downloaded = await downloadFn([{ url: new URL(image), isUrlSupportedByModel: false }]);
++          const downloadedData = downloaded[0];
++          if (downloadedData != null) {
++            return new DefaultGeneratedFile({
++              data: downloadedData.data,
++              mediaType: downloadedData.mediaType != null ? downloadedData.mediaType : "image/png"
++            });
++          }
++        }
++        return new DefaultGeneratedFile({
++          data: image,
++          mediaType: (_a22 = detectMediaType({
++            data: image,
++            signatures: imageMediaTypeSignatures
++          })) != null ? _a22 : "image/png"
++        });
++      })
+     );
++    images.push(...processedImages);
+     warnings.push(...result.warnings);
+     if (result.usage != null) {
+       totalUsage = addImageModelUsage(totalUsage, result.usage);
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 6862f01537bf5c2c5d47772fab0174a99180fdf6..c219e51eafa64f29b472a10fefe0b41b3715755e 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -9586,7 +9586,8 @@ async function generateImage({
+   providerOptions,
+   maxRetries: maxRetriesArg,
+   abortSignal,
+-  headers
++  headers,
++  experimental_download: download2
+ }) {
+   var _a21, _b;
+   const model = resolveImageModel(modelArg);
+@@ -9635,21 +9636,37 @@ async function generateImage({
+     outputTokens: void 0,
+     totalTokens: void 0
+   };
++  const downloadFn = download2 != null ? download2 : createDefaultDownloadFunction();
+   for (const result of results) {
+-    images.push(
+-      ...result.images.map(
+-        (image) => {
+-          var _a22;
+-          return new DefaultGeneratedFile({
+-            data: image,
+-            mediaType: (_a22 = detectMediaType({
+-              data: image,
+-              signatures: imageMediaTypeSignatures
+-            })) != null ? _a22 : "image/png"
+-          });
++    const processedImages = await Promise.all(
++      result.images.map(async (image) => {
++        var _a22;
++        if (typeof image === "string" && image.startsWith("data:")) {
++          const { mediaType, base64Content } = splitDataUrl(image);
++          if (mediaType != null && base64Content != null) {
++            return new DefaultGeneratedFile({ data: base64Content, mediaType });
++          }
+         }
+-      )
++        if (typeof image === "string" && (image.startsWith("http://") || image.startsWith("https://"))) {
++          const downloaded = await downloadFn([{ url: new URL(image), isUrlSupportedByModel: false }]);
++          const downloadedData = downloaded[0];
++          if (downloadedData != null) {
++            return new DefaultGeneratedFile({
++              data: downloadedData.data,
++              mediaType: downloadedData.mediaType != null ? downloadedData.mediaType : "image/png"
++            });
++          }
++        }
++        return new DefaultGeneratedFile({
++          data: image,
++          mediaType: (_a22 = detectMediaType({
++            data: image,
++            signatures: imageMediaTypeSignatures
++          })) != null ? _a22 : "image/png"
++        });
++      })
+     );
++    images.push(...processedImages);
+     warnings.push(...result.warnings);
+     if (result.usage != null) {
+       totalUsage = addImageModelUsage(totalUsage, result.usage);

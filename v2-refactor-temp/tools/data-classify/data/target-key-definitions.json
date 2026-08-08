@@ -76,6 +76,13 @@
       "description": "Default Web Search provider for URL fetch capability"
     },
     {
+      "targetKey": "chat.web_search.client_tools_preferred",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Prefer client web search and fetch tools over equivalent provider-native tools when both are available (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "chat.web_search.compression.cutoff_limit",
       "type": "number",
       "defaultValue": 2000,
@@ -85,9 +92,9 @@
     {
       "targetKey": "chat.web_search.compression.method",
       "type": "PreferenceTypes.WebSearchCompressionMethod",
-      "defaultValue": "none",
+      "defaultValue": "cutoff",
       "status": "classified",
-      "description": "Web search compression method (from complex migration)"
+      "description": "Web search compression method (from complex migration; default cutoff caps raw source content per finding #7 — new installs only, migrated profiles keep their explicit value)"
     },
     {
       "targetKey": "feature.code_cli.configs",
@@ -99,14 +106,14 @@
     {
       "targetKey": "chat.input.toolbar.pinned_tools",
       "type": "string[]",
-      "defaultValue": ["composer:new-conversation", "thinking", "web-search"],
+      "defaultValue": ["composer:new-conversation", "web-search"],
       "status": "classified",
       "description": "Ordered tool ids pinned on the chat composer toolbar (v2 new feature, no v1 source)"
     },
     {
       "targetKey": "agent.input.toolbar.pinned_tools",
       "type": "string[]",
-      "defaultValue": ["composer:new-session", "thinking", "skills"],
+      "defaultValue": ["composer:new-session", "skills"],
       "status": "classified",
       "description": "Ordered tool ids pinned on the agent composer toolbar (v2 new feature, no v1 source)"
     },
@@ -192,6 +199,34 @@
       "defaultValue": true,
       "status": "classified",
       "description": "Exponential backoff between retry attempts (v2 新增，非迁移)"
+    },
+    {
+      "targetKey": "chat.context_settings.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Master toggle for the context-build (chef) layer: truncation + compaction + compression"
+    },
+    {
+      "targetKey": "chat.context_settings.truncate_threshold",
+      "type": "number",
+      "defaultValue": 50000,
+      "status": "classified",
+      "description": "Char count above which a tool result is persisted to the VFS and replaced with a marker"
+    },
+    {
+      "targetKey": "chat.context_settings.compress.enabled",
+      "type": "boolean",
+      "defaultValue": true,
+      "status": "classified",
+      "description": "Enable LLM history compression when the conversation exceeds the model context budget"
+    },
+    {
+      "targetKey": "chat.context_settings.compress.model_id",
+      "type": "string",
+      "defaultValue": null,
+      "status": "classified",
+      "description": "Explicit compression model (UniqueModelId). null = use the current request model"
     },
     {
       "targetKey": "topic.naming.model_id",
@@ -452,8 +487,8 @@
         ],
         "enabled": true
       },
-      "status": "deleted",
-      "description": "Deleted: command removed (feature not implemented in v2)."
+      "status": "classified",
+      "description": "Command shortcut: chat.context.toggle_new (unified command system)"
     },
     {
       "targetKey": "shortcut.chat.message.copy_last",

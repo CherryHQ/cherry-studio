@@ -15,7 +15,6 @@ export {
   diffAssistantUpdate,
   initialAssistantFormState
 } from './assistantForm'
-export { isSelectableAssistantModel } from './assistantModelFilter'
 export {
   type AssistantConfigMcpMode,
   MCP_MODE_OPTIONS,
@@ -23,4 +22,4 @@ export {
   RESOURCE_TYPE_META,
   RESOURCE_TYPE_ORDER
 } from './constants'
-export { buildCreateAgentDto, buildCreateAssistantDto } from './resourceCreate'
+export { buildCreateAgentCommand, buildCreateAssistantDto } from './resourceCreate'

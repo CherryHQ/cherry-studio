@@ -154,19 +154,24 @@ function makeProcessingFileItem(id: string): KnowledgeItem {
   } as unknown as KnowledgeItem
 }
 
-type ListArgs = { query?: string | null; groupId?: string | null; baseId?: string | null; maxDepth?: number | null }
+type ListArgs = { query?: string; groupId?: string; baseId?: string; maxDepth?: number }
 
 function callExecute(args: ListArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
   const execute = entry.tool.execute as (args: ListArgs, options: ToolExecutionOptions) => Promise<unknown>
-  return execute(args, {
-    toolCallId: 'tc-1',
-    messages: [],
-    experimental_context: {
-      requestId: 'req-1',
-      knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
-      abortSignal: new AbortController().signal
-    }
-  } as ToolExecutionOptions)
+  return execute(
+    // Unused filters are omitted, not sentinel-valued — kb_list runs without `strict`, so its schema
+    // is plain optionals and the model omits what it does not filter on.
+    args,
+    {
+      toolCallId: 'tc-1',
+      messages: [],
+      experimental_context: {
+        requestId: 'req-1',
+        knowledgeBaseIds: ctx.knowledgeBaseIds ?? [],
+        abortSignal: new AbortController().signal
+      }
+    } as ToolExecutionOptions
+  )
 }
 
 describe('kb_list', () => {
@@ -222,18 +227,15 @@ describe('kb_list', () => {
     expect(result.map((b) => b.id)).toEqual(['kb-1'])
   })
 
-  it('treats explicit null filters as no filter (kb_list passes null, not undefined, under strict schema)', async () => {
+  it('treats an omitted groupId as no filter, not as "ungrouped"', async () => {
     knowledgeServiceListBases.mockReturnValue([
       makeBase({ id: 'kb-1', groupId: 'g1' }),
       makeBase({ id: 'kb-2', groupId: null })
     ])
     knowledgeServiceListRootItems.mockReturnValue([])
 
-    const result = (await callExecute(
-      { query: null, groupId: null },
-      { knowledgeBaseIds: ['kb-1', 'kb-2'] }
-    )) as Array<{ id: string }>
-    // null groupId must NOT collapse to `base.groupId === null`; both bases come back.
+    const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1', 'kb-2'] })) as Array<{ id: string }>
+    // An absent groupId must not collapse to `base.groupId === null`; both bases come back.
     expect(result.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-2'])
   })
 
@@ -383,6 +385,14 @@ describe('kb_list', () => {
       expect(knowledgeServiceListBases).not.toHaveBeenCalled()
     })
 
+    it('outlines to unlimited depth when maxDepth is omitted', async () => {
+      knowledgeServiceGetOrganizationTree.mockReturnValue(orgTree())
+
+      await callExecute({ baseId: 'kb-1' }, { knowledgeBaseIds: ['kb-1'] })
+
+      expect(knowledgeServiceGetOrganizationTree).toHaveBeenCalledWith('kb-1', { maxDepth: undefined })
+    })
+
     it('returns an error and does not traverse when the base is outside the assistant scope', async () => {
       const result = (await callExecute({ baseId: 'kb-other' }, { knowledgeBaseIds: ['kb-1'] })) as { error: string }
 
@@ -405,15 +415,14 @@ describe('kb_list', () => {
   describe('toModelOutput', () => {
     type ToModelOutputFn = (opts: {
       toolCallId: string
-      input: { query?: string | null; groupId?: string | null; baseId?: string | null }
+      input: { query?: string; groupId?: string; baseId?: string }
       output: Array<{ id: string }>
     }) => { type: string; value: unknown }
 
-    type OutlineToModelOutputFn = (opts: {
-      toolCallId: string
-      input: { baseId?: string | null }
-      output: unknown
-    }) => { type: string; value: unknown }
+    type OutlineToModelOutputFn = (opts: { toolCallId: string; input: { baseId?: string }; output: unknown }) => {
+      type: string
+      value: unknown
+    }
 
     it('hints "no bases configured" when output is empty without filters', () => {
       const toModelOutput = entry.tool.toModelOutput as ToModelOutputFn

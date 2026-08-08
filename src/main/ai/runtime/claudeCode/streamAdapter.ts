@@ -7,16 +7,20 @@ import type {
 } from '@ai-sdk/provider'
 import { generateId } from '@ai-sdk/provider-utils'
 import type {
+  SDKAPIRetryMessage,
   SDKAssistantMessage,
+  SDKCompactBoundaryMessage,
   SDKMessage,
   SDKPartialAssistantMessage,
   SDKResultMessage,
+  SDKSessionStateChangedMessage,
   SDKStatusMessage,
   SDKTaskNotificationMessage,
   SDKTaskProgressMessage,
   SDKTaskStartedMessage,
   SDKTaskUpdatedMessage,
   SDKThinkingTokensMessage,
+  SDKToolProgressMessage,
   SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type {
@@ -31,14 +35,35 @@ import type {
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 import { loggerService } from '@logger'
+import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
+import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
-import type { CherryUIMessageChunk, CherryUIMessageMetadata } from '@shared/data/types/message'
+import type { CherryUIMessageChunk, CherryUIMessageMetadata, MessageStats } from '@shared/data/types/message'
 import type { AgentTaskEventPartData } from '@shared/data/types/uiParts'
 import { isMcpContentBlock } from '@shared/utils/mcp'
 
+import type { AgentRuntimeEvent } from '../types'
 import type { McpToolDisplayMetadata } from './types'
 
 const logger = loggerService.withContext('ClaudeCodeStreamAdapter')
+
+/**
+ * A non-success `SDKResultMessage` surfaced as a throw. Carries the result's typed fields so
+ * consumers narrow with `instanceof` and read structure — never by parsing the message prose
+ * (the SDK provides no error class of its own for result failures).
+ */
+export class ClaudeCodeResultError extends Error {
+  readonly exitCode = 1
+  constructor(
+    message: string,
+    readonly subtype: Extract<SDKResultMessage, { is_error: boolean }>['subtype'],
+    /** The result's raw error strings — match against these, not the joined `message`. */
+    readonly errors: readonly string[]
+  ) {
+    super(message)
+    this.name = 'ClaudeCodeResultError'
+  }
+}
 
 const MIN_TRUNCATION_LENGTH = 512
 const UNKNOWN_TOOL_NAME = 'unknown-tool'
@@ -49,13 +74,14 @@ const MAX_DELTA_CALC_SIZE = 10_000
 // ── Internal types ──────────────────────────────────────────────────
 
 type BetaUsage = SDKResultMessage['usage']
-type SDKParentToolUseId = SDKAssistantMessage['parent_tool_use_id']
-type SDKTaskSystemMessage =
+type SdkParentToolUseId = SDKAssistantMessage['parent_tool_use_id']
+type SdkTaskSystemMessage =
   | SDKTaskNotificationMessage
   | SDKTaskProgressMessage
   | SDKTaskStartedMessage
   | SDKTaskUpdatedMessage
-type SDKTaskStatus = SDKTaskNotificationMessage['status'] | SDKTaskUpdatedMessage['patch']['status'] | undefined
+type SdkRuntimeSystemMessage = Extract<SDKMessage, { type: 'system' }>
+type SdkTaskStatus = SDKTaskNotificationMessage['status'] | SDKTaskUpdatedMessage['patch']['status'] | undefined
 type ClaudeToolUseBlock = BetaToolUseBlock | BetaServerToolUseBlock | BetaMCPToolUseBlock
 type ClaudeToolResultBlock = Extract<BetaContentBlock | BetaContentBlockParam, { tool_use_id: string }>
 
@@ -102,10 +128,44 @@ type StreamContext = {
   textStreamedViaContentBlock: boolean
 }
 
+/**
+ * Session-scoped status the adapter reports outside the turn's message stream. Unlike `sink`, this
+ * has no turn dependency — background work outlives the turn that spawned it, so its signals must
+ * still be deliverable once that turn's stream is gone.
+ */
+export type ClaudeCodeStreamStatusEvent = Extract<
+  AgentRuntimeEvent,
+  {
+    type:
+      | 'supported-commands'
+      | 'background-tasks'
+      | 'background-work-state'
+      | 'compaction-start'
+      | 'compaction-complete'
+      | 'compaction-error'
+      | 'api-retry'
+      | 'background-task-event'
+      | 'background-flow-chunk'
+      | 'autonomous-turn-state'
+  }
+>
+
+type StatusSink = {
+  emit(event: ClaudeCodeStreamStatusEvent): void
+}
+
+type FlowContext = {
+  rootToolCallId: string
+  stream: StreamContext
+}
+
 export type ClaudeCodeStreamAdapterOptions = {
   modelId: string
+  /** Cherry session id — for logs only; `onSessionId` reports the runtime's own id. */
+  sessionId: string
   streamOptions: Parameters<LanguageModelV3['doStream']>[0]
   sink: StreamSink
+  statusSink: StatusSink
   onSessionId?: (sessionId: string) => void
   mcpToolMetadata?: Record<string, McpToolDisplayMetadata>
 }
@@ -140,8 +200,93 @@ function isSubagentToolName(toolName: string): boolean {
   return toolName === 'Task' || toolName === 'Agent'
 }
 
+function getToolParentId(
+  toolName: string,
+  sdkParentToolUseId: SdkParentToolUseId,
+  fallbackParentToolCallId: string | null
+): string | null {
+  if (sdkParentToolUseId) return sdkParentToolUseId
+  return isSubagentToolName(toolName) ? null : fallbackParentToolCallId
+}
+
+function getLaunchedBackgroundTaskId(result: unknown): string | undefined {
+  if (!isRecord(result) || (result.status !== 'async_launched' && result.status !== 'remote_launched')) {
+    return undefined
+  }
+  const id = result.taskId ?? result.agentId
+  return typeof id === 'string' && id ? id : undefined
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function summarizeSdkContentBlock(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) return { type: typeof value }
+
+  const summary: Record<string, unknown> = {
+    type: typeof value.type === 'string' ? value.type : 'unknown'
+  }
+  for (const key of ['id', 'name', 'tool_use_id', 'server_name', 'server_tool_use_id'] as const) {
+    if (typeof value[key] === 'string') summary[key] = value[key]
+  }
+  if (typeof value.is_error === 'boolean') summary.is_error = value.is_error
+  return summary
+}
+
+/**
+ * Keep the SDK wire log useful for parent/child correlation without persisting user text, prompts,
+ * tool inputs or streamed deltas. In particular, Workflow debugging needs every envelope and stable
+ * id, not the potentially sensitive payload carried by that envelope.
+ */
+function summarizeSdkMessage(message: SDKMessage): Record<string, unknown> {
+  const raw = message as unknown as Record<string, unknown>
+  const summary: Record<string, unknown> = {
+    type: message.type,
+    uuid: raw.uuid,
+    sdkSessionId: raw.session_id
+  }
+
+  for (const key of [
+    'subtype',
+    'parent_tool_use_id',
+    'tool_use_id',
+    'tool_name',
+    'task_id',
+    'task_type',
+    'workflow_name',
+    'agent_id',
+    'subagent_type',
+    'state',
+    'status'
+  ] as const) {
+    const value = raw[key]
+    if (typeof value === 'string' || value === null) summary[key] = value
+  }
+
+  if (message.type === 'stream_event') {
+    const event = message.event as unknown as Record<string, unknown>
+    summary.streamEvent = {
+      type: event.type,
+      index: event.index,
+      contentBlock: summarizeSdkContentBlock(event.content_block),
+      deltaType: isRecord(event.delta) ? event.delta.type : undefined
+    }
+  } else if (message.type === 'assistant' || message.type === 'user') {
+    const sdkMessage = raw.message
+    const content = isRecord(sdkMessage) && Array.isArray(sdkMessage.content) ? sdkMessage.content : []
+    summary.contentBlocks = content.map(summarizeSdkContentBlock)
+  } else if (message.type === 'system' && Array.isArray(raw.tasks)) {
+    summary.tasks = raw.tasks.map((task) => {
+      if (!isRecord(task)) return { type: typeof task }
+      return {
+        taskId: task.task_id,
+        taskType: task.task_type
+      }
+    })
+  }
+
+  return summary
 }
 
 function stringifyJsonValue(value: unknown): string {
@@ -224,6 +369,44 @@ export function convertClaudeCodeUsage(usage: BetaUsage): LanguageModelV3Usage {
   }
 }
 
+/** Drop `undefined`-valued keys; return `undefined` when nothing is left. */
+function compactDetails<T extends Record<string, number | undefined>>(obj: T): { [K in keyof T]?: number } | undefined {
+  const out: Record<string, number> = {}
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'number') out[key] = value
+  }
+  return Object.keys(out).length > 0 ? (out as { [K in keyof T]?: number }) : undefined
+}
+
+/**
+ * Project a `LanguageModelV3Usage` into the live `MessageStats` token shape
+ * carried by stream metadata (AI SDK v6 names). Top-level `inputTokens`
+ * follows the v6 semantic of TOTAL input (cache reads and writes included) —
+ * matching the SDK's own `asLanguageModelUsage` projection; the cache
+ * breakdown lives in `inputTokenDetails`, and `totalTokens` is the all-in
+ * figure. Persistent usage and cost come from per-invocation records instead.
+ */
+export function v3UsageToStats(usage: LanguageModelV3Usage): MessageStats {
+  const inputTotal = usage.inputTokens.total ?? 0
+  const outputTotal = usage.outputTokens.total ?? 0
+  const inputTokenDetails = compactDetails({
+    noCacheTokens: usage.inputTokens.noCache,
+    cacheReadTokens: usage.inputTokens.cacheRead,
+    cacheWriteTokens: usage.inputTokens.cacheWrite
+  })
+  const outputTokenDetails = compactDetails({
+    textTokens: usage.outputTokens.text,
+    reasoningTokens: usage.outputTokens.reasoning
+  })
+  return {
+    inputTokens: inputTotal,
+    outputTokens: outputTotal,
+    totalTokens: inputTotal + outputTotal,
+    ...(inputTokenDetails ? { inputTokenDetails } : {}),
+    ...(outputTokenDetails ? { outputTokenDetails } : {})
+  }
+}
+
 function mapClaudeCodeFinishReason(subtype?: string, stopReason?: string | null): LanguageModelV3FinishReason {
   if (stopReason != null) {
     switch (stopReason) {
@@ -253,7 +436,7 @@ function mapClaudeCodeFinishReason(subtype?: string, stopReason?: string | null)
   }
 }
 
-function mapTaskStatus(status: SDKTaskStatus): AgentTaskEventPartData['status'] | undefined {
+function mapTaskStatus(status: SdkTaskStatus): AgentTaskEventPartData['status'] | undefined {
   switch (status) {
     case 'pending':
       return 'pending'
@@ -262,9 +445,10 @@ function mapTaskStatus(status: SDKTaskStatus): AgentTaskEventPartData['status'] 
       return 'in_progress'
     case 'completed':
       return 'completed'
+    case 'stopped':
+      return 'stopped'
     case 'failed':
     case 'killed':
-    case 'stopped':
       return 'error'
     default:
       return undefined
@@ -272,18 +456,50 @@ function mapTaskStatus(status: SDKTaskStatus): AgentTaskEventPartData['status'] 
 }
 
 export class ClaudeCodeStreamAdapter {
-  private readonly ctx: StreamContext
+  private ctx: StreamContext
   private readonly modelId: string
+  private readonly sessionId: string
+  private readonly sink: StreamSink
+  private readonly statusSink: StatusSink
+  private readonly streamOptions: ClaudeCodeStreamAdapterOptions['streamOptions']
   private readonly onSessionId?: (sessionId: string) => void
   private readonly mcpToolMetadata: Record<string, McpToolDisplayMetadata>
+  /** Content belongs to a turn's message stream; outside one there is nowhere for it to land. */
+  private turnActive = false
+  /** The current turn was started by parentless SDK content rather than a host `send()`. */
+  private autonomousTurn = false
+  /** An empty task snapshot was seen; wait for the SDK's authoritative idle boundary to release it. */
+  private backgroundWorkReleasePending = false
+  /** The latest authoritative level, enriched only by explicit async-launch receipts from this driver. */
+  private backgroundTasks: AgentSessionBackgroundTask[] = []
+  private readonly backgroundTaskToolCallIds = new Map<string, string>()
+  /** Parented SDK streams get independent state so subagent text/tool deltas cannot pollute the
+   *  main agent's counters. Their sink is detached from the turn when that turn completes. */
+  private readonly flowContexts: FlowContext[] = []
+  /** `system/init` can arrive before the first turn opens, so its metadata chunk waits for one. */
+  private pendingInit?: Extract<SDKMessage, { subtype: 'init' }>
+  private turnHasActivity = false
 
   constructor(options: ClaudeCodeStreamAdapterOptions) {
     this.modelId = options.modelId
+    this.sessionId = options.sessionId
+    this.sink = options.sink
+    this.statusSink = options.statusSink
+    this.streamOptions = options.streamOptions
     this.onSessionId = options.onSessionId
     this.mcpToolMetadata = options.mcpToolMetadata ?? {}
-    this.ctx = {
-      sink: options.sink,
-      options: options.streamOptions,
+    this.ctx = this.createTurnContext()
+  }
+
+  /**
+   * The single construction site for per-turn state. Annotating the return type makes TypeScript's
+   * missing-property check the guarantee that a turn starts clean — resetting fields individually
+   * would silently leak whichever one a later change forgets.
+   */
+  private createTurnContext(sink = this.sink): StreamContext {
+    return {
+      sink: this.createActivityTrackingSink(sink),
+      options: this.streamOptions,
       toolStates: new Map(),
       activeTaskTools: new Map(),
       toolBlocksByIndex: new Map(),
@@ -304,8 +520,82 @@ export class ClaudeCodeStreamAdapter {
     }
   }
 
+  private createActivityTrackingSink(sink: StreamSink): StreamSink {
+    return {
+      enqueue: (chunk) => {
+        if (chunk.type !== 'message-metadata') this.turnHasActivity = true
+        sink.enqueue(chunk)
+      }
+    }
+  }
+
+  /** Whether a turn is open. Turn-scoped session status (an API retry) is gated on this. */
+  get isTurnActive(): boolean {
+    return this.turnActive
+  }
+
+  get hasTurnActivity(): boolean {
+    return this.turnHasActivity
+  }
+
+  /** Opens a turn on the session-scoped adapter, discarding the previous turn's state wholesale. */
+  beginTurn(): void {
+    this.turnHasActivity = false
+    this.ctx = this.createTurnContext()
+    this.turnActive = true
+    this.autonomousTurn = false
+    if (this.pendingInit) {
+      const init = this.pendingInit
+      this.pendingInit = undefined
+      this.handleInitSystemMessage(init, this.ctx)
+    }
+  }
+
   handleMessage(message: SDKMessage): ClaudeCodeStreamAdapterResult {
+    logger.silly('Received Claude Code SDK event', {
+      sessionId: this.sessionId,
+      event: summarizeSdkMessage(message)
+    })
+    const parentToolUseId = 'parent_tool_use_id' in message ? message.parent_tool_use_id : undefined
+    if (
+      parentToolUseId != null &&
+      (message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user')
+    ) {
+      const flow = this.getOrCreateFlowContext(parentToolUseId)
+      this.handleContentMessage(message, flow.stream)
+      return { type: 'continue' }
+    }
+
+    // System messages carry session-scoped status and dispatch at any time; everything else is turn
+    // content, which has no stream to land in once the turn has ended.
+    if (message.type !== 'system' && !this.turnActive) {
+      if (message.type === 'result') {
+        this.setSessionId(message.session_id)
+        logger.warn('Received a result message with no active turn; dropping turn-complete', {
+          sessionId: this.sessionId
+        })
+        return { type: 'continue' }
+      }
+      const isContent = message.type === 'stream_event' || message.type === 'assistant' || message.type === 'user'
+      if (!isContent) {
+        logger.debug('Dropping message received with no active turn', {
+          sessionId: this.sessionId,
+          type: message.type,
+          parentToolUseId
+        })
+        return { type: 'continue' }
+      }
+      // Parentless content with no turn open is Claude waking the main agent after background work.
+      // Translate that SDK protocol into the runtime-neutral receive-only contract.
+      this.statusSink.emit({ type: 'autonomous-turn-state', state: 'started' })
+      this.beginTurn()
+      this.autonomousTurn = true
+    }
+
     switch (message.type) {
+      case 'tool_progress':
+        this.handleToolProgressMessage(message)
+        return { type: 'continue' }
       case 'stream_event':
         this.handleStreamEvent(message, this.ctx)
         return { type: 'continue' }
@@ -317,6 +607,12 @@ export class ClaudeCodeStreamAdapter {
         return { type: 'continue' }
       case 'result':
         this.handleResultMessage(message, this.ctx)
+        this.detachFlowContexts()
+        this.turnActive = false
+        if (this.autonomousTurn) {
+          this.autonomousTurn = false
+          this.statusSink.emit({ type: 'autonomous-turn-state', state: 'finished' })
+        }
         return { type: 'result', sessionId: message.session_id, message }
       case 'system':
         this.handleSystemMessage(message, this.ctx)
@@ -325,12 +621,9 @@ export class ClaudeCodeStreamAdapter {
     return { type: 'continue' }
   }
 
-  finalizeOpenParts(): void {
-    this.finalizeToolCalls(this.ctx)
-  }
-
   handleTruncationError(error: unknown): boolean {
     if (!this.ctx.sawAbortedMessage && !isClaudeCodeTruncationError(error, this.ctx.accumulatedText)) return false
+    this.turnActive = false
 
     logger.warn(
       `Detected truncated stream response, returning ${this.ctx.accumulatedText.length} chars of buffered text`
@@ -350,7 +643,53 @@ export class ClaudeCodeStreamAdapter {
       finishReason: 'length',
       messageMetadata: this.buildMessageMetadata(this.ctx.usage)
     })
+    this.detachFlowContexts()
     return true
+  }
+
+  private getOrCreateFlowContext(parentToolCallId: string): FlowContext {
+    const existing = this.flowContexts.find(
+      (flow) => flow.rootToolCallId === parentToolCallId || flow.stream.toolStates.has(parentToolCallId)
+    )
+    if (existing) return existing
+
+    const flow: FlowContext = {
+      rootToolCallId: parentToolCallId,
+      stream: this.createTurnContext(this.turnActive ? this.sink : this.createFlowSink(parentToolCallId))
+    }
+    this.flowContexts.push(flow)
+    return flow
+  }
+
+  private createFlowSink(rootToolCallId: string): StreamSink {
+    return {
+      enqueue: (chunk) => {
+        this.statusSink.emit({ type: 'background-flow-chunk', rootToolCallId, chunk })
+      }
+    }
+  }
+
+  private detachFlowContexts(): void {
+    for (const flow of this.flowContexts) {
+      flow.stream.sink = this.createActivityTrackingSink(this.createFlowSink(flow.rootToolCallId))
+    }
+  }
+
+  private handleContentMessage(
+    message: SDKPartialAssistantMessage | SDKAssistantMessage | SDKUserMessage,
+    ctx: StreamContext
+  ): void {
+    switch (message.type) {
+      case 'stream_event':
+        this.handleStreamEvent(message, ctx)
+        return
+      case 'assistant':
+        this.handleAssistantMessage(message, ctx)
+        return
+      case 'user':
+        this.handleUserMessage(message, ctx)
+        return
+    }
   }
 
   private handleStreamEvent(message: SDKPartialAssistantMessage, ctx: StreamContext): void {
@@ -376,7 +715,7 @@ export class ClaudeCodeStreamAdapter {
 
   private handleContentBlockStart(
     event: BetaRawContentBlockStartEvent,
-    sdkParentToolUseId: SDKParentToolUseId,
+    sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
     ctx.hasReceivedStreamEvents = true
@@ -409,11 +748,13 @@ export class ClaudeCodeStreamAdapter {
   private handleToolUseBlockStart(
     toolBlock: ClaudeToolUseBlock,
     blockIndex: number,
-    sdkParentToolUseId: SDKParentToolUseId,
+    sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
     const toolId = toolBlock.id
-    const toolName = toolBlock.name
+    // Anthropic-compatible relays may open a tool_use block before the name is known;
+    // `handleToolUse` fills it in from the completed assistant message.
+    const toolName = toolBlock.name ?? ''
     const toolMetadata = this.getToolUseMetadata(toolBlock)
 
     this.closeActiveTextPart(ctx)
@@ -423,9 +764,7 @@ export class ClaudeCodeStreamAdapter {
 
     let state = ctx.toolStates.get(toolId)
     if (!state) {
-      const currentParentId = isSubagentToolName(toolName)
-        ? null
-        : (sdkParentToolUseId ?? this.getFallbackParentId(ctx))
+      const currentParentId = getToolParentId(toolName, sdkParentToolUseId, this.getFallbackParentId(ctx))
       state = {
         name: toolName,
         inputStarted: false,
@@ -456,7 +795,7 @@ export class ClaudeCodeStreamAdapter {
 
   private handleTextBlockStart(
     event: BetaRawContentBlockStartEvent,
-    sdkParentToolUseId: SDKParentToolUseId,
+    sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
     const partId = generateId()
@@ -472,7 +811,7 @@ export class ClaudeCodeStreamAdapter {
 
   private handleThinkingBlockStart(
     event: BetaRawContentBlockStartEvent,
-    sdkParentToolUseId: SDKParentToolUseId,
+    sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
     this.closeActiveTextPart(ctx)
@@ -588,7 +927,9 @@ export class ClaudeCodeStreamAdapter {
       const effectiveInput = accumulatedInput || state.lastSerializedInput || ''
       state.lastSerializedInput = effectiveInput
 
-      if (!state.callEmitted) {
+      // A nameless block is still waiting for the name the completed assistant message carries;
+      // emitting now would freeze the call under an unusable name.
+      if (!state.callEmitted && state.name) {
         this.emitToolInputAvailable(toolId, state, ctx)
       }
     }
@@ -637,17 +978,17 @@ export class ClaudeCodeStreamAdapter {
 
   private handleAssistantToolUse(
     tool: ClaudeToolUseBlock,
-    sdkParentToolUseId: SDKParentToolUseId,
+    sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
     const toolId = tool.id
     let state = ctx.toolStates.get(toolId)
+    // The name may be missing here too, in which case the streamed one (if any) stands.
+    const toolName = tool.name ?? state?.name ?? ''
     if (!state) {
-      const currentParentId = isSubagentToolName(tool.name)
-        ? null
-        : (sdkParentToolUseId ?? this.getFallbackParentId(ctx))
+      const currentParentId = getToolParentId(toolName, sdkParentToolUseId, this.getFallbackParentId(ctx))
       state = {
-        name: tool.name,
+        name: toolName,
         inputStarted: false,
         inputClosed: false,
         callEmitted: false,
@@ -655,10 +996,10 @@ export class ClaudeCodeStreamAdapter {
         ...this.getToolUseMetadata(tool)
       }
       ctx.toolStates.set(toolId, state)
-    } else if (!state.parentToolCallId && sdkParentToolUseId && !isSubagentToolName(tool.name)) {
+    } else if (!state.parentToolCallId && sdkParentToolUseId) {
       state.parentToolCallId = sdkParentToolUseId
     }
-    state.name = tool.name
+    state.name = toolName
     this.mergeToolMetadata(state, this.getToolUseMetadata(tool))
     this.mergeToolDisplayMetadata(state)
 
@@ -666,13 +1007,13 @@ export class ClaudeCodeStreamAdapter {
       ctx.sink.enqueue({
         type: 'tool-input-start',
         toolCallId: toolId,
-        toolName: tool.name,
+        toolName,
         providerExecuted: true,
         dynamic: true,
         title: this.getToolTitle(state),
         providerMetadata: this.buildToolProviderMetadata(state)
       })
-      if (isSubagentToolName(tool.name)) ctx.activeTaskTools.set(toolId, { startTime: Date.now() })
+      if (isSubagentToolName(toolName)) ctx.activeTaskTools.set(toolId, { startTime: Date.now() })
       state.inputStarted = true
     }
 
@@ -695,9 +1036,14 @@ export class ClaudeCodeStreamAdapter {
       }
       state.lastSerializedInput = serializedInput
     }
+
+    // The content block closed before the name was known, so its emission was deferred to here.
+    if (state.inputClosed && !state.callEmitted) {
+      this.emitToolInputAvailable(toolId, state, ctx)
+    }
   }
 
-  private handleAssistantText(text: string, sdkParentToolUseId: SDKParentToolUseId, ctx: StreamContext): void {
+  private handleAssistantText(text: string, sdkParentToolUseId: SdkParentToolUseId, ctx: StreamContext): void {
     const providerMetadata = this.buildParentProviderMetadata(sdkParentToolUseId)
     if (ctx.hasReceivedStreamEvents) {
       const newTextStart = ctx.streamedTextLength
@@ -743,18 +1089,16 @@ export class ClaudeCodeStreamAdapter {
 
   private handleToolResult(
     result: ClaudeToolResultBlock,
-    sdkParentToolUseId: SDKParentToolUseId,
+    sdkParentToolUseId: SdkParentToolUseId,
     ctx: StreamContext
   ): void {
     if (ctx.toolResultsEmitted.has(result.tool_use_id)) return
 
     let state = ctx.toolStates.get(result.tool_use_id)
-    const toolName = state?.name ?? this.getToolNameFromResultType(result.type) ?? UNKNOWN_TOOL_NAME
+    const toolName = state?.name || this.getToolNameFromResultType(result.type) || UNKNOWN_TOOL_NAME
 
     if (!state) {
-      const resolvedParentId = isSubagentToolName(toolName)
-        ? null
-        : (sdkParentToolUseId ?? this.getFallbackParentId(ctx))
+      const resolvedParentId = getToolParentId(toolName, sdkParentToolUseId, this.getFallbackParentId(ctx))
       state = {
         name: toolName,
         inputStarted: false,
@@ -783,6 +1127,12 @@ export class ClaudeCodeStreamAdapter {
 
     const providerMetadata = this.buildToolProviderMetadata(state)
     const isError = this.isToolResultError(result)
+    const isLocalWorkflowLaunch =
+      toolName === 'Workflow' && isRecord(normalizedResult) && normalizedResult.taskType === 'local_workflow'
+    if (!isError && (isSubagentToolName(toolName) || isLocalWorkflowLaunch)) {
+      const taskId = getLaunchedBackgroundTaskId(normalizedResult)
+      if (taskId) this.registerBackgroundTaskToolCallId(taskId, result.tool_use_id)
+    }
     if (ctx.deniedToolUseIds.has(result.tool_use_id)) {
       // The chunk schema is strict — `toolCallId` is the only accepted field, so the rejection
       // text stays in the log written by `handlePermissionDeniedSystemMessage`.
@@ -814,13 +1164,27 @@ export class ClaudeCodeStreamAdapter {
       `Stream completed - Session: ${message.session_id}, Cost: $${message.total_cost_usd?.toFixed(4) ?? 'N/A'}, Duration: ${message.duration_ms ?? 'N/A'}ms`
     )
 
-    ctx.usage = convertClaudeCodeUsage(message.usage)
+    const finalUsage = convertClaudeCodeUsage(message.usage)
+    ctx.usage = {
+      ...finalUsage,
+      outputTokens: {
+        ...finalUsage.outputTokens,
+        reasoning: ctx.usage.outputTokens.reasoning
+      }
+    }
     const finishReason = mapClaudeCodeFinishReason(message.subtype, message.stop_reason)
     this.setSessionId(message.session_id)
 
     if (message.subtype !== 'success') {
+      // Error results still carry token totals useful to the live message. The driver only calls
+      // `emitUsageMetadata` when `handleMessage` returns normally, so emit the final UI snapshot
+      // BEFORE throwing. Per-invocation records are captured independently by the driver.
+      ctx.sink.enqueue({
+        type: 'message-metadata',
+        messageMetadata: this.buildMessageMetadata(ctx.usage)
+      })
       const errorMsg = message.errors.join('; ') || `Claude Code error: ${message.subtype}`
-      throw Object.assign(new Error(errorMsg), { exitCode: 1, subtype: message.subtype })
+      throw new ClaudeCodeResultError(errorMsg, message.subtype, message.errors)
     }
 
     const structuredOutput = message.structured_output
@@ -853,7 +1217,7 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private handleSystemMessage(message: Extract<SDKMessage, { type: 'system' }>, ctx: StreamContext): void {
+  private handleSystemMessage(message: SdkRuntimeSystemMessage, ctx: StreamContext): void {
     switch (message.subtype) {
       case 'init':
         this.handleInitSystemMessage(message, ctx)
@@ -868,7 +1232,7 @@ export class ClaudeCodeStreamAdapter {
         this.handleStatusSystemMessage(message)
         return
       case 'compact_boundary':
-        this.handleCompactBoundarySystemMessage()
+        this.handleCompactBoundarySystemMessage(message)
         return
       case 'thinking_tokens':
         this.handleThinkingTokensSystemMessage(message, ctx)
@@ -876,26 +1240,64 @@ export class ClaudeCodeStreamAdapter {
       case 'permission_denied':
         this.handlePermissionDeniedSystemMessage(message, ctx)
         return
+      case 'background_tasks_changed':
+        // Membership feeds presentation immediately, but an empty snapshot may precede the terminal
+        // task bookend and an autonomous wake. Keep the connection alive until session idle, which
+        // the SDK defines as occurring after held-back results and the background-agent loop drain.
+        this.backgroundTasks = message.tasks.map((task) => ({
+          id: task.task_id,
+          type: task.task_type,
+          description: task.description
+        }))
+        this.publishBackgroundTasks()
+        if (message.tasks.length > 0) {
+          this.backgroundWorkReleasePending = false
+          this.statusSink.emit({ type: 'background-work-state', active: true })
+        } else {
+          this.backgroundWorkReleasePending = true
+        }
+        return
+      case 'session_state_changed':
+        this.handleSessionStateChangedSystemMessage(message)
+        return
+      case 'commands_changed':
+        // Mid-session catalog push (skills discovered in a subdirectory, etc.); consumers replace
+        // their cached list, since `supportedCommands()` is only read at init.
+        this.statusSink.emit({ type: 'supported-commands', commands: message.commands })
+        return
       case 'api_retry':
-        // Defensive fallback for future non-driver consumers. ClaudeCodeRuntimeDriver intercepts
-        // api_retry before this adapter and emits it as an ephemeral runtime event, so nothing is
-        // emitted into the message stream here (retry status is never persisted conversation content).
+        this.handleApiRetrySystemMessage(message)
         return
       case 'hook_started':
       case 'hook_progress':
       case 'hook_response':
-      case 'session_state_changed':
       case 'memory_recall':
       case 'local_command_output':
       case 'elicitation_complete':
-      case 'commands_changed':
       case 'files_persisted':
       case 'mirror_error':
       case 'notification':
       case 'plugin_install':
-        // TODO: Implement handling for these system message subtypes as needed. For now, they are acknowledged at debug level in the logger to avoid being silently ignored.
+      case 'model_refusal_fallback':
+      case 'model_refusal_no_fallback':
+      case 'control_request_progress':
+      case 'informational':
+      case 'worker_shutting_down':
+        // TODO: Implement handling for these system message subtypes as needed. For now, they are
+        // acknowledged at debug level in the logger to avoid being silently ignored. The two
+        // `model_refusal_*` ones are the most worth surfacing to the user: the model declined and the
+        // CLI either fell back or gave up, which today reads as the answer simply going strange.
         logger.debug(`Received system message subtype: ${message.subtype}`, { message })
         return
+      default: {
+        // A subtype the SDK added since this switch was last reviewed. Failing the build is the
+        // point — it is how a new signal gets a decision instead of vanishing. Deliberately not
+        // thrown: the CLI may ship subtypes ahead of us, and a crashed stream is worse than a log.
+        const _exhaustive: never = message
+        void _exhaustive
+        logger.debug('Received an unknown system message subtype', { message })
+        return
+      }
     }
   }
 
@@ -915,15 +1317,64 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
+  private publishBackgroundTasks(): void {
+    this.statusSink.emit({
+      type: 'background-tasks',
+      tasks: this.backgroundTasks.map((task) => {
+        const toolCallId = this.backgroundTaskToolCallIds.get(task.id)
+        return toolCallId ? { ...task, toolCallId } : task
+      })
+    })
+  }
+
+  private registerBackgroundTaskToolCallId(taskId: string, toolCallId: string): void {
+    if (this.backgroundTaskToolCallIds.get(taskId) === toolCallId) return
+    this.backgroundTaskToolCallIds.set(taskId, toolCallId)
+    if (this.backgroundTasks.some((task) => task.id === taskId)) this.publishBackgroundTasks()
+  }
+
   private handleInitSystemMessage(message: Extract<SDKMessage, { subtype: 'init' }>, ctx: StreamContext): void {
-    this.logMcpConnectionIssues(message.mcp_servers)
     this.setSessionId(message.session_id)
+    // A primed connection initializes before any turn opens. The resume token above is session state
+    // and applies immediately, but the metadata chunk is turn content, so it waits for `beginTurn`.
+    if (!this.turnActive) {
+      this.pendingInit = message
+      return
+    }
+    this.logMcpConnectionIssues(message.mcp_servers)
     logger.info(`Stream session initialized: ${message.session_id}`)
     ctx.sink.enqueue({ type: 'message-metadata', messageMetadata: { modelId: this.modelId } })
   }
 
-  private handleTaskSystemMessage(message: SDKTaskSystemMessage, ctx: StreamContext): void {
+  /**
+   * Task lifecycle describes work the run spawned, which routinely outlives the turn that spawned
+   * it. Inside a turn it stays a hidden message part, so the transcript keeps the full history;
+   * afterwards there is no message to attach to, and the host keeps the latest event per task as
+   * session status instead — otherwise a background task's completion never lands anywhere and its
+   * row stays running forever.
+   */
+  private handleTaskSystemMessage(message: SdkTaskSystemMessage, ctx: StreamContext): void {
     const eventData = this.toTaskEventPartData(message)
+
+    // Membership and liveness remain owned exclusively by `background_tasks_changed`. A native
+    // subagent edge may enrich an already-authoritative row with its explicit root tool-use id for
+    // navigation only; missing/reordered edges therefore delay the button but never add/hide a chip.
+    if (
+      eventData.toolUseId &&
+      (eventData.taskType === 'subagent' ||
+        eventData.taskType === 'local_agent' ||
+        eventData.taskType === 'local_workflow' ||
+        eventData.subagentType)
+    ) {
+      this.registerBackgroundTaskToolCallId(eventData.taskId, eventData.toolUseId)
+    }
+
+    // Keep a process-scoped per-task surface for status history and stop targets.
+    this.statusSink.emit({ type: 'background-task-event', data: eventData })
+
+    if (!this.turnActive) {
+      return
+    }
 
     ctx.sink.enqueue({
       type: 'data-agent-task-event',
@@ -932,30 +1383,102 @@ export class ClaudeCodeStreamAdapter {
     })
   }
 
-  private handleStatusSystemMessage(message: SDKStatusMessage): void {
-    // Defensive fallback for future non-driver consumers. ClaudeCodeRuntimeDriver intercepts
-    // compaction status before this adapter and emits the runtime state itself.
-    if (message.status === 'compacting') return
-    if (message.compact_result === 'failed' || message.compact_error) {
-      logger.warn('Claude compaction failed', { sessionId: message.session_id, error: message.compact_error })
-    }
-  }
-
-  private handleCompactBoundarySystemMessage(): void {
-    // Defensive fallback for future non-driver consumers. The current driver path intercepts
-    // compact_boundary before this adapter, so no assistant stream chunk is emitted here.
-  }
-
-  private handleThinkingTokensSystemMessage(message: SDKThinkingTokensMessage, ctx: StreamContext): void {
-    ctx.sink.enqueue({
-      type: 'message-metadata',
-      messageMetadata: {
-        thoughtsTokens: message.estimated_tokens
+  /**
+   * A failed API request is backing off. Turn-scoped by design: it renders inside the active turn's
+   * message stream, and only a turn gives it a clear end (a chunk, turn-complete or error all clear
+   * it). A turn-less connection's retry would have nothing to attach to and no such boundary, so it
+   * must not enter the retry state at all.
+   */
+  private handleApiRetrySystemMessage(message: SDKAPIRetryMessage): void {
+    if (!this.turnActive) return
+    this.statusSink.emit({
+      type: 'api-retry',
+      retry: {
+        attempt: message.attempt,
+        maxRetries: message.max_retries,
+        retryDelayMs: message.retry_delay_ms,
+        errorStatus: message.error_status,
+        errorCategory: message.error
       }
     })
   }
 
-  private toTaskEventPartData(message: SDKTaskSystemMessage): AgentTaskEventPartData {
+  /** Only a subagent's own rate-limit backoff carries state the UI reads; the rest is liveness. */
+  private handleToolProgressMessage(message: SDKToolProgressMessage): void {
+    const retry = message.subagent_retry
+    if (!retry || !this.turnActive) return
+    this.statusSink.emit({
+      type: 'api-retry',
+      retry: {
+        attempt: retry.attempt,
+        maxRetries: retry.max_retries,
+        retryDelayMs: retry.retry_delay_ms,
+        errorStatus: retry.error_status,
+        errorCategory: retry.error_category,
+        ...(message.subagent_type ? { subagentType: message.subagent_type } : {})
+      }
+    })
+  }
+
+  private handleStatusSystemMessage(message: SDKStatusMessage): void {
+    if (message.status === 'compacting') {
+      this.statusSink.emit({ type: 'compaction-start' })
+      return
+    }
+    if (message.compact_result === 'failed' || message.compact_error) {
+      logger.warn('Claude compaction failed', { sessionId: message.session_id, error: message.compact_error })
+      this.statusSink.emit({ type: 'compaction-error', error: message.compact_error ?? 'Compaction failed' })
+      return
+    }
+    if (message.compact_result === 'success') {
+      // A successful compaction may report `success` WITHOUT a following `compact_boundary` (the SDK
+      // does not guarantee one). Settle idempotently with a no-anchor completion so the session does
+      // not stay `compacting` until the idle TTL; a real boundary below still wins with the anchor.
+      this.statusSink.emit({ type: 'compaction-complete' })
+    }
+  }
+
+  private handleSessionStateChangedSystemMessage(message: SDKSessionStateChangedMessage): void {
+    if (message.state !== 'idle') return
+    // Idle means held-back results and the background-agent loop have drained, so no detached flow
+    // can still stream. Drop the per-flow state instead of retaining it for the connection lifetime;
+    // a late straggler simply gets a fresh context via `getOrCreateFlowContext`.
+    if (!this.turnActive) this.flowContexts.length = 0
+    if (!this.backgroundWorkReleasePending) return
+    this.backgroundWorkReleasePending = false
+    this.statusSink.emit({ type: 'background-work-state', active: false })
+  }
+
+  private handleCompactBoundarySystemMessage(message: SDKCompactBoundaryMessage): void {
+    const metadata = message.compact_metadata
+    const anchor: AgentSessionCompactionAnchorData = {
+      status: 'done',
+      phase: 'agent-session',
+      trigger: metadata.trigger,
+      completedAt: new Date().toISOString(),
+      preTokens: metadata.pre_tokens
+    }
+    if (metadata.post_tokens !== undefined) anchor.postTokens = metadata.post_tokens
+    if (metadata.duration_ms !== undefined) anchor.durationMs = metadata.duration_ms
+
+    this.statusSink.emit({ type: 'compaction-complete', anchor })
+  }
+
+  private handleThinkingTokensSystemMessage(message: SDKThinkingTokensMessage, ctx: StreamContext): void {
+    ctx.usage = {
+      ...ctx.usage,
+      outputTokens: {
+        ...ctx.usage.outputTokens,
+        reasoning: message.estimated_tokens
+      }
+    }
+    ctx.sink.enqueue({
+      type: 'message-metadata',
+      messageMetadata: this.buildMessageMetadata(ctx.usage)
+    })
+  }
+
+  private toTaskEventPartData(message: SdkTaskSystemMessage): AgentTaskEventPartData {
     const base = {
       taskId: message.task_id,
       toolUseId: 'tool_use_id' in message ? message.tool_use_id : undefined
@@ -998,7 +1521,8 @@ export class ClaudeCodeStreamAdapter {
           title: message.patch.description,
           activeText: status === 'in_progress' ? message.patch.description : undefined,
           description: message.patch.description,
-          error: message.patch.error
+          error: message.patch.error,
+          isBackgrounded: message.patch.is_backgrounded
         }
       }
       case 'task_notification':
@@ -1006,7 +1530,7 @@ export class ClaudeCodeStreamAdapter {
           ...base,
           event: 'notification',
           status: mapTaskStatus(message.status),
-          title: message.summary,
+          // The completion summary is prose, not a name — consumers keep the started-event title.
           summary: message.summary,
           outputFile: message.output_file,
           skipTranscript: message.skip_transcript === true,
@@ -1184,7 +1708,7 @@ export class ClaudeCodeStreamAdapter {
     return state.toolType === 'mcp' && state.serverName ? `${state.serverName}: ${toolName}` : undefined
   }
 
-  private buildParentProviderMetadata(sdkParentToolUseId: SDKParentToolUseId): Record<string, JSONObject> | undefined {
+  private buildParentProviderMetadata(sdkParentToolUseId: SdkParentToolUseId): Record<string, JSONObject> | undefined {
     if (!sdkParentToolUseId) return undefined
     return {
       'claude-code': {
@@ -1229,7 +1753,7 @@ export class ClaudeCodeStreamAdapter {
       content: hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result,
       metadata: {
         type: 'mcp',
-        ...(state.displayName ? { name: state.displayName } : {}),
+        name: state.displayName ?? state.name,
         ...(state.description ? { description: state.description } : {}),
         serverName: state.serverName ?? 'MCP',
         serverId: state.serverId ?? state.serverName ?? 'unknown'
@@ -1325,7 +1849,8 @@ export class ClaudeCodeStreamAdapter {
     ctx.sink.enqueue({
       type: 'tool-input-available',
       toolCallId: toolId,
-      toolName: state.name,
+      // Last resort: the name never arrived, so the call is emitted under the placeholder.
+      toolName: state.name || UNKNOWN_TOOL_NAME,
       input: this.deserializeToolInput(serializedInput),
       providerExecuted: true,
       dynamic: true,
@@ -1349,21 +1874,14 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private buildMessageMetadata(usage: LanguageModelV3Usage): CherryUIMessageMetadata {
-    const promptTokens = usage.inputTokens.total ?? 0
-    const completionTokens = usage.outputTokens.total ?? 0
-    const thoughtsTokens = usage.outputTokens.reasoning
-    const noCacheTokens = usage.inputTokens.noCache
-    const cacheReadTokens = usage.inputTokens.cacheRead
-    const cacheWriteTokens = usage.inputTokens.cacheWrite
+    // Full cumulative snapshot (Claude Code reports final usage once). Provider
+    // cost (`total_cost_usd`) is deliberately NOT used here — it is unreliable
+    // (session-cumulative / subscription-equivalent). Direct Agent SDK
+    // invocations are priced from their frozen model snapshot when their
+    // immutable usage record is captured.
     return {
       modelId: this.modelId,
-      totalTokens: promptTokens + completionTokens,
-      promptTokens,
-      completionTokens,
-      ...(thoughtsTokens !== undefined ? { thoughtsTokens } : {}),
-      ...(noCacheTokens !== undefined ? { noCacheTokens } : {}),
-      ...(cacheReadTokens !== undefined ? { cacheReadTokens } : {}),
-      ...(cacheWriteTokens !== undefined ? { cacheWriteTokens } : {})
+      stats: v3UsageToStats(usage)
     }
   }
 }

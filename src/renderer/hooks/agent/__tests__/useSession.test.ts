@@ -1,4 +1,5 @@
 import { toast } from '@renderer/services/toast'
+import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import {
@@ -21,6 +22,7 @@ import {
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 const mockUseIpcOn = vi.hoisted(() => vi.fn())
+const mockT = vi.hoisted(() => (key: string) => key)
 
 vi.mock('@renderer/hooks/tab', () => ({
   useCloseConversationTabs: () => mockCloseConversationTabs
@@ -44,7 +46,7 @@ const buildInfiniteReturn = (overrides: Record<string, unknown> = {}) => ({
 })
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: mockT })
 }))
 
 vi.mock('@renderer/data/hooks/useReorder', () => ({
@@ -130,6 +132,93 @@ describe('useActiveSession', () => {
     expect(result.current.isLoading).toBe(false)
   })
 
+  it('uses a matching initial session that arrives after mount', () => {
+    const initialSession = createSession({ id: 'session-1' })
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
+      data: undefined,
+      isLoading: true
+    })
+
+    const { result, rerender } = renderHook(
+      ({ session }) => useActiveSession({ activeSessionId: 'session-1', setActiveSessionId, initialSession: session }),
+      { initialProps: { session: null as AgentSessionEntity | null } }
+    )
+
+    expect(result.current.session).toBeUndefined()
+
+    rerender({ session: initialSession })
+
+    expect(result.current.session).toBe(initialSession)
+    expect(result.current.sessionSource).toBe('pending')
+    expect(result.current.isLoading).toBe(false)
+  })
+
+  it('does not serve an initial session after the canonical query reports not found', () => {
+    const initialSession = createSession({ id: 'session-1' })
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
+      data: undefined,
+      error: DataApiErrorFactory.notFound('Agent session', 'session-1'),
+      isLoading: false
+    })
+
+    const { result } = renderHook(() =>
+      useActiveSession({ activeSessionId: 'session-1', setActiveSessionId, initialSession })
+    )
+
+    expect(result.current.session).toBeUndefined()
+    expect(result.current.sessionSource).toBe('none')
+  })
+
+  it('does not serve cached query data after the canonical query reports not found', () => {
+    const cachedSession = createSession({ id: 'session-1' })
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
+      data: cachedSession,
+      error: DataApiErrorFactory.notFound('Agent session', 'session-1'),
+      isLoading: false
+    })
+
+    const { result } = renderHook(() => useActiveSession({ activeSessionId: 'session-1', setActiveSessionId }))
+
+    expect(result.current.session).toBeUndefined()
+    expect(result.current.sessionSource).toBe('none')
+  })
+
+  it('does not serve an explicitly pending session after the canonical query reports not found', () => {
+    const pendingSession = createSession({ id: 'session-1', name: 'Pending Session' })
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
+      data: undefined,
+      error: DataApiErrorFactory.notFound('Agent session', 'session-1'),
+      isLoading: false
+    })
+
+    const { result, rerender } = renderHook(
+      ({ activeSessionId }) => useActiveSession({ activeSessionId, setActiveSessionId }),
+      { initialProps: { activeSessionId: null as string | null } }
+    )
+
+    act(() => result.current.setActiveSession(pendingSession))
+    rerender({ activeSessionId: 'session-1' })
+
+    expect(result.current.session).toBeUndefined()
+    expect(result.current.sessionSource).toBe('none')
+  })
+
+  it('keeps an initial session available after a transient query error', () => {
+    const initialSession = createSession({ id: 'session-1' })
+    MockUseDataApiUtils.mockQueryResult('/agent-sessions/:sessionId', {
+      data: undefined,
+      error: new Error('temporarily unavailable'),
+      isLoading: false
+    })
+
+    const { result } = renderHook(() =>
+      useActiveSession({ activeSessionId: 'session-1', setActiveSessionId, initialSession })
+    )
+
+    expect(result.current.session).toBe(initialSession)
+    expect(result.current.sessionSource).toBe('pending')
+  })
+
   it('prefers matching query data over a pending session', () => {
     const querySession = createSession({ id: 'session-1' })
     const pendingSession = createSession({ id: 'session-1', name: 'Pending Session' })
@@ -186,6 +275,95 @@ describe('useSessions', () => {
     vi.clearAllMocks()
   })
 
+  it('disables loaded-page revalidation while a load-all session chain is still growing', () => {
+    renderHook(() => useSessions(undefined, { loadAll: true, pageSize: 200 }))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/agent-sessions', {
+      query: undefined,
+      limit: 200,
+      enabled: undefined,
+      swrOptions: { revalidateAll: false, revalidateFirstPage: false }
+    })
+  })
+
+  it('flips revalidateAll on once a load-all session chain is fully loaded', () => {
+    mockUseInfiniteQuery.mockReturnValue(
+      buildInfiniteReturn({
+        pages: [{ items: [{ id: 'session-a', name: 'S' }] }],
+        hasNext: false
+      }) as never
+    )
+
+    renderHook(() => useSessions(undefined, { loadAll: true, pageSize: 200 }))
+
+    expect(mockUseInfiniteQuery).toHaveBeenLastCalledWith('/agent-sessions', {
+      query: undefined,
+      limit: 200,
+      enabled: undefined,
+      swrOptions: { revalidateAll: true, revalidateFirstPage: false }
+    })
+  })
+
+  it('keeps progressive session sources on first-page revalidation', () => {
+    renderHook(() => useSessions(undefined))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/agent-sessions', {
+      query: undefined,
+      limit: 20,
+      enabled: undefined,
+      swrOptions: { revalidateAll: false, revalidateFirstPage: true }
+    })
+  })
+
+  it('does not revalidate previously loaded pages while the load-all session chain grows', () => {
+    // Simulate a multi-page loadAll: each render grows `pages` by one and
+    // keeps `hasNext` true until the final page. The auto-paginate effect
+    // drives `loadNext`; we assert that across every growth render the
+    // loaded-page revalidation stays disabled: `revalidateAll` prevents a
+    // quadratic re-fetch of earlier pages, while `revalidateFirstPage`
+    // prevents one redundant page-0 request per `loadNext`.
+    const loadNext = vi.fn()
+    let pages: Array<{ items: Array<{ id: string; name: string }>; nextCursor?: string }> = [
+      { items: [{ id: 's1', name: 'S1' }], nextCursor: 'c1' }
+    ]
+    let hasNext = true
+
+    mockUseInfiniteQuery.mockImplementation(
+      () =>
+        buildInfiniteReturn({
+          pages,
+          hasNext,
+          loadNext
+        }) as never
+    )
+
+    const { rerender } = renderHook(() => useSessions('agent-1', { loadAll: true, pageSize: 1 }))
+
+    // Page 1 → 2
+    pages = [...pages, { items: [{ id: 's2', name: 'S2' }], nextCursor: 'c2' }]
+    act(() => rerender())
+    // Page 2 → 3 (final)
+    pages = [...pages, { items: [{ id: 's3', name: 'S3' }] }]
+    hasNext = false
+    act(() => rerender())
+
+    // The auto-paginate effect drives loadNext; the key regression check is
+    // that neither previous pages nor page 0 are revalidated during growth.
+    expect(loadNext).toHaveBeenCalled()
+
+    // All calls during growth (every call except the final post-fully-loaded
+    // re-render where the effect flips revalidateAll on) must keep both
+    // growth-time revalidation modes off.
+    const growthCalls = mockUseInfiniteQuery.mock.calls.slice(0, -1)
+    expect(growthCalls.length).toBeGreaterThan(0)
+    for (const call of growthCalls) {
+      expect(call[1]).toMatchObject({ swrOptions: { revalidateAll: false, revalidateFirstPage: false } })
+    }
+    // The final call — after the chain is fully loaded — flips revalidateAll on.
+    const lastCall = mockUseInfiniteQuery.mock.calls[mockUseInfiniteQuery.mock.calls.length - 1]
+    expect(lastCall[1]).toMatchObject({ swrOptions: { revalidateAll: true, revalidateFirstPage: false } })
+  })
+
   it('returns empty sessions when agentId is null', () => {
     mockUseInfiniteQuery.mockReturnValueOnce(buildInfiniteReturn() as never)
 
@@ -237,6 +415,90 @@ describe('useSessions', () => {
     await act(async () => {})
 
     expect(result.current.sessions.map((s: any) => s.id)).toEqual(['s-1', 's-2'])
+  })
+
+  it('reuses deeply equal session entities by id while allowing their order to change', () => {
+    const sessionA = createSession({ id: 'session-a', name: 'Session A' })
+    const sessionB = createSession({ id: 'session-b', name: 'Session B' })
+    let pages = [{ items: [sessionA, sessionB] }]
+    mockUseInfiniteQuery.mockImplementation(() => buildInfiniteReturn({ pages }) as never)
+
+    const { result, rerender } = renderHook(() => useSessions('agent-1'))
+    const firstSessions = result.current.sessions
+
+    pages = [
+      {
+        items: [
+          { ...sessionB, workspace: { ...sessionB.workspace } },
+          { ...sessionA, workspace: { ...sessionA.workspace } }
+        ]
+      }
+    ]
+    rerender()
+
+    expect(result.current.sessions).not.toBe(firstSessions)
+    expect(result.current.sessions[0]).toBe(firstSessions[1])
+    expect(result.current.sessions[1]).toBe(firstSessions[0])
+
+    const reorderedSessions = result.current.sessions
+    pages = [
+      {
+        items: [
+          { ...sessionB, name: 'Renamed Session B', workspace: { ...sessionB.workspace } },
+          { ...sessionA, workspace: { ...sessionA.workspace } }
+        ]
+      }
+    ]
+    rerender()
+
+    expect(result.current.sessions[0]).not.toBe(reorderedSessions[0])
+    expect(result.current.sessions[1]).toBe(reorderedSessions[1])
+  })
+
+  it('keeps togglePin stable while reading the latest pin map', async () => {
+    const pinTrigger = vi.fn().mockResolvedValue(undefined)
+    const unpinTrigger = vi.fn().mockResolvedValue(undefined)
+    const defaultTrigger = vi.fn().mockResolvedValue(undefined)
+    const pin = {
+      id: 'pin-session-a',
+      entityType: 'session' as const,
+      entityId: 'session-a',
+      orderKey: 'a0',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
+    }
+    let pins: (typeof pin)[] = []
+    const infiniteReturn = buildInfiniteReturn()
+    mockUseInfiniteQuery.mockReturnValue(infiniteReturn as never)
+    mockUseQuery.mockImplementation((path: string) => ({
+      data: path === '/pins' ? pins : undefined,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: vi.fn().mockResolvedValue(undefined),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    mockUseMutation.mockImplementation((method: string, path: string) => ({
+      trigger:
+        method === 'POST' && path === '/pins'
+          ? pinTrigger
+          : method === 'DELETE' && path === '/pins/:id'
+            ? unpinTrigger
+            : defaultTrigger,
+      isLoading: false,
+      error: undefined
+    }))
+
+    const { result, rerender } = renderHook(() => useSessions('agent-1'))
+    const initialTogglePin = result.current.togglePin
+
+    pins = [pin]
+    rerender()
+
+    expect(result.current.togglePin).toBe(initialTogglePin)
+    await act(async () => result.current.togglePin('session-a'))
+    expect(unpinTrigger).toHaveBeenCalledWith({ params: { id: pin.id } })
+    expect(pinTrigger).not.toHaveBeenCalled()
   })
 
   it('loadMore drives loadNext when hasMore is true', async () => {
@@ -345,25 +607,10 @@ describe('useSessions', () => {
 
   it('creates a session through DataApi and refreshes the session list', async () => {
     const refresh = vi.fn().mockResolvedValue(undefined)
-    const mockSession = {
-      id: 'session-1',
-      agentId: 'agent-1',
+    const mockSession = createSession({
       name: 'New session',
-      description: 'Notes',
-      workspaceId: 'workspace-1',
-      workspace: {
-        id: 'workspace-1',
-        name: 'Workspace',
-        path: '/tmp/workspace',
-        type: 'user',
-        orderKey: 'a0',
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z'
-      },
-      orderKey: 'a0',
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
-    }
+      description: 'Notes'
+    })
     const createTrigger = vi.fn().mockResolvedValueOnce(mockSession)
     mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
@@ -416,25 +663,10 @@ describe('useSessions', () => {
 
   it('returns the created session when refreshing the session list fails', async () => {
     const refresh = vi.fn().mockRejectedValue(new Error('refresh failed'))
-    const mockSession = {
-      id: 'session-1',
-      agentId: 'agent-1',
+    const mockSession = createSession({
       name: 'New session',
-      description: 'Notes',
-      workspaceId: 'workspace-1',
-      workspace: {
-        id: 'workspace-1',
-        name: 'Workspace',
-        path: '/tmp/workspace',
-        type: 'user',
-        orderKey: 'a0',
-        createdAt: '2024-01-01T00:00:00Z',
-        updatedAt: '2024-01-01T00:00:00Z'
-      },
-      orderKey: 'a0',
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
-    }
+      description: 'Notes'
+    })
     const createTrigger = vi.fn().mockResolvedValueOnce(mockSession)
     mockUseInfiniteQuery.mockReturnValue(buildInfiniteReturn({ refresh }) as never)
     MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-sessions', createTrigger)
@@ -494,14 +726,7 @@ describe('useUpdateSession', () => {
   })
 
   it('updates sessions even when the previous agentId is null', async () => {
-    const mockResult = {
-      id: 'session-1',
-      agentId: 'agent-2',
-      name: 'Session',
-      orderKey: 'a0',
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
-    }
+    const mockResult = createSession({ agentId: 'agent-2' })
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
     MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
 
@@ -519,36 +744,7 @@ describe('useUpdateSession', () => {
   })
 
   it('updates when called with no agentId (composer path) — only an explicit null gates', async () => {
-    const mockResult = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      name: 'New name',
-      orderKey: 'a0',
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
-    }
-    const mockTrigger = vi.fn().mockResolvedValue(mockResult)
-    MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
-
-    const { result } = renderHook(() => useUpdateSession())
-    const updated = await act(async () => result.current.updateSession({ id: 'session-1', name: 'New name' }))
-
-    expect(mockTrigger).toHaveBeenCalledWith({
-      params: { sessionId: 'session-1' },
-      body: { name: 'New name' }
-    })
-    expect(updated).toEqual(mockResult)
-  })
-
-  it('updates when called with no agentId (composer path) — only an explicit null gates', async () => {
-    const mockResult = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      name: 'New name',
-      orderKey: 'a0',
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
-    }
+    const mockResult = createSession({ name: 'New name' })
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
     MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
 
@@ -563,14 +759,7 @@ describe('useUpdateSession', () => {
   })
 
   it('calls updateTrigger with sessionId-only params and returns session', async () => {
-    const mockResult = {
-      id: 'session-1',
-      agentId: 'agent-1',
-      name: 'New name',
-      orderKey: 'a0',
-      createdAt: '2024-01-01T00:00:00Z',
-      updatedAt: '2024-01-01T00:00:00Z'
-    }
+    const mockResult = createSession({ name: 'New name' })
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
     MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
 
@@ -634,14 +823,7 @@ describe('useUpdateSession', () => {
   })
 
   it('does not show success toast when showSuccessToast is false', async () => {
-    const mockResult = {
-      id: 's1',
-      agentId: 'a1',
-      name: 'S',
-      orderKey: 'a0',
-      createdAt: '',
-      updatedAt: ''
-    }
+    const mockResult = createSession({ id: 's1', agentId: 'a1', name: 'S', createdAt: '', updatedAt: '' })
     const mockTrigger = vi.fn().mockResolvedValue(mockResult)
     MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-sessions/:sessionId', mockTrigger)
 

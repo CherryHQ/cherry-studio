@@ -1,11 +1,11 @@
-import { Tooltip } from '@cherrystudio/ui'
+import { Button, Tooltip } from '@cherrystudio/ui'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { OpenInNewWindowIcon } from '@renderer/components/icons/WindowIcons'
 import type { OpenTabOptions, Tab } from '@renderer/hooks/tab'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
-import { emitResourceListReveal, type ResourceListRevealSource } from '@renderer/services/resourceListRevealEvents'
 import { isMac } from '@renderer/utils/platform'
 import { cn } from '@renderer/utils/style'
-import { Plus, X } from 'lucide-react'
+import { ArrowLeft, Plus, X } from 'lucide-react'
 import {
   cloneElement,
   isValidElement,
@@ -18,7 +18,8 @@ import {
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ShellTabBarActions, useShellTabBarLayout } from './ShellTabBarActions'
+import { WindowControls } from '../WindowControls'
+import { ShellTabBarActions } from './ShellTabBarActions'
 import { TabIcon } from './TabIcon'
 import { useTabDrag } from './useTabDrag'
 
@@ -28,6 +29,7 @@ type AppShellTabBarProps = {
   tabs: Tab[]
   activeTabId: string
   isFullscreen?: boolean
+  isFocusedTab?: boolean
   setActiveTab: (id: string) => void
   closeTab: (id: string) => void
   closeTabs: (ids: readonly string[], activateId?: string) => void
@@ -58,7 +60,28 @@ interface TabToneProps {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-const Separator = () => <div className="mx-0.5 h-4 w-px shrink-0 bg-border/50" />
+/**
+ * Tab divider. Chrome's own separator measures 2×16px at 8% white on its dark
+ * strip; ours keeps that height and tint but runs a step thinner (1.5px), which
+ * reads lighter against our narrower 4px tab gap. `--border` is 10%, one step
+ * too strong here — the dim is a one-off tint private to this file, not a
+ * shared alias.
+ */
+const TAB_DIVIDER_CLASS = 'h-4 w-[1.5px] bg-border/80'
+
+// Pinned/normal zone split — same hairline as the per-tab divider, and it
+// disappears on the same rule, so the two never behave differently side by side.
+const Separator = ({ hidden }: { hidden?: boolean }) => (
+  <div
+    data-tab-divider
+    data-visible={!hidden || undefined}
+    className={cn(
+      'mx-0.5 shrink-0 transition-opacity duration-150',
+      TAB_DIVIDER_CLASS,
+      hidden ? 'opacity-0' : 'opacity-100'
+    )}
+  />
+)
 
 type PinnedTabButtonProps = {
   tab: Tab
@@ -108,10 +131,50 @@ const PinnedTabButton = ({ tab, isActive, onSelect, drag, tabRef, tone, ref, ...
 
 const MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE = 'max(0px, calc(env(titlebar-area-x, 0px) - var(--sidebar-width, 0px)))'
 
-function getResourceListRevealSourceFromUrl(url: string): ResourceListRevealSource | null {
-  if (url === '/app/chat' || url.startsWith('/app/chat?') || url.startsWith('/app/chat/')) return 'assistants'
-  if (url === '/app/agents' || url.startsWith('/app/agents?') || url.startsWith('/app/agents/')) return 'agents'
-  return null
+type FocusedTabButtonProps = {
+  tab: Tab
+  onBack: () => void
+  drag: DragItemProps
+  tabRef: (el: HTMLButtonElement | null) => void
+  ref?: React.Ref<HTMLButtonElement>
+} & Omit<React.ComponentPropsWithoutRef<'button'>, 'onClick' | 'onPointerDown'>
+
+const FocusedTabButton = ({ tab, onBack, drag, tabRef, ref, ...rest }: FocusedTabButtonProps) => {
+  const { t } = useTranslation()
+  const setRefs = useCallback(
+    (el: HTMLButtonElement | null) => {
+      tabRef(el)
+      if (typeof ref === 'function') ref(el)
+      else if (ref) ref.current = el
+    },
+    [tabRef, ref]
+  )
+
+  return (
+    <button
+      {...rest}
+      ref={setRefs}
+      data-tab-id={tab.id}
+      data-ui="app.focused-tab-button"
+      type="button"
+      aria-label={t('common.back')}
+      onPointerDown={drag.onPointerDown}
+      onClick={onBack}
+      style={{
+        ...rest.style,
+        transform: `translateX(${drag.translateX}px)`,
+        transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 150ms ease',
+        opacity: drag.isGhost ? 0.3 : 1
+      }}
+      className={cn(
+        'group nodrag flex h-8 w-auto shrink-0 appearance-none items-center gap-1.5 border-0 bg-transparent px-2.5 text-muted-foreground text-sm shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-foreground',
+        drag.isDragging ? 'cursor-grabbing' : 'cursor-pointer',
+        rest.className
+      )}>
+      <ArrowLeft className="transition-colors group-hover:text-foreground" size={16} strokeWidth={1.7} aria-hidden />
+      <span>{t('common.back')}</span>
+    </button>
+  )
 }
 
 type NormalTabButtonProps = {
@@ -129,6 +192,8 @@ type NormalTabButtonProps = {
   closingWasActive?: boolean
   /** Animated unfreeze: the frozen width is gliding toward its natural flexed value. */
   isThawing?: boolean
+  /** Chrome-style hairline in the gap left of this tab, splitting it from its predecessor. */
+  showDivider?: boolean
   drag: DragItemProps
   tabRef: (el: HTMLButtonElement | null) => void
   tone: TabToneProps
@@ -145,6 +210,7 @@ const NormalTabButton = ({
   isClosing = false,
   closingWasActive = false,
   isThawing = false,
+  showDivider = false,
   drag,
   tabRef,
   tone,
@@ -257,6 +323,21 @@ const NormalTabButton = ({
             : tone.hoverClass,
         isClosing && 'min-w-0 overflow-hidden px-0'
       )}>
+      {/* Chrome-style divider (see TAB_DIVIDER_CLASS), centred in the strip's 4px
+          gap so it reads as belonging to neither tab. The bar hides it whenever a
+          neighbour lights up (active / hover / closing / dragging) — fading on the
+          same 150ms as the tab tints it hands over to, so the boundary is never
+          missing mid-swap. */}
+      <span
+        aria-hidden
+        data-tab-divider
+        data-visible={showDivider || undefined}
+        className={cn(
+          '-left-[3px] -translate-y-1/2 pointer-events-none absolute top-1/2 transition-opacity duration-150',
+          TAB_DIVIDER_CLASS,
+          showDivider ? 'opacity-100' : 'opacity-0'
+        )}
+      />
       <TabIcon tab={tab} size={14} className="shrink-0" />
       <span
         className="min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left font-normal text-xs leading-none"
@@ -375,6 +456,7 @@ const TabRightClickMenu = ({
   onClose,
   onCloseOthers,
   onCloseToRight,
+  onOpenChange,
   children
 }: {
   isPinned: boolean
@@ -385,10 +467,16 @@ const TabRightClickMenu = ({
   onClose: () => void
   onCloseOthers: () => void
   onCloseToRight: () => void
+  /** Mirrors the open state up to the bar, which counts an open menu as a lit tab. */
+  onOpenChange?: (open: boolean) => void
   children: React.ReactNode
 }) => {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const handleOpenChange = (open: boolean) => {
+    setMenuOpen(open)
+    onOpenChange?.(open)
+  }
 
   const items = useMemo<CommandContextMenuExtraItem[]>(() => {
     const entries: Array<{ enabled: boolean; item: CommandContextMenuExtraItem }> = [
@@ -463,7 +551,7 @@ const TabRightClickMenu = ({
       location="webcontents.context"
       extraItems={items}
       contentClassName="min-w-[130px]"
-      onOpenChange={setMenuOpen}>
+      onOpenChange={handleOpenChange}>
       {/* data-menu-open drives the tab's menu-open highlight. Unlike Radix's
           data-state, it is also set when the menu shows as a native OS popup. */}
       {isValidElement(children)
@@ -481,6 +569,7 @@ export const AppShellTabBar = ({
   tabs,
   activeTabId,
   isFullscreen = false,
+  isFocusedTab = false,
   setActiveTab,
   closeTab,
   closeTabs,
@@ -492,7 +581,6 @@ export const AppShellTabBar = ({
 }: AppShellTabBarProps) => {
   const { t } = useTranslation()
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { rightPaddingClass } = useShellTabBarLayout()
   const tabTone = useMemo<TabToneProps>(
     () =>
       isMacTransparentWindow
@@ -523,6 +611,10 @@ export const AppShellTabBar = ({
   // Tabs currently playing their collapse animation (id → whether they were the
   // active tab when the close started); removal is deferred until the animation ends.
   const [closingTabIds, setClosingTabIds] = useState<ReadonlyMap<string, boolean>>(() => new Map())
+  // Tab under the cursor, and the one whose context menu is open — both count as
+  // lit, so they suppress the dividers on either side of themselves.
+  const [hoveredTabId, setHoveredTabId] = useState<string | null>(null)
+  const [menuOpenTabId, setMenuOpenTabId] = useState<string | null>(null)
   // Pointer closes are registered before the double-rAF animation starts. This
   // deduplicates click/double-click sequences and lets concurrent closes skip
   // every tab that is already on its way out.
@@ -562,6 +654,10 @@ export const AppShellTabBar = ({
   )
 
   const { pinnedTabs, normalTabs } = useMemo(() => {
+    if (isFocusedTab) {
+      return { pinnedTabs: [], normalTabs: tabs }
+    }
+
     const pinned: Tab[] = []
     const normal: Tab[] = []
     for (const tab of tabs) {
@@ -572,7 +668,7 @@ export const AppShellTabBar = ({
       }
     }
     return { pinnedTabs: pinned, normalTabs: normal }
-  }, [tabs])
+  }, [isFocusedTab, tabs])
   const visualTabsRef = useRef<Tab[]>([])
   visualTabsRef.current = [...pinnedTabs, ...normalTabs]
   const activeTabIdRef = useRef(activeTabId)
@@ -659,15 +755,26 @@ export const AppShellTabBar = ({
 
   const handleSelectTab = useCallback(
     (tab: Tab) => {
-      if (!handleTabClick(tab.id)) return
-
-      const revealSource = getResourceListRevealSourceFromUrl(tab.url)
-      if (revealSource) {
-        emitResourceListReveal({ source: revealSource, tabId: tab.id })
-      }
+      handleTabClick(tab.id)
     },
     [handleTabClick]
   )
+
+  // ─── Tab dividers ───────────────────────────────────────────────────────────
+
+  /** A tab that draws its own surface — its own edges already separate it, so the dividers beside it go. */
+  const isTabLit = (tabId: string) =>
+    tabId === activeTabId ||
+    tabId === hoveredTabId ||
+    tabId === menuOpenTabId ||
+    closingTabIds.has(tabId) ||
+    isDragging(tabId) ||
+    isGhost(tabId)
+
+  // A reorder drag only translates tabs; the arrays keep their pre-drop order,
+  // so "the tab before me" no longer matches what the eye sees. Rather than
+  // predict the visual order, drop every divider until the drag settles.
+  const isReordering = normalTabs.some((tab) => isDragging(tab.id))
 
   // ─── Action handlers ────────────────────────────────────────────────────────
 
@@ -719,6 +826,7 @@ export const AppShellTabBar = ({
 
   const handleStripMouseLeave = () => {
     stripPointerInsideRef.current = false
+    setHoveredTabId(null)
     if ([...pendingCloseIdsRef.current].some((id) => !closingTabIds.has(id))) {
       thawAfterCollapseRef.current = true
       return
@@ -772,23 +880,27 @@ export const AppShellTabBar = ({
     <>
       <header
         ref={tabBarRef}
+        data-ui="app.tab-bar"
         className={cn(
-          'relative flex h-11 w-full select-none items-center gap-1 [-webkit-app-region:drag]',
+          'relative flex h-11 w-full select-none items-center gap-2 [-webkit-app-region:drag]',
           isMacTransparentWindow ? 'bg-transparent' : 'bg-sidebar',
-          rightPaddingClass,
           'pl-0'
         )}>
         {/* Tab buttons are no-drag; empty tabbar space remains available for moving the window. */}
         <div
           ref={stripRef}
           data-testid="app-shell-tab-strip"
-          style={isMac && !isFullscreen ? { paddingLeft: MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE } : undefined}
+          style={
+            isMac && !isFullscreen
+              ? { paddingLeft: isFocusedTab ? 'env(titlebar-area-x)' : MACOS_TAB_STRIP_TRAFFIC_LIGHT_RESERVE }
+              : undefined
+          }
           onMouseEnter={() => {
             stripPointerInsideRef.current = true
             thawAfterCollapseRef.current = false
           }}
           onMouseLeave={handleStripMouseLeave}
-          className="flex flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
+          className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto pr-1 [&::-webkit-scrollbar]:hidden">
           {/* Pinned tabs */}
           {pinnedTabs.length > 0 && (
             <div className="flex shrink-0 items-center gap-0 rounded-full bg-sidebar-accent/50 p-0 [-webkit-app-region:no-drag]">
@@ -804,7 +916,10 @@ export const AppShellTabBar = ({
                     onDetach={() => detachTab?.(tab.id)}
                     onClose={() => closeTab(tab.id)}
                     onCloseOthers={() => handleCloseOthers(tab.id)}
-                    onCloseToRight={() => handleCloseToRight(tab.id)}>
+                    onCloseToRight={() => handleCloseToRight(tab.id)}
+                    onOpenChange={(open) =>
+                      setMenuOpenTabId(open ? tab.id : (current) => (current === tab.id ? null : current))
+                    }>
                     <PinnedTabButton
                       tab={tab}
                       isActive={tab.id === activeTabId}
@@ -832,11 +947,63 @@ export const AppShellTabBar = ({
             </div>
           )}
 
-          {pinnedTabs.length > 0 && hasUnpinnedTabs && <Separator />}
+          {pinnedTabs.length > 0 && hasUnpinnedTabs && (
+            <Separator
+              hidden={isReordering || isTabLit(pinnedTabs[pinnedTabs.length - 1].id) || isTabLit(normalTabs[0].id)}
+            />
+          )}
 
           {/* Normal tabs — affordances come entirely from getTabCapabilities. */}
           {normalTabs.map((tab, index) => {
-            const caps = getTabCapabilities(tab, { ...tabContext, normalIndex: index })
+            const caps = isFocusedTab
+              ? {
+                  menu: true,
+                  reorder: false,
+                  togglePin: false,
+                  detach: !!detachTab,
+                  close: true,
+                  closeOthers: false,
+                  closeToRight: false
+                }
+              : getTabCapabilities(tab, { ...tabContext, normalIndex: index })
+            if (isFocusedTab) {
+              return (
+                <TabRightClickMenu
+                  key={tab.id}
+                  isPinned={false}
+                  capabilities={caps}
+                  onMoveToFirst={() => handleMoveToFirst(tab.id)}
+                  onTogglePin={() => handlePinToggle(tab.id)}
+                  onDetach={() => detachTab?.(tab.id)}
+                  onClose={() => closeTab(tab.id)}
+                  onCloseOthers={() => handleCloseOthers(tab.id)}
+                  onCloseToRight={() => handleCloseToRight(tab.id)}>
+                  <FocusedTabButton
+                    tab={tab}
+                    onBack={() => {
+                      if (handleTabClick(tab.id)) closeTab(tab.id)
+                    }}
+                    drag={{
+                      isDragging: isDragging(tab.id),
+                      isGhost: isGhost(tab.id),
+                      noTransition,
+                      translateX: getTranslateX(tab.id, 'normal'),
+                      onPointerDown:
+                        caps.reorder || caps.detach ? (e) => handlePointerDown(e, tab, 'normal') : () => undefined
+                    }}
+                    tabRef={(el) => {
+                      if (el) {
+                        tabRefs.current.set(tab.id, el)
+                      } else {
+                        tabRefs.current.delete(tab.id)
+                      }
+                    }}
+                  />
+                </TabRightClickMenu>
+              )
+            }
+            const prevTab = normalTabs[index - 1]
+            const showDivider = !!prevTab && !isReordering && !isTabLit(tab.id) && !isTabLit(prevTab.id)
             return (
               <TabRightClickMenu
                 key={tab.id}
@@ -847,7 +1014,10 @@ export const AppShellTabBar = ({
                 onDetach={() => detachTab?.(tab.id)}
                 onClose={() => closeTab(tab.id)}
                 onCloseOthers={() => handleCloseOthers(tab.id)}
-                onCloseToRight={() => handleCloseToRight(tab.id)}>
+                onCloseToRight={() => handleCloseToRight(tab.id)}
+                onOpenChange={(open) =>
+                  setMenuOpenTabId(open ? tab.id : (current) => (current === tab.id ? null : current))
+                }>
                 <NormalTabButton
                   tab={tab}
                   isActive={tab.id === activeTabId}
@@ -923,6 +1093,9 @@ export const AppShellTabBar = ({
                   isClosing={closingTabIds.has(tab.id)}
                   closingWasActive={closingTabIds.get(tab.id) ?? false}
                   isThawing={isThawing}
+                  showDivider={showDivider}
+                  onMouseEnter={() => setHoveredTabId(tab.id)}
+                  onMouseLeave={() => setHoveredTabId((current) => (current === tab.id ? null : current))}
                   tone={tabTone}
                   drag={{
                     isDragging: isDragging(tab.id),
@@ -945,22 +1118,47 @@ export const AppShellTabBar = ({
           })}
 
           {/* Launchpad button — sticky so it hugs the last tab but never scrolls away */}
-          <Tooltip placement="bottom" content={t('title.launchpad')} delay={800}>
-            <button
-              type="button"
-              data-launchpad-button
-              aria-label={t('title.launchpad')}
-              onClick={handleOpenLaunchpad}
-              className={cn(
-                'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
-                isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
-              )}>
-              <Plus size={14} />
-            </button>
-          </Tooltip>
+          {!isFocusedTab && (
+            <Tooltip placement="bottom" content={t('title.launchpad')} delay={800}>
+              <button
+                type="button"
+                data-launchpad-button
+                aria-label={t('title.launchpad')}
+                onClick={handleOpenLaunchpad}
+                className={cn(
+                  'sticky right-0 ml-0.5 flex h-7 w-7 shrink-0 appearance-none items-center justify-center rounded-[10px] border-0 bg-transparent p-0 text-muted-foreground shadow-none transition-colors [-webkit-app-region:no-drag] hover:text-sidebar-foreground',
+                  isMacTransparentWindow ? 'hover:bg-white/50 dark:hover:bg-white/8' : 'hover:bg-sidebar-accent'
+                )}>
+                <Plus size={14} />
+              </button>
+            </Tooltip>
+          )}
         </div>
 
-        <ShellTabBarActions />
+        {isFocusedTab ? (
+          <div className="flex h-full shrink-0 items-stretch">
+            {detachTab && (
+              <div className="flex items-center pr-2 [-webkit-app-region:no-drag]">
+                <Tooltip content={t('tab.open_in_new_window')} placement="bottom" delay={800}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-label={t('tab.open_in_new_window')}
+                    onClick={() => detachTab(activeTabId)}
+                    className="group size-8 cursor-pointer rounded-[8px] p-0">
+                    <OpenInNewWindowIcon
+                      className="text-foreground-tertiary transition-colors group-hover:text-foreground"
+                      size={16}
+                    />
+                  </Button>
+                </Tooltip>
+              </div>
+            )}
+            <WindowControls />
+          </div>
+        ) : (
+          <ShellTabBarActions />
+        )}
       </header>
     </>
   )

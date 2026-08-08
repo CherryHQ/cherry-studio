@@ -40,12 +40,19 @@ export async function createAgent<
   // 3. Resolve model + apply middleware via pluginEngine
   const resolvedModel = await executor.pluginEngine.resolveModel(modelId)
 
-  // 4. Optional outermost wrapper (e.g. retry/fallback) around the fully resolved model
+  // 4. Run the transformParams chain over the agent settings. ToolLoopAgent
+  //    holds them for the whole loop and never enters the per-request plugin
+  //    pipeline, so this is the only point where a `transformParams`-only
+  //    plugin (provider-native tool injection) can contribute.
+  const transformedSettings = await executor.pluginEngine.transformAgentSettings(resolvedModel, agentSettings)
+
+  // 5. Apply an optional outermost wrapper (e.g. retry/fallback) around the
+  //    fully resolved model after model-specific middleware and settings transforms.
   const finalModel = wrapModel ? await wrapModel(resolvedModel) : resolvedModel
 
-  // 5. Build ToolLoopAgent
+  // 6. Build ToolLoopAgent
   return new ToolLoopAgent({
-    ...agentSettings,
+    ...transformedSettings,
     model: finalModel
   })
 }
