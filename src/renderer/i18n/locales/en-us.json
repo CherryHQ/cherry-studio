@@ -1741,12 +1741,6 @@
       "top": "Back to top"
     },
     "resend": "Resend",
-    "resource_view": {
-      "menu": {
-        "agent": "Agents",
-        "assistant": "Assistants"
-      }
-    },
     "save": {
       "file": {
         "title": "Save to Local File"
@@ -1919,6 +1913,7 @@
         "time": "Time",
         "title": "Display mode"
       },
+      "draft": "Draft",
       "edit": {
         "placeholder": "Enter new name",
         "title": "Edit conversation name",

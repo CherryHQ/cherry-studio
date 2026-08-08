@@ -249,7 +249,26 @@ describe('AiStreamManager', () => {
         contextOwner: 'caller'
       })
 
-      expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ contextOwner: 'caller' }))
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({ chatId: 'gateway-request-1', contextOwner: 'caller' })
+      )
+    })
+
+    it('keeps stream identity separate from conversation identity', () => {
+      mgr.streamPrompt({
+        streamId: 'gateway-request-1',
+        uniqueModelId: 'provider-a::model-a',
+        messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
+        listener: new FakeListener('gateway:request-1'),
+        contextOwner: 'caller',
+        usageContext: {
+          agentSessionId: 'session-1',
+          assistantMessageId: 'message-1',
+          source: null
+        }
+      })
+
+      expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'session-1' }))
     })
   })
 
