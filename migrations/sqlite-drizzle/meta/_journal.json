@@ -43,6 +43,13 @@
       "when": 1785848624191,
       "tag": "0005_slow_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1786102553947,
+      "tag": "0006_confused_toad",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,1 @@
+ALTER TABLE `user_model` ADD `preferred_endpoint_type` text;

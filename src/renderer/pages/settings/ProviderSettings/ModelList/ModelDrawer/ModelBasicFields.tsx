@@ -2,20 +2,23 @@ import { Input } from '@cherrystudio/ui'
 import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode, Ref } from 'react'
+import type { EndpointType } from '@shared/data/types/model'
+import { type ReactNode, type Ref, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { ModelEndpointOption } from './helpers'
 import { ModelEndpointTypeChips } from './ModelEndpointTypeChips'
 import { ModelEndpointTypeSelect } from './ModelEndpointTypeSelect'
+import { ModelPreferredEndpointSelect } from './ModelPreferredEndpointSelect'
 import type { ModelBasicFormState, ModelDrawerEndpointType } from './types'
 
 interface ModelBasicFieldsProps {
   values: ModelBasicFormState
   showEndpointType: boolean
   endpointTypeControl?: 'select' | 'chips'
-  /** Narrows the offered endpoints; defaults to the full option list. */
-  endpointTypeOptions?: readonly ModelEndpointOption[]
+  /** Routable endpoints for this model; the picker only renders when there is more than one. */
+  preferredEndpointOptions?: readonly EndpointType[]
+  preferredEndpointType?: EndpointType
+  onPreferredEndpointTypeChange?: (next: EndpointType) => void
   showRequiredIndicator?: boolean
   layout?: 'vertical' | 'horizontal'
   modelIdDisabled?: boolean
@@ -36,7 +39,9 @@ export function ModelBasicFields({
   values,
   showEndpointType,
   endpointTypeControl = 'select',
-  endpointTypeOptions,
+  preferredEndpointOptions,
+  preferredEndpointType,
+  onPreferredEndpointTypeChange,
   showRequiredIndicator = false,
   layout = 'vertical',
   modelIdDisabled = false,
@@ -53,6 +58,12 @@ export function ModelBasicFields({
   onEndpointTypesChange
 }: ModelBasicFieldsProps) {
   const { t } = useTranslation()
+  const preferredEndpointLabelId = useId()
+  // One routable endpoint means there is nothing to choose.
+  const showPreferredEndpoint =
+    (preferredEndpointOptions?.length ?? 0) > 1 &&
+    preferredEndpointType != null &&
+    onPreferredEndpointTypeChange != null
 
   return (
     <>
@@ -134,18 +145,28 @@ export function ModelBasicFields({
           help={endpointTypeError ? <div className={drawerClasses.errorText}>{endpointTypeError}</div> : null}>
           <div data-testid="provider-settings-model-endpoint-type-field">
             {endpointTypeControl === 'chips' ? (
-              <ModelEndpointTypeChips
-                value={values.endpointTypes ?? []}
-                options={endpointTypeOptions}
-                onChange={onEndpointTypesChange}
-              />
+              <ModelEndpointTypeChips value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
             ) : (
-              <ModelEndpointTypeSelect
-                value={values.endpointTypes ?? []}
-                options={endpointTypeOptions}
-                onChange={onEndpointTypesChange}
-              />
+              <ModelEndpointTypeSelect value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
             )}
+          </div>
+        </ProviderField>
+      )}
+
+      {showPreferredEndpoint && (
+        <ProviderField
+          title={t('settings.models.add.preferred_endpoint.label')}
+          titleId={preferredEndpointLabelId}
+          titleClassName={drawerClasses.fieldTitle}
+          layout={layout}
+          className={drawerClasses.field}>
+          <div data-testid="provider-settings-model-preferred-endpoint-field">
+            <ModelPreferredEndpointSelect
+              value={preferredEndpointType}
+              options={preferredEndpointOptions ?? []}
+              labelledBy={preferredEndpointLabelId}
+              onChange={onPreferredEndpointTypeChange}
+            />
           </div>
         </ProviderField>
       )}

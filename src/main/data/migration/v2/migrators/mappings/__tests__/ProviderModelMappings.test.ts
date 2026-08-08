@@ -40,6 +40,26 @@ describe('ProviderModelMappings', () => {
 
       expect(result.capabilities).toEqual([])
     })
+
+    it('keeps the v1 route as an explicit preference when it is not first in the supported set', () => {
+      const result = transformModel(
+        {
+          id: 'claude-sonnet-4-6',
+          endpoint_type: 'anthropic',
+          supported_endpoint_types: ['openai', 'anthropic']
+        } as never,
+        'new-api'
+      )
+
+      expect(result.endpointTypes).toEqual(['openai-chat-completions', 'anthropic-messages'])
+      expect(result.preferredEndpointType).toBe('anthropic-messages')
+    })
+
+    it('leaves the preference unset when v1 pinned no route', () => {
+      const result = transformModel({ id: 'gpt-5', supported_endpoint_types: ['openai'] } as never, 'new-api')
+
+      expect(result.preferredEndpointType).toBeNull()
+    })
   })
 
   describe('transformProvider', () => {

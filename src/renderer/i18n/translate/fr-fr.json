@@ -147,7 +147,6 @@
       }
     },
     "composer": {
-      "background_running_many": "{{count}} tâches en arrière-plan en cours d'exécution",
       "background_running_one": "{{count}} tâche de fond en cours d'exécution",
       "background_running_other": "{{count}} tâches en arrière-plan en cours d'exécution"
     },
@@ -262,7 +261,6 @@
         }
       },
       "file_tree": "Arborescence de fichiers",
-      "items_many": "{{count}} éléments",
       "items_one": "{{count}} élément",
       "items_other": "{{count}} éléments",
       "maximize": "Maximiser",
@@ -347,7 +345,6 @@
         "agent": "Agent",
         "context": "Contexte",
         "no_tasks": "Aucune tâche active",
-        "run_task_live_many": "{{count}} en direct",
         "run_task_live_one": "{{count}} en direct",
         "run_task_live_other": "{{count}} en direct",
         "run_tasks": "Sous-tâches",
@@ -356,7 +353,6 @@
         "stop_run_task_failed": "Impossible d'arrêter la tâche",
         "task_count": "{{completed}} / {{total}} terminé",
         "tasks": "Tâches",
-        "tool_uses_many": "{{count}} appels d'outils",
         "tool_uses_one": "{{count}} appel d'outil",
         "tool_uses_other": "{{count}} appels d'outils",
         "tools_active": "Actif",
@@ -459,13 +455,13 @@
         "expand_all": "Développer tout",
         "no_workdir": "Aucun répertoire de travail",
         "show_more": "Développer l'affichage",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "Cette semaine",
         "today": "Aujourd'hui",
         "unknown_agent": "Agent inconnu",
         "unknown_agent_tip": "Il s'agit d'un groupe de session historique sans agent, et non d'un agent réel. Il est en lecture seule et ne peut pas continuer à s'exécuter.",
         "yesterday": "Hier"
       },
-      "label_many": "Sessions",
       "label_one": "Session",
       "label_other": "Sessions",
       "list": {
@@ -2175,7 +2171,6 @@
     "config_json_hint": "Collez ou modifiez le JSON brut ; il reste synchronisé avec les champs ci-dessus",
     "configure": "Configurer",
     "configuring_provider": "Configurer {{provider}}",
-    "count_many": "{{count}} éléments",
     "count_one": "{{count}} élément",
     "count_other": "{{count}} éléments",
     "current_config": "Actuel",
@@ -2305,13 +2300,11 @@
     "add_success": "Ajout réussi",
     "advanced_settings": "Paramètres avancés",
     "agent": "Agent",
-    "agent_many": "Agents",
     "agent_one": "Agent",
     "agent_other": "Agents",
     "all": "Tous",
     "and": "et",
     "assistant": "Assistant",
-    "assistant_many": "Assistants",
     "assistant_one": "Assistant",
     "assistant_other": "Assistants",
     "avatar": "Avatar",
@@ -3248,7 +3241,6 @@
       "action": "Reconstruire la base de connaissances",
       "default_name": "{{name}}_sauvegarde",
       "failed_to_restore": "Échec de la reconstruction de la base de connaissances",
-      "skipped_missing_sources_many": "{{count}} éléments ont été ignorés car leur source n'existe plus",
       "skipped_missing_sources_one": "{{count}} élément ignoré dont la source n'existe plus",
       "skipped_missing_sources_other": "{{count}} éléments ont été ignorés car leur source n'existe plus",
       "submit": "Reconstruire",
@@ -4281,22 +4273,16 @@
       "thinkingHeader": "Réflexion",
       "truncated": "Sortie tronquée (original : {{size}})",
       "units": {
-        "done_many": "{{count}} terminés",
         "done_one": "{{count}} terminé",
         "done_other": "{{count}} terminés",
-        "file_many": "{{count}} fichiers",
         "file_one": "{{count}} fichier",
         "file_other": "{{count}} fichiers",
-        "item_many": "{{count}} éléments",
         "item_one": "{{count}} élément",
         "item_other": "{{count}} éléments",
-        "line_many": "{{count}} lignes",
         "line_one": "{{count}} ligne",
         "line_other": "{{count}} lignes",
-        "plan_many": "{{count}} plans",
         "plan_one": "{{count}} plan",
         "plan_other": "{{count}} plans",
-        "result_many": "{{count}} résultats",
         "result_one": "{{count}} résultat",
         "result_other": "{{count}} résultats"
       },
@@ -5172,12 +5158,10 @@
     "search_placeholder": "Rechercher des modules d'extension...",
     "search_placeholder_skills": "Compétences de recherche...",
     "showing_results": "Afficher {{count}} extensions",
-    "showing_results_many": "Afficher {{count}} extensions",
     "showing_results_one": "Afficher {{count}} extension",
     "showing_results_other": "Afficher {{count}} extensions",
     "showing_results_plural": "Afficher {{count}} modules d'extension",
     "showing_results_skills": "Afficher {{count}} compétence",
-    "showing_results_skills_many": "Afficher {{count}} compétences",
     "showing_results_skills_one": "Afficher {{count}} compétence",
     "showing_results_skills_other": "Afficher {{count}} compétences",
     "showing_results_skills_plural": "Affichage de {{count}} compétences",
@@ -5900,7 +5884,6 @@
             "title": "Journaux de l'application"
           },
           "summary": "{{count}} fichiers, environ {{size}}",
-          "summary_many": "{{count}} fichiers, environ {{size}}",
           "summary_one": "{{count}} fichier, environ {{size}}",
           "summary_other": "{{count}} fichiers, environ {{size}}",
           "system": {
@@ -6076,7 +6059,6 @@
         "title": "Exporter les paramètres du menu",
         "yuque": "Exporter vers Yuque"
       },
-      "hour_interval_many": "{{count}} heures",
       "hour_interval_one": "{{count}} heure",
       "hour_interval_other": "{{count}} heures",
       "import_settings": {
@@ -6166,7 +6148,6 @@
           "select_error_write_permission": "Le nouveau chemin n'a pas les autorisations d'écriture",
           "select_title": "Choisir le répertoire de sauvegarde"
         },
-        "hour_interval_many": "{{count}} heures",
         "hour_interval_one": "{{count}} heure",
         "hour_interval_other": "{{count}} heures",
         "lastSync": "Dernière sauvegarde",
@@ -6174,7 +6155,6 @@
           "label": "Nombre maximal de sauvegardes",
           "unlimited": "Illimité"
         },
-        "minute_interval_many": "{{count}} minutes",
         "minute_interval_one": "{{count}} minute",
         "minute_interval_other": "{{count}} minutes",
         "noSync": "En attente de la prochaine sauvegarde",
@@ -6222,7 +6202,6 @@
           "title": "Utiliser le modèle rapide pour nommer le titre des messages exportés"
         }
       },
-      "minute_interval_many": "{{count}} minutes",
       "minute_interval_one": "{{count}} minute",
       "minute_interval_other": "{{count}} minutes",
       "notion": {
@@ -6515,12 +6494,10 @@
           "label": "Adresse WebDAV",
           "placeholder": "http://localhost:8080"
         },
-        "hour_interval_many": "{{count}} heures",
         "hour_interval_one": "{{count}} heure",
         "hour_interval_other": "{{count}} heures",
         "lastSync": "Dernière sauvegarde",
         "maxBackups": "Nombre maximal de sauvegardes",
-        "minute_interval_many": "{{count}} minutes",
         "minute_interval_one": "{{count}} minute",
         "minute_interval_other": "{{count}} minutes",
         "noSync": "Attendre la prochaine sauvegarde",
@@ -7288,6 +7265,9 @@
         },
         "model_type": {
           "label": "Type de modèle"
+        },
+        "preferred_endpoint": {
+          "label": "[to be translated]:Preferred Endpoint"
         },
         "purpose": {
           "chat": {
@@ -8431,7 +8411,6 @@
         "shareLabel": "Partager",
         "title": "Explorer",
         "top": "Haut",
-        "totalEntries_many": "{{count}} entrées",
         "totalEntries_one": "{{count}} entrée",
         "totalEntries_other": "{{count}} entrées"
       },
@@ -8473,7 +8452,6 @@
       "title": "Analyse d'utilisation",
       "tooltip": {
         "cost": "Coût {{value}}",
-        "requests_many": "{{count}} requêtes",
         "requests_one": "{{count}} requête",
         "requests_other": "{{count}} requêtes",
         "tokens": "{{value}} jetons"

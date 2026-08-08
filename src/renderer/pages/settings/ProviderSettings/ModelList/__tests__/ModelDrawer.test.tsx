@@ -193,8 +193,9 @@ describe('Model drawers', () => {
     )
   })
 
-  it('offers an optional endpoint picker for a preset provider serving two chat endpoints', async () => {
-    // doubao-shaped: an ordinary preset provider (legacy drawer mode) that speaks both chat and responses.
+  it('pins the chosen endpoint without touching the supported set', async () => {
+    const user = userEvent.setup()
+    // doubao-shaped: an ordinary preset provider that speaks both chat completions and responses.
     useProviderMock.mockReturnValue({
       provider: {
         id: 'doubao',
@@ -210,24 +211,65 @@ describe('Model drawers', () => {
 
     render(<AddModelDrawer providerId="doubao" open prefill={null} onClose={vi.fn()} />)
 
-    expect(screen.getByTestId('provider-settings-model-endpoint-type-field')).toBeInTheDocument()
+    // No capability multi-select here — only the routing choice.
+    expect(screen.queryByTestId('provider-settings-model-endpoint-type-field')).not.toBeInTheDocument()
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    expect(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai' })).toBeChecked()
 
-    fireEvent.change(screen.getByLabelText('settings.models.add.model_id.label'), {
-      target: { value: 'doubao-seed-2-1-pro' }
-    })
+    await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' }))
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'doubao-seed-2-1-pro')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
 
-    await act(async () => {
-      fireEvent.submit(screen.getByTestId('provider-settings-model-add-drawer-content'))
-    })
-
-    // The picker seeds the provider's default endpoint, so it is pinned explicitly rather than left blank.
     expect(createModelMock).toHaveBeenCalledWith(
       expect.objectContaining({
         providerId: 'doubao',
         modelId: 'doubao-seed-2-1-pro',
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointTypes: undefined
       })
     )
+  })
+
+  it('leaves the endpoint choice unset when the user never picks one', async () => {
+    const user = userEvent.setup()
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'doubao',
+        name: 'doubao',
+        presetProviderId: 'doubao',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+        }
+      }
+    })
+
+    render(<AddModelDrawer providerId="doubao" open prefill={null} onClose={vi.fn()} />)
+
+    await user.type(screen.getByLabelText('settings.models.add.model_id.label'), 'doubao-seed-2-1-pro')
+    await user.click(screen.getByRole('button', { name: /settings\.models\.add\.add_model/i }))
+
+    // Pinning the default anyway would freeze the model against future registry updates.
+    expect(createModelMock).toHaveBeenCalledWith(
+      expect.not.objectContaining({ preferredEndpointType: expect.anything() })
+    )
+  })
+
+  it('hides the endpoint choice when the provider serves a single chat endpoint', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'anthropic',
+        name: 'Anthropic',
+        presetProviderId: 'anthropic',
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' } }
+      }
+    })
+
+    render(<AddModelDrawer providerId="anthropic" open prefill={null} onClose={vi.fn()} />)
+
+    expect(screen.queryByTestId('provider-settings-model-preferred-endpoint-field')).not.toBeInTheDocument()
   })
 
   it('atomically maps a custom model to image editing from the purpose surface', async () => {
@@ -854,7 +896,8 @@ describe('Model drawers', () => {
     )
   })
 
-  it('auto-saves an endpoint switch for a preset provider serving two chat endpoints', async () => {
+  it('auto-saves an endpoint switch as a routing preference, leaving the supported set alone', async () => {
+    const user = userEvent.setup()
     useProviderMock.mockReturnValue({
       provider: {
         id: 'doubao',
@@ -880,7 +923,7 @@ describe('Model drawers', () => {
             name: 'doubao-seed-2-1-pro',
             group: 'doubao',
             capabilities: [],
-            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
             supportsStreaming: true,
             pricing: {
               input: { perMillionTokens: 0, currency: 'USD' },
@@ -891,19 +934,18 @@ describe('Model drawers', () => {
       />
     )
 
-    const endpointField = screen.getByTestId('provider-settings-model-endpoint-type-field')
-    // Only the provider's own chat endpoints are offered — no embedding/image/rerank protocols.
-    expect(within(endpointField).queryByRole('button', { name: 'endpoint_type.jina-rerank' })).not.toBeInTheDocument()
+    const preferredField = screen.getByTestId('provider-settings-model-preferred-endpoint-field')
+    // Seeded from the effective route, which without a stored preference is `endpointTypes[0]`.
+    expect(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai' })).toBeChecked()
 
-    await act(async () => {
-      fireEvent.click(within(endpointField).getByRole('button', { name: 'endpoint_type.openai-response' }))
-    })
+    await user.click(within(preferredField).getByRole('radio', { name: 'endpoint_type.openai-response' }))
 
     expect(updateModelMock).toHaveBeenCalledWith(
       'doubao',
       'doubao-seed-2-1-pro',
       expect.objectContaining({
-        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES]
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES,
+        endpointTypes: undefined
       })
     )
   })

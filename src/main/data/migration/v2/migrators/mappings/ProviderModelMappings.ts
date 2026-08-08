@@ -438,6 +438,10 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
 
 export function transformModel(legacy: LegacyModel, providerId: string): Omit<InsertUserModelRow, 'orderKey'> {
   const endpointTypes = mapEndpointTypes(legacy.endpoint_type, legacy.supported_endpoint_types)
+  // v1 already separated the route (`endpoint_type`) from the capability set
+  // (`supported_endpoint_types`); carry it over instead of losing it in the merged array, whose
+  // first entry comes from `supported_endpoint_types` whenever v1 stored one.
+  const preferredEndpointType = mapEndpointTypes(legacy.endpoint_type)?.[0] ?? null
 
   return {
     id: createUniqueModelId(providerId, legacy.id),
@@ -455,6 +459,7 @@ export function transformModel(legacy: LegacyModel, providerId: string): Omit<In
     inputModalities: null,
     outputModalities: null,
     endpointTypes,
+    preferredEndpointType,
     contextWindow: null,
     maxOutputTokens: null,
     supportsStreaming: legacy.supported_text_delta ?? true,

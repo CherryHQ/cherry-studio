@@ -68,6 +68,36 @@ describe('fetchResolvedProviderModels', () => {
       endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
     })
   })
+
+  it('never lets registry metadata rewrite an explicit routing preference', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'doubao::doubao-seed-2-1-pro',
+        providerId: 'doubao',
+        apiModelId: 'doubao-seed-2-1-pro',
+        name: 'doubao-seed-2-1-pro',
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      }
+    ])
+    dataApiGetMock.mockResolvedValueOnce([
+      {
+        id: 'doubao::doubao-seed-2-1-pro',
+        providerId: 'doubao',
+        apiModelId: 'doubao-seed-2-1-pro',
+        name: 'Doubao Seed 2.1 Pro',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+        preferredEndpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      }
+    ])
+
+    const models = await fetchResolvedProviderModels('doubao')
+
+    expect(models[0]).toMatchObject({
+      name: 'Doubao Seed 2.1 Pro',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.OPENAI_RESPONSES],
+      preferredEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+    })
+  })
 })
 
 describe('fetchProviderCatalogModels', () => {

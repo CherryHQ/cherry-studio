@@ -3,22 +3,17 @@ import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primiti
 import { cn } from '@renderer/utils/style'
 import { useTranslation } from 'react-i18next'
 
-import { MODEL_ENDPOINT_OPTIONS, type ModelEndpointOption } from './helpers'
+import { MODEL_ENDPOINT_OPTIONS } from './helpers'
 import type { ModelDrawerEndpointType } from './types'
 
 interface ModelEndpointTypeSelectProps {
   value: readonly ModelDrawerEndpointType[]
-  options?: readonly ModelEndpointOption[]
   onChange: (next: readonly ModelDrawerEndpointType[]) => void
 }
 
-export function ModelEndpointTypeSelect({
-  value,
-  options: endpointOptions = MODEL_ENDPOINT_OPTIONS,
-  onChange
-}: ModelEndpointTypeSelectProps) {
+export function ModelEndpointTypeSelect({ value, onChange }: ModelEndpointTypeSelectProps) {
   const { t } = useTranslation()
-  const options: ComboboxOption[] = endpointOptions.map((option) => ({
+  const options: ComboboxOption[] = MODEL_ENDPOINT_OPTIONS.map((option) => ({
     value: option.id,
     label: t(option.label)
   }))

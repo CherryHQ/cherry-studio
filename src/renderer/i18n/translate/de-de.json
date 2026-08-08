@@ -455,6 +455,7 @@
         "expand_all": "Alle erweitern",
         "no_workdir": "Kein Arbeitsverzeichnis",
         "show_more": "Anzeige erweitern",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "Diese Woche",
         "today": "Heute",
         "unknown_agent": "Unbekannter Agent",
@@ -7264,6 +7265,9 @@
         },
         "model_type": {
           "label": "Modelltyp"
+        },
+        "preferred_endpoint": {
+          "label": "[to be translated]:Preferred Endpoint"
         },
         "purpose": {
           "chat": {

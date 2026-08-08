@@ -147,6 +147,7 @@
       }
     },
     "composer": {
+      "background_running_one": "[to be translated]:{{count}} background task running",
       "background_running_other": "{{count}} tác vụ nền đang chạy"
     },
     "delete": {
@@ -260,6 +261,7 @@
         }
       },
       "file_tree": "Cây tệp",
+      "items_one": "[to be translated]:{{count}} item",
       "items_other": "{{count}} mục",
       "maximize": "Tối đa hóa",
       "minimize": "Thu nhỏ",
@@ -343,6 +345,7 @@
         "agent": "Agent",
         "context": "Bối cảnh",
         "no_tasks": "Không có tác vụ nào đang hoạt động",
+        "run_task_live_one": "[to be translated]:{{count}} live",
         "run_task_live_other": "{{count}} trực tiếp",
         "run_tasks": "Nhiệm vụ phụ",
         "selected_tool": "Công cụ đã chọn",
@@ -350,6 +353,7 @@
         "stop_run_task_failed": "Không thể dừng tác vụ",
         "task_count": "{{completed}} / {{total}} hoàn thành",
         "tasks": "Nhiệm vụ",
+        "tool_uses_one": "[to be translated]:{{count}} tool call",
         "tool_uses_other": "{{count}} lệnh gọi công cụ",
         "tools_active": "Hoạt động",
         "tools_done": "Xong",
@@ -451,12 +455,14 @@
         "expand_all": "Mở rộng tất cả",
         "no_workdir": "Không có thư mục làm việc",
         "show_more": "Mở rộng hiển thị",
+        "tasks": "[to be translated]:Tasks",
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_agent": "Agent không xác định",
         "unknown_agent_tip": "Đây là nhóm phiên cũ không có Agent, không phải Agent thực tế. Bạn chỉ có thể xem và không thể tiếp tục chạy nhóm này.",
         "yesterday": "Hôm qua"
       },
+      "label_one": "[to be translated]:Session",
       "label_other": "Phiên",
       "list": {
         "title": "Nhiệm vụ"
@@ -2165,6 +2171,7 @@
     "config_json_hint": "Dán hoặc chỉnh sửa JSON thô; nó đồng bộ với các trường ở trên",
     "configure": "Cấu hình",
     "configuring_provider": "Cấu hình {{provider}}",
+    "count_one": "[to be translated]:{{count}} item",
     "count_other": "{{count}} mục",
     "current_config": "Hiện tại",
     "current_config_settings": "Cấu hình hiện tại",
@@ -2293,10 +2300,12 @@
     "add_success": "Đã thêm thành công",
     "advanced_settings": "Cài đặt nâng cao",
     "agent": "Agent",
+    "agent_one": "[to be translated]:Agent",
     "agent_other": "Agent",
     "all": "Tất cả",
     "and": "và",
     "assistant": "Trợ lý",
+    "assistant_one": "[to be translated]:Assistant",
     "assistant_other": "Trợ lý",
     "avatar": "Ảnh đại diện",
     "back": "Quay lại",
@@ -3232,6 +3241,7 @@
       "action": "Xây dựng lại cơ sở tri thức",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Không thể xây dựng lại cơ sở tri thức",
+      "skipped_missing_sources_one": "[to be translated]:Skipped {{count}} item whose source no longer exists",
       "skipped_missing_sources_other": "Đã bỏ qua {{count}} mục có nguồn không còn tồn tại",
       "submit": "Xây dựng lại",
       "title": "Xây dựng lại Cơ sở tri thức"
@@ -4263,11 +4273,17 @@
       "thinkingHeader": "Suy nghĩ",
       "truncated": "Đã cắt bớt đầu ra (bản gốc: {{size}})",
       "units": {
+        "done_one": "[to be translated]:{{count}} Done",
         "done_other": "{{count}} Hoàn thành",
+        "file_one": "[to be translated]:{{count}} file",
         "file_other": "{{count}} tệp",
+        "item_one": "[to be translated]:{{count}} item",
         "item_other": "{{count}} mục",
+        "line_one": "[to be translated]:{{count}} line",
         "line_other": "{{count}} dòng",
+        "plan_one": "[to be translated]:{{count}} plan",
         "plan_other": "{{count}} kế hoạch",
+        "result_one": "[to be translated]:{{count}} result",
         "result_other": "{{count}} kết quả"
       },
       "workflow": {
@@ -5142,9 +5158,11 @@
     "search_placeholder": "Tìm kiếm plugin...",
     "search_placeholder_skills": "Kỹ năng tìm kiếm...",
     "showing_results": "Hiển thị {{count}} plugin",
+    "showing_results_one": "[to be translated]:Showing {{count}} plugin",
     "showing_results_other": "Hiển thị {{count}} plugin",
     "showing_results_plural": "Hiển thị {{count}} plugin",
     "showing_results_skills": "Hiển thị {{count}} kỹ năng",
+    "showing_results_skills_one": "[to be translated]:Showing {{count}} skill",
     "showing_results_skills_other": "Hiển thị {{count}} kỹ năng",
     "showing_results_skills_plural": "Hiển thị {{count}} kỹ năng",
     "skills": "Kỹ năng",
@@ -5866,6 +5884,7 @@
             "title": "Nhật ký ứng dụng"
           },
           "summary": "{{count}} tệp, khoảng {{size}}",
+          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
           "summary_other": "{{count}} tệp, khoảng {{size}}",
           "system": {
             "description": "Bao gồm thông tin chi tiết về ứng dụng, hệ thống và thiết bị. Số lần xảy ra sự cố gần đây: {{crashCount}}. Không thu thập tệp kết xuất sự cố.",
@@ -6040,6 +6059,7 @@
         "title": "Xuất Cài Đặt Menu",
         "yuque": "Xuất sang Yuque"
       },
+      "hour_interval_one": "[to be translated]:{{count}} hour",
       "hour_interval_other": "{{count}} giờ",
       "import_settings": {
         "button": "Nhập tệp Json",
@@ -6128,12 +6148,14 @@
           "select_error_write_permission": "Đường dẫn mới không có quyền ghi",
           "select_title": "Chọn Thư Mục Sao Lưu"
         },
+        "hour_interval_one": "[to be translated]:{{count}} hour",
         "hour_interval_other": "{{count}} giờ",
         "lastSync": "Sao lưu Cuối cùng",
         "maxBackups": {
           "label": "Số bản sao lưu tối đa",
           "unlimited": "Không giới hạn"
         },
+        "minute_interval_one": "[to be translated]:{{count}} minute",
         "minute_interval_other": "{{count}} phút",
         "noSync": "Đang chờ bản sao lưu tiếp theo",
         "restore": {
@@ -6180,6 +6202,7 @@
           "title": "Dùng mô hình nhanh để đặt tiêu đề cho thông điệp được xuất"
         }
       },
+      "minute_interval_one": "[to be translated]:{{count}} minute",
       "minute_interval_other": "{{count}} phút",
       "notion": {
         "api_key": "Khóa API Notion",
@@ -6471,9 +6494,11 @@
           "label": "Máy chủ WebDAV",
           "placeholder": "http://localhost:8080"
         },
+        "hour_interval_one": "[to be translated]:{{count}} hour",
         "hour_interval_other": "{{count}} giờ",
         "lastSync": "Bản sao lưu cuối cùng",
         "maxBackups": "Số bản sao lưu tối đa",
+        "minute_interval_one": "[to be translated]:{{count}} minute",
         "minute_interval_other": "{{count}} phút",
         "noSync": "Chờ bản sao lưu tiếp theo",
         "password": "Mật khẩu WebDAV",
@@ -7240,6 +7265,9 @@
         },
         "model_type": {
           "label": "Loại mô hình"
+        },
+        "preferred_endpoint": {
+          "label": "[to be translated]:Preferred Endpoint"
         },
         "purpose": {
           "chat": {
@@ -8383,6 +8411,7 @@
         "shareLabel": "Chia sẻ",
         "title": "Khám phá",
         "top": "Đầu",
+        "totalEntries_one": "[to be translated]:{{count}} entry",
         "totalEntries_other": "{{count}} mục"
       },
       "groupBy": {
@@ -8423,6 +8452,7 @@
       "title": "Phân tích sử dụng",
       "tooltip": {
         "cost": "Chi phí {{value}}",
+        "requests_one": "[to be translated]:{{count}} request",
         "requests_other": "{{count}} yêu cầu",
         "tokens": "{{value}} token"
       },
