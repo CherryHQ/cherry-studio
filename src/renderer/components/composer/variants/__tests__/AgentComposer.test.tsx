@@ -2288,7 +2288,7 @@ describe('AgentComposer', () => {
       expect.objectContaining({
         recursive: true,
         includeDirectories: false,
-        maxDepth: 3,
+        maxDepth: 10,
         searchPattern: 'notes'
       })
     )
@@ -2334,6 +2334,36 @@ describe('AgentComposer', () => {
     ])
     expect(setFilesUpdater([selectedFile])).toBeInstanceOf(Array)
     expect(setFilesUpdater([selectedFile])).toHaveLength(1)
+  })
+
+  // Regression: #17979. Workspace search adopted depth 10 in #12131, while the v2 composer
+  // lineage (#16260 -> #16621 -> #17133) retained a depth-3 caller limit that hid this path.
+  it('finds a workspace file beneath three nested directories through @ search', async () => {
+    const targetPath = '/workspace/考研/27 考研数学基础通关 600 题（高等数学）/第六章 微分方程/6.1 微分方程基本概念.md'
+    mocks.listDirectoryEntries.mockImplementation(async (_dirPath: string, options?: { maxDepth?: number }) =>
+      (options?.maxDepth ?? 0) >= 4 ? [{ path: targetPath, isDirectory: false }] : []
+    )
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const items = await source?.items({ query: '微分方程', editor: {} as any })
+
+    expect(items).toEqual([
+      expect.objectContaining({
+        label: '考研/27 考研数学基础通关 600 题（高等数学）/第六章 微分方程/6.1 微分方程基本概念.md',
+        description: targetPath,
+        disabled: false
+      })
+    ])
   })
 
   it('groups files and sessions under header rows when @ has no query', async () => {
