@@ -72,6 +72,7 @@ import { resolveCapabilities } from './capabilities'
 import { collectFromFeatures } from './collectFromFeatures'
 import { createCustomParamsFetch, selectCustomBodyParameters } from './customParamsFetch'
 import type { RequestFeature } from './feature'
+import { hasAnchorRow } from './features/contextBuild'
 import { INTERNAL_FEATURES } from './features/internalFeatures'
 import { type NativeFileSupport, resolveNativeFileSupport } from './nativeFileSupport'
 import type { RequestScope, SdkConfig } from './scope'
@@ -148,7 +149,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
   // Mirrors buildContextOptions' enablement (contextBuild.ts): when the truncate
   // lane cannot run, no new <persisted-output> markers can appear this request.
-  const canOffloadToolOutputs = contextSettings.enabled && request.contextOwner !== 'caller'
+  // The anchor lookup is the third condition — without a real message row the
+  // truncator has nowhere to hang a blob and degrades to inline head/tail
+  // truncation, so temporary chats and one-shot calls (translate / topic naming
+  // / probes) can never mint a marker. Resolved here once and carried on the
+  // scope; `resolveTruncateStorage` reuses it rather than re-querying.
+  const canOffloadToolOutputs =
+    contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId)
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request) : undefined
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
