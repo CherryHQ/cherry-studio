@@ -142,10 +142,10 @@ export type AssistantSaveIntent = {
 /**
  * Compute the minimal Assistant PATCH payload.
  *
- * - Columns block: when ANY of name/emoji/description/modelId/prompt
- *   or any settings field differs, the dto carries all five column
- *   keys + a full `settings` object spread over `assistant.settings`
- *   (preserves unrelated settings keys the UI doesn't surface).
+ * - Top-level columns ship independently when their value differs.
+ * - Settings ship only when an editable settings field differs. The full
+ *   object is spread over `assistant.settings` to preserve keys the UI
+ *   doesn't surface.
  * - Relation arrays (knowledgeBaseIds / mcpServerIds) ship only when
  *   their set differs — order-insensitive, matches junction semantics.
  * - Group: placed directly on the DTO as the canonical `groupId`.
@@ -159,12 +159,12 @@ export function diffAssistantUpdate(
 ): AssistantDiffResult | null {
   const customParametersChanged = JSON.stringify(baseline.customParameters) !== JSON.stringify(form.customParameters)
 
-  const columnsChanged =
-    baseline.name !== form.name ||
-    baseline.emoji !== form.emoji ||
-    baseline.description !== form.description ||
-    baseline.modelId !== form.modelId ||
-    baseline.prompt !== form.prompt ||
+  const nameChanged = baseline.name !== form.name
+  const emojiChanged = baseline.emoji !== form.emoji
+  const descriptionChanged = baseline.description !== form.description
+  const modelIdChanged = baseline.modelId !== form.modelId
+  const promptChanged = baseline.prompt !== form.prompt
+  const settingsChanged =
     baseline.temperature !== form.temperature ||
     baseline.enableTemperature !== form.enableTemperature ||
     baseline.topP !== form.topP ||
@@ -188,21 +188,27 @@ export function diffAssistantUpdate(
   const knowledgeBaseIdsChanged = !sameIdSet(baseline.knowledgeBaseIds, form.knowledgeBaseIds)
   const mcpServerIdsChanged = !sameIdSet(baseline.mcpServerIds, form.mcpServerIds)
 
-  if (!columnsChanged && !groupChanged && !knowledgeBaseIdsChanged && !mcpServerIdsChanged) {
+  if (
+    !nameChanged &&
+    !emojiChanged &&
+    !descriptionChanged &&
+    !modelIdChanged &&
+    !promptChanged &&
+    !settingsChanged &&
+    !groupChanged &&
+    !knowledgeBaseIdsChanged &&
+    !mcpServerIdsChanged
+  ) {
     return null
   }
 
   const dto: UpdateAssistantDto = {
-    ...(columnsChanged
-      ? {
-          name: form.name.trim() || assistant.name,
-          emoji: form.emoji,
-          description: form.description,
-          modelId: form.modelId,
-          prompt: form.prompt,
-          settings: buildAssistantSettingsFromForm(form, assistant.settings)
-        }
-      : {}),
+    ...(nameChanged ? { name: form.name.trim() || assistant.name } : {}),
+    ...(emojiChanged ? { emoji: form.emoji } : {}),
+    ...(descriptionChanged ? { description: form.description } : {}),
+    ...(modelIdChanged ? { modelId: form.modelId } : {}),
+    ...(promptChanged ? { prompt: form.prompt } : {}),
+    ...(settingsChanged ? { settings: buildAssistantSettingsFromForm(form, assistant.settings) } : {}),
     ...(knowledgeBaseIdsChanged ? { knowledgeBaseIds: form.knowledgeBaseIds } : {}),
     ...(mcpServerIdsChanged ? { mcpServerIds: form.mcpServerIds } : {}),
     ...(groupChanged ? { groupId: form.groupId } : {})

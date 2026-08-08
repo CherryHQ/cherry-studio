@@ -1,3 +1,4 @@
+import { UpdateAssistantSchema } from '@shared/data/api/schemas/assistants'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { describe, expect, it } from 'vitest'
@@ -83,28 +84,33 @@ describe('diffAssistantUpdate', () => {
     expect(diffAssistantUpdate(baseline, baseline, assistant)).toBeNull()
   })
 
-  it('emits the full columns+settings block when any column field changes', () => {
+  it('emits only the changed assistant column', () => {
     const assistant = createAssistant({ name: 'Original' })
     const baseline = initialAssistantFormState(assistant)
     const form = { ...baseline, description: 'edited' }
 
     const result = diffAssistantUpdate(form, baseline, assistant)
-    expect(result).not.toBeNull()
-    expect(result!.dto).toMatchObject({
-      name: 'Original',
-      emoji: assistant.emoji,
-      description: 'edited',
-      modelId: assistant.modelId,
-      prompt: assistant.prompt,
-      settings: expect.objectContaining({
-        temperature: baseline.temperature,
-        mcpMode: baseline.mcpMode
-      })
-    })
-    expect(result!.dto.groupId).toBeUndefined()
+    expect(result?.dto).toEqual({ description: 'edited' })
   })
 
-  it('emits a valid MCP mode when editing an unrelated field on a legacy assistant', () => {
+  it('keeps unrelated legacy settings out of a name-only PATCH', () => {
+    const assistant = createAssistant({
+      name: 'Original',
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        maxTokens: 0
+      } as unknown as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, name: 'Renamed' }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+
+    expect(UpdateAssistantSchema.safeParse(result?.dto).success).toBe(true)
+    expect(result?.dto).toEqual({ name: 'Renamed' })
+  })
+
+  it('emits a valid MCP mode when changing settings on a legacy assistant', () => {
     const assistant = createAssistant({
       settings: {
         ...DEFAULT_ASSISTANT_SETTINGS,
@@ -112,7 +118,7 @@ describe('diffAssistantUpdate', () => {
       } as unknown as AssistantSettings
     })
     const baseline = initialAssistantFormState(assistant)
-    const form = { ...baseline, description: 'edited' }
+    const form = { ...baseline, enableTemperature: true }
 
     const result = diffAssistantUpdate(form, baseline, assistant)
 
@@ -133,12 +139,12 @@ describe('diffAssistantUpdate', () => {
       settings: {
         ...DEFAULT_ASSISTANT_SETTINGS,
         // `reasoning_effort` is a settings key the library dialog never
-        // touches — it MUST survive a columns PATCH.
+        // touches — it MUST survive a settings PATCH.
         reasoning_effort: 'high'
       } as AssistantSettings
     })
     const baseline = initialAssistantFormState(assistant)
-    const form = { ...baseline, prompt: 'updated' }
+    const form = { ...baseline, enableTemperature: true }
 
     const result = diffAssistantUpdate(form, baseline, assistant)
     expect(result?.dto.settings).toMatchObject({ reasoning_effort: 'high' })
@@ -188,7 +194,7 @@ describe('diffAssistantUpdate', () => {
     expect(result?.dto.name).toBeUndefined()
   })
 
-  it('treats custom parameter changes as a column-block edit', () => {
+  it('treats custom parameter changes as a settings edit', () => {
     const assistant = createAssistant()
     const baseline = initialAssistantFormState(assistant)
     const form = {
