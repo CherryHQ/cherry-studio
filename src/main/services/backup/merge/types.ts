@@ -5,16 +5,28 @@
 // follows identity-class defaults (uuid-entity → SKIP, natural-key/slot → FIELD_MERGE);
 // identity propagation rewrites FKs to local canonical PKs; junction rows are
 // resolved in a global phase after all root/member writes. See spec
-// `backup-restore-safety/import-orchestrator.md` + plan `cryptic-inventing-toucan.md`.
+// `backup-restore-safety/import-orchestrator.md`.
 
 import type { AggregateBoundary } from '@main/data/db/backup/contributorTypes'
 import type { DbColumnName, DbTableName } from '@main/data/db/backup/dbSchemaRefs'
 import type { BackupDomain, ConflictStrategy } from '@main/data/db/backup/domains'
 import type { DbType } from '@main/data/db/types'
-import type { RestoreDegradationKind } from '@shared/types/backup'
 import type Database from 'better-sqlite3'
 
-import type { ResourcePlan } from '../resourcePlanning'
+/**
+ * The subset of the caller's resource plan the engine needs: which body-backed note
+ * overlays may be imported, and where their root must point on this host
+ * (notesRoot-relative relPath → target notes root).
+ *
+ * Declared structurally instead of importing the producer's `ResourcePlan`: that type
+ * lives in the backup service layer, which in turn pulls in archive concepts (manifest /
+ * presets / archive errors). The engine must not take a reverse dependency on the layer
+ * that calls it — same direction rule as `@main/data/db/backup/README.md`. The backup
+ * `ResourcePlan` satisfies this shape structurally, so callers pass it unchanged.
+ */
+export interface NoteOverlayPlan {
+  readonly noteAdditions: ReadonlyMap<string, string>
+}
 
 /** Effective action for an aggregate during merge — exhaustive switch in importRows (B3). */
 export type MergeAction = 'insert' | 'skip' | 'overwrite' | 'rename' | 'field-merge'
@@ -146,6 +158,30 @@ export interface IdentityMap {
 }
 
 /**
+ * Why a reconcile pass had to degrade a row or reference instead of applying it faithfully.
+ *
+ * This is the *engine's* vocabulary, owned here rather than imported from a consumer's
+ * contract: the engine reconciles two databases and has no opinion on where the remote one
+ * came from. Consumers map it onto their own user-facing enum — backup maps to
+ * `RestoreDegradationKind`, which is the IPC + i18n surface and must stay stable.
+ *
+ * `remote_overwrote_local` is deliberately consumer-neutral: for restore the remote side is
+ * a backup archive; for a future cross-device consumer it is a peer replica.
+ */
+export const RECONCILE_DEGRADATION_KINDS = [
+  'ref_cleared',
+  'row_pruned',
+  'rows_skipped',
+  'association_dropped',
+  'field_conflict',
+  'remote_overwrote_local',
+  'attachment_unavailable',
+  'resource_content_missing'
+] as const
+
+export type ReconcileDegradationKind = (typeof RECONCILE_DEGRADATION_KINDS)[number]
+
+/**
  * A degraded-to-SKIP record — the merge side of the one structured degradation contract
  * (`RestoreDegradation`). Every lossy merge phase (dangling-ref repair, junction /
  * polymorphic drops, field conflicts, attachment disclosure) emits one of these; the
@@ -153,8 +189,8 @@ export interface IdentityMap {
  * the relaunch in the journal instead of living only in a log line.
  */
 export interface DegradedSkip {
-  /** Stable code the renderer i18n's — `reason` stays diagnostic-only. */
-  readonly kind: RestoreDegradationKind
+  /** Engine-side reason code; the consumer maps it to its own i18n'd enum. */
+  readonly kind: ReconcileDegradationKind
   readonly table: DbTableName
   readonly count: number
   readonly reason: string
@@ -214,7 +250,7 @@ export interface MergeContext {
    * single source for which body-backed note overlays may be imported and where
    * their root_path must point on this host. Missing plans fail closed for Notes.
    */
-  readonly resourcePlan?: Pick<ResourcePlan, 'noteAdditions'>
+  readonly resourcePlan?: NoteOverlayPlan
   /**
    * Whether Notes overlays are in scope. ImportOrchestrator sets this via
    * `presetIncludesFiles(manifest.preset)` (P0-3) — not raw manifest.includeFiles

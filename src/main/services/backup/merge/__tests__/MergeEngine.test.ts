@@ -327,10 +327,10 @@ describe('MergeEngine (MVP SKIP/INSERT slice)', () => {
     expect(row.api_keys).toContain('from-backup')
     expect(row.api_keys).not.toContain('SECRET-LOCAL')
     // Destructive overwrite of a non-empty local value is disclosed with the DISTINCT
-    // backup_overwrote_local kind (not field_conflict, whose i18n says "keep the local value").
+    // remote_overwrote_local kind (not field_conflict, whose i18n says "keep the local value").
     expect(
       result.degradedToSkips.some(
-        (d) => d.kind === 'backup_overwrote_local' && /backup-wins overwrote local non-empty/.test(d.reason ?? '')
+        (d) => d.kind === 'remote_overwrote_local' && /backup-wins overwrote local non-empty/.test(d.reason ?? '')
       )
     ).toBe(true)
   })

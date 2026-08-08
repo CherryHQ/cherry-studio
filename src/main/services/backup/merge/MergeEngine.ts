@@ -35,7 +35,6 @@ import { DB_FOREIGN_KEYS, DB_FTS_VIRTUAL_TABLES, DB_UNIQUE_KEYS } from '@main/da
 import type { BackupDomain } from '@main/data/db/backup/domains'
 import type { DbType } from '@main/data/db/types'
 import type { EntityType } from '@shared/data/types/entityType'
-import type { RestoreDegradationKind } from '@shared/types/backup'
 import Database from 'better-sqlite3'
 
 import { assertFtsIntegrity, rebuildFts } from './ftsCentral'
@@ -45,7 +44,7 @@ import {
   derivePolymorphicAssociationDescriptors,
   POLYMORPHIC_ENTITY_TYPE_ROOT_TABLE
 } from './polymorphicAssociationDeriver'
-import type { AggregateDecision, DegradedSkip, IdentityMap, MergeContext, MergeResult } from './types'
+import type { AggregateDecision, DegradedSkip, IdentityMap, MergeContext, MergeResult, ReconcileDegradationKind } from './types'
 
 const logger = loggerService.withContext('MergeEngine')
 
@@ -1841,12 +1840,12 @@ export class MergeEngine {
         // backup-wins: a non-empty backup value overwrites local (even non-empty). Backup
         // null/empty never overwrites (an empty backup would wipe local config). Overwriting
         // a local NON-EMPTY value is destructive → disclose with a DISTINCT kind
-        // (backup_overwrote_local, NOT field_conflict) so the summary tells the user the local
+        // (remote_overwrote_local, NOT field_conflict) so the summary tells the user the local
         // value was REPLACED, not kept (field_conflict's i18n says "will keep the local value").
         if (!isEmptyForRemoteFill(backupVal)) {
           if (!isEmptyForRemoteFill(localVal) && !cellEqualForMerge(backupVal, localVal)) {
             degradedToSkips.push({
-              kind: 'backup_overwrote_local',
+              kind: 'remote_overwrote_local',
               table,
               count: 1,
               reason: `backup-wins overwrote local non-empty ('${policy.column}')`
@@ -2549,7 +2548,7 @@ export class MergeEngine {
     }
     for (const [key, count] of counts) {
       const [table, kind, reason] = key.split(DEGRADE_KEY_SEP)
-      degradedToSkips.push({ kind: kind as RestoreDegradationKind, table: table as DbTableName, count, reason })
+      degradedToSkips.push({ kind: kind as ReconcileDegradationKind, table: table as DbTableName, count, reason })
     }
   }
 

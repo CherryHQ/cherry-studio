@@ -198,7 +198,11 @@ describe('ImportOrchestrator spine', () => {
         mergeBackupIntoWork: async () => ({
           degradedToSkips: [
             { kind: 'row_pruned', table: 'chat_message_file_ref', count: 2, reason: 'target missing' },
-            { kind: 'attachment_unavailable', table: 'message', count: 5, reason: 'blob not staged' }
+            { kind: 'attachment_unavailable', table: 'message', count: 5, reason: 'blob not staged' },
+            // The engine's consumer-neutral 'remote_overwrote_local' must map to backup's published
+            // 'backup_overwrote_local' (the IPC + i18n key). This is the one kind whose name differs
+            // across the two vocabularies — assert the mapping lands inside the zod enum.
+            { kind: 'remote_overwrote_local', table: 'app_state', count: 1, reason: 'backup-wins replaced local' }
           ]
         })
       })
@@ -209,6 +213,8 @@ describe('ImportOrchestrator spine', () => {
     const expected = [
       { kind: 'row_pruned', scope: 'chat_message_file_ref', count: 2, detail: 'target missing' },
       { kind: 'attachment_unavailable', scope: 'message', count: 5, detail: 'blob not staged' },
+      // Engine 'remote_overwrote_local' → published 'backup_overwrote_local' (the only renamed kind).
+      { kind: 'backup_overwrote_local', scope: 'app_state', count: 1, detail: 'backup-wins replaced local' },
       // Export-side omissions fold into one line per cause, with the folder names in `detail`.
       {
         kind: 'resource_content_missing',

@@ -38,7 +38,7 @@ import { readMigrationFiles } from 'drizzle-orm/migrator'
 import type { ArchiveContext } from './admitArchive'
 import { BackupCancelledError, RestoreFingerprintMismatchError } from './errors'
 import { captureLiveFingerprint } from './fingerprintProducer'
-import type { MergeContext, MergeResult } from './merge/types'
+import type { MergeContext, MergeResult, ReconcileDegradationKind } from './merge/types'
 import { scanMissingMcpPackageDirs } from './missingLocalResourceScan'
 import { presetIncludesFiles } from './presets'
 import type { PlanCtx, PlanRoots, ResourcePlan } from './resourcePlanning'
@@ -117,6 +117,24 @@ export interface ImportOrchestratorDeps {
   readonly planRoots: PlanRoots
   /** Absolute path to the restore journal file (feature.backup.restore.file). */
   readonly journalPath: string
+}
+
+/**
+ * Engine vocabulary → backup's published contract. `RestoreDegradationKind` is the IPC +
+ * renderer-i18n surface (zod-validated, 13 locale files key off it), so it must not move
+ * with the engine; this table is the one place the two vocabularies meet. The
+ * `Record<ReconcileDegradationKind, …>` shape makes a missing mapping a compile error if the
+ * engine ever adds a kind.
+ */
+const RESTORE_DEGRADATION_KIND: Record<ReconcileDegradationKind, RestoreDegradation['kind']> = {
+  ref_cleared: 'ref_cleared',
+  row_pruned: 'row_pruned',
+  rows_skipped: 'rows_skipped',
+  association_dropped: 'association_dropped',
+  field_conflict: 'field_conflict',
+  remote_overwrote_local: 'backup_overwrote_local',
+  attachment_unavailable: 'attachment_unavailable',
+  resource_content_missing: 'resource_content_missing'
 }
 
 /**
@@ -335,7 +353,7 @@ export class ImportOrchestrator {
       // outlive this process in the journal — the confirmation UI runs after the relaunch.
       const degradations: readonly RestoreDegradation[] = [
         ...result.degradedToSkips.map((s) => ({
-          kind: s.kind,
+          kind: RESTORE_DEGRADATION_KIND[s.kind],
           scope: s.table,
           count: s.count,
           detail: s.reason
