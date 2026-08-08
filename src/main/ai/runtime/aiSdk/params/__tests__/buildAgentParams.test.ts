@@ -84,7 +84,11 @@ describe('buildAgentParams provider resolution', () => {
       id: 'vertex::openai/gpt-oss-120b-maas',
       providerId: 'vertex',
       apiModelId: 'openai/gpt-oss-120b-maas',
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [
+        MODEL_CAPABILITY.REASONING,
+        MODEL_CAPABILITY.AUDIO_RECOGNITION,
+        MODEL_CAPABILITY.VIDEO_RECOGNITION
+      ],
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
         selectableEfforts: ['low', 'medium', 'high']
@@ -112,6 +116,7 @@ describe('buildAgentParams provider resolution', () => {
     })
 
     expect(result.sdkConfig.providerId).toBe('google-vertex-maas')
+    expect(result.nativeFileSupport).toMatchObject({ audio: true, video: false })
     expect(result.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
     expect(result.options.providerOptions).toMatchObject({
       vertex: {
