@@ -530,6 +530,27 @@ describe('AgentsMigrator', () => {
       expect(insert).not.toHaveBeenCalled()
     })
 
+    it('skips non-array legacy MCP payloads', async () => {
+      const all = vi.fn().mockReturnValue([{ agentId: 'agent-1', mcps: JSON.stringify({ id: 'mcp-a' }) }])
+      const insert = vi.fn()
+
+      migrateAgentMcps({ all, insert } as never, new Map())
+
+      expect(insert).not.toHaveBeenCalled()
+    })
+
+    it('keeps valid string ids from mixed legacy MCP arrays', async () => {
+      const all = vi.fn().mockReturnValue([{ agentId: 'agent-1', mcps: JSON.stringify(['mcp-a', 123]) }])
+      const run = vi.fn()
+      const onConflictDoNothing = vi.fn().mockReturnValue({ run })
+      const valuesFn = vi.fn().mockReturnValue({ onConflictDoNothing })
+      const insert = vi.fn().mockReturnValue({ values: valuesFn })
+
+      migrateAgentMcps({ all, insert } as never, new Map([['mcp-a', 'new-a']]))
+
+      expect(valuesFn.mock.calls[0][0]).toEqual([expect.objectContaining({ agentId: 'agent-1', mcpServerId: 'new-a' })])
+    })
+
     it('throws when rows need remapping but the mapping is absent', async () => {
       const all = vi.fn().mockReturnValue([{ agentId: 'agent-1', mcps: JSON.stringify(['mcp-a']) }])
       const insert = vi.fn()

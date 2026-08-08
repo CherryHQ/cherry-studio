@@ -12,6 +12,7 @@ import { sql } from 'drizzle-orm'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 
 import { migrateAgentMcps } from '../AgentsMigrator'
+import { quoteSqlitePath } from '../mappings/AgentsDbMappings'
 
 const MALFORMED_AGENT_ID = 'agent-v1-malformed-mcps'
 const VALID_AGENT_ID = 'agent-v1-valid-mcps'
@@ -36,7 +37,7 @@ describe('AgentsMigrator > migrateAgentMcps malformed legacy data', () => {
   let legacyPath: string
 
   beforeAll(() => {
-    tempDir = mkdtempSync(join(tmpdir(), 'cs-agents-mcp-test-'))
+    tempDir = mkdtempSync(join(tmpdir(), "cs-agents-mcp-'test-"))
     legacyPath = join(tempDir, 'agents.db')
     seedLegacyAgentsDb(legacyPath)
   })
@@ -64,7 +65,7 @@ describe('AgentsMigrator > migrateAgentMcps malformed legacy data', () => {
   })
 
   it('skips malformed JSON without blocking valid associations', () => {
-    dbh.db.run(sql.raw(`ATTACH DATABASE '${legacyPath}' AS agents_legacy`))
+    dbh.db.run(sql.raw(`ATTACH DATABASE ${quoteSqlitePath(legacyPath)} AS agents_legacy`))
     try {
       expect(() => migrateAgentMcps(dbh.db, new Map([[LEGACY_MCP_ID, TARGET_MCP_ID]]))).not.toThrow()
     } finally {
