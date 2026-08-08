@@ -158,9 +158,9 @@ re-confirm they match its model):
 | 20 | A junction reference's FK must cascade; an optional reference on a NOT NULL column needs an override | Cascade is schema; the NOT NULL + override guard is a restore dangling-handling precondition |
 | 27 | `junctionRole` only on junction-phase tables, exactly one source + one target | Junction topology is schema; `junctionRole` is a precondition of the merge junction-resolution phase |
 
-> **Bottom line**: 16 pure-schema + 2 implementation + 4 restore-coupled + 4 mixed. The 4
+> **Bottom line**: 17 pure-schema + 2 implementation + 4 restore-coupled + 4 mixed. The 4
 > restore-coupled and the behavior halves of the 4 mixed are the ones a sync consumer must
-> re-validate against its own model. The 16 pure-schema invariants are the engine's stable spine.
+> re-validate against its own model. The 17 pure-schema invariants are the engine's stable spine.
 
 ---
 

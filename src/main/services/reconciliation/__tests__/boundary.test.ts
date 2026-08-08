@@ -38,25 +38,34 @@ const SHARED_WHITELIST = new Set([
   'ReadonlyBackupRegistry'
 ])
 
-/** Source .ts files in the package root (NOT __tests__/ — those are test fixtures). */
-function listSourceFiles(): string[] {
-  return readdirSync(SRC_DIR)
-    .filter((name) => name.endsWith('.ts') && name !== 'index.ts')
-    .map((name) => join(SRC_DIR, name))
+/** Source .ts files in the package (NOT __tests__/ — those are test fixtures). */
+function listSourceFiles(directory: string = SRC_DIR): string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const fullPath = join(directory, entry.name)
+    if (entry.isDirectory()) {
+      return entry.name === '__tests__' ? [] : listSourceFiles(fullPath)
+    }
+    return entry.name.endsWith('.ts') && entry.name !== 'index.ts' ? [fullPath] : []
+  })
 }
 
-// Match `import type { … } from '…contributorTypes'`. `[^}]*` stops at the first closing brace,
-// so each import block is matched independently and cannot run across a `from` clause into the
-// next import. Captures the comma-separated symbol block.
-const CONTRIBUTOR_TYPES_IMPORT =
-  /import\s+type\s+\{([^}]*)\}\s*from\s*['"]@main\/data\/db\/backup\/contributorTypes['"]/g
+// Match named imports/re-exports from contributorTypes, regardless of whether they are type-only
+// or multiline. Separate patterns also flag namespace/default imports as opaque violations: the
+// test cannot prove that an opaque module import stays inside the shared whitelist.
+const CONTRIBUTOR_TYPES_NAMED_IMPORT =
+  /(?:import|export)\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]@main\/data\/db\/backup\/contributorTypes['"]/g
+const CONTRIBUTOR_TYPES_NAMESPACE_IMPORT =
+  /(?:import|export)\s+(?:type\s+)?\*\s+as\s+([A-Za-z_$][\w$]*)\s+from\s*['"]@main\/data\/db\/backup\/contributorTypes['"]/g
+const CONTRIBUTOR_TYPES_DEFAULT_IMPORT =
+  /import\s+(?:type\s+)?[A-Za-z_$][\w$]*(?:\s*,[^;\n]*)?\s+from\s*['"]@main\/data\/db\/backup\/contributorTypes['"]/g
 
-/** Extract the imported symbol names from one file's contributorTypes import(s). */
+/** Extract contributorTypes symbols, flagging opaque import forms as boundary violations. */
 function extractContributorTypeImports(source: string): string[] {
   const symbols: string[] = []
   let match: RegExpExecArray | null
-  CONTRIBUTOR_TYPES_IMPORT.lastIndex = 0
-  while ((match = CONTRIBUTOR_TYPES_IMPORT.exec(source)) !== null) {
+
+  CONTRIBUTOR_TYPES_NAMED_IMPORT.lastIndex = 0
+  while ((match = CONTRIBUTOR_TYPES_NAMED_IMPORT.exec(source)) !== null) {
     // The captured group is the comma-separated symbol block. Strip line comments + block
     // comments, split on commas, and keep only the imported name (drop `as Alias`).
     const cleaned = match[1].replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
@@ -65,6 +74,17 @@ function extractContributorTypeImports(source: string): string[] {
       if (name) symbols.push(name)
     }
   }
+
+  CONTRIBUTOR_TYPES_NAMESPACE_IMPORT.lastIndex = 0
+  while ((match = CONTRIBUTOR_TYPES_NAMESPACE_IMPORT.exec(source)) !== null) {
+    symbols.push(`* as ${match[1]}`)
+  }
+
+  CONTRIBUTOR_TYPES_DEFAULT_IMPORT.lastIndex = 0
+  while (CONTRIBUTOR_TYPES_DEFAULT_IMPORT.exec(source) !== null) {
+    symbols.push('<opaque default import>')
+  }
+
   return symbols
 }
 
@@ -74,7 +94,14 @@ describe('reconciliation ↔ contributorTypes boundary', () => {
   it('scans at least the known source files (guard against a path-resolution regression)', () => {
     const names = files.map((f) => f.split('/').pop())
     // The six engine modules — if any is missing the test would pass vacuously.
-    for (const expected of ['MergeEngine.ts', 'types.ts', 'ftsCentral.ts', 'junctionDeriver.ts']) {
+    for (const expected of [
+      'MergeEngine.ts',
+      'types.ts',
+      'ftsCentral.ts',
+      'junctionDeriver.ts',
+      'polymorphicAssociationDeriver.ts',
+      'platformSpecificKeyMatch.ts'
+    ]) {
       expect(names, `expected ${expected} in the scanned set`).toContain(expected)
     }
   })

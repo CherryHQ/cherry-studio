@@ -123,10 +123,16 @@ export interface ImportOrchestratorDeps {
  * Engine vocabulary → backup's published contract. `RestoreDegradationKind` is the IPC +
  * renderer-i18n surface (zod-validated, 13 locale files key off it), so it must not move
  * with the engine; this table is the one place the two vocabularies meet. The
- * `Record<ReconcileDegradationKind, …>` shape makes a missing mapping a compile error if the
+ * `Record<ReconcileDegradationKind, …>` shape makes a missing key a compile error if the
  * engine ever adds a kind.
+ *
+ * Exported so the mapping-exhaustiveness test can assert every value lands inside the
+ * published zod enum — `Record<K,V>` guarantees key coverage but NOT value validity: a value
+ * typoed to a different (type-legal) union member would still typecheck, since
+ * `RestoreDegradation['kind']` is a union, not a runtime check. Only `RestoreDegradationKindSchema`
+ * catches that. This is the contract boundary between the engine and backup's IPC surface.
  */
-const RESTORE_DEGRADATION_KIND: Record<ReconcileDegradationKind, RestoreDegradation['kind']> = {
+export const RESTORE_DEGRADATION_KIND: Record<ReconcileDegradationKind, RestoreDegradation['kind']> = {
   ref_cleared: 'ref_cleared',
   row_pruned: 'row_pruned',
   rows_skipped: 'rows_skipped',
