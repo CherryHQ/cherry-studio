@@ -1,8 +1,152 @@
 diff --git a/dist/index.d.mts b/dist/index.d.mts
-index e339fe99f4d3705e8ca94f1ce9cb7444dc6ed3ed..ced38978e2fe6672abf0dce8dd8fc6c95d1a3865 100644
+index e339fe99f4d3705e8ca94f1ce9cb7444dc6ed3ed..94e9b5f146a8b2016f225ba04cf65ce38e321512 100644
 --- a/dist/index.d.mts
 +++ b/dist/index.d.mts
-@@ -4955,7 +4955,7 @@ type GenerateImagePrompt = string | {
+@@ -423,6 +423,7 @@ type BaseToolCall = {
+     toolCallId: string;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+ };
+ type StaticToolCall<TOOLS extends ToolSet> = ValueOf<{
+     [NAME in keyof TOOLS]: BaseToolCall & {
+@@ -494,6 +495,7 @@ type StaticToolError<TOOLS extends ToolSet> = ValueOf<{
+         error: unknown;
+         providerExecuted?: boolean;
+         providerMetadata?: ProviderMetadata;
++        toolMetadata?: JSONObject;
+         dynamic?: false | undefined;
+         title?: string;
+     };
+@@ -506,6 +508,7 @@ type DynamicToolError = {
+     error: unknown;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic: true;
+     title?: string;
+ };
+@@ -520,6 +523,7 @@ type StaticToolResult<TOOLS extends ToolSet> = ValueOf<{
+         output: InferToolOutput<TOOLS[NAME]>;
+         providerExecuted?: boolean;
+         providerMetadata?: ProviderMetadata;
++        toolMetadata?: JSONObject;
+         dynamic?: false | undefined;
+         preliminary?: boolean;
+         title?: string;
+@@ -533,6 +537,7 @@ type DynamicToolResult = {
+     output: unknown;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic: true;
+     preliminary?: boolean;
+     title?: string;
+@@ -1793,6 +1798,7 @@ type UIToolInvocation<TOOL extends UITool | Tool> = {
+      */
+     toolCallId: string;
+     title?: string;
++    toolMetadata?: JSONObject;
+     /**
+      * Whether the tool call was executed by the provider.
+      */
+@@ -1887,6 +1893,7 @@ type DynamicToolUIPart = {
+      */
+     toolCallId: string;
+     title?: string;
++    toolMetadata?: JSONObject;
+     /**
+      * Whether the tool call was executed by the provider.
+      */
+@@ -2046,6 +2053,7 @@ declare const uiMessageChunkSchema: _ai_sdk_provider_utils.LazySchema<{
+     toolName: string;
+     providerExecuted?: boolean | undefined;
+     providerMetadata?: _ai_sdk_provider.SharedV3ProviderMetadata | undefined;
++    toolMetadata?: JSONObject | undefined;
+     dynamic?: boolean | undefined;
+     title?: string | undefined;
+ } | {
+@@ -2059,6 +2067,7 @@ declare const uiMessageChunkSchema: _ai_sdk_provider_utils.LazySchema<{
+     input: unknown;
+     providerExecuted?: boolean | undefined;
+     providerMetadata?: _ai_sdk_provider.SharedV3ProviderMetadata | undefined;
++    toolMetadata?: JSONObject | undefined;
+     dynamic?: boolean | undefined;
+     title?: string | undefined;
+ } | {
+@@ -2069,6 +2078,7 @@ declare const uiMessageChunkSchema: _ai_sdk_provider_utils.LazySchema<{
+     errorText: string;
+     providerExecuted?: boolean | undefined;
+     providerMetadata?: _ai_sdk_provider.SharedV3ProviderMetadata | undefined;
++    toolMetadata?: JSONObject | undefined;
+     dynamic?: boolean | undefined;
+     title?: string | undefined;
+ } | {
+@@ -2081,6 +2091,7 @@ declare const uiMessageChunkSchema: _ai_sdk_provider_utils.LazySchema<{
+     output: unknown;
+     providerExecuted?: boolean | undefined;
+     providerMetadata?: _ai_sdk_provider.SharedV3ProviderMetadata | undefined;
++    toolMetadata?: JSONObject | undefined;
+     dynamic?: boolean | undefined;
+     preliminary?: boolean | undefined;
+ } | {
+@@ -2089,6 +2100,7 @@ declare const uiMessageChunkSchema: _ai_sdk_provider_utils.LazySchema<{
+     errorText: string;
+     providerExecuted?: boolean | undefined;
+     providerMetadata?: _ai_sdk_provider.SharedV3ProviderMetadata | undefined;
++    toolMetadata?: JSONObject | undefined;
+     dynamic?: boolean | undefined;
+ } | {
+     type: "tool-output-denied";
+@@ -2192,6 +2204,7 @@ type UIMessageChunk<METADATA = unknown, DATA_TYPES extends UIDataTypes = UIDataT
+     input: unknown;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic?: boolean;
+     title?: string;
+ } | {
+@@ -2201,6 +2214,7 @@ type UIMessageChunk<METADATA = unknown, DATA_TYPES extends UIDataTypes = UIDataT
+     input: unknown;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic?: boolean;
+     errorText: string;
+     title?: string;
+@@ -2214,6 +2228,7 @@ type UIMessageChunk<METADATA = unknown, DATA_TYPES extends UIDataTypes = UIDataT
+     output: unknown;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic?: boolean;
+     preliminary?: boolean;
+ } | {
+@@ -2222,6 +2237,7 @@ type UIMessageChunk<METADATA = unknown, DATA_TYPES extends UIDataTypes = UIDataT
+     errorText: string;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic?: boolean;
+ } | {
+     type: 'tool-output-denied';
+@@ -2232,6 +2248,7 @@ type UIMessageChunk<METADATA = unknown, DATA_TYPES extends UIDataTypes = UIDataT
+     toolName: string;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic?: boolean;
+     title?: string;
+ } | {
+@@ -2629,6 +2646,7 @@ type TextStreamPart<TOOLS extends ToolSet> = {
+     id: string;
+     toolName: string;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     providerExecuted?: boolean;
+     dynamic?: boolean;
+     title?: string;
+@@ -4955,7 +4973,7 @@ type GenerateImagePrompt = string | {
   *
   * @returns A result object that contains the generated images.
   */
@@ -11,7 +155,7 @@ index e339fe99f4d3705e8ca94f1ce9cb7444dc6ed3ed..ced38978e2fe6672abf0dce8dd8fc6c9
      /**
       * The image model to use.
       */
-@@ -5014,6 +5014,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
+@@ -5014,4 +5032,10 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
       * Only applicable for HTTP-based providers.
       */
      headers?: Record<string, string>;
@@ -22,13 +166,155 @@ index e339fe99f4d3705e8ca94f1ce9cb7444dc6ed3ed..ced38978e2fe6672abf0dce8dd8fc6c9
 +     */
 +    experimental_download?: DownloadFunction | undefined;
  }): Promise<GenerateImageResult>;
-
- /**
 diff --git a/dist/index.d.ts b/dist/index.d.ts
-index e339fe99f4d3705e8ca94f1ce9cb7444dc6ed3ed..ced38978e2fe6672abf0dce8dd8fc6c95d1a3865 100644
+index e339fe99f4d3705e8ca94f1ce9cb7444dc6ed3ed..94e9b5f146a8b2016f225ba04cf65ce38e321512 100644
 --- a/dist/index.d.ts
 +++ b/dist/index.d.ts
-@@ -4955,7 +4955,7 @@ type GenerateImagePrompt = string | {
+@@ -423,6 +423,7 @@ type BaseToolCall = {
+     toolCallId: string;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+ };
+ type StaticToolCall<TOOLS extends ToolSet> = ValueOf<{
+     [NAME in keyof TOOLS]: BaseToolCall & {
+@@ -494,6 +495,7 @@ type StaticToolError<TOOLS extends ToolSet> = ValueOf<{
+         error: unknown;
+         providerExecuted?: boolean;
+         providerMetadata?: ProviderMetadata;
++        toolMetadata?: JSONObject;
+         dynamic?: false | undefined;
+         title?: string;
+     };
+@@ -506,6 +508,7 @@ type DynamicToolError = {
+     error: unknown;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic: true;
+     title?: string;
+ };
+@@ -520,6 +523,7 @@ type StaticToolResult<TOOLS extends ToolSet> = ValueOf<{
+         output: InferToolOutput<TOOLS[NAME]>;
+         providerExecuted?: boolean;
+         providerMetadata?: ProviderMetadata;
++        toolMetadata?: JSONObject;
+         dynamic?: false | undefined;
+         preliminary?: boolean;
+         title?: string;
+@@ -533,6 +537,7 @@ type DynamicToolResult = {
+     output: unknown;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic: true;
+     preliminary?: boolean;
+     title?: string;
+@@ -1793,6 +1798,7 @@ type UIToolInvocation<TOOL extends UITool | Tool> = {
+      */
+     toolCallId: string;
+     title?: string;
++    toolMetadata?: JSONObject;
+     /**
+      * Whether the tool call was executed by the provider.
+      */
+@@ -1887,6 +1893,7 @@ type DynamicToolUIPart = {
+      */
+     toolCallId: string;
+     title?: string;
++    toolMetadata?: JSONObject;
+     /**
+      * Whether the tool call was executed by the provider.
+      */
+@@ -2046,6 +2053,7 @@ declare const uiMessageChunkSchema: _ai_sdk_provider_utils.LazySchema<{
+     toolName: string;
+     providerExecuted?: boolean | undefined;
+     providerMetadata?: _ai_sdk_provider.SharedV3ProviderMetadata | undefined;
++    toolMetadata?: JSONObject | undefined;
+     dynamic?: boolean | undefined;
+     title?: string | undefined;
+ } | {
+@@ -2059,6 +2067,7 @@ declare const uiMessageChunkSchema: _ai_sdk_provider_utils.LazySchema<{
+     input: unknown;
+     providerExecuted?: boolean | undefined;
+     providerMetadata?: _ai_sdk_provider.SharedV3ProviderMetadata | undefined;
++    toolMetadata?: JSONObject | undefined;
+     dynamic?: boolean | undefined;
+     title?: string | undefined;
+ } | {
+@@ -2069,6 +2078,7 @@ declare const uiMessageChunkSchema: _ai_sdk_provider_utils.LazySchema<{
+     errorText: string;
+     providerExecuted?: boolean | undefined;
+     providerMetadata?: _ai_sdk_provider.SharedV3ProviderMetadata | undefined;
++    toolMetadata?: JSONObject | undefined;
+     dynamic?: boolean | undefined;
+     title?: string | undefined;
+ } | {
+@@ -2081,6 +2091,7 @@ declare const uiMessageChunkSchema: _ai_sdk_provider_utils.LazySchema<{
+     output: unknown;
+     providerExecuted?: boolean | undefined;
+     providerMetadata?: _ai_sdk_provider.SharedV3ProviderMetadata | undefined;
++    toolMetadata?: JSONObject | undefined;
+     dynamic?: boolean | undefined;
+     preliminary?: boolean | undefined;
+ } | {
+@@ -2089,6 +2100,7 @@ declare const uiMessageChunkSchema: _ai_sdk_provider_utils.LazySchema<{
+     errorText: string;
+     providerExecuted?: boolean | undefined;
+     providerMetadata?: _ai_sdk_provider.SharedV3ProviderMetadata | undefined;
++    toolMetadata?: JSONObject | undefined;
+     dynamic?: boolean | undefined;
+ } | {
+     type: "tool-output-denied";
+@@ -2192,6 +2204,7 @@ type UIMessageChunk<METADATA = unknown, DATA_TYPES extends UIDataTypes = UIDataT
+     input: unknown;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic?: boolean;
+     title?: string;
+ } | {
+@@ -2201,6 +2214,7 @@ type UIMessageChunk<METADATA = unknown, DATA_TYPES extends UIDataTypes = UIDataT
+     input: unknown;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic?: boolean;
+     errorText: string;
+     title?: string;
+@@ -2214,6 +2228,7 @@ type UIMessageChunk<METADATA = unknown, DATA_TYPES extends UIDataTypes = UIDataT
+     output: unknown;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic?: boolean;
+     preliminary?: boolean;
+ } | {
+@@ -2222,6 +2237,7 @@ type UIMessageChunk<METADATA = unknown, DATA_TYPES extends UIDataTypes = UIDataT
+     errorText: string;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic?: boolean;
+ } | {
+     type: 'tool-output-denied';
+@@ -2232,6 +2248,7 @@ type UIMessageChunk<METADATA = unknown, DATA_TYPES extends UIDataTypes = UIDataT
+     toolName: string;
+     providerExecuted?: boolean;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     dynamic?: boolean;
+     title?: string;
+ } | {
+@@ -2629,6 +2646,7 @@ type TextStreamPart<TOOLS extends ToolSet> = {
+     id: string;
+     toolName: string;
+     providerMetadata?: ProviderMetadata;
++    toolMetadata?: JSONObject;
+     providerExecuted?: boolean;
+     dynamic?: boolean;
+     title?: string;
+@@ -4955,7 +4973,7 @@ type GenerateImagePrompt = string | {
   *
   * @returns A result object that contains the generated images.
   */
@@ -37,7 +323,7 @@ index e339fe99f4d3705e8ca94f1ce9cb7444dc6ed3ed..ced38978e2fe6672abf0dce8dd8fc6c9
      /**
       * The image model to use.
       */
-@@ -5014,6 +5014,12 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
+@@ -5014,4 +5032,10 @@ declare function generateImage({ model: modelArg, prompt: promptArg, n, maxImage
       * Only applicable for HTTP-based providers.
       */
      headers?: Record<string, string>;
@@ -48,13 +334,530 @@ index e339fe99f4d3705e8ca94f1ce9cb7444dc6ed3ed..ced38978e2fe6672abf0dce8dd8fc6c9
 +     */
 +    experimental_download?: DownloadFunction | undefined;
  }): Promise<GenerateImageResult>;
-
- /**
 diff --git a/dist/index.js b/dist/index.js
-index 556a2f63008e30aa66639665cafd1a561cca864b..5d338e25718ea55bd07ec2ad095fedca716baf94 100644
+index 556a2f63008e30aa66639665cafd1a561cca864b..dccc2a9c5bbe523b955d32e81144071aa3bbcc11 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -9510,7 +9510,8 @@ async function generateImage({
+@@ -2930,7 +2930,8 @@ async function executeToolCall({
+           input,
+           error,
+           dynamic: tool2.type === "dynamic",
+-          ...toolCall.providerMetadata != null ? { providerMetadata: toolCall.providerMetadata } : {}
++          ...toolCall.providerMetadata != null ? { providerMetadata: toolCall.providerMetadata } : {},
++          ...toolCall.toolMetadata != null ? { toolMetadata: toolCall.toolMetadata } : {}
+         };
+       }
+       const durationMs = now() - startTime;
+@@ -2963,7 +2964,8 @@ async function executeToolCall({
+         input,
+         output,
+         dynamic: tool2.type === "dynamic",
+-        ...toolCall.providerMetadata != null ? { providerMetadata: toolCall.providerMetadata } : {}
++        ...toolCall.providerMetadata != null ? { providerMetadata: toolCall.providerMetadata } : {},
++        ...toolCall.toolMetadata != null ? { toolMetadata: toolCall.toolMetadata } : {}
+       };
+     }
+   });
+@@ -3712,7 +3714,6 @@ async function parseToolCall({
+   system,
+   messages
+ }) {
+-  var _a21;
+   try {
+     if (tools == null) {
+       if (toolCall.providerExecuted && toolCall.dynamic) {
+@@ -3753,6 +3754,7 @@ async function parseToolCall({
+   } catch (error) {
+     const parsedInput = await (0, import_provider_utils14.safeParseJSON)({ text: toolCall.input });
+     const input = parsedInput.success ? parsedInput.value : toolCall.input;
++    const tool2 = tools == null ? void 0 : tools[toolCall.toolName];
+     return {
+       type: "tool-call",
+       toolCallId: toolCall.toolCallId,
+@@ -3761,9 +3763,10 @@ async function parseToolCall({
+       dynamic: true,
+       invalid: true,
+       error,
+-      title: (_a21 = tools == null ? void 0 : tools[toolCall.toolName]) == null ? void 0 : _a21.title,
++      title: tool2 == null ? void 0 : tool2.title,
+       providerExecuted: toolCall.providerExecuted,
+-      providerMetadata: toolCall.providerMetadata
++      providerMetadata: toolCall.providerMetadata,
++      ...(tool2 == null ? void 0 : tool2.metadata) != null ? { toolMetadata: tool2.metadata } : {}
+     };
+   }
+ }
+@@ -3817,6 +3820,7 @@ async function doParseToolCall({
+     input: parseResult.value,
+     providerExecuted: toolCall.providerExecuted,
+     providerMetadata: toolCall.providerMetadata,
++    ...tool2.metadata != null ? { toolMetadata: tool2.metadata } : {},
+     dynamic: true,
+     title: tool2.title
+   } : {
+@@ -3826,6 +3830,7 @@ async function doParseToolCall({
+     input: parseResult.value,
+     providerExecuted: toolCall.providerExecuted,
+     providerMetadata: toolCall.providerMetadata,
++    ...tool2.metadata != null ? { toolMetadata: tool2.metadata } : {},
+     title: tool2.title
+   };
+ }
+@@ -4923,7 +4928,8 @@ function asContent({
+               error: part.result,
+               providerExecuted: true,
+               dynamic: part.dynamic,
+-              ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {}
++              ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++              ...(tool2 == null ? void 0 : tool2.metadata) != null ? { toolMetadata: tool2.metadata } : {}
+             });
+           } else {
+             contentParts.push({
+@@ -4934,7 +4940,8 @@ function asContent({
+               output: part.result,
+               providerExecuted: true,
+               dynamic: part.dynamic,
+-              ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {}
++              ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++              ...(tool2 == null ? void 0 : tool2.metadata) != null ? { toolMetadata: tool2.metadata } : {}
+             });
+           }
+           break;
+@@ -4948,7 +4955,8 @@ function asContent({
+             error: part.result,
+             providerExecuted: true,
+             dynamic: toolCall.dynamic,
+-            ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {}
++            ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++            ...toolCall.toolMetadata != null ? { toolMetadata: toolCall.toolMetadata } : {}
+           });
+         } else {
+           contentParts.push({
+@@ -4959,7 +4967,8 @@ function asContent({
+             output: part.result,
+             providerExecuted: true,
+             dynamic: toolCall.dynamic,
+-            ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {}
++            ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++            ...toolCall.toolMetadata != null ? { toolMetadata: toolCall.toolMetadata } : {}
+           });
+         }
+         break;
+@@ -5140,6 +5149,10 @@ var import_provider_utils17 = require("@ai-sdk/provider-utils");
+ // src/ui-message-stream/ui-message-chunks.ts
+ var import_v47 = require("zod/v4");
+ var import_provider_utils16 = require("@ai-sdk/provider-utils");
++var toolMetadataSchema = import_v47.z.record(
++  import_v47.z.string(),
++  jsonValueSchema.optional()
++);
+ var uiMessageChunkSchema = (0, import_provider_utils16.lazySchema)(
+   () => (0, import_provider_utils16.zodSchema)(
+     import_v47.z.union([
+@@ -5169,6 +5182,7 @@ var uiMessageChunkSchema = (0, import_provider_utils16.lazySchema)(
+         toolName: import_v47.z.string(),
+         providerExecuted: import_v47.z.boolean().optional(),
+         providerMetadata: providerMetadataSchema.optional(),
++        toolMetadata: toolMetadataSchema.optional(),
+         dynamic: import_v47.z.boolean().optional(),
+         title: import_v47.z.string().optional()
+       }),
+@@ -5184,6 +5198,7 @@ var uiMessageChunkSchema = (0, import_provider_utils16.lazySchema)(
+         input: import_v47.z.unknown(),
+         providerExecuted: import_v47.z.boolean().optional(),
+         providerMetadata: providerMetadataSchema.optional(),
++        toolMetadata: toolMetadataSchema.optional(),
+         dynamic: import_v47.z.boolean().optional(),
+         title: import_v47.z.string().optional()
+       }),
+@@ -5194,6 +5209,7 @@ var uiMessageChunkSchema = (0, import_provider_utils16.lazySchema)(
+         input: import_v47.z.unknown(),
+         providerExecuted: import_v47.z.boolean().optional(),
+         providerMetadata: providerMetadataSchema.optional(),
++        toolMetadata: toolMetadataSchema.optional(),
+         dynamic: import_v47.z.boolean().optional(),
+         errorText: import_v47.z.string(),
+         title: import_v47.z.string().optional()
+@@ -5209,6 +5225,7 @@ var uiMessageChunkSchema = (0, import_provider_utils16.lazySchema)(
+         output: import_v47.z.unknown(),
+         providerExecuted: import_v47.z.boolean().optional(),
+         providerMetadata: providerMetadataSchema.optional(),
++        toolMetadata: toolMetadataSchema.optional(),
+         dynamic: import_v47.z.boolean().optional(),
+         preliminary: import_v47.z.boolean().optional()
+       }),
+@@ -5218,6 +5235,7 @@ var uiMessageChunkSchema = (0, import_provider_utils16.lazySchema)(
+         errorText: import_v47.z.string(),
+         providerExecuted: import_v47.z.boolean().optional(),
+         providerMetadata: providerMetadataSchema.optional(),
++        toolMetadata: toolMetadataSchema.optional(),
+         dynamic: import_v47.z.boolean().optional()
+       }),
+       import_v47.z.strictObject({
+@@ -5401,6 +5419,9 @@ function processUIMessageStream({
+               if (options.title !== void 0) {
+                 anyPart.title = options.title;
+               }
++              if (options.toolMetadata !== void 0) {
++                anyPart.toolMetadata = options.toolMetadata;
++              }
+               anyPart.providerExecuted = (_a22 = anyOptions.providerExecuted) != null ? _a22 : part.providerExecuted;
+               const providerMetadata = anyOptions.providerMetadata;
+               if (providerMetadata != null) {
+@@ -5417,6 +5438,7 @@ function processUIMessageStream({
+                 toolCallId: options.toolCallId,
+                 state: options.state,
+                 title: options.title,
++                ...options.toolMetadata !== void 0 ? { toolMetadata: options.toolMetadata } : {},
+                 input: anyOptions.input,
+                 output: anyOptions.output,
+                 rawInput: anyOptions.rawInput,
+@@ -5446,6 +5468,9 @@ function processUIMessageStream({
+               if (options.title !== void 0) {
+                 anyPart.title = options.title;
+               }
++              if (options.toolMetadata !== void 0) {
++                anyPart.toolMetadata = options.toolMetadata;
++              }
+               anyPart.providerExecuted = (_b2 = anyOptions.providerExecuted) != null ? _b2 : part.providerExecuted;
+               const providerMetadata = anyOptions.providerMetadata;
+               if (providerMetadata != null) {
+@@ -5468,6 +5493,7 @@ function processUIMessageStream({
+                 preliminary: anyOptions.preliminary,
+                 providerExecuted: anyOptions.providerExecuted,
+                 title: options.title,
++                ...options.toolMetadata !== void 0 ? { toolMetadata: options.toolMetadata } : {},
+                 ...anyOptions.providerMetadata != null && (options.state === "output-available" || options.state === "output-error") ? { resultProviderMetadata: anyOptions.providerMetadata } : {},
+                 ...anyOptions.providerMetadata != null && !(options.state === "output-available" || options.state === "output-error") ? { callProviderMetadata: anyOptions.providerMetadata } : {}
+               });
+@@ -5612,7 +5638,8 @@ function processUIMessageStream({
+                 toolName: chunk.toolName,
+                 index: toolInvocations.length,
+                 dynamic: chunk.dynamic,
+-                title: chunk.title
++                title: chunk.title,
++                toolMetadata: chunk.toolMetadata
+               };
+               if (chunk.dynamic) {
+                 updateDynamicToolPart({
+@@ -5622,6 +5649,7 @@ function processUIMessageStream({
+                   input: void 0,
+                   providerExecuted: chunk.providerExecuted,
+                   title: chunk.title,
++                  toolMetadata: chunk.toolMetadata,
+                   providerMetadata: chunk.providerMetadata
+                 });
+               } else {
+@@ -5632,6 +5660,7 @@ function processUIMessageStream({
+                   input: void 0,
+                   providerExecuted: chunk.providerExecuted,
+                   title: chunk.title,
++                  toolMetadata: chunk.toolMetadata,
+                   providerMetadata: chunk.providerMetadata
+                 });
+               }
+@@ -5657,7 +5686,8 @@ function processUIMessageStream({
+                   toolName: partialToolCall.toolName,
+                   state: "input-streaming",
+                   input: partialArgs,
+-                  title: partialToolCall.title
++                  title: partialToolCall.title,
++                  toolMetadata: partialToolCall.toolMetadata
+                 });
+               } else {
+                 updateToolPart({
+@@ -5665,7 +5695,8 @@ function processUIMessageStream({
+                   toolName: partialToolCall.toolName,
+                   state: "input-streaming",
+                   input: partialArgs,
+-                  title: partialToolCall.title
++                  title: partialToolCall.title,
++                  toolMetadata: partialToolCall.toolMetadata
+                 });
+               }
+               write();
+@@ -5680,7 +5711,8 @@ function processUIMessageStream({
+                   input: chunk.input,
+                   providerExecuted: chunk.providerExecuted,
+                   providerMetadata: chunk.providerMetadata,
+-                  title: chunk.title
++                  title: chunk.title,
++                  toolMetadata: chunk.toolMetadata
+                 });
+               } else {
+                 updateToolPart({
+@@ -5690,7 +5722,8 @@ function processUIMessageStream({
+                   input: chunk.input,
+                   providerExecuted: chunk.providerExecuted,
+                   providerMetadata: chunk.providerMetadata,
+-                  title: chunk.title
++                  title: chunk.title,
++                  toolMetadata: chunk.toolMetadata
+                 });
+               }
+               write();
+@@ -5712,7 +5745,8 @@ function processUIMessageStream({
+                   input: chunk.input,
+                   errorText: chunk.errorText,
+                   providerExecuted: chunk.providerExecuted,
+-                  providerMetadata: chunk.providerMetadata
++                  providerMetadata: chunk.providerMetadata,
++                  toolMetadata: chunk.toolMetadata
+                 });
+               } else {
+                 updateToolPart({
+@@ -5723,7 +5757,8 @@ function processUIMessageStream({
+                   rawInput: chunk.input,
+                   errorText: chunk.errorText,
+                   providerExecuted: chunk.providerExecuted,
+-                  providerMetadata: chunk.providerMetadata
++                  providerMetadata: chunk.providerMetadata,
++                  toolMetadata: chunk.toolMetadata
+                 });
+               }
+               write();
+@@ -5754,7 +5789,8 @@ function processUIMessageStream({
+                   preliminary: chunk.preliminary,
+                   providerExecuted: chunk.providerExecuted,
+                   providerMetadata: chunk.providerMetadata,
+-                  title: toolInvocation.title
++                  title: toolInvocation.title,
++                  toolMetadata: toolInvocation.toolMetadata
+                 });
+               } else {
+                 updateToolPart({
+@@ -5766,7 +5802,8 @@ function processUIMessageStream({
+                   providerExecuted: chunk.providerExecuted,
+                   preliminary: chunk.preliminary,
+                   providerMetadata: chunk.providerMetadata,
+-                  title: toolInvocation.title
++                  title: toolInvocation.title,
++                  toolMetadata: toolInvocation.toolMetadata
+                 });
+               }
+               write();
+@@ -5783,7 +5820,8 @@ function processUIMessageStream({
+                   errorText: chunk.errorText,
+                   providerExecuted: chunk.providerExecuted,
+                   providerMetadata: chunk.providerMetadata,
+-                  title: toolInvocation.title
++                  title: toolInvocation.title,
++                  toolMetadata: toolInvocation.toolMetadata
+                 });
+               } else {
+                 updateToolPart({
+@@ -5795,7 +5833,8 @@ function processUIMessageStream({
+                   errorText: chunk.errorText,
+                   providerExecuted: chunk.providerExecuted,
+                   providerMetadata: chunk.providerMetadata,
+-                  title: toolInvocation.title
++                  title: toolInvocation.title,
++                  toolMetadata: toolInvocation.toolMetadata
+                 });
+               }
+               write();
+@@ -6306,7 +6345,8 @@ function runToolsTransformation({
+                 input: toolCall.input,
+                 error: (0, import_provider_utils18.getErrorMessage)(toolCall.error),
+                 dynamic: true,
+-                title: toolCall.title
++                title: toolCall.title,
++                ...toolCall.toolMetadata != null ? { toolMetadata: toolCall.toolMetadata } : {}
+               });
+               break;
+             }
+@@ -6374,6 +6414,7 @@ function runToolsTransformation({
+         }
+         case "tool-result": {
+           const toolName = chunk.toolName;
++          const toolCall = toolCallsByToolCallId.get(chunk.toolCallId);
+           if (chunk.isError) {
+             toolResultsStreamController.enqueue({
+               type: "tool-error",
+@@ -6383,7 +6424,8 @@ function runToolsTransformation({
+               providerExecuted: true,
+               error: chunk.result,
+               dynamic: chunk.dynamic,
+-              ...chunk.providerMetadata != null ? { providerMetadata: chunk.providerMetadata } : {}
++              ...chunk.providerMetadata != null ? { providerMetadata: chunk.providerMetadata } : {},
++              ...(toolCall == null ? void 0 : toolCall.toolMetadata) != null ? { toolMetadata: toolCall.toolMetadata } : {}
+             });
+           } else {
+             controller.enqueue({
+@@ -6394,7 +6436,8 @@ function runToolsTransformation({
+               output: chunk.result,
+               providerExecuted: true,
+               dynamic: chunk.dynamic,
+-              ...chunk.providerMetadata != null ? { providerMetadata: chunk.providerMetadata } : {}
++              ...chunk.providerMetadata != null ? { providerMetadata: chunk.providerMetadata } : {},
++              ...(toolCall == null ? void 0 : toolCall.toolMetadata) != null ? { toolMetadata: toolCall.toolMetadata } : {}
+             });
+           }
+           break;
+@@ -7960,6 +8003,7 @@ var DefaultStreamTextResult = class {
+                 toolName: part.toolName,
+                 ...part.providerExecuted != null ? { providerExecuted: part.providerExecuted } : {},
+                 ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++                ...part.toolMetadata != null ? { toolMetadata: part.toolMetadata } : {},
+                 ...dynamic != null ? { dynamic } : {},
+                 ...part.title != null ? { title: part.title } : {}
+               });
+@@ -7983,6 +8027,7 @@ var DefaultStreamTextResult = class {
+                   input: part.input,
+                   ...part.providerExecuted != null ? { providerExecuted: part.providerExecuted } : {},
+                   ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++                  ...part.toolMetadata != null ? { toolMetadata: part.toolMetadata } : {},
+                   ...dynamic != null ? { dynamic } : {},
+                   errorText: onError(part.error),
+                   ...part.title != null ? { title: part.title } : {}
+@@ -7995,6 +8040,7 @@ var DefaultStreamTextResult = class {
+                   input: part.input,
+                   ...part.providerExecuted != null ? { providerExecuted: part.providerExecuted } : {},
+                   ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++                  ...part.toolMetadata != null ? { toolMetadata: part.toolMetadata } : {},
+                   ...dynamic != null ? { dynamic } : {},
+                   ...part.title != null ? { title: part.title } : {}
+                 });
+@@ -8017,6 +8063,7 @@ var DefaultStreamTextResult = class {
+                 output: part.output,
+                 ...part.providerExecuted != null ? { providerExecuted: part.providerExecuted } : {},
+                 ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++                ...part.toolMetadata != null ? { toolMetadata: part.toolMetadata } : {},
+                 ...part.preliminary != null ? { preliminary: part.preliminary } : {},
+                 ...dynamic != null ? { dynamic } : {}
+               });
+@@ -8030,6 +8077,7 @@ var DefaultStreamTextResult = class {
+                 errorText: part.providerExecuted ? typeof part.error === "string" ? part.error : JSON.stringify(part.error) : onError(part.error),
+                 ...part.providerExecuted != null ? { providerExecuted: part.providerExecuted } : {},
+                 ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++                ...part.toolMetadata != null ? { toolMetadata: part.toolMetadata } : {},
+                 ...dynamic != null ? { dynamic } : {}
+               });
+               break;
+@@ -8637,6 +8685,10 @@ async function convertToModelMessages(messages, options) {
+ var import_provider29 = require("@ai-sdk/provider");
+ var import_provider_utils22 = require("@ai-sdk/provider-utils");
+ var import_v48 = require("zod/v4");
++var toolMetadataSchema2 = import_v48.z.record(
++  import_v48.z.string(),
++  jsonValueSchema.optional()
++);
+ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+   () => (0, import_provider_utils22.zodSchema)(
+     import_v48.z.array(
+@@ -8692,6 +8744,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+               type: import_v48.z.literal("dynamic-tool"),
+               toolName: import_v48.z.string(),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("input-streaming"),
+               input: import_v48.z.unknown().optional(),
+               providerExecuted: import_v48.z.boolean().optional(),
+@@ -8704,6 +8757,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+               type: import_v48.z.literal("dynamic-tool"),
+               toolName: import_v48.z.string(),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("input-available"),
+               input: import_v48.z.unknown(),
+               providerExecuted: import_v48.z.boolean().optional(),
+@@ -8716,6 +8770,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+               type: import_v48.z.literal("dynamic-tool"),
+               toolName: import_v48.z.string(),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("approval-requested"),
+               input: import_v48.z.unknown(),
+               providerExecuted: import_v48.z.boolean().optional(),
+@@ -8732,6 +8787,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+               type: import_v48.z.literal("dynamic-tool"),
+               toolName: import_v48.z.string(),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("approval-responded"),
+               input: import_v48.z.unknown(),
+               providerExecuted: import_v48.z.boolean().optional(),
+@@ -8748,6 +8804,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+               type: import_v48.z.literal("dynamic-tool"),
+               toolName: import_v48.z.string(),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("output-available"),
+               input: import_v48.z.unknown(),
+               providerExecuted: import_v48.z.boolean().optional(),
+@@ -8766,6 +8823,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+               type: import_v48.z.literal("dynamic-tool"),
+               toolName: import_v48.z.string(),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("output-error"),
+               input: import_v48.z.unknown(),
+               rawInput: import_v48.z.unknown().optional(),
+@@ -8784,6 +8842,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+               type: import_v48.z.literal("dynamic-tool"),
+               toolName: import_v48.z.string(),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("output-denied"),
+               input: import_v48.z.unknown(),
+               providerExecuted: import_v48.z.boolean().optional(),
+@@ -8799,6 +8858,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+             import_v48.z.object({
+               type: import_v48.z.string().startsWith("tool-"),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("input-streaming"),
+               providerExecuted: import_v48.z.boolean().optional(),
+               callProviderMetadata: providerMetadataSchema.optional(),
+@@ -8810,6 +8870,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+             import_v48.z.object({
+               type: import_v48.z.string().startsWith("tool-"),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("input-available"),
+               providerExecuted: import_v48.z.boolean().optional(),
+               input: import_v48.z.unknown(),
+@@ -8821,6 +8882,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+             import_v48.z.object({
+               type: import_v48.z.string().startsWith("tool-"),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("approval-requested"),
+               input: import_v48.z.unknown(),
+               providerExecuted: import_v48.z.boolean().optional(),
+@@ -8836,6 +8898,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+             import_v48.z.object({
+               type: import_v48.z.string().startsWith("tool-"),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("approval-responded"),
+               input: import_v48.z.unknown(),
+               providerExecuted: import_v48.z.boolean().optional(),
+@@ -8851,6 +8914,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+             import_v48.z.object({
+               type: import_v48.z.string().startsWith("tool-"),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("output-available"),
+               providerExecuted: import_v48.z.boolean().optional(),
+               input: import_v48.z.unknown(),
+@@ -8868,6 +8932,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+             import_v48.z.object({
+               type: import_v48.z.string().startsWith("tool-"),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("output-error"),
+               providerExecuted: import_v48.z.boolean().optional(),
+               input: import_v48.z.unknown(),
+@@ -8885,6 +8950,7 @@ var uiMessagesSchema = (0, import_provider_utils22.lazySchema)(
+             import_v48.z.object({
+               type: import_v48.z.string().startsWith("tool-"),
+               toolCallId: import_v48.z.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: import_v48.z.literal("output-denied"),
+               providerExecuted: import_v48.z.boolean().optional(),
+               input: import_v48.z.unknown(),
+@@ -9510,7 +9576,8 @@ async function generateImage({
    providerOptions,
    maxRetries: maxRetriesArg,
    abortSignal,
@@ -64,7 +867,7 @@ index 556a2f63008e30aa66639665cafd1a561cca864b..5d338e25718ea55bd07ec2ad095fedca
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9559,21 +9560,37 @@ async function generateImage({
+@@ -9559,21 +9626,37 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };
@@ -115,10 +918,529 @@ index 556a2f63008e30aa66639665cafd1a561cca864b..5d338e25718ea55bd07ec2ad095fedca
      if (result.usage != null) {
        totalUsage = addImageModelUsage(totalUsage, result.usage);
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 1d7de52171511fbe596f9bc8a25bc058a821e867..95f72f75e16649388961f8854497b625ca5347f5 100644
+index 1d7de52171511fbe596f9bc8a25bc058a821e867..6d2bb1840c7b9ad1d75e239f6f4bdd422ea4b9b1 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -9444,7 +9444,8 @@ async function generateImage({
+@@ -2829,7 +2829,8 @@ async function executeToolCall({
+           input,
+           error,
+           dynamic: tool2.type === "dynamic",
+-          ...toolCall.providerMetadata != null ? { providerMetadata: toolCall.providerMetadata } : {}
++          ...toolCall.providerMetadata != null ? { providerMetadata: toolCall.providerMetadata } : {},
++          ...toolCall.toolMetadata != null ? { toolMetadata: toolCall.toolMetadata } : {}
+         };
+       }
+       const durationMs = now() - startTime;
+@@ -2862,7 +2863,8 @@ async function executeToolCall({
+         input,
+         output,
+         dynamic: tool2.type === "dynamic",
+-        ...toolCall.providerMetadata != null ? { providerMetadata: toolCall.providerMetadata } : {}
++        ...toolCall.providerMetadata != null ? { providerMetadata: toolCall.providerMetadata } : {},
++        ...toolCall.toolMetadata != null ? { toolMetadata: toolCall.toolMetadata } : {}
+       };
+     }
+   });
+@@ -3625,7 +3627,6 @@ async function parseToolCall({
+   system,
+   messages
+ }) {
+-  var _a21;
+   try {
+     if (tools == null) {
+       if (toolCall.providerExecuted && toolCall.dynamic) {
+@@ -3666,6 +3667,7 @@ async function parseToolCall({
+   } catch (error) {
+     const parsedInput = await safeParseJSON3({ text: toolCall.input });
+     const input = parsedInput.success ? parsedInput.value : toolCall.input;
++    const tool2 = tools == null ? void 0 : tools[toolCall.toolName];
+     return {
+       type: "tool-call",
+       toolCallId: toolCall.toolCallId,
+@@ -3674,9 +3676,10 @@ async function parseToolCall({
+       dynamic: true,
+       invalid: true,
+       error,
+-      title: (_a21 = tools == null ? void 0 : tools[toolCall.toolName]) == null ? void 0 : _a21.title,
++      title: tool2 == null ? void 0 : tool2.title,
+       providerExecuted: toolCall.providerExecuted,
+-      providerMetadata: toolCall.providerMetadata
++      providerMetadata: toolCall.providerMetadata,
++      ...(tool2 == null ? void 0 : tool2.metadata) != null ? { toolMetadata: tool2.metadata } : {}
+     };
+   }
+ }
+@@ -3730,6 +3733,7 @@ async function doParseToolCall({
+     input: parseResult.value,
+     providerExecuted: toolCall.providerExecuted,
+     providerMetadata: toolCall.providerMetadata,
++    ...tool2.metadata != null ? { toolMetadata: tool2.metadata } : {},
+     dynamic: true,
+     title: tool2.title
+   } : {
+@@ -3739,6 +3743,7 @@ async function doParseToolCall({
+     input: parseResult.value,
+     providerExecuted: toolCall.providerExecuted,
+     providerMetadata: toolCall.providerMetadata,
++    ...tool2.metadata != null ? { toolMetadata: tool2.metadata } : {},
+     title: tool2.title
+   };
+ }
+@@ -4836,7 +4841,8 @@ function asContent({
+               error: part.result,
+               providerExecuted: true,
+               dynamic: part.dynamic,
+-              ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {}
++              ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++              ...(tool2 == null ? void 0 : tool2.metadata) != null ? { toolMetadata: tool2.metadata } : {}
+             });
+           } else {
+             contentParts.push({
+@@ -4847,7 +4853,8 @@ function asContent({
+               output: part.result,
+               providerExecuted: true,
+               dynamic: part.dynamic,
+-              ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {}
++              ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++              ...(tool2 == null ? void 0 : tool2.metadata) != null ? { toolMetadata: tool2.metadata } : {}
+             });
+           }
+           break;
+@@ -4861,7 +4868,8 @@ function asContent({
+             error: part.result,
+             providerExecuted: true,
+             dynamic: toolCall.dynamic,
+-            ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {}
++            ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++            ...toolCall.toolMetadata != null ? { toolMetadata: toolCall.toolMetadata } : {}
+           });
+         } else {
+           contentParts.push({
+@@ -4872,7 +4880,8 @@ function asContent({
+             output: part.result,
+             providerExecuted: true,
+             dynamic: toolCall.dynamic,
+-            ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {}
++            ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++            ...toolCall.toolMetadata != null ? { toolMetadata: toolCall.toolMetadata } : {}
+           });
+         }
+         break;
+@@ -5060,6 +5069,10 @@ import { validateTypes } from "@ai-sdk/provider-utils";
+ // src/ui-message-stream/ui-message-chunks.ts
+ import { z as z7 } from "zod/v4";
+ import { lazySchema, zodSchema } from "@ai-sdk/provider-utils";
++var toolMetadataSchema = z7.record(
++  z7.string(),
++  jsonValueSchema.optional()
++);
+ var uiMessageChunkSchema = lazySchema(
+   () => zodSchema(
+     z7.union([
+@@ -5089,6 +5102,7 @@ var uiMessageChunkSchema = lazySchema(
+         toolName: z7.string(),
+         providerExecuted: z7.boolean().optional(),
+         providerMetadata: providerMetadataSchema.optional(),
++        toolMetadata: toolMetadataSchema.optional(),
+         dynamic: z7.boolean().optional(),
+         title: z7.string().optional()
+       }),
+@@ -5104,6 +5118,7 @@ var uiMessageChunkSchema = lazySchema(
+         input: z7.unknown(),
+         providerExecuted: z7.boolean().optional(),
+         providerMetadata: providerMetadataSchema.optional(),
++        toolMetadata: toolMetadataSchema.optional(),
+         dynamic: z7.boolean().optional(),
+         title: z7.string().optional()
+       }),
+@@ -5114,6 +5129,7 @@ var uiMessageChunkSchema = lazySchema(
+         input: z7.unknown(),
+         providerExecuted: z7.boolean().optional(),
+         providerMetadata: providerMetadataSchema.optional(),
++        toolMetadata: toolMetadataSchema.optional(),
+         dynamic: z7.boolean().optional(),
+         errorText: z7.string(),
+         title: z7.string().optional()
+@@ -5129,6 +5145,7 @@ var uiMessageChunkSchema = lazySchema(
+         output: z7.unknown(),
+         providerExecuted: z7.boolean().optional(),
+         providerMetadata: providerMetadataSchema.optional(),
++        toolMetadata: toolMetadataSchema.optional(),
+         dynamic: z7.boolean().optional(),
+         preliminary: z7.boolean().optional()
+       }),
+@@ -5138,6 +5155,7 @@ var uiMessageChunkSchema = lazySchema(
+         errorText: z7.string(),
+         providerExecuted: z7.boolean().optional(),
+         providerMetadata: providerMetadataSchema.optional(),
++        toolMetadata: toolMetadataSchema.optional(),
+         dynamic: z7.boolean().optional()
+       }),
+       z7.strictObject({
+@@ -5321,6 +5339,9 @@ function processUIMessageStream({
+               if (options.title !== void 0) {
+                 anyPart.title = options.title;
+               }
++              if (options.toolMetadata !== void 0) {
++                anyPart.toolMetadata = options.toolMetadata;
++              }
+               anyPart.providerExecuted = (_a22 = anyOptions.providerExecuted) != null ? _a22 : part.providerExecuted;
+               const providerMetadata = anyOptions.providerMetadata;
+               if (providerMetadata != null) {
+@@ -5337,6 +5358,7 @@ function processUIMessageStream({
+                 toolCallId: options.toolCallId,
+                 state: options.state,
+                 title: options.title,
++                ...options.toolMetadata !== void 0 ? { toolMetadata: options.toolMetadata } : {},
+                 input: anyOptions.input,
+                 output: anyOptions.output,
+                 rawInput: anyOptions.rawInput,
+@@ -5366,6 +5388,9 @@ function processUIMessageStream({
+               if (options.title !== void 0) {
+                 anyPart.title = options.title;
+               }
++              if (options.toolMetadata !== void 0) {
++                anyPart.toolMetadata = options.toolMetadata;
++              }
+               anyPart.providerExecuted = (_b2 = anyOptions.providerExecuted) != null ? _b2 : part.providerExecuted;
+               const providerMetadata = anyOptions.providerMetadata;
+               if (providerMetadata != null) {
+@@ -5388,6 +5413,7 @@ function processUIMessageStream({
+                 preliminary: anyOptions.preliminary,
+                 providerExecuted: anyOptions.providerExecuted,
+                 title: options.title,
++                ...options.toolMetadata !== void 0 ? { toolMetadata: options.toolMetadata } : {},
+                 ...anyOptions.providerMetadata != null && (options.state === "output-available" || options.state === "output-error") ? { resultProviderMetadata: anyOptions.providerMetadata } : {},
+                 ...anyOptions.providerMetadata != null && !(options.state === "output-available" || options.state === "output-error") ? { callProviderMetadata: anyOptions.providerMetadata } : {}
+               });
+@@ -5532,7 +5558,8 @@ function processUIMessageStream({
+                 toolName: chunk.toolName,
+                 index: toolInvocations.length,
+                 dynamic: chunk.dynamic,
+-                title: chunk.title
++                title: chunk.title,
++                toolMetadata: chunk.toolMetadata
+               };
+               if (chunk.dynamic) {
+                 updateDynamicToolPart({
+@@ -5542,6 +5569,7 @@ function processUIMessageStream({
+                   input: void 0,
+                   providerExecuted: chunk.providerExecuted,
+                   title: chunk.title,
++                  toolMetadata: chunk.toolMetadata,
+                   providerMetadata: chunk.providerMetadata
+                 });
+               } else {
+@@ -5552,6 +5580,7 @@ function processUIMessageStream({
+                   input: void 0,
+                   providerExecuted: chunk.providerExecuted,
+                   title: chunk.title,
++                  toolMetadata: chunk.toolMetadata,
+                   providerMetadata: chunk.providerMetadata
+                 });
+               }
+@@ -5577,7 +5606,8 @@ function processUIMessageStream({
+                   toolName: partialToolCall.toolName,
+                   state: "input-streaming",
+                   input: partialArgs,
+-                  title: partialToolCall.title
++                  title: partialToolCall.title,
++                  toolMetadata: partialToolCall.toolMetadata
+                 });
+               } else {
+                 updateToolPart({
+@@ -5585,7 +5615,8 @@ function processUIMessageStream({
+                   toolName: partialToolCall.toolName,
+                   state: "input-streaming",
+                   input: partialArgs,
+-                  title: partialToolCall.title
++                  title: partialToolCall.title,
++                  toolMetadata: partialToolCall.toolMetadata
+                 });
+               }
+               write();
+@@ -5600,7 +5631,8 @@ function processUIMessageStream({
+                   input: chunk.input,
+                   providerExecuted: chunk.providerExecuted,
+                   providerMetadata: chunk.providerMetadata,
+-                  title: chunk.title
++                  title: chunk.title,
++                  toolMetadata: chunk.toolMetadata
+                 });
+               } else {
+                 updateToolPart({
+@@ -5610,7 +5642,8 @@ function processUIMessageStream({
+                   input: chunk.input,
+                   providerExecuted: chunk.providerExecuted,
+                   providerMetadata: chunk.providerMetadata,
+-                  title: chunk.title
++                  title: chunk.title,
++                  toolMetadata: chunk.toolMetadata
+                 });
+               }
+               write();
+@@ -5632,7 +5665,8 @@ function processUIMessageStream({
+                   input: chunk.input,
+                   errorText: chunk.errorText,
+                   providerExecuted: chunk.providerExecuted,
+-                  providerMetadata: chunk.providerMetadata
++                  providerMetadata: chunk.providerMetadata,
++                  toolMetadata: chunk.toolMetadata
+                 });
+               } else {
+                 updateToolPart({
+@@ -5643,7 +5677,8 @@ function processUIMessageStream({
+                   rawInput: chunk.input,
+                   errorText: chunk.errorText,
+                   providerExecuted: chunk.providerExecuted,
+-                  providerMetadata: chunk.providerMetadata
++                  providerMetadata: chunk.providerMetadata,
++                  toolMetadata: chunk.toolMetadata
+                 });
+               }
+               write();
+@@ -5674,7 +5709,8 @@ function processUIMessageStream({
+                   preliminary: chunk.preliminary,
+                   providerExecuted: chunk.providerExecuted,
+                   providerMetadata: chunk.providerMetadata,
+-                  title: toolInvocation.title
++                  title: toolInvocation.title,
++                  toolMetadata: toolInvocation.toolMetadata
+                 });
+               } else {
+                 updateToolPart({
+@@ -5686,7 +5722,8 @@ function processUIMessageStream({
+                   providerExecuted: chunk.providerExecuted,
+                   preliminary: chunk.preliminary,
+                   providerMetadata: chunk.providerMetadata,
+-                  title: toolInvocation.title
++                  title: toolInvocation.title,
++                  toolMetadata: toolInvocation.toolMetadata
+                 });
+               }
+               write();
+@@ -5703,7 +5740,8 @@ function processUIMessageStream({
+                   errorText: chunk.errorText,
+                   providerExecuted: chunk.providerExecuted,
+                   providerMetadata: chunk.providerMetadata,
+-                  title: toolInvocation.title
++                  title: toolInvocation.title,
++                  toolMetadata: toolInvocation.toolMetadata
+                 });
+               } else {
+                 updateToolPart({
+@@ -5715,7 +5753,8 @@ function processUIMessageStream({
+                   errorText: chunk.errorText,
+                   providerExecuted: chunk.providerExecuted,
+                   providerMetadata: chunk.providerMetadata,
+-                  title: toolInvocation.title
++                  title: toolInvocation.title,
++                  toolMetadata: toolInvocation.toolMetadata
+                 });
+               }
+               write();
+@@ -6228,7 +6267,8 @@ function runToolsTransformation({
+                 input: toolCall.input,
+                 error: getErrorMessage6(toolCall.error),
+                 dynamic: true,
+-                title: toolCall.title
++                title: toolCall.title,
++                ...toolCall.toolMetadata != null ? { toolMetadata: toolCall.toolMetadata } : {}
+               });
+               break;
+             }
+@@ -6296,6 +6336,7 @@ function runToolsTransformation({
+         }
+         case "tool-result": {
+           const toolName = chunk.toolName;
++          const toolCall = toolCallsByToolCallId.get(chunk.toolCallId);
+           if (chunk.isError) {
+             toolResultsStreamController.enqueue({
+               type: "tool-error",
+@@ -6305,7 +6346,8 @@ function runToolsTransformation({
+               providerExecuted: true,
+               error: chunk.result,
+               dynamic: chunk.dynamic,
+-              ...chunk.providerMetadata != null ? { providerMetadata: chunk.providerMetadata } : {}
++              ...chunk.providerMetadata != null ? { providerMetadata: chunk.providerMetadata } : {},
++              ...(toolCall == null ? void 0 : toolCall.toolMetadata) != null ? { toolMetadata: toolCall.toolMetadata } : {}
+             });
+           } else {
+             controller.enqueue({
+@@ -6316,7 +6358,8 @@ function runToolsTransformation({
+               output: chunk.result,
+               providerExecuted: true,
+               dynamic: chunk.dynamic,
+-              ...chunk.providerMetadata != null ? { providerMetadata: chunk.providerMetadata } : {}
++              ...chunk.providerMetadata != null ? { providerMetadata: chunk.providerMetadata } : {},
++              ...(toolCall == null ? void 0 : toolCall.toolMetadata) != null ? { toolMetadata: toolCall.toolMetadata } : {}
+             });
+           }
+           break;
+@@ -7882,6 +7925,7 @@ var DefaultStreamTextResult = class {
+                 toolName: part.toolName,
+                 ...part.providerExecuted != null ? { providerExecuted: part.providerExecuted } : {},
+                 ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++                ...part.toolMetadata != null ? { toolMetadata: part.toolMetadata } : {},
+                 ...dynamic != null ? { dynamic } : {},
+                 ...part.title != null ? { title: part.title } : {}
+               });
+@@ -7905,6 +7949,7 @@ var DefaultStreamTextResult = class {
+                   input: part.input,
+                   ...part.providerExecuted != null ? { providerExecuted: part.providerExecuted } : {},
+                   ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++                  ...part.toolMetadata != null ? { toolMetadata: part.toolMetadata } : {},
+                   ...dynamic != null ? { dynamic } : {},
+                   errorText: onError(part.error),
+                   ...part.title != null ? { title: part.title } : {}
+@@ -7917,6 +7962,7 @@ var DefaultStreamTextResult = class {
+                   input: part.input,
+                   ...part.providerExecuted != null ? { providerExecuted: part.providerExecuted } : {},
+                   ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++                  ...part.toolMetadata != null ? { toolMetadata: part.toolMetadata } : {},
+                   ...dynamic != null ? { dynamic } : {},
+                   ...part.title != null ? { title: part.title } : {}
+                 });
+@@ -7939,6 +7985,7 @@ var DefaultStreamTextResult = class {
+                 output: part.output,
+                 ...part.providerExecuted != null ? { providerExecuted: part.providerExecuted } : {},
+                 ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++                ...part.toolMetadata != null ? { toolMetadata: part.toolMetadata } : {},
+                 ...part.preliminary != null ? { preliminary: part.preliminary } : {},
+                 ...dynamic != null ? { dynamic } : {}
+               });
+@@ -7952,6 +7999,7 @@ var DefaultStreamTextResult = class {
+                 errorText: part.providerExecuted ? typeof part.error === "string" ? part.error : JSON.stringify(part.error) : onError(part.error),
+                 ...part.providerExecuted != null ? { providerExecuted: part.providerExecuted } : {},
+                 ...part.providerMetadata != null ? { providerMetadata: part.providerMetadata } : {},
++                ...part.toolMetadata != null ? { toolMetadata: part.toolMetadata } : {},
+                 ...dynamic != null ? { dynamic } : {}
+               });
+               break;
+@@ -8568,6 +8616,10 @@ import {
+   zodSchema as zodSchema2
+ } from "@ai-sdk/provider-utils";
+ import { z as z8 } from "zod/v4";
++var toolMetadataSchema2 = z8.record(
++  z8.string(),
++  jsonValueSchema.optional()
++);
+ var uiMessagesSchema = lazySchema2(
+   () => zodSchema2(
+     z8.array(
+@@ -8623,6 +8675,7 @@ var uiMessagesSchema = lazySchema2(
+               type: z8.literal("dynamic-tool"),
+               toolName: z8.string(),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("input-streaming"),
+               input: z8.unknown().optional(),
+               providerExecuted: z8.boolean().optional(),
+@@ -8635,6 +8688,7 @@ var uiMessagesSchema = lazySchema2(
+               type: z8.literal("dynamic-tool"),
+               toolName: z8.string(),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("input-available"),
+               input: z8.unknown(),
+               providerExecuted: z8.boolean().optional(),
+@@ -8647,6 +8701,7 @@ var uiMessagesSchema = lazySchema2(
+               type: z8.literal("dynamic-tool"),
+               toolName: z8.string(),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("approval-requested"),
+               input: z8.unknown(),
+               providerExecuted: z8.boolean().optional(),
+@@ -8663,6 +8718,7 @@ var uiMessagesSchema = lazySchema2(
+               type: z8.literal("dynamic-tool"),
+               toolName: z8.string(),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("approval-responded"),
+               input: z8.unknown(),
+               providerExecuted: z8.boolean().optional(),
+@@ -8679,6 +8735,7 @@ var uiMessagesSchema = lazySchema2(
+               type: z8.literal("dynamic-tool"),
+               toolName: z8.string(),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("output-available"),
+               input: z8.unknown(),
+               providerExecuted: z8.boolean().optional(),
+@@ -8697,6 +8754,7 @@ var uiMessagesSchema = lazySchema2(
+               type: z8.literal("dynamic-tool"),
+               toolName: z8.string(),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("output-error"),
+               input: z8.unknown(),
+               rawInput: z8.unknown().optional(),
+@@ -8715,6 +8773,7 @@ var uiMessagesSchema = lazySchema2(
+               type: z8.literal("dynamic-tool"),
+               toolName: z8.string(),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("output-denied"),
+               input: z8.unknown(),
+               providerExecuted: z8.boolean().optional(),
+@@ -8730,6 +8789,7 @@ var uiMessagesSchema = lazySchema2(
+             z8.object({
+               type: z8.string().startsWith("tool-"),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("input-streaming"),
+               providerExecuted: z8.boolean().optional(),
+               callProviderMetadata: providerMetadataSchema.optional(),
+@@ -8741,6 +8801,7 @@ var uiMessagesSchema = lazySchema2(
+             z8.object({
+               type: z8.string().startsWith("tool-"),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("input-available"),
+               providerExecuted: z8.boolean().optional(),
+               input: z8.unknown(),
+@@ -8752,6 +8813,7 @@ var uiMessagesSchema = lazySchema2(
+             z8.object({
+               type: z8.string().startsWith("tool-"),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("approval-requested"),
+               input: z8.unknown(),
+               providerExecuted: z8.boolean().optional(),
+@@ -8767,6 +8829,7 @@ var uiMessagesSchema = lazySchema2(
+             z8.object({
+               type: z8.string().startsWith("tool-"),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("approval-responded"),
+               input: z8.unknown(),
+               providerExecuted: z8.boolean().optional(),
+@@ -8782,6 +8845,7 @@ var uiMessagesSchema = lazySchema2(
+             z8.object({
+               type: z8.string().startsWith("tool-"),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("output-available"),
+               providerExecuted: z8.boolean().optional(),
+               input: z8.unknown(),
+@@ -8799,6 +8863,7 @@ var uiMessagesSchema = lazySchema2(
+             z8.object({
+               type: z8.string().startsWith("tool-"),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("output-error"),
+               providerExecuted: z8.boolean().optional(),
+               input: z8.unknown(),
+@@ -8816,6 +8881,7 @@ var uiMessagesSchema = lazySchema2(
+             z8.object({
+               type: z8.string().startsWith("tool-"),
+               toolCallId: z8.string(),
++              toolMetadata: toolMetadataSchema2.optional(),
+               state: z8.literal("output-denied"),
+               providerExecuted: z8.boolean().optional(),
+               input: z8.unknown(),
+@@ -9444,7 +9510,8 @@ async function generateImage({
    providerOptions,
    maxRetries: maxRetriesArg,
    abortSignal,
@@ -128,7 +1450,7 @@ index 1d7de52171511fbe596f9bc8a25bc058a821e867..95f72f75e16649388961f8854497b625
  }) {
    var _a21, _b;
    const model = resolveImageModel(modelArg);
-@@ -9493,21 +9494,37 @@ async function generateImage({
+@@ -9493,21 +9560,37 @@ async function generateImage({
      outputTokens: void 0,
      totalTokens: void 0
    };

@@ -72,8 +72,8 @@ describe('toolResponse adapter', () => {
       state: 'output-error',
       errorText: 'OCR failed'
     }
-  ])('uses tool metadata for a hashed non-ASCII MCP id in $state state', (stateFields) => {
-    const part = {
+  ] as const)('uses tool metadata for a hashed non-ASCII MCP id in $state state', (stateFields) => {
+    const part: CherryMessagePart = {
       type: 'dynamic-tool',
       toolCallId: 'call-ocr',
       toolName: 'mcp__ocr__tool_1234567890abcdef1234',
@@ -90,7 +90,7 @@ describe('toolResponse adapter', () => {
         }
       },
       ...stateFields
-    } as unknown as CherryMessagePart
+    }
 
     const response = buildToolResponseFromPart(part)
     expect(response).toBeTruthy()
