@@ -105,7 +105,7 @@ export interface MessageConfig {
   outputFormat?: OutputFormat
   /** Request abort signal (`context.request.signal`); aborts the upstream stream on client disconnect. */
   signal?: AbortSignal
-  /** Raw request headers used for trusted usage correlation and request-scoped session affinity. */
+  /** Raw request headers used only to validate Cherry-internal usage correlation. */
   requestHeaders?: Headers
   onError?: (error: unknown) => void
   onComplete?: () => void
@@ -149,8 +149,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const usageContext = config.requestHeaders
     ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders)
     : undefined
-  const sessionAffinity = config.requestHeaders?.get('x-session-affinity')?.trim()
-  const upstreamHeaders = sessionAffinity ? { 'x-session-affinity': sessionAffinity } : undefined
   const isInternalAgentRequest =
     config.requestHeaders !== undefined &&
     application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
@@ -369,7 +367,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             callOverrides,
             contextOwner: 'caller',
             ...(usageContext ? { usageContext } : {}),
-            ...(upstreamHeaders ? { headers: upstreamHeaders } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
           })
         } catch (error) {
@@ -453,7 +450,6 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       callOverrides,
       contextOwner: 'caller',
       ...(usageContext ? { usageContext } : {}),
-      ...(upstreamHeaders ? { headers: upstreamHeaders } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })
 
