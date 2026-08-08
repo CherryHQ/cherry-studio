@@ -21,10 +21,11 @@ import { createWebFetchToolEntry } from './WebFetchTool'
 import { createWebSearchToolEntry } from './WebSearchTool'
 
 export function registerBuiltinTools(reg: ToolRegistry = registry): void {
-  // fs_read is intentionally always registered (no `applies` gate). Even when truncation
-  // is off it stays reachable, but confined to the request's persisted-output allow-list
-  // (realpath-compared exact paths; empty list ⇒ every read denied). The persisted-output
-  // system-prompt section is keyed on its presence, so it stays available too.
+  // fs_read is gated per request via `applies` (markers present, or the truncate
+  // lane able to mint new ones) plus resolveTools' lone-tool post-filter — see
+  // createFsReadToolEntry. When included it stays confined to the request's
+  // persisted-output allow-list (realpath-compared exact paths; empty list ⇒
+  // every read denied).
   reg.register(createFsReadToolEntry())
   reg.register(createKbListToolEntry())
   reg.register(createKbSearchToolEntry())

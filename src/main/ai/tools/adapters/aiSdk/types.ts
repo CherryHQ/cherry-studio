@@ -28,6 +28,10 @@ export interface ToolApplyScope {
   readonly mcpToolIds: ReadonlySet<string>
   /** True when the request carries first-party file attachments — gates the `read_file` tool. Defaults to false. */
   readonly hasFileAttachments?: boolean
+  /** True when the conversation already references persisted tool-output blobs — gates the `fs_read` tool. Defaults to false. */
+  readonly hasPersistedOutputs?: boolean
+  /** True when the context-build truncate lane can offload tool outputs this request — gates the `fs_read` tool. Defaults to false. */
+  readonly canOffloadToolOutputs?: boolean
   /** True when the user has at least one knowledge base — gates the `kb_*` tools. Defaults to false. */
   readonly hasAnyKnowledgeBase?: boolean
   /**

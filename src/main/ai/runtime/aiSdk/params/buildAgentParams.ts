@@ -6,6 +6,7 @@ import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import {
+  FS_READ_TOOL_NAME,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   WEB_FETCH_TOOL_NAME,
@@ -138,6 +139,16 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const retained = request.retainedContext ?? collectRetainedContext(request.messages ?? [])
   const fileAttachments = retained.fileAttachments
   const hasFileAttachments = fileAttachments.length > 0
+  // Resolved before tool selection (fs_read's applies gate) and the tool
+  // context (fs_read's per-call cap follows the effective persist threshold).
+  const { contextSettings, compressionModel } = await resolveRequestContextSettings(
+    model,
+    assistant?.settings.contextSettings
+  )
+  const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
+  // Mirrors buildContextOptions' enablement (contextBuild.ts): when the truncate
+  // lane cannot run, no new <persisted-output> markers can appear this request.
+  const canOffloadToolOutputs = contextSettings.enabled && request.contextOwner !== 'caller'
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request) : undefined
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
@@ -155,7 +166,17 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     reasoningEffort: request.reasoningEffort ?? assistant?.settings.reasoning_effort
   })
   const { tools, deferredEntries, hasCitableTools, mcpToolIds } = toolSignals
-    ? await resolveTools(request, assistant, model, hasFileAttachments, knowledgeBaseIds, webToolRoutes, toolSignals)
+    ? await resolveTools(
+        request,
+        assistant,
+        model,
+        hasFileAttachments,
+        knowledgeBaseIds,
+        webToolRoutes,
+        toolSignals,
+        hasPersistedOutputs,
+        canOffloadToolOutputs
+      )
     : { tools: undefined, deferredEntries: [] as ToolEntry[], hasCitableTools: false, mcpToolIds: new Set<string>() }
   const hasFunctionTools = tools !== undefined && Object.keys(tools).length > 0
   const finalWebToolRoutes = finalizeWebToolRoutes(webToolRoutes, model, provider, hasFunctionTools)
@@ -194,13 +215,6 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   })
   const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
 
-  // Resolved before the tool context so fs_read's per-call cap can follow the
-  // effective persist threshold instead of the compile-time default.
-  const { contextSettings, compressionModel } = await resolveRequestContextSettings(
-    model,
-    assistant?.settings.contextSettings
-  )
-
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
     topicId: request.chatId,
@@ -236,6 +250,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     compactionSink,
     webToolRoutes: finalWebToolRoutes,
     hasFileAttachments,
+    hasPersistedOutputs,
+    canOffloadToolOutputs,
     knowledgeBaseIds
   }
 
@@ -350,7 +366,9 @@ export async function resolveTools(
   hasFileAttachments: boolean,
   knowledgeBaseIds: readonly string[],
   webToolRoutes: WebToolRoutes = NO_WEB_TOOL_ROUTES,
-  signals?: Awaited<ReturnType<typeof resolveRequestToolSignals>>
+  signals?: Awaited<ReturnType<typeof resolveRequestToolSignals>>,
+  hasPersistedOutputs: boolean = false,
+  canOffloadToolOutputs: boolean = false
 ): Promise<{
   tools: ToolSet | undefined
   deferredEntries: ToolEntry[]
@@ -365,25 +383,37 @@ export async function resolveTools(
   }
 
   const paintingModel = resolveConfiguredPaintingModel()
-  const activeEntries = registry.selectActive({
+  const selected = registry.selectActive({
     assistant,
     paintingModel: paintingModel ?? undefined,
     mcpToolIds,
     hasFileAttachments,
+    hasPersistedOutputs,
+    canOffloadToolOutputs,
     hasAnyKnowledgeBase,
     knowledgeBaseIds,
     webToolRoutes
   })
+  // First-class client tools (no `execute`) supplied per request by assistant-less
+  // callers (the API gateway). Merged below so they share the registry/defer-exposition
+  // path instead of being mutated onto raw SDK params.
+  const clientTools = request.callOverrides?.tools
+  const clientToolNames = new Set(Object.keys(clientTools ?? {}))
+  // fs_read reads back offloaded TOOL outputs; with no other function tool in
+  // the request (client tools included) nothing can be offloaded mid-loop, so a
+  // lone fs_read without pre-existing markers is dead weight (#18084) — drop it.
+  const activeEntries =
+    !hasPersistedOutputs &&
+    clientToolNames.size === 0 &&
+    selected.length === 1 &&
+    selected[0].name === FS_READ_TOOL_NAME
+      ? []
+      : selected
   let tools: ToolSet | undefined
   if (activeEntries.length > 0) {
     tools = {}
     for (const entry of activeEntries) tools[entry.name] = entry.tool
   }
-  // First-class client tools (no `execute`) supplied per request by assistant-less
-  // callers (the API gateway). Merged here so they share the registry/defer-exposition
-  // path instead of being mutated onto raw SDK params.
-  const clientTools = request.callOverrides?.tools
-  const clientToolNames = new Set(Object.keys(clientTools ?? {}))
   if (clientTools && Object.keys(clientTools).length > 0) {
     tools = {
       ...tools,
