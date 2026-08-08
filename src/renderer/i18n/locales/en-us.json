@@ -3249,6 +3249,7 @@
       "processor": "Processing Provider",
       "processor_not_configured": "Not configured",
       "processor_not_downloaded": "Not downloaded",
+      "processor_unreachable": "Service not running",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",
       "reset_action": "Restore Defaults",

@@ -13,12 +13,17 @@ const mockSave = vi.fn()
 const mockEnableEmbedding = vi.fn()
 // embedMany goes through ipcApi.request('ai.embedding.embed_many', …) now (Main IPC).
 const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
+// FileProcessingSection probes the local OCR model and Open MinerU's host on mount;
+// answering both here keeps those calls out of the embedMany spy the embedding
+// assertions read.
+const FILE_PROCESSING_PROBES: Record<string, unknown> = {
+  'local_model.get_status': { status: 'ready' },
+  'file_processing.processor.check_connectivity': true
+}
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    // FileProcessingSection probes the local OCR model on mount; answering it here
-    // keeps that call out of the embedMany spy the embedding assertions read.
     request: (route: string, input: unknown) =>
-      route === 'local_model.get_status' ? Promise.resolve({ status: 'ready' }) : mockEmbedMany(input)
+      route in FILE_PROCESSING_PROBES ? Promise.resolve(FILE_PROCESSING_PROBES[route]) : mockEmbedMany(input)
   },
   useIpcOn: () => {}
 }))

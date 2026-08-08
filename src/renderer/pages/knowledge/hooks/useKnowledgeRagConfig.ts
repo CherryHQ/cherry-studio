@@ -2,7 +2,7 @@ import { useMutation } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { getFileProcessorLabelKey } from '@renderer/i18n/label'
-import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import { PRESETS_FILE_PROCESSORS, SELF_HOSTED_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,8 +19,15 @@ const KNOWLEDGE_V2_FILE_PROCESSORS = PRESETS_FILE_PROCESSORS.filter((preset) =>
   )
 )
 
+/**
+ * Answers only "has the user supplied the credential this processor needs".
+ * Self-hosted processors need none, so they pass here unconditionally — whether
+ * their server is actually up is a separate probe, applied in FileProcessingSection.
+ */
 const canSelectFileProcessor = (processor: (typeof PRESETS_FILE_PROCESSORS)[number], apiKeys?: readonly string[]) =>
-  processor.id === 'open-mineru' || processor.type !== 'api' || apiKeys?.some((key) => key.trim().length > 0) === true
+  SELF_HOSTED_FILE_PROCESSORS.has(processor.id) ||
+  processor.type !== 'api' ||
+  apiKeys?.some((key) => key.trim().length > 0) === true
 
 export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   const { t } = useTranslation()

@@ -39,11 +39,27 @@ const startJobInputSchema = z
   })
   .strict()
 
+const checkConnectivityInputSchema = z
+  .object({
+    processorId: z.enum(FILE_PROCESSOR_IDS),
+    feature: z.enum(FILE_PROCESSOR_FEATURES)
+  })
+  .strict()
+
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const fileProcessingRequestSchemas = {
   'file_processing.start_job': defineRoute({ input: startJobInputSchema, output: JobSnapshotSchema }),
   'file_processing.list_available_processors': defineRoute({
     input: z.void(),
     output: ListAvailableFileProcessorsResultSchema
+  }),
+  /**
+   * Is this processor's configured API host answering? A plain boolean like
+   * `mcp.server.check_connectivity` — a probe that cannot reach the host is an
+   * answer, not a failure, so it resolves false rather than rejecting.
+   */
+  'file_processing.processor.check_connectivity': defineRoute({
+    input: checkConnectivityInputSchema,
+    output: z.boolean()
   })
 }

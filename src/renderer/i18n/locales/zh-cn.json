@@ -3249,6 +3249,7 @@
       "processor": "处理服务商",
       "processor_not_configured": "未配置",
       "processor_not_downloaded": "未下载",
+      "processor_unreachable": "服务未启动",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
       "reset_action": "恢复默认",
