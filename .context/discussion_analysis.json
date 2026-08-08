@@ -1,86 +1,112 @@
 {
-  "report_date": "2026-08-07",
-  "generated_at": "2026-08-07T00:00:00Z",
-  "note": "GraphQL Discussions API unavailable via MCP; analysis derived from issues tagged 'discussion' + 'help wanted' and high-comment issues",
+  "report_date": "2026-08-08",
+  "generated_at": "2026-08-08T21:00:00Z",
+  "note": "GraphQL Discussions API unavailable via MCP; analysis derived from issues tagged 'discussion'/'help wanted' and high-comment issues",
   "discussion_volume": {
     "discussion_labeled_issues_open": 8,
     "new_discussions_today": 1,
     "top_new": [
-      "#18122 [Discussion]: Why is it gone in 2.0? The aggregation of various AIs in the web version (closed same day)"
+      "#18134 [Discussion]: I was using V1 and now want to use V2 but migration keeps failing, what should I do?"
     ]
   },
   "theme_analysis": {
+    "agent_system_prompt_leak": {
+      "volume": "NEW — CRITICAL",
+      "trending": true,
+      "description": "Agent leaking internal system reminder ('The task tools haven't been used recently...') verbatim into user-facing replies. 150+ occurrences reported in #18175 alone.",
+      "key_issues": [
+        {"number": 18175, "title": "Agent outputs internal system reminder verbatim — 150+ occurrences", "comments": 2, "filed_today": true}
+      ],
+      "signal": "New critical issue today — fast community engagement (2 comments within hours). Likely affects all users running agent sessions."
+    },
     "v2_feature_regressions": {
       "volume": "HIGH",
       "trending": true,
-      "description": "v2.0 driving ongoing regression reports from v1 users; volume slowly normalizing",
+      "description": "v2.0 driving ongoing regression reports; 4 new regression issues filed today alone",
       "key_issues": [
+        {"number": 18220, "title": "Restore 'subscription source' for web search blacklist (v2 regression)", "filed_today": true},
+        {"number": 18196, "title": "V2 Regression — Restore 'Regenerate Conversation' button below user messages", "filed_today": true},
+        {"number": 18195, "title": "V2 Regression — Restore Export to Phone option in Settings", "filed_today": true},
+        {"number": 18186, "title": "v2 — Dock icon not hidden after minimize-to-tray close (regression from v1)", "filed_today": true},
         {"number": 17954, "title": "Conversation history limit removed from Edit Assistant → Model", "comments": 4},
         {"number": 17923, "title": "v2.0 regressions: themes, history navigation, tab behavior, reasoning effort"},
-        {"number": 17949, "title": "V2 regression — cannot check and manage topic prompt"},
         {"number": 17907, "title": "Restore mini programs to sidebar like v1.x", "comments": 2},
-        {"number": 18122, "title": "Web AI aggregation removed in v2 (closed)"}
+        {"number": 17949, "title": "V2 regression — cannot check and manage topic prompt"}
       ],
-      "signal": "Persistent cluster — product team needs explicit decision on v1 feature restoration roadmap"
+      "signal": "4 new regression issues today — v1→v2 feature gap still generating consistent user reports. Product team needs explicit v1-parity roadmap."
     },
     "mcp_agent_reliability": {
       "volume": "HIGH",
       "trending": true,
-      "description": "MCP tool mounting and agent reliability — multi-front issue cluster",
+      "description": "MCP reliability cluster broadening: new grep failure, replay errors, plus ongoing mount failure and process leak",
       "key_issues": [
-        {"number": 18131, "title": "MCP server connected but Agent session shows no tools mounted (new today)", "filed_today": true},
-        {"number": 17984, "title": "ToolLoopTerminalError in complex multi-step MCP"},
-        {"number": 17992, "title": "Restore MCP-over-HTTP endpoints on v2 API Gateway"},
+        {"number": 18228, "title": "Built-in file system MCP tool, grep completely fails", "filed_today": true, "labels": ["MCP", "needs-repro"]},
+        {"number": 18199, "title": "v2 replaying v1 MCP history raises 'No tool output found for tool call'", "filed_today": true, "comments": 1},
+        {"number": 17992, "title": "Restore MCP-over-HTTP endpoints on v2 API Gateway", "severity": "MEDIUM"},
         {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
         {"number": 17999, "title": "MCP prompts visible but unusable in chat"}
       ],
-      "signal": "New MCP agent mount failure today (#18131) — 3 comments in first few hours"
+      "signal": "Two new MCP issues today. grep failure in built-in FS MCP tool is a core capability regression."
     },
     "data_migration_reliability": {
       "volume": "HIGH",
-      "trending": false,
-      "description": "v1→v2 migration path — #18051 (retry loop, data corruption risk) closed yesterday",
+      "trending": true,
+      "description": "New data integrity issue filed today: v1 files with Windows-illegal extensions silently fail in v2",
       "key_issues": [
-        {"number": 18051, "title": "Migration stuck in retry loop (CLOSED 2026-08-06 — fixed)"},
+        {"number": 18187, "title": "Migrated v1 files with trailing-space/dot extension unreadable in v2 (ENOENT)", "filed_today": true, "labels": ["Data"]},
+        {"number": 18134, "title": "Discussion: V1→V2 migration keeps failing, what should I do?", "labels": ["help wanted", "discussion"]},
         {"number": 17957, "title": "V2 repeated crash during data migration", "comments": 3, "still_open": true},
         {"number": 17695, "title": "Agent migration keeps old workspace root after cross-machine v1 restore"}
       ],
-      "signal": "Migration loop fixed yesterday, migration crash #17957 still open"
+      "signal": "Migration quality issues continue despite yesterday's retry-loop fix. New file-path bug (#18187) affects users who had Windows-illegal filenames in v1."
     },
     "model_compatibility": {
       "volume": "MEDIUM",
-      "description": "Various model providers and formats failing in v2",
+      "description": "Multiple model providers and formats failing; image-gen params leaking to text models",
       "key_issues": [
-        {"number": 18130, "title": "Zhipu search provider API key configuration not working (new today)"},
-        {"number": 18113, "title": "Cherry Studio replaces relay station Grok model ID with official format (closed 2026-08-07)"},
+        {"number": 18219, "title": "OpenAI Codex model list cannot detect gpt-image-2 (Models)", "filed_today": true},
+        {"number": 18147, "title": "response_format param during image gen causes LiteLLM UnsupportedParamsError"},
+        {"number": 18145, "title": "MiMo thinking process displayed in English, thinking content sent to final message"},
         {"number": 18029, "title": "Anthropic model output cannot exceed ~1900 tokens"},
-        {"number": 13608, "title": "xiaomi mimo response last-line only (P1, 142d old)"}
+        {"number": 13608, "title": "xiaomi mimo response last-line only (P1, 143d old)"}
       ]
+    },
+    "backup_reliability": {
+      "volume": "NEW",
+      "trending": true,
+      "description": "Auto-backup scheduling broken in v2 — ignores configured interval, triggers on every startup",
+      "key_issues": [
+        {"number": 18211, "title": "CherryStudio automatic backup time settings not taking effect — triggers backup on every startup", "filed_today": true, "comments": 1}
+      ],
+      "signal": "New today. Backup triggering on every startup is a UX regression that also risks I/O thrashing on slow storage."
     }
   },
   "top_by_engagement": [
+    {"number": 18054, "title": "QQ adapter GROUP_MESSAGE_CREATE not handled", "comments": 7},
     {"number": 17954, "title": "v2.0 conversation history limit removed", "comments": 4},
     {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
-    {"number": 18054, "title": "QQ adapter GROUP_MESSAGE_CREATE not handled", "comments": 4},
     {"number": 17979, "title": ".md files with Chinese filenames cannot be @-referenced", "comments": 4},
-    {"number": 17735, "title": "Built-in web search unlimited content → context overflow", "comments": 3},
-    {"number": 17898, "title": "Auto-connect vision/OCR for text-only models", "comments": 3},
+    {"number": 17485, "title": "JavaScript error occurred in main process", "comments": 6},
+    {"number": 17629, "title": "Processes remain running after closing window (minimize-to-tray disabled)", "comments": 5},
+    {"number": 17735, "title": "Built-in web search fetches unlimited content → context overflow", "comments": 3},
     {"number": 17957, "title": "V2 repeated crash during data migration", "comments": 3},
-    {"number": 18131, "title": "MCP connected but no tools in Agent session", "comments": 3}
+    {"number": 18175, "title": "Agent leaks system reminder into replies (150+ occurrences)", "comments": 2, "filed_today": true}
   ],
   "sentiment_summary": {
-    "overall": "Stabilizing — same-day closure rate high, but MCP reliability remains a concern",
+    "overall": "Active triage sweep reduced backlog significantly, but new critical regression (#18175 system prompt leak) emerged today",
     "positive_signals": [
-      "9+ issues closed same day (very active triage/fix cycle)",
-      "Migration retry loop #18051 fixed and closed",
-      "Net new issues down to +5 today (from +14 yesterday)"
+      "Zombie bucket reduced 310 → 218 (bulk triage removed ~92 stale/invalid issues)",
+      "685 PRs merged in last 30 days — very high development velocity",
+      "MCP connected-but-no-tools (#18131) fixed same day (closed 2026-08-08T15:48)",
+      "v2.0.x stabilizing — issue creation rate normalizing"
     ],
     "pain_points": [
-      "MCP tool mount failure in Agent sessions (#18131) — new today, fast community engagement",
-      "MCP ToolLoopTerminalError (#17984) still open — regression from v2.0",
-      "Missing v1 features cluster still growing: web aggregation, history limit, mini programs",
-      "P1 #13193 (Azure OpenAI 404) at 156 days — assigned but no fix PR",
-      "310 zombie issues need quarterly triage sweep"
+      "CRITICAL NEW: #18175 — Agent leaks system reminder verbatim into replies (150+ occurrences). User-facing, breaks trust.",
+      "HIGH NEW: #18228 — Built-in FS MCP grep completely fails. Core developer tool broken.",
+      "HIGH NEW: #18187 — v1 migrated files with Windows-illegal extensions silently unreadable.",
+      "MEDIUM-HIGH NEW: #18211 — Auto-backup ignores schedule, triggers on every startup.",
+      "P1 at 157 days: #13193 (Azure OpenAI 404) — assigned to DeJeune, no fix PR seen.",
+      "4 new v2 regression issues today — v1 feature gap cluster persists."
     ]
   }
 }

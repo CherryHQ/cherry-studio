@@ -1,32 +1,33 @@
 {
-  "snapshot_date": "2026-08-07",
-  "generated_at": "2026-08-07T00:00:00Z",
+  "snapshot_date": "2026-08-08",
+  "generated_at": "2026-08-08T21:00:00Z",
   "open_issues": {
-    "total": 899,
-    "delta_from_yesterday": 5,
-    "new_last_24h": 20,
-    "no_label": 103,
-    "no_label_pct": 11.5,
-    "note_on_no_label": "Continued improvement from yesterday's 11.6% — triage team active",
+    "total": 816,
+    "delta_from_yesterday": -83,
+    "new_last_24h": 97,
+    "note_on_delta": "Large net decrease driven by bulk triage: 87% of closed issues in last 30d closed as 'not_planned'. Zombie bucket reduced 310 → 218.",
+    "no_label": 101,
+    "no_label_pct": 12.4,
+    "note_on_no_label": "Absolute count fell (103 → 101), but % rose (11.5% → 12.4%) as denominator shrank faster — bulk-triaged issues were mostly labeled",
     "by_label": {
-      "UI/UX": 275,
-      "Models": 172,
-      "Assistant": 105,
-      "Data": 63,
-      "MCP": 54,
-      "Performance": 38,
-      "RAG": 34,
-      "Connectivity": 21,
-      "P1": 3,
-      "help wanted": 8,
-      "discussion": 8,
-      "Planned": 1
+      "Models": 136,
+      "Assistant": 102,
+      "Data": 58,
+      "MCP": 43,
+      "Performance": 33,
+      "needs-repro": 27,
+      "BUG": 15,
+      "no_label": 101,
+      "note": "UI/UX count unavailable (GitHub search API rejects slash in label name); estimated ~200+ from sample analysis. P1: 3."
     }
   },
   "open_prs": {
-    "total": 386,
+    "total": "100+ (API page limit reached; exact count requires pagination)",
     "v2_base_open": 0,
-    "v2_title_mentions": 4
+    "v1_base_open": 5,
+    "draft": 10,
+    "ready_for_review": 90,
+    "note": "All v2 development consolidated to main branch. 5 PRs target v1 for maintenance fixes."
   },
   "p1_open_issues": [
     {
@@ -35,38 +36,51 @@
       "labels": ["P1", "Planned", "feature", "UI/UX"],
       "milestone": "v2.4.0",
       "created_at": "2026-05-07",
-      "age_days": 92,
-      "assignee": null
+      "age_days": 93,
+      "assignee": null,
+      "status": "Planned — no active fix PR"
     },
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
       "labels": ["P1", "Models"],
       "created_at": "2026-03-18",
-      "age_days": 142,
-      "assignee": null
+      "age_days": 143,
+      "assignee": null,
+      "status": "Unassigned — no fix PR, needs owner or wontfix decision"
     },
     {
       "number": 13193,
       "title": "[Bug]: Azure OpenAI defaults to responses API — Resource not found (404)",
       "labels": ["P1", "Models"],
       "created_at": "2026-03-04",
-      "age_days": 156,
-      "assignee": "DeJeune"
+      "age_days": 157,
+      "assignee": "DeJeune",
+      "status": "Assigned to DeJeune — no fix PR yet (day 157)"
     }
   ],
   "new_issues_today_sample": [
-    "#18131 [Bug]: MCP server shows connected, but Agent session still prompts that no tools are mounted",
-    "#18130 [Bug]: After selecting Zhipu as the search provider, entering the API key still doesn't work",
-    "#18123 [Bug]: `GLlBc 2.29' not found (closed same day)",
-    "#18122 [Discussion]: Why is it gone in 2.0? Web AI aggregation (closed same day)",
-    "#18113 [Bug]: Cherry Studio forcibly replaces relay station Grok model ID (closed same day)",
-    "#18111 [Bug]: Thinking mode multi-turn conversation error: reasoning_content must be passed back (closed same day)",
-    "#18106 [Feature]: Agent cannot access attachment file paths in sessions (closed same day)",
-    "#18086 [Bug]: Unable to reopen/customize left sidebar entry after deleting sidebar agent (closed same day)",
-    "#18055 [Bug]: Web search citations shown as raw [cite:xxx] markers (closed same day)"
+    "#18228 [Bug]: Built-in file system MCP tool, grep completely fails (MCP, needs-repro)",
+    "#18220 [Feature]: Restore 'subscription source' for web search blacklist (v2 regression)",
+    "#18219 [Bug]: OpenAI Codex model list cannot detect gpt-image-2 (Models)",
+    "#18217 [Bug]: Permission mode button on agent composer toolbar doesn't show current mode (UI/UX)",
+    "#18213 [Bug]: Agent sessions thinking blocks fully expanded, ignoring auto_collapse (UI/UX)",
+    "#18211 [Bug]: CherryStudio auto-backup time settings not taking effect — triggers on every startup",
+    "#18199 [Bug]: v2 replaying v1 MCP history raises 'No tool output found for tool call' (MCP)",
+    "#18196 [Feature]: V2 Regression — Restore 'Regenerate Conversation' button below user messages (UI/UX)",
+    "#18195 [Feature]: V2 Regression — Restore Export to Phone in Settings (Data)",
+    "#18190 Knowledge base silently indexes mojibake for .ppt/.pptx/.xls/.xlsx on Windows ARM64",
+    "#18187 [Bug]: Migrated v1 files with trailing-space/dot extension unreadable in v2 (Data)",
+    "#18186 [Bug]: v2 — After enabling minimize-to-tray, Dock icon not hidden (UI/UX regression)",
+    "#18175 [Bug]: Agent outputs internal system reminder verbatim — 150+ occurrences (Assistant) ← HIGH"
   ],
-  "merged_prs_last_30d": 572,
-  "closed_issues_last_30d": 424,
-  "velocity_note": "Net +5 open issues today (slower than yesterday's +14). Rapid triage continues — 9+ issues closed same-day. High-severity MCP and migration bugs persist. 3 P1 issues still open, oldest is #13193 at 156 days."
+  "merged_prs_last_30d": 685,
+  "closed_issues_last_30d": 540,
+  "closed_issues_breakdown": {
+    "not_planned": "~87%",
+    "completed": "~10%",
+    "duplicate": "~3%",
+    "note": "Estimated from 100-item sample; bulk triage sweep drove the large 'not_planned' share"
+  },
+  "velocity_note": "Net -83 open issues today (major triage sweep — largest single-day reduction observed). ~97 new issues filed but ~180 closed. Zombie bucket reduced from 310 to 218. New critical bug: #18175 (Agent leaks internal system prompt into replies, 150+ occurrences). MCP grep failure (#18228) is a new regression. 3 P1 issues unchanged, oldest now at 157 days."
 }
