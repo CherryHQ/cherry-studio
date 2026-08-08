@@ -18,7 +18,7 @@
 // fast — a 100k-row merge is minutes, not milliseconds):
 //
 //   RUN_BACKUP_OOM_BENCHMARK=1 pnpm vitest run \
-//     src/main/services/backup/merge/__tests__/MergeEngine.oomBenchmark.test.ts
+//     src/main/services/reconciliation/__tests__/MergeEngine.oomBenchmark.test.ts
 //
 // Override the scales (defaults to 10k/50k/100k messages):
 //

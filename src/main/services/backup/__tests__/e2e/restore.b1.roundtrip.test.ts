@@ -32,12 +32,11 @@ import { snapshotTo } from '@main/data/db/restore/snapshot'
 import { userProviderTable } from '@main/data/db/schemas/userProvider'
 import type { DbType, ISeeder } from '@main/data/db/types'
 import { contributorManager } from '@main/services/backup/contributors/ContributorManager'
+import { MergeEngine } from '@main/services/reconciliation'
 import { setupTestDatabase } from '@test-helpers/db'
 import Database from 'better-sqlite3'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-
-import { MergeEngine } from '../../merge/MergeEngine'
 
 /** Minimal production-shaped seeder: preset openai row (no registry file dependency). */
 const b1Seeder: ISeeder = {
