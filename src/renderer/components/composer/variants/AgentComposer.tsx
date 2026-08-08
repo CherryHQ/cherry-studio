@@ -331,15 +331,21 @@ const AgentComposerRoot = ({
   const agent = resolvedAgent
   const sessionModel = resolvedModel
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
-  const launchIdentityRef = useRef({ sessionId, initialDraft: launchOptions?.initialDraft })
-  if (launchIdentityRef.current.sessionId !== sessionId) {
-    launchIdentityRef.current = { sessionId, initialDraft: launchOptions?.initialDraft }
-  } else if (launchOptions) {
-    launchIdentityRef.current.initialDraft = launchOptions.initialDraft
+  // The seed sticks to its session so clearing `launchOptions` on send does not re-key the
+  // composer mid-send, and it is consumed once: a later scope change (switching the session
+  // workspace) must not re-inject the template over what the user has already written.
+  const launchIdentityRef = useRef({ sessionId, initialDraft: launchOptions?.initialDraft, consumed: false })
+  if (
+    launchIdentityRef.current.sessionId !== sessionId ||
+    (launchOptions && launchOptions.initialDraft !== launchIdentityRef.current.initialDraft)
+  ) {
+    launchIdentityRef.current = { sessionId, initialDraft: launchOptions?.initialDraft, consumed: false }
   }
   const launchInitialDraft = launchIdentityRef.current.initialDraft
-  const draftPersistenceEnabled = launchInitialDraft === undefined
-  const composerInstanceKey = `${sessionId}:${draftPersistenceEnabled ? 'default' : 'launch'}`
+  // Persistence follows the live launch options, not the sticky seed: once the launch message is
+  // sent the session owns its draft again, so follow-ups are cached like any other session's.
+  const draftPersistenceEnabled = launchOptions === undefined
+  const composerInstanceKey = `${sessionId}:${launchInitialDraft === undefined ? 'default' : 'launch'}`
   const resolvedWorkspaceId = workspaceId ?? session?.workspaceId ?? null
   const workspaceKey = buildAgentFileWorkspaceKey(resolvedWorkspaceId, session?.workspace?.path)
   const draftCacheKey = getAgentDraftCacheKey(sessionId)
@@ -349,20 +355,27 @@ const AgentComposerRoot = ({
   } | null>(null)
   const scopedComposerInstanceKey = `${composerInstanceKey}:${workspaceKey}`
   if (initialDraftRef.current?.instanceKey !== scopedComposerInstanceKey) {
-    initialDraftRef.current = {
-      instanceKey: scopedComposerInstanceKey,
-      draft: launchInitialDraft
-        ? {
-            text: launchInitialDraft.text,
-            tokens: [...launchInitialDraft.tokens],
-            files: [],
-            knowledgeBaseIds: [],
-            workspaceKey,
-            agentId,
-            shouldValidateSkills: false
-          }
-        : readAgentDraftCache(draftCacheKey, { workspaceKey, agentId })
+    let draft: RestoredAgentComposerDraftCache
+    if (launchInitialDraft === undefined) {
+      draft = readAgentDraftCache(draftCacheKey, { workspaceKey, agentId })
+    } else {
+      // A launch draft is never cached, so a scope change (switching the session workspace)
+      // has to carry the live edits over itself — re-seeding the template would silently
+      // discard whatever the user has written into it. Files stay behind: they belong to the
+      // workspace being left.
+      const seed = launchIdentityRef.current.consumed ? actionsRef.current.getDraft() : launchInitialDraft
+      launchIdentityRef.current.consumed = true
+      draft = {
+        text: seed.text,
+        tokens: [...seed.tokens],
+        files: [],
+        knowledgeBaseIds: [],
+        workspaceKey,
+        agentId,
+        shouldValidateSkills: false
+      }
     }
+    initialDraftRef.current = { instanceKey: scopedComposerInstanceKey, draft }
   }
   const { draft: initialDraft } = initialDraftRef.current
   const handleNewSessionShortcut = useCallback(() => {

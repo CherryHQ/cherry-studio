@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { WindowFrameProvider } from '@renderer/components/chat/shell/WindowFrameContext'
+import { getAgentDraftCacheKey } from '@renderer/components/composer/variants/agent/agentDraftCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { AGENT_WORKSPACE_TYPE } from '@shared/data/api/schemas/agentWorkspaces'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -781,8 +782,7 @@ describe('AgentPage', () => {
       search: { sessionId: 'session-feedback' },
       replace: true
     })
-    expect(cacheService.hasCasual('agent-feedback-launch-session-feedback')).toBe(false)
-    expect(cacheService.has('agent.composer_draft.feedback_session-feedback')).toBe(false)
+    expect(cacheService.has(getAgentDraftCacheKey('session-feedback'))).toBe(false)
 
     agentPageMocks.routeSearch = { sessionId: 'session-feedback' }
     view.unmount()

@@ -3113,6 +3113,63 @@ describe('AgentComposer', () => {
     )
   })
 
+  it('persists follow-up drafts once the launch draft has been sent', async () => {
+    const onSent = vi.fn()
+    const defaultProps = {
+      agentId: 'agent-1',
+      sessionId: 'feedback-session',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false
+    }
+    const view = render(
+      <AgentComposer
+        {...defaultProps}
+        launchOptions={{ initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] }, onSent }}
+      />
+    )
+
+    await act(async () => {
+      await mocks.surfaceProps?.onSendDraft({ text: 'Use the issue-reporter skill.', tokens: [] })
+    })
+    expect(onSent).toHaveBeenCalledTimes(1)
+
+    // The page drops the launch options once the seeded message is sent, which hands the
+    // session's draft back to the normal cache.
+    view.rerender(<AgentComposer {...defaultProps} />)
+    act(() => {
+      mocks.surfaceProps?.onTextChange('a follow-up question')
+    })
+    view.unmount()
+
+    expect(cacheService.set).toHaveBeenCalledWith(
+      'agent.composer_draft.session_feedback-session',
+      expect.objectContaining({ text: 'a follow-up question' }),
+      expect.anything()
+    )
+  })
+
+  it('carries an edited launch draft across a workspace change instead of re-seeding the template', () => {
+    const defaultProps = {
+      agentId: 'agent-1',
+      sessionId: 'feedback-session',
+      sendMessage: mocks.sendMessage,
+      stop: mocks.stop,
+      isStreaming: false,
+      launchOptions: { initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] } }
+    }
+    const view = render(<AgentComposer {...defaultProps} />)
+
+    expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill.')
+    act(() => {
+      mocks.surfaceProps?.onTextChange('Use the issue-reporter skill. Settings is unresponsive.')
+    })
+
+    view.rerender(<AgentComposer {...defaultProps} workspaceId="workspace-2" />)
+
+    expect(mocks.surfaceProps?.text).toBe('Use the issue-reporter skill. Settings is unresponsive.')
+  })
+
   it('keeps the launch state when sending fails', async () => {
     const onSent = vi.fn()
     mocks.sendMessage.mockRejectedValue(new Error('send failed'))
@@ -4615,7 +4672,7 @@ describe('AgentComposer', () => {
     })
     fireEvent.click(screen.getByText('select agent 2'))
 
-    expect(cacheService.set).not.toHaveBeenCalledWith('agent.composer_draft.home', expect.anything(), expect.anything())
+    expect(cacheService.set).not.toHaveBeenCalled()
     expect(onAgentChange).toHaveBeenCalledWith('agent-2')
   })
 
