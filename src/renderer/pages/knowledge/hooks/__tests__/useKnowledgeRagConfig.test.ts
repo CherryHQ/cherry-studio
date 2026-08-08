@@ -31,6 +31,7 @@ vi.mock('@renderer/i18n/label', () => ({
   getFileProcessorLabelKey: (id: string) =>
     (
       ({
+        'local-document': 'Local Document',
         paddleocr: 'PaddleOCR',
         mineru: 'MinerU',
         doc2x: 'Doc2X',
@@ -97,12 +98,20 @@ describe('useKnowledgeRagConfig', () => {
     })
     const { result } = renderHook(() => useKnowledgeRagConfig(base))
 
+    // `statusLabel` is what the row shows on the right; it must track `disabled`
+    // so an unconfigured processor says why rather than looking merely greyed out.
     expect(result.current.fileProcessorOptions).toEqual([
-      { value: 'paddleocr', label: 'PaddleOCR', disabled: false },
-      { value: 'mineru', label: 'MinerU', disabled: true },
-      { value: 'doc2x', label: 'Doc2X', disabled: true },
-      { value: 'mistral', label: 'Mistral', disabled: true },
-      { value: 'open-mineru', label: 'Open MinerU', disabled: false }
+      { value: 'paddleocr', label: 'PaddleOCR', disabled: false, statusLabel: undefined },
+      {
+        value: 'local-document',
+        label: 'Local Document',
+        disabled: false,
+        statusLabel: undefined
+      },
+      { value: 'mineru', label: 'MinerU', disabled: true, statusLabel: 'knowledge.rag.processor_not_configured' },
+      { value: 'doc2x', label: 'Doc2X', disabled: true, statusLabel: 'knowledge.rag.processor_not_configured' },
+      { value: 'mistral', label: 'Mistral', disabled: true, statusLabel: 'knowledge.rag.processor_not_configured' },
+      { value: 'open-mineru', label: 'Open MinerU', disabled: false, statusLabel: undefined }
     ])
     expect(mockUseMutation).toHaveBeenCalledWith('PATCH', '/knowledge-bases/:id', {
       refresh: ['/knowledge-bases']

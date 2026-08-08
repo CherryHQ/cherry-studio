@@ -1,3 +1,4 @@
+import { type LocalModelKind } from '@shared/data/presets/localModel'
 import { FILE_TYPE, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
 
@@ -209,6 +210,10 @@ export const FILE_PROCESSOR_PRESET_MAP = {
     type: 'builtin',
     capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
   },
+  'local-document': {
+    type: 'builtin',
+    capabilities: [{ feature: 'document_to_markdown', inputs: ['document'], output: 'markdown' }]
+  },
   ovocr: {
     type: 'builtin',
     capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
@@ -274,3 +279,27 @@ export const PRESETS_FILE_PROCESSORS: readonly FileProcessorPreset[] = FILE_PROC
   id,
   ...FILE_PROCESSOR_PRESET_MAP[id]
 }))
+
+/**
+ * Processors that additionally need a downloadable local model before they can
+ * run. Absent from this map means "nothing to download" — not "unavailable".
+ *
+ * A missing model is a state the user can fix in one click, unlike a platform
+ * that can never run the processor, so both processes read this map to tell the
+ * two apart: main refuses the job with a message that says which one it is, and
+ * the renderer keeps the processor selectable and offers the download.
+ */
+export const FILE_PROCESSOR_LOCAL_MODEL: Partial<Record<FileProcessorId, LocalModelKind>> = {
+  'local-paddleocr': 'ocr',
+  'local-document': 'ocr'
+}
+
+/**
+ * Processors that talk to a server the *user* runs.
+ *
+ * Their auth is optional and the preset ships a default host, so neither "has an
+ * API key" nor "has a host" says anything about readiness — both are true for a
+ * user who has done nothing at all. Whether something is actually listening is
+ * the only real signal, so the renderer probes these before offering them.
+ */
+export const SELF_HOSTED_FILE_PROCESSORS: ReadonlySet<FileProcessorId> = new Set<FileProcessorId>(['open-mineru'])

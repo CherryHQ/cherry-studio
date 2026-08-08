@@ -7,7 +7,8 @@ import { fileProcessingHandlers } from '../fileProcessing'
 
 const fileProcessingService = {
   startJob: vi.fn(),
-  listAvailableProcessors: vi.fn()
+  listAvailableProcessors: vi.fn(),
+  checkProcessorConnectivity: vi.fn()
 }
 
 beforeEach(() => {
@@ -48,5 +49,18 @@ describe('fileProcessingHandlers', () => {
 
     expect(fileProcessingService.listAvailableProcessors).toHaveBeenCalledWith()
     expect(result).toBe(list)
+  })
+
+  it('check_connectivity forwards the processor and feature and returns the verdict', async () => {
+    const input = {
+      processorId: 'open-mineru',
+      feature: 'document_to_markdown'
+    } as In<'file_processing.processor.check_connectivity'>
+    fileProcessingService.checkProcessorConnectivity.mockResolvedValue(false)
+
+    const result = await fileProcessingHandlers['file_processing.processor.check_connectivity'](input, ctx)
+
+    expect(fileProcessingService.checkProcessorConnectivity).toHaveBeenCalledWith(input)
+    expect(result).toBe(false)
   })
 })

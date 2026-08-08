@@ -48,7 +48,9 @@ vi.mock('@renderer/hooks/useTheme', () => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: ipcRequestMock
-  }
+  },
+  // useLocalModel, mounted by the panel of any processor that needs one.
+  useIpcOn: () => {}
 }))
 
 vi.mock('@renderer/utils/platform', async (importOriginal) => {
@@ -383,6 +385,59 @@ describe('processing settings pages', () => {
     expect(
       screen.queryByText('settings.tool.file_processing.processors.open_mineru.description')
     ).not.toBeInTheDocument()
+  })
+
+  // This page is the only place the local OCR model's download is reachable from,
+  // so hiding the processor while the model is missing left users with no way to
+  // get it. It must stay listed, with the download right there.
+  it.each([
+    { status: 'not_downloaded', action: 'settings.dependencies.localModels.download' },
+    { status: 'error', action: 'common.retry' }
+  ])('offers the download inline when the local model is $status', async ({ status, action }) => {
+    ipcRequestMock.mockImplementation((route: string) =>
+      route === 'local_model.get_status'
+        ? Promise.resolve({ status })
+        : Promise.resolve({
+            processorIds: ['system', 'tesseract', 'paddleocr', 'local-paddleocr', 'mineru', 'doc2x', 'mistral']
+          })
+    )
+
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+
+    // userEvent, not fireEvent: the panel settles two independent probes (the
+    // available-processor list and the local model status), and a bare click can
+    // land on the option node React is about to replace when the second resolves.
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.local_paddleocr.name/ })
+    )
+
+    expect(await screen.findByRole('button', { name: action })).toBeInTheDocument()
+    expect(
+      screen.queryByText('settings.tool.file_processing.processors.local_paddleocr.status.local')
+    ).not.toBeInTheDocument()
+  })
+
+  it('replaces the download with the ready notice once the local model is on disk', async () => {
+    ipcRequestMock.mockImplementation((route: string) =>
+      route === 'local_model.get_status'
+        ? Promise.resolve({ status: 'ready' })
+        : Promise.resolve({
+            processorIds: ['system', 'tesseract', 'paddleocr', 'local-paddleocr', 'mineru', 'doc2x', 'mistral']
+          })
+    )
+
+    const user = userEvent.setup()
+    render(<OcrSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.local_paddleocr.name/ })
+    )
+
+    expect(
+      await screen.findByText('settings.tool.file_processing.processors.local_paddleocr.status.local')
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.dependencies.localModels.download' })).not.toBeInTheDocument()
   })
 
   it('shows OV OCR only when file processing reports it as available', async () => {

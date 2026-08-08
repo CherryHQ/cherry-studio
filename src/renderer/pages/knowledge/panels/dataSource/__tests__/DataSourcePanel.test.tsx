@@ -353,7 +353,7 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.status.pending': '等待中',
             'knowledge.error.directory_not_migrated': '该文件夹内容迁移失败，请删除后重新上传。',
             'knowledge.rag.download_local_embedding_failed': '本地嵌入模型下载失败',
-            'knowledge.rag.download_local_embedding': '下载本地模型',
+            'knowledge.rag.download_local_model': '下载本地模型',
             'knowledge.file_hint': `支持 ${options?.file_types} 格式`,
             'knowledge.status.processing': '处理中',
             'knowledge.rag.file_processing': '文件处理',
