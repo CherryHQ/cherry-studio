@@ -21,6 +21,146 @@ Classify each reviewed module before looking for issues:
 | React UI | `src/renderer/`, `packages/ui/` | `@cherrystudio/ui`, i18n, a11y, hooks correctness, design-system fit |
 | Naming / module shape | Added, renamed, or moved files/directories; new classes and barrels | Path casing, export-role naming, Service/Manager roles, promotion, barrel boundaries |
 
+## Architecture-First Review
+
+Review altitude matters as much as issue discovery. Judge every changed module
+at the architecture level first — placement, ownership, dependency direction,
+and abstraction integrity against the governing docs — and only then descend to
+line-level details. When both levels produce findings on the same code, report
+the architecture finding as the primary issue and fold the detail into it;
+never let a line-level nit stand in for a boundary problem.
+
+### Entity Leakage (Business Logic Intrusion)
+
+The most common architecture defect in submitted code is concrete business
+knowledge mixed into a generic surface.
+
+This codebase repeats one structural pattern at every depth: a **generic
+engine paired with a declaration surface** — `WindowManager` + `windowRegistry`,
+the lifecycle container + `serviceRegistry` + phase/dependency decorators,
+`JobManager`/`SchedulerService` + `jobRegistry` (handlers registered by their
+owning domains), `SeedRunner` + `seederRegistry`, `MigrationEngine` +
+`migrators/`, the DataApi/IpcApi routers + single-point schema-and-handler
+registration, `CacheService`/`PreferenceService` + their shared schema
+registries, `ai/runtime/registry` + drivers, tool/MCP pipelines + per-domain
+tool units. Per-instance behavior belongs on the declaration side — a registry
+entry, a schema field, an adapter, or a domain-owned unit; the engine stays
+instance-blind. The review test for every touched module: **identify its
+engine/declaration pair, then check which side the change landed on.**
+Instance-keyed behavior added to the engine side is entity leakage — at any
+module depth, cross-module (features into `core/`, `data/`, `shared/`) and
+intra-module (a module's own generic layer) alike.
+
+The renderer (`docs/references/renderer-architecture.md`) expresses the same
+rule as a **type × domain grid with strictly downward edges**: the shared row
+(`components/`, `hooks/`, `services/`, `utils/`, `data/`, `ipc/`, `workers/`)
+and the primitives below it are **domain-blind by definition**; domain
+knowledge may exist only in a domain row (`features/<domain>/`, or the
+`pages/<domain>/`-style buckets while promotion is pending) or in app-layer
+composition (`windows/`/`routes/`/top-level `pages/`). Lint already bans the
+import edges (`shared → features/pages`, `feature → feature`, `page → page`);
+review must catch **domain knowledge that arrives without an import** — route
+strings, cache-key prefixes, domain-id branches, feature-flag props — which
+lint cannot see.
+
+What leakage looks like per module (non-exhaustive — derive new cases from the
+engine/declaration and domain-blind tests above):
+
+| Generic surface | Leakage looks like |
+| --- | --- |
+| Lifecycle container (`core/application`) | `Application`/`BaseService` branching on a concrete service name; startup ordering hacked for one service instead of `@ServicePhase`/`@DependsOn` declarations |
+| `WindowManager` (`core/window`) | engine or shared behavior code branching on one window type instead of a mode/flag declared per type in `windowRegistry` |
+| Job & scheduler (`core/job`, `core/scheduler`) | `JobManager`/`SchedulerService` branching on a concrete job kind; one job's retry/concurrency policy special-cased in the engine; `core/` importing a feature to run its job instead of the domain registering a handler |
+| Paths (`core/paths`) | path code deriving a feature's directory ad hoc instead of a declared `namespace.key` |
+| DataApi infrastructure (`data/api`) | router or shared pagination/ordering/data-change helpers special-casing one endpoint or table |
+| `CacheService` / `PreferenceService` | per-key behavior (TTL, tier, persistence, bridging) coded in the service instead of declared in the schema registry; tier contracts bridged to satisfy one feature's need |
+| Migration & seeding (`data/migration/v2`, `data/db/seeding`) | `MigrationEngine`/`SeedRunner` branching on one migrator/seeder; shared mapping utils encoding a single domain's transform |
+| DB schemas (`data/db/schemas`) | one column overloaded with several row-kind meanings decoded by parsing; relation columns (`role`, `sourceId`) that no consumer reads |
+| IpcApi bridge (`shared/ipc`, preload) | the generic bridge or error model gaining fields or branches only one route uses; a bespoke channel added beside the generic bridge |
+| AI runtime & providers (`ai/runtime`, `ai/provider`) | shared driver/registry contracts gaining fields only one driver consumes; stream/pipe loops branching on a concrete provider or model id instead of a registry capability flag |
+| AI tools / MCP / approval (`ai/tools`, `ai/mcp`, `ToolApprovalRegistry`) | dispatcher, permission gate, or server pipeline special-casing a concrete `xxxTool`/`xxxMcp`; name side tables; domain params in the generic `ToolHandler` contract |
+| Main `services/` bucket | a capability service (files, notifications, shortcuts) branching on which entity called it (avatar vs provider logo) instead of exposing a generic API the owning domain composes |
+| Renderer shared row (`components/`, `hooks/`, `services/`, `utils/`) | a shared module encoding a domain without importing it: feature-flag props (`isAgentPage`), route-path branches (`pathname.startsWith('/agents')`), switches over domain ids, one domain's cache key or resource path special-cased |
+| Renderer infra cells (`data/`, `ipc/`, `workers/`) | the generic query/mutation layer hard-coding one feature's refresh graph; the IPC facade special-casing one route; a worker encoding one domain's payload shape |
+| Sibling domains (`features/<domain>/`, `pages/<domain>/`) | one domain branching on another domain's ids/types/state — the sideways edge the doc routes up (app-layer composition) or down (extract the shared piece); a shared "coordinator" hook that names both domains is the same edge hidden in the shared row |
+| Renderer app layer (`windows/`, `routes/`, top-level `pages/`) | cross-domain orchestration pushed down into one feature or a shared hook instead of being composed at the app layer |
+| Renderer top-level / capability placement | a capability landing as a blob — a new top-level directory, or a cross-cutting capability (command/keybinding-style) dressed as a peer domain feature — instead of decomposing by shape across existing cells (renderer-architecture §6) |
+| `packages/ui` primitives | a primitive acquiring a business prop, domain rendering branch, or data-layer knowledge instead of a render-prop/slot injection point |
+| `src/shared/` contracts | shared types/enums/utils gaining fields or members only one process or domain consumes |
+
+Recognition signals across all of them (each is a finding, not a style nit):
+
+- A generic dispatcher/pipeline/registry/permission check branches on concrete
+  ids: `if (name === 'xxxTool')`, a `switch` over specific server names.
+- A name-list side table (`KB_TOOL_NAMES = [...]`) or string-affix magic
+  (`key.startsWith('CherryKb')`) classifies which members of a generic
+  collection get special behavior.
+- A domain-specific parameter is threaded through a generic contract that most
+  implementations ignore (e.g., a knowledge-domain `allowedIds` on a shared
+  `ToolHandler.run` signature consumed by only one domain's handlers).
+- One primitive field carries several unrelated meanings decoded downstream by
+  regex, ordering, or convention, instead of a discriminated union.
+- A foundation module imports a concrete feature to make a decision the
+  feature should own.
+
+### Fix Direction: Restore Ownership, Never Annotate the Leak
+
+For every entity-leakage or boundary finding, the recommended fix must name the
+owning layer and the target shape per the governing architecture doc: move the
+concern into a domain-owned unit registered through the extension point the
+generic layer already defines (or should define), introduce the explicit domain
+type, or relocate the module. State the architecture-level resolution first;
+implementation steps second.
+
+Do not propose — and do not accept from a fixer — remedies that keep the wrong
+ownership in place:
+
+- adding or renaming a side table / name list,
+- adding a metadata flag or optional parameter to the generic contract,
+- adding one more special case next to the existing ones,
+- wrapping the branch in a helper so the leak is merely indirected.
+
+"Smallest fix" always means the smallest **architecture-conformant** fix. If
+that fix is too large for the current PR, say so explicitly and present it as
+the required direction (scoped follow-up, author decision) — do not downgrade
+the recommendation to a patch that preserves the violation, because authors
+will take the patch.
+
+This section does not license speculative abstraction: flag concrete knowledge
+invading an existing generic surface; do not demand new layers, registries, or
+extension points where the code is already domain-local (see
+Anti-Fragmentation principle 3).
+
+## Fix Recommendation Policy (Fix Altitude)
+
+"Minimal fix" versus "thorough fix" is the wrong axis. The right axis is the
+**altitude of the defect**: a fix recommendation must operate at the layer
+where the defect actually lives, and then be the **smallest complete fix at
+that altitude**. A local defect takes a minimal local fix — inflating it into
+a refactor is scope creep, itself a defect. A structural defect cannot be
+fixed by a smaller change at a lower altitude — a patch below the defect's
+altitude is not a smaller fix, it is a non-fix that hides the defect.
+Diagnose the altitude first; only then shape the recommendation.
+
+| Problem class | Defect altitude | Optimal recommendation |
+| --- | --- | --- |
+| Local correctness bug in sound structure (logic error, missing guard/cleanup, off-by-one, unawaited promise) | the line / function | The minimal local correction. Do not inflate into refactors or "while we're here" improvements. |
+| Bug that is a symptom of a structural cause (two writers own one state, refresh graph duplicated across call sites, lost-update race) | the owning structure | Name the root cause and recommend the fix there — the symptom class disappears. A symptom patch is acceptable only as an explicitly labeled stopgap **alongside** the primary recommendation (e.g., release urgency stopping user harm), with the structural fix stated as required follow-up. |
+| Entity leakage / boundary violation / mandatory-doc non-conformance | the module structure | The smallest architecture-conformant change (see Fix Direction above). **No stopgap tier exists** for this class: unlike a correctness stopgap, a leak-preserving patch stops no harm — it just implements the feature in the wrong place. If the fix is large, present the direction plus a scoped follow-up. |
+| Downstream workaround of an upstream limitation | the upstream shared surface | Name the upstream module and the method/contract to extend; the downstream code then simplifies to a normal call. Do not accept the workaround plus a TODO as the recommendation. |
+| Duplication, or a new helper shadowing an existing public capability | the canonical owner | Converge: route through the existing owner, or extract once into the correct layer. Never a third copy, never "align the two copies". |
+| Speculative abstraction / over-engineering introduced by the diff | the added structure | Deletion. The fix removes structure; recommending a better-built version of an unneeded layer is still wrong. |
+| Convention / naming / module-shape violation | the file or identifier | The mechanical fix the doc defines (rename, move, re-case). The doc defines a unique target, so here minimal **is** complete. |
+| Performance issue | the measured hot path | A targeted change with semantic-equivalence evidence. No speculative rewrites, no trading clarity for unmeasured gains. |
+| Design intent unclear | — | A question to the author, not a fix. Recommending any fix — minimal or architectural — before intent is confirmed is premature. |
+| Test coverage gap / regression risk | — | Flag with the named missing cases; do not prescribe the implementation (flag-only per `judgment-matrix.md`). |
+
+When the author or a fixer answers "too big for this PR", the acceptable
+outcomes are: do it now, or land the stated direction with a tracked follow-up
+and any stopgap explicitly marked temporary. Silently downgrading the
+recommendation to the patch is never an outcome — that is how leaks and root
+causes survive review.
+
 ## Anti-Fragmentation Review Principles
 
 Use these principles before proposing a fix. They prevent scattered local
@@ -50,7 +190,9 @@ through the codebase.
    - Do not flag "missing abstraction" unless there is real duplication,
      ownership confusion, or a clear public service requirement.
    - Prefer the smallest fix that repairs the boundary and keeps the system
-     understandable.
+     understandable. A fix that leaves the boundary broken — annotating,
+     side-tabling, or special-casing the leak — does not count as repairing
+     it; see Architecture-First Review.
 
 Report these as:
 
@@ -67,15 +209,33 @@ Load references by changed area. Do not paste every external guide into every
 review. Project docs and repository code win over external references when they
 conflict.
 
+### Mandatory Baseline Docs
+
+These documents are mature and authoritative. For every code or mixed review,
+load and review the diff against them — they are review criteria, not optional
+context:
+
+| Doc | When |
+| --- | --- |
+| `docs/references/naming-conventions.md` | Always |
+| `docs/references/main-process-architecture.md` (follow the subsystem references it routes to for touched subsystems) | Diff touches `src/main/` |
+| `docs/references/renderer-architecture.md` | Diff touches `src/renderer/` |
+| `docs/references/shared-layer-architecture.md` | Diff touches `src/shared/` |
+| `docs/references/data/README.md` (follow its routing into the subsystem rows below) | Diff touches any data surface: DB schemas, DataApi, Cache, Preference, BootConfig, or their renderer hooks |
+
+On-demand docs carry the same authority when their area is touched: the
+lifecycle, IpcApi, window, and job-and-scheduler rows in the table below.
+
+**Severity floor**: any non-conformance with these documents is an important
+finding by definition. Report it at **Warning** minimum — **Blocker** when it
+breaks a contract or creates runtime/data risk — never as a Notice, a style
+preference, or "consistent with nearby code". Nearby code sharing the
+violation is migration residue, not precedent.
+
 ### Internal Repository Docs
 
 | Changed area | Consult |
 | --- | --- |
-| Added, renamed, or moved files/directories; new classes, services, managers, features, or barrels | `docs/references/naming-conventions.md` |
-| `src/main/` placement, imports, top-level structure, features, services, or utils | `docs/references/main-process-architecture.md`, plus the subsystem reference it routes to |
-| `src/renderer/` placement, imports, top-level structure, pages, features, shared buckets, or public APIs | `docs/references/renderer-architecture.md` |
-| `src/shared/` placement, exports, runtime state, top-level structure, or cross-process contracts | `docs/references/shared-layer-architecture.md` |
-| Choosing among DataApi, Cache, Preference, BootConfig, and `app_state` | `docs/references/data/README.md`; stop there unless the diff enters one of the subsystem rows below |
 | DataApi contracts, schemas, types, or errors | `docs/references/data/data-api-overview.md`, `api-design-guidelines.md`, `api-types.md` |
 | DataApi handlers, services, or renderer hooks | Add `docs/references/data/data-api-in-main.md` for main handlers/services and `data-api-in-renderer.md` for renderer consumers |
 | Cache storage, hooks, service calls, or keys | `docs/references/data/cache-overview.md`; add `cache-usage.md` for consumers and `cache-schema-guide.md` only when keys/schemas change |
@@ -89,6 +249,7 @@ conflict.
 | Database seeders or seeding policies | `docs/references/data/database-seeding-guide.md` |
 | Static presets with user overrides | `docs/references/data/best-practice-layered-preset-pattern.md` |
 | Main-process services and long-lived resources | `docs/references/lifecycle/README.md`, `docs/references/lifecycle/lifecycle-usage.md`, `docs/references/lifecycle/lifecycle-decision-guide.md` |
+| Jobs, scheduled tasks, or scheduler handlers | `docs/references/job-and-scheduler/README.md`; add `scheduler-usage.md` for consumers, `handler-authoring.md` for new/changed handlers, `concurrency-and-locks.md` for locking/concurrency changes |
 | IpcApi routes/events, preload exposure, main handlers, renderer calls, or legacy IPC migration | `docs/references/ipc/README.md`; then `ipc-usage.md` for implementation, `ipc-schema-guide.md` for contracts/naming, and `ipc-migration-guide.md` when legacy IPC is touched |
 | Windows | `docs/references/window-manager/README.md` |
 | Main-process filesystem paths | `src/main/core/paths/README.md` |
@@ -369,14 +530,22 @@ Flag type issues when they create runtime mismatch or caller ambiguity:
 Every finding should answer:
 
 1. Where is the code? Give `file:line` and a short snippet.
-2. What project boundary or runtime behavior is violated?
+2. What project boundary or runtime behavior is violated? Cite the governing
+   doc rule when one applies.
 3. What realistic failure or maintenance risk follows?
-4. What is the smallest reasonable fix or author question?
+4. What is the optimal fix at the defect's altitude? Classify the problem per
+   Fix Recommendation Policy and recommend the smallest complete fix at that
+   altitude. For boundary, ownership, or doc-conformance findings, that means
+   naming the owning module or layer and the target shape first, then the
+   implementation route (see Architecture-First Review); for local bugs it
+   means the minimal correction and nothing more.
 
 Use severity language carefully:
 
 - **Blocker**: runtime correctness, data loss, security, broken contract,
   unsafe migration, or high-risk infrastructure change.
 - **Warning**: likely maintainability or boundary issue with a clear fix.
+  Violations of mandatory baseline or on-demand docs are Warning minimum.
 - **Notice**: design intent needs author confirmation; do not present as a bug
-  unless code evidence shows failure.
+  unless code evidence shows failure. Never file a doc violation or entity
+  leak as a Notice.
