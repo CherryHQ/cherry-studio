@@ -12,28 +12,33 @@ function setup(save: (patch: Patch) => Promise<unknown>, onError = vi.fn()) {
 }
 
 /** Resolves once every already-queued microtask has run. */
-const settle = () => act(async () => await Promise.resolve())
+const settle = () =>
+  act(async () => {
+    await Promise.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+  })
 
 describe('useDirectFieldSave', () => {
-  it('sends a committed patch immediately', async () => {
+  it('sends a committed field intent immediately', async () => {
     const save = vi.fn().mockResolvedValue(undefined)
     const { result } = setup(save)
 
-    act(() => result.current.commit({ name: 'a' }))
+    act(() => result.current.commit('name', { name: 'a' }))
     await settle()
 
     expect(save).toHaveBeenCalledExactlyOnceWith({ name: 'a' })
     expect(result.current.status).toBe('idle')
   })
 
-  it('collapses rapid scheduled patches into one request', async () => {
+  it('collapses rapid scheduled changes to the same field', async () => {
     vi.useFakeTimers()
     try {
       const save = vi.fn().mockResolvedValue(undefined)
       const { result } = setup(save)
 
-      act(() => result.current.schedule({ name: 'a' }))
-      act(() => result.current.schedule({ name: 'ab' }))
+      act(() => result.current.schedule('name', { name: 'a' }))
+      act(() => result.current.schedule('name', { name: 'ab' }))
       expect(save).not.toHaveBeenCalled()
       expect(result.current.status).toBe('pending')
 
@@ -47,7 +52,7 @@ describe('useDirectFieldSave', () => {
     }
   })
 
-  it('serializes writes and merges everything queued behind an in-flight one', async () => {
+  it('serializes writes without merging unrelated field intents', async () => {
     let releaseFirst: (() => void) | undefined
     const save = vi
       .fn()
@@ -55,25 +60,27 @@ describe('useDirectFieldSave', () => {
       .mockResolvedValue(undefined)
     const { result } = setup(save)
 
-    act(() => result.current.commit({ name: 'a' }))
+    act(() => result.current.commit('name', { name: 'a' }))
     await settle()
     expect(save).toHaveBeenCalledTimes(1)
 
-    act(() => result.current.commit({ name: 'b' }))
-    act(() => result.current.commit({ description: 'd' }))
+    act(() => result.current.commit('name', { name: 'b' }))
+    act(() => result.current.commit('description', { description: 'd' }))
     expect(save).toHaveBeenCalledTimes(1)
 
     await act(async () => {
       releaseFirst?.()
       await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
     })
-    await settle()
 
-    expect(save).toHaveBeenCalledTimes(2)
-    expect(save).toHaveBeenLastCalledWith({ name: 'b', description: 'd' })
+    expect(save).toHaveBeenCalledTimes(3)
+    expect(save).toHaveBeenNthCalledWith(2, { name: 'b' })
+    expect(save).toHaveBeenNthCalledWith(3, { description: 'd' })
   })
 
-  it('leaves a patch scheduled behind an in-flight save on its debounce', async () => {
+  it('leaves a field scheduled behind an in-flight save on its debounce', async () => {
     vi.useFakeTimers()
     try {
       let releaseFirst: (() => void) | undefined
@@ -83,23 +90,23 @@ describe('useDirectFieldSave', () => {
         .mockResolvedValue(undefined)
       const { result } = setup(save)
 
-      act(() => result.current.commit({ name: 'a' }))
+      act(() => result.current.commit('name', { name: 'a' }))
       await settle()
       expect(save).toHaveBeenCalledTimes(1)
 
-      act(() => result.current.schedule({ description: 'typin' }))
+      act(() => result.current.schedule('description', { description: 'typin' }))
       await act(async () => {
         releaseFirst?.()
         await Promise.resolve()
       })
       await settle()
 
-      // The queue drained the committed patch but must not swallow the debounced
-      // one — otherwise every keystroke typed during a save costs a round trip.
+      // The queue must not swallow the debounced field while the first request
+      // settles, otherwise every keystroke typed during a save gets sent.
       expect(save).toHaveBeenCalledTimes(1)
       expect(result.current.status).toBe('pending')
 
-      act(() => result.current.schedule({ description: 'typing' }))
+      act(() => result.current.schedule('description', { description: 'typing' }))
       await act(async () => {
         vi.advanceTimersByTime(10)
         await Promise.resolve()
@@ -112,16 +119,16 @@ describe('useDirectFieldSave', () => {
     }
   })
 
-  it('keeps a rejected patch buffered and resends it on retry', async () => {
+  it('keeps a rejected field intent for inline retry', async () => {
     const onError = vi.fn()
     const save = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
     const { result } = setup(save, onError)
 
-    act(() => result.current.commit({ name: 'a' }))
+    act(() => result.current.commit('name', { name: 'a' }))
     await settle()
 
     expect(result.current.status).toBe('failed')
-    expect(onError).toHaveBeenCalledExactlyOnceWith(expect.any(Error), expect.any(Function))
+    expect(onError).toHaveBeenCalledExactlyOnceWith(expect.any(Error))
 
     act(() => result.current.retry())
     await settle()
@@ -131,37 +138,93 @@ describe('useDirectFieldSave', () => {
     expect(result.current.status).toBe('idle')
   })
 
-  it('lets a newer value win over the rejected one', async () => {
+  it('lets a newer value replace the rejected value for the same field', async () => {
     const save = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
     const { result } = setup(save)
 
-    act(() => result.current.commit({ name: 'stale' }))
+    act(() => result.current.commit('name', { name: 'stale' }))
     await settle()
     expect(result.current.status).toBe('failed')
 
-    act(() => result.current.commit({ name: 'fresh' }))
+    act(() => result.current.commit('name', { name: 'fresh' }))
     await settle()
 
     expect(save).toHaveBeenLastCalledWith({ name: 'fresh' })
+    expect(result.current.status).toBe('idle')
   })
 
-  it('flushes a scheduled patch without waiting for the debounce', async () => {
+  it('does not resurrect an in-flight value rejected after a newer value was queued', async () => {
+    let rejectFirst: ((error: Error) => void) | undefined
+    const onError = vi.fn()
+    const save = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<void>((_resolve, reject) => (rejectFirst = reject)))
+      .mockResolvedValue(undefined)
+    const { result } = setup(save, onError)
+
+    act(() => result.current.commit('name', { name: 'stale' }))
+    await settle()
+    act(() => result.current.commit('name', { name: 'fresh' }))
+
+    await act(async () => {
+      rejectFirst?.(new Error('offline'))
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(save).toHaveBeenLastCalledWith({ name: 'fresh' })
+    expect(onError).not.toHaveBeenCalled()
+    expect(result.current.status).toBe('idle')
+  })
+
+  it('continues saving unrelated fields after one field fails', async () => {
+    let rejectFirst: ((error: Error) => void) | undefined
+    const save = vi
+      .fn()
+      .mockImplementationOnce(() => new Promise<void>((_resolve, reject) => (rejectFirst = reject)))
+      .mockResolvedValue(undefined)
+    const { result } = setup(save)
+
+    act(() => result.current.commit('name', { name: 'bad' }))
+    await settle()
+    act(() => result.current.commit('description', { description: 'good' }))
+
+    await act(async () => {
+      rejectFirst?.(new Error('invalid name'))
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(save).toHaveBeenCalledTimes(2)
+    expect(save).toHaveBeenNthCalledWith(2, { description: 'good' })
+    expect(result.current.status).toBe('failed')
+
+    act(() => result.current.retry())
+    await settle()
+    expect(save).toHaveBeenNthCalledWith(3, { name: 'bad' })
+  })
+
+  it('flushes a scheduled field without waiting for the debounce', async () => {
     const save = vi.fn().mockResolvedValue(undefined)
     const { result } = setup(save)
 
-    act(() => result.current.schedule({ name: 'a' }))
+    act(() => result.current.schedule('name', { name: 'a' }))
     await act(async () => await result.current.flush())
 
     expect(save).toHaveBeenCalledExactlyOnceWith({ name: 'a' })
   })
 
-  it('discards a buffered field without dropping unrelated fields', async () => {
+  it('discards one buffered field without dropping unrelated fields', async () => {
     vi.useFakeTimers()
     try {
       const save = vi.fn().mockResolvedValue(undefined)
       const { result } = setup(save)
 
-      act(() => result.current.schedule({ name: 'temporary', description: 'keep' }))
+      act(() => result.current.schedule('name', { name: 'temporary' }))
+      act(() => result.current.schedule('description', { description: 'keep' }))
       act(() => result.current.discard('name'))
 
       await act(async () => {
@@ -181,7 +244,7 @@ describe('useDirectFieldSave', () => {
       const save = vi.fn().mockResolvedValue(undefined)
       const { result } = setup(save)
 
-      act(() => result.current.schedule({ name: 'temporary' }))
+      act(() => result.current.schedule('name', { name: 'temporary' }))
       act(() => result.current.discard('name'))
       await act(async () => vi.advanceTimersByTime(10))
 
@@ -192,25 +255,19 @@ describe('useDirectFieldSave', () => {
     }
   })
 
-  it('exposes a retry that still drains the rejected patch after unmount', async () => {
-    const onError = vi.fn()
-    const save = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValue(undefined)
-    const { result, unmount } = setup(save, onError)
+  it('best-effort flushes a scheduled field when the editor unmounts', async () => {
+    vi.useFakeTimers()
+    try {
+      const save = vi.fn().mockResolvedValue(undefined)
+      const { result, unmount } = setup(save)
 
-    act(() => result.current.commit({ name: 'a' }))
-    unmount()
-    await settle()
+      act(() => result.current.schedule('name', { name: 'last edit' }))
+      unmount()
+      await settle()
 
-    expect(save).toHaveBeenCalledTimes(1)
-    const retry = onError.mock.calls[0]?.[1]
-    expect(retry).toEqual(expect.any(Function))
-
-    act(() => {
-      retry?.()
-    })
-    await settle()
-
-    expect(save).toHaveBeenCalledTimes(2)
-    expect(save).toHaveBeenLastCalledWith({ name: 'a' })
+      expect(save).toHaveBeenCalledExactlyOnceWith({ name: 'last edit' })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

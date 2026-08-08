@@ -26,7 +26,6 @@ import { useModelById } from '@renderer/hooks/useModel'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { useInstalledSkills, useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
-import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import { permissionModeCards } from '@renderer/utils/agent'
 import { normalizePermissionMode } from '@renderer/utils/agent/permissionMode'
@@ -193,8 +192,13 @@ function agentConfigurationPatch(configuration: AgentConfiguration): UpdateAgent
  */
 type AgentEditor = {
   form: UseFormReturn<AgentEditFormValues>
-  discard: (...keys: (keyof UpdateAgentDto)[]) => void
-  set: (values: Partial<AgentEditFormValues>, patch: UpdateAgentDto, mode?: 'now' | 'debounced') => void
+  discard: (...keys: string[]) => void
+  set: (
+    values: Partial<AgentEditFormValues>,
+    patch: UpdateAgentDto,
+    mode?: 'now' | 'debounced',
+    intentKey?: string
+  ) => void
 }
 
 export function AgentEditDialog({ resource, open, onOpenChange, modelFilter, initialTab }: AgentEditDialogProps) {
@@ -230,54 +234,26 @@ function AgentEditDialogContent({
   const { model: selectedAgentModel } = useModelById(modelId)
   const promptModelName = selectedAgentModel?.name ?? (modelId === resource.model ? resource.modelName : undefined)
   const { updateAgent } = useAgentMutationsById(resource.id)
-  const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
-  const saveFailureToastKey = `agent-edit-save-failed:${resource.id}`
   const save = useDirectFieldSave<UpdateAgentDto>({
     save: updateAgent,
     merge: mergeAgentPatch,
-    onError: (error, retry) => {
+    onError: (error) => {
       logger.error('Failed to save agent edit dialog', error, { agentId: resource.id })
-      toast.error({
-        key: saveFailureToastKey,
-        timeout: 0,
-        title: saveFailedMessage,
-        description: (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-auto min-h-0 px-1 py-0 text-xs underline-offset-2 hover:underline"
-            onClick={() => {
-              toast.closeToast(saveFailureToastKey)
-              retry()
-            }}>
-            {t('common.retry')}
-          </Button>
-        )
-      })
     }
   })
-  // Close the failure toast only on recovery. The toast outlives this dialog on
-  // purpose (it carries the retry for an edit that never landed), and the key is
-  // per-agent — closing it on mount would silently drop that retry the next time
-  // the same agent is opened.
-  const previousSaveStatusRef = useRef(save.status)
-  useEffect(() => {
-    if (previousSaveStatusRef.current === 'failed' && save.status !== 'failed') {
-      toast.closeToast(saveFailureToastKey)
-    }
-    previousSaveStatusRef.current = save.status
-  }, [save.status, saveFailureToastKey])
   const setField = useCallback<AgentEditor['set']>(
-    (values, patch, mode = 'now') => {
+    (values, patch, mode = 'now', intentKey) => {
       for (const [key, value] of Object.entries(values)) {
         form.setValue(key as Path<AgentEditFormValues>, value as never, {
           shouldDirty: true,
           shouldValidate: key === 'name'
         })
       }
-      if (mode === 'debounced') save.schedule(patch)
-      else save.commit(patch)
+      const key = intentKey ?? Object.keys(values)[0]
+      if (!key) return
+
+      if (mode === 'debounced') save.schedule(key, patch)
+      else save.commit(key, patch)
     },
     [form, save]
   )
@@ -616,6 +592,7 @@ function HeartbeatSettingsField({ editor, enabled }: { editor: AgentEditor; enab
   const { t } = useTranslation()
   const { form, set } = editor
   const label = t('library.config.agent.field.heartbeat_enabled.label')
+  const intentKey = 'heartbeat'
 
   return (
     <div className="divide-y divide-border-subtle">
@@ -631,7 +608,12 @@ function HeartbeatSettingsField({ editor, enabled }: { editor: AgentEditor; enab
                   size="sm"
                   checked={field.value}
                   onCheckedChange={(checked) =>
-                    set({ heartbeatEnabled: checked }, agentConfigurationPatch({ heartbeat_enabled: checked }))
+                    set(
+                      { heartbeatEnabled: checked },
+                      agentConfigurationPatch({ heartbeat_enabled: checked }),
+                      'now',
+                      intentKey
+                    )
                   }
                   aria-label={label}
                 />
@@ -666,7 +648,9 @@ function HeartbeatSettingsField({ editor, enabled }: { editor: AgentEditor; enab
                     // the pair the runtime expects rather than an orphan interval.
                     set(
                       { heartbeatInterval },
-                      agentConfigurationPatch({ heartbeat_enabled: true, heartbeat_interval: heartbeatInterval })
+                      agentConfigurationPatch({ heartbeat_enabled: true, heartbeat_interval: heartbeatInterval }),
+                      'now',
+                      intentKey
                     )
                   }}
                 />

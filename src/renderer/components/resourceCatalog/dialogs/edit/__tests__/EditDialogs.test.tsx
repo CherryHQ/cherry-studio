@@ -1,5 +1,4 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
-import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
@@ -1515,6 +1514,70 @@ describe('edit dialogs', () => {
     })
   })
 
+  it('supersedes a failed context-settings save with the latest context state', async () => {
+    let rejectFirstSave: ((error: Error) => void) | undefined
+    updateAssistantMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectFirstSave = reject
+          })
+      )
+      .mockResolvedValue(undefined)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    selectTab('Model')
+    const contextSwitch = screen.getByRole('switch', { name: 'library.config.basic.context_management' })
+    fireEvent.click(contextSwitch)
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(contextSwitch)
+    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      rejectFirstSave?.(new Error('Network down'))
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: { settings: { contextSettings: null } } })
+    expect(screen.queryByText('Save failed')).not.toBeInTheDocument()
+  })
+
+  it('supersedes a failed heartbeat interval save when heartbeat is disabled', async () => {
+    let rejectFirstSave: ((error: Error) => void) | undefined
+    updateAgentMock
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectFirstSave = reject
+          })
+      )
+      .mockResolvedValue(undefined)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
+
+    selectTab('Advanced')
+    const intervalInput = screen.getByDisplayValue('30')
+    fireEvent.focus(intervalInput)
+    fireEvent.change(intervalInput, { target: { value: '45' } })
+    fireEvent.blur(intervalInput)
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Heartbeat' }))
+    expect(updateAgentMock).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      rejectFirstSave?.(new Error('Network down'))
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock).toHaveBeenLastCalledWith({
+      body: { configuration: expect.objectContaining({ heartbeat_enabled: false }) }
+    })
+    expect(screen.queryByText('Save failed')).not.toBeInTheDocument()
+  })
+
   it('drops a queued assistant name when it is emptied and clears the error after recovery', async () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
@@ -1549,59 +1612,6 @@ describe('edit dialogs', () => {
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalledWith({ body: { name: 'Recovered Agent' } }))
   })
 
-  it('keeps assistant retry available after a failed closing save unmounts the dialog', async () => {
-    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
-    function UnmountingAssistantDialog() {
-      const [resource, setResource] = useState<Assistant | null>(ASSISTANT)
-      return (
-        <AssistantEditDialog
-          open={resource !== null}
-          resource={resource}
-          onOpenChange={(next) => {
-            if (!next) setResource(null)
-          }}
-        />
-      )
-    }
-    render(<UnmountingAssistantDialog />)
-
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Edit' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
-
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith(
-        expect.objectContaining({ key: 'assistant-edit-save-failed:assistant-1', timeout: 0, title: 'Save failed' })
-      )
-    )
-    expect(updateAssistantMock).toHaveBeenCalledWith({ body: { name: 'Closing Edit' } })
-
-    const toastConfig = vi.mocked(toast.error).mock.calls.at(-1)?.[0]
-    if (typeof toastConfig === 'string' || !toastConfig?.description) throw new Error('Expected retryable save toast')
-    render(<>{toastConfig.description}</>)
-    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
-
-    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
-    expect(updateAssistantMock).toHaveBeenLastCalledWith({ body: { name: 'Closing Edit' } })
-  })
-
-  it('leaves the lingering failure toast alone when the same assistant is reopened', async () => {
-    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
-    const { unmount } = render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
-
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Edit' } })
-    await screen.findByText('Save failed')
-    unmount()
-
-    vi.mocked(toast.closeToast).mockClear()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
-
-    // That toast carries the only retry for an edit the server never accepted;
-    // a fresh editing session must not dismiss it just by mounting.
-    await screen.findByLabelText('Name')
-    expect(toast.closeToast).not.toHaveBeenCalledWith('assistant-edit-save-failed:assistant-1')
-  })
-
   it('clears an agent sub-model with an explicit null so the server can unset it', async () => {
     render(<AgentEditDialog open resource={{ ...AGENT, planModel: 'provider::plan-model' }} onOpenChange={vi.fn()} />)
 
@@ -1619,11 +1629,6 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
-    await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith(
-        expect.objectContaining({ key: 'agent-edit-save-failed:agent-1', timeout: 0, title: 'Save failed' })
-      )
-    )
     expect(updateAgentMock).toHaveBeenCalledWith({ body: { name: 'Closing Agent' } })
   })
 

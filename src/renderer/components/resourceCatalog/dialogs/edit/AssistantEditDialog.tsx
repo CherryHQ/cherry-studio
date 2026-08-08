@@ -26,7 +26,6 @@ import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
 import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
 import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import { toast } from '@renderer/services/toast'
 import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import { type AssistantFormState, initialAssistantFormState } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
@@ -172,12 +171,13 @@ function contextSettingsFromValues(values: AssistantEditFormValues): AssistantSe
  */
 type AssistantEditor = {
   form: UseFormReturn<AssistantEditFormValues>
-  discard: (...keys: (keyof UpdateAssistantDto)[]) => void
+  discard: (...keys: string[]) => void
   set: (
     values: Partial<AssistantEditFormValues>,
     patch: UpdateAssistantDto,
     /** `debounced` batches keystrokes; everything else saves on the spot. */
-    mode?: 'now' | 'debounced'
+    mode?: 'now' | 'debounced',
+    intentKey?: string
   ) => void
 }
 
@@ -219,54 +219,26 @@ function AssistantEditDialogContent({
   const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
   const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
-  const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
-  const saveFailureToastKey = `assistant-edit-save-failed:${resource.id}`
   const save = useDirectFieldSave<UpdateAssistantDto>({
     save: updateAssistant,
     merge: mergeAssistantPatch,
-    onError: (error, retry) => {
+    onError: (error) => {
       logger.error('Failed to save assistant edit dialog', error, { assistantId: resource.id })
-      toast.error({
-        key: saveFailureToastKey,
-        timeout: 0,
-        title: saveFailedMessage,
-        description: (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-auto min-h-0 px-1 py-0 text-xs underline-offset-2 hover:underline"
-            onClick={() => {
-              toast.closeToast(saveFailureToastKey)
-              retry()
-            }}>
-            {t('common.retry')}
-          </Button>
-        )
-      })
     }
   })
-  // Close the failure toast only on recovery. The toast outlives this dialog on
-  // purpose (it carries the retry for an edit that never landed), and the key is
-  // per-assistant — closing it on mount would silently drop that retry the next
-  // time the same assistant is opened.
-  const previousSaveStatusRef = useRef(save.status)
-  useEffect(() => {
-    if (previousSaveStatusRef.current === 'failed' && save.status !== 'failed') {
-      toast.closeToast(saveFailureToastKey)
-    }
-    previousSaveStatusRef.current = save.status
-  }, [save.status, saveFailureToastKey])
   const setField = useCallback<AssistantEditor['set']>(
-    (values, patch, mode = 'now') => {
+    (values, patch, mode = 'now', intentKey) => {
       for (const [key, value] of Object.entries(values)) {
         form.setValue(key as Path<AssistantEditFormValues>, value as never, {
           shouldDirty: true,
           shouldValidate: key === 'name'
         })
       }
-      if (mode === 'debounced') save.schedule(patch)
-      else save.commit(patch)
+      const key = intentKey ?? Object.keys(values)[0]
+      if (!key) return
+
+      if (mode === 'debounced') save.schedule(key, patch)
+      else save.commit(key, patch)
     },
     [form, save]
   )
@@ -912,7 +884,7 @@ function ContextManagementFields({
   // `contextSettings` value rebuilt from the current draft.
   const setContextValues = (patch: Partial<AssistantEditFormValues>) => {
     const next = { ...values, ...patch }
-    set(patch, { settings: { contextSettings: contextSettingsFromValues(next) } })
+    set(patch, { settings: { contextSettings: contextSettingsFromValues(next) } }, 'now', 'contextSettings')
   }
 
   const onOverrideToggle = (checked: boolean) => {
