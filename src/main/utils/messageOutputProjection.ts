@@ -7,6 +7,7 @@ import {
   CITATION_SNIPPET_MAX_CHARS,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
+  type KbGrepMatch,
   kbGrepOutputSchema,
   kbReadOutputSchema,
   kbSearchOutputSchema,
@@ -46,6 +47,33 @@ function toCitationSnippet(content: string): string {
   return `${trimmed.slice(0, CITATION_SNIPPET_MAX_CHARS)}…`
 }
 
+/** Keep grep matches in order until their joined citation preview reaches its text budget. */
+function toCitationGrepMatches(matches: KbGrepMatch[]): KbGrepMatch[] {
+  const projected: KbGrepMatch[] = []
+  let remainingChars = CITATION_SNIPPET_MAX_CHARS
+
+  for (const match of matches) {
+    const separatorChars = projected.length === 0 ? 0 : ' … '.length
+    if (remainingChars <= separatorChars) {
+      const last = projected.at(-1)
+      if (last) last.snippet = `${last.snippet}…`
+      break
+    }
+
+    remainingChars -= separatorChars
+    const snippet = match.snippet.trim()
+    if (snippet.length > remainingChars) {
+      projected.push({ ...match, snippet: `${snippet.slice(0, remainingChars)}…` })
+      break
+    }
+
+    projected.push({ ...match, snippet })
+    remainingChars -= snippet.length
+  }
+
+  return projected
+}
+
 /** Keep only the schema-valid fields and bounded snippets needed to render citations. */
 function toCitationPayloadSkeleton(output: unknown): unknown | undefined {
   const web = webSearchOutputSchema.safeParse(output)
@@ -67,10 +95,7 @@ function toCitationPayloadSkeleton(output: unknown): unknown | undefined {
   if (knowledgeGrep.success) {
     return {
       ...knowledgeGrep.data,
-      matches: knowledgeGrep.data.matches.slice(0, 1).map((match) => ({
-        ...match,
-        snippet: toCitationSnippet(match.snippet)
-      }))
+      matches: toCitationGrepMatches(knowledgeGrep.data.matches)
     }
   }
 
@@ -78,8 +103,8 @@ function toCitationPayloadSkeleton(output: unknown): unknown | undefined {
 }
 
 /**
- * Extract a citation skeleton from builtin output or the trusted Cherry Tools
- * MCP envelope used by agent runtimes.
+ * Extract a citation skeleton from schema-valid builtin output or an MCP envelope
+ * attributed to Cherry Tools by its server id or user-visible server name.
  */
 function toCitationSkeleton(output: unknown): unknown | undefined {
   if (!isRecord(output) || !isRecord(output.metadata)) return toCitationPayloadSkeleton(output)
@@ -88,7 +113,7 @@ function toCitationSkeleton(output: unknown): unknown | undefined {
   const toolName = typeof metadata.name === 'string' ? metadata.name : undefined
   const belongsToCherryTools =
     metadata.serverId === CHERRY_TOOLS_MCP_SERVER || metadata.serverName === CHERRY_TOOLS_MCP_SERVER
-  // Older agent messages predate MCP output names. Their trusted server id plus
+  // Older agent messages predate MCP output names. Their Cherry Tools server id or name plus
   // a citable payload schema is sufficient; the renderer still gates on the part's tool name.
   if (metadata.type !== 'mcp' || !belongsToCherryTools || (toolName && !CITABLE_TOOL_NAMES.has(toolName))) {
     return undefined
@@ -132,7 +157,25 @@ function withCitationSkeleton(deferred: DeferredToolOutput, output: unknown): De
   if (skeleton === undefined) return deferred
 
   const projected = { ...deferred, skeleton } satisfies DeferredToolOutput
-  return exceedsToolOutputTransportLimit(projected) ? deferred : projected
+  if (!exceedsToolOutputTransportLimit(projected)) return projected
+
+  const entities = Array.isArray(skeleton)
+    ? skeleton
+    : isRecord(skeleton) && Array.isArray(skeleton.content)
+      ? skeleton.content
+      : undefined
+  if (!entities || entities.length <= 1) return deferred
+
+  // Citation order defines display numbering, so retain the longest prefix that fits.
+  for (let end = entities.length - 1; end > 0; end -= 1) {
+    const trimmedSkeleton = Array.isArray(skeleton)
+      ? entities.slice(0, end)
+      : { ...skeleton, content: entities.slice(0, end) }
+    const trimmed = { ...deferred, skeleton: trimmedSkeleton } satisfies DeferredToolOutput
+    if (!exceedsToolOutputTransportLimit(trimmed)) return trimmed
+  }
+
+  return deferred
 }
 
 function projectToolOutputForRenderer(output: unknown, ref: DeferredToolResultRef): unknown {

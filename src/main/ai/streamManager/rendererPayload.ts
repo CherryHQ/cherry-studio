@@ -1,4 +1,4 @@
-import { projectMessagePartsForRenderer, projectStreamChunkForRenderer } from '@data/messageOutputProjection'
+import { projectMessagePartsForRenderer, projectStreamChunkForRenderer } from '@main/utils/messageOutputProjection'
 import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 

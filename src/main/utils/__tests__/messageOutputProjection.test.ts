@@ -1,3 +1,4 @@
+import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { UIMessageChunk } from 'ai'
@@ -31,6 +32,55 @@ const largeAgentWebSearch = {
     serverId: 'cherry-tools'
   }
 }
+const manyAgentWebSearch = {
+  ...largeAgentWebSearch,
+  content: Array.from({ length: 80 }, (_, index) => ({
+    id: `many-${index + 1}`,
+    title: `Result ${index + 1}`,
+    url: `https://example.com/${index + 1}`,
+    content: '测'.repeat(1000)
+  }))
+}
+const largeKnowledgeSearch = [
+  {
+    id: 'knowledge-1',
+    baseId: 'base-1',
+    conceptId: 'docs/guide.md',
+    title: 'Guide',
+    type: 'file',
+    content: 'k'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1),
+    score: 0.92
+  }
+]
+const largeKnowledgeRead = {
+  id: 'read-1',
+  baseId: 'base-1',
+  conceptId: 'docs/readme.md',
+  title: 'README',
+  type: 'file',
+  totalChars: DEFER_TOOL_OUTPUT_BYTES + 1,
+  charStart: 0,
+  charEnd: DEFER_TOOL_OUTPUT_BYTES + 1,
+  content: 'r'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1),
+  truncated: false
+}
+const largeKnowledgeGrep = {
+  id: 'grep-1',
+  baseId: 'base-1',
+  conceptId: 'docs/readme.md',
+  title: 'README',
+  type: 'file',
+  totalMatches: 2,
+  matches: [
+    { line: 3, charStart: 10, charEnd: 19, snippet: 'first hit' },
+    {
+      line: 9,
+      charStart: 40,
+      charEnd: DEFER_TOOL_OUTPUT_BYTES + 40,
+      snippet: 'g'.repeat(DEFER_TOOL_OUTPUT_BYTES + 1)
+    }
+  ]
+}
 
 function partWith(output: unknown): CherryMessagePart {
   return {
@@ -56,7 +106,7 @@ const blob = (key: string, n: number) => ({
   totalLines: 10 * n
 })
 
-describe('outbound tool-output projection', () => {
+describe('message tool-output projection', () => {
   it('leaves an output that fits under the threshold untouched', () => {
     const part = partWith(small)
     expect(projectMessagePartForRenderer(part, TOPIC_ID, MESSAGE_ID)).toBe(part)
@@ -115,6 +165,46 @@ describe('outbound tool-output projection', () => {
     })
   })
 
+  it('keeps kb_search identity fields and a bounded content preview', () => {
+    const projected = projectMessagePartForRenderer(
+      partWith(largeKnowledgeSearch),
+      TOPIC_ID,
+      MESSAGE_ID
+    ) as unknown as {
+      output: { skeleton?: Array<Record<string, unknown>> }
+    }
+
+    expect(projected.output.skeleton).toEqual([
+      {
+        ...largeKnowledgeSearch[0],
+        content: `${'k'.repeat(CITATION_SNIPPET_MAX_CHARS)}…`
+      }
+    ])
+  })
+
+  it('keeps a bounded kb_read document slice', () => {
+    const projected = projectMessagePartForRenderer(partWith(largeKnowledgeRead), TOPIC_ID, MESSAGE_ID) as unknown as {
+      output: { skeleton?: Record<string, unknown> }
+    }
+
+    expect(projected.output.skeleton).toEqual({
+      ...largeKnowledgeRead,
+      content: `${'r'.repeat(CITATION_SNIPPET_MAX_CHARS)}…`
+    })
+  })
+
+  it('keeps ordered kb_read grep matches up to the combined citation preview limit', () => {
+    const projected = projectMessagePartForRenderer(partWith(largeKnowledgeGrep), TOPIC_ID, MESSAGE_ID) as unknown as {
+      output: { skeleton?: { matches: Array<{ snippet: string }> } }
+    }
+    const matches = projected.output.skeleton?.matches ?? []
+    const joined = matches.map((match) => match.snippet).join(' … ')
+
+    expect(matches).toHaveLength(2)
+    expect(joined).toHaveLength(CITATION_SNIPPET_MAX_CHARS + 1)
+    expect(joined).toMatch(/^first hit … g+…$/)
+  })
+
   it('does not expose a citation skeleton for a third-party MCP lookup', () => {
     const projected = projectMessagePartForRenderer(
       partWith({
@@ -128,23 +218,14 @@ describe('outbound tool-output projection', () => {
     expect(projected.output.skeleton).toBeUndefined()
   })
 
-  it('omits a derived citation skeleton that would still exceed the transport budget', () => {
-    const projected = projectMessagePartForRenderer(
-      partWith({
-        ...largeAgentWebSearch,
-        content: [
-          {
-            ...largeAgentWebSearch.content[0],
-            title: 'x'.repeat(DEFER_TOOL_OUTPUT_BYTES)
-          }
-        ]
-      }),
-      TOPIC_ID,
-      MESSAGE_ID
-    ) as unknown as { output: { skeleton?: unknown } }
+  it('trims derived citation entities from the tail to fit the transport budget', () => {
+    const projected = projectMessagePartForRenderer(partWith(manyAgentWebSearch), TOPIC_ID, MESSAGE_ID) as unknown as {
+      output: { skeleton?: { content: unknown[] } }
+    }
 
     expect(isDeferredToolOutput(projected.output)).toBe(true)
-    expect(projected.output.skeleton).toBeUndefined()
+    expect(projected.output.skeleton?.content.length).toBeGreaterThan(0)
+    expect(projected.output.skeleton?.content.length).toBeLessThan(manyAgentWebSearch.content.length)
     expect(new TextEncoder().encode(JSON.stringify(projected.output)).length).toBeLessThanOrEqual(
       DEFER_TOOL_OUTPUT_BYTES
     )
@@ -234,19 +315,20 @@ describe('outbound tool-output projection', () => {
     )
   })
 
-  it('omits a persisted citation skeleton that still exceeds the transport budget', () => {
+  it('trims persisted citation entities from the tail to fit the transport budget', () => {
     const persisted = {
       $persistedToolOutput: {
         shape: 'entities',
-        skeleton: [{ ...largeAgentWebSearch.content[0], title: 'x'.repeat(DEFER_TOOL_OUTPUT_BYTES) }],
+        skeleton: manyAgentWebSearch.content,
         blobRefs: [blob('/0/content', 1)]
       }
     }
     const projected = projectMessagePartForRenderer(partWith(persisted), TOPIC_ID, MESSAGE_ID) as unknown as {
-      output: { skeleton?: unknown }
+      output: { skeleton?: unknown[] }
     }
 
-    expect(projected.output.skeleton).toBeUndefined()
+    expect(projected.output.skeleton?.length).toBeGreaterThan(0)
+    expect(projected.output.skeleton?.length).toBeLessThan(manyAgentWebSearch.content.length)
     expect(new TextEncoder().encode(JSON.stringify(projected.output)).length).toBeLessThanOrEqual(
       DEFER_TOOL_OUTPUT_BYTES
     )

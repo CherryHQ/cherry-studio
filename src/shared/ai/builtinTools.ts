@@ -11,7 +11,11 @@ import * as z from 'zod'
  * place is a compile error in the other.
  */
 
-/** Maximum tool-result text carried into one citation preview. */
+/**
+ * kb_read returns a whole document slice, but the tooltip only shows a snippet. Truncating it
+ * keeps the full slice out of the render path and avoids re-serializing it into every citation
+ * tag. The shared persist, transport, and renderer cap also keeps live and reloaded messages equal.
+ */
 export const CITATION_SNIPPET_MAX_CHARS = 300
 
 // ── kb_list ──────────────────────────────────────────────────────

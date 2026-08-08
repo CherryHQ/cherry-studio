@@ -1,4 +1,4 @@
-import { projectStreamChunkForRenderer } from '@data/messageOutputProjection'
+import { projectStreamChunkForRenderer } from '@main/utils/messageOutputProjection'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { IpcEventName } from '@shared/ipc/schemas/ipcSchemas'
 import type { EventPayload } from '@shared/ipc/types'

@@ -71,11 +71,6 @@ const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
 const CHERRY_TOOLS_MCP_SERVER = 'cherry-tools'
 const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
 
-/**
- * kb_read returns a whole document slice — orders of magnitude more text than a kb_search chunk —
- * but the tooltip only ever shows a snippet. Truncate here so the full slice is not carried
- * through the render path and re-serialized into every `<sup data-citation>` tag.
- */
 type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -115,9 +110,7 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
     if (part.type !== 'dynamic-tool') return rawName
 
     const partMetadata = readCherryMeta(part)?.tool
-    const outputMetadata = extractOutputMetadata(
-      unwrapCitableOutput((toolPart as { output?: unknown }).output)
-    ).metadata
+    const outputMetadata = extractOutputMetadata((toolPart as { output?: unknown }).output).metadata
     const belongsToCherryTools = (metadata: ToolMetadata | typeof partMetadata | undefined) =>
       metadata?.serverId === CHERRY_TOOLS_MCP_SERVER || metadata?.serverName === CHERRY_TOOLS_MCP_SERVER
     return belongsToCherryTools(partMetadata) || belongsToCherryTools(outputMetadata) ? rawName : null
