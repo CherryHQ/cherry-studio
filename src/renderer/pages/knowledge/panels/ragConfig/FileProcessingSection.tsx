@@ -2,10 +2,11 @@ import LocalModelDownloadPopup from '@renderer/components/popups/LocalModelDownl
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import { FILE_PROCESSOR_LOCAL_MODEL } from '@shared/data/presets/fileProcessing'
+import { FILE_PROCESSOR_LOCAL_MODEL, SELF_HOSTED_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useFileProcessorConnectivity } from '../../hooks/useFileProcessorConnectivity'
 import { FileProcessorSelector, type FileProcessorSelectorOption } from './FileProcessorSelector'
 import { RagFieldLabel } from './panelPrimitives'
 
@@ -34,10 +35,38 @@ const FileProcessingSection = ({
 }: FileProcessingSectionProps) => {
   const { t } = useTranslation()
   const { status, isStatusResolved } = useLocalModel('ocr')
+  // Open MinerU is the only self-hosted processor, and it is always in this list,
+  // so one unconditional probe covers it. Probing every API processor instead would
+  // fire requests at third-party SaaS hosts the user never asked us to contact.
+  const { reachable, isResolved: isConnectivityResolved } = useFileProcessorConnectivity(
+    'open-mineru',
+    'document_to_markdown'
+  )
 
   const options = useMemo(
     () =>
       fileProcessorOptions.flatMap((option) => {
+        if (SELF_HOSTED_FILE_PROCESSORS.has(option.value as FileProcessorId)) {
+          const unreachable = isConnectivityResolved && !reachable
+
+          // Starting the server is something only the user can do, outside the app,
+          // so a dead row offers nothing to act on — drop it rather than grey it out.
+          // Unless this base is already saved with it: the trigger reads its label
+          // from this list, so hiding it would show "not in use" for a base that is
+          // still configured to use it.
+          if (unreachable && option.value !== fileProcessorId) {
+            return []
+          }
+
+          return [
+            {
+              ...option,
+              disabled: option.disabled || unreachable,
+              statusLabel: unreachable ? t('knowledge.rag.processor_unreachable') : option.statusLabel
+            }
+          ]
+        }
+
         if (!requiresLocalOcrModel(option.value)) {
           return [option]
         }
@@ -61,7 +90,7 @@ const FileProcessingSection = ({
           }
         ]
       }),
-    [fileProcessorOptions, isStatusResolved, status, t]
+    [fileProcessorId, fileProcessorOptions, isConnectivityResolved, isStatusResolved, reachable, status, t]
   )
 
   const handleChange = async (value: string | null) => {
