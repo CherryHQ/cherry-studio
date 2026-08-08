@@ -13,13 +13,7 @@ import { mcpResultToTextSummary } from './utils'
 
 const logger = loggerService.withContext('mcpTools')
 
-type McpToolCandidate = {
-  server: McpServer
-  tool: McpTool
-}
-
 const namespaceForServer = (serverId: string) => `mcp:${serverId}`
-const candidateIdentity = ({ tool }: McpToolCandidate) => `${tool.serverId}\0${tool.name}`
 
 function resolveActiveServerById(serverId: string): McpServer | undefined {
   // Direct point lookup instead of listing every active server on each tool call.
@@ -86,6 +80,7 @@ function toEntry(mcpTool: McpTool, server: McpServer): ToolEntry {
   return {
     name: mcpTool.id,
     namespace: namespaceForServer(server.id),
+    namespaceLabel: `mcp:${server.name}`,
     description: mcpTool.description || mcpTool.name,
     defer: forcePrompt ? 'never' : 'auto',
     tool: createMcpTool(mcpTool, forcePrompt),
@@ -120,7 +115,7 @@ export async function syncMcpToolsToRegistry(
   // must NOT evict a still-active server's previously-registered tools — without this
   // guard the eviction loop below sees every prior tool as `missing` and deregisters them.
   const refreshedNamespaces = new Set<string>()
-  const candidates: McpToolCandidate[] = []
+  const freshNames = new Set<string>()
 
   if (selectedToolIds) {
     for (const entry of reg.getAll()) {
@@ -130,50 +125,30 @@ export async function syncMcpToolsToRegistry(
     }
   }
 
-  if (!selectedToolIds || selectedToolIds.size > 0) {
-    for (const server of activeServers) {
-      const namespace = namespaceForServer(server.id)
-      try {
-        const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
-        const scopedTools = selectedToolIds ? enabledTools.filter((tool) => selectedToolIds.has(tool.id)) : enabledTools
-        if (!selectedToolIds || scopedTools.length > 0) targetNamespaces.add(namespace)
-        candidates.push(...scopedTools.map((tool) => ({ server, tool })))
-        refreshedNamespaces.add(namespace)
-      } catch (error) {
-        logger.error('Failed to list MCP tools for server', {
-          serverId: server.id,
-          serverName: server.name,
-          error
-        })
+  for (const server of activeServers) {
+    // Every selection is accounted for, so no later server can own one — skip the
+    // remaining catalog reads (and leave their namespaces out of the eviction scope).
+    if (selectedToolIds && freshNames.size === selectedToolIds.size) break
+    const namespace = namespaceForServer(server.id)
+    try {
+      const enabledTools = application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
+      const scopedTools = selectedToolIds ? enabledTools.filter((tool) => selectedToolIds.has(tool.id)) : enabledTools
+      if (!selectedToolIds || scopedTools.length > 0) targetNamespaces.add(namespace)
+      for (const mcpTool of scopedTools) {
+        // A wire id encodes serverId + protocol tool name, so a repeat can only be the
+        // same identity listed twice by one server. First wins.
+        if (freshNames.has(mcpTool.id)) continue
+        reg.register(toEntry(mcpTool, server))
+        freshNames.add(mcpTool.id)
       }
-    }
-  }
-
-  const candidatesById = new Map<string, McpToolCandidate[]>()
-  for (const candidate of candidates) {
-    const group = candidatesById.get(candidate.tool.id) ?? []
-    group.push(candidate)
-    candidatesById.set(candidate.tool.id, group)
-  }
-
-  const freshNames = new Set<string>()
-  for (const [toolId, group] of candidatesById) {
-    const identities = new Map(group.map((candidate) => [candidateIdentity(candidate), candidate]))
-    if (identities.size > 1) {
-      logger.error('Conflicting MCP tool identities share one wire id', {
-        toolId,
-        tools: [...identities.values()].map(({ server, tool }) => ({
-          serverId: server.id,
-          serverName: server.name,
-          toolName: tool.name
-        }))
+      refreshedNamespaces.add(namespace)
+    } catch (error) {
+      logger.error('Failed to list MCP tools for server', {
+        serverId: server.id,
+        serverName: server.name,
+        error
       })
-      continue
     }
-    const candidate = identities.values().next().value
-    if (!candidate) continue
-    reg.register(toEntry(candidate.tool, candidate.server))
-    freshNames.add(toolId)
   }
 
   for (const entry of reg.getAll()) {

@@ -82,12 +82,18 @@ export interface ToolEntry {
   codec?: ToolOutputCodec
 
   /**
-   * Grouping for `tool_search`. NOT part of the wire-name.
+   * Ownership key. NOT part of the wire-name, and never shown to the model.
    *   builtin: 'web', 'kb'
    *   mcp:     'mcp:{serverId}'  (stable ownership key, not a display name)
    *   meta:    'meta'  (excluded from search results)
    */
   namespace: string
+
+  /**
+   * What `tool_search` groups by and shows the model. Defaults to `namespace`;
+   * set it when the namespace is an opaque id (MCP uses `mcp:{serverName}`).
+   */
+  namespaceLabel?: string
 
   /** One-line summary for `tool_search`. Full schema description lives on `tool.description`. */
   description: string

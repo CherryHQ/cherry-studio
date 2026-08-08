@@ -5,7 +5,8 @@
 ```ts
 interface ToolEntry {
   name: string         // wire-name, what the LLM emits in tool_calls
-  namespace: string    // grouping for `tool_search` (web, kb, mcp:<id>, meta)
+  namespace: string    // ownership key (web, kb, mcp:<serverId>, meta) — never shown to the model
+  namespaceLabel?: string // what `tool_search` groups by and shows; defaults to `namespace`
   description: string  // one-line summary for `tool_search`
   defer: 'never' | 'always' | 'auto'
   tool: Tool           // AI SDK Tool (schema + execute + needsApproval + toModelOutput)
@@ -36,7 +37,10 @@ unambiguous):
 The built-in wire names live in `@shared/ai/builtinTools` (single-underscore,
 e.g. `web_search`); they are not derived from a `__` segment convention like MCP.
 The AI SDK MCP digest is derived from the stable server id plus the original
-protocol tool name. Claude Code keeps its separate runtime naming contract.
+protocol tool name. The readable slugs romanize Han characters (`tiny-pinyin`)
+so CJK names still produce a meaningful segment; kana and Hangul do not
+romanize and fall back to `server` / `tool` plus the digest. Claude Code keeps
+its separate runtime naming contract.
 
 ## Built-in tools
 
@@ -65,11 +69,11 @@ tool's `applies` gates on the relevant `assistant.settings.*` flag (e.g.
 - `mcpTools.syncMcpToolsToRegistry({ selectedToolIds })` — scans active servers'
   cache-only catalogs via `McpCatalogService.listTools`, matches full tool ids,
   and registers only exact selections as `ToolEntry` objects whose
-  `tool.execute` proxies through the MCP transport. Registry namespaces use the
-  stable `mcp:<serverId>` form; display names never determine ownership. Before
-  registration, duplicate descriptors for one identity are collapsed and a
-  wire id shared by distinct identities is excluded rather than silently
-  overwritten. Because reads are last-known-good cache snapshots, a transient
+  `tool.execute` proxies through the MCP transport. The scan stops early once
+  every selected id has been claimed. Ownership uses the stable
+  `namespace: mcp:<serverId>`; display names never determine it, and
+  `namespaceLabel: mcp:<serverName>` is what `tool_search` groups by and shows
+  the model. Because reads are last-known-good cache snapshots, a transient
   catalog failure does not evict a still-active server's prior entries.
 
 The sync is idempotent; a stale entry is overwritten on the next sync.
