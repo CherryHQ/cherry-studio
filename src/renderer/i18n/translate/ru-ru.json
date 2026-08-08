@@ -455,7 +455,7 @@
         "expand_all": "Развернуть все",
         "no_workdir": "Нет рабочего каталога",
         "show_more": "Развернуть дисплей",
-        "tasks": "[to be translated]:Tasks",
+        "tasks": "Задачи",
         "this_week": "На этой неделе",
         "today": "Сегодня",
         "unknown_agent": "Неизвестный агент",
@@ -1008,8 +1008,8 @@
           "label": "Уведомить"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "Конвертирует локальный документ (PDF, Office, EPUB, CSV) в Markdown, чтобы агент мог его прочитать",
+          "label": "Документ в Markdown"
         },
         "CherryWebFetch": {
           "description": "Получает и читает веб-страницу",
@@ -2988,6 +2988,28 @@
       "title": "Импортировать диалоги ChatGPT",
       "untitled_conversation": "Безымянный разговор"
     },
+    "claude": {
+      "assistant_name": "Импорт Claude",
+      "button": "Выбрать файл",
+      "description": "Импортирует текст, мышление и использование инструментов; изображения и вложения не включены",
+      "error": {
+        "invalid_json": "Неверный формат файла JSON",
+        "no_conversations": "В файле не найдено бесед",
+        "no_valid_conversations": "Нет действительных бесед для импорта",
+        "unknown": "Импорт не удался, пожалуйста, проверьте формат файла"
+      },
+      "help": {
+        "step1": "1. Войдите в Claude, перейдите в Настройки > Конфиденциальность > Экспорт данных",
+        "step2": "2. Дождитесь файла экспорта по электронной почте",
+        "step3": "3. Извлеките скачанный файл и найдите conversations.json",
+        "title": "Как экспортировать разговоры с Claude?"
+      },
+      "importing": "Импортирование разговоров...",
+      "selecting": "Выбор файла...",
+      "success": "Успешно импортировано {{topics}} разговоров с {{messages}} сообщениями",
+      "title": "Импортировать беседы Claude",
+      "untitled_conversation": "Безымянный разговор"
+    },
     "confirm": {
       "button": "Выберите файл для импорта",
       "label": "Вы уверены, что хотите импортировать внешние данные?"
@@ -3026,10 +3048,20 @@
           "selected_notes": "{{count}} заметок выбрано"
         },
         "note": {
+          "create": {
+            "content_label": "Содержание",
+            "content_placeholder": "Напишите содержание заметки здесь…",
+            "title_label": "Название",
+            "title_placeholder": "Назовите эту заметку"
+          },
           "description": "Выберите существующие заметки в качестве источников базы знаний",
           "empty_description": "Создайте заметки в разделе «Заметки», затем вернитесь сюда и выберите их.",
           "empty_title": "Заметки ещё не связаны",
-          "loading": "Загрузка заметок…"
+          "loading": "Загрузка заметок…",
+          "mode": {
+            "create": "Новая заметка",
+            "import": "Импортные примечания"
+          }
         },
         "placeholder": {
           "supported_formats": "Поддерживает PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3288,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "Приложения",
+    "manage_sidebar": "Управление боковой панелью",
     "minapps": "Мини-приложения",
     "miniApps": "Приложения",
     "pin_to_sidebar": "Закрепить на боковой панели",
@@ -4216,8 +4249,8 @@
         "taskOutput": "Просмотреть вывод задачи",
         "taskStop": "Остановить задачу",
         "taskUpdate": "Обновить задачу",
-        "toMarkdown": "[to be translated]:Convert Document",
-        "toMarkdownOutput": "[to be translated]:Markdown",
+        "toMarkdown": "Конвертировать документ",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Написать",
         "tool": "Инструмент",
         "webFetch": "Веб-запрос",
@@ -4268,8 +4301,8 @@
       "thinkingHeader": "Мышление",
       "truncated": "Вывод усечён (оригинал: {{size}})",
       "units": {
-        "char_one": "[to be translated]:{{count}} char",
-        "char_other": "[to be translated]:{{count}} chars",
+        "char_one": "{{count}} символ",
+        "char_other": "{{count}} символов",
         "done_one": "Готово: {{count}}",
         "done_other": "Готово: {{count}}",
         "file_one": "{{count}} файл",
@@ -6091,6 +6124,7 @@
       "import_settings": {
         "button": "Импортировать файл JSON",
         "chatgpt": "Импорт из ChatGPT",
+        "claude": "Импорт из Claude",
         "title": "Импорт внешних данных приложения"
       },
       "joplin": {
@@ -6646,6 +6680,7 @@
         "notice": {
           "downloadFailed": "Не удалось загрузить. Проверьте подключение и попробуйте снова.",
           "inUse": "Всё ещё используется базой знаний; веса были сохранены.",
+          "incompleteCache": "Файлы модели неполные. Повторите загрузку, чтобы исправить их.",
           "removeFailed": "Не удалось удалить. Проверьте журналы для получения подробностей."
         },
         "ocr": {

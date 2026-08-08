@@ -455,7 +455,7 @@
         "expand_all": "Expandir todo",
         "no_workdir": "Sin carpeta de trabajo",
         "show_more": "Expandir pantalla",
-        "tasks": "[to be translated]:Tasks",
+        "tasks": "Tareas",
         "this_week": "Esta semana",
         "today": "Hoy",
         "unknown_agent": "Agente desconocido",
@@ -1008,8 +1008,8 @@
           "label": "Notificar"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "Convierte un documento local (PDF, Office, EPUB, CSV) a Markdown para que el agente pueda leerlo",
+          "label": "Documento a Markdown"
         },
         "CherryWebFetch": {
           "description": "Obtiene y lee una página web",
@@ -2988,6 +2988,28 @@
       "title": "Importar conversaciones de ChatGPT",
       "untitled_conversation": "Conversación Sin Título"
     },
+    "claude": {
+      "assistant_name": "Importación de Claude",
+      "button": "Seleccionar archivo",
+      "description": "Importa texto, pensamiento y uso de herramientas; imágenes y archivos adjuntos no están incluidos",
+      "error": {
+        "invalid_json": "Formato de archivo JSON inválido",
+        "no_conversations": "No se encontraron conversaciones en el archivo",
+        "no_valid_conversations": "No hay conversaciones válidas para importar",
+        "unknown": "La importación falló, por favor verifique el formato del archivo"
+      },
+      "help": {
+        "step1": "1. Inicia sesión en Claude, ve a Configuración > Privacidad > Exportar datos",
+        "step2": "2. Espere el archivo de exportación por correo electrónico",
+        "step3": "3. Extraiga el archivo descargado y busque conversations.json",
+        "title": "¿Cómo exportar conversaciones de Claude?"
+      },
+      "importing": "Importando conversaciones...",
+      "selecting": "Seleccionando archivo...",
+      "success": "Importadas con éxito {{topics}} conversaciones con {{messages}} mensajes",
+      "title": "Importar Conversaciones de Claude",
+      "untitled_conversation": "Conversación Sin Título"
+    },
     "confirm": {
       "button": "Seleccionar Archivo de Importación",
       "label": "¿Estás seguro de que quieres importar datos externos?"
@@ -3026,10 +3048,20 @@
           "selected_notes": "{{count}} notas seleccionadas"
         },
         "note": {
+          "create": {
+            "content_label": "Contenido",
+            "content_placeholder": "Escribe el contenido de la nota aquí…",
+            "title_label": "Título",
+            "title_placeholder": "Nombre esta nota"
+          },
           "description": "Selecciona notas existentes como fuentes de base de conocimiento",
           "empty_description": "Las notas seleccionables aparecerán aquí después de que se conecte la lista de notas reales. Por ahora, usa archivos, carpetas, URLs o mapas del sitio.",
           "empty_title": "Las notas aún no están conectadas",
-          "loading": "Cargando notas…"
+          "loading": "Cargando notas…",
+          "mode": {
+            "create": "Nueva nota",
+            "import": "Notas de importación"
+          }
         },
         "placeholder": {
           "supported_formats": "Soporta PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3288,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "Aplicaciones",
+    "manage_sidebar": "Gestionar barra lateral",
     "minapps": "Minapps",
     "miniApps": "Miniaplicaciones",
     "pin_to_sidebar": "Anclar a la barra lateral",
@@ -4216,8 +4249,8 @@
         "taskOutput": "Ver salida de la tarea",
         "taskStop": "Detener tarea",
         "taskUpdate": "Actualizar tarea",
-        "toMarkdown": "[to be translated]:Convert Document",
-        "toMarkdownOutput": "[to be translated]:Markdown",
+        "toMarkdown": "Convertir Documento",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Todo Escribir",
         "tool": "Herramienta",
         "webFetch": "Obtención Web",
@@ -4268,8 +4301,8 @@
       "thinkingHeader": "Pensamiento",
       "truncated": "Salida truncada (original: {{size}})",
       "units": {
-        "char_one": "[to be translated]:{{count}} char",
-        "char_other": "[to be translated]:{{count}} chars",
+        "char_one": "{{count}} carácter",
+        "char_other": "{{count}} caracteres",
         "done_one": "{{count}} completado",
         "done_other": "{{count}} completados",
         "file_one": "{{count}} archivo",
@@ -6091,6 +6124,7 @@
       "import_settings": {
         "button": "Importar archivo Json",
         "chatgpt": "Importar desde ChatGPT",
+        "claude": "Importar desde Claude",
         "title": "Importar datos de aplicaciones externas"
       },
       "joplin": {
@@ -6646,6 +6680,7 @@
         "notice": {
           "downloadFailed": "La descarga falló. Comprueba tu conexión e inténtalo de nuevo.",
           "inUse": "Todavía utilizado por una base de conocimientos; los pesos se mantuvieron.",
+          "incompleteCache": "Los archivos del modelo están incompletos. Reintenta la descarga para repararlos.",
           "removeFailed": "Error al eliminar. Consulta los registros para más detalles."
         },
         "ocr": {
