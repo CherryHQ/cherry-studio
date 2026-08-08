@@ -30,10 +30,15 @@ No cross-migrator shared state is published: per migration-plan §2.9 the v1 fil
 
 ### Origin Discrimination
 
-| Condition | origin | externalPath | size |
-|-----------|--------|--------------|------|
-| path starts with `{userData}/Data/Files/` | `internal` | null | row.size (≥0) |
-| any other absolute path | `external` | row.path | null |
+Every migrated row is `internal` — v1 persisted a `files` row only after copying the bytes into `{userData}/Data/Files/`, so an `external` v1 row does not exist and is never fabricated.
+
+| Condition | Result |
+|-----------|--------|
+| `row.path` starts with `{userData}/Data/Files/` | `internal`, `externalPath = null` |
+| path fails the prefix check but a storage-name candidate exists on disk | `internal` — the row survives a cross-platform backup restore (#15733), where `row.path` carries foreign separators while the file sits right here |
+| neither | skipped with a warning — dead metadata from an incomplete v1 delete |
+
+The storage-name candidates come from `legacyStorageNames(row)` and are rebuilt from `{id}` + `{ext}`, never from `row.name`: v1's duplicate-upload path writes a double-extension `name` (`{id}.pdf.pdf`) that points nowhere, so trusting it would strand a physically present file for `FileManager.fileSweepTick` to reclaim. The candidate list keeps the raw `{id}{ext}` form alongside the canonical `{id}.{ext}` because v1 wrote both shapes (`saveBase64Image` stored a dotless ext, and an ext with a trailing space or dot has a matching on-disk name on POSIX).
 
 ### Ext Normalization
 
@@ -53,19 +58,19 @@ No cross-migrator shared state is published: per migration-plan §2.9 the v1 fil
 
 ### Name Derivation
 
-- **Internal** rows: `name` = `origin_name` basename without extension (preserves the user-visible filename)
-- **External** rows: `name` = path basename without extension
+- `name` = `origin_name` (falling back to `name`) basename without extension — preserves the user-visible filename
+- **Lost original filename**: v1's duplicate-upload path overwrote `origin_name` with the internal storage name, so the user's filename was already gone before the migration ran. `hasLostOriginalFilename` detects the signature (`origin_name === {id}{ext}` **and** `name === {origin_name}{ext}`) and records a warning; the derived name stays the id, which is honest — it is what the file is now called on disk, and any friendlier name would be invented. Both conditions are required: the first alone flags every `saveBase64Image` row (a generated image legitimately has no user filename), and the second alone degenerates to `name === origin_name` for extensionless rows.
 
 ## Field Mappings
 
 | Source (v1 `FileMetadata`) | Target (`file_entry`) | Notes |
 |----------------------------|-----------------------|-------|
 | `id` | `id` | Preserved verbatim |
-| (derived from `path`) | `origin` | `internal` or `external` |
+| (not derived) | `origin` | Always `internal`; non-internal rows are skipped, not mapped |
 | `origin_name` / `name` | `name` | Basename without ext |
 | `ext` | `ext` | Leading dot stripped; empty/whitespace-only → null |
-| `size` | `size` | Non-null for internal; null for external |
-| `path` (external only) | `externalPath` | null for internal |
+| `size` | `size` | Always non-null; recovered from disk when the v1 value is invalid |
+| — | `externalPath` | Always null |
 | (always null) | `deletedAt` | No v1 soft-delete state |
 | `created_at` | `createdAt` | ISO → ms epoch; fallback Date.now() + warning on parse failure |
 | `created_at` | `updatedAt` | Same as createdAt |
@@ -80,9 +85,7 @@ The migrator is safe to re-run. `MigrationEngine.verifyAndClearNewTables` clears
 
 `validate()` performs:
 1. **Count check**: asserts `SELECT count(*) FROM file_entry >= preparedEntries.length`
-2. **Physical file sampling**: up to `VALIDATE_SAMPLE_LIMIT = 10` internal entries are checked for their physical file at `{userData}/Data/Files/{id}.{ext}` via `fs.existsSync`. `10` is small enough to keep validate cheap on large migrations and large enough to catch a systematic "Files directory moved/missing" issue early; per-row I/O is intentionally bounded since the migration's own physical-copy step is the authoritative integrity boundary. Missing physical files go through `this.recordWarning` (not validation errors) — v1 routinely leaves dangling `file_entry` rows behind (deleted attachments, interrupted uploads), and the DB row keeps the historical reference even when bytes are gone.
-
-External entries are not sampled in validate (physical files are user-owned and may have moved).
+2. **Physical file sampling**: up to `VALIDATE_SAMPLE_LIMIT = 10` entries are checked for their physical file at `{userData}/Data/Files/{id}.{ext}` — the canonical `legacyStorageNames` candidate — via `fs.existsSync`. `10` is small enough to keep validate cheap on large migrations and large enough to catch a systematic "Files directory moved/missing" issue early; per-row I/O is intentionally bounded since the migration's own physical-copy step is the authoritative integrity boundary. Only the canonical candidate is probed: validate is a sampled diagnostic, so a row whose on-disk name carries a trailing-space ext costs one extra non-fatal warning rather than justifying the full candidate walk. Missing physical files go through `this.recordWarning` (not validation errors) — v1 routinely leaves dangling `file_entry` rows behind (deleted attachments, interrupted uploads), and the DB row keeps the historical reference even when bytes are gone.
 
 ## Failure Handling
 
@@ -92,8 +95,12 @@ External entries are not sampled in validate (physical files are user-owned and 
 | **Duplicate id** in v1 source | `seenIds` set in `prepare()` | Second occurrence skipped; warn logged |
 | **Insert error** (DB constraint, disk full) | Transaction throws | `execute()` returns `success=false` with error message |
 | **Missing files table** | `tableExists('files')` returns false | Prepare returns success with 0 items and a warning |
+| **Orphan row** (not internal, no physical file) | Prefix check and every storage-name candidate fail | Skipped; warn logged |
+| **Lost original filename** | `hasLostOriginalFilename()` signature match | Migrated intact under the id as its name; warn logged |
 
 ## Implementation Files
 
 - `FileMigrator.ts` — main migrator class
+- `mappings/LegacyFileMappings.ts` — v1 `files`-row semantics (`normalizeExt`, `legacyStorageNames`, `hasLostOriginalFilename`), shared with `KnowledgeMappings`
 - `__tests__/FileMigrator.test.ts` — unit tests
+- `mappings/__tests__/LegacyFileMappings.test.ts` — table-driven cases, one row per v1 producer
