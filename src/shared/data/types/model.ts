@@ -339,6 +339,8 @@ export const ModelSchema = z.object({
   maxInputTokens: z.number().optional(),
   /** Supported endpoint types */
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
+  /** Explicit routing choice among `endpointTypes`; unset falls back to `endpointTypes[0]`. */
+  preferredEndpointType: z.enum(objectValues(ENDPOINT_TYPE)).optional(),
   /** Whether streaming is supported */
   supportsStreaming: z.boolean(),
   /** Reasoning configuration */

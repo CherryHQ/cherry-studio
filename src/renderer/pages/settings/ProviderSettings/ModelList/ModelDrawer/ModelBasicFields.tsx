@@ -2,17 +2,21 @@ import { Input } from '@cherrystudio/ui'
 import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils/style'
-import type { ReactNode, Ref } from 'react'
+import type { EndpointType } from '@shared/data/types/model'
+import { type ReactNode, type Ref, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ModelEndpointTypeChips } from './ModelEndpointTypeChips'
 import { ModelEndpointTypeSelect } from './ModelEndpointTypeSelect'
+import { ModelPreferredEndpointSelect } from './ModelPreferredEndpointSelect'
 import type { ModelBasicFormState, ModelDrawerEndpointType } from './types'
 
 interface ModelBasicFieldsProps {
   values: ModelBasicFormState
   showEndpointType: boolean
-  endpointTypeControl?: 'select' | 'chips'
+  /** Routable endpoints for this model. The caller decides when there is a choice worth showing. */
+  preferredEndpointOptions?: readonly EndpointType[]
+  preferredEndpointType?: EndpointType
+  onPreferredEndpointTypeChange?: (next: EndpointType) => void
   showRequiredIndicator?: boolean
   layout?: 'vertical' | 'horizontal'
   modelIdDisabled?: boolean
@@ -32,7 +36,9 @@ interface ModelBasicFieldsProps {
 export function ModelBasicFields({
   values,
   showEndpointType,
-  endpointTypeControl = 'select',
+  preferredEndpointOptions,
+  preferredEndpointType,
+  onPreferredEndpointTypeChange,
   showRequiredIndicator = false,
   layout = 'vertical',
   modelIdDisabled = false,
@@ -49,6 +55,11 @@ export function ModelBasicFields({
   onEndpointTypesChange
 }: ModelBasicFieldsProps) {
   const { t } = useTranslation()
+  const preferredEndpointLabelId = useId()
+  const showPreferredEndpoint =
+    (preferredEndpointOptions?.length ?? 0) > 0 &&
+    preferredEndpointType != null &&
+    onPreferredEndpointTypeChange != null
 
   return (
     <>
@@ -129,11 +140,25 @@ export function ModelBasicFields({
           className={drawerClasses.field}
           help={endpointTypeError ? <div className={drawerClasses.errorText}>{endpointTypeError}</div> : null}>
           <div data-testid="provider-settings-model-endpoint-type-field">
-            {endpointTypeControl === 'chips' ? (
-              <ModelEndpointTypeChips value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
-            ) : (
-              <ModelEndpointTypeSelect value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
-            )}
+            <ModelEndpointTypeSelect value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />
+          </div>
+        </ProviderField>
+      )}
+
+      {showPreferredEndpoint && (
+        <ProviderField
+          title={t('settings.models.add.preferred_endpoint.label')}
+          titleId={preferredEndpointLabelId}
+          titleClassName={drawerClasses.fieldTitle}
+          layout={layout}
+          className={drawerClasses.field}>
+          <div data-testid="provider-settings-model-preferred-endpoint-field">
+            <ModelPreferredEndpointSelect
+              value={preferredEndpointType}
+              options={preferredEndpointOptions ?? []}
+              labelledBy={preferredEndpointLabelId}
+              onChange={onPreferredEndpointTypeChange}
+            />
           </div>
         </ProviderField>
       )}

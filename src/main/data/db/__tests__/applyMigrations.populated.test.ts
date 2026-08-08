@@ -177,7 +177,9 @@ describe('applyMigrations over a populated database', () => {
   })
 
   it('backfills durable refs for existing agent-session attachments', () => {
-    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    // Pinned by tag: "everything but the last entry" stops exercising this migration as soon as
+    // another one is appended.
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline'), '0006_mean_morg'))
     const now = Date.now()
     const fileEntryId = '77777777-7777-7777-8777-777777777777'
     const messageId = '88888888-8888-4888-8888-888888888888'
@@ -323,6 +325,40 @@ describe('applyMigrations over a populated database', () => {
       sqlite.prepare(`SELECT task_schedule_id FROM agent_session WHERE id = 'session-task-migrate'`).get()
     ).toEqual({
       task_schedule_id: null
+    })
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('leaves existing models routing on their supported-endpoint order after the preference column lands', () => {
+    // Unpinned: this migration is still branch-local and gets regenerated under a new
+    // tag on every merge that appends one upstream.
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+    const now = Date.now()
+    sqlite
+      .prepare(
+        `INSERT INTO user_provider (provider_id, name, order_key, created_at, updated_at)
+         VALUES ('doubao', 'doubao', 'a0', ?, ?)`
+      )
+      .run(now, now)
+    // A pre-existing custom model whose route lives only in `endpoint_types[0]`.
+    sqlite
+      .prepare(
+        `INSERT INTO user_model (id, provider_id, model_id, name, capabilities, endpoint_types, supports_streaming, order_key, created_at, updated_at)
+         VALUES ('doubao::seed-pro', 'doubao', 'seed-pro', 'Seed Pro', '[]', ?, 1, 'a0', ?, ?)`
+      )
+      .run(JSON.stringify(['openai-responses', 'openai-chat-completions']), now, now)
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    // The column is added empty — an upgrade must not invent a preference, because
+    // `resolveEffectiveEndpoint` falls back to `endpoint_types[0]` exactly as before.
+    expect(
+      sqlite
+        .prepare(`SELECT preferred_endpoint_type, endpoint_types FROM user_model WHERE id = 'doubao::seed-pro'`)
+        .get()
+    ).toEqual({
+      preferred_endpoint_type: null,
+      endpoint_types: JSON.stringify(['openai-responses', 'openai-chat-completions'])
     })
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
   })

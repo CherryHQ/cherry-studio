@@ -912,8 +912,14 @@ class ProviderRegistryService {
     endpointType?: EndpointType
   ): ResolvedReasoningProfile {
     const profileProvider = this.findProfileProvider(provider)
+    // An explicit per-model route decides the reasoning dialect too, so it enters as the sole
+    // candidate; without one the heuristic still ranks the whole supported set.
     const effectiveEndpoint =
-      endpointType ?? resolveReasoningEndpointType(model.endpointTypes, provider.defaultChatEndpoint)
+      endpointType ??
+      resolveReasoningEndpointType(
+        model.preferredEndpointType ? [model.preferredEndpointType] : model.endpointTypes,
+        provider.defaultChatEndpoint
+      )
     const providerIds = Array.from(
       new Set([provider.id, profileProvider?.id, provider.presetProviderId].filter((value): value is string => !!value))
     )

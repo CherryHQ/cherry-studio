@@ -7346,6 +7346,9 @@
         "model_type": {
           "label": "模型类型"
         },
+        "preferred_endpoint": {
+          "label": "首选端点"
+        },
         "purpose": {
           "chat": {
             "description": "使用 Provider 的文本 API",

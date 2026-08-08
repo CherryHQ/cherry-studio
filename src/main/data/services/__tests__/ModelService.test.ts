@@ -135,6 +135,7 @@ describe('UPDATE_MODEL_FIELD_MAP completeness', () => {
       'inputModalities',
       'outputModalities',
       'endpointTypes',
+      'preferredEndpointType',
       'parameterSupport',
       'supportsStreaming',
       'contextWindow',

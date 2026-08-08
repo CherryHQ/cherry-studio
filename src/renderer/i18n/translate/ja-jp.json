@@ -2988,6 +2988,28 @@
       "title": "ChatGPTの会話をインポート",
       "untitled_conversation": "無題の会話"
     },
+    "claude": {
+      "assistant_name": "[to be translated]:Claude Import",
+      "button": "[to be translated]:Select File",
+      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "[to be translated]:Invalid JSON file format",
+        "no_conversations": "[to be translated]:No conversations found in file",
+        "no_valid_conversations": "[to be translated]:No valid conversations to import",
+        "unknown": "[to be translated]:Import failed, please check file format"
+      },
+      "help": {
+        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "[to be translated]:2. Wait for the export file via email",
+        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
+        "title": "[to be translated]:How to export Claude conversations?"
+      },
+      "importing": "[to be translated]:Importing conversations...",
+      "selecting": "[to be translated]:Selecting file...",
+      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "[to be translated]:Import Claude Conversations",
+      "untitled_conversation": "[to be translated]:Untitled Conversation"
+    },
     "confirm": {
       "button": "ファイルのインポートを選択",
       "label": "外部データをインポートしてもよろしいですか？"
@@ -3026,10 +3048,20 @@
           "selected_notes": "{{count}} 個のノートが選択されています"
         },
         "note": {
+          "create": {
+            "content_label": "[to be translated]:Content",
+            "content_placeholder": "[to be translated]:Write the note content here…",
+            "title_label": "[to be translated]:Title",
+            "title_placeholder": "[to be translated]:Name this note"
+          },
           "description": "既存のノートをナレッジベースのソースとして選択",
           "empty_description": "実際のノートリストが接続されると、ここに選択可能なノートが表示されます。現時点では、ファイル、フォルダー、URL、またはサイトマップを使用してください。",
           "empty_title": "ノートはまだ接続されていません",
-          "loading": "メモを読み込んでいます…"
+          "loading": "メモを読み込んでいます…",
+          "mode": {
+            "create": "[to be translated]:New note",
+            "import": "[to be translated]:Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "PDF、DOCX、MD、XLSX、TXT、CSVに対応",
@@ -3288,6 +3320,7 @@
   },
   "launchpad": {
     "apps": "アプリ",
+    "manage_sidebar": "[to be translated]:Manage Sidebar",
     "minapps": "ミニアプリ",
     "miniApps": "アプリ",
     "pin_to_sidebar": "サイドバーに固定",
@@ -6091,6 +6124,7 @@
       "import_settings": {
         "button": "JSONファイルをインポート",
         "chatgpt": "ChatGPTからインポート",
+        "claude": "[to be translated]:Import from Claude",
         "title": "外部アプリケーションデータをインポート"
       },
       "joplin": {
@@ -6646,6 +6680,7 @@
         "notice": {
           "downloadFailed": "ダウンロードに失敗しました。接続を確認して、もう一度お試しください。",
           "inUse": "ナレッジベースによってまだ使用されている; ウェイトは保持された。",
+          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "削除に失敗しました。詳細についてはログを確認してください。"
         },
         "ocr": {
@@ -7309,6 +7344,9 @@
         },
         "model_type": {
           "label": "モデルタイプ"
+        },
+        "preferred_endpoint": {
+          "label": "[to be translated]:Preferred Endpoint"
         },
         "purpose": {
           "chat": {

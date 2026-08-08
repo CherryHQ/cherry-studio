@@ -25,6 +25,7 @@ import {
   applyModelPurpose,
   getInitialChatEndpointType,
   getModelDrawerMode,
+  getPreferredEndpointCandidates,
   getProviderChatEndpointTypes,
   inferModelPurpose,
   type ModelPurposeFields
@@ -90,6 +91,8 @@ export default function AddModelFormPanel({
   const [classification, setClassification] = useState(() => getInitialModelClassification())
   const [modelIdTouched, setModelIdTouched] = useState(false)
   const [endpointTypeTouched, setEndpointTypeTouched] = useState(false)
+  // Undefined until the user picks: an untouched picker must not pin the model to today's default.
+  const [preferredEndpointType, setPreferredEndpointType] = useState<EndpointType | undefined>(undefined)
   const [showMoreSettings, setShowMoreSettings] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -99,6 +102,15 @@ export default function AddModelFormPanel({
   const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
   const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
   const defaultChatEndpoint = providerChatEndpointTypes[0] ?? ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+  // Only an aggregator's multi-select declares what the new model supports; elsewhere the form seeds
+  // `endpointTypes` with the provider default, which says nothing about the model. One candidate
+  // means the provider already determines the route, so there is nothing to ask.
+  const preferredEndpointCandidates = provider
+    ? getPreferredEndpointCandidates(provider, mode === 'endpoint-types' ? formState.endpointTypes : undefined)
+    : []
+  const preferredEndpointOptions = preferredEndpointCandidates.length > 1 ? preferredEndpointCandidates : []
+  const activePreferredEndpoint =
+    preferredEndpointOptions.find((candidate) => candidate === preferredEndpointType) ?? preferredEndpointOptions[0]
   const modelPurpose = inferModelPurpose(purposeFields)
   const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
 
@@ -108,6 +120,7 @@ export default function AddModelFormPanel({
     setClassification(getInitialModelClassification(prefill?.model))
     setModelIdTouched(false)
     setEndpointTypeTouched(false)
+    setPreferredEndpointType(undefined)
     setShowMoreSettings(false)
     setSubmitError(null)
   }, [defaultChatEndpoint, prefill])
@@ -174,6 +187,7 @@ export default function AddModelFormPanel({
             : mode === 'endpoint-types' && values.endpointTypes?.length
               ? [...values.endpointTypes]
               : undefined,
+        ...(preferredEndpointType ? { preferredEndpointType } : {}),
         capabilities: submittedPurposeFields?.capabilities ?? classifiedCapabilities,
         inputModalities: submittedPurposeFields?.inputModalities ?? classifiedInputModalities,
         outputModalities: submittedPurposeFields?.outputModalities,
@@ -191,6 +205,7 @@ export default function AddModelFormPanel({
       mode,
       modelPurpose,
       models,
+      preferredEndpointType,
       prefill?.model,
       provider,
       providerId,
@@ -346,6 +361,9 @@ export default function AddModelFormPanel({
           <ModelBasicFields
             values={formState}
             showEndpointType={mode === 'endpoint-types'}
+            preferredEndpointOptions={preferredEndpointOptions}
+            preferredEndpointType={activePreferredEndpoint}
+            onPreferredEndpointTypeChange={setPreferredEndpointType}
             showRequiredIndicator
             layout="horizontal"
             modelIdAutoFocus

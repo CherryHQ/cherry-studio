@@ -38,14 +38,18 @@ export function resolveWireModelId(model: Model, endpointType: EndpointType | un
 }
 
 /**
- * Priority: `model.endpointTypes[0]` → gateway per-model route → `provider.defaultChatEndpoint` →
- * `undefined`. The gateway step resolves the wire endpoint from the model id for multi-backend
- * gateways (AiHubMix, …) whose models carry no explicit `endpointTypes` (see `gatewayRouting`).
- * `getBaseUrl` applies its own fallback among `endpointConfigs`.
+ * Priority: `model.preferredEndpointType` → `model.endpointTypes[0]` → gateway per-model route →
+ * `provider.defaultChatEndpoint` → `undefined`. The gateway step resolves the wire endpoint from the
+ * model id for multi-backend gateways (AiHubMix, …) whose models carry no explicit endpoint (see
+ * `gatewayRouting`). `getBaseUrl` applies its own fallback among `endpointConfigs`.
  */
 export function resolveEffectiveEndpoint(provider: Provider, model: Model): ResolvedEndpoint {
   const gatewayRoute = resolveGatewayRoute(provider, model)
-  const endpointType = model.endpointTypes?.[0] ?? gatewayRoute?.endpointType ?? provider.defaultChatEndpoint
+  const endpointType =
+    model.preferredEndpointType ??
+    model.endpointTypes?.[0] ??
+    gatewayRoute?.endpointType ??
+    provider.defaultChatEndpoint
   const providerOptionsKey =
     gatewayRoute && endpointType === gatewayRoute.endpointType ? gatewayRoute.providerOptionsKey : undefined
   return { endpointType, baseUrl: getBaseUrl(provider, endpointType), providerOptionsKey }

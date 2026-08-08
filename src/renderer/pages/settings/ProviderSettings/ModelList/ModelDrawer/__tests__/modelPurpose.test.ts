@@ -12,6 +12,7 @@ import {
   applyModelPurpose,
   getInitialChatEndpointType,
   getModelDrawerMode,
+  getPreferredEndpointCandidates,
   getProviderChatEndpointTypes,
   inferModelPurpose,
   type ModelPurposeFields
@@ -30,6 +31,51 @@ describe('getModelDrawerMode', () => {
     [{ id: 'custom-anthropic', presetProviderId: 'anthropic' }, 'legacy']
   ] as const)('returns %s for %o', (provider, expected) => {
     expect(getModelDrawerMode(provider)).toBe(expected)
+  })
+})
+
+describe('getPreferredEndpointCandidates', () => {
+  const doubao = {
+    defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+    endpointConfigs: {
+      [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://ark.example.com' },
+      [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://ark.example.com' }
+    }
+  }
+
+  it('offers every chat endpoint the provider serves when the model declares none', () => {
+    expect(getPreferredEndpointCandidates(doubao)).toEqual([
+      ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      ENDPOINT_TYPE.OPENAI_RESPONSES
+    ])
+  })
+
+  it('narrows to what the model itself supports', () => {
+    expect(getPreferredEndpointCandidates(doubao, [ENDPOINT_TYPE.OPENAI_RESPONSES])).toEqual([
+      ENDPOINT_TYPE.OPENAI_RESPONSES
+    ])
+  })
+
+  it('drops non-chat endpoints, leaving nothing to choose for an embedding model', () => {
+    expect(getPreferredEndpointCandidates(doubao, [ENDPOINT_TYPE.OPENAI_EMBEDDINGS])).toEqual([])
+  })
+
+  it('trusts an aggregator model that declares endpoints the provider config never lists', () => {
+    expect(
+      getPreferredEndpointCandidates({ defaultChatEndpoint: undefined, endpointConfigs: undefined }, [
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      ])
+    ).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES, ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS])
+  })
+
+  it('leaves a single-endpoint provider with nothing to pick', () => {
+    expect(
+      getPreferredEndpointCandidates({
+        defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' } }
+      })
+    ).toEqual([ENDPOINT_TYPE.ANTHROPIC_MESSAGES])
   })
 })
 

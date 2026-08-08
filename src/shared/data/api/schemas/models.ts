@@ -53,6 +53,8 @@ export const CreateModelSchema = z.strictObject({
   outputModalities: z.array(z.enum(objectValues(MODALITY))).optional(),
   /** Endpoint types */
   endpointTypes: z.array(z.enum(objectValues(ENDPOINT_TYPE))).optional(),
+  /** Explicit routing choice among the supported endpoint types */
+  preferredEndpointType: z.enum(objectValues(ENDPOINT_TYPE)).optional(),
   /** Context window size */
   contextWindow: z.number().int().positive().optional(),
   /** Maximum input tokens */

@@ -43,7 +43,7 @@ export interface ApplyModelPurposeOptions {
 }
 
 type ModelDrawerProvider = Pick<Provider, 'id' | 'presetProviderId'>
-type ProviderChatEndpoints = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'>
+export type ProviderChatEndpoints = Pick<Provider, 'defaultChatEndpoint' | 'endpointConfigs'>
 
 function isModelChatEndpointType(endpointType: string | undefined): endpointType is ModelChatEndpointType {
   return MODEL_CHAT_ENDPOINT_TYPES.some((candidate) => candidate === endpointType)
@@ -85,6 +85,34 @@ export function getProviderChatEndpointTypes(provider: ProviderChatEndpoints): M
   }
 
   return endpointTypes
+}
+
+/**
+ * The chat endpoints a model could be routed to. Two or more means the user has a real choice and the
+ * preferred-endpoint picker is worth showing; one or none means there is nothing to pick.
+ *
+ * A model that declares its own endpoints narrows the provider's list to those (a model may support
+ * fewer protocols than its host); aggregator models declare endpoints the provider config never lists,
+ * so an empty intersection falls back to what the model declares.
+ */
+export function getPreferredEndpointCandidates(
+  provider: ProviderChatEndpoints,
+  modelEndpointTypes?: readonly EndpointType[]
+): ModelChatEndpointType[] {
+  if (!modelEndpointTypes?.length) {
+    return getProviderChatEndpointTypes(provider)
+  }
+
+  // Declared but non-chat (embeddings, image, rerank) means this model is not routed over a chat
+  // protocol at all, so there is nothing to choose.
+  const declared = modelEndpointTypes.filter(isModelChatEndpointType)
+  if (declared.length === 0) {
+    return []
+  }
+
+  const providerEndpointTypes = getProviderChatEndpointTypes(provider)
+  const narrowed = declared.filter((endpointType) => providerEndpointTypes.includes(endpointType))
+  return narrowed.length > 0 ? narrowed : declared
 }
 
 export function inferModelPurpose(fields: ModelPurposeFields): ModelPurpose {
