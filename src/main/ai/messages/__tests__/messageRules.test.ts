@@ -143,6 +143,48 @@ describe('toModelMessages', () => {
       content: [expect.objectContaining({ type: 'tool-result', toolName: legacyToolName })]
     })
   })
+
+  it('rewrites a v1 "server: tool" name to a wire-legal one on both call and result (#18199)', async () => {
+    const model = await toModelMessages([
+      ui('assistant', [
+        {
+          type: 'dynamic-tool',
+          toolName: 'jina: jina_reader',
+          toolCallId: 'call_00_1',
+          state: 'output-available',
+          input: { url: 'https://example.com' },
+          output: { ok: true }
+        }
+      ])
+    ])
+
+    expect(model[0]).toMatchObject({
+      role: 'assistant',
+      content: [expect.objectContaining({ type: 'tool-call', toolName: 'jina__jina_reader' })]
+    })
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ type: 'tool-result', toolName: 'jina__jina_reader' })]
+    })
+  })
+
+  it('caps a v1 name at the 64-char / leading-letter provider limits', async () => {
+    const model = await toModelMessages([
+      ui('assistant', [
+        {
+          type: 'dynamic-tool',
+          toolName: `1${'长'.repeat(80)}: search`,
+          toolCallId: 'call_00_2',
+          state: 'output-available',
+          input: {},
+          output: { ok: true }
+        }
+      ])
+    ])
+
+    const toolName = (model[0].content as { toolName: string }[])[0].toolName
+    expect(toolName).toMatch(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/)
+  })
 })
 
 describe('ensureNonEmptyAssistantContent', () => {
