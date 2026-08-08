@@ -166,24 +166,36 @@ describe('AGENTS contributor', () => {
         kind: 'tolerant'
       })
     )
-    // agent_channel.workspace: required entity-id (AgentSessionWorkspaceSource.workspaceId)
+    // agent_channel.workspace: required entity-id (AgentSessionWorkspaceSource.workspaceId).
+    // B4: policy-driven — top-level carrier ([] containerPath), workspaceId field,
+    // type='user' discriminator (system branch is pass-through), target agent_workspace.
     expect(jsonRefs).toContainEqual(
       expect.objectContaining({
         table: table('agent_channel'),
         column: 'workspace',
         target: 'entity-id',
         ownerDomain: 'AGENTS',
-        kind: 'required'
+        kind: 'required',
+        targetTable: table('agent_workspace'),
+        selectors: [{ idField: 'workspaceId', discriminator: { field: 'type', equals: 'user' } }]
       })
     )
-    // job_schedule.jobInputTemplate: required entity-id (same workspace source)
+    // job_schedule.jobInputTemplate: required entity-id. B4: nested `.workspace` carrier.
     expect(jsonRefs).toContainEqual(
       expect.objectContaining({
         table: table('job_schedule'),
         column: 'jobInputTemplate',
         target: 'entity-id',
         ownerDomain: 'AGENTS',
-        kind: 'required'
+        kind: 'required',
+        targetTable: table('agent_workspace'),
+        selectors: [
+          {
+            containerPath: ['workspace'],
+            idField: 'workspaceId',
+            discriminator: { field: 'type', equals: 'user' }
+          }
+        ]
       })
     )
   })

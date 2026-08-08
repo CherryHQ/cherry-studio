@@ -18,6 +18,7 @@ import {
   DB_COLUMNS_BY_TABLE,
   DB_FOREIGN_KEYS,
   DB_JSON_COLUMNS,
+  DB_PRIMARY_KEYS,
   DB_TABLES,
   DB_UNIQUE_KEYS,
   type DbColumnName,
@@ -172,10 +173,23 @@ export function finalize(
   }
 
   // ── #10: references-derived domain dependency graph is acyclic (Kahn) ─────────
+  // Also folds in cross-domain `required` JSON entity-id edges: a required entity-id whose
+  // targetTable is an aggregate root owned by ANOTHER domain makes that target domain a
+  // prerequisite (the target's identityMap must be seeded before the source imports, or
+  // required rows are mis-pruned). tolerant refs add no edge (missing target is allowed).
+  const rootToDomain = new Map<DbTableName, BackupDomain>()
+  for (const c of contributors) for (const a of c.schema.aggregates) rootToDomain.set(a.root, c.domain)
   const domainDependencies = new Map<BackupDomain, Set<BackupDomain>>()
   for (const c of contributors) domainDependencies.set(c.domain, new Set())
   for (const c of contributors) {
     for (const ref of c.schema.references) domainDependencies.get(c.domain)!.add(ref.referencedDomain)
+    for (const j of c.schema.jsonSoftReferences) {
+      if (j.target !== 'entity-id' || j.kind !== 'required' || j.targetTable === undefined) continue
+      const targetDomain = rootToDomain.get(j.targetTable)
+      if (targetDomain !== undefined && targetDomain !== c.domain) {
+        domainDependencies.get(c.domain)!.add(targetDomain)
+      }
+    }
   }
   detectCycle(domainDependencies, BACKUP_DOMAINS)
 
@@ -207,6 +221,10 @@ export function finalize(
   //     column carrying soft refs that is neither declared nor exempted would silently
   //     drop cross-entity links on restore. UNCONDITIONAL (no opt-in gate) — the loop
   //     below iterates every owned (non-excluded) table's every DB_JSON_COLUMNS column.
+  // Pre-build the global aggregate-root set: an entity-id targetTable MUST be an aggregate
+  // root (identityMap only seeds roots); a member table with a single-column PK would pass
+  // the existence + PK check below but never get a targetMap entry → required rows mis-prune.
+  const aggregateRoots = new Set<DbTableName>(contributors.flatMap((c) => c.schema.aggregates.map((a) => a.root)))
   for (const c of contributors) {
     const owned = new Set<DbTableName>(c.schema.tables)
     // (A) declared ⊆ DB_JSON_COLUMNS (columns exist + are genuinely JSON).
@@ -218,6 +236,42 @@ export function finalize(
       const jsonCols = DB_JSON_COLUMNS[j.table]
       if (!jsonCols?.some((col) => col === j.column)) {
         fail({ invariant: 12, table: j.table, column: j.column, reason: 'declared-not-json-column' })
+      }
+      // B4/D5: an entity-id policy must declare a valid targetTable + selectors so the
+      // generalized walker can resolve the embedded id. targetTable must be a real table
+      // with a single-column PK (identityMap keys by one id). selectors must carry an
+      // idField and, when present, a well-formed discriminator.
+      if (j.target === 'entity-id') {
+        if (j.targetTable === undefined) {
+          fail({ invariant: 12, table: j.table, column: j.column, reason: 'entity-id-missing-target-table' })
+        } else if (!(j.targetTable in DB_PRIMARY_KEYS)) {
+          fail({ invariant: 12, table: j.table, column: j.column, reason: 'entity-id-target-table-unknown' })
+        } else if (DB_PRIMARY_KEYS[j.targetTable].columns.length !== 1) {
+          fail({ invariant: 12, table: j.table, column: j.column, reason: 'entity-id-target-not-single-column-pk' })
+        } else if (!aggregateRoots.has(j.targetTable)) {
+          // identityMap only seeds aggregate roots; a member/non-root table would never get
+          // a targetMap entry → every required row referencing it would be mis-pruned at runtime.
+          fail({ invariant: 12, table: j.table, column: j.column, reason: 'entity-id-target-not-aggregate-root' })
+        }
+        if (j.selectors === undefined || j.selectors.length === 0) {
+          fail({ invariant: 12, table: j.table, column: j.column, reason: 'entity-id-missing-selectors' })
+        } else {
+          for (const sel of j.selectors) {
+            if (typeof sel.idField !== 'string' || sel.idField.length === 0) {
+              fail({ invariant: 12, table: j.table, column: j.column, reason: 'entity-id-selector-missing-id-field' })
+            }
+            if (sel.discriminator !== undefined) {
+              if (typeof sel.discriminator.field !== 'string' || sel.discriminator.field.length === 0) {
+                fail({
+                  invariant: 12,
+                  table: j.table,
+                  column: j.column,
+                  reason: 'entity-id-selector-bad-discriminator'
+                })
+              }
+            }
+          }
+        }
       }
     }
     // (B) DB_JSON_COLUMNS ⊆ declared ∪ exempt — exhaustiveness is UNCONDITIONAL:

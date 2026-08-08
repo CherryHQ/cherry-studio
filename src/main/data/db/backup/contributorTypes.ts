@@ -131,6 +131,32 @@ export interface JsonSoftReferencePolicy {
   readonly target: 'file-ref' | 'entity-id'
   readonly ownerDomain: BackupDomain
   readonly kind: JsonSoftRefKind
+  /**
+   * entity-id only: the target entity table whose identityMap entry rewrites the embedded id.
+   * Drives identityMap.targetMap.get(targetTable). Omit for file-ref (no identity propagation).
+   */
+  readonly targetTable?: DbTableName
+  /**
+   * entity-id only: how to locate the id within the JSON cell. Each selector describes a
+   * container path (where the discriminated carrier lives, [] = top-level), the id field
+   * inside it, and an optional discriminator (only rewrite when carrier[field] === equals).
+   * Multiple selectors let one policy cover several carrier shapes in the same column.
+   * Omit for file-ref.
+   */
+  readonly selectors?: readonly JsonEntityIdSelector[]
+}
+
+/**
+ * Locates an entity-id within a JSON cell for identity-propagation rewrite.
+ * Carrier = the object holding the id + discriminator (e.g. AgentSessionWorkspaceSource).
+ */
+export interface JsonEntityIdSelector {
+  /** Path to the carrier object within the parsed JSON ([] = the cell root itself). */
+  readonly containerPath?: readonly string[]
+  /** Field on the carrier that holds the entity id to rewrite. */
+  readonly idField: string
+  /** Only rewrite when the carrier[discriminator.field] === discriminator.equals (e.g. type==='user'). */
+  readonly discriminator?: { readonly field: string; readonly equals: string }
 }
 
 /** Override the default omitted-reference action for one declared reference (finalize #7). */

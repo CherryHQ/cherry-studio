@@ -26,6 +26,7 @@ import type {
   AggregateBoundary,
   EntityReference,
   FieldMergePolicy,
+  JsonSoftReferencePolicy,
   ReadonlyBackupRegistry
 } from '@main/data/db/backup/contributorTypes'
 import type { DbTableName } from '@main/data/db/backup/dbSchemaRefs'
@@ -405,14 +406,23 @@ const groupIntraDomainOwningRefs = (
  * Returns the rewritten JSON text plus the list of `workspaceId`s that could
  * not be resolved (so the caller can discard the row when `policy.kind === 'required'`).
  */
-const rewriteWorkspaceEntityId = (
+/**
+ * Rewrite embedded entity-ids in a JSON cell via the policy's selectors (B4 generalized).
+ * Replaces the prior column-switch helper: each selector declares where the id carrier lives
+ * (containerPath, [] = cell root), the id field, and an optional discriminator (only rewrite
+ * when carrier[field] === equals, e.g. AgentSessionWorkspaceSource type==='user'). Returns
+ * the rewritten text (unchanged if no selector matched) + any ids that could not resolve
+ * against the target table's identityMap (required callers discard + disclose on missing).
+ */
+const rewriteJsonEntityIds = (
   jsonText: string,
   identityMap: IdentityMap,
-  targetTable: DbTableName,
-  column: string
+  policy: JsonSoftReferencePolicy
 ): { text: string; missing: readonly string[] } => {
-  // The agent_workspace identity map is keyed by source-of-truth table.
-  const map = identityMap.targetMap.get(targetTable)
+  if (policy.targetTable === undefined || policy.selectors === undefined) {
+    return { text: jsonText, missing: [] }
+  }
+  const map = identityMap.targetMap.get(policy.targetTable)
   let parsed: unknown
   try {
     parsed = JSON.parse(jsonText)
@@ -422,33 +432,51 @@ const rewriteWorkspaceEntityId = (
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     return { text: jsonText, missing: [] }
   }
-  const obj = parsed as Record<string, unknown>
-  // The AgentSessionWorkspaceSource lives at different depths per policy column
-  // (B1 review R3 P0-2): agent_channel.workspace carries it at the TOP level, while
-  // job_schedule.jobInputTemplate nests it under `.workspace` (the template also has
-  // agentId/prompt siblings). Resolve the container + a reconstructor accordingly.
-  let container: Record<string, unknown>
-  const reconstruct = (next: Record<string, unknown>): unknown =>
-    column === 'jobInputTemplate' ? { ...obj, workspace: next } : next
-  if (column === 'jobInputTemplate') {
-    const nested = obj.workspace
-    if (!nested || typeof nested !== 'object' || Array.isArray(nested)) {
-      return { text: jsonText, missing: [] }
+  let root = parsed as Record<string, unknown>
+  const missing: string[] = []
+  let changed = false
+  for (const selector of policy.selectors) {
+    // Walk the container path (mutating copy-on-write so nested carriers preserve siblings).
+    const path = selector.containerPath ?? []
+    let node: Record<string, unknown> = root
+    const lineage: { parent: Record<string, unknown>; key: string }[] = []
+    let escaped = false
+    for (const seg of path) {
+      const child = node[seg]
+      if (!child || typeof child !== 'object' || Array.isArray(child)) {
+        escaped = true
+        break
+      }
+      lineage.push({ parent: node, key: seg })
+      node = child as Record<string, unknown>
     }
-    container = nested as Record<string, unknown>
-  } else {
-    container = obj
+    if (escaped) continue
+    const container = node
+    // Discriminator gate — e.g. only the type='user' branch carries a workspaceId.
+    const d = selector.discriminator
+    if (d !== undefined && container[d.field] !== d.equals) continue
+    const id = container[selector.idField]
+    if (typeof id !== 'string' || id.length === 0) continue
+    if (map === undefined || map.size === 0) {
+      missing.push(id)
+      continue
+    }
+    const canonical = map.get(id)
+    if (canonical === undefined) {
+      missing.push(id)
+      continue
+    }
+    if (canonical === id) continue
+    // Copy-on-write: rewrite the carrier, then rebuild each ancestor so siblings survive.
+    let next: Record<string, unknown> = { ...container, [selector.idField]: canonical }
+    for (let i = lineage.length - 1; i >= 0; i--) {
+      const { parent, key } = lineage[i]
+      next = { ...parent, [key]: next }
+    }
+    root = next
+    changed = true
   }
-  // AgentSessionWorkspaceSource discriminated union — only the user branch
-  // carries a workspaceId to rewrite. system branches are pass-through.
-  if (container.type !== 'user') return { text: jsonText, missing: [] }
-  const id = container.workspaceId
-  if (typeof id !== 'string' || id.length === 0) return { text: jsonText, missing: [] }
-  if (map === undefined || map.size === 0) return { text: jsonText, missing: [id] }
-  const canonical = map.get(id)
-  if (canonical === undefined) return { text: jsonText, missing: [id] }
-  if (canonical === id) return { text: jsonText, missing: [] }
-  return { text: JSON.stringify(reconstruct({ ...container, workspaceId: canonical })), missing: [] }
+  return changed ? { text: JSON.stringify(root), missing } : { text: jsonText, missing }
 }
 
 /** Strategy stubs not yet implemented in the MVP scaffold. */
@@ -2001,11 +2029,9 @@ export class MergeEngine {
       const cell = row[colPhys]
       if (cell === null || cell === undefined) continue
       const text = typeof cell === 'string' ? cell : JSON.stringify(cell)
-      // Both entity-id policies (agent_channel.workspace, job_schedule.jobInputTemplate)
-      // target agent_workspace, but live at different JSON depths — the walker takes the
-      // policy column and resolves the container depth itself (B1 review R3 P0-2).
-      const targetTable: DbTableName = 'agent_workspace'
-      const result = rewriteWorkspaceEntityId(text, identityMap, targetTable, policy.column)
+      // B4: the walker is now policy-driven (selectors declare container depth + id field +
+      // discriminator; targetTable declares the identity-map table). See rewriteJsonEntityIds.
+      const result = rewriteJsonEntityIds(text, identityMap, policy)
       if (result.missing.length > 0) {
         if (policy.kind === 'required') {
           degradedToSkips.push({
@@ -2061,8 +2087,8 @@ export class MergeEngine {
         ...localPk
       ) as { data: string | null } | undefined
       if (!current?.data) continue
-      const targetTable: DbTableName = 'agent_workspace'
-      const result = rewriteWorkspaceEntityId(current.data, identityMap, targetTable, policy.column)
+      // B4: policy-driven walker (see rewriteJsonEntityIds).
+      const result = rewriteJsonEntityIds(current.data, identityMap, policy)
       if (result.missing.length > 0) {
         if (policy.kind === 'required') {
           degradedToSkips.push({

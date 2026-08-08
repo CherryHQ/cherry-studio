@@ -343,7 +343,7 @@ describe('finalize invariants', () => {
         {
           table: 'mcp_server',
           column: 'args',
-          target: 'entity-id',
+          target: 'file-ref',
           ownerDomain: 'MCP_SERVERS',
           kind: 'tolerant'
         }
@@ -355,15 +355,96 @@ describe('finalize invariants', () => {
 
   it('#12 (B) passes when every JSON column is declared or exempt', () => {
     // MCP_SERVERS: declare jsonSoftReferences for ALL 7 JSON columns → exhaustive → passes.
+    // Synthetic coverage fixtures use target='file-ref' (entity-id requires a targetTable +
+    // selectors, validated separately); these exercise JSON-column coverage only.
     const jsonCols = ['args', 'env', 'headers', 'tags', 'configSample', 'disabledTools', 'disabledAutoApproveTools']
     const list = patchSchema(buildFixture(), 'MCP_SERVERS', {
       jsonSoftReferences: jsonCols.map((col) => ({
         table: 'mcp_server' as DbTableName,
         column: col as DbColumnName<'mcp_server'>,
-        target: 'entity-id' as const,
+        target: 'file-ref' as const,
         ownerDomain: 'MCP_SERVERS' as BackupDomain,
         kind: 'tolerant' as const
       }))
+    })
+    expect(() => finalize(list, META)).not.toThrow()
+  })
+
+  it('#12 (D5) rejects an entity-id policy missing targetTable', () => {
+    // B4 generalized the JSON entity-id walker to be policy-driven; an entity-id policy
+    // MUST declare a targetTable (the identity-map table) + selectors. A declaration
+    // without them cannot be walked and silently drops cross-entity links.
+    const list = patchSchema(buildFixture(), 'MCP_SERVERS', {
+      jsonSoftReferences: [
+        {
+          table: 'mcp_server' as DbTableName,
+          column: 'args' as DbColumnName<'mcp_server'>,
+          target: 'entity-id' as const,
+          ownerDomain: 'MCP_SERVERS' as BackupDomain,
+          kind: 'tolerant' as const
+        }
+      ]
+    })
+    expectInvariant(list, 12)
+  })
+
+  it('#12 (D5) rejects an entity-id policy whose targetTable is not a single-column PK table', () => {
+    // identityMap keys by one id; a composite-PK or unknown target cannot back the rewrite.
+    const list = patchSchema(buildFixture(), 'MCP_SERVERS', {
+      jsonSoftReferences: [
+        {
+          table: 'mcp_server' as DbTableName,
+          column: 'args' as DbColumnName<'mcp_server'>,
+          target: 'entity-id' as const,
+          ownerDomain: 'MCP_SERVERS' as BackupDomain,
+          kind: 'tolerant' as const,
+          // 'message' exists but is not owned by MCP_SERVERS / not the intended target —
+          // the single-column-PK + existence check still must hold regardless of owner.
+          targetTable: 'nonexistent_table' as DbTableName,
+          selectors: [{ idField: 'id' }]
+        }
+      ]
+    })
+    expectInvariant(list, 12)
+  })
+
+  it('#12 (D5) rejects an entity-id policy whose targetTable is not an aggregate root', () => {
+    // identityMap only seeds aggregate roots; a target that is a member/non-root table
+    // (even with a single-column PK) would never get a targetMap entry → required rows
+    // referencing it would be mis-pruned at runtime. MCP_SERVERS owns mcp_server but the
+    // synthetic fixture does NOT declare it as an aggregate root here.
+    const list = patchSchema(buildFixture(), 'MCP_SERVERS', {
+      jsonSoftReferences: [
+        {
+          table: 'mcp_server' as DbTableName,
+          column: 'args' as DbColumnName<'mcp_server'>,
+          target: 'entity-id' as const,
+          ownerDomain: 'MCP_SERVERS' as BackupDomain,
+          kind: 'required' as const,
+          targetTable: 'mcp_server' as DbTableName,
+          selectors: [{ idField: 'id' }]
+        }
+      ]
+    })
+    expectInvariant(list, 12)
+  })
+
+  it('#12 (D5) accepts a well-formed entity-id policy (targetTable + selectors)', () => {
+    // targetTable must be a single-column-PK aggregate root. mcp_server is an owned table
+    // with a single-column PK; declare it as an aggregate root so the root check passes.
+    const list = patchSchema(buildFixture(), 'MCP_SERVERS', {
+      aggregates: [{ root: 'mcp_server' as DbTableName, renamable: false }],
+      jsonSoftReferences: [
+        {
+          table: 'mcp_server' as DbTableName,
+          column: 'args' as DbColumnName<'mcp_server'>,
+          target: 'entity-id' as const,
+          ownerDomain: 'MCP_SERVERS' as BackupDomain,
+          kind: 'tolerant' as const,
+          targetTable: 'mcp_server' as DbTableName,
+          selectors: [{ idField: 'id', discriminator: { field: 'type', equals: 'user' } }]
+        }
+      ]
     })
     expect(() => finalize(list, META)).not.toThrow()
   })

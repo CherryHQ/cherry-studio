@@ -298,24 +298,35 @@ export const AGENTS_CONTRIBUTOR = deepFreeze<BackupContributor>({
       // agent_channel.workspace embeds an AgentSessionWorkspaceSource whose workspaceId
       // points at an agent_workspace (natural-key target). REQUIRED — target FIELD_MERGE
       // must rewrite the embedded workspaceId via identity propagation (§5.4), or the
-      // channel silently references a dangling/merged-away workspace.
+      // channel silently references a dangling/merged-away workspace. The carrier IS the
+      // cell root (no wrapper); only the type='user' branch carries a workspaceId.
       {
         table: table('agent_channel'),
         column: column('workspace'),
         target: 'entity-id',
         ownerDomain: 'AGENTS',
-        kind: 'required'
+        kind: 'required',
+        targetTable: table('agent_workspace'),
+        selectors: [{ idField: 'workspaceId', discriminator: { field: 'type', equals: 'user' } }]
       },
       // job_schedule(type='agent.task').jobInputTemplate embeds the same
-      // AgentSessionWorkspaceSource.workspaceId. REQUIRED for the same reason — a
-      // scheduled agent task whose workspace id was merged away would fire against a
-      // dangling workspace. Covers the shared job_schedule table's agent.task rows.
+      // AgentSessionWorkspaceSource.workspaceId under a `.workspace` key (the template also
+      // has agentId/prompt siblings). REQUIRED for the same reason — a scheduled agent task
+      // whose workspace id was merged away would fire against a dangling workspace.
       {
         table: table('job_schedule'),
         column: column('jobInputTemplate'),
         target: 'entity-id',
         ownerDomain: 'AGENTS',
-        kind: 'required'
+        kind: 'required',
+        targetTable: table('agent_workspace'),
+        selectors: [
+          {
+            containerPath: ['workspace'],
+            idField: 'workspaceId',
+            discriminator: { field: 'type', equals: 'user' }
+          }
+        ]
       }
     ],
     // Structural JSON columns that carry NO cross-entity soft refs (no embedded
