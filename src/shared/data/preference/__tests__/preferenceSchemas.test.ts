@@ -64,6 +64,16 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['chat.message.navigation_mode']).toBe(messageNavigationDefault)
   })
 
+  it('pins permission mode on the agent composer toolbar for new users', () => {
+    const agentPinnedToolsDefault: PreferenceSchemas['default']['agent.input.toolbar.pinned_tools'] = [
+      'composer:new-session',
+      'skills',
+      'permission-mode'
+    ]
+
+    expect(DefaultPreferences.default['agent.input.toolbar.pinned_tools']).toEqual(agentPinnedToolsDefault)
+  })
+
   it('does not keep legacy classic/modern layout preferences', () => {
     expect('topic.layout' in DefaultPreferences.default).toBe(false)
     expect('agent.layout' in DefaultPreferences.default).toBe(false)
