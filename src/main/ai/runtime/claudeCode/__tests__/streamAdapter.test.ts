@@ -1,4 +1,5 @@
-import type { CherryUIMessageChunk } from '@shared/data/types/message'
+import type { CherryUIMessage, CherryUIMessageChunk } from '@shared/data/types/message'
+import { readUIMessageStream } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const loggerMocks = vi.hoisted(() => ({
@@ -16,6 +17,7 @@ vi.mock('@logger', () => ({
 }))
 
 const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
+const { PersistenceListener } = await import('../../../streamManager/listeners/PersistenceListener')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -493,6 +495,84 @@ describe('ClaudeCodeStreamAdapter', () => {
     expect(parts.map((part) => part.type)).toEqual(['text-start', 'text-delta', 'text-end'])
     expect(parts[1]).toMatchObject({ type: 'text-delta', id: (parts[0] as any).id, delta: 'hi' })
     expect(parts[2]).toMatchObject({ type: 'text-end', id: (parts[0] as any).id })
+  })
+
+  it('does not emit or persist tagged or synthetic-source reminders from the assistant stream', async () => {
+    const { adapter, parts } = createAdapter()
+    const reminder = 'The task tools have not been used recently.'
+
+    adapter.handleMessage({
+      type: 'user',
+      isSynthetic: true,
+      parent_tool_use_id: null,
+      session_id: 'sdk-1',
+      uuid: crypto.randomUUID(),
+      message: {
+        role: 'user',
+        content: [{ type: 'text', text: `<system-reminder>\n${reminder}\n</system-reminder>` }]
+      }
+    } as any)
+
+    adapter.handleMessage(
+      streamEvent({ type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } })
+    )
+    for (const text of [
+      'before\n<system-',
+      'reminder>Internal context.</system-rem',
+      'inder>\nThe task tools have ',
+      'not been used recently.\nafter'
+    ]) {
+      adapter.handleMessage(streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }))
+    }
+    adapter.handleMessage(streamEvent({ type: 'content_block_stop', index: 0 }))
+
+    const text = parts
+      .filter((part): part is Extract<CherryUIMessageChunk, { type: 'text-delta' }> => part.type === 'text-delta')
+      .map((part) => part.delta)
+      .join('')
+    expect(text).toBe('before\n\n\nafter')
+
+    const stream = new ReadableStream<CherryUIMessageChunk>({
+      start(controller) {
+        for (const part of parts) controller.enqueue(part)
+        controller.close()
+      }
+    })
+    let finalMessage: CherryUIMessage | undefined
+    for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+      stream,
+      message: { id: 'assistant-1', role: 'assistant', parts: [] }
+    })) {
+      finalMessage = snapshot
+    }
+    const persistAssistant = vi.fn()
+    const listener = new PersistenceListener({
+      topicId: 'agent-session:session-1',
+      backend: { kind: 'test', persistAssistant }
+    })
+    await listener.onDone({ status: 'success', isTopicDone: true, finalMessage })
+
+    expect(persistAssistant).toHaveBeenCalledWith(
+      expect.objectContaining({
+        finalMessage: expect.objectContaining({ parts: [{ type: 'text', text: 'before\n\n\nafter', state: 'done' }] })
+      })
+    )
+  })
+
+  it('preserves ordinary assistant text that mentions system-reminder', () => {
+    const { adapter, parts } = createAdapter()
+
+    adapter.handleMessage(
+      streamEvent({
+        type: 'content_block_delta',
+        index: 0,
+        delta: { type: 'text_delta', text: 'The system-reminder name is documented here.' }
+      })
+    )
+
+    expect(parts).toContainEqual(
+      expect.objectContaining({ type: 'text-delta', delta: 'The system-reminder name is documented here.' })
+    )
   })
 
   it('maps reasoning content block deltas', () => {

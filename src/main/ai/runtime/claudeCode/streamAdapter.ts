@@ -35,6 +35,7 @@ import type {
   BetaToolUseBlock
 } from '@anthropic-ai/sdk/resources/beta/messages'
 import { loggerService } from '@logger'
+import { extractSystemReminderBodies, SystemReminderTextFilter } from '@main/ai/steerReminder'
 import type { AgentSessionBackgroundTask } from '@shared/ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionAnchorData } from '@shared/ai/agentSessionCompaction'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
@@ -121,7 +122,8 @@ type StreamSink = {
 }
 
 type StreamContext = {
-  sink: StreamSink
+  sink: StreamSink & { redirect(sink: StreamSink): void }
+  systemReminderBodies: Set<string>
   options: Parameters<LanguageModelV3['doStream']>[0]
   toolStates: Map<string, ToolStreamState>
   activeTaskTools: Map<string, { startTime: number }>
@@ -320,6 +322,15 @@ function getContentArray(value: unknown): unknown[] | undefined {
   return undefined
 }
 
+function getTextContent(value: unknown): string[] {
+  if (typeof value === 'string') return [value]
+  return (getContentArray(value) ?? []).flatMap((block) => {
+    if (!isRecord(block)) return []
+    if (block.type === 'text' && typeof block.text === 'string') return [block.text]
+    return getTextContent(block.content)
+  })
+}
+
 function normalizeMcpContentBlock(block: unknown): JSONObject {
   if (isMcpContentBlock(block)) return block as JSONObject
 
@@ -513,8 +524,10 @@ export class ClaudeCodeStreamAdapter {
    * would silently leak whichever one a later change forgets.
    */
   private createTurnContext(sink = this.sink): StreamContext {
+    const systemReminderBodies = new Set<string>()
     return {
-      sink: this.createActivityTrackingSink(sink),
+      sink: this.createSystemReminderFilteringSink(this.createActivityTrackingSink(sink), systemReminderBodies),
+      systemReminderBodies,
       options: this.streamOptions,
       toolStates: new Map(),
       activeTaskTools: new Map(),
@@ -533,6 +546,39 @@ export class ClaudeCodeStreamAdapter {
       hasReceivedStreamEvents: false,
       hasStreamedJson: false,
       textStreamedViaContentBlock: false
+    }
+  }
+
+  /** Filter at the SDK adapter boundary so live rendering and persisted snapshots consume the same text. */
+  private createSystemReminderFilteringSink(
+    sink: StreamSink,
+    reminderBodies: ReadonlySet<string>
+  ): StreamContext['sink'] {
+    let destination = sink
+    const textFilters = new Map<string, SystemReminderTextFilter>()
+    return {
+      redirect: (nextSink) => {
+        destination = nextSink
+      },
+      enqueue: (chunk) => {
+        if (chunk.type === 'text-start') {
+          textFilters.set(chunk.id, new SystemReminderTextFilter(reminderBodies))
+        } else if (chunk.type === 'text-delta') {
+          const filter = textFilters.get(chunk.id) ?? new SystemReminderTextFilter(reminderBodies)
+          textFilters.set(chunk.id, filter)
+          const delta = filter.write(chunk.delta)
+          if (delta) destination.enqueue({ ...chunk, delta })
+          return
+        } else if (chunk.type === 'text-end') {
+          const filter = textFilters.get(chunk.id)
+          if (filter) {
+            const delta = filter.flush()
+            if (delta) destination.enqueue({ type: 'text-delta', id: chunk.id, delta })
+            textFilters.delete(chunk.id)
+          }
+        }
+        destination.enqueue(chunk)
+      }
     }
   }
 
@@ -689,7 +735,7 @@ export class ClaudeCodeStreamAdapter {
 
   private detachFlowContexts(): void {
     for (const flow of this.flowContexts) {
-      flow.stream.sink = this.createActivityTrackingSink(this.createFlowSink(flow.rootToolCallId))
+      flow.stream.sink.redirect(this.createActivityTrackingSink(this.createFlowSink(flow.rootToolCallId)))
     }
   }
 
@@ -1090,6 +1136,13 @@ export class ClaudeCodeStreamAdapter {
 
   private handleUserMessage(message: SDKUserMessage, ctx: StreamContext): void {
     if (!message.message?.content) return
+
+    if (message.isSynthetic) {
+      // Claude runtime `isMeta` reminders surface through the SDK as synthetic user messages.
+      for (const text of getTextContent(message.message.content)) {
+        for (const body of extractSystemReminderBodies(text)) ctx.systemReminderBodies.add(body)
+      }
+    }
 
     if (ctx.textPartId) {
       this.closeActiveTextPart(ctx)
