@@ -1,6 +1,6 @@
 import type { UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
-import { DEFAULT_ASSISTANT_SETTINGS, McpModeSchema } from '@shared/data/types/assistant'
+import { AssistantSettingsSchema, DEFAULT_ASSISTANT_SETTINGS, McpModeSchema } from '@shared/data/types/assistant'
 import { DEFAULT_CONTEXT_SETTINGS } from '@shared/data/types/contextSettings'
 
 // ---------------------------------------------------------------------------
@@ -62,6 +62,7 @@ export interface AssistantFormState {
 export function initialAssistantFormState(assistant: Assistant): AssistantFormState {
   const settings = assistant.settings ?? ({} as AssistantSettings)
   const mcpMode = McpModeSchema.safeParse(settings.mcpMode)
+  const maxTokens = AssistantSettingsSchema.shape.maxTokens.safeParse(settings.maxTokens)
   const ctx = settings.contextSettings
   return {
     name: assistant.name,
@@ -73,7 +74,7 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableTemperature: settings.enableTemperature ?? false,
     topP: settings.topP ?? UI_DEFAULT_TOP_P,
     enableTopP: settings.enableTopP ?? false,
-    maxTokens: settings.maxTokens ?? UI_DEFAULT_MAX_TOKENS,
+    maxTokens: maxTokens.success ? maxTokens.data : UI_DEFAULT_MAX_TOKENS,
     enableMaxTokens: settings.enableMaxTokens ?? false,
     streamOutput: settings.streamOutput ?? true,
     maxToolCalls: settings.maxToolCalls ?? DEFAULT_ASSISTANT_SETTINGS.maxToolCalls,
@@ -129,6 +130,8 @@ export function diffAssistantUpdate(
   assistant: Assistant
 ): AssistantDiffResult | null {
   const customParametersChanged = JSON.stringify(baseline.customParameters) !== JSON.stringify(form.customParameters)
+  const maxTokensChanged = baseline.maxTokens !== form.maxTokens
+  const enableMaxTokensChanged = baseline.enableMaxTokens !== form.enableMaxTokens
   const contextSettingsChanged =
     baseline.contextOverrideEnabled !== form.contextOverrideEnabled ||
     // Sub-fields only matter while the override is on, so an ON→OFF→ON round
@@ -143,8 +146,8 @@ export function diffAssistantUpdate(
     ...(baseline.enableTemperature !== form.enableTemperature ? { enableTemperature: form.enableTemperature } : {}),
     ...(baseline.topP !== form.topP ? { topP: form.topP } : {}),
     ...(baseline.enableTopP !== form.enableTopP ? { enableTopP: form.enableTopP } : {}),
-    ...(baseline.maxTokens !== form.maxTokens ? { maxTokens: form.maxTokens } : {}),
-    ...(baseline.enableMaxTokens !== form.enableMaxTokens ? { enableMaxTokens: form.enableMaxTokens } : {}),
+    ...(maxTokensChanged || (enableMaxTokensChanged && form.enableMaxTokens) ? { maxTokens: form.maxTokens } : {}),
+    ...(enableMaxTokensChanged ? { enableMaxTokens: form.enableMaxTokens } : {}),
     ...(baseline.streamOutput !== form.streamOutput ? { streamOutput: form.streamOutput } : {}),
     ...(baseline.maxToolCalls !== form.maxToolCalls ? { maxToolCalls: form.maxToolCalls } : {}),
     ...(baseline.enableMaxToolCalls !== form.enableMaxToolCalls ? { enableMaxToolCalls: form.enableMaxToolCalls } : {}),

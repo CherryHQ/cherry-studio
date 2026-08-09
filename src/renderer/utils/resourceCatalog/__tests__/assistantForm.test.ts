@@ -125,6 +125,33 @@ describe('diffAssistantUpdate', () => {
     expect(UpdateAssistantSchema.safeParse(result?.dto).success).toBe(true)
   })
 
+  it('repairs invalid legacy max tokens when enabling the limit', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        maxTokens: 0,
+        enableMaxTokens: false
+      } as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, enableMaxTokens: true }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+
+    expect(baseline.maxTokens).toBe(DEFAULT_ASSISTANT_SETTINGS.maxTokens)
+    expect(result?.dto).toEqual({
+      settings: {
+        maxTokens: DEFAULT_ASSISTANT_SETTINGS.maxTokens,
+        enableMaxTokens: true
+      }
+    })
+    expect(UpdateAssistantSchema.safeParse(result?.dto).success).toBe(true)
+    expect({ ...assistant.settings, ...result?.dto.settings }).toMatchObject({
+      maxTokens: DEFAULT_ASSISTANT_SETTINGS.maxTokens,
+      enableMaxTokens: true
+    })
+  })
+
   it('emits only the changed settings key', () => {
     const assistant = createAssistant({
       settings: {

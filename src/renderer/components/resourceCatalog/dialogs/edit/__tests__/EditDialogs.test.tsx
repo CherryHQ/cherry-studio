@@ -1037,6 +1037,33 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('repairs invalid legacy max tokens when enabling the limit', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: { ...ASSISTANT.settings, maxTokens: 0, enableMaxTokens: false }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+    fireEvent.click(await screen.findByRole('switch', { name: 'Max tokens' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: {
+          settings: {
+            maxTokens: 4096,
+            enableMaxTokens: true
+          }
+        }
+      })
+    )
+  })
+
   it('shows the default tool-call cap and clamps custom rounds at 1000', async () => {
     render(
       <AssistantEditDialog
