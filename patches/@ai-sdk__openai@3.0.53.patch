@@ -1,5 +1,5 @@
 diff --git a/dist/index.js b/dist/index.js
-index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..b363ccfbe357b64a2b282a9ed54c11edd1ce23d8 100644
+index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..d437f67d1875cf8e7cca1f5741fb35632b7480ac 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -1753,13 +1753,15 @@ var modelMaxImagesPerCall = {
@@ -19,7 +19,15 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..b363ccfbe357b64a2b282a9ed54c11ed
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
-@@ -3778,6 +3780,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
+@@ -2759,6 +2761,7 @@ async function convertToOpenAIResponsesInput({
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -3778,6 +3781,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils26.lazySchema)(
          summary_index: import_v421.z.number(),
          delta: import_v421.z.string()
        }),
@@ -31,7 +39,7 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..b363ccfbe357b64a2b282a9ed54c11ed
        import_v421.z.object({
          type: import_v421.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v421.z.string(),
-@@ -6105,6 +6112,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6105,6 +6113,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -50,7 +58,7 @@ index 1c78d6f13caed5cbfa034d86f5e51729d540a1ba..b363ccfbe357b64a2b282a9ed54c11ed
                if (store) {
                  controller.enqueue({
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..268878bc11eb713bd31f075e4f346c9341f5dd81 100644
+index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..ff37de048bc94cd20c9f15791370e08fdfacb6a0 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -1768,13 +1768,15 @@ var modelMaxImagesPerCall = {
@@ -70,7 +78,15 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..268878bc11eb713bd31f075e4f346c93
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
-@@ -3855,6 +3857,11 @@ var openaiResponsesChunkSchema = lazySchema19(
+@@ -2836,6 +2838,7 @@ async function convertToOpenAIResponsesInput({
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -3855,6 +3858,11 @@ var openaiResponsesChunkSchema = lazySchema19(
          summary_index: z21.number(),
          delta: z21.string()
        }),
@@ -82,7 +98,7 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..268878bc11eb713bd31f075e4f346c93
        z21.object({
          type: z21.literal("response.reasoning_summary_part.done"),
          item_id: z21.string(),
-@@ -6184,6 +6191,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6184,6 +6192,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -101,7 +117,7 @@ index 3dee8855a0cff4c2d5bef4ff1cb2a92a48bd8c4f..268878bc11eb713bd31f075e4f346c93
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.js b/dist/internal/index.js
-index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..488ea3c9be006ba1a3f980743c36ed6e2f314180 100644
+index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..aef30754373e2470fd05760742024645b5f61790 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
 @@ -1780,13 +1780,15 @@ var modelMaxImagesPerCall = {
@@ -121,7 +137,15 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..488ea3c9be006ba1a3f980743c36ed6e
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
-@@ -3720,6 +3722,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils24.lazySchema)(
+@@ -2701,6 +2703,7 @@ async function convertToOpenAIResponsesInput({
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -3720,6 +3723,11 @@ var openaiResponsesChunkSchema = (0, import_provider_utils24.lazySchema)(
          summary_index: import_v417.z.number(),
          delta: import_v417.z.string()
        }),
@@ -133,7 +157,7 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..488ea3c9be006ba1a3f980743c36ed6e
        import_v417.z.object({
          type: import_v417.z.literal("response.reasoning_summary_part.done"),
          item_id: import_v417.z.string(),
-@@ -6366,6 +6373,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6366,6 +6374,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -152,7 +176,7 @@ index 27527ce4b6c232e26c4bed988292d8fdd5dbbb5f..488ea3c9be006ba1a3f980743c36ed6e
                if (store) {
                  controller.enqueue({
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
-index db50beda01459008c836cd5648e024340fe31e90..5dd870eb91e2b9487c818d75476214cb8df5a965 100644
+index db50beda01459008c836cd5648e024340fe31e90..f4b416a80ec50f5fcb1551f17858055839d92ea2 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -1760,13 +1760,15 @@ var modelMaxImagesPerCall = {
@@ -172,7 +196,15 @@ index db50beda01459008c836cd5648e024340fe31e90..5dd870eb91e2b9487c818d75476214cb
  ];
  function hasDefaultResponseFormat(modelId) {
    return defaultResponseFormatPrefixes.some(
-@@ -3746,6 +3748,11 @@ var openaiResponsesChunkSchema = lazySchema15(
+@@ -2727,6 +2729,7 @@ async function convertToOpenAIResponsesInput({
+                 role: "assistant",
+                 content: [{ type: "output_text", text: part.text }],
+                 id,
++                status: "completed",
+                 ...phase != null && { phase }
+               });
+               break;
+@@ -3746,6 +3749,11 @@ var openaiResponsesChunkSchema = lazySchema15(
          summary_index: z17.number(),
          delta: z17.string()
        }),
@@ -184,7 +216,7 @@ index db50beda01459008c836cd5648e024340fe31e90..5dd870eb91e2b9487c818d75476214cb
        z17.object({
          type: z17.literal("response.reasoning_summary_part.done"),
          item_id: z17.string(),
-@@ -6422,6 +6429,17 @@ var OpenAIResponsesLanguageModel = class {
+@@ -6422,6 +6430,17 @@ var OpenAIResponsesLanguageModel = class {
                    }
                  }
                });
@@ -202,11 +234,31 @@ index db50beda01459008c836cd5648e024340fe31e90..5dd870eb91e2b9487c818d75476214cb
              } else if (value.type === "response.reasoning_summary_part.done") {
                if (store) {
                  controller.enqueue({
+diff --git a/src/responses/convert-to-openai-responses-input.ts b/src/responses/convert-to-openai-responses-input.ts
+index ad42deeedaf1a9c3fdb578aadb0e295a5499ec39..aef3a98db6cd0e0ede6e96158144d3f4fc08eaf5 100644
+--- a/src/responses/convert-to-openai-responses-input.ts
++++ b/src/responses/convert-to-openai-responses-input.ts
+@@ -194,6 +194,7 @@ export async function convertToOpenAIResponsesInput({
+                 role: 'assistant',
+                 content: [{ type: 'output_text', text: part.text }],
+                 id,
++                status: 'completed',
+                 ...(phase != null && { phase }),
+               });
+ 
 diff --git a/src/responses/openai-responses-api.ts b/src/responses/openai-responses-api.ts
-index 53a3f242d81d0b52d9126b0f4580a30778373606..715f51cb5d5cc3a2f5cbd537e8d508936d7cb2df 100644
+index 53a3f242d81d0b52d9126b0f4580a30778373606..688b58f87c0640e26a393a4fcec077b51fd079bc 100644
 --- a/src/responses/openai-responses-api.ts
 +++ b/src/responses/openai-responses-api.ts
-@@ -985,6 +985,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
+@@ -86,6 +86,7 @@ export type OpenAIResponsesAssistantMessage = {
+   role: 'assistant';
+   content: Array<{ type: 'output_text'; text: string }>;
+   id?: string;
++  status?: 'completed';
+   phase?: 'commentary' | 'final_answer' | null;
+ };
+ 
+@@ -985,6 +986,11 @@ export const openaiResponsesChunkSchema = lazySchema(() =>
          summary_index: z.number(),
          delta: z.string(),
        }),
