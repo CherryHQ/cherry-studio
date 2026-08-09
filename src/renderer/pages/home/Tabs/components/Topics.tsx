@@ -14,6 +14,7 @@ import {
   buildResourceListGroupDropAnchor,
   CONVERSATION_ROW_STATUS_TITLE_CLASS,
   ConversationRowStatus,
+  type ConversationRowStatusValue,
   renderAssistantEntityIcon,
   resolveDefaultCollapsedGroupIds,
   ResourceList,
@@ -31,6 +32,10 @@ import {
 import { ResourceRefreshErrorBanner } from '@renderer/components/chat/resourceList/ResourceRefreshErrorBanner'
 import { TopicResourceList } from '@renderer/components/chat/resourceList/TopicResourceList'
 import { CommandPopupMenu } from '@renderer/components/command'
+import {
+  readChatDraftPresence,
+  subscribeChatDraftCache
+} from '@renderer/components/composer/variants/chat/chatDraftCache'
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
 import type { ResourceEditDialogTarget } from '@renderer/components/resourceCatalog/dialogs/edit'
@@ -80,9 +85,9 @@ import { cn } from '@renderer/utils/style'
 import { classifyTurn, type TopicStatusSnapshotEntry } from '@shared/ai/transport'
 import type { AssistantIconType, TopicTabPosition } from '@shared/data/preference/preferenceTypes'
 import dayjs from 'dayjs'
-import { MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
+import { FilePenLine, MoreHorizontal, PinIcon, Plus, Trash2, Unlink, XIcon } from 'lucide-react'
 import type { MouseEvent, RefObject } from 'react'
-import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -1786,6 +1791,7 @@ const TopicRow = memo(function TopicRow({
             // The stream indicator is an absolute overlay (keeps no flex space),
             // so the title needs a standing yield for its dot zone; on hover the
             // overlay fades out, the standing yield closes, and the in-flow action rail expands.
+            // The draft indicator needs no yield — it stays in flow and reserves its own space.
             hasTopicStreamIndicator && CONVERSATION_ROW_STATUS_TITLE_CLASS
           )}
           onDoubleClick={(event) => {
@@ -1796,9 +1802,11 @@ const TopicRow = memo(function TopicRow({
         </ResourceList.ItemTitle>
       )}
       {!rowState.renaming && (
-        <ConversationRowStatus
+        <TopicTrailingStatus
+          topicId={topic.id}
+          draftLabel={t('chat.topics.draft')}
+          isActive={isActive}
           status={conversationRowStatus}
-          testId={conversationRowStatus === 'approval' ? 'topic-awaiting-approval-badge' : 'topic-stream-indicator'}
         />
       )}
       <ResourceList.ItemActions active={isConfirmingDeletion}>
@@ -1855,3 +1863,50 @@ const TopicRow = memo(function TopicRow({
     </>
   )
 })
+
+const TOPIC_DRAFT_INDICATOR_CLASS =
+  'pointer-events-none flex size-5 max-w-5 shrink-0 items-center justify-center overflow-hidden opacity-100 transition-[margin,max-width,opacity] duration-150 group-hover:-ml-1.5 group-hover:max-w-0 group-hover:opacity-0 group-has-[[data-resource-list-item-actions]:focus-within]:-ml-1.5 group-has-[[data-resource-list-item-actions][data-active=true]]:-ml-1.5 group-has-[[data-resource-list-item-actions]:focus-within]:max-w-0 group-has-[[data-resource-list-item-actions][data-active=true]]:max-w-0 group-has-[[data-resource-list-item-actions]:focus-within]:opacity-0 group-has-[[data-resource-list-item-actions][data-active=true]]:opacity-0'
+
+const TopicTrailingStatus = ({
+  topicId,
+  draftLabel,
+  isActive,
+  status
+}: {
+  topicId: string
+  draftLabel: string
+  isActive: boolean
+  status: ConversationRowStatusValue | null
+}) => {
+  if (status) {
+    return (
+      <ConversationRowStatus
+        status={status}
+        testId={status === 'approval' ? 'topic-awaiting-approval-badge' : 'topic-stream-indicator'}
+      />
+    )
+  }
+
+  // The active row's draft is the text visible in the composer right below it,
+  // so flagging it as unsent tells the user nothing.
+  if (isActive) return null
+
+  // The draft subscriber mounts only in the lowest-priority branch. Virtualized
+  // rows that are offscreen, or rows showing a higher-priority status, subscribe
+  // to no draft key at all.
+  return <TopicDraftIndicator topicId={topicId} label={draftLabel} />
+}
+
+const TopicDraftIndicator = ({ topicId, label }: { topicId: string; label: string }) => {
+  const subscribe = useCallback((listener: () => void) => subscribeChatDraftCache(topicId, listener), [topicId])
+  const getSnapshot = useCallback(() => readChatDraftPresence(topicId), [topicId])
+  const hasDraft = useSyncExternalStore(subscribe, getSnapshot, () => false)
+
+  if (!hasDraft) return null
+
+  return (
+    <span aria-label={label} className={TOPIC_DRAFT_INDICATOR_CLASS} role="img">
+      <FilePenLine aria-hidden="true" className="size-3 text-foreground-tertiary" />
+    </span>
+  )
+}
