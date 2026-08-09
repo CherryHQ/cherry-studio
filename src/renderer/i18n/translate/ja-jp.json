@@ -4096,6 +4096,9 @@
       "failed": "復元に失敗しました",
       "success": "復元に成功しました"
     },
+    "retry": {
+      "status": "{{model}}で再試行中・試行回数 {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "保存に成功しました"
@@ -7524,6 +7527,16 @@
         "label": "高速モデル",
         "setting_title": "高速モデル設定",
         "tooltip": "軽量モデルを選択し、推論モデルは避けてください。"
+      },
+      "retry": {
+        "backoff": "指数バックオフ",
+        "description": "チャット、埋め込み、および再ランクの呼び出しを再試行します。チャットは他のモデルにフォールバックできます。",
+        "fallback_models": "フォールバックモデル",
+        "fallback_models_count": "{{count}} モデル選択済み",
+        "fallback_models_description": "プライマリモデルが失敗した場合に順に試行されるモデル",
+        "label": "モデル呼び出しの再試行",
+        "max_attempts": "最大再試行回数",
+        "tooltip": "再試行とフォールバックは、モデルがコンテンツのストリーミングを開始する前にのみ適用されます。"
       },
       "toolbar": {
         "custom_add": "カスタム",

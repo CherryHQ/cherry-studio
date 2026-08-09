@@ -4096,6 +4096,9 @@
       "failed": "Wiederherstellung fehlgeschlagen",
       "success": "Erfolgreich wiederhergestellt"
     },
+    "retry": {
+      "status": "Erneuter Versuch mit {{model}} · Versuch {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Erfolgreich gespeichert"
@@ -7524,6 +7527,16 @@
         "label": "Schnellmodell",
         "setting_title": "Schnellmodell-Einstellungen",
         "tooltip": "Leichtes Modell empfohlen, Denkmodell nicht empfohlen"
+      },
+      "retry": {
+        "backoff": "Exponentielles Backoff",
+        "description": "Chat-, Embedding- und Rerank-Aufrufe wiederholen; Chat kann auf andere Modelle zurückgreifen",
+        "fallback_models": "Fallback-Modelle",
+        "fallback_models_count": "{{count}} Modelle ausgewählt",
+        "fallback_models_description": "Modelle, die in Reihenfolge versucht werden, wenn das primäre Modell fehlschlägt",
+        "label": "Modellaufruf-Wiederholung",
+        "max_attempts": "Maximale Wiederholungsversuche",
+        "tooltip": "Wiederholungsversuche und Fallbacks gelten nur, bevor das Modell mit dem Streamen von Inhalten beginnt"
       },
       "toolbar": {
         "custom_add": "Benutzerdefiniert",
