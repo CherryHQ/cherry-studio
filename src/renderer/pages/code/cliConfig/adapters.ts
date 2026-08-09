@@ -29,7 +29,8 @@ import {
   buildOpenCodeConfig,
   buildPiModelsConfig,
   buildPiSettingsConfig,
-  buildQwenConfig
+  buildQwenConfig,
+  clearCodexApiKeyAuth
 } from './builders'
 import { CHERRY_PROVIDER_PREFIX, OPEN_CODE_ENDPOINTS, PI_ENDPOINTS } from './constants'
 import { parseDotenv, renderDotenvFile } from './dotenv'
@@ -348,10 +349,11 @@ const codexAdapter: CliConfigAdapter = {
       dropFeatureGoalsIfEmpty(next)
       files.push({ target: 'codex-config', content: stringifyToml(next) })
     }
-    if (existingAuth?.OPENAI_API_KEY !== undefined) {
-      const nextAuth = { ...existingAuth }
-      delete nextAuth.OPENAI_API_KEY
-      files.push({ target: 'codex-auth', content: renderJsonFile(nextAuth) })
+    if (existingAuth && (existingAuth.OPENAI_API_KEY !== undefined || existingAuth.auth_mode === 'apikey')) {
+      const nextAuth = clearCodexApiKeyAuth(existingAuth)
+      files.push(
+        nextAuth ? { target: 'codex-auth', content: renderJsonFile(nextAuth) } : { target: 'codex-auth', delete: true }
+      )
     }
     return files
   },
@@ -468,6 +470,10 @@ const openCodeAdapter: CliConfigAdapter = {
     if (!existing) return []
     const next: Record<string, any> = { ...existing }
     for (const key of OPEN_CODE_MANAGED_TOP_LEVEL_KEYS) delete next[key]
+    const compaction = { ...asRecord(next.compaction) }
+    delete compaction.auto
+    if (Object.keys(compaction).length > 0) next.compaction = compaction
+    else delete next.compaction
     // Only drop the top-level model when it points at a cherry-* provider (about to be
     // removed below — keeping it would leave a dangling reference); a user's own value
     // referencing their own provider stays.
@@ -497,7 +503,7 @@ const openCodeAdapter: CliConfigAdapter = {
   extractConfig(files) {
     const config = parseJsonOrThrow(getDraftFile(files, 'opencode-config')?.content ?? '')
     const out: Record<string, any> = {}
-    if (config.autoCompact === true) out.autoCompact = true
+    if (asRecord(config.compaction).auto === true) out.autoCompact = true
     if (isOpenCodePermissionMode(config.permission)) out.permissionMode = config.permission
     const providers = asRecord(config.provider)
     const providerKey = findCherryProviderKey(providers)

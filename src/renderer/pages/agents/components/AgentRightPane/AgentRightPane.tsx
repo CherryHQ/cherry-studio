@@ -74,6 +74,7 @@ import { useTranslation } from 'react-i18next'
 
 import { useAgentMessageListProviderValue } from '../../messages/agentMessageListAdapter'
 import {
+  type AgentArtifactFile,
   type AgentRightPaneStatus,
   type AgentRunLiveness,
   type AgentRunTask,
@@ -997,11 +998,13 @@ function useAgentRightPaneStatus(active = true): AgentRightPaneStatus {
 
 function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPanelScope>) {
   const meta = useAgentRightPaneMeta()
+  const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
   const status = useAgentRightPaneStatus(active)
   const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
+  const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
 
   return (
     <div className="h-full space-y-4 overflow-auto p-3 text-sm">
@@ -1037,13 +1040,15 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
         </section>
       )}
 
+      {artifacts.length > 0 && <AgentRightPaneArtifactsSection artifacts={artifacts} compact={false} />}
+
       <AgentContextUsageSummary
         usage={usage}
         percentage={percentage}
         isCompacting={isCompacting}
         className="rounded-md border border-border-subtle px-3 py-2"
       />
-      <AgentRightPaneHighlights status={status} includeTasks={false} />
+      <AgentRightPaneHighlights status={status} includeTasks={false} includeArtifacts={false} />
     </div>
   )
 }
@@ -1151,14 +1156,43 @@ function AgentRightPaneHighlightSection({
   )
 }
 
+function AgentRightPaneArtifactsSection({ artifacts, compact }: { artifacts: AgentArtifactFile[]; compact: boolean }) {
+  const actions = useAgentRightPaneActions()
+  const { t } = useTranslation()
+
+  return (
+    <AgentRightPaneHighlightSection
+      title={t('agent.right_pane.info.artifacts')}
+      icon={<Package size={14} className="text-muted-foreground" />}
+      compact={compact}>
+      <ul className="space-y-0.5">
+        {artifacts.map((artifact) => (
+          <li key={`${artifact.toolCallId}-${artifact.path}`}>
+            <button
+              type="button"
+              onClick={() => actions.openArtifactFile(artifact.path)}
+              title={artifact.path}
+              className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
+              <FileText size={14} className="shrink-0" />
+              <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </AgentRightPaneHighlightSection>
+  )
+}
+
 function AgentRightPaneHighlights({
   status,
   compact = false,
-  includeTasks = true
+  includeTasks = true,
+  includeArtifacts = true
 }: {
   status: AgentRightPaneStatus
   compact?: boolean
   includeTasks?: boolean
+  includeArtifacts?: boolean
 }) {
   const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
@@ -1167,7 +1201,7 @@ function AgentRightPaneHighlights({
   const workflowRunTasks = status.runTasks.filter(isLocalWorkflowRunTask)
   const agentRunTasks = status.runTasks.filter((task) => !isShellRunTask(task) && !isLocalWorkflowRunTask(task))
   const tasks = includeTasks ? status.tasks : []
-  const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
+  const artifacts = includeArtifacts && actions.canOpenArtifactFile ? status.artifacts : []
   const hasHighlights = tasks.length > 0 || status.runTasks.length > 0 || artifacts.length > 0
 
   if (!hasHighlights) return null
@@ -1196,6 +1230,8 @@ function AgentRightPaneHighlights({
         </AgentRightPaneHighlightSection>
       )}
 
+      {artifacts.length > 0 && <AgentRightPaneArtifactsSection artifacts={artifacts} compact={compact} />}
+
       {workflowRunTasks.length > 0 && (
         <AgentRightPaneHighlightSection
           title={t('agent.right_pane.info.workflows')}
@@ -1220,28 +1256,6 @@ function AgentRightPaneHighlights({
           icon={<Terminal size={14} className="text-muted-foreground" />}
           compact={compact}>
           <RunTaskList tasks={shellRunTasks} sessionId={meta.sessionId} />
-        </AgentRightPaneHighlightSection>
-      )}
-
-      {artifacts.length > 0 && (
-        <AgentRightPaneHighlightSection
-          title={t('agent.right_pane.info.artifacts')}
-          icon={<Package size={14} className="text-muted-foreground" />}
-          compact={compact}>
-          <ul className="space-y-0.5">
-            {artifacts.map((artifact) => (
-              <li key={`${artifact.toolCallId}-${artifact.path}`}>
-                <button
-                  type="button"
-                  onClick={() => actions.openArtifactFile(artifact.path)}
-                  title={artifact.path}
-                  className="flex w-full min-w-0 items-center gap-1.5 rounded-md px-1 py-1 text-left text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground">
-                  <FileText size={14} className="shrink-0" />
-                  <span className="min-w-0 flex-1 truncate text-xs">{artifact.name}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
         </AgentRightPaneHighlightSection>
       )}
     </div>

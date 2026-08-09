@@ -1741,12 +1741,6 @@
       "top": "回到顶部"
     },
     "resend": "重新发送",
-    "resource_view": {
-      "menu": {
-        "agent": "智能体",
-        "assistant": "助手"
-      }
-    },
     "save": {
       "file": {
         "title": "保存到本地文件"
@@ -1919,6 +1913,7 @@
         "time": "时间",
         "title": "展示方式"
       },
+      "draft": "草稿",
       "edit": {
         "placeholder": "输入新名称",
         "title": "编辑对话名",
@@ -4100,6 +4095,9 @@
     "restore": {
       "failed": "恢复失败",
       "success": "恢复成功"
+    },
+    "retry": {
+      "status": "正在用 {{model}} 重试 · 第 {{attempt}} 次"
     },
     "save": {
       "success": {
@@ -7529,6 +7527,16 @@
         "label": "快速模型",
         "setting_title": "快速模型设置",
         "tooltip": "建议选择轻量模型，不建议选择思考模型"
+      },
+      "retry": {
+        "backoff": "指数退避",
+        "description": "重试聊天、嵌入和重排调用；聊天失败时可回退到其他模型",
+        "fallback_models": "回退模型",
+        "fallback_models_count": "已选择 {{count}} 个模型",
+        "fallback_models_description": "主模型失败时按顺序尝试的模型",
+        "label": "模型调用重试",
+        "max_attempts": "最大重试次数",
+        "tooltip": "重试与回退仅在模型开始输出内容前生效"
       },
       "toolbar": {
         "custom_add": "自定义",
