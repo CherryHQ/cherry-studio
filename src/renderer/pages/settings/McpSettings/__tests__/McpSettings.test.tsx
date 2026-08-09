@@ -161,4 +161,42 @@ describe('McpSettings', () => {
 
     expect(screen.getByRole('textbox', { name: 'Server name' })).toHaveValue('Server B')
   })
+
+  it('renders selectable MCP logs and copies them to the clipboard', async () => {
+    currentSearch = {}
+    currentServer = {
+      id: 'server-a',
+      name: 'Server A',
+      type: 'stdio',
+      command: 'server-a',
+      isActive: true
+    }
+    const logs = [
+      { timestamp: 1700000000000, level: 'info', message: 'Server started' },
+      { timestamp: 1700000001000, level: 'error', message: 'Connection failed', data: { detail: 'timeout' } }
+    ]
+    const clipboardWriteText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
+
+    mocks.request.mockImplementation((channel: string) => {
+      if (channel === 'mcp.server.get_logs') return Promise.resolve(logs)
+      if (channel === 'mcp.server.get_version') return Promise.resolve('1.0.0')
+      return Promise.resolve([])
+    })
+
+    const user = userEvent.setup()
+    const { container } = render(<McpSettings />)
+
+    await user.click(screen.getByRole('radio', { name: 'Logs' }))
+
+    expect(await screen.findByText('Server started')).toBeInTheDocument()
+    expect(screen.getByText('Connection failed')).toBeInTheDocument()
+
+    const logList = container.querySelector('.selectable')
+    expect(logList).not.toBeNull()
+
+    await user.click(screen.getByRole('button', { name: 'Copy logs' }))
+    expect(clipboardWriteText).toHaveBeenCalledWith(
+      `[${new Date(logs[0].timestamp).toLocaleTimeString()}] [INFO] Server started\n[${new Date(logs[1].timestamp).toLocaleTimeString()}] [ERROR] Connection failed\n${JSON.stringify(logs[1].data, null, 2)}`
+    )
+  })
 })
