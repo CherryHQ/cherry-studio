@@ -584,13 +584,6 @@ const NotesPage: FC = () => {
         const nodeToDelete = findNode(notesTree, nodeId)
         if (!nodeToDelete) return
 
-        await delNode(nodeToDelete)
-
-        updateStarredPaths((prev) => removePathEntries(prev, nodeToDelete.externalPath, nodeToDelete.type === 'folder'))
-        updateExpandedPaths((prev) =>
-          removePathEntries(prev, nodeToDelete.externalPath, nodeToDelete.type === 'folder')
-        )
-
         const normalizedActivePath = activeFilePath ? normalizePathValue(activeFilePath) : undefined
         const normalizedDeletePath = normalizePathValue(nodeToDelete.externalPath)
         const isActiveNode = normalizedActivePath === normalizedDeletePath
@@ -599,7 +592,23 @@ const NotesPage: FC = () => {
           normalizedActivePath &&
           normalizedActivePath.startsWith(`${normalizedDeletePath}/`)
 
+        // 删除正在编辑的笔记（或其所在的文件夹）时，先取消防抖保存。
+        // 否则删除成功后 setActiveFilePath(undefined) 会触发「切换文件时的清理」
+        // 中的紧急保存，把刚删除的文件重新写回磁盘，导致笔记“复活”并改变排序位置。
         if (isActiveNode || isActiveDescendant) {
+          debouncedSaveRef.current?.cancel()
+        }
+
+        await delNode(nodeToDelete)
+
+        updateStarredPaths((prev) => removePathEntries(prev, nodeToDelete.externalPath, nodeToDelete.type === 'folder'))
+        updateExpandedPaths((prev) =>
+          removePathEntries(prev, nodeToDelete.externalPath, nodeToDelete.type === 'folder')
+        )
+
+        if (isActiveNode || isActiveDescendant) {
+          lastContentRef.current = ''
+          lastFilePathRef.current = undefined
           dispatch(setActiveFilePath(undefined))
           editorRef.current?.clear()
         }
