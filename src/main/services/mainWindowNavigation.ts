@@ -8,9 +8,15 @@ import type { MainWindowInitData } from '@shared/types/mainWindow'
  * Route allowlist for externally-triggered main-window navigation (protocol
  * deep links and the `navigation.open_route_in_main` IPC). Single source of
  * truth — do not fork a second list at a call site.
+ *
+ * `/app` is the app's real route namespace — agents/chat/knowledge/… all live
+ * under it (e.g. `/app/agents`). The bare `/agents`-style entries are the
+ * legacy prefixes produced by the protocol deep-link handler and are kept so
+ * those links still pass the allowlist.
  */
 export const ALLOWED_ROUTE_PREFIXES = [
   '/settings',
+  '/app',
   '/agents',
   '/knowledge',
   '/paintings',
@@ -22,8 +28,12 @@ export const ALLOWED_ROUTE_PREFIXES = [
   '/launchpad'
 ]
 
-export const isAllowedRoute = (path: string): boolean =>
-  ALLOWED_ROUTE_PREFIXES.some((route) => path === route || path.startsWith(`${route}/`))
+export const isAllowedRoute = (path: string): boolean => {
+  // Match on the pathname only: routes may carry search params (e.g. the
+  // feedback agent route `/app/agents?intent=feedback&sessionId=…`).
+  const pathname = path.split('?')[0].split('#')[0]
+  return ALLOWED_ROUTE_PREFIXES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
+}
 
 let nextNavigationRequestId = 0
 
