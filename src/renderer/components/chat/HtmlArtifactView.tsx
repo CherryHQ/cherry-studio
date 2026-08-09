@@ -14,6 +14,7 @@ import {
 import type { HtmlArtifactKind } from '@renderer/components/chat/messages/markdown/plugins/remarkHtmlArtifact'
 import HtmlPreviewFrame, {
   HTML_PREVIEW_RESTRICTED_CSP,
+  injectHtmlPreviewDefaultFonts,
   injectHtmlPreviewHeadElement
 } from '@renderer/components/CodeBlockView/HtmlPreviewFrame'
 import CodeViewer from '@renderer/components/CodeViewer'
@@ -530,7 +531,7 @@ const InteractiveHtmlPreview = memo(function InteractiveHtmlPreview({
   const src = useMemo(() => {
     const scrollActivationDelay = forwardBoundaryWheel ? SCROLL_ACTIVATION_DELAY_MS : 0
     const bridgeScript = `<script>${getHtmlArtifactBridgeScript(messagePrefix, scrollActivationDelay)}</script>`
-    const instrumentedHtml = injectHtmlPreviewHeadElement(html, bridgeScript)
+    const instrumentedHtml = injectHtmlPreviewDefaultFonts(injectHtmlPreviewHeadElement(html, bridgeScript))
     return `${HTML_ARTIFACT_PREVIEW_DATA_URL_PREFIX}${encodeURIComponent(instrumentedHtml)}`
   }, [forwardBoundaryWheel, html, messagePrefix])
 

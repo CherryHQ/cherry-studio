@@ -6,7 +6,8 @@ import {
   HTML_PREVIEW_RESTRICTED_SANDBOX,
   HtmlPreviewFrame,
   injectHtmlPreviewBase,
-  injectHtmlPreviewCsp
+  injectHtmlPreviewCsp,
+  injectHtmlPreviewDefaultFonts
 } from '../HtmlPreviewFrame'
 
 describe('HtmlPreviewFrame', () => {
@@ -96,6 +97,63 @@ describe('HtmlPreviewFrame', () => {
 
     expect(result.match(/<base\b/gi)).toHaveLength(1)
     expect(result).toContain('<base href="https://example.com/posts/">')
+  })
+
+  it('injects low-specificity default font styles into the preview head', () => {
+    const html = '<html><head><title>t</title></head><body><pre>code()</pre><p>text</p></body></html>'
+
+    const result = injectHtmlPreviewDefaultFonts(html, {
+      body: "'Roboto', sans-serif",
+      code: "'Fira Code', monospace"
+    })
+
+    expect(result).toMatch(/^<html><head><style>/)
+    expect(result).toContain("html, body { font-family: 'Roboto', sans-serif; }")
+    expect(result).toContain("pre, code, kbd, samp { font-family: 'Fira Code', monospace; }")
+    expect(result).not.toContain('!important')
+  })
+
+  it('falls back to default font stacks when none are provided', () => {
+    const result = injectHtmlPreviewDefaultFonts('<body>hi</body>')
+
+    expect(result).toMatch(/^<head><style>/)
+    expect(result).toMatch(/html, body \{ font-family: /)
+    expect(result).toMatch(/pre, code, kbd, samp \{ font-family: /)
+  })
+
+  it('strips angle brackets from font values so they cannot break out of the style tag', () => {
+    const result = injectHtmlPreviewDefaultFonts('<body>x</body>', {
+      body: "'Roboto'</style><script>alert(1)</script>",
+      code: 'monospace'
+    })
+
+    // The malicious `</style><script>` inside the font value must be stripped, leaving only the
+    // injected style block's own single closing tag.
+    expect(result.match(/<\/style>/g)).toHaveLength(1)
+    expect(result).not.toContain('<script>')
+    expect(result).toContain("html, body { font-family: 'Roboto'/stylescriptalert(1)/script; }")
+  })
+
+  it('skips font injection for empty HTML', () => {
+    expect(injectHtmlPreviewDefaultFonts('   ')).toBe('   ')
+  })
+
+  it('renders srcdoc containing the injected default fonts alongside base and CSP', () => {
+    render(
+      <HtmlPreviewFrame
+        html="<main>Preview</main>"
+        title="common.html_preview"
+        sandbox={HTML_PREVIEW_RESTRICTED_SANDBOX}
+        csp={HTML_PREVIEW_RESTRICTED_CSP}
+      />
+    )
+    const iframe = screen.getByTitle('common.html_preview')
+
+    const srcdoc = iframe?.getAttribute('srcdoc') ?? ''
+    expect(srcdoc).toContain('<base href="about:srcdoc">')
+    expect(srcdoc).toContain('html, body { font-family:')
+    expect(srcdoc).toContain('pre, code, kbd, samp { font-family:')
+    expect(srcdoc).toContain("default-src 'none'")
   })
 
   it('renders empty preview text when provided', () => {

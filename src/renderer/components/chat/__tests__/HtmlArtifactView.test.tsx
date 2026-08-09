@@ -69,6 +69,7 @@ vi.mock('@renderer/components/CodeBlockView/HtmlArtifactsPopup', () => ({ defaul
 vi.mock('@renderer/components/CodeBlockView/HtmlPreviewFrame', () => ({
   HTML_PREVIEW_RESTRICTED_CSP: mocks.htmlPreviewRestrictedCsp,
   injectHtmlPreviewHeadElement: (html: string, element: string) => `${element}${html}`,
+  injectHtmlPreviewDefaultFonts: (html: string) => html,
   default: mocks.HtmlPreviewFrame
 }))
 vi.mock('@logger', () => ({

@@ -86,6 +86,55 @@ export function injectHtmlPreviewCsp(html: string, csp: string): string {
   )
 }
 
+// Default font stacks mirroring `font.css` (`--font-family` / `--code-font-family`).
+// They are used when the parent document's resolved stacks are unavailable (e.g. jsdom),
+// and as the fallback tail once the user's chosen font is prepended.
+export const HTML_PREVIEW_DEFAULT_BODY_FONT =
+  "Ubuntu, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, Oxygen, Cantarell, 'Open Sans', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif"
+export const HTML_PREVIEW_DEFAULT_CODE_FONT = "'Cascadia Code', 'Fira Code', Consolas, Menlo, Courier, monospace"
+
+// The injected `<style>` lives inside an RCDATA element, so `<` / `>` must be stripped
+// (escaping as `&lt;` would surface literally in CSS). Font names never contain them.
+const sanitizeFontFamily = (value: string): string => value.replace(/[<>]/g, '')
+
+export function getPreviewFontStacks(): { body: string; code: string } {
+  if (typeof document === 'undefined') {
+    return { body: HTML_PREVIEW_DEFAULT_BODY_FONT, code: HTML_PREVIEW_DEFAULT_CODE_FONT }
+  }
+  const target = document.body ?? document.documentElement
+  const read = (property: string): string => {
+    try {
+      return getComputedStyle(target).getPropertyValue(property).trim()
+    } catch {
+      return ''
+    }
+  }
+  // CSS custom properties do not cross the iframe/webview document boundary, so resolve the
+  // parent's font stacks to concrete values. `--font-family` / `--code-font-family` are
+  // defined on `:root` (and re-declared on `body[os='windows']`), so reading them from the
+  // body yields the fully-resolved stacks including the user's font preference.
+  const body = read('--font-family')
+  const code = read('--code-font-family')
+  return {
+    body: body || HTML_PREVIEW_DEFAULT_BODY_FONT,
+    code: code || HTML_PREVIEW_DEFAULT_CODE_FONT
+  }
+}
+
+// Injects low-specificity element-selector defaults so unstyled preview documents inherit the
+// app's fonts instead of Chromium's UA serif default. Because these rules are injected before
+// any page styles and have (0,0,1) specificity, a generated page's own font rules and inline
+// styles always win — this only fills the gap when the document declares no font.
+export function injectHtmlPreviewDefaultFonts(html: string, stacks?: { body?: string; code?: string }): string {
+  if (!html.trim()) return html
+  const { body: bodyFont, code: codeFont } = { ...getPreviewFontStacks(), ...stacks }
+  const styleContent = [
+    `html, body { font-family: ${sanitizeFontFamily(bodyFont)}; }`,
+    `pre, code, kbd, samp { font-family: ${sanitizeFontFamily(codeFont)}; }`
+  ].join('\n  ')
+  return injectHtmlPreviewHeadElement(html, `<style>\n  ${styleContent}\n</style>`)
+}
+
 export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
   ({
     html,
@@ -97,7 +146,8 @@ export const HtmlPreviewFrame = memo<HtmlPreviewFrameProps>(
     iframeRef
   }) => {
     const withBase = injectHtmlPreviewBase(html, baseUrl)
-    const srcDoc = csp ? injectHtmlPreviewCsp(withBase, csp) : withBase
+    const withDefaultFonts = injectHtmlPreviewDefaultFonts(withBase)
+    const srcDoc = csp ? injectHtmlPreviewCsp(withDefaultFonts, csp) : withDefaultFonts
     return (
       <div className="h-full w-full overflow-hidden bg-white">
         {html.trim() ? (
