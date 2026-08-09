@@ -1,3 +1,4 @@
+import { UpdateAssistantSchema } from '@shared/data/api/schemas/assistants'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { describe, expect, it } from 'vitest'
@@ -83,28 +84,16 @@ describe('diffAssistantUpdate', () => {
     expect(diffAssistantUpdate(baseline, baseline, assistant)).toBeNull()
   })
 
-  it('emits the full columns+settings block when any column field changes', () => {
+  it('emits only the changed column field', () => {
     const assistant = createAssistant({ name: 'Original' })
     const baseline = initialAssistantFormState(assistant)
     const form = { ...baseline, description: 'edited' }
 
     const result = diffAssistantUpdate(form, baseline, assistant)
-    expect(result).not.toBeNull()
-    expect(result!.dto).toMatchObject({
-      name: 'Original',
-      emoji: assistant.emoji,
-      description: 'edited',
-      modelId: assistant.modelId,
-      prompt: assistant.prompt,
-      settings: expect.objectContaining({
-        temperature: baseline.temperature,
-        mcpMode: baseline.mcpMode
-      })
-    })
-    expect(result!.dto.groupId).toBeUndefined()
+    expect(result?.dto).toEqual({ description: 'edited' })
   })
 
-  it('emits a valid MCP mode when editing an unrelated field on a legacy assistant', () => {
+  it('does not resend an invalid legacy MCP mode when editing an unrelated field', () => {
     const assistant = createAssistant({
       settings: {
         ...DEFAULT_ASSISTANT_SETTINGS,
@@ -116,7 +105,40 @@ describe('diffAssistantUpdate', () => {
 
     const result = diffAssistantUpdate(form, baseline, assistant)
 
-    expect(result?.dto.settings?.mcpMode).toBe(DEFAULT_ASSISTANT_SETTINGS.mcpMode)
+    expect(result?.dto).toEqual({ description: 'edited' })
+    expect(UpdateAssistantSchema.safeParse(result?.dto).success).toBe(true)
+  })
+
+  it('renames an assistant without resending invalid legacy settings', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        maxTokens: 0
+      } as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, name: 'Renamed' }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+
+    expect(result?.dto).toEqual({ name: 'Renamed' })
+    expect(UpdateAssistantSchema.safeParse(result?.dto).success).toBe(true)
+  })
+
+  it('emits only the changed settings key', () => {
+    const assistant = createAssistant({
+      settings: {
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        maxTokens: 0
+      } as AssistantSettings
+    })
+    const baseline = initialAssistantFormState(assistant)
+    const form = { ...baseline, temperature: 0.5 }
+
+    const result = diffAssistantUpdate(form, baseline, assistant)
+
+    expect(result?.dto).toEqual({ settings: { temperature: 0.5 } })
+    expect(UpdateAssistantSchema.safeParse(result?.dto).success).toBe(true)
   })
 
   it('falls back to the server name when the form name is blank', () => {
@@ -128,7 +150,7 @@ describe('diffAssistantUpdate', () => {
     expect(result?.dto.name).toBe('Original')
   })
 
-  it('preserves server-side settings keys the UI does not surface', () => {
+  it('leaves server-side settings keys the UI does not surface out of column patches', () => {
     const assistant = createAssistant({
       settings: {
         ...DEFAULT_ASSISTANT_SETTINGS,
@@ -141,7 +163,7 @@ describe('diffAssistantUpdate', () => {
     const form = { ...baseline, prompt: 'updated' }
 
     const result = diffAssistantUpdate(form, baseline, assistant)
-    expect(result?.dto.settings).toMatchObject({ reasoning_effort: 'high' })
+    expect(result?.dto).toEqual({ prompt: 'updated' })
   })
 
   it('writes group changes directly into the DTO', () => {

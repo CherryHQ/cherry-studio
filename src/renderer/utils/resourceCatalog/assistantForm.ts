@@ -59,34 +59,6 @@ export interface AssistantFormState {
   mcpServerIds: string[]
 }
 
-function buildAssistantSettingsFromForm(
-  form: AssistantFormState,
-  baseSettings: AssistantSettings = DEFAULT_ASSISTANT_SETTINGS
-): AssistantSettings {
-  return {
-    ...baseSettings,
-    temperature: form.temperature,
-    enableTemperature: form.enableTemperature,
-    topP: form.topP,
-    enableTopP: form.enableTopP,
-    maxTokens: form.maxTokens,
-    enableMaxTokens: form.enableMaxTokens,
-    streamOutput: form.streamOutput,
-    maxToolCalls: form.maxToolCalls,
-    enableMaxToolCalls: form.enableMaxToolCalls,
-    customParameters: form.customParameters,
-    mcpMode: form.mcpMode,
-    // null = clear the override (inherit globals). The `enabled` kill-switch
-    // is deliberately not written here — it stays a global/topic-layer concern.
-    contextSettings: form.contextOverrideEnabled
-      ? {
-          truncateThreshold: form.contextTruncateThreshold,
-          compress: { enabled: form.contextCompressEnabled, modelId: form.contextCompressModelId }
-        }
-      : null
-  }
-}
-
 export function initialAssistantFormState(assistant: Assistant): AssistantFormState {
   const settings = assistant.settings ?? ({} as AssistantSettings)
   const mcpMode = McpModeSchema.safeParse(settings.mcpMode)
@@ -142,10 +114,9 @@ export type AssistantSaveIntent = {
 /**
  * Compute the minimal Assistant PATCH payload.
  *
- * - Columns block: when ANY of name/emoji/description/modelId/prompt
- *   or any settings field differs, the dto carries all five column
- *   keys + a full `settings` object spread over `assistant.settings`
- *   (preserves unrelated settings keys the UI doesn't surface).
+ * - Columns and settings carry only the keys that changed. The service merges
+ *   a partial `settings` object onto the stored value, so untouched historical
+ *   settings are neither revalidated nor overwritten.
  * - Relation arrays (knowledgeBaseIds / mcpServerIds) ship only when
  *   their set differs — order-insensitive, matches junction semantics.
  * - Group: placed directly on the DTO as the canonical `groupId`.
@@ -158,51 +129,73 @@ export function diffAssistantUpdate(
   assistant: Assistant
 ): AssistantDiffResult | null {
   const customParametersChanged = JSON.stringify(baseline.customParameters) !== JSON.stringify(form.customParameters)
-
-  const columnsChanged =
-    baseline.name !== form.name ||
-    baseline.emoji !== form.emoji ||
-    baseline.description !== form.description ||
-    baseline.modelId !== form.modelId ||
-    baseline.prompt !== form.prompt ||
-    baseline.temperature !== form.temperature ||
-    baseline.enableTemperature !== form.enableTemperature ||
-    baseline.topP !== form.topP ||
-    baseline.enableTopP !== form.enableTopP ||
-    baseline.maxTokens !== form.maxTokens ||
-    baseline.enableMaxTokens !== form.enableMaxTokens ||
-    baseline.streamOutput !== form.streamOutput ||
-    baseline.maxToolCalls !== form.maxToolCalls ||
-    baseline.enableMaxToolCalls !== form.enableMaxToolCalls ||
-    baseline.mcpMode !== form.mcpMode ||
+  const contextSettingsChanged =
     baseline.contextOverrideEnabled !== form.contextOverrideEnabled ||
     // Sub-fields only matter while the override is on, so an ON→OFF→ON round
     // trip that lands back on the baseline values fires no spurious PATCH.
     (form.contextOverrideEnabled &&
       (baseline.contextCompressEnabled !== form.contextCompressEnabled ||
         baseline.contextTruncateThreshold !== form.contextTruncateThreshold ||
-        baseline.contextCompressModelId !== form.contextCompressModelId)) ||
-    customParametersChanged
+        baseline.contextCompressModelId !== form.contextCompressModelId))
+
+  const settings: NonNullable<UpdateAssistantDto['settings']> = {
+    ...(baseline.temperature !== form.temperature ? { temperature: form.temperature } : {}),
+    ...(baseline.enableTemperature !== form.enableTemperature ? { enableTemperature: form.enableTemperature } : {}),
+    ...(baseline.topP !== form.topP ? { topP: form.topP } : {}),
+    ...(baseline.enableTopP !== form.enableTopP ? { enableTopP: form.enableTopP } : {}),
+    ...(baseline.maxTokens !== form.maxTokens ? { maxTokens: form.maxTokens } : {}),
+    ...(baseline.enableMaxTokens !== form.enableMaxTokens ? { enableMaxTokens: form.enableMaxTokens } : {}),
+    ...(baseline.streamOutput !== form.streamOutput ? { streamOutput: form.streamOutput } : {}),
+    ...(baseline.maxToolCalls !== form.maxToolCalls ? { maxToolCalls: form.maxToolCalls } : {}),
+    ...(baseline.enableMaxToolCalls !== form.enableMaxToolCalls ? { enableMaxToolCalls: form.enableMaxToolCalls } : {}),
+    ...(baseline.mcpMode !== form.mcpMode ? { mcpMode: form.mcpMode } : {}),
+    ...(customParametersChanged ? { customParameters: form.customParameters } : {}),
+    ...(contextSettingsChanged
+      ? {
+          // null = clear the override (inherit globals). The `enabled` kill-switch
+          // is deliberately not written here — it stays a global/topic-layer concern.
+          contextSettings: form.contextOverrideEnabled
+            ? {
+                truncateThreshold: form.contextTruncateThreshold,
+                compress: { enabled: form.contextCompressEnabled, modelId: form.contextCompressModelId }
+              }
+            : null
+        }
+      : {})
+  }
+
+  const nameChanged = baseline.name !== form.name
+  const emojiChanged = baseline.emoji !== form.emoji
+  const descriptionChanged = baseline.description !== form.description
+  const modelIdChanged = baseline.modelId !== form.modelId
+  const promptChanged = baseline.prompt !== form.prompt
+  const settingsChanged = Object.keys(settings).length > 0
 
   const groupChanged = baseline.groupId !== form.groupId
   const knowledgeBaseIdsChanged = !sameIdSet(baseline.knowledgeBaseIds, form.knowledgeBaseIds)
   const mcpServerIdsChanged = !sameIdSet(baseline.mcpServerIds, form.mcpServerIds)
 
-  if (!columnsChanged && !groupChanged && !knowledgeBaseIdsChanged && !mcpServerIdsChanged) {
+  if (
+    !nameChanged &&
+    !emojiChanged &&
+    !descriptionChanged &&
+    !modelIdChanged &&
+    !promptChanged &&
+    !settingsChanged &&
+    !groupChanged &&
+    !knowledgeBaseIdsChanged &&
+    !mcpServerIdsChanged
+  ) {
     return null
   }
 
   const dto: UpdateAssistantDto = {
-    ...(columnsChanged
-      ? {
-          name: form.name.trim() || assistant.name,
-          emoji: form.emoji,
-          description: form.description,
-          modelId: form.modelId,
-          prompt: form.prompt,
-          settings: buildAssistantSettingsFromForm(form, assistant.settings)
-        }
-      : {}),
+    ...(nameChanged ? { name: form.name.trim() || assistant.name } : {}),
+    ...(emojiChanged ? { emoji: form.emoji } : {}),
+    ...(descriptionChanged ? { description: form.description } : {}),
+    ...(modelIdChanged ? { modelId: form.modelId } : {}),
+    ...(promptChanged ? { prompt: form.prompt } : {}),
+    ...(settingsChanged ? { settings } : {}),
     ...(knowledgeBaseIdsChanged ? { knowledgeBaseIds: form.knowledgeBaseIds } : {}),
     ...(mcpServerIdsChanged ? { mcpServerIds: form.mcpServerIds } : {}),
     ...(groupChanged ? { groupId: form.groupId } : {})
