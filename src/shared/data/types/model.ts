@@ -281,23 +281,68 @@ export type RuntimeParameterSupport = z.infer<typeof RuntimeParameterSupportSche
 export const PricingTierSchema = PricePerTokenSchema
 export type PricingTier = z.infer<typeof PricingTierSchema>
 
-export const RuntimeModelPricingSchema = z.object({
+export const InputTokenPricingTierSchema = z.object({
+  minInputTokens: z.number().int().positive().refine(Number.isSafeInteger),
   input: PricePerTokenSchema,
   output: PricePerTokenSchema,
   cacheRead: PricePerTokenSchema.optional(),
-  cacheWrite: PricePerTokenSchema.optional(),
-  perImage: z
-    .object({
-      price: z.number(),
-      unit: z.enum(['image', 'pixel']).optional()
-    })
-    .optional(),
-  perMinute: z
-    .object({
-      price: z.number()
-    })
-    .optional()
+  cacheWrite: PricePerTokenSchema.optional()
 })
+export type InputTokenPricingTier = z.infer<typeof InputTokenPricingTierSchema>
+
+export const RuntimeModelPricingSchema = z
+  .object({
+    input: PricePerTokenSchema,
+    output: PricePerTokenSchema,
+    cacheRead: PricePerTokenSchema.optional(),
+    cacheWrite: PricePerTokenSchema.optional(),
+    inputTokenTiers: z.array(InputTokenPricingTierSchema).optional(),
+    perImage: z
+      .object({
+        price: z.number(),
+        unit: z.enum(['image', 'pixel']).optional()
+      })
+      .optional(),
+    perMinute: z
+      .object({
+        price: z.number()
+      })
+      .optional()
+  })
+  .superRefine((pricing, ctx) => {
+    for (let index = 1; index < (pricing.inputTokenTiers?.length ?? 0); index++) {
+      const previous = pricing.inputTokenTiers![index - 1]
+      const current = pricing.inputTokenTiers![index]
+      if (current.minInputTokens <= previous.minInputTokens) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['inputTokenTiers', index, 'minInputTokens'],
+          message: 'minInputTokens must be strictly increasing'
+        })
+      }
+    }
+
+    if (!pricing.inputTokenTiers?.length) return
+
+    const rates = [
+      { rate: pricing.input, path: ['input'] },
+      { rate: pricing.output, path: ['output'] },
+      ...(pricing.cacheRead ? [{ rate: pricing.cacheRead, path: ['cacheRead'] }] : []),
+      ...(pricing.cacheWrite ? [{ rate: pricing.cacheWrite, path: ['cacheWrite'] }] : []),
+      ...(pricing.inputTokenTiers ?? []).flatMap((tier, index) => [
+        { rate: tier.input, path: ['inputTokenTiers', index, 'input'] },
+        { rate: tier.output, path: ['inputTokenTiers', index, 'output'] },
+        ...(tier.cacheRead ? [{ rate: tier.cacheRead, path: ['inputTokenTiers', index, 'cacheRead'] }] : []),
+        ...(tier.cacheWrite ? [{ rate: tier.cacheWrite, path: ['inputTokenTiers', index, 'cacheWrite'] }] : [])
+      ])
+    ]
+    const currency = pricing.input.currency ?? CURRENCY.USD
+    for (const { rate, path } of rates) {
+      if ((rate.currency ?? CURRENCY.USD) !== currency) {
+        ctx.addIssue({ code: 'custom', path: [...path, 'currency'], message: 'pricing currencies must match' })
+      }
+    }
+  })
 export type RuntimeModelPricing = z.infer<typeof RuntimeModelPricingSchema>
 
 export const ModelSchema = z.object({

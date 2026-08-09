@@ -192,6 +192,18 @@ function computeLanguageCost(
   usage: LanguageCostUsage,
   pricing: AiUsagePricingSnapshot
 ): LanguageCostResult | undefined {
+  let rates: Pick<
+    AiUsagePricingSnapshot,
+    'inputPerMillionTokens' | 'outputPerMillionTokens' | 'cacheReadPerMillionTokens' | 'cacheWritePerMillionTokens'
+  > = pricing
+  if (pricing.inputTokenTiers?.length) {
+    if (usage.inputTokens === undefined) return undefined
+    for (const tier of pricing.inputTokenTiers) {
+      if (usage.inputTokens < tier.minInputTokens) break
+      rates = tier
+    }
+  }
+
   const details = usage.inputTokenDetails
   const cacheReadTokens = details?.cacheReadTokens
   const cacheWriteTokens = details?.cacheWriteTokens
@@ -205,10 +217,10 @@ function computeLanguageCost(
       : undefined)
 
   const buckets = [
-    ['input', nonCacheInput, pricing.inputPerMillionTokens],
-    ['cacheRead', cacheReadTokens, pricing.cacheReadPerMillionTokens ?? pricing.inputPerMillionTokens],
-    ['cacheWrite', cacheWriteTokens, pricing.cacheWritePerMillionTokens ?? pricing.inputPerMillionTokens],
-    ['output', usage.outputTokens, pricing.outputPerMillionTokens]
+    ['input', nonCacheInput, rates.inputPerMillionTokens],
+    ['cacheRead', cacheReadTokens, rates.cacheReadPerMillionTokens ?? rates.inputPerMillionTokens],
+    ['cacheWrite', cacheWriteTokens, rates.cacheWritePerMillionTokens ?? rates.inputPerMillionTokens],
+    ['output', usage.outputTokens, rates.outputPerMillionTokens]
   ] as const
 
   if (!buckets.some(([, tokens]) => tokens !== undefined)) return undefined
