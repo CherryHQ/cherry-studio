@@ -51,6 +51,22 @@ describe('provider reasoning contracts', () => {
     })
   })
 
+  // The generic deepseek wire serves deepseek-chat / deepseek-reasoner (reasoningFamilies toggle
+  // models with no per-model override). The @ai-sdk/deepseek schema only accepts thinking.type
+  // 'enabled' | 'disabled', so auto must never serialize the literal 'auto' (issue #18270).
+  it('maps the generic DeepSeek auto mode to thinking.type enabled', () => {
+    const wire = provider('deepseek').endpointConfigs?.['openai-chat-completions']?.reasoningFormat?.wire
+    expect(wire?.auto?.operations).toEqual([
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }
+    ])
+    expect(wire?.off?.operations).toEqual([
+      { target: 'thinking.type', value: { source: 'literal', value: 'disabled' } }
+    ])
+    expect(wire?.effort?.operations).toEqual([
+      { target: 'thinking.type', value: { source: 'literal', value: 'enabled' } }
+    ])
+  })
+
   // Bedrock keeps a hand-pinned contract: its budget wire is in bedrock's own
   // `reasoningConfig.*` namespace, so it isn't the shared anthropic dialect.
   // The first-party anthropic pin is gone — Opus 4.5 now reaches the same wire
