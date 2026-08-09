@@ -1,126 +1,148 @@
 {
-  "report_date": "2026-08-08",
-  "total_open": 816,
-  "delta_from_yesterday": -83,
-  "triage_event": "Major bulk-triage sweep — ~87% of recent closures were 'not_planned'. Zombie bucket reduced 310 → 218.",
-  "health_buckets": {
-    "active": {
-      "description": "Updated within last 7 days (Aug 1 – Aug 8)",
-      "count": 188,
-      "pct": 23.0,
-      "note": "GitHub search: updated:>2026-08-01. Note: yesterday's '385 active' used a 30-day window (updated:>2026-07-08) — not comparable directly."
-    },
-    "aging_and_stale": {
-      "description": "Updated 7–90 days ago (May 10 – Jul 31)",
-      "count": 410,
-      "pct": 50.2,
-      "note": "Combines Aging (7-30d) and Stale (30-90d) — breakdown unavailable without additional queries"
-    },
-    "zombie": {
-      "description": "Not updated in 90+ days (before May 8, 2026)",
-      "count": 218,
-      "pct": 26.7,
-      "note": "Down from 310 yesterday — bulk triage closed ~92 zombie issues as 'not_planned'. Three P1 issues (#13193, #13608, #14899) remain here."
-    }
+  "report_date": "2026-08-09",
+  "generated_at": "2026-08-09T17:45:00Z",
+  "data_source": "GitHub MCP API — 838 open issues (200 sampled in detail)",
+  "total_open": 838,
+  "health_summary": {
+    "Active": {"count": 120, "pct": 14.3, "definition": "created in last 7 days"},
+    "Aging":  {"count": 178, "pct": 21.2, "definition": "created 7–30 days ago"},
+    "Stale":  {"count": 282, "pct": 33.7, "definition": "created 30–90 days ago"},
+    "Zombie": {"count": 258, "pct": 30.8, "definition": "created >90 days ago"}
   },
   "label_coverage": {
-    "labeled_count": 715,
-    "unlabeled_count": 101,
-    "unlabeled_pct": 12.4,
-    "note": "Absolute unlabeled count improved (103 → 101), but pct rose due to denominator shrinking faster (899 → 816)"
+    "labeled":   653,
+    "unlabeled": 185,
+    "unlabeled_pct": 22.1,
+    "note": "Unlabeled includes issues with only meta-labels (needs-more-info, needs-repro, help-wanted)"
   },
-  "p1_open_issues": {
-    "count": 3,
-    "issues": [
-      {
-        "number": 14899,
-        "title": "Unified Notification Center",
-        "age_days": 93,
-        "milestone": "v2.4.0",
-        "status": "Planned — no active fix PR"
-      },
-      {
-        "number": 13608,
-        "title": "xiaomi mimo response last-line only",
-        "age_days": 143,
-        "status": "No fix PR — unassigned and aging without triage"
-      },
-      {
-        "number": 13193,
-        "title": "Azure OpenAI responses API fallback failure (404)",
-        "age_days": 157,
-        "assignee": "DeJeune",
-        "status": "Assigned to DeJeune — no fix PR (day 157, critical threshold)"
-      }
-    ]
+  "top_labels": {
+    "UI/UX": 289,
+    "Models": 127,
+    "Assistant": 68,
+    "Data": 55,
+    "MCP": 51,
+    "Performance": 38,
+    "RAG": 29,
+    "help wanted": 22,
+    "discussion": 22,
+    "Connectivity": 18,
+    "needs-more-info": 15,
+    "needs-repro": 14,
+    "Docs": 12,
+    "internal_team": 7,
+    "feature": 7,
+    "needs-triage": 6,
+    "Code Mate": 4,
+    "Agent": 3
   },
-  "new_high_severity_today": [
+  "notable_active_issues": [
     {
-      "number": 18175,
-      "title": "Agent outputs internal system reminder verbatim — 'The task tools haven't been used recently...' leaks into replies (150+ occurrences)",
-      "labels": ["Assistant"],
-      "severity": "CRITICAL — System prompt leaking into user-facing replies, 150+ confirmed occurrences, 2 comments within hours",
-      "comments": 2,
-      "filed": "2026-08-08T06:42:36Z"
-    },
-    {
-      "number": 18228,
-      "title": "Built-in file system MCP tool, grep completely fails",
-      "labels": ["MCP", "needs-repro"],
-      "severity": "HIGH — Core MCP filesystem tool broken",
-      "comments": 0,
-      "filed": "2026-08-08T19:46:00Z"
-    },
-    {
-      "number": 18211,
-      "title": "CherryStudio automatic backup time settings not taking effect — triggers backup on every startup",
-      "labels": [],
-      "severity": "MEDIUM-HIGH — Data/backup regression, silent data exposure risk on slow storage",
-      "comments": 1,
-      "filed": "2026-08-08T13:12:17Z"
-    },
-    {
-      "number": 18187,
-      "title": "Migrated v1 files with trailing-space/dot extension unreadable in v2 (ENOENT on canonical path)",
+      "number": 18273,
+      "title": "[Bug]: Backup restore extracts ZIP entries without path containment checks (zip-slip)",
+      "age_days": 0.2,
       "labels": ["Data"],
-      "severity": "HIGH — Data loss risk for v1→v2 migrated users with Windows-illegal filenames",
-      "comments": 0,
-      "filed": "2026-08-08T09:21:58Z"
+      "severity": "CRITICAL_SECURITY",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18273"
+    },
+    {
+      "number": 18272,
+      "title": "[Bug]: Knowledge material filenames not sanitized on native add",
+      "age_days": 0.2,
+      "labels": ["Data"],
+      "severity": "HIGH"
+    },
+    {
+      "number": 18242,
+      "title": "[Bug]: v2.0.2 Normal chat triggers multiple redundant model calls, causing duplicate billing",
+      "age_days": 0.6,
+      "labels": ["Performance"],
+      "severity": "HIGH"
+    },
+    {
+      "number": 18271,
+      "title": "[Feature]: Transparency and manual control over context compression",
+      "age_days": 0.2,
+      "labels": []
+    },
+    {
+      "number": 18270,
+      "title": "[Bug]: DeepSeek model auto thinking mode generates invalid parameter 'thinking.type: auto'",
+      "age_days": 0.5,
+      "labels": ["Models"],
+      "severity": "MEDIUM"
     }
   ],
-  "ongoing_priority_clusters": {
-    "agent_system_prompt_leak": {
-      "new_today": true,
-      "count": 1,
-      "top": ["#18175 system reminder text leaking into agent replies (150+ occurrences)"],
-      "severity": "CRITICAL"
+  "notable_aging_issues": [
+    {
+      "number": 18175,
+      "title": "[Bug]: Agent outputs internal system reminder verbatim — 150+ occurrences",
+      "age_days": 1.5,
+      "labels": ["Assistant"],
+      "note": "Fix merged PR #18239 on 2026-08-09 — close after v2.0.3 ships"
     },
-    "mcp_reliability": {
-      "open_count": 43,
-      "new_today": 1,
-      "top": ["#18228 grep fails in built-in FS MCP tool (new)", "#18199 MCP replay error 'No tool output found'", "#17992 MCP-over-HTTP missing on v2 API Gateway", "#17689 stdio process leak (4 comments)", "#17999 MCP prompts visible but unusable"]
+    {
+      "number": 17957,
+      "title": "[Bug]: V2 repeated crash during data migration",
+      "age_days": 3.7,
+      "labels": ["Data"],
+      "comments": 3
     },
-    "data_migration": {
-      "open_count": 58,
-      "new_today": 1,
-      "top": ["#18187 v1 migrated files with trailing-space extension unreadable (new)", "#17957 V2 repeated crash during migration (3 comments)", "#17709 RC users file entries permanently manual", "#17695 old workspace root after cross-machine restore", "#17470 migration aborts on legacy agents.db drift"]
+    {
+      "number": 17979,
+      "title": "[Bug]: .md files with Chinese filenames in subdirectories cannot be @-referenced",
+      "age_days": 3.5,
+      "labels": [],
+      "comments": 4
     },
-    "v1_v2_regressions": {
-      "new_today": 3,
-      "top": ["#18220 web search blacklist subscription source missing (new)", "#18196 Regenerate Conversation button missing (new)", "#18195 Export to Phone option missing (new)", "#18186 Dock icon not hidden on minimize-to-tray (new)", "#17954 history limit removed (4 comments)", "#17907 mini programs missing from sidebar"]
-    },
-    "models_providers": {
-      "open_count": 136,
-      "top": ["#18219 Codex model list cannot detect gpt-image-2", "#18147 response_format breaks LiteLLM for image-gen models", "#18145 MiMo thinking shown in English", "#18029 Anthropic output hard-capped at ~1900 tokens"]
+    {
+      "number": 17735,
+      "title": "[Bug]: Built-in web search fetches unlimited content → Agent context overflow",
+      "age_days": 10.0,
+      "labels": [],
+      "comments": 3
     }
-  },
-  "recommendations": [
-    "CRITICAL: #18175 — Agent leaks system reminder into replies (150+ confirmed occurrences, filed today). Needs immediate patch.",
-    "HIGH: #18228 — Built-in FS MCP grep completely broken (new today). Core developer tool.",
-    "HIGH: #18187 — v1 migrated files with trailing-space extension unreadable (data loss risk for migrated users).",
-    "MEDIUM-HIGH: #18211 — Auto-backup ignores schedule settings, triggers on every startup.",
-    "P1 CRITICAL THRESHOLD: #13193 (157d) — Azure OpenAI 404 assigned to DeJeune, no PR. Needs escalation.",
-    "P1 AGING: #13608 (143d) — Unassigned, no fix PR. Needs owner or explicit wontfix.",
-    "TRIAGE WIN: Zombie bucket reduced 310 → 218 today. Continue quarterly sweep cadence."
+  ],
+  "notable_stale_issues": [
+    {
+      "number": 17689,
+      "title": "MCP stdio server process leak — duplicate python instances accumulate per tool call",
+      "age_days": 9.4,
+      "labels": ["MCP", "Performance"],
+      "comments": 4
+    },
+    {
+      "number": 17629,
+      "title": "[Bug]: Processes remain running after closing with 'Minimize to tray on close' disabled",
+      "age_days": 10.0,
+      "labels": [],
+      "comments": 5
+    },
+    {
+      "number": 17485,
+      "title": "[Bug]: A JavaScript error occurred in the main process",
+      "age_days": 13.0,
+      "labels": [],
+      "comments": 6
+    }
+  ],
+  "triage_recommendations": [
+    "#18273 (zip-slip): IMMEDIATE — security patch needed before v2.0.3 ships",
+    "#18074 (file deletion v1.9.13): INVESTIGATE — potential data-loss CVE, needs assessment",
+    "#18242 (duplicate billing): HIGH — users being double-charged, needs hotfix",
+    "185 unlabeled issues (22.1%): triage sprint recommended — Zombie+Stale likely safe to close-as-not-planned",
+    "258 Zombie issues (>90d): quarterly sweep — most are feature requests overtaken by v2",
+    "Migration cluster (#17957, #18129, #18051): v2.0.3 backup fixes should close some; re-triage after release"
+  ],
+  "high_comment_issues": [
+    {"number": 18054, "title": "QQ adapter GROUP_MESSAGE_CREATE not handled", "comments": 7},
+    {"number": 17485, "title": "JavaScript error in main process", "comments": 6},
+    {"number": 17629, "title": "Processes remain after window close", "comments": 5},
+    {"number": 17954, "title": "v2.0 conversation history limit removed", "comments": 4},
+    {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
+    {"number": 17979, "title": ".md with Chinese filenames cannot be @-referenced", "comments": 4},
+    {"number": 17957, "title": "V2 repeated crash during data migration", "comments": 3},
+    {"number": 17735, "title": "Web search fetches unlimited content → overflow", "comments": 3},
+    {"number": 18175, "title": "Agent leaks system reminder (150+ occurrences)", "comments": 2},
+    {"number": 17898, "title": "Auto-connect vision/OCR for text-only models", "comments": 3}
   ]
 }

@@ -1,157 +1,172 @@
 {
-  "report_date": "2026-08-08",
-  "repository": "CherryHQ/cherry-studio",
-  "v2_status": "RELEASED — v2.0.x live (2.0.2 referenced in issues); main branch is active v2 development target",
-  "v2_branch_prs": {
-    "open": 0,
-    "merged_last_30d": 0,
-    "note": "No PRs targeting v2 branch found. All development consolidated to main. 5 PRs target v1 branch for maintenance."
+  "report_date": "2026-08-09",
+  "generated_at": "2026-08-09T17:45:00Z",
+  "data_source": "GitHub MCP API",
+  "note": "v2 is developed on 'main'. No dedicated v2 branch with open PRs. All main-targeting PRs constitute v2 work.",
+  "release_status": {
+    "latest_published": "v2.0.0-rc.4 (2026-08-02, pre-release)",
+    "next_draft": "v2.0.3 (draft, release PR #18210 merged 2026-08-08)",
+    "v2_stable_target": "pending — v2.0.3 will be the next candidate"
   },
-  "development_velocity": {
-    "merged_prs_last_30d": 685,
-    "closed_issues_last_30d": 540,
-    "note": "685 merged PRs in 30 days = ~22 PRs/day. Extremely high velocity. Bulk triage closed 87% of recent issues as 'not_planned'."
+  "open_prs_main_total": 76,
+  "open_prs_by_theme": {
+    "UI/UX": 18,
+    "Agent": 12,
+    "Models": 11,
+    "Infrastructure / Toolchain": 9,
+    "Data & Migration / Backup": 9,
+    "MCP": 7,
+    "Performance": 5,
+    "RAG / Knowledge": 3,
+    "Security": 1,
+    "Other": 1
   },
-  "critical_new_issues_today": [
-    {
-      "number": 18175,
-      "title": "Agent outputs internal system reminder verbatim — 'The task tools haven't been used recently...' leaks into replies",
-      "labels": ["Assistant"],
-      "severity": "CRITICAL",
-      "impact": "User-facing system prompt leak — breaks trust and UX. 150+ occurrences reported. 2 comments within hours of filing.",
-      "filed": "2026-08-08T06:42:36Z",
-      "suggested_action": "Emergency patch — suppress harness-injected reminder blocks from assistant reply stream"
-    },
-    {
-      "number": 18228,
-      "title": "Built-in file system MCP tool, grep completely fails",
-      "labels": ["MCP", "needs-repro"],
-      "severity": "HIGH",
-      "impact": "Core MCP filesystem tool (grep) broken — affects all agent file-search workflows",
-      "filed": "2026-08-08T19:46:00Z"
-    },
-    {
-      "number": 18187,
-      "title": "Migrated v1 files with trailing-space/dot extension unreadable in v2 (ENOENT on canonical path)",
-      "labels": ["Data"],
-      "severity": "HIGH",
-      "impact": "Data loss exposure — v1 users with Windows-illegal filenames (trailing space/dot) cannot access migrated attachments",
-      "filed": "2026-08-08T09:21:58Z"
-    },
-    {
-      "number": 18211,
-      "title": "CherryStudio automatic backup time settings not taking effect — triggers backup on every startup",
-      "severity": "MEDIUM-HIGH",
-      "impact": "Backup schedule regression — every launch triggers a full backup, causing I/O thrash on slow storage",
-      "filed": "2026-08-08T13:12:17Z"
-    }
-  ],
-  "active_pain_points_post_v2_launch": [
-    {
-      "area": "Agent / System Prompt Integrity",
-      "severity": "CRITICAL",
-      "open_count": 1,
-      "new_today": 1,
-      "top_issues": [
-        {"number": 18175, "title": "System reminder leaks verbatim into agent replies (150+ confirmed)", "filed": "2026-08-08", "severity": "CRITICAL"},
-        {"number": 18213, "title": "Agent sessions: thinking blocks fully expanded, ignoring auto_collapse setting"},
-        {"number": 18160, "title": "Cannot change the name of AI assistant"},
-        {"number": 18087, "title": "Custom prompt for built-in Agent should fully replace bundled prompt layers", "comments": 3}
-      ]
-    },
-    {
-      "area": "MCP Reliability",
-      "severity": "HIGH",
-      "open_count": 43,
-      "new_today": 2,
-      "top_issues": [
-        {"number": 18228, "title": "Built-in FS MCP grep completely fails (new today)", "severity": "HIGH"},
-        {"number": 18199, "title": "MCP replay error 'No tool output found' for v1 history (new today)"},
-        {"number": 17992, "title": "Restore MCP-over-HTTP endpoints on v2 API Gateway", "severity": "MEDIUM"},
-        {"number": 17689, "title": "MCP stdio process leak (4 comments, systemic)", "severity": "HIGH"},
-        {"number": 17999, "title": "MCP prompts visible but unusable in chat"}
-      ]
-    },
-    {
-      "area": "Data Migration & Integrity",
-      "severity": "HIGH",
-      "open_count": 58,
-      "new_today": 1,
-      "top_issues": [
-        {"number": 18187, "title": "v1 migrated files with trailing-space/dot extension unreadable (ENOENT, data loss risk — new today)"},
-        {"number": 17957, "title": "V2 repeated crash during data migration", "comments": 3},
-        {"number": 17709, "title": "RC users migrated file entries permanently manual"},
-        {"number": 17695, "title": "Agent migration keeps old workspace root after cross-machine v1 restore"},
-        {"number": 17470, "title": "Migration aborts on legacy agents.db schema drift"}
-      ]
-    },
-    {
-      "area": "v1 → v2 Regressions (UI/UX & Features)",
-      "severity": "HIGH",
-      "open_count": "200+ (UI/UX label search unavailable; estimated from sample)",
-      "new_today": 4,
-      "top_issues": [
-        {"number": 18220, "title": "Web search blacklist 'subscription source' feature missing (new today)"},
-        {"number": 18196, "title": "'Regenerate Conversation' button missing below user messages (new today)"},
-        {"number": 18195, "title": "Export to Phone option missing in Settings (new today)"},
-        {"number": 18186, "title": "Dock icon not hidden on minimize-to-tray (new today)"},
-        {"number": 17954, "title": "Conversation history limit removed from Edit Assistant → Model", "comments": 4},
-        {"number": 17923, "title": "v2.0 regressions: themes, history navigation, tab behavior, reasoning effort"},
-        {"number": 17907, "title": "Restore mini programs to sidebar like v1.x", "comments": 2},
-        {"number": 18099, "title": "Restore 'Save only' option when editing historical messages"}
-      ]
-    },
-    {
-      "area": "Models / Provider Compatibility",
-      "severity": "MEDIUM",
-      "open_count": 136,
-      "new_today": 1,
-      "top_issues": [
-        {"number": 18219, "title": "Codex model list cannot detect gpt-image-2 (new today)"},
-        {"number": 18147, "title": "response_format param during image gen causes LiteLLM UnsupportedParamsError"},
-        {"number": 18145, "title": "MiMo thinking shown in English, content leaks into final message"},
-        {"number": 18029, "title": "Anthropic output hard-capped at ~1900 tokens"},
-        {"number": 13193, "title": "Azure OpenAI 404 (P1, 157d, assigned DeJeune)"}
-      ]
-    },
-    {
-      "area": "Performance",
-      "severity": "MEDIUM",
-      "open_count": 33,
-      "new_today": 0,
-      "top_issues": [
-        {"number": 17669, "title": "Defer HTML artifact runtime outside artifact messages"},
-        {"number": 17689, "title": "MCP stdio process leak"},
-        {"number": 17412, "title": "Virtualize global search message previews"},
-        {"number": 17362, "title": "Enabling MCP server serializes independent capability requests"},
-        {"number": 17316, "title": "Painting history rehydrates unchanged records"}
-      ]
-    }
-  ],
-  "internal_team_roadmap_items": [
-    {"number": 18045, "title": "Power / Prevent-Sleep setting", "labels": ["feature", "internal_team"], "filed": "2026-08-06"},
-    {"number": 18044, "title": "Agent drive Chrome via CDP without extension", "labels": ["feature", "Assistant", "Agent", "internal_team"], "filed": "2026-08-06"},
-    {"number": 18043, "title": "Report Error button for chat/Agent failures", "labels": ["feature", "UI/UX", "internal_team"], "filed": "2026-08-06"},
-    {"number": 17782, "title": "Agent Orchestration Primitives — Read Peer Agent Sessions, Create Agents & Sessions", "labels": ["Assistant", "internal_team"]}
-  ],
-  "release_timeline_inference": {
-    "current_version": "v2.0.2 (based on issue references)",
-    "stability_signal": "HIGH VELOCITY / STABILIZING — 685 PRs merged in 30 days, zombie backlog reduced. CRITICAL new blocker emerged: #18175 (system prompt leak in agent replies). MCP grep broken (#18228).",
-    "suggested_hotfix_targets": [
-      "#18175 — Agent leaks system reminder into replies (CRITICAL — user-facing, 150+ occurrences, filed today)",
-      "#18228 — Built-in FS MCP grep fails (HIGH — core MCP tool broken)",
-      "#18187 — v1 migrated files with trailing-space extension unreadable (HIGH — data loss risk)",
-      "#18211 — Auto-backup ignores schedule, triggers every startup (MEDIUM-HIGH)"
+  "infrastructure_prs_detail": {
+    "note": "7 toolchain modernization PRs in flight: tsgolint, typescript-7, drop-eslint, oxfmt, vite-8, no-useless-default-assignment, drop-electron-toolkit-tsconfig, ui-contract-oxc",
+    "status": "Long-running — each is an isolated toolchain upgrade, merge order gated by CI"
+  },
+  "backup_prs_detail": {
+    "note": "5 backup-related open PRs: feat/backup-auto-sync-jobs, feat/backup-progress-ui, feat/backup-progress-events, feat/backup-progress-resources, feat/backup-v2-replacement",
+    "status": "Active stack — backup-v2-replacement is the parent, others are incremental features"
+  },
+  "recent_merges_by_theme": {
+    "Security / Data Safety": [
+      "fix(backup): skip LevelDB locks in streamed backups (#18173)",
+      "fix(backup): skip EBUSY locked files (LevelDB LOCK) during automatic backup (#18117)"
     ],
-    "suggested_next_release_focus": [
-      "Patch: System prompt leak into agent replies (#18175) — CRITICAL, needs emergency fix",
-      "Fix: Built-in FS MCP grep failure (#18228)",
-      "Fix: v1 trailing-space filename migration (#18187) — data integrity",
-      "Fix: Auto-backup schedule regression (#18211)",
-      "Fix: Anthropic ~1900 token output cap (#18029)",
-      "Fix: MiMo thinking English display + content leak (#18145)",
-      "Restore: Top v1 regressions — conversation history limit (#17954), mini programs (#17907), regenerate button (#18196)",
-      "Address: P1 #13193 Azure OpenAI 404 (day 157, assigned DeJeune)"
+    "MCP": [
+      "fix(mcp): close stale clients so ping failures stop orphaning child processes (#18146)",
+      "fix(mcp-tools): prevent non-ASCII tool identity collisions (#18128)",
+      "fix(mcp-tool-approval): treat IM-channel sessions as background agents (#18153)",
+      "fix(mcp): resolve stdio MCP servers to full paths on Windows (#16472)"
+    ],
+    "Agent": [
+      "fix(agent-runtime): recover duplicate tool use ID failures (#18119)",
+      "fix(agent-attachments): preserve managed files for session history (#18027)",
+      "feat(agent-runtime): support scoped AGENTS.md instructions (#18126)",
+      "fix(stream-manager): strip Claude Agent SDK harness-leak reminders (#18239)",
+      "fix(agent-session): preserve citations for deferred tool outputs (#18124)"
+    ],
+    "Data & Migration": [
+      "fix(data-migration): tolerate malformed agent MCP data (#18176)",
+      "fix(chat-migration): bound message block indexing memory (#18127)"
+    ],
+    "Lifecycle": [
+      "fix(lifecycle): bound each service's teardown during shutdown (#18136)"
+    ],
+    "UI/UX": [
+      "fix(composer-draft): preserve unsent drafts across navigation (#18019)",
+      "feat(chat-composer): save edited user messages without resending (#18057)",
+      "feat(composer-toolbar): pin permission mode by default for new users (#18222)",
+      "fix(agent-right-pane): move declared outputs under the task plan (#18216)",
+      "fix(composer): keep input compact in maximized panels (#18125)",
+      "fix(resource-list): unify cross-panel list styling (#18046)"
+    ],
+    "Models": [
+      "feat(model-retry): user-configured model retry & fallback via ai-retry (#16057)",
+      "fix(openai-compatible): always echo reasoning_content on assistant turns (#18121)",
+      "fix(ollama): detect native thinking capabilities (#18133)",
+      "fix(vertex-ai): restore default Vertex endpoint routing (#18172)",
+      "fix(builtin-tools): stop sending strict so knowledge bases work on Anthropic (#18179)"
+    ],
+    "Performance": [
+      "perf(startup-memory): lazy-load five heavy main-process dependencies (#18189)"
+    ],
+    "New Features": [
+      "feat(external-apps): add Windows Terminal (wt.exe) support (#17942)",
+      "feat(window-manager): add option to hide macOS dock icon (#18154)",
+      "feat(code-cli): add Pi coding agent to Code Tools (#16928)",
+      "feat: add Claude (Anthropic) conversation import support (#16164)"
     ]
-  }
+  },
+  "open_issues_by_theme": {
+    "UI/UX": 289,
+    "Models": 127,
+    "Agent / Assistant": 71,
+    "Data & Migration": 55,
+    "MCP": 51,
+    "Performance": 38,
+    "RAG / Knowledge": 29,
+    "Connectivity": 18,
+    "Docs": 12,
+    "Security": 2,
+    "Other / Unlabeled": 146
+  },
+  "internal_team_roadmap_issues": [
+    {
+      "number": 18045,
+      "title": "[Feature]: Prevent-Sleep Setting to Keep the System Awake During Tasks",
+      "labels": ["feature", "internal_team"],
+      "status": "Planned",
+      "created_at": "2026-08-06"
+    },
+    {
+      "number": 18044,
+      "title": "[Feature]: Let the Agent Operate Your Already-Open Browser Without Installing an Extension",
+      "labels": ["feature", "Assistant", "Agent", "internal_team"],
+      "status": "Planned",
+      "created_at": "2026-08-06"
+    },
+    {
+      "number": 18043,
+      "title": "[Feature]: One-Click 'Report Error' Action on Chat and Agent Failures",
+      "labels": ["feature", "UI/UX", "internal_team"],
+      "status": "Planned",
+      "created_at": "2026-08-06"
+    },
+    {
+      "number": 17782,
+      "title": "[Feature]: Agent Orchestration Primitives — Read Peer Agent Sessions, Create Agents & Sessions",
+      "labels": ["Assistant", "internal_team"],
+      "status": "Planned",
+      "created_at": "2026-08-03"
+    }
+  ],
+  "v2_key_themes": [
+    {
+      "theme": "Security: Backup Safety",
+      "status": "CRITICAL OPEN",
+      "signal": "#18273 zip-slip filed today — must patch before v2.0.3 ships. #18272 filename sanitization also open."
+    },
+    {
+      "theme": "Backup v2 Replacement",
+      "status": "Active",
+      "signal": "5 open PRs in progress. Two critical bug fixes already merged (#18173, #18117). Backup reliability greatly improved."
+    },
+    {
+      "theme": "MCP Stability",
+      "status": "Improving",
+      "signal": "Process-leak fix merged (#18146), Windows path fix (#16472), non-ASCII fix (#18128). grep failure (#18228) still open."
+    },
+    {
+      "theme": "Agent Runtime",
+      "status": "Active",
+      "signal": "Harness-leak fix merged (#18239), AGENTS.md support (#18126), citation preservation (#18124), attachment fix (#18027)."
+    },
+    {
+      "theme": "Toolchain Modernisation",
+      "status": "In Progress",
+      "signal": "7+ open toolchain PRs: TypeScript 7, Vite 8, drop ESLint, OxC formatter, tsgolint. Merging incrementally."
+    },
+    {
+      "theme": "v1→v2 Migration",
+      "status": "Ongoing",
+      "signal": "Edge-case failures continue (#17957 crash, #18187 Windows illegal filenames). Memory bounding fix merged (#18127)."
+    },
+    {
+      "theme": "Model Retry & Fallback",
+      "status": "Shipped",
+      "signal": "feat(model-retry) merged (#16057) — long-awaited reliability feature now in main."
+    },
+    {
+      "theme": "Browser Agent (no-extension)",
+      "status": "Planned",
+      "signal": "internal_team issue #18044 — adds screen annotation + browser control without extension install."
+    },
+    {
+      "theme": "Lifecycle Robustness",
+      "status": "Addressed",
+      "signal": "Shutdown timeout per-service bounded (#18136). Further hardening may be needed for #17629 (tray-off orphan processes)."
+    }
+  ]
 }

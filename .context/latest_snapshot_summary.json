@@ -1,86 +1,112 @@
 {
-  "snapshot_date": "2026-08-08",
-  "generated_at": "2026-08-08T21:00:00Z",
+  "snapshot_date": "2026-08-09",
+  "generated_at": "2026-08-09T17:45:00Z",
+  "data_source": "GitHub MCP API (automated daily run)",
   "open_issues": {
-    "total": 816,
-    "delta_from_yesterday": -83,
+    "total": 838,
+    "delta_from_yesterday": 22,
     "new_last_24h": 97,
-    "note_on_delta": "Large net decrease driven by bulk triage: 87% of closed issues in last 30d closed as 'not_planned'. Zombie bucket reduced 310 → 218.",
-    "no_label": 101,
-    "no_label_pct": 12.4,
-    "note_on_no_label": "Absolute count fell (103 → 101), but % rose (11.5% → 12.4%) as denominator shrank faster — bulk-triaged issues were mostly labeled",
+    "no_label": 185,
+    "no_label_pct": 22.1,
     "by_label": {
-      "Models": 136,
-      "Assistant": 102,
-      "Data": 58,
-      "MCP": 43,
-      "Performance": 33,
-      "needs-repro": 27,
-      "BUG": 15,
-      "no_label": 101,
-      "note": "UI/UX count unavailable (GitHub search API rejects slash in label name); estimated ~200+ from sample analysis. P1: 3."
+      "UI/UX": 289,
+      "Models": 127,
+      "Assistant": 68,
+      "Data": 55,
+      "MCP": 51,
+      "Performance": 38,
+      "RAG": 29,
+      "help wanted": 22,
+      "discussion": 22,
+      "Connectivity": 18,
+      "needs-more-info": 15,
+      "needs-repro": 14,
+      "Docs": 12,
+      "internal_team": 7,
+      "feature": 7,
+      "needs-triage": 6,
+      "Code Mate": 4,
+      "Agent": 3,
+      "no_label": 185
     }
   },
   "open_prs": {
-    "total": "100+ (API page limit reached; exact count requires pagination)",
+    "total": 100,
     "v2_base_open": 0,
-    "v1_base_open": 5,
-    "draft": 10,
-    "ready_for_review": 90,
-    "note": "All v2 development consolidated to main branch. 5 PRs target v1 for maintenance fixes."
+    "v1_base_open": 6,
+    "main_base_open": 76,
+    "feature_branch_open": 18,
+    "note": "All v2 development consolidated on main. 6 PRs target v1 for maintenance. 7 open toolchain PRs (typescript-7, vite-8, drop-eslint, oxfmt, tsgolint, etc.)."
   },
-  "p1_open_issues": [
+  "p1_open_issues": [],
+  "urgent_heuristic_issues": [
     {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": ["P1", "Planned", "feature", "UI/UX"],
-      "milestone": "v2.4.0",
-      "created_at": "2026-05-07",
-      "age_days": 93,
-      "assignee": null,
-      "status": "Planned — no active fix PR"
+      "number": 18273,
+      "title": "[Bug]: Backup restore extracts ZIP entries without path containment checks (zip-slip)",
+      "labels": ["Data"],
+      "created_at": "2026-08-09T17:20:37Z",
+      "severity": "CRITICAL_SECURITY",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18273"
     },
     {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["P1", "Models"],
-      "created_at": "2026-03-18",
-      "age_days": 143,
-      "assignee": null,
-      "status": "Unassigned — no fix PR, needs owner or wontfix decision"
+      "number": 18074,
+      "title": "[Bug]: CherryStudio v1.9.13 update suspected of accidentally deleting files in user's D drive folder",
+      "labels": [],
+      "created_at": "2026-08-07T03:18:10Z",
+      "severity": "CRITICAL_DATA_LOSS",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18074"
     },
     {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI defaults to responses API — Resource not found (404)",
-      "labels": ["P1", "Models"],
-      "created_at": "2026-03-04",
-      "age_days": 157,
-      "assignee": "DeJeune",
-      "status": "Assigned to DeJeune — no fix PR yet (day 157)"
+      "number": 18242,
+      "title": "[Bug]: v2.0.2 Normal chat triggers multiple redundant model calls without cache, causing duplicate billing",
+      "labels": ["Performance"],
+      "created_at": "2026-08-09T02:30:41Z",
+      "severity": "HIGH",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18242"
+    },
+    {
+      "number": 18175,
+      "title": "[Bug]: Agent outputs internal system reminder verbatim (150+ occurrences)",
+      "labels": ["Assistant"],
+      "created_at": "2026-08-08T06:42:36Z",
+      "severity": "HIGH",
+      "note": "Fix merged via PR #18239 on 2026-08-09",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18175"
+    },
+    {
+      "number": 17957,
+      "title": "[Bug]: V2 repeated crash during data migration",
+      "labels": ["Data"],
+      "created_at": "2026-08-05T23:02:50Z",
+      "severity": "HIGH",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/17957"
+    },
+    {
+      "number": 17689,
+      "title": "MCP stdio server process leak — duplicate python instances accumulate per tool call",
+      "labels": ["MCP", "Performance"],
+      "created_at": "2026-07-31T06:58:49Z",
+      "severity": "HIGH",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/17689"
     }
   ],
   "new_issues_today_sample": [
-    "#18228 [Bug]: Built-in file system MCP tool, grep completely fails (MCP, needs-repro)",
-    "#18220 [Feature]: Restore 'subscription source' for web search blacklist (v2 regression)",
-    "#18219 [Bug]: OpenAI Codex model list cannot detect gpt-image-2 (Models)",
-    "#18217 [Bug]: Permission mode button on agent composer toolbar doesn't show current mode (UI/UX)",
-    "#18213 [Bug]: Agent sessions thinking blocks fully expanded, ignoring auto_collapse (UI/UX)",
-    "#18211 [Bug]: CherryStudio auto-backup time settings not taking effect — triggers on every startup",
-    "#18199 [Bug]: v2 replaying v1 MCP history raises 'No tool output found for tool call' (MCP)",
-    "#18196 [Feature]: V2 Regression — Restore 'Regenerate Conversation' button below user messages (UI/UX)",
-    "#18195 [Feature]: V2 Regression — Restore Export to Phone in Settings (Data)",
-    "#18190 Knowledge base silently indexes mojibake for .ppt/.pptx/.xls/.xlsx on Windows ARM64",
-    "#18187 [Bug]: Migrated v1 files with trailing-space/dot extension unreadable in v2 (Data)",
-    "#18186 [Bug]: v2 — After enabling minimize-to-tray, Dock icon not hidden (UI/UX regression)",
-    "#18175 [Bug]: Agent outputs internal system reminder verbatim — 150+ occurrences (Assistant) ← HIGH"
+    "#18273 [Bug]: Backup restore zip-slip (CRITICAL SECURITY)",
+    "#18272 [Bug]: Knowledge material filenames not sanitized",
+    "#18271 [Feature]: Transparency and manual control over context compression",
+    "#18270 [Bug]: DeepSeek model auto thinking mode generates invalid parameter",
+    "#18269 [Bug]: Built-in Python execution tool naming misleading (sandbox)",
+    "#18268 [Feature]: Agent session start/end hooks",
+    "#18267 [Feature]: Knowledge base refresh mechanism",
+    "#18265 [Bug]: Cannot paste long text in painting function",
+    "#18264 [Feature]: Global Memory toggle doesn't work for Agents",
+    "#18263 [Bug]: HTML preview scrollbar causes text position jumping"
   ],
-  "merged_prs_last_30d": 685,
-  "closed_issues_last_30d": 540,
-  "closed_issues_breakdown": {
-    "not_planned": "~87%",
-    "completed": "~10%",
-    "duplicate": "~3%",
-    "note": "Estimated from 100-item sample; bulk triage sweep drove the large 'not_planned' share"
+  "merged_prs_last_30d_estimate": 50,
+  "closed_issues_last_30d": 542,
+  "release_status": {
+    "latest_published": "v2.0.0-rc.4 (2026-08-02, pre-release)",
+    "next_draft": "v2.0.3 (draft, release PR #18210 merged 2026-08-08)"
   },
-  "velocity_note": "Net -83 open issues today (major triage sweep — largest single-day reduction observed). ~97 new issues filed but ~180 closed. Zombie bucket reduced from 310 to 218. New critical bug: #18175 (Agent leaks internal system prompt into replies, 150+ occurrences). MCP grep failure (#18228) is a new regression. 3 P1 issues unchanged, oldest now at 157 days."
+  "velocity_note": "838 open issues (+22 from yesterday). 97 new issues filed today, highest since v2 launch week. Security-critical zip-slip (#18273) filed today. Harness-leak fix merged (#18239). v2.0.3 release draft ready. Backup stability improvements merged (#18173, #18117). Lifecycle shutdown timeout fixed (#18136)."
 }
