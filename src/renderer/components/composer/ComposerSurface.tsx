@@ -39,7 +39,8 @@ import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeCompose
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
-  LONG_TEXT_PASTE_THRESHOLD
+  LONG_TEXT_PASTE_THRESHOLD,
+  PASTED_TEXT_FILE_EXTENSION
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
@@ -379,8 +380,8 @@ const getTrackedTokenSignature = (tokens: readonly ComposerSerializedToken[]) =>
     )
     .join('\n')
 
-function shouldDelegateLongTextPasteToFileHandler(text: string) {
-  return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD)
+function shouldDelegateLongTextPasteToFileHandler(text: string, supportedExts: readonly string[]) {
+  return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD && supportedExts.includes(PASTED_TEXT_FILE_EXTENSION))
 }
 
 function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
@@ -1676,7 +1677,8 @@ export default function ComposerSurface({
         return true
       }
 
-      if (shouldDelegateLongTextPasteToFileHandler(pastedText)) {
+      const shouldDelegateLongTextPaste = shouldDelegateLongTextPasteToFileHandler(pastedText, supportedExts)
+      if (shouldDelegateLongTextPaste) {
         event.preventDefault()
         void handlePaste(event)
         return true
@@ -1716,6 +1718,7 @@ export default function ComposerSurface({
       }
 
       const plainTextOverride = getComposerPlainTextPasteOverride(textToInsert, {
+        inlineLongText: !shouldDelegateLongTextPaste,
         promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
         resolveSkillMarker,
         resolveKnowledgeBaseMarker
@@ -1744,7 +1747,7 @@ export default function ComposerSurface({
       void handlePaste(event)
       return false
     },
-    [handlePaste, resolveSkillMarker, resolveKnowledgeBaseMarker]
+    [handlePaste, resolveSkillMarker, resolveKnowledgeBaseMarker, supportedExts]
   )
 
   const editor = useRichTextEditorKernel({
