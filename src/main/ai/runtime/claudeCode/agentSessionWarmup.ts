@@ -111,6 +111,7 @@ interface ConnectionMaterializationFacts {
   skills: string[]
   linkedChannelId: string | null
   contextWindow: number | null
+  maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
 }
 
@@ -338,6 +339,7 @@ async function deriveConnectionConfigFromSnapshot(
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
   const contextWindow = materialized ? materialized.contextWindow : (model.contextWindow ?? null)
+  const maxOutputTokens = materialized ? materialized.maxOutputTokens : (model.maxOutputTokens ?? null)
   const effectiveFastMode = fastMode && isSupportFastMode(provider, model)
   let routeFacts = materialized?.route
   if (!routeFacts) {
@@ -363,6 +365,7 @@ async function deriveConnectionConfigFromSnapshot(
   const rebuildFacts = {
     modelId: uniqueModelId,
     contextWindow,
+    maxOutputTokens,
     reasoningEffort,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
@@ -465,6 +468,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // settings, and skill materialization can otherwise make the baseline describe a different
   // compaction window from the one actually passed to Claude Code.
   const contextWindow = model.contextWindow
+  const maxOutputTokens = model.maxOutputTokens
   const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
@@ -501,6 +505,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       provider,
       {
         contextWindow,
+        maxOutputTokens,
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
@@ -529,6 +534,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       skills: settings.skills ?? [],
       linkedChannelId: linkedChannelSnapshot?.id ?? null,
       contextWindow: contextWindow ?? null,
+      maxOutputTokens: maxOutputTokens ?? null,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       })
