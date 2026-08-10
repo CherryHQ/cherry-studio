@@ -4,7 +4,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeBaseListResponse } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
   type KnowledgeAddItemInput,
@@ -22,6 +22,14 @@ import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
 import { inspectOrphanBaseArtifacts, type OrphanBaseArtifactsInspection } from './orphanBaseArtifacts'
 
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
+
+export interface ListKnowledgeBasesOptions {
+  limit: number
+  cursor?: string
+  search?: string
+  groupId?: string
+  allowedIds?: readonly string[]
+}
 
 /** Knowledge base lifecycle: create (with rollback), delete, restore, and list — everything about the base row + its on-disk artifacts, not about items. */
 export class KnowledgeBaseAdminService {
@@ -187,9 +195,18 @@ export class KnowledgeBaseAdminService {
     return { base: restoredBase, skippedMissingSourceCount }
   }
 
-  listBases(): KnowledgeBase[] {
-    const { items } = knowledgeBaseService.list({ page: 1, limit: KNOWLEDGE_BASES_MAX_LIMIT })
-    return items
+  listBases(options: ListKnowledgeBasesOptions): KnowledgeBaseListResponse {
+    return knowledgeBaseService.listCursor(
+      {
+        limit: options.limit,
+        ...(options.cursor ? { cursor: options.cursor } : {}),
+        ...(options.search ? { search: options.search } : {})
+      },
+      {
+        ...(options.groupId ? { groupId: options.groupId } : {}),
+        ...(options.allowedIds ? { ids: options.allowedIds } : {})
+      }
+    )
   }
 
   /** Whether the user has any knowledge base at all — a cheap count (not a full list) for tool-availability gating. */

@@ -27,6 +27,7 @@ const NEWEST_KNOWLEDGE_BASE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abc'
 const OTHER_BASE_FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abd'
 const KNOWLEDGE_GROUP_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+const SECOND_KNOWLEDGE_GROUP_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeef'
 const OTHER_ENTITY_GROUP_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
 
 describe('KnowledgeBaseService', () => {
@@ -90,6 +91,26 @@ describe('KnowledgeBaseService', () => {
     }
     await dbh.db.insert(knowledgeBaseTable).values(values)
     return values
+  }
+
+  async function seedKnowledgeBases(count: number) {
+    await dbh.db.insert(knowledgeBaseTable).values(
+      Array.from({ length: count }, (_, index) => ({
+        id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+        name: `Knowledge Base ${index}`,
+        dimensions: null,
+        embeddingModelId: null,
+        status: 'completed' as const,
+        error: null,
+        rerankModelId: null,
+        fileProcessorId: null,
+        chunkSize: 800,
+        chunkOverlap: 120,
+        documentCount: 5,
+        createdAt: 1,
+        updatedAt: 1
+      }))
+    )
   }
 
   async function seedFileKnowledgeItem(overrides: Partial<typeof knowledgeItemTable.$inferInsert> = {}) {
@@ -283,6 +304,129 @@ describe('KnowledgeBaseService', () => {
       expect(secondPage.total).toBe(2)
       expect(secondPage.items).toHaveLength(1)
       expect(secondPage.items[0]).toMatchObject({ id: SECOND_KNOWLEDGE_BASE_ID, itemCount: 1 })
+    })
+  })
+
+  describe('listCursor', () => {
+    it('walks 201 knowledge bases without gaps or duplicates', async () => {
+      await seedKnowledgeBases(201)
+
+      const ids: string[] = []
+      const totals: number[] = []
+      let cursor: string | undefined
+      do {
+        const page = service.listCursor({ limit: 100, cursor })
+        ids.push(...page.items.map((item) => item.id))
+        totals.push(page.total)
+        cursor = page.nextCursor
+      } while (cursor)
+
+      expect(ids).toHaveLength(201)
+      expect(new Set(ids).size).toBe(201)
+      expect(ids).toEqual([...ids].sort().reverse())
+      expect(totals).toEqual([201, 201, 201])
+    })
+
+    it('paginates name sorting with an id tie-breaker', async () => {
+      await seedKnowledgeBase({ id: OLD_KNOWLEDGE_BASE_ID, name: 'Alpha', createdAt: 1 })
+      await seedKnowledgeBase({ id: ALPHA_KNOWLEDGE_BASE_ID, name: 'Same', createdAt: 2 })
+      await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Same', createdAt: 3 })
+      await seedKnowledgeBase({ id: NEWEST_KNOWLEDGE_BASE_ID, name: 'Zulu', createdAt: 4 })
+
+      const first = service.listCursor({ limit: 2, sortBy: 'name', sortOrder: 'asc' })
+      const second = service.listCursor({
+        limit: 2,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        cursor: first.nextCursor
+      })
+
+      expect(first.nextCursor).toBeDefined()
+      expect([...first.items, ...second.items].map((item) => item.id)).toEqual([
+        OLD_KNOWLEDGE_BASE_ID,
+        ALPHA_KNOWLEDGE_BASE_ID,
+        BETA_KNOWLEDGE_BASE_ID,
+        NEWEST_KNOWLEDGE_BASE_ID
+      ])
+    })
+
+    it('keeps search and updatedAt filters across cursor pages', async () => {
+      const cutoffIso = '2026-05-01T00:00:00.000Z'
+      const cutoff = Date.parse(cutoffIso)
+      await seedKnowledgeBase({ id: OLD_KNOWLEDGE_BASE_ID, name: 'Research old', updatedAt: cutoff - 1 })
+      await seedKnowledgeBase({ id: CUTOFF_KNOWLEDGE_BASE_ID, name: 'Research cutoff', updatedAt: cutoff })
+      await seedKnowledgeBase({ id: NEWER_KNOWLEDGE_BASE_ID, name: 'Research newer', updatedAt: cutoff + 1 })
+      await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Other', updatedAt: cutoff + 2 })
+
+      const query = {
+        limit: 1,
+        search: 'Research',
+        updatedAtFrom: cutoffIso,
+        sortBy: 'updatedAt' as const,
+        sortOrder: 'desc' as const
+      }
+      const first = service.listCursor(query)
+      const second = service.listCursor({ ...query, cursor: first.nextCursor })
+
+      expect(first.total).toBe(2)
+      expect(second.total).toBe(2)
+      expect([...first.items, ...second.items].map((item) => item.id)).toEqual([
+        NEWER_KNOWLEDGE_BASE_ID,
+        CUTOFF_KNOWLEDGE_BASE_ID
+      ])
+    })
+
+    it('falls back to the first page for a malformed cursor', async () => {
+      await seedKnowledgeBase({ id: OLD_KNOWLEDGE_BASE_ID, name: 'Old', createdAt: 1 })
+      await seedKnowledgeBase({ id: NEWER_KNOWLEDGE_BASE_ID, name: 'Newer', createdAt: 2 })
+
+      const first = service.listCursor({ limit: 1 })
+      const malformed = service.listCursor({ limit: 1, cursor: 'not-a-cursor' })
+
+      expect(malformed).toEqual(first)
+    })
+
+    it('applies group and id scope before pagination and total counting', async () => {
+      await dbh.db.insert(groupTable).values([
+        { id: KNOWLEDGE_GROUP_ID, entityType: 'knowledge', name: 'Knowledge', orderKey: 'a0' },
+        { id: SECOND_KNOWLEDGE_GROUP_ID, entityType: 'knowledge', name: 'Other knowledge', orderKey: 'a1' }
+      ])
+      await seedKnowledgeBase({
+        id: OLD_KNOWLEDGE_BASE_ID,
+        name: 'Notes old',
+        groupId: KNOWLEDGE_GROUP_ID,
+        createdAt: 1
+      })
+      await seedKnowledgeBase({
+        id: ALPHA_KNOWLEDGE_BASE_ID,
+        name: 'Notes allowed',
+        groupId: KNOWLEDGE_GROUP_ID,
+        createdAt: 2
+      })
+      await seedKnowledgeBase({
+        id: BETA_KNOWLEDGE_BASE_ID,
+        name: 'Notes other group',
+        groupId: SECOND_KNOWLEDGE_GROUP_ID,
+        createdAt: 3
+      })
+      await seedKnowledgeBase({
+        id: NEWEST_KNOWLEDGE_BASE_ID,
+        name: 'Other',
+        groupId: KNOWLEDGE_GROUP_ID,
+        createdAt: 4
+      })
+
+      const page = service.listCursor(
+        { limit: 1, search: 'Notes' },
+        {
+          groupId: KNOWLEDGE_GROUP_ID,
+          ids: [OLD_KNOWLEDGE_BASE_ID, ALPHA_KNOWLEDGE_BASE_ID, BETA_KNOWLEDGE_BASE_ID]
+        }
+      )
+
+      expect(page.total).toBe(2)
+      expect(page.items.map((item) => item.id)).toEqual([ALPHA_KNOWLEDGE_BASE_ID])
+      expect(page.nextCursor).toBeDefined()
     })
   })
 

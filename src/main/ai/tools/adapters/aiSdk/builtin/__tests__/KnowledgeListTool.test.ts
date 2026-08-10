@@ -4,7 +4,7 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const knowledgeServiceListBases = vi.fn<() => KnowledgeBase[]>()
+const knowledgeServiceListBases = vi.fn()
 const knowledgeServiceListRootItems = vi.fn<(baseId: string) => KnowledgeItem[]>()
 // Outline mode (kb_list with a baseId) routes to getOrganizationTree.
 const knowledgeServiceGetOrganizationTree = vi.fn()
@@ -154,7 +154,18 @@ function makeProcessingFileItem(id: string): KnowledgeItem {
   } as unknown as KnowledgeItem
 }
 
-type ListArgs = { query?: string; groupId?: string; baseId?: string; maxDepth?: number }
+type ListArgs = {
+  query?: string
+  groupId?: string
+  baseId?: string
+  maxDepth?: number
+  limit?: number
+  cursor?: string
+}
+
+function listPage(items: KnowledgeBase[], nextCursor?: string) {
+  return { items, total: items.length, ...(nextCursor ? { nextCursor } : {}) }
+}
 
 function callExecute(args: ListArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
   const execute = entry.tool.execute as (args: ListArgs, options: ToolExecutionOptions) => Promise<unknown>
@@ -189,75 +200,74 @@ describe('kb_list', () => {
     expect(entry.tool.needsApproval).toBeFalsy()
   })
 
-  it('returns only bases in the assistant scope when knowledgeBaseIds is non-empty', async () => {
-    knowledgeServiceListBases.mockReturnValue([
-      makeBase({ id: 'kb-1', name: 'Allowed' }),
-      makeBase({ id: 'kb-other', name: 'Other' })
-    ])
+  it('passes the assistant scope into the paged service query', async () => {
+    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1', name: 'Allowed' })]))
     knowledgeServiceListRootItems.mockReturnValue([])
 
-    const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
-      id: string
-    }>
-    expect(result.map((b) => b.id)).toEqual(['kb-1'])
+    const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as { items: Array<{ id: string }> }
+    expect(result.items.map((b) => b.id)).toEqual(['kb-1'])
+    expect(knowledgeServiceListBases).toHaveBeenCalledWith({ limit: 20, allowedIds: ['kb-1'] })
     expect(knowledgeServiceListRootItems).toHaveBeenCalledWith('kb-1')
-    expect(knowledgeServiceListRootItems).not.toHaveBeenCalledWith('kb-other')
   })
 
   it('returns all bases when assistant scope is empty (future toggle path)', async () => {
-    knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' }), makeBase({ id: 'kb-2' })])
+    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1' }), makeBase({ id: 'kb-2' })]))
     knowledgeServiceListRootItems.mockReturnValue([])
 
-    const result = (await callExecute({}, { knowledgeBaseIds: [] })) as Array<{
-      id: string
-    }>
-    expect(result.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-2'])
+    const result = (await callExecute({}, { knowledgeBaseIds: [] })) as { items: Array<{ id: string }> }
+    expect(result.items.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-2'])
+    expect(knowledgeServiceListBases).toHaveBeenCalledWith({ limit: 20 })
   })
 
-  it('filters by groupId', async () => {
-    knowledgeServiceListBases.mockReturnValue([
-      makeBase({ id: 'kb-1', groupId: 'g1' }),
-      makeBase({ id: 'kb-2', groupId: 'g2' })
-    ])
+  it('passes groupId into the paged service query', async () => {
+    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1', groupId: 'g1' })]))
     knowledgeServiceListRootItems.mockReturnValue([])
 
-    const result = (await callExecute({ groupId: 'g1' }, { knowledgeBaseIds: ['kb-1', 'kb-2'] })) as Array<{
-      id: string
-    }>
-    expect(result.map((b) => b.id)).toEqual(['kb-1'])
+    const result = (await callExecute({ groupId: 'g1' }, { knowledgeBaseIds: ['kb-1', 'kb-2'] })) as {
+      items: Array<{ id: string }>
+    }
+    expect(result.items.map((b) => b.id)).toEqual(['kb-1'])
+    expect(knowledgeServiceListBases).toHaveBeenCalledWith({
+      limit: 20,
+      groupId: 'g1',
+      allowedIds: ['kb-1', 'kb-2']
+    })
   })
 
   it('treats an omitted groupId as no filter, not as "ungrouped"', async () => {
-    knowledgeServiceListBases.mockReturnValue([
-      makeBase({ id: 'kb-1', groupId: 'g1' }),
-      makeBase({ id: 'kb-2', groupId: null })
-    ])
+    knowledgeServiceListBases.mockReturnValue(
+      listPage([makeBase({ id: 'kb-1', groupId: 'g1' }), makeBase({ id: 'kb-2', groupId: null })])
+    )
     knowledgeServiceListRootItems.mockReturnValue([])
 
-    const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1', 'kb-2'] })) as Array<{ id: string }>
+    const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1', 'kb-2'] })) as {
+      items: Array<{ id: string }>
+    }
     // An absent groupId must not collapse to `base.groupId === null`; both bases come back.
-    expect(result.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-2'])
+    expect(result.items.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-2'])
+    expect(knowledgeServiceListBases).toHaveBeenCalledWith({ limit: 20, allowedIds: ['kb-1', 'kb-2'] })
   })
 
-  it('filters by case-insensitive query against name and sampleSources', async () => {
-    knowledgeServiceListBases.mockReturnValue([
-      makeBase({ id: 'kb-1', name: 'Rust Notes' }),
-      makeBase({ id: 'kb-2', name: 'Recipes' }),
-      makeBase({ id: 'kb-3', name: 'Other' })
-    ])
-    knowledgeServiceListRootItems.mockImplementation((baseId) => {
-      if (baseId === 'kb-3') return [makeNoteItem('n1', 'Some rust tutorial intro')]
-      return []
-    })
+  it('passes case-insensitive name search and cursor pagination to the service', async () => {
+    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1', name: 'Rust Notes' })], 'cursor-2'))
+    knowledgeServiceListRootItems.mockReturnValue([])
 
-    const result = (await callExecute({ query: 'RUST' }, { knowledgeBaseIds: ['kb-1', 'kb-2', 'kb-3'] })) as Array<{
-      id: string
-    }>
-    expect(result.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-3'])
+    const result = (await callExecute(
+      { query: 'RUST', cursor: 'cursor-1', limit: 10 },
+      { knowledgeBaseIds: ['kb-1', 'kb-2'] }
+    )) as { items: Array<{ id: string }>; nextCursor?: string }
+    expect(result.items.map((b) => b.id)).toEqual(['kb-1'])
+    expect(result.nextCursor).toBe('cursor-2')
+    expect(knowledgeServiceListBases).toHaveBeenCalledWith({
+      limit: 10,
+      cursor: 'cursor-1',
+      search: 'RUST',
+      allowedIds: ['kb-1', 'kb-2']
+    })
   })
 
   it('derives sampleSources per item type and skips non-completed items', async () => {
-    knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
     knowledgeServiceListRootItems.mockReturnValue([
       makeFileItem('i1', 'design-doc.pdf'),
       makeUrlItem('i2', 'https://example.com/post'),
@@ -266,10 +276,10 @@ describe('kb_list', () => {
       makeProcessingFileItem('i5')
     ])
 
-    const [base] = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
-      sampleSources: string[]
-      itemCount: number
-    }>
+    const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as {
+      items: Array<{ sampleSources: string[]; itemCount: number }>
+    }
+    const [base] = result.items
     expect(base.itemCount).toBe(5)
     expect(base.sampleSources).toEqual([
       'design-doc.pdf',
@@ -280,12 +290,13 @@ describe('kb_list', () => {
   })
 
   it('truncates long note first lines to fit the snippet limit', async () => {
-    knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
     knowledgeServiceListRootItems.mockReturnValue([makeNoteItem('n1', 'a'.repeat(200))])
 
-    const [base] = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
-      sampleSources: string[]
-    }>
+    const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as {
+      items: Array<{ sampleSources: string[] }>
+    }
+    const [base] = result.items
     expect(base.sampleSources).toHaveLength(1)
     const [snippet] = base.sampleSources
     expect(snippet.length).toBeLessThanOrEqual(80)
@@ -293,27 +304,26 @@ describe('kb_list', () => {
   })
 
   it('caps sampleSources at 8 entries', async () => {
-    knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
     const items = Array.from({ length: 12 }, (_, idx) => makeFileItem(`i${idx}`, `file-${idx}.md`))
     knowledgeServiceListRootItems.mockReturnValue(items)
 
-    const [base] = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
-      sampleSources: string[]
-    }>
+    const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as {
+      items: Array<{ sampleSources: string[] }>
+    }
+    const [base] = result.items
     expect(base.sampleSources).toHaveLength(8)
   })
 
   it('lists failed bases with empty sampleSources and does not call listRootItems', async () => {
-    knowledgeServiceListBases.mockReturnValue([
-      makeBase({ id: 'kb-1', status: 'failed', error: 'missing_embedding_model' })
-    ])
+    knowledgeServiceListBases.mockReturnValue(
+      listPage([makeBase({ id: 'kb-1', status: 'failed', error: 'missing_embedding_model' })])
+    )
 
-    const [base] = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
-      id: string
-      status: string
-      sampleSources: string[]
-      itemCount: number
-    }>
+    const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as {
+      items: Array<{ id: string; status: string; sampleSources: string[]; itemCount: number }>
+    }
+    const [base] = result.items
     expect(base.id).toBe('kb-1')
     expect(base.status).toBe('failed')
     expect(base.sampleSources).toEqual([])
@@ -322,17 +332,20 @@ describe('kb_list', () => {
   })
 
   it('flags itemsUnavailable (not a fabricated empty) when listRootItems throws for a completed base', async () => {
-    knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
     knowledgeServiceListRootItems.mockImplementation(() => {
       throw new Error('boom')
     })
 
-    const [base] = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
-      id: string
-      sampleSources: string[]
-      itemCount?: number
-      itemsUnavailable?: boolean
-    }>
+    const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as {
+      items: Array<{
+        id: string
+        sampleSources: string[]
+        itemCount?: number
+        itemsUnavailable?: boolean
+      }>
+    }
+    const [base] = result.items
     expect(base.id).toBe('kb-1')
     expect(base.sampleSources).toEqual([])
     // A read failure must NOT look like a genuinely empty base: signal it in-band and omit the count.
@@ -341,13 +354,13 @@ describe('kb_list', () => {
   })
 
   it('reports a real itemCount and no itemsUnavailable flag on a successful (empty) read', async () => {
-    knowledgeServiceListBases.mockReturnValue([makeBase({ id: 'kb-1' })])
+    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
     knowledgeServiceListRootItems.mockReturnValue([])
 
-    const [base] = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as Array<{
-      itemCount?: number
-      itemsUnavailable?: boolean
-    }>
+    const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as {
+      items: Array<{ itemCount?: number; itemsUnavailable?: boolean }>
+    }
+    const [base] = result.items
     expect(base.itemCount).toBe(0)
     expect(base.itemsUnavailable).toBeUndefined()
   })
@@ -416,7 +429,7 @@ describe('kb_list', () => {
     type ToModelOutputFn = (opts: {
       toolCallId: string
       input: { query?: string; groupId?: string; baseId?: string }
-      output: Array<{ id: string }>
+      output: { items: Array<{ id: string }>; total: number; nextCursor?: string }
     }) => { type: string; value: unknown }
 
     type OutlineToModelOutputFn = (opts: { toolCallId: string; input: { baseId?: string }; output: unknown }) => {
@@ -426,24 +439,25 @@ describe('kb_list', () => {
 
     it('hints "no bases configured" when output is empty without filters', () => {
       const toModelOutput = entry.tool.toModelOutput as ToModelOutputFn
-      const result = toModelOutput({ toolCallId: 'tc-1', input: {}, output: [] })
+      const result = toModelOutput({ toolCallId: 'tc-1', input: {}, output: { items: [], total: 0 } })
       expect(result.type).toBe('text')
       expect(result.value).toMatch(/no knowledge base/i)
     })
 
     it('hints "broaden the filter" when output is empty but a query/groupId was passed', () => {
       const toModelOutput = entry.tool.toModelOutput as ToModelOutputFn
-      const queryResult = toModelOutput({ toolCallId: 'tc-1', input: { query: 'rust' }, output: [] })
+      const emptyPage = { items: [], total: 0 }
+      const queryResult = toModelOutput({ toolCallId: 'tc-1', input: { query: 'rust' }, output: emptyPage })
       expect(queryResult.type).toBe('text')
       expect(queryResult.value).toMatch(/broader/i)
 
-      const groupResult = toModelOutput({ toolCallId: 'tc-1', input: { groupId: 'g1' }, output: [] })
+      const groupResult = toModelOutput({ toolCallId: 'tc-1', input: { groupId: 'g1' }, output: emptyPage })
       expect(groupResult.value).toMatch(/broader/i)
     })
 
-    it('passes the array through as json when bases are present', () => {
+    it('passes the paged result through as json when bases are present', () => {
       const toModelOutput = entry.tool.toModelOutput as ToModelOutputFn
-      const output = [{ id: 'kb-1' }]
+      const output = { items: [{ id: 'kb-1' }], total: 21, nextCursor: 'cursor-2' }
       const result = toModelOutput({ toolCallId: 'tc-1', input: {}, output })
       expect(result).toEqual({ type: 'json', value: output })
     })

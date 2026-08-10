@@ -51,6 +51,8 @@ export const CITATION_SNIPPET_MAX_CHARS = 300
 // ── kb_list ──────────────────────────────────────────────────────
 
 export const KB_LIST_TOOL_NAME = 'kb_list'
+export const KB_LIST_DEFAULT_LIMIT = 20
+export const KB_LIST_MAX_LIMIT = 50
 
 // kb_list has two modes, selected by `baseId`:
 //   - omit `baseId`  → list the user's knowledge bases (name / group / item count / sample sources),
@@ -68,7 +70,7 @@ export const kbListInputSchema = z.object({
     .min(1)
     .max(200)
     .optional()
-    .describe('List mode only: case-insensitive substring filter against base name and sample sources.'),
+    .describe('List mode only: case-insensitive substring filter against the knowledge base name.'),
   groupId: z
     .string()
     .trim()
@@ -89,7 +91,20 @@ export const kbListInputSchema = z.object({
     .int()
     .nonnegative()
     .optional()
-    .describe('Outline mode only (requires `baseId`): limit the tree to this many folder levels (0 = top level).')
+    .describe('Outline mode only (requires `baseId`): limit the tree to this many folder levels (0 = top level).'),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(KB_LIST_MAX_LIMIT)
+    .default(KB_LIST_DEFAULT_LIMIT)
+    .describe(`List mode only: maximum bases to return (default ${KB_LIST_DEFAULT_LIMIT}, max ${KB_LIST_MAX_LIMIT}).`),
+  cursor: z
+    .string()
+    .trim()
+    .min(1)
+    .optional()
+    .describe('List mode only: continuation cursor returned by the previous kb_list call.')
 })
 
 export const kbListOutputItemSchema = z.object({
@@ -105,7 +120,11 @@ export const kbListOutputItemSchema = z.object({
   itemsUnavailable: z.boolean().optional()
 })
 
-export const kbListOutputSchema = z.array(kbListOutputItemSchema)
+export const kbListOutputSchema = z.object({
+  items: z.array(kbListOutputItemSchema),
+  total: z.number().int().nonnegative(),
+  nextCursor: z.string().optional()
+})
 
 export type KbListInput = z.infer<typeof kbListInputSchema>
 export type KbListOutputItem = z.infer<typeof kbListOutputItemSchema>

@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import type { KnowledgeBaseListResponse, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type {
   CreateKnowledgeBaseDto,
   KnowledgeAddConflictStrategy,
@@ -16,7 +16,7 @@ import type {
 } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
-import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
+import { KnowledgeBaseAdminService, type ListKnowledgeBasesOptions } from './base/KnowledgeBaseAdminService'
 import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
@@ -92,8 +92,8 @@ export class KnowledgeService extends BaseService {
     return await this.baseAdmin.restoreBase(dto)
   }
 
-  listBases(): KnowledgeBase[] {
-    return this.baseAdmin.listBases()
+  listBases(options: ListKnowledgeBasesOptions): KnowledgeBaseListResponse {
+    return this.baseAdmin.listBases(options)
   }
 
   /** Whether the user has any knowledge base at all — a cheap count (not a full list) for tool-availability gating. */

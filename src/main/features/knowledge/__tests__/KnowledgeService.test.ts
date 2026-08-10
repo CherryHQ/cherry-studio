@@ -27,6 +27,7 @@ const {
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
   knowledgeBaseListAllIdsMock,
+  knowledgeBaseListCursorMock,
   knowledgeBaseListMock,
   knowledgeBaseUpdateMock,
   knowledgeItemCreateActiveMock,
@@ -68,6 +69,7 @@ const {
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeBaseListAllIdsMock: vi.fn(),
+  knowledgeBaseListCursorMock: vi.fn(),
   knowledgeBaseListMock: vi.fn(),
   knowledgeBaseUpdateMock: vi.fn(),
   knowledgeItemCreateActiveMock: vi.fn(),
@@ -161,6 +163,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
     delete: knowledgeBaseDeleteMock,
     getById: knowledgeBaseGetByIdMock,
     listAllIds: knowledgeBaseListAllIdsMock,
+    listCursor: knowledgeBaseListCursorMock,
     list: knowledgeBaseListMock,
     update: knowledgeBaseUpdateMock
   }
@@ -327,6 +330,7 @@ describe('KnowledgeService', () => {
     knowledgeBaseDeleteMock.mockReturnValue(undefined)
     knowledgeBaseGetByIdMock.mockReturnValue(createBase())
     knowledgeBaseListAllIdsMock.mockReturnValue(new Set())
+    knowledgeBaseListCursorMock.mockReturnValue({ items: [], total: 0 })
     knowledgeBaseUpdateMock.mockImplementation((_id: string, patch: Partial<KnowledgeBase>) => createBase(patch))
     fsStatMock.mockResolvedValue({
       isFile: () => true,
@@ -2078,6 +2082,30 @@ describe('KnowledgeService', () => {
 
       // Cheap existence check: asks for a single row, never the full list.
       expect(knowledgeBaseListMock).toHaveBeenLastCalledWith({ page: 1, limit: 1 })
+    })
+  })
+
+  describe('listBases', () => {
+    it('returns one filtered cursor page', () => {
+      const firstBase = createBase({ id: 'kb-1', name: 'First' })
+      const page = { items: [firstBase], total: 21, nextCursor: 'cursor-2' }
+      knowledgeBaseListCursorMock.mockReturnValue(page)
+
+      const service = new KnowledgeService()
+
+      expect(
+        service.listBases({
+          limit: 20,
+          cursor: 'cursor-1',
+          search: 'notes',
+          groupId: 'group-1',
+          allowedIds: ['kb-1', 'kb-2']
+        })
+      ).toEqual(page)
+      expect(knowledgeBaseListCursorMock).toHaveBeenCalledWith(
+        { limit: 20, cursor: 'cursor-1', search: 'notes' },
+        { groupId: 'group-1', ids: ['kb-1', 'kb-2'] }
+      )
     })
   })
 

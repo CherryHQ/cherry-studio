@@ -163,7 +163,7 @@ describe('cherryBuiltinTools', () => {
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
     )
 
-    listBases.mockResolvedValue([])
+    listBases.mockResolvedValue({ items: [], total: 0 })
     await knowledge.call('kb_list', {})
 
     expect(listBases).toHaveBeenCalledOnce()
@@ -521,19 +521,37 @@ describe('cherryBuiltinTools', () => {
     expect(textOf(result)).toContain('content')
   })
 
-  it('routes kb_list through KnowledgeService, forwarding positional query/groupId', async () => {
-    listBases.mockReturnValue([
-      { id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 1 },
-      { id: 'b2', name: 'Invoices', groupId: 'g2', status: 'completed', documentCount: 1 }
-    ])
+  it('routes a bounded kb_list page through KnowledgeService with filters and cursor', async () => {
+    listBases.mockReturnValue({
+      items: [{ id: 'b2', name: 'Invoices', groupId: 'g2', status: 'completed', documentCount: 1 }],
+      total: 21,
+      nextCursor: 'cursor-2'
+    })
     listRootItems.mockReturnValue([{ type: 'note', status: 'completed', data: { content: 'Soup' } }])
 
-    // groupId selects g2; if query/groupId were swapped this would filter by name instead and drop b2.
-    const result = await callCherryBuiltinTool('kb_list', { groupId: 'g2' }, signal)
+    const result = await callCherryBuiltinTool(
+      'kb_list',
+      { query: 'invoice', groupId: 'g2', limit: 10, cursor: 'cursor-1' },
+      signal
+    )
 
     const json = JSON.parse(textOf(result))
-    expect(json).toHaveLength(1)
-    expect(json[0]).toMatchObject({ id: 'b2', name: 'Invoices', groupId: 'g2', itemCount: 1, sampleSources: ['Soup'] })
+    expect(json).toMatchObject({ total: 21, nextCursor: 'cursor-2' })
+    expect(json.items).toHaveLength(1)
+    expect(json.items[0]).toMatchObject({
+      id: 'b2',
+      name: 'Invoices',
+      groupId: 'g2',
+      itemCount: 1,
+      sampleSources: ['Soup']
+    })
+    expect(listBases).toHaveBeenCalledWith({
+      limit: 10,
+      cursor: 'cursor-1',
+      search: 'invoice',
+      groupId: 'g2',
+      allowedIds: ['b1', 'b2']
+    })
     expect(listRootItems).toHaveBeenCalledWith('b2')
     expect(listRootItems).not.toHaveBeenCalledWith('b1')
   })
@@ -542,7 +560,10 @@ describe('cherryBuiltinTools', () => {
     // base.documentCount is the configured retrieval top-K (search results to return), not a count of
     // stored documents — it is usually null. Exposing it made the agent report "0 documents" for a
     // populated base. itemCount (root items) is the real count the agent should see.
-    listBases.mockReturnValue([{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 5 }])
+    listBases.mockReturnValue({
+      items: [{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 5 }],
+      total: 1
+    })
     listRootItems.mockReturnValue([
       { type: 'note', status: 'completed', data: { content: 'Soup' } },
       { type: 'note', status: 'completed', data: { content: 'Stew' } }
@@ -550,8 +571,8 @@ describe('cherryBuiltinTools', () => {
 
     const json = JSON.parse(textOf(await callCherryBuiltinTool('kb_list', {}, signal)))
 
-    expect(json[0]).not.toHaveProperty('documentCount')
-    expect(json[0].itemCount).toBe(2)
+    expect(json.items[0]).not.toHaveProperty('documentCount')
+    expect(json.items[0].itemCount).toBe(2)
   })
 
   it('returns a fixed note (not a raw error) when listing the knowledge bases fails', async () => {
@@ -568,10 +589,10 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('forwards the kb_list input to the model-output projection (filtered-empty message)', async () => {
-    listBases.mockReturnValue([{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 1 }])
+    listBases.mockReturnValue({ items: [], total: 0 })
     listRootItems.mockReturnValue([])
 
-    // A query that matches nothing → the "matches the filter" message proves `input` reached the
+    // A query that matches nothing -> the "matches the filter" message proves `input` reached the
     // projection; dropping the forwarded input would yield the generic "no knowledge bases" message.
     const result = await callCherryBuiltinTool('kb_list', { query: 'zzznomatch' }, signal)
 
