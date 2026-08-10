@@ -299,18 +299,15 @@ export function useTopicById(topicId: string | undefined) {
   const { data, isLoading, error, refetch, mutate } = useQuery(`/topics/${topicId}`, {
     enabled: !!topicId
   })
-  useDataChange('/topics/:id', (effects) => {
-    if (
-      topicId &&
-      effects.some(
-        (effect) =>
-          (!effect.routeParams || effect.routeParams.id === topicId) &&
-          (!effect.entityIds || effect.entityIds.includes(topicId))
-      )
-    ) {
-      void mutate()
-    }
-  })
+  useDataChange(
+    '/topics/:id',
+    (effects) => {
+      if (topicId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(topicId))) {
+        void mutate()
+      }
+    },
+    { routeParams: topicId ? { id: topicId } : undefined }
+  )
 
   return {
     topic: data,

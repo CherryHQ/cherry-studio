@@ -204,11 +204,13 @@ export function useTopicMessages(
       })
     }
   })
-  useDataChange('/topics/:topicId/messages', (effects) => {
-    if (enabled && effects.some((effect) => !effect.routeParams || effect.routeParams.topicId === topicId)) {
-      void mutate()
-    }
-  })
+  useDataChange(
+    '/topics/:topicId/messages',
+    () => {
+      if (enabled) void mutate()
+    },
+    { routeParams: { topicId } }
+  )
 
   // Branch endpoint paginates newest-page-first; flipping page order gives a
   // chronological root → activeNode list. `activeNodeId` lives on each page

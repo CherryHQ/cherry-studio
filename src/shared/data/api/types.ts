@@ -606,10 +606,11 @@ export type ScalarGetPaths = Exclude<GetMethodApiPaths, CollectionGetPaths>
  *   returns (e.g. '/pins' uses `Pin.id`, never `Pin.entityId`). Plural — a
  *   batch operation emits one entry.
  * - `routeParams` optionally narrows a template endpoint to concrete path
- *   parameters (for example `{ topicId }`). Consumers whose route parameters
- *   do not match may ignore the effect; omitted means "no claim — assume
- *   relevant". This is separate from `dimension`, which describes a query
- *   family rather than identifying one concrete route instance.
+ *   parameters (for example `{ topicId }`). Renderer subscriptions pass their
+ *   concrete parameters to `useDataChange`, which filters mismatched effects;
+ *   omitted means "no claim — assume relevant". This is separate from
+ *   `dimension`, which describes a query family rather than identifying one
+ *   concrete route instance.
  *
  * The three kinds are facets, NOT mutually exclusive: one write commonly emits
  * several entries for the same endpoint (e.g. a rename is projection +

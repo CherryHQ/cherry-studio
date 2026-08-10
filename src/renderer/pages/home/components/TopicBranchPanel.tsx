@@ -65,11 +65,13 @@ const TopicBranchPanel: FC<Props> = ({
     params: { topicId },
     query: { depth: -1 }
   })
-  useDataChange('/topics/:topicId/tree', (effects) => {
-    if (open && effects.some((effect) => !effect.routeParams || effect.routeParams.topicId === topicId)) {
-      void refetch()
-    }
-  })
+  useDataChange(
+    '/topics/:topicId/tree',
+    () => {
+      if (open) void refetch()
+    },
+    { routeParams: { topicId } }
+  )
   const { trigger: setActiveNode } = useMutation('PUT', '/topics/:id/active-node', {
     refresh: [messagesCachePath, treeCachePath]
   })

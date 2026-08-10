@@ -1111,8 +1111,8 @@ export function usePaginatedQuery<TPath extends ApiPath>(
  * (safe to pass an inline closure — re-renders do not resubscribe).
  *
  * The listener receives, for each notification, the entries matching any of
- * the subscribed endpoints merged into one call. Everything below the
- * endpoint is consumer policy: dimension/entityIds filtering, choosing
+ * the subscribed endpoints and optional route parameters merged into one
+ * call. Everything below the route is consumer policy: dimension/entityIds filtering, choosing
  * revalidate / rebuild / ignore, and idempotency towards echoes of this
  * window's own writes.
  *
@@ -1124,15 +1124,23 @@ export function usePaginatedQuery<TPath extends ApiPath>(
  * // By-ID surface: filter with entityIds (absent = no claim → act)
  * useDataChange('/topics/:id', (effects) => {
  *   if (effects.some((e) => !e.entityIds || e.entityIds.includes(myId))) mutate()
- * })
+ * }, { routeParams: { id: myId } })
  */
+export interface UseDataChangeOptions {
+  /** Concrete parameters for a template endpoint. Effects without a route claim still match. */
+  routeParams?: Readonly<Record<string, string>>
+}
+
 export function useDataChange(
   endpoints: GetMethodApiPaths | GetMethodApiPaths[],
-  listener: (effects: DataApiDataChangeEffect[]) => void
+  listener: (effects: DataApiDataChangeEffect[]) => void,
+  options: UseDataChangeOptions = {}
 ): void {
   const listenerRef = useRef(listener)
+  const routeParamsRef = useRef(options.routeParams)
   useEffect(() => {
     listenerRef.current = listener
+    routeParamsRef.current = options.routeParams
   })
 
   // Value-stable key: a fresh inline array with the same endpoints must not
@@ -1143,7 +1151,17 @@ export function useDataChange(
     // An empty endpoints array yields an empty key — nothing to subscribe to.
     if (endpointsKey === '') return
     const endpointList = endpointsKey.split('\0') as GetMethodApiPaths[]
-    return dataApiService.onDataChanged(endpointList, (effects) => listenerRef.current(effects))
+    return dataApiService.onDataChanged(endpointList, (effects) => {
+      const routeParams = routeParamsRef.current
+      const matchingEffects = routeParams
+        ? effects.filter(
+            (effect) =>
+              !effect.routeParams ||
+              Object.entries(routeParams).every(([key, value]) => effect.routeParams?.[key] === value)
+          )
+        : effects
+      if (matchingEffects.length > 0) listenerRef.current(matchingEffects)
+    })
   }, [endpointsKey])
 }
 
