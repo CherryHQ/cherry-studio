@@ -30,7 +30,7 @@ import type { JSONContent } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
-import { CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
+import { Check, CirclePause, LocateFixed, Maximize2, Minimize2, Pencil, X } from 'lucide-react'
 import React, { startTransition, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -39,7 +39,8 @@ import { COMPOSER_INPUT_MAX_LENGTH, createComposerDraftContent, serializeCompose
 import {
   getComposerClipboardPasteOverride,
   getComposerPlainTextPasteOverride,
-  LONG_TEXT_PASTE_THRESHOLD
+  LONG_TEXT_PASTE_THRESHOLD,
+  PASTED_TEXT_FILE_EXTENSION
 } from './composerPaste'
 import { createComposerEditorPreset } from './composerPreset'
 import { COMPOSER_TOKEN_NODE_NAME, type ComposerTokenRenderer } from './ComposerTokenNode'
@@ -127,6 +128,8 @@ export interface ComposerSurfaceEditingState {
   highlightKey?: number
   onCancel: () => void
   onLocate?: () => void
+  /** Save the edit in place, without resending. Omitted when the send button already saves. */
+  onSave?: (draft: ComposerSerializedDraft) => void | Promise<void>
 }
 
 type ComposerSurfaceSendAccessoryRenderer = (
@@ -377,8 +380,8 @@ const getTrackedTokenSignature = (tokens: readonly ComposerSerializedToken[]) =>
     )
     .join('\n')
 
-function shouldDelegateLongTextPasteToFileHandler(text: string) {
-  return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD)
+function shouldDelegateLongTextPasteToFileHandler(text: string, supportedExts: readonly string[]) {
+  return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD && supportedExts.includes(PASTED_TEXT_FILE_EXTENSION))
 }
 
 function insertComposerPastedContent(editor: Editor, content: JSONContent[]) {
@@ -1674,7 +1677,8 @@ export default function ComposerSurface({
         return true
       }
 
-      if (shouldDelegateLongTextPasteToFileHandler(pastedText)) {
+      const shouldDelegateLongTextPaste = shouldDelegateLongTextPasteToFileHandler(pastedText, supportedExts)
+      if (shouldDelegateLongTextPaste) {
         event.preventDefault()
         void handlePaste(event)
         return true
@@ -1714,6 +1718,7 @@ export default function ComposerSurface({
       }
 
       const plainTextOverride = getComposerPlainTextPasteOverride(textToInsert, {
+        inlineLongText: !shouldDelegateLongTextPaste,
         promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
         resolveSkillMarker,
         resolveKnowledgeBaseMarker
@@ -1742,7 +1747,7 @@ export default function ComposerSurface({
       void handlePaste(event)
       return false
     },
-    [handlePaste, resolveSkillMarker, resolveKnowledgeBaseMarker]
+    [handlePaste, resolveSkillMarker, resolveKnowledgeBaseMarker, supportedExts]
   )
 
   const editor = useRichTextEditorKernel({
@@ -1988,6 +1993,16 @@ export default function ComposerSurface({
     showBlockedSendReason
   ])
 
+  const onSaveEditing = editingState?.onSave
+  const saveEditingDraft = useCallback(() => {
+    if (!editor || !onSaveEditing) return
+    if (sendDisabled) {
+      showBlockedSendReason()
+      return
+    }
+    void onSaveEditing(serializeComposerDocument(editor))
+  }, [editor, onSaveEditing, sendDisabled, showBlockedSendReason])
+
   const handleExpandControlClick = useCallback(() => {
     if (hasCustomHeight) {
       restoreDefaultHeight()
@@ -2121,6 +2136,19 @@ export default function ComposerSurface({
               className="shrink-0 rounded-full text-muted-foreground! hover:bg-accent hover:text-foreground!"
               aria-label={t('chat.input.locate_editing_message')}>
               <LocateFixed size={14} />
+            </Button>
+          </Tooltip>
+        ) : null}
+        {onSaveEditing ? (
+          <Tooltip content={t('common.save')}>
+            <Button
+              type="button"
+              onClick={saveEditingDraft}
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0 rounded-full text-muted-foreground! hover:bg-accent hover:text-foreground!"
+              aria-label={t('common.save')}>
+              <Check size={14} />
             </Button>
           </Tooltip>
         ) : null}

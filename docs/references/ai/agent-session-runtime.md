@@ -183,8 +183,12 @@ The driver converts Claude SDK messages into runtime events:
   `assistant` messages are a whole-snapshot usage candidate when the terminal
   delta omits usage. Gateway-owned connections do not emit this record input;
 - `system/init` -> `resume-token`;
-- `result` -> flush pending per-request usage, then `resume-token`, a cumulative
-  usage metadata `chunk` for live UI, `context-usage`, and `turn-complete`;
+- a successful `result` -> flush pending per-request usage, then `resume-token`, a
+  cumulative usage metadata `chunk` for live UI, `context-usage`, and `turn-complete`;
+- a failed `result` -> preserve its final usage and resume token, then emit `error` and
+  tear down the connection. This includes SDK envelopes whose subtype is `success` but
+  whose `is_error`, `terminal_reason: 'api_error'`, or `api_error_status` fields report
+  an API failure;
 - a `PreToolUse` steer injection (armed by `redirect()`) -> `steer-boundary`
   before the post-steer assistant message; a steer the turn never injected
   -> `steer-undelivered`;
