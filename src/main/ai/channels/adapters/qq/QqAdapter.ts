@@ -429,16 +429,17 @@ class QqAdapter extends ChannelAdapter {
     await this.processMessage(msg, chatId, msg.author.member_openid ?? msg.author.id, msg.author.username ?? '')
   }
 
-  /** Mark a msg id as seen for dedup purposes. Trims the map when it exceeds the max. */
+  /**
+   * Mark a msg id as seen for dedup purposes.  Enforces the advertised
+   * cap with oldest-first eviction — mirroring `recordInbound` — so the
+   * map can never grow beyond the cap regardless of TTL.
+   */
   private markSeen(msgId: string): void {
-    const now = Date.now()
-    this.seenMsgIds.set(msgId, now)
-    if (this.seenMsgIds.size > this.DEDUP_MAX_ENTRIES) {
-      // Evict entries older than DEDUP_TTL
-      const cutoff = now - this.DEDUP_TTL_MS
-      for (const [id, ts] of this.seenMsgIds) {
-        if (ts < cutoff) this.seenMsgIds.delete(id)
-      }
+    this.seenMsgIds.set(msgId, Date.now())
+    while (this.seenMsgIds.size > this.DEDUP_MAX_ENTRIES) {
+      const oldest = this.seenMsgIds.keys().next().value
+      if (oldest === undefined) break
+      this.seenMsgIds.delete(oldest)
     }
   }
 
