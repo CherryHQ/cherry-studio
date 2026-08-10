@@ -710,6 +710,8 @@ describe('cherryBuiltinTools', () => {
 describe('CherryBuiltinToolsServer autonomy tool registration', () => {
   const agentContext = {
     agentId: 'agent_1',
+    agentDataPath: '/tmp/agent-data',
+    sessionId: 'session-1',
     workspaceSource: { type: 'system' as const },
     workspacePath: '/tmp/workspace',
     getKnowledgeBaseIds: () => KB_SCOPE
@@ -720,7 +722,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     const handlers = (server.mcpServer.server as any)._requestHandlers
     const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
     const names = result.tools.map((t: any) => t.name)
-    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config']))
+    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config', 'to_markdown']))
     expect(names).toEqual(expect.arrayContaining(listCherryBuiltinTools(['kb-1']).map((t) => t.name)))
   })
 
@@ -729,8 +731,10 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     const handlers = (server.mcpServer.server as any)._requestHandlers
     const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
     const names = result.tools.map((t: any) => t.name)
-    // Autonomy + stateless builtins stay; only the knowledge tools drop out.
-    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config', 'web_search', 'generate_image']))
+    // Autonomy, document conversion, and stateless builtins stay; only the knowledge tools drop out.
+    expect(names).toEqual(
+      expect.arrayContaining(['cron', 'notify', 'config', 'to_markdown', 'web_search', 'generate_image'])
+    )
     expect(names).not.toContain('kb_search')
     expect(names).not.toContain('kb_read')
     expect(names).not.toContain('kb_list')

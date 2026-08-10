@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
@@ -88,6 +88,12 @@ import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } 
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+/**
+ * Grace period before a session with no remaining warm-lease holders is actually torn down.
+ * Absorbs <Activity> tab switches, where the session view releases on hide and re-acquires on
+ * show within moments.
+ */
+const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
@@ -116,6 +122,8 @@ export interface BeginAgentSessionTurnInput {
   traceId?: string
   /** Author snapshot (agent + nested model) stamped onto every assistant row this turn produces. */
   messageSnapshot?: MessageSnapshot
+  /** Only an untouched session's initial turn may run the two-stage automatic naming flow. */
+  shouldAutoName?: boolean
 }
 
 export interface AgentSessionRuntimeHandle {
@@ -155,6 +163,8 @@ type AgentSessionTurn = {
   modelId: UniqueModelId
   /** Immutable author snapshot captured when this exact turn was submitted. */
   messageSnapshot?: MessageSnapshot
+  /** Whether this initial turn owns the session's one automatic AI naming attempt. */
+  shouldAutoName?: boolean
   reasoningEffort: ReasoningEffortOption
   knowledgeBaseIds: readonly string[]
   fastMode: boolean
@@ -276,6 +286,10 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 
 @Injectable('AgentSessionRuntimeService')
 @ServicePhase(Phase.WhenReady)
+// The dependency is runtime, not lexical: this service's connections spawn CLI children through
+// ClaudeCodeProcessManager. Declaring it keeps that owner stopping LAST, so its sweep runs after
+// these entries are closed — do not drop it as unused. Covered by a stop-order test.
+@DependsOn(['ClaudeCodeProcessManager'])
 export class AgentSessionRuntimeService extends BaseService {
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
@@ -292,6 +306,16 @@ export class AgentSessionRuntimeService extends BaseService {
   >()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
+  /** Warm-lease holders by session: the window WebContents currently displaying it. The runtime
+   *  connection is shared per-session across windows, so its view-close teardown may only start
+   *  once this set is empty — a renderer-local count can neither see other windows nor survive
+   *  their crash. */
+  private readonly warmLeaseHolders = new Map<string, Set<Electron.WebContents>>()
+  /** One destroyed-listener per holder window, so a window that dies without releasing (crash,
+   *  forced close — renderer cleanup never runs) is reaped from every session it held. */
+  private readonly warmLeaseSenders = new Map<Electron.WebContents, { sessionIds: Set<string>; dispose: () => void }>()
+  /** Armed grace timers for sessions whose last holder released (see WARM_LEASE_RELEASE_DELAY_MS). */
+  private readonly pendingWarmTeardowns = new Map<string, NodeJS.Timeout>()
 
   protected async onInit(): Promise<void> {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
@@ -402,6 +426,7 @@ export class AgentSessionRuntimeService extends BaseService {
       userMessage,
       modelId: input.modelId,
       messageSnapshot,
+      shouldAutoName: input.shouldAutoName === true,
       reasoningEffort: input.reasoningEffort ?? 'default',
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []) ?? [],
       fastMode: input.fastMode === true,
@@ -435,7 +460,7 @@ export class AgentSessionRuntimeService extends BaseService {
       }
     }
 
-    if (existing) this.closeSession(input.sessionId)
+    if (existing) void this.closeSession(input.sessionId)
 
     const entry: AgentSessionRuntimeEntry = {
       sessionId: input.sessionId,
@@ -570,7 +595,7 @@ export class AgentSessionRuntimeService extends BaseService {
       // A turn may have superseded/cleared this entry while connecting — leave its lifecycle to it.
       if (this.entries.get(sessionId) !== entry) return
       if (!connected) {
-        this.closeSession(sessionId)
+        void this.closeSession(sessionId)
         return
       }
       // Still idle (no turn took over): arm the TTL so an unused primed connection self-closes.
@@ -677,7 +702,7 @@ export class AgentSessionRuntimeService extends BaseService {
     if (this.liveTurn(entry)) {
       application.get('AiStreamManager').pauseRuntimeTurn(entry.topicId, 'agent-model-cleared')
     }
-    this.closeSession(entry.sessionId)
+    void this.closeSession(entry.sessionId)
   }
 
   openTurnStream(input: OpenAgentSessionTurnStreamInput): ReadableStream<UIMessageChunk> {
@@ -696,7 +721,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
           // A user Stop is the only abort source now (steer no longer interrupts) — tear the
           // session down so `connection.close()` kills the warm query and its subagent.
-          const onAbort = () => this.closeSession(entry.sessionId)
+          const onAbort = () => void this.closeSession(entry.sessionId)
           if (input.signal.aborted) {
             onAbort()
             return
@@ -830,11 +855,19 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  closeSession(sessionId: string): void {
+  closeSession(sessionId: string): Promise<void> {
     const entry = this.entries.get(sessionId)
-    if (!entry) return
-    this.closeEntry(entry)
+    if (!entry) return Promise.resolve()
+    const fallbackConnection = this.currentConnection(entry)
+    let closing: Promise<void>
+    try {
+      closing = this.closeEntry(entry)
+    } catch (error) {
+      logger.warn('Agent runtime entry close failed', { sessionId, error })
+      closing = this.closeRuntimeConnection(fallbackConnection, sessionId)
+    }
     if (this.entries.get(sessionId) === entry) this.entries.delete(sessionId)
+    return closing
   }
 
   /**
@@ -847,7 +880,112 @@ export class AgentSessionRuntimeService extends BaseService {
     const idleEntry = this.entries.get(sessionId)
     if (idleEntry && hasAgentSessionRuntimeBackgroundWork(idleEntry.runtimeState)) return
     if (this.isSessionBusy(sessionId)) return
-    this.closeSession(sessionId)
+    void this.closeSession(sessionId)
+  }
+
+  /**
+   * Acquire a warm-connection lease for a window displaying this session. The first holder primes
+   * the connection ({@link primeConnection}); later holders re-prime so the slash-command catalog
+   * is republished for windows that mount after the initial publish. An unmanaged sender (no
+   * WebContents) cannot be tracked as a holder — it still primes, and the idle TTL reaps the
+   * connection if nothing else holds it.
+   */
+  acquireWarmLease(sessionId: string, sender: Electron.WebContents | undefined): void {
+    const pendingTeardown = this.pendingWarmTeardowns.get(sessionId)
+    if (pendingTeardown) {
+      clearTimeout(pendingTeardown)
+      this.pendingWarmTeardowns.delete(sessionId)
+    }
+    if (sender && !sender.isDestroyed()) {
+      let holders = this.warmLeaseHolders.get(sessionId)
+      if (!holders) {
+        holders = new Set()
+        this.warmLeaseHolders.set(sessionId, holders)
+      }
+      holders.add(sender)
+      this.trackWarmLeaseSender(sessionId, sender)
+    }
+    // A canceled pending teardown means the backend is still warm and its catalog cache intact —
+    // skip the redundant re-prime.
+    if (!pendingTeardown) {
+      void this.primeConnection(sessionId)
+    }
+  }
+
+  /**
+   * Release one window's warm lease. The actual teardown (warm-query park + primed connection)
+   * starts only when no window holds the session anymore, and then only after
+   * {@link WARM_LEASE_RELEASE_DELAY_MS} with no re-acquire.
+   */
+  releaseWarmLease(sessionId: string, sender: Electron.WebContents | undefined): void {
+    if (sender) {
+      const record = this.warmLeaseSenders.get(sender)
+      if (record) {
+        record.sessionIds.delete(sessionId)
+        if (record.sessionIds.size === 0) {
+          this.warmLeaseSenders.delete(sender)
+          record.dispose()
+        }
+      }
+      this.dropWarmLeaseHolder(sessionId, sender)
+      return
+    }
+    // Unmanaged sender: it was never tracked as a holder, so only tear down when no managed
+    // window holds the session either.
+    if (!this.warmLeaseHolders.has(sessionId)) this.scheduleWarmTeardown(sessionId)
+  }
+
+  private trackWarmLeaseSender(sessionId: string, sender: Electron.WebContents): void {
+    let record = this.warmLeaseSenders.get(sender)
+    if (!record) {
+      const onDestroyed = () => this.releaseWarmLeasesForSender(sender)
+      sender.once('destroyed', onDestroyed)
+      record = { sessionIds: new Set(), dispose: () => sender.removeListener('destroyed', onDestroyed) }
+      this.warmLeaseSenders.set(sender, record)
+    }
+    record.sessionIds.add(sessionId)
+  }
+
+  private releaseWarmLeasesForSender(sender: Electron.WebContents): void {
+    const record = this.warmLeaseSenders.get(sender)
+    if (!record) return
+    this.warmLeaseSenders.delete(sender)
+    record.dispose()
+    for (const sessionId of record.sessionIds) {
+      this.dropWarmLeaseHolder(sessionId, sender)
+    }
+  }
+
+  private dropWarmLeaseHolder(sessionId: string, sender: Electron.WebContents): void {
+    const holders = this.warmLeaseHolders.get(sessionId)
+    // Unknown holder (double release, or release without acquire): leave teardown to the idle TTL
+    // rather than guessing another window's state.
+    if (!holders?.delete(sender)) return
+    if (holders.size > 0) return
+    this.warmLeaseHolders.delete(sessionId)
+    this.scheduleWarmTeardown(sessionId)
+  }
+
+  private scheduleWarmTeardown(sessionId: string): void {
+    const existing = this.pendingWarmTeardowns.get(sessionId)
+    if (existing) clearTimeout(existing)
+    const timer = setTimeout(() => {
+      this.pendingWarmTeardowns.delete(sessionId)
+      // Prewarm opens a real runtime connection, so releasing the warm-query park alone would
+      // leak the primed subprocess until the idle TTL.
+      application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
+      this.releaseIdleConnection(sessionId)
+    }, WARM_LEASE_RELEASE_DELAY_MS)
+    timer.unref()
+    this.pendingWarmTeardowns.set(sessionId, timer)
+  }
+
+  private disposeWarmLeases(): void {
+    for (const timer of this.pendingWarmTeardowns.values()) clearTimeout(timer)
+    this.pendingWarmTeardowns.clear()
+    for (const record of this.warmLeaseSenders.values()) record.dispose()
+    this.warmLeaseSenders.clear()
+    this.warmLeaseHolders.clear()
   }
 
   /**
@@ -1101,15 +1239,25 @@ export class AgentSessionRuntimeService extends BaseService {
     return true
   }
 
-  protected onStop(): void {
+  protected async onStop(): Promise<void> {
     this.isShuttingDown = true
-    this.closeAll()
-    toolApprovalRegistry.clear('agent-session-runtime-stop')
+    this.disposeWarmLeases()
+    try {
+      toolApprovalRegistry.clear('agent-session-runtime-stop')
+    } catch (error) {
+      logger.warn('Failed to clear agent runtime approvals during stop', { error })
+    }
+    await this.closeAll()
   }
 
-  protected onDestroy(): void {
-    this.closeAll()
-    toolApprovalRegistry.clear('agent-session-runtime-destroy')
+  protected async onDestroy(): Promise<void> {
+    this.disposeWarmLeases()
+    await this.closeAll()
+    try {
+      toolApprovalRegistry.clear('agent-session-runtime-destroy')
+    } catch (error) {
+      logger.warn('Failed to clear agent runtime approvals during destroy', { error })
+    }
   }
 
   private isCurrentEntry(entry: AgentSessionRuntimeEntry): boolean {
@@ -1244,7 +1392,7 @@ export class AgentSessionRuntimeService extends BaseService {
             this.closeConnectionAsync(entry)
             continue
           case 'invalid':
-            this.closeSession(entry.sessionId)
+            void this.closeSession(entry.sessionId)
             return false
         }
       }
@@ -1304,17 +1452,13 @@ export class AgentSessionRuntimeService extends BaseService {
       onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
     })
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
-      void Promise.resolve(connection.close()).catch((error) =>
-        logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
-      )
+      void this.closeRuntimeConnection(connection, entry.sessionId)
       return false
     }
 
     this.applyRuntimeStateEvent(entry, { type: 'connection-connected', attemptId, connection })
     if (this.currentConnection(entry) !== connection) {
-      void Promise.resolve(connection.close()).catch((error) =>
-        logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
-      )
+      void this.closeRuntimeConnection(connection, entry.sessionId)
       return false
     }
     entry.usageCapture = connection.usageCapture
@@ -2535,7 +2679,7 @@ export class AgentSessionRuntimeService extends BaseService {
    * `startNextTurn` this sends NOTHING to the connection (the steer is already in flight via the
    * PreToolUse hook) — the turn is pre-`admitted` so `admitTurn` no-ops, and the still-streaming SDK
    * turn's post-steer chunks are owned by the steer-transition state until A2 opens its stream.
-   * The steer message is reused only for rename/seed context — U2 is already a persisted row.
+   * The steer message is reused only for seed context — U2 is already a persisted row.
    */
   private async startContinuationTurn(entry: AgentSessionRuntimeEntry): Promise<void> {
     const transition = entry.runtimeState.execution
@@ -2735,6 +2879,11 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     const { assistantMessageId, modelId } = currentTurn
     const userText = extractMessageText(userMessage)
+    const afterPersist = currentTurn.shouldAutoName
+      ? async (finalMessage: CherryUIMessage) => {
+          await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
+        }
+      : undefined
     return new PersistenceListener({
       topicId: entry.topicId,
       modelId,
@@ -2743,9 +2892,7 @@ export class AgentSessionRuntimeService extends BaseService {
         assistantMessageId,
         modelId,
         runtimeResumeToken: () => entry.lastResumeToken,
-        afterPersist: async (finalMessage) => {
-          await topicNamingService.maybeRenameAgentSession(entry.agentId, entry.sessionId, userText, finalMessage)
-        }
+        afterPersist
       }),
       onPersistFailed: (error) =>
         application.get('AiStreamManager').broadcastTopicError(entry.topicId, entry.modelId, error)
@@ -2766,7 +2913,7 @@ export class AgentSessionRuntimeService extends BaseService {
         return
       }
       const { sessionId, agentType, lastResumeToken } = entry
-      this.closeSession(sessionId)
+      void this.closeSession(sessionId)
       if (lastResumeToken) {
         runtimeDriverRegistry.getAgentSessionDriver(agentType)?.onSessionIdle?.(sessionId)
       }
@@ -2781,13 +2928,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
   }
 
-  private closeAll(): void {
-    for (const sessionId of [...this.entries.keys()]) {
-      this.closeSession(sessionId)
-    }
+  private closeAll(): Promise<void> {
+    const closings = [...this.entries.keys()].map((sessionId) => this.closeSession(sessionId))
+    return Promise.allSettled(closings).then(() => undefined)
   }
 
-  private closeEntry(entry: AgentSessionRuntimeEntry): void {
+  private closeEntry(entry: AgentSessionRuntimeEntry): Promise<void> {
     this.clearIdleTimer(entry)
     for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
       const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
@@ -2821,9 +2967,7 @@ export class AgentSessionRuntimeService extends BaseService {
     this.connectionAttempts.delete(entry.sessionId)
     this.inFlightTurnStarts.delete(entry.sessionId)
 
-    void Promise.resolve(connection?.close()).catch((error) =>
-      logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
-    )
+    return this.closeRuntimeConnection(connection, entry.sessionId)
   }
 
   private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
@@ -2849,9 +2993,19 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private closeConnectionAsync(entry: AgentSessionRuntimeEntry): void {
     const connection = this.closeConnection(entry)
-    void Promise.resolve(connection?.close()).catch((error) =>
-      logger.warn('Agent runtime connection close failed', { sessionId: entry.sessionId, error })
-    )
+    void this.closeRuntimeConnection(connection, entry.sessionId)
+  }
+
+  private closeRuntimeConnection(connection: AgentRuntimeConnection | undefined, sessionId: string): Promise<void> {
+    if (!connection) return Promise.resolve()
+    try {
+      return Promise.resolve(connection.close()).catch((error) => {
+        logger.warn('Agent runtime connection close failed', { sessionId, error })
+      })
+    } catch (error) {
+      logger.warn('Agent runtime connection close failed', { sessionId, error })
+      return Promise.resolve()
+    }
   }
 }
 

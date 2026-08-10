@@ -254,11 +254,7 @@ describe('loadKnowledgeItemDocuments', () => {
   it.each([
     ['.doc', fallbackReaderSpies.doc],
     ['.docx', fallbackReaderSpies.docx],
-    ['.epub', fallbackReaderSpies.epub],
-    ['.ppt', fallbackReaderSpies.text],
-    ['.pptx', fallbackReaderSpies.text],
-    ['.xls', fallbackReaderSpies.text],
-    ['.xlsx', fallbackReaderSpies.text]
+    ['.epub', fallbackReaderSpies.epub]
   ])('routes %s files through anydoc with the intended fallback reader', async (ext, expectedFallback) => {
     const content = new Uint8Array([1, 2, 3])
     const reader = createSupportedFileReader(`/tmp/sample${ext}` as AbsoluteFilePath)
@@ -267,6 +263,19 @@ describe('loadKnowledgeItemDocuments', () => {
 
     expect(expectedFallback).toHaveBeenCalledWith(content, `sample${ext}`)
   })
+
+  it.each(['.ppt', '.pptx', '.xls', '.xlsx'])(
+    'throws instead of falling back to TextFileReader for %s when anydoc conversion fails',
+    async (ext) => {
+      const failure = new Error('anydoc conversion failed')
+      toMarkdownBytesMock.mockRejectedValueOnce(failure)
+      const content = new Uint8Array([1, 2, 3])
+      const reader = createSupportedFileReader(`/tmp/sample${ext}` as AbsoluteFilePath)
+
+      await expect(reader.loadDataAsContent(content, `sample${ext}`)).rejects.toBe(failure)
+      expect(fallbackReaderSpies.text).not.toHaveBeenCalled()
+    }
+  )
 
   it('uses the EPUB fallback when anydoc produces no text', async () => {
     toMarkdownBytesMock.mockResolvedValue('')

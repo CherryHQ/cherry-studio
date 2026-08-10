@@ -1,16 +1,16 @@
 import { createHash } from 'node:crypto'
 
 import type { Options, WarmQuery } from '@anthropic-ai/claude-agent-sdk'
-import { startup } from '@anthropic-ai/claude-agent-sdk'
 import { application } from '@application'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { deriveRootSpanId } from '@shared/data/types/trace'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import type { AgentSessionUsageCapture } from '../types'
 import { buildClaudeCodeWarmQueryRequestForAgentSession } from './agentSessionWarmup'
+import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 
 const logger = loggerService.withContext('ClaudeCodeWarmQueryManager')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
@@ -18,6 +18,7 @@ const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
 type WarmQueryEntry = {
   signature: string
   promise: Promise<WarmQuery | undefined>
+  closePromise?: Promise<void>
   usageCapture?: AgentSessionUsageCapture
   idleTimer?: ReturnType<typeof setTimeout>
 }
@@ -145,6 +146,9 @@ export function createClaudeCodeWarmQuerySignature(
 
 @Injectable('ClaudeCodeWarmQueryManager')
 @ServicePhase(Phase.WhenReady)
+// Warm queries spawn CLI children through ClaudeCodeProcessManager. Declaring it keeps that owner
+// stopping LAST, so its sweep runs after these entries are disposed — do not drop it as unused.
+@DependsOn(['ClaudeCodeProcessManager'])
 export class ClaudeCodeWarmQueryManager extends BaseService {
   private readonly entries = new Map<string, WarmQueryEntry>()
 
@@ -155,7 +159,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     try {
       const warmRequest = await buildClaudeCodeWarmQueryRequestForAgentSession(sessionId)
       if (!warmRequest) return
-      this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
+      await this.prewarm(await this.withTraceEnv(sessionId, warmRequest))
     } catch (error) {
       logger.warn('Failed to prewarm agent session', { sessionId, error })
     }
@@ -188,15 +192,16 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   }
 
   closeAgentSessionWarm(sessionId: string): void {
-    try {
-      this.close(sessionId)
-    } catch (error) {
+    void this.close(sessionId).catch((error) => {
       logger.debug('Failed to close agent session warm query', { sessionId, error })
-    }
+    })
   }
 
-  prewarm(request: WarmQueryRequest): void {
-    const warmOptions = stripWarmQueryOptions(request.options)
+  async prewarm(request: WarmQueryRequest): Promise<void> {
+    // Delayed loading: the agent SDK stays out of the boot path and loads on first prewarm. The
+    // single await sits before any `entries` access, so the body below still runs without gaps.
+    const { startup } = await import('@anthropic-ai/claude-agent-sdk')
+    const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
@@ -210,7 +215,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     }
 
     if (existing) {
-      this.closeEntry(existing)
+      void this.closeEntry(existing)
     }
 
     const promise = startup({ options: warmOptions, initializeTimeoutMs: request.initializeTimeoutMs }).catch(
@@ -229,7 +234,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
   }
 
   async consume(request: WarmQueryRequest): Promise<ConsumedWarmQuery | undefined> {
-    const warmOptions = stripWarmQueryOptions(request.options)
+    const warmOptions = { ...stripWarmQueryOptions(request.options), spawnClaudeCodeProcess }
     const signature = createClaudeCodeWarmQuerySignature(
       warmOptions,
       request.credentialsFingerprint,
@@ -242,7 +247,7 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
 
     if (entry.signature !== signature) {
-      this.closeEntry(entry)
+      void this.closeEntry(entry)
       return undefined
     }
 
@@ -251,25 +256,25 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     return { warmQuery, usageCapture: entry.usageCapture }
   }
 
-  close(key: string): void {
+  close(key: string): Promise<void> {
     const entry = this.entries.get(key)
-    if (!entry) return
+    if (!entry) return Promise.resolve()
     this.entries.delete(key)
-    this.closeEntry(entry)
+    return this.closeEntry(entry)
   }
 
-  closeAll(): void {
+  closeAll(): Promise<void> {
     const entries = [...this.entries.values()]
     this.entries.clear()
-    for (const entry of entries) this.closeEntry(entry)
+    return Promise.allSettled(entries.map((entry) => this.closeEntry(entry))).then(() => undefined)
   }
 
-  protected onStop(): void {
-    this.closeAll()
+  protected onStop(): Promise<void> {
+    return this.closeAll()
   }
 
-  protected onDestroy(): void {
-    this.closeAll()
+  protected onDestroy(): Promise<void> {
+    return this.closeAll()
   }
 
   private refreshIdleTimer(key: string, entry: WarmQueryEntry): void {
@@ -277,19 +282,21 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
     entry.idleTimer = setTimeout(() => {
       if (this.entries.get(key) !== entry) return
       this.entries.delete(key)
-      this.closeEntry(entry)
+      void this.closeEntry(entry)
     }, DEFAULT_IDLE_TTL_MS)
     entry.idleTimer.unref?.()
   }
 
-  private closeEntry(entry: WarmQueryEntry): void {
+  private closeEntry(entry: WarmQueryEntry): Promise<void> {
+    if (entry.closePromise) return entry.closePromise
     if (entry.idleTimer) clearTimeout(entry.idleTimer)
-    void entry.promise
-      .then((warmQuery) => {
-        warmQuery?.close()
+    entry.closePromise = entry.promise
+      .then(async (warmQuery) => {
+        await warmQuery?.[Symbol.asyncDispose]()
       })
       .catch((error) => {
         logger.debug('Ignoring warm query close after failed startup', { error })
       })
+    return entry.closePromise
   }
 }

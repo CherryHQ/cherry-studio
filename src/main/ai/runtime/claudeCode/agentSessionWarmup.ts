@@ -111,6 +111,7 @@ interface ConnectionMaterializationFacts {
   skills: string[]
   linkedChannelId: string | null
   contextWindow: number | null
+  maxOutputTokens: number | null
   proxyEnvironmentFingerprint: string
 }
 
@@ -338,6 +339,7 @@ async function deriveConnectionConfigFromSnapshot(
   const provider = providerService.getByProviderId(providerId)
   const model = modelService.getByKey(providerId, modelId)
   const contextWindow = materialized ? materialized.contextWindow : (model.contextWindow ?? null)
+  const maxOutputTokens = materialized ? materialized.maxOutputTokens : (model.maxOutputTokens ?? null)
   const effectiveFastMode = fastMode && isSupportFastMode(provider, model)
   let routeFacts = materialized?.route
   if (!routeFacts) {
@@ -363,12 +365,17 @@ async function deriveConnectionConfigFromSnapshot(
   const rebuildFacts = {
     modelId: uniqueModelId,
     contextWindow,
+    maxOutputTokens,
     reasoningEffort,
     fastMode: effectiveFastMode,
     route: buildRebuildRouteFacts(routeFacts),
     cwd,
     language: getAppLanguage(),
     instructions: agent.instructions ?? null,
+    // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
+    // connection snapshots instead of invalidating this signature every turn.
+    promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
+    promptModelName: agent.modelName || null,
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),
@@ -461,6 +468,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   // settings, and skill materialization can otherwise make the baseline describe a different
   // compaction window from the one actually passed to Claude Code.
   const contextWindow = model.contextWindow
+  const maxOutputTokens = model.maxOutputTokens
   const fastModeTransport = fastMode && isSupportFastMode(provider, model) ? provider.fastMode.transport : undefined
   const thinkingOptions = resolveClaudeCodeThinkingOptions(model, reasoningEffort)
   const { baseUrl } = resolveEffectiveEndpoint(provider, model)
@@ -497,6 +505,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       provider,
       {
         contextWindow,
+        maxOutputTokens,
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
@@ -525,6 +534,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       skills: settings.skills ?? [],
       linkedChannelId: linkedChannelSnapshot?.id ?? null,
       contextWindow: contextWindow ?? null,
+      maxOutputTokens: maxOutputTokens ?? null,
       proxyEnvironmentFingerprint: createAgentProxyEnvironmentFingerprint(settings.env ?? {}, {
         additionalBypassRule: gatewayBypassRule(route)
       })
@@ -817,9 +827,20 @@ function resolveRuntimeModelRef(
   }
 }
 
+/**
+ * The Claude Agent SDK only ever speaks Anthropic Messages, so the direct route asks the shared
+ * resolver for that dialect instead of taking the in-app-chat default (`endpointTypes[0]`). A model
+ * that declares `anthropic-messages` behind another dialect — DeepSeek V4 Flash lists it third — would
+ * otherwise be pushed onto the gateway, which re-serializes the SDK's native thinking blocks into a
+ * dialect that cannot carry them back. The resolver declines the preference when the model does not
+ * declare the endpoint or the provider configures no base URL for it, which this comparison detects.
+ */
 function usesAnthropicMessagesEndpoint(ref: RuntimeModelRef): boolean {
   if (!ref.provider || !ref.model) return false
-  return resolveEffectiveEndpoint(ref.provider, ref.model).endpointType === ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  return (
+    resolveEffectiveEndpoint(ref.provider, ref.model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType ===
+    ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+  )
 }
 
 async function resolveApiGatewayRuntime(sessionId: string): Promise<{

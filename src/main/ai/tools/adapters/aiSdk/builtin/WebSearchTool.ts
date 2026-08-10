@@ -30,9 +30,6 @@ const webSearchTool = tool({
   description: WEB_SEARCH_DESCRIPTION,
   inputSchema: webSearchInputSchema,
   outputSchema: webSearchResultSchema,
-  // Provider-level constrained decoding where supported. Repair fallback
-  // (in AiService) handles providers that don't honour `strict`.
-  strict: true,
   execute: async ({ query }, options) => {
     if (typeof query !== 'string' || !query.trim()) {
       return []

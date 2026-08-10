@@ -81,60 +81,11 @@ async function qwenUserText(scope: RequestScope): Promise<string> {
 }
 
 describe('INTERNAL_FEATURES — decision matrix', () => {
-  it('bare anthropic scope (no assistant): only the always-on context-build activates (pdf-compatibility was removed)', () => {
+  it('bare anthropic scope (no assistant): only the always-on features activate (pdf-compatibility was removed)', () => {
     expect(activeNames(makeScope({ provider: { id: 'anthropic' }, model: {}, aiSdkProviderId: 'anthropic' }))).toEqual([
-      'context-build'
+      'context-build',
+      'tool-schema-compatibility'
     ])
-  })
-
-  it('gemini tool-schema compatibility follows the OpenAI Chat wire across adapter families', () => {
-    const scopes = [
-      makeScope({
-        provider: { id: 'custom' },
-        model: { id: 'custom::gemini-3-5-flash-lite' },
-        endpointType: 'openai-chat-completions',
-        aiSdkProviderId: 'openai-compatible'
-      }),
-      makeScope({
-        provider: { id: 'openai' },
-        model: { id: 'openai::gemini-3-5-flash-lite' },
-        endpointType: 'openai-chat-completions',
-        aiSdkProviderId: 'openai-chat'
-      }),
-      makeScope({
-        provider: { id: 'aihubmix' },
-        model: { id: 'aihubmix::gemini-2.5-flash' },
-        endpointType: 'openai-chat-completions',
-        aiSdkProviderId: 'aihubmix'
-      })
-    ]
-
-    for (const scope of scopes) {
-      expect(activeNames(scope)).toContain('gemini-tool-schema-compatibility')
-    }
-  })
-
-  it('gemini tool-schema compatibility stays off native Google and non-Gemini wires', () => {
-    expect(
-      activeNames(
-        makeScope({
-          provider: { id: 'gemini' },
-          model: { id: 'gemini::gemini-3-5-flash-lite' },
-          endpointType: 'google-generate-content',
-          aiSdkProviderId: 'google'
-        })
-      )
-    ).not.toContain('gemini-tool-schema-compatibility')
-    expect(
-      activeNames(
-        makeScope({
-          provider: { id: 'custom' },
-          model: { id: 'custom::gpt-5.4' },
-          endpointType: 'openai-chat-completions',
-          aiSdkProviderId: 'openai-compatible'
-        })
-      )
-    ).not.toContain('gemini-tool-schema-compatibility')
   })
 
   it('reasoning-extraction activates only for the openai-chat wire', () => {
@@ -274,10 +225,10 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     expect(
       activeNames(makeScope({ provider: {}, model: {}, webToolRoutes: { webSearch: 'none', webFetch: 'server' } }))
     ).toContain('provider-tool-urlContext')
-    // Client-side routing adds no provider tool; only the always-on context-build remains.
+    // Client-side routing adds no provider tool; only the always-on features remain.
     expect(
       activeNames(makeScope({ provider: {}, model: {}, webToolRoutes: { webSearch: 'client', webFetch: 'client' } }))
-    ).toEqual(['context-build'])
+    ).toEqual(['context-build', 'tool-schema-compatibility'])
   })
 
   it('drives the Qwen suffix from the resolved request snapshot instead of persisted assistant settings', async () => {
