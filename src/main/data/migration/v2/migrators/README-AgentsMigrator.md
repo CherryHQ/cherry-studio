@@ -159,6 +159,8 @@ remain excluded for as long as v1 downgrade support exists.
 ## Intentionally dropped data
 
 - v1 scheduled-task run logs.
+- Malformed or non-array legacy Agent MCP payloads, and non-string entries in
+  MCP arrays. Valid string MCP IDs in mixed arrays are retained.
 - Dangling Agent/MCP, Agent/skill, channel/task, and other relationship rows
   that cannot satisfy v2 foreign keys.
 - Additional legacy accessible paths after the primary workspace.
