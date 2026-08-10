@@ -1,6 +1,5 @@
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import type { DataContent, ModelMessage } from 'ai'
-import sharp from 'sharp'
 
 import type { TokenDialect } from './dialect'
 import type { ImageDims } from './imageTokens'
@@ -16,6 +15,18 @@ const TOOL_OVERHEAD = 10
 const FILE_OVERHEAD = 5
 /** Decode-work bound: a small file can still declare huge dimensions (bomb). Mirrors `src/main/utils/image.ts`. */
 const MAX_INPUT_PIXELS = 100_000_000
+
+// Decode bounds for `measureMedia` — a legitimate large request must not resident-load or
+// probe unbounded bytes in Electron main. Over-limit payloads simply skip measurement and
+// fall back to the per-dialect constant (degraded precision, never OOM/hang).
+/** Most inline images to probe per request; the rest use the constant. */
+const MAX_MEASURED_IMAGES = 32
+/** Skip probing any single image whose decoded bytes exceed this. */
+const MAX_MEASURE_BYTES_PER_ITEM = 16_000_000
+/** Total decoded bytes held resident across one measurement pass. */
+const MAX_MEASURE_BYTES_TOTAL = 64_000_000
+/** Native decodes running at once — bounds libvips concurrency. */
+const MEASURE_CONCURRENCY = 4
 
 /** The element type of a `ModelMessage`'s array content — every content part shape. */
 type ContentPart = Exclude<ModelMessage['content'], string>[number]
@@ -194,15 +205,24 @@ function* mediaNodes(messages: ModelMessage[]): Generator<MediaNode> {
  * Never throws; an unreadable payload is simply absent from the map.
  */
 export async function measureMedia(messages: ModelMessage[]): Promise<MediaMeasurements> {
-  const nodes = [...mediaNodes(messages)]
   const measurements: MediaMeasurements = new Map()
-  await Promise.all(
-    nodes.map(async (node) => {
-      if (node.kind !== 'image') return
-      const dims = await imageDimensions(node.data)
-      if (dims) measurements.set(node.owner, { dims })
-    })
-  )
+  // Only images are measurable today, and only the first N — bound the work before decoding.
+  const imageNodes = [...mediaNodes(messages)].filter((node) => node.kind === 'image').slice(0, MAX_MEASURED_IMAGES)
+
+  let remainingBytes = MAX_MEASURE_BYTES_TOTAL
+  for (let i = 0; i < imageNodes.length; i += MEASURE_CONCURRENCY) {
+    await Promise.all(
+      imageNodes.slice(i, i + MEASURE_CONCURRENCY).map(async (node) => {
+        // Byte checks + budget decrement run synchronously (before the first await), so the
+        // running total stays race-free within a batch.
+        const bytes = imageBytesWithinBudget(node.data, MAX_MEASURE_BYTES_PER_ITEM)
+        if (!bytes || bytes.length > remainingBytes) return
+        remainingBytes -= bytes.length
+        const dims = await dimensionsFromBytes(bytes)
+        if (dims) measurements.set(node.owner, { dims })
+      })
+    )
+  }
   return measurements
 }
 
@@ -236,38 +256,44 @@ export function countToolDefs(rawTools: unknown, tokenizer: TextTokenizer): numb
   return total
 }
 
-/** Read pixel dimensions from an image `DataContent | URL`; `undefined` for URLs / unreadable bytes. */
-async function imageDimensions(value: DataContent | URL): Promise<ImageDims | undefined> {
+/**
+ * Extract an image's decoded bytes from a `DataContent | URL`, but only if within `maxBytes`
+ * — the decoded size is estimated from the base64 length *before* allocating, so an oversize
+ * payload is skipped without a large `Buffer`. `undefined` for URLs / oversize / unreadable.
+ */
+function imageBytesWithinBudget(value: DataContent | URL, maxBytes: number): Buffer | undefined {
+  let base64: string | undefined
   if (typeof value === 'string') {
     if (value.startsWith('data:')) {
       const parts = parseDataUrl(value)
-      if (parts?.isBase64) return dimensionsFromBytes(bytesFromBase64(parts.data))
+      if (parts?.isBase64) base64 = parts.data
     } else if (!value.includes('://')) {
       // Raw base64 (the shape tool-result `image-data` carries) — a URL would contain a scheme.
-      return dimensionsFromBytes(bytesFromBase64(value))
+      base64 = value
     }
-    // Remote URL — unmeasurable without fetching.
-    return undefined
+    if (base64 === undefined) return undefined
+    if ((base64.length * 3) / 4 > maxBytes) return undefined // decoded ≈ 3/4 of base64 length
+    try {
+      return Buffer.from(base64, 'base64')
+    } catch {
+      return undefined
+    }
   }
   if (value instanceof Uint8Array || value instanceof ArrayBuffer || Buffer.isBuffer(value)) {
-    return dimensionsFromBytes(value)
+    const buf = Buffer.isBuffer(value) ? value : Buffer.from(value as Uint8Array)
+    return buf.length > maxBytes ? undefined : buf
   }
   return undefined
 }
 
-function bytesFromBase64(data: string): Buffer | undefined {
+/**
+ * Pixel dimensions from decoded image bytes. `sharp` (native libvips) is imported lazily so
+ * it never joins the main-process startup chain (`shouldDefer` → `footprint`); only a
+ * count request that actually probes an image pays the load. Never throws.
+ */
+async function dimensionsFromBytes(bytes: Buffer): Promise<ImageDims | undefined> {
   try {
-    return Buffer.from(data, 'base64')
-  } catch {
-    return undefined
-  }
-}
-
-async function dimensionsFromBytes(
-  bytes: Uint8Array | ArrayBuffer | Buffer | undefined
-): Promise<ImageDims | undefined> {
-  if (!bytes) return undefined
-  try {
+    const { default: sharp } = await import('sharp')
     const { width, height } = await sharp(bytes, { limitInputPixels: MAX_INPUT_PIXELS }).metadata()
     return width && height ? { width, height } : undefined
   } catch {

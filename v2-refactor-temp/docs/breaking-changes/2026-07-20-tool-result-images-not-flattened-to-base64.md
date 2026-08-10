@@ -2,7 +2,7 @@
 title: API gateway sends tool-result images as images, not base64 text
 category: changed
 severity: notice
-introduced_in_pr: N/A
+introduced_in_pr: #17195
 date: 2026-07-20
 ---
 
