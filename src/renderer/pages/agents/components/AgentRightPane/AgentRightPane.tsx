@@ -149,6 +149,8 @@ interface AgentRightPaneMeta {
   workspaceId?: string
   workspacePath?: string
   workspaceType?: AgentWorkspaceType
+  /** Model context window, used as the denominator for context usage. */
+  contextWindow?: number
 }
 
 interface AgentRightPaneRuntime {
@@ -360,6 +362,7 @@ function AgentRightPaneStateProvider({
   agentId,
   agentName,
   agentAvatar,
+  contextWindow,
   conversationState = 'ready',
   present = true,
   resourcePane = null,
@@ -539,12 +542,14 @@ function AgentRightPaneStateProvider({
       conversationState,
       workspaceId,
       workspacePath,
-      workspaceType
+      workspaceType,
+      contextWindow
     }),
     [
       agentAvatar,
       agentId,
       agentName,
+      contextWindow,
       conversationState,
       sessionId,
       sessionName,
@@ -1001,7 +1006,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
   const status = useAgentRightPaneStatus(active)
-  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
+  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, undefined, meta.contextWindow)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
   const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
@@ -1045,6 +1050,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
       <AgentContextUsageSummary
         usage={usage}
         percentage={percentage}
+        maxTokens={maxTokens}
         isCompacting={isCompacting}
         className="rounded-md border border-border-subtle px-3 py-2"
       />
@@ -1268,13 +1274,18 @@ function AgentRightPaneHighlights({
 function AgentRightPaneStatusPreview() {
   const meta = useAgentRightPaneMeta()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage } = useAgentSessionContextUsage(meta.sessionId)
+  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, undefined, meta.contextWindow)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
 
   return (
     <Scrollbar className="-mr-2 max-h-[calc(70vh-1.5rem)] space-y-3 overflow-x-hidden pr-3">
-      <AgentContextUsageSummary usage={usage} percentage={percentage} isCompacting={isCompacting} />
+      <AgentContextUsageSummary
+        usage={usage}
+        percentage={percentage}
+        maxTokens={maxTokens}
+        isCompacting={isCompacting}
+      />
       <AgentRightPaneHighlights status={status} compact />
     </Scrollbar>
   )

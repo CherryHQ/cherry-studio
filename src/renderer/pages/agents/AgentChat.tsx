@@ -111,6 +111,8 @@ interface AgentChatProps {
 
 interface AgentChatLayoutProps {
   activeAgent?: GetAgentResponse
+  /** Model context window — the denominator the right pane renders context usage against. */
+  contextWindow?: number
   center?: ReactNode
   centerClassName?: string
   centerSurface?: ConversationCenterSlot | null
@@ -448,6 +450,7 @@ const AgentChat = ({
 
   const layoutProps: AgentChatLayoutProps = {
     activeAgent,
+    contextWindow: activeModel?.contextWindow,
     center,
     centerClassName,
     centerSurface,
@@ -608,6 +611,7 @@ const AgentChatSessionCenter = ({
 
 function AgentChatLayout({
   activeAgent,
+  contextWindow,
   center,
   centerClassName,
   centerSurface,
@@ -634,6 +638,7 @@ function AgentChatLayout({
 }: AgentChatLayoutProps) {
   return (
     <AgentRightPane.Scope
+      contextWindow={contextWindow}
       conversationState={conversationState}
       workspaceId={sessionSnapshot?.workspaceId}
       workspacePath={sessionSnapshot?.workspace?.path}

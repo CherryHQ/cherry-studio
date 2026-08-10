@@ -24,6 +24,8 @@ const HIDDEN_CATEGORY_NAMES = new Set(['Free space', 'Autocompact buffer'])
 interface AgentContextUsageSummaryProps {
   usage: AgentSessionContextUsage | null
   percentage: number | null
+  /** Denominator from `useAgentSessionContextUsage` — the model window, not the compaction budget. */
+  maxTokens?: number | null
   className?: string
   isCompacting?: boolean
   /** Optional user-facing model name. Defaults to the raw runtime model id for diagnostic views. */
@@ -35,6 +37,7 @@ interface AgentContextUsageSummaryProps {
 export function AgentContextUsageSummary({
   usage,
   percentage,
+  maxTokens,
   className,
   isCompacting = false,
   modelName,
@@ -45,7 +48,7 @@ export function AgentContextUsageSummary({
     usage && percentage !== null
       ? {
           usedTokens: usage.totalTokens,
-          maxTokens: usage.maxTokens,
+          maxTokens: maxTokens ?? usage.maxTokens,
           percentage,
           modelName: modelName || usage.model
         }

@@ -503,7 +503,7 @@ interface InnerProps {
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
   const { t } = useTranslation()
   const expectedModels = useMemo(() => getContextUsageModelCandidates(model), [model])
-  const { percentage, usage } = useAgentSessionContextUsage(sessionId, expectedModels)
+  const { percentage, usage, maxTokens } = useAgentSessionContextUsage(sessionId, expectedModels, model?.contextWindow)
   const compaction = useAgentSessionCompaction(sessionId)
   if (percentage === null || !usage) return null
 
@@ -524,6 +524,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
         <AgentContextUsageSummary
           usage={usage}
           percentage={percentage}
+          maxTokens={maxTokens}
           isCompacting={isCompacting}
           modelName={model?.name}
           showCategories={false}
