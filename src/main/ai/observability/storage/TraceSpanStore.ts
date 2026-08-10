@@ -27,6 +27,24 @@ export interface TraceSpanChanges {
 const DEFAULT_MAX_SPANS = 50_000
 
 /**
+ * Companion byte budget to {@link DEFAULT_MAX_SPANS}. A count cap does not bound memory: a single
+ * span can carry megabytes of captured request/response bodies, so 50k spans is unbounded in bytes.
+ * Evicted by the same oldest-fully-ended-trace rule, so an in-flight trace is still never dropped.
+ */
+const DEFAULT_MAX_SPAN_BYTES = 64 * 1024 * 1024
+
+// Byte proxy for a stored span; `.length` counts UTF-16 units rather than exact bytes, which tracks
+// span size closely enough to bound the store. Only the cold path (a span export) measures a whole
+// span — the hot path adjusts the total incrementally through `touchSpan`.
+function estimateSpanBytes(span: SpanEntity): number {
+  try {
+    return JSON.stringify(span).length
+  } catch {
+    return 0
+  }
+}
+
+/**
  * Cap on retained per-trace deletion markers. A marker only matters until every viewer cursor has
  * advanced past it, but the store cannot know when that happened, so markers would otherwise
  * accumulate one entry per trace id ever flushed — unbounded over a long session. Evicting the
@@ -46,12 +64,19 @@ export class TraceSpanStore {
   // Insertion order is kept in revision order (oldest first) by markTraceReset, so eviction can
   // drop the oldest marker without scanning.
   private readonly traceResetRevisions = new Map<string, number>()
+  // Per-span retained byte estimate, and its running sum. Kept in step on every insert/remove so
+  // eviction can consult a byte budget without re-measuring the store.
+  private readonly spanBytes = new Map<string, number>()
+  private totalBytes = 0
   private globalResetRevision = 0
   private evictedResetRevision = 0
   private orderSeq = 0
   private revisionSeq = 0
 
-  constructor(private readonly maxSpans = DEFAULT_MAX_SPANS) {}
+  constructor(
+    private readonly maxSpans = DEFAULT_MAX_SPANS,
+    private readonly maxSpanBytes = DEFAULT_MAX_SPAN_BYTES
+  ) {}
 
   registerTraceMeta(traceId: string, meta: TraceSpanMeta): void {
     const current = this.traceMeta.get(traceId) ?? {}
@@ -99,6 +124,22 @@ export class TraceSpanStore {
         modelName: span.modelName
       })
     }
+    this.trackBytes(span.id, estimateSpanBytes(span))
+    this.enforceSpanLimit()
+  }
+
+  /**
+   * Record that an already-stored span mutated in place, shifting its retained size by `deltaBytes`.
+   * Claude Code delivers one OTLP batch as a separate call per log event, so the appending caller
+   * reports the delta it already computed rather than making the store re-measure the whole span on
+   * every event — which would be quadratic in the events a span receives.
+   */
+  touchSpan(spanId: string, deltaBytes: number): void {
+    const span = this.spans.get(spanId)
+    if (!span) return
+    this.spanRevisions.set(spanId, this.nextRevision())
+    if (span.traceId) this.traceOrder.set(span.traceId, this.orderSeq++)
+    this.trackBytes(spanId, (this.spanBytes.get(spanId) ?? 0) + deltaBytes)
     this.enforceSpanLimit()
   }
 
@@ -108,6 +149,7 @@ export class TraceSpanStore {
     const revision = this.nextRevision()
     this.spans.delete(spanId)
     this.spanRevisions.delete(spanId)
+    this.untrackBytes(spanId)
     this.markTraceReset(span.traceId, revision)
     this.untrackSpan(span.traceId, spanId)
   }
@@ -145,6 +187,8 @@ export class TraceSpanStore {
     this.traceOrder.clear()
     this.spanRevisions.clear()
     this.traceResetRevisions.clear()
+    this.spanBytes.clear()
+    this.totalBytes = 0
     // globalResetRevision already dominates every marker just dropped.
     this.evictedResetRevision = 0
   }
@@ -174,9 +218,23 @@ export class TraceSpanStore {
       if (!span) continue
       this.spans.delete(id)
       this.spanRevisions.delete(id)
+      this.untrackBytes(id)
       if (resetRevision !== undefined) this.markTraceReset(span.traceId, resetRevision)
       this.untrackSpan(span.traceId, span.id)
     }
+  }
+
+  private trackBytes(spanId: string, bytes: number): void {
+    const next = Math.max(0, bytes)
+    this.totalBytes += next - (this.spanBytes.get(spanId) ?? 0)
+    this.spanBytes.set(spanId, next)
+  }
+
+  private untrackBytes(spanId: string): void {
+    const bytes = this.spanBytes.get(spanId)
+    if (bytes === undefined) return
+    this.spanBytes.delete(spanId)
+    this.totalBytes = Math.max(0, this.totalBytes - bytes)
   }
 
   /**
@@ -196,13 +254,14 @@ export class TraceSpanStore {
   }
 
   /**
-   * Evict the oldest fully-ended trace(s) until the total span count is within the cap.
-   * A trace is "fully-ended" when every span it holds has `isEnd === true`; in-flight
-   * traces are skipped so streaming spans are never dropped mid-trace. If no fully-ended
-   * trace exists, eviction stops and the cap is allowed to be exceeded temporarily.
+   * Evict the oldest fully-ended trace(s) until the store is within BOTH the span-count cap and the
+   * byte budget — a count alone cannot bound a store whose spans carry captured request/response
+   * bodies. A trace is "fully-ended" when every span it holds has `isEnd === true`; in-flight traces
+   * are skipped so streaming spans are never dropped mid-trace. If no fully-ended trace exists,
+   * eviction stops and the caps are allowed to be exceeded temporarily.
    */
   private enforceSpanLimit(): void {
-    while (this.spans.size > this.maxSpans) {
+    while (this.spans.size > this.maxSpans || this.totalBytes > this.maxSpanBytes) {
       const victim = this.oldestEndedTraceId()
       if (!victim) break
       this.clearTrace(victim)

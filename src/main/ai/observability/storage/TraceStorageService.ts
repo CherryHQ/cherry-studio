@@ -56,20 +56,29 @@ function estimateEventBytes(event: TimedEvent): number {
 const MAX_SPAN_EVENTS = 200
 const MAX_SPAN_EVENT_BYTES = 2 * 1024 * 1024
 
+function sumEventBytes(events: TimedEvent[]): number {
+  let total = 0
+  for (const event of events) total += estimateEventBytes(event)
+  return total
+}
+
 /**
- * Trim a span's events to the retention budget, dropping oldest first. Measures backwards from the
- * newest and stops at the budget, so an oversized array is never walked in full. The newest event is
- * always kept: one event larger than the budget caps out instead of emptying the span.
+ * Trim `events` to the retention budget, dropping oldest first. `bytes` is the caller's running
+ * total for the whole array; the trimmed total is returned so an appending caller never has to
+ * re-measure what it already retains. The newest event is always kept, so one event larger than the
+ * budget caps out instead of emptying the span.
  */
-function capSpanEvents(events: TimedEvent[]): TimedEvent[] {
-  if (events.length <= 1) return events
-  const countStart = Math.max(0, events.length - MAX_SPAN_EVENTS)
-  let bytes = 0
-  for (let index = events.length - 1; index >= countStart; index--) {
-    bytes += estimateEventBytes(events[index])
-    if (bytes > MAX_SPAN_EVENT_BYTES) return events.slice(Math.min(index + 1, events.length - 1))
+function capSpanEvents(events: TimedEvent[], bytes: number): { events: TimedEvent[]; bytes: number } {
+  let dropped = 0
+  let retained = bytes
+  while (
+    events.length - dropped > 1 &&
+    (events.length - dropped > MAX_SPAN_EVENTS || retained > MAX_SPAN_EVENT_BYTES)
+  ) {
+    retained -= estimateEventBytes(events[dropped])
+    dropped++
   }
-  return countStart === 0 ? events : events.slice(countStart)
+  return { events: dropped > 0 ? events.slice(dropped) : events, bytes: Math.max(0, retained) }
 }
 
 /** Union spans by id; `overrides` (e.g. the live, fresher copy) wins over `base` (e.g. the history file). */
@@ -88,6 +97,11 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   private readonly pendingEvents = new Map<string, TimedEvent[]>()
   // Running estimate of bytes retained across all pendingEvents, kept in sync on buffer/evict/drain.
   private pendingEventBytes = 0
+  // Retained-event byte total per stored span. Claude Code delivers one OTLP batch as a separate
+  // addSpanEvent call per event, so re-measuring the retained window on each append would be
+  // quadratic in the events a span receives. Weakly keyed: an entry dies with the span it measures,
+  // so store eviction and flush clearing need no bookkeeping here. A miss just re-measures once.
+  private readonly spanEventBytes = new WeakMap<SpanEntity, number>()
 
   protected async onInit() {
     this.registerIpcHandlers()
@@ -152,7 +166,9 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     spanEntity.endTime = span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null
     spanEntity.status = SpanStatusCode[span.status.code]
     spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
+    // Replacing the array invalidates the retained-byte total; the next append re-measures once.
     spanEntity.events = span.events
+    this.spanEventBytes.delete(spanEntity)
     spanEntity.links = span.links
     spanEntity.isEnd = true
     this.updateModelName(spanEntity)
@@ -209,6 +225,8 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       // /v1/traces export carrying empty/partial events must not drop them. Merge into the incoming
       // entity, which is the object ultimately stored (updateModelName re-sets it after updateEntity).
       entity.events = this.mergeEvents(existing.events, entity.events)
+      // updateEntity copies onto `existing`, so its cached retained-byte total is now stale.
+      this.spanEventBytes.delete(existing)
       this.updateEntity(entity)
     } else {
       this.addEntity(entity)
@@ -237,8 +255,14 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private appendEventsToSpan(span: SpanEntity, events: TimedEvent[]): void {
     if (events.length === 0) return
-    span.events = capSpanEvents(Array.isArray(span.events) ? [...span.events, ...events] : [...events])
-    this.store.setSpan(span)
+    const existing = Array.isArray(span.events) ? span.events : []
+    const before = this.spanEventBytes.get(span) ?? sumEventBytes(existing)
+    const trimmed = capSpanEvents([...existing, ...events], before + sumEventBytes(events))
+    span.events = trimmed.events
+    this.spanEventBytes.set(span, trimmed.bytes)
+    // The span object is already stored and was mutated in place, so report the size delta rather
+    // than re-inserting it — setSpan would re-measure the whole span on every log event.
+    this.store.touchSpan(span.id, trimmed.bytes - before)
   }
 
   private bufferPendingEvent(spanId: string, event: TimedEvent): void {
@@ -397,10 +421,12 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   /**
    * Union span events by name+time, preserving existing (incl. log-derived) events. Only ever shrinks
    * at the retention budget — the other place a stored span's events accumulate, so it caps too.
+   * Runs once per span export against an already-bounded array, so measuring it in full is cheap
+   * here in a way it would not be on the per-event append path.
    */
   private mergeEvents(saved: TimedEvent[] | undefined, incoming: TimedEvent[] | undefined): TimedEvent[] | undefined {
     if (!incoming || incoming.length === 0) return saved
-    if (!saved || saved.length === 0) return capSpanEvents(incoming)
+    if (!saved || saved.length === 0) return capSpanEvents(incoming, sumEventBytes(incoming)).events
     const eventKey = (event: TimedEvent) =>
       `${event.name}@${Array.isArray(event.time) ? `${event.time[0]}.${event.time[1]}` : String(event.time)}`
     const seen = new Set<string>()
@@ -411,7 +437,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       seen.add(key)
       merged.push(event)
     }
-    return capSpanEvents(merged)
+    return capSpanEvents(merged, sumEventBytes(merged)).events
   }
 
   private mergeAttributes(savedEntity: SpanEntity, value: unknown): void {

@@ -323,6 +323,26 @@ describe('TraceStorageService', () => {
     expect(names.at(-1)).toBe('event-249')
   })
 
+  // ClaudeCodeTraceBridgeService delivers one OTLP batch as a separate addSpanEvent call per event,
+  // so the retained window must be measured incrementally: rescanning it on every append is
+  // quadratic in the events a span receives, and a measured span received 4,427 of them.
+  it('measures each appended event once instead of rescanning the retained window', async () => {
+    await service._doInit()
+    service.saveEntity(span({ id: 'cc', traceId: 'trace', topicId: 'topic' }))
+
+    const stringify = vi.spyOn(JSON, 'stringify')
+    for (let i = 0; i < 300; i++) {
+      service.addSpanEvent('trace', 'cc', timedEvent(`event-${i}`))
+    }
+    const measurements = stringify.mock.calls.length
+    stringify.mockRestore()
+
+    // One measure per appended event plus one per event the trim drops. A rescan of the retained
+    // window would be ~200x higher, since the count cap keeps up to 200 events in play.
+    expect(measurements).toBeLessThan(1_000)
+    expect(service['store'].getSpan('cc')?.events).toHaveLength(200)
+  })
+
   // Raw API bodies make the count cap alone useless — a handful of events can carry tens of MiB. The
   // newest event is kept even when it alone busts the budget, so a span never renders empty.
   it('caps a stored span by bytes, keeping the newest event when one event exceeds the budget', async () => {

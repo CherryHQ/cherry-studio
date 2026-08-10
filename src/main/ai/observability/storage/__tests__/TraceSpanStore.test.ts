@@ -85,6 +85,40 @@ describe('TraceSpanStore eviction', () => {
     expect(store.getSpans({ traceId: 'trace-a' })).toEqual([])
   })
 
+  // A count cap cannot bound a store whose spans carry captured request/response bodies — 50k spans
+  // at megabytes each is unbounded — so the byte budget evicts by the same oldest-fully-ended rule.
+  it('evicts the oldest fully-ended trace when the byte budget is exceeded', () => {
+    const store = new TraceSpanStore(1_000, 4_000)
+    const body = 'x'.repeat(3_000)
+
+    store.setSpan(span({ id: 'a', traceId: 'trace-a', attributes: { body } }))
+    expect(store.getSpan('a')).toBeDefined()
+
+    store.setSpan(span({ id: 'b', traceId: 'trace-b', attributes: { body } }))
+
+    // Far below the 1,000-span count cap, so only the byte budget can have evicted trace-a.
+    expect(store.getSpan('a')).toBeUndefined()
+    expect(store.getSpan('b')).toBeDefined()
+  })
+
+  // Claude Code log events grow a span that is already stored, so the budget has to follow in-place
+  // growth reported through touchSpan, not just what setSpan measured on insert.
+  it('keeps the byte total in step when a stored span grows in place', () => {
+    const store = new TraceSpanStore(1_000, 4_000)
+
+    store.setSpan(span({ id: 'a', traceId: 'trace-a', attributes: { body: 'x'.repeat(2_500) } }))
+    store.setSpan(span({ id: 'b', traceId: 'trace-b' }))
+    expect(store.getSpan('a')).toBeDefined()
+
+    // trace-b grows in place past the budget: the oldest fully-ended trace ages out and the span
+    // that grew survives. A span larger than the whole budget cannot arise — the per-span event cap
+    // is 2 MiB against a 64 MiB store.
+    store.touchSpan('b', 2_000)
+
+    expect(store.getSpan('a')).toBeUndefined()
+    expect(store.getSpan('b')).toBeDefined()
+  })
+
   it('never evicts an in-flight trace, even if it is the oldest', () => {
     const store = new TraceSpanStore(2)
 
