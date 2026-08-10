@@ -455,7 +455,7 @@
         "expand_all": "Expandir tudo",
         "no_workdir": "Sem pasta de trabalho",
         "show_more": "Expandir exibição",
-        "tasks": "[to be translated]:Tasks",
+        "tasks": "Tarefas",
         "this_week": "Esta semana",
         "today": "Hoje",
         "unknown_agent": "Agente desconhecido",
@@ -1008,8 +1008,8 @@
           "label": "Notificar"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "Converte um documento local (PDF, Office, EPUB, CSV) para Markdown para que o agente possa lê-lo",
+          "label": "Documento para Markdown"
         },
         "CherryWebFetch": {
           "description": "Obtém e lê uma página Web",
@@ -1741,12 +1741,6 @@
       "top": "Voltar ao topo"
     },
     "resend": "Reenviar",
-    "resource_view": {
-      "menu": {
-        "agent": "Agentes",
-        "assistant": "Assistentes"
-      }
-    },
     "save": {
       "file": {
         "title": "Guardar em Ficheiro Local"
@@ -1919,6 +1913,7 @@
         "time": "Tempo",
         "title": "Modo de exibição"
       },
+      "draft": "Rascunho",
       "edit": {
         "placeholder": "Introduza novo nome",
         "title": "Editar nome do tópico",
@@ -2163,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Qwen Code"
     },
@@ -2989,26 +2985,26 @@
       "untitled_conversation": "Conversa Sem Título"
     },
     "claude": {
-      "assistant_name": "[to be translated]:Claude Import",
-      "button": "[to be translated]:Select File",
-      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "assistant_name": "Importação Claude",
+      "button": "Selecionar Arquivo",
+      "description": "Importa texto, pensamento e uso de ferramentas; imagens e anexos não estão incluídos",
       "error": {
-        "invalid_json": "[to be translated]:Invalid JSON file format",
-        "no_conversations": "[to be translated]:No conversations found in file",
-        "no_valid_conversations": "[to be translated]:No valid conversations to import",
-        "unknown": "[to be translated]:Import failed, please check file format"
+        "invalid_json": "Formato de arquivo JSON inválido",
+        "no_conversations": "Nenhuma conversa encontrada no arquivo",
+        "no_valid_conversations": "Nenhuma conversa válida para importar",
+        "unknown": "Falha na importação, verifique o formato do arquivo"
       },
       "help": {
-        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
-        "step2": "[to be translated]:2. Wait for the export file via email",
-        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
-        "title": "[to be translated]:How to export Claude conversations?"
+        "step1": "1. Inicie sessão no Claude, vá a Definições > Privacidade > Exportar Dados",
+        "step2": "2. Aguarde o arquivo de exportação por e-mail",
+        "step3": "3. Extraia o arquivo baixado e localize o conversations.json",
+        "title": "Como exportar conversas do Claude?"
       },
-      "importing": "[to be translated]:Importing conversations...",
-      "selecting": "[to be translated]:Selecting file...",
-      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
-      "title": "[to be translated]:Import Claude Conversations",
-      "untitled_conversation": "[to be translated]:Untitled Conversation"
+      "importing": "Importando conversas...",
+      "selecting": "Selecionando arquivo...",
+      "success": "Importadas com sucesso {{topics}} conversas com {{messages}} mensagens",
+      "title": "Importar Conversas do Claude",
+      "untitled_conversation": "Conversa Sem Título"
     },
     "confirm": {
       "button": "Selecionar Ficheiro de Importação",
@@ -3049,18 +3045,18 @@
         },
         "note": {
           "create": {
-            "content_label": "[to be translated]:Content",
-            "content_placeholder": "[to be translated]:Write the note content here…",
-            "title_label": "[to be translated]:Title",
-            "title_placeholder": "[to be translated]:Name this note"
+            "content_label": "Conteúdo",
+            "content_placeholder": "Escreva o conteúdo da nota aqui…",
+            "title_label": "Título",
+            "title_placeholder": "Nome esta nota"
           },
           "description": "Selecione notas existentes como fontes da base de conhecimento",
           "empty_description": "As notas selecionáveis aparecerão aqui após a lista de notas reais ser conectada. Por enquanto, use ficheiros, pastas, URLs ou mapas do site.",
           "empty_title": "As notas ainda não estão conectadas",
           "loading": "A carregar notas…",
           "mode": {
-            "create": "[to be translated]:New note",
-            "import": "[to be translated]:Import notes"
+            "create": "Nova nota",
+            "import": "Notas de importação"
           }
         },
         "placeholder": {
@@ -3320,7 +3316,7 @@
   },
   "launchpad": {
     "apps": "Aplicações",
-    "manage_sidebar": "[to be translated]:Manage Sidebar",
+    "manage_sidebar": "Gerenciar Barra Lateral",
     "minapps": "Minapps",
     "miniApps": "Miniaplicações",
     "pin_to_sidebar": "Fixar na barra lateral",
@@ -3482,14 +3478,14 @@
       "basic": {
         "context_compress_enabled": "Auto-comprimir",
         "context_compress_model": "Modelo de compressão",
-        "context_compress_model_follow": "[to be translated]:Follow current model",
-        "context_count": "[to be translated]:Recent messages kept",
+        "context_compress_model_follow": "Padrão",
+        "context_count": "Contagem de contexto",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
         "context_inherited_compress_off": "[to be translated]:auto-compress off",
         "context_inherited_compress_on": "[to be translated]:auto-compress on",
-        "context_management": "[to be translated]:Customize context management",
+        "context_management": "Gestão de contexto",
         "context_truncate_threshold": "Limite de truncagem da saída da ferramenta (caracteres)",
         "creative": "Criativo",
         "custom_params": "Parâmetros personalizados",
@@ -3506,10 +3502,10 @@
             "hint": "Resumir automaticamente as conversas anteriores ao aproximar-se da janela de contexto"
           },
           "context_count": {
-            "hint": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit"
+            "hint": "Número de mensagens recentes mantidas como contexto"
           },
           "context_management": {
-            "hint": "[to be translated]:Use this assistant’s own context-management settings; off follows the global settings"
+            "hint": "Substituir as configurações globais de gestão de contexto para este assistente; desativado herda as configurações globais"
           },
           "context_truncate_threshold": {
             "hint": "Saídas da ferramenta além deste número de caracteres são descarregadas e truncadas"
@@ -4105,6 +4101,9 @@
       "failed": "Restauração falhou",
       "success": "Restauração bem-sucedida"
     },
+    "retry": {
+      "status": "A tentar novamente com {{model}} · tentativa {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Guardado com sucesso"
@@ -4254,8 +4253,8 @@
         "taskOutput": "Ver saída da tarefa",
         "taskStop": "Parar tarefa",
         "taskUpdate": "Atualizar tarefa",
-        "toMarkdown": "[to be translated]:Convert Document",
-        "toMarkdownOutput": "[to be translated]:Markdown",
+        "toMarkdown": "Converter Documento",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Fazer Escrever",
         "tool": "Ferramenta",
         "webFetch": "Obter página Web",
@@ -4306,8 +4305,8 @@
       "thinkingHeader": "A pensar",
       "truncated": "Saída truncada (original: {{size}})",
       "units": {
-        "char_one": "[to be translated]:{{count}} char",
-        "char_other": "[to be translated]:{{count}} chars",
+        "char_one": "{{count}} caractere",
+        "char_other": "{{count}} caracteres",
         "done_one": "{{count}} Concluído",
         "done_other": "{{count}} Concluído",
         "file_one": "{{count}} ficheiro",
@@ -6129,7 +6128,7 @@
       "import_settings": {
         "button": "Importar Ficheiro Json",
         "chatgpt": "Importar do ChatGPT",
-        "claude": "[to be translated]:Import from Claude",
+        "claude": "Importar do Claude",
         "title": "Importar Dados de Aplicações Externas"
       },
       "joplin": {
@@ -6685,7 +6684,7 @@
         "notice": {
           "downloadFailed": "A transferência falhou. Verifique a ligação e tente novamente.",
           "inUse": "Ainda utilizado por uma base de conhecimento; os pesos foram mantidos.",
-          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
+          "incompleteCache": "Os arquivos do modelo estão incompletos. Tente fazer o download novamente para repará-los.",
           "removeFailed": "Falha na remoção. Verifique os registos para mais detalhes."
         },
         "ocr": {
@@ -7547,6 +7546,16 @@
         "label": "Modelo rápido",
         "setting_title": "Configuração rápida do modelo",
         "tooltip": "Sugere-se escolher um modelo leve e não se recomenda escolher um modelo de raciocínio"
+      },
+      "retry": {
+        "backoff": "Recuo exponencial",
+        "description": "Repete as chamadas de chat, embeddings e reordenação; o chat pode recorrer a outros modelos",
+        "fallback_models": "Modelos de reserva",
+        "fallback_models_count": "{{count}} modelos selecionados",
+        "fallback_models_description": "Modelos experimentados por ordem quando o modelo principal falha",
+        "label": "Repetição de chamadas ao modelo",
+        "max_attempts": "Número máximo de tentativas",
+        "tooltip": "As repetições e os modelos de reserva só se aplicam antes de o modelo começar a transmitir conteúdo"
       },
       "toolbar": {
         "custom_add": "Personalizado",

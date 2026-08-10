@@ -455,7 +455,7 @@
         "expand_all": "Extinde tot",
         "no_workdir": "Niciun director de lucru",
         "show_more": "Extinde afișarea",
-        "tasks": "[to be translated]:Tasks",
+        "tasks": "Sarcini",
         "this_week": "Săptămâna aceasta",
         "today": "Astăzi",
         "unknown_agent": "Agent necunoscut",
@@ -1008,8 +1008,8 @@
           "label": "Notificare"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "Convertește un document local (PDF, Office, EPUB, CSV) în Markdown pentru ca agentul să îl poată citi",
+          "label": "Document în Markdown"
         },
         "CherryWebFetch": {
           "description": "Preia și citește o pagină web",
@@ -1741,12 +1741,6 @@
       "top": "Înapoi sus"
     },
     "resend": "Retrimite",
-    "resource_view": {
-      "menu": {
-        "agent": "Agenți",
-        "assistant": "Asistenți"
-      }
-    },
     "save": {
       "file": {
         "title": "Salvează în fișier local"
@@ -1919,6 +1913,7 @@
         "time": "Timp",
         "title": "Mod afișare"
       },
+      "draft": "Proiect",
       "edit": {
         "placeholder": "Introdu noul nume",
         "title": "Editează numele",
@@ -2163,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "CLI Qoder",
       "qwen_code": "Cod Qwen"
     },
@@ -2989,26 +2985,26 @@
       "untitled_conversation": "Conversație fără titlu"
     },
     "claude": {
-      "assistant_name": "[to be translated]:Claude Import",
-      "button": "[to be translated]:Select File",
-      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "assistant_name": "Import Claude",
+      "button": "Selectați fișierul",
+      "description": "Importuri text, gândire și utilizare instrumente; imaginile și atașamentele nu sunt incluse",
       "error": {
-        "invalid_json": "[to be translated]:Invalid JSON file format",
-        "no_conversations": "[to be translated]:No conversations found in file",
-        "no_valid_conversations": "[to be translated]:No valid conversations to import",
-        "unknown": "[to be translated]:Import failed, please check file format"
+        "invalid_json": "Format de fișier JSON nevalid",
+        "no_conversations": "Nu s-au găsit conversații în fișier",
+        "no_valid_conversations": "Nicio conversație validă de importat",
+        "unknown": "Import eșuat, vă rugăm să verificați formatul fișierului"
       },
       "help": {
-        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
-        "step2": "[to be translated]:2. Wait for the export file via email",
-        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
-        "title": "[to be translated]:How to export Claude conversations?"
+        "step1": "1. Conectează-te la Claude, mergi la Setări > Confidențialitate > Exportă date",
+        "step2": "2. Așteptați fișierul de export prin e-mail",
+        "step3": "3. Extrage fișierul descărcat și găsește conversations.json",
+        "title": "Cum se exportă conversațiile Claude?"
       },
-      "importing": "[to be translated]:Importing conversations...",
-      "selecting": "[to be translated]:Selecting file...",
-      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
-      "title": "[to be translated]:Import Claude Conversations",
-      "untitled_conversation": "[to be translated]:Untitled Conversation"
+      "importing": "Se importă conversațiile...",
+      "selecting": "Selectare fișier...",
+      "success": "Importate cu succes {{topics}} conversații cu {{messages}} mesaje",
+      "title": "Importă conversațiile Claude",
+      "untitled_conversation": "Conversație fără titlu"
     },
     "confirm": {
       "button": "Selectează fișierul de import",
@@ -3049,18 +3045,18 @@
         },
         "note": {
           "create": {
-            "content_label": "[to be translated]:Content",
-            "content_placeholder": "[to be translated]:Write the note content here…",
-            "title_label": "[to be translated]:Title",
-            "title_placeholder": "[to be translated]:Name this note"
+            "content_label": "Conținut",
+            "content_placeholder": "Scrieți conținutul notei aici…",
+            "title_label": "Titlu",
+            "title_placeholder": "Dă un nume acestei note"
           },
           "description": "Selectează notițele existente ca surse pentru baza de cunoștințe",
           "empty_description": "Creează notițe în funcția Notițe, apoi revino pentru a le selecta aici.",
           "empty_title": "Notele nu sunt încă conectate",
           "loading": "Se încarcă notițele…",
           "mode": {
-            "create": "[to be translated]:New note",
-            "import": "[to be translated]:Import notes"
+            "create": "Notă nouă",
+            "import": "Note de import"
           }
         },
         "placeholder": {
@@ -3320,7 +3316,7 @@
   },
   "launchpad": {
     "apps": "Aplicații",
-    "manage_sidebar": "[to be translated]:Manage Sidebar",
+    "manage_sidebar": "Gestionați bara laterală",
     "minapps": "Minapp-uri",
     "miniApps": "Mini-aplicații",
     "pin_to_sidebar": "Fixează în bara laterală",
@@ -3482,14 +3478,14 @@
       "basic": {
         "context_compress_enabled": "Comprimare automată",
         "context_compress_model": "Model de compresie",
-        "context_compress_model_follow": "[to be translated]:Follow current model",
-        "context_count": "[to be translated]:Recent messages kept",
+        "context_compress_model_follow": "Implicit",
+        "context_count": "Număr de contexte",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
         "context_inherited_compress_off": "[to be translated]:auto-compress off",
         "context_inherited_compress_on": "[to be translated]:auto-compress on",
-        "context_management": "[to be translated]:Customize context management",
+        "context_management": "Gestionarea contextului",
         "context_truncate_threshold": "Prag de trunchiere a ieșirii instrumentului (caractere)",
         "creative": "Creativ",
         "custom_params": "Parametri personalizați",
@@ -3506,10 +3502,10 @@
             "hint": "Rezuma automat conversațiile mai vechi când te apropii de limita contextului"
           },
           "context_count": {
-            "hint": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit"
+            "hint": "Numărul de mesaje recente păstrate ca context"
           },
           "context_management": {
-            "hint": "[to be translated]:Use this assistant’s own context-management settings; off follows the global settings"
+            "hint": "Suprascrie setările globale de gestionare a contextului pentru acest asistent; dezactivat moștenește setările globale"
           },
           "context_truncate_threshold": {
             "hint": "Ieșirile instrumentelor care depășesc acest număr de caractere sunt descărcate și trunchiate"
@@ -4105,6 +4101,9 @@
       "failed": "Restaurare eșuată",
       "success": "Restaurat cu succes"
     },
+    "retry": {
+      "status": "Reîncercare cu {{model}} · încercarea {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Salvat cu succes"
@@ -4254,8 +4253,8 @@
         "taskOutput": "Vezi rezultatul sarcinii",
         "taskStop": "Oprește sarcina",
         "taskUpdate": "Actualizează sarcina",
-        "toMarkdown": "[to be translated]:Convert Document",
-        "toMarkdownOutput": "[to be translated]:Markdown",
+        "toMarkdown": "Convertiți documentul",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Totul Scrie",
         "tool": "Unelte",
         "webFetch": "Preluare web",
@@ -4306,8 +4305,8 @@
       "thinkingHeader": "Se analizează",
       "truncated": "Ieșire trunchiată (original: {{size}})",
       "units": {
-        "char_one": "[to be translated]:{{count}} char",
-        "char_other": "[to be translated]:{{count}} chars",
+        "char_one": "{{count}} caractere",
+        "char_other": "{{count}} caractere",
         "done_one": "{{count}} finalizat",
         "done_other": "{{count}} finalizate",
         "file_one": "{{count}} fișier",
@@ -6129,7 +6128,7 @@
       "import_settings": {
         "button": "Importă fișier Json",
         "chatgpt": "Importă din ChatGPT",
-        "claude": "[to be translated]:Import from Claude",
+        "claude": "Import din Claude",
         "title": "Importă datele aplicației"
       },
       "joplin": {
@@ -6685,7 +6684,7 @@
         "notice": {
           "downloadFailed": "Descărcarea a eșuat. Verifică conexiunea și încearcă din nou.",
           "inUse": "Încă utilizat de o bază de cunoștințe; greutățile au fost păstrate.",
-          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
+          "incompleteCache": "Fișierele modelului sunt incomplete. Reîncercați descărcarea pentru a le repara.",
           "removeFailed": "Eliminarea a eșuat. Verifică jurnalele pentru detalii."
         },
         "ocr": {
@@ -7547,6 +7546,16 @@
         "label": "Model rapid",
         "setting_title": "Configurare model rapid",
         "tooltip": "Alege un model ușor și evită modelele de raționament."
+      },
+      "retry": {
+        "backoff": "Așteptare exponențială",
+        "description": "Reîncearcă apelurile de chat, embedding și rerank; chat-ul poate trece la alte modele",
+        "fallback_models": "Modele de rezervă",
+        "fallback_models_count": "{{count}} modele selectate",
+        "fallback_models_description": "Modele încercate în ordine când modelul principal eșuează",
+        "label": "Reîncercarea apelurilor către model",
+        "max_attempts": "Număr maxim de reîncercări",
+        "tooltip": "Reîncercările și mecanismele de rezervă se aplică numai înainte ca modelul să înceapă să transmită conținut în flux"
       },
       "toolbar": {
         "custom_add": "Personalizat",

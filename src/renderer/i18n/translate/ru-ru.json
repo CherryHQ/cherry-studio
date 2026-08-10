@@ -455,7 +455,7 @@
         "expand_all": "Развернуть все",
         "no_workdir": "Нет рабочего каталога",
         "show_more": "Развернуть дисплей",
-        "tasks": "[to be translated]:Tasks",
+        "tasks": "Задачи",
         "this_week": "На этой неделе",
         "today": "Сегодня",
         "unknown_agent": "Неизвестный агент",
@@ -1008,8 +1008,8 @@
           "label": "Уведомить"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "Преобразует локальный документ (PDF, Office, EPUB, CSV) в Markdown, чтобы агент мог его прочитать",
+          "label": "Документ в Markdown"
         },
         "CherryWebFetch": {
           "description": "Получает и читает веб-страницу",
@@ -1741,12 +1741,6 @@
       "top": "Вернуться наверх"
     },
     "resend": "Переотправить",
-    "resource_view": {
-      "menu": {
-        "agent": "Агенты",
-        "assistant": "Ассистенты"
-      }
-    },
     "save": {
       "file": {
         "title": "Сохранить в локальный файл"
@@ -1919,6 +1913,7 @@
         "time": "Время",
         "title": "Режим отображения"
       },
+      "draft": "Проект",
       "edit": {
         "placeholder": "Введите новый заголовок",
         "title": "Редактировать заголовок",
@@ -2163,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Пи",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Код Qwen"
     },
@@ -2989,26 +2985,26 @@
       "untitled_conversation": "Безымянный разговор"
     },
     "claude": {
-      "assistant_name": "[to be translated]:Claude Import",
-      "button": "[to be translated]:Select File",
-      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "assistant_name": "Импорт Claude",
+      "button": "Выбрать файл",
+      "description": "Импортирует текст, рассуждения и использование инструментов; изображения и вложения не включены",
       "error": {
-        "invalid_json": "[to be translated]:Invalid JSON file format",
-        "no_conversations": "[to be translated]:No conversations found in file",
-        "no_valid_conversations": "[to be translated]:No valid conversations to import",
-        "unknown": "[to be translated]:Import failed, please check file format"
+        "invalid_json": "Неверный формат файла JSON",
+        "no_conversations": "В файле не найдено бесед",
+        "no_valid_conversations": "Нет допустимых бесед для импорта",
+        "unknown": "Импорт не удался, проверьте формат файла"
       },
       "help": {
-        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
-        "step2": "[to be translated]:2. Wait for the export file via email",
-        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
-        "title": "[to be translated]:How to export Claude conversations?"
+        "step1": "1. Войдите в Claude, перейдите в Настройки > Конфиденциальность > Экспорт данных",
+        "step2": "2. Дождитесь получения файла экспорта по электронной почте",
+        "step3": "3. Извлеките загруженный файл и найдите conversations.json",
+        "title": "Как экспортировать разговоры с Claude?"
       },
-      "importing": "[to be translated]:Importing conversations...",
-      "selecting": "[to be translated]:Selecting file...",
-      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
-      "title": "[to be translated]:Import Claude Conversations",
-      "untitled_conversation": "[to be translated]:Untitled Conversation"
+      "importing": "Импортирование разговоров...",
+      "selecting": "Выбор файла...",
+      "success": "Успешно импортировано {{topics}} бесед с {{messages}} сообщениями",
+      "title": "Импорт бесед Claude",
+      "untitled_conversation": "Безымянный разговор"
     },
     "confirm": {
       "button": "Выберите файл для импорта",
@@ -3049,18 +3045,18 @@
         },
         "note": {
           "create": {
-            "content_label": "[to be translated]:Content",
-            "content_placeholder": "[to be translated]:Write the note content here…",
-            "title_label": "[to be translated]:Title",
-            "title_placeholder": "[to be translated]:Name this note"
+            "content_label": "Содержание",
+            "content_placeholder": "Напишите здесь содержание заметки…",
+            "title_label": "Название",
+            "title_placeholder": "Назовите эту заметку"
           },
           "description": "Выберите существующие заметки в качестве источников базы знаний",
           "empty_description": "Создайте заметки в разделе «Заметки», затем вернитесь сюда и выберите их.",
           "empty_title": "Заметки ещё не связаны",
           "loading": "Загрузка заметок…",
           "mode": {
-            "create": "[to be translated]:New note",
-            "import": "[to be translated]:Import notes"
+            "create": "Новая заметка",
+            "import": "Импортные примечания"
           }
         },
         "placeholder": {
@@ -3320,7 +3316,7 @@
   },
   "launchpad": {
     "apps": "Приложения",
-    "manage_sidebar": "[to be translated]:Manage Sidebar",
+    "manage_sidebar": "Управление боковой панелью",
     "minapps": "Мини-приложения",
     "miniApps": "Приложения",
     "pin_to_sidebar": "Закрепить на боковой панели",
@@ -3482,14 +3478,14 @@
       "basic": {
         "context_compress_enabled": "Автосжатие",
         "context_compress_model": "Модель сжатия",
-        "context_compress_model_follow": "[to be translated]:Follow current model",
-        "context_count": "[to be translated]:Recent messages kept",
+        "context_compress_model_follow": "По умолчанию",
+        "context_count": "Количество контекста",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
         "context_inherited_compress_off": "[to be translated]:auto-compress off",
         "context_inherited_compress_on": "[to be translated]:auto-compress on",
-        "context_management": "[to be translated]:Customize context management",
+        "context_management": "Управление контекстом",
         "context_truncate_threshold": "Порог усечения вывода инструмента (символы)",
         "creative": "Креативный",
         "custom_params": "Пользовательские параметры",
@@ -3506,10 +3502,10 @@
             "hint": "Автоматически суммировать старые сообщения при приближении к лимиту контекстного окна"
           },
           "context_count": {
-            "hint": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit"
+            "hint": "Количество последних сообщений, сохраняемых в качестве контекста"
           },
           "context_management": {
-            "hint": "[to be translated]:Use this assistant’s own context-management settings; off follows the global settings"
+            "hint": "Переопределить глобальные настройки управления контекстом для этого ассистента; off наследует глобальные настройки"
           },
           "context_truncate_threshold": {
             "hint": "Выводы инструмента, превышающие это количество символов, выгружаются и обрезаются"
@@ -4105,6 +4101,9 @@
       "failed": "Восстановление не удалось",
       "success": "Успешно восстановлено"
     },
+    "retry": {
+      "status": "Повторная попытка с {{model}} · попытка {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Успешно сохранено"
@@ -4254,8 +4253,8 @@
         "taskOutput": "Просмотреть вывод задачи",
         "taskStop": "Остановить задачу",
         "taskUpdate": "Обновить задачу",
-        "toMarkdown": "[to be translated]:Convert Document",
-        "toMarkdownOutput": "[to be translated]:Markdown",
+        "toMarkdown": "Конвертировать документ",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Написать",
         "tool": "Инструмент",
         "webFetch": "Веб-запрос",
@@ -4306,8 +4305,8 @@
       "thinkingHeader": "Мышление",
       "truncated": "Вывод усечён (оригинал: {{size}})",
       "units": {
-        "char_one": "[to be translated]:{{count}} char",
-        "char_other": "[to be translated]:{{count}} chars",
+        "char_one": "{{count}} симв",
+        "char_other": "{{count}} символов",
         "done_one": "Готово: {{count}}",
         "done_other": "Готово: {{count}}",
         "file_one": "{{count}} файл",
@@ -6129,7 +6128,7 @@
       "import_settings": {
         "button": "Импортировать файл JSON",
         "chatgpt": "Импорт из ChatGPT",
-        "claude": "[to be translated]:Import from Claude",
+        "claude": "Импорт из Claude",
         "title": "Импорт внешних данных приложения"
       },
       "joplin": {
@@ -6685,7 +6684,7 @@
         "notice": {
           "downloadFailed": "Не удалось загрузить. Проверьте подключение и попробуйте снова.",
           "inUse": "Всё ещё используется базой знаний; веса были сохранены.",
-          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
+          "incompleteCache": "Файлы модели неполные. Повторите загрузку, чтобы исправить их.",
           "removeFailed": "Не удалось удалить. Проверьте журналы для получения подробностей."
         },
         "ocr": {
@@ -7547,6 +7546,16 @@
         "label": "Быстрая модель",
         "setting_title": "Быстрая настройка модели",
         "tooltip": "Выберите легковесную модель и избегайте моделей с рассуждениями."
+      },
+      "retry": {
+        "backoff": "Экспоненциальная задержка",
+        "description": "Повторяет вызовы чата, эмбеддингов и переранжирования; чат может переключаться на другие модели",
+        "fallback_models": "Резервные модели",
+        "fallback_models_count": "Выбрано моделей: {{count}}",
+        "fallback_models_description": "Модели, которые пробуются по порядку при сбое основной модели",
+        "label": "Повторный вызов модели",
+        "max_attempts": "Максимальное число повторных попыток",
+        "tooltip": "Повторные попытки и резервные варианты применяются только до начала потоковой передачи контента моделью"
       },
       "toolbar": {
         "custom_add": "Пользовательский",

@@ -147,7 +147,7 @@
       }
     },
     "composer": {
-      "background_running_one": "[to be translated]:{{count}} background task running",
+      "background_running_one": "{{count}} バックグラウンドタスク実行中",
       "background_running_other": "{{count}} 個のバックグラウンドタスクが実行中"
     },
     "delete": {
@@ -261,7 +261,7 @@
         }
       },
       "file_tree": "ファイルツリー",
-      "items_one": "[to be translated]:{{count}} item",
+      "items_one": "{{count}}件",
       "items_other": "{{count}}個のアイテム",
       "maximize": "最大化",
       "minimize": "最小化",
@@ -345,7 +345,7 @@
         "agent": "エージェント",
         "context": "コンテキスト",
         "no_tasks": "アクティブなタスクはありません",
-        "run_task_live_one": "[to be translated]:{{count}} live",
+        "run_task_live_one": "{{count}} ライブ",
         "run_task_live_other": "{{count}} ライブ",
         "run_tasks": "サブタスク",
         "selected_tool": "選択されたツール",
@@ -353,7 +353,7 @@
         "stop_run_task_failed": "タスクの停止に失敗しました",
         "task_count": "{{completed}} / {{total}} 完了",
         "tasks": "タスク",
-        "tool_uses_one": "[to be translated]:{{count}} tool call",
+        "tool_uses_one": "{{count}} ツール呼び出し",
         "tool_uses_other": "{{count}} 回のツール呼び出し",
         "tools_active": "アクティブ",
         "tools_done": "完了",
@@ -455,14 +455,14 @@
         "expand_all": "すべて展開",
         "no_workdir": "作業フォルダーがありません",
         "show_more": "表示を拡大",
-        "tasks": "[to be translated]:Tasks",
+        "tasks": "タスク",
         "this_week": "今週",
         "today": "今日",
         "unknown_agent": "不明なエージェント",
         "unknown_agent_tip": "これはエージェントではなく、エージェントなしの履歴セッショングループです。表示専用で、実行を継続することはできません。",
         "yesterday": "昨日"
       },
-      "label_one": "[to be translated]:Session",
+      "label_one": "セッション",
       "label_other": "セッション",
       "list": {
         "title": "タスク"
@@ -1008,8 +1008,8 @@
           "label": "通知"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "ローカルドキュメント（PDF、Office、EPUB、CSV）をMarkdownに変換し、エージェントが読めるようにします",
+          "label": "ドキュメントをMarkdownに変換"
         },
         "CherryWebFetch": {
           "description": "ウェブページを取得して読み取る",
@@ -1741,12 +1741,6 @@
       "top": "トップに戻る"
     },
     "resend": "再送信",
-    "resource_view": {
-      "menu": {
-        "agent": "エージェント",
-        "assistant": "アシスタント"
-      }
-    },
     "save": {
       "file": {
         "title": "ローカルファイルに保存"
@@ -1919,6 +1913,7 @@
         "time": "時間",
         "title": "表示モード"
       },
+      "draft": "ドラフト",
       "edit": {
         "placeholder": "新しい名前を入力",
         "title": "名前を編集",
@@ -2163,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Qwen Code"
     },
@@ -2170,7 +2166,7 @@
     "config_json_hint": "生のJSONを貼り付けたり編集したりできます。上のフィールドと同期します",
     "configure": "設定",
     "configuring_provider": "{{provider}}を設定する",
-    "count_one": "[to be translated]:{{count}} item",
+    "count_one": "{{count}} 件のアイテム",
     "count_other": "{{count}}個のアイテム",
     "current_config": "現在",
     "current_config_settings": "現在の設定",
@@ -2299,12 +2295,12 @@
     "add_success": "追加成功",
     "advanced_settings": "詳細設定",
     "agent": "エージェント",
-    "agent_one": "[to be translated]:Agent",
+    "agent_one": "エージェント",
     "agent_other": "エージェント",
     "all": "すべて",
     "and": "と",
     "assistant": "アシスタント",
-    "assistant_one": "[to be translated]:Assistant",
+    "assistant_one": "アシスタント",
     "assistant_other": "アシスタント",
     "avatar": "アバター",
     "back": "戻る",
@@ -2989,26 +2985,26 @@
       "untitled_conversation": "無題の会話"
     },
     "claude": {
-      "assistant_name": "[to be translated]:Claude Import",
-      "button": "[to be translated]:Select File",
-      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "assistant_name": "Claude Import",
+      "button": "ファイルを選択",
+      "description": "テキスト、思考、ツールの使用をインポートします。画像や添付ファイルは含まれません",
       "error": {
-        "invalid_json": "[to be translated]:Invalid JSON file format",
-        "no_conversations": "[to be translated]:No conversations found in file",
-        "no_valid_conversations": "[to be translated]:No valid conversations to import",
-        "unknown": "[to be translated]:Import failed, please check file format"
+        "invalid_json": "JSONファイルの形式が無効です",
+        "no_conversations": "ファイルに会話が見つかりませんでした",
+        "no_valid_conversations": "インポートする有効な会話がありません",
+        "unknown": "インポートに失敗しました。ファイル形式を確認してください"
       },
       "help": {
-        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
-        "step2": "[to be translated]:2. Wait for the export file via email",
-        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
-        "title": "[to be translated]:How to export Claude conversations?"
+        "step1": "1. Claudeにログインし、Settings > Privacy > Export Dataに移動します",
+        "step2": "2. メールでのエクスポートファイルの受信を待つ",
+        "step3": "3. ダウンロードしたファイルを展開し、conversations.jsonを探してください",
+        "title": "Claudeの会話をエクスポートする方法は？"
       },
-      "importing": "[to be translated]:Importing conversations...",
-      "selecting": "[to be translated]:Selecting file...",
-      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
-      "title": "[to be translated]:Import Claude Conversations",
-      "untitled_conversation": "[to be translated]:Untitled Conversation"
+      "importing": "会話をインポートしています...",
+      "selecting": "ファイルを選択中...",
+      "success": "{{topics}}件の会話と{{messages}}件のメッセージを正常にインポートしました",
+      "title": "Claudeの会話をインポート",
+      "untitled_conversation": "無題の会話"
     },
     "confirm": {
       "button": "ファイルのインポートを選択",
@@ -3049,18 +3045,18 @@
         },
         "note": {
           "create": {
-            "content_label": "[to be translated]:Content",
-            "content_placeholder": "[to be translated]:Write the note content here…",
-            "title_label": "[to be translated]:Title",
-            "title_placeholder": "[to be translated]:Name this note"
+            "content_label": "コンテンツ",
+            "content_placeholder": "ここにメモの内容を書いてください…",
+            "title_label": "タイトル",
+            "title_placeholder": "このノートに名前を付ける"
           },
           "description": "既存のノートをナレッジベースのソースとして選択",
           "empty_description": "実際のノートリストが接続されると、ここに選択可能なノートが表示されます。現時点では、ファイル、フォルダー、URL、またはサイトマップを使用してください。",
           "empty_title": "ノートはまだ接続されていません",
           "loading": "メモを読み込んでいます…",
           "mode": {
-            "create": "[to be translated]:New note",
-            "import": "[to be translated]:Import notes"
+            "create": "新規メモ",
+            "import": "インポートメモ"
           }
         },
         "placeholder": {
@@ -3272,7 +3268,7 @@
       "action": "ナレッジベースを再構築する",
       "default_name": "{{name}}_バックアップ",
       "failed_to_restore": "ナレッジベースの再構築に失敗しました",
-      "skipped_missing_sources_one": "[to be translated]:Skipped {{count}} item whose source no longer exists",
+      "skipped_missing_sources_one": "ソースが存在しなくなったため、{{count}}件の項目をスキップしました",
       "skipped_missing_sources_other": "ソースが存在しなくなったため、{{count}}件の項目をスキップしました",
       "submit": "リビルド",
       "title": "ナレッジベースを再構築"
@@ -3320,7 +3316,7 @@
   },
   "launchpad": {
     "apps": "アプリ",
-    "manage_sidebar": "[to be translated]:Manage Sidebar",
+    "manage_sidebar": "サイドバーを管理",
     "minapps": "ミニアプリ",
     "miniApps": "アプリ",
     "pin_to_sidebar": "サイドバーに固定",
@@ -3482,14 +3478,14 @@
       "basic": {
         "context_compress_enabled": "自動圧縮",
         "context_compress_model": "圧縮モデル",
-        "context_compress_model_follow": "[to be translated]:Follow current model",
-        "context_count": "[to be translated]:Recent messages kept",
+        "context_compress_model_follow": "デフォルト",
+        "context_count": "コンテキストカウント",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
         "context_inherited_compress_off": "[to be translated]:auto-compress off",
         "context_inherited_compress_on": "[to be translated]:auto-compress on",
-        "context_management": "[to be translated]:Customize context management",
+        "context_management": "コンテキスト管理",
         "context_truncate_threshold": "ツール出力の切り捨てしきい値（文字数）",
         "creative": "クリエイティブ",
         "custom_params": "カスタムパラメータ",
@@ -3506,10 +3502,10 @@
             "hint": "コンテキストウィンドウに近づくと、古いターンを自動的に要約する"
           },
           "context_count": {
-            "hint": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit"
+            "hint": "コンテキストとして保持される最近のメッセージ数"
           },
           "context_management": {
-            "hint": "[to be translated]:Use this assistant’s own context-management settings; off follows the global settings"
+            "hint": "このアシスタントのグローバルなコンテキスト管理設定を上書きします。offに設定するとグローバル設定を継承します"
           },
           "context_truncate_threshold": {
             "hint": "この文字数を超えるツール出力はオフロードされて切り捨てられます"
@@ -4105,6 +4101,9 @@
       "failed": "復元に失敗しました",
       "success": "復元に成功しました"
     },
+    "retry": {
+      "status": "{{model}}を使用して再試行中 · 試行 {{attempt}}回目"
+    },
     "save": {
       "success": {
         "title": "保存に成功しました"
@@ -4254,8 +4253,8 @@
         "taskOutput": "タスク出力を表示",
         "taskStop": "タスクを停止",
         "taskUpdate": "タスクを更新",
-        "toMarkdown": "[to be translated]:Convert Document",
-        "toMarkdownOutput": "[to be translated]:Markdown",
+        "toMarkdown": "ドキュメントを変換",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "やること 書く",
         "tool": "ツール",
         "webFetch": "ウェブフェッチ",
@@ -4306,19 +4305,19 @@
       "thinkingHeader": "考える",
       "truncated": "出力が切り捨てられました（元のサイズ: {{size}}）",
       "units": {
-        "char_one": "[to be translated]:{{count}} char",
-        "char_other": "[to be translated]:{{count}} chars",
-        "done_one": "[to be translated]:{{count}} Done",
+        "char_one": "{{count}} 文字",
+        "char_other": "{{count}} 文字",
+        "done_one": "{{count}} 完了",
         "done_other": "{{count}} 完了",
-        "file_one": "[to be translated]:{{count}} file",
+        "file_one": "{{count}} ファイル",
         "file_other": "{{count}}個のファイル",
-        "item_one": "[to be translated]:{{count}} item",
+        "item_one": "{{count}} 件の商品",
         "item_other": "{{count}}件のアイテム",
-        "line_one": "[to be translated]:{{count}} line",
+        "line_one": "{{count}} 行",
         "line_other": "{{count}}行",
-        "plan_one": "[to be translated]:{{count}} plan",
+        "plan_one": "{{count}} プラン",
         "plan_other": "{{count}}件のプラン",
-        "result_one": "[to be translated]:{{count}} result",
+        "result_one": "{{count}} 件の結果",
         "result_other": "{{count}}件の結果"
       },
       "workflow": {
@@ -5193,11 +5192,11 @@
     "search_placeholder": "検索プラグイン...",
     "search_placeholder_skills": "検索スキル…",
     "showing_results": "{{count}} 個のプラグインを表示",
-    "showing_results_one": "[to be translated]:Showing {{count}} plugin",
+    "showing_results_one": "{{count}} 件のプラグインを表示中",
     "showing_results_other": "{{count}} 個のプラグインを表示",
     "showing_results_plural": "{{count}} 個のプラグインを表示",
     "showing_results_skills": "{{count}}スキルを表示",
-    "showing_results_skills_one": "[to be translated]:Showing {{count}} skill",
+    "showing_results_skills_one": "{{count}}件のスキルを表示中",
     "showing_results_skills_other": "{{count}}件のスキルを表示",
     "showing_results_skills_plural": "{{count}}件のスキルを表示中",
     "skills": "スキル",
@@ -5919,7 +5918,7 @@
             "title": "アプリログ"
           },
           "summary": "{{count}} ファイル、約 {{size}}",
-          "summary_one": "[to be translated]:{{count}} file, about {{size}}",
+          "summary_one": "{{count}}ファイル、約{{size}}",
           "summary_other": "{{count}} ファイル、約 {{size}}",
           "system": {
             "description": "アプリ、システム、デバイスの詳細情報が含まれます。最近のクラッシュ回数: {{crashCount}}。クラッシュファイルは収集されません。",
@@ -6124,12 +6123,12 @@
         "title": "エクスポートメニュー設定",
         "yuque": "Yuque にエクスポート"
       },
-      "hour_interval_one": "[to be translated]:{{count}} hour",
+      "hour_interval_one": "{{count}}時間",
       "hour_interval_other": "{{count}} 時間",
       "import_settings": {
         "button": "JSONファイルをインポート",
         "chatgpt": "ChatGPTからインポート",
-        "claude": "[to be translated]:Import from Claude",
+        "claude": "Claudeからインポート",
         "title": "外部アプリケーションデータをインポート"
       },
       "joplin": {
@@ -6214,14 +6213,14 @@
           "select_error_write_permission": "新パスに書き込み権限がありません",
           "select_title": "バックアップフォルダーを選択"
         },
-        "hour_interval_one": "[to be translated]:{{count}} hour",
+        "hour_interval_one": "{{count}}時間",
         "hour_interval_other": "{{count}} 時間",
         "lastSync": "最終バックアップ",
         "maxBackups": {
           "label": "最大バックアップ数",
           "unlimited": "無制限"
         },
-        "minute_interval_one": "[to be translated]:{{count}} minute",
+        "minute_interval_one": "{{count}}分",
         "minute_interval_other": "{{count}} 分",
         "noSync": "次回のバックアップを待機中",
         "restore": {
@@ -6268,7 +6267,7 @@
           "title": "高速モデルを使用してエクスポートされたメッセージのタイトルを命名"
         }
       },
-      "minute_interval_one": "[to be translated]:{{count}} minute",
+      "minute_interval_one": "{{count}}分",
       "minute_interval_other": "{{count}} 分",
       "notion": {
         "api_key": "Notion APIキー",
@@ -6577,11 +6576,11 @@
           "label": "WebDAVホスト",
           "placeholder": "http://localhost:8080"
         },
-        "hour_interval_one": "[to be translated]:{{count}} hour",
+        "hour_interval_one": "{{count}}時間",
         "hour_interval_other": "{{count}} 時間",
         "lastSync": "最終バックアップ",
         "maxBackups": "最大バックアップ数",
-        "minute_interval_one": "[to be translated]:{{count}} minute",
+        "minute_interval_one": "{{count}}分",
         "minute_interval_other": "{{count}} 分",
         "noSync": "次回のバックアップを待機中",
         "password": "WebDAVパスワード",
@@ -6685,7 +6684,7 @@
         "notice": {
           "downloadFailed": "ダウンロードに失敗しました。接続を確認して、もう一度お試しください。",
           "inUse": "ナレッジベースによってまだ使用されている; ウェイトは保持された。",
-          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
+          "incompleteCache": "モデルファイルが不完全です。ダウンロードを再試行して修復してください。",
           "removeFailed": "削除に失敗しました。詳細についてはログを確認してください。"
         },
         "ocr": {
@@ -7547,6 +7546,16 @@
         "label": "高速モデル",
         "setting_title": "高速モデル設定",
         "tooltip": "軽量モデルを選択し、推論モデルは避けてください。"
+      },
+      "retry": {
+        "backoff": "指数関数的バックオフ",
+        "description": "チャット、埋め込み、リランクの呼び出しを再試行します。チャットは他のモデルにフォールバックできます。",
+        "fallback_models": "フォールバックモデル",
+        "fallback_models_count": "{{count}} 個のモデルを選択中",
+        "fallback_models_description": "プライマリモデルが失敗した場合に順番に試行されるモデル",
+        "label": "モデル呼び出しの再試行",
+        "max_attempts": "最大再試行回数",
+        "tooltip": "再試行とフォールバックは、モデルがコンテンツのストリーミングを開始する前にのみ適用されます"
       },
       "toolbar": {
         "custom_add": "カスタム",
@@ -8506,7 +8515,7 @@
         "shareLabel": "共有",
         "title": "探索する",
         "top": "トップ",
-        "totalEntries_one": "[to be translated]:{{count}} entry",
+        "totalEntries_one": "{{count}} 件のエントリー",
         "totalEntries_other": "{{count}} エントリー"
       },
       "groupBy": {
@@ -8547,7 +8556,7 @@
       "title": "使用分析",
       "tooltip": {
         "cost": "コスト {{value}}",
-        "requests_one": "[to be translated]:{{count}} request",
+        "requests_one": "{{count}} リクエスト",
         "requests_other": "{{count}} 件のリクエスト",
         "tokens": "{{value}}トークン"
       },

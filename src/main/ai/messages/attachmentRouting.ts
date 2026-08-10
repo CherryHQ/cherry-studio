@@ -2,8 +2,8 @@
  * Chat-path attachment routing. In one pass over each message's parts, every
  * first-party (`fileEntryId`-backed) file part is either:
  *   - **native** for the target provider/model (image→vision, pdf→native
- *     provider, audio/video→capable) → left in place and materialized as the
- *     real file via `materializeNativeFilePart`; or
+ *     provider, audio/video→model + endpoint capable) → left in place and
+ *     materialized as the real file via `materializeNativeFilePart`; or
  *   - **non-native** → replaced with its extracted text (office/pdf/text via
  *     `extractDocumentText`, image via OCR, audio/video/binary → a note),
  *     inlined and capped. Over the cap, the head is inlined + a `read_file`
@@ -16,8 +16,7 @@
  * (missing entry, parse error, native materialization)
  * degrades to a model-visible note rather than silently dropping the file or
  * failing the request. Legacy / gateway parts (no `fileEntryId`) keep the eager
- * materialization path, but their images remain capability-gated because they
- * did not go through OCR fallback routing.
+ * materialization path, but their image/audio/video parts remain capability-gated.
  *
  * `collectFileAttachments` builds the per-request allow-list `read_file` resolves
  * handles against (unique handles; the internal `fileEntryId` never reaches the
@@ -172,6 +171,13 @@ function noteOf(handle: string): { type: 'text'; text: string } {
   return { type: 'text', text: `Attached file "${handle}": [could not read this file].` }
 }
 
+function rejectedMediaKind(mediaType: string, ns: NativeFileSupport): 'image' | 'audio' | 'video' | undefined {
+  if (!ns.image && mediaType.startsWith('image/')) return 'image'
+  if (!ns.audio && mediaType.startsWith('audio/')) return 'audio'
+  if (!ns.video && mediaType.startsWith('video/')) return 'video'
+  return undefined
+}
+
 async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareChatContext): Promise<T> {
   if (!message.parts?.length) return message
 
@@ -191,20 +197,23 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
 
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     if (!fileEntryId) {
-      // Legacy / gateway part — eager materialization, but do not treat an image
-      // that bypassed OCR as a deliberate native fallback for a non-vision model.
+      // Legacy / gateway part — eager materialization, but do not let media
+      // bypass the native-support gate applied to first-party attachments.
       const name = part.filename ?? 'file'
       const inlined = await materializeNativeFilePart(part)
       if (!inlined) {
         logger.warn('Dropped unresolved legacy file part; degrading to note', { messageId: message.id })
         kept.push(noteOf(name) as UIMessage['parts'][number])
-      } else if (!ctx.nativeSupport.image && inlined.mediaType.startsWith('image/')) {
-        kept.push({
-          type: 'text',
-          text: '[image attachment omitted: this model does not accept image input]'
-        } as UIMessage['parts'][number])
       } else {
-        kept.push(inlined as UIMessage['parts'][number])
+        const rejectedKind = rejectedMediaKind(inlined.mediaType, ctx.nativeSupport)
+        if (rejectedKind) {
+          kept.push({
+            type: 'text',
+            text: `[${rejectedKind} attachment omitted: this model does not accept ${rejectedKind} input]`
+          } as UIMessage['parts'][number])
+        } else {
+          kept.push(inlined as UIMessage['parts'][number])
+        }
       }
       continue
     }

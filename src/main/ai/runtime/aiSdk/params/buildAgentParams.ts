@@ -129,7 +129,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride
+    request.apiKeyOverride,
+    request.chatId
   )
   applyHttpTrace(sdkConfig, request.chatId, model)
   // Prefer the request-carried retained context: the persistent chat provider
@@ -220,7 +221,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
     assistantSummary: provider.settings.summaryText
   })
-  const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
+  const nativeFileSupport = resolveNativeFileSupport(provider, model, {
+    endpointType,
+    aiSdkProviderId,
+    runtimeProviderId
+  })
 
   const requestContext: RequestContext = {
     requestId: request.messageId ?? crypto.randomUUID(),
@@ -307,11 +312,13 @@ async function resolveSdkConfig(
   provider: Provider,
   model: Model,
   resolvedEndpoint: ResolvedEndpoint,
-  apiKeyOverride?: string
+  apiKeyOverride?: string,
+  sessionId?: string
 ): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
   const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
     apiKeyOverride,
-    resolvedEndpoint
+    resolvedEndpoint,
+    sessionId
   })
   return {
     sdkConfig: {

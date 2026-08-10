@@ -455,7 +455,7 @@
         "expand_all": "Ανάπτυξη όλων",
         "no_workdir": "Κανένας κατάλογος εργασίας",
         "show_more": "Ανάπτυξη οθόνης",
-        "tasks": "[to be translated]:Tasks",
+        "tasks": "Εργασίες",
         "this_week": "Αυτή την εβδομάδα",
         "today": "Σήμερα",
         "unknown_agent": "Άγνωστος πράκτορας",
@@ -1008,8 +1008,8 @@
           "label": "Ειδοποίηση"
         },
         "CherryToMarkdown": {
-          "description": "[to be translated]:Converts a local document (PDF, Office, EPUB, CSV) to Markdown so the agent can read it",
-          "label": "[to be translated]:Document to Markdown"
+          "description": "Μετατρέπει ένα τοπικό έγγραφο (PDF, Office, EPUB, CSV) σε Markdown ώστε ο πράκτορας να μπορεί να το διαβάσει",
+          "label": "Έγγραφο σε Markdown"
         },
         "CherryWebFetch": {
           "description": "Ανάκτηση και ανάγνωση μιας ιστοσελίδας",
@@ -1741,12 +1741,6 @@
       "top": "Επιστροφή στην κορυφή"
     },
     "resend": "Ξαναστείλε",
-    "resource_view": {
-      "menu": {
-        "agent": "Πράκτορες",
-        "assistant": "Βοηθοί"
-      }
-    },
     "save": {
       "file": {
         "title": "Αποθήκευση σε τοπικό αρχείο"
@@ -1919,6 +1913,7 @@
         "time": "Χρόνος",
         "title": "Λειτουργία προβολής"
       },
+      "draft": "Προσχέδιο",
       "edit": {
         "placeholder": "Εισαγάγετε το νέο όνομα",
         "title": "Επεξεργασία ονόματος θέματος",
@@ -2163,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "Ανοικτός Κώδικας",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Qwen Code"
     },
@@ -2989,26 +2985,26 @@
       "untitled_conversation": "Συνομιλία χωρίς τίτλο"
     },
     "claude": {
-      "assistant_name": "[to be translated]:Claude Import",
-      "button": "[to be translated]:Select File",
-      "description": "[to be translated]:Imports text, thinking, and tool use; images and attachments are not included",
+      "assistant_name": "Εισαγωγή Claude",
+      "button": "Επιλογή Αρχείου",
+      "description": "Εισαγωγές κειμένου, σκέψης και χρήσης εργαλείων· εικόνες και συνημμένα δεν περιλαμβάνονται",
       "error": {
-        "invalid_json": "[to be translated]:Invalid JSON file format",
-        "no_conversations": "[to be translated]:No conversations found in file",
-        "no_valid_conversations": "[to be translated]:No valid conversations to import",
-        "unknown": "[to be translated]:Import failed, please check file format"
+        "invalid_json": "Μη έγκυρη μορφή αρχείου JSON",
+        "no_conversations": "Δεν βρέθηκαν συνομιλίες στο αρχείο",
+        "no_valid_conversations": "Δεν υπάρχουν έγκυρες συνομιλίες για εισαγωγή",
+        "unknown": "Η εισαγωγή απέτυχε, παρακαλώ ελέγξτε τη μορφή του αρχείου"
       },
       "help": {
-        "step1": "[to be translated]:1. Log in to Claude, go to Settings > Privacy > Export Data",
-        "step2": "[to be translated]:2. Wait for the export file via email",
-        "step3": "[to be translated]:3. Extract the downloaded file and find conversations.json",
-        "title": "[to be translated]:How to export Claude conversations?"
+        "step1": "1. Συνδεθείτε στο Claude, μεταβείτε στις Ρυθμίσεις > Απόρρητο > Εξαγωγή Δεδομένων",
+        "step2": "2. Περιμένετε το αρχείο εξαγωγής μέσω email",
+        "step3": "3. Εξαγάγετε το ληφθέν αρχείο και βρείτε το conversations.json",
+        "title": "Πώς να εξαγάγετε συνομιλίες του Claude;"
       },
-      "importing": "[to be translated]:Importing conversations...",
-      "selecting": "[to be translated]:Selecting file...",
-      "success": "[to be translated]:Successfully imported {{topics}} conversations with {{messages}} messages",
-      "title": "[to be translated]:Import Claude Conversations",
-      "untitled_conversation": "[to be translated]:Untitled Conversation"
+      "importing": "Εισαγωγή συνομιλιών...",
+      "selecting": "Επιλογή αρχείου...",
+      "success": "Επιτυχής εισαγωγή {{topics}} συζητήσεων με {{messages}} μηνύματα",
+      "title": "Εισαγωγή Συζητήσεων Claude",
+      "untitled_conversation": "Συνομιλία χωρίς τίτλο"
     },
     "confirm": {
       "button": "Επιλέξτε Εισαγωγή Αρχείου",
@@ -3049,18 +3045,18 @@
         },
         "note": {
           "create": {
-            "content_label": "[to be translated]:Content",
-            "content_placeholder": "[to be translated]:Write the note content here…",
-            "title_label": "[to be translated]:Title",
-            "title_placeholder": "[to be translated]:Name this note"
+            "content_label": "Περιεχόμενο",
+            "content_placeholder": "Γράψτε εδώ το περιεχόμενο της σημείωσης…",
+            "title_label": "Τίτλος",
+            "title_placeholder": "Ονομάστε αυτή τη σημείωση"
           },
           "description": "Επιλέξτε υπάρχοντες σημειώσεις ως πηγές βάσης γνώσης",
           "empty_description": "Επιλέξιμες σημειώσεις θα εμφανιστούν εδώ αφού συνδεθεί η πραγματική λίστα σημειώσεων. Για τώρα, χρησιμοποιήστε αρχεία, φακέλους, διευθύνσεις URL ή sitemaps.",
           "empty_title": "Οι σημειώσεις δεν έχουν συνδεθεί ακόμα",
           "loading": "Φόρτωση σημειώσεων…",
           "mode": {
-            "create": "[to be translated]:New note",
-            "import": "[to be translated]:Import notes"
+            "create": "Νέα σημείωση",
+            "import": "Εισαγωγή σημειώσεων"
           }
         },
         "placeholder": {
@@ -3320,7 +3316,7 @@
   },
   "launchpad": {
     "apps": "Εφαρμογές",
-    "manage_sidebar": "[to be translated]:Manage Sidebar",
+    "manage_sidebar": "Διαχείριση Πλαϊνής Στήλης",
     "minapps": "Μικροεφαρμογές",
     "miniApps": "Μικρές εφαρμογές",
     "pin_to_sidebar": "Καρφίτσωμα στην πλαϊνή μπάρα",
@@ -3482,14 +3478,14 @@
       "basic": {
         "context_compress_enabled": "Αυτόματη συμπίεση",
         "context_compress_model": "Μοντέλο συμπίεσης",
-        "context_compress_model_follow": "[to be translated]:Follow current model",
-        "context_count": "[to be translated]:Recent messages kept",
+        "context_compress_model_follow": "Προεπιλογή",
+        "context_count": "Καταμέτρηση πλαισίου",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
         "context_inherited_compress_off": "[to be translated]:auto-compress off",
         "context_inherited_compress_on": "[to be translated]:auto-compress on",
-        "context_management": "[to be translated]:Customize context management",
+        "context_management": "Διαχείριση περιεχομένου",
         "context_truncate_threshold": "Όριο περικοπής εξόδου εργαλείου (χαρακτήρες)",
         "creative": "Δημιουργικό",
         "custom_params": "Προσαρμοσμένες παράμετροι",
@@ -3506,10 +3502,10 @@
             "hint": "Αυτόματη σύνοψη παλαιότερων στροφών όταν πλησιάζει το παράθυρο περιβάλλοντος"
           },
           "context_count": {
-            "hint": "[to be translated]:Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit"
+            "hint": "Αριθμός πρόσφατων μηνυμάτων που διατηρούνται ως συμφραζόμενα"
           },
           "context_management": {
-            "hint": "[to be translated]:Use this assistant’s own context-management settings; off follows the global settings"
+            "hint": "Απενεργοποίηση των καθολικών ρυθμίσεων διαχείρισης περιβάλλοντος για αυτόν τον βοηθό· το off κληρονομεί τις καθολικές ρυθμίσεις"
           },
           "context_truncate_threshold": {
             "hint": "Τα αποτελέσματα εργαλείων πέρα από αυτούς τους χαρακτήρες εκφορτώνονται και περικόπτονται"
@@ -4105,6 +4101,9 @@
       "failed": "Η αποκατάσταση απέτυχε",
       "success": "Η αποκατάσταση ήταν επιτυχής"
     },
+    "retry": {
+      "status": "Επανάληψη με {{model}} · προσπάθεια {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Η αποθήκευση ήταν επιτυχής"
@@ -4254,8 +4253,8 @@
         "taskOutput": "Δείτε την έξοδο της εργασίας",
         "taskStop": "Σταματήστε την εργασία",
         "taskUpdate": "Ενημέρωση εργασίας",
-        "toMarkdown": "[to be translated]:Convert Document",
-        "toMarkdownOutput": "[to be translated]:Markdown",
+        "toMarkdown": "Μετατροπή Εγγράφου",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Να γράψεις",
         "tool": "Εργαλείο",
         "webFetch": "Ανάκτηση Ιστού",
@@ -4306,8 +4305,8 @@
       "thinkingHeader": "Σκέψη",
       "truncated": "Η έξοδος περικόπηκε (πρωτότυπο: {{size}})",
       "units": {
-        "char_one": "[to be translated]:{{count}} char",
-        "char_other": "[to be translated]:{{count}} chars",
+        "char_one": "{{count}} χαρακτήρας",
+        "char_other": "{{count}} χαρακτήρες",
         "done_one": "{{count}} Ολοκληρώθηκε",
         "done_other": "{{count}} Ολοκληρώθηκαν",
         "file_one": "{{count}} αρχείο",
@@ -6129,7 +6128,7 @@
       "import_settings": {
         "button": "Εισαγωγή αρχείου Json",
         "chatgpt": "Εισαγωγή από το ChatGPT",
-        "claude": "[to be translated]:Import from Claude",
+        "claude": "Εισαγωγή από Claude",
         "title": "Εισαγωγή Δεδομένων Εξωτερικής Εφαρμογής"
       },
       "joplin": {
@@ -6685,7 +6684,7 @@
         "notice": {
           "downloadFailed": "Η λήψη απέτυχε. Ελέγξτε τη σύνδεσή σας και προσπαθήστε ξανά.",
           "inUse": "Ακόμα χρησιμοποιείται από μια βάση γνώσης· τα βάρη διατηρήθηκαν.",
-          "incompleteCache": "[to be translated]:Model files are incomplete. Retry the download to repair them.",
+          "incompleteCache": "Τα αρχεία μοντέλου είναι ελλιπή. Επαναλάβετε τη λήψη για να τα επιδιορθώσετε.",
           "removeFailed": "Η αφαίρεση απέτυχε. Ελέγξτε τα αρχεία καταγραφής για λεπτομέρειες."
         },
         "ocr": {
@@ -7547,6 +7546,16 @@
         "label": "Γρήγορο μοντέλο",
         "setting_title": "Γρήγορη ρύθμιση μοντέλου",
         "tooltip": "Προτείνεται να επιλέξετε ένα ελαφρύ μοντέλο και δεν συνιστάται να επιλέξετε ένα μοντέλο σκέψης"
+      },
+      "retry": {
+        "backoff": "Εκθετική υποχώρηση",
+        "description": "Επανάληψη κλήσεων συνομιλίας, ενσωμάτωσης και επαναταξινόμησης· η συνομιλία μπορεί να χρησιμοποιήσει εναλλακτικά μοντέλα",
+        "fallback_models": "Εναλλακτικά μοντέλα",
+        "fallback_models_count": "Επιλέχθηκαν {{count}} μοντέλα",
+        "fallback_models_description": "Μοντέλα που δοκιμάζονται με τη σειρά όταν αποτυγχάνει το κύριο μοντέλο",
+        "label": "Επανάληψη κλήσης μοντέλου",
+        "max_attempts": "Μέγιστος αριθμός προσπαθειών επανάληψης",
+        "tooltip": "Οι επαναλήψεις και οι εναλλακτικές λύσεις ισχύουν μόνο πριν το μοντέλο ξεκινήσει τη ροή περιεχομένου"
       },
       "toolbar": {
         "custom_add": "Προσαρμοσμένο",

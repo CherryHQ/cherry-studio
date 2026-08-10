@@ -15,7 +15,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { ClaudeCodeStreamAdapter } = await import('../streamAdapter')
+const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -812,7 +812,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       toolCallId: 'mcp-search',
       output: {
         content: results,
-        metadata: { type: 'mcp', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+        metadata: { type: 'mcp', name: 'web_search', serverName: 'cherry-tools', serverId: 'cherry-tools' }
       }
     })
   })
@@ -1049,6 +1049,32 @@ describe('ClaudeCodeStreamAdapter', () => {
       )
     ).toThrow('boom')
     expect(sessionIds).toEqual(['sdk-error'])
+  })
+
+  it.each([
+    ['is_error', { is_error: true }],
+    ['api_error terminal reason', { terminal_reason: 'api_error' }],
+    ['API error status', { api_error_status: 504 }]
+  ])('throws SDK success results marked by %s', (_, overrides) => {
+    const { adapter, parts, sessionIds } = createAdapter()
+    const resultText = 'API Error: The operation timed out.'
+    let thrown: unknown
+
+    try {
+      adapter.handleMessage(successResult({ result: resultText, ...overrides }))
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+    expect(thrown).toMatchObject({
+      message: resultText,
+      subtype: 'success',
+      errors: [resultText]
+    })
+    expect(sessionIds).toEqual(['sdk-result'])
+    expect(parts.map((part) => part.type)).toEqual(['message-metadata'])
+    expect(loggerMocks.info).not.toHaveBeenCalledWith(expect.stringContaining('Stream completed'))
   })
 
   it('emits final live usage metadata before throwing on error results', () => {
@@ -1291,6 +1317,39 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(loggerMocks.warn).toHaveBeenCalledWith(
         'Received a result message with no active turn; dropping turn-complete',
         { sessionId: 'session-1' }
+      )
+    })
+
+    it('throws an API failure result when no turn is active', () => {
+      const { adapter, parts, sessionIds } = createAdapter({}, { openTurn: false })
+      let thrown: unknown
+
+      try {
+        adapter.handleMessage(
+          successResult({
+            session_id: 'resume-api-error',
+            is_error: true,
+            terminal_reason: 'api_error',
+            api_error_status: 504,
+            result: 'API Error: The operation timed out.'
+          })
+        )
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+      expect(thrown).toMatchObject({
+        message: 'API Error: The operation timed out.',
+        subtype: 'success',
+        terminalReason: 'api_error',
+        apiErrorStatus: 504
+      })
+      expect(sessionIds).toEqual(['resume-api-error'])
+      expect(parts).toEqual([])
+      expect(loggerMocks.warn).not.toHaveBeenCalledWith(
+        'Received a result message with no active turn; dropping turn-complete',
+        expect.anything()
       )
     })
 

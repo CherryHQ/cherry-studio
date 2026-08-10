@@ -52,6 +52,16 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
   })
 
+  it('pins permission mode on the agent composer toolbar for new users', () => {
+    const agentPinnedToolsDefault: PreferenceSchemas['default']['agent.input.toolbar.pinned_tools'] = [
+      'composer:new-session',
+      'skills',
+      'permission-mode'
+    ]
+
+    expect(DefaultPreferences.default['agent.input.toolbar.pinned_tools']).toEqual(agentPinnedToolsDefault)
+  })
+
   it('defaults transparent windows on for new users', () => {
     const windowStyleDefault: PreferenceSchemas['default']['ui.window_style'] = 'transparent'
 
