@@ -261,6 +261,22 @@ describe('AgentSessionService', () => {
     })
   })
 
+  describe('runtime ownership', () => {
+    it('only lets the current runtime entry release its durable crash-recovery lease', async () => {
+      const session = await createSession('runtime-owner')
+
+      agentSessionService.acquireRuntimeOwnership(session.id, 'owner-1')
+      expect(agentSessionService.findRuntimeOwnedSessionIds()).toEqual([session.id])
+
+      agentSessionService.acquireRuntimeOwnership(session.id, 'owner-2')
+      agentSessionService.releaseRuntimeOwnership(session.id, 'owner-1')
+      expect(agentSessionService.findRuntimeOwnedSessionIds()).toEqual([session.id])
+
+      agentSessionService.releaseRuntimeOwnership(session.id, 'owner-2')
+      expect(agentSessionService.findRuntimeOwnedSessionIds()).toEqual([])
+    })
+  })
+
   it('binds a session to an explicit workspace', async () => {
     const workspace = await createWorkspace('explicit')
 

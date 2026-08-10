@@ -12,7 +12,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
+  blockRuntimeResumeTokenReads: vi.fn(),
+  allowRuntimeResumeTokenReads: vi.fn(),
   findPendingAssistantMessages: vi.fn(),
+  findAssistantMessagesForSessions: vi.fn(),
   resolveCrashOrphanedMessages: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
@@ -24,11 +27,19 @@ const mocks = vi.hoisted(() => ({
   cacheSetShared: vi.fn(),
   cacheDeleteShared: vi.fn(),
   getAgent: vi.fn(),
+  acquireRuntimeOwnership: vi.fn(),
+  findRuntimeOwnedSessionIds: vi.fn(),
+  releaseRuntimeOwnership: vi.fn(),
   ensureTraceId: vi.fn()
 }))
 
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { ensureTraceId: mocks.ensureTraceId }
+  agentSessionService: {
+    acquireRuntimeOwnership: mocks.acquireRuntimeOwnership,
+    findRuntimeOwnedSessionIds: mocks.findRuntimeOwnedSessionIds,
+    releaseRuntimeOwnership: mocks.releaseRuntimeOwnership,
+    ensureTraceId: mocks.ensureTraceId
+  }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
@@ -39,7 +50,10 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     saveMessage: mocks.saveMessage,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
+    blockRuntimeResumeTokenReads: mocks.blockRuntimeResumeTokenReads,
+    allowRuntimeResumeTokenReads: mocks.allowRuntimeResumeTokenReads,
     findPendingAssistantMessages: mocks.findPendingAssistantMessages,
+    findAssistantMessagesForSessions: mocks.findAssistantMessagesForSessions,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages
   }
 }))
@@ -144,6 +158,9 @@ describe('AgentSessionRuntimeService pause / drainInFlight', () => {
   beforeEach(() => {
     BaseService.resetInstances()
     vi.clearAllMocks()
+    mocks.findPendingAssistantMessages.mockReturnValue([])
+    mocks.findAssistantMessagesForSessions.mockReturnValue([])
+    mocks.findRuntimeOwnedSessionIds.mockReturnValue([])
     mocks.saveMessage.mockImplementation(({ message }) => ({
       ...message,
       id: message.id ?? 'generated-message-id'

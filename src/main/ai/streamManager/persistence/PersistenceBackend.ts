@@ -18,10 +18,18 @@ import {
 } from '@shared/data/types/uiParts'
 
 const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', 'output-error', 'output-denied'])
+type CherryReasoningPart = Extract<CherryMessagePart, { type: 'reasoning' }>
 
-function isToolPart(part: CherryMessagePart): boolean {
-  const t = part.type
-  return t.startsWith('tool-') || t === 'dynamic-tool'
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isToolPart(part: Record<string, unknown>): boolean {
+  return (
+    typeof part.type === 'string' &&
+    typeof part.toolCallId === 'string' &&
+    (part.type.startsWith('tool-') || part.type === 'dynamic-tool')
+  )
 }
 
 /**
@@ -43,10 +51,15 @@ export function finalizeInterruptedParts(
   const interruptionReason = status === 'paused' ? 'Interrupted by user' : 'Stream errored'
   const taskError = status === 'paused' ? interruptionReason : `${interruptionReason} before task completed`
   const toolError = status === 'paused' ? interruptionReason : `${interruptionReason} before tool completed`
-  return parts.map((part) => {
-    if (part.type === 'reasoning') {
-      if (part.state === 'streaming') {
-        const cherry = readCherryMeta(part)
+  let changed = false
+  const finalized = parts.map((part) => {
+    if (!isRecord(part) || typeof part.type !== 'string') return part
+    const opaquePart = part as Record<string, unknown>
+
+    if (opaquePart.type === 'reasoning') {
+      if (opaquePart.state === 'streaming') {
+        const reasoningPart = part as CherryReasoningPart
+        const cherry = readCherryMeta(reasoningPart)
         const startedAt = cherry?.startedAt
         const thinkingMs = cherry?.thinkingMs
 
@@ -59,9 +72,10 @@ export function finalizeInterruptedParts(
 
         // TODO(stream-manager-redesign): AI SDK's ReasoningUIPart currently only supports 'streaming' | 'done'.
         // Investigate expanding the state machine with an 'error' terminal state.
+        changed = true
         return withCherryMeta(
           {
-            ...part,
+            ...reasoningPart,
             state: 'done'
           },
           patch
@@ -70,28 +84,31 @@ export function finalizeInterruptedParts(
       return part
     }
 
-    if (part.type === 'data-agent-task-event') {
+    if (opaquePart.type === 'data-agent-task-event') {
+      if (!isRecord(opaquePart.data) || opaquePart.data.status !== 'in_progress') return part
       const taskPart = part as CherryMessagePart & { data: AgentTaskEventPartData }
-      if (taskPart.data.status !== 'in_progress') return part
+      changed = true
       return {
         ...taskPart,
         data: {
           ...taskPart.data,
           status: 'error',
-          error: taskPart.data.error ?? taskError
+          error: typeof taskPart.data.error === 'string' ? taskPart.data.error : taskError
         }
       } as CherryMessagePart
     }
 
-    if (!isToolPart(part)) return part
-    const toolPart = part as CherryMessagePart & { state?: string; errorText?: string }
-    if (toolPart.state && TERMINAL_TOOL_STATES.has(toolPart.state)) return part
+    if (!isToolPart(opaquePart)) return part
+    if (typeof opaquePart.state !== 'string' || TERMINAL_TOOL_STATES.has(opaquePart.state)) return part
+    const toolPart = part as CherryMessagePart & { state: string; errorText?: string }
+    changed = true
     return {
       ...toolPart,
       state: 'output-error',
-      errorText: toolPart.errorText ?? toolError
+      errorText: typeof toolPart.errorText === 'string' ? toolPart.errorText : toolError
     } as CherryMessagePart
   })
+  return changed ? finalized : parts
 }
 
 /**

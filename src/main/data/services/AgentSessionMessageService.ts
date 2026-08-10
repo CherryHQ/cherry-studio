@@ -60,6 +60,13 @@ type SessionMessageSearchRow = {
   createdAt: number
 }
 
+type CrashRecoveryMessage = {
+  id: string
+  sessionId: string
+  status: AgentSessionMessageEntity['status']
+  data: AgentSessionMessageEntity['data']
+}
+
 type SessionMessageContentSearchInput = {
   q: string
   cursor?: string
@@ -144,6 +151,8 @@ function replaceAgentSessionMessageFileRefsTx(
 }
 
 export class AgentSessionMessageService {
+  private runtimeResumeTokenReadsBlocked = false
+
   search(query: SessionMessageContentSearchInput) {
     const db = application.get('DbService').getDb()
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
@@ -361,35 +370,60 @@ export class AgentSessionMessageService {
    * `sessionId` + `data` alongside the id so the caller can terminalize interrupted parts and
    * invalidate the affected sessions' resume tokens.
    */
-  findPendingAssistantMessages(): Array<{ id: string; sessionId: string; data: AgentSessionMessageEntity['data'] }> {
+  findPendingAssistantMessages(): CrashRecoveryMessage[] {
     const database = application.get('DbService').getDb()
     return database
       .select({
         id: sessionMessagesTable.id,
         sessionId: sessionMessagesTable.sessionId,
+        status: sessionMessagesTable.status,
         data: sessionMessagesTable.data
       })
       .from(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.role, 'assistant'), eq(sessionMessagesTable.status, 'pending')))
-      .all()
+      .all() as CrashRecoveryMessage[]
+  }
+
+  /** Assistant history for sessions whose durable runtime lease survived a crash. */
+  findAssistantMessagesForSessions(sessionIds: readonly string[]): CrashRecoveryMessage[] {
+    if (sessionIds.length === 0) return []
+    const database = application.get('DbService').getDb()
+    const messages: CrashRecoveryMessage[] = []
+    for (let index = 0; index < sessionIds.length; index += SQLITE_INARRAY_CHUNK) {
+      messages.push(
+        ...(database
+          .select({
+            id: sessionMessagesTable.id,
+            sessionId: sessionMessagesTable.sessionId,
+            status: sessionMessagesTable.status,
+            data: sessionMessagesTable.data
+          })
+          .from(sessionMessagesTable)
+          .where(
+            and(
+              eq(sessionMessagesTable.role, 'assistant'),
+              inArray(sessionMessagesTable.sessionId, sessionIds.slice(index, index + SQLITE_INARRAY_CHUNK))
+            )
+          )
+          .all() as typeof messages)
+      )
+    }
+    return messages
   }
 
   /**
-   * Boot reconcile of crash-orphaned `pending` rows: resolve each row to `error` (with the
-   * caller's terminalized `data`) and discard the affected sessions' resume tokens, atomically.
-   * A crashed turn leaves the external CLI session in an untrusted state — resuming it can replay
-   * a runaway execution (#18281) — so the next connection must start without a token.
+   * Atomically persist crash-terminalized message data, discard affected resume tokens, and release
+   * durable runtime leases. `pending` rows become `error`; settled parent rows keep their status while
+   * detached tool/task parts are terminalized. A crashed CLI session is untrusted — resuming it can
+   * replay runaway execution (#18281), so the next connection must start without a token.
    */
-  resolveCrashOrphanedMessages(
-    messages: Array<{ id: string; data: AgentSessionMessageEntity['data'] }>,
-    sessionIds: string[]
-  ): void {
-    if (messages.length === 0) return
+  resolveCrashOrphanedMessages(messages: Array<Omit<CrashRecoveryMessage, 'sessionId'>>, sessionIds: string[]): void {
+    if (messages.length === 0 && sessionIds.length === 0) return
     application.get('DbService').withWriteTx((tx) => {
       const updatedAt = Date.now()
       for (const message of messages) {
         tx.update(sessionMessagesTable)
-          .set({ status: 'error', data: message.data, updatedAt })
+          .set({ status: message.status === 'pending' ? 'error' : message.status, data: message.data, updatedAt })
           .where(eq(sessionMessagesTable.id, message.id))
           .run()
       }
@@ -399,7 +433,16 @@ export class AgentSessionMessageService {
           .where(inArray(sessionMessagesTable.sessionId, sessionIds))
           .run()
       }
+      agentSessionService.releaseRuntimeOwnershipTx(tx, sessionIds)
     })
+  }
+
+  blockRuntimeResumeTokenReads(): void {
+    this.runtimeResumeTokenReadsBlocked = true
+  }
+
+  allowRuntimeResumeTokenReads(): void {
+    this.runtimeResumeTokenReadsBlocked = false
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
@@ -420,6 +463,10 @@ export class AgentSessionMessageService {
   }
 
   getLastRuntimeResumeToken(sessionId: string): string | null {
+    if (this.runtimeResumeTokenReadsBlocked) {
+      logger.warn('Runtime resume token read blocked until crash recovery succeeds', { sessionId })
+      return null
+    }
     try {
       const database = application.get('DbService').getDb()
       const result = database

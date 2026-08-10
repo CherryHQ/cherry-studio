@@ -213,6 +213,30 @@ describe('finalizeInterruptedParts', () => {
     expect(result[1]).toBe(pending)
   })
 
+  it('preserves malformed opaque entries while still terminalizing valid interrupted parts', () => {
+    const missingType = {}
+    const nonStringType = { type: 7 }
+    const missingTaskData = { type: 'data-agent-task-event' }
+    const malformedTool = { type: 'tool-search', state: 'input-available' }
+    const parts = [
+      null,
+      missingType,
+      nonStringType,
+      missingTaskData,
+      malformedTool,
+      inProgressToolPart('input-available')
+    ] as unknown as CherryMessagePart[]
+
+    const result = finalizeInterruptedParts(parts, 'error')
+
+    expect(result.slice(0, 5)).toEqual([null, missingType, nonStringType, missingTaskData, malformedTool])
+    expect(result[1]).toBe(missingType)
+    expect(result[2]).toBe(nonStringType)
+    expect(result[3]).toBe(missingTaskData)
+    expect(result[4]).toBe(malformedTool)
+    expect(result[5]).toMatchObject({ state: 'output-error', errorText: 'Stream errored before tool completed' })
+  })
+
   it('rewrites a streaming reasoning part to done and calculates thinkingMs if startedAt is provided', () => {
     const baseTime = 1780913860106
     vi.spyOn(Date, 'now').mockReturnValue(baseTime)

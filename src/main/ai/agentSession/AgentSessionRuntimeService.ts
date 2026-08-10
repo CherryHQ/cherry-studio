@@ -220,6 +220,8 @@ type RuntimeStateEvent = AgentSessionRuntimeStateEvent<
 
 type AgentSessionRuntimeEntry = {
   sessionId: string
+  /** Durable lease identity; only this entry may clear the DB crash-recovery marker it acquired. */
+  runtimeOwnerId?: string
   topicId: string
   /** Container-level OTel trace id (one trace tree per session); the warm connection's traceparent. */
   sessionTraceId?: string
@@ -247,7 +249,7 @@ type AgentSessionRuntimeEntry = {
   /** One continuation accumulator per persisted assistant row receiving detached flow chunks. */
   backgroundFlowAccumulators?: Map<string, BackgroundFlowAccumulator>
   /** Single-flight finalization of the current detached flow batch. */
-  backgroundFlowFlush?: Promise<void>
+  backgroundFlowFlush?: Promise<boolean>
 }
 
 class AgentSessionRuntimeTerminalListener implements StreamListener {
@@ -340,26 +342,40 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   private reconcileStalePendingMessages(): void {
+    agentSessionMessageService.blockRuntimeResumeTokenReads()
     try {
-      const stale = agentSessionMessageService.findPendingAssistantMessages()
-      if (stale.length === 0) return
-      const sessionIds = [...new Set(stale.map((message) => message.sessionId))]
-      logger.info('Reconciling crash-orphaned pending agent-session messages', {
-        count: stale.length,
+      const pendingMessages = agentSessionMessageService.findPendingAssistantMessages()
+      const runtimeOwnedSessionIds = agentSessionService.findRuntimeOwnedSessionIds()
+      const runtimeOwnedMessages = agentSessionMessageService.findAssistantMessagesForSessions(runtimeOwnedSessionIds)
+      const staleById = new Map(
+        [...pendingMessages, ...runtimeOwnedMessages].map((message) => [message.id, message] as const)
+      )
+      const stale = [...staleById.values()]
+      const sessionIds = [
+        ...new Set([...runtimeOwnedSessionIds, ...pendingMessages.map((message) => message.sessionId)])
+      ]
+      if (stale.length === 0 && sessionIds.length === 0) {
+        agentSessionMessageService.allowRuntimeResumeTokenReads()
+        return
+      }
+
+      const finalized = stale.flatMap(({ id, status, data }) => {
+        const parts = data.parts ?? []
+        const finalizedParts = finalizeInterruptedParts(parts, 'error')
+        if (status !== 'pending' && finalizedParts === parts) return []
+        return [{ id, status, data: { ...data, parts: finalizedParts } }]
+      })
+      logger.info('Reconciling crash-orphaned agent-session runtime work', {
+        messageCount: finalized.length,
         sessionCount: sessionIds.length
       })
-      // Terminalize the interrupted turn's live parts (streaming tools, in-progress subagent
-      // tasks, unanswerable approval requests) so history renders settled, and discard the
-      // affected sessions' resume tokens so prewarm/next turn opens a fresh runtime connection.
-      agentSessionMessageService.resolveCrashOrphanedMessages(
-        stale.map(({ id, data }) => ({
-          id,
-          data: { ...data, parts: finalizeInterruptedParts(data.parts ?? [], 'error') }
-        })),
-        sessionIds
-      )
+      // Terminalize live-looking parts across every runtime-owned session, including settled parent
+      // turns that still host detached work, then discard resume tokens and the stale ownership lease.
+      agentSessionMessageService.resolveCrashOrphanedMessages(finalized, sessionIds)
+      agentSessionMessageService.allowRuntimeResumeTokenReads()
     } catch (error) {
-      logger.error('Failed to reconcile stale pending agent-session messages', { error })
+      // Leave token reads blocked: a partial/failed quarantine must never resume an untrusted CLI session.
+      logger.error('Failed to reconcile stale agent-session runtime work; resume tokens remain blocked', { error })
     }
   }
 
@@ -879,7 +895,7 @@ export class AgentSessionRuntimeService extends BaseService {
       closing = this.closeEntry(entry)
     } catch (error) {
       logger.warn('Agent runtime entry close failed', { sessionId, error })
-      closing = this.closeRuntimeConnection(fallbackConnection, sessionId)
+      closing = this.closeRuntimeConnection(fallbackConnection, sessionId).then(() => undefined)
     }
     if (this.entries.get(sessionId) === entry) this.entries.delete(sessionId)
     return closing
@@ -1452,6 +1468,8 @@ export class AgentSessionRuntimeService extends BaseService {
     const driver = runtimeDriverRegistry.getAgentSessionDriver(entry.agentType)
     if (!driver) throw new Error(`Unsupported agent runtime type: ${entry.agentType}`)
 
+    const runtimeOwnerId = (entry.runtimeOwnerId ??= crypto.randomUUID())
+    agentSessionService.acquireRuntimeOwnership(entry.sessionId, runtimeOwnerId)
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
 
@@ -2025,10 +2043,10 @@ export class AgentSessionRuntimeService extends BaseService {
       .setShared(AGENT_SESSION_FLOW_PARTS_CACHE_KEY(entry.sessionId, accumulator.messageId), parts)
   }
 
-  private finishBackgroundFlows(entry: AgentSessionRuntimeEntry): Promise<void> {
+  private finishBackgroundFlows(entry: AgentSessionRuntimeEntry): Promise<boolean> {
     if (entry.backgroundFlowFlush) return entry.backgroundFlowFlush
     const accumulators = [...(entry.backgroundFlowAccumulators?.values() ?? [])]
-    if (accumulators.length === 0) return Promise.resolve()
+    if (accumulators.length === 0) return Promise.resolve(true)
 
     for (const accumulator of accumulators) {
       if (accumulator.closed) continue
@@ -2066,9 +2084,11 @@ export class AgentSessionRuntimeService extends BaseService {
             )
           }
         }
+        return true
       })
       .catch((error) => {
         logger.warn('Failed to finalize detached subagent flow parts', { sessionId: entry.sessionId, error })
+        return false
       })
       .finally(() => {
         if (entry.backgroundFlowFlush === flush) entry.backgroundFlowFlush = undefined
@@ -2950,6 +2970,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private closeEntry(entry: AgentSessionRuntimeEntry): Promise<void> {
     this.clearIdleTimer(entry)
+    const hadConnectionAttempt = this.connectionAttempts.has(entry.sessionId)
     for (const accumulator of entry.backgroundFlowAccumulators?.values() ?? []) {
       const parts = accumulator.latest?.parts as CherryMessagePart[] | undefined
       if (!parts) continue
@@ -2961,7 +2982,7 @@ export class AgentSessionRuntimeService extends BaseService {
           BACKGROUND_FLOW_HANDOFF_TTL_MS
         )
     }
-    void this.finishBackgroundFlows(entry)
+    const backgroundFlowsFlushed = this.finishBackgroundFlows(entry)
     const currentTurn = this.currentTurn(entry)
     if (currentTurn) this.closeTurn(currentTurn)
     const deferredTurn =
@@ -2982,7 +3003,18 @@ export class AgentSessionRuntimeService extends BaseService {
     this.connectionAttempts.delete(entry.sessionId)
     this.inFlightTurnStarts.delete(entry.sessionId)
 
-    return this.closeRuntimeConnection(connection, entry.sessionId)
+    return Promise.all([backgroundFlowsFlushed, this.closeRuntimeConnection(connection, entry.sessionId)]).then(
+      ([flushed, closed]) => {
+        // A stale async connect self-closes only after it resolves. Keep the lease when one was in
+        // flight so a process exit in that gap is conservatively quarantined on the next boot.
+        if (!flushed || !closed || hadConnectionAttempt || !entry.runtimeOwnerId) return
+        try {
+          agentSessionService.releaseRuntimeOwnership(entry.sessionId, entry.runtimeOwnerId)
+        } catch (error) {
+          logger.warn('Failed to release agent runtime crash-recovery lease', { sessionId: entry.sessionId, error })
+        }
+      }
+    )
   }
 
   private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
@@ -3011,15 +3043,18 @@ export class AgentSessionRuntimeService extends BaseService {
     void this.closeRuntimeConnection(connection, entry.sessionId)
   }
 
-  private closeRuntimeConnection(connection: AgentRuntimeConnection | undefined, sessionId: string): Promise<void> {
-    if (!connection) return Promise.resolve()
+  private closeRuntimeConnection(connection: AgentRuntimeConnection | undefined, sessionId: string): Promise<boolean> {
+    if (!connection) return Promise.resolve(true)
     try {
-      return Promise.resolve(connection.close()).catch((error) => {
-        logger.warn('Agent runtime connection close failed', { sessionId, error })
-      })
+      return Promise.resolve(connection.close())
+        .then(() => true)
+        .catch((error) => {
+          logger.warn('Agent runtime connection close failed', { sessionId, error })
+          return false
+        })
     } catch (error) {
       logger.warn('Agent runtime connection close failed', { sessionId, error })
-      return Promise.resolve()
+      return Promise.resolve(false)
     }
   }
 }

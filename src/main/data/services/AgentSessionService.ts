@@ -181,6 +181,45 @@ export class AgentSessionService {
     tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()
   }
 
+  /** Acquire the durable crash-recovery lease for one in-memory runtime entry. */
+  acquireRuntimeOwnership(sessionId: string, ownerId: string): void {
+    application
+      .get('DbService')
+      .getDb()
+      .update(sessionsTable)
+      .set({ runtimeOwnerId: ownerId })
+      .where(eq(sessionsTable.id, sessionId))
+      .run()
+  }
+
+  /** Sessions whose prior main process did not cleanly release runtime ownership. */
+  findRuntimeOwnedSessionIds(): string[] {
+    return application
+      .get('DbService')
+      .getDb()
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(isNotNull(sessionsTable.runtimeOwnerId))
+      .all()
+      .map(({ id }) => id)
+  }
+
+  releaseRuntimeOwnership(sessionId: string, ownerId: string): void {
+    application
+      .get('DbService')
+      .getDb()
+      .update(sessionsTable)
+      .set({ runtimeOwnerId: null })
+      .where(and(eq(sessionsTable.id, sessionId), eq(sessionsTable.runtimeOwnerId, ownerId)))
+      .run()
+  }
+
+  /** Owner primitive used by message crash reconciliation's outer transaction. */
+  releaseRuntimeOwnershipTx(tx: DbOrTx, sessionIds: readonly string[]): void {
+    if (sessionIds.length === 0) return
+    tx.update(sessionsTable).set({ runtimeOwnerId: null }).where(inArray(sessionsTable.id, sessionIds)).run()
+  }
+
   private assertAgentExistsTx(tx: DbOrTx, agentId: string): void {
     const [agent] = tx
       .select({ id: agentsTable.id })

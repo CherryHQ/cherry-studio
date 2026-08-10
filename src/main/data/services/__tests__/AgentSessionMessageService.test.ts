@@ -8,6 +8,7 @@ import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -55,6 +56,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   afterEach(() => {
+    agentSessionMessageService.allowRuntimeResumeTokenReads()
     vi.restoreAllMocks()
   })
 
@@ -90,11 +92,14 @@ describe('AgentSessionMessageService', () => {
       })
 
       expect(agentSessionMessageService.findPendingAssistantMessages()).toEqual([
-        { id: PENDING, sessionId: SESSION_ID, data: { parts: [] } }
+        { id: PENDING, sessionId: SESSION_ID, status: 'pending', data: { parts: [] } }
       ])
 
       const finalizedData = { parts: [{ type: 'text' as const, text: 'terminalized' }] }
-      agentSessionMessageService.resolveCrashOrphanedMessages([{ id: PENDING, data: finalizedData }], [SESSION_ID])
+      agentSessionMessageService.resolveCrashOrphanedMessages(
+        [{ id: PENDING, status: 'pending', data: finalizedData }],
+        [SESSION_ID]
+      )
       expect(agentSessionMessageService.findPendingAssistantMessages()).toEqual([])
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
       expect(row.status).toBe('error')
@@ -123,12 +128,74 @@ describe('AgentSessionMessageService', () => {
         message: { id: OTHER, role: 'assistant', status: 'success', data: { parts: [] } }
       })
 
-      agentSessionMessageService.resolveCrashOrphanedMessages([{ id: PENDING, data: { parts: [] } }], [SESSION_ID])
+      agentSessionMessageService.resolveCrashOrphanedMessages(
+        [{ id: PENDING, status: 'pending', data: { parts: [] } }],
+        [SESSION_ID]
+      )
 
       // The whole crashed session loses its tokens — the earlier turn's token would still resume
       // the untrusted external CLI state, so the next connection must start without one.
       expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBeNull()
       expect(agentSessionMessageService.getLastRuntimeResumeToken(OTHER_SESSION_ID)).toBe('token-other')
+    })
+
+    it('quarantines a settled assistant row and clears its durable runtime lease atomically', async () => {
+      const APPROVAL = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d023'
+      agentSessionService.acquireRuntimeOwnership(SESSION_ID, 'runtime-owner-1')
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'token-background',
+        message: {
+          id: APPROVAL,
+          role: 'assistant',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'tool-AskUserQuestion',
+                toolCallId: 'call-1',
+                state: 'approval-requested',
+                input: {},
+                approval: { id: 'approval-1' }
+              }
+            ]
+          }
+        }
+      })
+
+      expect(agentSessionService.findRuntimeOwnedSessionIds()).toEqual([SESSION_ID])
+      expect(agentSessionMessageService.findAssistantMessagesForSessions([SESSION_ID])).toEqual([
+        expect.objectContaining({ id: APPROVAL, sessionId: SESSION_ID, status: 'success' })
+      ])
+
+      const finalizedData = { parts: [{ type: 'text' as const, text: 'Background work interrupted' }] }
+      agentSessionMessageService.resolveCrashOrphanedMessages(
+        [{ id: APPROVAL, status: 'success', data: finalizedData }],
+        [SESSION_ID]
+      )
+
+      const [row] = await dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.id, APPROVAL))
+      expect(row.status).toBe('success')
+      expect(row.data).toEqual(finalizedData)
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBeNull()
+      expect(agentSessionService.findRuntimeOwnedSessionIds()).toEqual([])
+    })
+
+    it('fails closed on resume-token reads until crash recovery explicitly succeeds', () => {
+      const MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d024'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'token-guarded',
+        message: { id: MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+
+      agentSessionMessageService.blockRuntimeResumeTokenReads()
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBeNull()
+      agentSessionMessageService.allowRuntimeResumeTokenReads()
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBe('token-guarded')
     })
   })
 

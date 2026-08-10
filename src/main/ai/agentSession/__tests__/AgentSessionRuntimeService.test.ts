@@ -12,7 +12,10 @@ const mocks = vi.hoisted(() => ({
   getSessionMessage: vi.fn(),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
+  blockRuntimeResumeTokenReads: vi.fn(),
+  allowRuntimeResumeTokenReads: vi.fn(),
   findPendingAssistantMessages: vi.fn(),
+  findAssistantMessagesForSessions: vi.fn(),
   resolveCrashOrphanedMessages: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
@@ -29,6 +32,9 @@ const mocks = vi.hoisted(() => ({
   closeAgentSessionWarm: vi.fn(),
   getSessionById: vi.fn(),
   getAgent: vi.fn(),
+  acquireRuntimeOwnership: vi.fn(),
+  findRuntimeOwnedSessionIds: vi.fn(),
+  releaseRuntimeOwnership: vi.fn(),
   ensureTraceId: vi.fn(),
   recordUsage: vi.fn()
 }))
@@ -36,6 +42,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mocks.getSessionById,
+    acquireRuntimeOwnership: mocks.acquireRuntimeOwnership,
+    findRuntimeOwnedSessionIds: mocks.findRuntimeOwnedSessionIds,
+    releaseRuntimeOwnership: mocks.releaseRuntimeOwnership,
     ensureTraceId: mocks.ensureTraceId
   }
 }))
@@ -51,7 +60,10 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getSessionMessage: mocks.getSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
+    blockRuntimeResumeTokenReads: mocks.blockRuntimeResumeTokenReads,
+    allowRuntimeResumeTokenReads: mocks.allowRuntimeResumeTokenReads,
     findPendingAssistantMessages: mocks.findPendingAssistantMessages,
+    findAssistantMessagesForSessions: mocks.findAssistantMessagesForSessions,
     resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages
   }
 }))
@@ -247,6 +259,8 @@ describe('AgentSessionRuntimeService', () => {
     mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
     mocks.findPendingAssistantMessages.mockReturnValue([])
+    mocks.findAssistantMessagesForSessions.mockReturnValue([])
+    mocks.findRuntimeOwnedSessionIds.mockReturnValue([])
     mocks.resolveCrashOrphanedMessages.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
     mocks.recordUsage.mockReturnValue(undefined)
@@ -1038,6 +1052,7 @@ describe('AgentSessionRuntimeService', () => {
         {
           id: 'stale-1',
           sessionId: 'session-a',
+          status: 'pending',
           data: {
             parts: [
               { type: 'text', text: 'partial answer' },
@@ -1045,8 +1060,8 @@ describe('AgentSessionRuntimeService', () => {
             ]
           }
         },
-        { id: 'stale-2', sessionId: 'session-a', data: { parts: [] } },
-        { id: 'stale-3', sessionId: 'session-b', data: {} }
+        { id: 'stale-2', sessionId: 'session-a', status: 'pending', data: { parts: [] } },
+        { id: 'stale-3', sessionId: 'session-b', status: 'pending', data: {} }
       ])
       const service = new AgentSessionRuntimeService()
 
@@ -1057,6 +1072,7 @@ describe('AgentSessionRuntimeService', () => {
         [
           {
             id: 'stale-1',
+            status: 'pending',
             data: {
               parts: [
                 { type: 'text', text: 'partial answer' },
@@ -1070,10 +1086,57 @@ describe('AgentSessionRuntimeService', () => {
               ]
             }
           },
-          { id: 'stale-2', data: { parts: [] } },
-          { id: 'stale-3', data: { parts: [] } }
+          { id: 'stale-2', status: 'pending', data: { parts: [] } },
+          { id: 'stale-3', status: 'pending', data: { parts: [] } }
         ],
         ['session-a', 'session-b']
+      )
+      expect(mocks.blockRuntimeResumeTokenReads).toHaveBeenCalledOnce()
+      expect(mocks.allowRuntimeResumeTokenReads).toHaveBeenCalledOnce()
+    })
+
+    it('quarantines detached work in a settled parent message from a runtime-owned session', async () => {
+      mocks.findRuntimeOwnedSessionIds.mockReturnValue(['session-a'])
+      mocks.findAssistantMessagesForSessions.mockReturnValue([
+        {
+          id: 'approval-1',
+          sessionId: 'session-a',
+          status: 'success',
+          data: {
+            parts: [
+              {
+                type: 'tool-AskUserQuestion',
+                toolCallId: 'call-1',
+                state: 'approval-requested',
+                input: {},
+                approval: { id: 'approval-1' }
+              }
+            ]
+          }
+        }
+      ])
+      const service = new AgentSessionRuntimeService()
+
+      await (service as any).onInit()
+
+      expect(mocks.findAssistantMessagesForSessions).toHaveBeenCalledWith(['session-a'])
+      expect(mocks.resolveCrashOrphanedMessages).toHaveBeenCalledWith(
+        [
+          {
+            id: 'approval-1',
+            status: 'success',
+            data: {
+              parts: [
+                expect.objectContaining({
+                  type: 'tool-AskUserQuestion',
+                  state: 'output-error',
+                  errorText: 'Stream errored before tool completed'
+                })
+              ]
+            }
+          }
+        ],
+        ['session-a']
       )
     })
 
@@ -1084,9 +1147,10 @@ describe('AgentSessionRuntimeService', () => {
       await (service as any).onInit()
 
       expect(mocks.resolveCrashOrphanedMessages).not.toHaveBeenCalled()
+      expect(mocks.allowRuntimeResumeTokenReads).toHaveBeenCalledOnce()
     })
 
-    it('logs and does not rethrow when the reconcile lookup throws, so boot is not blocked', async () => {
+    it('keeps resume tokens blocked when reconcile fails without blocking boot', async () => {
       const failure = new Error('db down')
       mocks.findPendingAssistantMessages.mockImplementation(() => {
         throw failure
@@ -1096,8 +1160,10 @@ describe('AgentSessionRuntimeService', () => {
       await expect((service as any).onInit()).resolves.toBeUndefined()
 
       expect(mocks.resolveCrashOrphanedMessages).not.toHaveBeenCalled()
+      expect(mocks.blockRuntimeResumeTokenReads).toHaveBeenCalledOnce()
+      expect(mocks.allowRuntimeResumeTokenReads).not.toHaveBeenCalled()
       expect(mockMainLoggerService.error).toHaveBeenCalledWith(
-        'Failed to reconcile stale pending agent-session messages',
+        'Failed to reconcile stale agent-session runtime work; resume tokens remain blocked',
         { error: failure }
       )
     })
@@ -2992,6 +3058,7 @@ describe('AgentSessionRuntimeService', () => {
     const closeError = new Error('close failed')
     const connection = { close: vi.fn().mockRejectedValue(closeError), send: vi.fn(), events: [] }
     const entry = getEntry(service)
+    entry.runtimeOwnerId = 'runtime-owner-1'
     entry.connection = connection
     entry.connectionLoop = Promise.resolve()
 
@@ -3005,6 +3072,7 @@ describe('AgentSessionRuntimeService', () => {
         expect.objectContaining({ sessionId: 'session-1', error: closeError })
       )
     )
+    expect(mocks.releaseRuntimeOwnership).not.toHaveBeenCalled()
   })
 
   it('persists assistant turns with the latest resume token', async () => {
@@ -3757,7 +3825,14 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
     expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-db' })
-    void service.closeSession('session-1')
+    expect(mocks.acquireRuntimeOwnership).toHaveBeenCalledWith('session-1', expect.any(String))
+    const runtimeOwnerId = mocks.acquireRuntimeOwnership.mock.calls[0][1]
+    expect(mocks.acquireRuntimeOwnership.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.getLastRuntimeResumeToken.mock.invocationCallOrder[0]
+    )
+
+    await service.closeSession('session-1')
+    expect(mocks.releaseRuntimeOwnership).toHaveBeenCalledWith('session-1', runtimeOwnerId)
     await reader.cancel().catch(() => undefined)
   })
 

@@ -22,6 +22,9 @@ export const agentSessionTable = sqliteTable(
     taskScheduleId: text()
       .unique()
       .references(() => jobScheduleTable.id, { onDelete: 'set null' }),
+    // Internal crash-recovery lease. A non-null value means the main process acquired runtime
+    // ownership that was not cleanly released; boot reconciliation quarantines that session.
+    runtimeOwnerId: text(),
     traceId: text(),
     ...orderKeyColumns,
     ...createUpdateTimestamps
