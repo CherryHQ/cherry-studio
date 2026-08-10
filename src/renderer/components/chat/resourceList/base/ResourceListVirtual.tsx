@@ -16,7 +16,6 @@ import {
   type ResourceListContextValue,
   type ResourceListGroup,
   type ResourceListItemBase,
-  type ResourceListMeta,
   type ResourceListSection,
   useResourceListActions,
   useResourceListControlsState,
@@ -31,16 +30,11 @@ import {
   ResourceListGroupHeaderContextMenuOwner,
   SectionHeader
 } from './ResourceListGroups'
-import {
-  RESOURCE_LIST_DEFAULT_ROW_SIZE,
-  RESOURCE_LIST_MODULE_START_ROW_CLASS,
-  RESOURCE_LIST_MODULE_START_ROW_SIZE,
-  RESOURCE_LIST_ROW_HEIGHT_CLASS
-} from './resourceListLayout'
+import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from './resourceListLayout'
 
 const SCROLLBAR_AUTO_HIDE_DELAY = 1200
 const SCROLLBAR_FADE_STEP = 140
-const ITEM_ROW_CLASS = `flex w-full items-center py-[2px] ${RESOURCE_LIST_ROW_HEIGHT_CLASS}`
+const ITEM_ROW_CLASS = `flex w-full items-center py-[2px] ${RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className}`
 
 function assignRef<T>(ref: Ref<T> | undefined, value: T | null) {
   if (!ref) return
@@ -123,23 +117,10 @@ type ResourceListVirtualRow<T extends ResourceListItemBase> = GroupedVirtualList
   ResourceListVirtualFooter
 >
 
-const estimateResourceListChromeSize = () => RESOURCE_LIST_DEFAULT_ROW_SIZE
+const estimateResourceListChromeSize = () => RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size
 
-/**
- * A header opens a new module when it labels a group of rows rather than naming one: section
- * headers, and bucket group headers (time ranges, pinned). Entity headers — an agent, an assistant,
- * a workdir — are rows in their own right and stay on the shared rhythm, and so does an
- * `inline-bucket`, which sits among them as the fallback for rows whose owner is gone. The list's
- * first header never gets the break: there is nothing above it to separate from.
- */
-function isModuleStartHeader<T extends ResourceListItemBase>(
-  meta: ResourceListMeta<T>,
-  header: ResourceListVirtualHeader,
-  groupIndex: number
-) {
-  if (groupIndex === 0) return false
-  if (header.type === 'section') return true
-  return meta.getGroupHeaderKind?.(header.group) === 'bucket'
+function renderResourceListGroupHeader(header: ResourceListVirtualHeader) {
+  return header.type === 'section' ? <SectionHeader section={header.section} /> : <GroupHeader group={header.group} />
 }
 
 function toSectionVirtualGroup(section: ResourceListSection): ResourceListVirtualGroupData {
@@ -198,7 +179,8 @@ function VirtualItemRow({
       data-resource-list-item-row="true"
       className={cn(
         ITEM_ROW_CLASS,
-        !groupHeaderIconVisible && '[&_[role=option]]:!px-2.5 [&_[data-resource-list-leading-slot=true]]:hidden'
+        !groupHeaderIconVisible &&
+          '[&_[role=option]]:!px-2.5 [&_[data-resource-list-item-actions=true]]:!-mr-1 [&_[data-resource-list-leading-slot=true]]:hidden'
       )}>
       {children}
     </div>
@@ -529,24 +511,6 @@ export function VirtualItems<T extends ResourceListItemBase>({
     (virtualItem: ResourceListVirtualItem<T>) => estimateItemSize(virtualItem.itemIndex),
     [estimateItemSize]
   )
-  const renderGroupHeader = useCallback(
-    (header: ResourceListVirtualHeader, _group: ResourceListVirtualGroupData, groupIndex: number) => {
-      const className = isModuleStartHeader(meta, header, groupIndex) ? RESOURCE_LIST_MODULE_START_ROW_CLASS : undefined
-      return header.type === 'section' ? (
-        <SectionHeader section={header.section} className={className} />
-      ) : (
-        <GroupHeader group={header.group} className={className} />
-      )
-    },
-    [meta]
-  )
-  const estimateGroupHeaderSize = useCallback(
-    (header: ResourceListVirtualHeader, _group: ResourceListVirtualGroupData, groupIndex: number) =>
-      isModuleStartHeader(meta, header, groupIndex)
-        ? RESOURCE_LIST_MODULE_START_ROW_SIZE
-        : RESOURCE_LIST_DEFAULT_ROW_SIZE,
-    [meta]
-  )
   const renderVirtualItem = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => (
       <VirtualItemRow groupHeaderIconVisible={hasGroupHeaderIcon(meta, virtualItem)}>
@@ -600,10 +564,10 @@ export function VirtualItems<T extends ResourceListItemBase>({
         getItemKey={getVirtualRowKey}
         onScroll={handleScroll}
         overscan={6}
-        estimateGroupHeaderSize={estimateGroupHeaderSize}
+        estimateGroupHeaderSize={estimateResourceListChromeSize}
         estimateItemSize={estimateVirtualItemSize}
         estimateGroupFooterSize={estimateResourceListChromeSize}
-        renderGroupHeader={renderGroupHeader}
+        renderGroupHeader={renderResourceListGroupHeader}
         renderItem={renderVirtualItem}
         renderGroupFooter={renderGroupFooter}
       />
@@ -781,24 +745,6 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
     },
     [canDropItemMeta]
   )
-  const renderGroupHeader = useCallback(
-    (header: ResourceListVirtualHeader, _group: ResourceListVirtualGroupData, groupIndex: number) => {
-      const className = isModuleStartHeader(meta, header, groupIndex) ? RESOURCE_LIST_MODULE_START_ROW_CLASS : undefined
-      return header.type === 'section' ? (
-        <SectionHeader section={header.section} className={className} />
-      ) : (
-        <GroupHeader group={header.group} className={className} />
-      )
-    },
-    [meta]
-  )
-  const estimateGroupHeaderSize = useCallback(
-    (header: ResourceListVirtualHeader, _group: ResourceListVirtualGroupData, groupIndex: number) =>
-      isModuleStartHeader(meta, header, groupIndex)
-        ? RESOURCE_LIST_MODULE_START_ROW_SIZE
-        : RESOURCE_LIST_DEFAULT_ROW_SIZE,
-    [meta]
-  )
   const renderVirtualItem = useCallback(
     (virtualItem: ResourceListVirtualItem<T>) => (
       <VirtualItemRow groupHeaderIconVisible={hasGroupHeaderIcon(meta, virtualItem)}>
@@ -856,7 +802,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         getGroupBoundaryId={getGroupBoundaryId}
         getItemId={getVirtualItemId}
         dragCapabilities={dragCapabilities}
-        estimateGroupHeaderSize={estimateGroupHeaderSize}
+        estimateGroupHeaderSize={estimateResourceListChromeSize}
         estimateItemSize={estimateVirtualItemSize}
         estimateGroupFooterSize={estimateResourceListChromeSize}
         canDragGroup={canDragGroup}
@@ -864,7 +810,7 @@ export function VirtualDraggableItems<T extends ResourceListItemBase>({
         canDropGroup={canDropGroup}
         canDropItem={canDropVirtualItem}
         onDragEnd={handleGroupedDragEnd}
-        renderGroupHeader={renderGroupHeader}
+        renderGroupHeader={renderResourceListGroupHeader}
         renderItem={renderVirtualItem}
         renderGroupFooter={renderGroupFooter}
       />

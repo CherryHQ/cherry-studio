@@ -95,8 +95,10 @@ describe('AssistantFileToolsServer', () => {
     }))
     const server = new AssistantFileToolsServer({ sessionId: 'session-1', workspacePath: '/workspace' })
 
-    const first = await callTool(server, 'read_file', { filename: handle, offset: 0, limit: 0 })
-    const second = await callTool(server, 'read_file', { filename: handle, offset: 0, limit: 0 })
+    // offset/limit omitted: they are plain optionals now, and `limit: 0` is rejected outright
+    // (it used to be the "use the default" sentinel that `strict: true` forced on this schema).
+    const first = await callTool(server, 'read_file', { filename: handle })
+    const second = await callTool(server, 'read_file', { filename: handle })
 
     expect(first.content[0].text).toBe(handle)
     expect(second.content[0].text).toBe('(none)')

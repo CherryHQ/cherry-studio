@@ -1007,6 +1007,10 @@
           "description": "通过已连接的频道发送通知",
           "label": "通知"
         },
+        "CherryToMarkdown": {
+          "description": "转成 Markdown，智能体更好读",
+          "label": "文件转为 Markdown"
+        },
         "CherryWebFetch": {
           "description": "抓取并读取网页",
           "label": "网页抓取"
@@ -1737,12 +1741,6 @@
       "top": "回到顶部"
     },
     "resend": "重新发送",
-    "resource_view": {
-      "menu": {
-        "agent": "智能体",
-        "assistant": "助手"
-      }
-    },
     "save": {
       "file": {
         "title": "保存到本地文件"
@@ -1915,6 +1913,7 @@
         "time": "时间",
         "title": "展示方式"
       },
+      "draft": "草稿",
       "edit": {
         "placeholder": "输入新名称",
         "title": "编辑对话名",
@@ -2159,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Qwen Code"
     },
@@ -3044,10 +3044,20 @@
           "selected_notes": "已选 {{count}} 个笔记"
         },
         "note": {
+          "create": {
+            "content_label": "正文",
+            "content_placeholder": "在此输入笔记内容…",
+            "title_label": "标题",
+            "title_placeholder": "为这篇笔记取个名字"
+          },
           "description": "选择已有笔记作为知识库数据源",
           "empty_description": "请先在「笔记」功能中创建笔记，再回到这里选择。",
           "empty_title": "未找到笔记",
-          "loading": "正在加载笔记…"
+          "loading": "正在加载笔记…",
+          "mode": {
+            "create": "新建笔记",
+            "import": "导入笔记"
+          }
         },
         "placeholder": {
           "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3306,6 +3316,7 @@
   },
   "launchpad": {
     "apps": "应用",
+    "manage_sidebar": "管理侧边栏",
     "minapps": "小程序",
     "miniApps": "小程序",
     "pin_to_sidebar": "添加到侧边栏",
@@ -3376,11 +3387,6 @@
           },
           "heartbeat_interval": {
             "label": "心跳间隔 (分钟)"
-          },
-          "instructions": {
-            "hint": "定义 Agent 的角色和行为边界",
-            "label": "系统提示词",
-            "placeholder": "告诉 Agent 它是谁、它能做什么…"
           },
           "max_turns": {
             "help": "0 表示使用默认值",
@@ -3576,8 +3582,7 @@
           "step": {
             "basic": "基础信息",
             "capability": "技能",
-            "knowledge": "知识库",
-            "persona": "设定人格"
+            "knowledge": "知识库"
           },
           "submit": "新建",
           "submit_failed": "新建失败"
@@ -4091,6 +4096,9 @@
       "failed": "恢复失败",
       "success": "恢复成功"
     },
+    "retry": {
+      "status": "正在用 {{model}} 重试 · 第 {{attempt}} 次"
+    },
     "save": {
       "success": {
         "title": "保存成功"
@@ -4240,6 +4248,8 @@
         "taskOutput": "查看任务输出",
         "taskStop": "停止任务",
         "taskUpdate": "更新任务",
+        "toMarkdown": "转为 Markdown",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "待办写入",
         "tool": "工具",
         "webFetch": "网页获取",
@@ -4290,6 +4300,8 @@
       "thinkingHeader": "思路梳理",
       "truncated": "输出已截断（原始大小：{{size}}）",
       "units": {
+        "char_one": "{{count}} 字符",
+        "char_other": "{{count}} 字符",
         "done_one": "{{count}} 项完成",
         "done_other": "{{count}} 项完成",
         "file_one": "{{count}} 个文件",
@@ -7515,6 +7527,16 @@
         "label": "快速模型",
         "setting_title": "快速模型设置",
         "tooltip": "建议选择轻量模型，不建议选择思考模型"
+      },
+      "retry": {
+        "backoff": "指数退避",
+        "description": "重试聊天、嵌入和重排调用；聊天失败时可回退到其他模型",
+        "fallback_models": "回退模型",
+        "fallback_models_count": "已选择 {{count}} 个模型",
+        "fallback_models_description": "主模型失败时按顺序尝试的模型",
+        "label": "模型调用重试",
+        "max_attempts": "最大重试次数",
+        "tooltip": "重试与回退仅在模型开始输出内容前生效"
       },
       "toolbar": {
         "custom_add": "自定义",

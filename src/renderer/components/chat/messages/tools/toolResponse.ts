@@ -64,7 +64,7 @@ function isLegacyAgentToolName(toolName: string): boolean {
   return AGENT_TOOL_NAMES.has(toolName) || toolName.startsWith(AGENT_MCP_TOOLS_PREFIX)
 }
 
-function extractCherryToolMetadataFrom(metadata: ProviderMetadata | undefined): ToolMetadata | undefined {
+function extractCherryToolMetadataFrom(metadata: unknown): ToolMetadata | undefined {
   if (!isRecord(metadata)) return undefined
   const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
   const tool = cherry && isRecord(cherry.tool) ? cherry.tool : undefined
@@ -80,8 +80,11 @@ function extractCherryToolMetadataFrom(metadata: ProviderMetadata | undefined): 
 
 function extractCherryToolMetadata(part: ToolResponsePart): ToolMetadata | undefined {
   const resultProviderMetadata = 'resultProviderMetadata' in part ? part.resultProviderMetadata : undefined
+  const toolMetadata = 'toolMetadata' in part ? part.toolMetadata : undefined
   return (
-    extractCherryToolMetadataFrom(part.callProviderMetadata) ?? extractCherryToolMetadataFrom(resultProviderMetadata)
+    extractCherryToolMetadataFrom(toolMetadata) ??
+    extractCherryToolMetadataFrom(part.callProviderMetadata) ??
+    extractCherryToolMetadataFrom(resultProviderMetadata)
   )
 }
 

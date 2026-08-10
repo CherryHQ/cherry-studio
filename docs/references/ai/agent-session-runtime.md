@@ -241,6 +241,22 @@ transcript's user-visible history, or the renderer. Direct Anthropic requests do
 not enter the gateway, and external gateway requests remain unchanged so their
 callers can intentionally use assistant prefill.
 
+## Corrupt resume history recovery
+
+Each Claude Code connection may recover once from either a missing resumed
+conversation (`No conversation found with session ID`) or a request-time duplicate
+tool-use id failure (`tool_use ids must be unique`). The driver discards the failed
+resume token, rebuilds the SDK input queue and query without `resume`, and replays the
+pending user input with an empty SDK `session_id`. The replacement query's next
+`system/init` advances the normal resume-token persistence path to the new session id.
+
+Duplicate-id recovery is allowed only before the current turn emits any non-metadata
+chunk. Text, reasoning, tool calls, tool results, and background-flow chunks all close
+that safety gate because replay could repeat visible output or a tool side effect. If
+the gate has closed, the driver does not rebuild or replay; it surfaces the original
+error. Missing-conversation recovery keeps its existing compatibility behavior and is
+not activity-gated, but both reasons share the same one-attempt connection budget.
+
 ## Idle and shutdown
 
 After a turn reaches terminal state, the runtime entry becomes `idle`.

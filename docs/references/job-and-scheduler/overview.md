@@ -73,7 +73,9 @@ The flow can be interrupted at any point by `onStop`. Three mechanisms cooperate
 |---|---|
 | Quiet window (timer not yet fired) | `registerDisposable(() => clearTimeout(handle))` clears the timer during `_cleanupDisposables`; the callback also re-checks `_isShuttingDown` so a teardown that races with `clearTimeout` is still safe. |
 | Flow mid-flight | Every IO step re-checks `_isShuttingDown` before the next `await`, returning early on shutdown. |
-| Flow already started | `onStop` awaits `this._recoveryDone` before tearing down resources, so the current step finishes gracefully before queues, abort controllers, and disposables are released. |
+| Flow already started | `onStop` awaits `this._recoveryDone` before tearing down resources, so the current step finishes gracefully before queues, abort controllers, and disposables are released. The join is unconditional on purpose — racing it against a deadline would let the teardown run while recovery is still writing. |
+
+The join is bounded from the outside: shutdown caps every service at `SERVICE_STOP_TIMEOUT_MS` (5s). If the in-flight recovery step outlasts that, the framework stops waiting on JobManager and moves on — no `SERVICE_STOPPED`, and the pass is recorded as unclean. The teardown after the join still runs whenever recovery does finish, just too late to count: it now overlaps the shutdown of services further down the order. Whether `onDestroy` still runs on top of it depends on that late finish beating `destroyAll()` to JobManager — a race, not a guarantee (see [Lifecycle Overview — teardown time contract](../lifecycle/lifecycle-overview.md#teardown-time-contract)). Acceptable either way because none of it is load-bearing — enqueue writes to the DB immediately and startup recovery repairs whatever was left mid-flight.
 
 **Handler registration timing**
 
