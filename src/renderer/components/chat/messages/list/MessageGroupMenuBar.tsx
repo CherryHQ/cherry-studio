@@ -51,9 +51,8 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   const isFailedMessage = (m: MessageListItem) => {
     if (m.role !== 'assistant') return false
-    const status = (m.status || '').toLowerCase()
     const parts = partsMap?.[m.id]
-    return status === 'error' || status === 'paused' || parts?.length === 0
+    return m.status === 'error' || m.status === 'paused' || parts?.length === 0
   }
 
   const hasFailedMessages =
