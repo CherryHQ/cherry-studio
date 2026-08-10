@@ -546,8 +546,14 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
     Dialog: ({ children, onOpenChange: _onOpenChange, open, ...props }) =>
       open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
-    DialogContent: ({ children, closeOnOverlayClick: _closeOnOverlayClick, size, ...props }) =>
-      React.createElement('div', { ...props, 'data-size': size, 'data-testid': 'dialog-content' }, children),
+    DialogContent: ({
+      children,
+      closeOnOverlayClick: _closeOnOverlayClick,
+      onEscapeKeyDown: _onEscapeKeyDown,
+      showCloseButton: _showCloseButton,
+      size,
+      ...props
+    }) => React.createElement('div', { ...props, 'data-size': size, 'data-testid': 'dialog-content' }, children),
     DialogHeader: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-header' }, children),
     DialogTitle: ({ children, ...props }) =>
@@ -987,6 +993,13 @@ vi.mock('@cherrystudio/ui', () => {
         onChange: (e) => onCheckedChange?.(e.target.checked),
         'data-testid': 'switch'
       }),
+    // Tabs primitives — flattened: every panel renders, so tests query content without switching
+    Tabs: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'tabs' }, children),
+    TabsList: ({ children, ...props }) => React.createElement('div', { ...props, role: 'tablist' }, children),
+    TabsTrigger: ({ children, value, ...props }) =>
+      React.createElement('button', { ...props, role: 'tab', type: 'button', 'data-value': value }, children),
+    TabsContent: ({ children, value, ...props }) =>
+      React.createElement('div', { ...props, role: 'tabpanel', 'data-value': value }, children),
     // Popover primitives — Radix-style trigger / content split
     Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
     PopoverTrigger: ({ children, ...props }) =>

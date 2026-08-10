@@ -47,6 +47,9 @@ const mocks = vi.hoisted(() => ({
   approvalRegister: vi.fn(),
   recordToolExecutionTiming: vi.fn(),
   rtkRewrite: vi.fn(),
+  createAgentsMdLoader: vi.fn(),
+  loadAgentsMdInitialContext: vi.fn(),
+  agentsMdHook: vi.fn(async () => ({})),
   platform: { isMac: false },
   isWin: false
 }))
@@ -205,6 +208,12 @@ vi.mock('../ToolApprovalRegistry', () => ({
   }
 }))
 
+vi.mock('../AgentsMdLoader', () => ({
+  AgentsMdLoader: {
+    create: mocks.createAgentsMdLoader
+  }
+}))
+
 const { buildClaudeCodeSessionSettings, disposeToolPolicySnapshot, registerMcpSessionCatalogSync } = await import(
   '../settingsBuilder'
 )
@@ -253,6 +262,12 @@ describe('buildClaudeCodeSessionSettings', () => {
     mocks.listMcpTools.mockReturnValue([])
     mocks.onToolsCacheUpdated.mockReturnValue({ dispose: mocks.mcpSubscriptionDispose })
     mocks.findByIdOrName.mockImplementation((idOrName: string) => ({ id: idOrName, name: idOrName }))
+    mocks.loadAgentsMdInitialContext.mockResolvedValue(undefined)
+    mocks.agentsMdHook.mockResolvedValue({})
+    mocks.createAgentsMdLoader.mockResolvedValue({
+      loadInitialContext: mocks.loadAgentsMdInitialContext,
+      createPreToolUseHook: () => mocks.agentsMdHook
+    })
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'PreferenceService') {
         return { get: vi.fn(() => undefined) }
@@ -349,6 +364,23 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoMemoryEnabled: false, fastMode: true })
     expect(settings).not.toHaveProperty('fastMode')
     expect(settings.forwardSubagentText).toBe(true)
+  })
+
+  it('appends root AGENTS.md context and wires lazy nested-instruction loading', async () => {
+    mocks.loadAgentsMdInitialContext.mockResolvedValue('ROOT AGENTS INSTRUCTIONS')
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never
+    )
+
+    expect(mocks.createAgentsMdLoader).toHaveBeenCalledWith('/workspace/project')
+    expect(systemPromptText(settings.systemPrompt)).toContain('ROOT AGENTS INSTRUCTIONS')
+    expect(settings.hooks?.PreToolUse?.[0]?.hooks).toContain(mocks.agentsMdHook)
   })
 
   it('aligns automatic compaction with a model context window supported by Claude Code', async () => {
@@ -1824,8 +1856,8 @@ describe('buildClaudeCodeSessionSettings', () => {
     const preToolUse = settings.hooks?.PreToolUse?.[0]?.hooks
     // interactiveToolPermissionHook + headlessConfigMutationHook + headlessSkillInstallHook +
     // disabledToolHook + assistantDestructiveOperationHook + assistantFeedbackSubmissionHook +
-    // approvalRequiredToolHook + workspacePathHook + dependencyIsolationHook + rtkRewriteHook + steerHook
-    expect(preToolUse).toHaveLength(11)
+    // approvalRequiredToolHook + workspacePathHook + agentsMdHook + dependencyIsolationHook + rtkRewriteHook + steerHook
+    expect(preToolUse).toHaveLength(12)
 
     const steerHook = preToolUse?.find((hook) => hook.name === 'steerHook') as unknown as (input: {
       hook_event_name: string
@@ -2140,6 +2172,34 @@ describe('buildClaudeCodeSessionSettings', () => {
         } as never)
       ).resolves.toEqual({ behavior: 'allow', updatedInput: { command: 'pwd' } })
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
+    })
+
+    // A channel/scheduled turn has no approval UI, so an ordinary tool must not be denied for
+    // lacking a responder — but an interactive turn on the same session must still prompt.
+    it.each([
+      ['headless', { behavior: 'allow', updatedInput: { command: 'pwd' } }, false],
+      ['interactive', undefined, true]
+    ] as const)('resolves an ordinary tool per turn kind: %s', async (currentTurn, expected, registers) => {
+      const getInteractionState = vi.fn(() => ({
+        currentTurn,
+        userResponse: currentTurn === 'headless' ? 'unavailable' : 'stream'
+      }))
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') return { getInteractionState }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const settings = await buildClaudeCodeSessionSettings(sessionWith(`warm-${currentTurn}`), {} as never)
+      settings.approvalEmitter!.emit = vi.fn()
+
+      const call = settings.canUseTool!('Bash', { command: 'pwd' }, {
+        signal: { aborted: false },
+        toolUseID: `tu-${currentTurn}`
+      } as never)
+
+      if (expected) await expect(call).resolves.toEqual(expected)
+      expect(mocks.approvalRegister).toHaveBeenCalledTimes(registers ? 1 : 0)
     })
 
     it('emits an independent AskUserQuestion interaction for a background agent', () => {

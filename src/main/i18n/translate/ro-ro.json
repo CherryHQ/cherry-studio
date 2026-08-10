@@ -2,7 +2,7 @@
   "agent": {
     "builtin": {
       "cherry_assistant": {
-        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Consilier integrat Cherry Studio. Diagnostichează probleme, oferă îndrumări, colectează întrebări frecvente, trimite rapoarte de erori și solicitări de funcții și caută sau creează abilități"
       }
     },
     "session": {
@@ -87,6 +87,10 @@
       "message": "Această acțiune va șterge conversațiile, asistenții, bazele de cunoștințe, fișierele și setările, apoi va reporni aplicația. Acțiunea nu poate fi anulată. Continui?",
       "title": "Resetarea datelor aplicației"
     },
+    "diagnostic_bundle": {
+      "title": "Salvează pachetul de diagnosticare",
+      "zip_filter": "Arhivă ZIP"
+    },
     "html_files": "Fișiere HTML",
     "open_file": "Deschide fișier",
     "pdf_files": "Fișiere PDF",
@@ -94,13 +98,13 @@
     "save_as_html": "Salvează ca HTML",
     "save_as_pdf": "Salvează ca PDF",
     "save_file": "Salvează fișier",
-    "select_folder": "Selectează folderul",
+    "select_folder": "Selectează directorul",
     "word_document": "Document Word"
   },
   "openclaw": {
     "errors": {
-      "binary_incompatible": "Fișierul binar OpenClaw utilizat de Cherry Studio este incompatibil cu configurația generată. Actualizați OpenClaw.{{details}}",
-      "external_config_invalid": "OpenClaw a respins o configurație din afara secțiunii de furnizori gestionate de Cherry Studio. Corectați configurația respectivă sau actualizați OpenClaw.{{details}}",
+      "binary_incompatible": "Fișierul binar OpenClaw utilizat de Cherry Studio este incompatibil cu configurația generată. Actualizează OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw a respins o configurație din afara secțiunii de furnizori gestionate de Cherry Studio. Corectează configurația respectivă sau actualizează OpenClaw.{{details}}",
       "more_issues": "și alte {{count}} probleme",
       "preflight_failed": "Cherry Studio nu a putut valida configurația OpenClaw."
     }

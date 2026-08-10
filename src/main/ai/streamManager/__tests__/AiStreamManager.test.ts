@@ -249,7 +249,26 @@ describe('AiStreamManager', () => {
         contextOwner: 'caller'
       })
 
-      expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ contextOwner: 'caller' }))
+      expect(mockStreamText).toHaveBeenCalledWith(
+        expect.objectContaining({ chatId: 'gateway-request-1', contextOwner: 'caller' })
+      )
+    })
+
+    it('keeps stream identity separate from conversation identity', () => {
+      mgr.streamPrompt({
+        streamId: 'gateway-request-1',
+        uniqueModelId: 'provider-a::model-a',
+        messages: [{ id: 'user-1', role: 'user', parts: [{ type: 'text', text: 'hello' }] }],
+        listener: new FakeListener('gateway:request-1'),
+        contextOwner: 'caller',
+        usageContext: {
+          agentSessionId: 'session-1',
+          assistantMessageId: 'message-1',
+          source: null
+        }
+      })
+
+      expect(mockStreamText).toHaveBeenCalledWith(expect.objectContaining({ chatId: 'session-1' }))
     })
   })
 
@@ -1010,6 +1029,117 @@ describe('AiStreamManager', () => {
       const late = new FakeListener('late:a')
       ringMgr.addListener('a', late)
       expect(late.chunks.map((c: any) => c.delta)).toEqual(['2', '3', '4'])
+
+      // Ordinary overflow without a pending approval remains attachable.
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      expect(ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' }).status).toBe('attached')
+    })
+
+    it('attaches when the surviving ring contains a complete pending approval', () => {
+      const approvalMgr = createManager({ maxBufferChunks: 3 })
+      startSingle(approvalMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      for (let i = 0; i < 5; i++) {
+        approvalMgr.onChunk('a', 'provider-a::model-a', {
+          type: 'text-delta',
+          id: 'p',
+          delta: String(i)
+        } as UIMessageChunk)
+      }
+      approvalMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'call-1',
+        toolName: 'search',
+        input: { query: 'Cherry Studio' }
+      } as UIMessageChunk)
+      approvalMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'call-1'
+      } as UIMessageChunk)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = approvalMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
+        'text-delta',
+        'tool-input-available',
+        'tool-approval-request'
+      ])
+      // The approval-request pauses eviction, so both surviving deltas replay merged.
+      expect(response.bufferedChunks[0].chunk).toMatchObject({ delta: '34' })
+    })
+
+    it('pauses ring eviction while an approval is pending and resumes once it resolves', () => {
+      const approvalMgr = createManager({ maxBufferChunks: 3 })
+      startSingle(approvalMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      approvalMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'call-1',
+        toolName: 'search',
+        input: { query: 'Cherry Studio' }
+      } as UIMessageChunk)
+      for (let i = 0; i < 2; i++) {
+        approvalMgr.onChunk('a', 'provider-a::model-a', {
+          type: 'text-delta',
+          id: 'p',
+          delta: String(i)
+        } as UIMessageChunk)
+      }
+      approvalMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        approvalId: 'approval-1',
+        toolCallId: 'call-1'
+      } as UIMessageChunk)
+      // Over the cap while pending: nothing may be evicted, so the tool input
+      // needed to render and act on the approval stays replayable.
+      approvalMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'text-delta',
+        id: 'p2',
+        delta: 'sibling'
+      } as UIMessageChunk)
+
+      const snap = approvalMgr.inspect('a')!
+      expect(snap.executions[0].bufferedChunkCount).toBe(5)
+      expect(snap.executions[0].droppedChunks).toBe(0)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = approvalMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
+        'tool-input-available',
+        'text-delta',
+        'tool-approval-request',
+        'text-delta'
+      ])
+      expect(response.bufferedChunks[0].chunk).toMatchObject({ toolCallId: 'call-1' })
+
+      // The approval response clears the pending set before the eviction
+      // check runs, so this same chunk resumes ordinary ring behaviour.
+      approvalMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'call-1',
+        output: { ok: true }
+      } as UIMessageChunk)
+
+      const after = approvalMgr.inspect('a')!
+      expect(after.executions[0].bufferedChunkCount).toBe(5)
+      expect(after.executions[0].droppedChunks).toBe(1)
     })
 
     it('stream remains accessible during grace period', async () => {

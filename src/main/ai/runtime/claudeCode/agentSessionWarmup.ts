@@ -369,6 +369,10 @@ async function deriveConnectionConfigFromSnapshot(
     cwd,
     language: getAppLanguage(),
     instructions: agent.instructions ?? null,
+    // Persistent variable inputs rebuild the connection. Date/time variables intentionally remain
+    // connection snapshots instead of invalidating this signature every turn.
+    promptUserName: application.get('PreferenceService').get('app.user.name') || 'Unknown Username',
+    promptModelName: agent.modelName || null,
     builtinRole: agent.configuration?.builtin_role ?? null,
     bootstrapCompleted: agent.configuration?.bootstrap_completed ?? null,
     skills: [...skills].sort(),

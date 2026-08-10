@@ -4,6 +4,8 @@ const fs = require('fs')
 const path = require('path')
 const { parse } = require('yaml')
 
+const { ensureLinuxNativeArtifact } = require('./linux-native/download')
+
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
 const packages = [
@@ -15,6 +17,16 @@ const packages = [
   '@anthropic-ai/claude-agent-sdk-linux-x64-musl',
   '@anthropic-ai/claude-agent-sdk-win32-arm64',
   '@anthropic-ai/claude-agent-sdk-win32-x64',
+  // anydoc converts binary office documents to markdown for the knowledge base.
+  // It ships no win32-arm64 build and no wasm fallback, so existing formats use
+  // their legacy readers there while newly supported .ppt fails visibly.
+  '@firecrawl/anydoc-darwin-arm64',
+  '@firecrawl/anydoc-darwin-x64',
+  '@firecrawl/anydoc-linux-arm64-gnu',
+  '@firecrawl/anydoc-linux-arm64-musl',
+  '@firecrawl/anydoc-linux-x64-gnu',
+  '@firecrawl/anydoc-linux-x64-musl',
+  '@firecrawl/anydoc-win32-x64-msvc',
   '@img/sharp-darwin-arm64',
   '@img/sharp-darwin-x64',
   '@img/sharp-libvips-darwin-arm64',
@@ -100,6 +112,18 @@ exports.default = async function (context) {
   const platform = platformToArch[platformName]
 
   assertPrebuiltPackages(platform, arch)
+
+  if (platform === 'linux') {
+    const linuxArch = context.arch === Arch.arm64 ? 'arm64' : context.arch === Arch.x64 ? 'x64' : null
+    if (!linuxArch) throw new Error(`Unsupported Linux packaging architecture: ${context.arch}`)
+
+    const projectRoot = path.join(__dirname, '..')
+    const artifact = ensureLinuxNativeArtifact({ projectRoot, arch: linuxArch })
+    process.stdout.write(
+      `${artifact.cached ? 'Verified cached' : 'Downloaded'} GLIBC-compatible better-sqlite3 for ` +
+        `linux-${linuxArch} (${artifact.inspection.sha256})\n`
+    )
+  }
 
   console.log(`Downloading bundled binaries for ${platform}-${arch}...`)
   execSync(`node "${path.join(__dirname, 'download-binaries.js')}" ${platform} ${arch}`, { stdio: 'inherit' })

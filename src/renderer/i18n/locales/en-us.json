@@ -3,7 +3,7 @@
     "add": {
       "description": "Handle complex tasks with various tools",
       "error": {
-        "failed": "Failed to add a agent",
+        "failed": "Failed to add an agent",
         "invalid_agent": "Invalid Agent"
       },
       "model": {
@@ -318,7 +318,7 @@
         }
       },
       "info": {
-        "artifacts": "Deliverables",
+        "artifacts": "Outputs",
         "context_categories": {
           "autocompact_buffer": "Autocompact buffer",
           "custom_agents": "Custom agents",
@@ -334,7 +334,7 @@
         "context_usage": "Context usage",
         "label": "Session information",
         "more": "+{{count}} more",
-        "no_artifacts": "No declared deliverables",
+        "no_artifacts": "No declared outputs",
         "no_subagents": "No sub-agents",
         "shell_tasks": "Background commands",
         "subagents": "Sub-agents",
@@ -448,14 +448,14 @@
         }
       },
       "group": {
-        "collapse": "Collapse display",
+        "collapse": "Collapse",
         "collapse_all": "Collapse all",
         "conversation": "Conversations",
-        "drag_hint": "Drag to reorder. Drag tasks to adjust display and hidden groups.",
         "earlier": "Earlier",
         "expand_all": "Expand all",
         "no_workdir": "No work directory",
-        "show_more": "Expand display",
+        "show_more": "Show more",
+        "tasks": "Tasks",
         "this_week": "This week",
         "today": "Today",
         "unknown_agent": "Unlinked Agent",
@@ -1007,6 +1007,10 @@
           "description": "Sends a notification through a connected channel",
           "label": "Notify"
         },
+        "CherryToMarkdown": {
+          "description": "Markdown is easier for the agent to read",
+          "label": "File to Markdown"
+        },
         "CherryWebFetch": {
           "description": "Fetches and reads a web page",
           "label": "Web Fetch"
@@ -1334,7 +1338,7 @@
       "regular_phrases": {
         "add": "Add Phrase",
         "contentLabel": "Content",
-        "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+        "contentPlaceholder": "Enter phrase content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
         "delete": "Delete Phrase",
         "deleteConfirm": "Are you sure to delete this phrase?",
         "edit": "Edit Phrase",
@@ -1677,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "New Branch Created",
-          "disabled": {
-            "active": "This node is already selected. Continue typing to extend the branch from here.",
-            "latest": "You are already at the end of this branch. Continue typing to extend it.",
-            "no_follow_up": "There is no follow-up after this message yet. Switch to this node and continue typing instead."
-          },
           "label": "New Branch"
         },
         "context": "New Context"
@@ -1742,12 +1741,6 @@
       "top": "Back to top"
     },
     "resend": "Resend",
-    "resource_view": {
-      "menu": {
-        "agent": "Agents",
-        "assistant": "Assistants"
-      }
-    },
     "save": {
       "file": {
         "title": "Save to Local File"
@@ -1920,6 +1913,7 @@
         "time": "Time",
         "title": "Display mode"
       },
+      "draft": "Draft",
       "edit": {
         "placeholder": "Enter new name",
         "title": "Edit conversation name",
@@ -1981,11 +1975,11 @@
         "yuque": "Export to Yuque"
       },
       "group": {
-        "collapse": "Collapse display",
+        "collapse": "Collapse",
         "collapse_all": "Collapse all",
         "earlier": "Earlier",
         "expand_all": "Expand all",
-        "show_more": "Expand display",
+        "show_more": "Show more",
         "this_week": "This week",
         "today": "Today",
         "unknown_assistant": "Unlinked Assistant",
@@ -2164,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Qwen Code"
     },
@@ -2596,7 +2591,7 @@
     "text": "Text",
     "toolInput": "Tool Input",
     "toolName": "Tool Name",
-    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Try again or reduce the task scope.",
+    "tool_call_limit_reached": "The assistant reached the tool-call limit before producing a final answer. Raise \"Max tool call rounds\" in the assistant settings, or reduce the task scope.",
     "truncated": "Data truncated, original size",
     "truncatedBadge": "Truncated",
     "unknown": "Unknown error",
@@ -2989,6 +2984,28 @@
       "title": "Import ChatGPT Conversations",
       "untitled_conversation": "Untitled Conversation"
     },
+    "claude": {
+      "assistant_name": "Claude Import",
+      "button": "Select File",
+      "description": "Imports text, thinking, and tool use; images and attachments are not included",
+      "error": {
+        "invalid_json": "Invalid JSON file format",
+        "no_conversations": "No conversations found in file",
+        "no_valid_conversations": "No valid conversations to import",
+        "unknown": "Import failed, please check file format"
+      },
+      "help": {
+        "step1": "1. Log in to Claude, go to Settings > Privacy > Export Data",
+        "step2": "2. Wait for the export file via email",
+        "step3": "3. Extract the downloaded file and find conversations.json",
+        "title": "How to export Claude conversations?"
+      },
+      "importing": "Importing conversations...",
+      "selecting": "Selecting file...",
+      "success": "Successfully imported {{topics}} conversations with {{messages}} messages",
+      "title": "Import Claude Conversations",
+      "untitled_conversation": "Untitled Conversation"
+    },
     "confirm": {
       "button": "Select Import File",
       "label": "Are you sure you want to import external data?"
@@ -3027,10 +3044,20 @@
           "selected_notes": "{{count}} notes selected"
         },
         "note": {
+          "create": {
+            "content_label": "Content",
+            "content_placeholder": "Write the note content here…",
+            "title_label": "Title",
+            "title_placeholder": "Name this note"
+          },
           "description": "Select existing notes as knowledge base sources",
           "empty_description": "Create notes in the Notes feature, then come back to select them here.",
           "empty_title": "No notes found",
-          "loading": "Loading notes…"
+          "loading": "Loading notes…",
+          "mode": {
+            "create": "New note",
+            "import": "Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3289,6 +3316,7 @@
   },
   "launchpad": {
     "apps": "Apps",
+    "manage_sidebar": "Manage Sidebar",
     "minapps": "Minapps",
     "miniApps": "MiniApps",
     "pin_to_sidebar": "Add to Sidebar",
@@ -3359,11 +3387,6 @@
           },
           "heartbeat_interval": {
             "label": "Heartbeat interval (minutes)"
-          },
-          "instructions": {
-            "hint": "Defines the agent's role and behavior boundaries",
-            "label": "System prompt",
-            "placeholder": "Tell the agent who it is and what it can do…"
           },
           "max_turns": {
             "help": "0 means use the default",
@@ -3493,7 +3516,7 @@
             "hint": "Caps response length when enabled"
           },
           "max_tool_calls": {
-            "hint": "Limits tool-call rounds when enabled; otherwise uses the default 20-round limit"
+            "hint": "Limits tool-call rounds when enabled; otherwise uses the default {{count}}-round limit"
           },
           "model": {
             "hint": "Overrides the global default model for this assistant"
@@ -3559,8 +3582,7 @@
           "step": {
             "basic": "Basic info",
             "capability": "Skills",
-            "knowledge": "Knowledge",
-            "persona": "Persona"
+            "knowledge": "Knowledge"
           },
           "submit": "Create",
           "submit_failed": "Create failed"
@@ -3925,7 +3947,7 @@
         "title": "Delete Confirmation"
       },
       "failed": "Delete Failed",
-      "first_turn_not_supported": "The first user message cannot be deleted.",
+      "generating_unavailable": "A reply in this group is still generating and cannot be deleted yet.",
       "root_unavailable": "Messages are still loading and cannot be deleted yet.",
       "success": "Delete Successful"
     },
@@ -4010,8 +4032,8 @@
     },
     "group": {
       "delete": {
-        "content": "Deleting a group message will delete the user's question and all assistant's answers",
-        "title": "Delete Group Message"
+        "content": "Delete all assistant replies in this group? The user's question and later messages will be kept.",
+        "title": "Delete Group Replies"
       },
       "retry_failed": "Retry failed messages"
     },
@@ -4073,6 +4095,9 @@
     "restore": {
       "failed": "Restore failed",
       "success": "Restored successfully"
+    },
+    "retry": {
+      "status": "Retrying with {{model}} · attempt {{attempt}}"
     },
     "save": {
       "success": {
@@ -4223,6 +4248,8 @@
         "taskOutput": "View task output",
         "taskStop": "Stop task",
         "taskUpdate": "Update task",
+        "toMarkdown": "To Markdown",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Todo Write",
         "tool": "Tool",
         "webFetch": "Web Fetch",
@@ -4273,6 +4300,8 @@
       "thinkingHeader": "Thinking it through",
       "truncated": "Output truncated (original: {{size}})",
       "units": {
+        "char_one": "{{count}} char",
+        "char_other": "{{count}} chars",
         "done_one": "{{count}} Done",
         "done_other": "{{count}} Done",
         "file_one": "{{count}} file",
@@ -4425,7 +4454,8 @@
     "invalid_model": "Invalid Model",
     "json_parse_error": "Invalid JSON format",
     "multi_select": {
-      "label": "Multi-model simultaneous responses"
+      "label": "Multi-select",
+      "tooltip": "Multi-model simultaneous responses"
     },
     "no_matches": "No models available",
     "parameter_name": "Parameter Name",
@@ -4815,7 +4845,7 @@
       "stop": "Stop OVMS",
       "stopping": "Stopping"
     },
-    "description": "<div><p>1. Download OV Models.</p><p>2. Add Models in 'Manager'.</p><p>Support Windows Only!</p><p>OVMS Install Path: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Please refer to <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMS Guide</a></p></dev>",
+    "description": "<div><p>1. Download the OV models.</p><p>2. Add the models in Manager.</p><p>Windows only.</p><p>OVMS installation path: '%USERPROFILE%\\.cherrystudio\\ovms'.</p><p>See the <a href=\"https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md\">Intel OVMS guide</a>.</p></div>",
     "download": {
       "button": "Download",
       "error": "Download Error",
@@ -5580,7 +5610,7 @@
       },
       "prompt": {
         "explain": "Please explain the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n",
-        "refine": "Please optimize or polish the user input content wrapped in the XML tag <INPUT>, while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
+        "refine": "Please optimize or polish the user input inside the INPUT XML element while maintaining the meaning and integrity of the original content. Requirements: Your output should be in the same language as the user input; do not include any explanation of this prompt, just give the response directly; do not output XML tags, output the optimized content directly: \n\n<INPUT>{{text}}</INPUT>",
         "summary": "Please summarize the following content. Requirements: Reply in {{language}}; do not include any explanation of this prompt, just give the response directly: \n\n"
       },
       "translate": {
@@ -5832,7 +5862,77 @@
         "open": "Open",
         "title": "Debug"
       },
-      "description": "A powerful AI assistant for producer",
+      "description": "A powerful AI assistant built for creators",
+      "diagnostics": {
+        "actions": {
+          "cancel": "Cancel",
+          "close": "Close",
+          "contact": "Email support",
+          "copy_email": "Copy support email",
+          "export": "Export",
+          "exporting": "Exporting...",
+          "reveal": "Open file location"
+        },
+        "dialog": {
+          "description": "Save recent app information as a ZIP file to help support staff investigate issues.",
+          "title": "Export diagnostic bundle"
+        },
+        "entry": {
+          "button": "Export",
+          "title": "Diagnostic bundle"
+        },
+        "errors": {
+          "busy": "Another diagnostic bundle is already being exported",
+          "copy_failed": "Could not copy the support email",
+          "destination_conflict": "The selected save location conflicts with diagnostic data. Choose a different folder.",
+          "email_client_failed": "Could not open an email client. You can copy the support email instead.",
+          "export_failed": "Could not export the diagnostic bundle",
+          "inspect_failed": "Could not check what is available to export. Try again later.",
+          "reveal_failed": "Could not open the file location"
+        },
+        "inspecting": "Preparing the available information...",
+        "limit": "To keep the ZIP manageable, logs and detailed records are limited to {{size}}. Newer information is kept first.",
+        "mail": {
+          "body": "Please help investigate this Cherry Studio issue.\n\nDiagnostic bundle ID: {{bundleId}}\nVersion: {{version}}\nPlatform: {{platform}}\nTime range: {{range}}\nFile: {{fileName}}\n\nPlease attach the ZIP file to this email. The bundle was saved locally and was not uploaded automatically.",
+          "subject": "Cherry Studio diagnostics {{bundleId}}"
+        },
+        "privacy": {
+          "consent": "I understand the information above and will share the ZIP only privately with support.",
+          "description": "These records may contain things you entered, file locations, request and response content, and service connection information. Cherry Studio does not redact or upload them automatically. Share the ZIP only with support, and never post it on GitHub or other public sites.",
+          "title": "Before you share"
+        },
+        "range_title": "Time range",
+        "ranges": {
+          "24h": "Last 24 hours",
+          "3d": "Last 3 days",
+          "7d": "Last 7 days"
+        },
+        "sources": {
+          "inspecting": "Checking what is available...",
+          "logs": {
+            "title": "App logs"
+          },
+          "summary": "{{count}} files, about {{size}}",
+          "summary_one": "{{count}} file, about {{size}}",
+          "summary_other": "{{count}} files, about {{size}}",
+          "system": {
+            "description": "Includes app, system, and device details. Recent crashes: {{crashCount}}. Crash files are not collected.",
+            "title": "App and device information"
+          },
+          "traces": {
+            "title": "Detailed activity records"
+          },
+          "unavailable": "Nothing is available to export for this time range"
+        },
+        "success": {
+          "email_copied": "Support email copied",
+          "local_only": "The file was saved only on your computer and was not uploaded. Attach the ZIP file manually when emailing support.",
+          "summary": "File size {{size}} · {{included}} files collected · {{omitted}} files not collected",
+          "title": "Diagnostic bundle exported"
+        },
+        "unknown": "Unknown",
+        "warning": "Some diagnostic information was unavailable. The exported bundle may be incomplete."
+      },
       "downloading": "Downloading...",
       "enterprise": {
         "title": "Enterprise"
@@ -5946,11 +6046,41 @@
         "skip_file_data_title": "Slim Backup"
       },
       "clear_cache": {
+        "approximately": "Approx. {{size}}",
         "button": "Clear Cache",
-        "confirm": "Clearing the cache will delete application cache data, including minapp data. This action is irreversible, continue?",
+        "calculating": "Calculating…",
         "error": "Error clearing cache",
+        "legacy_warning": {
+          "confirm": "Select Anyway",
+          "description": "After cleanup finishes, the v1 data included in this option will be permanently deleted. Without a backup, this data cannot be recovered.",
+          "message": "v1 data will be permanently deleted",
+          "title": "Select leftover v1 data?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Leftover v1 data, including old conversation history and settings. Clearing it cannot be undone.",
+            "title": "Leftover data from v1"
+          },
+          "normal_cache": {
+            "description": "Clears cache and temporary files created while using the app to free up storage space. Your conversation history and settings will not be deleted.",
+            "title": "App cache"
+          },
+          "orphaned_data": {
+            "description": "Removes unused files, leftover knowledge bases, and temporary backup restore files.",
+            "title": "Leftover files and knowledge bases"
+          },
+          "site_data": {
+            "description": "Cookies and site storage used by websites and mini apps. You may be signed out of websites.",
+            "title": "Website and mini app data"
+          }
+        },
+        "partial_success": "Cleanup finished, but some items could not be cleared",
+        "selected_total": "Selected total",
         "success": "Cache cleared",
-        "title": "Clear Cache"
+        "title": "Clear Cache",
+        "total_partial": "{{size}} counted; some sizes are unknown",
+        "unavailable": "Unable to calculate",
+        "waiting_for_legacy_database": "Waiting for the old database to be released. Close other Cherry Studio windows; cleanup will continue after their connections close."
       },
       "data": {
         "title": "Data Directory"
@@ -5993,6 +6123,7 @@
       "import_settings": {
         "button": "Import Json File",
         "chatgpt": "Import from ChatGPT",
+        "claude": "Import from Claude",
         "title": "Import App Data"
       },
       "joplin": {
@@ -6364,6 +6495,23 @@
         "token_placeholder": "Please enter Siyuan Note Token"
       },
       "title": "Data",
+      "v1_remigration": {
+        "acknowledgement": "I understand the risk and want to continue.",
+        "back": "Back",
+        "backup_acknowledgement": "I have backed up my data",
+        "backup_button": "Back Up All Data Now",
+        "backup_message": "Back up all current data before continuing. Continuing will permanently delete your current v2 data, and this action cannot be undone.",
+        "button": "Rerun Migration",
+        "confirm": "Rerun Migration",
+        "confirm_countdown": "Rerun Migration ({{seconds}}s)",
+        "dialog_title": "Rerun v1 Data Migration",
+        "error": "Failed to start v1 data migration again",
+        "final_confirmation": "Confirm that you want to delete the current v2 data and rerun the v1 data migration.",
+        "final_message": "Your current v2 data will be permanently deleted. This action cannot be undone.",
+        "final_retained": "Your original v1 data will be kept and imported again after restart.",
+        "next": "Next",
+        "title": "Rerun v1 Data Migration"
+      },
       "webdav": {
         "autoSync": {
           "label": "Auto Backup",
@@ -6531,6 +6679,7 @@
         "notice": {
           "downloadFailed": "Download failed. Check your connection and try again.",
           "inUse": "Still used by a knowledge base; the weights were kept.",
+          "incompleteCache": "Model files are incomplete. Retry the download to repair them.",
           "removeFailed": "Remove failed. Check the logs for details."
         },
         "ocr": {
@@ -7364,8 +7513,8 @@
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",
       "provider_key_add_failed_by_invalid_data": "Failed to add provider API key, data format error",
       "provider_key_added": "Successfully added API key for {{provider}}",
-      "provider_key_already_exists": "{{provider}} already has an API key ({{existingKey}}). Do not add it again.",
-      "provider_key_confirm_title": "Add Provider API Key",
+      "provider_key_already_exists": "{{provider}} already has this API key. It will not be added again.",
+      "provider_key_confirm_title": "Add {{provider}} API Key",
       "provider_key_no_change": "API key for {{provider}} has not changed",
       "provider_key_overridden": "Successfully updated API key for {{provider}}",
       "provider_key_override_confirm": "{{provider}} already has an API key ({{existingKey}}). Do you want to override it with the new key ({{newKey}})?",
@@ -7377,7 +7526,17 @@
         "description": "Model used for simple tasks such as conversation naming and keyword extraction",
         "label": "Quick Model",
         "setting_title": "Quick model setup",
-        "tooltip": "It is recommended to choose a lightweight model and not recommended to choose a thinking model."
+        "tooltip": "Choose a lightweight model and avoid reasoning models."
+      },
+      "retry": {
+        "backoff": "Exponential backoff",
+        "description": "Retry chat, embedding, and rerank calls; chat can fall back to other models",
+        "fallback_models": "Fallback models",
+        "fallback_models_count": "{{count}} models selected",
+        "fallback_models_description": "Models tried in order when the primary model fails",
+        "label": "Model Call Retry",
+        "max_attempts": "Max retry attempts",
+        "tooltip": "Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "Custom",
@@ -7894,7 +8053,7 @@
       "add": "Add Phrase",
       "assistant": "Assistant Phrases",
       "contentLabel": "Content",
-      "contentPlaceholder": "Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "contentPlaceholder": "Enter phrase content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
       "delete": "Delete Phrase",
       "deleteConfirm": "The phrase cannot be recovered after deletion, continue?",
       "edit": "Edit Phrase",
@@ -8633,7 +8792,7 @@
     "title": "Update"
   },
   "warning": {
-    "missing_provider": "The supplier does not exist; reverted to the default supplier {{provider}}. This may cause issues."
+    "missing_provider": "The provider does not exist; reverted to the default provider {{provider}}. This may cause issues."
   },
   "words": {
     "knowledgeGraph": "Knowledge Graph",

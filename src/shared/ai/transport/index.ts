@@ -1,17 +1,9 @@
 export { applyApprovalDecisions } from './applyApprovalDecisions'
 export {
-  DEFER_TOOL_OUTPUT_BYTES,
   type DeferredToolOutput,
   type DeferredToolResultRef,
-  deferToolOutput,
-  isDeferredToolOutput,
-  shouldDeferToolOutput
+  isDeferredToolOutput
 } from './deferredToolResult'
-export {
-  projectMessagePartForRenderer,
-  projectMessagePartsForRenderer,
-  projectStreamChunkForRenderer
-} from './outboundProjection'
 export {
   blobRefsOf,
   envelopeDisplayExcerpt,
@@ -40,6 +32,7 @@ export type {
   AiToolResultRequest,
   AiToolResultResponse,
   ApprovalDecision,
+  ComposerChatTarget,
   ComposerQueuedMessagePayload,
   StreamChunkPayload,
   StreamDonePayload,

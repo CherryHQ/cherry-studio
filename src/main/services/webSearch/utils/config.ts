@@ -77,10 +77,33 @@ function mergeWebSearchProviderPreset(
   }
 }
 
+/**
+ * `exa-mcp` and `exa` are both backed by the Exa API but expose separate provider
+ * presets. The user configures the key once under "Exa"; when `exa-mcp` has no
+ * keys of its own, share the `exa` provider's keys so MCP searches authenticate too.
+ */
+function inheritExaMcpApiKeys(
+  provider: WebSearchProvider,
+  providerOverrides: WebSearchProviderOverrides
+): WebSearchProvider {
+  if (provider.id !== 'exa-mcp' || provider.apiKeys.length > 0) {
+    return provider
+  }
+
+  const exaKeys = providerOverrides.exa?.apiKeys ? trimStringList(providerOverrides.exa.apiKeys) : []
+
+  if (exaKeys.length === 0) {
+    return provider
+  }
+
+  return { ...provider, apiKeys: exaKeys }
+}
+
 export function resolveProviders(providerOverrides: WebSearchProviderOverrides): WebSearchProvider[] {
-  return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) =>
-    mergeWebSearchProviderPreset(preset, providerOverrides[preset.id])
-  )
+  return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
+    const provider = mergeWebSearchProviderPreset(preset, providerOverrides[preset.id])
+    return inheritExaMcpApiKeys(provider, providerOverrides)
+  })
 }
 
 export async function getRuntimeConfig(preferences: WebSearchPreferenceReader): Promise<WebSearchExecutionConfig> {
@@ -122,7 +145,9 @@ export async function getProviderById<TProviderId extends WebSearchProvider['id'
   const override = providerOverrides[providerId]
   const preset = getWebSearchProviderPresetById(providerId)
 
-  return mergeWebSearchProviderPreset(preset, override) as WebSearchProvider & { id: TProviderId }
+  const provider = mergeWebSearchProviderPreset(preset, override)
+
+  return inheritExaMcpApiKeys(provider, providerOverrides) as WebSearchProvider & { id: TProviderId }
 }
 
 export async function getProviderForCapability(

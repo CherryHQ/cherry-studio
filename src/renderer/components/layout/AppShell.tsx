@@ -5,8 +5,8 @@ import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { isMac } from '@renderer/utils/platform'
 import { getDefaultRouteTitle, isPageTitledRoute } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
-import { clearTabInstanceMetadata } from '@renderer/utils/tabInstanceMetadata'
 import { isSettingsPath } from '@shared/data/types/settingsPath'
+import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Sidebar from '../app/Sidebar'
@@ -16,6 +16,10 @@ import MiniAppTabsPool from '../MiniApp/MiniAppTabsPool'
 import { ResourceViewSourceProvider } from '../ResourceViewSourceProvider'
 import { AppShellTabBar } from './AppShellTabBar'
 import { TabRouter } from './TabRouter'
+
+// Routes whose pages stay usable below the global minimum window width.
+const isCompactMinWidthRoute = (url?: string): boolean =>
+  !!url && (url.startsWith('/app/chat') || url.startsWith('/app/agents'))
 
 export const AppShell = () => {
   const isMacTransparentWindow = useMacTransparentWindow()
@@ -109,6 +113,19 @@ export const AppShell = () => {
     }
   })
 
+  // The compact minimum tracks the active tab's route here, at window level.
+  // It must not live in the pages themselves: they sit inside <Activity>, whose
+  // hide/show re-runs mount effects, so a per-page []-dep effect re-issues this
+  // IPC pair on every tab switch.
+  const activeTabAllowsCompactWidth = isCompactMinWidthRoute(activeTab?.url)
+  useEffect(() => {
+    if (!activeTabAllowsCompactWidth) return
+    void ipcApi.request('window.main.set_minimum_size', { width: SECOND_MIN_WINDOW_WIDTH, height: MIN_WINDOW_HEIGHT })
+    return () => {
+      void ipcApi.request('window.main.reset_minimum_size')
+    }
+  }, [activeTabAllowsCompactWidth])
+
   const recordRouteVisit = useCallback((tab: typeof activeTab, lastAccessTime = tab?.lastAccessTime) => {
     if (!tab) return
 
@@ -139,7 +156,7 @@ export const AppShell = () => {
           title: getDefaultRouteTitle(url),
           icon: undefined,
           lastAccessTime: Date.now(),
-          metadata: clearTabInstanceMetadata(tab?.metadata)
+          metadata: undefined
         }
     updateTab(tabId, patch)
 

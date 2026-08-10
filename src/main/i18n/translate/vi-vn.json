@@ -2,7 +2,7 @@
   "agent": {
     "builtin": {
       "cherry_assistant": {
-        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Cố vấn tích hợp của Cherry Studio. Chẩn đoán sự cố, hướng dẫn thao tác, thu thập câu hỏi thường gặp, gửi báo cáo lỗi/yêu cầu tính năng, đồng thời tìm kiếm hoặc tạo Kỹ năng"
       }
     },
     "session": {
@@ -47,15 +47,15 @@
     "documentation": "Tài liệu",
     "edit": "Chỉnh sửa",
     "feedback": "Phản hồi",
-    "file": "Tập tin",
+    "file": "Tệp",
     "forceReload": "Tải lại bắt buộc",
     "front": "Đưa Tất cả Ra Phía Trước",
-    "help": "Giúp",
+    "help": "Trợ giúp",
     "hide": "Ẩn",
     "hideOthers": "Ẩn những cái khác",
-    "minimize": "Giảm thiểu",
+    "minimize": "Thu nhỏ",
     "paste": "Dán",
-    "quit": "Thôi",
+    "quit": "Thoát",
     "redo": "Làm lại",
     "releases": "Bản phát hành",
     "reload": "Tải lại",
@@ -69,31 +69,35 @@
     "view": "Xem",
     "website": "Trang web",
     "window": "Cửa sổ",
-    "zoom": "Zoom",
-    "zoomIn": "Thu phóng",
-    "zoomOut": "Alejarse"
+    "zoom": "Thu phóng",
+    "zoomIn": "Phóng to",
+    "zoomOut": "Thu nhỏ"
   },
   "common": {
     "copy": "Sao chép",
     "cut": "Cắt",
     "inspect": "Kiểm tra",
-    "paste": "Pasta"
+    "paste": "Dán"
   },
   "dialog": {
     "all_files": "Tất cả các tệp",
     "data_reset": {
       "cancel": "Hủy",
       "confirm": "Đặt lại và khởi động lại",
-      "message": "Thao tác này sẽ xóa các cuộc trò chuyện, trợ lý, cơ sở kiến thức, tệp và cài đặt, sau đó khởi động lại ứng dụng. Không thể hoàn tác. Tiếp tục?",
+      "message": "Thao tác này sẽ xóa các cuộc trò chuyện, trợ lý, cơ sở tri thức, tệp và cài đặt, sau đó khởi động lại ứng dụng. Không thể hoàn tác. Tiếp tục?",
       "title": "Đặt lại dữ liệu ứng dụng"
     },
-    "html_files": "Tập tin HTML",
-    "open_file": "Mở Tệp",
+    "diagnostic_bundle": {
+      "title": "Lưu gói chẩn đoán",
+      "zip_filter": "Tệp nén ZIP"
+    },
+    "html_files": "Tệp HTML",
+    "open_file": "Mở tệp",
     "pdf_files": "Tệp PDF",
     "png_image": "Hình ảnh PNG",
     "save_as_html": "Lưu dưới dạng HTML",
     "save_as_pdf": "Lưu dưới dạng PDF",
-    "save_file": "Lưu Tệp",
+    "save_file": "Lưu tệp",
     "select_folder": "Chọn thư mục",
     "word_document": "Tài liệu Word"
   },
@@ -117,15 +121,15 @@
       "oauth": {
         "callback": {
           "message": "Bạn có thể đóng trang này và quay lại Cherry Studio",
-          "title": "Autenticación exitosa"
+          "title": "Xác thực thành công"
         }
       }
     },
     "title": "Cài đặt"
   },
   "tray": {
-    "quit": "Thôi",
-    "show_quick_assistant": "Trợ lý Nhanh",
+    "quit": "Thoát",
+    "show_quick_assistant": "Trợ lý nhanh",
     "show_window": "Hiển thị cửa sổ"
   }
 }

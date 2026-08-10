@@ -1,5 +1,4 @@
 import { defineProvider } from './types'
-import { modeWire } from './wires'
 
 const claudeWebToolModels = [
   'claude-opus-4',
@@ -18,32 +17,36 @@ const geminiWebToolModels = [
 ]
 const openAIWebSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
 
-const deepSeekThinkingWire = modeWire('extra_body.thinking.type', {
-  off: 'disabled',
-  auto: 'enabled',
-  effort: 'enabled'
-})
-
-const deepSeekModels = ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3-1', 'deepseek-v3-2']
-
+/**
+ * NO per-model overrides. An override is also a catalog row here, so it would advertise models to
+ * every user regardless of what their relay actually serves. The thinking wire it used to carry
+ * (`extra_body.thinking.type`) reached no upstream anyway: `extra_body` is OpenAI-SDK-side sugar,
+ * and the correct field depends on the channel behind the model — New API's own answer to that is
+ * server-side 参数覆盖, not a client guess.
+ */
 export default defineProvider({
   id: 'new-api',
   name: 'New API',
+  // Self-hosted: only the default endpoint carries the placeholder host. A
+  // baseUrl here would override the user's single host on every other endpoint.
   endpointConfigs: {
     'anthropic-messages': {
-      adapterFamily: 'newapi',
-      baseUrl: 'http://localhost:3000'
+      adapterFamily: 'newapi'
     },
     'openai-chat-completions': {
       adapterFamily: 'newapi',
       baseUrl: 'http://localhost:3000',
       reasoningFormat: { type: 'openai-chat' }
     },
+    // `newapi` on every endpoint, so all four route through the NewAPI adapter and get the
+    // per-route version segment. Left inferred, these two resolve to the plain `openai` / `google`
+    // adapters, which read the host verbatim: `/responses` with no `/v1`, and `/v1/…:generateContent`
+    // when the user typed `/v1`.
     'openai-responses': {
-      baseUrl: 'http://localhost:3000'
+      adapterFamily: 'newapi'
     },
     'google-generate-content': {
-      baseUrl: 'http://localhost:3000'
+      adapterFamily: 'newapi'
     }
   },
   // Gateway-mapped delivery (same vendor-segment fallback as cherryin): a
@@ -69,11 +72,5 @@ export default defineProvider({
       docs: 'https://docs.newapi.pro',
       official: 'https://docs.newapi.pro/'
     }
-  },
-  overrides: deepSeekModels.map((modelId) => ({
-    modelId,
-    reasoningContracts: {
-      'openai-chat-completions': { wire: deepSeekThinkingWire }
-    }
-  }))
+  }
 })

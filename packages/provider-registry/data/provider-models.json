@@ -17744,178 +17744,6 @@
       }
     },
     {
-      "modelId": "deepseek-chat",
-      "providerId": "new-api",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "deepseek-reasoner",
-      "providerId": "new-api",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "deepseek-v3-1",
-      "providerId": "new-api",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
-      "modelId": "deepseek-v3-2",
-      "providerId": "new-api",
-      "reasoningContracts": {
-        "openai-chat-completions": {
-          "wire": {
-            "auto": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "effort": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "enabled"
-                  }
-                }
-              ]
-            },
-            "off": {
-              "operations": [
-                {
-                  "target": "extra_body.thinking.type",
-                  "value": {
-                    "source": "literal",
-                    "value": "disabled"
-                  }
-                }
-              ]
-            }
-          }
-        }
-      }
-    },
-    {
       "apiModelId": "nvidia/active-speaker-detection",
       "modelId": "active-speaker-detection",
       "pricing": {
@@ -20181,6 +20009,7 @@
     },
     {
       "apiModelId": "gpt-5.6-luna",
+      "endpointTypes": ["openai-responses"],
       "modelId": "gpt-5-6-luna",
       "pricing": {
         "cacheRead": {
@@ -20200,11 +20029,23 @@
           "perMillionTokens": 0.6
         }
       },
-      "providerId": "opencode"
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "low", "medium", "high", "xhigh", "max"]
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "apiModelId": "grok-4.5",
-      "endpointTypes": ["openai-chat-completions"],
+      "endpointTypes": ["openai-responses", "openai-chat-completions"],
       "modelId": "grok-4-5",
       "pricing": {
         "cacheRead": {
@@ -20231,11 +20072,22 @@
               }
             ]
           }
+        },
+        "openai-responses": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["low", "medium", "high"]
+              }
+            ]
+          }
         }
       }
     },
     {
       "apiModelId": "hy3",
+      "endpointTypes": ["openai-chat-completions"],
       "modelId": "hy3",
       "pricing": {
         "cacheRead": {
@@ -20251,7 +20103,19 @@
           "perMillionTokens": 0.58
         }
       },
-      "providerId": "opencode"
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "openai-chat-completions": {
+          "support": {
+            "controls": [
+              {
+                "kind": "effort",
+                "values": ["none", "low", "high"]
+              }
+            ]
+          }
+        }
+      }
     },
     {
       "apiModelId": "kimi-k2.5",
@@ -20894,6 +20758,7 @@
     },
     {
       "apiModelId": "qwen3.8-max",
+      "endpointTypes": ["anthropic-messages"],
       "modelId": "qwen3-8-max",
       "pricing": {
         "cacheRead": {
@@ -20913,7 +20778,60 @@
           "perMillionTokens": 6
         }
       },
-      "providerId": "opencode"
+      "providerId": "opencode",
+      "reasoningContracts": {
+        "anthropic-messages": {
+          "support": {
+            "controls": [
+              {
+                "kind": "budget",
+                "max": 262144,
+                "min": 1
+              },
+              {
+                "kind": "toggle"
+              }
+            ]
+          },
+          "wire": {
+            "effort": {
+              "budget": {
+                "clampToMaxTokens": true,
+                "min": 1024,
+                "missing": {
+                  "type": "omit-mode"
+                }
+              },
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "enabled"
+                  }
+                },
+                {
+                  "target": "thinking.budgetTokens",
+                  "value": {
+                    "source": "budget"
+                  }
+                }
+              ]
+            },
+            "off": {
+              "operations": [
+                {
+                  "target": "thinking.type",
+                  "value": {
+                    "source": "literal",
+                    "value": "disabled"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
     },
     {
       "apiModelId": "aion-labs/aion-2.0",
@@ -36364,5 +36282,5 @@
       "providerId": "zhipu"
     }
   ],
-  "version": "09ed01831a87fb9e"
+  "version": "c4793157a9e14350"
 }

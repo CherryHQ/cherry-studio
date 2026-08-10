@@ -162,6 +162,7 @@ Product concepts that Shadcn does not define extend the same unprefixed public s
 --success-subtle
 --success-subtle-foreground
 --chat-user
+--resource-list-row-selected
 ```
 
 Naming grammar:
@@ -184,10 +185,10 @@ All product variables are stable, consumer-backed Cherry Studio semantics not co
 `CHERRY_PRODUCT_VARIABLE_TOKENS` is the explicit runtime allowlist. Tailwind exposure is a separate concern and
 does not change API stability.
 
-A product semantic should reference an existing foundation or official semantic when that dependency expresses
-its role. It may own a light/dark literal only when no foundation token represents the product-specific value,
-the role has concrete consumers, and the literal remains centralized in `product.css`. Literal ownership is not
-permission for consumers to hard-code the same value.
+A product semantic should reference an existing foundation, official semantic, or stable product semantic when
+that dependency expresses its role. It may own a light/dark literal only when no existing token represents the
+product-specific value, the role has concrete consumers, and the literal remains centralized in `product.css`.
+Literal ownership is not permission for consumers to hard-code the same value.
 
 Example:
 
@@ -368,11 +369,12 @@ sharing semantics.
 
 `CHERRY_PRODUCT_SURFACE_PAIRS` lists only product surfaces with a concrete shared foreground contract. Other
 background roles deliberately keep text ownership with the consuming component until repeated usage proves a
-shared pair. Stable product variables may depend on official Shadcn variables or foundations, but never on
-historical names.
+shared pair. Stable product variables may depend on official Shadcn variables, other stable product variables, or
+foundations, but never on historical names.
 
-Hover and active colors are component-state decisions. The shared contract does not multiply every intent into
-global `hover` and `active` variables.
+Hover and active colors are normally component-state decisions. The shared contract does not multiply every
+intent into global `hover` and `active` variables. A cross-surface product domain may expose named interaction
+states only after its repeated invariant and concrete consumers are established, as with ResourceList rows.
 
 Historical renderer values that represented content hierarchy, layered surfaces, interaction states, shell
 colors, or platform constants are not automatically product semantics. Exact official aliases use the official
