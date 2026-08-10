@@ -122,6 +122,8 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
+  // Per-topic composer draft. Renderer memory only; app restart discards it.
+  'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
@@ -145,6 +147,8 @@ export type UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
+  // Per-session composer draft. Renderer memory only; app restart discards it.
+  'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
 
   // Translate page state management
   /** Input text */
@@ -204,6 +208,14 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.web_search.searching': false,
+  'chat.composer_draft.${topicId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    mentionedModelIds: [],
+    modelMultiSelectMode: false
+  },
   'chat.scroll_anchor.${topicId}': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
@@ -221,6 +233,14 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': {},
+  'agent.composer_draft.${sessionId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    workspaceKey: '',
+    agentId: ''
+  },
 
   // Translate page state management
   'translate.input': '',
@@ -365,6 +385,7 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
+  'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
   'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
@@ -395,6 +416,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
+  'settings.provider.filter_mode': 'all',
   'feature.mcp.provider_available_servers': {},
   'agent.open_external_app.last_used_target': null,
   'ui.emoji.recently_used': []

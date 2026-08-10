@@ -3,6 +3,8 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { aiUsageRecordTable } from '@data/db/schemas/aiUsageRecord'
+import { fileEntryTable } from '@data/db/schemas/file'
+import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
@@ -23,6 +25,7 @@ vi.mock('@data/dataApiDataChange', () => ({
 const SESSION_ID = 'session-1'
 const USER_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001'
 const ASSISTANT_MESSAGE_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002'
+const FILE_ENTRY_ID = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d003'
 type AgentSessionInsert = typeof agentSessionTable.$inferInsert
 
 describe('AgentSessionMessageService', () => {
@@ -53,6 +56,19 @@ describe('AgentSessionMessageService', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
+  })
+
+  it('reports message existence per session', async () => {
+    await seedSession({ id: 'session-2', name: 'Other', orderKey: 'a1' })
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(false)
+
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'hi' }] } }
+    })
+
+    expect(agentSessionMessageService.hasSessionMessages(SESSION_ID)).toBe(true)
+    expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
   })
 
   describe('findPendingAssistantMessageIds + markMessagesError (boot reconcile)', () => {
@@ -120,6 +136,49 @@ describe('AgentSessionMessageService', () => {
     })
   })
 
+  it('keeps attachment refs in sync with agent-session message history', async () => {
+    await dbh.db.insert(fileEntryTable).values({
+      id: FILE_ENTRY_ID,
+      origin: 'internal',
+      name: 'report',
+      ext: 'pdf',
+      size: 42,
+      cleanupPolicy: 'delete_when_unreferenced'
+    })
+    const filePart = {
+      type: 'file' as const,
+      url: 'file:///stale/location/report.pdf',
+      mediaType: 'application/pdf',
+      filename: 'report.pdf',
+      providerMetadata: { cherry: { fileEntryId: FILE_ENTRY_ID } }
+    }
+
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: USER_MESSAGE_ID,
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'inspect' }, filePart, filePart] }
+      }
+    })
+
+    expect(await dbh.db.select().from(agentSessionMessageFileRefTable)).toEqual([
+      expect.objectContaining({ fileEntryId: FILE_ENTRY_ID, sourceId: USER_MESSAGE_ID, role: 'attachment' })
+    ])
+
+    agentSessionMessageService.updateSessionMessage(SESSION_ID, USER_MESSAGE_ID, {
+      data: { parts: [{ type: 'text', text: 'attachment removed' }] }
+    })
+    expect(await dbh.db.select().from(agentSessionMessageFileRefTable)).toEqual([])
+
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', data: { parts: [filePart] } }
+    })
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    expect(await dbh.db.select().from(agentSessionMessageFileRefTable)).toEqual([])
+  })
+
   it('creates messages with service-owned audit timestamps', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
 
@@ -143,6 +202,25 @@ describe('AgentSessionMessageService', () => {
     expect(session.updatedAt).toBe(1_700_000_000_000)
     expect(saved.createdAt).toBe('2023-11-14T22:13:20.000Z')
     expect(saved.updatedAt).toBe('2023-11-14T22:13:20.000Z')
+  })
+
+  it('writes neither user nor pending assistant when the session agent changed before the transaction', async () => {
+    expect(() =>
+      agentSessionMessageService.saveMessages(
+        {
+          sessionId: SESSION_ID,
+          messages: [
+            { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [{ type: 'text', text: 'run' }] } },
+            { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+          ]
+        },
+        'agent-that-no-longer-owns-session'
+      )
+    ).toThrow(`Session with id '${SESSION_ID}' not found`)
+
+    expect(
+      await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.sessionId, SESSION_ID))
+    ).toEqual([])
   })
 
   it('keeps createdAt stable when updating an existing message', async () => {

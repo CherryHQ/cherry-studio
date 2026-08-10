@@ -113,6 +113,7 @@ interface RightPanelRenderContextValue {
 const RightPanelRenderContext = createContext<RightPanelRenderContextValue | null>(null)
 const RightPanelStateContext = createContext<RightPanelState | null>(null)
 const RightPanelActionsContext = createContext<RightPanelControllerActions | null>(null)
+const RightPanelPresentationMaximizedContext = createContext(false)
 
 function resolveRightPanelEntries<TScope>(
   capabilities: readonly RightPanelCapability<TScope>[],
@@ -384,11 +385,18 @@ export function RightPanelProvider<TScope>({
 
   return (
     <RightPanelActionsContext value={actions}>
-      <RightPanelStateContext value={state}>
-        <RightPanelRenderContext value={renderValue}>{children}</RightPanelRenderContext>
-      </RightPanelStateContext>
+      <RightPanelPresentationMaximizedContext value={presentationMaximized}>
+        <RightPanelStateContext value={state}>
+          <RightPanelRenderContext value={renderValue}>{children}</RightPanelRenderContext>
+        </RightPanelStateContext>
+      </RightPanelPresentationMaximizedContext>
     </RightPanelActionsContext>
   )
+}
+
+/** Effective maximized presentation shared by shell layout and composer consumers. */
+export function useRightPanelPresentationMaximized(): boolean {
+  return use(RightPanelPresentationMaximizedContext)
 }
 
 export function useRightPanelState(): RightPanelState {

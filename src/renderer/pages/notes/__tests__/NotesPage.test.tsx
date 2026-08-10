@@ -150,7 +150,7 @@ vi.mock('@renderer/components/popups/ContentPopup', () => ({
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: mocks.ipcRequest,
-    on: vi.fn()
+    on: vi.fn(() => vi.fn())
   }
 }))
 
@@ -365,10 +365,6 @@ describe('NotesPage print payloads', () => {
         file: {
           write: vi.fn().mockResolvedValue(undefined),
           listDirectory: vi.fn().mockResolvedValue([])
-        },
-        tree: {
-          onMutation: vi.fn(() => vi.fn()),
-          dispose: vi.fn().mockResolvedValue(undefined)
         }
       }
     })
@@ -445,6 +441,26 @@ describe('NotesPage print payloads', () => {
       expect(toast.warning).toHaveBeenCalledWith('notes.no_content_to_export')
     })
     expect(mocks.ipcRequest).not.toHaveBeenCalled()
+  })
+
+  it('does not retain stale rich editor content when the ready draft becomes empty', async () => {
+    mocks.settings.defaultEditMode = 'preview'
+    mocks.mountedEditor = 'rich'
+    mocks.sessionDraft = 'previous note content'
+    mocks.richEditorContent = mocks.sessionDraft
+    const { rerender } = await renderReadyNotesPage()
+
+    mocks.sessionDraft = ''
+    rerender(<NotesPage />)
+    await waitFor(() => expect(screen.getByTestId('notes-editor')).toHaveAttribute('data-current-content', ''))
+
+    fireEvent.click(screen.getByTestId('popover-trigger'))
+    fireEvent.click(screen.getByRole('button', { name: 'notes.exportToPDF' }))
+
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalledWith('notes.no_content_to_export')
+    })
+    expect(mocks.ipcRequest).not.toHaveBeenCalledWith('print.export_pdf', expect.anything())
   })
 
   it('routes the app.print command through the current source editor content', async () => {

@@ -11,6 +11,43 @@ import * as z from 'zod'
  * place is a compile error in the other.
  */
 
+/**
+ * kb_read returns a whole document slice, but the tooltip only shows a snippet. Truncating it
+ * keeps the full slice out of the render path and avoids re-serializing it into every citation
+ * tag. The shared persist, transport, and renderer cap also keeps live and reloaded messages equal.
+ */
+export const CITATION_SNIPPET_MAX_CHARS = 300
+
+// ── Why no builtin tool runs with `strict: true` ─────────────────
+//
+// `strict` asks the provider for constrained decoding, which makes Anthropic compile every strict
+// tool schema in the request into ONE sampling grammar. The compile budget is shared across those
+// strict schemas (non-strict tools do not count toward it), and the request 400s when the combined
+// grammar exceeds it ("Schema is too complex for compilation"). Binding a knowledge base turned on
+// four strict tools at once (kb_search / kb_list / kb_read / kb_manage, all `defer: 'never'`, so
+// none could even be deferred) and broke every message, including "hi".
+//
+// The web/file tools that were also strict (web_search / web_fetch / read_file — 5 properties
+// between them) would not have blown that budget on their own. They lost `strict` for the reason
+// below instead: on schemas this small it buys almost nothing, and it is not free.
+//
+// Dropping `strict` also removes what forced several of these schemas into a second, sentinel-valued
+// shape: strict mode requires every property in `required`, so optional fields had to become
+// required primitives (`''` / `0` / `-1` / `'none'`) that adapters translated back. Plain
+// `.optional()` is both what the model reads more easily and what the shared cores already expect,
+// so one schema now serves the AI-SDK tools and the Claude Code / MCP bridge alike.
+//
+// Nothing goes unvalidated: the AI SDK still checks every tool call against these schemas, and
+// `createAiRepair` re-asks the model on a mismatch — the fallback `strict` was buying us out of.
+// Provider-side, the validation keywords strict mode used to strip (`minLength`, `maximum`, …) now
+// survive; each provider's own sanitizer drops or folds what it cannot take (Anthropic turns them
+// into advisory description text), so the model sees MORE of the contract than it did before.
+//
+// Keep it this way. `registerBuiltinTools.test.ts` asserts the whole registry stays non-strict: a
+// blanket rule needs no judgement call, whereas "is this one small enough to be strict?" has to be
+// re-answered against an undocumented budget that only Anthropic can change — and answered again
+// every time a tool or a property is added.
+
 // ── kb_list ──────────────────────────────────────────────────────
 
 export const KB_LIST_TOOL_NAME = 'kb_list'
@@ -22,11 +59,8 @@ export const KB_LIST_TOOL_NAME = 'kb_list'
 //                       optionally capped by `maxDepth`. Each readable leaf carries a `conceptId`
 //                       for kb_read.
 //
-// kb_list is consumed by two paths with conflicting schema needs, so it has two shapes.
-//
-// MCP / Claude Code bridge (cherryBuiltinTools): the agent parses raw args with this schema and may
-// omit any field, so they are `.optional()`. `z.toJSONSchema` legitimately drops them from
-// `required`, which the non-strict MCP schema accepts. Omit a field to skip it.
+// One shape for both consumers (AI-SDK tool + MCP / Claude Code bridge): unused fields are simply
+// omitted. See the `kb_*` note at the top of this file.
 export const kbListInputSchema = z.object({
   query: z
     .string()
@@ -56,42 +90,6 @@ export const kbListInputSchema = z.object({
     .nonnegative()
     .optional()
     .describe('Outline mode only (requires `baseId`): limit the tree to this many folder levels (0 = top level).')
-})
-
-// AI-SDK path (KnowledgeListTool) runs with `strict: true`. Strict OpenAI-compatible providers require
-// every property in `required`, while Gemini also requires every property to expose a top-level
-// primitive `type` and rejects the `anyOf` emitted by `.nullable()`. As with `readFileInputSchema`,
-// required primitives plus sentinel values satisfy both providers; the adapter maps the sentinels
-// back to optional core inputs. The MCP schema above remains optional because it has no strict-mode
-// constraint.
-export const kbListStrictInputSchema = z.object({
-  query: z
-    .string()
-    .trim()
-    .max(200)
-    .describe(
-      'List mode only: case-insensitive substring filter against base name and sample sources. Pass an empty string to list all.'
-    ),
-  groupId: z
-    .string()
-    .trim()
-    .describe(
-      'List mode only: restrict the result to a single knowledge base group. Pass an empty string to span all groups.'
-    ),
-  baseId: z
-    .string()
-    .trim()
-    .describe(
-      'Pass a base id (from a prior list-mode call) to switch to outline mode: return that base’s ' +
-        'folder/document tree instead of the list of bases. Pass an empty string to list the bases.'
-    ),
-  maxDepth: z
-    .number()
-    .int()
-    .min(-1)
-    .describe(
-      'Outline mode only (requires `baseId`): limit the tree to this many folder levels (0 = top level). Pass -1 for unlimited depth.'
-    )
 })
 
 export const kbListOutputItemSchema = z.object({
@@ -229,55 +227,6 @@ export const kbReadInputSchema = z.object({
     )
 })
 
-// AI-SDK strict schemas use required primitives and sentinels for cross-provider compatibility; see
-// `kbListStrictInputSchema`. The adapter normalizes these sentinels before calling the shared core.
-export const kbReadStrictInputSchema = z.object({
-  baseId: z
-    .string()
-    .trim()
-    .min(1)
-    .describe('ID of the knowledge base to read from — a base id from kb_list or a kb_search hit.'),
-  conceptId: z
-    .string()
-    .trim()
-    .min(1)
-    .describe('Concept ID of the document to read — the `conceptId` field of a kb_search hit (its relative path).'),
-  charStart: z
-    .number()
-    .int()
-    .nonnegative()
-    .describe('Read mode only: 0-based start offset of the slice to read. Pass 0 to start at the beginning.'),
-  charEnd: z
-    .number()
-    .int()
-    .nonnegative()
-    .describe(
-      'Read mode only: end offset (exclusive) of the slice. Pass 0 to read to the end. Long reads are capped; ' +
-        'when `totalChars` exceeds the returned `charEnd`, page on by calling again with `charStart` set to that `charEnd`.'
-    ),
-  pattern: z
-    .string()
-    .max(200)
-    .describe(
-      'Pass a JavaScript regular expression to switch to grep mode: instead of the document text, return each ' +
-        'matching line with its character offsets and a snippet (anchors `^`/`$` bind to each line; a match ' +
-        'cannot span lines). Use this for an exact lookup — a number, code symbol, term, quote. Pass an empty ' +
-        'string to read the document text; use kb_search for semantic/meaning-based lookup across documents.'
-    ),
-  ignoreCase: z
-    .boolean()
-    .describe('Grep mode only: case-insensitive matching. Pass true for the default; ignored in read mode.'),
-  maxMatches: z
-    .number()
-    .int()
-    .nonnegative()
-    .max(200)
-    .describe(
-      'Grep mode only: maximum matches to return (default 50, hard cap 200). Pass 0 to use the default. ' +
-        '`totalMatches` always reports the full count.'
-    )
-})
-
 export const kbReadOutputSchema = z.object({
   // Citation id the model echoes back as `[cite:id]`. One id per call: a read returns one
   // document slice, so the whole result is a single source. Optional because results persisted
@@ -356,16 +305,11 @@ export const KB_MANAGE_TOOL_NAME = 'kb_manage'
 
 export const KB_MANAGE_ACTIONS = ['add', 'delete', 'refresh'] as const
 export const KB_MANAGE_ADD_TYPES = ['file', 'url', 'note'] as const
-export const KB_MANAGE_UNUSED_TYPE = 'none' as const
 
 // One flat object, not a discriminated union: which fields apply depends on `action`
 // (and, for add, on `type`). The core validates the combination and returns a steer
 // string on a missing field, so the model gets a clear error rather than a schema reject.
-//
-// kb_manage is consumed by two paths with conflicting schema needs, same split as kb_list.
-//
-// MCP / Claude Code bridge (cherryBuiltinTools): the agent parses raw args with this schema and may
-// omit any field, so they are `.optional()`.
+// Fields the chosen action does not use are simply omitted.
 export const kbManageInputSchema = z.object({
   baseId: z.string().trim().min(1).describe('ID of the knowledge base to modify — a base id from kb_list.'),
   action: z
@@ -406,49 +350,6 @@ export const kbManageInputSchema = z.object({
     )
 })
 
-// AI-SDK strict schemas use required primitives and sentinels for cross-provider compatibility; see
-// `kbListStrictInputSchema`. The adapter normalizes these sentinels before calling the shared core.
-export const kbManageStrictInputSchema = z.object({
-  baseId: z.string().trim().min(1).describe('ID of the knowledge base to modify — a base id from kb_list.'),
-  action: z
-    .enum(KB_MANAGE_ACTIONS)
-    .describe(
-      'add: import a new source (set `type` + its field). delete: remove documents by `conceptIds`. ' +
-        'refresh: re-index documents by `conceptIds`. All actions modify the base and require user approval.'
-    ),
-  type: z
-    .enum([...KB_MANAGE_ADD_TYPES, KB_MANAGE_UNUSED_TYPE])
-    .describe(
-      'For action="add" only: the source kind — "file" (set `path`), "url" (set `url`), or "note" (set `content`). ' +
-        'Pass "none" for delete or refresh.'
-    ),
-  path: z
-    .string()
-    .trim()
-    .describe(
-      'For action="add", type="file": absolute local filesystem path of the file to import. Pass an empty string otherwise.'
-    ),
-  url: z
-    .string()
-    .trim()
-    .describe('For action="add", type="url": the URL to fetch and index. Pass an empty string otherwise.'),
-  content: z
-    .string()
-    .describe('For action="add", type="note": the plain-text note content to index. Pass an empty string otherwise.'),
-  title: z
-    .string()
-    .trim()
-    .describe(
-      'For action="add", type="note": optional display title (defaults to the note\'s first line). Pass an empty string to omit.'
-    ),
-  conceptIds: z
-    .array(z.string().trim().min(1))
-    .describe(
-      'For action="delete"/"refresh": Concept IDs (the `conceptId` field of a kb_search hit or a kb_list result) ' +
-        'to operate on. Pass an empty array for add.'
-    )
-})
-
 export const kbManageOutputSchema = z.object({
   action: z.enum(KB_MANAGE_ACTIONS),
   // add: the source identifiers that were imported (one per add call).
@@ -465,6 +366,7 @@ export type KbManageOutput = z.infer<typeof kbManageOutputSchema>
 // ── web_search ───────────────────────────────────────────────────
 
 export const WEB_SEARCH_TOOL_NAME = 'web_search'
+export const PROVIDER_WEB_SEARCH_TOOL_NAME = 'webSearch'
 export const WEB_FETCH_TOOL_NAME = 'web_fetch'
 
 export const webSearchInputSchema = z.object({
@@ -493,15 +395,18 @@ export const webSearchOutputItemSchema = z.object({
 export const webSearchOutputSchema = z.array(webSearchOutputItemSchema)
 
 export const webFetchInputSchema = z.object({
-  // `.refine()` rather than `.url()`: WebFetchTool runs with `strict: true`, and `.url()` emits
-  // `format: "uri"`, which strict OpenAI-compatible providers reject outright — the whole request
-  // 400s ("Invalid schema for function 'web_fetch': ... 'uri' is not a valid format"), taking every
-  // other tool in the turn down with it. A refinement is invisible to `toJSONSchema` (no `format`
-  // keyword) yet still runs locally, so the model's tool call is validated before `execute` and a
-  // malformed URL surfaces as a repairable input error instead of a bogus network failure.
-  //
-  // `isHttpUrl` is literally the predicate `normalizeWebSearchUrls` enforces service-side, so the
-  // schema and the service agree by construction instead of via two copies of one rule that drift.
+  // `.refine()` rather than `.url()`, for two reasons that both still hold now that no builtin tool
+  // runs with `strict: true` (see the note at the top of this file):
+  //   1. `isHttpUrl` is *narrower* than `.url()`, which happily accepts `file:///etc/passwd` and
+  //      `javascript:alert(1)`. It is literally the predicate `normalizeWebSearchUrls` enforces
+  //      service-side, so the schema and the service agree by construction rather than via two
+  //      copies of one rule that drift. Do not "simplify" this back to `.url()`.
+  //   2. A refinement is invisible to `toJSONSchema` (it emits no `format` keyword), so the schema
+  //      carries no `format: "uri"` — which strict OpenAI-compatible providers reject outright,
+  //      400ing the whole request and taking every other tool in the turn with it. Keeping `format`
+  //      out costs nothing and keeps this schema safe to send anywhere.
+  // Either way the refinement still runs locally, so a malformed URL surfaces as a repairable input
+  // error before `execute` instead of a bogus network failure.
   //
   // It is only a syntax gate, though. Of the two providers serving `web_fetch`, `fetch` retrieves
   // the target in this process and so runs it through `remoteUrlSafety`, which additionally rejects
@@ -524,6 +429,39 @@ export type WebSearchOutputItem = z.infer<typeof webSearchOutputItemSchema>
 export type WebSearchOutput = z.infer<typeof webSearchOutputSchema>
 export type WebFetchInput = z.infer<typeof webFetchInputSchema>
 export type WebFetchOutput = z.infer<typeof webFetchOutputSchema>
+
+// ── to_markdown ──────────────────────────────────────────────────
+
+export const TO_MARKDOWN_TOOL_NAME = 'to_markdown'
+
+export const TO_MARKDOWN_SUPPORTED_EXTENSIONS =
+  '.doc, .docx, .docm, .ppt, .pps, .pot, .pptx, .pptm, .ppsx, .ppsm, .xls, .xlsx, .xlsm, .xlsb, .odt, .ods, .odp, .rtf, .epub, .csv, .pdf'
+
+export const toMarkdownInputSchema = z.object({
+  path: z
+    .string()
+    .trim()
+    .min(1)
+    .max(4096)
+    .describe(
+      `Required local source path. Relative paths resolve from the session workspace; absolute paths must be an attachment announced with this session or live under the agent data directory. Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}.`
+    )
+})
+
+export const toMarkdownOutputSchema = z.object({
+  path: z.string().describe('Absolute path to the temporary Markdown file. Read this file in slices as needed.'),
+  chars: z.number().int().nonnegative().describe('Number of characters written to the Markdown file.')
+})
+
+export const TO_MARKDOWN_DESCRIPTION =
+  'Convert one supported local document to Markdown. Relative paths resolve from the session workspace. ' +
+  `Supported extensions: ${TO_MARKDOWN_SUPPORTED_EXTENSIONS}. ` +
+  'The converter detects recognizable formats from file contents and uses the extension as fallback (required for CSV). ' +
+  'Scanned/image-only PDFs need OCR and are unsupported. The full Markdown is written to an agent-private temporary ' +
+  'file instead of being returned; read the returned path in slices as needed.'
+
+export type ToMarkdownInput = z.infer<typeof toMarkdownInputSchema>
+export type ToMarkdownOutput = z.infer<typeof toMarkdownOutputSchema>
 
 // ── report_artifacts ─────────────────────────────────────────────
 
@@ -589,24 +527,27 @@ export const readFileInputSchema = z.object({
     .describe(
       'Name of the attached file to read, exactly as it appears in the attachment manifest in the conversation.'
     ),
-  // Required plain numbers with a 0 sentinel, not `.optional()` / `.nullable()`: ReadFileTool runs
-  // with `strict: true`, so a strict OpenAI-compatible provider rejects a schema whose `required`
-  // omits a property (`z.toJSONSchema` drops `.optional()` fields from `required`) — while Gemini
-  // rejects the `anyOf: [number, null]` that `.nullable()` emits ("didn't specify the schema type
-  // field"). A bare `number` is the only shape both accept; `readFile` maps 0 back to the defaults.
+  // Plain optionals — omitting a field means "use the default". These were required numbers with a
+  // 0 sentinel while read_file ran with `strict: true`; see the note at the top of this file for why
+  // strict is gone. `.optional()` and not `.nullable()`: the latter emits `anyOf: [number, null]`,
+  // which Gemini rejects ("didn't specify the schema type field").
   offset: z
     .number()
     .int()
     .nonnegative()
+    .optional()
     .describe(
-      '0-based character offset to start from. Page through long documents with offset + limit. Use 0 to start at the beginning.'
+      '0-based character offset to start from. Page through long documents with offset + limit. Omit to start at the beginning.'
     ),
+  // `.positive()`, not `.nonnegative()`: with the sentinel gone, `limit: 0` would mean "return zero
+  // characters" and `paginate` would emit a 2-char page rather than the default. Reject it instead.
   limit: z
     .number()
     .int()
-    .nonnegative()
+    .positive()
     .max(200_000)
-    .describe(`Max characters to return. Use 0 to default to ${READ_FILE_PAGE_SIZE}.`)
+    .optional()
+    .describe(`Max characters to return. Omit to default to ${READ_FILE_PAGE_SIZE}.`)
 })
 
 export const readFileOutputSchema = z.object({

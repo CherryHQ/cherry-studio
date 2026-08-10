@@ -35,11 +35,10 @@ export default defineCreator({
   // and the Volcengine Ark API has no /models endpoint — so the current chat/vision line is hand-listed.
   // Metadata for the ids OpenRouter does carry is still enriched at generation time.
   models: [
-    { id: 'doubao-seed-1-8', serverTools: ['web-search'] },
+    { id: 'doubao-seed-1-8' },
     {
       id: 'doubao-seed-2-1-pro',
       name: 'Doubao Seed 2.1 Pro',
-      serverTools: ['web-search'],
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'file-input'],
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text'],
@@ -49,7 +48,6 @@ export default defineCreator({
     {
       id: 'doubao-seed-2-1-turbo',
       name: 'Doubao Seed 2.1 Turbo',
-      serverTools: ['web-search'],
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'file-input'],
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text'],
@@ -59,7 +57,6 @@ export default defineCreator({
     {
       id: 'doubao-seed-evolving',
       name: 'Doubao Seed Evolving',
-      serverTools: ['web-search'],
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'file-input'],
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text'],
@@ -71,7 +68,6 @@ export default defineCreator({
     {
       id: 'doubao-seed-2-0-pro',
       name: 'Doubao Seed 2.0 Pro',
-      serverTools: ['web-search'],
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'file-input'],
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text'],
@@ -81,7 +77,6 @@ export default defineCreator({
     {
       id: 'doubao-seed-2-0-lite',
       name: 'Doubao Seed 2.0 Lite',
-      serverTools: ['web-search'],
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'file-input'],
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text'],
@@ -91,7 +86,6 @@ export default defineCreator({
     {
       id: 'doubao-seed-2-0-mini',
       name: 'Doubao Seed 2.0 Mini',
-      serverTools: ['web-search'],
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'file-input'],
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text'],
@@ -101,7 +95,6 @@ export default defineCreator({
     {
       id: 'doubao-seed-2-0-code-preview',
       name: 'Doubao Seed 2.0 Code',
-      serverTools: ['web-search'],
       capabilities: ['reasoning', 'function-call', 'image-recognition', 'video-recognition', 'file-input'],
       inputModalities: ['text', 'image', 'video'],
       outputModalities: ['text'],
@@ -113,7 +106,6 @@ export default defineCreator({
     {
       id: 'doubao-seed-1-6',
       name: 'Doubao Seed 1.6',
-      serverTools: ['web-search'],
       capabilities: [
         'reasoning',
         'function-call',
@@ -281,7 +273,6 @@ export default defineCreator({
     {
       id: 'doubao-seed-character',
       name: 'Doubao Seed Character',
-      serverTools: ['web-search'],
       capabilities: [
         'reasoning',
         'function-call',

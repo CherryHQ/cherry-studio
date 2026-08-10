@@ -71,6 +71,12 @@ const agentTaskFormSchema = z.strictObject({
   trigger: TriggerSchema,
   workspace: AgentSessionWorkspaceSourceSchema,
   timeoutMinutes: TimeoutMinutesAtomSchema,
+  /**
+   * Continue one sticky session across fires instead of creating a fresh one.
+   * Defaults to off. To start a clean conversation, disable and save, then
+   * enable and save in a separate update.
+   */
+  reuseSession: z.boolean().optional(),
   channelIds: z.array(z.string()).optional()
 })
 export type AgentTaskForm = z.infer<typeof agentTaskFormSchema>
@@ -191,6 +197,7 @@ export const aiRequestSchemas = {
           trigger: z.literal('submit-message'),
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
+          targetMode: z.enum(['active-path', 'reserved-branch']).optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           fastMode: z.boolean().optional()
         }),

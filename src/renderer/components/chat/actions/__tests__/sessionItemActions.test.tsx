@@ -10,7 +10,6 @@ const exportMenuOptions: SessionActionContext['exportMenuOptions'] = {
   joplin: true,
   markdown: true,
   markdown_reason: true,
-  notes: true,
   notion: true,
   obsidian: true,
   plain_text: true,
@@ -178,19 +177,18 @@ describe('session item actions', () => {
     expect(deleteAction?.confirm?.cancelText).toBe('common.cancel')
   })
 
-  it('respects export menu preferences for notes and copy actions', () => {
+  it('keeps Save to Notes independent from export and copy preferences', () => {
     const actions = resolveSessionMenuActions(
       createSessionActionFixture({
         exportMenuOptions: {
           ...exportMenuOptions,
           image: false,
-          notes: false,
           plain_text: false
         }
       })
     )
 
-    expect(actions.map((action) => action.id)).not.toContain('session.save-notes')
+    expect(actions.map((action) => action.id)).toContain('session.save-notes')
 
     const copyAction = actions.find((action) => action.id === 'session.copy')
     expect(copyAction?.children.map((action) => action.id)).toEqual(['session.copy.markdown'])

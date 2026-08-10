@@ -145,33 +145,36 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     headerActions,
     items,
     onContextMenuAction,
+    onGroupReorder,
     onReorder,
     reorderEnabled = true,
-    resourceMenuItems,
-    selectedId
+    selectedId,
+    selectionSuppressed
   }: {
     getContextMenuActions?: (item: ResourceEntityRailItem) => readonly ResolvedAction[]
     groupByGroup?: boolean
     headerActions?: ReactNode
     items: readonly ResourceEntityRailItem[]
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
+    onGroupReorder?: (groupId: string, anchor: { before: string }) => void | Promise<void>
     onReorder?: unknown
     reorderEnabled?: boolean
-    resourceMenuItems?: readonly { active?: boolean; id: string }[]
     selectedId?: string | null
+    selectionSuppressed?: boolean
   }) => {
     const flattenActions = (actions: readonly ResolvedAction[]): readonly ResolvedAction[] =>
       actions.flatMap((action) => [action, ...flattenActions(action.children)])
-    const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
 
     return (
       <div
         data-testid="resource-entity-rail"
-        data-active-resource-menu={String(hasActiveResourceMenuItem)}
         data-group-by-group={String(!!groupByGroup)}
-        data-reorder={onReorder && reorderEnabled ? 'enabled' : 'disabled'}
-        data-sortable-container={onReorder ? 'enabled' : 'disabled'}
-        data-selected-id={selectedId ?? ''}>
+        data-reorder={(onReorder || onGroupReorder) && reorderEnabled ? 'enabled' : 'disabled'}
+        data-item-reorder={onReorder && reorderEnabled ? 'enabled' : 'disabled'}
+        data-group-reorder={onGroupReorder && reorderEnabled ? 'enabled' : 'disabled'}
+        data-sortable-container={onReorder || onGroupReorder ? 'enabled' : 'disabled'}
+        data-selected-id={selectionSuppressed ? '' : (selectedId ?? '')}
+        data-selection-suppressed={String(!!selectionSuppressed)}>
         {headerActions}
         {items.map((item) => {
           const actions = getContextMenuActions?.(item) ?? []
@@ -262,7 +265,8 @@ vi.mock('@renderer/hooks/usePins', () => ({
 }))
 
 vi.mock('@renderer/hooks/useGroups', () => ({
-  useGroups: () => ({ groups: [], isLoading: false, error: undefined })
+  useGroups: () => ({ groups: [], isLoading: false, error: undefined }),
+  useGroupReorder: () => ({ reorderGroup: vi.fn() })
 }))
 
 function createAgentSessionsSource(overrides: Partial<AgentSessionsSource> = {}): AgentSessionsSource {
@@ -577,22 +581,22 @@ describe('classic layout entity resource list actions', () => {
     expect(toast.error).not.toHaveBeenCalled()
   })
 
-  it('disables classic assistant rail reorder while grouping by tag', () => {
+  it('switches from assistant reorder to group reorder while grouping by tag', () => {
     const props = { activeAssistantId: 'assistant-1', onSelectTopic: vi.fn(), onCreateTopic: vi.fn() }
 
     preferenceMocks.sortType = 'list'
     const { rerender } = render(<TestAssistantResourceList {...props} />)
     const railInList = screen.getByTestId('resource-entity-rail')
     expect(railInList).toHaveAttribute('data-group-by-group', 'false')
-    expect(railInList).toHaveAttribute('data-reorder', 'enabled')
+    expect(railInList).toHaveAttribute('data-item-reorder', 'enabled')
+    expect(railInList).toHaveAttribute('data-group-reorder', 'disabled')
 
-    // Reorder persists the global assistant orderKey, so it must be disabled under tag
-    // grouping to avoid moving assistants across unrelated tags in the global order.
     preferenceMocks.sortType = 'tags'
     rerender(<TestAssistantResourceList {...props} />)
     const railInTags = screen.getByTestId('resource-entity-rail')
     expect(railInTags).toHaveAttribute('data-group-by-group', 'true')
-    expect(railInTags).toHaveAttribute('data-reorder', 'disabled')
+    expect(railInTags).toHaveAttribute('data-item-reorder', 'disabled')
+    expect(railInTags).toHaveAttribute('data-group-reorder', 'enabled')
   })
 
   it('keeps sortable rail containers mounted while refresh temporarily blocks reorder', () => {
@@ -696,14 +700,8 @@ describe('classic layout entity resource list actions', () => {
     render(
       <TestAssistantResourceList
         activeAssistantId="assistant-1"
-        resourceMenuItems={[
-          {
-            active: true,
-            id: 'assistant-resource-view',
-            label: 'Manage assistants',
-            onSelect: onManageAssistants
-          }
-        ]}
+        manageAssistantsActive
+        onManageAssistants={onManageAssistants}
         onSelectTopic={vi.fn()}
         onCreateTopic={vi.fn()}
       />
@@ -712,7 +710,7 @@ describe('classic layout entity resource list actions', () => {
     fireEvent.click(screen.getByRole('button', { name: 'assistants.presets.manage.title' }))
 
     expect(onManageAssistants).toHaveBeenCalledTimes(1)
-    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-active-resource-menu', 'false')
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selection-suppressed', 'true')
     expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute('data-selected-id', '')
   })
 
@@ -900,49 +898,13 @@ describe('classic layout entity resource list actions', () => {
     })
   })
 
-  it('keeps Skill management out of the classic agent rail display menu', () => {
-    const onManageSkills = vi.fn()
-
-    render(
-      <AgentResourceList
-        activeAgentId="agent-1"
-        agentSessionsSource={createAgentSessionsSource()}
-        resourceMenuItems={[
-          {
-            id: 'agent-resource-view',
-            label: 'Manage agents',
-            onSelect: vi.fn()
-          },
-          {
-            id: 'skill-resource-view',
-            label: 'Manage skills',
-            onSelect: onManageSkills
-          }
-        ]}
-        onSelectSession={vi.fn()}
-        onCreateSession={vi.fn()}
-        onShowMissingAgentSelection={vi.fn()}
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: 'agent.skill.manage.title' })).not.toBeInTheDocument()
-    expect(onManageSkills).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'agent.manage.title' })).toBeInTheDocument()
-  })
-
   it('clears the active agent selection while a resource view is active', () => {
     render(
       <AgentResourceList
         activeAgentId="agent-1"
         agentSessionsSource={createAgentSessionsSource()}
-        resourceMenuItems={[
-          {
-            active: true,
-            id: 'agent-resource-view',
-            label: 'Manage agents',
-            onSelect: vi.fn()
-          }
-        ]}
+        manageAgentsActive
+        onManageAgents={vi.fn()}
         onSelectSession={vi.fn()}
         onCreateSession={vi.fn()}
         onShowMissingAgentSelection={vi.fn()}

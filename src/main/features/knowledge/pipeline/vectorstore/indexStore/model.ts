@@ -23,7 +23,12 @@ export interface RebuildMaterialUnitInput {
 
 export interface RebuildMaterialEmbeddingInput {
   embeddingTextHash: string
-  vector: number[]
+  /**
+   * The unit's embedding. `Float32Array` is accepted alongside `number[]` so the v1→v2 vector
+   * migrator can stream decoded legacy vectors at half the resident size; both encode to the
+   * same little-endian float32 blob.
+   */
+  vector: number[] | Float32Array
 }
 
 /**
@@ -49,7 +54,14 @@ export interface RebuildMaterialInput {
    * model) supplies none and skips that check — it is searched lexically.
    */
   usesEmbeddings: boolean
-  embeddings: RebuildMaterialEmbeddingInput[]
+  /**
+   * An `Iterable` (not just an array) so a caller can stream vectors in batches:
+   * rebuildMaterial consumes it lazily inside its write transaction, and duplicate
+   * hashes collapse in the store (INSERT OR IGNORE), so the v1→v2 vector migrator
+   * never holds more than one read batch of a large item's vectors resident. The
+   * iterable must be synchronous — the transaction cannot yield the event loop.
+   */
+  embeddings: Iterable<RebuildMaterialEmbeddingInput>
 }
 
 /**

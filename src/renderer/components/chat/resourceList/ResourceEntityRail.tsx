@@ -4,18 +4,17 @@ import type { ResolvedAction } from '@renderer/components/chat/actions/actionTyp
 import { ResourceListActionContextMenu } from '@renderer/components/chat/actions/ResourceListActionContextMenu'
 import { CommandPopupMenu } from '@renderer/components/command'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
-import { cn } from '@renderer/utils/style'
-import { History, MoreHorizontal } from 'lucide-react'
+import { MoreHorizontal } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
+  buildResourceListGroupDropAnchor,
   compareResourceOrderKey,
-  ConversationResourceMenu,
-  type ConversationResourceMenuItem,
   ResourceList,
   type ResourceListGroup,
+  type ResourceListOrderAnchor,
   type ResourceListReorderPayload,
   type ResourceListSection,
   type ResourceListStatus
@@ -58,6 +57,17 @@ function getEntityRailGroupBucketKey(groupId: string | undefined) {
   return groupId ? JSON.stringify(['group', groupId]) : ENTITY_RAIL_UNGROUPED_KEY
 }
 
+function getEntityRailCanonicalGroupId(resourceListSectionId: string): string | null {
+  if (!resourceListSectionId.startsWith(ENTITY_RAIL_GROUP_SECTION_PREFIX)) return null
+
+  try {
+    const value = JSON.parse(resourceListSectionId.slice(ENTITY_RAIL_GROUP_SECTION_PREFIX.length))
+    return Array.isArray(value) && value[0] === 'group' && typeof value[1] === 'string' ? value[1] : null
+  } catch {
+    return null
+  }
+}
+
 function getEntityRailGroupRank(item: ResourceEntityRailItem) {
   if (item.pinned) return 0
   return item.groupId ? 2 : 1
@@ -84,27 +94,26 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
   defaultGroupLabel?: string
   /**
    * Group the non-pinned entities by `groupId` into collapsible sections (the pinned section stays
-   * on top). Drag-reorder still updates the flat orderKey; it does not change the entity group.
-   * Off → the flat "助手"/"智能体" section.
+   * on top). Off → the flat "助手"/"智能体" section.
    */
   groupByGroup?: boolean
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
   headerActions?: ReactNode
-  historyRecordsActive?: boolean
   listRef?: RefObject<HTMLDivElement | null>
   onAdd: () => void | Promise<void>
-  /** When provided, a history-records button sits next to the add button. */
-  onOpenHistoryRecords?: () => void
-  resourceMenuItems?: readonly ConversationResourceMenuItem[]
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
+  /** Reorder canonical groups while `groupByGroup` is enabled. Pinned and ungrouped buckets stay fixed. */
+  onGroupReorder?: (groupId: string, anchor: ResourceListOrderAnchor) => void | Promise<void>
   /** Keeps the sortable container mounted while temporarily blocking reorder interactions. */
   reorderEnabled?: boolean
   onSelect: (item: T) => void | Promise<void>
   onSelectedClick?: (item: T) => void | Promise<void>
   selectedClickId?: string | null
   selectedId?: string | null
+  /** Hides the row selection while a conversation-level center surface owns the content pane. */
+  selectionSuppressed?: boolean
   status?: ResourceListStatus
   variant: 'agent' | 'assistant'
   items: readonly T[]
@@ -114,20 +123,7 @@ const ENTITY_RAIL_LEADING_SLOT_CLASS =
   'text-foreground group-hover:text-inherit group-focus-visible:text-inherit group-data-[selected=true]:text-inherit'
 
 const ENTITY_RAIL_TITLE_CLASS =
-  'font-medium text-foreground group-hover:text-inherit group-focus-visible:text-inherit group-data-[selected=true]:text-inherit'
-
-function getEntityRailTrailingActionPaddingClassName(actionCount: number) {
-  if (actionCount >= 3) {
-    return 'group-focus-within:pr-16 group-hover:pr-16 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-16'
-  }
-  if (actionCount === 2) {
-    return 'group-focus-within:pr-12 group-hover:pr-12 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-12'
-  }
-  if (actionCount === 1) {
-    return 'group-focus-within:pr-7 group-hover:pr-7 group-has-[[data-resource-list-item-actions][data-active=true]]:pr-7'
-  }
-  return ''
-}
+  'font-normal text-foreground group-hover:text-inherit group-focus-visible:text-inherit group-data-[selected=true]:text-inherit'
 
 export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionContext = unknown>({
   addIcon,
@@ -138,31 +134,29 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   emptyFallback,
   getContextMenuActions,
   headerActions,
-  historyRecordsActive = false,
   listRef,
   onAdd,
-  onOpenHistoryRecords,
-  resourceMenuItems,
   onContextMenuAction,
   onReorder,
+  onGroupReorder,
   reorderEnabled: reorderEnabledProp = true,
   onSelect,
   onSelectedClick,
   selectedClickId,
   selectedId,
+  selectionSuppressed = false,
   status = 'idle',
   variant,
   items
 }: ResourceEntityRailProps<T, TActionContext>) {
   const { t } = useTranslation()
-  const hasReorderHandler = !!onReorder
-  const reorderEnabled = hasReorderHandler && reorderEnabledProp
+  const itemReorderEnabled = !!onReorder && reorderEnabledProp
+  const groupReorderEnabled = groupByGroup && !!onGroupReorder && reorderEnabledProp
+  const hasReorderHandler = !!onReorder || !!onGroupReorder
   const fallbackListRef = useRef<HTMLDivElement>(null)
   const effectiveListRef = listRef ?? fallbackListRef
-  const hasActiveResourceMenuItem = resourceMenuItems?.some((item) => item.active) ?? false
-  const hasActiveCenterSurface = hasActiveResourceMenuItem || historyRecordsActive
-  const effectiveSelectedId = hasActiveCenterSurface ? null : selectedId
-  const effectiveSelectedClickId = hasActiveResourceMenuItem ? null : (selectedClickId ?? selectedId)
+  const effectiveSelectedId = selectionSuppressed ? null : selectedId
+  const effectiveSelectedClickId = selectedClickId === undefined ? selectedId : selectedClickId
   const handleItemClick = useCallback(
     (item: T) => {
       if (effectiveSelectedClickId === item.id && onSelectedClick) {
@@ -211,8 +205,6 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       const actions = getContextMenuActions?.(item) ?? []
       const hasVisibleMenuActions = !!onContextMenuAction && actions.some((action) => action.availability.visible)
       const hasTrailingAction = Boolean(item.trailingAction)
-      const trailingActionCount = (hasTrailingAction ? 1 : 0) + (hasVisibleMenuActions ? 1 : 0)
-      const trailingActionPaddingClassName = getEntityRailTrailingActionPaddingClassName(trailingActionCount)
       const extraItems = hasVisibleMenuActions
         ? actionsToCommandMenuExtraItems(actions, (action) => runContextMenuAction(item, action))
         : []
@@ -226,9 +218,7 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
               {item.icon}
             </ResourceList.ItemLeadingSlot>
           )}
-          <ResourceList.ItemTitle
-            className={cn(ENTITY_RAIL_TITLE_CLASS, 'transition-[padding]', trailingActionPaddingClassName)}
-            title={item.tooltip ? undefined : item.name}>
+          <ResourceList.ItemTitle className={ENTITY_RAIL_TITLE_CLASS} title={item.tooltip ? undefined : item.name}>
             {item.name}
           </ResourceList.ItemTitle>
           {(hasTrailingAction || hasVisibleMenuActions) && (
@@ -302,7 +292,31 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
     },
     [groupByGroup]
   )
+  const handleReorder = useCallback(
+    (payload: ResourceListReorderPayload) => {
+      if (payload.type === 'item') {
+        void onReorder?.(payload)
+        return
+      }
+      const groupId = getEntityRailCanonicalGroupId(payload.activeGroupId)
+      const anchorGroupId = getEntityRailCanonicalGroupId(payload.overGroupId)
+      if (!groupId || !anchorGroupId || !onGroupReorder) return
 
+      void onGroupReorder(groupId, buildResourceListGroupDropAnchor(payload, anchorGroupId))
+    },
+    [onGroupReorder, onReorder]
+  )
+  const canDragGroup = useCallback(
+    (group: ResourceListGroup) => groupReorderEnabled && getEntityRailCanonicalGroupId(group.id) !== null,
+    [groupReorderEnabled]
+  )
+  const canDropGroup = useCallback(
+    (payload: { activeGroupId: string; overGroupId: string }) =>
+      groupReorderEnabled &&
+      getEntityRailCanonicalGroupId(payload.activeGroupId) !== null &&
+      getEntityRailCanonicalGroupId(payload.overGroupId) !== null,
+    [groupReorderEnabled]
+  )
   // Alias the compound provider to a local before rendering — same pattern as TopicResourceList/SessionResourceList.
   // Written inline as `<ResourceList.Provider>` it gets auto-rewritten to `<ResourceList>` by the
   // React-19 "drop Context .Provider" lint fixer (ResourceList.Provider only looks like a Context).
@@ -319,49 +333,32 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       sectionBy={sectionBy}
       defaultGroupVisibleCount={Number.POSITIVE_INFINITY}
       dragCapabilities={{
-        groups: false,
-        items: reorderEnabled,
-        itemSameGroup: reorderEnabled,
+        groups: groupReorderEnabled,
+        items: itemReorderEnabled,
+        itemSameGroup: itemReorderEnabled,
         itemCrossGroup: false
       }}
-      canDragItem={({ item }) => reorderEnabled && item.reorderable !== false && !item.pinned}
+      canDragGroup={canDragGroup}
+      canDragItem={({ item }) => itemReorderEnabled && item.reorderable !== false && !item.pinned}
+      canDropGroup={canDropGroup}
       canDropItem={({ activeItem, sourceGroupId, targetGroupId }) =>
-        reorderEnabled &&
+        itemReorderEnabled &&
         activeItem.reorderable !== false &&
         !activeItem.pinned &&
         targetGroupId !== ENTITY_RAIL_PINNED_GROUP_ID &&
         sourceGroupId === targetGroupId
       }
-      onReorder={reorderEnabled ? onReorder : undefined}>
-      <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`}>
-        <ResourceList.Header className="gap-1">
+      onReorder={hasReorderHandler ? handleReorder : undefined}>
+      <ResourceList.Frame className="h-full min-h-0" data-testid={`${variant}-entity-rail`} presentation="left-panel">
+        <ResourceList.Header>
           <ResourceList.HeaderItem
             type="button"
             icon={addIcon}
             label={addLabel}
             aria-label={addLabel}
             onClick={() => void onAdd()}
-            actions={
-              headerActions || onOpenHistoryRecords ? (
-                <>
-                  {headerActions}
-                  {onOpenHistoryRecords && (
-                    <Tooltip title={t('history.records.shortTitle')} delay={500}>
-                      <ResourceList.HeaderActionButton
-                        type="button"
-                        aria-label={t('history.records.shortTitle')}
-                        aria-current={historyRecordsActive ? 'page' : undefined}
-                        className={cn(historyRecordsActive && 'bg-muted text-foreground!')}
-                        onClick={() => onOpenHistoryRecords()}>
-                        <History className="block" />
-                      </ResourceList.HeaderActionButton>
-                    </Tooltip>
-                  )}
-                </>
-              ) : undefined
-            }
+            actions={headerActions}
           />
-          <ConversationResourceMenu items={resourceMenuItems} />
         </ResourceList.Header>
         <ResourceList.Body<T>
           listRef={effectiveListRef}

@@ -81,6 +81,14 @@ const makeKnowledgeTools = (allowedIds: string[]) =>
     workspacePath: '/tmp/workspace',
     getKnowledgeBaseIds: () => allowedIds
   })
+const makeUnrestrictedKnowledgeTools = () =>
+  new CherryKnowledgeTools({
+    agentId: 'agent_test',
+    workspaceSource: { type: 'system' as const },
+    workspacePath: '/tmp/workspace',
+    canAccessAllKnowledgeBases: () => true,
+    getKnowledgeBaseIds: () => []
+  })
 const callCherryBuiltinTool = (name: string, args: unknown, sig: AbortSignal, allowedIds: string[] = KB_SCOPE) =>
   KB_TOOL_NAMES.has(name) ? makeKnowledgeTools(allowedIds).call(name, args) : callCherryBuiltinToolRaw(name, args, sig)
 const listCherryBuiltinTools = (allowedIds: string[] = KB_SCOPE) => [
@@ -147,6 +155,18 @@ describe('cherryBuiltinTools', () => {
       .map((t) => t.name)
       .sort()
     expect(names).toEqual(['generate_image', 'report_artifacts', 'web_fetch', 'web_search'])
+  })
+
+  it('exposes every kb_* tool for unrestricted built-in Assistant access', async () => {
+    const knowledge = makeUnrestrictedKnowledgeTools()
+    expect(knowledge.tools().map((tool) => tool.name)).toEqual(
+      expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
+    )
+
+    listBases.mockResolvedValue([])
+    await knowledge.call('kb_list', {})
+
+    expect(listBases).toHaveBeenCalledOnce()
   })
 
   it('keeps runtime knowledge tools aligned with the shared wire-name registry', () => {
@@ -690,6 +710,8 @@ describe('cherryBuiltinTools', () => {
 describe('CherryBuiltinToolsServer autonomy tool registration', () => {
   const agentContext = {
     agentId: 'agent_1',
+    agentDataPath: '/tmp/agent-data',
+    sessionId: 'session-1',
     workspaceSource: { type: 'system' as const },
     workspacePath: '/tmp/workspace',
     getKnowledgeBaseIds: () => KB_SCOPE
@@ -700,7 +722,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     const handlers = (server.mcpServer.server as any)._requestHandlers
     const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
     const names = result.tools.map((t: any) => t.name)
-    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config']))
+    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config', 'to_markdown']))
     expect(names).toEqual(expect.arrayContaining(listCherryBuiltinTools(['kb-1']).map((t) => t.name)))
   })
 
@@ -709,17 +731,19 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     const handlers = (server.mcpServer.server as any)._requestHandlers
     const result = await handlers.get('tools/list')({ method: 'tools/list', params: {} }, {})
     const names = result.tools.map((t: any) => t.name)
-    // Autonomy + stateless builtins stay; only the knowledge tools drop out.
-    expect(names).toEqual(expect.arrayContaining(['cron', 'notify', 'config', 'web_search', 'generate_image']))
+    // Autonomy, document conversion, and stateless builtins stay; only the knowledge tools drop out.
+    expect(names).toEqual(
+      expect.arrayContaining(['cron', 'notify', 'config', 'to_markdown', 'web_search', 'generate_image'])
+    )
     expect(names).not.toContain('kb_search')
     expect(names).not.toContain('kb_read')
     expect(names).not.toContain('kb_list')
     expect(names).not.toContain('kb_manage')
   })
 
-  it('exposes CLI management to normal agents and omits it for the built-in Assistant', async () => {
+  it('exposes CLI management to every agent, including the built-in Assistant', async () => {
     const normal = new CherryBuiltinToolsServer(agentContext)
-    const assistant = new CherryBuiltinToolsServer({ ...agentContext, canManageCli: false })
+    const assistant = new CherryBuiltinToolsServer({ ...agentContext, canAccessAllKnowledgeBases: () => true })
     const normalHandlers = (normal.mcpServer.server as any)._requestHandlers
     const assistantHandlers = (assistant.mcpServer.server as any)._requestHandlers
 
@@ -731,7 +755,7 @@ describe('CherryBuiltinToolsServer autonomy tool registration', () => {
     ).tools.map((tool: any) => tool.name)
 
     expect(normalNames).toEqual(expect.arrayContaining(['cli_list', 'cli_search', 'cli_install']))
-    expect(assistantNames).not.toEqual(expect.arrayContaining(['cli_list', 'cli_search', 'cli_install']))
+    expect(assistantNames).toEqual(expect.arrayContaining(['cli_list', 'cli_search', 'cli_install']))
   })
 
   it('rejects a previously bound base after the live scope narrows', async () => {

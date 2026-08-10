@@ -5,7 +5,7 @@ import path from 'node:path'
 import { loggerService } from '@logger'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 
-import { BOOTSTRAP_INSTRUCTIONS, SOUL_CONTENT_THRESHOLD } from './bootstrap'
+import { buildBootstrapInstructions, SOUL_CONTENT_THRESHOLD } from './bootstrap'
 
 const logger = loggerService.withContext('PromptBuilder')
 
@@ -13,14 +13,16 @@ const logger = loggerService.withContext('PromptBuilder')
  * Resolve a filename within a directory using case-insensitive matching.
  * Returns the full path if found (preferring exact match), or undefined.
  */
-async function resolveFile(dir: string, name: string): Promise<string | undefined> {
+async function resolveFile(dir: string, name: string, failOnError = false): Promise<string | undefined> {
   const exact = path.join(dir, name)
   try {
     const fileStat = await lstat(exact)
     if (fileStat.isFile() && !fileStat.isSymbolicLink()) return exact
     if (fileStat.isSymbolicLink()) logger.warn('Ignoring symbolic link in agent prompt data', { path: exact })
+    if (failOnError) throw new Error(`Required agent prompt file is not a regular file: ${exact}`)
     return undefined
-  } catch {
+  } catch (error) {
+    if (failOnError && (error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     // exact match not found, try case-insensitive
   }
 
@@ -33,8 +35,10 @@ async function resolveFile(dir: string, name: string): Promise<string | undefine
     const fileStat = await lstat(matchedPath)
     if (fileStat.isFile() && !fileStat.isSymbolicLink()) return matchedPath
     if (fileStat.isSymbolicLink()) logger.warn('Ignoring symbolic link in agent prompt data', { path: matchedPath })
+    if (failOnError) throw new Error(`Required agent prompt file is not a regular file: ${matchedPath}`)
     return undefined
-  } catch {
+  } catch (error) {
+    if (failOnError) throw error
     return undefined
   }
 }
@@ -57,9 +61,25 @@ type CacheEntry = {
   content: string
 }
 
-const DEFAULT_BASIC_PROMPT = `You are a personal assistant running inside Cherry Studio.
+/**
+ * How the agent's base system prompt should be established, decided from the
+ * workspace alone and kept free of any SDK type:
+ *
+ * - `claude_code` — no workspace `system.md`; the runtime uses the SDK preset.
+ * - `custom` — an explicit workspace `system.md` replaces only that base preset.
+ *
+ * Cherry-owned context remains separate and is appended in either case.
+ */
+export type AgentPromptBase = { kind: 'claude_code' } | { kind: 'custom'; content: string }
 
-`
+export interface AgentPromptParts {
+  base: AgentPromptBase
+  /**
+   * Cherry-owned bootstrap/persona/memory context. The runtime appends it after
+   * either base; it never contains or synthesizes the base prompt itself.
+   */
+  context: string
+}
 
 function memoriesTemplate(agentDataPath: string, sections: string): string {
   return `## Memories
@@ -68,7 +88,7 @@ Persistent files in the agent data directory \`${agentDataPath}/\` carry your id
 
 | File | Purpose | How to update |
 |---|---|---|
-| \`${agentDataPath}/SOUL.md\` | WHO you are — personality, tone, communication style, core principles | Read + Edit tools |
+| \`${agentDataPath}/SOUL.md\` | HOW you present yourself — name, personality, tone, and communication style; also the role definition when no Agent System Prompt is configured | Read + Edit tools |
 | \`${agentDataPath}/USER.md\` | WHO the user is — name, preferences, timezone, personal context | Read + Edit tools |
 | \`${agentDataPath}/memory/FACT.md\` | WHAT you know — active projects, technical decisions, durable knowledge (6+ months) | Read inline + \`mcp__agent-memory__memory\` update action |
 | \`${agentDataPath}/memory/JOURNAL.jsonl\` | WHEN things happened — one-time events, session notes (append-only log) | \`mcp__agent-memory__memory\` tool only (actions: append, search) |
@@ -84,16 +104,17 @@ ${sections}`
 }
 
 /**
- * PromptBuilder assembles the system prompt for CherryStudio agents.
+ * PromptBuilder assembles the Cherry-owned system prompt for CherryStudio agents.
  *
- * {@link buildSystemPrompt} — full custom prompt that REPLACES the SDK preset
- * entirely. Includes the basic identity, bootstrap instructions when needed,
- * and the agent data files (SOUL.md / USER.md / FACT.md). Tool-usage guidance
- * (autonomy, memory, web) is no longer injected here — it ships lazily via the
- * default-enabled `cherry-tool-guide` builtin skill.
+ * {@link buildPromptParts} — returns {@link AgentPromptParts} describing
+ * whether the base should be the SDK preset or an explicit `system.md`, plus
+ * separate Cherry-owned context (bootstrap instructions when needed, and the
+ * agent data files SOUL.md / USER.md / FACT.md). Tool-usage guidance (autonomy, memory, web) is not
+ * injected here — it ships lazily via the default-enabled `cherry-tool-guide`
+ * builtin skill.
  *
  * Memory files layout:
- *   {agentData}/SOUL.md          — personality, tone, communication style
+ *   {agentData}/SOUL.md          — personality, tone, communication style; role fallback without a System Prompt
  *   {agentData}/USER.md          — user profile, preferences, context
  *   {agentData}/memory/FACT.md   — durable project knowledge, technical decisions
  *   {agentData}/memory/JOURNAL.jsonl — timestamped event log (managed by memory tool)
@@ -101,33 +122,35 @@ ${sections}`
 export class PromptBuilder {
   private cache = new Map<string, CacheEntry>()
 
-  async buildSystemPrompt(
+  async buildPromptParts(
     workspacePath: string,
     config?: AgentConfiguration,
     hasUserInstructions = false,
     agentDataPath = workspacePath
-  ): Promise<string> {
-    const parts: string[] = []
+  ): Promise<AgentPromptParts> {
+    const contextParts: string[] = []
 
-    // Basic prompt: workspace system.md (case-insensitive) > embedded default
-    const systemPath = await resolveFile(workspacePath, 'system.md')
-    const basicPrompt = systemPath ? await this.readCachedFile(systemPath) : undefined
-    parts.push(basicPrompt ?? DEFAULT_BASIC_PROMPT)
+    // File presence is the explicit choice: even an empty system.md replaces only
+    // the SDK base preset, while Cherry-owned context remains appended separately.
+    const systemPath = await resolveFile(workspacePath, 'system.md', true)
+    const base: AgentPromptBase = systemPath
+      ? { kind: 'custom', content: await this.readCachedFile(systemPath, path.dirname(systemPath), true) }
+      : { kind: 'claude_code' }
 
     // Bootstrap detection: inject bootstrap instructions if not completed
     const needsBootstrap = await this.shouldRunBootstrap(agentDataPath, config, hasUserInstructions)
     if (needsBootstrap) {
-      parts.push(
-        `${BOOTSTRAP_INSTRUCTIONS}\n\nDuring bootstrap, write identity files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
+      contextParts.push(
+        `${buildBootstrapInstructions(hasUserInstructions)}\n\nDuring bootstrap, write persona and user-profile files at these exact absolute paths:\n- ${path.join(agentDataPath, 'SOUL.md')}\n- ${path.join(agentDataPath, 'USER.md')}`
       )
       logger.info('Bootstrap mode active — injecting onboarding instructions')
     }
 
-    // Always include the storage contract and absolute identity paths. Only the
+    // Always include the storage contract and absolute persona and user-profile file paths. Only the
     // loaded file-content blocks inside the section are conditional.
-    parts.push(await this.buildMemoriesSection(agentDataPath))
+    contextParts.push(await this.buildMemoriesSection(agentDataPath))
 
-    return parts.join('\n\n')
+    return { base, context: contextParts.join('\n\n') }
   }
 
   /**
@@ -139,7 +162,7 @@ export class PromptBuilder {
    * the agent remembers what it learned (e.g. parameter shapes that previously
    * failed, project conventions, user corrections).
    *
-   * Distinct from {@link buildSystemPrompt}'s memories section which also
+   * Distinct from {@link buildPromptParts}'s memories section which also
    * includes the SOUL.md / USER.md persona files. Returns undefined when no
    * FACT.md exists, so callers can omit the section entirely rather than
    * emitting an empty wrapper.
@@ -233,16 +256,33 @@ ${content}
   /**
    * Read a file with mtime-based caching. Returns undefined if the file does not exist.
    */
-  private async readCachedFile(filePath: string, expectedRoot = path.dirname(filePath)): Promise<string | undefined> {
+  private async readCachedFile(filePath: string, expectedRoot: string, failOnError: true): Promise<string>
+  private async readCachedFile(
+    filePath: string,
+    expectedRoot?: string,
+    failOnError?: false
+  ): Promise<string | undefined>
+  private async readCachedFile(
+    filePath: string,
+    expectedRoot = path.dirname(filePath),
+    failOnError = false
+  ): Promise<string | undefined> {
+    const fail = (error: unknown): undefined => {
+      if (failOnError) {
+        throw new Error(`Failed to read required agent prompt file: ${filePath}`, { cause: error })
+      }
+      return undefined
+    }
+
     let fileStat
     try {
       fileStat = await lstat(filePath)
       if (!fileStat.isFile() || fileStat.isSymbolicLink()) {
         logger.warn('Ignoring non-regular file in agent prompt data', { path: filePath })
-        return undefined
+        return fail(new Error('Path is not a regular file'))
       }
-    } catch {
-      return undefined
+    } catch (error) {
+      return fail(error)
     }
 
     try {
@@ -250,10 +290,10 @@ ${content}
       const relative = path.relative(resolvedRoot, resolvedFile)
       if (relative.startsWith('..') || path.isAbsolute(relative)) {
         logger.warn('Ignoring agent prompt file outside its expected root', { path: filePath, expectedRoot })
-        return undefined
+        return fail(new Error('Path resolves outside its expected root'))
       }
-    } catch {
-      return undefined
+    } catch (error) {
+      return fail(error)
     }
 
     const cached = this.cache.get(filePath)
@@ -277,7 +317,7 @@ ${content}
       return trimmed
     } catch (error) {
       logger.error(`Failed to read ${filePath}`, error as Error)
-      return undefined
+      return fail(error)
     } finally {
       await handle?.close().catch(() => undefined)
     }

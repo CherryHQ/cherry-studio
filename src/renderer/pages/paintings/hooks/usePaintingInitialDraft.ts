@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react'
 
-import { createDefaultPainting } from '../model/paintingPipeline'
+import { createDefaultPainting, type PaintingDraftDefaults } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
 
 interface UsePaintingInitialDraftInput {
   currentPainting: PaintingData
-  initialProviderId: string
+  draftDefaults: PaintingDraftDefaults
   setCurrentPainting: (painting: PaintingData) => void
 }
 
@@ -22,7 +22,7 @@ function isUntouchedDraft(painting: PaintingData) {
 }
 
 /**
- * Keep the page's initial empty draft aligned with the resolved default provider.
+ * Keep the page's initial empty draft aligned with the resolved draft defaults.
  *
  * The mount-time draft pins the fallback provider because `providerOptions` is
  * still `[]` then. Re-seed it as soon as those options resolve, unless the user
@@ -30,7 +30,7 @@ function isUntouchedDraft(painting: PaintingData) {
  */
 export function usePaintingInitialDraft({
   currentPainting,
-  initialProviderId,
+  draftDefaults,
   setCurrentPainting
 }: UsePaintingInitialDraftInput): void {
   const bootstrapDraftIdRef = useRef(currentPainting.id)
@@ -39,10 +39,13 @@ export function usePaintingInitialDraft({
     if (currentPainting.id !== bootstrapDraftIdRef.current) return
     if (currentPainting.persistedAt || !isUntouchedDraft(currentPainting)) return
 
-    if (initialProviderId && currentPainting.providerId !== initialProviderId) {
-      const nextPainting = createDefaultPainting(initialProviderId)
+    if (
+      draftDefaults.providerId &&
+      (currentPainting.providerId !== draftDefaults.providerId || currentPainting.model !== draftDefaults.modelId)
+    ) {
+      const nextPainting = createDefaultPainting(draftDefaults)
       bootstrapDraftIdRef.current = nextPainting.id
       setCurrentPainting(nextPainting)
     }
-  }, [currentPainting, initialProviderId, setCurrentPainting])
+  }, [currentPainting, draftDefaults, setCurrentPainting])
 }

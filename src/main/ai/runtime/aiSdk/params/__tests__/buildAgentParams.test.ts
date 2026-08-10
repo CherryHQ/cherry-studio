@@ -64,6 +64,28 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it('passes the conversation id to provider configuration as the session id', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'explicit', id: 'key', masked: 'sk-****' }
+    })
+    const provider = makeProvider({ id: 'opencode' })
+    const model = makeModel({ id: 'opencode::glm-5', providerId: 'opencode', apiModelId: 'glm-5' })
+
+    await buildAgentParams({
+      request: { chatId: 'topic-123' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(resolveProviderAiSdkConfigMock).toHaveBeenLastCalledWith(
+      provider,
+      model,
+      expect.objectContaining({ sessionId: 'topic-123' })
+    )
+  })
+
   it('uses the resolved Vertex MaaS adapter, wire profile, and provider-options namespace', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {
@@ -84,7 +106,11 @@ describe('buildAgentParams provider resolution', () => {
       id: 'vertex::openai/gpt-oss-120b-maas',
       providerId: 'vertex',
       apiModelId: 'openai/gpt-oss-120b-maas',
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [
+        MODEL_CAPABILITY.REASONING,
+        MODEL_CAPABILITY.AUDIO_RECOGNITION,
+        MODEL_CAPABILITY.VIDEO_RECOGNITION
+      ],
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
         selectableEfforts: ['low', 'medium', 'high']
@@ -112,6 +138,7 @@ describe('buildAgentParams provider resolution', () => {
     })
 
     expect(result.sdkConfig.providerId).toBe('google-vertex-maas')
+    expect(result.nativeFileSupport).toMatchObject({ audio: true, video: false })
     expect(result.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
     expect(result.options.providerOptions).toMatchObject({
       vertex: {
@@ -555,6 +582,114 @@ describe('buildAgentParams web-tool routing', () => {
       expect(hasServerFetch).toBe(expectedRoute === 'server')
       expect(Number(hasClientSearch) + Number(hasServerSearch)).toBe(1)
       expect(Number(hasClientFetch) + Number(hasServerFetch)).toBe(1)
+    }
+  )
+
+  it.each([
+    { endpointType: ENDPOINT_TYPE.OPENAI_RESPONSES, runtimeProviderId: 'openai', expectedRoute: 'server' },
+    {
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      runtimeProviderId: 'deepseek',
+      expectedRoute: 'client'
+    },
+    { endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES, runtimeProviderId: 'anthropic', expectedRoute: 'client' }
+  ] as const)(
+    'routes DeepSeek V4 Flash web search to $expectedRoute on $endpointType',
+    async ({ endpointType, runtimeProviderId, expectedRoute }) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: runtimeProviderId, providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const deepseekProvider = makeProvider({
+        id: 'deepseek',
+        presetProviderId: 'deepseek',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_RESPONSES]: { adapterFamily: 'openai' },
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'deepseek' },
+          [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'anthropic' }
+        },
+        serverTools: [
+          {
+            id: SERVER_TOOL.WEB_SEARCH,
+            modelScope: 'model-dependent',
+            endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES]
+          }
+        ]
+      })
+      const deepseekModel = makeModel({
+        id: 'deepseek::deepseek-v4-flash',
+        providerId: 'deepseek',
+        apiModelId: 'deepseek-v4-flash',
+        endpointTypes: [endpointType],
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+      const preferences = new Map<string, unknown>([
+        ['app.developer_mode.enabled', false],
+        ['chat.web_search.client_tools_preferred', false],
+        ['chat.web_search.default_search_keywords_provider', 'exa-mcp'],
+        ['chat.web_search.provider_overrides', {}],
+        ['chat.web_search.max_results', 5],
+        ['chat.web_search.exclude_domains', []]
+      ])
+      preferenceGetMock.mockImplementation((key: string) => preferences.get(key) ?? null)
+      registry.register(clientSearchEntry)
+
+      const result = await buildAgentParams({
+        request: {},
+        signal: undefined,
+        provider: deepseekProvider,
+        model: deepseekModel,
+        assistant
+      })
+
+      expect(result.plugins.some((plugin) => plugin.name === 'webSearch')).toBe(expectedRoute === 'server')
+      expect(result.tools?.web_search === clientSearchEntry.tool).toBe(expectedRoute === 'client')
+    }
+  )
+
+  it.each(['deepseek-v3', 'deepseek-v3.2'])(
+    'keeps Bailian built-in search enabled for %s on Chat Completions',
+    async (apiModelId) => {
+      resolveProviderAiSdkConfigMock.mockResolvedValue({
+        config: { providerId: 'openai-compatible', providerSettings: {} },
+        credentialReceipt: { attribution: 'unknown' }
+      })
+      const dashscopeProvider = makeProvider({
+        id: 'dashscope',
+        presetProviderId: 'dashscope',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: {
+          [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { adapterFamily: 'openai-compatible' }
+        },
+        serverTools: [{ id: SERVER_TOOL.WEB_SEARCH, modelScope: 'model-dependent' }]
+      })
+      const dashscopeModel = makeModel({
+        id: `dashscope::${apiModelId}`,
+        providerId: 'dashscope',
+        apiModelId,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS],
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+      preferenceGetMock.mockImplementation((key: string) => {
+        if (key === 'chat.web_search.client_tools_preferred') return false
+        if (key === 'chat.web_search.max_results') return 5
+        if (key === 'chat.web_search.exclude_domains') return []
+        return null
+      })
+
+      const result = await buildAgentParams({
+        request: {},
+        signal: undefined,
+        provider: dashscopeProvider,
+        model: dashscopeModel,
+        assistant
+      })
+
+      expect(result.options.providerOptions).toMatchObject({
+        dashscope: { enable_search: true, search_options: { forced_search: true } }
+      })
+      expect(result.tools?.web_search).toBeUndefined()
     }
   )
 
@@ -1064,11 +1199,15 @@ describe('resolveToolCallLimit', () => {
 
   it('retains the effective default cap for assistant-less and disabled-limit requests', () => {
     expect(resolveToolCallLimit(undefined)).toBe(20)
-    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(100)
   })
 
   it('falls back when the configured limit is outside the supported range', () => {
-    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 101 } }))).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 1001 } }))).toBe(100)
+  })
+
+  it('accepts a limit above the previous 100-round ceiling', () => {
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 500 } }))).toBe(500)
   })
 })
 
