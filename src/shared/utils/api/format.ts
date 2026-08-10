@@ -207,23 +207,20 @@ export function formatApiHost(host?: string, supportApiVersion: boolean = true, 
   }
 }
 
-/** Whether a URL is a Google Vertex API host with no path override. */
+/**
+ * Whether a host is an official Vertex endpoint carrying no user override.
+ * The Vertex SDK owns the `/projects/{project}/locations/{location}` segment,
+ * so such a host is the default, not a base URL to send requests to.
+ * `URL` normalises the default `:443` away, leaving `port` set only for a real
+ * override; a lone trailing `#` parses to an empty hash and stays default.
+ */
 export function isBareVertexApiHost(host: string): boolean {
   try {
-    const trimmedHost = host.trim()
-    const url = new URL(trimmedHost)
-    const authority = trimmedHost.match(/^[a-z][a-z\d+.-]*:\/\/([^/?#]*)/i)?.[1] ?? ''
-    const hasExplicitPort = /:\d+$/.test(authority)
-    const hasTrailingSharp = trimmedHost.endsWith('#')
-    const isOfficialHost =
-      url.hostname === 'aiplatform.googleapis.com' || url.hostname.endsWith('-aiplatform.googleapis.com')
-    const isHttpProtocol = url.protocol === 'http:' || url.protocol === 'https:'
+    const url = new URL(trim(host))
     return (
-      isHttpProtocol &&
-      isOfficialHost &&
-      !hasExplicitPort &&
-      !hasTrailingSharp &&
+      url.hostname.endsWith('aiplatform.googleapis.com') &&
       url.pathname === '/' &&
+      !url.port &&
       !url.search &&
       !url.hash
     )
