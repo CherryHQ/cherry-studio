@@ -4096,6 +4096,9 @@
       "failed": "Khôi phục thất bại",
       "success": "Đã khôi phục thành công"
     },
+    "retry": {
+      "status": "Đang thử lại với {{model}} · lần thử {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Đã lưu thành công"
@@ -7524,6 +7527,16 @@
         "label": "Mô hình Nhanh",
         "setting_title": "Thiết lập mô hình nhanh",
         "tooltip": "Chọn mô hình nhẹ và tránh các mô hình suy luận."
+      },
+      "retry": {
+        "backoff": "Lùi dần theo cấp số nhân",
+        "description": "Thử lại các lệnh gọi chat, embedding và rerank; chat có thể chuyển sang các mô hình khác",
+        "fallback_models": "Mô hình dự phòng",
+        "fallback_models_count": "{{count}} mô hình đã được chọn",
+        "fallback_models_description": "Các mô hình được thử theo thứ tự khi mô hình chính thất bại",
+        "label": "Gọi lại mô hình",
+        "max_attempts": "Số lần thử lại tối đa",
+        "tooltip": "Các lần thử lại và cơ chế dự phòng chỉ được áp dụng trước khi mô hình bắt đầu truyền nội dung theo luồng"
       },
       "toolbar": {
         "custom_add": "Tùy chỉnh",

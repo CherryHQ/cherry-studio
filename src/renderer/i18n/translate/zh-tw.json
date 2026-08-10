@@ -4096,6 +4096,9 @@
       "failed": "還原失敗",
       "success": "還原成功"
     },
+    "retry": {
+      "status": "使用 {{model}} 重試 · 第 {{attempt}} 次嘗試"
+    },
     "save": {
       "success": {
         "title": "儲存成功"
@@ -7524,6 +7527,16 @@
         "label": "快速模型",
         "setting_title": "快速模型設定",
         "tooltip": "請選擇輕量模型，並避免使用推理模型。"
+      },
+      "retry": {
+        "backoff": "指數退避",
+        "description": "重試聊天、嵌入和重新排序呼叫；聊天可以回退到其他模型",
+        "fallback_models": "備用模型",
+        "fallback_models_count": "{{count}} 個模型已選取",
+        "fallback_models_description": "當主要模型失敗時依序嘗試的模型",
+        "label": "模型呼叫重試",
+        "max_attempts": "最大重試次數",
+        "tooltip": "重試和回退機制僅在模型開始串流內容之前適用"
       },
       "toolbar": {
         "custom_add": "自訂",

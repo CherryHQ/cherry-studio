@@ -4096,6 +4096,9 @@
       "failed": "Restauração falhou",
       "success": "Restauração bem-sucedida"
     },
+    "retry": {
+      "status": "Tentando novamente com {{model}} · tentativa {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Guardado com sucesso"
@@ -7524,6 +7527,16 @@
         "label": "Modelo rápido",
         "setting_title": "Configuração rápida do modelo",
         "tooltip": "Sugere-se escolher um modelo leve e não se recomenda escolher um modelo de raciocínio"
+      },
+      "retry": {
+        "backoff": "Retrocesso exponencial",
+        "description": "Repetir chamadas de chat, embedding e reranking; o chat pode recorrer a outros modelos",
+        "fallback_models": "Modelos de fallback",
+        "fallback_models_count": "{{count}} modelos selecionados",
+        "fallback_models_description": "Modelos tentados em ordem quando o modelo primário falha",
+        "label": "Tentativa de Chamada do Modelo",
+        "max_attempts": "Máximo de tentativas de repetição",
+        "tooltip": "Tentativas e fallbacks só se aplicam antes do modelo começar a transmitir conteúdo"
       },
       "toolbar": {
         "custom_add": "Personalizado",
