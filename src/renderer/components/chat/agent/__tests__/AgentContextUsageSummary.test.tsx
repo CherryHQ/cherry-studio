@@ -7,7 +7,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-import { ContextUsageSummary } from '../ContextUsageSummary'
+import { AgentContextUsageSummary } from '../AgentContextUsageSummary'
 
 const buildUsage = (categories: { name: string; tokens: number }[]): AgentSessionContextUsage =>
   ({
@@ -17,29 +17,29 @@ const buildUsage = (categories: { name: string; tokens: number }[]): AgentSessio
     model: 'claude-opus-4-8'
   }) as AgentSessionContextUsage
 
-describe('ContextUsageSummary', () => {
+describe('AgentContextUsageSummary', () => {
   it('translates known category names', () => {
-    render(<ContextUsageSummary usage={buildUsage([{ name: 'System prompt', tokens: 100 }])} percentage={50} />)
+    render(<AgentContextUsageSummary usage={buildUsage([{ name: 'System prompt', tokens: 100 }])} percentage={50} />)
 
     expect(screen.getByText('agent.right_pane.info.context_categories.system_prompt')).toBeInTheDocument()
   })
 
   it('falls back to the raw name for unknown categories', () => {
-    render(<ContextUsageSummary usage={buildUsage([{ name: 'Brand new thing', tokens: 100 }])} percentage={50} />)
+    render(<AgentContextUsageSummary usage={buildUsage([{ name: 'Brand new thing', tokens: 100 }])} percentage={50} />)
 
     expect(screen.getByText('Brand new thing')).toBeInTheDocument()
   })
 
   it('shows each category tokens with its share of used context', () => {
     // 100 tokens of 1000 used → 10%.
-    render(<ContextUsageSummary usage={buildUsage([{ name: 'System prompt', tokens: 100 }])} percentage={50} />)
+    render(<AgentContextUsageSummary usage={buildUsage([{ name: 'System prompt', tokens: 100 }])} percentage={50} />)
 
     expect(screen.getByText('100 (10%)')).toBeInTheDocument()
   })
 
   it('renders Messages and hides window-filler categories', () => {
     render(
-      <ContextUsageSummary
+      <AgentContextUsageSummary
         usage={buildUsage([
           { name: 'Messages', tokens: 300 },
           { name: 'Free space', tokens: 900000 },
@@ -56,7 +56,7 @@ describe('ContextUsageSummary', () => {
 
   it('omits the breakdown but keeps the total when showCategories is false', () => {
     render(
-      <ContextUsageSummary
+      <AgentContextUsageSummary
         usage={buildUsage([{ name: 'System prompt', tokens: 100 }])}
         percentage={50}
         showCategories={false}

@@ -1,6 +1,7 @@
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mcpCatalogMock = vi.hoisted(() => ({
@@ -320,6 +321,317 @@ describe('McpRuntimeService.closeClientsForServer', () => {
     expect(closeA).toHaveBeenCalledTimes(1)
     expect(closeB).not.toHaveBeenCalled()
     expect((service as any).clients.has(serverKeyFor('server-2'))).toBe(true)
+  })
+})
+
+describe('McpRuntimeService stale client cleanup (issue #18144)', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+  })
+
+  const server = {
+    id: 'server-1',
+    name: 'srv',
+    command: 'python',
+    args: ['server.py'],
+    isActive: true
+  } as McpServer
+
+  it.each([
+    ['ping resolves falsy', vi.fn().mockResolvedValue(false)],
+    ['ping throws', vi.fn().mockRejectedValue(new Error('timeout'))]
+  ])('closes the dead client instead of orphaning its process when %s', async (_label, ping) => {
+    const service = new McpRuntimeService()
+    const close = vi.fn().mockResolvedValue(undefined)
+    ;(service as any).clients.set(service.getServerKey(server), { close, ping })
+
+    await (service as any).getOrCreateClient(server)
+
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+
+  it('still reconnects when closing the dead client throws', async () => {
+    const service = new McpRuntimeService()
+    const close = vi.fn().mockRejectedValue(new Error('transport already gone'))
+    const ping = vi.fn().mockResolvedValue(false)
+    const key = service.getServerKey(server)
+    ;(service as any).clients.set(key, { close, ping })
+
+    await expect((service as any).getOrCreateClient(server)).resolves.toBeDefined()
+    expect((service as any).clients.get(key)?.ping).not.toBe(ping)
+  })
+})
+
+describe('McpRuntimeService.callTool cancellation', () => {
+  const server = { id: 'server-1', name: 'srv', isActive: true } as McpServer
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+    getByIdMock.mockReturnValue(server)
+    mockMainLoggerService.debug.mockClear()
+    mockMainLoggerService.error.mockClear()
+  })
+
+  function createAbortableCallTool(abortError: Error) {
+    return vi.fn((_request: unknown, _resultSchema: unknown, options: { signal: AbortSignal }) => {
+      return new Promise((_resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('MCP call did not abort')), 50)
+        options.signal.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(timeout)
+            reject(abortError)
+          },
+          { once: true }
+        )
+      })
+    })
+  }
+
+  it('aborts the client call and clears the active call when the external signal aborts', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const clientCallTool = createAbortableCallTool(abortError)
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+    const controller = new AbortController()
+
+    const call = service.callTool({
+      serverId: server.id,
+      name: 'tool',
+      args: {},
+      callId: 'external-call',
+      signal: controller.signal
+    })
+
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledOnce(), { interval: 1 })
+    expect((service as any).activeToolCalls.has('external-call')).toBe(true)
+    const clientSignal = clientCallTool.mock.calls[0][2].signal
+
+    controller.abort()
+
+    await expect(call).rejects.toBe(abortError)
+    expect(clientSignal.aborted).toBe(true)
+    expect((service as any).activeToolCalls.has('external-call')).toBe(false)
+  })
+
+  it('keeps abortTool cancellation working by call id', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const clientCallTool = createAbortableCallTool(abortError)
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const call = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'internal-call' })
+
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledOnce(), { interval: 1 })
+    expect((service as any).activeToolCalls.has('internal-call')).toBe(true)
+    const clientSignal = clientCallTool.mock.calls[0][2].signal
+
+    await expect(service.abortTool('internal-call')).resolves.toBe(true)
+
+    await expect(call).rejects.toBe(abortError)
+    expect(clientSignal.aborted).toBe(true)
+    expect((service as any).activeToolCalls.has('internal-call')).toBe(false)
+  })
+
+  it('rejects promptly and clears the active call when aborted while waiting for the client', async () => {
+    const service = new McpRuntimeService()
+    // Client init that never settles — the cold-start / hung-connection window.
+    vi.spyOn(service as any, 'getOrCreateClient').mockReturnValue(new Promise(() => {}))
+    const controller = new AbortController()
+    const reason = new Error('stopped during connect')
+
+    const call = service.callTool({
+      serverId: server.id,
+      name: 'tool',
+      args: {},
+      callId: 'connecting-call',
+      signal: controller.signal
+    })
+    expect((service as any).activeToolCalls.has('connecting-call')).toBe(true)
+
+    controller.abort(reason)
+
+    await expect(call).rejects.toBe(reason)
+    expect((service as any).activeToolCalls.has('connecting-call')).toBe(false)
+  })
+
+  it('does not start client init and clears the active call when the signal is already aborted', async () => {
+    const service = new McpRuntimeService()
+    const getOrCreateClientSpy = vi.spyOn(service as any, 'getOrCreateClient')
+    const reason = new Error('aborted before start')
+    const controller = new AbortController()
+    controller.abort(reason)
+
+    await expect(
+      service.callTool({
+        serverId: server.id,
+        name: 'tool',
+        args: {},
+        callId: 'pre-aborted-call',
+        signal: controller.signal
+      })
+    ).rejects.toBe(reason)
+
+    expect(getOrCreateClientSpy).not.toHaveBeenCalled()
+    expect((service as any).activeToolCalls.has('pre-aborted-call')).toBe(false)
+  })
+
+  // Call ids are caller-supplied and not process-wide unique: a duplicate must neither be
+  // deregistered by the other call's cleanup nor able to abort only one of the two.
+  it('keeps a duplicate call id abortable after the first call with that id settles', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const first = createDeferred<unknown>()
+    const clientCallTool = vi
+      .fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(
+        (_request: unknown, _resultSchema: unknown, options: { signal: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            options.signal.addEventListener('abort', () => reject(abortError), { once: true })
+          })
+      )
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const firstCall = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'dup-call' })
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledTimes(1), { interval: 1 })
+    const secondCall = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'dup-call' })
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledTimes(2), { interval: 1 })
+
+    first.resolve({ content: [] })
+    await expect(firstCall).resolves.toEqual({ content: [] })
+    // The settled call's cleanup must not deregister the still-running duplicate.
+    expect((service as any).activeToolCalls.has('dup-call')).toBe(true)
+
+    await expect(service.abortTool('dup-call')).resolves.toBe(true)
+    await expect(secondCall).rejects.toBe(abortError)
+    expect((service as any).activeToolCalls.has('dup-call')).toBe(false)
+  })
+
+  it('aborts every in-flight call registered under a duplicated call id', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const clientCallTool = createAbortableCallTool(abortError)
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const firstCall = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'dup-call' })
+    const secondCall = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'dup-call' })
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledTimes(2), { interval: 1 })
+
+    await expect(service.abortTool('dup-call')).resolves.toBe(true)
+
+    await expect(firstCall).rejects.toBe(abortError)
+    await expect(secondCall).rejects.toBe(abortError)
+    expect((service as any).activeToolCalls.has('dup-call')).toBe(false)
+  })
+
+  // The abort-wait racer must not leave its listener behind when client init wins: the
+  // composed signal is retained by the long-lived stream signal, so a lingering closure
+  // would accumulate once per tool call for the stream's whole lifetime.
+  it('removes every abort listener it added once the call settles without aborting', async () => {
+    const service = new McpRuntimeService()
+    const clientCallTool = vi.fn().mockResolvedValue({ content: [] })
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+    const controller = new AbortController()
+
+    const added: Array<{ target: AbortSignal; listener: unknown }> = []
+    const removed: Array<{ target: AbortSignal; listener: unknown }> = []
+    const originalAdd = AbortSignal.prototype.addEventListener
+    const originalRemove = AbortSignal.prototype.removeEventListener
+    const addSpy = vi.spyOn(AbortSignal.prototype, 'addEventListener').mockImplementation(function (
+      this: AbortSignal,
+      ...args: Parameters<typeof originalAdd>
+    ) {
+      if (args[0] === 'abort') added.push({ target: this, listener: args[1] })
+      return originalAdd.apply(this, args)
+    })
+    const removeSpy = vi.spyOn(AbortSignal.prototype, 'removeEventListener').mockImplementation(function (
+      this: AbortSignal,
+      ...args: Parameters<typeof originalRemove>
+    ) {
+      if (args[0] === 'abort') removed.push({ target: this, listener: args[1] })
+      return originalRemove.apply(this, args)
+    })
+
+    try {
+      await service.callTool({
+        serverId: server.id,
+        name: 'tool',
+        args: {},
+        callId: 'settled-call',
+        signal: controller.signal
+      })
+    } finally {
+      addSpy.mockRestore()
+      removeSpy.mockRestore()
+    }
+
+    expect(added.length).toBeGreaterThan(0)
+    for (const { target, listener } of added) {
+      expect(removed.some((entry) => entry.target === target && entry.listener === listener)).toBe(true)
+    }
+  })
+
+  // Provider call ids can collide across topics; an abort scoped to one topic must never
+  // cancel the identically-named in-flight call registered under another topic's scope.
+  it('scopes abortTool so a colliding call id in another scope is untouched', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const clientCallTool = vi.fn(
+      (_request: unknown, _resultSchema: unknown, options: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          options.signal.addEventListener('abort', () => reject(abortError), { once: true })
+        })
+    )
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const callA = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'call_0', scope: 'topic-a' })
+    const callB = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'call_0', scope: 'topic-b' })
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledTimes(2), { interval: 1 })
+
+    // An unscoped abort must not reach into scoped registrations either.
+    await expect(service.abortTool('call_0')).resolves.toBe(false)
+
+    await expect(service.abortTool('call_0', 'topic-a')).resolves.toBe(true)
+    await expect(callA).rejects.toBe(abortError)
+
+    // The other topic's identically-named call is still running and still abortable.
+    expect(clientCallTool.mock.calls[1][2].signal.aborted).toBe(false)
+    await expect(service.abortTool('call_0', 'topic-b')).resolves.toBe(true)
+    await expect(callB).rejects.toBe(abortError)
+  })
+
+  // A genuine transport/server failure whose catch continuation runs after the external
+  // abort landed must NOT be downgraded to the debug "Tool call aborted" path.
+  it('keeps error-level logging for a genuine failure that races cancellation', async () => {
+    const service = new McpRuntimeService()
+    const transportError = new Error('connection reset')
+    const controller = new AbortController()
+    const clientCallTool = vi.fn(
+      () =>
+        new Promise((_resolve, reject) => {
+          // Real failure settles the call first; the abort lands before the catch runs.
+          reject(transportError)
+          controller.abort(new Error('user stopped'))
+        })
+    )
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const call = service.callTool({
+      serverId: server.id,
+      name: 'tool',
+      args: {},
+      callId: 'racing-call',
+      signal: controller.signal
+    })
+
+    await expect(call).rejects.toBe(transportError)
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith('Error calling tool', transportError)
+    expect(mockMainLoggerService.debug).not.toHaveBeenCalledWith('Tool call aborted')
   })
 })
 

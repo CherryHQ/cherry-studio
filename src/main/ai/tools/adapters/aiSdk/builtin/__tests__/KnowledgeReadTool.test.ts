@@ -41,19 +41,12 @@ type ReadArgs = {
   maxMatches?: number
 }
 
-type StrictReadArgs = Required<ReadArgs>
-
 function callExecute(args: ReadArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
-  const execute = entry.tool.execute as (args: StrictReadArgs, options: ToolExecutionOptions) => Promise<unknown>
+  const execute = entry.tool.execute as (args: ReadArgs, options: ToolExecutionOptions) => Promise<unknown>
   return execute(
-    {
-      charStart: 0,
-      charEnd: 0,
-      pattern: '',
-      ignoreCase: true,
-      maxMatches: 0,
-      ...args
-    },
+    // Mode-specific fields are omitted, not sentinel-valued — kb_read runs without `strict`, so its
+    // schema is plain optionals and the model omits what the mode does not use.
+    args,
     {
       toolCallId: 'tc-1',
       messages: [],
@@ -131,13 +124,15 @@ describe('kb_read', () => {
     })
   })
 
-  it('normalizes strict-path sentinels to read-mode defaults', async () => {
+  it('reads the whole document in read mode when the optional fields are omitted', async () => {
     readConcept.mockResolvedValue(conceptContent())
 
     await callExecute({ baseId: 'kb-1', conceptId: 'docs/intro.md' }, { knowledgeBaseIds: ['kb-1'] })
 
+    // An omitted `pattern` must route to read, not grep: `readOrGrepConcept` switches on the field
+    // being present at all, so a sentinel empty string here would silently mean "grep for ''".
     expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', {
-      charStart: 0,
+      charStart: undefined,
       charEnd: undefined
     })
     expect(grepConcept).not.toHaveBeenCalled()
@@ -148,7 +143,7 @@ describe('kb_read', () => {
 
     await callExecute({ baseId: 'kb-1', conceptId: 'docs/intro.md' }, { knowledgeBaseIds: [] })
 
-    expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', { charStart: 0, charEnd: undefined })
+    expect(readConcept).toHaveBeenCalledWith('kb-1', 'docs/intro.md', { charStart: undefined, charEnd: undefined })
   })
 
   it('maps a NOT_FOUND into a steer to re-check the conceptId (not a raw throw)', async () => {

@@ -107,6 +107,34 @@ describe('McpCatalogService', () => {
     expect(runtimeService.setServerStatus).toHaveBeenCalledWith('server-1', 'connected')
   })
 
+  it('mints distinct ids for non-ASCII server names with the same readable slug', async () => {
+    getById.mockImplementation((id: string) =>
+      id === 'server-a' ? server({ id, name: 'mysql_报销' }) : server({ id, name: 'mysql_电梯' })
+    )
+    listTools.mockResolvedValue({ tools: [sdkTool('executeSql')] })
+
+    const service = new McpCatalogService()
+    await service.refreshTools('server-a')
+    await service.refreshTools('server-b')
+
+    const first = service.listTools('server-a', { includeDisabled: true })[0]
+    const second = service.listTools('server-b', { includeDisabled: true })[0]
+    expect(first.id).not.toBe(second.id)
+    expect(first.serverId).toBe('server-a')
+    expect(second.serverId).toBe('server-b')
+  })
+
+  it('mints distinct ids for non-ASCII tool names from one server', async () => {
+    getById.mockReturnValue(server({ id: 'ocr-server', name: 'ocr' }))
+    listTools.mockResolvedValue({ tools: [sdkTool('识别身份证'), sdkTool('识别发票')] })
+
+    const service = new McpCatalogService()
+    await service.refreshTools('ocr-server')
+
+    const tools = service.listTools('ocr-server', { includeDisabled: true })
+    expect(tools[0].id).not.toBe(tools[1].id)
+  })
+
   it('refreshTools clears the shared tools cache for inactive servers', async () => {
     getById.mockReturnValue(server({ isActive: false }))
 

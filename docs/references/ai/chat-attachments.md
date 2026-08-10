@@ -21,15 +21,15 @@ Decided per file part in `prepareChatMessages`
 |---|---|---|
 | image | model is vision | native image part (inline) |
 | image | non-vision, OCR finds text | OCR text, inline (capped) |
-| image | non-vision, no OCR text (or OCR unconfigured/failed) | native image part (inline base64) |
+| image | non-vision, no OCR text (or OCR unconfigured/failed) | user-facing error; no provider request |
 | pdf | provider+model native PDF | native PDF part (inline) |
 | pdf | otherwise | extracted text, inline (capped) |
 | office (`docx/xlsx/pptx/odf`) | — | extracted text, inline (capped) |
 | text / code | — | decoded text, inline (capped) |
 | extensionless | — | decoded text when content is text; otherwise unsupported note |
-| audio | model is audio-capable | native audio part (inline) |
+| audio | model and resolved endpoint are audio-capable | native audio part (inline) |
 | audio | otherwise | short note ("can't process audio") |
-| video | model is video-capable | native video part (inline) |
+| video | model and resolved endpoint are video-capable | native video part (inline) |
 | video | otherwise | short note ("can't process video") |
 | other (binary: zip/exe/…) | — | short note ("unsupported file type") |
 
@@ -41,9 +41,9 @@ Decided per file part in `prepareChatMessages`
 - Binary / unsupported types are **not** auto-decoded — they'd inline as mojibake
   — so they get a short note instead.
 - A non-vision image only degrades to OCR text when OCR actually finds text.
-  Otherwise (empty OCR result, unconfigured or failed OCR) the native image is
-  forwarded anyway — the provider decides what it can do with it, so a model
-  whose vision capability is under-declared still sees the picture.
+  Otherwise (empty OCR result, unconfigured or failed OCR) attachment routing
+  raises a localized error before opening the provider request. The user can
+  select a vision-capable model or remove the image and try again.
 - Any per-file failure (missing entry, parse error, failed materialization)
   degrades to a `[could not read this file].` note rather than dropping the
   file or failing the request.
@@ -51,9 +51,9 @@ Decided per file part in `prepareChatMessages`
   cap below). The internal `fileEntryId` is never written into the prompt.
 
 Only `fileEntryId`-backed (first-party chat) images enter the OCR path. Gateway /
-external file parts (no `fileEntryId`) are still eagerly materialized, but an
-image is omitted for a non-vision model because it was never an explicit OCR
-fallback. Other gateway/external file types keep their existing behavior.
+external file parts (no `fileEntryId`) are still eagerly materialized, but
+image/audio/video parts are omitted when native support is false. Other
+gateway/external file types keep their existing behavior.
 
 ## The cap (the only context guard)
 
@@ -115,15 +115,17 @@ re-extract or re-OCR the same file. `extractDocumentText` reads bytes through
 
 `resolveNativeFileSupport`
 (`src/main/ai/runtime/aiSdk/params/nativeFileSupport.ts`) derives the
-"native" column from `(provider, model)`: image/audio/video ride on the model
-capability alone (`isVision` / `isAudio` / `isVideo`, `@shared/utils/model`),
-while PDF additionally requires a first-party provider (`supportsNativePdf`).
-There is no `pdf-compatibility` middleware — native PDFs pass through inline,
-non-native PDFs go through extraction.
+"native" column from `(provider, model, resolved endpoint/runtime converter)`:
+image rides on the model capability (`isVision`, `@shared/utils/model`);
+audio/video require both the model capability and support from the selected AI
+SDK converter. PDF additionally requires a first-party provider
+(`supportsNativePdf`). There is no `pdf-compatibility` middleware — native PDFs
+pass through inline, non-native PDFs go through extraction.
 
 ## Invariants
 
 - Content visibility never depends on a tool call.
 - `fileEntryId` never reaches the model (filename in, filename out).
 - Native modalities keep provider-native handling.
+- Known non-vision models never receive native image parts.
 - Per-turn context is bounded by the cap.

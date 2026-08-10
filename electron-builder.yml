@@ -156,54 +156,94 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 2.0.2 - New Features and Fixes
+    Cherry Studio 2.0.3 - New Features, Fixes, and Performance
 
     ✨ New Features
-    - [Import] Import Claude (Anthropic) conversation history; ChatGPT and Claude imports now preserve message branches
-    - [Providers] Built-in web search and URL context support for DeepSeek, OpenRouter, and Dashscope
-    - [Settings] Selective cache cleanup with per-item and total size estimates, plus optional removal of old-version leftover data
-    - [Settings] Workflow to safely rerun retained v1 data migration with risk acknowledgement and optional backup
-    - [Chat] Branches now persist empty input nodes, stay stable in the branch canvas, and can be removed from the node context menu
+    - [Composer] Add smooth mouse-wheel and trackpad switching to the reasoning effort control
+    - [Chat] Show the current assistant conversation's context-window usage next to the chat composer
+    - [Web Search] Add Firecrawl as a URL fetch provider (works without an API key on the free keyless quota)
+    - [Knowledge Base] Write a new note straight into a knowledge base
+    - [Chat] Editing a past user message now offers a Save option that keeps the existing reply instead of regenerating
+    - [Workspace] Add Windows Terminal as an external app that opens a terminal in the target directory
+    - [Agent] Agent workspaces now honor scoped AGENTS.md instructions alongside CLAUDE.md
+    - [Code Tools] Add the Pi coding agent to Code Tools
 
     🐛 Bug Fixes
-    - [Local Model] Local embedding model downloads fall back to the other mirror when one is unreachable, keep inference fully offline once weights are on disk, and explain an incomplete cache instead of reporting a generic connection error
-    - [Local Model] Local model downloads failing behind a SOCKS proxy, and proxy bypass rules are now honored for every redirect hop
-    - [Migration] Agent data migration no longer fails on Windows symbolic links; symlinked entries are skipped so the rest migrates successfully
-    - [Migration] V1 users can upgrade directly to any v2.0.x release while v2.1.0 and later remain gated
-    - [Providers] New API providers no longer require a URL for every protocol: one API host now serves the OpenAI, Anthropic, Gemini, and Responses endpoints, each with its correct version segment
-    - [MCP] MCP server settings no longer lose unsaved edits during refreshes, and tool details show full descriptions with clearer nested input schemas
-    - [Agent] WeChat channel QR login now starts when the channel is bound to an agent, and the channel reconnects automatically after app restart
-    - [Composer] Image attachment tokens open the shared full-size image preview when clicked or activated with the keyboard
-    - [Agent] Agent right pane Files tree no longer shows empty when the workspace already contained files; directory-tree updates were being lost during subscription setup
-    - [Chat] Tool-heavy tasks no longer stop early at 20 tool-call rounds: the default "Max tool call rounds" is raised to 100 and the maximum to 1000
-    - [Claude Code] Claude agent CLI subprocesses are no longer left running in the background after quitting the app
+    - [Sidebar] Add a Manage Sidebar action that opens Launchpad so hidden sidebar entries can be restored, and fix context-menu dismissal from blank sidebar space on Windows
+    - [Agent] Fix raw internal citation markers appearing in IM channel replies
+    - [Agent] Prevent agent conversations from being automatically renamed after their initial turn
+    - [Agent] Fix the configured Agent system prompt being overridden by workspace or persona instructions
+    - [Agent] Agent attachments now remain available in session history and are provided as managed file paths
+    - [Coding Partner] Respect the configured default terminal when launching Coding Partner tools on Linux
+    - [Composer] Keep the chat composer compact while a conversation right panel is maximized
+    - [Linux] Fix Linux startup failures on older distributions by shipping a GLIBC 2.28-compatible better-sqlite3
+    - [Providers] Fix "reasoning_content in thinking mode must be passed back to the API" errors on multi-turn conversations with thinking models (DeepSeek, GLM, Kimi, MiniMax) over OpenAI-compatible providers
+    - [Mini App] Fix ChatGPT MiniApps remaining blocked by the loading overlay after the page becomes ready
+    - [Agent] Fix Agent sessions that could fail with tool_use ID uniqueness errors until the conversation was cleared
+    - [MCP] Fix stdio MCP servers (globally installed npm packages, standalone binaries) failing to load tools in Agent sessions on Windows
+    - [Notes] Update note rows in the sidebar to use an icon consistent with the rest of the interface
+    - [MCP] Fix MCP stdio servers leaving orphaned child processes behind after a failed liveness ping or reconnect
+    - [App] Quitting no longer force-kills the app when one background service is slow to stop; each service gets its own shutdown window
+    - [MCP] Fix MCP tool routing when distinct servers or tools normalize to the same identifier, including non-ASCII names
+    - [Knowledge Base] Fix Knowledge Base assistants failing on Anthropic models with "Schema is too complex for compilation"
+    - [Backup] Fix automatic backups failing on Windows when Chromium holds a LevelDB lock file
+    - [UI] Improve assistant and agent conversation lists with consistent row colors, focus feedback, action spacing, and status indicators
+    - [Agent] Fix IM channel bots (QQ/WeChat/Feishu/Telegram/etc.) being denied MCP tool access with "Approval requested outside a live interactive turn"
+    - [Composer] Unsent chat and agent-session drafts now stay with their conversation, including attachments, knowledge bases, and mentioned models
+    - [Providers] OpenCode Go/Zen conversations now preserve session affinity, improving provider-side prompt-cache reuse
+    - [Models] Ollama models that report native thinking support now expose the appropriate reasoning controls
+    - [Selection Assistant] Fix the Selection Assistant carrying the previous selection and answer into the next action
+    - [Coding Partner] Fix OpenCode auto-compaction configuration and keep CLI config Editor previews synchronized
+    - [Agent] Fix Agent responses showing raw citation markers when large web or knowledge lookup results are deferred
+    - [Coding Partner] Fix Code Mate's OpenAI Codex authentication switching so standalone Codex and Conductor retain a valid mode
 
     ⚡ Performance
-    - [Chat] Switching back to a chat tab no longer re-highlights expanded tool responses, re-loads generated images, re-runs error diagnosis, rebuilds file-tree watchers, or re-polls finished traces — tab switches are smoother and previously loaded content stays in place
+    - [Chat] Smoother tab switching in chat and agent pages: switching tabs no longer re-issues IPC calls or forces full re-renders, and the agent right-panel expansion state is no longer reset
+    - [Startup] Reduce main-process startup memory by lazy-loading heavy dependencies (jsdom, sharp, officeparser, tesseract.js, Claude agent SDK); each now loads on first use
 
     <!--LANG:zh-CN-->
-    Cherry Studio 2.0.2 - 新功能与问题修复
+    Cherry Studio 2.0.3 - 新功能、修复与性能优化
 
     ✨ 新功能
-    - [Import] 支持 Claude（Anthropic）对话历史导入；ChatGPT 和 Claude 导入现在会保留消息分支
-    - [Providers] DeepSeek、OpenRouter、Dashscope 新增内置联网搜索与 URL 上下文支持
-    - [Settings] 缓存清理支持按项查看占用大小，可选清理旧版本残留数据
-    - [Settings] 新增 v1 数据重新迁移流程，含风险确认与可选完整备份
-    - [Chat] 对话分支现在会持久化空输入节点，在分支画布中保持稳定，并支持从节点右键菜单删除
+    - [输入框] 深度思考强度的滑块支持鼠标滚轮和触控板顺滑切换
+    - [对话] 在输入框旁显示当前助手对话的上下文窗口占用
+    - [联网搜索] 新增 Firecrawl 作为 URL 抓取 provider（在免费额度下可无需 API Key 使用）
+    - [知识库] 支持直接向知识库中新建笔记
+    - [对话] 编辑历史用户消息时新增"保存"选项，可保留原有回复而无需重新生成
+    - [工作区] 新增 Windows Terminal 作为外部应用，可在目标目录打开终端
+    - [Agent] Agent 工作区现在会读取作用域内的 AGENTS.md 指令，与 CLAUDE.md 并存
+    - [代码工具] 代码工具新增 Pi 编码 Agent
 
     🐛 问题修复
-    - [Local Model] 修复本地 Embedding 模型下载：单个镜像不可用时自动切换到备用镜像，模型缓存到本地后推理完全离线，缓存损坏时给出明确提示而非笼统的网络错误
-    - [Local Model] 修复 SOCKS 代理环境下本地模型下载失败的问题，并对下载过程中的每次重定向跳转应用代理绕过规则
-    - [Migration] 修复 Windows 上符号链接导致 Agent 数据迁移失败的问题：跳过符号链接项，确保其余数据正常迁移
-    - [Migration] v1 用户可直接升级到任意 v2.0.x 版本，v2.1.0 及之后版本仍受迁移网关保护
-    - [Providers] New API 服务商不再需要为每个协议分别填写 URL：一个 API Host 即可同时承载 OpenAI、Anthropic、Gemini、Responses 端点，并各自使用正确的版本段
-    - [MCP] 修复 MCP 服务器设置在刷新时丢失未保存编辑的问题，工具详情展示完整描述并清晰呈现嵌套输入 schema
-    - [Agent] 修复微信渠道绑定到 Agent 后才启动二维码登录的问题，并支持应用重启后自动重连
-    - [Composer] 图片附件 Token 支持点击或键盘激活时打开共享的全屏图片预览
-    - [Agent] 修复 Agent 右侧面板在工作区已有文件时仍显示为空的问题：目录树更新在订阅建立过程中被丢失
-    - [Chat] 工具密集型任务不再在 20 轮工具调用后提前停止：默认"最大工具调用轮数"提升到 100，上限提升到 1000
-    - [Claude Code] 修复退出应用后 Claude Agent CLI 子进程仍在后台残留的问题
+    - [侧边栏] 新增"管理侧边栏"入口可打开启动台恢复隐藏项，并修复 Windows 上空白处右键菜单无法关闭的问题
+    - [Agent] 修复 IM 渠道回复中出现原始内部引用标记的问题
+    - [Agent] 修复 Agent 对话在首轮之后被自动重命名的问题
+    - [Agent] 修复 Agent 配置的系统提示词被工作区或 persona 指令覆盖的问题
+    - [Agent] Agent 附件现在可在会话历史中保留，并以受管文件路径方式提供给 Agent
+    - [代码工具] 修复 Linux 上启动代码工具时未使用系统默认终端的问题
+    - [输入框] 修复对话右侧面板最大化时输入框被撑开的问题
+    - [Linux] 修复较旧的 Linux 发行版上因 better-sqlite3 不兼容而无法启动的问题，打包 GLIBC 2.28 兼容版本
+    - [模型服务商] 修复 DeepSeek、GLM、Kimi、MiniMax 等思考模型多轮对话时"reasoning_content must be passed back"的报错
+    - [小程序] 修复 ChatGPT 小程序在页面就绪后仍被加载遮罩挡住的问题
+    - [Agent] 修复 Agent 会话因 tool_use ID 重复而失败，必须清空对话才能恢复的问题
+    - [MCP] 修复 Windows 上 stdio 类型 MCP 服务器（全局 npm 包、独立二进制）在 Agent 会话中无法加载工具的问题
+    - [笔记] 笔记侧边栏的图标样式与界面其他部分保持一致
+    - [MCP] 修复 stdio MCP 服务器在 ping 失败或重连后残留子进程的问题
+    - [应用] 退出应用时不再因单个后台服务停止缓慢而强制结束，每个服务拥有独立的关闭窗口
+    - [MCP] 修复不同 MCP 服务器或工具在归一化后标识符相同（含非 ASCII 名称）导致的工具路由错误
+    - [知识库] 修复知识库助手在 Anthropic 模型上报"Schema is too complex for compilation"的问题
+    - [备份] 修复 Windows 上自动备份因 Chromium 占用 LevelDB 锁文件而失败的问题
+    - [UI] 改进助手与 Agent 对话列表的行配色、聚焦反馈、操作间距和状态指示
+    - [Agent] 修复 IM 渠道机器人（QQ/微信/飞书/Telegram 等）被拒绝访问 MCP 工具的问题
+    - [输入框] 未发送的对话和 Agent 会话草稿现在会跟随对应会话保留，包含附件、知识库和 @模型 选择
+    - [模型服务商] OpenCode Go/Zen 对话现在会保持会话亲和性，提升服务商侧 prompt 缓存复用
+    - [模型] Ollama 上报原生思考能力的模型现在会显示对应的推理控制项
+    - [划词助手] 修复划词助手将上一次选中内容与回答带入下一次操作的问题
+    - [代码工具] 修复 OpenCode 自动压缩配置无效的问题，并保持 CLI 配置编辑器预览同步
+    - [Agent] 修复大体积网页或知识库查找结果被延迟时，Agent 回复出现原始引用标记的问题
+    - [代码工具] 修复 Code Mate 切换 OpenAI Codex 认证模式后无效的问题，独立 Codex 和 Conductor 现可保留有效认证
 
     ⚡ 性能优化
-    - [Chat] 切换回聊天标签页时不再重新高亮工具响应、重新加载生成图片、重新运行错误诊断、重建文件树监听或重新轮询已完成的 trace，标签切换更顺滑，已加载内容保持不变
+    - [对话] 对话和 Agent 页面切换标签更顺滑：不再重复发起 IPC 调用或整体重渲染，Agent 右侧面板的展开状态也不再被重置
+    - [启动] 降低主进程启动内存占用：jsdom、sharp、officeparser、tesseract.js、Claude agent SDK 等重组件改为首次使用时加载
     <!--LANG:END-->

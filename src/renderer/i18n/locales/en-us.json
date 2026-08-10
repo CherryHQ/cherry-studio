@@ -318,7 +318,7 @@
         }
       },
       "info": {
-        "artifacts": "Deliverables",
+        "artifacts": "Outputs",
         "context_categories": {
           "autocompact_buffer": "Autocompact buffer",
           "custom_agents": "Custom agents",
@@ -334,7 +334,7 @@
         "context_usage": "Context usage",
         "label": "Session information",
         "more": "+{{count}} more",
-        "no_artifacts": "No declared deliverables",
+        "no_artifacts": "No declared outputs",
         "no_subagents": "No sub-agents",
         "shell_tasks": "Background commands",
         "subagents": "Sub-agents",
@@ -496,10 +496,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "{{count}} channel",
+          "channels_count_other": "{{count}} channels",
+          "channels_empty": "No channels will be changed.",
+          "channels_title": "Channels changed to no work directory",
           "content": "Deleting this work directory will also delete all tasks under it. Only database records are removed; the actual folder on disk will not be deleted.",
+          "disk_preserved": "The folder on disk and its files will not be deleted.",
           "error": {
             "failed": "Failed to delete the work directory"
           },
+          "more_count_one": "…and {{count}} more item",
+          "more_count_other": "…and {{count}} more items",
+          "preview": "Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
+          "preview_failed": "The deletion impact could not be loaded, so this work directory cannot be deleted yet",
+          "preview_loading": "Loading deletion impact…",
+          "sessions_count_one": "{{count}} session",
+          "sessions_count_other": "{{count}} sessions",
+          "sessions_empty": "No sessions will be deleted.",
+          "sessions_title": "Sessions to be deleted",
+          "tasks_count_one": "{{count}} scheduled task",
+          "tasks_count_other": "{{count}} scheduled tasks",
+          "tasks_empty": "No scheduled tasks will be changed.",
+          "tasks_title": "Scheduled tasks changed to no work directory",
           "title": "Delete work directory",
           "trigger": "Delete work directory"
         },
@@ -1006,6 +1024,10 @@
         "CherryNotify": {
           "description": "Sends a notification through a connected channel",
           "label": "Notify"
+        },
+        "CherryToMarkdown": {
+          "description": "Markdown is easier for the agent to read",
+          "label": "File to Markdown"
         },
         "CherryWebFetch": {
           "description": "Fetches and reads a web page",
@@ -1737,12 +1759,6 @@
       "top": "Back to top"
     },
     "resend": "Resend",
-    "resource_view": {
-      "menu": {
-        "agent": "Agents",
-        "assistant": "Assistants"
-      }
-    },
     "save": {
       "file": {
         "title": "Save to Local File"
@@ -1915,6 +1931,7 @@
         "time": "Time",
         "title": "Display mode"
       },
+      "draft": "Draft",
       "edit": {
         "placeholder": "Enter new name",
         "title": "Edit conversation name",
@@ -2159,6 +2176,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Qwen Code"
     },
@@ -2548,6 +2566,7 @@
       "503": "Service unavailable. Please try again later",
       "504": "Gateway timeout. Please try again later"
     },
+    "image_unreadable_for_non_vision_model": "The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "Last Error",
     "maxEmbeddingsPerCall": "Max Embeddings Per Call",
     "message": "Error Message",
@@ -3044,10 +3063,20 @@
           "selected_notes": "{{count}} notes selected"
         },
         "note": {
+          "create": {
+            "content_label": "Content",
+            "content_placeholder": "Write the note content here…",
+            "title_label": "Title",
+            "title_placeholder": "Name this note"
+          },
           "description": "Select existing notes as knowledge base sources",
           "empty_description": "Create notes in the Notes feature, then come back to select them here.",
           "empty_title": "No notes found",
-          "loading": "Loading notes…"
+          "loading": "Loading notes…",
+          "mode": {
+            "create": "New note",
+            "import": "Import notes"
+          }
         },
         "placeholder": {
           "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3186,7 +3215,6 @@
       "updated_at": "Updated {{time}}"
     },
     "name_required": "Knowledge base name is required",
-    "not_set": "Not Set",
     "provider_not_found": "Provider not found",
     "rag": {
       "chunk_overlap": "Overlap Size",
@@ -3201,12 +3229,13 @@
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
       "document_count": "Top K",
-      "download_local_embedding": "Download Local Model",
       "download_local_embedding_failed": "Failed to download the local embedding model",
+      "download_local_model": "Download Local Model",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
       "file_processing": "File Processing",
       "file_processing_hint": "Document preprocessing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
+      "file_processing_none": "Don't use",
       "hints": {
         "chunk_overlap": "Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
         "chunk_separator": "Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
@@ -3220,6 +3249,8 @@
       },
       "processor": "Processing Provider",
       "processor_not_configured": "Not configured",
+      "processor_not_downloaded": "Not downloaded",
+      "processor_unreachable": "Service not running",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",
       "reset_action": "Restore Defaults",
@@ -3306,6 +3337,7 @@
   },
   "launchpad": {
     "apps": "Apps",
+    "manage_sidebar": "Manage Sidebar",
     "minapps": "Minapps",
     "miniApps": "MiniApps",
     "pin_to_sidebar": "Add to Sidebar",
@@ -3376,11 +3408,6 @@
           },
           "heartbeat_interval": {
             "label": "Heartbeat interval (minutes)"
-          },
-          "instructions": {
-            "hint": "Defines the agent's role and behavior boundaries",
-            "label": "System prompt",
-            "placeholder": "Tell the agent who it is and what it can do…"
           },
           "max_turns": {
             "help": "0 means use the default",
@@ -3576,8 +3603,7 @@
           "step": {
             "basic": "Basic info",
             "capability": "Skills",
-            "knowledge": "Knowledge",
-            "persona": "Persona"
+            "knowledge": "Knowledge"
           },
           "submit": "Create",
           "submit_failed": "Create failed"
@@ -4091,6 +4117,9 @@
       "failed": "Restore failed",
       "success": "Restored successfully"
     },
+    "retry": {
+      "status": "Retrying with {{model}} · attempt {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Saved successfully"
@@ -4240,6 +4269,8 @@
         "taskOutput": "View task output",
         "taskStop": "Stop task",
         "taskUpdate": "Update task",
+        "toMarkdown": "To Markdown",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Todo Write",
         "tool": "Tool",
         "webFetch": "Web Fetch",
@@ -4290,6 +4321,8 @@
       "thinkingHeader": "Thinking it through",
       "truncated": "Output truncated (original: {{size}})",
       "units": {
+        "char_one": "{{count}} char",
+        "char_other": "{{count}} chars",
         "done_one": "{{count}} Done",
         "done_other": "{{count}} Done",
         "file_one": "{{count}} file",
@@ -4614,6 +4647,8 @@
         "font_size_medium": "Medium",
         "font_size_small": "Small",
         "font_title": "Font settings",
+        "line_breaks": "Line Break Mode",
+        "line_breaks_description": "Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "Serif font",
         "show_table_of_contents": "Show Table of Contents",
         "show_table_of_contents_description": "Display a table of contents sidebar for easy navigation within documents",
@@ -5381,6 +5416,7 @@
         "insertRowBefore": "Insert Above"
       }
     },
+    "backToTop": "Back to top",
     "commands": {
       "blockMath": {
         "description": "Insert mathematical formula",
@@ -7516,6 +7552,16 @@
         "setting_title": "Quick model setup",
         "tooltip": "Choose a lightweight model and avoid reasoning models."
       },
+      "retry": {
+        "backoff": "Exponential backoff",
+        "description": "Retry chat, embedding, and rerank calls; chat can fall back to other models",
+        "fallback_models": "Fallback models",
+        "fallback_models_count": "{{count}} models selected",
+        "fallback_models_description": "Models tried in order when the primary model fails",
+        "label": "Model Call Retry",
+        "max_attempts": "Max retry attempts",
+        "tooltip": "Retries and fallbacks only apply before the model starts streaming content"
+      },
       "toolbar": {
         "custom_add": "Custom",
         "filter_close": "Close filter",
@@ -8223,8 +8269,12 @@
             "description": "Advanced file restoration engine.",
             "name": "Doc2x"
           },
+          "local_document": {
+            "description": "Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
+            "name": "Local Document"
+          },
           "local_paddleocr": {
-            "description": "PaddleOCR (PP-OCRv6 medium) running in-process — fully offline, no API key, with recognition on a background thread so the UI stays responsive. Download the model (~140MB) in Environment Dependencies before first use.",
+            "description": "PaddleOCR (PP-OCRv6 medium) running inside the app — fully offline, no API key, and recognition happens on a background thread so the UI stays responsive.",
             "name": "Local PaddleOCR",
             "status": {
               "local": "Runs fully on your device"

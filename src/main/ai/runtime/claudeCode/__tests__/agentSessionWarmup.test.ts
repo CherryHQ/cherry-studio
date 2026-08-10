@@ -1,5 +1,5 @@
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
-import { ENDPOINT_TYPE, type Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -108,8 +108,15 @@ vi.mock('../settingsBuilder', () => ({
 
 const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
 
-function resolveTestEffectiveEndpoint(provider: Provider, model: Model) {
+function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
+  const preferred =
+    preferredEndpointType &&
+    model.endpointTypes?.includes(preferredEndpointType) &&
+    provider.endpointConfigs?.[preferredEndpointType]?.baseUrl
+      ? preferredEndpointType
+      : undefined
   const endpointType =
+    preferred ??
     model.endpointTypes?.[0] ??
     provider.defaultChatEndpoint ??
     (provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES] ? ENDPOINT_TYPE.ANTHROPIC_MESSAGES : undefined)
@@ -559,6 +566,64 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       ANTHROPIC_MODEL: 'opencode:deepseek-v4-pro'
     })
     expect(request?.usageCapture).toEqual({ owner: 'provider-calls' })
+  })
+
+  it('routes a model that declares Anthropic Messages behind another dialect directly', async () => {
+    // DeepSeek V4 Flash lists `openai-responses` first (in-app chat's default) and `anthropic-messages`
+    // third. The Agent SDK speaks Messages natively, so it must not take the translating gateway hop.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'deepseek::deepseek-v4-flash' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'deepseek',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.deepseek.com/anthropic' },
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.deepseek.com' }
+      }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'deepseek-v4-flash',
+      apiModelId: 'deepseek-v4-flash',
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_RESPONSES,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      ]
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.apiGatewayEnsureKey).not.toHaveBeenCalled()
+    expect(request?.sdkModelId).toBe('deepseek-v4-flash')
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'https://api.deepseek.com/anthropic',
+      ANTHROPIC_MODEL: 'deepseek-v4-flash'
+    })
+  })
+
+  it('routes a declared Anthropic model through the gateway when the provider configures no Messages base URL', async () => {
+    // Without a Messages base URL there is nothing to point ANTHROPIC_BASE_URL at; falling back to the
+    // effective host would post Messages bodies at an OpenAI-compatible endpoint.
+    mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'custom::relay-model' })
+    mocks.getProviderByProviderId.mockReturnValue({
+      id: 'custom',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' } }
+    })
+    mocks.getModelByKey.mockReturnValue({
+      id: 'relay-model',
+      apiModelId: 'relay-model',
+      endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+    })
+    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
+
+    const request = await buildClaudeCodeQueryRequestForAgentSession('session-1')
+
+    expect(mocks.apiGatewayEnsureKey).toHaveBeenCalled()
+    expect(request?.settings.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:23333',
+      ANTHROPIC_MODEL: 'custom:relay-model'
+    })
   })
 
   it('captures distinct same-provider models for direct-route usage attribution', async () => {
@@ -1055,6 +1120,44 @@ describe('deriveConnectionConfig', () => {
         (name) => english.rebuildFactFingerprints[name] !== chinese.rebuildFactFingerprints[name]
       )
     ).toEqual(['language'])
+  })
+
+  it('changes only the prompt username rebuild fact when the user name changes', async () => {
+    mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.user.name' ? 'Alice' : undefined))
+    const alice = await deriveSignature()
+
+    mocks.preferenceGet.mockImplementation((key: string) => (key === 'app.user.name' ? 'Bob' : undefined))
+    const bob = await deriveSignature()
+
+    expect(bob.rebuildSignature).not.toBe(alice.rebuildSignature)
+    expect(
+      Object.keys(alice.rebuildFactFingerprints).filter(
+        (name) => alice.rebuildFactFingerprints[name] !== bob.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['promptUserName'])
+  })
+
+  it('changes only the prompt model name rebuild fact when the resolved Agent model name changes', async () => {
+    const agent = {
+      id: 'agent-1',
+      model: 'provider-1::model-1',
+      modelName: 'Model One',
+      disabledTools: [],
+      mcps: [],
+      configuration: {}
+    }
+    mocks.getAgent.mockReturnValue(agent)
+    const original = await deriveSignature()
+
+    mocks.getAgent.mockReturnValue({ ...agent, modelName: 'Renamed Model' })
+    const renamed = await deriveSignature()
+
+    expect(renamed.rebuildSignature).not.toBe(original.rebuildSignature)
+    expect(
+      Object.keys(original.rebuildFactFingerprints).filter(
+        (name) => original.rebuildFactFingerprints[name] !== renamed.rebuildFactFingerprints[name]
+      )
+    ).toEqual(['promptModelName'])
   })
 
   it('changes only the proxy-environment rebuild fact when the effective Cherry proxy changes', async () => {
