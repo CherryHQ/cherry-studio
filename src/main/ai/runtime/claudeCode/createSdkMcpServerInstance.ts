@@ -143,17 +143,23 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
     }
   })
 
-  rawServer.setRequestHandler(CallToolRequestSchema, async (request) => {
+  rawServer.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     try {
       logger.debug('SDK bridge: calling tool', { mcpId, tool: request.params.name })
       const result = await application.get('McpRuntimeService').callTool({
         serverId: serverConfig.id,
         name: request.params.name,
-        args: request.params.arguments
+        args: request.params.arguments,
+        signal: extra.signal
       })
       return result as CallToolResult
     } catch (error) {
-      logger.error('SDK bridge: failed to call tool', { mcpId, tool: request.params.name, error })
+      if (extra.signal.aborted) {
+        // Expected cancellation from the SDK side — the runtime already logged it at debug.
+        logger.debug('SDK bridge: tool call aborted', { mcpId, tool: request.params.name })
+      } else {
+        logger.error('SDK bridge: failed to call tool', { mcpId, tool: request.params.name, error })
+      }
       throw error
     }
   })

@@ -79,11 +79,45 @@ function buildStdioEnvironment(
   return env
 }
 
+function getAbortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error ? signal.reason : new DOMException('MCP tool call aborted', 'AbortError')
+}
+
+/**
+ * Wait for `promise`, but stop waiting as soon as `signal` aborts. The underlying work is
+ * deliberately NOT cancelled — `pendingClients` connections are shared across callers, so
+ * only this caller's wait may be released. The promise stays consumed on every path so a
+ * late rejection never surfaces as unhandled.
+ */
+function abortableWait<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) {
+    promise.catch(() => undefined)
+    return Promise.reject(getAbortReason(signal))
+  }
+  return new Promise((resolve, reject) => {
+    let settled = false
+    const cleanup = (): void => signal.removeEventListener('abort', handleAbort)
+    const finish = (callback: () => void): void => {
+      if (settled) return
+      settled = true
+      cleanup()
+      callback()
+    }
+    const handleAbort = (): void => finish(() => reject(getAbortReason(signal)))
+
+    signal.addEventListener('abort', handleAbort, { once: true })
+    void promise.then(
+      (result) => finish(() => resolve(result)),
+      (error) => finish(() => reject(error))
+    )
+  })
+}
+
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
-type CallToolArgs = { serverId: string; name: string; args: any; callId?: string }
-type RuntimeCallToolArgs = { server: McpServer; name: string; args: any; callId?: string }
+type CallToolArgs = { serverId: string; name: string; args: any; callId?: string; signal?: AbortSignal }
+type RuntimeCallToolArgs = { server: McpServer; name: string; args: any; callId?: string; signal?: AbortSignal }
 type McpRuntimeState = McpRuntimeStatus['state']
 
 // IPC payload validation for the renderer-facing handlers. The inner `args` are the tool/prompt
@@ -1129,18 +1163,29 @@ export class McpRuntimeService extends BaseService {
   /**
    * Call a tool on an MCP server
    */
-  public async callTool({ serverId, name, args, callId }: CallToolArgs): Promise<McpCallToolResponse> {
+  public async callTool({ serverId, name, args, callId, signal }: CallToolArgs): Promise<McpCallToolResponse> {
     const server = this.getServerById(serverId)
-    return this.callToolByServer({ server, name, args, callId })
+    return this.callToolByServer({ server, name, args, callId, signal })
   }
 
-  public async callToolByServer({ server, name, args, callId }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
+  public async callToolByServer({
+    server,
+    name,
+    args,
+    callId,
+    signal
+  }: RuntimeCallToolArgs): Promise<McpCallToolResponse> {
     const toolCallId = callId || uuidv4()
     const abortController = new AbortController()
+    const effectiveSignal = signal ? AbortSignal.any([abortController.signal, signal]) : abortController.signal
     this.activeToolCalls.set(toolCallId, abortController)
 
     const callToolFunc = async ({ server, name, args }: RuntimeCallToolArgs) => {
       try {
+        // Inside the try so an already-aborted signal still hits the finally cleanup below.
+        if (effectiveSignal.aborted) {
+          throw getAbortReason(effectiveSignal)
+        }
         getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Calling tool`, {
           args: redactSensitive(args)
         })
@@ -1161,7 +1206,9 @@ export class McpRuntimeService extends BaseService {
         if (isMcpToolDisabledBySource(sourcePolicy, { name })) {
           throw new Error(`MCP tool is disabled: ${name}`)
         }
-        const client = await this.getOrCreateClient(server)
+        // Client init (ping probe, transport connect, OAuth) has no unified timeout at this
+        // layer — release this call's wait on abort instead of blocking until it settles.
+        const client = await abortableWait(this.getOrCreateClient(server), effectiveSignal)
         const result = await client.callTool({ name, arguments: args }, undefined, {
           onprogress: (process) => {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
@@ -1177,11 +1224,16 @@ export class McpRuntimeService extends BaseService {
           // Need server side support: https://modelcontextprotocol.io/specification/2025-06-18/basic/lifecycle#timeouts
           resetTimeoutOnProgress: server.longRunning,
           maxTotalTimeout: server.longRunning ? 10 * 60 * 1000 : undefined,
-          signal: abortController.signal
+          signal: effectiveSignal
         })
         return result as McpCallToolResponse
       } catch (error) {
-        getServerLogger(server, { tool: name, callId: toolCallId }).error(`Error calling tool`, error as Error)
+        if (effectiveSignal.aborted) {
+          // Expected cancellation (user stop / stream abort) — keep it out of error logs.
+          getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Tool call aborted`)
+        } else {
+          getServerLogger(server, { tool: name, callId: toolCallId }).error(`Error calling tool`, error as Error)
+        }
         throw error
       } finally {
         this.activeToolCalls.delete(toolCallId)

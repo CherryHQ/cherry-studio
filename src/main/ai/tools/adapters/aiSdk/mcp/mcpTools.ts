@@ -41,7 +41,7 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
     metadata: { cherry: { tool: metadata } },
     inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
     needsApproval: async () => forcePrompt,
-    execute: async (args: Record<string, unknown>, { toolCallId }) => {
+    execute: async (args: Record<string, unknown>, { toolCallId, abortSignal }) => {
       const server = resolveActiveServerById(mcpTool.serverId)
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
@@ -50,7 +50,8 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
         serverId: server.id,
         name: mcpTool.name,
         args,
-        callId: toolCallId
+        callId: toolCallId,
+        signal: abortSignal
       })
 
       if (result.isError) {
