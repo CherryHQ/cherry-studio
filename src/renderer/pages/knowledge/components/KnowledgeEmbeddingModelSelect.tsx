@@ -1,6 +1,5 @@
+import LocalModelDownloadPopup from '@renderer/components/popups/LocalModelDownloadPopup'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
-import { popup } from '@renderer/services/popup'
-import { toast } from '@renderer/services/toast'
 import { LOCAL_EMBEDDING_PROVIDER_ID, LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { Model } from '@shared/data/types/model'
 import { useCallback } from 'react'
@@ -15,7 +14,7 @@ const LOCAL_EMBEDDING_PRIORITIZED_PROVIDER_IDS = [LOCAL_EMBEDDING_PROVIDER_ID] a
 export const KnowledgeEmbeddingModelSelect = (props: KnowledgeEmbeddingModelSelectProps) => {
   const { t } = useTranslation()
   const { onChange } = props
-  const { status, isStatusResolved, download } = useLocalModel('embedding')
+  const { status, isStatusResolved } = useLocalModel('embedding')
 
   const handleChange = useCallback(
     async (modelId: string | null) => {
@@ -28,20 +27,18 @@ export const KnowledgeEmbeddingModelSelect = (props: KnowledgeEmbeddingModelSele
         return
       }
 
-      const confirmed = await popup.confirm({
-        title: t('knowledge.rag.download_local_embedding'),
-        content: t('settings.dependencies.localModels.embedding.subtitle'),
-        okText: t('settings.dependencies.localModels.download'),
-        cancelText: t('common.cancel')
+      // Resolves only once the model is on disk — see LocalModelDownloadPopup.
+      const downloaded = await LocalModelDownloadPopup.show({
+        model: 'embedding',
+        description: t('settings.dependencies.localModels.embedding.subtitle')
       })
-      if (!confirmed) {
+      if (!downloaded) {
         return
       }
 
       onChange(modelId)
-      void download().catch(() => toast.error(t('knowledge.rag.download_local_embedding_failed')))
     },
-    [download, isStatusResolved, onChange, status, t]
+    [isStatusResolved, onChange, status, t]
   )
 
   const filter = useCallback(
