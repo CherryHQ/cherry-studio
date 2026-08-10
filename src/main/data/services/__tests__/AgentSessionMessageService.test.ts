@@ -227,7 +227,7 @@ describe('AgentSessionMessageService', () => {
   })
 
   it('keeps createdAt stable when updating an existing message', async () => {
-    vi.spyOn(Date, 'now').mockReturnValueOnce(1_700_000_000_000).mockReturnValueOnce(1_700_000_000_500)
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
 
     const created = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
@@ -237,6 +237,7 @@ describe('AgentSessionMessageService', () => {
         data: { parts: [{ type: 'text', text: 'hello' }] }
       }
     })
+    now.mockReturnValue(1_700_000_000_500)
     const updated = agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: {
