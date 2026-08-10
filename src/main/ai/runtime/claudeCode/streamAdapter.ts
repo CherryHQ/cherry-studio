@@ -67,6 +67,20 @@ export class ClaudeCodeResultError extends Error {
   }
 }
 
+function createClaudeCodeResultError(message: SDKResultMessage): ClaudeCodeResultError | undefined {
+  const apiErrorStatus = message.subtype === 'success' ? message.api_error_status : undefined
+  const isErrorResult =
+    message.subtype !== 'success' ||
+    message.is_error ||
+    message.terminal_reason === 'api_error' ||
+    apiErrorStatus != null
+  if (!isErrorResult) return undefined
+
+  const errors = message.subtype === 'success' ? (message.result ? [message.result] : []) : message.errors
+  const errorMessage = errors.join('; ') || `Claude Code error: ${message.terminal_reason ?? message.subtype}`
+  return new ClaudeCodeResultError(errorMessage, message.subtype, errors, message.terminal_reason, apiErrorStatus)
+}
+
 const MIN_TRUNCATION_LENGTH = 512
 const UNKNOWN_TOOL_NAME = 'unknown-tool'
 const MAX_TOOL_INPUT_SIZE = 1_048_576
@@ -573,6 +587,8 @@ export class ClaudeCodeStreamAdapter {
     if (message.type !== 'system' && !this.turnActive) {
       if (message.type === 'result') {
         this.setSessionId(message.session_id)
+        const resultError = createClaudeCodeResultError(message)
+        if (resultError) throw resultError
         logger.warn('Received a result message with no active turn; dropping turn-complete', {
           sessionId: this.sessionId
         })
@@ -1172,14 +1188,8 @@ export class ClaudeCodeStreamAdapter {
     }
     this.setSessionId(message.session_id)
 
-    const apiErrorStatus = message.subtype === 'success' ? message.api_error_status : undefined
-    const isErrorResult =
-      message.subtype !== 'success' ||
-      message.is_error ||
-      message.terminal_reason === 'api_error' ||
-      apiErrorStatus != null
-
-    if (isErrorResult) {
+    const resultError = createClaudeCodeResultError(message)
+    if (resultError) {
       // Error results still carry token totals useful to the live message. The driver only calls
       // `emitUsageMetadata` when `handleMessage` returns normally, so emit the final UI snapshot
       // BEFORE throwing. Per-invocation records are captured independently by the driver.
@@ -1187,9 +1197,7 @@ export class ClaudeCodeStreamAdapter {
         type: 'message-metadata',
         messageMetadata: this.buildMessageMetadata(ctx.usage)
       })
-      const errors = message.subtype === 'success' ? (message.result ? [message.result] : []) : message.errors
-      const errorMsg = errors.join('; ') || `Claude Code error: ${message.terminal_reason ?? message.subtype}`
-      throw new ClaudeCodeResultError(errorMsg, message.subtype, errors, message.terminal_reason, apiErrorStatus)
+      throw resultError
     }
 
     logger.info(

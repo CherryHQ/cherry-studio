@@ -1320,6 +1320,39 @@ describe('ClaudeCodeStreamAdapter', () => {
       )
     })
 
+    it('throws an API failure result when no turn is active', () => {
+      const { adapter, parts, sessionIds } = createAdapter({}, { openTurn: false })
+      let thrown: unknown
+
+      try {
+        adapter.handleMessage(
+          successResult({
+            session_id: 'resume-api-error',
+            is_error: true,
+            terminal_reason: 'api_error',
+            api_error_status: 504,
+            result: 'API Error: The operation timed out.'
+          })
+        )
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+      expect(thrown).toMatchObject({
+        message: 'API Error: The operation timed out.',
+        subtype: 'success',
+        terminalReason: 'api_error',
+        apiErrorStatus: 504
+      })
+      expect(sessionIds).toEqual(['resume-api-error'])
+      expect(parts).toEqual([])
+      expect(loggerMocks.warn).not.toHaveBeenCalledWith(
+        'Received a result message with no active turn; dropping turn-complete',
+        expect.anything()
+      )
+    })
+
     // The whole point of the second output: background work outlives its turn, so its signals must
     // still reach the host once that turn's message stream is gone.
     it('reports session status through the status sink with no turn open', () => {
