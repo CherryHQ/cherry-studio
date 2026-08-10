@@ -316,12 +316,6 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
     if (isGeminiModel(modelId)) {
       return createGeminiModel(modelId)
     }
-    // DeepSeek thinking-mode models require `reasoning_content` on every
-    // assistant turn.  The chat-completions path has the #18121 patch that
-    // guarantees this; the Responses API path (default) drops it.  Fixes #18150.
-    if (isDeepSeekModel(modelId)) {
-      return createOpenAIChatModel(modelId, settings)
-    }
     return new OpenAIResponsesLanguageModel(modelId, {
       provider: `${CHERRYIN_PROVIDER_NAME}.openai`,
       url,
@@ -334,10 +328,14 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
   }
 
   const createChatModel = (modelId: string, settings: OpenAIProviderSettings = {}) => {
-    // DeepSeek thinking-mode models must always use the chat-completions path
-    // regardless of endpointType — it carries the #18121 reasoning_content patch.
-    // An explicit 'openai-response' endpoint would otherwise route through the
-    // Responses API and drop the key.  Fixes #18150.
+    // Route DeepSeek thinking-mode models through the chat-completions path so
+    // the #18121 reasoning_content patch applies.  The bug surfaces when CherryIN
+    // maps an explicit openai-responses endpoint (ENDPOINT_TYPE.OPENAI_RESPONSES)
+    // for a model drawer entry — without this guard createChatModel would route
+    // through the Responses API and drop reasoning_content.  We also override
+    // anthropic / gemini endpoints for deepseek models as defense-in-depth
+    // (those combos are not configured in practice but would be misrouted).
+    // Fixes #18150.
     if (isDeepSeekModel(modelId)) {
       return createOpenAIChatModel(modelId, settings)
     }
