@@ -178,7 +178,12 @@ export class TraceSpanStore {
   }
 
   clear(): void {
-    if (this.spans.size > 0 || this.traceMeta.size > 0) {
+    if (
+      this.spans.size > 0 ||
+      this.traceMeta.size > 0 ||
+      this.traceResetRevisions.size > 0 ||
+      this.evictedResetRevision > 0
+    ) {
       this.globalResetRevision = this.nextRevision()
     }
     this.spans.clear()

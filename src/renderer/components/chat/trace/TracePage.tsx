@@ -48,7 +48,7 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId }) => {
     for (const span of changedSpans) {
       const existing = nodesById.get(span.id)
       if (existing) {
-        Object.assign(existing, span)
+        nodesById.set(span.id, { ...existing, ...span })
       } else {
         nodesById.set(span.id, { ...span, children: [], percent: 100, start: 0 })
       }

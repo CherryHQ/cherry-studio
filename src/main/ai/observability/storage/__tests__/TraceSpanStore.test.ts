@@ -44,6 +44,20 @@ describe('TraceSpanStore eviction', () => {
     expect(cleared.spans).toEqual([])
   })
 
+  it('keeps stale cursors resetting when clear drops the last deletion marker', () => {
+    const store = new TraceSpanStore()
+
+    store.setSpan(span({ id: 'a', traceId: 'trace-a' }))
+    const initial = store.getSpanChanges({ traceId: 'trace-a' })
+    store.clearSpans(['a'])
+
+    // With no spans or trace metadata left, the deletion marker is the only state that tells this
+    // cursor to discard its old snapshot. clear() must fold that marker into the global reset floor.
+    store.clear()
+
+    expect(store.getSpanChanges({ traceId: 'trace-a' }, initial.revision).reset).toBe(true)
+  })
+
   // One deletion marker per trace id ever flushed would grow for the life of the process. Markers
   // must stay bounded WITHOUT letting a stale cursor silently miss the deletion a dropped marker
   // recorded — an evicted marker has to keep forcing a resync.

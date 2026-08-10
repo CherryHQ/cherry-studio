@@ -1,23 +1,57 @@
 import { act, render, screen } from '@testing-library/react'
-import { Activity } from 'react'
+import userEvent from '@testing-library/user-event'
+import { Activity, type ButtonHTMLAttributes, type HTMLAttributes, type PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TracePage } from '../TracePage'
 
 const mocks = vi.hoisted(() => ({
-  getData: vi.fn()
+  getData: vi.fn(),
+  t: (key: string) => key
 }))
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: mocks.t })
 }))
 
-vi.mock('../SpanDetail', () => ({
-  default: () => <div>span detail</div>
+vi.mock('@cherrystudio/ui', () => {
+  const Div = ({ children, ...props }: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) => (
+    <div {...props}>{children}</div>
+  )
+
+  return {
+    Button: ({ children, ...props }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>>) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Field: Div,
+    FieldContent: Div,
+    FieldDescription: Div,
+    FieldGroup: Div,
+    FieldTitle: Div,
+    Tabs: Div,
+    TabsContent: Div,
+    TabsList: Div,
+    TabsTrigger: ({ children, ...props }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement>>) => (
+      <button type="button" {...props}>
+        {children}
+      </button>
+    ),
+    Tooltip: ({ children }: PropsWithChildren) => <>{children}</>
+  }
+})
+
+vi.mock('@renderer/components/CodeViewer', () => ({
+  default: ({ value }: { value: string }) => <pre data-testid="code-viewer">{value}</pre>
 }))
 
 vi.mock('../TraceTree', () => ({
-  default: ({ node }: { node: { name: string } }) => <div>{node.name}</div>
+  default: ({ handleClick, node }: { handleClick: (nodeId: string) => void; node: { id: string; name: string } }) => (
+    <button type="button" onClick={() => handleClick(node.id)}>
+      {node.name}
+    </button>
+  )
 }))
 
 function TracePageHarness({ visible }: { visible: boolean }) {
@@ -89,6 +123,53 @@ describe('TracePage', () => {
     expect(mocks.getData).toHaveBeenNthCalledWith(1, 'topic-1', 'a1b2c3', undefined)
     expect(mocks.getData).toHaveBeenNthCalledWith(2, 'topic-1', 'a1b2c3', cursor)
     expect(screen.getByText('after')).toBeInTheDocument()
+  })
+
+  it('updates the selected span detail after receiving a delta', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const cursor = { historyVersion: '1:100', liveRevision: 4 }
+    mocks.getData
+      .mockResolvedValueOnce({
+        reset: true,
+        cursor,
+        spans: [
+          {
+            id: 'span-1',
+            parentId: null,
+            name: 'tool.call',
+            startTime: 1,
+            endTime: null,
+            attributes: { inputs: 'before' }
+          }
+        ]
+      })
+      .mockResolvedValue({
+        reset: false,
+        cursor: { ...cursor, liveRevision: 5 },
+        spans: [
+          {
+            id: 'span-1',
+            parentId: null,
+            name: 'tool.call',
+            startTime: 1,
+            endTime: 2,
+            attributes: { inputs: 'after' }
+          }
+        ]
+      })
+
+    render(<TracePageHarness visible />)
+    await act(async () => {
+      await Promise.resolve()
+    })
+    await user.click(screen.getByRole('button', { name: 'tool.call' }))
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('before')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+
+    expect(screen.getByTestId('code-viewer')).toHaveTextContent('after')
   })
 
   // A mid-stream reset (trace evicted, or local trace data cleared) empties the id map that resolves
