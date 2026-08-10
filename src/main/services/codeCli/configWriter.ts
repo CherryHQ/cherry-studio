@@ -39,7 +39,7 @@ async function readOrNull(absPath: AbsoluteFilePath): Promise<string | null> {
  * allow-list (the renderer never sends a path); this only re-checks that each
  * target belongs to `cliTool` and appears once.
  *
- * Per file, in batch order: snapshot → ensure parent dir → atomic 0600 write.
+ * Per file, in batch order: snapshot → atomic 0600 write or hard delete.
  * The first failure rolls back in reverse order (restore previous content, hard
  * unlink files that did not exist — never the trash, they may hold secrets) and
  * rethrows the ORIGINAL error; rollback failures are logged, never thrown.
@@ -63,9 +63,14 @@ export async function writeCliConfigFiles(cliTool: FileConfiguredCli, files: Cli
       const absPath = resolveTargetPath(file.target)
       const previousContent = await readOrNull(absPath)
       snapshots.push({ absPath, existed: previousContent !== null, previousContent: previousContent ?? '' })
-      await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(absPath)))
-      await atomicWriteFile(absPath, file.content, { mode: CLI_CONFIG_FILE_MODE })
-      logger.info(`Applied ${cliTool} config to ${absPath}`)
+      if ('delete' in file) {
+        await remove(absPath)
+        logger.info(`Deleted ${cliTool} config at ${absPath}`)
+      } else {
+        await ensureDir(AbsoluteFilePathSchema.parse(path.dirname(absPath)))
+        await atomicWriteFile(absPath, file.content, { mode: CLI_CONFIG_FILE_MODE })
+        logger.info(`Applied ${cliTool} config to ${absPath}`)
+      }
     }
   } catch (error) {
     for (const snapshot of snapshots.slice().reverse()) {

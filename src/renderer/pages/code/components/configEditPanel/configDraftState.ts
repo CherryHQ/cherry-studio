@@ -6,7 +6,8 @@ import {
   hasClaudeDetailedModels,
   readCliConfigDraft,
   readCliConfigFiles,
-  sanitizeCliConfigBlob
+  sanitizeCliConfigBlob,
+  updateCliConfigDraftConfig
 } from '@renderer/pages/code/cliConfig'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
@@ -121,25 +122,17 @@ export async function createManagedConfigDraft({
   gateway?: CliConfigGatewayContext
 }): Promise<ConfigDraft> {
   const cliConfigModelId = options.cliConfigModelId ?? modelId
-  if (!cliConfigModelId) {
-    return {
-      modelId,
-      config,
-      files: files ?? [],
-      connection: null,
-      mode: 'managed',
-      error: ''
-    }
-  }
   try {
-    const nextFiles = await readCliConfigDraft({
-      cliTool,
-      modelId: cliConfigModelId,
-      configBlob: config,
-      files,
-      writePrimaryModel: options.writePrimaryModel,
-      gateway
-    })
+    const nextFiles = cliConfigModelId
+      ? await readCliConfigDraft({
+          cliTool,
+          modelId: cliConfigModelId,
+          configBlob: config,
+          files,
+          writePrimaryModel: options.writePrimaryModel,
+          gateway
+        })
+      : updateCliConfigDraftConfig(cliTool, files ?? [], config)
     return {
       modelId,
       config,

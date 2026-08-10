@@ -74,6 +74,7 @@ import {
 import { useMessageParts, useTranslationOverlayEntry } from './MessagePartsContext'
 import MessageProcessGroup from './MessageProcessGroup'
 import PlaceholderBlock, { type PlaceholderStatus } from './PlaceholderBlock'
+import RetryStatusBlock from './RetryStatusBlock'
 import ThinkingBlock, { ThinkingBlockContent } from './ThinkingBlock'
 import { ToolBlockGroup, ToolBlockGroupContent } from './ToolBlockGroup'
 import TranslationBlock from './TranslationBlock'
@@ -617,6 +618,12 @@ function renderPart(
       const rawData = 'data' in part ? part.data : undefined
       if (!rawData) return null
       return <MessageVideo key={partId} url={rawData.url} filePath={rawData.filePath} />
+    }
+
+    case 'data-retry': {
+      const rawData = 'data' in part ? part.data : undefined
+      if (!rawData) return null
+      return <RetryStatusBlock key={partId} data={rawData} />
     }
 
     case 'data-agent-task-event':

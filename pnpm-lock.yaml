@@ -664,6 +664,9 @@ importers:
       ai:
         specifier: 6.0.185
         version: 6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4)
+      ai-retry:
+        specifier: ^1.11.0
+        version: 1.11.1(@ai-sdk/provider-utils@4.0.40(zod@4.3.4))(@ai-sdk/provider@3.0.14)(@opentelemetry/api@1.9.0)(ai@6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4))(zod@4.3.4)
       ansi-to-react:
         specifier: ^6.2.6
         version: 6.2.6(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
@@ -7567,6 +7570,18 @@ packages:
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
+
+  ai-retry@1.11.1:
+    resolution: {integrity: sha512-J/nffw5v1cISfNAvZQSW4v6p1BMsSqvsP0PpwjUsnumRRVLfW3N5wls9ASIhaZAx1faMdvhMi9qh2oUTxCMc2A==}
+    peerDependencies:
+      '@ai-sdk/provider': ^3.0.0
+      '@ai-sdk/provider-utils': 4.0.40
+      '@opentelemetry/api': ^1.9.0
+      ai: 6.0.185
+      zod: ^4.0.0
+    peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
 
   ai@6.0.185:
     resolution: {integrity: sha512-oGsqscREaTlo75KHZLtwZxRyI+ZBwHV2wRX9B8smHjgOs13WwoCvUyr5aPUWpIBRz406wmIKy1RzoUEq0/WKJw==}
@@ -20890,6 +20905,15 @@ snapshots:
     optional: true
 
   agent-base@7.1.4: {}
+
+  ai-retry@1.11.1(@ai-sdk/provider-utils@4.0.40(zod@4.3.4))(@ai-sdk/provider@3.0.14)(@opentelemetry/api@1.9.0)(ai@6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4))(zod@4.3.4):
+    dependencies:
+      '@ai-sdk/provider': 3.0.14
+      '@ai-sdk/provider-utils': 4.0.40(zod@4.3.4)
+      ai: 6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4)
+      zod: 4.3.4
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.0
 
   ai@6.0.185(patch_hash=0faeb5dc3c6e144ad552bb5cf0b148dbde982fc285ce927747820094363ab01a)(zod@4.3.4):
     dependencies:

@@ -1063,6 +1063,91 @@ describe('AgentRightPane', () => {
     expect(screen.queryByTestId('workflow-dag-panel')).toBeNull()
   })
 
+  it('keeps declared artifacts directly under the task plan instead of below the run sections', () => {
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'task-1',
+        toolName: 'TaskCreate',
+        state: 'input-available',
+        input: { subject: 'Build the deck' }
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'artifacts-1',
+        toolName: 'report_artifacts',
+        state: 'output-available',
+        input: { artifacts: [{ path: 'docs/index.html' }] }
+      },
+      {
+        type: 'data-agent-task-event',
+        data: {
+          event: 'notification',
+          taskId: 'shell-1',
+          taskType: 'shell',
+          status: 'in_progress',
+          title: 'Screenshot each page'
+        }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane
+        sessionId="session-a"
+        workspacePath="/workspace"
+        messages={messages}
+        partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    const sectionOrder = [
+      screen.getByText('agent.right_pane.status.tasks'),
+      screen.getByText('agent.right_pane.info.artifacts'),
+      screen.getByTestId('context-usage'),
+      screen.getByText('agent.right_pane.info.shell_tasks')
+    ]
+
+    for (const [index, node] of sectionOrder.slice(0, -1).entries()) {
+      expect(node.compareDocumentPosition(sectionOrder[index + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    expect(screen.getByText('index.html')).toBeInTheDocument()
+  })
+
+  it('hides the artifacts section when the workspace cannot open files', () => {
+    const parts = [
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'task-1',
+        toolName: 'TaskCreate',
+        state: 'input-available',
+        input: { subject: 'Build the deck' }
+      },
+      {
+        type: 'dynamic-tool',
+        toolCallId: 'artifacts-1',
+        toolName: 'report_artifacts',
+        state: 'output-available',
+        input: { artifacts: [{ path: 'docs/index.html' }] }
+      }
+    ] as unknown as CherryMessagePart[]
+    const messages = [{ id: 'm1', role: 'assistant', parts, metadata: { status: 'pending' } }] as CherryUIMessage[]
+
+    render(
+      <TestAgentRightPane sessionId="session-a" messages={messages} partsByMessageId={{ m1: parts }}>
+        <AgentRightPane.Shortcuts />
+        <AgentRightPane.Viewport />
+      </TestAgentRightPane>
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.status' }))
+
+    expect(screen.getByText('agent.right_pane.status.tasks')).toBeInTheDocument()
+    expect(screen.queryByText('agent.right_pane.info.artifacts')).toBeNull()
+  })
+
   it('restores the stop button and reports an error when the runtime cannot stop the task', async () => {
     ipcRequestMock.mockResolvedValue(false)
     renderStatusTasks([{ id: 'subagent-1', status: 'in_progress', title: 'Inspect task state' }])
