@@ -48,21 +48,37 @@ import type { McpToolDisplayMetadata } from './types'
 const logger = loggerService.withContext('ClaudeCodeStreamAdapter')
 
 /**
- * A non-success `SDKResultMessage` surfaced as a throw. Carries the result's typed fields so
- * consumers narrow with `instanceof` and read structure — never by parsing the message prose
- * (the SDK provides no error class of its own for result failures).
+ * A failed `SDKResultMessage` surfaced as a throw. Carries the result's typed fields so consumers
+ * narrow with `instanceof` and read structure — never by parsing the message prose (the SDK
+ * provides no error class of its own for result failures).
  */
 export class ClaudeCodeResultError extends Error {
   readonly exitCode = 1
   constructor(
     message: string,
-    readonly subtype: Extract<SDKResultMessage, { is_error: boolean }>['subtype'],
-    /** The result's raw error strings — match against these, not the joined `message`. */
-    readonly errors: readonly string[]
+    readonly subtype: SDKResultMessage['subtype'],
+    /** The result's diagnostic strings — match against these, not the joined `message`. */
+    readonly errors: readonly string[],
+    readonly terminalReason?: SDKResultMessage['terminal_reason'],
+    readonly apiErrorStatus?: number | null
   ) {
     super(message)
     this.name = 'ClaudeCodeResultError'
   }
+}
+
+function createClaudeCodeResultError(message: SDKResultMessage): ClaudeCodeResultError | undefined {
+  const apiErrorStatus = message.subtype === 'success' ? message.api_error_status : undefined
+  const isErrorResult =
+    message.subtype !== 'success' ||
+    message.is_error ||
+    message.terminal_reason === 'api_error' ||
+    apiErrorStatus != null
+  if (!isErrorResult) return undefined
+
+  const errors = message.subtype === 'success' ? (message.result ? [message.result] : []) : message.errors
+  const errorMessage = errors.join('; ') || `Claude Code error: ${message.terminal_reason ?? message.subtype}`
+  return new ClaudeCodeResultError(errorMessage, message.subtype, errors, message.terminal_reason, apiErrorStatus)
 }
 
 const MIN_TRUNCATION_LENGTH = 512
@@ -571,6 +587,8 @@ export class ClaudeCodeStreamAdapter {
     if (message.type !== 'system' && !this.turnActive) {
       if (message.type === 'result') {
         this.setSessionId(message.session_id)
+        const resultError = createClaudeCodeResultError(message)
+        if (resultError) throw resultError
         logger.warn('Received a result message with no active turn; dropping turn-complete', {
           sessionId: this.sessionId
         })
@@ -1160,10 +1178,6 @@ export class ClaudeCodeStreamAdapter {
   }
 
   private handleResultMessage(message: SDKResultMessage, ctx: StreamContext): void {
-    logger.info(
-      `Stream completed - Session: ${message.session_id}, Cost: $${message.total_cost_usd?.toFixed(4) ?? 'N/A'}, Duration: ${message.duration_ms ?? 'N/A'}ms`
-    )
-
     const finalUsage = convertClaudeCodeUsage(message.usage)
     ctx.usage = {
       ...finalUsage,
@@ -1172,10 +1186,10 @@ export class ClaudeCodeStreamAdapter {
         reasoning: ctx.usage.outputTokens.reasoning
       }
     }
-    const finishReason = mapClaudeCodeFinishReason(message.subtype, message.stop_reason)
     this.setSessionId(message.session_id)
 
-    if (message.subtype !== 'success') {
+    const resultError = createClaudeCodeResultError(message)
+    if (resultError) {
       // Error results still carry token totals useful to the live message. The driver only calls
       // `emitUsageMetadata` when `handleMessage` returns normally, so emit the final UI snapshot
       // BEFORE throwing. Per-invocation records are captured independently by the driver.
@@ -1183,11 +1197,15 @@ export class ClaudeCodeStreamAdapter {
         type: 'message-metadata',
         messageMetadata: this.buildMessageMetadata(ctx.usage)
       })
-      const errorMsg = message.errors.join('; ') || `Claude Code error: ${message.subtype}`
-      throw new ClaudeCodeResultError(errorMsg, message.subtype, message.errors)
+      throw resultError
     }
 
-    const structuredOutput = message.structured_output
+    logger.info(
+      `Stream completed - Session: ${message.session_id}, Cost: $${message.total_cost_usd?.toFixed(4) ?? 'N/A'}, Duration: ${message.duration_ms ?? 'N/A'}ms`
+    )
+
+    const finishReason = mapClaudeCodeFinishReason(message.subtype, message.stop_reason)
+    const structuredOutput = message.subtype === 'success' ? message.structured_output : undefined
     const alreadyStreamedJson =
       ctx.hasStreamedJson && ctx.options.responseFormat?.type === 'json' && ctx.hasReceivedStreamEvents
 
@@ -1753,7 +1771,7 @@ export class ClaudeCodeStreamAdapter {
       content: hasMcpNonTextContent(rawContent) ? normalizeMcpToolContent(rawContent) : result,
       metadata: {
         type: 'mcp',
-        ...(state.displayName ? { name: state.displayName } : {}),
+        name: state.displayName ?? state.name,
         ...(state.description ? { description: state.description } : {}),
         serverName: state.serverName ?? 'MCP',
         serverId: state.serverId ?? state.serverName ?? 'unknown'

@@ -88,6 +88,12 @@ import { buildAgentSessionTopicId, extractAgentSessionId, isAgentSessionTopic } 
 
 const logger = loggerService.withContext('AgentSessionRuntimeService')
 const DEFAULT_IDLE_TTL_MS = 5 * 60 * 1000
+/**
+ * Grace period before a session with no remaining warm-lease holders is actually torn down.
+ * Absorbs <Activity> tab switches, where the session view releases on hide and re-acquires on
+ * show within moments.
+ */
+const WARM_LEASE_RELEASE_DELAY_MS = 10_000
 const CONTEXT_USAGE_REFRESH_THROTTLE_MS = 3_000
 const BACKGROUND_FLOW_HANDOFF_TTL_MS = 60_000
 const BACKGROUND_FLOW_PUBLISH_THROTTLE_MS = 150
@@ -300,6 +306,16 @@ export class AgentSessionRuntimeService extends BaseService {
   >()
   /** Shutdown wins over pause-release compensation (same posture as JobManager). */
   private isShuttingDown = false
+  /** Warm-lease holders by session: the window WebContents currently displaying it. The runtime
+   *  connection is shared per-session across windows, so its view-close teardown may only start
+   *  once this set is empty — a renderer-local count can neither see other windows nor survive
+   *  their crash. */
+  private readonly warmLeaseHolders = new Map<string, Set<Electron.WebContents>>()
+  /** One destroyed-listener per holder window, so a window that dies without releasing (crash,
+   *  forced close — renderer cleanup never runs) is reaped from every session it held. */
+  private readonly warmLeaseSenders = new Map<Electron.WebContents, { sessionIds: Set<string>; dispose: () => void }>()
+  /** Armed grace timers for sessions whose last holder released (see WARM_LEASE_RELEASE_DELAY_MS). */
+  private readonly pendingWarmTeardowns = new Map<string, NodeJS.Timeout>()
 
   protected async onInit(): Promise<void> {
     // Populate the AI runtime driver registry at a controlled lifecycle point (WhenReady, before
@@ -868,6 +884,111 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   /**
+   * Acquire a warm-connection lease for a window displaying this session. The first holder primes
+   * the connection ({@link primeConnection}); later holders re-prime so the slash-command catalog
+   * is republished for windows that mount after the initial publish. An unmanaged sender (no
+   * WebContents) cannot be tracked as a holder — it still primes, and the idle TTL reaps the
+   * connection if nothing else holds it.
+   */
+  acquireWarmLease(sessionId: string, sender: Electron.WebContents | undefined): void {
+    const pendingTeardown = this.pendingWarmTeardowns.get(sessionId)
+    if (pendingTeardown) {
+      clearTimeout(pendingTeardown)
+      this.pendingWarmTeardowns.delete(sessionId)
+    }
+    if (sender && !sender.isDestroyed()) {
+      let holders = this.warmLeaseHolders.get(sessionId)
+      if (!holders) {
+        holders = new Set()
+        this.warmLeaseHolders.set(sessionId, holders)
+      }
+      holders.add(sender)
+      this.trackWarmLeaseSender(sessionId, sender)
+    }
+    // A canceled pending teardown means the backend is still warm and its catalog cache intact —
+    // skip the redundant re-prime.
+    if (!pendingTeardown) {
+      void this.primeConnection(sessionId)
+    }
+  }
+
+  /**
+   * Release one window's warm lease. The actual teardown (warm-query park + primed connection)
+   * starts only when no window holds the session anymore, and then only after
+   * {@link WARM_LEASE_RELEASE_DELAY_MS} with no re-acquire.
+   */
+  releaseWarmLease(sessionId: string, sender: Electron.WebContents | undefined): void {
+    if (sender) {
+      const record = this.warmLeaseSenders.get(sender)
+      if (record) {
+        record.sessionIds.delete(sessionId)
+        if (record.sessionIds.size === 0) {
+          this.warmLeaseSenders.delete(sender)
+          record.dispose()
+        }
+      }
+      this.dropWarmLeaseHolder(sessionId, sender)
+      return
+    }
+    // Unmanaged sender: it was never tracked as a holder, so only tear down when no managed
+    // window holds the session either.
+    if (!this.warmLeaseHolders.has(sessionId)) this.scheduleWarmTeardown(sessionId)
+  }
+
+  private trackWarmLeaseSender(sessionId: string, sender: Electron.WebContents): void {
+    let record = this.warmLeaseSenders.get(sender)
+    if (!record) {
+      const onDestroyed = () => this.releaseWarmLeasesForSender(sender)
+      sender.once('destroyed', onDestroyed)
+      record = { sessionIds: new Set(), dispose: () => sender.removeListener('destroyed', onDestroyed) }
+      this.warmLeaseSenders.set(sender, record)
+    }
+    record.sessionIds.add(sessionId)
+  }
+
+  private releaseWarmLeasesForSender(sender: Electron.WebContents): void {
+    const record = this.warmLeaseSenders.get(sender)
+    if (!record) return
+    this.warmLeaseSenders.delete(sender)
+    record.dispose()
+    for (const sessionId of record.sessionIds) {
+      this.dropWarmLeaseHolder(sessionId, sender)
+    }
+  }
+
+  private dropWarmLeaseHolder(sessionId: string, sender: Electron.WebContents): void {
+    const holders = this.warmLeaseHolders.get(sessionId)
+    // Unknown holder (double release, or release without acquire): leave teardown to the idle TTL
+    // rather than guessing another window's state.
+    if (!holders?.delete(sender)) return
+    if (holders.size > 0) return
+    this.warmLeaseHolders.delete(sessionId)
+    this.scheduleWarmTeardown(sessionId)
+  }
+
+  private scheduleWarmTeardown(sessionId: string): void {
+    const existing = this.pendingWarmTeardowns.get(sessionId)
+    if (existing) clearTimeout(existing)
+    const timer = setTimeout(() => {
+      this.pendingWarmTeardowns.delete(sessionId)
+      // Prewarm opens a real runtime connection, so releasing the warm-query park alone would
+      // leak the primed subprocess until the idle TTL.
+      application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
+      this.releaseIdleConnection(sessionId)
+    }, WARM_LEASE_RELEASE_DELAY_MS)
+    timer.unref()
+    this.pendingWarmTeardowns.set(sessionId, timer)
+  }
+
+  private disposeWarmLeases(): void {
+    for (const timer of this.pendingWarmTeardowns.values()) clearTimeout(timer)
+    this.pendingWarmTeardowns.clear()
+    for (const record of this.warmLeaseSenders.values()) record.dispose()
+    this.warmLeaseSenders.clear()
+    this.warmLeaseHolders.clear()
+  }
+
+  /**
    * Whether the session has a turn in flight or about to start: a non-terminal current turn,
    * a scheduled/running launch, or queued follow-ups. The dispatcher
    * uses this — NOT `AiStreamManager.hasLiveStream` — to decide enqueue-vs-begin, because
@@ -1120,6 +1241,7 @@ export class AgentSessionRuntimeService extends BaseService {
 
   protected async onStop(): Promise<void> {
     this.isShuttingDown = true
+    this.disposeWarmLeases()
     try {
       toolApprovalRegistry.clear('agent-session-runtime-stop')
     } catch (error) {
@@ -1129,6 +1251,7 @@ export class AgentSessionRuntimeService extends BaseService {
   }
 
   protected async onDestroy(): Promise<void> {
+    this.disposeWarmLeases()
     await this.closeAll()
     try {
       toolApprovalRegistry.clear('agent-session-runtime-destroy')
