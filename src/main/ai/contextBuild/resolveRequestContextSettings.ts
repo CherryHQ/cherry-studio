@@ -23,8 +23,8 @@ export function resolveGlobalContextSettings(): EffectiveContextSettings {
 /**
  * Resolve effective context settings + compression model for a request.
  * Shared by the agent-params pipeline (in-flight middleware) and dispatch-time
- * durable compaction (PersistentChatContextProvider). Layers: globals +
- * the assistant override (P2-D); the topic layer is not wired yet.
+ * durable compaction (PersistentChatContextProvider). Two layers: the globals
+ * below, overridden per assistant.
  */
 export async function resolveRequestContextSettings(
   model: Model,

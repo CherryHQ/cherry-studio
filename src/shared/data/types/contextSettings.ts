@@ -2,8 +2,8 @@
  * Context-settings types for the context-build (chef) layer.
  *
  * Three shapes, by purpose:
- * - `ContextSettingsOverride` — a per-layer PARTIAL (assistant / topic).
- *   Every field optional; `undefined` means "inherit from the layer below".
+ * - `ContextSettingsOverride` — the assistant-level PARTIAL. Every field
+ *   optional; `undefined` means "inherit from the globals".
  * - `EffectiveContextSettings` — the fully-resolved object the request
  *   pipeline consumes (no undefineds), produced by `resolveContextSettings`.
  * - `DEFAULT_CONTEXT_SETTINGS` — the hardcoded floor under the global prefs.
