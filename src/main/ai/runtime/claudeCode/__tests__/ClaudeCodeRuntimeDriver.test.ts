@@ -226,14 +226,24 @@ vi.mock('../streamAdapter', async (importActual) => {
         }
         if (message.type === 'result') {
           this.options.onSessionId(message.session_id)
-          if (message.subtype !== 'success') {
+          const apiErrorStatus = message.subtype === 'success' ? message.api_error_status : undefined
+          const isErrorResult =
+            message.subtype !== 'success' ||
+            message.is_error ||
+            message.terminal_reason === 'api_error' ||
+            apiErrorStatus != null
+          if (isErrorResult) {
             // Mirrors the real adapter: errors flush usage metadata, then throw before the turn flag
             // flips (the real flip happens after handleResultMessage returns, which a throw skips).
             this.enqueue({ type: 'message-metadata', messageMetadata: { modelId: 'sonnet-sdk' } })
+            const errors =
+              message.subtype === 'success' ? (message.result ? [message.result] : []) : (message.errors ?? [])
             throw new actualStreamAdapter.ClaudeCodeResultError(
-              message.errors?.join('; ') || 'runtime failed',
+              errors.join('; ') || 'runtime failed',
               message.subtype,
-              message.errors ?? []
+              errors,
+              message.terminal_reason,
+              apiErrorStatus
             )
           }
           this.enqueue({ type: 'finish', finishReason: { unified: 'stop', raw: 'end_turn' } })
@@ -2832,6 +2842,51 @@ describe('ClaudeCodeRuntimeDriver', () => {
     }
     expect(seen.map((event) => event?.type)).toContain('error')
     expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(2)
+    void connection.close()
+  })
+
+  it('surfaces SDK success envelopes marked as API errors instead of completing the turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    await connection.send({ message: userMessage() })
+    queryQueue.push({
+      type: 'result',
+      subtype: 'success',
+      session_id: 'resume-api-error',
+      usage: {},
+      is_error: true,
+      terminal_reason: 'api_error',
+      api_error_status: null,
+      result: 'API Error: The operation timed out.'
+    })
+
+    const seen: any[] = []
+    while (true) {
+      const next = await events.next()
+      if (next.done) break
+      seen.push(next.value)
+    }
+
+    expect(seen).toContainEqual({ type: 'resume-token', token: 'resume-api-error' })
+    expect(seen).toContainEqual(
+      expect.objectContaining({ type: 'chunk', chunk: expect.objectContaining({ type: 'message-metadata' }) })
+    )
+    expect(seen).toContainEqual(
+      expect.objectContaining({
+        type: 'error',
+        error: expect.objectContaining({ message: 'API Error: The operation timed out.' })
+      })
+    )
+    expect(seen).not.toContainEqual({ type: 'turn-complete' })
+    expect(mocks.createClaudeQuery).toHaveBeenCalledTimes(1)
     void connection.close()
   })
 
