@@ -251,8 +251,10 @@ rerun it without creating a second result. Result dispatch remains outside the t
 
 Every delivering row stores `turnRef`, the pending assistant placeholder message id, rather than
 the runtime's process-local UUID. Fresh turns atomically persist the request/user row and assistant
-placeholder. A steer boundary that rolls assistant A1a into continuation A2 must update `turnRef` to
-A2 before post-steer output can become the request's terminal result.
+placeholder, then promote the delivery to `delivering` with that `turnRef` before model execution
+starts. Only a delivery handed to the existing runtime FIFO without a new placeholder remains
+`queued`. A steer boundary that rolls assistant A1a into continuation A2 must update `turnRef` to A2
+before post-steer output can become the request's terminal result.
 
 When deleting a target Session, the delete transaction first creates failure results for its
 non-terminal completion requests, then allows the normal message cascade. A caller that has already

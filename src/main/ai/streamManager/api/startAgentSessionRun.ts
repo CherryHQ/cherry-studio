@@ -114,7 +114,6 @@ export async function startAgentSessionRun(input: {
       }
     }
 
-    const wasBusy = application.get('AgentSessionRuntimeService').isSessionBusy(input.sessionId)
     let prepared
     try {
       prepared = await agentChatContextProvider.prepareDispatch(
@@ -145,6 +144,17 @@ export async function startAgentSessionRun(input: {
       throw error
     }
 
+    const turnRef = prepared.models[0]?.request.messageId
+    const disposition = turnRef ? 'delivering' : 'queued'
+    if (input.deliveryMessage?.delivery) {
+      // Persist turn ownership before send can run model/tool side effects; crash recovery must
+      // interrupt an ambiguous started turn instead of redispatching it.
+      agentSessionMessageService.transitionSessionDelivery(input.sessionId, input.deliveryMessage.id, disposition, {
+        expected: ['accepted', 'queued'],
+        ...(turnRef ? { turnRef } : {})
+      })
+    }
+
     manager.send({
       topicId: prepared.topicId,
       models: prepared.models,
@@ -156,14 +166,6 @@ export async function startAgentSessionRun(input: {
       siblingsGroupId: prepared.siblingsGroupId,
       lifecycle: prepared.lifecycle
     })
-    const disposition = wasBusy || input.queueOnly ? 'queued' : 'delivering'
-    if (input.deliveryMessage?.delivery) {
-      const turnRef = disposition === 'delivering' ? prepared.models[0]?.request.messageId : undefined
-      agentSessionMessageService.transitionSessionDelivery(input.sessionId, input.deliveryMessage.id, disposition, {
-        expected: ['accepted', 'queued'],
-        ...(turnRef ? { turnRef } : {})
-      })
-    }
     result = input.deliveryMessage ? { mode: 'started', disposition } : { mode: 'started' }
   })
   return result

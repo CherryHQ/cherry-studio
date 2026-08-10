@@ -8,6 +8,7 @@ import type { StreamListener } from '../../types'
 const events: string[] = []
 // Deferred resolvers so the test controls when each run's prepareDispatch completes.
 const prepareResolvers: Array<() => void> = []
+let preparedMessageId: string | undefined
 
 const prepareDispatchMock = vi.fn((primary: StreamListener, req: { topicId: string }) => {
   const seq = prepareResolvers.length
@@ -16,7 +17,7 @@ const prepareDispatchMock = vi.fn((primary: StreamListener, req: { topicId: stri
     prepareResolvers.push(() =>
       resolve({
         topicId: req.topicId,
-        models: [],
+        models: preparedMessageId ? [{ request: { messageId: preparedMessageId } }] : [],
         listeners: [primary],
         isMultiModel: false,
         userMessage: undefined,
@@ -115,6 +116,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
     BaseService.resetInstances()
     events.length = 0
     prepareResolvers.length = 0
+    preparedMessageId = undefined
     prepareDispatchMock.mockClear()
     sessionGetById.mockReset().mockReturnValue({ agentId: 'agent-1' })
     runtimeBusy.mockReset().mockReturnValue(false)
@@ -244,6 +246,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
 
   it('starts an idle durable delivery and advances its persisted status', async () => {
     const message = deliveryMessage()
+    preparedMessageId = 'assistant-1'
     const run = startAgentSessionRun({
       sessionId: message.sessionId,
       userParts: message.data.parts,
@@ -260,11 +263,39 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
       expect.anything()
     )
     expect(transitionDelivery).toHaveBeenCalledWith(message.sessionId, message.id, 'delivering', {
-      expected: ['accepted', 'queued']
+      expected: ['accepted', 'queued'],
+      turnRef: 'assistant-1'
     })
+    expect(transitionDelivery.mock.invocationCallOrder[0]).toBeLessThan(sendSpy.mock.invocationCallOrder[0])
   })
 
-  it('honors queue-only delivery even while the target is idle', async () => {
+  it('persists an idle queue-only delivery as delivering before starting its turn', async () => {
+    const message = deliveryMessage('queue')
+    preparedMessageId = 'assistant-queue'
+    const run = startAgentSessionRun({
+      sessionId: message.sessionId,
+      userParts: message.data.parts,
+      listeners: [listener('delivery')],
+      deliveryMessage: message,
+      queueOnly: true
+    })
+    await flush()
+    prepareResolvers[0]()
+
+    await expect(run).resolves.toEqual({ mode: 'started', disposition: 'delivering' })
+    expect(prepareDispatchMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ agentDeliveryQueueOnly: true }),
+      expect.anything()
+    )
+    expect(transitionDelivery).toHaveBeenCalledWith(message.sessionId, message.id, 'delivering', {
+      expected: ['accepted', 'queued'],
+      turnRef: 'assistant-queue'
+    })
+    expect(transitionDelivery.mock.invocationCallOrder[0]).toBeLessThan(sendSpy.mock.invocationCallOrder[0])
+  })
+
+  it('keeps a queue-only delivery queued when it enters the runtime FIFO', async () => {
     const message = deliveryMessage('queue')
     const run = startAgentSessionRun({
       sessionId: message.sessionId,
@@ -277,11 +308,6 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
     prepareResolvers[0]()
 
     await expect(run).resolves.toEqual({ mode: 'started', disposition: 'queued' })
-    expect(prepareDispatchMock).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ agentDeliveryQueueOnly: true }),
-      expect.anything()
-    )
     expect(transitionDelivery).toHaveBeenCalledWith(message.sessionId, message.id, 'queued', {
       expected: ['accepted', 'queued']
     })
@@ -289,6 +315,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
 
   it('replays a recoverable delivery after restart through the same dispatch lock', async () => {
     const message = deliveryMessage()
+    preparedMessageId = 'assistant-recovered'
     listRecoverableDeliveries.mockReturnValue([message])
     const recovery = recoverAcceptedAgentSessionDeliveries()
     await flush()
@@ -297,7 +324,8 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
     await recovery
     expect(sendSpy).toHaveBeenCalledOnce()
     expect(transitionDelivery).toHaveBeenCalledWith(message.sessionId, message.id, 'delivering', {
-      expected: ['accepted', 'queued']
+      expected: ['accepted', 'queued'],
+      turnRef: 'assistant-recovered'
     })
   })
 })
