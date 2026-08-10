@@ -59,6 +59,30 @@ describe('ai.stream.open IPC schema', () => {
       }).success
     ).toBe(false)
   })
+
+  it('accepts an explicit failed assistant row for in-place retry', () => {
+    expect(
+      openStream.parse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        retryMessageId: 'assistant-failed',
+        mentionedModelIds: ['openai::gpt-4o']
+      })
+    ).toMatchObject({ retryMessageId: 'assistant-failed' })
+  })
+
+  it('preserves an explicit live reply-group append target', () => {
+    expect(
+      openStream.parse({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'user-1',
+        appendToLiveGroupMessageId: 'assistant-source',
+        mentionedModelIds: ['anthropic::claude-sonnet']
+      })
+    ).toMatchObject({ appendToLiveGroupMessageId: 'assistant-source' })
+  })
 })
 
 describe('ai.agent.create IPC schema', () => {

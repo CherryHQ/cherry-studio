@@ -5,6 +5,8 @@
  */
 
 import { loggerService } from '@logger'
+import { messageService } from '@main/data/services/MessageService'
+import { topicService } from '@main/data/services/TopicService'
 import type { AiStreamOpenRequest, AiStreamOpenResponse, ApprovalDecision } from '@shared/ai/transport'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 
@@ -100,17 +102,20 @@ export async function dispatchStreamRequest(
       topicId: req.topicId
     })
   }
-  const prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream }).catch((error: unknown) => {
-    if (isAgentSessionWorkspaceError(error)) {
-      return {
-        blocked: {
-          reason: 'agent-session-workspace' as const,
-          message: error.message
+  const activeExecutions = hasLiveStream ? manager.inspect(req.topicId)?.executions : undefined
+  const prepared = await provider
+    .prepareDispatch(subscriber, req, { hasLiveStream, activeExecutions })
+    .catch((error: unknown) => {
+      if (isAgentSessionWorkspaceError(error)) {
+        return {
+          blocked: {
+            reason: 'agent-session-workspace' as const,
+            message: error.message
+          }
         }
       }
-    }
-    throw error
-  })
+      throw error
+    })
   if ('blocked' in prepared) {
     return { mode: 'blocked', ...prepared.blocked }
   }
@@ -162,17 +167,71 @@ export async function dispatchStreamRequest(
     )
   }
 
+  // The provider's liveness snapshot can go stale while it awaits history compaction. Re-check on
+  // the final synchronous handoff: execution terminal callbacks cannot interleave between this
+  // decision, the active-node correction, and send(). If the group settled, honour the shared
+  // contract by degrading to an ordinary regeneration that activates the new assistant row.
+  const hasLiveStreamAtHandoff = prepared.appendLiveExecution && manager.hasLiveStream(prepared.topicId)
+  const appendTargetStillCurrent = Boolean(
+    hasLiveStreamAtHandoff &&
+      prepared.appendLiveGroupAnchorMessageId &&
+      manager
+        .inspect(prepared.topicId)
+        ?.executions.some((execution) => execution.anchorMessageId === prepared.appendLiveGroupAnchorMessageId)
+  )
+  if (prepared.appendLiveExecution && hasLiveStreamAtHandoff && !appendTargetStillCurrent) {
+    if (prepared.rollbackReservation) {
+      prepared.rollbackReservation()
+    } else if (prepared.activateAppendFallback !== false) {
+      for (const placeholderId of placeholderIds) messageService.delete(placeholderId)
+    }
+    throw new Error('The live reply group changed while the model append was being prepared')
+  }
+  const appendLiveExecution = Boolean(prepared.appendLiveExecution && appendTargetStillCurrent)
+  if (prepared.replaceLiveExecution && manager.hasLiveStream(prepared.topicId)) {
+    const retryModel = prepared.models[0]
+    const replaceTargetStillCurrent = Boolean(
+      retryModel &&
+        manager
+          .inspect(prepared.topicId)
+          ?.executions.some(
+            (execution) =>
+              execution.modelId === retryModel.modelId &&
+              execution.anchorMessageId === retryModel.request.messageId &&
+              execution.status !== 'streaming'
+          )
+    )
+    if (!replaceTargetStillCurrent) {
+      prepared.rollbackReservation?.()
+      throw new Error('The retry execution changed while the assistant reservation was being prepared')
+    }
+  }
+  let preserveActiveNode = prepared.preserveActiveNode
+  if (prepared.appendLiveExecution && !appendLiveExecution && prepared.activateAppendFallback !== false) {
+    const fallbackActiveNodeId = placeholderIds.at(-1)
+    if (!fallbackActiveNodeId) {
+      throw new Error(`Live-group append fallback produced no assistant placeholder (topicId=${prepared.topicId})`)
+    }
+    topicService.setActiveNode(prepared.topicId, fallbackActiveNodeId)
+    preserveActiveNode = false
+  }
+
   const result = manager.send({
     topicId: prepared.topicId,
     models: prepared.models,
     listeners: prepared.listeners,
     siblingsGroupId: prepared.siblingsGroupId,
+    replaceLiveExecution: prepared.replaceLiveExecution,
+    appendLiveExecution,
+    appendLiveGroupAnchorMessageId: prepared.appendLiveGroupAnchorMessageId,
     lifecycle: prepared.lifecycle
   })
 
   return {
     mode: result.mode,
     executionIds: prepared.isMultiModel ? result.executionIds : undefined,
+    activeExecutions: result.activeExecutions.length > 0 ? result.activeExecutions : undefined,
+    preserveActiveNode,
     userMessageId: prepared.userMessageId,
     reservedMessages: prepared.reservedMessages,
     placeholderIds: placeholderIds.length > 0 ? placeholderIds : undefined

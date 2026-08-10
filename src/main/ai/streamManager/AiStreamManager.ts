@@ -12,6 +12,7 @@ import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
+  ActiveExecution,
   AiStreamAttachRequest,
   AiStreamAttachResponse,
   AiStreamDetachRequest,
@@ -87,6 +88,7 @@ export interface SendModelSpec {
   modelId: UniqueModelId
   request: ManagedAiStreamRequest
   runtimeTimingSeed?: MessageRuntimeTiming
+  seedFromEmpty?: boolean
   rootSpan?: Span
   abortController?: AbortController
 }
@@ -98,6 +100,12 @@ export interface SendInput {
   /** Upserted by id. */
   listeners: StreamListener[]
   siblingsGroupId?: number
+  /** Retry one terminal execution in place while sibling executions remain live. */
+  replaceLiveExecution?: boolean
+  /** Append one new model execution to the current live reply group. */
+  appendLiveExecution?: boolean
+  /** Existing assistant anchor that identifies the live reply group being appended to. */
+  appendLiveGroupAnchorMessageId?: string
   /** Defaults to chat lifecycle. `streamPrompt` passes `promptStreamLifecycle`. */
   lifecycle?: StreamLifecycle
 }
@@ -107,6 +115,8 @@ export interface SendResult {
   mode: 'started' | 'injected'
   /** `started` → fresh ids; `injected` → ids already running on the topic. */
   executionIds: UniqueModelId[]
+  /** Runtime identities for the executions launched by this call. */
+  activeExecutions: ActiveExecution[]
 }
 
 export interface StartRuntimeTurnInput {
@@ -125,6 +135,10 @@ export interface StartRuntimeTurnInput {
 
 export interface ExecutionSnapshot {
   readonly modelId: UniqueModelId
+  readonly attemptId: string
+  readonly attemptVersion: number
+  readonly anchorMessageId?: string
+  readonly seedFromEmpty?: boolean
   readonly status: StreamExecution['status']
   /** Observer-only — execution's own `AbortController.signal`. */
   readonly abortSignal: AbortSignal
@@ -156,6 +170,16 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
 /** `pending` covers the pre-first-chunk window — don't compare against `'streaming'` alone. */
 function isLiveStatus(status: ActiveStream['status']): boolean {
   return status === 'pending' || status === 'streaming'
+}
+
+function toActiveExecution(exec: StreamExecution): ActiveExecution {
+  return {
+    executionId: exec.modelId,
+    attemptId: exec.attemptId,
+    attemptVersion: exec.attemptVersion,
+    anchorMessageId: exec.anchorMessageId,
+    ...(exec.seedFromEmpty ? { seedFromEmpty: true } : {})
+  }
 }
 
 function errorFromStreamChunk(errorText: string): SerializedError {
@@ -234,6 +258,7 @@ export class AiStreamManager extends BaseService {
   private readonly dispatchLock = new KeyedMutex()
   private readonly config: AiStreamManagerConfig
   private nextStreamTurnSequence = 0
+  private nextExecutionAttemptSequence = 0
   /** Per-topic FIFO of steer user-message ids persisted while a turn was live. Chat's analogue of
    *  the agent runtime's `pendingTurns`; drained one continuation turn at a time. */
   private readonly pendingSteers = new Map<
@@ -534,6 +559,67 @@ export class AiStreamManager extends BaseService {
   send(input: SendInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
 
+    if (input.replaceLiveExecution && input.appendLiveExecution) {
+      throw new Error('send(): replaceLiveExecution and appendLiveExecution are mutually exclusive')
+    }
+
+    if (existing && isLiveStatus(existing.status) && (input.replaceLiveExecution || input.appendLiveExecution)) {
+      if (input.models.length !== 1) {
+        throw new Error('send(): a dynamic live execution change requires exactly one model')
+      }
+      const [model] = input.models
+      const previous = existing.executions.get(model.modelId)
+      if (input.appendLiveExecution && previous) {
+        throw new Error(`send(): model ${model.modelId} already belongs to topic ${input.topicId}'s live reply group`)
+      }
+      if (
+        input.appendLiveExecution &&
+        (!input.appendLiveGroupAnchorMessageId ||
+          ![...existing.executions.values()].some(
+            (execution) => execution.anchorMessageId === input.appendLiveGroupAnchorMessageId
+          ))
+      ) {
+        throw new Error("send(): append target is not part of the topic's current live reply group")
+      }
+      if (input.replaceLiveExecution) {
+        if (!previous || previous.anchorMessageId !== model.request.messageId) {
+          throw new Error("send(): retry target is not the selected topic's current live execution")
+        }
+        if (previous.status === 'streaming') {
+          throw new Error(`send(): model ${model.modelId} already has a live execution on topic ${input.topicId}`)
+        }
+      }
+      const hasLiveSibling = [...existing.executions.entries()].some(
+        ([modelId, execution]) => modelId !== model.modelId && execution.status === 'streaming'
+      )
+
+      if (existing.cleanupTimer) clearTimeout(existing.cleanupTimer)
+      existing.cleanupTimer = undefined
+      existing.expiresAt = undefined
+      for (const listener of input.listeners) existing.listeners.set(listener.id, listener)
+      const nextExecution = this.createAndLaunchExecution(
+        input.topicId,
+        model.modelId,
+        model.request,
+        input.siblingsGroupId ?? previous?.siblingsGroupId,
+        model.runtimeTimingSeed,
+        model.seedFromEmpty,
+        model.rootSpan,
+        model.abortController
+      )
+      // Replacing an existing key preserves its insertion position; appending a new key places the
+      // new model last. Both cases keep the visual multi-model order stable.
+      existing.executions.set(model.modelId, nextExecution)
+      existing.isMultiModel = existing.executions.size > 1
+      existing.status = hasLiveSibling ? 'streaming' : 'pending'
+      existing.lifecycle.onActiveExecutionsChanged(existing)
+      return {
+        mode: 'started',
+        executionIds: [model.modelId],
+        activeExecutions: [toActiveExecution(nextExecution)]
+      }
+    }
+
     if (existing && isLiveStatus(existing.status)) {
       // Live topic → inject: a chat steer (busy submit) or an agent-session follow-up was already
       // persisted/enqueued by its provider; just attach the new subscriber to the running stream
@@ -551,7 +637,13 @@ export class AiStreamManager extends BaseService {
         )
       }
       for (const listener of input.listeners) this.addListener(input.topicId, listener)
-      return { mode: 'injected', executionIds: [...existing.executions.keys()] }
+      return {
+        mode: 'injected',
+        executionIds: [...existing.executions.keys()],
+        activeExecutions: [...existing.executions.values()]
+          .filter((exec) => exec.status === 'streaming')
+          .map(toActiveExecution)
+      }
     }
 
     // Enqueue-only dispatch with no live stream to attach to. Two legitimate producers reach here,
@@ -568,7 +660,7 @@ export class AiStreamManager extends BaseService {
       logger.debug('send(): empty models with no live stream — enqueue-only, nothing to start', {
         topicId: input.topicId
       })
-      return { mode: 'injected', executionIds: [] }
+      return { mode: 'injected', executionIds: [], activeExecutions: [] }
     }
 
     // Evict any grace-period stream so two streams never coexist on one topic.
@@ -577,7 +669,7 @@ export class AiStreamManager extends BaseService {
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
 
-    for (const { modelId, request, runtimeTimingSeed, rootSpan, abortController } of input.models) {
+    for (const { modelId, request, runtimeTimingSeed, seedFromEmpty, rootSpan, abortController } of input.models) {
       if (executions.has(modelId)) {
         throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
       }
@@ -587,6 +679,7 @@ export class AiStreamManager extends BaseService {
         request,
         input.siblingsGroupId,
         runtimeTimingSeed,
+        seedFromEmpty,
         rootSpan,
         abortController
       )
@@ -615,7 +708,8 @@ export class AiStreamManager extends BaseService {
 
     return {
       mode: 'started',
-      executionIds: input.models.map((m) => m.modelId)
+      executionIds: input.models.map((m) => m.modelId),
+      activeExecutions: [...executions.values()].map(toActiveExecution)
     }
   }
 
@@ -722,6 +816,58 @@ export class AiStreamManager extends BaseService {
     return Boolean(stream && isLiveStatus(stream.status))
   }
 
+  /**
+   * Wait until a failed execution has finished notifying/persisting its terminal event, then decide
+   * whether a retry can replace that exact slot or should start a fresh one-model stream because the
+   * sibling turn finished in the meantime. Called under the topic dispatch lock.
+   */
+  async awaitExecutionRetry(
+    topicId: string,
+    modelId: UniqueModelId,
+    anchorMessageId: string,
+    compatibleGroupAnchorMessageIds: readonly string[] = []
+  ): Promise<'replace-live' | 'append-live' | 'start-new'> {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return 'start-new'
+
+    const execution = stream.executions.get(modelId)
+    if (!execution || execution.anchorMessageId !== anchorMessageId) {
+      if (isLiveStatus(stream.status)) {
+        const compatibleAnchors = new Set(compatibleGroupAnchorMessageIds)
+        const hasCompatibleLiveGroup = [...stream.executions.values()].some(
+          (candidate) =>
+            candidate.anchorMessageId !== anchorMessageId &&
+            candidate.anchorMessageId !== undefined &&
+            compatibleAnchors.has(candidate.anchorMessageId)
+        )
+        if (!stream.executions.has(modelId) && hasCompatibleLiveGroup) return 'append-live'
+        throw new Error("The selected assistant is not part of this topic's live reply group")
+      }
+      return 'start-new'
+    }
+    if (execution.status === 'streaming') {
+      throw new Error('The selected assistant execution is not ready to retry')
+    }
+
+    // WebContents is notified before persistence listeners. Do not reset the row or replace the
+    // listener id until the old loop has completed every terminal listener.
+    await execution.loopPromise
+
+    const current = this.activeStreams.get(topicId)
+    if (!current) return 'start-new'
+    const currentExecution = current.executions.get(modelId)
+    if (!currentExecution || currentExecution !== execution || currentExecution.anchorMessageId !== anchorMessageId) {
+      if (isLiveStatus(current.status)) {
+        throw new Error('The selected assistant execution changed before retry could start')
+      }
+      return 'start-new'
+    }
+    if (currentExecution.status === 'streaming') {
+      throw new Error('The selected assistant execution changed before retry could start')
+    }
+    return isLiveStatus(current.status) ? 'replace-live' : 'start-new'
+  }
+
   /** Whether any chat or agent turn is still able to write persisted stream state. */
   hasLiveStreams(): boolean {
     for (const stream of this.activeStreams.values()) {
@@ -814,7 +960,9 @@ export class AiStreamManager extends BaseService {
     // across executions chunks are interleaved in the order we see each
     // execution's buffer (acceptable: the Renderer demuxes by executionId + anchor).
     for (const exec of stream.executions.values()) {
-      for (const chunk of exec.buffer) listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId)
+      for (const chunk of exec.buffer) {
+        listener.onChunk(chunk.chunk, chunk.executionId, chunk.anchorMessageId, chunk.attemptId)
+      }
     }
     return true
   }
@@ -936,7 +1084,7 @@ export class AiStreamManager extends BaseService {
       exec.droppedChunks += 1
     }
     const anchorMessageId = exec.anchorMessageId
-    exec.buffer.push({ topicId, executionId: sourceModelId, anchorMessageId, chunk })
+    exec.buffer.push({ topicId, executionId: sourceModelId, attemptId: exec.attemptId, anchorMessageId, chunk })
 
     // Keeps stripped outputs resolvable until the message lands in SQLite. Bounded; an evicted
     // entry just falls through to the persisted copy.
@@ -958,7 +1106,7 @@ export class AiStreamManager extends BaseService {
         continue
       }
       try {
-        listener.onChunk(chunk, sourceModelId, anchorMessageId)
+        listener.onChunk(chunk, sourceModelId, anchorMessageId, exec.attemptId)
       } catch (err) {
         logger.warn('Listener threw', { topicId, listenerId: id, event: 'onChunk', err })
       }
@@ -1095,6 +1243,7 @@ export class AiStreamManager extends BaseService {
       finalMessage,
       status: 'error',
       modelId: exec.modelId,
+      attemptId: exec.attemptId,
       anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       timings: { ...exec.timings },
@@ -1293,7 +1442,11 @@ export class AiStreamManager extends BaseService {
     for (const exec of stream.executions.values()) {
       executions.push({
         modelId: exec.modelId,
+        attemptId: exec.attemptId,
+        attemptVersion: exec.attemptVersion,
         status: exec.status,
+        anchorMessageId: exec.anchorMessageId,
+        seedFromEmpty: exec.seedFromEmpty,
         abortSignal: exec.abortController.signal,
         bufferedChunkCount: exec.buffer.length,
         droppedChunks: exec.droppedChunks,
@@ -1408,6 +1561,7 @@ export class AiStreamManager extends BaseService {
     request: ManagedAiStreamRequest,
     siblingsGroupId?: number,
     runtimeTimingSeed?: MessageRuntimeTiming,
+    seedFromEmpty?: boolean,
     rootSpan?: Span,
     abortController?: AbortController
   ): StreamExecution {
@@ -1415,7 +1569,10 @@ export class AiStreamManager extends BaseService {
     // so the `exec` object reference is stable inside the arrow function below.
     const exec: StreamExecution = {
       modelId,
+      attemptId: randomUUID(),
+      attemptVersion: ++this.nextExecutionAttemptSequence,
       anchorMessageId: request.messageId,
+      seedFromEmpty,
       abortController: abortController ?? new AbortController(),
       status: 'streaming',
       buffer: [],
@@ -1549,6 +1706,7 @@ export class AiStreamManager extends BaseService {
       finalMessage: exec.finalMessage,
       status: 'success',
       modelId: exec.modelId,
+      attemptId: exec.attemptId,
       anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       // Snapshot timings so listeners see a stable copy even if the
@@ -1568,6 +1726,7 @@ export class AiStreamManager extends BaseService {
       finalMessage: exec.finalMessage,
       status: 'paused' as const,
       modelId: exec.modelId,
+      attemptId: exec.attemptId,
       anchorMessageId: exec.anchorMessageId,
       isTopicDone,
       timings: { ...exec.timings },

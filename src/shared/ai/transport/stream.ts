@@ -25,6 +25,8 @@ export interface StreamChunkPayload {
   topicId: string
   /** Multi-model: source model that produced this chunk. Frontend demuxes by this plus anchorMessageId. */
   executionId?: UniqueModelId
+  /** Unique runtime attempt. Distinguishes repeated runs of the same model against the same row. */
+  attemptId?: string
   /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
   anchorMessageId?: string
   chunk: UIMessageChunk
@@ -55,7 +57,13 @@ export type TopicStreamStatus =
  */
 export interface ActiveExecution {
   executionId: UniqueModelId
+  /** Unique runtime attempt. Optional for backward-compatible persisted/test snapshots. */
+  attemptId?: string
+  /** Main-process monotonic attempt order, used to resolve cross-window stale optimistic state. */
+  attemptVersion?: number
   anchorMessageId?: string
+  /** This attempt reset its persisted anchor row and must start from empty parts in every window. */
+  seedFromEmpty?: boolean
 }
 
 /** Chat-tree target captured when a queued draft is created. */
@@ -117,6 +125,7 @@ export interface TopicStatusSnapshotEntry {
 export interface StreamDonePayload {
   topicId: string
   executionId?: UniqueModelId
+  attemptId?: string
   anchorMessageId?: string
   status: 'success' | 'paused'
   isTopicDone?: boolean
@@ -127,6 +136,7 @@ export interface StreamErrorPayload {
   topicId: string
   /** Multi-model: which model's execution errored. */
   executionId?: UniqueModelId
+  attemptId?: string
   anchorMessageId?: string
   /** True when the topic has no remaining streaming executions. */
   isTopicDone?: boolean
@@ -171,6 +181,13 @@ export type AiStreamOpenRequest = {
       trigger: 'regenerate-message'
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
+      /** Failed assistant row to reset and retry in place instead of creating a sibling. */
+      retryMessageId?: string
+      /**
+       * Assistant row whose currently running reply group should receive one new model response.
+       * When the referenced group is no longer live, this degrades to an ordinary regeneration.
+       */
+      appendToLiveGroupMessageId?: string
       userMessageParts?: never
       /** Canonical reasoning selection captured for this regenerated turn. */
       reasoningEffort?: ReasoningEffortOption
@@ -268,6 +285,10 @@ export type AiStreamOpenResponse =
       mode: 'started' | 'injected'
       /** Multi-model: execution IDs for frontend to create per-model streams. */
       executionIds?: UniqueModelId[]
+      /** Fresh runtime identities, including per-attempt ids, for optimistic stream attachment. */
+      activeExecutions?: ActiveExecution[]
+      /** The reservation deliberately left the topic's persisted active node unchanged. */
+      preserveActiveNode?: boolean
       /**
        * Authoritative DB id of the user message created for this turn, when the
        * dispatch created one (submit on a persisted topic; agent session).

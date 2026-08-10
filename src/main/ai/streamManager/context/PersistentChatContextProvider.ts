@@ -215,6 +215,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // 1. Resolve context
     const topic = topicService.getById(req.topicId)
 
+    // A failed assistant retry is identity-preserving: reset and rerun the exact row so its
+    // sibling position, descendants, and the topic's active branch remain untouched.
+    if (req.trigger === 'regenerate-message' && req.retryMessageId) {
+      if (req.appendToLiveGroupMessageId) {
+        throw new Error("'retryMessageId' and 'appendToLiveGroupMessageId' cannot be combined")
+      }
+      return this.prepareAssistantRetry(subscriber, req, topic?.assistantId ?? undefined)
+    }
+
     // continue-conversation reuses the existing assistant anchor — no new placeholder, no multi-model.
     if (req.trigger === 'continue-conversation') {
       return this.prepareContinueDispatch(subscriber, req, topic?.assistantId ?? undefined)
@@ -283,6 +292,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const isRegenerate = req.trigger === 'regenerate-message'
     const models = resolveModels(req.mentionedModelIds, defaultModelId)
     const isMultiModel = models.length > 1
+    const liveGroupAppendMessageId = isRegenerate && ctx.hasLiveStream ? req.appendToLiveGroupMessageId : undefined
     const turnOptions: AssistantTurnOptions = {
       reasoningEffort: req.reasoningEffort,
       fastMode: req.fastMode === true
@@ -292,10 +302,26 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       throw new Error(`'regenerate-message' requires parentAnchorId`)
     }
 
-    // A regenerate while the topic is still live would build placeholder rows that send()'s inject
-    // path discards — orphaning them as `pending`. The renderer gates regenerate on a non-busy topic,
-    // so reject this should-not-happen state before any DB write instead of failing silently.
-    if (isRegenerate && ctx.hasLiveStream) {
+    if (liveGroupAppendMessageId) {
+      if (models.length !== 1) {
+        throw new Error('A live reply group can append exactly one model at a time')
+      }
+      const target = messageService.getById(liveGroupAppendMessageId)
+      if (target.role !== 'assistant' || target.topicId !== req.topicId || target.parentId !== req.parentAnchorId) {
+        throw new Error('Live reply-group target does not belong to the requested topic/user anchor')
+      }
+      const sourceExecution = ctx.activeExecutions?.find(
+        (execution) => execution.anchorMessageId === liveGroupAppendMessageId
+      )
+      if (!sourceExecution) {
+        throw new Error("The selected assistant is not part of this topic's live reply group")
+      }
+      if (ctx.activeExecutions?.some((execution) => execution.modelId === models[0].id)) {
+        throw new Error(`Model ${models[0].id} is already part of this live reply group`)
+      }
+    } else if (isRegenerate && ctx.hasLiveStream) {
+      // An ordinary regenerate while the topic is live would build placeholder rows that send()'s
+      // inject path discards. Only the explicit @-model live-group append is allowed through.
       throw new Error('Cannot regenerate while a stream is live on this topic')
     }
 
@@ -336,6 +362,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         userMessage: userMessageInput,
         siblingsGroupId,
+        preserveActiveNode: Boolean(liveGroupAppendMessageId),
         placeholders: turnRootSpans.map(({ model }) => ({
           role: 'assistant',
           data: { parts: [], turnOptions },
@@ -431,7 +458,141 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         userMessageId: userMessage.id,
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
-        isMultiModel
+        appendLiveExecution: Boolean(liveGroupAppendMessageId),
+        appendLiveGroupAnchorMessageId: liveGroupAppendMessageId,
+        preserveActiveNode: Boolean(liveGroupAppendMessageId),
+        isMultiModel: isMultiModel || Boolean(liveGroupAppendMessageId)
+      }
+    } catch (error) {
+      endTurnRootSpansWithError(turnRootSpans, error)
+      throw error
+    }
+  }
+
+  private async prepareAssistantRetry(
+    subscriber: StreamListener,
+    req: Extract<MainDispatchRequest, { trigger: 'regenerate-message' }>,
+    assistantId: string | undefined
+  ): Promise<PreparedDispatch> {
+    const target = messageService.getById(req.retryMessageId as string)
+    if (target.role !== 'assistant') {
+      throw new Error(`'retryMessageId' must identify an assistant message (got '${target.role}')`)
+    }
+    if (target.topicId !== req.topicId || target.parentId !== req.parentAnchorId) {
+      throw new Error('Retry target does not belong to the requested topic/user anchor')
+    }
+    const parent = messageService.getById(req.parentAnchorId)
+    if (parent.role !== 'user' || parent.topicId !== req.topicId) {
+      throw new Error(`'regenerate-message' parentAnchorId must identify a user message in the topic`)
+    }
+
+    const targetModelId = (target.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
+    if (req.mentionedModelIds && (req.mentionedModelIds.length !== 1 || req.mentionedModelIds[0] !== targetModelId)) {
+      throw new Error('In-place retry cannot change the assistant model')
+    }
+    const [model] = resolveModels([targetModelId], targetModelId)
+    const compatibleGroupAnchorMessageIds = messageService
+      .getChildrenByParentId(parent.id)
+      .filter(
+        (candidate) =>
+          candidate.role === 'assistant' &&
+          target.siblingsGroupId > 0 &&
+          candidate.siblingsGroupId === target.siblingsGroupId
+      )
+      .map((candidate) => candidate.id)
+    const manager = application.get('AiStreamManager')
+    await manager.awaitExecutionRetry(req.topicId, targetModelId, target.id, compatibleGroupAnchorMessageIds)
+    const turnOptions: AssistantTurnOptions = {
+      reasoningEffort: req.reasoningEffort ?? target.data.turnOptions?.reasoningEffort,
+      fastMode: req.fastMode ?? target.data.turnOptions?.fastMode ?? false
+    }
+    const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
+    const containerTraceId = topicService.ensureTraceId(req.topicId)
+    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
+    const [{ span: rootSpan }] = turnRootSpans
+
+    try {
+      const { messages: history, retainedContext } = await this.resolveCompactedHistory(
+        parent.id,
+        req.topicId,
+        [model],
+        contextSettingsOverride,
+        toCompactionSink(subscriber)
+      )
+      const request = this.buildStreamRequest(
+        req.topicId,
+        assistantId,
+        model.id,
+        history,
+        target.id,
+        getKnowledgeBaseIdsFromParts(parent.data.parts ?? []),
+        turnOptions.reasoningEffort,
+        turnOptions.fastMode === true,
+        retainedContext
+      )
+      applyTurnInputAttributes(rootSpan, {
+        modelId: model.id,
+        topicId: req.topicId,
+        operation: 'chat',
+        messages: request.messages
+      })
+
+      // Context preparation can outlive the original sibling turn. Re-admit against the exact
+      // model+anchor immediately before the synchronous reset/dispatch handoff, so an unrelated
+      // newer live turn cannot leave this historical row reset to pending without owning it.
+      const admission = await manager.awaitExecutionRetry(
+        req.topicId,
+        targetModelId,
+        target.id,
+        compatibleGroupAnchorMessageIds
+      )
+      const appendLiveGroupAnchorMessageId =
+        admission === 'append-live'
+          ? manager
+              .inspect(req.topicId)
+              ?.executions.find(
+                (execution) =>
+                  execution.anchorMessageId !== undefined &&
+                  compatibleGroupAnchorMessageIds.includes(execution.anchorMessageId)
+              )?.anchorMessageId
+          : undefined
+      if (admission === 'append-live' && !appendLiveGroupAnchorMessageId) {
+        throw new Error('The compatible retry group changed before the assistant row could be reset')
+      }
+
+      // Reset only after all async context preparation and the final admission succeed. This atomic
+      // update deliberately does not write topic.activeNodeId, so retrying an off-path branch cannot
+      // activate it.
+      const resetReservation = messageService.resetAssistantForRetry(target.id)
+      const listeners: StreamListener[] = [
+        subscriber,
+        new PersistenceListener({
+          topicId: req.topicId,
+          modelId: model.id,
+          backend: new MessageServiceBackend({
+            assistantMessageId: target.id,
+            turnOptions,
+            contextSettingsOverride
+          }),
+          onPersistFailed: (error) =>
+            application.get('AiStreamManager').broadcastTopicError(req.topicId, model.id, error)
+        }),
+        new TraceFlushListener(req.topicId)
+      ]
+
+      return {
+        topicId: req.topicId,
+        models: [{ modelId: model.id, request, seedFromEmpty: true, rootSpan }],
+        listeners,
+        reservedMessages: [toReservedUIMessage(resetReservation.message)],
+        siblingsGroupId: target.siblingsGroupId || undefined,
+        replaceLiveExecution: admission === 'replace-live',
+        appendLiveExecution: admission === 'append-live',
+        appendLiveGroupAnchorMessageId,
+        activateAppendFallback: false,
+        preserveActiveNode: true,
+        rollbackReservation: resetReservation.rollback,
+        isMultiModel: false
       }
     } catch (error) {
       endTurnRootSpansWithError(turnRootSpans, error)

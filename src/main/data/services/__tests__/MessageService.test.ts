@@ -17,7 +17,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 function mainText(content: string): MessageData {
@@ -253,6 +253,113 @@ describe('MessageService', () => {
     ]
     await dbh.db.insert(messageTable).values(withRoot('topic-1', messages))
   }
+
+  describe('resetAssistantForRetry', () => {
+    it('preserves sibling order, descendants, and active branch while resetting only attempt state', async () => {
+      await seedMultiModelTree()
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-a1-child-user',
+          parentId: 'm-a1',
+          topicId: 'topic-1',
+          role: 'user',
+          data: mainText('follow up on A'),
+          status: 'success',
+          stats: { totalTokens: 80, contextTokens: 75 },
+          compactionSummary: 'summary through downstream user',
+          createdAt: 400,
+          updatedAt: 400
+        },
+        {
+          id: 'm-a1-child-assistant',
+          parentId: 'm-a1-child-user',
+          topicId: 'topic-1',
+          role: 'assistant',
+          data: mainText('downstream answer'),
+          status: 'success',
+          stats: { totalTokens: 90, contextTokens: 85 },
+          compactionSummary: 'summary through downstream assistant',
+          createdAt: 500,
+          updatedAt: 500
+        }
+      ])
+      dbh.db
+        .update(messageTable)
+        .set({
+          data: { parts: [{ type: 'data-error', data: { message: 'failed' } }] },
+          status: 'error',
+          stats: {
+            totalTokens: 42,
+            requestCount: 1,
+            contextTokens: 40,
+            runtimeTiming: { startedAt: 10, completedAt: 20, spans: [] },
+            timeFirstTokenMs: 5,
+            timeCompletionMs: 10
+          },
+          compactionSummary: 'summary through failed assistant'
+        })
+        .where(eq(messageTable.id, 'm-a1'))
+        .run()
+
+      const before = messageService.getById('m-a1')
+      const reservation = messageService.resetAssistantForRetry('m-a1')
+      const reset = reservation.message
+      const topic = dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1')).get()
+      const invalidatedRows = dbh.db
+        .select({
+          id: messageTable.id,
+          stats: messageTable.stats,
+          compactionSummary: messageTable.compactionSummary,
+          updatedAt: messageTable.updatedAt
+        })
+        .from(messageTable)
+        .where(inArray(messageTable.id, ['m-a1', 'm-a1-child-user', 'm-a1-child-assistant']))
+        .all()
+
+      expect(reset).toMatchObject({
+        id: 'm-a1',
+        parentId: before.parentId,
+        siblingsGroupId: before.siblingsGroupId,
+        modelId: before.modelId,
+        status: 'pending',
+        data: { parts: [] }
+      })
+      expect(reset.stats).toMatchObject({ totalTokens: 42, requestCount: 1 })
+      expect(reset.stats).not.toHaveProperty('runtimeTiming')
+      expect(reset.stats).not.toHaveProperty('contextTokens')
+      expect(reset.stats).not.toHaveProperty('timeFirstTokenMs')
+      expect(reset.stats).not.toHaveProperty('timeCompletionMs')
+      expect(messageService.getById('m-a1-child-user').parentId).toBe('m-a1')
+      expect(messageService.getById('m-a1-child-assistant').parentId).toBe('m-a1-child-user')
+      expect(topic?.activeNodeId).toBe('m-follow')
+      expect(invalidatedRows).toHaveLength(3)
+      expect(invalidatedRows.every((row) => row.compactionSummary === null)).toBe(true)
+      expect(invalidatedRows.every((row) => row.stats?.contextTokens === undefined)).toBe(true)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.stats?.totalTokens).toBe(80)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.stats?.totalTokens).toBe(90)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1')?.updatedAt).toBe(210)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.updatedAt).toBe(400)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.updatedAt).toBe(500)
+
+      reservation.rollback()
+      reservation.rollback()
+      expect(messageService.getById('m-a1')).toMatchObject({
+        status: before.status,
+        data: before.data,
+        stats: before.stats,
+        compactionSummary: before.compactionSummary,
+        updatedAt: before.updatedAt
+      })
+      expect(messageService.getById('m-a1-child-user')).toMatchObject({
+        stats: { totalTokens: 80, contextTokens: 75 },
+        compactionSummary: 'summary through downstream user'
+      })
+      expect(messageService.getById('m-a1-child-assistant')).toMatchObject({
+        stats: { totalTokens: 90, contextTokens: 85 },
+        compactionSummary: 'summary through downstream assistant'
+      })
+    })
+  })
 
   describe('findPendingAssistantMessageIds', () => {
     it('returns only non-deleted assistant rows still in pending', async () => {

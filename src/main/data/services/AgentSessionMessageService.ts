@@ -540,6 +540,7 @@ export class AgentSessionMessageService {
         {
           endpoint: '/agent-sessions/:sessionId/messages',
           kind: result.dataChange,
+          routeParams: { sessionId: params.sessionId },
           entityIds: [result.entity.id]
         }
       ])
@@ -608,6 +609,7 @@ export class AgentSessionMessageService {
       {
         endpoint: '/agent-sessions/:sessionId/messages',
         kind: 'projection',
+        routeParams: { sessionId },
         entityIds: [messageId]
       }
     ])
@@ -649,6 +651,7 @@ export class AgentSessionMessageService {
         {
           endpoint: '/agent-sessions/:sessionId/messages',
           kind: 'projection',
+          routeParams: { sessionId },
           entityIds: [messageId]
         }
       ])

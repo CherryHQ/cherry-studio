@@ -6,7 +6,8 @@ import type { MessageListActions, MessageListItem } from '../../types'
 import MessageGroupMenuBar from '../MessageGroupMenuBar'
 
 const mocks = vi.hoisted(() => ({
-  actions: {} as MessageListActions
+  actions: {} as MessageListActions,
+  partsMap: {} as Record<string, Array<{ type: string; [key: string]: unknown }>>
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -27,8 +28,8 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('../../blocks', () => ({
-  usePartsMap: () => ({})
+vi.mock('../../blocks/MessagePartsContext', () => ({
+  usePartsMap: () => mocks.partsMap
 }))
 
 vi.mock('../../MessageListProvider', () => ({
@@ -65,6 +66,7 @@ const messages = [
 describe('MessageGroupMenuBar', () => {
   beforeEach(() => {
     mocks.actions = {}
+    mocks.partsMap = {}
   })
 
   it('routes group deletion through confirm capability', () => {
@@ -151,5 +153,25 @@ describe('MessageGroupMenuBar', () => {
     const deleteButton = screen.getByRole('button')
     expect(deleteButton).toBeDisabled()
     expect(deleteButton.parentElement).toHaveAttribute('data-tooltip-content', tooltip)
+  })
+
+  it('does not offer Retry All for successful non-text replies', () => {
+    mocks.actions = { regenerateMessage: vi.fn() }
+    mocks.partsMap = {
+      'assistant-1': [{ type: 'data-code', data: { content: 'const ok = true', language: 'ts' } }],
+      'assistant-2': [{ type: 'text', text: 'complete' }]
+    }
+
+    render(
+      <MessageGroupMenuBar
+        multiModelMessageStyle="horizontal"
+        setMultiModelMessageStyle={vi.fn()}
+        messages={messages}
+        selectMessageId="assistant-1"
+        setSelectedMessage={vi.fn()}
+      />
+    )
+
+    expect(document.querySelector('[data-tooltip-content="message.group.retry_failed"]')).toBeNull()
   })
 })

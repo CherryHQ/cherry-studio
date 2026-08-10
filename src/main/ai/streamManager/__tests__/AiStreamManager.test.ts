@@ -330,7 +330,7 @@ describe('AiStreamManager', () => {
       // a stream — just return without effect.
       const result = mgr.send({ topicId: 'a', models: [], listeners: [new FakeListener('l:a')] })
 
-      expect(result).toEqual({ mode: 'injected', executionIds: [] })
+      expect(result).toEqual({ mode: 'injected', executionIds: [], activeExecutions: [] })
       expect(mgr.inspect('a')).toBeUndefined()
     })
 
@@ -562,7 +562,21 @@ describe('AiStreamManager', () => {
 
       expect(result).toEqual({
         mode: 'started',
-        executionIds: ['provider-a::model-a', 'provider-b::model-b']
+        executionIds: ['provider-a::model-a', 'provider-b::model-b'],
+        activeExecutions: [
+          {
+            executionId: 'provider-a::model-a',
+            attemptId: expect.any(String),
+            attemptVersion: expect.any(Number),
+            anchorMessageId: undefined
+          },
+          {
+            executionId: 'provider-b::model-b',
+            attemptId: expect.any(String),
+            attemptVersion: expect.any(Number),
+            anchorMessageId: undefined
+          }
+        ]
       })
       expect(mockStreamText).toHaveBeenCalledTimes(2)
 
@@ -574,6 +588,238 @@ describe('AiStreamManager', () => {
       // Behaviour: the single shared listener receives from either execution.
       mgr.onChunk('a', 'provider-a::model-a', chunk('from-a'))
       expect(listener.chunks).toHaveLength(1)
+    })
+
+    it('replaces one terminal execution in place without reordering its live sibling', async () => {
+      const topicId = 'retry-topic'
+      const first = mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-a' }
+          },
+          {
+            modelId: 'provider-b::model-b',
+            request: { ...req(topicId), messageId: 'assistant-b' }
+          }
+        ],
+        listeners: [new FakeListener('l:retry')],
+        siblingsGroupId: 7
+      })
+      const firstAttemptId = first.activeExecutions[0].attemptId
+      await mgr.onExecutionError(topicId, 'provider-a::model-a', error('first attempt failed'))
+
+      const retry = mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-a' },
+            seedFromEmpty: true
+          }
+        ],
+        listeners: [new FakeListener('l:retry')],
+        siblingsGroupId: 7,
+        replaceLiveExecution: true
+      })
+
+      const snapshot = mgr.inspect(topicId)!
+      expect(snapshot.executions.map((execution) => execution.modelId)).toEqual([
+        'provider-a::model-a',
+        'provider-b::model-b'
+      ])
+      expect(snapshot.executions.map((execution) => execution.anchorMessageId)).toEqual(['assistant-a', 'assistant-b'])
+      expect(snapshot.executions[0].attemptId).not.toBe(firstAttemptId)
+      expect(snapshot.executions[0].seedFromEmpty).toBe(true)
+      expect(snapshot.executions[0].status).toBe('streaming')
+      expect(snapshot.executions[1].status).toBe('streaming')
+      expect(retry.activeExecutions).toEqual([
+        {
+          executionId: 'provider-a::model-a',
+          attemptId: snapshot.executions[0].attemptId,
+          attemptVersion: snapshot.executions[0].attemptVersion,
+          anchorMessageId: 'assistant-a',
+          seedFromEmpty: true
+        }
+      ])
+    })
+
+    it('rejects retry admission when the selected assistant is not in the current live reply group', async () => {
+      const topicId = 'unrelated-retry-topic'
+      mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-b::model-b',
+            request: { ...req(topicId), messageId: 'current-assistant' }
+          }
+        ],
+        listeners: [new FakeListener('l:current')]
+      })
+
+      await expect(mgr.awaitExecutionRetry(topicId, 'provider-a::model-a', 'historical-assistant')).rejects.toThrow(
+        "not part of this topic's live reply group"
+      )
+      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'different-anchor')).rejects.toThrow(
+        "not part of this topic's live reply group"
+      )
+      expect(() =>
+        mgr.send({
+          topicId,
+          models: [
+            {
+              modelId: 'provider-b::model-b',
+              request: { ...req(topicId), messageId: 'historical-assistant' }
+            }
+          ],
+          listeners: [],
+          replaceLiveExecution: true
+        })
+      ).toThrow("retry target is not the selected topic's current live execution")
+
+      expect(mgr.inspect(topicId)?.executions).toEqual([
+        expect.objectContaining({ modelId: 'provider-b::model-b', anchorMessageId: 'current-assistant' })
+      ])
+    })
+
+    it('admits another failed sibling into a retry stream for the same persisted reply group', async () => {
+      const topicId = 'retry-all-topic'
+      mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-a' }
+          }
+        ],
+        listeners: [new FakeListener('l:retry-all')],
+        siblingsGroupId: 7
+      })
+
+      await expect(
+        mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', ['assistant-a', 'assistant-b'])
+      ).resolves.toBe('append-live')
+      await expect(
+        mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-a', ['assistant-a', 'assistant-b'])
+      ).rejects.toThrow("not part of this topic's live reply group")
+      await expect(mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b')).rejects.toThrow(
+        "not part of this topic's live reply group"
+      )
+    })
+
+    it('appends a new model execution after the existing live group without replacing its members', () => {
+      const topicId = 'append-topic'
+      mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-a' }
+          },
+          {
+            modelId: 'provider-b::model-b',
+            request: { ...req(topicId), messageId: 'assistant-b' }
+          }
+        ],
+        listeners: [new FakeListener('l:initial')],
+        siblingsGroupId: 7
+      })
+
+      expect(() =>
+        mgr.send({
+          topicId,
+          models: [
+            {
+              modelId: 'provider-c::model-c',
+              request: { ...req(topicId), messageId: 'assistant-c' }
+            }
+          ],
+          listeners: [],
+          appendLiveExecution: true,
+          appendLiveGroupAnchorMessageId: 'historical-assistant'
+        })
+      ).toThrow("append target is not part of the topic's current live reply group")
+
+      const appended = mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-c::model-c',
+            request: { ...req(topicId), messageId: 'assistant-c' }
+          }
+        ],
+        listeners: [new FakeListener('l:append')],
+        siblingsGroupId: 7,
+        appendLiveExecution: true,
+        appendLiveGroupAnchorMessageId: 'assistant-a'
+      })
+
+      const snapshot = mgr.inspect(topicId)!
+      expect(snapshot.executions.map((execution) => execution.modelId)).toEqual([
+        'provider-a::model-a',
+        'provider-b::model-b',
+        'provider-c::model-c'
+      ])
+      expect(snapshot.executions.map((execution) => execution.anchorMessageId)).toEqual([
+        'assistant-a',
+        'assistant-b',
+        'assistant-c'
+      ])
+      expect(appended.activeExecutions).toEqual([
+        {
+          executionId: 'provider-c::model-c',
+          attemptId: snapshot.executions[2].attemptId,
+          attemptVersion: snapshot.executions[2].attemptVersion,
+          anchorMessageId: 'assistant-c'
+        }
+      ])
+      expect(snapshot.isMultiModel).toBe(true)
+      expect(mockStreamText).toHaveBeenCalledTimes(3)
+
+      expect(() =>
+        mgr.send({
+          topicId,
+          models: [{ modelId: 'provider-c::model-c', request: req(topicId) }],
+          listeners: [],
+          appendLiveExecution: true,
+          appendLiveGroupAnchorMessageId: 'assistant-a'
+        })
+      ).toThrow('already belongs')
+      expect(mockStreamText).toHaveBeenCalledTimes(3)
+    })
+
+    it('starts a fresh stream instead of appending to a terminal grace-period group', async () => {
+      const topicId = 'settled-append-topic'
+      mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-a::model-a',
+            request: { ...req(topicId), messageId: 'assistant-a' }
+          }
+        ],
+        listeners: [new FakeListener('l:initial')]
+      })
+      await mgr.onExecutionDone(topicId, 'provider-a::model-a')
+
+      const fallback = mgr.send({
+        topicId,
+        models: [
+          {
+            modelId: 'provider-b::model-b',
+            request: { ...req(topicId), messageId: 'assistant-b' }
+          }
+        ],
+        listeners: [new FakeListener('l:fallback')],
+        appendLiveExecution: true,
+        appendLiveGroupAnchorMessageId: 'assistant-a'
+      })
+
+      expect(fallback.mode).toBe('started')
+      expect(mgr.inspect(topicId)?.executions).toEqual([
+        expect.objectContaining({ modelId: 'provider-b::model-b', anchorMessageId: 'assistant-b' })
+      ])
     })
 
     it('tags every chunk with its sourceModelId (single- and multi-model)', () => {

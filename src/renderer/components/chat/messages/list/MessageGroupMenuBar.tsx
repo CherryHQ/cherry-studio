@@ -2,7 +2,6 @@ import { Button, RowFlex, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getMessageDeleteUnavailableText } from '@renderer/components/chat/messages/utils/messageDeleteAvailability'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { getTextFromParts } from '@renderer/utils/message/partsHelpers'
 import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { Columns2, Folder, Grid2X2, RotateCcw, Rows3, Trash2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -52,11 +51,9 @@ const MessageGroupMenuBar: FC<Props> = ({
 
   const isFailedMessage = (m: MessageListItem) => {
     if (m.role !== 'assistant') return false
-    const isError = (m.status || '').toLowerCase() === 'error'
+    const status = (m.status || '').toLowerCase()
     const parts = partsMap?.[m.id]
-    const content = parts ? getTextFromParts(parts) : ''
-    const noContent = !content || content.trim().length === 0
-    return isError || noContent
+    return status === 'error' || status === 'paused' || parts?.length === 0
   }
 
   const hasFailedMessages =

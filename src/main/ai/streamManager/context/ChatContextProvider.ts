@@ -21,6 +21,8 @@ export interface PreparedDispatch {
     modelId: UniqueModelId
     request: AiStreamRequest
     runtimeTimingSeed?: MessageRuntimeTiming
+    /** Renderer readers must not seed this execution from cached anchor parts. */
+    seedFromEmpty?: boolean
     rootSpan?: Span
     abortController?: AbortController
   }>
@@ -41,6 +43,18 @@ export interface PreparedDispatch {
   reservedMessages?: CherryUIMessage[]
   /** Shared sibling group for multi-model parallel responses. */
   siblingsGroupId?: number
+  /** Replace one terminal execution inside a still-live multi-model stream. */
+  replaceLiveExecution?: boolean
+  /** Add one previously absent model execution to the current live reply group. */
+  appendLiveExecution?: boolean
+  /** Existing assistant anchor that identifies the live reply group being appended to. */
+  appendLiveGroupAnchorMessageId?: string
+  /** Whether append→fresh fallback should activate the newly reserved row. Defaults to true. */
+  activateAppendFallback?: boolean
+  /** Reservation intentionally did not move the topic's active node. */
+  preserveActiveNode?: boolean
+  /** Restore an in-place reservation if the final stream handoff rejects it. */
+  rollbackReservation?: () => void
   /** True when the response should surface `executionIds` (multi-model UI). */
   isMultiModel: boolean
   /** Strategy for status broadcast, attach gating, cleanup. Omit → `chatLifecycle`. */
@@ -54,6 +68,12 @@ export interface DispatchContext {
   requireIdle?: boolean
   /** Internal callers may require the session's agent ownership at the message-write boundary. */
   expectedAgentId?: string
+  /** Stable snapshot taken with `hasLiveStream`; includes terminal siblings retained by the live turn. */
+  activeExecutions?: ReadonlyArray<{
+    modelId: UniqueModelId
+    anchorMessageId?: string
+    status: 'streaming' | 'done' | 'error' | 'aborted'
+  }>
 }
 
 export interface ChatContextProvider {

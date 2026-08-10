@@ -91,8 +91,10 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId/messages/:messageId', {
     refresh: [sessionMessagesCachePath]
   })
-  useDataChange('/agent-sessions/:sessionId/messages', () => {
-    if (enabled) void mutate()
+  useDataChange('/agent-sessions/:sessionId/messages', (effects) => {
+    if (enabled && effects.some((effect) => !effect.routeParams || effect.routeParams.sessionId === sessionId)) {
+      void mutate()
+    }
   })
 
   // Server returns each page newest-first (DESC) and the cursor walks older.

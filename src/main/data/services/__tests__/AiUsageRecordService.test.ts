@@ -196,6 +196,15 @@ describe('AiUsageRecordService', () => {
       timeThinkingMs: 200
     })
     expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          endpoint: '/topics/:topicId/messages',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: [messageId]
+        })
+      ])
+    )
   })
 
   it('persists normalized gateway tokens and computed cost from a flat finish chunk', async () => {

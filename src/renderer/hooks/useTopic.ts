@@ -16,6 +16,7 @@
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import {
+  useDataChange,
   useInfiniteFlatItems,
   useInfiniteQuery,
   useInvalidateCache,
@@ -270,6 +271,12 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
     }
   }, [loadAll, hasNext, isLoading, isRefreshing, loadNext])
 
+  useDataChange('/topics', (effects) => {
+    if (opts?.enabled !== false && effects.some((effect) => !effect.entityIds || effect.entityIds.length > 0)) {
+      void mutate()
+    }
+  })
+
   return {
     topics: topics.length > 0 ? topics : EMPTY_TOPICS,
     pages,
@@ -291,6 +298,18 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
 export function useTopicById(topicId: string | undefined) {
   const { data, isLoading, error, refetch, mutate } = useQuery(`/topics/${topicId}`, {
     enabled: !!topicId
+  })
+  useDataChange('/topics/:id', (effects) => {
+    if (
+      topicId &&
+      effects.some(
+        (effect) =>
+          (!effect.routeParams || effect.routeParams.id === topicId) &&
+          (!effect.entityIds || effect.entityIds.includes(topicId))
+      )
+    ) {
+      void mutate()
+    }
   })
 
   return {

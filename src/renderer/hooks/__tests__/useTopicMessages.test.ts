@@ -1,4 +1,4 @@
-import { mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
+import { mockUseDataChange, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
 import { renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -9,6 +9,7 @@ describe('useTopicMessages', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
     mockUseInfiniteQuery.mockClear()
+    mockUseDataChange.mockClear()
   })
 
   describe('page size by navigation mode', () => {
@@ -42,5 +43,36 @@ describe('useTopicMessages', () => {
         expect.objectContaining({ limit: 50 })
       )
     })
+  })
+
+  it('subscribes the branch history to cross-window message changes', () => {
+    renderHook(() => useTopicMessages('topic-1'))
+
+    expect(mockUseDataChange).toHaveBeenCalledWith('/topics/:topicId/messages', expect.any(Function))
+  })
+
+  it('refetches only for its own topic or an unscoped conservative effect', () => {
+    renderHook(() => useTopicMessages('topic-1'))
+    const mutate = mockUseInfiniteQuery.mock.results.at(-1)?.value.mutate
+    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
+
+    listener?.([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'projection',
+        routeParams: { topicId: 'topic-2' }
+      }
+    ])
+    expect(mutate).not.toHaveBeenCalled()
+
+    listener?.([
+      {
+        endpoint: '/topics/:topicId/messages',
+        kind: 'projection',
+        routeParams: { topicId: 'topic-1' }
+      }
+    ])
+    listener?.([{ endpoint: '/topics/:topicId/messages', kind: 'projection' }])
+    expect(mutate).toHaveBeenCalledTimes(2)
   })
 })

@@ -49,6 +49,7 @@ import {
   eq,
   gt,
   gte,
+  inArray,
   isNotNull,
   isNull,
   lt,
@@ -1380,21 +1381,55 @@ function insertRowsTx(
   return { inserted, affectedMessages: [...affectedMessages.values()] }
 }
 
-function messageReadModelEffects(refs: readonly MessageRef[]): DataApiDataChangeEffect[] {
+function messageReadModelEffects(db: DbOrTx, refs: readonly MessageRef[]): DataApiDataChangeEffect[] {
   const chatIds = refs.filter((ref) => ref.kind === 'chat').map((ref) => ref.id)
   const agentIds = refs.filter((ref) => ref.kind === 'agent-session').map((ref) => ref.id)
+  const chatIdsByTopic = new Map<string, string[]>()
+  const agentIdsBySession = new Map<string, string[]>()
+  if (chatIds.length > 0) {
+    for (const row of db
+      .select({ id: messageTable.id, topicId: messageTable.topicId })
+      .from(messageTable)
+      .where(inArray(messageTable.id, chatIds))
+      .all()) {
+      const ids = chatIdsByTopic.get(row.topicId) ?? []
+      ids.push(row.id)
+      chatIdsByTopic.set(row.topicId, ids)
+    }
+  }
+  if (agentIds.length > 0) {
+    for (const row of db
+      .select({ id: agentSessionMessageTable.id, sessionId: agentSessionMessageTable.sessionId })
+      .from(agentSessionMessageTable)
+      .where(inArray(agentSessionMessageTable.id, agentIds))
+      .all()) {
+      const ids = agentIdsBySession.get(row.sessionId) ?? []
+      ids.push(row.id)
+      agentIdsBySession.set(row.sessionId, ids)
+    }
+  }
   return [
-    ...(chatIds.length > 0
-      ? [
-          { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: chatIds } as const,
-          { endpoint: '/messages/:id', entityIds: chatIds } as const
-        ]
-      : []),
+    ...[...chatIdsByTopic].map(
+      ([topicId, entityIds]) =>
+        ({
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          routeParams: { topicId },
+          entityIds
+        }) as const
+    ),
+    ...(chatIds.length > 0 ? [{ endpoint: '/messages/:id', entityIds: chatIds } as const] : []),
+    ...[...agentIdsBySession].map(
+      ([sessionId, entityIds]) =>
+        ({
+          endpoint: '/agent-sessions/:sessionId/messages',
+          kind: 'projection',
+          routeParams: { sessionId },
+          entityIds
+        }) as const
+    ),
     ...(agentIds.length > 0
-      ? [
-          { endpoint: '/agent-sessions/:sessionId/messages', kind: 'projection', entityIds: agentIds } as const,
-          { endpoint: '/agent-sessions/:sessionId/messages/:messageId', entityIds: agentIds } as const
-        ]
+      ? [{ endpoint: '/agent-sessions/:sessionId/messages/:messageId', entityIds: agentIds } as const]
       : [])
   ]
 }
@@ -1413,7 +1448,7 @@ export class AiUsageRecordService {
       if (result.inserted === 0) return
       notifyDataApiDataChange([
         ...AI_USAGE_RECORD_READ_MODEL_CHANGES,
-        ...messageReadModelEffects(result.affectedMessages)
+        ...messageReadModelEffects(application.get('DbService').getDb(), result.affectedMessages)
       ])
     } catch (err) {
       logger.error('recordInvocations failed', err as Error, { requestIds: inputs.map((input) => input.requestId) })
@@ -1427,7 +1462,7 @@ export class AiUsageRecordService {
   refreshMessageProjection(ref: MessageRef): void {
     try {
       const changed = application.get('DbService').withWriteTx((tx) => rebuildMessageUsageProjectionTx(tx, ref))
-      if (changed) notifyDataApiDataChange(messageReadModelEffects([ref]))
+      if (changed) notifyDataApiDataChange(messageReadModelEffects(application.get('DbService').getDb(), [ref]))
     } catch (err) {
       logger.error('refreshMessageProjection failed', err as Error, ref)
     }

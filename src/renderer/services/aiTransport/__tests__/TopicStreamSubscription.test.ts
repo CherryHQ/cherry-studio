@@ -31,6 +31,7 @@ function createMockAiApi() {
       (d: {
         topicId: string
         executionId?: UniqueModelId
+        attemptId?: string
         anchorMessageId?: string
         status: string
         isTopicDone?: boolean
@@ -40,6 +41,7 @@ function createMockAiApi() {
       (d: {
         topicId: string
         executionId?: UniqueModelId
+        attemptId?: string
         anchorMessageId?: string
         isTopicDone?: boolean
         error: SerializedError
@@ -94,26 +96,36 @@ function createMockAiApi() {
     mockApi,
     request,
     on,
-    emitChunk: (topicId: string, executionId: UniqueModelId, chunk: UIMessageChunk, anchorMessageId?: string) => {
-      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, anchorMessageId, chunk })
+    emitChunk: (
+      topicId: string,
+      executionId: UniqueModelId,
+      chunk: UIMessageChunk,
+      anchorMessageId?: string,
+      attemptId?: string
+    ) => {
+      for (const cb of [...listeners.chunk]) cb({ topicId, executionId, attemptId, anchorMessageId, chunk })
     },
     emitDone: (
       topicId: string,
       executionId: UniqueModelId | undefined,
       status: 'success' | 'paused',
       isTopicDone?: boolean,
-      anchorMessageId?: string
+      anchorMessageId?: string,
+      attemptId?: string
     ) => {
-      for (const cb of [...listeners.done]) cb({ topicId, executionId, status, isTopicDone, anchorMessageId })
+      for (const cb of [...listeners.done]) {
+        cb({ topicId, executionId, attemptId, status, isTopicDone, anchorMessageId })
+      }
     },
     emitError: (
       topicId: string,
       executionId: UniqueModelId | undefined,
       isTopicDone?: boolean,
-      anchorMessageId?: string
+      anchorMessageId?: string,
+      attemptId?: string
     ) => {
       for (const cb of [...listeners.error]) {
-        cb({ topicId, executionId, isTopicDone, anchorMessageId, error: STREAM_ERROR })
+        cb({ topicId, executionId, attemptId, isTopicDone, anchorMessageId, error: STREAM_ERROR })
       }
     }
   }
@@ -216,6 +228,21 @@ describe('TopicStreamSubscription', () => {
 
     expect(await readAll(first)).toEqual([textChunk('before-steer')])
     expect(await readAll(second)).toEqual([textChunk('after-steer')])
+    sub.dispose()
+  })
+
+  it('keeps repeated attempts on the same model and anchor isolated', async () => {
+    const sub = new TopicStreamSubscription(TOPIC)
+    const retry = sub.register(A, 'assistant-1', 'attempt-2')
+    await tick()
+
+    mock.emitChunk(TOPIC, A, textChunk('retry'), 'assistant-1', 'attempt-2')
+    // A delayed terminal from the prior attempt must not close the retry branch.
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-1', 'attempt-1')
+    mock.emitChunk(TOPIC, A, textChunk('-continued'), 'assistant-1', 'attempt-2')
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-1', 'attempt-2')
+
+    expect(await readAll(retry)).toEqual([textChunk('retry'), textChunk('-continued')])
     sub.dispose()
   })
 

@@ -204,6 +204,8 @@ export const aiRequestSchemas = {
         z.object({
           trigger: z.literal('regenerate-message'),
           parentAnchorId: z.string().min(1),
+          retryMessageId: z.string().min(1).optional(),
+          appendToLiveGroupMessageId: z.string().min(1).optional(),
           reasoningEffort: ReasoningEffortOptionSchema.optional(),
           fastMode: z.boolean().optional()
         })

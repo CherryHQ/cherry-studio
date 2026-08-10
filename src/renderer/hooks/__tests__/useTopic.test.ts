@@ -3,14 +3,23 @@ import type { Topic } from '@renderer/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import {
   MockUseDataApiUtils,
+  mockUseDataChange,
   mockUseInfiniteQuery,
   mockUseInvalidateCache,
+  mockUseQuery,
   mockUseWriteCache
 } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
-import { getTopicMessages, useActiveTopic, useLatestTopic, useTopicMutations, useTopics } from '../useTopic'
+import {
+  getTopicMessages,
+  useActiveTopic,
+  useLatestTopic,
+  useTopicById,
+  useTopicMutations,
+  useTopics
+} from '../useTopic'
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 
@@ -178,6 +187,16 @@ describe('useTopics', () => {
     })
   })
 
+  it('converges topic metadata after a cross-window projection change', () => {
+    renderHook(() => useTopics())
+    const mutate = mockUseInfiniteQuery.mock.results.at(-1)?.value.mutate
+    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
+
+    listener?.([{ endpoint: '/topics', kind: 'projection', entityIds: ['topic-a'] }])
+
+    expect(mutate).toHaveBeenCalled()
+  })
+
   it('does not revalidate previously loaded pages while the load-all chain grows', () => {
     // Simulate a multi-page loadAll: each render grows `pages` by one and
     // keeps `hasNext` true until the final page. The auto-paginate effect
@@ -231,6 +250,25 @@ describe('useTopics', () => {
     // The final call — after the chain is fully loaded — flips revalidateAll on.
     const lastCall = mockUseInfiniteQuery.mock.calls[mockUseInfiniteQuery.mock.calls.length - 1]
     expect(lastCall[1]).toMatchObject({ swrOptions: { revalidateAll: true, revalidateFirstPage: false } })
+  })
+})
+
+describe('useTopicById', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('filters concrete topic metadata notifications by route id', () => {
+    renderHook(() => useTopicById('topic-a'))
+    const mutate = mockUseQuery.mock.results.at(-1)?.value.mutate
+    const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
+
+    listener?.([{ endpoint: '/topics/:id', routeParams: { id: 'topic-b' }, entityIds: ['topic-b'] }])
+    expect(mutate).not.toHaveBeenCalled()
+
+    listener?.([{ endpoint: '/topics/:id', routeParams: { id: 'topic-a' }, entityIds: ['topic-a'] }])
+    expect(mutate).toHaveBeenCalledOnce()
   })
 })
 

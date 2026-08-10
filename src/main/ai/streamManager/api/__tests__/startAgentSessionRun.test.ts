@@ -78,7 +78,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
     vi.spyOn(manager, 'hasLiveStream').mockReturnValue(false)
     sendSpy = vi.spyOn(manager, 'send').mockImplementation((input: { topicId: string }) => {
       events.push(`send:${input.topicId}`)
-      return { mode: 'started', executionIds: [] }
+      return { mode: 'started', executionIds: [], activeExecutions: [] }
     }) as unknown as ReturnType<typeof vi.spyOn>
   })
 

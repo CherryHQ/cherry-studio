@@ -1,4 +1,5 @@
 import type { Topic } from '@renderer/types/topic'
+import type { ActiveExecution } from '@shared/ai/transport'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import { act, render } from '@testing-library/react'
 import { Activity, useMemo } from 'react'
@@ -9,7 +10,9 @@ const mocks = vi.hoisted(() => ({
   onBranchLiveStateChange: vi.fn(),
   refresh: vi.fn(async () => [] as CherryUIMessage[]),
   seedMessagesCache: vi.fn(async () => undefined),
-  rollbackBranch: vi.fn()
+  rollbackBranch: vi.fn(),
+  activeExecutions: [] as ActiveExecution[],
+  overlayExecutions: [] as ActiveExecution[]
 }))
 
 vi.mock('@logger', () => ({
@@ -56,7 +59,7 @@ vi.mock('@renderer/hooks/useChatWithHistory', () => ({
     regenerate: vi.fn(),
     stop: vi.fn(),
     setMessages: vi.fn(),
-    activeExecutions: []
+    activeExecutions: mocks.activeExecutions
   })
 }))
 
@@ -68,12 +71,15 @@ vi.mock('@renderer/hooks/useConversationTurnController', () => ({
 }))
 
 vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
-  useExecutionOverlay: () => ({
-    overlay: {},
-    liveAssistants: [],
-    disposeOverlay: vi.fn(),
-    reset: vi.fn()
-  })
+  useExecutionOverlay: (_topicId: string, executions: ActiveExecution[]) => {
+    mocks.overlayExecutions = executions
+    return {
+      overlay: {},
+      liveAssistants: [],
+      disposeOverlay: vi.fn(),
+      reset: vi.fn()
+    }
+  }
 }))
 
 vi.mock('@renderer/hooks/useToolApprovalBridge', () => ({
@@ -150,6 +156,8 @@ describe('useChatRuntimeState', () => {
     mocks.turnControllerConfig = null
     mocks.refresh.mockResolvedValue([])
     mocks.seedMessagesCache.mockResolvedValue(undefined)
+    mocks.activeExecutions = []
+    mocks.overlayExecutions = []
   })
 
   it('keeps branch-live state across an <Activity> hide/show and clears it when the topic changes', async () => {
@@ -176,5 +184,45 @@ describe('useChatRuntimeState', () => {
     // Actual topic change: the stale branch-live state must be dropped.
     view.rerender(<ActivityHarness mode="visible" topicId="topic-2" />)
     expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('preserves the cached active node when Main marks a live-group append as non-activating', async () => {
+    render(<RuntimeHost topicId="topic-1" />)
+
+    await act(async () => {
+      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], undefined, true)
+    })
+
+    expect(mocks.seedMessagesCache).toHaveBeenCalledWith([reservedMessage], { preserveActiveNode: true })
+  })
+
+  it('lets the newer Main attempt replace a stale optimistic attempt for the same model and anchor', async () => {
+    const staleAttempt: ActiveExecution = {
+      executionId: 'provider::model',
+      anchorMessageId: 'reserved-1',
+      attemptId: 'attempt-1',
+      attemptVersion: 1
+    }
+    mocks.activeExecutions = [staleAttempt]
+    const view = render(<RuntimeHost topicId="topic-1" />)
+
+    await act(async () => {
+      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], [staleAttempt])
+    })
+
+    mocks.activeExecutions = [
+      {
+        executionId: 'provider::model',
+        anchorMessageId: 'reserved-1',
+        attemptId: 'attempt-2',
+        attemptVersion: 2,
+        seedFromEmpty: true
+      }
+    ]
+    view.rerender(<RuntimeHost topicId="topic-1" />)
+
+    expect(mocks.overlayExecutions).toEqual([
+      expect.objectContaining({ attemptId: 'attempt-2', attemptVersion: 2, seedFromEmpty: true })
+    ])
   })
 })

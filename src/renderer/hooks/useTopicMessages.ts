@@ -14,7 +14,7 @@
  */
 
 import { usePreference } from '@data/hooks/usePreference'
-import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type {
@@ -202,6 +202,11 @@ export function useTopicMessages(
         revalidateIfStale: false,
         revalidateOnMount: false
       })
+    }
+  })
+  useDataChange('/topics/:topicId/messages', (effects) => {
+    if (enabled && effects.some((effect) => !effect.routeParams || effect.routeParams.topicId === topicId)) {
+      void mutate()
     }
   })
 

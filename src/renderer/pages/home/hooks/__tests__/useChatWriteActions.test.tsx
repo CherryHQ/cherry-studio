@@ -64,6 +64,7 @@ function renderActions(
   const scrollToBottom = vi.fn()
   const regenerate = vi.fn(async () => {})
   const setMessages = vi.fn()
+  const seedReservedMessages = vi.fn(async () => {})
   const { result } = renderHook(() =>
     useChatWriteActions({
       topic: { id: 't1' } as Topic,
@@ -74,7 +75,7 @@ function renderActions(
       stop: vi.fn(async () => {}),
       refresh: vi.fn(async () => []),
       cache,
-      seedReservedMessages: vi.fn(async () => {}),
+      seedReservedMessages,
       scrollToBottom,
       startNewContextBlocked
     })
@@ -84,7 +85,8 @@ function renderActions(
     result,
     cache,
     scrollToBottom,
-    regenerate
+    regenerate,
+    seedReservedMessages
   }
 }
 
@@ -434,7 +436,9 @@ describe('useChatWriteActions — regenerate', () => {
   beforeEach(() => vi.clearAllMocks())
 
   it('waits for regeneration to finish', async () => {
-    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), uiMsg('a1', 'assistant', 'u1')])
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.parts = [{ type: 'text', text: 'answer' }]
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
     let finishRegenerate: (() => void) | undefined
     regenerate.mockImplementationOnce(() => new Promise<void>((resolve) => (finishRegenerate = resolve)))
 
@@ -448,6 +452,7 @@ describe('useChatWriteActions — regenerate', () => {
 
   it('inherits the persisted turn options when retrying an assistant message', async () => {
     const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.parts = [{ type: 'text', text: 'answer' }]
     assistantMessage.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
     const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), assistantMessage])
 
@@ -461,6 +466,95 @@ describe('useChatWriteActions — regenerate', () => {
         fastMode: true
       })
     })
+  })
+
+  it('retries a failed assistant in place through Main and seeds the fresh attempt identity', async () => {
+    const failedAssistant = uiMsg('a1', 'assistant', 'u1', false, 'error')
+    failedAssistant.metadata.modelId = 'provider::model-a'
+    failedAssistant.parts = [{ type: 'data-error', data: { message: 'failed' } }]
+    const activeExecution = {
+      executionId: 'provider::model-a',
+      attemptId: 'attempt-2',
+      anchorMessageId: 'a1'
+    }
+    const reservedMessage = {
+      ...failedAssistant,
+      parts: [],
+      metadata: { ...failedAssistant.metadata, status: 'pending' }
+    }
+    streamOpen.mockResolvedValueOnce({
+      mode: 'started',
+      reservedMessages: [reservedMessage],
+      activeExecutions: [activeExecution]
+    })
+    const { actions, regenerate, seedReservedMessages } = renderActions([uiMsg('u1', 'user', 'vroot'), failedAssistant])
+
+    await actions.regenerate('a1')
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      retryMessageId: 'a1',
+      mentionedModelIds: ['provider::model-a']
+    })
+    expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], [activeExecution], undefined)
+  })
+
+  it('keeps successful non-text assistants on the ordinary regenerate path', async () => {
+    const nonTextAssistant = uiMsg('a1', 'assistant', 'u1', false, 'success')
+    nonTextAssistant.metadata.modelId = 'provider::model-a'
+    nonTextAssistant.parts = [{ type: 'data-code', data: { content: 'const ok = true', language: 'ts' } }]
+    const { actions, regenerate } = renderActions([uiMsg('u1', 'user', 'vroot'), nonTextAssistant])
+
+    await actions.regenerate('a1')
+
+    expect(streamOpen).not.toHaveBeenCalled()
+    expect(regenerate).toHaveBeenCalledWith({
+      messageId: 'a1',
+      body: expect.objectContaining({ parentAnchorId: 'u1', mentionedModels: ['provider::model-a'] })
+    })
+  })
+
+  it('routes an explicit @ model through Main so a live reply group can append without moving the branch', async () => {
+    const assistantMessage = uiMsg('a1', 'assistant', 'u1')
+    assistantMessage.metadata.modelId = 'provider::model-a'
+    assistantMessage.parts = [{ type: 'text', text: 'answer in progress' }]
+    const reservedMessage = {
+      ...uiMsg('a2', 'assistant', 'u1', false, 'pending'),
+      metadata: {
+        ...uiMsg('a2', 'assistant', 'u1', false, 'pending').metadata,
+        modelId: 'provider::model-b'
+      }
+    }
+    const activeExecution = {
+      executionId: 'provider::model-b',
+      attemptId: 'attempt-b',
+      anchorMessageId: 'a2'
+    }
+    streamOpen.mockResolvedValueOnce({
+      mode: 'started',
+      reservedMessages: [reservedMessage],
+      activeExecutions: [activeExecution],
+      preserveActiveNode: true
+    })
+    const { actions, regenerate, seedReservedMessages } = renderActions([
+      uiMsg('u1', 'user', 'vroot'),
+      assistantMessage
+    ])
+
+    await actions.regenerate('a1', { modelId: 'provider::model-b' })
+
+    expect(regenerate).not.toHaveBeenCalled()
+    expect(streamOpen).toHaveBeenCalledWith({
+      trigger: 'regenerate-message',
+      topicId: 't1',
+      parentAnchorId: 'u1',
+      appendToLiveGroupMessageId: 'a1',
+      mentionedModelIds: ['provider::model-b']
+    })
+    expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], [activeExecution], true)
   })
 
   it('inherits the active assistant turn options when resending its user message', async () => {

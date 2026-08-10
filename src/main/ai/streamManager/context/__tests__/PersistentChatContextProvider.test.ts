@@ -547,6 +547,61 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(callA[3]).toBe(containerTraceId)
     expect(callB[3]).toBe(containerTraceId)
   })
+
+  it('appends an @-selected model to the live reply group without changing the active node', async () => {
+    const appendedModelId = createUniqueModelId('anthropic', 'claude-sonnet-4-5')
+    const [providerKey, modelKey] = generateOrderKeySequence(2)
+    await dbh.db.insert(userProviderTable).values({ providerId: 'anthropic', name: 'Anthropic', orderKey: providerKey })
+    await dbh.db.insert(userModelTable).values({
+      id: appendedModelId,
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet-4-5',
+      presetModelId: 'claude-sonnet-4-5',
+      name: 'Claude Sonnet 4.5',
+      isEnabled: true,
+      isHidden: false,
+      orderKey: modelKey
+    })
+    vi.mocked(resolveModels).mockReturnValueOnce([
+      {
+        id: appendedModelId,
+        name: 'Claude Sonnet 4.5',
+        providerId: 'anthropic',
+        apiModelId: 'claude-sonnet-4-5'
+      }
+    ] as ReturnType<typeof resolveModels>)
+    vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(1)
+    const userSelectedBranch = messageService.reserveBranch('a1', true)
+
+    const prepared = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'u1',
+        appendToLiveGroupMessageId: 'a1',
+        mentionedModelIds: [appendedModelId]
+      },
+      {
+        hasLiveStream: true,
+        activeExecutions: [{ modelId: MODEL_ID, anchorMessageId: 'a1', status: 'streaming' }]
+      }
+    )
+
+    const children = messageService.getChildrenByParentId('u1')
+    const appended = children.find((message) => message.modelId === appendedModelId)
+    expect(appended).toMatchObject({ parentId: 'u1', status: 'pending', siblingsGroupId: 1 })
+    expect(prepared).toMatchObject({
+      appendLiveExecution: true,
+      appendLiveGroupAnchorMessageId: 'a1',
+      preserveActiveNode: true,
+      siblingsGroupId: 1,
+      isMultiModel: true
+    })
+    expect(prepared.models[0].request.messageId).toBe(appended?.id)
+    expect(messageService.getById(userSelectedBranch.id).parentId).toBe('a1')
+    expect(topicService.getById('topic-1')?.activeNodeId).toBe(userSelectedBranch.id)
+  })
 })
 
 describe('PersistentChatContextProvider — prepareContinueDispatch (resume-after-approval)', () => {

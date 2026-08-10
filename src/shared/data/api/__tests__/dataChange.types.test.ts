@@ -80,7 +80,7 @@ describe('DataApiDataChangeEffect invariants', () => {
   it('accepts every legal shape', () => {
     const legal: DataApiDataChangeEffect[] = [
       { endpoint: '/topics/latest' },
-      { endpoint: '/topics/:id', entityIds: ['t1'] },
+      { endpoint: '/topics/:id', routeParams: { id: 't1' }, entityIds: ['t1'] },
       { endpoint: '/topics', kind: 'projection', entityIds: ['t1'] },
       { endpoint: '/topics', kind: 'membership' },
       { endpoint: '/topics', kind: 'membership', dimension: 'search', entityIds: ['t1'] },
@@ -97,6 +97,9 @@ describe('DataApiDataChangeEffect invariants', () => {
 
     // @ts-expect-error entityIds is a readonly array — no in-place mutation
     effect.entityIds?.push('t2')
+
+    // @ts-expect-error concrete route scope is read-only for shared listeners
+    effect.routeParams!.topicId = 't2'
 
     expectTypeOf(effect).toExtend<DataApiDataChangeEffect>()
   })
