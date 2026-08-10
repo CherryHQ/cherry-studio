@@ -46,6 +46,23 @@ export async function createExecutor<
 }
 
 /**
+ * Resolves a language model for any provider with its middleware applied.
+ *
+ * When `plugins` are provided, middleware contributed through
+ * `configureContext` is applied to the returned model. This lets independently
+ * resolved models, such as retry fallbacks, retain their model-specific
+ * adapters.
+ */
+export async function resolveLanguageModel<
+  TSettingsMap extends Record<string, any> = CoreProviderSettingsMap,
+  T extends StringKeys<TSettingsMap> = StringKeys<TSettingsMap>
+>(providerId: T, options: TSettingsMap[T], modelId: string, plugins?: AiPlugin[]) {
+  const executor = await createExecutor<TSettingsMap, T>(providerId, options, plugins)
+  executor.pluginEngine.usePlugins([executor.createResolveModelPlugin(), executor.createConfigureContextPlugin()])
+  return executor.pluginEngine.resolveModel(modelId)
+}
+
+/**
  * 直接流式文本生成
  */
 export async function streamText<

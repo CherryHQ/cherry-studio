@@ -4092,7 +4092,7 @@ describe('ComposerSurface', () => {
   })
 
   it('delegates text longer than the fixed threshold to the long-text file handler', async () => {
-    render(<ComposerSurface {...baseProps} />)
+    render(<ComposerSurface {...baseProps} supportedExts={['.txt']} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
 
@@ -4108,6 +4108,27 @@ describe('ComposerSurface', () => {
     expect(handled).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
     expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+  })
+
+  it('keeps long pasted text inline when text attachments are unsupported', async () => {
+    render(<ComposerSurface {...baseProps} supportedExts={['.png']} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const pastedText = 'a'.repeat(2001)
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? pastedText : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.insertContent).toHaveBeenCalledWith([{ type: 'text', text: pastedText }])
+    expect(mocks.pasteHandler).not.toHaveBeenCalled()
   })
 
   it('intercepts file-only clipboard paste synchronously', async () => {

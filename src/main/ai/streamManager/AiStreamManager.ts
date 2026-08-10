@@ -8,6 +8,7 @@ import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
@@ -16,7 +17,6 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
-import { shouldDeferToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'

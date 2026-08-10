@@ -318,7 +318,7 @@
         }
       },
       "info": {
-        "artifacts": "Deliverables",
+        "artifacts": "Outputs",
         "context_categories": {
           "autocompact_buffer": "Autocompact buffer",
           "custom_agents": "Custom agents",
@@ -334,7 +334,7 @@
         "context_usage": "Context usage",
         "label": "Session information",
         "more": "+{{count}} more",
-        "no_artifacts": "No declared deliverables",
+        "no_artifacts": "No declared outputs",
         "no_subagents": "No sub-agents",
         "shell_tasks": "Background commands",
         "subagents": "Sub-agents",
@@ -4096,6 +4096,9 @@
       "failed": "Restore failed",
       "success": "Restored successfully"
     },
+    "retry": {
+      "status": "Retrying with {{model}} · attempt {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Saved successfully"
@@ -7524,6 +7527,16 @@
         "label": "Quick Model",
         "setting_title": "Quick model setup",
         "tooltip": "Choose a lightweight model and avoid reasoning models."
+      },
+      "retry": {
+        "backoff": "Exponential backoff",
+        "description": "Retry chat, embedding, and rerank calls; chat can fall back to other models",
+        "fallback_models": "Fallback models",
+        "fallback_models_count": "{{count}} models selected",
+        "fallback_models_description": "Models tried in order when the primary model fails",
+        "label": "Model Call Retry",
+        "max_attempts": "Max retry attempts",
+        "tooltip": "Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "Custom",

@@ -193,7 +193,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
     assistantSummary: provider.settings.summaryText
   })
-  const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
+  const nativeFileSupport = resolveNativeFileSupport(provider, model, {
+    endpointType,
+    aiSdkProviderId,
+    runtimeProviderId
+  })
 
   // Resolved before the tool context so fs_read's per-call cap can follow the
   // effective persist threshold instead of the compile-time default.
