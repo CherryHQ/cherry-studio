@@ -22,6 +22,18 @@ import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 
 const logger = loggerService.withContext('McpBridge')
 
+export interface McpBridgeOptions {
+  /**
+   * Declare `tools.listChanged` and relay cache updates as `tools/list_changed`.
+   *
+   * Only true for a transport that can actually carry a server→client notification. The
+   * stateless HTTP proxy cannot: every request builds and closes its own bridge, so there
+   * is no stream to deliver on and the capability would be a promise the client trusts and
+   * never receives.
+   */
+  listChanged?: boolean
+}
+
 function toSdkTool(tool: McpTool): SdkTool {
   const sdkTool = { ...tool } as SdkTool & Record<'id' | 'serverId' | 'serverName' | 'type', unknown>
   Reflect.deleteProperty(sdkTool, 'id')
@@ -79,7 +91,11 @@ function toSdkResourceContents(content: McpResource): ReadResourceResult['conten
  *   round-trip heals a session that started on a cold cache — including servers whose
  *   connect outlives the session-build warm — with zero blocking anywhere.
  */
-export function createMcpBridgeServer(mcpId: string, serverSnapshot?: McpServerEntity): McpServer {
+export function createMcpBridgeServer(
+  mcpId: string,
+  serverSnapshot?: McpServerEntity,
+  { listChanged = true }: McpBridgeOptions = {}
+): McpServer {
   const serverConfig = serverSnapshot ?? mcpServerService.findByIdOrName(mcpId)
   if (!serverConfig) {
     throw new Error(`MCP server not found: ${mcpId}`)
@@ -87,10 +103,12 @@ export function createMcpBridgeServer(mcpId: string, serverSnapshot?: McpServerE
 
   const sdkServer = new McpServer(
     { name: serverConfig.name, version: '0.1.0' },
-    // `listChanged: true` is load-bearing twice over: the SDK client only attaches its
-    // re-list handler for servers that declared it, and the local `sendToolListChanged`
-    // below throws a capability error without it.
-    { capabilities: { tools: { listChanged: true }, resources: {}, prompts: {} } }
+    // `listChanged` is load-bearing twice over: the SDK client only attaches its re-list
+    // handler for servers that declared it, and the local `sendToolListChanged` below
+    // throws a capability error without it. Declaring it on a transport that cannot
+    // deliver the notification is worse than not declaring it — the client would trust a
+    // heal that never comes and serve a stale tool list indefinitely.
+    { capabilities: { tools: listChanged ? { listChanged: true } : {}, resources: {}, prompts: {} } }
   )
 
   // Use the low-level Server to set raw request handlers because this bridge
@@ -109,6 +127,9 @@ export function createMcpBridgeServer(mcpId: string, serverSnapshot?: McpServerE
   const previousOnInitialized = rawServer.oninitialized
   rawServer.oninitialized = () => {
     previousOnInitialized?.()
+    // Nothing to relay through on a transport that declared no `listChanged`; subscribing
+    // anyway would only build notifications the client never asked for and cannot receive.
+    if (!listChanged) return
     toolsCacheSubscription ??= application.get('McpCatalogService').onToolsCacheUpdated(({ serverId }) => {
       if (serverId !== serverConfig.id) return
       rawServer.sendToolListChanged().catch((error) => {

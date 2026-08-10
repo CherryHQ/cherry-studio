@@ -184,13 +184,67 @@ describe('/v1/mcps', () => {
     expect(mockCallTool).toHaveBeenCalledWith({
       serverId: 'server-1',
       name: 'read_file',
-      args: { path: '/tmp/a.txt' }
+      args: { path: '/tmp/a.txt' },
+      // Forwarded so a dropped connection stops the upstream call instead of letting it
+      // run to completion against the runtime's own controller.
+      signal: expect.any(AbortSignal)
     })
   })
 
   it('POST /v1/mcps/:id/mcp → 404 for an unknown server', async () => {
     const res = await rpc(app, '/v1/mcps/nope/mcp', INITIALIZE)
     expect(res.status).toBe(404)
+  })
+
+  // `warmToolsCache` can block on an upstream connect whose timeout floor is 180s. Gating
+  // every message on it would put that in front of the handshake itself.
+  it('only waits on the tools cache for tools/list', async () => {
+    await rpc(app, '/v1/mcps/server-1/mcp', INITIALIZE)
+    expect(mockWarmToolsCache).not.toHaveBeenCalled()
+
+    await rpc(app, '/v1/mcps/server-1/mcp', { jsonrpc: '2.0', method: 'notifications/initialized' })
+    expect(mockWarmToolsCache).not.toHaveBeenCalled()
+
+    await rpc(app, '/v1/mcps/server-1/mcp', { jsonrpc: '2.0', id: 9, method: 'tools/list' })
+    expect(mockWarmToolsCache).toHaveBeenCalledWith('server-1')
+  })
+
+  // Declaring listChanged on a transport that cannot deliver it makes clients trust a heal
+  // that never arrives and keep a stale tool list.
+  it('does not advertise tools.listChanged to a stateless HTTP client', async () => {
+    const res = await rpc(app, '/v1/mcps/server-1/mcp', INITIALIZE)
+    expect((await res.json()).result.capabilities.tools).toEqual({})
+  })
+
+  // The MCP transport spec requires Origin validation to block DNS rebinding; native
+  // clients send no Origin and must stay unaffected.
+  describe('Origin validation', () => {
+    it.each(['POST', 'GET', 'DELETE'])('rejects a non-local Origin on %s', async (method) => {
+      const res = await app.handle(
+        new Request('http://localhost/v1/mcps/server-1/mcp', {
+          method,
+          headers: { ...MCP_HEADERS, origin: 'https://evil.example' },
+          ...(method === 'POST' ? { body: JSON.stringify(INITIALIZE) } : {})
+        })
+      )
+      expect(res.status).toBe(403)
+    })
+
+    it('allows a loopback Origin', async () => {
+      const res = await app.handle(
+        new Request('http://localhost/v1/mcps/server-1/mcp', {
+          method: 'POST',
+          headers: { ...MCP_HEADERS, origin: 'http://localhost:5173' },
+          body: JSON.stringify(INITIALIZE)
+        })
+      )
+      expect(res.status).toBe(200)
+    })
+
+    it('allows a native client that sends no Origin', async () => {
+      const res = await rpc(app, '/v1/mcps/server-1/mcp', INITIALIZE)
+      expect(res.status).toBe(200)
+    })
   })
 
   // Stateless offers no SSE stream and no session to terminate. Must not reach the

@@ -18,7 +18,8 @@ They authenticate like every other gateway route (`Authorization: Bearer` / `x-a
 
 Two differences from the v1 endpoints:
 
-- **No sessions.** The proxy is stateless: no `Mcp-Session-Id` is issued, and `GET` on the proxy path returns 405 instead of opening an SSE stream. Standard MCP clients handle this — the spec allows a server not to assign session ids — but server-initiated messages (e.g. `notifications/tools/list_changed`) never reach the client, so a client that caches the tool list must re-list to see changes.
+- **No sessions.** The proxy is stateless: no `Mcp-Session-Id` is issued, and `GET` on the proxy path returns 405 instead of opening an SSE stream. Standard MCP clients handle this — the spec allows a server not to assign session ids. Because there is no stream to push on, the server does **not** advertise `tools.listChanged`, so a client knows up front to re-list rather than waiting for a notification. Cross-request cancellation (`notifications/cancelled`) is likewise not honored; dropping the connection does stop the upstream call.
+- **Browser callers must be local.** As the MCP transport spec requires, a request carrying an `Origin` that is not a loopback address is rejected with 403, so a malicious web page cannot drive this endpoint through a browser that already holds gateway credentials. Native clients send no `Origin` and are unaffected.
 - **Response bodies.** The two `GET` endpoints return plain objects (`{ servers: [...] }`, `{ id, name, type, description, tools }`) instead of v1's `{ success: true, data: ... }` wrapper. Errors use the gateway's standard error envelope.
 
 ## Why this matters to the user

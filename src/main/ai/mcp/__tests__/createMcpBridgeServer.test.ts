@@ -101,7 +101,7 @@ describe('createMcpBridgeServer', () => {
 
   it('forwards the request cancellation signal to McpRuntimeService.callTool', async () => {
     mocks.callTool.mockResolvedValue({ content: [] })
-    const sdkServer = createSdkMcpServerInstance('server-1')
+    const sdkServer = createMcpBridgeServer('server-1')
     const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
     const handler = handlers.get('tools/call')
 
