@@ -3,7 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted state mirrors the pattern in MainWindowService.test.ts: platform flags are
 // per-test mutable, mocks use getters to preserve live-binding semantics.
-const { platformState, nativeThemeState, applicationMock, windowManagerMock, ipcApiServiceMock } = vi.hoisted(() => {
+const {
+  platformState,
+  nativeThemeState,
+  applicationMock,
+  windowManagerMock,
+  ipcApiServiceMock,
+  openTabInMainWindowMock
+} = vi.hoisted(() => {
   const platformState = { isMac: false, isWin: false, isLinux: false }
   const nativeThemeState = { shouldUseDarkColors: false }
   const windowManagerMock = {
@@ -22,6 +29,7 @@ const { platformState, nativeThemeState, applicationMock, windowManagerMock, ipc
   const ipcApiServiceMock = {
     broadcastToType: vi.fn<(type: string, event: string, payload: unknown) => void>()
   }
+  const openTabInMainWindowMock = vi.fn()
   const applicationMock = {
     get: vi.fn((name: string) => {
       if (name === 'WindowManager') return windowManagerMock
@@ -30,7 +38,14 @@ const { platformState, nativeThemeState, applicationMock, windowManagerMock, ipc
     }),
     getPath: vi.fn(() => '/mock/app/root')
   }
-  return { platformState, nativeThemeState, applicationMock, windowManagerMock, ipcApiServiceMock }
+  return {
+    platformState,
+    nativeThemeState,
+    applicationMock,
+    windowManagerMock,
+    ipcApiServiceMock,
+    openTabInMainWindowMock
+  }
 })
 
 vi.mock('@main/core/platform', () => ({
@@ -52,6 +67,10 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@application', () => ({ application: applicationMock }))
+
+// attachTab delegates delivery to openTabInMainWindow (live event vs cold-start init data);
+// its own live/cold split is covered in mainWindowNavigation.test.ts.
+vi.mock('../mainWindowNavigation', () => ({ openTabInMainWindow: openTabInMainWindowMock }))
 
 vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: vi.fn() },
@@ -146,6 +165,7 @@ describe('SubWindowService', () => {
     windowManagerMock.broadcastToType.mockReset()
     windowManagerMock.behavior.setAlwaysOnTop.mockReset()
     ipcApiServiceMock.broadcastToType.mockReset()
+    openTabInMainWindowMock.mockReset()
     vi.mocked(BrowserWindow.fromWebContents).mockReset()
 
     svc = new SubWindowService()
@@ -346,32 +366,21 @@ describe('SubWindowService', () => {
   describe('attachTab', () => {
     const tab = { id: 'tab-1', title: 'T' } as Parameters<SubWindowService['attachTab']>[0]
 
-    it('broadcasts tab.attached to the main window and closes the caller sub-window', () => {
-      windowManagerMock.getWindowsByType.mockReturnValue([{}])
+    it('delegates delivery to openTabInMainWindow and closes the caller sub-window', () => {
       windowManagerMock.getWindowType.mockReturnValue(WindowType.SubWindow)
 
       svc.attachTab(tab, 'sub1' as never)
 
-      expect(ipcApiServiceMock.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'tab.attached', tab)
+      expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
       expect(windowManagerMock.close).toHaveBeenCalledWith('sub1')
     })
 
-    it('skips broadcast and close when no main window exists (tab must not be lost)', () => {
-      windowManagerMock.getWindowsByType.mockReturnValue([])
-
-      svc.attachTab(tab, 'sub1' as never)
-
-      expect(ipcApiServiceMock.broadcastToType).not.toHaveBeenCalled()
-      expect(windowManagerMock.close).not.toHaveBeenCalled()
-    })
-
     it('does not close the caller when it is not a SubWindow (never closes the main window)', () => {
-      windowManagerMock.getWindowsByType.mockReturnValue([{}])
       windowManagerMock.getWindowType.mockReturnValue(WindowType.Main)
 
       svc.attachTab(tab, 'main1' as never)
 
-      expect(ipcApiServiceMock.broadcastToType).toHaveBeenCalledWith(WindowType.Main, 'tab.attached', tab)
+      expect(openTabInMainWindowMock).toHaveBeenCalledWith(tab)
       expect(windowManagerMock.close).not.toHaveBeenCalled()
     })
   })

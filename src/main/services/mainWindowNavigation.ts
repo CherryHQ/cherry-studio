@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
+import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
 import type { MainWindowInitData } from '@shared/types/mainWindow'
@@ -35,7 +36,7 @@ export function acknowledgeMainWindowNavigation(windowId: string, requestId: num
     initData &&
     typeof initData === 'object' &&
     'kind' in initData &&
-    initData.kind === 'navigation' &&
+    (initData.kind === 'navigation' || initData.kind === 'tab-attach') &&
     'requestId' in initData &&
     initData.requestId === requestId
   ) {
@@ -73,6 +74,37 @@ export function openRouteInMainWindow(path: string): void {
   mainWindowService.showMainWindow({
     kind: 'navigation',
     to: path,
+    requestId: nextNavigationRequestId++
+  } satisfies MainWindowInitData)
+}
+
+/**
+ * Re-attach a detached tab back into the main window. Mirrors
+ * openRouteInMainWindow's live/cold split:
+ *
+ * - Window alive → deliver the tab as the directed `tab.attached` event
+ *   (TabsProvider re-absorbs it), then raise the window — which also covers
+ *   the close-to-tray case where the main window exists but is hidden.
+ * - Window missing/destroyed → the main window is being rebuilt FOR this tab,
+ *   so the tab rides along as cold-start init data (`kind: 'tab-attach'`) that
+ *   the renderer attaches on boot.
+ */
+export function openTabInMainWindow(tab: Tab): void {
+  const windowManager = application.get('WindowManager')
+  const mainWindowService = application.get('MainWindowService')
+
+  const mainWindow = windowManager.getWindowsByType(WindowType.Main)[0]
+  const mainWindowId = mainWindow && !mainWindow.isDestroyed() ? windowManager.getWindowId(mainWindow) : undefined
+
+  if (mainWindowId) {
+    application.get('IpcApiService').send(mainWindowId, 'tab.attached', tab)
+    mainWindowService.showMainWindow()
+    return
+  }
+
+  mainWindowService.showMainWindow({
+    kind: 'tab-attach',
+    tab,
     requestId: nextNavigationRequestId++
   } satisfies MainWindowInitData)
 }

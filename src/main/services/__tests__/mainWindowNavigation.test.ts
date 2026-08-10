@@ -29,7 +29,8 @@ vi.mock('@application', () => ({ application: applicationMock }))
 import {
   acknowledgeMainWindowNavigation,
   openRouteInMainWindow,
-  openSettingsInMainWindow
+  openSettingsInMainWindow,
+  openTabInMainWindow
 } from '../mainWindowNavigation'
 
 const aliveWindow = { isDestroyed: () => false }
@@ -50,6 +51,26 @@ describe('mainWindowNavigation', () => {
       vi.clearAllMocks()
       windowManagerMock.getInitData.mockReturnValue({ kind: 'navigation', to: '/settings/about', requestId: 8 })
       acknowledgeMainWindowNavigation('main-1', 7)
+      expect(windowManagerMock.clearInitData).not.toHaveBeenCalled()
+    })
+
+    it('clears a matching tab-attach init data payload', () => {
+      windowManagerMock.getInitData.mockReturnValue({
+        kind: 'tab-attach',
+        tab: { id: 'tab-1', type: 'route', url: '/app/chat', title: 'Chat' },
+        requestId: 9
+      })
+      acknowledgeMainWindowNavigation('main-1', 9)
+      expect(windowManagerMock.clearInitData).toHaveBeenCalledWith('main-1')
+    })
+
+    it('does not clear a tab-attach payload for a mismatched request id', () => {
+      windowManagerMock.getInitData.mockReturnValue({
+        kind: 'tab-attach',
+        tab: { id: 'tab-1', type: 'route', url: '/app/chat', title: 'Chat' },
+        requestId: 9
+      })
+      acknowledgeMainWindowNavigation('main-1', 8)
       expect(windowManagerMock.clearInitData).not.toHaveBeenCalled()
     })
   })
@@ -120,6 +141,31 @@ describe('mainWindowNavigation', () => {
         to: '/settings/about'
       })
       expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith()
+    })
+  })
+
+  describe('openTabInMainWindow', () => {
+    const tab = { id: 'tab-1', type: 'route', url: '/app/chat', title: 'Chat' } as const
+
+    it('sends the tab.attached event and raises the main window when it is alive', () => {
+      windowManagerMock.getWindowsByType.mockReturnValue([aliveWindow])
+      windowManagerMock.getWindowId.mockReturnValue('main-1')
+
+      openTabInMainWindow(tab)
+
+      expect(ipcApiServiceMock.send).toHaveBeenCalledWith('main-1', 'tab.attached', tab)
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith()
+    })
+
+    it('rebuilds the main window with tab-attach init data when none exists', () => {
+      openTabInMainWindow(tab)
+
+      expect(ipcApiServiceMock.send).not.toHaveBeenCalled()
+      expect(mainWindowServiceMock.showMainWindow).toHaveBeenCalledWith({
+        kind: 'tab-attach',
+        tab,
+        requestId: expect.any(Number)
+      })
     })
   })
 })
