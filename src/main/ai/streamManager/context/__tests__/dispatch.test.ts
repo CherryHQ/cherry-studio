@@ -15,12 +15,7 @@ const mocks = vi.hoisted(() => ({
   agentPrepare: vi.fn(),
   persistentPrepare: vi.fn(),
   isWorkspaceErr: vi.fn<(error: unknown) => boolean>(),
-  deleteMessage: vi.fn(),
   setActiveNode: vi.fn()
-}))
-
-vi.mock('@main/data/services/MessageService', () => ({
-  messageService: { delete: mocks.deleteMessage }
 }))
 
 vi.mock('@main/data/services/TopicService', () => ({
@@ -61,7 +56,7 @@ function makeManager(live: boolean): AiStreamManager {
     enqueuePendingSteer: vi.fn(() => order.push('enqueuePendingSteer')),
     send: vi.fn(() => {
       order.push('send')
-      return { mode: live ? ('injected' as const) : ('started' as const), executionIds: [], activeExecutions: [] }
+      return { mode: live ? ('injected' as const) : ('started' as const), activeExecutions: [] }
     })
   } as unknown as AiStreamManager
 }
@@ -80,7 +75,6 @@ function wirePrepare(
       models: opts.inject ? [] : [{ modelId: 'p::m', request: {} }],
       listeners: [] as StreamListener[],
       isMultiModel: false,
-      userMessageId: 'u1',
       // Only the persistent steer branch sets this explicit marker; the dispatcher enqueues off it.
       // Agent-session injects deliberately leave it unset (the runtime owns their follow-ups).
       pendingSteerUserMessageId: opts.steer ? 'u1' : undefined,
@@ -206,8 +200,7 @@ describe('dispatchStreamRequest — steer', () => {
       models: [{ modelId: 'p::m2', request: { messageId: 'assistant-2' } }],
       listeners: [] as StreamListener[],
       reservedMessages: [{ id: 'assistant-2', role: 'assistant', parts: [] }],
-      appendLiveExecution: true,
-      appendLiveGroupAnchorMessageId: 'assistant-1',
+      liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'assistant-1', activateFallback: true },
       preserveActiveNode: true,
       isMultiModel: true
     })
@@ -223,93 +216,7 @@ describe('dispatchStreamRequest — steer', () => {
     })
 
     expect(mocks.setActiveNode).toHaveBeenCalledWith('topic-append', 'assistant-2')
-    expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ appendLiveExecution: false }))
+    expect(manager.send).toHaveBeenCalledWith(expect.objectContaining({ liveExecutionChange: undefined }))
     expect(result).toMatchObject({ preserveActiveNode: false })
-  })
-
-  it('falls back when a different live group replaces the append target during preparation', async () => {
-    mocks.persistentPrepare.mockResolvedValue({
-      topicId: 'topic-append-race',
-      models: [{ modelId: 'p::m2', request: { messageId: 'assistant-2' } }],
-      listeners: [] as StreamListener[],
-      reservedMessages: [{ id: 'assistant-2', role: 'assistant', parts: [] }],
-      appendLiveExecution: true,
-      appendLiveGroupAnchorMessageId: 'assistant-1',
-      preserveActiveNode: true,
-      isMultiModel: true
-    })
-    const manager = makeManager(true)
-    vi.mocked(manager.inspect)
-      .mockReturnValueOnce({ executions: [{ anchorMessageId: 'assistant-1' }] } as never)
-      .mockReturnValueOnce({ executions: [{ anchorMessageId: 'new-turn-assistant' }] } as never)
-
-    await expect(
-      dispatchStreamRequest(manager, makeSubscriber(), {
-        topicId: 'topic-append-race',
-        trigger: 'regenerate-message',
-        parentAnchorId: 'user-1',
-        appendToLiveGroupMessageId: 'assistant-1',
-        mentionedModelIds: ['p::m2']
-      })
-    ).rejects.toThrow('live reply group changed')
-
-    expect(mocks.deleteMessage).toHaveBeenCalledWith('assistant-2')
-    expect(mocks.setActiveNode).not.toHaveBeenCalled()
-    expect(manager.send).not.toHaveBeenCalled()
-  })
-
-  it('restores an in-place retry reservation when its live group changes before handoff', async () => {
-    const rollbackReservation = vi.fn()
-    mocks.persistentPrepare.mockResolvedValue({
-      topicId: 'topic-retry-race',
-      models: [{ modelId: 'p::m2', request: { messageId: 'assistant-2' } }],
-      listeners: [] as StreamListener[],
-      reservedMessages: [{ id: 'assistant-2', role: 'assistant', parts: [] }],
-      appendLiveExecution: true,
-      appendLiveGroupAnchorMessageId: 'assistant-1',
-      activateAppendFallback: false,
-      preserveActiveNode: true,
-      rollbackReservation,
-      isMultiModel: false
-    })
-    const manager = makeManager(true)
-    vi.mocked(manager.inspect)
-      .mockReturnValueOnce({ executions: [{ anchorMessageId: 'assistant-1' }] } as never)
-      .mockReturnValueOnce({ executions: [{ anchorMessageId: 'new-turn-assistant' }] } as never)
-
-    await expect(
-      dispatchStreamRequest(manager, makeSubscriber(), {
-        topicId: 'topic-retry-race',
-        trigger: 'regenerate-message',
-        parentAnchorId: 'user-1',
-        retryMessageId: 'assistant-2'
-      })
-    ).rejects.toThrow('live reply group changed')
-
-    expect(rollbackReservation).toHaveBeenCalledTimes(1)
-    expect(mocks.deleteMessage).not.toHaveBeenCalled()
-    expect(manager.send).not.toHaveBeenCalled()
-  })
-
-  it('does not rollback after manager.send reaches its execution commit point and throws', async () => {
-    const rollbackReservation = vi.fn()
-    mocks.persistentPrepare.mockResolvedValue({
-      topicId: 'topic-post-commit-error',
-      models: [{ modelId: 'p::m2', request: { messageId: 'assistant-2' } }],
-      listeners: [] as StreamListener[],
-      reservedMessages: [{ id: 'assistant-2', role: 'assistant', parts: [] }],
-      rollbackReservation,
-      isMultiModel: false
-    })
-    const manager = makeManager(false)
-    vi.mocked(manager.send).mockImplementation(() => {
-      throw new Error('post-commit lifecycle failure')
-    })
-
-    await expect(dispatchStreamRequest(manager, makeSubscriber(), chatReq('topic-post-commit-error'))).rejects.toThrow(
-      'post-commit lifecycle failure'
-    )
-
-    expect(rollbackReservation).not.toHaveBeenCalled()
   })
 })

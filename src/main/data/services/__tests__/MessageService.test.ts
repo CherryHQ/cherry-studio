@@ -302,8 +302,7 @@ describe('MessageService', () => {
         .run()
 
       const before = messageService.getById('m-a1')
-      const reservation = messageService.resetAssistantForRetry('m-a1')
-      const reset = reservation.message
+      const reset = messageService.resetAssistantForRetry('m-a1')
       const topic = dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-1')).get()
       const invalidatedRows = dbh.db
         .select({
@@ -340,24 +339,6 @@ describe('MessageService', () => {
       expect(invalidatedRows.find((row) => row.id === 'm-a1')?.updatedAt).toBe(Date.parse(before.updatedAt))
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.updatedAt).toBe(400)
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.updatedAt).toBe(500)
-
-      reservation.rollback()
-      reservation.rollback()
-      expect(messageService.getById('m-a1')).toMatchObject({
-        status: before.status,
-        data: before.data,
-        stats: before.stats,
-        compactionSummary: before.compactionSummary,
-        updatedAt: before.updatedAt
-      })
-      expect(messageService.getById('m-a1-child-user')).toMatchObject({
-        stats: { totalTokens: 80, contextTokens: 75 },
-        compactionSummary: 'summary through downstream user'
-      })
-      expect(messageService.getById('m-a1-child-assistant')).toMatchObject({
-        stats: { totalTokens: 90, contextTokens: 85 },
-        compactionSummary: 'summary through downstream assistant'
-      })
     })
   })
 

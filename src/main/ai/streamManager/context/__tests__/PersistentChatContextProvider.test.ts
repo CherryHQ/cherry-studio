@@ -141,7 +141,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       { hasLiveStream: false }
     )
 
-    expect(prepared.userMessageId).toBe(reservedBranch.id)
+    expect(prepared.reservedMessages?.find((message) => message.role === 'user')?.id).toBe(reservedBranch.id)
     expect(messageService.getById(reservedBranch.id)).toMatchObject({
       data: { parts: [{ type: 'text', text: 'continue on reserved branch' }] },
       modelId: MODEL_ID
@@ -322,7 +322,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       },
       { hasLiveStream: false }
     )
-    const userMessageId = submitted.userMessageId!
+    const userMessageId = submitted.reservedMessages?.find((message) => message.role === 'user')?.id as string
 
     expect(getKnowledgeBaseIdsFromParts(messageService.getById(userMessageId).data.parts ?? [])).toEqual(
       knowledgeBaseIds
@@ -457,8 +457,9 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     expect(resolveAssistantModelId).not.toHaveBeenCalled()
     expect(resolveModels).toHaveBeenLastCalledWith([selectedModelId], selectedModelId)
     expect(prepared.models[0].modelId).toBe(selectedModelId)
-    expect(messageService.getById(prepared.userMessageId!).modelId).toBe(selectedModelId)
-    expect(messageService.getChildrenByParentId(prepared.userMessageId!)[0].modelId).toBe(selectedModelId)
+    const userMessageId = prepared.reservedMessages?.find((message) => message.role === 'user')?.id as string
+    expect(messageService.getById(userMessageId).modelId).toBe(selectedModelId)
+    expect(messageService.getChildrenByParentId(userMessageId)[0].modelId).toBe(selectedModelId)
   })
 
   it('fans out @-mentioned siblings: shared siblingsGroupId, one placeholder per model, aligned placeholders[i]/turnRootSpans[i]', async () => {
@@ -517,7 +518,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
 
     // One persisted placeholder per model, both in the shared group, each routed to its
     // own request — placeholders[i]/turnRootSpans[i] alignment proven via per-row modelId.
-    const placeholders = messageService.getChildrenByParentId(prepared.userMessageId!)
+    const userMessageId = prepared.reservedMessages?.find((message) => message.role === 'user')?.id as string
+    const placeholders = messageService.getChildrenByParentId(userMessageId)
     expect(placeholders).toHaveLength(2)
     const byModel = new Map(placeholders.map((p) => [p.modelId, p]))
     const phA = byModel.get(MODEL_A)
@@ -592,8 +594,7 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
     const appended = children.find((message) => message.modelId === appendedModelId)
     expect(appended).toMatchObject({ parentId: 'u1', status: 'pending', siblingsGroupId: 1 })
     expect(prepared).toMatchObject({
-      appendLiveExecution: true,
-      appendLiveGroupAnchorMessageId: 'a1',
+      liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'a1', activateFallback: true },
       preserveActiveNode: true,
       siblingsGroupId: 1,
       isMultiModel: true

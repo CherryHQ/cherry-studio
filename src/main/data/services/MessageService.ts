@@ -93,12 +93,6 @@ export interface CreateUserMessageWithPlaceholdersResult {
   placeholders: Message[]
 }
 
-export interface AssistantRetryReservation {
-  message: Message
-  /** Idempotently restores the failed row and invalidated descendant context if dispatch never starts. */
-  rollback: () => void
-}
-
 /**
  * Preview length for tree nodes
  */
@@ -1469,89 +1463,72 @@ export class MessageService {
    * descendant compaction/context anchors are cleared so later turns cannot reuse context derived
    * from the failed attempt.
    */
-  resetAssistantForRetry(id: string): AssistantRetryReservation {
-    const { updated, affectedIds, topicId, originalRow, descendantSnapshots } = application
-      .get('DbService')
-      .withWriteTx((tx) => {
-        const row = tx.select().from(messageTable).where(eq(messageTable.id, id)).get()
-        if (!row) throw DataApiErrorFactory.notFound('Message', id)
-        if (row.role !== 'assistant') {
-          throw DataApiErrorFactory.invalidOperation('retry message', 'only assistant messages can be retried')
-        }
+  resetAssistantForRetry(id: string): Message {
+    const { updated, affectedIds, topicId } = application.get('DbService').withWriteTx((tx) => {
+      const row = tx.select().from(messageTable).where(eq(messageTable.id, id)).get()
+      if (!row) throw DataApiErrorFactory.notFound('Message', id)
+      if (row.role !== 'assistant') {
+        throw DataApiErrorFactory.invalidOperation('retry message', 'only assistant messages can be retried')
+      }
 
-        const parts = row.data?.parts ?? []
-        if (row.status === 'pending' || (row.status !== 'error' && row.status !== 'paused' && parts.length > 0)) {
-          throw DataApiErrorFactory.invalidOperation('retry message', 'the assistant message is not failed')
-        }
+      const parts = row.data?.parts ?? []
+      if (row.status === 'pending' || (row.status !== 'error' && row.status !== 'paused' && parts.length > 0)) {
+        throw DataApiErrorFactory.invalidOperation('retry message', 'the assistant message is not failed')
+      }
 
-        const stats: MessageStats | null = row.stats ? { ...row.stats } : null
-        if (stats) {
-          delete stats.runtimeTiming
-          delete stats.contextTokens
-          delete stats.timeFirstTokenMs
-          delete stats.timeCompletionMs
-          delete stats.timeThinkingMs
-        }
-        const data: MessageData = {
-          parts: [],
-          ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {})
-        }
-        const descendantIds = this.getDescendantIdsTx(tx, id)
-        const descendantSnapshots: Array<{
-          id: string
-          stats: MessageStats | null
-          compactionSummary: string | null
-          updatedAt: number
-        }> = []
-        for (let offset = 0; offset < descendantIds.length; offset += SQLITE_INARRAY_CHUNK) {
-          const chunk = descendantIds.slice(offset, offset + SQLITE_INARRAY_CHUNK)
-          const descendants = tx
-            .select({
-              id: messageTable.id,
-              stats: messageTable.stats,
-              compactionSummary: messageTable.compactionSummary,
-              updatedAt: messageTable.updatedAt
-            })
-            .from(messageTable)
-            .where(inArray(messageTable.id, chunk))
-            .all()
-          for (const descendant of descendants) {
-            descendantSnapshots.push({
-              id: descendant.id,
-              stats: descendant.stats,
-              compactionSummary: descendant.compactionSummary,
-              updatedAt: descendant.updatedAt
-            })
-            if (descendant.stats?.contextTokens === undefined) continue
-            const descendantStats = { ...descendant.stats }
-            delete descendantStats.contextTokens
-            tx.update(messageTable)
-              .set({ stats: descendantStats, updatedAt: descendant.updatedAt })
-              .where(eq(messageTable.id, descendant.id))
-              .run()
-          }
+      const stats: MessageStats | null = row.stats ? { ...row.stats } : null
+      if (stats) {
+        delete stats.runtimeTiming
+        delete stats.contextTokens
+        delete stats.timeFirstTokenMs
+        delete stats.timeCompletionMs
+        delete stats.timeThinkingMs
+      }
+      const data: MessageData = {
+        parts: [],
+        ...(row.data?.turnOptions ? { turnOptions: row.data.turnOptions } : {})
+      }
+      const descendantIds = this.getDescendantIdsTx(tx, id)
+      for (let offset = 0; offset < descendantIds.length; offset += SQLITE_INARRAY_CHUNK) {
+        const chunk = descendantIds.slice(offset, offset + SQLITE_INARRAY_CHUNK)
+        const descendants = tx
+          .select({
+            id: messageTable.id,
+            stats: messageTable.stats,
+            updatedAt: messageTable.updatedAt
+          })
+          .from(messageTable)
+          .where(inArray(messageTable.id, chunk))
+          .all()
+        for (const descendant of descendants) {
+          if (descendant.stats?.contextTokens === undefined) continue
+          const descendantStats = { ...descendant.stats }
+          delete descendantStats.contextTokens
           tx.update(messageTable)
-            .set({ compactionSummary: null, updatedAt: messageTable.updatedAt })
-            .where(inArray(messageTable.id, chunk))
+            .set({ stats: descendantStats, updatedAt: descendant.updatedAt })
+            .where(eq(messageTable.id, descendant.id))
             .run()
         }
-        const [updated] = tx
-          .update(messageTable)
-          .set({ data, status: 'pending', stats, compactionSummary: null, updatedAt: row.updatedAt })
-          .where(eq(messageTable.id, id))
-          .returning()
-          .all()
-        replaceChatMessageFileRefsTx(tx, id, data)
+        tx.update(messageTable)
+          .set({ compactionSummary: null, updatedAt: messageTable.updatedAt })
+          .where(inArray(messageTable.id, chunk))
+          .run()
+      }
+      const [updated] = tx
+        .update(messageTable)
+        .set({ data, status: 'pending', stats, compactionSummary: null, updatedAt: row.updatedAt })
+        .where(eq(messageTable.id, id))
+        .returning()
+        .all()
+      replaceChatMessageFileRefsTx(tx, id, data)
 
-        logger.info('Reset assistant message for retry', { id, topicId: row.topicId })
-        return {
-          updated: rowToMessage(updated),
-          affectedIds: [id, ...descendantIds],
-          topicId: row.topicId,
-          originalRow: row,
-          descendantSnapshots
-        }
-      })
+      logger.info('Reset assistant message for retry', { id, topicId: row.topicId })
+      return {
+        updated: rowToMessage(updated),
+        affectedIds: [id, ...descendantIds],
+        topicId: row.topicId
+      }
+    })
     notifyDataApiDataChange([
       {
         endpoint: '/topics/:topicId/messages',
@@ -1562,49 +1539,7 @@ export class MessageService {
       { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: affectedIds },
       { endpoint: '/messages/:id', entityIds: affectedIds }
     ])
-    let rolledBack = false
-    return {
-      message: updated,
-      rollback: () => {
-        if (rolledBack) return
-        rolledBack = true
-        application.get('DbService').withWriteTx((tx) => {
-          const current = tx.select({ id: messageTable.id }).from(messageTable).where(eq(messageTable.id, id)).get()
-          if (!current) throw DataApiErrorFactory.notFound('Message', id)
-          tx.update(messageTable)
-            .set({
-              data: originalRow.data,
-              status: originalRow.status,
-              stats: originalRow.stats,
-              compactionSummary: originalRow.compactionSummary,
-              updatedAt: originalRow.updatedAt
-            })
-            .where(eq(messageTable.id, id))
-            .run()
-          replaceChatMessageFileRefsTx(tx, id, originalRow.data)
-          for (const snapshot of descendantSnapshots) {
-            tx.update(messageTable)
-              .set({
-                stats: snapshot.stats,
-                compactionSummary: snapshot.compactionSummary,
-                updatedAt: snapshot.updatedAt
-              })
-              .where(eq(messageTable.id, snapshot.id))
-              .run()
-          }
-        })
-        notifyDataApiDataChange([
-          {
-            endpoint: '/topics/:topicId/messages',
-            kind: 'projection',
-            routeParams: { topicId },
-            entityIds: affectedIds
-          },
-          { endpoint: '/topics/:topicId/tree', routeParams: { topicId }, entityIds: affectedIds },
-          { endpoint: '/messages/:id', entityIds: affectedIds }
-        ])
-      }
-    }
+    return updated
   }
 
   /**

@@ -279,7 +279,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: [],
         listeners: [subscriber],
-        userMessageId: userMessage.id,
         pendingSteerUserMessageId: userMessage.id,
         pendingSteerReasoningEffort: req.reasoningEffort,
         pendingSteerFastMode: req.fastMode === true,
@@ -455,11 +454,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: models_,
         listeners,
-        userMessageId: userMessage.id,
         reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
         siblingsGroupId,
-        appendLiveExecution: Boolean(liveGroupAppendMessageId),
-        appendLiveGroupAnchorMessageId: liveGroupAppendMessageId,
+        liveExecutionChange: liveGroupAppendMessageId
+          ? { mode: 'append', groupAnchorMessageId: liveGroupAppendMessageId, activateFallback: true }
+          : undefined,
         preserveActiveNode: Boolean(liveGroupAppendMessageId),
         isMultiModel: isMultiModel || Boolean(liveGroupAppendMessageId)
       }
@@ -546,24 +545,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         target.id,
         compatibleGroupAnchorMessageIds
       )
-      const appendLiveGroupAnchorMessageId =
-        admission === 'append-live'
-          ? manager
-              .inspect(req.topicId)
-              ?.executions.find(
-                (execution) =>
-                  execution.anchorMessageId !== undefined &&
-                  compatibleGroupAnchorMessageIds.includes(execution.anchorMessageId)
-              )?.anchorMessageId
-          : undefined
-      if (admission === 'append-live' && !appendLiveGroupAnchorMessageId) {
-        throw new Error('The compatible retry group changed before the assistant row could be reset')
-      }
 
       // Reset only after all async context preparation and the final admission succeed. This atomic
       // update deliberately does not write topic.activeNodeId, so retrying an off-path branch cannot
       // activate it.
-      const resetReservation = messageService.resetAssistantForRetry(target.id)
+      const resetMessage = messageService.resetAssistantForRetry(target.id)
       const listeners: StreamListener[] = [
         subscriber,
         new PersistenceListener({
@@ -584,14 +570,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicId: req.topicId,
         models: [{ modelId: model.id, request, seedFromEmpty: true, rootSpan }],
         listeners,
-        reservedMessages: [toReservedUIMessage(resetReservation.message)],
+        reservedMessages: [toReservedUIMessage(resetMessage)],
         siblingsGroupId: target.siblingsGroupId || undefined,
-        replaceLiveExecution: admission === 'replace-live',
-        appendLiveExecution: admission === 'append-live',
-        appendLiveGroupAnchorMessageId,
-        activateAppendFallback: false,
+        liveExecutionChange:
+          admission.mode === 'replace-live'
+            ? { mode: 'replace' }
+            : admission.mode === 'append-live'
+              ? { mode: 'append', groupAnchorMessageId: admission.groupAnchorMessageId, activateFallback: false }
+              : undefined,
         preserveActiveNode: true,
-        rollbackReservation: resetReservation.rollback,
         isMultiModel: false
       }
     } catch (error) {

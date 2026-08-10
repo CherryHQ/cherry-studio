@@ -93,6 +93,12 @@ export interface SendModelSpec {
   abortController?: AbortController
 }
 
+export type LiveExecutionChange = { mode: 'replace' } | { mode: 'append'; groupAnchorMessageId: string }
+export type ExecutionRetryAdmission =
+  | { mode: 'replace-live' }
+  | { mode: 'append-live'; groupAnchorMessageId: string }
+  | { mode: 'start-new' }
+
 export interface SendInput {
   topicId: string
   /** `models.length > 1` → multi-model topic. */
@@ -100,12 +106,8 @@ export interface SendInput {
   /** Upserted by id. */
   listeners: StreamListener[]
   siblingsGroupId?: number
-  /** Retry one terminal execution in place while sibling executions remain live. */
-  replaceLiveExecution?: boolean
-  /** Append one new model execution to the current live reply group. */
-  appendLiveExecution?: boolean
-  /** Existing assistant anchor that identifies the live reply group being appended to. */
-  appendLiveGroupAnchorMessageId?: string
+  /** Replace or append one execution in the current live reply group. */
+  liveExecutionChange?: LiveExecutionChange
   /** Defaults to chat lifecycle. `streamPrompt` passes `promptStreamLifecycle`. */
   lifecycle?: StreamLifecycle
 }
@@ -113,9 +115,7 @@ export interface SendInput {
 export interface SendResult {
   /** `started` = freshly launched executions; `injected` = listeners attached to a running stream. */
   mode: 'started' | 'injected'
-  /** `started` → fresh ids; `injected` → ids already running on the topic. */
-  executionIds: UniqueModelId[]
-  /** Runtime identities for the executions launched by this call. */
+  /** Runtime identities launched by this call or currently streaming when it attached. */
   activeExecutions: ActiveExecution[]
 }
 
@@ -551,37 +551,33 @@ export class AiStreamManager extends BaseService {
   // ── Public: unified send ──────────────────────────────────────────
 
   /**
-   * Single entry point. Live topic → inject (upsert listeners onto the
-   * running stream, `models` ignored). Otherwise → start (evict any
-   * grace-period stream, launch one execution per `models` entry).
+   * Single entry point. Live topic + an explicit execution change → update
+   * that reply group; live topic + no models → inject listeners. Otherwise
+   * start a new stream (evicting any grace-period stream first).
    * Multi-model is detected from `models.length > 1`.
    */
   send(input: SendInput): SendResult {
     const existing = this.activeStreams.get(input.topicId)
+    const liveExecutionChange = input.liveExecutionChange
 
-    if (input.replaceLiveExecution && input.appendLiveExecution) {
-      throw new Error('send(): replaceLiveExecution and appendLiveExecution are mutually exclusive')
-    }
-
-    if (existing && isLiveStatus(existing.status) && (input.replaceLiveExecution || input.appendLiveExecution)) {
+    if (existing && isLiveStatus(existing.status) && liveExecutionChange) {
       if (input.models.length !== 1) {
         throw new Error('send(): a dynamic live execution change requires exactly one model')
       }
       const [model] = input.models
       const previous = existing.executions.get(model.modelId)
-      if (input.appendLiveExecution && previous) {
+      if (liveExecutionChange.mode === 'append' && previous) {
         throw new Error(`send(): model ${model.modelId} already belongs to topic ${input.topicId}'s live reply group`)
       }
       if (
-        input.appendLiveExecution &&
-        (!input.appendLiveGroupAnchorMessageId ||
-          ![...existing.executions.values()].some(
-            (execution) => execution.anchorMessageId === input.appendLiveGroupAnchorMessageId
-          ))
+        liveExecutionChange.mode === 'append' &&
+        ![...existing.executions.values()].some(
+          (execution) => execution.anchorMessageId === liveExecutionChange.groupAnchorMessageId
+        )
       ) {
         throw new Error("send(): append target is not part of the topic's current live reply group")
       }
-      if (input.replaceLiveExecution) {
+      if (liveExecutionChange.mode === 'replace') {
         if (!previous || previous.anchorMessageId !== model.request.messageId) {
           throw new Error("send(): retry target is not the selected topic's current live execution")
         }
@@ -615,7 +611,6 @@ export class AiStreamManager extends BaseService {
       existing.lifecycle.onActiveExecutionsChanged(existing)
       return {
         mode: 'started',
-        executionIds: [model.modelId],
         activeExecutions: [toActiveExecution(nextExecution)]
       }
     }
@@ -639,7 +634,6 @@ export class AiStreamManager extends BaseService {
       for (const listener of input.listeners) this.addListener(input.topicId, listener)
       return {
         mode: 'injected',
-        executionIds: [...existing.executions.keys()],
         activeExecutions: [...existing.executions.values()]
           .filter((exec) => exec.status === 'streaming')
           .map(toActiveExecution)
@@ -660,7 +654,7 @@ export class AiStreamManager extends BaseService {
       logger.debug('send(): empty models with no live stream — enqueue-only, nothing to start', {
         topicId: input.topicId
       })
-      return { mode: 'injected', executionIds: [], activeExecutions: [] }
+      return { mode: 'injected', activeExecutions: [] }
     }
 
     // Evict any grace-period stream so two streams never coexist on one topic.
@@ -708,7 +702,6 @@ export class AiStreamManager extends BaseService {
 
     return {
       mode: 'started',
-      executionIds: input.models.map((m) => m.modelId),
       activeExecutions: [...executions.values()].map(toActiveExecution)
     }
   }
@@ -806,10 +799,9 @@ export class AiStreamManager extends BaseService {
   }
 
   /**
-   * True iff this topic has a stream that `send()` would treat as the inject
-   * path (live: pending or streaming). Providers query this in
-   * `prepareDispatch` so they can skip placeholder rows / persistence
-   * listeners that the inject path doesn't consume.
+   * True iff this topic has a pending or streaming turn. Providers use this
+   * initial admission snapshot to choose inject, append, or ordinary start
+   * preparation.
    */
   hasLiveStream(topicId: string): boolean {
     const stream = this.activeStreams.get(topicId)
@@ -826,24 +818,26 @@ export class AiStreamManager extends BaseService {
     modelId: UniqueModelId,
     anchorMessageId: string,
     compatibleGroupAnchorMessageIds: readonly string[] = []
-  ): Promise<'replace-live' | 'append-live' | 'start-new'> {
+  ): Promise<ExecutionRetryAdmission> {
     const stream = this.activeStreams.get(topicId)
-    if (!stream) return 'start-new'
+    if (!stream) return { mode: 'start-new' }
 
     const execution = stream.executions.get(modelId)
     if (!execution || execution.anchorMessageId !== anchorMessageId) {
       if (isLiveStatus(stream.status)) {
         const compatibleAnchors = new Set(compatibleGroupAnchorMessageIds)
-        const hasCompatibleLiveGroup = [...stream.executions.values()].some(
+        const compatibleExecution = [...stream.executions.values()].find(
           (candidate) =>
             candidate.anchorMessageId !== anchorMessageId &&
             candidate.anchorMessageId !== undefined &&
             compatibleAnchors.has(candidate.anchorMessageId)
         )
-        if (!stream.executions.has(modelId) && hasCompatibleLiveGroup) return 'append-live'
+        if (!stream.executions.has(modelId) && compatibleExecution?.anchorMessageId) {
+          return { mode: 'append-live', groupAnchorMessageId: compatibleExecution.anchorMessageId }
+        }
         throw new Error("The selected assistant is not part of this topic's live reply group")
       }
-      return 'start-new'
+      return { mode: 'start-new' }
     }
     if (execution.status === 'streaming') {
       throw new Error('The selected assistant execution is not ready to retry')
@@ -854,18 +848,18 @@ export class AiStreamManager extends BaseService {
     await execution.loopPromise
 
     const current = this.activeStreams.get(topicId)
-    if (!current) return 'start-new'
+    if (!current) return { mode: 'start-new' }
     const currentExecution = current.executions.get(modelId)
     if (!currentExecution || currentExecution !== execution || currentExecution.anchorMessageId !== anchorMessageId) {
       if (isLiveStatus(current.status)) {
         throw new Error('The selected assistant execution changed before retry could start')
       }
-      return 'start-new'
+      return { mode: 'start-new' }
     }
     if (currentExecution.status === 'streaming') {
       throw new Error('The selected assistant execution changed before retry could start')
     }
-    return isLiveStatus(current.status) ? 'replace-live' : 'start-new'
+    return isLiveStatus(current.status) ? { mode: 'replace-live' } : { mode: 'start-new' }
   }
 
   /** Whether any chat or agent turn is still able to write persisted stream state. */

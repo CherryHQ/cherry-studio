@@ -279,36 +279,20 @@ export type AiStreamOpenResponse =
        * `'injected'` — a stream was already live, or an enqueue-only turn
        *                 intentionally launched no models. The subscriber was
        *                 attached to the running stream instead of starting a
-       *                 turn; chat steers may still include `userMessageId` /
-       *                 `reservedMessages` for the queued user row.
+       *                 turn; chat steers may still include `reservedMessages`
+       *                 for the queued user row.
        */
       mode: 'started' | 'injected'
-      /** Multi-model: execution IDs for frontend to create per-model streams. */
-      executionIds?: UniqueModelId[]
-      /** Fresh runtime identities, including per-attempt ids, for optimistic stream attachment. */
+      /** Runtime identities, including per-attempt ids, for optimistic stream attachment. */
       activeExecutions?: ActiveExecution[]
       /** The reservation deliberately left the topic's persisted active node unchanged. */
       preserveActiveNode?: boolean
-      /**
-       * Authoritative DB id of the user message created for this turn, when the
-       * dispatch created one (submit on a persisted topic; agent session).
-       * Absent for regenerate / continue / temporary topics. The renderer joins
-       * its optimistic user bubble against this.
-       */
-      userMessageId?: string
       /**
        * Authoritative persisted message skeletons reserved before the stream starts. Contract
        * intent: a consumer may seed these into its view immediately for an optimistic render, then
        * reconcile final content/status from a DB refresh.
        */
       reservedMessages?: CherryUIMessage[]
-      /**
-       * Assistant placeholder ids derived from `reservedMessages` (its assistant rows, or the
-       * per-model `request.messageId` fallback). The v2 home page reads this through
-       * `usePendingMessages` (via `V2ChatContent`) as the join key for reconciling its optimistic
-       * pending bubbles against the persisted rows.
-       */
-      placeholderIds?: string[]
     }
   | {
       mode: 'blocked'

@@ -50,9 +50,9 @@ explicit `Ai_ToolApproval_Respond` IPC handled by
 
 `streamDispatchCoordinator` (`src/renderer/services/aiTransport/streamDispatchCoordinator.ts`)
 sits between the transport and the IPC call so the `Ai_Stream_Open` ack
-(`userMessageId`, placeholder ids, executionIds) is observable to callers
-that need to join optimistic UI bubbles, rather than being thrown away by
-AI SDK's transport interface.
+(`reservedMessages`, `activeExecutions`, and `preserveActiveNode`) is
+observable to callers that need to seed optimistic UI bubbles, rather than
+being thrown away by AI SDK's transport interface.
 
 It does **not** serialize sends — there is no single-in-flight guard in the
 coordinator. Concurrency for a topic is arbitrated on the Main side: a chat

@@ -479,17 +479,20 @@ interface SendInput {
   models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
   listeners: StreamListener[]
   siblingsGroupId?: number
+  liveExecutionChange?:
+    | { mode: 'replace' }
+    | { mode: 'append'; groupAnchorMessageId: string }
   lifecycle?: StreamLifecycle        // omit → chatLifecycle; streamPrompt passes promptStreamLifecycle
 }
 
 interface SendResult {
   mode: 'started' | 'injected'
-  executionIds: UniqueModelId[]      // started → fresh ids; injected → already running
+  activeExecutions: ActiveExecution[]
 }
 ```
 
-- **injected**: topic has a live stream (`pending` or `streaming`) →
-  `models` is ignored and `listeners` upsert by id; **no models are
+- **injected**: topic has a live stream (`pending` or `streaming`) and
+  `models` is empty → `listeners` upsert by id; **no models are
   launched**. Reached by (a) a chat steer — the provider already persisted the
   steer user row and `dispatch` enqueued it on `pendingSteers`; and (b) an
   agent-session follow-up already enqueued on the session's `pendingTurns`. An
@@ -647,7 +650,7 @@ dispatchStreamRequest → manager.send({ models, listeners, siblingsGroupId })
                           ├─ create ActiveStream (isMultiModel = true, 2 executions)
                           ├─ launch one execution loop per model, each with its own
                           │  ring buffer
-                          └─ return { mode: 'started', executionIds: [gpt-4o, claude-sonnet] }
+                          └─ return { mode: 'started', activeExecutions: [...] }
 ```
 
 ## Steering
@@ -730,7 +733,7 @@ listener composition:
 
 | Channel | Payload | Response | Semantics |
 |---|---|---|---|
-| `Ai_Stream_Open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, executionIds?, userMessageId?, placeholderIds? }` | Open / inject; provider routes by topicId |
+| `Ai_Stream_Open` | `AiStreamOpenRequest` (`submit-message` \| `regenerate-message`) | `{ mode, activeExecutions?, reservedMessages?, preserveActiveNode? }` | Open / inject; provider routes by topicId |
 | `Ai_Stream_Attach` | `{ topicId }` | `AiStreamAttachResponse` | Subscribe; returns compact replay when streaming |
 | `Ai_Stream_Detach` | `{ topicId }` | void | Unsubscribe (stream continues) |
 | `Ai_Stream_Abort` | `{ topicId }` | void | Stop current generation |
@@ -795,7 +798,7 @@ dispatchStreamRequest(manager, subscriber, req)
   → provider = providers.find(p => p.canHandle(req.topicId))
   → prepared = await provider.prepareDispatch(subscriber, req, { hasLiveStream })
   → result   = manager.send(prepared)        // ← the only manager.send call
-  → return { mode, executionIds?, userMessageId?, placeholderIds? }
+  → return { mode, activeExecutions?, reservedMessages?, preserveActiveNode? }
 ```
 
 Providers only "prepare" — they never call `manager.send` directly. Two
@@ -823,10 +826,13 @@ interface PreparedDispatch {
   topicId: string
   models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
   listeners: StreamListener[]   // subscriber + per-execution PersistenceListener(s)
-  userMessageId?: string
   pendingSteerUserMessageId?: string   // persistent steer branch only; marks the dispatch enqueue-only
   reservedMessages?: CherryUIMessage[] // user/assistant skeletons created for this dispatch
   siblingsGroupId?: number
+  liveExecutionChange?:
+    | { mode: 'replace' }
+    | { mode: 'append'; groupAnchorMessageId: string; activateFallback: boolean }
+  preserveActiveNode?: boolean
   isMultiModel: boolean
   lifecycle?: StreamLifecycle
 }

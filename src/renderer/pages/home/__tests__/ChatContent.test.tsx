@@ -272,7 +272,7 @@ describe('ChatContent', () => {
   let streamOpen: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
-    streamOpen = vi.fn().mockResolvedValue({ mode: 'started', userMessageId: 'user-1' })
+    streamOpen = vi.fn().mockResolvedValue({ mode: 'started' })
     // Route ai.stream.open through the spy; other stream routes/events are inert here
     // (useChatWithHistory is mocked, so the real transport never runs).
     ipcMock.request = (route, input) => (route === 'ai.stream.open' ? streamOpen(input) : Promise.resolve(undefined))
@@ -796,7 +796,6 @@ describe('ChatContent', () => {
 
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
-      userMessageId: 'reserved-user',
       reservedMessages: [reservedUser, reservedAssistant]
     })
 
@@ -1431,7 +1430,6 @@ describe('ChatContent', () => {
 
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
-      userMessageId: 'reserved-user',
       reservedMessages: [reservedUser, reservedAssistantA, reservedAssistantB]
     })
     const refresh = vi.fn().mockResolvedValue([])

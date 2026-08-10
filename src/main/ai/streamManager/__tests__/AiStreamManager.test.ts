@@ -330,7 +330,7 @@ describe('AiStreamManager', () => {
       // a stream — just return without effect.
       const result = mgr.send({ topicId: 'a', models: [], listeners: [new FakeListener('l:a')] })
 
-      expect(result).toEqual({ mode: 'injected', executionIds: [], activeExecutions: [] })
+      expect(result).toEqual({ mode: 'injected', activeExecutions: [] })
       expect(mgr.inspect('a')).toBeUndefined()
     })
 
@@ -461,7 +461,7 @@ describe('AiStreamManager', () => {
       })
 
       expect(result.mode).toBe('injected')
-      expect(result.executionIds).toEqual(['provider-a::model-a'])
+      expect(result.activeExecutions).toEqual([expect.objectContaining({ executionId: 'provider-a::model-a' })])
       // No second streamText call — the live stream is reused.
       expect(mockStreamText).toHaveBeenCalledTimes(1)
 
@@ -515,7 +515,7 @@ describe('AiStreamManager', () => {
       })
 
       expect(result.mode).toBe('injected')
-      expect(result.executionIds).toEqual(['provider-a::model-a'])
+      expect(result.activeExecutions).toEqual([expect.objectContaining({ executionId: 'provider-a::model-a' })])
       expect(mockStreamText).toHaveBeenCalledTimes(1)
       expect(mgr.inspect('agent-session:s1')?.listenerIds).toEqual(['l:a', 'l:b'])
     })
@@ -539,7 +539,7 @@ describe('AiStreamManager', () => {
       const result = mgr.send({ topicId, models: [], listeners: [new FakeListener('l:b')] })
 
       expect(result.mode).toBe('injected')
-      expect(result.executionIds).toEqual([]) // enqueue-only branch, not inject
+      expect(result.activeExecutions).toEqual([]) // enqueue-only branch, not inject
       // The follow-up subscriber must be attached to the grace stream so
       // startRuntimeTurn carries it into the next runtime turn instead of dropping it.
       expect(mgr.inspect(topicId)?.listenerIds).toContain('l:b')
@@ -562,7 +562,6 @@ describe('AiStreamManager', () => {
 
       expect(result).toEqual({
         mode: 'started',
-        executionIds: ['provider-a::model-a', 'provider-b::model-b'],
         activeExecutions: [
           {
             executionId: 'provider-a::model-a',
@@ -621,7 +620,7 @@ describe('AiStreamManager', () => {
         ],
         listeners: [new FakeListener('l:retry')],
         siblingsGroupId: 7,
-        replaceLiveExecution: true
+        liveExecutionChange: { mode: 'replace' }
       })
 
       const snapshot = mgr.inspect(topicId)!
@@ -674,7 +673,7 @@ describe('AiStreamManager', () => {
             }
           ],
           listeners: [],
-          replaceLiveExecution: true
+          liveExecutionChange: { mode: 'replace' }
         })
       ).toThrow("retry target is not the selected topic's current live execution")
 
@@ -699,7 +698,7 @@ describe('AiStreamManager', () => {
 
       await expect(
         mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-b', ['assistant-a', 'assistant-b'])
-      ).resolves.toBe('append-live')
+      ).resolves.toEqual({ mode: 'append-live', groupAnchorMessageId: 'assistant-a' })
       await expect(
         mgr.awaitExecutionRetry(topicId, 'provider-b::model-b', 'assistant-a', ['assistant-a', 'assistant-b'])
       ).rejects.toThrow("not part of this topic's live reply group")
@@ -736,8 +735,7 @@ describe('AiStreamManager', () => {
             }
           ],
           listeners: [],
-          appendLiveExecution: true,
-          appendLiveGroupAnchorMessageId: 'historical-assistant'
+          liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'historical-assistant' }
         })
       ).toThrow("append target is not part of the topic's current live reply group")
 
@@ -751,8 +749,7 @@ describe('AiStreamManager', () => {
         ],
         listeners: [new FakeListener('l:append')],
         siblingsGroupId: 7,
-        appendLiveExecution: true,
-        appendLiveGroupAnchorMessageId: 'assistant-a'
+        liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'assistant-a' }
       })
 
       const snapshot = mgr.inspect(topicId)!
@@ -782,8 +779,7 @@ describe('AiStreamManager', () => {
           topicId,
           models: [{ modelId: 'provider-c::model-c', request: req(topicId) }],
           listeners: [],
-          appendLiveExecution: true,
-          appendLiveGroupAnchorMessageId: 'assistant-a'
+          liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'assistant-a' }
         })
       ).toThrow('already belongs')
       expect(mockStreamText).toHaveBeenCalledTimes(3)
@@ -812,8 +808,7 @@ describe('AiStreamManager', () => {
           }
         ],
         listeners: [new FakeListener('l:fallback')],
-        appendLiveExecution: true,
-        appendLiveGroupAnchorMessageId: 'assistant-a'
+        liveExecutionChange: { mode: 'append', groupAnchorMessageId: 'assistant-a' }
       })
 
       expect(fallback.mode).toBe('started')
@@ -1490,7 +1485,7 @@ describe('AiStreamManager', () => {
     it('drains a steer that lands right after a clean `done` settle (inter-turn race)', async () => {
       // The turn completed cleanly before the steer's enqueue landed, so no terminal hook fired to
       // chain it — `enqueuePendingSteer` must drain it itself.
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -1510,7 +1505,7 @@ describe('AiStreamManager', () => {
     })
 
     it('a finished turn with a queued steer chains a continuation instead of finishing (no idle flicker)', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
 
@@ -1531,7 +1526,7 @@ describe('AiStreamManager', () => {
     })
 
     it('drains multiple steers FIFO — only the head starts until the next turn finishes', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -1552,7 +1547,7 @@ describe('AiStreamManager', () => {
     })
 
     it('drops a queued steer when the turn is aborted instead of chaining onto it', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
       mgr.enqueuePendingSteer('a', 'u2')
@@ -1571,7 +1566,7 @@ describe('AiStreamManager', () => {
       // The user pressed Stop; the steer's enqueue lands AFTER the abort settled. It must not start a
       // turn after Stop, nor sit queued for a later unrelated turn to chain — it's dropped (the
       // persisted row stays resendable).
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -1593,7 +1588,7 @@ describe('AiStreamManager', () => {
       // the stream to 'aborted' synchronously), and the steer enqueue lands BEFORE `onExecutionPaused`
       // runs. The enqueue reads 'aborted' off the in-grace stream and drops — it must not drain off
       // the earlier turn's clean 'done'.
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
 
       // 1) an earlier clean turn (settles to 'done')
       startSingle(mgr, {
@@ -1623,7 +1618,7 @@ describe('AiStreamManager', () => {
     it('does not chain while an execution is awaiting approval', async () => {
       // A turn that ends `awaiting-approval` with a steer queued must NOT launch a continuation: the
       // user's Approve dispatches `continue-conversation`, which a live continuation would swallow.
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('wc:1')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
       // Drive the execution into awaiting-approval, then complete it.
@@ -1640,7 +1635,7 @@ describe('AiStreamManager', () => {
       // A first steer is queued and the turn chains (status flips to 'done'); a SECOND steer lands in
       // that chaining window. The old shadow flag wasn't recorded on the chaining settle, so the late
       // steer read `undefined` and was dropped; now it reads 'done' off the in-grace stream and stays.
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -1659,7 +1654,7 @@ describe('AiStreamManager', () => {
     it('queues a steer that lands after the turn parked on approval, without launching (variant B)', async () => {
       // As above, but the steer lands AFTER the park (not before): it must still queue for the
       // post-approval continuation, not read a non-live status and drop.
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       startSingle(mgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -1676,7 +1671,7 @@ describe('AiStreamManager', () => {
     })
 
     it('never chains a steer onto a multi-model turn that resolved to error, in either settle order', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const twoModels = (topicId: string) => ({
         topicId,
         models: [
@@ -1726,7 +1721,7 @@ describe('AiStreamManager', () => {
     // The single line that prevents the prior turn's PersistenceListener from being carried into the
     // continuation (and writing onto the OLD assistant row) is the renderer-listener filter — cover it.
     it('carries only renderer listeners into the continuation; persistence/trace are dropped', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const addSpy = vi.spyOn(mgr, 'addListener')
       const wc1 = new FakeListener('wc:1:a')
       const wc2 = new FakeListener('wc:2:a')
@@ -1755,7 +1750,7 @@ describe('AiStreamManager', () => {
     })
 
     it('falls back to the null listener when the finished turn had no renderer windows', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       // Only a persistence listener (e.g. every window closed mid-turn) — nothing to carry.
       const persist = new FakeListener('persistence:sqlite:a:provider-a::model-a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [persist] })
@@ -1789,7 +1784,7 @@ describe('AiStreamManager', () => {
     })
 
     it('tracks the queue and starts a continuation immediately when the topic is idle', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
 
       expect(mgr.hasPendingSteer('a')).toBe(false)
       mgr.enqueuePendingSteer('a', 'u1')
@@ -1802,7 +1797,7 @@ describe('AiStreamManager', () => {
     })
 
     it('a finished turn with a queued steer chains a continuation instead of finishing (no idle flicker)', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
 
@@ -1823,7 +1818,7 @@ describe('AiStreamManager', () => {
     })
 
     it('drains multiple steers FIFO — only the head starts until the next turn finishes', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       mgr.enqueuePendingSteer('a', 'u1')
       mgr.enqueuePendingSteer('a', 'u2')
 
@@ -1834,7 +1829,7 @@ describe('AiStreamManager', () => {
     })
 
     it('drops a queued steer when the turn is aborted instead of chaining onto it', async () => {
-      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started', executionIds: [] } as any)
+      const dispatchSpy = vi.spyOn(mgr, 'dispatch').mockResolvedValue({ mode: 'started' } as any)
       const listener = new FakeListener('l:a')
       startSingle(mgr, { topicId: 'a', modelId: 'provider-a::model-a', request: req('a'), listeners: [listener] })
       mgr.enqueuePendingSteer('a', 'u2')

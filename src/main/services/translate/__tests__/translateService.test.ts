@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // `application.get('PreferenceService')` is mocked globally via
 // tests/main.setup.ts. We only need to override `AiStreamManager` so we can
 // assert on the streamPrompt call.
-const streamPromptMock = vi.fn(() => ({ mode: 'started' as const, executionIds: [] }))
+const streamPromptMock = vi.fn(() => ({ mode: 'started' as const, activeExecutions: [] }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -60,7 +60,7 @@ beforeEach(() => {
   messageGetByIdMock.mockReset()
   messageUpdateMock.mockReset()
   streamPromptMock.mockReset()
-  streamPromptMock.mockReturnValue({ mode: 'started' as const, executionIds: [] })
+  streamPromptMock.mockReturnValue({ mode: 'started' as const, activeExecutions: [] })
 })
 
 describe('translateService.resolveTranslatePayload', () => {

@@ -15,6 +15,15 @@ import type { StreamLifecycle } from '../lifecycle/StreamLifecycle'
 import type { StreamListener } from '../types'
 import type { MainDispatchRequest } from './dispatch'
 
+export type PreparedLiveExecutionChange =
+  | { mode: 'replace' }
+  | {
+      mode: 'append'
+      groupAnchorMessageId: string
+      /** Activate the reserved assistant if the live stream settles during preparation. */
+      activateFallback: boolean
+    }
+
 export interface PreparedDispatch {
   topicId: string
   models: ReadonlyArray<{
@@ -27,8 +36,6 @@ export interface PreparedDispatch {
     abortController?: AbortController
   }>
   listeners: StreamListener[]
-  /** DB id of the user message row this dispatch created, surfaced back to renderer for optimistic join. */
-  userMessageId?: string
   /**
    * Set only by the persistent provider's live-submit (steer) branch: the id of the steer user row to
    * enqueue. Its presence is the explicit signal that this dispatch is enqueue-only — the dispatcher
@@ -43,26 +50,18 @@ export interface PreparedDispatch {
   reservedMessages?: CherryUIMessage[]
   /** Shared sibling group for multi-model parallel responses. */
   siblingsGroupId?: number
-  /** Replace one terminal execution inside a still-live multi-model stream. */
-  replaceLiveExecution?: boolean
-  /** Add one previously absent model execution to the current live reply group. */
-  appendLiveExecution?: boolean
-  /** Existing assistant anchor that identifies the live reply group being appended to. */
-  appendLiveGroupAnchorMessageId?: string
-  /** Whether append→fresh fallback should activate the newly reserved row. Defaults to true. */
-  activateAppendFallback?: boolean
+  /** Change one execution in the current live reply group. */
+  liveExecutionChange?: PreparedLiveExecutionChange
   /** Reservation intentionally did not move the topic's active node. */
   preserveActiveNode?: boolean
-  /** Restore an in-place reservation if the final stream handoff rejects it. */
-  rollbackReservation?: () => void
-  /** True when the response should surface `executionIds` (multi-model UI). */
+  /** True when this dispatch owns multiple assistant placeholders. */
   isMultiModel: boolean
   /** Strategy for status broadcast, attach gating, cleanup. Omit → `chatLifecycle`. */
   lifecycle?: StreamLifecycle
 }
 
 export interface DispatchContext {
-  /** True when `manager.send()` will take the inject branch. */
+  /** True when the topic has a live stream at initial dispatch admission. */
   hasLiveStream: boolean
   /** Reject instead of enqueueing when the runtime becomes busy during preparation. */
   requireIdle?: boolean
