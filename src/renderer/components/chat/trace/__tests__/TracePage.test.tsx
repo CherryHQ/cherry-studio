@@ -1,5 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { Activity, type ButtonHTMLAttributes, type HTMLAttributes, type PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -128,7 +127,6 @@ describe('TracePage', () => {
   })
 
   it('updates the selected span detail after receiving a delta', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
     const cursor = { historyVersion: '1:100', liveRevision: 4 }
     mocks.getData
       .mockResolvedValueOnce({
@@ -164,7 +162,8 @@ describe('TracePage', () => {
     await act(async () => {
       await Promise.resolve()
     })
-    await user.click(screen.getByRole('button', { name: 'tool.call' }))
+    // userEvent's async wrapper cannot drain its zero-delay timer while Vitest fake timers are active.
+    fireEvent.click(screen.getByRole('button', { name: 'tool.call' }))
     expect(screen.getByTestId('code-viewer')).toHaveTextContent('before')
 
     await act(async () => {
