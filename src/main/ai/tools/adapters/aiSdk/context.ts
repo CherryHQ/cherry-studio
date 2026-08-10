@@ -85,6 +85,16 @@ export function getToolCallContext(options: ToolExecutionOptions): ToolCallConte
   }
 }
 
+/**
+ * Lenient counterpart of {@link getToolCallContext} for optional enrichment
+ * (e.g. abort-scope tagging): returns undefined instead of throwing when the
+ * context is absent, so the tool call itself never fails over a missing extra.
+ */
+export function getRequestContext(options: ToolExecutionOptions): RequestContext | undefined {
+  const request = options.experimental_context
+  return isRequestContext(request) ? request : undefined
+}
+
 function isRequestContext(value: unknown): value is RequestContext {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Partial<RequestContext>

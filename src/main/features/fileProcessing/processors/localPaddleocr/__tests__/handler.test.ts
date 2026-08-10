@@ -2,9 +2,9 @@ import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FileInfoSchema } from '@shared/types/file'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { recognizeMock, isLocalPaddleocrModelDownloadedMock, ocrModelPathsMock } = vi.hoisted(() => ({
+const { recognizeMock, isLocalModelReadyMock, ocrModelPathsMock } = vi.hoisted(() => ({
   recognizeMock: vi.fn(),
-  isLocalPaddleocrModelDownloadedMock: vi.fn(),
+  isLocalModelReadyMock: vi.fn(),
   ocrModelPathsMock: vi.fn()
 }))
 
@@ -20,8 +20,11 @@ vi.mock('@application', async () => {
 })
 
 vi.mock('@main/ai/inference/ocrModelPaths', () => ({
-  isLocalPaddleocrModelDownloaded: isLocalPaddleocrModelDownloadedMock,
   ocrModelPaths: ocrModelPathsMock
+}))
+
+vi.mock('@main/services/localModel', () => ({
+  isLocalModelReady: isLocalModelReadyMock
 }))
 
 import { localPaddleocrImageToTextHandler } from '../imageToText/handler'
@@ -59,7 +62,7 @@ const config = { id: 'local-paddleocr', type: 'builtin', capabilities: [] } as u
 describe('localPaddleocrImageToTextHandler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    isLocalPaddleocrModelDownloadedMock.mockReturnValue(true)
+    isLocalModelReadyMock.mockReturnValue(true)
     ocrModelPathsMock.mockReturnValue(MODEL_PATHS)
   })
 
@@ -85,12 +88,16 @@ describe('localPaddleocrImageToTextHandler', () => {
     )
   })
 
-  it('rejects when the model has not been downloaded', () => {
-    isLocalPaddleocrModelDownloadedMock.mockReturnValue(false)
+  // Covers the onnxruntime binary too, not just the weights: probing the weight
+  // files alone let a job through that then died in the inference worker with a
+  // bare `Cannot find module ...onnxruntime_binding.node`.
+  it('rejects when the local OCR model is not ready', () => {
+    isLocalModelReadyMock.mockReturnValue(false)
 
     expect(() => localPaddleocrImageToTextHandler.prepare(imageFile, config)).toThrow(
       'Local PaddleOCR model is not downloaded'
     )
+    expect(isLocalModelReadyMock).toHaveBeenCalledWith('ocr')
   })
 
   it('throws if the prepare signal is already aborted', () => {

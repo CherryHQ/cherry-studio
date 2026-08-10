@@ -108,12 +108,19 @@ describe('mcpTools execute wrapper', () => {
       content: [{ type: 'text', text: 'ok' }]
     } as McpCallToolResponse
     callTool.mockResolvedValue(runtimeResult)
+    const abortSignal = new AbortController().signal
 
-    const out = (await execute({ q: 'x' }, { toolCallId: 'call-3' } as any)) as McpCallToolResponse & {
+    const out = (await execute({ q: 'x' }, { toolCallId: 'call-3', abortSignal } as any)) as McpCallToolResponse & {
       metadata: { description: string; name: string; serverId: string; serverName: string; type: string }
     }
 
-    expect(callTool).toHaveBeenCalledWith({ serverId: 's1', name: 't', args: { q: 'x' }, callId: 'call-3' })
+    expect(callTool).toHaveBeenCalledWith({
+      serverId: 's1',
+      name: 't',
+      args: { q: 'x' },
+      callId: 'call-3',
+      signal: abortSignal
+    })
     expect(out.content).toEqual([{ type: 'text', text: 'ok' }])
     expect(out.metadata).toEqual({ description: '', name: 't', serverName: 's1', serverId: 's1', type: 'mcp' })
   })
