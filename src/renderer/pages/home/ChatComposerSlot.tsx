@@ -1,7 +1,9 @@
+import { useRightPanelPresentationMaximized } from '@renderer/components/chat/panes/Shell'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import ConversationComposerSlot from '@renderer/components/composer/ConversationComposerSlot'
 import {
   type ChatComposerResolvedContext,
+  type ChatContextUsageSource,
   type ChatConversationControlsChangeHandler,
   ChatPlacementComposer
 } from '@renderer/components/composer/variants/ChatComposer'
@@ -15,6 +17,7 @@ import type { AddNewTopicPayload } from './types'
 
 interface ChatComposerSlotBaseProps {
   topic: Topic
+  contextUsage: ChatContextUsageSource | null
   onSend: (
     text: string,
     options?: {
@@ -39,6 +42,7 @@ type ChatComposerSlotProps =
 export default function ChatComposerSlot({
   placement,
   topic,
+  contextUsage,
   onSend,
   chatTarget,
   onNewTopic,
@@ -49,12 +53,14 @@ export default function ChatComposerSlot({
   providers,
   onConversationControlsChange
 }: ChatComposerSlotProps) {
+  const compactWhenSingleLine = useRightPanelPresentationMaximized()
   const fallback =
     placement === 'home' ? (
       <ChatPlacementComposer
         placement="home"
         scopeKey={topic.id}
         topicId={topic.id}
+        contextUsage={contextUsage}
         assistantId={topic.assistantId}
         onSend={onSend}
         chatTarget={chatTarget}
@@ -63,6 +69,7 @@ export default function ChatComposerSlot({
         resolvedContext={assistantContext}
         resolvedProviders={providers}
         externalContextControls
+        compactWhenSingleLine={compactWhenSingleLine}
         onConversationControlsChange={onConversationControlsChange}
       />
     ) : (
@@ -70,6 +77,7 @@ export default function ChatComposerSlot({
         placement="docked"
         scopeKey={topic.id}
         topicId={topic.id}
+        contextUsage={contextUsage}
         assistantId={topic.assistantId}
         onSend={onSend}
         chatTarget={chatTarget}
@@ -79,6 +87,7 @@ export default function ChatComposerSlot({
         resolvedContext={assistantContext}
         resolvedProviders={providers}
         externalContextControls
+        compactWhenSingleLine={compactWhenSingleLine}
         onConversationControlsChange={onConversationControlsChange}
       />
     )

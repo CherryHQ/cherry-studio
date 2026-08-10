@@ -147,6 +147,7 @@
       }
     },
     "composer": {
+      "background_running_one": "{{count}} tác vụ nền đang chạy",
       "background_running_other": "{{count}} tác vụ nền đang chạy"
     },
     "delete": {
@@ -260,6 +261,7 @@
         }
       },
       "file_tree": "Cây tệp",
+      "items_one": "{{count}} mục",
       "items_other": "{{count}} mục",
       "maximize": "Tối đa hóa",
       "minimize": "Thu nhỏ",
@@ -343,6 +345,7 @@
         "agent": "Agent",
         "context": "Bối cảnh",
         "no_tasks": "Không có tác vụ nào đang hoạt động",
+        "run_task_live_one": "{{count}} trực tiếp",
         "run_task_live_other": "{{count}} trực tiếp",
         "run_tasks": "Nhiệm vụ phụ",
         "selected_tool": "Công cụ đã chọn",
@@ -350,6 +353,7 @@
         "stop_run_task_failed": "Không thể dừng tác vụ",
         "task_count": "{{completed}} / {{total}} hoàn thành",
         "tasks": "Nhiệm vụ",
+        "tool_uses_one": "{{count}} lệnh gọi công cụ",
         "tool_uses_other": "{{count}} lệnh gọi công cụ",
         "tools_active": "Hoạt động",
         "tools_done": "Xong",
@@ -451,12 +455,14 @@
         "expand_all": "Mở rộng tất cả",
         "no_workdir": "Không có thư mục làm việc",
         "show_more": "Mở rộng hiển thị",
+        "tasks": "Nhiệm vụ",
         "this_week": "Tuần này",
         "today": "Hôm nay",
         "unknown_agent": "Agent không xác định",
         "unknown_agent_tip": "Đây là nhóm phiên cũ không có Agent, không phải Agent thực tế. Bạn chỉ có thể xem và không thể tiếp tục chạy nhóm này.",
         "yesterday": "Hôm qua"
       },
+      "label_one": "Phiên",
       "label_other": "Phiên",
       "list": {
         "title": "Nhiệm vụ"
@@ -1000,6 +1006,10 @@
         "CherryNotify": {
           "description": "Gửi thông báo qua kênh đã kết nối",
           "label": "Thông báo"
+        },
+        "CherryToMarkdown": {
+          "description": "Chuyển đổi tài liệu cục bộ (PDF, Office, EPUB, CSV) sang Markdown để agent có thể đọc",
+          "label": "Tài liệu sang Markdown"
         },
         "CherryWebFetch": {
           "description": "Tìm nạp và đọc một trang web",
@@ -1671,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Chi nhánh mới đã được tạo",
-          "disabled": {
-            "active": "Nút này đã được chọn. Tiếp tục nhập để mở rộng nhánh từ đây.",
-            "latest": "Bạn đã ở cuối nhánh này. Tiếp tục nhập để mở rộng nó.",
-            "no_follow_up": "Chưa có tin nhắn tiếp theo sau tin nhắn này. Chuyển sang nút này và tiếp tục nhập thay vào đó."
-          },
           "label": "Chi nhánh mới"
         },
         "context": "Bối cảnh Mới"
@@ -1736,12 +1741,6 @@
       "top": "Quay lại đầu trang"
     },
     "resend": "Gửi lại",
-    "resource_view": {
-      "menu": {
-        "agent": "Agent",
-        "assistant": "Trợ lý"
-      }
-    },
     "save": {
       "file": {
         "title": "Lưu vào tệp cục bộ"
@@ -1914,6 +1913,7 @@
         "time": "Thời gian",
         "title": "Chế độ hiển thị"
       },
+      "draft": "Bản nháp",
       "edit": {
         "placeholder": "Nhập tên mới",
         "title": "Chỉnh sửa Tên",
@@ -2158,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Mã Qwen"
     },
@@ -2165,6 +2166,7 @@
     "config_json_hint": "Dán hoặc chỉnh sửa JSON thô; nó đồng bộ với các trường ở trên",
     "configure": "Cấu hình",
     "configuring_provider": "Cấu hình {{provider}}",
+    "count_one": "{{count}} mục",
     "count_other": "{{count}} mục",
     "current_config": "Hiện tại",
     "current_config_settings": "Cấu hình hiện tại",
@@ -2293,10 +2295,12 @@
     "add_success": "Đã thêm thành công",
     "advanced_settings": "Cài đặt nâng cao",
     "agent": "Agent",
+    "agent_one": "Đại lý",
     "agent_other": "Agent",
     "all": "Tất cả",
     "and": "và",
     "assistant": "Trợ lý",
+    "assistant_one": "Trợ lý",
     "assistant_other": "Trợ lý",
     "avatar": "Ảnh đại diện",
     "back": "Quay lại",
@@ -2980,6 +2984,28 @@
       "title": "Nhập các cuộc trò chuyện từ ChatGPT",
       "untitled_conversation": "Cuộc trò chuyện chưa có tiêu đề"
     },
+    "claude": {
+      "assistant_name": "Claude Import",
+      "button": "Chọn Tệp",
+      "description": "Nhập khẩu văn bản, suy nghĩ và sử dụng công cụ; hình ảnh và tệp đính kèm không được bao gồm",
+      "error": {
+        "invalid_json": "Định dạng tệp JSON không hợp lệ",
+        "no_conversations": "Không tìm thấy cuộc trò chuyện nào trong tệp",
+        "no_valid_conversations": "Không có cuộc trò chuyện hợp lệ để nhập",
+        "unknown": "Nhập thất bại, vui lòng kiểm tra định dạng tệp"
+      },
+      "help": {
+        "step1": "1. Đăng nhập vào Claude, đi tới Cài đặt > Quyền riêng tư > Xuất dữ liệu",
+        "step2": "2. Chờ nhận file xuất qua email",
+        "step3": "3. Giải nén tệp đã tải xuống và tìm conversations.json",
+        "title": "Cách xuất cuộc trò chuyện Claude?"
+      },
+      "importing": "Đang nhập các cuộc trò chuyện...",
+      "selecting": "Đang chọn tệp...",
+      "success": "Đã nhập thành công {{topics}} cuộc hội thoại với {{messages}} tin nhắn",
+      "title": "Nhập các cuộc trò chuyện Claude",
+      "untitled_conversation": "Cuộc trò chuyện chưa đặt tên"
+    },
     "confirm": {
       "button": "Chọn Tập tin Nhập",
       "label": "Bạn có chắc chắn muốn nhập dữ liệu từ bên ngoài không?"
@@ -3018,10 +3044,20 @@
           "selected_notes": "{{count}} ghi chú được chọn"
         },
         "note": {
+          "create": {
+            "content_label": "Nội dung",
+            "content_placeholder": "Viết nội dung ghi chú tại đây…",
+            "title_label": "Tiêu đề",
+            "title_placeholder": "Đặt tên cho ghi chú này"
+          },
           "description": "Chọn các ghi chú hiện có làm nguồn cơ sở tri thức",
           "empty_description": "Các ghi chú có thể chọn sẽ xuất hiện ở đây sau khi danh sách ghi chú thực tế được kết nối. Hiện tại, hãy sử dụng tệp, thư mục, URL hoặc sơ đồ trang web.",
           "empty_title": "Các ghi chú chưa được kết nối",
-          "loading": "Đang tải ghi chú…"
+          "loading": "Đang tải ghi chú…",
+          "mode": {
+            "create": "Ghi chú mới",
+            "import": "Ghi chú nhập khẩu"
+          }
         },
         "placeholder": {
           "supported_formats": "Hỗ trợ PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3232,6 +3268,7 @@
       "action": "Xây dựng lại cơ sở tri thức",
       "default_name": "{{name}}_bak",
       "failed_to_restore": "Không thể xây dựng lại cơ sở tri thức",
+      "skipped_missing_sources_one": "Đã bỏ qua {{count}} mục có nguồn không còn tồn tại",
       "skipped_missing_sources_other": "Đã bỏ qua {{count}} mục có nguồn không còn tồn tại",
       "submit": "Xây dựng lại",
       "title": "Xây dựng lại Cơ sở tri thức"
@@ -3279,6 +3316,7 @@
   },
   "launchpad": {
     "apps": "Ứng dụng",
+    "manage_sidebar": "Quản lý Thanh bên",
     "minapps": "Mini-app",
     "miniApps": "Mini-app",
     "pin_to_sidebar": "Ghim vào thanh bên",
@@ -3349,11 +3387,6 @@
           },
           "heartbeat_interval": {
             "label": "Khoảng cách nhịp tim (phút)"
-          },
-          "instructions": {
-            "hint": "Xác định vai trò và giới hạn hành vi của Agent",
-            "label": "Lời nhắc hệ thống",
-            "placeholder": "Mô tả Agent là ai và có thể làm gì…"
           },
           "max_turns": {
             "help": "0 có nghĩa là sử dụng giá trị mặc định",
@@ -3549,8 +3582,7 @@
           "step": {
             "basic": "Thông tin cơ bản",
             "capability": "Kỹ năng",
-            "knowledge": "Kiến thức",
-            "persona": "Nhân cách"
+            "knowledge": "Kiến thức"
           },
           "submit": "Tạo",
           "submit_failed": "Tạo thất bại"
@@ -4064,6 +4096,9 @@
       "failed": "Khôi phục thất bại",
       "success": "Đã khôi phục thành công"
     },
+    "retry": {
+      "status": "Đang thử lại với {{model}} · lần thử {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Đã lưu thành công"
@@ -4213,6 +4248,8 @@
         "taskOutput": "Xem kết quả nhiệm vụ",
         "taskStop": "Dừng nhiệm vụ",
         "taskUpdate": "Cập nhật nhiệm vụ",
+        "toMarkdown": "Chuyển đổi Tài liệu",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Viết",
         "tool": "Công cụ",
         "webFetch": "Truy xuất Web",
@@ -4263,11 +4300,19 @@
       "thinkingHeader": "Suy nghĩ",
       "truncated": "Đã cắt bớt đầu ra (bản gốc: {{size}})",
       "units": {
+        "char_one": "{{count}} ký tự",
+        "char_other": "{{count}} ký tự",
+        "done_one": "{{count}} Đã xong",
         "done_other": "{{count}} Hoàn thành",
+        "file_one": "{{count}} tệp",
         "file_other": "{{count}} tệp",
+        "item_one": "{{count}} mục",
         "item_other": "{{count}} mục",
+        "line_one": "{{count}} dòng",
         "line_other": "{{count}} dòng",
+        "plan_one": "{{count}} gói",
         "plan_other": "{{count}} kế hoạch",
+        "result_one": "{{count}} kết quả",
         "result_other": "{{count}} kết quả"
       },
       "workflow": {
@@ -5142,9 +5187,11 @@
     "search_placeholder": "Tìm kiếm plugin...",
     "search_placeholder_skills": "Kỹ năng tìm kiếm...",
     "showing_results": "Hiển thị {{count}} plugin",
+    "showing_results_one": "Hiển thị {{count}} plugin",
     "showing_results_other": "Hiển thị {{count}} plugin",
     "showing_results_plural": "Hiển thị {{count}} plugin",
     "showing_results_skills": "Hiển thị {{count}} kỹ năng",
+    "showing_results_skills_one": "Hiển thị {{count}} kỹ năng",
     "showing_results_skills_other": "Hiển thị {{count}} kỹ năng",
     "showing_results_skills_plural": "Hiển thị {{count}} kỹ năng",
     "skills": "Kỹ năng",
@@ -5866,6 +5913,7 @@
             "title": "Nhật ký ứng dụng"
           },
           "summary": "{{count}} tệp, khoảng {{size}}",
+          "summary_one": "{{count}} tệp, khoảng {{size}}",
           "summary_other": "{{count}} tệp, khoảng {{size}}",
           "system": {
             "description": "Bao gồm thông tin chi tiết về ứng dụng, hệ thống và thiết bị. Số lần xảy ra sự cố gần đây: {{crashCount}}. Không thu thập tệp kết xuất sự cố.",
@@ -5998,11 +6046,41 @@
         "skip_file_data_title": "Sao lưu mỏng"
       },
       "clear_cache": {
+        "approximately": "Khoảng {{size}}",
         "button": "Xóa bộ nhớ đệm",
-        "confirm": "Xóa bộ nhớ cache sẽ xóa dữ liệu cache của ứng dụng, bao gồm cả dữ liệu minapp. Hành động này không thể hoàn tác, bạn có muốn tiếp tục?",
+        "calculating": "Đang tính…",
         "error": "Lỗi khi xóa bộ nhớ cache",
+        "legacy_warning": {
+          "confirm": "Vẫn chọn",
+          "description": "Sau khi dọn dẹp hoàn tất, dữ liệu v1 trong mục này sẽ bị xóa vĩnh viễn. Nếu không có bản sao lưu, dữ liệu này sẽ không thể khôi phục.",
+          "message": "Dữ liệu v1 sẽ bị xóa vĩnh viễn",
+          "title": "Chọn dữ liệu v1 còn sót lại?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Dữ liệu v1 còn sót lại, bao gồm lịch sử trò chuyện cũ và các cài đặt. Không thể khôi phục sau khi xóa.",
+            "title": "Dữ liệu v1 còn sót lại"
+          },
+          "normal_cache": {
+            "description": "Xóa bộ nhớ đệm và các tệp tạm thời được tạo trong quá trình sử dụng ứng dụng để giải phóng dung lượng. Lịch sử trò chuyện và cài đặt sẽ không bị xóa.",
+            "title": "Bộ nhớ đệm ứng dụng"
+          },
+          "orphaned_data": {
+            "description": "Xóa các tệp không còn sử dụng, cơ sở kiến thức còn sót lại và tệp khôi phục tạm thời.",
+            "title": "Tệp và cơ sở kiến thức còn sót lại"
+          },
+          "site_data": {
+            "description": "Cookie và bộ nhớ trang web được các trang web và ứng dụng nhỏ sử dụng. Bạn có thể bị đăng xuất khỏi các trang web.",
+            "title": "Dữ liệu trang web và ứng dụng nhỏ"
+          }
+        },
+        "partial_success": "Đã dọn dẹp xong nhưng không thể xóa một số mục",
+        "selected_total": "Tổng mục đã chọn",
         "success": "Bộ nhớ đệm đã được xóa",
-        "title": "Xóa bộ nhớ đệm"
+        "title": "Xóa bộ nhớ đệm",
+        "total_partial": "Đã tính {{size}}; chưa xác định được một số kích thước",
+        "unavailable": "Không thể tính",
+        "waiting_for_legacy_database": "Đang chờ cơ sở dữ liệu cũ được giải phóng. Hãy đóng các cửa sổ Cherry Studio khác; quá trình dọn dẹp sẽ tiếp tục sau khi các kết nối của chúng đóng."
       },
       "data": {
         "title": "Thư mục dữ liệu"
@@ -6040,10 +6118,12 @@
         "title": "Xuất Cài Đặt Menu",
         "yuque": "Xuất sang Yuque"
       },
+      "hour_interval_one": "{{count}} giờ",
       "hour_interval_other": "{{count}} giờ",
       "import_settings": {
         "button": "Nhập tệp Json",
         "chatgpt": "Nhập từ ChatGPT",
+        "claude": "Nhập từ Claude",
         "title": "Nhập dữ liệu ứng dụng từ bên ngoài"
       },
       "joplin": {
@@ -6128,12 +6208,14 @@
           "select_error_write_permission": "Đường dẫn mới không có quyền ghi",
           "select_title": "Chọn Thư Mục Sao Lưu"
         },
+        "hour_interval_one": "{{count}} giờ",
         "hour_interval_other": "{{count}} giờ",
         "lastSync": "Sao lưu Cuối cùng",
         "maxBackups": {
           "label": "Số bản sao lưu tối đa",
           "unlimited": "Không giới hạn"
         },
+        "minute_interval_one": "{{count}} phút",
         "minute_interval_other": "{{count}} phút",
         "noSync": "Đang chờ bản sao lưu tiếp theo",
         "restore": {
@@ -6180,6 +6262,7 @@
           "title": "Dùng mô hình nhanh để đặt tiêu đề cho thông điệp được xuất"
         }
       },
+      "minute_interval_one": "{{count}} phút",
       "minute_interval_other": "{{count}} phút",
       "notion": {
         "api_key": "Khóa API Notion",
@@ -6412,6 +6495,23 @@
         "token_placeholder": "Vui lòng nhập mã thông báo Siyuan Note"
       },
       "title": "Cài đặt dữ liệu",
+      "v1_remigration": {
+        "acknowledgement": "Tôi hiểu rủi ro và muốn tiếp tục.",
+        "back": "Quay lại",
+        "backup_acknowledgement": "Tôi đã sao lưu dữ liệu",
+        "backup_button": "Sao lưu toàn bộ dữ liệu ngay",
+        "backup_message": "Hãy sao lưu toàn bộ dữ liệu hiện tại trước khi tiếp tục. Nếu tiếp tục, dữ liệu v2 hiện tại sẽ bị xóa vĩnh viễn và không thể hoàn tác.",
+        "button": "Chạy lại quá trình di chuyển",
+        "confirm": "Chạy lại quá trình di chuyển",
+        "confirm_countdown": "Chạy lại quá trình di chuyển ({{seconds}} giây)",
+        "dialog_title": "Chạy lại quá trình di chuyển dữ liệu v1",
+        "error": "Không thể chạy lại quá trình di chuyển dữ liệu v1",
+        "final_confirmation": "Xác nhận rằng bạn muốn xóa dữ liệu v2 hiện tại và chạy lại quá trình di chuyển dữ liệu v1.",
+        "final_message": "Dữ liệu v2 hiện tại sẽ bị xóa vĩnh viễn. Thao tác này không thể hoàn tác.",
+        "final_retained": "Dữ liệu v1 gốc sẽ được giữ lại và nhập lại sau khi khởi động lại.",
+        "next": "Tiếp theo",
+        "title": "Chạy lại quá trình di chuyển dữ liệu v1"
+      },
       "webdav": {
         "autoSync": {
           "label": "Sao lưu tự động",
@@ -6471,9 +6571,11 @@
           "label": "Máy chủ WebDAV",
           "placeholder": "http://localhost:8080"
         },
+        "hour_interval_one": "{{count}} giờ",
         "hour_interval_other": "{{count}} giờ",
         "lastSync": "Bản sao lưu cuối cùng",
         "maxBackups": "Số bản sao lưu tối đa",
+        "minute_interval_one": "{{count}} phút",
         "minute_interval_other": "{{count}} phút",
         "noSync": "Chờ bản sao lưu tiếp theo",
         "password": "Mật khẩu WebDAV",
@@ -6577,6 +6679,7 @@
         "notice": {
           "downloadFailed": "Tải xuống thất bại. Kiểm tra kết nối của bạn và thử lại.",
           "inUse": "Vẫn được sử dụng bởi một cơ sở tri thức; các trọng số đã được giữ lại.",
+          "incompleteCache": "Các tệp mô hình không đầy đủ. Thử tải xuống lại để sửa chữa chúng.",
           "removeFailed": "Xóa không thành công. Kiểm tra nhật ký để biết chi tiết."
         },
         "ocr": {
@@ -7424,6 +7527,16 @@
         "label": "Mô hình Nhanh",
         "setting_title": "Thiết lập mô hình nhanh",
         "tooltip": "Chọn mô hình nhẹ và tránh các mô hình suy luận."
+      },
+      "retry": {
+        "backoff": "Tăng thời gian chờ theo cấp số nhân",
+        "description": "Thử lại các lệnh gọi chat, nhúng và xếp hạng lại; chat có thể chuyển sang mô hình khác",
+        "fallback_models": "Mô hình dự phòng",
+        "fallback_models_count": "Đã chọn {{count}} mô hình",
+        "fallback_models_description": "Các mô hình được thử theo thứ tự khi mô hình chính thất bại",
+        "label": "Thử lại lệnh gọi mô hình",
+        "max_attempts": "Số lần thử lại tối đa",
+        "tooltip": "Các lần thử lại và cơ chế dự phòng chỉ được áp dụng trước khi mô hình bắt đầu truyền nội dung theo luồng"
       },
       "toolbar": {
         "custom_add": "Tùy chỉnh",
@@ -8383,6 +8496,7 @@
         "shareLabel": "Chia sẻ",
         "title": "Khám phá",
         "top": "Đầu",
+        "totalEntries_one": "{{count}} mục nhập",
         "totalEntries_other": "{{count}} mục"
       },
       "groupBy": {
@@ -8423,6 +8537,7 @@
       "title": "Phân tích sử dụng",
       "tooltip": {
         "cost": "Chi phí {{value}}",
+        "requests_one": "{{count}} yêu cầu",
         "requests_other": "{{count}} yêu cầu",
         "tokens": "{{value}} token"
       },

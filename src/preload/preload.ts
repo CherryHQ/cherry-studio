@@ -8,6 +8,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry, FileHandle } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
+import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { BackupResult, LocalBackupConfig, S3Config, WebDavConfig } from '@shared/types/backup'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
@@ -29,7 +30,6 @@ import type { ShortcutPreferenceKey } from '@shared/types/shortcut'
 import type { SkillFileNode, SkillResult } from '@shared/types/skill'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 import type { CommandId } from '@shared/utils/command'
-import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/utils/file'
 import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
@@ -72,8 +72,6 @@ const api = {
     relaunch: (options?: Electron.RelaunchOptions): Promise<void> =>
       ipcRenderer.invoke(IpcChannel.Application_Relaunch, options)
   },
-  getCacheSize: () => ipcRenderer.invoke(IpcChannel.App_GetCacheSize),
-  clearCache: () => ipcRenderer.invoke(IpcChannel.App_ClearCache),
   system: {
     getHostname: () => ipcRenderer.invoke(IpcChannel.System_GetHostname)
     // Git Bash is resolved in the main process (settingsBuilder); no renderer API.
@@ -172,20 +170,6 @@ const api = {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
     readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)
   },
-  tree: {
-    create: (rootPath: string, options?: DirectoryTreeOptions): Promise<CreateTreeIpcResult> =>
-      ipcRenderer.invoke(IpcChannel.File_TreeCreate, { rootPath, options }),
-    dispose: (treeId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_TreeDispose, { treeId }),
-    rename: (treeId: string, oldPath: string, newPath: string): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.File_TreeRename, { treeId, oldPath, newPath }),
-    onMutation: (callback: (payload: TreeMutationPushPayload) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, payload: TreeMutationPushPayload) => {
-        if (payload && typeof payload === 'object') callback(payload)
-      }
-      ipcRenderer.on(IpcChannel.File_TreeMutation, listener)
-      return () => ipcRenderer.off(IpcChannel.File_TreeMutation, listener)
-    }
-  },
   command: {
     showNativePopupMenu: (
       model: NativePopupMenuModel<CommandId>,
@@ -239,7 +223,8 @@ const api = {
   //   ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   // setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),
   trace: {
-    getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId),
+    getData: (topicId: string, traceId: string, cursor?: TraceDataCursor): Promise<TraceDataResult> =>
+      ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId, cursor),
     cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
   },
   shortcut: {

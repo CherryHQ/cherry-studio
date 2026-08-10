@@ -475,6 +475,25 @@ export const chatMessageRefFields = {
 
 export const chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)
 
+// ─── agent_session_message variant ───
+//
+// Agent uploads are internal FileEntries referenced from an agent-session user
+// message's FileUIParts. The ref keeps those bytes alive for exactly as long as
+// the message; runtime delivery (managed path, native image, etc.) is a projection.
+
+export const agentSessionMessageSourceType = 'agent_session_message' as const
+
+export const agentSessionMessageRoles = ['attachment'] as const
+export const agentSessionMessageRoleSchema = z.enum(agentSessionMessageRoles)
+
+export const agentSessionMessageRefFields = {
+  sourceType: z.literal(agentSessionMessageSourceType),
+  sourceId: MessageIdSchema,
+  role: agentSessionMessageRoleSchema
+}
+
+export const agentSessionMessageFileRefSchema = createRefSchema(agentSessionMessageRefFields)
+
 // ─── painting variant ───
 //
 // Links a FileEntry to a `painting` row in the v2 paintings subsystem. The
@@ -598,6 +617,7 @@ export function tagStoredFileRef(id: string): string {
  */
 export const allSourceTypes = [
   chatMessageSourceType,
+  agentSessionMessageSourceType,
   paintingSourceType,
   jobSourceType,
   providerLogoRef.sourceType,
@@ -623,6 +643,7 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
  */
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
   chatMessageFileRefSchema,
+  agentSessionMessageFileRefSchema,
   paintingFileRefSchema,
   jobFileRefSchema,
   providerLogoRef.schema,

@@ -118,14 +118,6 @@ export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [
     icon: 'simple-icons:notion',
     repoUrl: 'https://github.com/makenotion/cli',
     homepage: 'https://ntn.dev'
-  },
-  {
-    name: 'pi',
-    displayName: 'Pi',
-    tool: 'pi',
-    repoUrl: 'https://github.com/earendil-works/pi',
-    homepage: 'https://pi.dev'
   }
-  // CLI code tools (claude, codex, opencode, openclaw) are managed
-  // in the Code CLI page instead of here.
+  // Managed Code CLIs are listed in codeCliTools.ts instead of here.
 ]

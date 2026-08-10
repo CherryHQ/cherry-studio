@@ -455,6 +455,7 @@
         "expand_all": "Alle erweitern",
         "no_workdir": "Kein Arbeitsverzeichnis",
         "show_more": "Anzeige erweitern",
+        "tasks": "Aufgaben",
         "this_week": "Diese Woche",
         "today": "Heute",
         "unknown_agent": "Unbekannter Agent",
@@ -1005,6 +1006,10 @@
         "CherryNotify": {
           "description": "Sendet eine Benachrichtigung über einen verbundenen Kanal",
           "label": "Benachrichtigen"
+        },
+        "CherryToMarkdown": {
+          "description": "Konvertiert ein lokales Dokument (PDF, Office, EPUB, CSV) in Markdown, damit der Agent es lesen kann",
+          "label": "Dokument zu Markdown"
         },
         "CherryWebFetch": {
           "description": "Ruft eine Webseite ab und liest sie",
@@ -1676,11 +1681,6 @@
       "new": {
         "branch": {
           "created": "Neuer Branch erstellt",
-          "disabled": {
-            "active": "Dieser Knoten ist bereits ausgewählt. Tippen Sie weiter, um den Zweig von hier aus zu erweitern.",
-            "latest": "Sie sind bereits am Ende dieses Zweigs. Tippen Sie weiter, um ihn zu erweitern.",
-            "no_follow_up": "Nach dieser Nachricht gibt es noch keine Fortsetzung. Wechseln Sie zu diesem Knoten und schreiben Sie dort weiter."
-          },
           "label": "Branch"
         },
         "context": "Kontext löschen"
@@ -1741,12 +1741,6 @@
       "top": "Nach oben scrollen"
     },
     "resend": "Erneut senden",
-    "resource_view": {
-      "menu": {
-        "agent": "Agenten",
-        "assistant": "Assistenten"
-      }
-    },
     "save": {
       "file": {
         "title": "In lokale Datei speichern"
@@ -1919,6 +1913,7 @@
         "time": "Zeit",
         "title": "Anzeigemodus"
       },
+      "draft": "Entwurf",
       "edit": {
         "placeholder": "Neuen Namen eingeben",
         "title": "Themenname bearbeiten",
@@ -2163,6 +2158,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Qwen Code"
     },
@@ -2988,6 +2984,28 @@
       "title": "ChatGPT-Unterhaltungen importieren",
       "untitled_conversation": "Unbenannte Unterhaltung"
     },
+    "claude": {
+      "assistant_name": "Claude-Import",
+      "button": "Datei auswählen",
+      "description": "Importiert Text, Überlegungen und Tool-Nutzung; Bilder und Anhänge sind nicht enthalten",
+      "error": {
+        "invalid_json": "Ungültiges JSON-Dateiformat",
+        "no_conversations": "Keine Gespräche in der Datei gefunden",
+        "no_valid_conversations": "Keine gültigen Konversationen zum Importieren",
+        "unknown": "Import fehlgeschlagen, bitte Dateiformat überprüfen"
+      },
+      "help": {
+        "step1": "1. Melden Sie sich bei Claude an, gehen Sie zu Einstellungen > Datenschutz > Daten exportieren",
+        "step2": "2. Warten Sie auf die Exportdatei per E-Mail",
+        "step3": "3. Entpacken Sie die heruntergeladene Datei und suchen Sie nach conversations.json",
+        "title": "Wie exportiert man Claude-Konversationen?"
+      },
+      "importing": "Konversationen werden importiert...",
+      "selecting": "Datei wird ausgewählt...",
+      "success": "Erfolgreich {{topics}} Konversationen mit {{messages}} Nachrichten importiert",
+      "title": "Claude-Konversationen importieren",
+      "untitled_conversation": "Unbenanntes Gespräch"
+    },
     "confirm": {
       "button": "Importdatei auswählen",
       "label": "Sind Sie sicher, dass Sie externe Daten importieren möchten?"
@@ -3026,10 +3044,20 @@
           "selected_notes": "{{count}} Notizen ausgewählt"
         },
         "note": {
+          "create": {
+            "content_label": "Inhalt",
+            "content_placeholder": "Geben Sie hier den Notizinhalt ein…",
+            "title_label": "Titel",
+            "title_placeholder": "Benennen Sie diese Notiz"
+          },
           "description": "Wählen Sie vorhandene Notizen als Quellen für die Wissensdatenbank aus",
           "empty_description": "Erstellen Sie in der Notizfunktion Notizen und kehren Sie anschließend hierher zurück, um sie auszuwählen.",
           "empty_title": "Notizen sind noch nicht verbunden",
-          "loading": "Notizen werden geladen…"
+          "loading": "Notizen werden geladen…",
+          "mode": {
+            "create": "Neue Notiz",
+            "import": "Notizen importieren"
+          }
         },
         "placeholder": {
           "supported_formats": "Unterstützt PDF, DOCX, MD, XLSX, TXT, CSV",
@@ -3288,6 +3316,7 @@
   },
   "launchpad": {
     "apps": "Apps",
+    "manage_sidebar": "Seitenleiste verwalten",
     "minapps": "Minapps",
     "miniApps": "Mini-Apps",
     "pin_to_sidebar": "An Seitenleiste anheften",
@@ -3358,11 +3387,6 @@
           },
           "heartbeat_interval": {
             "label": "Heartbeat-Intervall (Minuten)"
-          },
-          "instructions": {
-            "hint": "Definiert die Rolle des Agenten und die Grenzen seines Verhaltens",
-            "label": "Systemaufforderung",
-            "placeholder": "Sagen Sie dem Agenten, wer er ist und was er kann…"
           },
           "max_turns": {
             "help": "0 bedeutet, den Standardwert zu verwenden",
@@ -3558,8 +3582,7 @@
           "step": {
             "basic": "Grundinformationen",
             "capability": "Fähigkeiten",
-            "knowledge": "Wissen",
-            "persona": "Persona"
+            "knowledge": "Wissen"
           },
           "submit": "Erstellen",
           "submit_failed": "Erstellen fehlgeschlagen"
@@ -4073,6 +4096,9 @@
       "failed": "Wiederherstellung fehlgeschlagen",
       "success": "Erfolgreich wiederhergestellt"
     },
+    "retry": {
+      "status": "Wiederholung mit {{model}} · Versuch {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Erfolgreich gespeichert"
@@ -4222,6 +4248,8 @@
         "taskOutput": "Aufgabenausgabe anzeigen",
         "taskStop": "Aufgabe stoppen",
         "taskUpdate": "Aufgabe aktualisieren",
+        "toMarkdown": "Dokument konvertieren",
+        "toMarkdownOutput": "Markdown",
         "todoWrite": "Alles schreiben",
         "tool": "Werkzeug",
         "webFetch": "Web abrufen",
@@ -4272,6 +4300,8 @@
       "thinkingHeader": "Denken",
       "truncated": "Ausgabe gekürzt (Original: {{size}})",
       "units": {
+        "char_one": "{{count}} Zeichen",
+        "char_other": "{{count}} Zeichen",
         "done_one": "{{count}} Erledigt",
         "done_other": "{{count}} Erledigt",
         "file_one": "{{count}} Datei",
@@ -6016,11 +6046,41 @@
         "skip_file_data_title": "Kompaktes Backup"
       },
       "clear_cache": {
+        "approximately": "Ca. {{size}}",
         "button": "Cache löschen",
-        "confirm": "Cache leeren entfernt alle zwischengespeicherten Daten inkl. Mini-App-Daten. Nicht wiederherstellbar. Fortfahren?",
+        "calculating": "Wird berechnet…",
         "error": "Cache-Löschen fehlgeschlagen",
+        "legacy_warning": {
+          "confirm": "Trotzdem auswählen",
+          "description": "Nach Abschluss der Bereinigung werden die in dieser Option enthaltenen v1-Daten dauerhaft gelöscht. Ohne Sicherung können diese Daten nicht wiederhergestellt werden.",
+          "message": "v1-Daten werden dauerhaft gelöscht",
+          "title": "Verbleibende v1-Daten auswählen?"
+        },
+        "options": {
+          "legacy_v1": {
+            "description": "Verbleibende v1-Daten, einschließlich alter Chatverläufe und Einstellungen. Das Löschen kann nicht rückgängig gemacht werden.",
+            "title": "Verbleibende Daten aus v1"
+          },
+          "normal_cache": {
+            "description": "Entfernt Cache- und temporäre Dateien, die bei der Nutzung der App entstehen, um Speicherplatz freizugeben. Chatverläufe und Einstellungen werden nicht gelöscht.",
+            "title": "App-Cache"
+          },
+          "orphaned_data": {
+            "description": "Entfernt nicht mehr verwendete Dateien, verbliebene Wissensdatenbanken und temporäre Backup-Wiederherstellungsdateien.",
+            "title": "Übrig gebliebene Dateien und Wissensdatenbanken"
+          },
+          "site_data": {
+            "description": "Cookies und Website-Speicher, die von Websites und Mini-Apps verwendet werden. Möglicherweise werden Sie von Websites abgemeldet.",
+            "title": "Website- und Mini-App-Daten"
+          }
+        },
+        "partial_success": "Bereinigung abgeschlossen, einige Elemente konnten jedoch nicht gelöscht werden",
+        "selected_total": "Ausgewählte Elemente gesamt",
         "success": "Cache erfolgreich geleert",
-        "title": "Cache löschen"
+        "title": "Cache löschen",
+        "total_partial": "{{size}} erfasst; einige Größen sind unbekannt",
+        "unavailable": "Berechnung nicht möglich",
+        "waiting_for_legacy_database": "Warten auf die Freigabe der alten Datenbank. Schließen Sie andere Cherry-Studio-Fenster; die Bereinigung wird fortgesetzt, sobald deren Verbindungen geschlossen sind."
       },
       "data": {
         "title": "Datenverzeichnis"
@@ -6063,6 +6123,7 @@
       "import_settings": {
         "button": "JSON-Datei importieren",
         "chatgpt": "Import aus ChatGPT",
+        "claude": "Import aus Claude",
         "title": "Importiere Daten von externen Anwendungen"
       },
       "joplin": {
@@ -6434,6 +6495,23 @@
         "token_placeholder": "Bitte SiYuan-Token eingeben"
       },
       "title": "Dateneinstellungen",
+      "v1_remigration": {
+        "acknowledgement": "Ich verstehe das Risiko und möchte fortfahren.",
+        "back": "Zurück",
+        "backup_acknowledgement": "Ich habe meine Daten gesichert",
+        "backup_button": "Jetzt vollständige Sicherung erstellen",
+        "backup_message": "Sichern Sie alle aktuellen Daten, bevor Sie fortfahren. Beim Fortfahren werden Ihre aktuellen v2-Daten dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.",
+        "button": "Migration erneut ausführen",
+        "confirm": "Migration erneut ausführen",
+        "confirm_countdown": "Migration erneut ausführen ({{seconds}} s)",
+        "dialog_title": "v1-Datenmigration erneut ausführen",
+        "error": "Die erneute v1-Datenmigration konnte nicht gestartet werden",
+        "final_confirmation": "Möchten Sie die aktuellen v2-Daten wirklich löschen und die v1-Datenmigration erneut ausführen?",
+        "final_message": "Ihre aktuellen v2-Daten werden dauerhaft gelöscht. Dieser Vorgang kann nicht rückgängig gemacht werden.",
+        "final_retained": "Ihre ursprünglichen v1-Daten bleiben erhalten und werden nach dem Neustart erneut importiert.",
+        "next": "Weiter",
+        "title": "v1-Datenmigration erneut ausführen"
+      },
       "webdav": {
         "autoSync": {
           "label": "Automatisches Backup",
@@ -6601,6 +6679,7 @@
         "notice": {
           "downloadFailed": "Download fehlgeschlagen. Überprüfen Sie Ihre Verbindung und versuchen Sie es erneut.",
           "inUse": "Wird weiterhin von einer Wissensdatenbank verwendet; die Gewichte wurden beibehalten.",
+          "incompleteCache": "Modelldateien sind unvollständig. Starten Sie den Download erneut, um sie zu reparieren.",
           "removeFailed": "Entfernen fehlgeschlagen. Überprüfen Sie die Protokolle für Details."
         },
         "ocr": {
@@ -7448,6 +7527,16 @@
         "label": "Schnellmodell",
         "setting_title": "Schnellmodell-Einstellungen",
         "tooltip": "Leichtes Modell empfohlen, Denkmodell nicht empfohlen"
+      },
+      "retry": {
+        "backoff": "Exponentielles Backoff",
+        "description": "Wiederholt Chat-, Embedding- und Rerank-Aufrufe; Chat kann auf andere Modelle zurückgreifen",
+        "fallback_models": "Fallback-Modelle",
+        "fallback_models_count": "{{count}} Modelle ausgewählt",
+        "fallback_models_description": "Modelle, die der Reihe nach ausprobiert werden, wenn das primäre Modell fehlschlägt",
+        "label": "Modellaufruf-Wiederholung",
+        "max_attempts": "Maximale Wiederholungsversuche",
+        "tooltip": "Wiederholungsversuche und Fallbacks gelten nur, bevor das Modell mit dem Streaming von Inhalten beginnt"
       },
       "toolbar": {
         "custom_add": "Benutzerdefiniert",

@@ -154,19 +154,14 @@ function makeProcessingFileItem(id: string): KnowledgeItem {
   } as unknown as KnowledgeItem
 }
 
-type StrictListArgs = { query: string; groupId: string; baseId: string; maxDepth: number }
-type ListArgs = Partial<StrictListArgs>
+type ListArgs = { query?: string; groupId?: string; baseId?: string; maxDepth?: number }
 
 function callExecute(args: ListArgs, ctx: { knowledgeBaseIds?: string[] } = {}): Promise<unknown> {
-  const execute = entry.tool.execute as (args: StrictListArgs, options: ToolExecutionOptions) => Promise<unknown>
+  const execute = entry.tool.execute as (args: ListArgs, options: ToolExecutionOptions) => Promise<unknown>
   return execute(
-    {
-      query: '',
-      groupId: '',
-      baseId: '',
-      maxDepth: -1,
-      ...args
-    },
+    // Unused filters are omitted, not sentinel-valued — kb_list runs without `strict`, so its schema
+    // is plain optionals and the model omits what it does not filter on.
+    args,
     {
       toolCallId: 'tc-1',
       messages: [],
@@ -232,7 +227,7 @@ describe('kb_list', () => {
     expect(result.map((b) => b.id)).toEqual(['kb-1'])
   })
 
-  it('normalizes strict-path empty-string filters to no filter', async () => {
+  it('treats an omitted groupId as no filter, not as "ungrouped"', async () => {
     knowledgeServiceListBases.mockReturnValue([
       makeBase({ id: 'kb-1', groupId: 'g1' }),
       makeBase({ id: 'kb-2', groupId: null })
@@ -240,7 +235,7 @@ describe('kb_list', () => {
     knowledgeServiceListRootItems.mockReturnValue([])
 
     const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1', 'kb-2'] })) as Array<{ id: string }>
-    // The empty groupId sentinel must not collapse to `base.groupId === null`; both bases come back.
+    // An absent groupId must not collapse to `base.groupId === null`; both bases come back.
     expect(result.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-2'])
   })
 
@@ -390,7 +385,7 @@ describe('kb_list', () => {
       expect(knowledgeServiceListBases).not.toHaveBeenCalled()
     })
 
-    it('normalizes the unlimited-depth sentinel before outlining', async () => {
+    it('outlines to unlimited depth when maxDepth is omitted', async () => {
       knowledgeServiceGetOrganizationTree.mockReturnValue(orgTree())
 
       await callExecute({ baseId: 'kb-1' }, { knowledgeBaseIds: ['kb-1'] })

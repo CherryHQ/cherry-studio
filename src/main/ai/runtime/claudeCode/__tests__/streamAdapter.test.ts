@@ -15,7 +15,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { ClaudeCodeStreamAdapter } = await import('../streamAdapter')
+const { ClaudeCodeResultError, ClaudeCodeStreamAdapter } = await import('../streamAdapter')
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -85,6 +85,81 @@ function successResult(overrides: Record<string, unknown> = {}) {
 }
 
 describe('ClaudeCodeStreamAdapter', () => {
+  describe('turn activity', () => {
+    it('starts inactive and ignores metadata chunks', () => {
+      const { adapter } = createAdapter()
+
+      expect(adapter.hasTurnActivity).toBe(false)
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'init',
+        session_id: 'sdk-init',
+        uuid: crypto.randomUUID(),
+        mcp_servers: [],
+        model: 'claude-sonnet',
+        tools: [],
+        cwd: '/tmp',
+        claude_code_version: '1.0.0',
+        apiKeySource: 'none',
+        permissionMode: 'default',
+        slash_commands: [],
+        output_style: 'default',
+        skills: [],
+        plugins: []
+      } as any)
+
+      expect(adapter.hasTurnActivity).toBe(false)
+    })
+
+    it('tracks text chunks and resets when the next turn begins', () => {
+      const { adapter } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'hello' } })
+      )
+      expect(adapter.hasTurnActivity).toBe(true)
+
+      adapter.beginTurn()
+      expect(adapter.hasTurnActivity).toBe(false)
+    })
+
+    it('tracks tool-use chunks emitted by a parented assistant flow', () => {
+      const { adapter } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'workflow-root',
+        uuid: crypto.randomUUID(),
+        session_id: 'sdk-1',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/tmp/a.ts' } }]
+        }
+      } as any)
+
+      expect(adapter.hasTurnActivity).toBe(true)
+    })
+
+    it('remains inactive when an error result emits only usage metadata', () => {
+      const { adapter, parts } = createAdapter()
+
+      expect(() =>
+        adapter.handleMessage(
+          successResult({
+            subtype: 'error_during_execution',
+            is_error: true,
+            errors: ['boom'],
+            session_id: 'sdk-error'
+          })
+        )
+      ).toThrow('boom')
+
+      expect(parts.map((part) => part.type)).toEqual(['message-metadata'])
+      expect(adapter.hasTurnActivity).toBe(false)
+    })
+  })
+
   it('logs every SDK envelope with correlation ids but without text or tool input', () => {
     const { adapter } = createAdapter()
 
@@ -737,7 +812,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       toolCallId: 'mcp-search',
       output: {
         content: results,
-        metadata: { type: 'mcp', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+        metadata: { type: 'mcp', name: 'web_search', serverName: 'cherry-tools', serverId: 'cherry-tools' }
       }
     })
   })
@@ -974,6 +1049,32 @@ describe('ClaudeCodeStreamAdapter', () => {
       )
     ).toThrow('boom')
     expect(sessionIds).toEqual(['sdk-error'])
+  })
+
+  it.each([
+    ['is_error', { is_error: true }],
+    ['api_error terminal reason', { terminal_reason: 'api_error' }],
+    ['API error status', { api_error_status: 504 }]
+  ])('throws SDK success results marked by %s', (_, overrides) => {
+    const { adapter, parts, sessionIds } = createAdapter()
+    const resultText = 'API Error: The operation timed out.'
+    let thrown: unknown
+
+    try {
+      adapter.handleMessage(successResult({ result: resultText, ...overrides }))
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+    expect(thrown).toMatchObject({
+      message: resultText,
+      subtype: 'success',
+      errors: [resultText]
+    })
+    expect(sessionIds).toEqual(['sdk-result'])
+    expect(parts.map((part) => part.type)).toEqual(['message-metadata'])
+    expect(loggerMocks.info).not.toHaveBeenCalledWith(expect.stringContaining('Stream completed'))
   })
 
   it('emits final live usage metadata before throwing on error results', () => {
@@ -1216,6 +1317,39 @@ describe('ClaudeCodeStreamAdapter', () => {
       expect(loggerMocks.warn).toHaveBeenCalledWith(
         'Received a result message with no active turn; dropping turn-complete',
         { sessionId: 'session-1' }
+      )
+    })
+
+    it('throws an API failure result when no turn is active', () => {
+      const { adapter, parts, sessionIds } = createAdapter({}, { openTurn: false })
+      let thrown: unknown
+
+      try {
+        adapter.handleMessage(
+          successResult({
+            session_id: 'resume-api-error',
+            is_error: true,
+            terminal_reason: 'api_error',
+            api_error_status: 504,
+            result: 'API Error: The operation timed out.'
+          })
+        )
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toBeInstanceOf(ClaudeCodeResultError)
+      expect(thrown).toMatchObject({
+        message: 'API Error: The operation timed out.',
+        subtype: 'success',
+        terminalReason: 'api_error',
+        apiErrorStatus: 504
+      })
+      expect(sessionIds).toEqual(['resume-api-error'])
+      expect(parts).toEqual([])
+      expect(loggerMocks.warn).not.toHaveBeenCalledWith(
+        'Received a result message with no active turn; dropping turn-complete',
+        expect.anything()
       )
     })
 

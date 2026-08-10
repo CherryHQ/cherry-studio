@@ -993,6 +993,13 @@ vi.mock('@cherrystudio/ui', () => {
         onChange: (e) => onCheckedChange?.(e.target.checked),
         'data-testid': 'switch'
       }),
+    // Tabs primitives — flattened: every panel renders, so tests query content without switching
+    Tabs: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'tabs' }, children),
+    TabsList: ({ children, ...props }) => React.createElement('div', { ...props, role: 'tablist' }, children),
+    TabsTrigger: ({ children, value, ...props }) =>
+      React.createElement('button', { ...props, role: 'tab', type: 'button', 'data-value': value }, children),
+    TabsContent: ({ children, value, ...props }) =>
+      React.createElement('div', { ...props, role: 'tabpanel', 'data-value': value }, children),
     // Popover primitives — Radix-style trigger / content split
     Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
     PopoverTrigger: ({ children, ...props }) =>

@@ -54,6 +54,30 @@ vi.mock('@renderer/services/NotesService', () => ({
   projectNotesTree: () => mockProjectNotesTree()
 }))
 
+// The real RichEditor boots Tiptap (and its extension graph) on mount, which is far more
+// than this dialog's contract needs. Stand in a textarea that speaks the same
+// `initialContent` / `onMarkdownChange` protocol.
+vi.mock('@renderer/components/RichEditor/RichEditor', () => ({
+  default: ({
+    initialContent,
+    placeholder,
+    onMarkdownChange,
+    enableImageInsertion
+  }: {
+    initialContent?: string
+    placeholder?: string
+    onMarkdownChange?: (markdown: string) => void
+    enableImageInsertion?: boolean
+  }) => (
+    <textarea
+      defaultValue={initialContent}
+      placeholder={placeholder}
+      data-images-enabled={enableImageInsertion ?? true}
+      onChange={(event) => onMarkdownChange?.(event.target.value)}
+    />
+  )
+}))
+
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
 
@@ -78,6 +102,31 @@ vi.mock('@cherrystudio/ui', async () => {
       </button>
     ),
     Input: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
+    Label: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
+      <label {...props}>{children}</label>
+    ),
+    SegmentedControl: ({
+      options,
+      value,
+      onValueChange
+    }: {
+      options: { value: string; label: React.ReactNode }[]
+      value?: string
+      onValueChange?: (value: string) => void
+    }) => (
+      <div role="radiogroup">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={option.value === value}
+            onClick={() => onValueChange?.(option.value)}>
+            {option.label}
+          </button>
+        ))}
+      </div>
+    ),
     Checkbox: ({
       checked,
       onCheckedChange,
@@ -183,6 +232,11 @@ vi.mock('react-i18next', () => {
       'knowledge.data_source.add_dialog.note.empty_description': '请先在「笔记」功能中创建笔记，再回到这里选择。',
       'knowledge.data_source.add_dialog.note.empty_title': '未找到笔记',
       'knowledge.data_source.add_dialog.note.loading': '正在加载笔记…',
+      'knowledge.data_source.add_dialog.note.mode.import': '导入笔记',
+      'knowledge.data_source.add_dialog.note.mode.create': '新建笔记',
+      'knowledge.data_source.add_dialog.note.create.title_label': '标题',
+      'knowledge.data_source.add_dialog.note.create.title_placeholder': '为这篇笔记取个名字',
+      'knowledge.data_source.add_dialog.note.create.content_placeholder': '在此输入笔记内容…',
       'notes.tree_load_failed': '加载笔记目录失败',
       'knowledge.data_source.add_dialog.sources.directory': '目录',
       'knowledge.data_source.add_dialog.sources.file': '文件',
@@ -480,6 +534,139 @@ describe('AddKnowledgeItemDialog', () => {
       const alert = await screen.findByRole('alert')
       expect(alert).toHaveTextContent('添加数据源失败: Meeting notes: ENOENT')
       expect(mockSubmitKnowledgeItems).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('note source — create mode', () => {
+    const switchToCreateMode = () => fireEvent.click(screen.getByRole('radio', { name: '新建笔记' }))
+
+    it('starts on the import list and swaps to the draft form on demand', () => {
+      setPendingAddSource('note')
+      mockProjectNotesTree.mockReturnValue([createNoteNode('Meeting notes', '/notes/Meeting notes.md')])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      expect(screen.getByRole('radio', { name: '导入笔记' })).toHaveAttribute('aria-checked', 'true')
+      expect(screen.getByText('Meeting notes')).toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('为这篇笔记取个名字')).not.toBeInTheDocument()
+
+      switchToCreateMode()
+
+      expect(screen.getByPlaceholderText('为这篇笔记取个名字')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('在此输入笔记内容…')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('在此输入笔记内容…')).toHaveAttribute('data-images-enabled', 'false')
+      // The picker list is gone, so a stale pick cannot ride along with the draft.
+      expect(screen.queryByText('Meeting notes')).not.toBeInTheDocument()
+    })
+
+    it('requires both a title and a body before the draft can be added', () => {
+      setPendingAddSource('note')
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      switchToCreateMode()
+
+      const addButton = screen.getByRole('button', { name: '添加' })
+      expect(addButton).toBeDisabled()
+
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: 'Ideas' } })
+      expect(addButton).toBeDisabled()
+
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: 'body' } })
+      expect(addButton).toBeEnabled()
+
+      // Whitespace-only input is not a body.
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: '   ' } })
+      expect(addButton).toBeDisabled()
+    })
+
+    it('rejects a whitespace-only title even with a real body', () => {
+      setPendingAddSource('note')
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      switchToCreateMode()
+
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: 'body' } })
+      // The title becomes the item's `source`, which the schema requires to be non-empty
+      // *after* trimming — so spaces must not pass the gate.
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: '   ' } })
+
+      expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
+    })
+
+    it('submits the draft as a single note item with a trimmed title', async () => {
+      setPendingAddSource('note')
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      switchToCreateMode()
+
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: '  Ideas  ' } })
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: '# Ideas\n\nbody' } })
+      fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith(
+          [{ type: 'note', data: { source: 'Ideas', content: '# Ideas\n\nbody' } }],
+          'detect'
+        )
+      })
+      // A drafted note never touches the notes directory.
+      expect(mockReadExternal).not.toHaveBeenCalled()
+    })
+
+    it('ignores notes picked before the switch and keeps the footer count quiet', async () => {
+      setPendingAddSource('note')
+      mockProjectNotesTree.mockReturnValue([createNoteNode('Meeting notes', '/notes/Meeting notes.md')])
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+      fireEvent.click(screen.getByRole('checkbox', { name: /Meeting notes/ }))
+      expect(screen.getByText('已选 1 个笔记')).toBeInTheDocument()
+
+      switchToCreateMode()
+
+      expect(screen.queryByText('已选 1 个笔记')).not.toBeInTheDocument()
+
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: 'Ideas' } })
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: 'body' } })
+      fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+      await waitFor(() => {
+        expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith(
+          [{ type: 'note', data: { source: 'Ideas', content: 'body' } }],
+          'detect'
+        )
+      })
+    })
+
+    it('keeps the panel open and the draft intact when the submit fails', async () => {
+      setPendingAddSource('note')
+      mockSubmitKnowledgeItems.mockRejectedValueOnce(new Error('create failed'))
+      const onOpenChange = vi.fn()
+      render(<AddKnowledgeItemDialog open onOpenChange={onOpenChange} />)
+      switchToCreateMode()
+
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: 'Ideas' } })
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: '# Ideas\n\nbody' } })
+      fireEvent.click(screen.getByRole('button', { name: '添加' }))
+
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent('添加数据源失败: create failed')
+      // The draft is the only copy of what the user just wrote, so a failure must not
+      // close the dialog or clear the form.
+      expect(onOpenChange).not.toHaveBeenCalledWith(false)
+      expect(screen.getByPlaceholderText('为这篇笔记取个名字')).toHaveValue('Ideas')
+      expect(screen.getByPlaceholderText('在此输入笔记内容…')).toHaveValue('# Ideas\n\nbody')
+      expect(toast.error).not.toHaveBeenCalled()
+    })
+
+    it('keeps the draft when switching modes back and forth', () => {
+      setPendingAddSource('note')
+      render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+      switchToCreateMode()
+
+      fireEvent.change(screen.getByPlaceholderText('为这篇笔记取个名字'), { target: { value: 'Ideas' } })
+      fireEvent.change(screen.getByPlaceholderText('在此输入笔记内容…'), { target: { value: 'body' } })
+
+      fireEvent.click(screen.getByRole('radio', { name: '导入笔记' }))
+      switchToCreateMode()
+
+      expect(screen.getByPlaceholderText('为这篇笔记取个名字')).toHaveValue('Ideas')
+      expect(screen.getByPlaceholderText('在此输入笔记内容…')).toHaveValue('body')
     })
   })
 
