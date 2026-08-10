@@ -127,17 +127,16 @@ describe('useAgentSessionParts', () => {
     })
 
     renderHook(() => useAgentSessionParts('session-1'))
-    expect(dataApiMocks.useDataChange).toHaveBeenCalledWith('/agent-sessions/:sessionId/messages', expect.any(Function))
+    expect(dataApiMocks.useDataChange).toHaveBeenCalledWith(
+      '/agent-sessions/:sessionId/messages',
+      expect.any(Function),
+      { routeParams: { sessionId: 'session-1' } }
+    )
 
-    const listener = dataApiMocks.useDataChange.mock.calls.at(-1)?.[1] as
-      | ((effects: Array<{ routeParams?: { sessionId?: string } }>) => void)
-      | undefined
-    listener?.([{ routeParams: { sessionId: 'session-2' } }])
-    expect(mutate).not.toHaveBeenCalled()
+    const listener = dataApiMocks.useDataChange.mock.calls.at(-1)?.[1] as (() => void) | undefined
+    listener?.()
 
-    listener?.([{ routeParams: { sessionId: 'session-1' } }])
-    listener?.([{}])
-    expect(mutate).toHaveBeenCalledTimes(2)
+    expect(mutate).toHaveBeenCalledOnce()
   })
 
   it('preserves unchanged message identities across revalidation and replaces updated rows', () => {

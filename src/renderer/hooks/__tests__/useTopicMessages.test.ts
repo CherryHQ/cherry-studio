@@ -48,10 +48,12 @@ describe('useTopicMessages', () => {
   it('subscribes the branch history to cross-window message changes', () => {
     renderHook(() => useTopicMessages('topic-1'))
 
-    expect(mockUseDataChange).toHaveBeenCalledWith('/topics/:topicId/messages', expect.any(Function))
+    expect(mockUseDataChange).toHaveBeenCalledWith('/topics/:topicId/messages', expect.any(Function), {
+      routeParams: { topicId: 'topic-1' }
+    })
   })
 
-  it('refetches only for its own topic or an unscoped conservative effect', () => {
+  it('refetches when the route-scoped subscription delivers an effect', () => {
     renderHook(() => useTopicMessages('topic-1'))
     const mutate = mockUseInfiniteQuery.mock.results.at(-1)?.value.mutate
     const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
@@ -60,19 +62,9 @@ describe('useTopicMessages', () => {
       {
         endpoint: '/topics/:topicId/messages',
         kind: 'projection',
-        routeParams: { topicId: 'topic-2' }
-      }
-    ])
-    expect(mutate).not.toHaveBeenCalled()
-
-    listener?.([
-      {
-        endpoint: '/topics/:topicId/messages',
-        kind: 'projection',
         routeParams: { topicId: 'topic-1' }
       }
     ])
-    listener?.([{ endpoint: '/topics/:topicId/messages', kind: 'projection' }])
-    expect(mutate).toHaveBeenCalledTimes(2)
+    expect(mutate).toHaveBeenCalledOnce()
   })
 })

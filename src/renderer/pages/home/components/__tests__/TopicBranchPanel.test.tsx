@@ -242,15 +242,13 @@ describe('TopicBranchPanel', () => {
   it('refetches an open tree after a cross-window tree change', () => {
     render(<TopicBranchPanel open={true} topicId="topic-1" />)
 
-    const listener = mocks.useDataChange.mock.calls.at(-1)?.[1] as
-      | ((effects: Array<{ routeParams?: { topicId?: string } }>) => void)
-      | undefined
-    listener?.([{ routeParams: { topicId: 'topic-2' } }])
-    expect(mocks.refetchTree).not.toHaveBeenCalled()
+    expect(mocks.useDataChange).toHaveBeenCalledWith('/topics/:topicId/tree', expect.any(Function), {
+      routeParams: { topicId: 'topic-1' }
+    })
+    const listener = mocks.useDataChange.mock.calls.at(-1)?.[1] as (() => void) | undefined
+    listener?.()
 
-    listener?.([{ routeParams: { topicId: 'topic-1' } }])
-
-    expect(mocks.refetchTree).toHaveBeenCalled()
+    expect(mocks.refetchTree).toHaveBeenCalledOnce()
   })
 
   it('sets the active branch to the latest leaf passing through the selected node', async () => {

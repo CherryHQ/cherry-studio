@@ -259,15 +259,18 @@ describe('useTopicById', () => {
     vi.clearAllMocks()
   })
 
-  it('filters concrete topic metadata notifications by route id', () => {
+  it('scopes concrete topic notifications by route and filters their entity id', () => {
     renderHook(() => useTopicById('topic-a'))
     const mutate = mockUseQuery.mock.results.at(-1)?.value.mutate
     const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
+    expect(mockUseDataChange).toHaveBeenCalledWith('/topics/:id', expect.any(Function), {
+      routeParams: { id: 'topic-a' }
+    })
 
-    listener?.([{ endpoint: '/topics/:id', routeParams: { id: 'topic-b' }, entityIds: ['topic-b'] }])
+    listener?.([{ endpoint: '/topics/:id', entityIds: ['topic-b'] }])
     expect(mutate).not.toHaveBeenCalled()
 
-    listener?.([{ endpoint: '/topics/:id', routeParams: { id: 'topic-a' }, entityIds: ['topic-a'] }])
+    listener?.([{ endpoint: '/topics/:id', entityIds: ['topic-a'] }])
     expect(mutate).toHaveBeenCalledOnce()
   })
 })
