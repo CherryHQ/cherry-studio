@@ -3,7 +3,7 @@
  */
 
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { projectMessagePartsForRenderer } from '@shared/ai/transport'
+import { projectMessagePartsForRenderer } from '@main/utils/messageOutputProjection'
 import { toDataApiError } from '@shared/data/api/errors'
 import {
   type AgentSessionMessageEntity,
@@ -17,7 +17,8 @@ import type { HandlersFor } from '@shared/data/api/types'
 function projectMessageForRenderer(message: AgentSessionMessageEntity, sessionId: string): AgentSessionMessageEntity {
   if (message.role !== 'assistant' || !message.data.parts) return message
 
-  // Inline because `data/` must not import from `ai/` (main-process-architecture §3).
+  // The stateless projection lives in the lower `utils/` tier so `data/` does not import from
+  // the `ai/` business tier (main-process-architecture §3).
   const topicId = `agent-session:${sessionId}`
   const parts = projectMessagePartsForRenderer(message.data.parts, topicId, message.id)
   if (parts === message.data.parts) return message

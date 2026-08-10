@@ -1,4 +1,5 @@
 import type { SpanEntity } from '@mcp-trace/trace-core'
+import type { TraceDataCursor } from '@shared/data/types/trace'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -6,38 +7,22 @@ import SpanDetail from './SpanDetail'
 import { TRACE_ROW_GRID, type TraceNode } from './traceNode'
 import TraceTree from './TraceTree'
 
+const TRACE_POLL_INTERVAL_MS = 1_000
+const TRACE_IDLE_POLL_INTERVAL_MS = 5_000
+
 export interface TracePageProps {
   topicId: string
   traceId: string
-  /**
-   * Opaque restart token. Each new value tears down the current poll loop and
-   * starts a fresh one, so callers must pass something that changes whenever
-   * polling should re-trigger (e.g. a turn counter or last-message id). A
-   * constant derived from `topicId`/`traceId` will never change on its own and
-   * therefore can never restart polling after it stops.
-   */
-  reload?: string | number | boolean
 }
 
-export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload = false }) => {
+export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId }) => {
   const [spans, setSpans] = useState<TraceNode[]>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [pollError, setPollError] = useState<string | null>(null)
   const failureCountRef = useRef(0)
-  const emptyCountRef = useRef(0)
+  const nodesByIdRef = useRef(new Map<string, TraceNode>())
+  const traceIdleRef = useRef(true)
   const { t } = useTranslation()
-
-  const mergeTraceNodes = useCallback((oldNodes: TraceNode[], newNodes: TraceNode[]): TraceNode[] => {
-    const oldMap = new Map(oldNodes.map((n) => [n.id, n]))
-    return newNodes.map((newNode) => {
-      const oldNode = oldMap.get(newNode.id)
-      if (oldNode) {
-        const mergedChildren = mergeTraceNodes(oldNode.children, newNode.children)
-        return { ...oldNode, ...newNode, children: mergedChildren }
-      }
-      return newNode
-    })
-  }, [])
 
   const updatePercentAndStart = useCallback((nodes: TraceNode[], rootStart?: number, rootEnd?: number) => {
     nodes.forEach((node) => {
@@ -54,40 +39,41 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
     })
   }, [])
 
-  const getRootSpans = useCallback((spans: SpanEntity[]): TraceNode[] => {
-    const map: Map<string, TraceNode> = new Map()
+  const applySpanChanges = useCallback((changedSpans: SpanEntity[], reset: boolean): TraceNode[] | null => {
+    if (!reset && changedSpans.length === 0) return null
 
-    spans.map((span) => {
-      map.set(span.id, { ...span, children: [], percent: 100, start: 0 })
-    })
+    const nodesById = nodesByIdRef.current
+    if (reset) nodesById.clear()
 
-    return Array.from(
-      map.values().filter((span) => {
-        if (span.parentId && map.has(span.parentId)) {
-          const parent = map.get(span.parentId)
-          if (parent) {
-            parent.children.push(span)
-          }
-          return false
-        }
-        return true
-      })
-    )
-  }, [])
-
-  const findNodeById = useCallback((nodes: TraceNode[], id: string): TraceNode | null => {
-    for (const n of nodes) {
-      if (n.id === id) return n
-      if (n.children) {
-        const found = findNodeById(n.children, id)
-        if (found) return found
+    for (const span of changedSpans) {
+      const existing = nodesById.get(span.id)
+      if (existing) {
+        nodesById.set(span.id, { ...existing, ...span })
+      } else {
+        nodesById.set(span.id, { ...span, children: [], percent: 100, start: 0 })
       }
     }
-    return null
+
+    const roots: TraceNode[] = []
+    let hasInFlightSpan = false
+    for (const node of nodesById.values()) {
+      node.children = []
+      if (!node.endTime || node.endTime <= 0) hasInFlightSpan = true
+    }
+    for (const node of nodesById.values()) {
+      const parent = node.parentId ? nodesById.get(node.parentId) : undefined
+      if (parent) {
+        parent.children.push(node)
+      } else {
+        roots.push(node)
+      }
+    }
+    traceIdleRef.current = nodesById.size === 0 || !hasInFlightSpan
+    return roots
   }, [])
 
   const handleNodeClick = (nodeId: string) => {
-    if (findNodeById(spans, nodeId)) {
+    if (nodesByIdRef.current.has(nodeId)) {
       setSelectedNodeId(nodeId)
     }
   }
@@ -96,11 +82,9 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
     setSelectedNodeId(null)
   }
 
-  // Derived at render: the poll merge rebuilds node objects, so resolving the
-  // selection by id here replaces the former setSpans → effect →
-  // setSelectedNode chain (an extra render pass per poll tick). A node that
-  // vanished from the trace resolves to null and falls back to the list view.
-  const selectedNode = selectedNodeId ? findNodeById(spans, selectedNodeId) : null
+  // Resolve selection from the same id map used for incremental updates. A node
+  // that vanished from a reset snapshot falls back to the list view.
+  const selectedNode = selectedNodeId ? (nodesByIdRef.current.get(selectedNodeId) ?? null) : null
   const showList = !selectedNode
 
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
@@ -111,83 +95,82 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
     const key = `${topicId}:${traceId}`
     if (resetKeyRef.current === key) return
     resetKeyRef.current = key
+    nodesByIdRef.current.clear()
+    traceIdleRef.current = true
     setSpans([])
     setSelectedNodeId(null)
   }, [topicId, traceId])
 
   useEffect(() => {
-    // Interval is local to this effect run, never a shared ref: an effect re-run
-    // during the first `await poll()` would otherwise let the new run's interval
-    // be created after this run's cleanup, leaking it (and let one run's stop
-    // logic clear the other run's interval).
     let cancelled = false
     let finished = false
-    let intervalId: ReturnType<typeof setInterval> | null = null
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let cursor: TraceDataCursor | undefined
 
     failureCountRef.current = 0
-    emptyCountRef.current = 0
     setPollError(null)
 
     const stop = () => {
       finished = true
-      if (intervalId) {
-        clearInterval(intervalId)
-        intervalId = null
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
       }
     }
 
-    let lastSpanCount = 0
-    let consecutiveEnded = 0
-    const poll = async () => {
+    const poll = async (): Promise<number> => {
       try {
-        const spans = topicId && traceId ? await window.api.trace.getData(topicId, traceId) : []
-        if (cancelled) return
+        const result = await window.api.trace.getData(topicId, traceId, cursor)
+        if (cancelled) return TRACE_IDLE_POLL_INTERVAL_MS
+        cursor = result.cursor
         failureCountRef.current = 0
-        const matchedSpans = getRootSpans(spans)
+        const changedRoots = applySpanChanges(result.spans, result.reset)
 
-        if (matchedSpans.length === 0) {
-          emptyCountRef.current++
-          if (emptyCountRef.current >= 30 && lastSpanCount === 0) {
-            stop()
-            return
-          }
-        } else {
-          emptyCountRef.current = 0
-          lastSpanCount = matchedSpans.length
-          updatePercentAndStart(matchedSpans)
-          setSpans((prev) => mergeTraceNodes(prev, matchedSpans))
+        // Publish on every change to the node map, INCLUDING a reset that emptied it. `spans` is what
+        // renders while `nodesByIdRef` resolves clicks and the selection, so letting the two diverge
+        // leaves rows on screen that answer to neither.
+        if (changedRoots) {
+          updatePercentAndStart(changedRoots)
+          setSpans(changedRoots)
         }
 
-        const allEnded = matchedSpans.length > 0 && matchedSpans.every((e) => e.endTime && e.endTime > 0)
-        consecutiveEnded = allEnded ? consecutiveEnded + 1 : 0
-        if (consecutiveEnded >= 20) stop()
+        return traceIdleRef.current ? TRACE_IDLE_POLL_INTERVAL_MS : TRACE_POLL_INTERVAL_MS
       } catch (error) {
-        if (cancelled) return
+        if (cancelled) return TRACE_IDLE_POLL_INTERVAL_MS
         failureCountRef.current++
         if (failureCountRef.current >= 3) {
           stop()
           setPollError(error instanceof Error ? error.message : String(error))
         }
+        return TRACE_POLL_INTERVAL_MS
       }
     }
 
-    const start = async () => {
-      await poll()
-      // Cleanup ran during the await, or poll already hit a stop condition — do
-      // not register an orphaned interval.
+    const run = async () => {
+      const nextInterval = await poll()
+      // Schedule only after the request settles so a slow trace read can never create
+      // overlapping IPC requests and concurrent full-file parsing work.
       if (cancelled || finished) return
-      intervalId = setInterval(poll, 300)
+      timeoutId = setTimeout(() => void run(), nextInterval)
     }
-    void start()
+
+    if (!topicId || !traceId) {
+      nodesByIdRef.current.clear()
+      traceIdleRef.current = true
+      setSpans([])
+      return
+    }
+
+    void run()
 
     return () => {
       cancelled = true
-      if (intervalId) {
-        clearInterval(intervalId)
-        intervalId = null
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = null
       }
     }
-  }, [topicId, traceId, reload, getRootSpans, updatePercentAndStart, mergeTraceNodes])
+  }, [topicId, traceId, applySpanChanges, updatePercentAndStart])
 
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-card text-card-foreground">

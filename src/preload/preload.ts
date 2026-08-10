@@ -8,6 +8,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntry, FileHandle } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
+import type { TraceDataCursor, TraceDataResult } from '@shared/data/types/trace'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { BackupResult, LocalBackupConfig, S3Config, WebDavConfig } from '@shared/types/backup'
 import type { MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/types/command'
@@ -222,7 +223,8 @@ const api = {
   //   ipcRenderer.invoke(IpcChannel.App_SetDisableHardwareAcceleration, isDisable),
   // setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),
   trace: {
-    getData: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId),
+    getData: (topicId: string, traceId: string, cursor?: TraceDataCursor): Promise<TraceDataResult> =>
+      ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId, cursor),
     cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
   },
   shortcut: {
