@@ -75,7 +75,7 @@ const FileProcessingSection = ({
         // resolves. Before that (or after a request failure), only a persisted
         // processor can reach here, and it must remain visible but disabled.
         if (status === 'unsupported') {
-          return [{ ...option, disabled: true }]
+          return option.value === initialFileProcessorId ? [{ ...option, disabled: true }] : []
         }
 
         // `useLocalModel` starts at `not_downloaded` before the probe answers;

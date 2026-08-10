@@ -248,6 +248,20 @@ describe('FileProcessingSection', () => {
       expect(screen.getByRole('option', { name: 'PaddleOCR' })).toBeInTheDocument()
     })
 
+    it('keeps a persisted processor visible but disabled while platform support is unavailable', () => {
+      mocks.localModel.status = 'unsupported'
+      render(
+        <FileProcessingSection
+          fileProcessorId="local-document"
+          initialFileProcessorId="local-document"
+          fileProcessorOptions={[...options, LOCAL_OPTION]}
+          onFileProcessorChange={vi.fn()}
+        />
+      )
+
+      expect(screen.getByRole('option', { name: 'Local document' })).toHaveAttribute('aria-disabled', 'true')
+    })
+
     it('holds back the status label until the probe answers', () => {
       mocks.localModel.status = 'not_downloaded'
       mocks.localModel.isStatusResolved = false
