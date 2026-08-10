@@ -29,7 +29,8 @@ import {
   buildOpenCodeConfig,
   buildPiModelsConfig,
   buildPiSettingsConfig,
-  buildQwenConfig
+  buildQwenConfig,
+  clearCodexApiKeyAuth
 } from './builders'
 import { CHERRY_PROVIDER_PREFIX, OPEN_CODE_ENDPOINTS, PI_ENDPOINTS } from './constants'
 import { parseDotenv, renderDotenvFile } from './dotenv'
@@ -348,10 +349,11 @@ const codexAdapter: CliConfigAdapter = {
       dropFeatureGoalsIfEmpty(next)
       files.push({ target: 'codex-config', content: stringifyToml(next) })
     }
-    if (existingAuth?.OPENAI_API_KEY !== undefined) {
-      const nextAuth = { ...existingAuth }
-      delete nextAuth.OPENAI_API_KEY
-      files.push({ target: 'codex-auth', content: renderJsonFile(nextAuth) })
+    if (existingAuth && (existingAuth.OPENAI_API_KEY !== undefined || existingAuth.auth_mode === 'apikey')) {
+      const nextAuth = clearCodexApiKeyAuth(existingAuth)
+      files.push(
+        nextAuth ? { target: 'codex-auth', content: renderJsonFile(nextAuth) } : { target: 'codex-auth', delete: true }
+      )
     }
     return files
   },

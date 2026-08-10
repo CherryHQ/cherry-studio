@@ -25,11 +25,10 @@ export type CliConfigTarget = (typeof CLI_CONFIG_TARGET_IDS)[number]
 
 export type CliConfigLanguage = 'json' | 'toml' | 'dotenv'
 
-/** One file rewrite sent over `code_cli.write_config`. */
-export interface CliConfigWriteFile {
-  target: CliConfigTarget
-  content: string
-}
+/** One transactional file mutation sent over `code_cli.write_config`. */
+export type CliConfigWriteFile =
+  | { target: CliConfigTarget; content: string; delete?: never }
+  | { target: 'codex-auth'; delete: true; content?: never }
 
 export const CLAUDE_SETTINGS_PATH = '~/.claude/settings.json'
 export const CODEX_AUTH_PATH = '~/.codex/auth.json'
