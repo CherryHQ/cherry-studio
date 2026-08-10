@@ -1205,7 +1205,7 @@ export class ClaudeCodeStreamAdapter {
     )
 
     const finishReason = mapClaudeCodeFinishReason(message.subtype, message.stop_reason)
-    const structuredOutput = message.structured_output
+    const structuredOutput = message.subtype === 'success' ? message.structured_output : undefined
     const alreadyStreamedJson =
       ctx.hasStreamedJson && ctx.options.responseFormat?.type === 'json' && ctx.hasReceivedStreamEvents
 
