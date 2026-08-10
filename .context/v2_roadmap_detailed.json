@@ -1,96 +1,91 @@
 {
-  "report_date": "2026-08-09",
-  "generated_at": "2026-08-09T17:45:00Z",
+  "report_date": "2026-08-10",
+  "generated_at": "2026-08-10T18:00:00Z",
   "data_source": "GitHub MCP API",
-  "note": "v2 is developed on 'main'. No dedicated v2 branch with open PRs. All main-targeting PRs constitute v2 work.",
+  "note": "v2 is developed on 'main'. No dedicated 'v2' branch. All main-targeting PRs constitute v2 work.",
   "release_status": {
     "latest_published": "v2.0.0-rc.4 (2026-08-02, pre-release)",
     "next_draft": "v2.0.3 (draft, release PR #18210 merged 2026-08-08)",
-    "v2_stable_target": "pending — v2.0.3 will be the next candidate"
+    "v2_stable_target": "pending — v2.0.3 will be the next candidate",
+    "blocker": "CRITICAL: #18273 zip-slip must be patched before v2.0.3 ships"
   },
-  "open_prs_main_total": 76,
+  "open_prs_main_total": 170,
   "open_prs_by_theme": {
-    "UI/UX": 18,
-    "Agent": 12,
-    "Models": 11,
+    "UI/UX": 20,
+    "Agent": 14,
+    "Models": 13,
     "Infrastructure / Toolchain": 9,
     "Data & Migration / Backup": 9,
-    "MCP": 7,
+    "MCP": 8,
     "Performance": 5,
-    "RAG / Knowledge": 3,
+    "RAG / Knowledge": 4,
     "Security": 1,
-    "Other": 1
+    "Other": 7
   },
   "infrastructure_prs_detail": {
-    "note": "7 toolchain modernization PRs in flight: tsgolint, typescript-7, drop-eslint, oxfmt, vite-8, no-useless-default-assignment, drop-electron-toolkit-tsconfig, ui-contract-oxc",
-    "status": "Long-running — each is an isolated toolchain upgrade, merge order gated by CI"
+    "note": "7 toolchain modernization PRs in flight: typescript-7, tsgolint, oxfmt, drop-eslint, vite-8, no-useless-default-assignment, drop-electron-toolkit-tsconfig, ui-contract-oxc",
+    "chain": "Ordered stack: typescript-7 → tsgolint → oxfmt → drop-eslint → ui-contract-oxc → vite-8 → no-useless-default-assignment → drop-electron-toolkit-tsconfig",
+    "status": "Long-running — merge order gated by CI; incremental toolchain upgrade"
   },
   "backup_prs_detail": {
-    "note": "5 backup-related open PRs: feat/backup-auto-sync-jobs, feat/backup-progress-ui, feat/backup-progress-events, feat/backup-progress-resources, feat/backup-v2-replacement",
-    "status": "Active stack — backup-v2-replacement is the parent, others are incremental features"
+    "note": "5 backup-related open PRs: feat/backup-v2-replacement (parent), feat/backup-progress-events, feat/backup-progress-ui, feat/backup-progress-resources, feat/backup-auto-sync-jobs",
+    "status": "Active stack — live progress + scheduling features in progress. Two critical bug fixes already merged (#18173, #18117, #18194)."
+  },
+  "top_contributors_today": {
+    "zhangjiadi225": "5 PRs merged today (#18289, #18295, #18296, #18304, #18308, #18312)",
+    "kennyzheng-builds": "4 PRs (#18285, #18301, #18312, #18322 today + earlier this week)",
+    "DeJeune": "27 open PRs total, architectural work (context settings, API gateway, backup, markdown)",
+    "404-Page-Found": "13 open PRs total, v1 maintenance + main fixes"
   },
   "recent_merges_by_theme": {
-    "Security / Data Safety": [
-      "fix(backup): skip LevelDB locks in streamed backups (#18173)",
-      "fix(backup): skip EBUSY locked files (LevelDB LOCK) during automatic backup (#18117)"
-    ],
-    "MCP": [
-      "fix(mcp): close stale clients so ping failures stop orphaning child processes (#18146)",
-      "fix(mcp-tools): prevent non-ASCII tool identity collisions (#18128)",
-      "fix(mcp-tool-approval): treat IM-channel sessions as background agents (#18153)",
-      "fix(mcp): resolve stdio MCP servers to full paths on Windows (#16472)"
-    ],
     "Agent": [
-      "fix(agent-runtime): recover duplicate tool use ID failures (#18119)",
-      "fix(agent-attachments): preserve managed files for session history (#18027)",
-      "feat(agent-runtime): support scoped AGENTS.md instructions (#18126)",
-      "fix(stream-manager): strip Claude Agent SDK harness-leak reminders (#18239)",
-      "fix(agent-session): preserve citations for deferred tool outputs (#18124)"
-    ],
-    "Data & Migration": [
-      "fix(data-migration): tolerate malformed agent MCP data (#18176)",
-      "fix(chat-migration): bound message block indexing memory (#18127)"
-    ],
-    "Lifecycle": [
-      "fix(lifecycle): bound each service's teardown during shutdown (#18136)"
+      "fix(ai-stream): keep overflowed replay parseable after ring eviction (#18295) — addresses #18317",
+      "fix(agent-session): discard crashed sessions' resume tokens at boot reconcile (#18289)",
+      "fix(agent-session): filter system reminder echoes (#18250)",
+      "feat(conversation-activity): track recent activity separately (#18308)",
+      "fix(quick-assistant): finalize streaming text parts (#18223)"
     ],
     "UI/UX": [
-      "fix(composer-draft): preserve unsent drafts across navigation (#18019)",
-      "feat(chat-composer): save edited user messages without resending (#18057)",
-      "feat(composer-toolbar): pin permission mode by default for new users (#18222)",
-      "fix(agent-right-pane): move declared outputs under the task plan (#18216)",
-      "fix(composer): keep input compact in maximized panels (#18125)",
-      "fix(resource-list): unify cross-panel list styling (#18046)"
+      "fix(tool-approval): advance multiple permission requests (#18312)",
+      "fix(image-viewer): bake rotation/flip into saved image (#18322)",
+      "fix(sub-window): re-attach tab to a rebuilt main window (#18285)",
+      "fix(html-preview): honor app fonts in unstyled artifact previews (#18245)"
     ],
     "Models": [
-      "feat(model-retry): user-configured model retry & fallback via ai-retry (#16057)",
-      "fix(openai-compatible): always echo reasoning_content on assistant turns (#18121)",
-      "fix(ollama): detect native thinking capabilities (#18133)",
-      "fix(vertex-ai): restore default Vertex endpoint routing (#18172)",
-      "fix(builtin-tools): stop sending strict so knowledge bases work on Anthropic (#18179)"
+      "fix(provider-registry): map deepseek auto thinking to enabled (#18274)",
+      "fix(paintings): keep model selector provider order stable (#18313)",
+      "fix(chat-stream): harden multi-model retry and stream convergence (#18304)",
+      "feat(openai-compatible): send video and non-wav audio as native input parts (#18316)"
     ],
-    "Performance": [
-      "perf(startup-memory): lazy-load five heavy main-process dependencies (#18189)"
+    "MCP / Knowledge": [
+      "fix(knowledge): add cursor pagination to knowledge base lists (#18300)",
+      "fix(mcp-settings): allow copying MCP logs (#18249)"
     ],
-    "New Features": [
-      "feat(external-apps): add Windows Terminal (wt.exe) support (#17942)",
-      "feat(window-manager): add option to hide macOS dock icon (#18154)",
-      "feat(code-cli): add Pi coding agent to Code Tools (#16928)",
-      "feat: add Claude (Anthropic) conversation import support (#16164)"
+    "Composer": [
+      "fix(composer): use active editor for long text paste (#18301)",
+      "fix(stream-manager): stop leaking per-stream destroyed listeners (#18278)"
+    ],
+    "Data": [
+      "feat(model-pricing): support tiered rates by input token count (#18248)"
+    ],
+    "Infrastructure": [
+      "fix(app-startup): apply launch-on-boot preference to system (#18225)",
+      "fix(windows-env): preserve Unicode command paths (#18201)",
+      "perf(trace-viewer): virtualize large span trees (#18296)"
     ]
   },
   "open_issues_by_theme": {
-    "UI/UX": 289,
-    "Models": 127,
-    "Agent / Assistant": 71,
-    "Data & Migration": 55,
-    "MCP": 51,
-    "Performance": 38,
-    "RAG / Knowledge": 29,
+    "UI/UX": 293,
+    "Models": 131,
+    "Agent / Assistant": 72,
+    "Data & Migration": 57,
+    "MCP": 52,
+    "Performance": 40,
+    "RAG / Knowledge": 31,
     "Connectivity": 18,
-    "Docs": 12,
+    "Docs": 13,
     "Security": 2,
-    "Other / Unlabeled": 146
+    "Other / Unlabeled": 144
   },
   "internal_team_roadmap_issues": [
     {
@@ -104,69 +99,98 @@
       "number": 18044,
       "title": "[Feature]: Let the Agent Operate Your Already-Open Browser Without Installing an Extension",
       "labels": ["feature", "Assistant", "Agent", "internal_team"],
-      "status": "Planned",
+      "status": "Planned — PR #17872 (browser agent pane) and #17842 (element annotations) in review",
       "created_at": "2026-08-06"
     },
     {
       "number": 18043,
       "title": "[Feature]: One-Click 'Report Error' Action on Chat and Agent Failures",
       "labels": ["feature", "UI/UX", "internal_team"],
-      "status": "Planned",
+      "status": "Planned — PR #18198 (help/diagnostic upload) partially addresses this",
       "created_at": "2026-08-06"
     },
     {
       "number": 17782,
       "title": "[Feature]: Agent Orchestration Primitives — Read Peer Agent Sessions, Create Agents & Sessions",
       "labels": ["Assistant", "internal_team"],
-      "status": "Planned",
+      "status": "Planned — PR #18180 (durable cross-session delivery) in review",
       "created_at": "2026-08-03"
+    },
+    {
+      "number": 16173,
+      "title": "[Feature]: Knowledge base — add option to hide inline reference/citation markers",
+      "labels": ["feature", "RAG", "UI/UX", "internal_team", "PRD"],
+      "status": "Planned",
+      "created_at": "2026-06-18"
+    },
+    {
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "status": "Planned (P1)",
+      "created_at": "2026-05-07"
     }
   ],
   "v2_key_themes": [
     {
-      "theme": "Security: Backup Safety",
-      "status": "CRITICAL OPEN",
-      "signal": "#18273 zip-slip filed today — must patch before v2.0.3 ships. #18272 filename sanitization also open."
+      "theme": "Security: Backup Zip-Slip",
+      "status": "CRITICAL OPEN — Day 2",
+      "signal": "#18273 still unpatched. Must ship security patch before v2.0.3 release. No PR filed yet targeting this CVE."
+    },
+    {
+      "theme": "Agent Session Reliability",
+      "status": "Active — partially addressed",
+      "signal": "#18317 (replay ring overflow deadlock) filed today. Fix PR #18295 (ring eviction) merged same day. #18281 (Work Agent freeze) and #18303 (multi-approval deadlock) still open."
+    },
+    {
+      "theme": "Model Context Management",
+      "status": "REGRESSION — NEW TODAY",
+      "signal": "#18318: 58 models clamped to 100K context in v2. Constant auto-compaction storm for power users with large models. Needs audit of context-cap defaults."
+    },
+    {
+      "theme": "v1 Feature Parity (Message Editing, Context)",
+      "status": "Community demand — cluster growing",
+      "signal": "AI message editing removed in v2 (#18243, #18299). 0-context conversations removed (#18240). Save-only edit removed (#18099). PR #18085 partially restores opt-in regenerate-on-edit."
     },
     {
       "theme": "Backup v2 Replacement",
-      "status": "Active",
-      "signal": "5 open PRs in progress. Two critical bug fixes already merged (#18173, #18117). Backup reliability greatly improved."
+      "status": "Active stack",
+      "signal": "5 open PRs. Critical fixes merged (#18173, #18117, #18194). Auto-sync, progress UI, and live events features pending review. Zip-slip (#18273) is separate risk."
     },
     {
-      "theme": "MCP Stability",
-      "status": "Improving",
-      "signal": "Process-leak fix merged (#18146), Windows path fix (#16472), non-ASCII fix (#18128). grep failure (#18228) still open."
+      "theme": "MCP Enhancements",
+      "status": "Good velocity",
+      "signal": "PRs #18075 (prompts in composer), #18080 (HTTP endpoints restored), #18094 (MCP sessions with SSE push) all in review — significant capability expansion."
     },
     {
-      "theme": "Agent Runtime",
-      "status": "Active",
-      "signal": "Harness-leak fix merged (#18239), AGENTS.md support (#18126), citation preservation (#18124), attachment fix (#18027)."
+      "theme": "Multi-Model UX",
+      "status": "Growing demand",
+      "signal": "New issue cluster today: per-model system prompts (#18321), reasoning effort per model (#18315), persistent multi-model selection (#18236). PR #18304 (multi-model retry/convergence) merged."
     },
     {
       "theme": "Toolchain Modernisation",
       "status": "In Progress",
-      "signal": "7+ open toolchain PRs: TypeScript 7, Vite 8, drop ESLint, OxC formatter, tsgolint. Merging incrementally."
-    },
-    {
-      "theme": "v1→v2 Migration",
-      "status": "Ongoing",
-      "signal": "Edge-case failures continue (#17957 crash, #18187 Windows illegal filenames). Memory bounding fix merged (#18127)."
-    },
-    {
-      "theme": "Model Retry & Fallback",
-      "status": "Shipped",
-      "signal": "feat(model-retry) merged (#16057) — long-awaited reliability feature now in main."
+      "signal": "8-PR chain: TypeScript 7 → tsgolint 7 → Oxfmt → drop ESLint → ui-contract-oxc → Vite 8 → no-useless-default-assignment → drop-electron-toolkit-tsconfig. Merging incrementally."
     },
     {
       "theme": "Browser Agent (no-extension)",
-      "status": "Planned",
-      "signal": "internal_team issue #18044 — adds screen annotation + browser control without extension install."
+      "status": "In Review",
+      "signal": "PR #17872 (Agent Pane browser) and #17842 (element annotations) in review. internal_team #18044 tracks the overall feature."
     },
     {
-      "theme": "Lifecycle Robustness",
-      "status": "Addressed",
-      "signal": "Shutdown timeout per-service bounded (#18136). Further hardening may be needed for #17629 (tray-off orphan processes)."
+      "theme": "v1→v2 Migration Stability",
+      "status": "Improving",
+      "signal": "Two major migration crashes CLOSED today (#17957, #17979). Windows illegal-filename issue (#18187) still open. Memory bounding fix merged (#18127)."
+    },
+    {
+      "theme": "RTL / Arabic Language Support",
+      "status": "In Review",
+      "signal": "PR #17588 (Arabic + direction foundations) and #17609 (logical layout contracts) both in review."
+    },
+    {
+      "theme": "Duplicate Billing / Performance",
+      "status": "HIGH open",
+      "signal": "#18242: v2.0.2 triggers redundant model calls causing duplicate billing. Needs investigation into request deduplication logic."
     }
   ]
 }

@@ -1,105 +1,132 @@
 {
-  "report_date": "2026-08-09",
-  "generated_at": "2026-08-09T17:45:00Z",
+  "report_date": "2026-08-10",
+  "generated_at": "2026-08-10T18:00:00Z",
   "note": "GraphQL Discussions API unavailable via MCP; analysis derived from issues tagged 'discussion'/'help wanted' and high-comment issues",
   "discussion_volume": {
-    "discussion_labeled_issues_open": 22,
-    "new_discussions_today": 2,
+    "discussion_labeled_issues_open": 23,
+    "new_discussions_today": 3,
     "top_new": [
-      "#18241 [Discussion]: How to collapse thinking content without aggregating it into a summary?"
+      "#18299 [Discussion]: Why can't v2 modify an AI answer, while v1.9.x can? (data compression context)",
+      "#18241 [Discussion]: How to collapse thinking content without aggregating it into a summary?",
+      "#18240 [Feature]: v2.0 no longer allows setting conversations with 0 context"
     ]
   },
   "theme_analysis": {
+    "v2_message_editing_regression": {
+      "volume": "HIGH",
+      "trending": true,
+      "description": "v2.0 removed AI message editing and flexible context control — major UX regression from v1.9.x",
+      "key_issues": [
+        {"number": 18299, "title": "Discussion: Why can't v2 modify an AI answer, while v1.9.x can?", "comments": 1, "filed_today": true},
+        {"number": 18243, "title": "Bug: AI messages cannot be edited (user messages can be edited)", "comments": 1},
+        {"number": 18240, "title": "v2.0 no longer allows setting conversations with 0 context", "comments": 1}
+      ],
+      "signal": "Multiple issues clustering around editing and context flexibility regression. High user frustration with v1→v2 capability gap."
+    },
+    "model_context_clamping": {
+      "volume": "HIGH",
+      "trending": true,
+      "description": "DeepSeek V4 Pro and 57+ models having their context artificially clamped to 100K, causing constant auto-compaction",
+      "key_issues": [
+        {"number": 18318, "title": "DeepSeek V4 Pro & 57 more models clamped to 100K context, constant thrashing", "comments": 2, "filed_today": true},
+        {"number": 18319, "title": "Make auto-compact trigger percentage configurable", "filed_today": true}
+      ],
+      "signal": "NEW TODAY — broad impact (57+ models). Auto-compaction threshold is a secondary pain point. Needs context-cap audit."
+    },
     "v1_to_v2_migration": {
       "volume": "HIGH",
       "trending": true,
       "description": "v1→v2 migration help discussions continue as primary community pain point",
       "key_issues": [
         {"number": 18134, "title": "Discussion: V1→V2 migration keeps failing, what should I do?", "comments": 0},
-        {"number": 17957, "title": "V2 repeated crash during data migration", "comments": 3},
-        {"number": 17470, "title": "v2 migration aborts on legacy agents.db schema drift", "comments": 1}
+        {"number": 18283, "title": "Bug: cannot update from v1.9.13 to v2", "comments": 1}
       ],
-      "signal": "Migration help requests persist; v2.0.3 backup fix (#18173) should reduce auto-backup crashes"
+      "signal": "Migration issues persist. Closed today: #17957 (migration crash), #17979 (Chinese filename @-reference). Some relief after v2.0.3 backup fixes."
     },
-    "thinking_reasoning_ux": {
+    "multi_model_ux": {
       "volume": "MEDIUM",
       "trending": true,
-      "description": "Users want more control over thinking/reasoning display and collapsing",
+      "description": "Users want richer multi-model session control: per-model prompts, reasoning effort, persistent selection",
       "key_issues": [
-        {"number": 18241, "title": "How to collapse thinking content without aggregating it into a summary like 'called xxx tools'?", "comments": 0, "filed_today": true},
-        {"number": 18234, "title": "A More Elegant Design for the Thinking Slider", "comments": 0},
-        {"number": 17927, "title": "Reasoning effort cannot be reset to 'Default' after moving slider", "closed": true}
+        {"number": 18321, "title": "Feature: Support per-model system prompts in multi-model turns", "filed_today": true},
+        {"number": 18315, "title": "Feature: Allow selecting reasoning effort for multi-model turns", "filed_today": true},
+        {"number": 18236, "title": "Feature: Persist multi-model selection across app restarts"}
       ],
-      "signal": "Thinking UX is a recurring friction area. 2 new issues today on this theme."
+      "signal": "NEW cluster: 3 multi-model UX requests filed in quick succession — consistent with a power user group exploring the feature."
+    },
+    "backup_reliability": {
+      "volume": "MEDIUM",
+      "description": "Backup reliability improving but zip-slip security gap still unpatched",
+      "key_issues": [
+        {"number": 18273, "title": "CRITICAL: Backup restore zip-slip vulnerability — still OPEN, day 2", "comments": 0},
+        {"number": 18284, "title": "S3 backup/restore failures: LOCK files, multipart 405, proxy corruption", "comments": 1}
+      ],
+      "signal": "Zip-slip unpatched after 2 days. S3 backup has multiple failure modes. 5 open backup PRs still in review."
+    },
+    "agent_session_reliability": {
+      "volume": "HIGH",
+      "trending": true,
+      "description": "Agent session reliability issues: deadlocks, stale sessions, tool approval flow breakage",
+      "key_issues": [
+        {"number": 18317, "title": "Agent deadlocks — replay ring overflow blanks message and hides tool-approval card", "filed_today": true},
+        {"number": 18281, "title": "v2.0.2 Work Agent freezes workspace after restoring interrupted task"},
+        {"number": 18303, "title": "Multiple tool permission confirmations cause message flow stuck"}
+      ],
+      "signal": "NEW: #18317 is architecturally linked to the ring-buffer fix PR #18295 (fix(ai-stream) also filed today). #18303 multi-approval deadlock is a separate UX issue."
     },
     "v2_feature_regressions": {
       "volume": "HIGH",
       "trending": true,
-      "description": "v1→v2 feature regressions continue to be reported; 5+ new today",
+      "description": "v1→v2 feature regressions continue to be reported",
       "key_issues": [
         {"number": 18220, "title": "Restore 'subscription source' for web search blacklist (v1→v2 regression)"},
         {"number": 18196, "title": "V2 Regression — Restore 'Regenerate Conversation' button below user messages"},
         {"number": 18195, "title": "V2 Regression — Restore Export to Phone option in Settings"},
         {"number": 17954, "title": "v2.0 conversation history limit option removed", "comments": 4},
-        {"number": 17907, "title": "Restore mini programs to sidebar like v1.x", "comments": 2}
+        {"number": 18099, "title": "Restore 'Save only' option when editing historical messages (v1.9.13, removed in v2.x)"}
       ],
-      "signal": "v1 feature parity gap remains active. Product team should publish explicit v1-parity roadmap."
-    },
-    "startup_performance": {
-      "volume": "MEDIUM",
-      "description": "v2 startup performance concerns, especially on Windows portable",
-      "key_issues": [
-        {"number": 18069, "title": "V2 portable version starts very slowly", "comments": 1},
-        {"number": 18189, "title": "perf(startup-memory): lazy-load five heavy main-process dependencies (merged PR)", "pr": true}
-      ],
-      "signal": "Startup fix merged today (#18189) — should improve portable startup time."
+      "signal": "Regression cluster active. PR #18085 (chat: branch follow-up + opt-in regenerate on edit) partially addresses some of these."
     },
     "mcp_reliability": {
-      "volume": "HIGH",
-      "trending": true,
-      "description": "MCP reliability cluster broadening: process leak, Windows path, non-ASCII tool names, grep failure",
+      "volume": "MEDIUM",
+      "description": "MCP reliability improved: process leak fixed, Windows path fixed. Remaining: grep failure, prompts unavailable in chat",
       "key_issues": [
-        {"number": 18228, "title": "Built-in file system MCP tool, grep completely fails", "comments": 1},
-        {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
+        {"number": 18228, "title": "Built-in file system MCP tool, grep completely fails", "comments": 2},
+        {"number": 17999, "title": "MCP prompts visible in settings but cannot be used in chat conversations"},
         {"number": 17992, "title": "Restore MCP-over-HTTP endpoints on v2 API Gateway"}
       ],
-      "signal": "MCP process-leak fix merged (#18146). Windows path fix merged (#16472). Non-ASCII fix merged (#18128). grep failure still open."
-    },
-    "agent_prompt_leak": {
-      "volume": "HIGH",
-      "description": "Agent leaking internal system reminder into user-facing replies",
-      "key_issues": [
-        {"number": 18175, "title": "Agent outputs internal system reminder verbatim — 150+ occurrences", "comments": 2, "fix_pr": 18239}
-      ],
-      "signal": "Fix merged 2026-08-09 via PR #18239. Issue can be closed after next release."
+      "signal": "PR #18075 (surface MCP prompts/resources in composer) and #18080 (restore /v1/mcps endpoints) are open — both open and addressing these issues."
     }
   },
   "top_by_engagement": [
-    {"number": 18054, "title": "QQ adapter GROUP_MESSAGE_CREATE not handled", "comments": 7},
-    {"number": 17485, "title": "JavaScript error occurred in main process", "comments": 6},
-    {"number": 17629, "title": "Processes remain running after closing window (minimize-to-tray disabled)", "comments": 5},
+    {"number": 6505, "title": "FAQ: Selection Assistant feedback thread", "comments": 367},
+    {"number": 5640, "title": "Cherry Studio as a Service (CSaaS)", "comments": 29},
+    {"number": 11906, "title": "Add video upload support", "comments": 8},
+    {"number": 18054, "title": "QQ adapter GROUP_MESSAGE_CREATE not handled (fix PR #18152 open)", "comments": 7},
+    {"number": 17629, "title": "Processes remain running after closing window (minimize-to-tray disabled)", "comments": 6},
     {"number": 17954, "title": "v2.0 conversation history limit removed", "comments": 4},
-    {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
-    {"number": 17979, "title": ".md files with Chinese filenames cannot be @-referenced", "comments": 4},
-    {"number": 17957, "title": "V2 repeated crash during data migration", "comments": 3},
+    {"number": 17689, "title": "MCP stdio server process leak (fix merged #18146)", "comments": 4},
     {"number": 17735, "title": "Built-in web search fetches unlimited content → context overflow", "comments": 3},
-    {"number": 18175, "title": "Agent leaks system reminder into replies (150+ occurrences)", "comments": 2}
+    {"number": 17898, "title": "Auto-connect vision/OCR for text-only models", "comments": 3},
+    {"number": 18298, "title": "Knowledge Base repeatedly invoked on every request — excess token consumption", "comments": 2}
   ],
   "sentiment_summary": {
-    "overall": "Critical security issue (#18273 zip-slip) filed today needs immediate patch. Harness-leak fix merged. v2.0.3 draft ready.",
+    "overall": "Day 2 of critical zip-slip vulnerability unpatched. Two new HIGH issues filed today (DeepSeek 100K clamp, agent deadlock). Team made significant labeling progress (22.1% → 12.4% unlabeled). Many fixes landed, v2.0.3 release draft ready.",
     "positive_signals": [
-      "Harness-leak fix merged (#18239) — user-visible agent regression resolved same day",
-      "Lifecycle shutdown timeout fix merged (#18136) — orphan process risk eliminated",
-      "MCP process-leak fix merged (#18146) — long-standing pain resolved",
-      "Startup memory optimization merged (#18189) — portable startup should improve",
-      "Model retry/fallback feature merged (#16057) — long-awaited feature ships"
+      "#17957 V2 migration crash CLOSED — resolved by backup hardening",
+      "#17979 Chinese filename @-reference CLOSED — fixed",
+      "PR #18295 fix(ai-stream): ring eviction fix filed today — directly addresses #18317 agent deadlock",
+      "PR #18085 chat: opt-in regenerate on edit — addresses v1 regression cluster",
+      "PR #18075 MCP prompts in composer — addresses #17999",
+      "Unlabeled rate improved: 22.1% → 12.4%"
     ],
     "pain_points": [
-      "CRITICAL NEW: #18273 — Backup restore has zip-slip vulnerability. Needs security patch release.",
-      "CRITICAL OPEN: #18074 — v1.9.13 may have deleted user files from D: drive. Needs investigation.",
-      "HIGH NEW: #18242 — v2.0.2 triggers redundant model calls causing duplicate billing.",
-      "HIGH: v1→v2 feature regression cluster persists (5+ new issues today).",
-      "22.1% of open issues unlabeled — triage backlog growing."
+      "CRITICAL OPEN (day 2): #18273 — Backup zip-slip vulnerability. Pre-ship security risk.",
+      "CRITICAL OPEN: #18074 — v1.9.13 may have deleted user files from D: drive. Unresolved since Aug 7.",
+      "HIGH NEW: #18318 — 58 models context-clamped to 100K, constant auto-compaction storm.",
+      "HIGH NEW: #18317 — Agent session deadlock on replay ring overflow + hidden tool-approval.",
+      "HIGH OPEN: #18242 — v2.0.2 causes duplicate billing from redundant model calls.",
+      "CLUSTER: AI message editing removed in v2 — multiple issues (#18299, #18243, #18240)."
     ]
   }
 }

@@ -1,45 +1,63 @@
 {
-  "report_date": "2026-08-09",
-  "generated_at": "2026-08-09T17:45:00Z",
-  "data_source": "GitHub MCP API — 838 open issues (200 sampled in detail)",
-  "total_open": 838,
+  "report_date": "2026-08-10",
+  "generated_at": "2026-08-10T18:00:00Z",
+  "data_source": "GitHub MCP API — 853 open issues (200 sampled in detail)",
+  "total_open": 853,
   "health_summary": {
-    "Active": {"count": 120, "pct": 14.3, "definition": "created in last 7 days"},
-    "Aging":  {"count": 178, "pct": 21.2, "definition": "created 7–30 days ago"},
-    "Stale":  {"count": 282, "pct": 33.7, "definition": "created 30–90 days ago"},
-    "Zombie": {"count": 258, "pct": 30.8, "definition": "created >90 days ago"}
+    "Active": {"count": 130, "pct": 15.2, "definition": "created in last 7 days (since Aug 3)"},
+    "Aging":  {"count": 170, "pct": 19.9, "definition": "created 7–30 days ago (Jul 11–Aug 3)"},
+    "Stale":  {"count": 285, "pct": 33.4, "definition": "created 30–90 days ago (May 11–Jul 11)"},
+    "Zombie": {"count": 268, "pct": 31.4, "definition": "created >90 days ago (before May 11)"}
   },
   "label_coverage": {
-    "labeled":   653,
-    "unlabeled": 185,
-    "unlabeled_pct": 22.1,
-    "note": "Unlabeled includes issues with only meta-labels (needs-more-info, needs-repro, help-wanted)"
+    "labeled":   747,
+    "unlabeled": 106,
+    "unlabeled_pct": 12.4,
+    "note": "Significant improvement from yesterday (22.1% → 12.4%); team labeled ~79 issues overnight"
   },
   "top_labels": {
-    "UI/UX": 289,
-    "Models": 127,
-    "Assistant": 68,
-    "Data": 55,
-    "MCP": 51,
-    "Performance": 38,
-    "RAG": 29,
-    "help wanted": 22,
-    "discussion": 22,
+    "UI/UX": 293,
+    "Models": 131,
+    "Assistant": 69,
+    "Data": 57,
+    "MCP": 52,
+    "inactive": 52,
+    "Performance": 40,
+    "RAG": 31,
+    "help wanted": 23,
+    "discussion": 23,
     "Connectivity": 18,
     "needs-more-info": 15,
     "needs-repro": 14,
-    "Docs": 12,
+    "Docs": 13,
     "internal_team": 7,
     "feature": 7,
     "needs-triage": 6,
     "Code Mate": 4,
-    "Agent": 3
+    "Agent": 3,
+    "P1": 3
   },
   "notable_active_issues": [
     {
+      "number": 18318,
+      "title": "[Bug]: DeepSeek V4 Pro & 57 more models clamped to 100K context, constant auto-compaction and thrashing",
+      "age_days": 0.2,
+      "labels": ["Models"],
+      "severity": "HIGH",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18318"
+    },
+    {
+      "number": 18317,
+      "title": "[Bug]: Agent session deadlocks — live-stream replay ring overflow blanks assistant message",
+      "age_days": 0.2,
+      "labels": ["Assistant"],
+      "severity": "HIGH",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18317"
+    },
+    {
       "number": 18273,
       "title": "[Bug]: Backup restore extracts ZIP entries without path containment checks (zip-slip)",
-      "age_days": 0.2,
+      "age_days": 1.0,
       "labels": ["Data"],
       "severity": "CRITICAL_SECURITY",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/18273"
@@ -47,52 +65,56 @@
     {
       "number": 18272,
       "title": "[Bug]: Knowledge material filenames not sanitized on native add",
-      "age_days": 0.2,
+      "age_days": 1.0,
       "labels": ["Data"],
       "severity": "HIGH"
     },
     {
       "number": 18242,
-      "title": "[Bug]: v2.0.2 Normal chat triggers multiple redundant model calls, causing duplicate billing",
-      "age_days": 0.6,
+      "title": "[Bug]: v2.0.2 Normal chat triggers redundant model calls, causing duplicate billing",
+      "age_days": 1.5,
       "labels": ["Performance"],
       "severity": "HIGH"
     },
     {
-      "number": 18271,
-      "title": "[Feature]: Transparency and manual control over context compression",
+      "number": 18314,
+      "title": "[Bug]: Knowledge path dedup suffix can push filename past filesystem limit",
       "age_days": 0.2,
-      "labels": []
+      "labels": ["Data"],
+      "severity": "MEDIUM"
     },
     {
-      "number": 18270,
-      "title": "[Bug]: DeepSeek model auto thinking mode generates invalid parameter 'thinking.type: auto'",
-      "age_days": 0.5,
-      "labels": ["Models"],
-      "severity": "MEDIUM"
+      "number": 18243,
+      "title": "[Bug]: AI messages cannot be edited (user messages can be edited)",
+      "age_days": 1.6,
+      "labels": ["UI/UX"],
+      "comments": 1,
+      "note": "Related to discussion #18299 — v2 regression from v1.9.x"
     }
   ],
   "notable_aging_issues": [
     {
-      "number": 18175,
-      "title": "[Bug]: Agent outputs internal system reminder verbatim — 150+ occurrences",
-      "age_days": 1.5,
-      "labels": ["Assistant"],
-      "note": "Fix merged PR #18239 on 2026-08-09 — close after v2.0.3 ships"
+      "number": 18074,
+      "title": "[Bug]: CherryStudio v1.9.13 update suspected of accidentally deleting files in user's D drive folder",
+      "age_days": 3.6,
+      "labels": [],
+      "severity": "CRITICAL_DATA_LOSS"
     },
     {
       "number": 17957,
       "title": "[Bug]: V2 repeated crash during data migration",
-      "age_days": 3.7,
+      "age_days": 4.7,
       "labels": ["Data"],
-      "comments": 3
+      "comments": 3,
+      "note": "CLOSED 2026-08-10 — resolved by backup fixes"
     },
     {
       "number": 17979,
       "title": "[Bug]: .md files with Chinese filenames in subdirectories cannot be @-referenced",
-      "age_days": 3.5,
+      "age_days": 4.5,
       "labels": [],
-      "comments": 4
+      "comments": 4,
+      "note": "CLOSED 2026-08-10"
     },
     {
       "number": 17735,
@@ -100,49 +122,60 @@
       "age_days": 10.0,
       "labels": [],
       "comments": 3
+    },
+    {
+      "number": 18054,
+      "title": "[Feature]: QQ adapter does not handle GROUP_MESSAGE_CREATE",
+      "age_days": 4.0,
+      "labels": [],
+      "comments": 7,
+      "note": "Fix PR #18152 open — fix(qq-channel): handle GROUP_MESSAGE_CREATE"
     }
   ],
   "notable_stale_issues": [
     {
       "number": 17689,
-      "title": "MCP stdio server process leak — duplicate python instances accumulate per tool call",
-      "age_days": 9.4,
+      "title": "MCP stdio server process leak — duplicate python instances per tool call",
+      "age_days": 10,
       "labels": ["MCP", "Performance"],
-      "comments": 4
+      "comments": 4,
+      "note": "Fix merged (#18146)"
     },
     {
       "number": 17629,
-      "title": "[Bug]: Processes remain running after closing with 'Minimize to tray on close' disabled",
-      "age_days": 10.0,
-      "labels": [],
-      "comments": 5
-    },
-    {
-      "number": 17485,
-      "title": "[Bug]: A JavaScript error occurred in the main process",
-      "age_days": 13.0,
+      "title": "[Bug]: Processes remain running after closing window (minimize-to-tray disabled)",
+      "age_days": 11,
       "labels": [],
       "comments": 6
+    },
+    {
+      "number": 16825,
+      "title": "cherry-claw service: ToolCallChunkHandler fails to parse streaming args (all tool calls with long params fail)",
+      "age_days": 33,
+      "labels": [],
+      "comments": 3
     }
   ],
   "triage_recommendations": [
-    "#18273 (zip-slip): IMMEDIATE — security patch needed before v2.0.3 ships",
-    "#18074 (file deletion v1.9.13): INVESTIGATE — potential data-loss CVE, needs assessment",
-    "#18242 (duplicate billing): HIGH — users being double-charged, needs hotfix",
-    "185 unlabeled issues (22.1%): triage sprint recommended — Zombie+Stale likely safe to close-as-not-planned",
-    "258 Zombie issues (>90d): quarterly sweep — most are feature requests overtaken by v2",
-    "Migration cluster (#17957, #18129, #18051): v2.0.3 backup fixes should close some; re-triage after release"
+    "#18273 (zip-slip): IMMEDIATE — security patch must ship BEFORE v2.0.3. Day 2 still open.",
+    "#18318 (DeepSeek 100K clamp): HIGH — 57 models affected, regressed today. Investigate context cap logic.",
+    "#18317 (Agent deadlock): HIGH — replay ring overflow + tool-approval hide. Should be paired with fix PR #18295.",
+    "#18074 (file deletion v1.9.13): INVESTIGATE — potential data-loss CVE, unresolved since Aug 7.",
+    "#18242 (duplicate billing): HIGH — users double-charged. Needs hotfix.",
+    "106 unlabeled issues (12.4%): Good progress! Continue triage sprint.",
+    "268 Zombie issues (>90d): quarterly sweep — most feature requests overtaken by v2 release.",
+    "Close resolved: #17957, #17979 already closed today. Check #18175 (agent leak, fix merged #18239)."
   ],
   "high_comment_issues": [
+    {"number": 6505, "title": "FAQ: Selection Assistant feedback thread", "comments": 367},
+    {"number": 5640, "title": "Cherry Studio as a Service (CSaaS)", "comments": 29},
+    {"number": 11906, "title": "Add video upload support", "comments": 8},
     {"number": 18054, "title": "QQ adapter GROUP_MESSAGE_CREATE not handled", "comments": 7},
-    {"number": 17485, "title": "JavaScript error in main process", "comments": 6},
-    {"number": 17629, "title": "Processes remain after window close", "comments": 5},
+    {"number": 17629, "title": "Processes remain after window close", "comments": 6},
     {"number": 17954, "title": "v2.0 conversation history limit removed", "comments": 4},
     {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
-    {"number": 17979, "title": ".md with Chinese filenames cannot be @-referenced", "comments": 4},
-    {"number": 17957, "title": "V2 repeated crash during data migration", "comments": 3},
-    {"number": 17735, "title": "Web search fetches unlimited content → overflow", "comments": 3},
-    {"number": 18175, "title": "Agent leaks system reminder (150+ occurrences)", "comments": 2},
-    {"number": 17898, "title": "Auto-connect vision/OCR for text-only models", "comments": 3}
+    {"number": 17979, "title": ".md with Chinese filenames cannot be @-referenced (CLOSED today)", "comments": 4},
+    {"number": 17957, "title": "V2 repeated crash during data migration (CLOSED today)", "comments": 3},
+    {"number": 17735, "title": "Web search fetches unlimited content → overflow", "comments": 3}
   ]
 }

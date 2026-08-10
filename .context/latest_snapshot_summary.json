@@ -1,44 +1,68 @@
 {
-  "snapshot_date": "2026-08-09",
-  "generated_at": "2026-08-09T17:45:00Z",
+  "snapshot_date": "2026-08-10",
+  "generated_at": "2026-08-10T18:00:00Z",
   "data_source": "GitHub MCP API (automated daily run)",
   "open_issues": {
-    "total": 838,
-    "delta_from_yesterday": 22,
-    "new_last_24h": 97,
-    "no_label": 185,
-    "no_label_pct": 22.1,
+    "total": 853,
+    "delta_from_yesterday": 15,
+    "new_last_24h": 24,
+    "no_label": 106,
+    "no_label_pct": 12.4,
     "by_label": {
-      "UI/UX": 289,
-      "Models": 127,
-      "Assistant": 68,
-      "Data": 55,
-      "MCP": 51,
-      "Performance": 38,
-      "RAG": 29,
-      "help wanted": 22,
-      "discussion": 22,
+      "UI/UX": 293,
+      "Models": 131,
+      "Assistant": 69,
+      "Data": 57,
+      "MCP": 52,
+      "Performance": 40,
+      "RAG": 31,
+      "help wanted": 23,
+      "discussion": 23,
       "Connectivity": 18,
       "needs-more-info": 15,
       "needs-repro": 14,
-      "Docs": 12,
+      "Docs": 13,
       "internal_team": 7,
       "feature": 7,
       "needs-triage": 6,
+      "inactive": 52,
       "Code Mate": 4,
       "Agent": 3,
-      "no_label": 185
+      "P1": 3,
+      "no_label": 106
     }
   },
   "open_prs": {
-    "total": 100,
+    "total": 200,
     "v2_base_open": 0,
-    "v1_base_open": 6,
-    "main_base_open": 76,
-    "feature_branch_open": 18,
-    "note": "All v2 development consolidated on main. 6 PRs target v1 for maintenance. 7 open toolchain PRs (typescript-7, vite-8, drop-eslint, oxfmt, tsgolint, etc.)."
+    "v1_base_open": 8,
+    "main_base_open": 170,
+    "feature_branch_open": 22,
+    "note": "All v2 development consolidated on main. 8 PRs target v1 for maintenance. 7 open toolchain PRs (typescript-7, vite-8, drop-eslint, oxfmt, tsgolint, ui-contract-oxc, drop-electron-toolkit-tsconfig). Oldest open PR: #14493 (chore: version packages, 2026-04-22, bot)."
   },
-  "p1_open_issues": [],
+  "p1_open_issues": [
+    {
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "created_at": "2026-05-07T05:01:00Z",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
+    },
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": ["P1", "Models"],
+      "created_at": "2026-03-18T14:34:38Z",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI Resource not found (default use responses API)",
+      "labels": ["P1", "Models"],
+      "created_at": "2026-03-04T05:07:59Z",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
+    }
+  ],
   "urgent_heuristic_issues": [
     {
       "number": 18273,
@@ -46,7 +70,26 @@
       "labels": ["Data"],
       "created_at": "2026-08-09T17:20:37Z",
       "severity": "CRITICAL_SECURITY",
+      "status": "STILL OPEN — unpatched",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/18273"
+    },
+    {
+      "number": 18318,
+      "title": "[Bug]: DeepSeek V4 Pro & 57 more models clamped to 100K context, constant auto-compaction and thrashing",
+      "labels": ["Models"],
+      "created_at": "2026-08-10T13:36:49Z",
+      "severity": "HIGH",
+      "status": "NEW TODAY",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18318"
+    },
+    {
+      "number": 18317,
+      "title": "[Bug]: Agent session deadlocks — live-stream replay ring overflow blanks the assistant message and hides its pending tool-approval card",
+      "labels": ["Assistant"],
+      "created_at": "2026-08-10T13:20:31Z",
+      "severity": "HIGH",
+      "status": "NEW TODAY",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18317"
     },
     {
       "number": 18074,
@@ -54,6 +97,7 @@
       "labels": [],
       "created_at": "2026-08-07T03:18:10Z",
       "severity": "CRITICAL_DATA_LOSS",
+      "status": "OPEN — unresolved",
       "url": "https://github.com/CherryHQ/cherry-studio/issues/18074"
     },
     {
@@ -65,48 +109,37 @@
       "url": "https://github.com/CherryHQ/cherry-studio/issues/18242"
     },
     {
-      "number": 18175,
-      "title": "[Bug]: Agent outputs internal system reminder verbatim (150+ occurrences)",
-      "labels": ["Assistant"],
-      "created_at": "2026-08-08T06:42:36Z",
-      "severity": "HIGH",
-      "note": "Fix merged via PR #18239 on 2026-08-09",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18175"
-    },
-    {
-      "number": 17957,
-      "title": "[Bug]: V2 repeated crash during data migration",
+      "number": 18314,
+      "title": "[Bug]: Knowledge path dedup suffix can push a filename past the filesystem limit, storing an item whose file was never written",
       "labels": ["Data"],
-      "created_at": "2026-08-05T23:02:50Z",
-      "severity": "HIGH",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/17957"
-    },
-    {
-      "number": 17689,
-      "title": "MCP stdio server process leak — duplicate python instances accumulate per tool call",
-      "labels": ["MCP", "Performance"],
-      "created_at": "2026-07-31T06:58:49Z",
-      "severity": "HIGH",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/17689"
+      "created_at": "2026-08-10T12:40:39Z",
+      "severity": "MEDIUM",
+      "status": "NEW TODAY",
+      "url": "https://github.com/CherryHQ/cherry-studio/issues/18314"
     }
   ],
   "new_issues_today_sample": [
-    "#18273 [Bug]: Backup restore zip-slip (CRITICAL SECURITY)",
-    "#18272 [Bug]: Knowledge material filenames not sanitized",
-    "#18271 [Feature]: Transparency and manual control over context compression",
-    "#18270 [Bug]: DeepSeek model auto thinking mode generates invalid parameter",
-    "#18269 [Bug]: Built-in Python execution tool naming misleading (sandbox)",
-    "#18268 [Feature]: Agent session start/end hooks",
-    "#18267 [Feature]: Knowledge base refresh mechanism",
-    "#18265 [Bug]: Cannot paste long text in painting function",
-    "#18264 [Feature]: Global Memory toggle doesn't work for Agents",
-    "#18263 [Bug]: HTML preview scrollbar causes text position jumping"
+    "#18325 [Feature]: Add outline/scrollbar navigation for messages",
+    "#18324 [Feature]: Show real-time API cost per conversation",
+    "#18323 [Bug]: Painting panel hardcodes response_format for Agnes AI (400 error)",
+    "#18321 [Feature]: Support per-model system prompts in multi-model turns",
+    "#18319 [Feature]: Make auto-compact trigger percentage configurable",
+    "#18318 [Bug]: DeepSeek V4 Pro & 57 more models clamped to 100K context (HIGH)",
+    "#18317 [Bug]: Agent session deadlocks — replay ring overflow (HIGH)",
+    "#18315 [Feature]: Allow selecting reasoning effort for multi-model turns",
+    "#18314 [Bug]: Knowledge path dedup suffix can overflow filesystem limit (MEDIUM)",
+    "#18311 [Bug]: Same model ID cannot configure multiple endpoints at one provider",
+    "#18310 [Feature]: Add API Key group management by model group",
+    "#18309 [Bug]: Same model from different providers hard to distinguish in painting params",
+    "#18307 [Bug]: File editor tabs lack right-click context menu",
+    "#18305 [Feature]: Add support for Qianwen AI platform",
+    "#18303 [Bug]: Multiple tool permission confirmations cause message flow stuck"
   ],
-  "merged_prs_last_30d_estimate": 50,
-  "closed_issues_last_30d": 542,
+  "merged_prs_last_30d_estimate": 48,
+  "closed_issues_last_30d": 525,
   "release_status": {
     "latest_published": "v2.0.0-rc.4 (2026-08-02, pre-release)",
     "next_draft": "v2.0.3 (draft, release PR #18210 merged 2026-08-08)"
   },
-  "velocity_note": "838 open issues (+22 from yesterday). 97 new issues filed today, highest since v2 launch week. Security-critical zip-slip (#18273) filed today. Harness-leak fix merged (#18239). v2.0.3 release draft ready. Backup stability improvements merged (#18173, #18117). Lifecycle shutdown timeout fixed (#18136)."
+  "velocity_note": "853 open issues (+15 from yesterday). 24 new issues filed today. CRITICAL: zip-slip (#18273) still unpatched. HIGH: DeepSeek models clamped to 100K context (#18318, NEW). HIGH: Agent session deadlock on replay ring overflow (#18317, NEW). Uncategorized rate improved significantly: 22.1% → 12.4% (team labeled ~79 issues). PR count 200 (full 2-page fetch). 5 active backup-stack PRs, 7 toolchain PRs in flight."
 }
