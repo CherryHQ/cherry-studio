@@ -7530,10 +7530,10 @@
       },
       "retry": {
         "backoff": "Exponentielles Backoff",
-        "description": "Wiederholen Sie Chat-, Embedding- und Rerank-Aufrufe; Chat kann auf andere Modelle zurückgreifen",
+        "description": "Wiederholt Chat-, Embedding- und Rerank-Aufrufe; Chat kann auf andere Modelle zurückgreifen",
         "fallback_models": "Fallback-Modelle",
         "fallback_models_count": "{{count}} Modelle ausgewählt",
-        "fallback_models_description": "Modelle, die in Reihenfolge ausprobiert werden, wenn das primäre Modell fehlschlägt",
+        "fallback_models_description": "Modelle, die der Reihe nach ausprobiert werden, wenn das primäre Modell fehlschlägt",
         "label": "Modellaufruf-Wiederholung",
         "max_attempts": "Maximale Wiederholungsversuche",
         "tooltip": "Wiederholungsversuche und Fallbacks gelten nur, bevor das Modell mit dem Streaming von Inhalten beginnt"

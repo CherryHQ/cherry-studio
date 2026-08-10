@@ -7529,13 +7529,13 @@
         "tooltip": "Alege un model ușor și evită modelele de raționament."
       },
       "retry": {
-        "backoff": "Retragere exponențială",
-        "description": "Reîncercați apelurile de chat, embedding și rerank; chat-ul poate trece la alte modele",
+        "backoff": "Așteptare exponențială",
+        "description": "Reîncearcă apelurile de chat, embedding și rerank; chat-ul poate trece la alte modele",
         "fallback_models": "Modele de rezervă",
         "fallback_models_count": "{{count}} modele selectate",
         "fallback_models_description": "Modele încercate în ordine când modelul principal eșuează",
-        "label": "Reîncercare Apel Model",
-        "max_attempts": "Număr maxim de încercări de reîncercare",
+        "label": "Reîncercarea apelurilor către model",
+        "max_attempts": "Număr maxim de reîncercări",
         "tooltip": "Reîncercările și mecanismele de rezervă se aplică numai înainte ca modelul să înceapă să transmită conținut în flux"
       },
       "toolbar": {

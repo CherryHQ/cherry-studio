@@ -4097,7 +4097,7 @@
       "success": "還原成功"
     },
     "retry": {
-      "status": "使用 {{model}} 重試 · 第 {{attempt}} 次嘗試"
+      "status": "正在使用 {{model}} 重試 · 第 {{attempt}} 次"
     },
     "save": {
       "success": {
@@ -7530,9 +7530,9 @@
       },
       "retry": {
         "backoff": "指數退避",
-        "description": "重試聊天、嵌入和重新排序呼叫；聊天可以回退到其他模型",
+        "description": "重試聊天、嵌入與重新排序的呼叫；聊天失敗時可回退到其他模型",
         "fallback_models": "備用模型",
-        "fallback_models_count": "{{count}} 個模型已選取",
+        "fallback_models_count": "已選擇 {{count}} 個模型",
         "fallback_models_description": "當主要模型失敗時依序嘗試的模型",
         "label": "模型呼叫重試",
         "max_attempts": "最大重試次數",

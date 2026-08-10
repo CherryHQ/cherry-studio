@@ -7530,12 +7530,12 @@
       },
       "retry": {
         "backoff": "Retroceso exponencial",
-        "description": "Reintentar llamadas de chat, embedding y rerank; el chat puede recurrir a otros modelos",
+        "description": "Reintenta las llamadas de chat, embeddings y reordenación; el chat puede recurrir a otros modelos",
         "fallback_models": "Modelos de respaldo",
         "fallback_models_count": "{{count}} modelos seleccionados",
         "fallback_models_description": "Modelos probados en orden cuando el modelo principal falla",
         "label": "Reintento de llamada al modelo",
-        "max_attempts": "Intentos máximos de reintento",
+        "max_attempts": "Número máximo de reintentos",
         "tooltip": "Los reintentos y los mecanismos de respaldo solo se aplican antes de que el modelo comience a transmitir contenido"
       },
       "toolbar": {
