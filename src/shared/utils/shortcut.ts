@@ -85,6 +85,15 @@ export type ShortcutToken =
 
 export type ShortcutBinding = readonly ShortcutToken[]
 
+export interface KeyboardEventLike {
+  key: string
+  code?: string
+  ctrlKey?: boolean
+  metaKey?: boolean
+  altKey?: boolean
+  shiftKey?: boolean
+}
+
 const shortcutTokens = [
   ...SHORTCUT_MODIFIERS,
   ...SHORTCUT_LETTERS,
@@ -258,6 +267,37 @@ const acceleratorKeyMap: Record<string, ShortcutToken> = {
 
 export const convertKeyToAccelerator = (key: string): ShortcutToken | undefined =>
   acceleratorKeyMap[key] ?? normalizeShortcutToken(key)
+
+const getEventKeyToken = (event: KeyboardEventLike) => {
+  const fromCode = event.code ? convertKeyToAccelerator(event.code) : undefined
+  const fromKey = convertKeyToAccelerator(event.key)
+  const token = fromCode ?? fromKey
+
+  return token && !isShortcutModifier(token) ? token : undefined
+}
+
+export const getShortcutBindingFromKeyboardEvent = (
+  event: KeyboardEventLike,
+  platform?: 'darwin' | 'win32' | 'linux'
+): ShortcutBinding => {
+  const binding: ShortcutToken[] = []
+
+  if (platform === 'darwin') {
+    if (event.metaKey) binding.push('CommandOrControl')
+    if (event.ctrlKey) binding.push('Ctrl')
+  } else {
+    if (event.ctrlKey) binding.push('CommandOrControl')
+    if (event.metaKey) binding.push(platform ? 'Meta' : 'CommandOrControl')
+  }
+
+  if (event.altKey) binding.push('Alt')
+  if (event.shiftKey) binding.push('Shift')
+
+  const keyToken = getEventKeyToken(event)
+  if (keyToken) binding.push(keyToken)
+
+  return normalizeShortcutBinding(binding)
+}
 
 export const convertAcceleratorToHotkey = (accelerator: ShortcutBinding): string => {
   return accelerator
