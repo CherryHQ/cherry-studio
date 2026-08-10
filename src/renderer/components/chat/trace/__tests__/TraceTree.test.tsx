@@ -109,6 +109,35 @@ describe('TraceTree', () => {
     expect(document.querySelector('[data-trace-row="running"]')).toBeInTheDocument()
   })
 
+  it('refreshes unchanged running rows when another span receives a delta', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(10_000)
+    const model = new TraceTreeModel()
+    model.reset([
+      span('root', null, 0, { endTime: null }),
+      span('changed', 'root', 500, { endTime: 1_000 }),
+      span('running-sibling', 'root', 1_000, { endTime: null })
+    ])
+    const handleClick = vi.fn()
+    const handleToggle = vi.fn()
+    const view = renderTree(model, handleClick, handleToggle)
+    const runningSibling = document.querySelector('[data-trace-row="running-sibling"]') as HTMLElement
+
+    expect(within(runningSibling).getByText('9.00s')).toBeInTheDocument()
+
+    now.mockReturnValue(20_000)
+    model.applySpanChanges([span('changed', 'root', 500, { name: 'updated', endTime: 1_000 })])
+    view.rerender(
+      <TraceTree
+        model={model}
+        revision={model.lastMutation.revision}
+        handleClick={handleClick}
+        handleToggle={handleToggle}
+      />
+    )
+
+    expect(within(runningSibling).getByText('19.0s')).toBeInTheDocument()
+  })
+
   it('keeps the rendered row count bounded for 50,000 spans', () => {
     const model = new TraceTreeModel()
     model.reset([

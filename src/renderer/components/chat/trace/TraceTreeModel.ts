@@ -40,7 +40,6 @@ export class TraceTreeModel {
   private rootIds: string[] = []
   private _visibleRows: TraceVisibleRow[] = []
   private _lastMutation = INITIAL_MUTATION
-  private _virtualItemKey = (index: number): string | number => this._visibleRows[index]?.id ?? index
 
   get visibleRows(): readonly TraceVisibleRow[] {
     return this._visibleRows
@@ -48,10 +47,6 @@ export class TraceTreeModel {
 
   get lastMutation(): TraceTreeMutation {
     return this._lastMutation
-  }
-
-  get virtualItemKey(): (index: number) => string | number {
-    return this._virtualItemKey
   }
 
   get nodeCount(): number {
@@ -434,9 +429,6 @@ export class TraceTreeModel {
     structureChanged: boolean,
     previousVisibleCount: number
   ): TraceTreeMutation {
-    if (structureChanged) {
-      this._virtualItemKey = (index: number): string | number => this._visibleRows[index]?.id ?? index
-    }
     this._lastMutation = {
       kind,
       revision: this._lastMutation.revision + 1,

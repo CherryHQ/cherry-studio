@@ -10,6 +10,7 @@ import type { TraceTreeModel } from './TraceTreeModel'
 
 const TRACE_OVERSCAN = 8
 const TRACE_SCROLL_END_THRESHOLD = 8
+const getTraceVirtualItemKey = (index: number): number => index
 
 interface TraceTreeProps {
   model: TraceTreeModel
@@ -61,6 +62,7 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
   const { t } = useTranslation()
   const expandLabel = t('common.expand')
   const collapseLabel = t('common.collapse')
+  const renderTime = Date.now()
   const scrollerRef = useRef<HTMLDivElement>(null)
   const anchorRef = useRef<ScrollAnchor | null>(null)
   const isAtBottomRef = useRef(true)
@@ -85,7 +87,7 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
     count: model.visibleRows.length,
     getScrollElement: () => scrollerRef.current,
     estimateSize: () => TRACE_ROW_HEIGHT,
-    getItemKey: model.virtualItemKey,
+    getItemKey: getTraceVirtualItemKey,
     rangeExtractor,
     overscan: TRACE_OVERSCAN
   })
@@ -252,12 +254,13 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
 
             return (
               <div
-                key={virtualRow.key}
+                key={row.id}
                 className="absolute top-0 left-0 w-full"
                 style={{ height: TRACE_ROW_HEIGHT, transform: `translateY(${virtualRow.start}px)` }}>
                 <TraceTreeRow
                   node={node}
                   rootNode={rootNode}
+                  rootEndTime={rootNode.endTime || renderTime}
                   depth={row.depth}
                   isExpanded={model.isExpanded(node.id)}
                   isActive={node.id === activeNodeId}
@@ -278,6 +281,7 @@ const TraceTree = ({ model, revision, handleClick, handleToggle }: TraceTreeProp
 const TraceTreeRow = memo(function TraceTreeRow({
   node,
   rootNode,
+  rootEndTime,
   depth,
   isExpanded,
   isActive,
@@ -288,6 +292,7 @@ const TraceTreeRow = memo(function TraceTreeRow({
 }: {
   node: TraceNode
   rootNode: TraceNode
+  rootEndTime: number
   depth: number
   isExpanded: boolean
   isActive: boolean
@@ -297,7 +302,6 @@ const TraceTreeRow = memo(function TraceTreeRow({
   handleToggle: (nodeId: string) => void
 }) {
   const hasChildren = node.childIds.length > 0
-  const rootEndTime = rootNode.endTime || Date.now()
   const nodeEndTime = node.endTime || rootEndTime
   const rootDuration = rootEndTime - rootNode.startTime
   const usedTime = convertTime(nodeEndTime - node.startTime)

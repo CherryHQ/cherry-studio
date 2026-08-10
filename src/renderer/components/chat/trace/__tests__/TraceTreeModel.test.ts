@@ -95,13 +95,11 @@ describe('TraceTreeModel', () => {
     const model = new TraceTreeModel()
     model.reset([span('root', null, 0, { endTime: null })])
     const visibleRows = model.visibleRows
-    const virtualItemKey = model.virtualItemKey
 
     const mutation = model.applySpanChanges([span('root', null, 0, { name: 'updated', status: 'ERROR' })])
 
     expect(mutation).toMatchObject({ structureChanged: false, previousVisibleCount: 1, visibleCount: 1 })
     expect(model.visibleRows).toBe(visibleRows)
-    expect(model.virtualItemKey).toBe(virtualItemKey)
     expect(model.getNode('root')).toMatchObject({ name: 'updated', status: 'ERROR' })
     expect(model.isIdle).toBe(true)
   })
@@ -123,11 +121,9 @@ describe('TraceTreeModel', () => {
     const model = new TraceTreeModel()
     const orphans = Array.from({ length: 1_000 }, (_, index) => span(`orphan-${index}`, 'parent', index + 1))
     model.reset(orphans)
-    const virtualItemKey = model.virtualItemKey
 
     model.applySpanChanges([span('parent')])
 
-    expect(model.virtualItemKey).not.toBe(virtualItemKey)
     expect(model.getNode('parent')?.childIds).toHaveLength(1_000)
     expect(model.visibleRows).toHaveLength(1_001)
     expect(model.visibleRows[0]).toMatchObject({ id: 'parent', depth: 0, rootId: 'parent' })
