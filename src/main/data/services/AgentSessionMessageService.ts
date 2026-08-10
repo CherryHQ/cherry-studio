@@ -355,25 +355,51 @@ export class AgentSessionMessageService {
   }
 
   /**
-   * Ids of assistant rows still in `pending` — used by the agent-session boot reconcile to
-   * resolve turns a prior main-process crash left stuck (the runtime never reached its terminal
-   * write, and the in-memory entry map is empty after a restart, so nothing else settles them).
+   * Assistant rows still in `pending` — used by the agent-session boot reconcile to resolve turns
+   * a prior main-process crash left stuck (the runtime never reached its terminal write, and the
+   * in-memory entry map is empty after a restart, so nothing else settles them). Returns
+   * `sessionId` + `data` alongside the id so the caller can terminalize interrupted parts and
+   * invalidate the affected sessions' resume tokens.
    */
-  findPendingAssistantMessageIds(): string[] {
+  findPendingAssistantMessages(): Array<{ id: string; sessionId: string; data: AgentSessionMessageEntity['data'] }> {
     const database = application.get('DbService').getDb()
-    const rows = database
-      .select({ id: sessionMessagesTable.id })
+    return database
+      .select({
+        id: sessionMessagesTable.id,
+        sessionId: sessionMessagesTable.sessionId,
+        data: sessionMessagesTable.data
+      })
       .from(sessionMessagesTable)
       .where(and(eq(sessionMessagesTable.role, 'assistant'), eq(sessionMessagesTable.status, 'pending')))
       .all()
-    return rows.map((row) => row.id)
   }
 
-  /** Bulk-resolve the given rows to `error` — the boot reconcile of crash-orphaned `pending` rows. */
-  markMessagesError(ids: string[]): void {
-    if (ids.length === 0) return
-    const db = application.get('DbService').getDb()
-    db.update(sessionMessagesTable).set({ status: 'error' }).where(inArray(sessionMessagesTable.id, ids)).run()
+  /**
+   * Boot reconcile of crash-orphaned `pending` rows: resolve each row to `error` (with the
+   * caller's terminalized `data`) and discard the affected sessions' resume tokens, atomically.
+   * A crashed turn leaves the external CLI session in an untrusted state — resuming it can replay
+   * a runaway execution (#18281) — so the next connection must start without a token.
+   */
+  resolveCrashOrphanedMessages(
+    messages: Array<{ id: string; data: AgentSessionMessageEntity['data'] }>,
+    sessionIds: string[]
+  ): void {
+    if (messages.length === 0) return
+    application.get('DbService').withWriteTx((tx) => {
+      const updatedAt = Date.now()
+      for (const message of messages) {
+        tx.update(sessionMessagesTable)
+          .set({ status: 'error', data: message.data, updatedAt })
+          .where(eq(sessionMessagesTable.id, message.id))
+          .run()
+      }
+      if (sessionIds.length > 0) {
+        tx.update(sessionMessagesTable)
+          .set({ runtimeResumeToken: null })
+          .where(inArray(sessionMessagesTable.sessionId, sessionIds))
+          .run()
+      }
+    })
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {

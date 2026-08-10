@@ -53,6 +53,7 @@ import type {
   AgentSessionUsageCapture
 } from '../runtime/types'
 import {
+  finalizeInterruptedParts,
   PersistenceListener,
   type StreamErrorResult,
   type StreamListener,
@@ -325,7 +326,8 @@ export class AgentSessionRuntimeService extends BaseService {
     // Resolve agent-session assistant rows a prior main-process crash left `pending` — at boot the
     // in-memory entry map is empty, so every such row is stale. Mirrors AiStreamManager's chat
     // reconcile so both message tables are settled on restart (neither stays a frozen "thinking"
-    // bubble); agent sessions additionally recover conversation context via the resume token.
+    // bubble). Crashed sessions additionally discard their resume tokens: the interrupted external
+    // CLI session state is untrusted, so their next connection starts fresh instead of resuming it.
     this.reconcileStalePendingMessages()
 
     this.registerDisposable(
@@ -339,10 +341,23 @@ export class AgentSessionRuntimeService extends BaseService {
 
   private reconcileStalePendingMessages(): void {
     try {
-      const staleIds = agentSessionMessageService.findPendingAssistantMessageIds()
-      if (staleIds.length === 0) return
-      logger.info('Reconciling crash-orphaned pending agent-session messages', { count: staleIds.length })
-      agentSessionMessageService.markMessagesError(staleIds)
+      const stale = agentSessionMessageService.findPendingAssistantMessages()
+      if (stale.length === 0) return
+      const sessionIds = [...new Set(stale.map((message) => message.sessionId))]
+      logger.info('Reconciling crash-orphaned pending agent-session messages', {
+        count: stale.length,
+        sessionCount: sessionIds.length
+      })
+      // Terminalize the interrupted turn's live parts (streaming tools, in-progress subagent
+      // tasks, unanswerable approval requests) so history renders settled, and discard the
+      // affected sessions' resume tokens so prewarm/next turn opens a fresh runtime connection.
+      agentSessionMessageService.resolveCrashOrphanedMessages(
+        stale.map(({ id, data }) => ({
+          id,
+          data: { ...data, parts: finalizeInterruptedParts(data.parts ?? [], 'error') }
+        })),
+        sessionIds
+      )
     } catch (error) {
       logger.error('Failed to reconcile stale pending agent-session messages', { error })
     }

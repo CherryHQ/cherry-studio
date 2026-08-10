@@ -12,8 +12,8 @@ const mocks = vi.hoisted(() => ({
   getSessionMessage: vi.fn(),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
-  findPendingAssistantMessageIds: vi.fn(),
-  markMessagesError: vi.fn(),
+  findPendingAssistantMessages: vi.fn(),
+  resolveCrashOrphanedMessages: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
@@ -51,8 +51,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     getSessionMessage: mocks.getSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
-    findPendingAssistantMessageIds: mocks.findPendingAssistantMessageIds,
-    markMessagesError: mocks.markMessagesError
+    findPendingAssistantMessages: mocks.findPendingAssistantMessages,
+    resolveCrashOrphanedMessages: mocks.resolveCrashOrphanedMessages
   }
 }))
 
@@ -246,8 +246,8 @@ describe('AgentSessionRuntimeService', () => {
     })
     mocks.applyToolApprovalDecision.mockReturnValue(true)
     mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-    mocks.findPendingAssistantMessageIds.mockReturnValue([])
-    mocks.markMessagesError.mockReturnValue(undefined)
+    mocks.findPendingAssistantMessages.mockReturnValue([])
+    mocks.resolveCrashOrphanedMessages.mockReturnValue(undefined)
     mocks.ensureTraceId.mockReturnValue('b'.repeat(32))
     mocks.recordUsage.mockReturnValue(undefined)
     mocks.closeWarmQueries.mockResolvedValue(undefined)
@@ -1033,35 +1033,69 @@ describe('AgentSessionRuntimeService', () => {
   })
 
   describe('reconcileStalePendingMessages — boot crash recovery', () => {
-    it('marks crash-orphaned pending assistant messages as errored on init', async () => {
-      mocks.findPendingAssistantMessageIds.mockReturnValue(['stale-1', 'stale-2'])
+    it('resolves crash-orphaned pending rows with terminalized parts and invalidates their sessions', async () => {
+      mocks.findPendingAssistantMessages.mockReturnValue([
+        {
+          id: 'stale-1',
+          sessionId: 'session-a',
+          data: {
+            parts: [
+              { type: 'text', text: 'partial answer' },
+              { type: 'tool-Bash', toolCallId: 'call-1', state: 'input-available', input: { command: 'ls' } }
+            ]
+          }
+        },
+        { id: 'stale-2', sessionId: 'session-a', data: { parts: [] } },
+        { id: 'stale-3', sessionId: 'session-b', data: {} }
+      ])
       const service = new AgentSessionRuntimeService()
 
       await (service as any).onInit()
 
-      expect(mocks.findPendingAssistantMessageIds).toHaveBeenCalledOnce()
-      expect(mocks.markMessagesError).toHaveBeenCalledWith(['stale-1', 'stale-2'])
+      expect(mocks.findPendingAssistantMessages).toHaveBeenCalledOnce()
+      expect(mocks.resolveCrashOrphanedMessages).toHaveBeenCalledWith(
+        [
+          {
+            id: 'stale-1',
+            data: {
+              parts: [
+                { type: 'text', text: 'partial answer' },
+                {
+                  type: 'tool-Bash',
+                  toolCallId: 'call-1',
+                  state: 'output-error',
+                  input: { command: 'ls' },
+                  errorText: 'Stream errored before tool completed'
+                }
+              ]
+            }
+          },
+          { id: 'stale-2', data: { parts: [] } },
+          { id: 'stale-3', data: { parts: [] } }
+        ],
+        ['session-a', 'session-b']
+      )
     })
 
-    it('does not mark anything when there are no stale messages', async () => {
-      mocks.findPendingAssistantMessageIds.mockReturnValue([])
+    it('does not resolve anything when there are no stale messages', async () => {
+      mocks.findPendingAssistantMessages.mockReturnValue([])
       const service = new AgentSessionRuntimeService()
 
       await (service as any).onInit()
 
-      expect(mocks.markMessagesError).not.toHaveBeenCalled()
+      expect(mocks.resolveCrashOrphanedMessages).not.toHaveBeenCalled()
     })
 
     it('logs and does not rethrow when the reconcile lookup throws, so boot is not blocked', async () => {
       const failure = new Error('db down')
-      mocks.findPendingAssistantMessageIds.mockImplementation(() => {
+      mocks.findPendingAssistantMessages.mockImplementation(() => {
         throw failure
       })
       const service = new AgentSessionRuntimeService()
 
       await expect((service as any).onInit()).resolves.toBeUndefined()
 
-      expect(mocks.markMessagesError).not.toHaveBeenCalled()
+      expect(mocks.resolveCrashOrphanedMessages).not.toHaveBeenCalled()
       expect(mockMainLoggerService.error).toHaveBeenCalledWith(
         'Failed to reconcile stale pending agent-session messages',
         { error: failure }
