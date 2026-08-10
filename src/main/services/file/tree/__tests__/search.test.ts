@@ -1,3 +1,4 @@
+import type * as NodeChildProcess from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import type * as NodeFs from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
@@ -23,7 +24,7 @@ const mockPromisesStat = vi.hoisted(() => vi.fn())
 const mockSpawn = vi.hoisted(() => vi.fn())
 
 vi.mock('node:child_process', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:child_process')>()
+  const actual = await importOriginal<typeof NodeChildProcess>()
   return {
     ...actual,
     spawn: mockSpawn
@@ -73,7 +74,7 @@ beforeEach(async () => {
   mockSpawn.mockReset()
   mockExistsSync.mockImplementation((p: NodeFs.PathLike) => actual.existsSync(p))
   mockPromisesStat.mockImplementation((p: string) => actual.promises.stat(p))
-  const actualChildProcess = await vi.importActual<typeof import('node:child_process')>('node:child_process')
+  const actualChildProcess = await vi.importActual<typeof NodeChildProcess>('node:child_process')
   mockSpawn.mockImplementation(actualChildProcess.spawn)
 })
 
@@ -86,7 +87,7 @@ const mockRipgrepResultOnce = ({
   stdout?: string
   stderr?: string
 }) => {
-  const child = new EventEmitter() as ReturnType<typeof import('node:child_process').spawn>
+  const child = new EventEmitter() as ReturnType<typeof NodeChildProcess.spawn>
   const stdoutStream = new PassThrough()
   const stderrStream = new PassThrough()
   child.stdout = stdoutStream
