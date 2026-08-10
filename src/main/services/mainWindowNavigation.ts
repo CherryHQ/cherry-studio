@@ -28,6 +28,18 @@ export const isAllowedRoute = (path: string): boolean =>
 
 let nextNavigationRequestId = 0
 
+/** Id of the live (non-destroyed) main window, or undefined when it is missing/destroyed. */
+function resolveLiveMainWindowId(): string | undefined {
+  const windowManager = application.get('WindowManager')
+  const mainWindow = windowManager.getWindowsByType(WindowType.Main)[0]
+  return mainWindow && !mainWindow.isDestroyed() ? windowManager.getWindowId(mainWindow) : undefined
+}
+
+/**
+ * Clear the stored init data for a cold-start payload after the renderer consumed it, so a
+ * hot reload does not replay it. Fed by the `navigation.ack_open_route` ack — the channel
+ * name predates the `tab-attach` kind, but it acks any `MainWindowInitData` by requestId.
+ */
 export function acknowledgeMainWindowNavigation(windowId: string, requestId: number): void {
   const windowManager = application.get('WindowManager')
   const initData = windowManager.getInitData(windowId)
@@ -59,11 +71,9 @@ export function acknowledgeMainWindowNavigation(windowId: string, requestId: num
  * lifecycle state, persists in the store, and replays on renderer reload.
  */
 export function openRouteInMainWindow(path: string): void {
-  const windowManager = application.get('WindowManager')
   const mainWindowService = application.get('MainWindowService')
 
-  const mainWindow = windowManager.getWindowsByType(WindowType.Main)[0]
-  const mainWindowId = mainWindow && !mainWindow.isDestroyed() ? windowManager.getWindowId(mainWindow) : undefined
+  const mainWindowId = resolveLiveMainWindowId()
 
   if (mainWindowId) {
     application.get('IpcApiService').send(mainWindowId, 'navigation.open_route_requested', { to: path })
@@ -90,11 +100,9 @@ export function openRouteInMainWindow(path: string): void {
  *   the renderer attaches on boot.
  */
 export function openTabInMainWindow(tab: Tab): void {
-  const windowManager = application.get('WindowManager')
   const mainWindowService = application.get('MainWindowService')
 
-  const mainWindow = windowManager.getWindowsByType(WindowType.Main)[0]
-  const mainWindowId = mainWindow && !mainWindow.isDestroyed() ? windowManager.getWindowId(mainWindow) : undefined
+  const mainWindowId = resolveLiveMainWindowId()
 
   if (mainWindowId) {
     application.get('IpcApiService').send(mainWindowId, 'tab.attached', tab)

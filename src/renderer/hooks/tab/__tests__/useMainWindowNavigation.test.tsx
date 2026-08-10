@@ -6,12 +6,8 @@ const mocks = vi.hoisted(() => ({
   openTab: vi.fn(),
   setActiveTab: vi.fn(),
   updateTab: vi.fn(),
-  attachTab: vi.fn(),
   tabs: [] as Array<{ id: string; type: 'route' | 'miniapp'; url: string; title: string }>,
-  initData: null as
-    | { kind: 'navigation'; to: string; requestId: number }
-    | { kind: 'tab-attach'; tab: { id: string }; requestId: number }
-    | null,
+  initData: null as { kind: 'navigation'; to: string; requestId: number } | null,
   ipcListeners: new Map<string, (payload: unknown) => void>(),
   ipcRequest: vi.fn()
 }))
@@ -38,8 +34,7 @@ vi.mock('../useTabs', () => ({
     tabs: mocks.tabs,
     openTab: mocks.openTab,
     setActiveTab: mocks.setActiveTab,
-    updateTab: mocks.updateTab,
-    attachTab: mocks.attachTab
+    updateTab: mocks.updateTab
   })
 }))
 
@@ -152,26 +147,6 @@ describe('useMainWindowNavigation', () => {
     render(<MainWindowNavigationHarness />)
 
     expect(mocks.openTab).toHaveBeenCalledWith('/agents')
-  })
-
-  it('re-attaches a tab from tab-attach init data and acknowledges it', () => {
-    const tab = { id: 'tab-detached', type: 'route', url: '/app/chat', title: 'Chat' }
-    mocks.initData = { kind: 'tab-attach', tab, requestId: 1 }
-    render(<MainWindowNavigationHarness />)
-
-    expect(mocks.attachTab).toHaveBeenCalledWith(tab)
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('navigation.ack_open_route', { requestId: 1 })
-  })
-
-  it('does not re-attach the same tab-attach init data on re-render', () => {
-    const tab = { id: 'tab-detached', type: 'route', url: '/app/chat', title: 'Chat' }
-    mocks.initData = { kind: 'tab-attach', tab, requestId: 1 }
-    const { rerender } = render(<MainWindowNavigationHarness />)
-
-    expect(mocks.attachTab).toHaveBeenCalledTimes(1)
-
-    rerender(<MainWindowNavigationHarness />)
-    expect(mocks.attachTab).toHaveBeenCalledTimes(1)
   })
 
   it('opens a regular tab when a non-settings open_route_requested event arrives', () => {

@@ -1,10 +1,12 @@
 import { loggerService } from '@logger'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { type OpenTabOptions, TabsContext, type TabsContextValue } from '@renderer/hooks/tab'
+import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
+import type { MainWindowInitData } from '@shared/types/mainWindow'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -181,6 +183,11 @@ export function TabsProvider({
 }: TabsProviderProps) {
   // Route-derived tab titles are localized, so recompute them on language change.
   const { i18n } = useTranslation()
+
+  // Cold-start re-attach payload (see the tab-attach effect near attachTab): the main window
+  // was rebuilt around a detached tab, so the init data carries the tab to re-attach.
+  const initData = useWindowInitData<MainWindowInitData>()
+  const handledAttachRequestIdRef = useRef<number | null>(null)
 
   // Pinned tabs - persistent storage. The setter natively supports functional
   // updates resolved against the latest persisted value, so callers can use
@@ -569,8 +576,25 @@ export function TabsProvider({
     [tabs, setActiveTab, setPinnedTabs, storesPinned]
   )
 
-  // Listen for tab attach requests (from Main Process)
+  // Live-path re-attach: a detached sub-window handed its tab back to the running main window.
   useIpcOn('tab.attached', (tabData) => attachTab(tabData))
+
+  // Cold-start re-attach: the main window was rebuilt around a detached tab
+  // (openTabInMainWindow when no main window existed), so the tab rides in as init data.
+  // Session-restore semantics, owned here in TabsProvider — NOT in a child effect. A child
+  // effect (e.g. inside MainWindowRuntime) runs BEFORE the pinned-restore write-back effect
+  // above, so a pinned tab injected there would be clobbered by the restore's plain overwrite
+  // and silently lost. Declared after that restore effect and fed by async init data, this
+  // always lands after it. requestId dedupes replays; ack clears the store so a hot reload
+  // does not re-attach.
+  useEffect(() => {
+    if (initData?.kind !== 'tab-attach') return
+    if (handledAttachRequestIdRef.current === initData.requestId) return
+
+    handledAttachRequestIdRef.current = initData.requestId
+    attachTab(initData.tab)
+    void ipcApi.request('navigation.ack_open_route', { requestId: initData.requestId })
+  }, [initData, attachTab])
 
   /**
    * Get the currently active tab

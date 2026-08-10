@@ -70,7 +70,7 @@ vi.mock('@application', () => ({ application: applicationMock }))
 
 // attachTab delegates delivery to openTabInMainWindow (live event vs cold-start init data);
 // its own live/cold split is covered in mainWindowNavigation.test.ts.
-vi.mock('../mainWindowNavigation', () => ({ openTabInMainWindow: openTabInMainWindowMock }))
+vi.mock('@main/services/mainWindowNavigation', () => ({ openTabInMainWindow: openTabInMainWindowMock }))
 
 vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: vi.fn() },

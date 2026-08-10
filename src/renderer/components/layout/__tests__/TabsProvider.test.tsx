@@ -74,6 +74,14 @@ const setNormalTabsMock = vi.fn()
 let activeTabIdValue = ''
 const setActiveTabIdMock = vi.fn()
 
+// ipcApi itself is referenced by the hoisted vi.mock factory, so it must be vi.hoisted —
+// a module-level const would be in the TDZ when the factory runs.
+const { ipcApiRequestMock } = vi.hoisted(() => ({ ipcApiRequestMock: vi.fn() }))
+
+// Cold-start re-attach payload, injected through useWindowInitData (regression tests).
+// Read lazily inside the mock's closure, so a plain module-level let is fine.
+let initDataValue: null | { kind: 'tab-attach'; tab: Tab; requestId: number } = null
+
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: () => ({
@@ -115,8 +123,12 @@ vi.mock('@renderer/utils/routeTitle', async () => {
 })
 
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: vi.fn() },
+  ipcApi: { request: ipcApiRequestMock },
   useIpcOn: vi.fn()
+}))
+
+vi.mock('@renderer/hooks/useWindowInitData', () => ({
+  useWindowInitData: () => initDataValue
 }))
 
 import { useTabsContext } from '@renderer/hooks/tab'
@@ -299,6 +311,9 @@ beforeEach(() => {
   pinnedTabsValue = [PINNED_FILES_TAB]
   normalTabsValue = []
   activeTabIdValue = ''
+  initDataValue = null
+  setPinnedTabsMock.mockReset()
+  ipcApiRequestMock.mockReset()
 })
 
 afterEach(() => {
@@ -729,6 +744,38 @@ describe('TabsProvider session restore', () => {
     expect(ids).toContain(`n${overflow - 1}`)
     const dump = screen.getByTestId('session-tabs').textContent ?? ''
     expect(dump.split(',').filter((tab) => tab.endsWith(':awake'))).toEqual(['n0:awake'])
+  })
+
+  it('keeps a pinned detached tab alive after cold-start re-attach via tab-attach init data', async () => {
+    // Store-backed pinned cache for this test: the shipped hook writes through synchronously,
+    // so the restored + attached pins actually render. Regression for the child-effect
+    // ordering bug — a child attach effect ran before the session-restore write-back, whose
+    // plain overwrite dropped the injected pinned tab on cold start.
+    setPinnedTabsMock.mockImplementation((next: Tab[] | ((prev: Tab[]) => Tab[])) => {
+      pinnedTabsValue = typeof next === 'function' ? next(pinnedTabsValue) : next
+    })
+
+    const DETACHED_TAB: Tab = {
+      id: 'detached',
+      type: 'route',
+      url: '/app/chat?topicId=t1',
+      title: 'Detached',
+      lastAccessTime: 0,
+      isDormant: false,
+      isPinned: true
+    }
+    initDataValue = { kind: 'tab-attach', tab: DETACHED_TAB, requestId: 1 }
+
+    render(
+      <TabsProvider initialDefaultTab={HOME_TAB}>
+        <TabIds />
+      </TabsProvider>
+    )
+
+    // The re-attached pinned tab must survive session restore (not be clobbered by the restore
+    // write-back), and the cold-start payload is acked so it never replays on reload.
+    await waitFor(() => expect(screen.getByTestId('tab-ids').textContent).toContain('detached'))
+    expect(ipcApiRequestMock).toHaveBeenCalledWith('navigation.ack_open_route', { requestId: 1 })
   })
 })
 
