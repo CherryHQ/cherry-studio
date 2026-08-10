@@ -69,12 +69,18 @@ export class ShortcutService extends BaseService {
   private mainWindow: BrowserWindow | null = null
   private handlers = new Map<CommandId, ShortcutHandler>()
   private registeredWindows = new Set<BrowserWindow>()
+  private guestInputCleanups = new Map<WebContents, () => void>()
   private conflictedKeys = new Set<CommandShortcutPreferenceKey<CommandId>>()
   private registeredAccelerators = new Map<string, RegisteredShortcut>()
 
   protected async onInit() {
     this.registerBuiltInHandlers()
     this.subscribeToPreferenceChanges()
+    this.registerDisposable(() => {
+      for (const cleanup of [...this.guestInputCleanups.values()]) {
+        cleanup()
+      }
+    })
 
     const windowService = application.get('MainWindowService')
     this.registerDisposable(windowService.onMainWindowCreated((window) => this.registerForWindow(window)))
@@ -163,8 +169,15 @@ export class ShortcutService extends BaseService {
       }
       const { webContents } = window
       const onDidAttachWebview = (_event: Electron.Event, guestContents: WebContents) => {
+        const cleanup = () => {
+          guestContents.off('before-input-event', onBeforeInput)
+          guestContents.off('destroyed', cleanup)
+          this.guestInputCleanups.delete(guestContents)
+        }
+
         guestContents.on('before-input-event', onBeforeInput)
-        this.registerDisposable(() => guestContents.off('before-input-event', onBeforeInput))
+        guestContents.once('destroyed', cleanup)
+        this.guestInputCleanups.set(guestContents, cleanup)
       }
 
       webContents.on('before-input-event', onBeforeInput)

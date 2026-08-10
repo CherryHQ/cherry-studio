@@ -187,7 +187,7 @@ describe('ShortcutService', () => {
     expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+numadd', expect.any(Function))
   })
 
-  it('handles window-local zoom shortcuts without registering them globally', async () => {
+  it.each([false, true])('handles a window-local zoom shortcut with shift=%s', async (shift) => {
     await (service as any).onInit()
 
     expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+=', expect.any(Function))
@@ -200,11 +200,31 @@ describe('ShortcutService', () => {
       control: process.platform !== 'darwin',
       meta: process.platform === 'darwin',
       alt: false,
-      shift: true
+      shift
     })
 
     expect(event.preventDefault).toHaveBeenCalledOnce()
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', mainWindow)
+  })
+
+  it.each([
+    ['an unmatched key', { type: 'keyDown', key: 'a', code: 'KeyA', isComposing: false }],
+    ['a keyUp event', { type: 'keyUp', key: '+', code: 'Equal', isComposing: false }],
+    ['a composing keyDown event', { type: 'keyDown', key: '+', code: 'Equal', isComposing: true }]
+  ])('does not handle %s', async (_case, input) => {
+    await (service as any).onInit()
+
+    const event = { preventDefault: vi.fn() }
+    mainWindow.emitWebContents('before-input-event', event, {
+      ...input,
+      control: process.platform !== 'darwin',
+      meta: process.platform === 'darwin',
+      alt: false,
+      shift: false
+    })
+
+    expect(event.preventDefault).not.toHaveBeenCalled()
+    expect(commandServiceMock.execute).not.toHaveBeenCalled()
   })
 
   it('handles window-local shortcuts from an attached webview guest', async () => {
@@ -226,6 +246,24 @@ describe('ShortcutService', () => {
 
     expect(event.preventDefault).toHaveBeenCalledOnce()
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.reset', mainWindow)
+  })
+
+  it('releases an attached webview guest registration when the guest is destroyed', async () => {
+    await (service as any).onInit()
+
+    const guest = new MockBrowserWindow()
+    const disposables = (service as any)._disposables as Array<{ dispose: () => void } | (() => void)>
+    const disposableCount = disposables.length
+
+    mainWindow.emitWebContents('did-attach-webview', {}, guest.webContents)
+
+    expect((service as any).guestInputCleanups.size).toBe(1)
+    expect(disposables).toHaveLength(disposableCount)
+
+    guest.emitWebContents('destroyed')
+
+    expect((service as any).guestInputCleanups.size).toBe(0)
+    expect(guest.webContents.off).toHaveBeenCalledWith('before-input-event', expect.any(Function))
   })
 
   it('cleans up through the captured webContents after the window is destroyed', async () => {

@@ -3,8 +3,6 @@ import type { ContextReader, RegisteredCommandDefinition, SupportedPlatform } fr
 import { type CommandId, evaluateContextExpr, resolveCommandKeybinding } from '@shared/utils/command'
 import { formatShortcutDisplay } from '@shared/utils/shortcut'
 
-export { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
-
 /**
  * Renderer-only command presentation helpers. Cross-process shortcut parsing
  * and command resolution live in the shared layer.
