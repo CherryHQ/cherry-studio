@@ -608,6 +608,13 @@
       "defaultValue": "cherry",
       "status": "classified",
       "description": "Global menu presentation mode: native system menus or Cherry custom menus"
+    },
+    {
+      "targetKey": "feature.notes.line_breaks",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Notes line-break rendering mode: a single newline renders as a line break (v2 new feature, no v1 source)"
     }
   ]
 }
