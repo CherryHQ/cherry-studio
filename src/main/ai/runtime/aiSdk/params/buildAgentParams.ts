@@ -155,8 +155,13 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   // truncation, so temporary chats and one-shot calls (translate / topic naming
   // / probes) can never mint a marker. Resolved here once and carried on the
   // scope; `resolveTruncateStorage` reuses it rather than re-querying.
+  // A marker minted on the last permitted tool step can never be read back:
+  // the producing tool consumes that step and the loop ends before fs_read
+  // could be called. With no pre-existing marker its schema is therefore dead
+  // weight for the whole request, so require room for a read-back step too.
+  const hasReadBackStep = resolveToolCallLimit(assistant) > 1
   const canOffloadToolOutputs =
-    contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId)
+    contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId) && hasReadBackStep
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request) : undefined
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {

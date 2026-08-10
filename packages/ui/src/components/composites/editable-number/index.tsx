@@ -184,16 +184,14 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
     'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
     sizeClasses[size],
     inputAlignClass,
-    shouldRenderDisplayValue && !isEditing && 'hidden',
+    // NOT `hidden`: hiding the input moved the tab stop onto the presentational
+    // overlay below, which has no role, no id and no accessible name — and
+    // `FormLabel`'s `htmlFor` pointed at an element the user could not reach.
+    // The input stays the interactive control and simply goes see-through while
+    // the formatted overlay is painted over it.
+    shouldRenderDisplayValue && !isEditing && 'text-transparent caret-transparent',
     className
   )
-
-  const handleDisplayKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault()
-      handleFocus()
-    }
-  }
 
   return (
     <div className={cn('relative', block ? 'block w-full' : 'inline-block')}>
@@ -224,16 +222,16 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
       {shouldRenderDisplayValue && !isEditing && (
         <div
           className={cn(
-            'border-input bg-background flex w-full cursor-text items-center rounded-md border px-3 text-sm shadow-xs outline-none transition-[color,box-shadow]',
-            'focus-visible:border-primary',
-            disabled && 'pointer-events-none cursor-not-allowed opacity-50',
+            // Absolutely positioned and click-through: the input keeps the
+            // layout box and every interaction, this only paints over it.
+            'absolute inset-0 pointer-events-none',
+            'border-input bg-background flex w-full items-center rounded-md border px-3 text-sm shadow-xs',
+            disabled && 'cursor-not-allowed opacity-50',
             alignClasses[align],
             sizeClasses[size],
             className
           )}
-          onClick={handleFocus}
-          onKeyDown={handleDisplayKeyDown}
-          tabIndex={disabled ? -1 : 0}
+          aria-hidden="true"
           style={style}>
           <span className="truncate">
             {prefix}

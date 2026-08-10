@@ -71,4 +71,35 @@ describe('EditableNumber', () => {
 
     expect(screen.getByLabelText('Tool-output truncation threshold')).toBe(screen.getByRole('spinbutton'))
   })
+
+  // A formatter/prefix/suffix used to swap the input for a presentational div
+  // that carried the tab stop but no role, id or name — so the labelled control
+  // was unreachable and `FormLabel`'s htmlFor pointed at a hidden element.
+  it.each([
+    ['formatter', { formatter: (v: number | null) => `${v ?? 0} rounds` }],
+    ['suffix', { suffix: ' chars' }],
+    ['prefix', { prefix: '≤ ' }]
+  ])('keeps the input as the only named, focusable control with a %s', (_label, props) => {
+    render(
+      <>
+        <label htmlFor="affixed">Max tool call rounds</label>
+        <EditableNumber value={20} id="affixed" {...props} />
+      </>
+    )
+
+    const input = screen.getByRole('spinbutton')
+    expect(screen.getByLabelText('Max tool call rounds')).toBe(input)
+    // The overlay is decoration: hidden from the accessibility tree entirely.
+    expect(screen.queryAllByRole('textbox')).toHaveLength(0)
+    input.focus()
+    expect(input).toHaveFocus()
+  })
+
+  it('shows the formatted overlay until the field is focused', () => {
+    render(<EditableNumber value={20} suffix=" rounds" aria-label="Rounds" />)
+
+    expect(screen.getByText(/rounds/)).toBeInTheDocument()
+    fireEvent.focus(screen.getByRole('spinbutton'))
+    expect(screen.queryByText(/rounds/)).not.toBeInTheDocument()
+  })
 })
