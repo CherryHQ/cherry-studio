@@ -26,7 +26,7 @@ AiService.streamText/generateText
 |---|---|---|
 | `chat.retry.enabled` | `false` | Master switch for chat retry/fallback and the embedding/rerank retry policy |
 | `chat.retry.max_attempts` | `3` | Retry count, normalized to the integer range 1–10 at the request boundary |
-| `chat.retry.backoff_enabled` | `true` | Exponential backoff (2s, 4s, 8s… by transient-failure count) |
+| `chat.retry.backoff_enabled` | `true` | Exponential backoff (2s, 4s, 8s… with the library's attempt-count exponent) |
 | `chat.retry.fallback_model_ids` | `[]` | `UniqueModelId[]` tried in order after same-model retry is exhausted |
 
 Settings UI lives in `src/renderer/pages/settings/ModelSettings/ModelSettings.tsx`
@@ -63,8 +63,7 @@ in `buildAgentParams`, closed over that model). So for each configured fallback
 
 **`createRetryableWrap`** (`createRetryableWrap.ts`) then just assembles the
 ai-retry policy from the pre-built fallbacks (no provider/model loading in this
-leaf): returns `undefined` when both configurable retry and the internal Agent
-image-rejection recovery are disabled, else a `wrapModel` closure:
+leaf): returns `undefined` when disabled, else a `wrapModel` closure:
 
 ```ts
 // ai-retry's condition-based API (ai-retry/language-model). The retry STRATEGY
@@ -72,13 +71,10 @@ image-rejection recovery are disabled, else a `wrapModel` closure:
 createRetryableModel({
   model: base,
   retries: [
-    // Internal Agent gateway only: a provider-explicit image-related HTTP 400
-    // gets one same-model attempt with image parts replaced by OCR text.
-    imageInputRetry,
-    // same-model retry on retryable errors. A custom retryable counts only
-    // transient failures against max_attempts and carries the current effective
-    // prompt/options forward. Honors Retry-After and optional backoff.
-    transientRetry,
+    // same-model retry on retryable errors. maxAttempts = max_attempts + 1
+    // (ai-retry counts the original call, so the pref reads as the number of
+    // RETRIES); backoffFactor only when backoff_enabled. Honors Retry-After.
+    error.isRetryable(true).retry({ maxAttempts: max_attempts + 1, delay: 1_000, /* backoffFactor: 2 */ }),
     // fallbacks are lazy, error-only Retryable fns. Successful resolution is
     // memoized; a null result is retried on a later failure.
     ...fallbackResolvers.map((resolve) => errorOnlyLazyRetryable(resolve))
@@ -92,31 +88,6 @@ createRetryableModel({
 `buildAgentParamsFor` and pass the wrap as `AgentLoopParams.wrapModel`;
 `Agent.buildAiSdkAgent` forwards it to `createAgent`, which applies it to the
 resolved model right before constructing the `ToolLoopAgent`.
-
-### Internal Agent image-rejection recovery
-
-Authenticated Agent requests routed through the internal API gateway carry an
-in-process `usageContext`. Only those streaming requests opt into a narrow
-semantic retry ahead of the configurable policy:
-
-1. The provider must return an `APICallError` with HTTP 400 whose message,
-   response body, or structured data explicitly identifies `image_url` or an
-   unsupported image/vision/multimodal input.
-2. The error must occur before the first content chunk; committed streams are
-   never replayed.
-3. Image prompt parts are lazily OCR'd through `FileProcessingService`. Remote
-   URL parts first use the bounded, MIME-validating image download path. OCR
-   text replaces the image; empty/unavailable OCR becomes an omission note so
-   the rejected image is not sent again.
-4. The same model is tried once with that rewritten prompt and its current
-   effective options. If that call fails transiently, configurable retries keep
-   the OCR prompt and use a transient-only retry budget. Unrelated 400s and
-   ordinary chat/gateway calls retain their existing error behavior.
-
-This recovery is intentionally independent of `chat.retry.enabled`: it repairs
-an invalid request shape rather than retrying a transient failure. An explicit
-per-request `requestOptions.maxRetries === 0` still disables the wrapper and is
-authoritative.
 
 > **Limitation:** fallbacks get their own middleware and their own
 > sampling / `providerOptions` / `headers`, but reuse the **primary's tools +
@@ -194,11 +165,7 @@ per-batch retry handles residual 429s. The degrade-to-vector-results fallback in
 
 - `src/main/ai/runtime/aiSdk/retry/__tests__/createRetryableWrap.test.ts` —
   same-model retry ordering, ordered fallback, lazy/memoized resolution,
-  retry events and settlement, original error preservation, and narrow
-  image-related 400 recovery.
-- `src/main/ai/runtime/aiSdk/retry/__tests__/imageInputFallback.test.ts` —
-  byte/base64/URL image-to-OCR prompt rewriting plus empty/unavailable OCR
-  degradation.
+  retry events and settlement, and original error preservation.
 - `src/main/ai/runtime/aiSdk/retry/__tests__/buildFallbackModels.test.ts` —
   malformed/duplicate ids, deleted-model handling, unexpected-error
   propagation, model-specific options/plugins, and tool/media gates.

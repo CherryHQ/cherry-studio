@@ -33,15 +33,6 @@ describe('downloadImageAsBase64', () => {
     expect(result?.data).toBe(Buffer.from(JPEG_XL_BYTES).toString('base64'))
   })
 
-  it('passes the caller abort signal to the image request', async () => {
-    const signal = new AbortController().signal
-    mockNetFetch.mockResolvedValue(binaryResponse(JPEG_XL_BYTES, { 'content-type': 'application/octet-stream' }))
-
-    await downloadImageAsBase64('https://example.com/generated', signal)
-
-    expect(mockNetFetch).toHaveBeenCalledWith('https://example.com/generated', { signal })
-  })
-
   it('uses image bytes ahead of an incorrect image response header', async () => {
     mockNetFetch.mockResolvedValue(binaryResponse(WEBP_BYTES, { 'content-type': 'image/png' }))
 

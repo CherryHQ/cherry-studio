@@ -55,14 +55,7 @@ import { buildVendorProviderOptions } from './provider/custom/wire/buildImageReq
 import { DEFAULT_DIFFUSION_REGISTRATION, WIRE_REGISTRY } from './provider/custom/wire/wireProfile'
 import { listModels as listModelsFromProvider } from './provider/listModels'
 import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtime/aiSdk'
-import {
-  Agent,
-  buildAgentParams,
-  buildFallbackModels,
-  createRetryableWrap,
-  readRetryPolicy,
-  replaceImageInputsWithOcr
-} from './runtime/aiSdk'
+import { Agent, buildAgentParams, buildFallbackModels, createRetryableWrap, readRetryPolicy } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
@@ -576,10 +569,6 @@ export class AiService extends BaseService {
       wrapModel = createRetryableWrap({
         retryPolicy,
         diagnosticContext: { chatId: request.chatId, messageId: request.messageId, assistantId: request.assistantId },
-        // Only Cherry's authenticated Agent gateway requests carry this
-        // in-process usage context. Ordinary chat/provider calls keep the
-        // existing image behavior unchanged.
-        imageInputFallback: request.usageContext ? replaceImageInputsWithOcr : undefined,
         fallbacks: buildFallbackModels({
           request,
           assistant,

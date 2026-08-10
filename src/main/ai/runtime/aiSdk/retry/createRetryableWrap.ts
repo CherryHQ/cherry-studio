@@ -1,9 +1,8 @@
 /**
  * Builds the `wrapModel` closure that wraps a resolved chat model with
- * ai-retry. An optional Internal Agent recovery first rewrites explicitly
- * rejected image input to OCR text; the user-configurable policy then handles
- * same-model transient retries (429/503/529 and other retryable API errors)
- * followed by cross-model fallback.
+ * ai-retry: same-model transient retry on retryable API errors (429/503/529
+ * and other `isRetryable` `APICallError`s, with backoff) first, then
+ * cross-model fallback to the user-configured retry models.
  *
  * Fallbacks are built by the caller (`buildFallbackModels`) through
  * the same `buildAgentParams` pipeline as the primary, so each fallback model
@@ -22,12 +21,11 @@
  * Streaming caveat: ai-retry can only retry/fall back before the first
  * content chunk is emitted; mid-stream errors surface as stream errors.
  */
-import type { LanguageModelV3, LanguageModelV3CallOptions, LanguageModelV3Prompt } from '@ai-sdk/provider'
+import type { LanguageModelV3 } from '@ai-sdk/provider'
 import { loggerService } from '@logger'
 import type { RetryPartData } from '@shared/data/types/uiParts'
 import { APICallError } from 'ai'
 import {
-  getModelKey,
   isErrorAttempt,
   type LanguageModel,
   type LanguageModelRetryCallOptions,
@@ -75,56 +73,9 @@ export interface CreateRetryableWrapOptions {
   diagnosticContext?: Readonly<Record<string, unknown>>
   /** Invoked when retry starts or settles (e.g. to reconcile a live UI status part). */
   onRetryEvent?: (event: RetryPartData) => void
-  /**
-   * Internal Agent recovery: lazily replace rejected image inputs with OCR
-   * text. Ordinary chat/provider calls leave this unset.
-   */
-  imageInputFallback?: (prompt: LanguageModelV3Prompt, signal?: AbortSignal) => Promise<LanguageModelV3Prompt | null>
 }
 
 const RETRY_BASE_DELAY_MS = 1_000
-const IMAGE_REJECTION_PATTERNS = [
-  /\bimage_url\b/i,
-  /\b(?:images?|vision|multimodal)\b.{0,160}\b(?:unsupported|not supported|does not support|not accept|cannot accept|invalid content type)\b/is,
-  /\b(?:unsupported|not supported|does not support|not accept|cannot accept|invalid content type)\b.{0,160}\b(?:images?|vision|multimodal)\b/is
-]
-
-const INHERITED_RETRY_CALL_OPTION_KEYS = [
-  'maxOutputTokens',
-  'temperature',
-  'stopSequences',
-  'topP',
-  'topK',
-  'presencePenalty',
-  'frequencyPenalty',
-  'seed',
-  'headers',
-  'providerOptions'
-] as const satisfies readonly (keyof LanguageModelRetryCallOptions)[]
-
-function inheritRetryCallOptions(
-  current: LanguageModelV3CallOptions,
-  prompt: LanguageModelV3Prompt = current.prompt
-): LanguageModelRetryCallOptions {
-  const entries = INHERITED_RETRY_CALL_OPTION_KEYS.flatMap((key) =>
-    current[key] === undefined ? [] : ([[key, current[key]]] as const)
-  )
-  return { ...Object.fromEntries(entries), prompt } as LanguageModelRetryCallOptions
-}
-
-function isImageInputRejection(error: unknown): error is APICallError {
-  if (!APICallError.isInstance(error) || error.statusCode !== 400) return false
-
-  let data = ''
-  try {
-    data = typeof error.data === 'string' ? error.data : JSON.stringify(error.data ?? '')
-  } catch {
-    // Ignore non-serializable provider data; message/responseBody still carry
-    // the normal AI SDK error details.
-  }
-  const detail = [error.message, error.responseBody, data].filter(Boolean).join('\n')
-  return IMAGE_REJECTION_PATTERNS.some((pattern) => pattern.test(detail))
-}
 
 function describeAttempt(context: RetryContext<LanguageModelV3>): Extract<RetryPartData, { state: 'retrying' }> {
   const { current, attempts } = context
@@ -146,95 +97,35 @@ function describeAttempt(context: RetryContext<LanguageModelV3>): Extract<RetryP
 }
 
 /**
- * Returns a `wrapModel` closure when either recovery policy is enabled,
- * otherwise `undefined`.
+ * Returns a `wrapModel` closure when retry is enabled, otherwise `undefined`.
  */
 export function createRetryableWrap(options: CreateRetryableWrapOptions): WrapLanguageModel | undefined {
-  if (!options.retryPolicy.enabled && !options.imageInputFallback) return undefined
+  if (!options.retryPolicy.enabled) return undefined
 
   // `max_attempts` is the number of RETRIES (matches the "Max retry attempts"
-  // setting and the embedding/rerank AI SDK `maxRetries`). The custom
-  // transient retry below counts only retryable failures for this budget.
+  // setting and the embedding/rerank AI SDK `maxRetries`). ai-retry counts the
+  // original call in `maxAttempts`, so +1 yields that many same-model retries.
   const retryCount = options.retryPolicy.maxAttempts
   const backoffEnabled = options.retryPolicy.backoffEnabled
 
-  const rewrittenPrompts = new WeakMap<LanguageModelV3Prompt, Promise<LanguageModelV3Prompt | null>>()
-  const imageInputRetry: Retryable<LanguageModel> | undefined = options.imageInputFallback
-    ? async (context) => {
-        if (!isErrorAttempt(context.current) || !isImageInputRejection(context.current.error)) return undefined
-
-        const prompt = context.current.options.prompt
-        let rewritten = rewrittenPrompts.get(prompt)
-        if (!rewritten) {
-          rewritten = options.imageInputFallback!(prompt, context.current.options.abortSignal)
-          rewrittenPrompts.set(prompt, rewritten)
-        }
-        const resolved = await rewritten
-        if (!resolved || context.attempts.some((attempt) => attempt.options.prompt === resolved)) return undefined
-
-        return {
-          model: context.current.model,
-          // The rewritten prompt is attempted once; the identity guard also
-          // prevents a later fallback model from replaying the same recovery.
-          maxAttempts: Number.MAX_SAFE_INTEGER,
-          options: inheritRetryCallOptions(context.current.options, resolved)
-        }
-      }
-    : undefined
-
-  const transientRetryTemplate = options.retryPolicy.enabled
-    ? error.isRetryable<LanguageModel>(true).retry({
-        // `ai-retry` counts every same-model attempt, including the image 400
-        // and OCR recovery. The wrapper below enforces the transient-only
-        // budget, so keep the library's aggregate guard out of the way.
-        maxAttempts: Number.MAX_SAFE_INTEGER,
+  const retries: Retries<LanguageModel> = [
+    // Same-model transient retry on retryable errors: honors Retry-After headers,
+    // otherwise delay + backoff. (`.retry()` requires maxAttempts >= 2, which
+    // holds since retryCount >= 1.)
+    error
+      .isRetryable(true)
+      .retry({
+        maxAttempts: retryCount + 1,
         delay: RETRY_BASE_DELAY_MS,
         ...(backoffEnabled && { backoffFactor: 2 })
-      })
-    : undefined
-  const transientRetry: Retryable<LanguageModel> | undefined = transientRetryTemplate
-    ? async (context) => {
-        const retry = await transientRetryTemplate(context)
-        if (!retry) return undefined
-
-        const currentModelKey = getModelKey(context.current.model)
-        const transientFailures = context.attempts.filter(
-          (attempt) =>
-            getModelKey(attempt.model) === currentModelKey &&
-            isErrorAttempt(attempt) &&
-            APICallError.isInstance(attempt.error) &&
-            attempt.error.isRetryable === true
-        ).length
-        if (transientFailures > retryCount) return undefined
-
-        // Calculate backoff from transient failures only. Returning factor 1
-        // prevents ai-retry from exponentiating again using all model calls.
-        const delay =
-          retry.backoffFactor === 1 || !backoffEnabled || retry.delay === undefined
-            ? retry.delay
-            : retry.delay * 2 ** transientFailures
-        return {
-          ...retry,
-          maxAttempts: Number.MAX_SAFE_INTEGER,
-          delay,
-          backoffFactor: 1,
-          options: inheritRetryCallOptions(context.current.options)
-        }
-      }
-    : undefined
-
-  const retries: Retries<LanguageModel> = [
-    ...(imageInputRetry ? [imageInputRetry] : []),
-    // Same-model transient retry on retryable errors: honors Retry-After headers,
-    // otherwise delay + backoff.
-    ...(transientRetry ? [transientRetry] : []),
+      }),
     // Cross-model fallback, tried in user-configured order (one attempt each).
     // Resolved lazily on first failure (memoized) so the happy path pays nothing;
     // each fallback carries its own middleware + params (a per-retry override).
     // Error-only (like a plain-model fallback): ai-retry also evaluates function
     // retryables on *result* attempts (content-filter etc.), so guard on
     // `isErrorAttempt` to avoid resolving — and falsely retrying — on success.
-    ...(options.retryPolicy.enabled ? options.fallbacks : []).map((resolveFallback): Retryable<LanguageModel> => {
+    ...options.fallbacks.map((resolveFallback): Retryable<LanguageModel> => {
       let cached: Promise<RetryFallback | null> | undefined
       return async (context) => {
         if (!isErrorAttempt(context.current)) return undefined

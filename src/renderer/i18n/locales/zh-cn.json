@@ -2548,6 +2548,7 @@
       "503": "服务不可用，请稍后再试",
       "504": "网关超时，请稍后再试"
     },
+    "image_unreadable_for_non_vision_model": "当前模型不支持图片，且 Cherry Studio 未能从附件中识别出有效文字。请选择支持图片的模型，或移除图片后重试。",
     "lastError": "最后错误",
     "maxEmbeddingsPerCall": "每次调用的最大嵌入",
     "message": "错误信息",

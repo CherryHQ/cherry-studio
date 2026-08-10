@@ -8,7 +8,7 @@ import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
-import { ocrImageBytesToText, ocrImageToText } from './ocrImageToText'
+import { ocrImageToText } from './ocrImageToText'
 import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler } from './tasks/backgroundJobHandler'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
@@ -94,11 +94,6 @@ export class FileProcessingService extends BaseService {
    */
   ocrImage(file: FileHandle, signal?: AbortSignal): Promise<string> {
     return ocrImageToText(file, signal)
-  }
-
-  /** OCR in-memory image bytes without registering a temporary FileEntry. */
-  ocrImageBytes(data: Uint8Array, mediaType: string, signal?: AbortSignal): Promise<string> {
-    return ocrImageBytesToText(data, mediaType, signal)
   }
 
   listAvailableProcessors(): ListAvailableFileProcessorsResult {
