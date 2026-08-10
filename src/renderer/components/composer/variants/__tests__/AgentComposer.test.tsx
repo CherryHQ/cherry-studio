@@ -2253,6 +2253,7 @@ describe('AgentComposer', () => {
   })
 
   it('provides workspace file resources through the @ mention suggestion source', async () => {
+    mocks.listDirectory.mockResolvedValue(['/workspace/docs'])
     mocks.listDirectoryEntries.mockResolvedValue([
       { path: '/workspace/docs', isDirectory: true },
       { path: '/workspace/docs/notes.md', isDirectory: false },
@@ -2280,7 +2281,17 @@ describe('AgentComposer', () => {
       '/workspace',
       expect.objectContaining({ searchPattern: '.' })
     )
-    expect(emptyItems).toHaveLength(1)
+    expect(mocks.listDirectory).toHaveBeenLastCalledWith(
+      '/workspace',
+      expect.objectContaining({
+        recursive: false,
+        includeFiles: false,
+        includeDirectories: true,
+        searchPattern: '.'
+      })
+    )
+    expect(emptyItems?.some((item) => item.label === 'docs')).toBe(true)
+    expect(emptyItems?.some((item) => item.label === 'docs/notes.md')).toBe(true)
 
     const items = await source?.items({ query: 'notes', editor: {} as any })
     expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith(
@@ -2334,6 +2345,66 @@ describe('AgentComposer', () => {
     ])
     expect(setFilesUpdater([selectedFile])).toBeInstanceOf(Array)
     expect(setFilesUpdater([selectedFile])).toHaveLength(1)
+  })
+
+  it('lazily caches searchable empty folders and inserts them as folder tokens', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([])
+    mocks.listDirectory.mockResolvedValue(['/workspace/docs', '/workspace/docs/empty', '/workspace/assets'])
+
+    render(
+      <AgentComposer
+        agentId="agent-1"
+        sessionId="session-1"
+        sendMessage={mocks.sendMessage}
+        stop={mocks.stop}
+        isStreaming={false}
+      />
+    )
+
+    const source = mocks.surfaceProps?.suggestionSources?.[0]
+    const docsItems = await source?.items({ query: 'docs', editor: {} as any })
+    const emptyItems = await source?.items({ query: 'empty', editor: {} as any })
+
+    expect(mocks.listDirectory).toHaveBeenCalledTimes(1)
+    expect(mocks.listDirectory).toHaveBeenCalledWith(
+      '/workspace',
+      expect.objectContaining({
+        recursive: true,
+        maxDepth: 3,
+        includeFiles: false,
+        includeDirectories: true,
+        searchPattern: '.'
+      })
+    )
+    expect(docsItems?.some((item) => item.label === 'docs')).toBe(true)
+
+    const emptyFolderItem = emptyItems?.find((item) => item.label === 'docs/empty')
+    if (!emptyFolderItem) throw new Error('Expected an empty-folder suggestion item')
+    expect(emptyFolderItem).toEqual(
+      expect.objectContaining({
+        id: expect.stringMatching(/^agent-resource:.+/),
+        description: '/workspace/docs/empty',
+        disabled: false
+      })
+    )
+
+    mocks.setFiles.mockClear()
+    const { editor, chain } = buildComposerEditorMock()
+    emptyFolderItem.command?.({ editor, range: { from: 0, to: 0 }, item: emptyFolderItem, query: 'empty' })
+
+    expect(chain.insertComposerToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'folder',
+        label: 'empty',
+        description: '/workspace/docs/empty',
+        promptText: '/workspace/docs/empty'
+      })
+    )
+    expect(mocks.setFiles).not.toHaveBeenCalled()
+
+    source?.onExit?.({} as any)
+    await source?.items({ query: 'assets', editor: {} as any })
+    expect(mocks.listDirectory).toHaveBeenCalledTimes(2)
   })
 
   it('groups files and sessions under header rows when @ has no query', async () => {
