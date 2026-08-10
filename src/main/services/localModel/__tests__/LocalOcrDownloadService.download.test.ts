@@ -108,13 +108,13 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
     vi.restoreAllMocks()
   })
 
-  it('downloads every file and promotes local OCR to the default image-to-text engine', async () => {
+  it('downloads every file without changing the default image-to-text engine', async () => {
     vi.mocked(net.fetch).mockImplementation((async (url: string) =>
       url.endsWith('.yml') ? dictResponse() : weightResponse(VALID_WEIGHT_BYTES)) as unknown as typeof net.fetch)
 
     await localOcrDownloadService.download()
 
-    expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).toBe('local-paddleocr')
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).not.toBe('local-paddleocr')
   })
 
   it('does not clobber an engine the user already explicitly chose', async () => {
@@ -124,8 +124,7 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
 
     await localOcrDownloadService.download()
 
-    // The model still downloads successfully — it's just not silently made the
-    // active default when the user already picked something else.
+    // Downloading a dependency never owns the user's processor selection.
     expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).toBe('mistral')
   })
 
@@ -142,7 +141,7 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
     // Not in China → HuggingFace first (fails) → ModelScope (succeeds) for every file.
     expect(urls.some((u) => u.startsWith('https://huggingface.co'))).toBe(true)
     expect(urls.some((u) => u.startsWith('https://www.modelscope.cn'))).toBe(true)
-    expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).toBe('local-paddleocr')
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).not.toBe('local-paddleocr')
   })
 
   it('rejects a too-small download (LFS pointer / error page) after exhausting mirrors', async () => {
@@ -150,7 +149,7 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
 
     await expect(localOcrDownloadService.download()).rejects.toThrow()
 
-    // Never promoted — the guard rejected before any weights landed.
+    // A failed dependency download also leaves processor selection untouched.
     expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).not.toBe('local-paddleocr')
   })
 
@@ -191,7 +190,7 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
       expect(recursiveRmTargets()).not.toContain(OCR_MODEL_DIR)
     })
 
-    it('leaves a previously promoted default OCR engine backed by its weights', async () => {
+    it('leaves an explicitly selected default OCR engine backed by its weights', async () => {
       // Wiping the weights on failure cannot demote the default the way remove() does, so it
       // would strand `default_image_to_text` on an unavailable local-paddleocr and break every
       // OCR consumer (translation / chat attachments / read_file) with no self-heal.
