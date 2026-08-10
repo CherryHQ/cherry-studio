@@ -8,9 +8,16 @@ export default defineCreator({
   reasoningFamilies: [{ pattern: 'minimax-m\\d' }],
   models: [
     // Video generation models (text-to-video / image-to-video). The MiniMax video API is an async
-    // submit/poll flow (/v1/video_generation → /v1/query/video_generation); request params such as
+    // submit/poll flow; request params such as
     // duration/resolution belong on the serving provider transport, so the catalog only declares the
     // capability and modality per model — the same pattern as the other video creators (kling/runway/vidu).
+    {
+      id: 'minimax-h3',
+      name: 'MiniMax H3',
+      capabilities: ['video-generation'],
+      inputModalities: ['text', 'image', 'video', 'audio'],
+      outputModalities: ['video', 'audio']
+    },
     {
       id: 'i2v-01',
       name: 'I2V-01',

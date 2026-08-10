@@ -11656,6 +11656,15 @@
     },
     {
       "capabilities": ["video-generation"],
+      "id": "minimax-h3",
+      "inputModalities": ["text", "image", "video", "audio"],
+      "metadata": {},
+      "name": "MiniMax H3",
+      "outputModalities": ["video", "audio"],
+      "ownedBy": "minimax"
+    },
+    {
+      "capabilities": ["video-generation"],
       "id": "minimax-hailuo-02",
       "inputModalities": ["text", "image"],
       "metadata": {},
