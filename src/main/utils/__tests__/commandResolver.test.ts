@@ -129,7 +129,7 @@ describe.skipIf(process.platform !== 'win32')('process utilities', () => {
         expect(result).toBe(gitPath)
         expect(which.sync).toHaveBeenCalledWith(
           'git',
-          expect.objectContaining({ all: true, nothrow: true, pathExt: '.EXE;.CMD' })
+          expect.objectContaining({ all: true, nothrow: true, pathExt: '.exe;.cmd' })
         )
         expect(execFileSync).not.toHaveBeenCalled()
       })
@@ -1032,7 +1032,7 @@ describe('findCommandInShellEnv', () => {
         delimiter: ';',
         nothrow: true,
         path: 'C:\\nodejs',
-        pathExt: '.EXE;.CMD'
+        pathExt: '.exe;.cmd'
       })
       expect(spawn).not.toHaveBeenCalled()
     })

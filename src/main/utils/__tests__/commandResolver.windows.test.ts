@@ -46,7 +46,7 @@ describe('findCommandInShellEnv on Windows', () => {
       delimiter: ';',
       nothrow: true,
       path: 'D:\\开发工具\\nodejs',
-      pathExt: '.EXE;.CMD'
+      pathExt: '.exe;.cmd'
     })
   })
 
@@ -104,7 +104,7 @@ describe('findCommandInShellEnv on Windows', () => {
       delimiter: ';',
       nothrow: true,
       path: 'D:\\Tools',
-      pathExt: '.BAT'
+      pathExt: '.bat'
     })
   })
 

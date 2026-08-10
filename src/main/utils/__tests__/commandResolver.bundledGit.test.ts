@@ -97,13 +97,13 @@ describe('findExecutableInEnv – bundled MinGit resolver ordering', () => {
     await expect(findExecutableInEnv('git')).resolves.toBe(commonGit)
   })
 
-  it('prefers git at a common install root over a mise shim', async () => {
-    mockWhichCandidates([MISE_SHIM, BUNDLED_GIT])
+  it('preserves a mise shim ahead of a Git installation outside PATH', async () => {
+    mockWhichCandidates([MISE_SHIM])
     process.env.ProgramFiles = 'C:\\Program Files'
     const commonGit = 'C:\\Program Files\\Git\\cmd\\git.exe'
     vi.mocked(fs.existsSync).mockImplementation((p) => p === commonGit)
 
-    await expect(findExecutableInEnv('git')).resolves.toBe(commonGit)
+    await expect(findExecutableInEnv('git')).resolves.toBe(MISE_SHIM)
   })
 
   it('falls back to the bundled git only when every other lookup misses', async () => {

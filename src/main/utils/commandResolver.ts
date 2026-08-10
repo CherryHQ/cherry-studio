@@ -37,7 +37,6 @@ function getWindowsPathValue(env: Record<string, string | undefined>): string {
 function toWindowsPathExt(extensions: string[]): string {
   return extensions
     .map((extension) => (extension.startsWith('.') ? extension : `.${extension}`))
-    .map((extension) => extension.toUpperCase())
     .join(WINDOWS_PATH_DELIMITER)
 }
 
@@ -349,11 +348,7 @@ export async function findExecutableInEnv(name: string): Promise<string | null> 
 
   // Cross-platform: try shell environment lookup first
   const found = await findCommandInShellEnv(name, env)
-  // Defer Windows Git shims so findExecutable() can preserve its common-root
-  // precedence. If no common Git exists, the same shim is returned by its
-  // PATH lookup below.
-  const deferWindowsGitShim = isWin && name === 'git' && found?.toLowerCase().endsWith('.cmd')
-  if (found && !isBundledGit(found) && !deferWindowsGitShim) {
+  if (found && !isBundledGit(found)) {
     return found
   }
 
