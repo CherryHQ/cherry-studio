@@ -22,7 +22,7 @@ import {
   resolveCommandKeybinding
 } from '@shared/utils/command'
 import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
-import type { BrowserWindow } from 'electron'
+import type { BrowserWindow, WebContents } from 'electron'
 import { globalShortcut } from 'electron'
 
 const logger = loggerService.withContext('ShortcutService')
@@ -161,10 +161,17 @@ export class ShortcutService extends BaseService {
           this.mainWindow = null
         }
       }
+      const { webContents } = window
+      const onDidAttachWebview = (_event: Electron.Event, guestContents: WebContents) => {
+        guestContents.on('before-input-event', onBeforeInput)
+        this.registerDisposable(() => guestContents.off('before-input-event', onBeforeInput))
+      }
 
-      window.webContents.on('before-input-event', onBeforeInput)
+      webContents.on('before-input-event', onBeforeInput)
+      webContents.on('did-attach-webview', onDidAttachWebview)
       window.once('closed', onClosed)
-      this.registerDisposable(() => window.webContents.off('before-input-event', onBeforeInput))
+      this.registerDisposable(() => webContents.off('before-input-event', onBeforeInput))
+      this.registerDisposable(() => webContents.off('did-attach-webview', onDidAttachWebview))
       this.registerDisposable(() => window.off('closed', onClosed))
     }
 

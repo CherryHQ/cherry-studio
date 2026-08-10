@@ -207,6 +207,46 @@ describe('ShortcutService', () => {
     expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', mainWindow)
   })
 
+  it('handles window-local shortcuts from an attached webview guest', async () => {
+    await (service as any).onInit()
+
+    const guest = new MockBrowserWindow()
+    mainWindow.emitWebContents('did-attach-webview', {}, guest.webContents)
+
+    const event = { preventDefault: vi.fn() }
+    guest.emitWebContents('before-input-event', event, {
+      type: 'keyDown',
+      key: '0',
+      code: 'Digit0',
+      control: process.platform !== 'darwin',
+      meta: process.platform === 'darwin',
+      alt: false,
+      shift: false
+    })
+
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.reset', mainWindow)
+  })
+
+  it('cleans up through the captured webContents after the window is destroyed', async () => {
+    await (service as any).onInit()
+    const webContents = mainWindow.webContents
+    mainWindow.destroy()
+    Object.defineProperty(mainWindow, 'webContents', {
+      get: () => {
+        throw new Error('webContents is unavailable after destruction')
+      }
+    })
+
+    const disposables = (service as any)._disposables as Array<{ dispose: () => void } | (() => void)>
+    expect(() => {
+      for (const disposable of disposables) {
+        if (typeof disposable === 'function') disposable()
+      }
+    }).not.toThrow()
+    expect(webContents.off).toHaveBeenCalledWith('before-input-event', expect.any(Function))
+  })
+
   it('registers global shortcuts immediately for an unfocused main window', async () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
       binding: ['CommandOrControl', 'M'],
