@@ -57,7 +57,7 @@ const toolPart = (toolCallId: string, output: unknown) => ({
 const fileManager = { read: vi.fn() }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
-const agentSessionRuntimeService = { primeConnection: vi.fn(), releaseIdleConnection: vi.fn() }
+const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn() }
 const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
 const agentJobsService = {
   createTask: vi.fn(),
@@ -394,25 +394,25 @@ describe('aiHandlers — agent sessions & tasks', () => {
     expect(createAgent).toHaveBeenCalledWith(request, ctx)
   })
 
-  it('prewarm_agent_session primes the session connection so commands load before the first turn', async () => {
-    agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
+  it('prewarm_agent_session acquires a warm lease keyed to the sender window', async () => {
     await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.acquireWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
   })
 
   // Trace mode used to skip this, inherited from the warm-query era. A primed connection carries the
   // session's traceparent like any other, so skipping only cost developer mode its eager catalog.
-  it('prewarm_agent_session primes the connection in trace mode too', async () => {
+  it('prewarm_agent_session acquires the lease in trace mode too', async () => {
     claudeCodeTraceBridgeService.isTraceModeEnabled.mockReturnValue(true)
-    agentSessionRuntimeService.primeConnection.mockResolvedValue(undefined)
     await aiHandlers['ai.agent.session.prewarm']({ sessionId: 's1' }, ctx)
-    expect(agentSessionRuntimeService.primeConnection).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.acquireWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
   })
 
-  it('close_agent_session_warm releases the warm query and the primed connection', async () => {
+  // The actual teardown (warm-query park + primed connection) is owned by the runtime service,
+  // which starts it only once no window holds the session.
+  it('close_agent_session_warm releases only the sender window lease', async () => {
     await aiHandlers['ai.agent.session.close_warm']({ sessionId: 's1' }, ctx)
-    expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).toHaveBeenCalledWith('s1')
-    expect(agentSessionRuntimeService.releaseIdleConnection).toHaveBeenCalledWith('s1')
+    expect(agentSessionRuntimeService.releaseWarmLease).toHaveBeenCalledWith('s1', fakeWebContents)
+    expect(claudeCodeWarmQueryManager.closeAgentSessionWarm).not.toHaveBeenCalled()
   })
 
   it('respond_tool_approval delegates to AiService with the resolved sender WebContents', async () => {
