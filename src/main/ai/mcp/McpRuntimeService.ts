@@ -84,36 +84,6 @@ function getAbortReason(signal: AbortSignal): Error {
   return signal.reason instanceof Error ? signal.reason : new DOMException('MCP tool call aborted', 'AbortError')
 }
 
-/**
- * Wait for `promise`, but stop waiting as soon as `signal` aborts. The underlying work is
- * deliberately NOT cancelled — `pendingClients` connections are shared across callers, so
- * only this caller's wait may be released. The promise stays consumed on every path so a
- * late rejection never surfaces as unhandled.
- */
-function abortableWait<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
-  if (signal.aborted) {
-    promise.catch(() => undefined)
-    return Promise.reject(getAbortReason(signal))
-  }
-  return new Promise((resolve, reject) => {
-    let settled = false
-    const cleanup = (): void => signal.removeEventListener('abort', handleAbort)
-    const finish = (callback: () => void): void => {
-      if (settled) return
-      settled = true
-      cleanup()
-      callback()
-    }
-    const handleAbort = (): void => finish(() => reject(getAbortReason(signal)))
-
-    signal.addEventListener('abort', handleAbort, { once: true })
-    void promise.then(
-      (result) => finish(() => resolve(result)),
-      (error) => finish(() => reject(error))
-    )
-  })
-}
-
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
@@ -1216,7 +1186,15 @@ export class McpRuntimeService extends BaseService {
         }
         // Client init (ping probe, transport connect, OAuth) has no unified timeout at this
         // layer — release this call's wait on abort instead of blocking until it settles.
-        const client = await abortableWait(this.getOrCreateClient(server), effectiveSignal)
+        // The shared `pendingClients` init keeps running (only this caller's wait is released),
+        // and both racers are consumed, so the loser's late rejection is never unhandled.
+        const client = await Promise.race([
+          this.getOrCreateClient(server),
+          new Promise<never>((_, reject) => {
+            if (effectiveSignal.aborted) return reject(getAbortReason(effectiveSignal))
+            effectiveSignal.addEventListener('abort', () => reject(getAbortReason(effectiveSignal)), { once: true })
+          })
+        ])
         const result = await client.callTool({ name, arguments: args }, undefined, {
           onprogress: (process) => {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
