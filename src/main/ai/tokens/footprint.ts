@@ -87,9 +87,10 @@ export function estimateModelMessagesSync(messages: ModelMessage[], options: Foo
  */
 export async function estimateModelMessagesFootprint(
   messages: ModelMessage[],
-  options: Omit<FootprintOptions, 'measure'>
+  options: Omit<FootprintOptions, 'measure'>,
+  signal?: AbortSignal
 ): Promise<number> {
-  const measure = await measureMedia(messages)
+  const measure = await measureMedia(messages, signal)
   return estimateModelMessagesSync(messages, { ...options, measure })
 }
 
@@ -204,13 +205,14 @@ function* mediaNodes(messages: ModelMessage[]): Generator<MediaNode> {
  *
  * Never throws; an unreadable payload is simply absent from the map.
  */
-export async function measureMedia(messages: ModelMessage[]): Promise<MediaMeasurements> {
+export async function measureMedia(messages: ModelMessage[], signal?: AbortSignal): Promise<MediaMeasurements> {
   const measurements: MediaMeasurements = new Map()
   // Only images are measurable today, and only the first N — bound the work before decoding.
   const imageNodes = [...mediaNodes(messages)].filter((node) => node.kind === 'image').slice(0, MAX_MEASURED_IMAGES)
 
   let remainingBytes = MAX_MEASURE_BYTES_TOTAL
   for (let i = 0; i < imageNodes.length; i += MEASURE_CONCURRENCY) {
+    if (signal?.aborted) break // client disconnected — stop probing, don't leave orphaned decodes
     await Promise.all(
       imageNodes.slice(i, i + MEASURE_CONCURRENCY).map(async (node) => {
         // Byte checks + budget decrement run synchronously (before the first await), so the

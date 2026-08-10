@@ -44,9 +44,10 @@ const invalidArgument = (message: string) => ({
  * `POST /v1beta/models/{model}:generateContent` (JSON) and
  * `:streamGenerateContent` (SSE with `?alt=sse`) both stream through
  * `AiStreamManager`; the model and the streaming flag come from the URL, not the
- * body. `:countTokens` estimates the converted representation (provider remote count when
- * reachable, else the shared local walker incl. media). Errors are shaped into the Google
- * envelope by the app's root `onError` (path-based → `googleErrorHandler`).
+ * body. `:countTokens` estimates the converted representation via the shared local walker
+ * (incl. media) — local-only, since the Google SDK exposes no custom-`fetch` hook to honour
+ * the app proxy/auth. Errors are shaped into the Google envelope by the app's root `onError`
+ * (path-based → `googleErrorHandler`).
  */
 export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
   .use(bearer())
@@ -80,7 +81,9 @@ export const geminiRoutes = new Elysia({ prefix: '/v1beta' })
       }
 
       if (method === 'countTokens') {
-        return { totalTokens: await estimateGeminiRequestTokens(body as InputParamsMap['gemini'], model) }
+        return {
+          totalTokens: await estimateGeminiRequestTokens(body as InputParamsMap['gemini'], model, request.signal)
+        }
       }
       if (!GENERATE_METHODS.has(method)) {
         return status(400, invalidArgument(`Unsupported method: "${method}".`))

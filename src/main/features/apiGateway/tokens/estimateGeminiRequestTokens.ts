@@ -12,7 +12,7 @@ import { type TextTokenizer, tokenxTokenizer } from '@main/ai/tokens/textTokeniz
 
 import { type InputParamsMap, MessageConverterFactory } from '../adapters'
 import { type ResolvedGatewayModelAddress, resolveGatewayModelAddress } from '../utils/models'
-import { tryRemoteGeminiCount } from './remoteGeminiCount'
+import { boundedBodyTokens } from './fallbackEstimate'
 
 type GeminiGenerateContentRequest = InputParamsMap['gemini']
 
@@ -40,31 +40,38 @@ function countGeminiToolDefs(tools: unknown, tokenizer: TextTokenizer): number {
 
 /**
  * Estimate `totalTokens` for a Gemini `:countTokens` request against the representation the
- * downstream provider receives.
+ * downstream provider receives: the same Gemini→`ModelMessage[]` conversion the real request
+ * uses, tokenized (text via the dialect tokenizer, images via the per-dialect pixel formula),
+ * plus the function-declaration schemas. `systemInstruction` becomes a system message in the
+ * conversion, so it is counted too.
  *
- * - **google dialect** → the provider's own `:countTokens` (authoritative), with the local
- *   estimate as fallback. The Gemini input is already wire format, so the raw body is
- *   forwarded verbatim.
- * - **everything else** → local: the same Gemini→`ModelMessage[]` conversion the real
- *   request uses, tokenized (text via `tokenx`, images via the per-dialect pixel formula).
+ * Local-only by design: unlike the Anthropic path, the Google SDK exposes no custom-`fetch`
+ * hook, so a remote count could not honour the app proxy / relay signing — and a
+ * `contents`-only remote call would silently drop `systemInstruction`/`tools`. The local
+ * walker counts the whole request faithfully.
  *
  * Never throws: on model-resolve failure it degrades to the Google dialect with all-media
  * caps, and if the loosely-validated body defeats the converter it degrades further to a
- * raw-size heuristic — countTokens must not 500 a client.
+ * bounded raw-body estimate — countTokens must not 500 a client.
  */
 export async function estimateGeminiRequestTokens(
   body: GeminiGenerateContentRequest,
-  modelString: string
+  modelString: string,
+  signal?: AbortSignal
 ): Promise<number> {
   try {
-    return await estimateConvertedRequest(body, modelString)
+    return await estimateConvertedRequest(body, modelString, signal)
   } catch (error) {
-    logger.warn('conversion-based estimate failed, using raw-size heuristic', error as Error)
-    return tokenxTokenizer.count(JSON.stringify(body))
+    logger.warn('conversion-based estimate failed, using bounded raw-body estimate', error as Error)
+    return boundedBodyTokens(body, tokenxTokenizer)
   }
 }
 
-async function estimateConvertedRequest(body: GeminiGenerateContentRequest, modelString: string): Promise<number> {
+async function estimateConvertedRequest(
+  body: GeminiGenerateContentRequest,
+  modelString: string,
+  signal?: AbortSignal
+): Promise<number> {
   const converter = MessageConverterFactory.create('gemini')
   const uiMessages = converter.toUIMessages(body)
   const tools = converter.toAiSdkTools?.(body)
@@ -80,14 +87,9 @@ async function estimateConvertedRequest(body: GeminiGenerateContentRequest, mode
     logger.warn('model resolve failed, using google/all-media fallback', error as Error)
   }
 
-  if (dialect === 'google' && resolved) {
-    const remote = await tryRemoteGeminiCount(body, resolved.provider, resolved.model, resolved.apiModelId)
-    if (remote !== undefined) return remote
-  }
-
   const toolResultCaps = resolveToolResultMediaCapabilities(caps, dialect)
   const modelMessages = await toModelMessages(uiMessages, caps, tools, toolResultCaps)
   const tokenizer = await getTextTokenizer(dialect)
-  const messageTokens = await estimateModelMessagesFootprint(modelMessages, { dialect, tokenizer })
+  const messageTokens = await estimateModelMessagesFootprint(modelMessages, { dialect, tokenizer }, signal)
   return messageTokens + countGeminiToolDefs(body.tools, tokenizer)
 }

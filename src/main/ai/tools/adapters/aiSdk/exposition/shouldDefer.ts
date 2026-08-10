@@ -34,23 +34,33 @@ export async function shouldDefer(
   const alwaysDeferred = entries.filter((e) => e.defer === 'always')
   const autoCandidates = entries.filter((e) => e.defer === 'auto')
 
-  const autoCost = await estimateAutoTokens(autoCandidates)
-  const autoOverflowsThreshold = autoCost > threshold
-  const autoPoolBigEnough = autoCandidates.length >= MIN_AUTO_DEFER_COUNT
-  const autoSavingsBeatOverhead = autoCost > META_TOOLS_OVERHEAD_TOKENS
-  const autoDeferred = autoOverflowsThreshold && autoPoolBigEnough && autoSavingsBeatOverhead ? autoCandidates : []
-
+  const autoDeferred = await resolveAutoDeferred(autoCandidates, threshold)
   const deferredNames = new Set([...alwaysDeferred, ...autoDeferred].map((e) => e.name))
 
   return { deferredNames, threshold }
 }
 
 /**
- * Token cost of the auto-defer pool as the model sees it — name + `tool.description` +
- * the canonical JSONSchema of `tool.inputSchema`. `serializeToolSchema` normalizes Zod /
- * `jsonSchema()` wrappers to the exact schema the model receives (undefined on failure →
- * name+description only), and `countToolTokens` shares the tokenizer with the gateway
- * `count_tokens` estimator so both agree.
+ * Whether the auto pool is worth deferring. Returns `[]` for a pool below the minimum count
+ * **without serializing any schema** — under `MIN_AUTO_DEFER_COUNT` the meta-tools round-trip
+ * can never pay off, so the (async, per-tool) cost estimate is pure waste there.
+ */
+async function resolveAutoDeferred(
+  autoCandidates: readonly ToolEntry[],
+  threshold: number
+): Promise<readonly ToolEntry[]> {
+  if (autoCandidates.length < MIN_AUTO_DEFER_COUNT) return []
+  const autoCost = await estimateAutoTokens(autoCandidates)
+  return autoCost > threshold && autoCost > META_TOOLS_OVERHEAD_TOKENS ? autoCandidates : []
+}
+
+/**
+ * Token cost of the auto-defer pool — name + `tool.description` + the canonical JSONSchema of
+ * `tool.inputSchema`. `serializeToolSchema` normalizes Zod / `jsonSchema()` wrappers to the
+ * exact schema the model receives (undefined on failure → name+description only). It shares
+ * `countToolTokens` (schema normalization + per-tool formula) with the gateway estimator, but
+ * deliberately uses `tokenx` — this is a defer/inline *gate*, not a budget, so it does not need
+ * the gateway's per-dialect BPE tokenizer (o200k etc.) and their absolute counts may differ.
  */
 async function estimateAutoTokens(entries: readonly ToolEntry[]): Promise<number> {
   const perEntry = await Promise.all(

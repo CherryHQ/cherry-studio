@@ -1,11 +1,10 @@
 /**
  * Token dialects — the axis along which token estimation varies (text tokenizer + image
- * cost). A provider's per-endpoint `adapterFamily` (~26 catalog values) collapses onto
- * these four. The same four values double as the *wire* dialect: what shapes the
- * endpoint's request format can physically carry (see `resolveToolResultMediaCapabilities`).
+ * cost). These four double as the *wire* dialect: what shapes the endpoint's request format
+ * can physically carry (see `resolveToolResultMediaCapabilities`).
  */
 
-import type { Model } from '@shared/data/types/model'
+import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 
 import { resolveEffectiveEndpoint } from '../provider/endpoint'
@@ -13,19 +12,21 @@ import { resolveEffectiveEndpoint } from '../provider/endpoint'
 export type TokenDialect = 'anthropic' | 'openai' | 'google' | 'ollama'
 
 /**
- * Normalize a provider endpoint `adapterFamily` to a {@link TokenDialect}. Unknown or
- * missing families fall through to `openai` — the openai-compatible terminal default,
- * mirroring `resolveAiSdkProviderId`'s own fallback (`src/main/ai/provider/endpoint.ts`).
+ * Wire dialect of an endpoint, keyed on the endpoint **type** (the protocol) — never the
+ * provider's `adapterFamily`, which is vendor identity: a relay (AiHubMix / NewAPI / DMXAPI /
+ * CherryIN / Bedrock) exposes an `anthropic-messages` / `google-generate-content` endpoint
+ * while carrying a vendor-specific family, and the protocol is what determines the tokenizer,
+ * media cost, remote-count availability, and what media the wire can carry. Anything else
+ * (`openai-chat-completions`, `openai-responses`, …) is the openai-compatible default.
  */
-export function resolveTokenDialect(adapterFamily: string | undefined): TokenDialect {
-  switch (adapterFamily) {
-    case 'anthropic':
-    case 'google-vertex-anthropic':
+export function resolveEndpointTokenDialect(endpointType: EndpointType | undefined): TokenDialect {
+  switch (endpointType) {
+    case ENDPOINT_TYPE.ANTHROPIC_MESSAGES:
       return 'anthropic'
-    case 'google':
-    case 'google-vertex':
+    case ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT:
       return 'google'
-    case 'ollama':
+    case ENDPOINT_TYPE.OLLAMA_CHAT:
+    case ENDPOINT_TYPE.OLLAMA_GENERATE:
       return 'ollama'
     default:
       return 'openai'
@@ -35,5 +36,5 @@ export function resolveTokenDialect(adapterFamily: string | undefined): TokenDia
 /** Dialect of the endpoint a resolved provider+model pair actually talks to. */
 export function resolveModelTokenDialect(provider: Provider, model: Model): TokenDialect {
   const { endpointType } = resolveEffectiveEndpoint(provider, model)
-  return resolveTokenDialect(endpointType ? provider.endpointConfigs?.[endpointType]?.adapterFamily : undefined)
+  return resolveEndpointTokenDialect(endpointType)
 }

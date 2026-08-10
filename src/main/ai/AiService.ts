@@ -680,6 +680,10 @@ export class AiService extends BaseService {
       })
     }
 
+    // Same media gating as the streaming path — `agent.generate` hands `ModelMessage[]` to the
+    // SDK as-is, so without these the structured tool-result media the converter produces would
+    // be JSON/base64-encoded or rejected on OpenAI/Ollama, diverging from `stream`.
+    const mediaCapabilities = resolveMediaCapabilities(model)
     const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
@@ -689,7 +693,12 @@ export class AiService extends BaseService {
       tools,
       system: request.system ?? system,
       options: wrapModel ? { ...options, maxRetries: 0 } : options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts]
+      hookParts: [this.analyticsHookPart(model), ...hookParts],
+      mediaCapabilities,
+      toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
+        mediaCapabilities,
+        resolveModelTokenDialect(provider, model)
+      )
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.

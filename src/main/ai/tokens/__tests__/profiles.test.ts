@@ -1,25 +1,37 @@
+import { makeModel } from '@main/ai/__tests__/fixtures/model'
+import { makeProvider } from '@main/ai/__tests__/fixtures/provider'
+import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { resolveTokenDialect } from '../dialect'
+import { resolveEndpointTokenDialect, resolveModelTokenDialect } from '../dialect'
 import { getTextTokenizer, imageTokensFor } from '../profiles'
 
-describe('resolveTokenDialect', () => {
+describe('resolveEndpointTokenDialect', () => {
   it.each([
-    ['anthropic', 'anthropic'],
-    ['google-vertex-anthropic', 'anthropic'],
-    ['google', 'google'],
-    ['google-vertex', 'google'],
-    ['ollama', 'ollama'],
-    ['openai', 'openai'],
-    ['openai-compatible', 'openai'],
-    ['deepseek', 'openai'],
-    ['some-unknown-relay', 'openai']
-  ] as const)('maps adapterFamily %s → %s', (family, dialect) => {
-    expect(resolveTokenDialect(family)).toBe(dialect)
+    [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, 'anthropic'],
+    [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, 'google'],
+    [ENDPOINT_TYPE.OLLAMA_CHAT, 'ollama'],
+    [ENDPOINT_TYPE.OLLAMA_GENERATE, 'ollama'],
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'openai'],
+    [ENDPOINT_TYPE.OPENAI_RESPONSES, 'openai']
+  ] as const)('maps endpointType %s → %s (protocol, not vendor family)', (endpointType, dialect) => {
+    expect(resolveEndpointTokenDialect(endpointType)).toBe(dialect)
   })
 
   it('falls back to openai for undefined', () => {
-    expect(resolveTokenDialect(undefined)).toBe('openai')
+    expect(resolveEndpointTokenDialect(undefined)).toBe('openai')
+  })
+})
+
+describe('resolveModelTokenDialect', () => {
+  it('keys on the endpoint protocol, not a relay vendor adapterFamily', () => {
+    // AiHubMix-style relay: anthropic-messages endpoint carrying a vendor family.
+    const provider = makeProvider({
+      defaultChatEndpoint: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+      endpointConfigs: { [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { adapterFamily: 'aihubmix' } }
+    })
+    const model = makeModel({ endpointTypes: [ENDPOINT_TYPE.ANTHROPIC_MESSAGES] })
+    expect(resolveModelTokenDialect(provider, model)).toBe('anthropic')
   })
 })
 

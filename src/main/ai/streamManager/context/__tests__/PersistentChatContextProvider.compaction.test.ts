@@ -463,7 +463,7 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(anchors.every((c) => c.data.phase === 'turn-start')).toBe(true)
   })
 
-  it('2i. settles the anchor when the summarizer returns nothing', async () => {
+  const fiveBigTurns = () => {
     const BIG = 'token '.repeat(700)
     mockGetPathToNode.mockReturnValue([
       fakeMsg('u1', 'user', BIG),
@@ -472,12 +472,26 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
       fakeMsg('a2', 'assistant', BIG),
       fakeMsg('u3', 'user', BIG)
     ])
+  }
+
+  it('2i. settles the anchor as skipped when the summarizer returns nothing (no false marker)', async () => {
+    fiveBigTurns()
     compressionOn()
     mockSummarizeModelMessages.mockResolvedValueOnce('')
 
     await makeHistory('u3')
     const anchors = capturedChunks.filter((c) => c.type === 'data-compaction-anchor')
-    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'done'])
+    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'skipped'])
+  })
+
+  it('2i2. settles the anchor as skipped when the summarizer throws', async () => {
+    fiveBigTurns()
+    compressionOn()
+    mockSummarizeModelMessages.mockRejectedValueOnce(new Error('summarizer failed'))
+
+    await makeHistory('u3')
+    const anchors = capturedChunks.filter((c) => c.type === 'data-compaction-anchor')
+    expect(anchors.map((c) => c.data.status)).toEqual(['compacting', 'skipped'])
   })
 
   it('2d. blobs of compacted-away tool outputs stay on the request allow-list', async () => {

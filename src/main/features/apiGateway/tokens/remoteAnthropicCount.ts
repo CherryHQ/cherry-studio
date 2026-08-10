@@ -27,11 +27,19 @@ export async function tryRemoteAnthropicCount(
   body: MessageCreateParams,
   provider: Provider,
   model: Model,
-  apiModelId: string
+  apiModelId: string,
+  signal?: AbortSignal
 ): Promise<number | undefined> {
   try {
     const cfg = await providerToAiSdkConfig(provider, model)
-    const settings = cfg.providerSettings as { baseURL?: string; apiKey?: string; headers?: Record<string, string> }
+    const settings = cfg.providerSettings as {
+      baseURL?: string
+      apiKey?: string
+      headers?: Record<string, string>
+      // The proxy-aware `customFetch` (+ any provider signing wrapper) `providerToAiSdkConfig`
+      // installs — reused so count traffic honours the app proxy / relay auth, not bypasses it.
+      fetch?: typeof globalThis.fetch
+    }
     const apiKey = settings.apiKey
     // ai-core baseURL ends in `/v1`; the official SDK re-appends `/v1/messages/count_tokens`,
     // so strip the trailing `/v1` to avoid `…/v1/v1/…`. Relay-shaped configs put the URL/key
@@ -43,6 +51,7 @@ export async function tryRemoteAnthropicCount(
       apiKey,
       baseURL,
       defaultHeaders: settings.headers,
+      fetch: settings.fetch,
       timeout: REMOTE_COUNT_TIMEOUT_MS,
       maxRetries: 0
     })
@@ -52,7 +61,7 @@ export async function tryRemoteAnthropicCount(
       ...(body.system !== undefined ? { system: body.system } : {}),
       ...(body.tools !== undefined ? { tools: body.tools as MessageCountTokensParams['tools'] } : {})
     }
-    const { input_tokens } = await client.messages.countTokens(params)
+    const { input_tokens } = await client.messages.countTokens(params, { signal })
     return input_tokens
   } catch (error) {
     logger.warn('remote count_tokens failed, falling back to local estimate', error as Error)

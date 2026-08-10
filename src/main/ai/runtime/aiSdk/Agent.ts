@@ -7,6 +7,7 @@ import type { StringKeys } from '@cherrystudio/ai-core/provider'
 import { isAbortError } from '@main/utils/error'
 import type { LanguageModelUsage, ModelMessage, ToolSet, UIMessage, UIMessageChunk } from 'ai'
 
+import { ALL_MEDIA, gateToolResultMedia } from '../../messages/messageCapabilities'
 import { toModelMessages } from '../../messages/messageRules'
 import type { AppProviderSettingsMap } from '../../types'
 import { logger, safeCall, wrapForwardedHook, wrapToolsWithExecutionHooks } from './loop/hookRunner'
@@ -115,7 +116,12 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       const generateInput =
         'prompt' in input
           ? { prompt: input.prompt, ...(signal && { abortSignal: signal }) }
-          : { messages: input.messages, ...(signal && { abortSignal: signal }) }
+          : {
+              // Same wire-media gate `stream()` applies: without it, structured tool-result
+              // media (images/audio) rides as JSON/base64 or is rejected on OpenAI/Ollama.
+              messages: gateToolResultMedia(input.messages, this.params.toolResultMediaCapabilities ?? ALL_MEDIA),
+              ...(signal && { abortSignal: signal })
+            }
       const result = await aiAgent.generate(generateInput)
       signal?.throwIfAborted()
       const terminalError = resolveToolLoopTerminalError({

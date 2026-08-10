@@ -46,10 +46,10 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
   )
   .post(
     '/count_tokens',
-    async ({ body, status }) => {
+    async ({ body, status, request }) => {
       if (!body.model) return status(400, invalidRequest('model parameter is required'))
       return {
-        input_tokens: await estimateAnthropicRequestTokens(body as unknown as MessageCreateParams)
+        input_tokens: await estimateAnthropicRequestTokens(body as unknown as MessageCreateParams, request.signal)
       }
     },
     {

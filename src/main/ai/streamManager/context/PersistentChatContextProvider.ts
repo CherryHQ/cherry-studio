@@ -801,9 +801,19 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           ...extra
         })
       }
+      // A fold that changed nothing (empty summary) or threw is served with UN-compacted
+      // history, so it must settle as `skipped` (metric-free) — settling `done` here is exactly
+      // what makes an untouched history render a false "context compacted" marker.
+      const skip = () =>
+        compactionSink?.(anchorId, {
+          status: 'skipped',
+          phase: 'turn-start',
+          startedAt,
+          completedAt: new Date().toISOString()
+        })
       if (!summary) {
         logger.warn('durable compaction yielded empty summary; serving marker-applied history', { topicId })
-        settle()
+        skip()
         return serve(effective)
       }
       messageService.setCompactionSummary(boundary.id, summary)
@@ -813,8 +823,9 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return serve(served)
     } catch (error) {
       logger.warn('durable compaction failed; serving marker-applied history', { topicId, error })
+      // Un-compacted history served → settle `skipped`, not `done` (no false marker).
       compactionSink?.(anchorId, {
-        status: 'done',
+        status: 'skipped',
         phase: 'turn-start',
         startedAt,
         completedAt: new Date().toISOString()

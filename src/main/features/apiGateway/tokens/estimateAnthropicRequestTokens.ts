@@ -13,6 +13,7 @@ import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 
 import { MessageConverterFactory } from '../adapters'
 import { type ResolvedGatewayModelAddress, resolveGatewayModelAddress } from '../utils/models'
+import { boundedBodyTokens } from './fallbackEstimate'
 import { tryRemoteAnthropicCount } from './remoteAnthropicCount'
 
 const logger = loggerService.withContext('GatewayTokenEstimate')
@@ -30,20 +31,20 @@ const logger = loggerService.withContext('GatewayTokenEstimate')
  *
  * Never throws: on model-resolve failure it degrades to the Anthropic dialect with
  * all-media capabilities, and if the loosely-validated body defeats the converter it
- * degrades further to a raw-size heuristic — count_tokens must not 500 a client.
+ * degrades further to a bounded raw-body estimate — count_tokens must not 500 a client.
  */
-export async function estimateAnthropicRequestTokens(body: MessageCreateParams): Promise<number> {
+export async function estimateAnthropicRequestTokens(body: MessageCreateParams, signal?: AbortSignal): Promise<number> {
   try {
-    return await estimateConvertedRequest(body)
+    return await estimateConvertedRequest(body, signal)
   } catch (error) {
     // The body is only loosely validated (`content: z.unknown()`, `tools` untyped), so
     // conversion can throw on malformed blocks — degrade instead of surfacing a 500.
-    logger.warn('conversion-based estimate failed, using raw-size heuristic', error as Error)
-    return tokenxTokenizer.count(JSON.stringify(body))
+    logger.warn('conversion-based estimate failed, using bounded raw-body estimate', error as Error)
+    return boundedBodyTokens(body, tokenxTokenizer)
   }
 }
 
-async function estimateConvertedRequest(body: MessageCreateParams): Promise<number> {
+async function estimateConvertedRequest(body: MessageCreateParams, signal?: AbortSignal): Promise<number> {
   const converter = MessageConverterFactory.create('anthropic')
   const uiMessages = converter.toUIMessages(body)
   const tools = converter.toAiSdkTools?.(body)
@@ -61,13 +62,19 @@ async function estimateConvertedRequest(body: MessageCreateParams): Promise<numb
 
   // Anthropic: prefer the provider's authoritative count; fall through to local on failure.
   if (dialect === 'anthropic' && resolved) {
-    const remote = await tryRemoteAnthropicCount(body, resolved.provider, resolved.model, resolved.apiModelId)
+    const remote = await tryRemoteAnthropicCount(body, resolved.provider, resolved.model, resolved.apiModelId, signal)
     if (remote !== undefined) return remote
   }
 
   const toolResultCaps = resolveToolResultMediaCapabilities(caps, dialect)
   const modelMessages = await toModelMessages(uiMessages, caps, tools, toolResultCaps)
   const tokenizer = await getTextTokenizer(dialect)
-  const messageTokens = await estimateModelMessagesFootprint(modelMessages, { dialect, tokenizer })
-  return messageTokens + countToolDefs(body.tools, tokenizer)
+  const messageTokens = await estimateModelMessagesFootprint(modelMessages, { dialect, tokenizer }, signal)
+  // Count the tools that actually reach the wire: `toAiSdkTools` drops `bash_20250124`, so
+  // exclude it here too. The raw `input_schema` is counted (not the zod-normalized shape) — a
+  // safe overestimate, since normalization only ever drops unsupported fields.
+  const wireTools = Array.isArray(body.tools)
+    ? body.tools.filter((tool) => (tool as { type?: string }).type !== 'bash_20250124')
+    : body.tools
+  return messageTokens + countToolDefs(wireTools, tokenizer)
 }
