@@ -73,7 +73,7 @@ Composition rules per hook key:
 |---|---|
 | `onStart`, `onFinish`, `onAbort`, `onStepFinish`, `onToolExecutionStart/End` | `chainVoid` — sequential `for`-loop await; per-hook throws logged and swallowed, chain continues |
 | `prepareStep` | chained — each invocation receives the previous return value |
-| `onError` | every handler invoked sequentially; any `'retry'` makes the result `'retry'`; default `abort` |
+| `onError` | `chainOnError` — every handler invoked sequentially; any `'retry'` makes the result `'retry'`; default `abort` |
 
 All void hooks share the same `chainVoid` helper in `composeHooks.ts` —
 there is no `Promise.allSettled` / parallel path.
@@ -108,7 +108,8 @@ see [Agent Session Runtime](./agent-session-runtime.md#live-follow-up).
   resources and analytics can finalize.
 - Thrown errors are caught and routed through `onError`. Returning
   `'retry'` is reserved for a future implementation — today the loop
-  logs and aborts.
+  logs and aborts. Call-level retry/fallback lives one layer below at the
+  model wrapper — see [Model Retry & Fallback](./model-retry.md).
 - Trusted local tools can return a structured terminal failure (`terminal:
   true`, `retryable: false`). A generic process-local provenance marker
   prevents matching JSON from MCP or provider-executed tools from controlling
