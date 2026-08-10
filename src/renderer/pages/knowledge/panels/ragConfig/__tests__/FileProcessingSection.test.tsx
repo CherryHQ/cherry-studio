@@ -259,6 +259,7 @@ describe('FileProcessingSection', () => {
         />
       )
 
+      fireEvent.click(screen.getByRole('button', { name: 'File processing' }))
       expect(screen.getByRole('option', { name: 'Local document' })).toHaveAttribute('aria-disabled', 'true')
     })
 
