@@ -51,6 +51,17 @@ describe('AgentSessionMessageService', () => {
     }
   }
 
+  async function seedAgent(id: string, name: string, deletedAt?: number) {
+    await dbh.db.insert(agentTable).values({
+      id,
+      type: 'claude-code',
+      name,
+      instructions: 'test',
+      orderKey: id,
+      deletedAt
+    })
+  }
+
   beforeEach(async () => {
     notifyDataApiDataChangeMock.mockClear()
     await seedSession({ id: SESSION_ID, name: 'Session', orderKey: 'a0' })
@@ -74,17 +85,6 @@ describe('AgentSessionMessageService', () => {
   })
 
   describe('cross-session delivery', () => {
-    async function seedAgent(id: string, name: string, deletedAt?: number) {
-      await dbh.db.insert(agentTable).values({
-        id,
-        type: 'claude-code',
-        name,
-        instructions: 'test',
-        orderKey: id,
-        deletedAt
-      })
-    }
-
     it('persists same-Agent and cross-Agent envelopes before scheduling', async () => {
       await seedAgent('agent-a', 'Agent A')
       await seedAgent('agent-b', 'Agent B')
@@ -997,6 +997,89 @@ describe('AgentSessionMessageService', () => {
     const result = agentSessionMessageService.search({ q: 'alpha needle' })
 
     expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ba'])
+  })
+
+  it('ranks Agent-tool search by BM25 instead of requiring every term', async () => {
+    await seedSession({ id: 'session-ranked', name: 'Session Ranked', orderKey: 'sr0' })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ca',
+        sessionId: 'session-ranked',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'hyperfine benchmark setup' }] },
+        status: 'success',
+        createdAt: 300,
+        updatedAt: 300
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cb',
+        sessionId: 'session-ranked',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'install and verify hyperfine with cowsay' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      }
+    ])
+
+    const result = agentSessionMessageService.searchRanked({ q: 'hyperfine cowsay', limit: 2 })
+
+    expect(result.map((item) => item.messageId)).toEqual([
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cb',
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ca'
+    ])
+  })
+
+  it('applies the Agent filter before the ranked-search limit', async () => {
+    await seedAgent('agent-ranked-a', 'Ranked A')
+    await seedAgent('agent-ranked-b', 'Ranked B')
+    await seedSession({ id: 'session-ranked-a', agentId: 'agent-ranked-a', name: 'Ranked A', orderKey: 'sra0' })
+    await seedSession({ id: 'session-ranked-b', agentId: 'agent-ranked-b', name: 'Ranked B', orderKey: 'srb0' })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cc',
+        sessionId: 'session-ranked-a',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle from another Agent' }] },
+        status: 'success',
+        createdAt: 300,
+        updatedAt: 300
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cd',
+        sessionId: 'session-ranked-b',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle from the requested Agent' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      }
+    ])
+
+    const result = agentSessionMessageService.searchRanked({ q: 'needle', agentId: 'agent-ranked-b', limit: 1 })
+
+    expect(result.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cd'])
+  })
+
+  it('supports exact identifiers, short CJK fallback, and empty ranked results', async () => {
+    await seedSession({ id: 'session-ranked-shapes', name: 'Ranked Shapes', orderKey: 'srs0' })
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ce',
+      sessionId: 'session-ranked-shapes',
+      role: 'assistant',
+      data: { parts: [{ type: 'text', text: 'TEST_ECHO_42 今天天气很好' }] },
+      status: 'success',
+      createdAt: 100,
+      updatedAt: 100
+    })
+
+    expect(agentSessionMessageService.searchRanked({ q: 'TEST_ECHO_42' }).map((item) => item.messageId)).toEqual([
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ce'
+    ])
+    expect(agentSessionMessageService.searchRanked({ q: '天气' }).map((item) => item.messageId)).toEqual([
+      '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ce'
+    ])
+    expect(agentSessionMessageService.searchRanked({ q: '全部不存在xyzzy' })).toEqual([])
   })
 
   it('treats LIKE wildcards as literal session-message search text after FTS prefiltering', async () => {

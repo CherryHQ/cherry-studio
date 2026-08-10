@@ -288,7 +288,7 @@ const SESSION_SEARCH_TOOL: Tool = {
   inputSchema: {
     type: 'object',
     properties: {
-      query: { type: 'string', description: 'Natural-language or keyword query.' },
+      query: { type: 'string', description: 'Natural-language or keyword query, ranked by lexical relevance.' },
       agent_id: { type: 'string', description: 'Optional Agent id filter.' },
       limit: { type: 'number', description: 'Maximum message matches to inspect (default 20, max 100).' }
     },
@@ -492,9 +492,7 @@ export class CherryAutonomyTools {
     if (!query) throw new McpError(ErrorCode.InvalidParams, "'query' is required")
     const agentId = typeof args.agent_id === 'string' && args.agent_id.trim() ? args.agent_id.trim() : undefined
     const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 20
-    const matches = agentSessionMessageService
-      .search({ q: query, limit })
-      .items.filter((item) => !agentId || item.agentId === agentId)
+    const matches = agentSessionMessageService.searchRanked({ q: query, limit, agentId })
     const sessions = new Map<
       string,
       {
@@ -506,17 +504,6 @@ export class CherryAutonomyTools {
         matches: Array<{ messageId: string; snippet: string; createdAt: string }>
       }
     >()
-    for (const match of agentSessionService.search({ q: query, limit })) {
-      if (agentId && match.target.agentId !== agentId) continue
-      sessions.set(match.id, {
-        agentId: match.target.agentId ?? undefined,
-        agentName: match.subtitle,
-        sessionId: match.id,
-        sessionName: match.title,
-        isCurrent: match.id === this.sessionId,
-        matches: []
-      })
-    }
     for (const match of matches) {
       const candidate = sessions.get(match.sessionId) ?? {
         agentId: match.agentId,
@@ -528,6 +515,17 @@ export class CherryAutonomyTools {
       }
       candidate.matches.push({ messageId: match.messageId, snippet: match.snippet, createdAt: match.createdAt })
       sessions.set(match.sessionId, candidate)
+    }
+    for (const match of agentSessionService.search({ q: query, limit, agentId })) {
+      if (sessions.has(match.id)) continue
+      sessions.set(match.id, {
+        agentId: match.target.agentId ?? undefined,
+        agentName: match.subtitle,
+        sessionId: match.id,
+        sessionName: match.title,
+        isCurrent: match.id === this.sessionId,
+        matches: []
+      })
     }
     return { content: [{ type: 'text' as const, text: JSON.stringify({ sessions: [...sessions.values()] }) }] }
   }

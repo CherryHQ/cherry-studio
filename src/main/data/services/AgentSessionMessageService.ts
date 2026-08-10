@@ -17,6 +17,14 @@ import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import {
+  extractFtsTokens,
+  extractMatchTerms,
+  extractShortTerms,
+  needsLikeFallback,
+  toFtsLikePattern,
+  toFtsMatchQuery
+} from '@main/utils/trigramFtsQuery'
+import {
   AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES,
   type AgentSessionDeliveryEnvelope,
   type AgentSessionDeliveryError,
@@ -82,6 +90,12 @@ type SessionMessageContentSearchInput = {
   sessionId?: string
 }
 
+type RankedSessionMessageSearchInput = {
+  q: string
+  limit?: number
+  agentId?: string
+}
+
 type ListSessionMessagesOptions = {
   cursor?: string
   limit?: number
@@ -97,6 +111,19 @@ type SaveAgentSessionMessageParams = {
     deliveryStatus?: AgentSessionDeliveryStatus
     deliveryInReplyTo?: string | null
     deliverySenderSessionId?: string | null
+  }
+}
+
+function mapSessionMessageSearchRow(row: SessionMessageSearchRow, snippet: string): SessionMessageContentSearchItem {
+  return {
+    messageId: row.rowId,
+    sessionId: row.sessionId,
+    sessionName: row.sessionName,
+    agentId: row.agentId ?? undefined,
+    agentName: row.agentName ?? undefined,
+    role: coerceSearchRole(row.role, AGENT_SESSION_MESSAGE_SEARCH_ROLES),
+    snippet,
+    createdAt: timestampToISO(Number(row.createdAt))
   }
 }
 
@@ -250,22 +277,84 @@ export class AgentSessionMessageService {
       getSearchableText: (row) => row.searchableText,
       buildSnippet: buildSearchSnippet,
       mapRow: (row, { snippet }) => ({
-        item: {
-          messageId: row.rowId,
-          sessionId: row.sessionId,
-          sessionName: row.sessionName,
-          agentId: row.agentId ?? undefined,
-          agentName: row.agentName ?? undefined,
-          role: coerceSearchRole(row.role, AGENT_SESSION_MESSAGE_SEARCH_ROLES),
-          snippet,
-          createdAt: timestampToISO(Number(row.createdAt))
-        },
+        item: mapSessionMessageSearchRow(row, snippet),
         sort: {
           createdAt: Number(row.createdAt),
           id: row.rowId
         }
       })
     })
+  }
+
+  /** BM25-ranked search for the Agent tool; ordinary DataApi search keeps its chronological cursor contract. */
+  searchRanked(query: RankedSessionMessageSearchInput): SessionMessageContentSearchItem[] {
+    const database = application.get('DbService').getDb()
+    const limit = Math.min(Math.max(Math.trunc(query.limit ?? 20), 1), 100)
+    const agentCondition = query.agentId ? sql`s.agent_id = ${query.agentId}` : sql`1 = 1`
+    const matchQuery = toFtsMatchQuery(query.q)
+    const snippetTerms = [...extractMatchTerms(query.q), ...extractShortTerms(query.q)]
+
+    const fetchMatchRows = (shortTerms: string[]): SessionMessageSearchRow[] => {
+      if (!matchQuery) return []
+      const shortTermConditions = shortTerms.map(
+        (term) => sql`sm.searchable_text LIKE ${toFtsLikePattern(term)} ESCAPE '\\'`
+      )
+      return database.all<SessionMessageSearchRow>(sql`
+        SELECT
+          sm.id AS "rowId",
+          sm.searchable_text AS "searchableText",
+          sm.session_id AS "sessionId",
+          s.name AS "sessionName",
+          s.agent_id AS "agentId",
+          a.name AS "agentName",
+          sm.role,
+          sm.created_at AS "createdAt"
+        FROM agent_session_message_fts
+        JOIN agent_session_message sm ON sm.fts_rowid = agent_session_message_fts.rowid
+        JOIN agent_session s ON s.id = sm.session_id
+        LEFT JOIN agent a ON a.id = s.agent_id
+        WHERE agent_session_message_fts MATCH ${matchQuery}
+          AND ${agentCondition}
+          ${shortTermConditions.length > 0 ? sql`AND ${sql.join(shortTermConditions, sql` AND `)}` : sql``}
+        ORDER BY bm25(agent_session_message_fts), sm.created_at DESC, sm.id DESC
+        LIMIT ${limit}
+      `)
+    }
+
+    let rows: SessionMessageSearchRow[]
+    if (needsLikeFallback(query.q)) {
+      const terms = extractFtsTokens(query.q)
+      if (terms.length === 0) return []
+      const conditions = terms.map((term) => sql`sm.searchable_text LIKE ${toFtsLikePattern(term)} ESCAPE '\\'`)
+      rows = database.all<SessionMessageSearchRow>(sql`
+        SELECT
+          sm.id AS "rowId",
+          sm.searchable_text AS "searchableText",
+          sm.session_id AS "sessionId",
+          s.name AS "sessionName",
+          s.agent_id AS "agentId",
+          a.name AS "agentName",
+          sm.role,
+          sm.created_at AS "createdAt"
+        FROM agent_session_message sm
+        JOIN agent_session s ON s.id = sm.session_id
+        LEFT JOIN agent a ON a.id = s.agent_id
+        WHERE ${agentCondition}
+          AND ${sql.join(conditions, sql` AND `)}
+        ORDER BY length(sm.searchable_text), sm.created_at DESC, sm.id DESC
+        LIMIT ${limit}
+      `)
+      return rows.map((row) =>
+        mapSessionMessageSearchRow(row, buildSearchSnippet(row.searchableText, terms, 'substring'))
+      )
+    }
+
+    const shortTerms = extractShortTerms(query.q)
+    rows = fetchMatchRows(shortTerms)
+    if (rows.length === 0 && shortTerms.length > 0) rows = fetchMatchRows([])
+    return rows.map((row) =>
+      mapSessionMessageSearchRow(row, buildSearchSnippet(row.searchableText, snippetTerms, 'substring'))
+    )
   }
 
   /**

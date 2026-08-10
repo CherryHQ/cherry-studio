@@ -156,6 +156,40 @@ describe('AgentSessionService', () => {
     expect(result[0]).not.toHaveProperty('workspace')
   })
 
+  it('applies the Agent metadata filter before the search limit', async () => {
+    const workspace = await createWorkspace('search-agent-filter')
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-search-target',
+      type: 'claude-code',
+      name: 'Search Target',
+      instructions: '',
+      model: null,
+      orderKey: 'b0'
+    })
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-search-other-agent',
+        agentId: 'agent-session-test',
+        name: 'Needle Other Agent',
+        workspaceId: workspace.id,
+        orderKey: 'b0',
+        updatedAt: 300
+      },
+      {
+        id: 'session-search-target-agent',
+        agentId: 'agent-search-target',
+        name: 'Needle Target Agent',
+        workspaceId: workspace.id,
+        orderKey: 'b1',
+        updatedAt: 100
+      }
+    ])
+
+    const result = agentSessionService.search({ q: 'Needle', agentId: 'agent-search-target', limit: 1 })
+
+    expect(result.map((item) => item.id)).toEqual(['session-search-target-agent'])
+  })
+
   describe('getLatestUpdated', () => {
     it('returns the globally most-recently-updated session, independent of orderKey ordering', async () => {
       const workspace = await createWorkspace('latest')

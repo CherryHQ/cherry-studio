@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { extractMatchTerms, extractShortTerms, needsLikeFallback, toFtsLikePattern, toFtsMatchQuery } from '../ftsQuery'
+import {
+  extractMatchTerms,
+  extractShortTerms,
+  needsLikeFallback,
+  toFtsLikePattern,
+  toFtsMatchQuery
+} from '../trigramFtsQuery'
 
 describe('extractMatchTerms', () => {
   it('keeps space-delimited tokens whole — they are already words', () => {

@@ -1,5 +1,5 @@
 /**
- * Free-text → FTS query helpers for the trigram-tokenized `search_text_fts`.
+ * Free-text → FTS query helpers for trigram-tokenized FTS5 tables.
  *
  * The `trigram` tokenizer indexes 3-character windows, which drives how a query
  * is compiled:
@@ -17,31 +17,25 @@
  *  - Terms shorter than 3 characters produce no trigram and can never MATCH, but
  *    they are often the query's content words — 2-character words dominate
  *    Chinese (「系统」「年假」) — so they must not vanish from the query's
- *    semantics. The store ANDs a `LIKE '%term%'` filter per short term onto the
+ *    semantics. Callers can AND a `LIKE '%term%'` filter per short term onto the
  *    ranked MATCH ({@link extractShortTerms}), relaxing the filters when they
- *    eliminate every candidate (a filler 'to' need not literally occur in the
- *    target chunk). Only when *nothing* in the query is indexable (a bare
- *    「天气」) does it fall back to a pure LIKE scan ({@link needsLikeFallback} /
- *    {@link toFtsLikePattern}) — decision A3.
+ *    eliminate every candidate. Only when *nothing* in the query is indexable
+ *    (a bare 「天气」) should callers fall back to a pure LIKE scan
+ *    ({@link needsLikeFallback} / {@link toFtsLikePattern}).
  *
  * Known tradeoffs, accepted until a real CJK tokenizer replaces trigram in v2.x:
  *
- *  - OR has no minimum-should-match and no stopword handling, so chunks sharing
+ *  - OR has no minimum-should-match and no stopword handling, so rows sharing
  *    only filler trigrams (「是什么」) enter the candidate set. bm25() usually ranks
- *    the real answer above them, but not reliably: a chunk matching many filler
- *    trigrams can outscore one matching the two trigrams that carry the subject
- *    (an FAQ chunk 「公司的入职流程是什么？」 outranks the 报销流程 answer for
- *    「公司的报销流程是什么」). Nothing downstream re-sorts that — `applyRelevanceThreshold`
- *    only filters 'relevance' scores, and both 'bm25' and 'hybrid' yield 'ranking',
- *    so `base.threshold` is inert unless the base has a rerank model that *succeeds*
- *    (a failed rerank leaves the scores 'ranking'; see utils/indexing/rerank.ts).
+ *    the real answer above them, but not reliably; consumers that need a hard
+ *    relevance boundary must add one explicitly.
  *  - Windowing covers Han/Hiragana/Katakana only. Thai, Lao, Khmer and Myanmar
  *    are space-less too but are NOT windowed — their clauses keep the
  *    exact-substring semantics; supporting them is deferred with the tokenizer.
  */
 import { loggerService } from '@logger'
 
-const logger = loggerService.withContext('KnowledgeFtsQuery')
+const logger = loggerService.withContext('TrigramFtsQuery')
 
 /** Minimum token length the trigram tokenizer can index. */
 const TRIGRAM_MIN_TOKEN_LENGTH = 3
@@ -120,7 +114,7 @@ export function extractMatchTerms(query: string): string[] {
   const { words, trigrams } = splitQuery(query)
   const distinct = [...new Set([...words.filter((word) => charCount(word) >= TRIGRAM_MIN_TOKEN_LENGTH), ...trigrams])]
   if (distinct.length > MAX_MATCH_TERMS) {
-    logger.warn('BM25 query exceeds the MATCH term cap; shedding the tail', {
+    logger.warn('Trigram FTS query exceeds the MATCH term cap; shedding the tail', {
       terms: distinct.length,
       cap: MAX_MATCH_TERMS
     })
@@ -132,7 +126,7 @@ export function extractMatchTerms(query: string): string[] {
  * The distinct terms of 1–2 characters, which produce no trigram. MATCH can never
  * see them, and at 2 characters they are often the query's content words — dropping
  * 「系统」 from 「系统 architecture」 would silently turn the query into a bare
- * `MATCH "architecture"`. The store ANDs a `LIKE '%term%'` filter per short term
+ * `MATCH "architecture"`. Callers can AND a `LIKE '%term%'` filter per short term
  * onto the MATCH query instead ({@link toFtsLikePattern}), relaxed when the filters
  * leave no candidate at all.
  *

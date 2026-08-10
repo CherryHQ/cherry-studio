@@ -84,12 +84,13 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 export class AgentSessionService {
-  search(query: { q: string; limit: number; updatedAtFrom?: number }): SessionEntitySearchItem[] {
+  search(query: { q: string; limit: number; updatedAtFrom?: number; agentId?: string }): SessionEntitySearchItem[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
     const filters: SQL[] = []
     const search = buildSearchPredicate(query.q)
     if (search) filters.push(search)
+    if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
     if (query.updatedAtFrom !== undefined) {
       filters.push(gte(sessionsTable.updatedAt, query.updatedAtFrom))
     }
