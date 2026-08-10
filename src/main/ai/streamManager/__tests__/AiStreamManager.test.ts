@@ -1373,7 +1373,7 @@ describe('AiStreamManager', () => {
 
       // Both the input and approval request have left the ordinary ring, which
       // remains hard-capped while the operational checkpoint stays complete.
-      expect(ringMgr.inspect('a')!.executions[0]).toMatchObject({ bufferedChunkCount: 2, droppedChunks: 4 })
+      expect(ringMgr.inspect('a')!.executions[0]).toMatchObject({ bufferedChunkCount: 2, droppedChunks: 5 })
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
       const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
@@ -1575,14 +1575,14 @@ describe('AiStreamManager', () => {
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
-        'tool-input-available',
         'text-start',
         'text-delta',
+        'tool-input-available',
         'tool-approval-request',
         'text-start',
         'text-delta'
       ])
-      expect(response.bufferedChunks[0].chunk).toMatchObject({ toolCallId: 'call-1' })
+      expect(response.bufferedChunks[2].chunk).toMatchObject({ toolCallId: 'call-1' })
 
       // Resolving the approval removes its checkpoint; the ring remains at the
       // same hard cap instead of preserving an over-cap length.
