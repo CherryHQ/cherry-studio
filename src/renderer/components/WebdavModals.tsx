@@ -26,7 +26,7 @@ export function useWebdavBackupModal({ backupMethod }: { backupMethod?: typeof b
   const handleBackup = async () => {
     setBackuping(true)
     try {
-      await (backupMethod ?? backupToWebdav)({ showMessage: true, customFileName })
+      await (backupMethod ?? backupToWebdav)({ customFileName })
     } finally {
       setBackuping(false)
       setIsModalVisible(false)
@@ -76,6 +76,7 @@ export function WebdavBackupModal({
           <DialogTitle>{customLabels?.modalTitle || t('settings.data.webdav.backup.modal.title')}</DialogTitle>
         </DialogHeader>
         <Input
+          autoFocus
           value={customFileName}
           onChange={(e) => setCustomFileName(e.target.value)}
           placeholder={customLabels?.filenamePlaceholder || t('settings.data.webdav.backup.modal.filename.placeholder')}

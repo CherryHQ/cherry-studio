@@ -1,6 +1,8 @@
+import { EventEmitter } from 'node:events'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { PassThrough } from 'node:stream'
 
 import { application } from '@application'
 import { ENDPOINT_TYPE, type Model as DataModel, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
@@ -10,6 +12,67 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const binaryManagerMock = vi.hoisted(() => ({ getToolSnapshots: vi.fn() }))
 const crossPlatformSpawnMock = vi.hoisted(() => vi.fn())
 const platformMock = vi.hoisted(() => ({ isWin: false }))
+
+function createSpawnChild() {
+  return Object.assign(new EventEmitter(), {
+    stdout: new PassThrough(),
+    stderr: new PassThrough(),
+    kill: vi.fn(),
+    unref: vi.fn()
+  })
+}
+
+function queueSpawnResult({ stdout = '', stderr = '', exitCode = 0 } = {}) {
+  const child = createSpawnChild()
+
+  crossPlatformSpawnMock.mockImplementationOnce(() => {
+    queueMicrotask(() => {
+      child.stdout.write(stdout)
+      child.stderr.write(stderr)
+      child.stdout.end()
+      child.stderr.end()
+      child.emit('exit', exitCode, null)
+      child.emit('close', exitCode, null)
+    })
+    return child
+  })
+
+  return child
+}
+
+function createRuntimeConfigSchema(
+  modelFields = ['contextWindow', 'maxTokens', 'reasoning', 'input', 'cost'],
+  providerFields = ['headers']
+) {
+  return {
+    type: 'object',
+    properties: {
+      models: {
+        type: 'object',
+        properties: {
+          providers: {
+            type: 'object',
+            additionalProperties: {
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                ...Object.fromEntries(providerFields.map((field) => [field, {}])),
+                models: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: Object.fromEntries(modelFields.map((field) => [field, {}]))
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
 
 // --- Mocks for OpenClawService dependencies ---
 
@@ -38,6 +101,7 @@ vi.mock('@application', () => ({
         return { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) }
       }
       if (name === 'BinaryManager') return binaryManagerMock
+      if (name === 'PreferenceService') return { get: vi.fn(() => 'en-US') }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
     getPath: vi.fn()
@@ -141,6 +205,9 @@ describe('OpenClawService gateway status state machine', () => {
   let findBinarySpy: ReturnType<typeof vi.spyOn>
   let checkPortOpenSpy: ReturnType<typeof vi.spyOn>
   let startAndWaitSpy: ReturnType<typeof vi.spyOn>
+  let runOpenClawCommandSpy: ReturnType<typeof vi.spyOn>
+  let schemaCapabilitySpy: ReturnType<typeof vi.spyOn>
+  let validateConfigSpy: ReturnType<typeof vi.spyOn>
 
   beforeEach(async () => {
     vi.clearAllMocks()
@@ -148,6 +215,7 @@ describe('OpenClawService gateway status state machine', () => {
     binaryManagerMock.getToolSnapshots.mockResolvedValue({
       openclaw: { name: 'openclaw', availability: { source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' } }
     })
+    vi.mocked(application.getPath).mockReturnValue('/mock/openclaw')
     service = await createService()
 
     // Reset internal state via reflection
@@ -160,11 +228,375 @@ describe('OpenClawService gateway status state machine', () => {
     findBinarySpy = vi.spyOn(service as any, 'findOpenClawBinary')
     checkPortOpenSpy = vi.spyOn(service as any, 'checkPortOpen')
     startAndWaitSpy = vi.spyOn(service as any, 'startAndWaitForGateway')
+    runOpenClawCommandSpy = vi.spyOn(service as any, 'runOpenClawCommand').mockResolvedValue({
+      exitCode: 0,
+      stdout: '{}',
+      stderr: '',
+      outputTruncated: false
+    })
+    schemaCapabilitySpy = vi
+      .spyOn(service as any, 'assertSchemaCapability')
+      .mockResolvedValue(createRuntimeConfigSchema())
+    validateConfigSpy = vi.spyOn(service as any, 'validateConfig').mockResolvedValue({
+      valid: true,
+      path: '/mock/.openclaw/openclaw.json',
+      issues: [],
+      warnings: []
+    })
   })
 
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+  })
+
+  describe('OpenClaw config preflight boundaries', () => {
+    it('preserves JSON validation output when validate exits with code 1', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      const stdout = JSON.stringify({
+        valid: false,
+        issues: [{ path: 'models.providers.cherry-openai.apiKey', message: 'Invalid value' }]
+      })
+      queueSpawnResult({ stdout, stderr: 'configuration rejected', exitCode: 1 })
+
+      await expect(
+        (service as any).runOpenClawCommand('/mock/bin/openclaw', ['config', 'validate', '--json'], {
+          PATH: '/mock/bin'
+        })
+      ).resolves.toEqual({
+        exitCode: 1,
+        stdout,
+        stderr: 'configuration rejected',
+        outputTruncated: false
+      })
+      expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
+        '/mock/bin/openclaw',
+        ['config', 'validate', '--json'],
+        expect.objectContaining({
+          env: { PATH: '/mock/bin' },
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
+      )
+    })
+
+    it('reports binary incompatibility when the schema command is unavailable', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      queueSpawnResult({ stderr: 'error: unknown command schema', exitCode: 1 })
+
+      await expect(
+        (service as any).assertSchemaCapability({
+          source: 'mise',
+          path: '/mock/bin/openclaw',
+          version: '1.0.0',
+          env: { PATH: '/mock/bin' }
+        })
+      ).rejects.toMatchObject({ kind: 'binary_incompatible' })
+      expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
+        '/mock/bin/openclaw',
+        ['config', 'schema'],
+        expect.objectContaining({
+          env: { PATH: '/mock/bin', OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json' },
+          stdio: ['ignore', 'pipe', 'pipe']
+        })
+      )
+    })
+
+    it('returns the runtime schema reported by the resolved OpenClaw binary', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const schema = createRuntimeConfigSchema()
+      queueSpawnResult({ stdout: JSON.stringify(schema) })
+
+      await expect(
+        (service as any).assertSchemaCapability({
+          source: 'mise',
+          path: '/mock/bin/openclaw',
+          version: '1.0.0',
+          env: { PATH: '/mock/bin' }
+        })
+      ).resolves.toEqual(schema)
+    })
+
+    it('uses a dedicated bounded capture limit for the runtime schema', async () => {
+      schemaCapabilitySpy.mockRestore()
+      const schema = createRuntimeConfigSchema()
+      runOpenClawCommandSpy.mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: JSON.stringify(schema),
+        stderr: '',
+        outputTruncated: false
+      })
+
+      await expect(
+        (service as any).assertSchemaCapability({
+          path: '/mock/bin/openclaw',
+          env: { PATH: '/mock/bin' }
+        })
+      ).resolves.toEqual(schema)
+      expect(runOpenClawCommandSpy).toHaveBeenCalledWith(
+        '/mock/bin/openclaw',
+        ['config', 'schema'],
+        {
+          PATH: '/mock/bin',
+          OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json'
+        },
+        { stdoutLimitBytes: 32 * 1024 * 1024 }
+      )
+    })
+
+    it('accepts a runtime schema larger than the diagnostic capture limit', async () => {
+      runOpenClawCommandSpy.mockRestore()
+      schemaCapabilitySpy.mockRestore()
+      const schema = {
+        ...createRuntimeConfigSchema(),
+        description: 'x'.repeat(1024 * 1024)
+      }
+      queueSpawnResult({ stdout: JSON.stringify(schema) })
+
+      await expect(
+        (service as any).assertSchemaCapability({
+          source: 'mise',
+          path: '/mock/bin/openclaw',
+          version: '1.0.0',
+          env: { PATH: '/mock/bin' }
+        })
+      ).resolves.toEqual(schema)
+    })
+
+    it('redacts secrets and bounds diagnostic output', () => {
+      const basicSecret = 'dXNlcjpwYXNz'
+      const customSecret = 'credential with spaces'
+      const diagnostic = [
+        '{"apiKey":"sk-sensitive-value"}',
+        'Authorization: Bearer bearer-sensitive-value',
+        `Authorization: Basic ${basicSecret}`,
+        `Authorization: Custom ${customSecret}`,
+        'x'.repeat(2500)
+      ].join('\n')
+
+      const sanitized = (service as any).sanitizeDiagnostic(diagnostic)
+
+      expect(sanitized).not.toContain('sk-sensitive-value')
+      expect(sanitized).not.toContain('bearer-sensitive-value')
+      expect(sanitized).not.toContain(basicSecret)
+      expect(sanitized).not.toContain(customSecret)
+      expect(sanitized).toContain('[REDACTED]')
+      expect(sanitized.length).toBeLessThanOrEqual(2000)
+    })
+
+    it('runs config validation against the explicit candidate path and accepts a valid invalid report', async () => {
+      validateConfigSpy.mockRestore()
+      runOpenClawCommandSpy.mockResolvedValue({
+        exitCode: 1,
+        stdout: JSON.stringify({
+          valid: false,
+          path: '/mock/openclaw/openclaw.json.cherry-candidate-id',
+          issues: [{ path: 'tools.web.fetch.ssrfPolicy', message: 'Unsupported field' }]
+        }),
+        stderr: 'ignored diagnostic',
+        outputTruncated: false
+      })
+      const runtime = {
+        source: 'mise',
+        path: '/mock/bin/openclaw',
+        version: '1.0.0',
+        env: { PATH: '/mock/bin', MISE_DATA_DIR: '/mock/mise' }
+      }
+
+      await expect(
+        (service as any).validateConfig(runtime, '/mock/openclaw/openclaw.json.cherry-candidate-id')
+      ).resolves.toEqual({
+        valid: false,
+        path: '/mock/openclaw/openclaw.json.cherry-candidate-id',
+        issues: [{ path: 'tools.web.fetch.ssrfPolicy', message: 'Unsupported field' }],
+        warnings: []
+      })
+      expect(runOpenClawCommandSpy).toHaveBeenCalledWith('/mock/bin/openclaw', ['config', 'validate', '--json'], {
+        PATH: '/mock/bin',
+        MISE_DATA_DIR: '/mock/mise',
+        OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json.cherry-candidate-id'
+      })
+    })
+
+    it('accepts a successful OpenClaw validation report without an issues field', () => {
+      const path = '/mock/openclaw/openclaw.json.cherry-candidate-id'
+
+      expect(
+        (service as any).parseValidationResult({
+          exitCode: 0,
+          stdout: JSON.stringify({ valid: true, path, warnings: [] }),
+          stderr: '',
+          outputTruncated: false
+        })
+      ).toEqual({ valid: true, path, issues: [], warnings: [] })
+    })
+
+    it.each([
+      { name: 'missing', reportPath: undefined },
+      { name: 'different', reportPath: '/mock/openclaw/openclaw.json' }
+    ])('rejects a successful validation report with a $name config path', async ({ reportPath }) => {
+      validateConfigSpy.mockRestore()
+      const candidatePath = '/mock/openclaw/openclaw.json.cherry-candidate-id'
+      runOpenClawCommandSpy.mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: JSON.stringify({
+          valid: true,
+          ...(reportPath === undefined ? {} : { path: reportPath }),
+          warnings: []
+        }),
+        stderr: '',
+        outputTruncated: false
+      })
+
+      await expect(
+        (service as any).validateConfig({ path: '/mock/bin/openclaw', env: { PATH: '/mock/bin' } }, candidatePath)
+      ).rejects.toMatchObject({ kind: 'binary_incompatible' })
+    })
+
+    it('accepts a validation report whose config path resolves to the requested path', async () => {
+      validateConfigSpy.mockRestore()
+      const candidatePath = '/mock/openclaw/openclaw.json.cherry-candidate-id'
+      runOpenClawCommandSpy.mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: JSON.stringify({
+          valid: true,
+          path: '/mock/openclaw/nested/../openclaw.json.cherry-candidate-id',
+          warnings: []
+        }),
+        stderr: '',
+        outputTruncated: false
+      })
+
+      await expect(
+        (service as any).validateConfig({ path: '/mock/bin/openclaw', env: { PATH: '/mock/bin' } }, candidatePath)
+      ).resolves.toMatchObject({ valid: true, path: '/mock/openclaw/nested/../openclaw.json.cherry-candidate-id' })
+    })
+
+    it('rejects an invalid validation report that omits the config path as binary incompatible', async () => {
+      validateConfigSpy.mockRestore()
+      runOpenClawCommandSpy.mockResolvedValueOnce({
+        exitCode: 1,
+        stdout: JSON.stringify({
+          valid: false,
+          issues: [{ path: 'models.providers.cherry-openai', message: 'Unsupported field' }]
+        }),
+        stderr: '',
+        outputTruncated: false
+      })
+
+      await expect(
+        (service as any).validateConfig(
+          { path: '/mock/bin/openclaw', env: { PATH: '/mock/bin' } },
+          '/mock/openclaw/openclaw.json.cherry-candidate-id'
+        )
+      ).rejects.toMatchObject({ kind: 'binary_incompatible' })
+    })
+
+    it.each([
+      {
+        name: 'valid false with missing issues',
+        result: { exitCode: 1, stdout: JSON.stringify({ valid: false }), outputTruncated: false }
+      },
+      {
+        name: 'valid false with no issues',
+        result: { exitCode: 1, stdout: JSON.stringify({ valid: false, issues: [] }), outputTruncated: false }
+      },
+      {
+        name: 'non-boolean valid field',
+        result: { exitCode: 1, stdout: JSON.stringify({ valid: 'false', issues: [] }), outputTruncated: false }
+      },
+      {
+        name: 'non-string issue path',
+        result: {
+          exitCode: 1,
+          stdout: JSON.stringify({ valid: false, issues: [{ path: 1, message: 'bad' }] }),
+          outputTruncated: false
+        }
+      },
+      {
+        name: 'non-array allowed values',
+        result: {
+          exitCode: 1,
+          stdout: JSON.stringify({
+            valid: false,
+            issues: [{ path: 'tools.web.fetch', message: 'bad', allowedValues: 'none' }]
+          }),
+          outputTruncated: false
+        }
+      },
+      {
+        name: 'malformed warnings',
+        result: {
+          exitCode: 0,
+          stdout: JSON.stringify({ valid: true, issues: [], warnings: [{ path: 'x', message: 1 }] }),
+          outputTruncated: false
+        }
+      },
+      {
+        name: 'truncated output',
+        result: { exitCode: 0, stdout: JSON.stringify({ valid: true, issues: [] }), outputTruncated: true }
+      },
+      {
+        name: 'valid report with non-zero exit',
+        result: { exitCode: 1, stdout: JSON.stringify({ valid: true, issues: [] }), outputTruncated: false }
+      }
+    ])('rejects $name as a preflight failure without exposing command output', ({ result }) => {
+      let thrown: unknown
+      try {
+        ;(service as any).parseValidationResult({ ...result, stderr: 'apiKey: stderr-secret' })
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toMatchObject({ kind: 'preflight_failed' })
+      expect((thrown as Error).message).not.toContain(result.stdout)
+      expect((thrown as Error).message).not.toContain('stderr-secret')
+    })
+
+    it('classifies a rejected Cherry-managed provider field as binary incompatibility', async () => {
+      validateConfigSpy.mockResolvedValueOnce({
+        valid: false,
+        issues: [
+          {
+            path: 'models.providers.cherry-openai.models.0.contextWindow',
+            message: 'Unsupported generated field'
+          }
+        ],
+        warnings: []
+      })
+
+      await expect(
+        (service as any).assertConfigValid(
+          { source: 'mise', path: '/mock/bin/openclaw', env: { PATH: '/mock/bin' } },
+          '/mock/openclaw/openclaw.json.cherry-candidate-id'
+        )
+      ).rejects.toMatchObject({
+        kind: 'binary_incompatible',
+        message: expect.stringContaining('incompatible with the generated configuration')
+      })
+    })
+
+    it.each(['tools.web.fetch.ssrfPolicy', 'gateway.bind'])(
+      'keeps rejected user-owned path %s classified as external config',
+      async (issuePath) => {
+        validateConfigSpy.mockResolvedValueOnce({
+          valid: false,
+          issues: [{ path: issuePath, message: 'Unsupported external field' }],
+          warnings: []
+        })
+
+        await expect(
+          (service as any).assertConfigValid(
+            { source: 'mise', path: '/mock/bin/openclaw', env: { PATH: '/mock/bin' } },
+            '/mock/openclaw/openclaw.json.cherry-candidate-id'
+          )
+        ).rejects.toMatchObject({
+          kind: 'external_config_invalid',
+          message: expect.stringContaining("outside Cherry Studio's managed provider section")
+        })
+      }
+    )
   })
 
   describe('getDashboardUrl', () => {
@@ -174,6 +606,45 @@ describe('OpenClawService gateway status state machine', () => {
 
       const url = service.getDashboardUrl()
       expect(url).toBe(`http://127.0.0.1:18790#token=${encodeURIComponent('a b+c')}`)
+    })
+  })
+
+  describe('gateway health probe', () => {
+    it('uses the canonical /healthz endpoint when /health serves HTML', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+        const url = String(input)
+        if (url.endsWith('/healthz')) {
+          return new Response(JSON.stringify({ ok: true, status: 'live' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          })
+        }
+
+        return new Response('<!doctype html><html></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html' }
+        })
+      })
+
+      await expect((service as any).checkGatewayHealthWithError()).resolves.toEqual({ status: 'healthy' })
+      expect(fetchSpy).toHaveBeenCalledWith(
+        'http://127.0.0.1:18790/healthz',
+        expect.objectContaining({ signal: expect.any(AbortSignal) })
+      )
+    })
+
+    it('reports an HTML health response without exposing a JSON parser error', async () => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        new Response('<!doctype html><html></html>', {
+          status: 200,
+          headers: { 'content-type': 'text/html; charset=utf-8' }
+        })
+      )
+
+      await expect((service as any).checkGatewayHealthWithError()).resolves.toEqual({
+        status: 'unhealthy',
+        error: 'Invalid JSON from /healthz (text/html)'
+      })
     })
   })
 
@@ -267,16 +738,111 @@ describe('OpenClawService gateway status state machine', () => {
       expect(result).toEqual({ success: false, message: 'Gateway is already starting' })
     })
 
-    it('starts a system OpenClaw with the raw user environment', async () => {
+    it('rejects an invalid formal config before checking or stopping the gateway port', async () => {
+      checkPortOpenSpy.mockResolvedValue(true)
+      checkHealthSpy.mockResolvedValue({ status: 'healthy', gatewayPort: 18790 })
+      const stopGatewaySpy = vi.spyOn(service, 'stopGateway').mockResolvedValue({ success: true })
+      validateConfigSpy.mockResolvedValueOnce({
+        valid: false,
+        path: '/mock/openclaw/openclaw.json',
+        issues: [{ path: 'tools.web.fetch.ssrfPolicy', message: 'Unrecognized key' }],
+        warnings: []
+      })
+
+      const result = await service.startGateway()
+
+      expect(result.success).toBe(false)
+      expect(validateConfigSpy).toHaveBeenCalledWith(expect.any(Object), '/mock/openclaw/openclaw.json')
+      expect(checkPortOpenSpy).not.toHaveBeenCalled()
+      expect(stopGatewaySpy).not.toHaveBeenCalled()
+      expect(startAndWaitSpy).not.toHaveBeenCalled()
+    })
+
+    it('runs formal config validation with the explicit OpenClaw config path', async () => {
+      validateConfigSpy.mockRestore()
+      runOpenClawCommandSpy.mockReset()
+      runOpenClawCommandSpy.mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: JSON.stringify({
+          valid: true,
+          path: '/mock/openclaw/openclaw.json',
+          issues: [],
+          warnings: []
+        }),
+        stderr: '',
+        outputTruncated: false
+      })
       checkPortOpenSpy.mockResolvedValue(false)
-      findBinarySpy.mockResolvedValue({ source: 'system', path: '/usr/local/bin/openclaw' })
       startAndWaitSpy.mockResolvedValue(undefined)
 
       await expect(service.startGateway()).resolves.toEqual({ success: true })
-      expect(startAndWaitSpy).toHaveBeenCalledWith('/usr/local/bin/openclaw', {
-        PATH: '/usr/local/bin:/usr/bin',
-        MISE_DATA_DIR: '/user/mise'
+
+      expect(runOpenClawCommandSpy).toHaveBeenCalledTimes(1)
+      expect(runOpenClawCommandSpy.mock.calls[0][2]).toMatchObject({
+        OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json'
       })
+    })
+
+    it('spawns a system OpenClaw with the raw user environment and formal config path', async () => {
+      const child = createSpawnChild()
+      checkPortOpenSpy.mockResolvedValue(false)
+      findBinarySpy.mockResolvedValue({ source: 'system', path: '/usr/local/bin/openclaw' })
+      startAndWaitSpy.mockRestore()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
+        status: 'healthy',
+        gatewayPort: 18790
+      })
+      vi.useFakeTimers()
+
+      const started = service.startGateway()
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await expect(started).resolves.toEqual({ success: true })
+      expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
+        '/usr/local/bin/openclaw',
+        ['gateway', 'run', '--force'],
+        expect.objectContaining({
+          env: {
+            PATH: '/usr/local/bin:/usr/bin',
+            MISE_DATA_DIR: '/user/mise',
+            OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+            OPENCLAW_NO_AUTO_UPDATE: '1'
+          }
+        })
+      )
+      expect(child.unref).toHaveBeenCalledOnce()
+    })
+
+    it('spawns a managed OpenClaw with the refreshed environment and formal config path', async () => {
+      const child = createSpawnChild()
+      checkPortOpenSpy.mockResolvedValue(false)
+      findBinarySpy.mockResolvedValue({ source: 'mise', path: '/mock/bin/openclaw', version: '1.0.0' })
+      startAndWaitSpy.mockRestore()
+      crossPlatformSpawnMock.mockReturnValue(child)
+      vi.spyOn(service as any, 'checkGatewayHealthWithError').mockResolvedValue({
+        status: 'healthy',
+        gatewayPort: 18790
+      })
+      vi.useFakeTimers()
+
+      const started = service.startGateway()
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await expect(started).resolves.toEqual({ success: true })
+      expect(crossPlatformSpawnMock).toHaveBeenCalledWith(
+        '/mock/bin/openclaw',
+        ['gateway', 'run', '--force'],
+        expect.objectContaining({
+          env: {
+            PATH: '/mock/bin:/usr/bin',
+            MISE_DATA_DIR: '/mock/mise',
+            OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+            OPENCLAW_NO_AUTO_UPDATE: '1'
+          }
+        })
+      )
+      expect(child.unref).toHaveBeenCalledOnce()
     })
 
     it('launches a system OpenClaw .cmd through the process runner on Windows', async () => {
@@ -305,7 +871,11 @@ describe('OpenClawService gateway status state machine', () => {
         ['gateway', 'run', '--force'],
         expect.objectContaining({
           detached: false,
-          env: { Path: 'C:\\Windows\\System32' },
+          env: {
+            Path: 'C:\\Windows\\System32',
+            OPENCLAW_CONFIG_PATH: '/mock/openclaw/openclaw.json',
+            OPENCLAW_NO_AUTO_UPDATE: '1'
+          },
           stdio: ['ignore', 'pipe', 'pipe'],
           windowsHide: true
         })
@@ -888,16 +1458,59 @@ describe('OpenClawService gateway status state machine', () => {
       expect(written.agents.defaults.model.primary).toBe('cherry-openai/gpt-4o')
     })
 
-    it('writes provider headers and model metadata while keeping hand-edited values authoritative', async () => {
+    it('disables the OpenClaw update hint so its banner cannot swap the managed binary', async () => {
+      await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      expect(written.update.checkOnStart).toBe(false)
+    })
+
+    it('keeps an explicit checkOnStart choice instead of forcing the update hint off', async () => {
+      fs.writeFileSync(path.join(configDir, 'openclaw.json'), JSON.stringify({ update: { checkOnStart: true } }))
+
+      await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      expect(written.update.checkOnStart).toBe(true)
+    })
+
+    it('removes stale Cherry providers while preserving supported hand edits on the selected provider', async () => {
       fs.writeFileSync(
         path.join(configDir, 'openclaw.json'),
         JSON.stringify({
           models: {
+            mode: 'merge',
             providers: {
               'cherry-openai': {
+                baseUrl: 'https://manual.example.com',
+                apiKey: 'manual-key',
+                api: 'anthropic-messages',
                 headers: { 'User-Agent': 'OpenClaw', 'X-Manual': 'keep' },
-                models: [{ id: 'gpt-4o', name: 'Old', contextWindow: 200000, maxTokens: 32000 }]
+                models: [
+                  {
+                    id: 'gpt-4o',
+                    name: 'Old',
+                    contextWindow: 200000,
+                    maxTokens: 32000,
+                    customField: 'remove'
+                  }
+                ]
+              },
+              'cherry-minimax': {
+                models: [{ id: 'MiniMax-M2', name: 'MiniMax M2', maxTokens: 4096 }]
+              },
+              external: {
+                baseUrl: 'https://external.example.com',
+                apiKey: 'external-key',
+                api: 'openai-completions',
+                models: [{ id: 'external-model', name: 'External Model' }]
               }
+            }
+          },
+          tools: {
+            web: {
+              search: { enabled: true },
+              fetch: { ssrfPolicy: { allowPrivateNetwork: false } }
             }
           }
         })
@@ -921,7 +1534,17 @@ describe('OpenClawService gateway status state machine', () => {
       await service.syncProviderConfig(provider, legacyModel)
 
       const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
-      expect(written.models.providers['cherry-openai']).toMatchObject({
+      expect(Object.keys(written.models.providers)).toEqual(['external', 'cherry-openai'])
+      expect(written.models.providers.external).toEqual({
+        baseUrl: 'https://external.example.com',
+        apiKey: 'external-key',
+        api: 'openai-completions',
+        models: [{ id: 'external-model', name: 'External Model' }]
+      })
+      expect(written.models.providers['cherry-openai']).toEqual({
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-test',
+        api: 'openai-completions',
         headers: { 'User-Agent': 'OpenClaw', 'X-Synced': 'synced', 'X-Manual': 'keep' },
         models: [
           {
@@ -935,6 +1558,384 @@ describe('OpenClawService gateway status state machine', () => {
           }
         ]
       })
+      expect(written.tools).toEqual({
+        web: {
+          search: { enabled: true },
+          fetch: { ssrfPolicy: { allowPrivateNetwork: false } }
+        }
+      })
+    })
+
+    it('recursively removes unsupported nested managed fields while preserving schema-supported values', async () => {
+      schemaCapabilitySpy.mockResolvedValueOnce({
+        type: 'object',
+        properties: {
+          models: {
+            type: 'object',
+            properties: {
+              providers: {
+                type: 'object',
+                additionalProperties: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    baseUrl: { type: 'string' },
+                    apiKey: { type: 'string' },
+                    api: { type: 'string' },
+                    headers: { type: 'object', additionalProperties: true },
+                    request: {
+                      allOf: [
+                        {},
+                        {
+                          type: 'object',
+                          additionalProperties: false,
+                          properties: {
+                            allowPrivateNetwork: { type: 'boolean' },
+                            auth: {
+                              anyOf: [
+                                {
+                                  type: 'object',
+                                  additionalProperties: false,
+                                  properties: { mode: { const: 'provider-default' } }
+                                },
+                                {
+                                  type: 'object',
+                                  additionalProperties: false,
+                                  properties: {
+                                    mode: { const: 'authorization-bearer' },
+                                    token: { type: 'string' }
+                                  }
+                                },
+                                {
+                                  type: 'object',
+                                  additionalProperties: false,
+                                  properties: {
+                                    mode: { const: 'header' },
+                                    headerName: { type: 'string' },
+                                    value: { type: 'string' }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    models: {
+                      type: 'array',
+                      items: {
+                        type: 'object',
+                        additionalProperties: false,
+                        properties: {
+                          compat: {
+                            type: 'object',
+                            additionalProperties: false,
+                            properties: { supportsStore: { type: 'boolean' } }
+                          },
+                          cost: {
+                            type: 'object',
+                            additionalProperties: false,
+                            properties: {
+                              input: { type: 'number' },
+                              output: { type: 'number' },
+                              tieredPricing: {
+                                type: 'array',
+                                items: {
+                                  type: 'object',
+                                  additionalProperties: false,
+                                  properties: {
+                                    input: { type: 'number' },
+                                    output: { type: 'number' },
+                                    range: {}
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          params: { type: 'object', additionalProperties: true }
+                        }
+                      }
+                    }
+                  },
+                  allOf: [
+                    {},
+                    {
+                      type: 'object',
+                      additionalProperties: false,
+                      properties: { baseUrl: {}, apiKey: {}, api: {}, request: {}, models: {} }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      })
+      fs.writeFileSync(
+        path.join(configDir, 'openclaw.json'),
+        JSON.stringify({
+          models: {
+            providers: {
+              'cherry-openai': {
+                request: {
+                  allowPrivateNetwork: true,
+                  removedField: 'drop',
+                  auth: {
+                    mode: 'header',
+                    headerName: 'X-API-Key',
+                    value: 'manual-secret',
+                    token: 'drop-from-other-branch',
+                    removedAuthField: 'drop'
+                  }
+                },
+                models: [
+                  {
+                    id: 'gpt-4o',
+                    name: 'GPT-4o',
+                    compat: { supportsStore: true, removedFlag: true },
+                    cost: {
+                      input: 2,
+                      output: 8,
+                      removedCostField: 1,
+                      tieredPricing: [{ input: 1, output: 4, range: [0, 1000], removedTierField: true }]
+                    },
+                    params: { customOption: { nested: 'keep' } }
+                  }
+                ]
+              }
+            }
+          }
+        })
+      )
+
+      const result = await service.syncProviderConfig(
+        { ...legacyProvider, headers: { 'X-Synced': 'drop-because-allOf-forbids-it' } },
+        legacyModel
+      )
+
+      expect(result).toEqual({ success: true })
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      const managedProvider = written.models.providers['cherry-openai']
+      expect(managedProvider.headers).toBeUndefined()
+      expect(managedProvider.request).toEqual({
+        allowPrivateNetwork: true,
+        auth: { mode: 'header', headerName: 'X-API-Key', value: 'manual-secret' }
+      })
+      expect(managedProvider.models[0]).toEqual({
+        id: 'gpt-4o',
+        name: 'GPT-4o',
+        compat: { supportsStore: true },
+        cost: {
+          input: 2,
+          output: 8,
+          tieredPricing: [{ input: 1, output: 4, range: [0, 1000] }]
+        },
+        params: { customOption: { nested: 'keep' } }
+      })
+    })
+
+    it('emits only optional provider and model fields supported by the resolved OpenClaw schema', async () => {
+      schemaCapabilitySpy.mockResolvedValueOnce(createRuntimeConfigSchema(['contextWindow', 'reasoning', 'input'], []))
+      fs.writeFileSync(
+        path.join(configDir, 'openclaw.json'),
+        JSON.stringify({ tools: { web: { fetch: { ssrfPolicy: { allowPrivateNetwork: false } } } } })
+      )
+      const provider = {
+        ...legacyProvider,
+        headers: { 'X-Synced': 'synced' },
+        models: [
+          {
+            id: 'gpt-4o',
+            name: 'GPT-4o',
+            contextWindow: 128000,
+            maxTokens: 16384,
+            reasoning: true,
+            input: ['text', 'image'],
+            cost: { input: 2, output: 8 }
+          }
+        ]
+      }
+
+      const result = await service.syncProviderConfig(provider, legacyModel)
+
+      expect(result).toEqual({ success: true })
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+      expect(written.models.providers['cherry-openai']).toEqual({
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-test',
+        api: 'openai-completions',
+        models: [
+          {
+            id: 'gpt-4o',
+            name: 'GPT-4o',
+            contextWindow: 128000,
+            reasoning: true,
+            input: ['text', 'image']
+          }
+        ]
+      })
+      expect(written.tools).toEqual({
+        web: { fetch: { ssrfPolicy: { allowPrivateNetwork: false } } }
+      })
+    })
+
+    it('keeps the formal config unchanged when validation reports a different path', async () => {
+      const configPath = path.join(configDir, 'openclaw.json')
+      const original = '{"tools":{"web":{"search":{"enabled":true}}}}'
+      fs.writeFileSync(configPath, original, 'utf-8')
+      validateConfigSpy.mockRestore()
+      runOpenClawCommandSpy.mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: JSON.stringify({ valid: true, path: '/mock/default/openclaw.json', warnings: [] }),
+        stderr: '',
+        outputTruncated: false
+      })
+
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      expect(result.success).toBe(false)
+      expect('message' in result && result.message).toContain('incompatible with the generated configuration')
+      expect(fs.readFileSync(configPath, 'utf-8')).toBe(original)
+      expect(fs.readdirSync(configDir).some((entry) => entry.includes('cherry-candidate'))).toBe(false)
+    })
+
+    it.each([
+      { state: 'empty', initialToken: '' },
+      { state: 'existing', initialToken: 'existing-memory-token' }
+    ])(
+      'keeps the formal config and $state in-memory token unchanged when external config is invalid',
+      async ({ initialToken }) => {
+        const configPath = path.join(configDir, 'openclaw.json')
+        const original =
+          '{"gateway":{"auth":{"token":"formal-token"}},"tools":{"web":{"fetch":{"ssrfPolicy":{"allowPrivateNetwork":false}}}}}'
+        fs.writeFileSync(configPath, original, 'utf-8')
+        ;(service as any).gatewayAuthToken = initialToken
+        validateConfigSpy.mockResolvedValueOnce({
+          valid: false,
+          path: '/ignored/by-test',
+          issues: [{ path: 'tools.web.fetch.ssrfPolicy', message: 'Unsupported field' }],
+          warnings: []
+        })
+
+        const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+
+        expect(result.success).toBe(false)
+        expect('message' in result && result.message).toContain("outside Cherry Studio's managed provider section")
+        expect((service as any).gatewayAuthToken).toBe(initialToken)
+        expect(fs.readFileSync(configPath, 'utf-8')).toBe(original)
+        const candidatePath = validateConfigSpy.mock.calls[0][1] as string
+        expect(path.dirname(candidatePath)).toBe(configDir)
+        expect(path.basename(candidatePath)).toContain('openclaw.json.cherry-candidate-')
+        expect(fs.existsSync(candidatePath)).toBe(false)
+      }
+    )
+
+    it('publishes a generated token only after candidate validation and a successful formal write', async () => {
+      let tokenDuringValidation = ''
+      let candidateToken = ''
+      validateConfigSpy.mockImplementationOnce(async (_runtime, candidatePath) => {
+        const configPath = candidatePath as string
+        tokenDuringValidation = (service as any).gatewayAuthToken
+        candidateToken = JSON.parse(fs.readFileSync(configPath, 'utf-8')).gateway.auth.token
+        return { valid: true, path: configPath, issues: [], warnings: [] }
+      })
+
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+      const written = JSON.parse(fs.readFileSync(path.join(configDir, 'openclaw.json'), 'utf-8'))
+
+      expect(result).toEqual({ success: true })
+      expect(candidateToken).not.toBe('')
+      expect(tokenDuringValidation).toBe('')
+      expect(written.gateway.auth.token).toBe(candidateToken)
+      expect((service as any).gatewayAuthToken).toBe(candidateToken)
+    })
+
+    it('redacts and limits external validation issues returned in the operation result', async () => {
+      const firstSecret = 'sk-first-sensitive'
+      const secondSecret = 'bearer-second-sensitive'
+      validateConfigSpy.mockResolvedValueOnce({
+        valid: false,
+        issues: [
+          { path: 'tools.web.fetch.apiKey', message: firstSecret },
+          { path: 'tools.web.search.authorization', message: `Bearer ${secondSecret}` },
+          { path: 'tools.web.fetch.third', message: 'third problem' },
+          { path: 'tools.web.fetch.fourth', message: 'fourth problem' },
+          { path: 'tools.web.fetch.fifth', message: 'fifth problem' }
+        ],
+        warnings: []
+      })
+
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+      const message = 'message' in result ? result.message : ''
+
+      expect(result.success).toBe(false)
+      expect(message).not.toContain(firstSecret)
+      expect(message).not.toContain(secondSecret)
+      expect(message).toContain('tools.web.fetch.apiKey')
+      expect(message).toContain('tools.web.search.authorization')
+      expect(message).toContain('tools.web.fetch.third')
+      expect(message).not.toContain('tools.web.fetch.fourth')
+      expect(message).not.toContain('tools.web.fetch.fifth')
+      expect(message).toContain('and 2 more')
+    })
+
+    it('classifies rejected Cherry-generated fields as binary incompatibility without changing the formal file', async () => {
+      const configPath = path.join(configDir, 'openclaw.json')
+      const original = '{"tools":{"web":{"search":{"enabled":true}}}}'
+      fs.writeFileSync(configPath, original, 'utf-8')
+      validateConfigSpy.mockResolvedValueOnce({
+        valid: false,
+        issues: [{ path: 'models.providers.cherry-openai.models.0.contextWindow', message: 'Unknown field' }],
+        warnings: []
+      })
+
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      expect(result.success).toBe(false)
+      expect('message' in result && result.message).toContain('incompatible with the generated configuration')
+      expect(fs.readFileSync(configPath, 'utf-8')).toBe(original)
+      expect(fs.readdirSync(configDir).some((entry) => entry.includes('cherry-candidate'))).toBe(false)
+    })
+
+    it('validates a same-directory candidate, removes it, and atomically writes the formal config as 0600', async () => {
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+
+      expect(result).toEqual({ success: true })
+      const configPath = path.join(configDir, 'openclaw.json')
+      const candidatePath = validateConfigSpy.mock.calls[0][1] as string
+      expect(path.dirname(candidatePath)).toBe(path.dirname(configPath))
+      expect(path.basename(candidatePath)).toContain('openclaw.json.cherry-candidate-')
+      expect(fs.existsSync(candidatePath)).toBe(false)
+      expect(fs.statSync(configPath).mode & 0o777).toBe(0o600)
+    })
+
+    it('returns a sanitized preflight failure and leaves the formal file unchanged for malformed validation output', async () => {
+      const configPath = path.join(configDir, 'openclaw.json')
+      const original = '{"tools":{"web":{"search":{"enabled":true}}}}'
+      const stdoutSecret = 'sk-stdout-sensitive'
+      const stderrSecret = 'stderr-bearer-sensitive'
+      fs.writeFileSync(configPath, original, 'utf-8')
+      validateConfigSpy.mockRestore()
+      runOpenClawCommandSpy.mockResolvedValueOnce({
+        exitCode: 0,
+        stdout: `not JSON apiKey: ${stdoutSecret}`,
+        stderr: `Bearer ${stderrSecret}`,
+        outputTruncated: false
+      })
+
+      const result = await service.syncProviderConfig(legacyProvider, legacyModel)
+      const message = 'message' in result ? result.message : ''
+
+      expect(result.success).toBe(false)
+      expect(message).toContain('could not validate the OpenClaw configuration')
+      expect(message).not.toContain(stdoutSecret)
+      expect(message).not.toContain(stderrSecret)
+      expect(message).not.toContain('not JSON')
+      expect(fs.readFileSync(configPath, 'utf-8')).toBe(original)
+      const validateCall = runOpenClawCommandSpy.mock.calls.find((call) => (call[1] as string[])[1] === 'validate')
+      const candidatePath = (validateCall?.[2] as Record<string, string> | undefined)?.OPENCLAW_CONFIG_PATH
+      expect(path.dirname(candidatePath as string)).toBe(configDir)
+      expect(fs.existsSync(candidatePath as string)).toBe(false)
     })
   })
 

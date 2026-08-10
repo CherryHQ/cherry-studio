@@ -78,6 +78,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { MigrationContext } from '../core/MigrationContext'
 import { assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
+import { markEntriesAutoCleanup } from './FileMigrator'
 import {
   buildAssistantSnapshot,
   buildMessageTree,
@@ -87,6 +88,7 @@ import {
   type NewTopic,
   type OldAssistant,
   type OldBlock,
+  type OldMessage,
   type OldTopic,
   type OldTopicMeta,
   resolveBlocks,
@@ -112,8 +114,18 @@ const MESSAGE_INSERT_BATCH_SIZE = 100
 const FILE_REF_INSERT_BATCH_SIZE = 100
 const SKIP_WARNING_SAMPLE_LIMIT = 10
 const INARRAY_CHUNK = 500
-const BLOCK_INDEX_BATCH_SIZE = 1000
+// Decode one block at a time so a batch of inline images/tool payloads cannot
+// accumulate in the V8 heap. Serialized rows are still grouped below to keep
+// SQLite transaction overhead bounded.
+const BLOCK_INDEX_READ_BATCH_SIZE = 1
+const BLOCK_INDEX_WRITE_BATCH_SIZE = 100
+const BLOCK_INDEX_WRITE_CHAR_LIMIT = 4 * 1024 * 1024
 const TEMP_BLOCK_INDEX_TABLE = 'migration_chat_blocks'
+
+interface BlockIndexRow {
+  id: string
+  payload: string
+}
 
 /**
  * Yield each FileEntryId referenced by file parts in a message's parts array.
@@ -211,6 +223,10 @@ export class ChatMigrator extends BaseMigrator {
   private migratedFileEntryIds: Set<string> = new Set()
   private skippedWarnings: Map<string, { count: number; samples: string[] }> = new Map()
   private fileRefInsertCount = 0
+  // Message IDs are globally unique in SQLite, but legacy Dexie data can
+  // repeat them within or across topics. Reserve IDs before building trees so
+  // every subsequent reference is computed against the final identity.
+  private reservedMessageIds: Set<string> = new Set()
 
   override reset(): void {
     this.topicCount = 0
@@ -233,6 +249,7 @@ export class ChatMigrator extends BaseMigrator {
     this.migratedFileEntryIds = new Set()
     this.skippedWarnings = new Map()
     this.fileRefInsertCount = 0
+    this.reservedMessageIds = new Set()
   }
 
   /**
@@ -240,10 +257,9 @@ export class ChatMigrator extends BaseMigrator {
    *
    * Steps:
    * 1. Check if topics.json and message_blocks.json exist
-   * 2. Load all blocks into memory for fast lookup
-   * 3. Load assistant data for generating meta
-   * 4. Count topics and estimate message count
-   * 5. Validate sample data for integrity
+   * 2. Load assistant data for model and topic metadata lookup
+   * 3. Count topics and estimate message count
+   * 4. Validate sample data for integrity
    */
 
   private sanitizeMessageModelReferences(messages: NewMessage[]): number {
@@ -265,6 +281,57 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     return droppedModelRefs
+  }
+
+  private reserveMessageId(preferredId?: string): string {
+    if (preferredId && !this.reservedMessageIds.has(preferredId)) {
+      this.reservedMessageIds.add(preferredId)
+      return preferredId
+    }
+
+    let generatedId = uuidv4()
+    while (this.reservedMessageIds.has(generatedId)) {
+      generatedId = uuidv4()
+    }
+    this.reservedMessageIds.add(generatedId)
+    return generatedId
+  }
+
+  /**
+   * Assign final globally unique IDs before tree construction. An askId is
+   * remapped only to an earlier occurrence in the same topic; a forward
+   * reference remains unresolved and buildMessageTree will use its safe
+   * chronological fallback instead of creating a back-edge.
+   */
+  private normalizeMessageIds(messages: OldMessage[], topicId: string): OldMessage[] {
+    const latestIdBySourceId = new Map<string, string>()
+
+    return messages.map((message, index) => {
+      const sourceId = message.id
+      const normalizedAskId = message.askId ? (latestIdBySourceId.get(message.askId) ?? message.askId) : undefined
+      const normalizedId = this.reserveMessageId(sourceId)
+
+      latestIdBySourceId.set(sourceId, normalizedId)
+
+      if (normalizedId !== sourceId) {
+        logger.warn('Normalized duplicate or empty legacy message ID before building tree', {
+          topicId,
+          sourceId,
+          normalizedId,
+          messageIndex: index
+        })
+      }
+
+      if (normalizedId === sourceId && normalizedAskId === message.askId) {
+        return message
+      }
+
+      return {
+        ...message,
+        id: normalizedId,
+        askId: normalizedAskId
+      }
+    })
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -361,7 +428,7 @@ export class ChatMigrator extends BaseMigrator {
       logger.info('Prepare phase completed', {
         topics: this.topicCount,
         estimatedMessages: this.messageCount,
-        blocksIndexed: this.blocksExist,
+        blocksAvailable: this.blocksExist,
         assistants: this.assistantLookup.size
       })
 
@@ -609,6 +676,31 @@ export class ChatMigrator extends BaseMigrator {
         })
       }
 
+      // Every migrated row must be reachable from a virtual root. UNION (not
+      // UNION ALL) bounds the recursive walk even if malformed source data
+      // somehow produced a cycle, allowing validation to fail cleanly.
+      const unreachableRows = db.all(sql`
+        WITH RECURSIVE reachable(id) AS (
+          SELECT id FROM ${messageTable} WHERE ${messageTable.parentId} IS NULL
+          UNION
+          SELECT child.id
+          FROM ${messageTable} child
+          INNER JOIN reachable parent ON child.parent_id = parent.id
+        )
+        SELECT count(*) AS count
+        FROM ${messageTable} candidate
+        LEFT JOIN reachable ON reachable.id = candidate.id
+        WHERE reachable.id IS NULL
+      `) as Array<{ count: number }>
+      const unreachableMessageCount = Number(unreachableRows[0]?.count ?? 0)
+
+      if (unreachableMessageCount > 0) {
+        errors.push({
+          key: 'unreachable_messages',
+          message: `Found ${unreachableMessageCount} messages not reachable from a topic root`
+        })
+      }
+
       // Warn-only (not pushed to errors): unlike topic/pin counts which compare
       // across data sources (v1 Dexie → v2 SQLite), this is a same-DB self-check
       // ("rows I committed are still there"). A mismatch implies an infrastructure
@@ -744,18 +836,43 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     let indexed = 0
-    const blockReader = ctx.sources.dexieExport.createStreamReader('message_blocks')
-    await blockReader.readInBatches<OldBlock>(BLOCK_INDEX_BATCH_SIZE, async (blocks) => {
+    let pendingChars = 0
+    let pendingRows: BlockIndexRow[] = []
+
+    const flushPendingRows = (): void => {
+      if (pendingRows.length === 0) return
+
+      const rows = pendingRows
+      pendingRows = []
+      pendingChars = 0
+
       ctx.db.transaction((tx) => {
-        for (const block of blocks) {
-          if (!block?.id) continue
-          tx.run(
-            sql`INSERT OR REPLACE INTO migration_chat_blocks (id, payload) VALUES (${block.id}, ${JSON.stringify(block)})`
-          )
+        for (const row of rows) {
+          tx.run(sql`INSERT OR REPLACE INTO migration_chat_blocks (id, payload) VALUES (${row.id}, ${row.payload})`)
           indexed += 1
         }
       })
+    }
+
+    const blockReader = ctx.sources.dexieExport.createStreamReader('message_blocks')
+    await blockReader.readInBatches<OldBlock>(BLOCK_INDEX_READ_BATCH_SIZE, async (blocks) => {
+      for (const block of blocks) {
+        if (!block?.id) continue
+
+        const payload = JSON.stringify(block)
+        if (pendingRows.length > 0 && pendingChars + payload.length > BLOCK_INDEX_WRITE_CHAR_LIMIT) {
+          flushPendingRows()
+        }
+
+        pendingRows.push({ id: block.id, payload })
+        pendingChars += payload.length
+
+        if (pendingRows.length >= BLOCK_INDEX_WRITE_BATCH_SIZE || pendingChars >= BLOCK_INDEX_WRITE_CHAR_LIMIT) {
+          flushPendingRows()
+        }
+      }
     })
+    flushPendingRows()
 
     logger.info('Indexed message blocks in temporary SQLite table', { indexed })
   }
@@ -926,8 +1043,9 @@ export class ChatMigrator extends BaseMigrator {
         ? buildAssistantSnapshot(resolvedAssistantId, this.assistantLookup.get(resolvedAssistantId)!)
         : undefined
 
-    // Get messages array (may be empty or undefined)
-    const oldMessages = oldTopic.messages || []
+    // Assign final identities before any graph computation. This prevents a
+    // later duplicate-ID rewrite from invalidating parent and active-node refs.
+    const oldMessages = this.normalizeMessageIds(oldTopic.messages || [], oldTopic.id)
 
     // Build message tree structure
     const messageTree = buildMessageTree(oldMessages)
@@ -1107,102 +1225,84 @@ export class ChatMigrator extends BaseMigrator {
 
     let topicsInserted = 0
     let messagesInserted = 0
-    const seenMessageIds = new Set<string>()
     const total = this.stagedTopics.length || 1
 
-    for (let start = 0; start < this.stagedTopics.length; start += TOPIC_BATCH_SIZE) {
-      const batch = this.stagedTopics.slice(start, start + TOPIC_BATCH_SIZE)
+    try {
+      for (let start = 0; start < this.stagedTopics.length; start += TOPIC_BATCH_SIZE) {
+        const batch = this.stagedTopics.slice(start, start + TOPIC_BATCH_SIZE)
 
-      // Dedupe message ids within the batch and against prior batches; remap
-      // children's parentIds to keep the tree intact after the rename.
-      const batchMessages: NewMessage[] = []
-      const batchIds = new Set<string>()
-      for (const data of batch) {
-        // Bring migrated topics into the virtual-root model: every topic gets one
-        // content-less `role = 'root'` row (parentId = null), and the former physical
-        // roots (parentId = null content messages) are reparented onto it. This makes
-        // the single-root invariant and `role = 'root'` ⇔ `parentId IS NULL` hold for
-        // migrated data exactly as for freshly created topics. Mirrors
-        // MessageService.createRootMessageTx.
-        const rootId = uuidv4()
-        const topicStart = batchMessages.length
-        batchMessages.push(buildVirtualRoot(rootId, data.topic.id, data.topic.createdAt))
-        // Dedup is keyed by old id, but the same old id can recur across topics. parentId and
-        // activeNodeId are intra-topic references, so the remap MUST stay scoped to this topic:
-        // a batch-global map would cross-wire a topic that kept its original id to another
-        // topic's renamed message (and a 3rd collision would overwrite it to the last remap).
-        const topicRemap = new Map<string, string>()
-        for (const msg of data.messages) {
-          if (msg.parentId === null) {
-            msg.parentId = rootId
-          }
-          if (seenMessageIds.has(msg.id) || batchIds.has(msg.id)) {
-            const newId = uuidv4()
-            logger.warn(`Duplicate message ID found: ${msg.id}, assigning new ID: ${newId}`)
-            topicRemap.set(msg.id, newId)
-            msg.id = newId
-          }
-          batchIds.add(msg.id)
-          batchMessages.push(msg)
-        }
-        // Re-point this topic's own references — children's parentId and the topic's
-        // activeNodeId — to any renamed ids, using only THIS topic's remap. activeNodeId is
-        // not an FK, so a dangling one passes foreign_key_check and the topic would silently
-        // open to "message not found".
-        if (topicRemap.size > 0) {
-          for (let i = topicStart; i < batchMessages.length; i++) {
-            const msg = batchMessages[i]
-            if (msg.parentId && topicRemap.has(msg.parentId)) {
-              msg.parentId = topicRemap.get(msg.parentId)!
+        // IDs and graph references were finalized during prepareTopicData. Each
+        // final content ID was reserved exactly once; consuming it here preserves
+        // the global duplicate assertion without building a second all-message Set.
+        const batchMessages: NewMessage[] = []
+        for (const data of batch) {
+          // Bring migrated topics into the virtual-root model: every topic gets one
+          // content-less `role = 'root'` row (parentId = null), and the former physical
+          // roots (parentId = null content messages) are reparented onto it. This makes
+          // the single-root invariant and `role = 'root'` ⇔ `parentId IS NULL` hold for
+          // migrated data exactly as for freshly created topics. Mirrors
+          // MessageService.createRootMessageTx.
+          const rootId = this.reserveMessageId()
+          batchMessages.push(buildVirtualRoot(rootId, data.topic.id, data.topic.createdAt))
+          for (const msg of data.messages) {
+            if (msg.parentId === null) {
+              msg.parentId = rootId
             }
-          }
-          const active = data.topic.activeNodeId
-          if (active && topicRemap.has(active)) {
-            data.topic.activeNodeId = topicRemap.get(active)!
+            if (!this.reservedMessageIds.delete(msg.id)) {
+              throw new Error(`Duplicate message ID remained after normalization: ${msg.id}`)
+            }
+            batchMessages.push(msg)
           }
         }
-      }
-      const droppedRefs = this.sanitizeMessageModelReferences(batchMessages)
-      if (droppedRefs > 0) logger.info(`Filtered ${droppedRefs} dangling message model references`)
+        const droppedRefs = this.sanitizeMessageModelReferences(batchMessages)
+        if (droppedRefs > 0) logger.info(`Filtered ${droppedRefs} dangling message model references`)
 
-      const now = Date.now()
-      const batchFileRefRows = this.collectFileRefRows(batchMessages, now)
+        const now = Date.now()
+        const batchFileRefRows = this.collectFileRefRows(batchMessages, now)
 
-      // FK stays OFF for the whole migration (MigrationDbService sets the PRAGMA once on
-      // its single connection), so this batch can insert self-referencing message.parentId
-      // rows that resolve within the batch. assertOwnedForeignKeys() below verifies the result.
-      db.transaction((tx) => {
-        tx.insert(topicTable)
-          .values(batch.map((d) => d.topic))
-          .run()
-        for (let i = 0; i < batchMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
-          tx.insert(messageTable)
-            .values(batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
+        // FK stays OFF for the whole migration (MigrationDbService sets the PRAGMA once on
+        // its single connection), so this batch can insert self-referencing message.parentId
+        // rows that resolve within the batch. assertOwnedForeignKeys() below verifies the result.
+        db.transaction((tx) => {
+          tx.insert(topicTable)
+            .values(batch.map((d) => d.topic))
             .run()
-        }
-        if (batchFileRefRows.length > 0) {
-          for (let i = 0; i < batchFileRefRows.length; i += FILE_REF_INSERT_BATCH_SIZE) {
-            tx.insert(chatMessageFileRefTable)
-              .values(batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE))
+          for (let i = 0; i < batchMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
+            tx.insert(messageTable)
+              .values(batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
               .run()
           }
-        }
-      })
+          if (batchFileRefRows.length > 0) {
+            for (let i = 0; i < batchFileRefRows.length; i += FILE_REF_INSERT_BATCH_SIZE) {
+              tx.insert(chatMessageFileRefTable)
+                .values(batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE))
+                .run()
+            }
+            markEntriesAutoCleanup(
+              tx,
+              batchFileRefRows.map((row) => row.fileEntryId)
+            )
+          }
+        })
 
-      for (const id of batchIds) seenMessageIds.add(id)
-      this.fileRefInsertCount += batchFileRefRows.length
-      topicsInserted += batch.length
-      messagesInserted += batchMessages.length
+        this.fileRefInsertCount += batchFileRefRows.length
+        topicsInserted += batch.length
+        messagesInserted += batchMessages.length
 
-      const progress = 50 + Math.round((topicsInserted / total) * 50)
-      this.reportProgress(
-        progress,
-        `Migrated ${topicsInserted}/${this.stagedTopics.length} conversations, ${messagesInserted} messages`,
-        {
-          key: 'migration.progress.migrated_chats',
-          params: { processed: topicsInserted, total: this.stagedTopics.length, messages: messagesInserted }
-        }
-      )
+        const progress = 50 + Math.round((topicsInserted / total) * 50)
+        this.reportProgress(
+          progress,
+          `Migrated ${topicsInserted}/${this.stagedTopics.length} conversations, ${messagesInserted} messages`,
+          {
+            key: 'migration.progress.migrated_chats',
+            params: { processed: topicsInserted, total: this.stagedTopics.length, messages: messagesInserted }
+          }
+        )
+      }
+    } finally {
+      // No later phase needs message ID reservations. Replace the Set so its
+      // backing storage can be reclaimed even when a batch fails mid-insert.
+      this.reservedMessageIds = new Set()
     }
 
     // ON CONFLICT DO NOTHING so a retry doesn't trip the (entity_type, entity_id) UNIQUE.

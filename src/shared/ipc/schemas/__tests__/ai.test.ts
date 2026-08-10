@@ -27,10 +27,37 @@ describe('ai IPC schemas — uniqueModelId validation', () => {
   it('validates the nested payload uniqueModelId for ai.image.generate', () => {
     const input = (uniqueModelId: string) => ({
       requestId: 'r1',
-      payload: { uniqueModelId, prompt: 'a fox', paramValues: {} }
+      payload: { uniqueModelId, prompt: 'a fox', paramValues: {}, cleanupPolicy: 'delete_when_unreferenced' }
     })
     expect(genImage.safeParse(input('openai::gpt-image')).success).toBe(true)
     expect(genImage.safeParse(input('bad-id')).success).toBe(false)
+  })
+})
+
+describe('ai.stream.open IPC schema', () => {
+  const openStream = aiRequestSchemas['ai.stream.open'].input
+
+  it('preserves reserved-branch target intent at the renderer-to-main boundary', () => {
+    expect(
+      openStream.parse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'reserved-user',
+        userMessageParts: [{ type: 'text', text: 'continue branch' }],
+        targetMode: 'reserved-branch'
+      })
+    ).toMatchObject({ targetMode: 'reserved-branch' })
+  })
+
+  it('rejects an unknown target mode', () => {
+    expect(
+      openStream.safeParse({
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        userMessageParts: [],
+        targetMode: 'current-stream'
+      }).success
+    ).toBe(false)
   })
 })
 
@@ -59,5 +86,24 @@ describe('ai.agent.create IPC schema', () => {
       skillIds: ['skill-a', 'skill-b'],
       knowledgeBaseIds: ['kb-a', 'kb-b']
     })
+  })
+})
+
+describe('ai.agent.feedback_session.create IPC schema', () => {
+  const createFeedbackSession = aiRequestSchemas['ai.agent.feedback_session.create'].input
+  const createFeedbackSessionResult = aiRequestSchemas['ai.agent.feedback_session.create'].output
+
+  it('accepts only a void command payload', () => {
+    expect(createFeedbackSession.safeParse(undefined).success).toBe(true)
+    expect(createFeedbackSession.safeParse({}).success).toBe(false)
+  })
+
+  it('returns only the created session id', () => {
+    expect(createFeedbackSessionResult.parse({ sessionId: 'feedback-session' })).toEqual({
+      sessionId: 'feedback-session'
+    })
+    expect(
+      createFeedbackSessionResult.safeParse({ sessionId: 'feedback-session', agentId: 'cherry-assistant' }).success
+    ).toBe(false)
   })
 })

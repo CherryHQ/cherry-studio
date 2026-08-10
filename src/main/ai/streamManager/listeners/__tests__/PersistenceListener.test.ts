@@ -94,6 +94,37 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     expect(messageId).toBe('assistant-message-id')
   })
 
+  it.each(['success', 'paused', 'error'] as const)('never persists retry status parts after %s', async (status) => {
+    const listener = makeListener()
+    const finalMessage = {
+      id: 'retry-message',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'data-retry',
+          id: 'retry',
+          data: { state: 'retrying', modelId: 'fallback-model', attempt: 2, reason: 'http 429' }
+        },
+        { type: 'text', text: 'answer' }
+      ]
+    } as unknown as CherryUIMessage
+
+    if (status === 'success') {
+      await listener.onDone({ finalMessage, status })
+    } else if (status === 'paused') {
+      await listener.onPaused({ finalMessage, status })
+    } else {
+      await listener.onError({
+        finalMessage,
+        status,
+        error: { name: 'Error', message: 'boom', stack: null }
+      })
+    }
+
+    const parts = appendAssistantMessageMock.mock.calls[0][1].data.parts as Array<{ type: string }>
+    expect(parts.some((part) => part.type === 'data-retry')).toBe(false)
+  })
+
   it('strips empty text/reasoning parts before the backend write', async () => {
     const listener = makeListener('openai::gpt-4o')
 
@@ -165,40 +196,6 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
 
     expect(appendAssistantMessageMock.mock.calls[0][1]).not.toHaveProperty('stats')
     expect(appendAssistantMessageMock.mock.calls[0][2]).toEqual({ runtimeTiming })
-  })
-
-  it('normalizes markdown citations before persisting successful assistant messages', async () => {
-    const listener = makeListener()
-    const finalMessage = {
-      id: 'msg-citations',
-      role: 'assistant',
-      parts: [
-        {
-          type: 'text',
-          text: [
-            '推荐选择：pandas + openpyxl [1][2]，EPPlus [9]。',
-            '',
-            '## 参考文献',
-            '',
-            '[1] Gazoni, E., & Clark, C. (2010). *openpyxl: A Python library*. https://openpyxl.readthedocs.io/',
-            '',
-            '[2] McKinney, W. (2010). *Data Structures for Statistical Computing in Python*.',
-            '',
-            '[9] EPPlus Software. (2009). *EPPlus: Create advanced Excel spreadsheets using .NET*. https://github.com/EPPlusSoftware/EPPlus'
-          ].join('\n')
-        }
-      ]
-    } as unknown as CherryUIMessage
-
-    await listener.onDone({ finalMessage, status: 'success' })
-
-    const payload = appendAssistantMessageMock.mock.calls[0][1]
-    const textPart = payload.data.parts[0]
-    expect(textPart.providerMetadata.cherry.references[0].content.results).toMatchObject([
-      { number: 1, url: 'https://openpyxl.readthedocs.io/' },
-      { number: 2, url: '' },
-      { number: 9, url: 'https://github.com/EPPlusSoftware/EPPlus' }
-    ])
   })
 
   it('multi-model filter: skips events from a different execution', async () => {
@@ -369,6 +366,28 @@ describe('PersistenceListener + MessageServiceBackend — failed persist recover
     expect(messageUpdateMock).toHaveBeenLastCalledWith('assistant-1', { status: 'error' })
   })
 
+  it('retains frozen turn options when finalizing the assistant placeholder', async () => {
+    const listener = new PersistenceListener({
+      topicId: 'topic-1',
+      backend: new MessageServiceBackend({
+        assistantMessageId: 'assistant-1',
+        turnOptions: { reasoningEffort: 'high', fastMode: true }
+      })
+    })
+
+    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })
+
+    expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
+      data: {
+        parts: makeFinalMessage().parts,
+        turnOptions: { reasoningEffort: 'high', fastMode: true }
+      },
+      status: 'success',
+      runtimeStats: undefined
+    })
+    expect(messageUpdateMock).not.toHaveBeenCalled()
+  })
+
   it('swallows a failure of the terminal-error recovery write itself', async () => {
     messageFinalizeMock.mockImplementation(() => {
       throw new Error('db down')
@@ -412,13 +431,13 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
     messageFinalizeMock.mockReturnValue({ id: 'assistant-1' })
   })
 
-  it('persists only runtimeTiming and leaves usage/cost to the record projection', async () => {
+  it('persists runtimeTiming and contextTokens while leaving usage/cost to the record projection', async () => {
     const finalMessage = {
       id: 'msg-x',
       role: 'assistant',
       parts: [{ type: 'text', text: 'hi' }],
       metadata: {
-        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 }
+        stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15, contextTokens: 13 }
       }
     } as unknown as CherryUIMessage
 
@@ -440,7 +459,7 @@ describe('PersistenceListener + MessageServiceBackend — projection ownership',
     expect(messageFinalizeMock).toHaveBeenCalledWith('assistant-1', {
       data: { parts: [{ type: 'text', text: 'hi' }] },
       status: 'success',
-      runtimeStats: { runtimeTiming }
+      runtimeStats: { runtimeTiming, contextTokens: 13 }
     })
     expect(messageUpdateMock).not.toHaveBeenCalled()
   })

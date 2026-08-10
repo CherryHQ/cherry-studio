@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -138,6 +138,15 @@ function seedLegacyAgentsDb(databasePath: string): void {
       '2026-07-22T02:00:00.000Z',
       '2026-07-22T02:00:01.000Z'
     )
+    insertMessage.run(
+      4,
+      LEGACY_SESSION_ID,
+      'assistant',
+      JSON.stringify({ parts: [{ type: 'text', text: 'message without a Claude session' }] }),
+      '',
+      '2026-07-22T03:00:00.000Z',
+      '2026-07-22T03:00:01.000Z'
+    )
   } finally {
     database.close()
   }
@@ -196,7 +205,7 @@ describe('AgentsMigrator Claude session cache integration', () => {
     await Promise.all(tempRoots.splice(0).map((tempRoot) => rm(tempRoot, { recursive: true, force: true })))
   })
 
-  it('migrates every distinct Claude session referenced by one Agent session to its new cwd cache', async () => {
+  it('migrates every valid Claude session when a later message has an empty resume token', async () => {
     vi.useFakeTimers()
     vi.setSystemTime('2026-09-30T00:00:00.000Z')
     const { legacyAgentDbFile, legacyProjectDirectory, claudeProjectsDir, agentSystemWorkspacesDir, context } =
@@ -250,13 +259,16 @@ describe('AgentsMigrator Claude session cache integration', () => {
     expect(workspace.type).toBe('system')
     expect(workspace.path).toBe(path.join(agentSystemWorkspacesDir, '2026-07-22', session.id))
     expect(messages.map((message) => message.runtimeResumeToken).sort()).toEqual(
-      [CLAUDE_SESSION_IDS[0], CLAUDE_SESSION_IDS[0], CLAUDE_SESSION_IDS[1]].sort()
+      [CLAUDE_SESSION_IDS[0], CLAUDE_SESSION_IDS[0], CLAUDE_SESSION_IDS[1], ''].sort()
     )
+    // The shared v1 workspace content is materialized only into the latest
+    // session; the older session keeps an empty system workspace (issue #17830).
+    expect(await readFile(path.join(workspace.path, 'workspace.txt'), 'utf8')).toBe('legacy workspace')
     const [oldWorkspace] = await dbh.db
       .select()
       .from(agentWorkspaceTable)
       .where(eq(agentWorkspaceTable.id, oldSession.workspaceId))
-    expect(await readFile(path.join(oldWorkspace.path, 'workspace.txt'), 'utf8')).toBe('legacy workspace')
+    expect(await readdir(oldWorkspace.path)).toEqual([])
 
     const migratedProjectDirectory = path.join(
       claudeProjectsDir,
@@ -302,7 +314,8 @@ describe('AgentsMigrator Claude session cache integration', () => {
     expect(messages.map((message) => message.runtimeResumeToken)).toEqual([
       CLAUDE_SESSION_IDS[0],
       CLAUDE_SESSION_IDS[0],
-      CLAUDE_SESSION_IDS[1]
+      CLAUDE_SESSION_IDS[1],
+      ''
     ])
     expect(await readFile(path.join(workspace.path, 'workspace.txt'), 'utf8')).toBe('legacy workspace')
 

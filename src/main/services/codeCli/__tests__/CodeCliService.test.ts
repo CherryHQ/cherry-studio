@@ -546,7 +546,7 @@ describe('CodeCliService', () => {
       const launchArgs = (launchCall[1] ?? []).join(' ')
       const launchEnv = launchCall[2]?.env as Record<string, string>
       expect(launchArgs).toContain(
-        "PATH='\\''/mock/binary-data/shims:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'\\''"
+        "PATH='\\''/mock/binary-data/shims:/mock/binary-data:/usr/local/$(touch /tmp/pwn):`whoami`:$HOME:/usr/bin'\\''"
       )
       expect(launchArgs).toContain("MISE_DATA_DIR='\\''/mock/binary-data'\\''")
       expect(launchArgs).toContain('for _cherry_mise_key in $(env | sed -n')
@@ -672,7 +672,7 @@ describe('CodeCliService', () => {
       }
     })
 
-    it('appends the bundled MinGit dir to a managed launch PATH tail (#16402)', async () => {
+    it('includes cherry.bin and appends the bundled MinGit dir to a managed launch PATH tail (#16402)', async () => {
       // Regression (PR #16402 review): the launch env must carry the bundled
       // git dir at the very tail so a terminal-launched CLI resolves a bare
       // `git` on a machine without system git, while any real git ahead wins.
@@ -694,6 +694,7 @@ describe('CodeCliService', () => {
 
         expect(result.success).toBe(true)
         const spawnEnv = (vi.mocked(spawn).mock.calls.at(-1)![2] as { env: Record<string, string> }).env
+        expect(spawnEnv.Path.split(';')).toContain('/mock/binary-data')
         expect(spawnEnv.Path.split(';').at(-1)).toBe(gitDir)
         expect(spawnEnv.Path).toContain('C:\\Windows\\System32')
         // The bat rewrites PATH inside the terminal, so the tail must be in the
@@ -808,6 +809,44 @@ describe('CodeCliService', () => {
       expect(launch![2]).toMatchObject({ shell: false, detached: true })
     })
 
+    it('uses xdg-terminal-exec to respect the configured default terminal', async () => {
+      const spawn = await mockLinuxSpawn(['xdg-terminal-exec', 'gnome-terminal'])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/my project'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch?.[0]).toBe('xdg-terminal-exec')
+      expect(launch?.[1]).toEqual([
+        '--dir=/home/me/my project',
+        '--',
+        'bash',
+        '-c',
+        expect.stringContaining('clear && ')
+      ])
+    })
+
+    it('prefers x-terminal-emulator over xterm', async () => {
+      const spawn = await mockLinuxSpawn(['x-terminal-emulator', 'xterm'])
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'login-flow',
+        cliTool: CodeCli.CLAUDE_CODE,
+        directory: '/home/me/proj'
+      })
+
+      expect(result.success).toBe(true)
+      const launch = vi.mocked(spawn).mock.calls.at(-1)
+      expect(launch?.[0]).toBe('x-terminal-emulator')
+      expect(launch?.[1]).toEqual(['-e', 'bash', '-c', expect.stringContaining("cd '/home/me/proj' && clear && ")])
+    })
+
     it('reports a failed launch when the terminal process errors at spawn', async () => {
       const { spawn } = await import('child_process')
       vi.mocked(spawn).mockImplementation(((cmd: string) => {
@@ -895,6 +934,20 @@ describe('CodeCliService', () => {
       })
 
       expect(result).toEqual({ success: false, message: 'Model is required for claude-code' })
+    })
+
+    it('requires a provider for a normal Pi launch', async () => {
+      const { codeCliService } = await loadModules()
+
+      const result = await codeCliService.run({
+        mode: 'normal',
+        cliTool: CodeCli.PI,
+        model: 'gpt-5',
+        providerId: '',
+        directory: '/tmp/project'
+      })
+
+      expect(result).toEqual({ success: false, message: 'Provider ID is required for pi' })
     })
 
     it('exempts the Claude login flow from the provider/model requirement', async () => {

@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { FileEntrySchema } from '@shared/data/types/file'
 import type { FileMetadata } from '@shared/data/types/legacyFile'
@@ -31,6 +32,14 @@ import { getAllMigrators } from '../migratorRegistry'
 
 const MOCK_USER_DATA = '/mock/userData'
 
+/**
+ * The path the migrator will actually probe for a given storage name. Built with `path.join`
+ * exactly as the production code does, so an `fs.existsSync` mock keyed on it matches on win32
+ * too — a hand-written `/`-joined string silently never matches there, which would leave the
+ * cross-platform cases below asserting nothing on the one platform they exist for.
+ */
+const storagePath = (storageName: string) => path.join(MOCK_USER_DATA, 'Data', 'Files', storageName)
+
 function makeInternalRow(overrides: Partial<FileMetadata> = {}): FileMetadata {
   return {
     id: '550e8400-e29b-41d4-a716-446655440000',
@@ -60,6 +69,22 @@ const FIXTURE_WINDOWS_ROW: FileMetadata = {
   type: 'image',
   created_at: '2025-03-13T13:34:04.480Z',
   count: 1
+}
+
+// Same cross-platform restore, but the row was written by v1's duplicate-upload path
+// (FileStorage.findDuplicateFile): `name` gained a second extension and `origin_name` was
+// overwritten with the storage name. `{id}.png.png` does not exist on disk, so trusting `name`
+// makes both internal checks fail and strands the physical file for the FS orphan sweep.
+const FIXTURE_DEDUP_WINDOWS_ROW: FileMetadata = {
+  id: '22222222-2222-4222-8222-222222222222',
+  name: '22222222-2222-4222-8222-222222222222.png.png',
+  origin_name: '22222222-2222-4222-8222-222222222222.png',
+  path: 'C:\\Users\\testuser\\AppData\\Roaming\\CherryStudio\\Data\\Files\\22222222-2222-4222-8222-222222222222.png',
+  size: 442074,
+  ext: '.png',
+  type: 'image',
+  created_at: '2025-03-13T13:34:04.480Z',
+  count: 2
 }
 
 function createMockContext(rows: FileMetadata[], overrides: Record<string, unknown> = {}) {
@@ -644,7 +669,10 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
   })
 
   it('recovers a Windows-origin internal row on POSIX when the physical file is present', async () => {
-    vi.mocked(fs.existsSync).mockImplementation((p) => p === `${MOCK_USER_DATA}/Data/Files/${FIXTURE_WINDOWS_ROW.name}`)
+    // Probe the storage name rebuilt from id+ext, not `row.name`: the migrator no longer reads
+    // `name`, and asserting against it would leave this regression test blind to the deduped-row
+    // case below (where the two differ).
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(`${FIXTURE_WINDOWS_ROW.id}.png`))
     const { ctx, insertValues } = createMockContext([FIXTURE_WINDOWS_ROW])
     const m = new FileMigrator()
     await m.prepare(ctx as never)
@@ -670,6 +698,149 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
     const joined = (result.warnings ?? []).join('\n')
     expect(joined).toContain('Orphan file row')
     expect(joined).toContain(FIXTURE_WINDOWS_ROW.id)
+  })
+
+  it('recovers a deduped row whose double-extension name points at nothing', async () => {
+    // Core regression: before rebuilding the storage name from id+ext, both internal checks
+    // failed here (foreign-separator path, non-existent `{id}.png.png`) and the row was dropped.
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(`${FIXTURE_DEDUP_WINDOWS_ROW.id}.png`))
+    const { ctx, insertValues } = createMockContext([FIXTURE_DEDUP_WINDOWS_ROW])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).toHaveBeenCalled()
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.origin).toBe('internal')
+    expect(firstRow.size).toBe(442074)
+    expect((result.warnings ?? []).join('\n')).not.toContain('Orphan file row')
+  })
+
+  it('still skips the deduped row as orphan when no candidate exists on disk', async () => {
+    // The fix must not turn every row internal — absence still means orphan.
+    vi.mocked(fs.existsSync).mockReturnValue(false)
+    const { ctx, insertValues } = createMockContext([FIXTURE_DEDUP_WINDOWS_ROW])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).not.toHaveBeenCalled()
+    expect((result.warnings ?? []).join('\n')).toContain('Orphan file row')
+  })
+
+  it('locates an upload whose ext carries a trailing space', async () => {
+    // On POSIX the on-disk name really does keep the trailing space, so the canonical
+    // `{id}.exe` candidate misses it. Dropping the raw candidate would trade one data-loss
+    // bug for another.
+    const row = makeInternalRow({ id: '33333333-3333-4333-8333-333333333333', ext: '.exe ', path: 'D:\\legacy\\x.exe' })
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(`${row.id}.exe `))
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).toHaveBeenCalled()
+    expect((result.warnings ?? []).join('\n')).not.toContain('Orphan file row')
+  })
+
+  it('recovers a bad size from the rebuilt storage path', async () => {
+    const row = { ...FIXTURE_DEDUP_WINDOWS_ROW, size: 'big' } as unknown as FileMetadata
+    const physicalPath = storagePath(`${FIXTURE_DEDUP_WINDOWS_ROW.id}.png`)
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === physicalPath)
+    vi.mocked(fs.statSync).mockReturnValue({ size: 2048 } as never)
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.size).toBe(2048)
+    expect(vi.mocked(fs.statSync).mock.calls[0][0]).toBe(physicalPath)
+  })
+})
+
+// ─── Lost original filename (v1 duplicate-upload bug) ────────────────────────
+
+describe('FileMigrator lost original filename', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(fs.existsSync).mockReset()
+  })
+
+  it('warns that a deduped row lost its user-facing name and keeps the storage name', async () => {
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(`${FIXTURE_DEDUP_WINDOWS_ROW.id}.png`))
+    const { ctx, insertValues } = createMockContext([FIXTURE_DEDUP_WINDOWS_ROW])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const warnings = result.warnings ?? []
+    const joined = warnings.join('\n')
+    expect(joined).toContain('Original filename lost')
+    expect(joined).toContain(FIXTURE_DEDUP_WINDOWS_ROW.id)
+    // Exactly once. This migrator owns the global `files` row and is the sole producer of the
+    // diagnostic — `KnowledgeMappings` and `ChatMappings` stay quiet so the user does not get one
+    // notice per reference in the engine's concatenated, un-deduped warning list.
+    expect(warnings.filter((warning) => warning.includes('Original filename lost'))).toHaveLength(1)
+    // No better name exists — the id is what the file is now, and it matches its file on disk.
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.name).toBe(FIXTURE_DEDUP_WINDOWS_ROW.id)
+  })
+
+  it('stays quiet for a normal upload', async () => {
+    const { ctx } = createMockContext([makeInternalRow()])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+
+    expect((result.warnings ?? []).join('\n')).not.toContain('Original filename lost')
+  })
+
+  it('stays quiet for a base64 image, whose origin_name is the storage name by design', async () => {
+    // saveBase64Image writes origin_name === name === `{uuid}.png` with a dotless `ext`. Nothing
+    // was lost: a generated image never had a user filename. The predicate's number-one landmine.
+    const id = '44444444-4444-4444-8444-444444444444'
+    const row = makeInternalRow({
+      id,
+      name: `${id}.png`,
+      origin_name: `${id}.png`,
+      ext: 'png',
+      path: `C:\\Users\\testuser\\AppData\\Roaming\\CherryStudio\\Data\\Files\\${id}.png`
+    })
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(`${id}.png`))
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).toHaveBeenCalled()
+    expect((result.warnings ?? []).join('\n')).not.toContain('Original filename lost')
+  })
+
+  it('stays quiet for a normal upload referenced twice', async () => {
+    // v1 `count` is a reference count (two messages attaching one file), not an upload counter.
+    const { ctx } = createMockContext([makeInternalRow({ count: 2 })])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+
+    expect((result.warnings ?? []).join('\n')).not.toContain('Original filename lost')
+  })
+
+  it('warns for a deduped extensionless row', async () => {
+    const id = '55555555-5555-4555-8555-555555555555'
+    const row = makeInternalRow({ id, name: id, origin_name: id, ext: '', path: 'D:\\legacy\\README' })
+    vi.mocked(fs.existsSync).mockImplementation((p) => p === storagePath(id))
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.ext).toBeNull()
+    expect((result.warnings ?? []).join('\n')).toContain('Original filename lost')
   })
 })
 
@@ -785,12 +956,15 @@ describe('FileMigrator write/read validation invariant', () => {
     const prepared = (m as any).preparedEntries as Array<Record<string, unknown>>
     expect(prepared).toHaveLength(3)
     for (const e of prepared) {
+      expect(e.contentHash).toBeNull()
       const probe = FileEntrySchema.safeParse({
         id: e.id,
         origin: 'internal',
         name: e.name,
         ext: e.ext,
+        cleanupPolicy: e.cleanupPolicy,
         size: e.size,
+        contentHash: e.contentHash,
         createdAt: e.createdAt,
         updatedAt: e.updatedAt
       })

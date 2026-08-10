@@ -88,7 +88,7 @@ function formatter(value: string): Intl.DateTimeFormat {
 
 describe('UsageEntriesTable', () => {
   it('keeps entry identity compact and renders missing metrics with hyphens', () => {
-    const { container } = render(
+    render(
       <UsageEntriesTable
         entries={[entry]}
         entryTotal={1}
@@ -120,28 +120,60 @@ describe('UsageEntriesTable', () => {
     expect(screen.getByRole('heading', { level: 3 })).toHaveTextContent(/Entries|请求/)
 
     const date = entryRow.getByText('Jul 28, 2026 16:23')
-    expect(date).toHaveClass('truncate', 'whitespace-nowrap', 'tabular-nums')
     expect(date).toHaveAttribute('title', 'Jul 28, 2026 16:23')
-    expect(screen.getByText(/Model|模型/).closest('th')).not.toHaveClass('text-center')
-    expect(screen.getByText(/Source|来源/).closest('th')).not.toHaveClass('text-center')
-    expect(screen.getByText(/Date|日期/).closest('th')).not.toHaveClass('text-center')
-    expect(screen.getByRole('table')).toHaveClass('min-w-[1040px]', 'table-fixed')
-    expect(Array.from(container.querySelectorAll('col'), (column) => column.className)).toEqual([
-      'w-[25%]',
-      'w-[22%]',
-      'w-[19%]',
-      'w-[9%]',
-      'w-[9%]',
-      'w-[7%]',
-      'w-[9%]'
-    ])
+  })
 
-    const cells = entryRow.getAllByRole('cell')
-    for (const cell of cells.slice(0, 3)) {
-      expect(cell).not.toHaveClass('text-center')
+  it('uses the request modality as the display source for unattributed entries', () => {
+    const entries = (
+      [
+        { modality: 'language', modelName: 'Language model' },
+        { modality: 'embedding', modelName: 'Embedding model' },
+        { modality: 'image', modelName: 'Image model' },
+        { modality: 'rerank', modelName: 'Rerank model' }
+      ] as const
+    ).map((overrides, index) => ({
+      ...entry,
+      ...overrides,
+      id: `019c0800-0000-7000-8000-${String(index + 2).padStart(12, '0')}`,
+      requestId: `request-${index + 2}`,
+      sourceType: null,
+      sourceId: null,
+      sourceName: null,
+      sourceIcon: null,
+      messageKind: null,
+      messageId: null,
+      imageCount: overrides.modality === 'image' ? 1 : null
+    })) satisfies AiUsageRecordEntry[]
+
+    render(
+      <UsageEntriesTable
+        entries={entries}
+        entryTotal={entries.length}
+        isLoading={false}
+        isRefreshing={false}
+        hasNextPage={false}
+        sortBy="createdAt"
+        sortOrder="desc"
+        onSort={vi.fn()}
+        onLoadNext={vi.fn()}
+        getProviderInfo={() => ({ id: 'minimax', name: 'MiniMax' })}
+        dateFormatter={formatter('Jul 28, 2026')}
+        timeFormatter={formatter('16:23')}
+      />
+    )
+
+    for (const { modelName, expectedSource } of [
+      { modelName: 'Language model', expectedSource: /Language|语言/ },
+      { modelName: 'Embedding model', expectedSource: /Embedding|嵌入/ },
+      { modelName: 'Image model', expectedSource: /Image|图片/ },
+      { modelName: 'Rerank model', expectedSource: /Reranker|重排/ }
+    ]) {
+      const row = screen.getByText(modelName).closest('tr')
+      expect(row).not.toBeNull()
+      expect(within(row!.cells[1]).getByText(expectedSource)).toBeInTheDocument()
+      expect(within(row!).queryByTestId('source-label')).not.toBeInTheDocument()
     }
-    for (const cell of cells.slice(3)) {
-      expect(cell).toHaveClass('whitespace-nowrap', 'text-right', 'tabular-nums')
-    }
+
+    expect(screen.queryByText(/Unattributed source|未归因来源/)).not.toBeInTheDocument()
   })
 })

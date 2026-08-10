@@ -1,5 +1,5 @@
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { MiniAppRegion } from '@shared/data/types/miniApp'
+import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -122,6 +122,8 @@ export type UseCacheSchema = {
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
   'chat.web_search.searching': boolean
+  // Per-topic composer draft. Renderer memory only; app restart discards it.
+  'chat.composer_draft.${topicId}': CacheValueTypes.CacheChatComposerDraft
   // Message-list scroll position memory, keyed per topic / agent session.
   // `null` = follow the latest message (at bottom or never scrolled).
   'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
@@ -145,6 +147,8 @@ export type UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': Record<string, boolean>
+  // Per-session composer draft. Renderer memory only; app restart discards it.
+  'agent.composer_draft.${sessionId}': CacheValueTypes.CacheAgentComposerDraft
 
   // Translate page state management
   /** Input text */
@@ -204,6 +208,14 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
   'chat.web_search.searching': false,
+  'chat.composer_draft.${topicId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    mentionedModelIds: [],
+    modelMultiSelectMode: false
+  },
   'chat.scroll_anchor.${topicId}': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
@@ -221,6 +233,14 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Agent management
   'agent.session.waiting_id_map': {},
+  'agent.composer_draft.${sessionId}': {
+    text: '',
+    tokens: [],
+    files: [],
+    knowledgeBaseIds: [],
+    workspaceKey: '',
+    agentId: ''
+  },
 
   // Translate page state management
   'translate.input': '',
@@ -260,6 +280,9 @@ export type SharedCacheSchema = {
   'agent.session.api_retry.${sessionId}': CacheValueTypes.CacheAgentSessionApiRetryState
   'agent.session.context_usage.${sessionId}': CacheValueTypes.CacheAgentSessionContextUsage
   'agent.session.slash_commands.${sessionId}': CacheValueTypes.CacheAgentSessionSlashCommands
+  'agent.session.background_tasks.${sessionId}': CacheValueTypes.CacheAgentSessionBackgroundTasks
+  'agent.session.task_events.${sessionId}': CacheValueTypes.CacheAgentSessionTaskEvents
+  'agent.session.flow_parts.${sessionId}.${messageId}': CacheValueTypes.CacheAgentSessionFlowParts
   'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
   'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
@@ -282,6 +305,19 @@ export type SharedCacheSchema = {
   // active, then left to linger under a short TTL after the job exits so the
   // polled item status can reach its terminal state before the value vanishes.
   'knowledge.item.embedding_progress.${itemId}': number | null
+  // A mini app opened via `openSmartMiniApp` (OpenClaw's dashboard, the S3 help page,
+  // the release notes) has no database row, so `/app/mini-app/<id>` is unresolvable
+  // through DataApi. Publishing the descriptor here — not into the keep-alive list,
+  // which doubles as the per-window WebView LRU — makes it readable by every window
+  // and outlives any single window's eviction, so detaching such a tab and attaching
+  // it back both keep resolving. Memory-only: the URL can hold a session secret (the
+  // OpenClaw dashboard embeds the gateway auth token) and must not reach disk.
+  // Nothing evicts an entry — that is the point, and it costs a handful of rows per
+  // session. Null is the cache miss (see the `jobs.state` precedent above).
+  'mini_app.transient_descriptor.${appId}': TransientMiniApp | null
+  // Directory copy progress for a knowledge item, main -> all windows. Like
+  // embedding progress, the prepare job owns this runtime-only value.
+  'knowledge.item.directory_copy_progress.${itemId}': number | null
 }
 
 export const DefaultSharedCache: SharedCacheSchema = {
@@ -293,6 +329,9 @@ export const DefaultSharedCache: SharedCacheSchema = {
   'agent.session.api_retry.${sessionId}': null,
   'agent.session.context_usage.${sessionId}': null,
   'agent.session.slash_commands.${sessionId}': null,
+  'agent.session.background_tasks.${sessionId}': [],
+  'agent.session.task_events.${sessionId}': {},
+  'agent.session.flow_parts.${sessionId}.${messageId}': [],
   'topic.stream.statuses.${topicId}': null,
   'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
@@ -304,7 +343,9 @@ export const DefaultSharedCache: SharedCacheSchema = {
   // keys are populated by JobManager when actual jobs exist.
   'jobs.state.${jobId}': null,
   'jobs.progress.${jobId}': { progress: 0 },
-  'knowledge.item.embedding_progress.${itemId}': null
+  'knowledge.item.embedding_progress.${itemId}': null,
+  'mini_app.transient_descriptor.${appId}': null,
+  'knowledge.item.directory_copy_progress.${itemId}': null
 }
 
 /**
@@ -344,6 +385,7 @@ export type RendererPersistCacheSchema = {
   'ui.agent.session.expansion.agent': string[] | null
   'ui.agent.session.expansion.workdir': string[] | null
   'settings.provider.last_selected_provider_id': string | null
+  'settings.provider.filter_mode': 'all' | 'agent' | 'enabled' | 'disabled'
   // MCP marketplace "available servers" fetched per provider; re-fetchable, so cached not stored
   'feature.mcp.provider_available_servers': CacheValueTypes.McpAvailableServers
   'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
@@ -374,6 +416,7 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.agent.session.expansion.agent': null,
   'ui.agent.session.expansion.workdir': null,
   'settings.provider.last_selected_provider_id': null,
+  'settings.provider.filter_mode': 'all',
   'feature.mcp.provider_available_servers': {},
   'agent.open_external_app.last_used_target': null,
   'ui.emoji.recently_used': []

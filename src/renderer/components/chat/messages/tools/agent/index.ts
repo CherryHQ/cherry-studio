@@ -3,6 +3,7 @@ export { AgentExecutionTimeline, AgentToolRenderer } from './AgentExecutionTimel
 export { AskUserQuestionCard } from './AskUserQuestionCard'
 export { AskUserQuestionOptimisticInputProvider } from './AskUserQuestionOptimisticContext'
 export { MessageChannelConfigTool } from './MessageChannelConfigTool'
+export { isKnownNavigationPath, NavigateToolInline } from './NavigateTool'
 export { isReportArtifactsToolResponse, MessageReportArtifacts } from './ReportArtifacts'
 export { getTaskActiveText, getTaskId, getTaskTitle, isTaskRecord, normalizeTaskStatus } from './taskData'
 export { isValidAgentToolsType, renderTool, toolRenderers } from './toolRendererRegistry'

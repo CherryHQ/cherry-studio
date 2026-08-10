@@ -2,7 +2,7 @@
  * Path registry — single source of truth for all main-process paths.
  * See `./README.md` for naming conventions and namespace taxonomy.
  *
- * Default to `feature.*` for new keys; cherry/sys/app are effectively closed.
+ * Default to `feature.*` for active data; `v1.*` is cleanup-only.
  *
  * **File constraint**: No object literals besides the registry itself — the
  * ESLint rule `data-schema-key/valid-key` validates every string-keyed property.
@@ -12,10 +12,24 @@
 import os from 'node:os'
 import path from 'node:path'
 
+import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { app } from 'electron'
 
 import { CHERRY_HOME, LOGS_DIR } from './constants'
+
+const logger = loggerService.withContext('PathRegistry')
+
+type UserSystemPathName = 'desktop' | 'documents' | 'downloads'
+
+function getUserSystemPath(name: UserSystemPathName, fallback: string): string {
+  try {
+    return app.getPath(name)
+  } catch (error) {
+    logger.warn(`Failed to resolve system path '${name}', using fallback '${fallback}'`, error as Error)
+    return fallback
+  }
+}
 
 /**
  * Build the frozen path registry. Called once during preboot (after
@@ -29,6 +43,7 @@ import { CHERRY_HOME, LOGS_DIR } from './constants'
  */
 export function buildPathRegistry() {
   // Intermediate vars (primitives only — no object literals in this file).
+  const sysHome = os.homedir()
   const appUserData = app.getPath('userData')
   const appUserDataData = path.join(appUserData, 'Data')
   const appUserDataRuntime = path.join(appUserData, 'Runtime')
@@ -49,11 +64,11 @@ export function buildPathRegistry() {
     'cherry.config': path.join(CHERRY_HOME, 'config'),
 
     // -- B. sys.* — OS directories (prefer app.* or cherry.* for Cherry-owned paths) --
-    'sys.home': os.homedir(),
+    'sys.home': sysHome,
     'sys.temp': sysTemp, // OS-wide; prefer app.temp for Cherry-specific temp
-    'sys.downloads': app.getPath('downloads'),
-    'sys.documents': app.getPath('documents'),
-    'sys.desktop': app.getPath('desktop'),
+    'sys.downloads': getUserSystemPath('downloads', path.join(sysHome, 'Downloads')),
+    'sys.documents': getUserSystemPath('documents', path.join(sysHome, 'Documents')),
+    'sys.desktop': getUserSystemPath('desktop', path.join(sysHome, 'Desktop')),
     'sys.appdata': app.getPath('appData'), // OS root; use app.userdata for Cherry-owned
     'sys.appdata.autostart': path.join(app.getPath('appData'), 'autostart'), // Linux only
 
@@ -69,6 +84,7 @@ export function buildPathRegistry() {
     'app.crash_dumps': app.getPath('crashDumps'),
     'app.session': appSession,
     'app.session.cache': path.join(appSession, 'Cache'), // Chromium cache Directory
+    'app.session.webview': path.join(appSession, 'Partitions', 'webview'), // persist:webview Chromium partition
     'app.extra_resources': appExtraResources, // electron-builder extraResources output root
     'app.temp': appTemp, // Cherry-specific temp under sys.temp
     'app.userdata': appUserData, // Electron per-app data dir (Cherry-owned)
@@ -112,7 +128,7 @@ export function buildPathRegistry() {
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
 
     // Trace
-    'feature.trace': path.join(CHERRY_HOME, 'trace'),
+    'feature.trace': path.join(appUserDataRuntime, 'trace'),
 
     // OVMS (OpenVINO Model Server)
     'feature.ovms': path.join(CHERRY_HOME, 'ovms'),
@@ -130,6 +146,12 @@ export function buildPathRegistry() {
     'feature.agents.data': path.join(appUserDataData, 'Agents'), // per-agent identity + memory data
     'feature.agents.system_workspaces': path.join(appUserDataData, 'Agents', 'system'), // app-owned session workspaces
     'feature.agents.builtin': path.join(appRootResources, 'builtin-agents'), // bundled agent templates (read-only)
+    'feature.agents.assistant.manifest.file': path.join(
+      appRootResources,
+      'builtin-agents',
+      'cherry-assistant',
+      'product-manifest.json'
+    ),
 
     // Files / Notes / Knowledgebase
     'feature.files.data': path.join(appUserDataData, 'Files'),
@@ -160,9 +182,6 @@ export function buildPathRegistry() {
     // Protocol deep-link (Linux .desktop entry for cherrystudio:// scheme)
     'feature.protocol.desktop_entries': path.join(os.homedir(), '.local', 'share', 'applications'),
 
-    // CLI tools (code-cli) bun global install root ($BUN_INSTALL/install/global)
-    'feature.cli.install_global': path.join(CHERRY_HOME, 'install', 'global'),
-
     // Feature-owned temp dirs (all under app.temp)
     'feature.backup.temp': path.join(appTemp, 'backup'),
     'feature.cli.temp': path.join(appTemp, 'cli'),
@@ -174,7 +193,13 @@ export function buildPathRegistry() {
     // unique sub-directory under here.
     'feature.files.tempcopy.temp': path.join(appTemp, 'files-tempcopy'),
 
-    // -- E. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
+    // -- E. v1.* — old-version data, cleanup-only and never auto-created --
+    'v1.trace': path.join(CHERRY_HOME, 'trace'),
+    'v1.cli.install': path.join(CHERRY_HOME, 'install'),
+    'v1.database.file': path.join(appUserData, 'cherrystudio.sqlite'),
+    'v1.agents.claude': path.join(appUserData, '.claude'),
+
+    // -- F. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.openclaw.config': path.join(os.homedir(), '.openclaw'),
     // Nested ternary (not object literal) to satisfy file-level ESLint constraint
     'external.obsidian.config_file': isWin
@@ -212,6 +237,7 @@ const NO_ENSURE = [
   // Namespace prefixes
   'sys.',
   'external.',
+  'v1.',
   // Individual read-only keys (build artifacts)
   'app.root',
   'app.install',
@@ -220,9 +246,11 @@ const NO_ENSURE = [
   'app.root.resources',
   'app.root.resources.scripts',
   'app.root.resources.binaries',
+  'app.session.webview',
   'app.database.migrations',
   'feature.provider_registry.data',
   'feature.agents.builtin',
+  'feature.agents.assistant.manifest.file',
   'feature.agents.skills.builtin',
   // AgentSessionService stores this path through DataApi. The runtime creates
   // the concrete session directory later, keeping database writes filesystem-free.

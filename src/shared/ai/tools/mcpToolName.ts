@@ -114,16 +114,16 @@ function hashServerName(serverName: string): string {
 }
 
 /**
- * Builds a valid JavaScript function name for MCP tool calls.
+ * Builds the legacy name-based MCP tool id used by persisted source-policy
+ * rules and the Claude Code adapter. AI SDK catalog identities must use the
+ * main-process `buildMcpToolWireId`, which includes stable server identity.
+ *
  * Format: `mcp__{server}__{tool}` (camelCase), max 63 chars.
  *
  * When the untruncated name exceeds the cap the tail is dropped — and for long
- * server names the `__` delimiter and part of the server segment go with it,
- * which would let two distinct servers/tools mint the same id (breaking both
- * `filterServersByToolIds` and `scope.mcpToolIds` matching). In that case a
- * server-derived suffix (`_<hash(serverName)>`) is appended so the id stays
- * unique per server and remains attributable to it from the server name alone
- * (see `isFunctionCallToolNameForServer`).
+ * server names the `__` delimiter and part of the server segment go with it. A
+ * server-derived suffix (`_<hash(serverName)>`) keeps legacy ids deterministic
+ * and disambiguates long server display names.
  *
  * @example
  * buildFunctionCallToolName('github', 'search_issues') // 'mcp__github__searchIssues'
@@ -148,9 +148,13 @@ export type McpFunctionCallToolNameParts = {
 /**
  * Parse MCP tool-call names in the Claude/AI-SDK format:
  * `mcp__{server}__{tool}`.
+ *
+ * Callers feed this raw provider payloads, where a tool name typed as `string`
+ * can still be absent at runtime (see `ClaudeCodeStreamAdapter`), so a missing
+ * name parses as "not an MCP name" rather than throwing.
  */
-export function parseFunctionCallToolName(toolName: string): McpFunctionCallToolNameParts | null {
-  if (!toolName.startsWith('mcp__')) return null
+export function parseFunctionCallToolName(toolName: string | undefined): McpFunctionCallToolNameParts | null {
+  if (!toolName?.startsWith('mcp__')) return null
 
   const rest = toolName.slice('mcp__'.length)
   const delimiterIndex = rest.lastIndexOf('__')
@@ -160,24 +164,4 @@ export function parseFunctionCallToolName(toolName: string): McpFunctionCallTool
     serverPart: rest.slice(0, delimiterIndex),
     toolPart: rest.slice(delimiterIndex + 2)
   }
-}
-
-/**
- * Test whether a minted MCP function-call tool id (a `buildFunctionCallToolName`
- * output) belongs to `serverName`.
- *
- * Untruncated ids keep the disambiguating `mcp__{server}__` prefix and match by
- * prefix. Truncated ids carry the server-derived `_<hash(serverName)>` suffix
- * (see `buildFunctionCallToolName`); for those we recompute the suffix and
- * confirm the surviving body is a prefix-consistent slice of this server's id —
- * so two distinct servers sharing a long camelCase prefix no longer over-match.
- */
-export function isFunctionCallToolNameForServer(serverName: string, toolId: string): boolean {
-  const serverPart = toCamelCase(serverName)
-  if (toolId.startsWith(`mcp__${serverPart}__`)) return true
-  const suffix = `_${hashServerName(serverName)}`
-  if (!toolId.endsWith(suffix)) return false
-  const body = toolId.slice(0, toolId.length - suffix.length)
-  const serverCore = `mcp__${serverPart}`
-  return serverCore.startsWith(body) || body.startsWith(serverCore)
 }

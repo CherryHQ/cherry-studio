@@ -84,9 +84,11 @@ export const SelectedModelsTrigger = ({
   const canShowSelectionPopover = hasSelectionPopover && !suppressSelectionPopover
   const hasVisibleTriggerIcon = models.length > 0
 
-  const modelProviderNames = useMemo(() => {
-    return new Map(models.map((model) => [model.id, getProviderName(model, providers)]))
-  }, [models, providers])
+  const providerById = useMemo(() => new Map(providers.map((provider) => [provider.id, provider])), [providers])
+  const modelProviderNames = useMemo(
+    () => new Map(models.map((model) => [model.id, getProviderName(model, providers)])),
+    [models, providers]
+  )
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current) {
@@ -184,12 +186,12 @@ export const SelectedModelsTrigger = ({
 
   const content = (
     <div className="w-82 max-w-[calc(100vw-2rem)] text-popover-foreground" data-testid="selected-models-popover">
-      <div className="px-3 pt-2 pb-1 font-medium text-[11px] text-muted-foreground/80">{selectedModelsLabel}</div>
+      <div className="px-3 pt-2 pb-1 font-medium text-[11px] text-muted-foreground">{selectedModelsLabel}</div>
       {models.length > 0 ? (
         <Scrollbar className="max-h-64 overflow-x-hidden" data-testid="selected-models-list">
           {models.map((model) => {
             const providerName = modelProviderNames.get(model.id) ?? model.providerId
-            const tags = getModelDisplayTags(model)
+            const tags = getModelDisplayTags(model, undefined, providerById.get(model.providerId))
             const hasTags = tags.length > 0
             const hasRightMeta = model.contextWindow != null
 
@@ -207,19 +209,19 @@ export const SelectedModelsTrigger = ({
                   </div>
                   <div
                     className={cn(
-                      'mt-0.5 flex h-3.5 min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground/70 leading-3.5',
+                      'mt-0.5 flex h-3.5 min-w-0 items-center gap-1.5 text-[11px] text-foreground-tertiary leading-3.5',
                       !hasTags && 'invisible'
                     )}>
                     {hasTags ? <SelectedModelTags tags={tags} /> : null}
                   </div>
                 </div>
                 <div className="grid max-w-24 shrink-0 justify-items-end">
-                  <span className="h-4 max-w-24 truncate text-[11px] text-muted-foreground/70 leading-4">
+                  <span className="h-4 max-w-24 truncate text-[11px] text-foreground-tertiary leading-4">
                     {providerName}
                   </span>
                   <span
                     className={cn(
-                      'mt-0.5 h-3.5 max-w-24 truncate text-[11px] text-muted-foreground/55 leading-3.5',
+                      'mt-0.5 h-3.5 max-w-24 truncate text-[11px] text-foreground-tertiary leading-3.5',
                       !hasRightMeta && 'invisible'
                     )}>
                     {hasRightMeta ? t('models.selection.context_window', { count: model.contextWindow }) : null}
@@ -231,7 +233,7 @@ export const SelectedModelsTrigger = ({
                     variant="ghost"
                     size="icon-sm"
                     aria-label={t('models.selection.remove_model', { name: model.name })}
-                    className="size-4 min-h-4 shrink-0 rounded p-0 text-muted-foreground/40 shadow-none transition-colors hover:bg-accent hover:text-foreground focus-visible:opacity-100 [&_svg]:size-3"
+                    className="size-4 min-h-4 shrink-0 rounded p-0 text-muted-foreground shadow-none transition-colors hover:bg-accent hover:text-foreground focus-visible:opacity-100 [&_svg]:size-3"
                     onClick={handleRemove(model)}>
                     <X />
                   </Button>

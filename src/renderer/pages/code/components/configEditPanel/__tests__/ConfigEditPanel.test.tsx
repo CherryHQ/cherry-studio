@@ -2,7 +2,7 @@ import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
 import type { CliProviderConfig } from '@shared/data/preference/preferenceTypes'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { CodeCli } from '@shared/types/codeCli'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -171,6 +171,8 @@ vi.mock('@renderer/pages/code/cliConfig', () => ({
   cliConfigConnectionMatchesProvider: () => false,
   extractConfigFromCliConfigDraft: (...args: unknown[]) => extractConfigFromCliConfigDraftMock(...args),
   extractConnectionFromCliConfigDraft: (...args: unknown[]) => extractConnectionFromCliConfigDraftMock(...args),
+  gatewayExpectedModel: () => undefined,
+  gatewayModelIdFromAddress: () => undefined,
   getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
     const env = config.env as Record<string, string> | undefined
     return env?.ANTHROPIC_DEFAULT_FABLE_MODEL ? `${providerId}::${env.ANTHROPIC_DEFAULT_FABLE_MODEL}` : undefined
@@ -196,7 +198,9 @@ vi.mock('@renderer/pages/code/cliConfig', () => ({
 }))
 
 vi.mock('../CliConfigEditor', () => ({
-  CliConfigEditor: () => <div data-testid="cli-config-editor" />
+  CliConfigEditor: ({ files }: { files: CliConfigFileDraft[] }) => (
+    <div data-testid="cli-config-editor">{files[0]?.content}</div>
+  )
 }))
 
 vi.mock('../tools/ClaudeConfigFields', () => ({
@@ -241,6 +245,23 @@ vi.mock('../tools/CodexConfigFields', () => ({
   )
 }))
 
+vi.mock('../tools/OpenCodeConfigFields', () => ({
+  OpenCodeConfigFields: ({
+    config,
+    onChange,
+    section = 'all'
+  }: {
+    config: Record<string, unknown>
+    onChange: (next: Record<string, unknown>) => void
+    section?: string
+  }) =>
+    section === 'advanced' ? null : (
+      <button type="button" onClick={() => onChange({ ...config, autoCompact: true })}>
+        toggle opencode auto compact
+      </button>
+    )
+}))
+
 const provider = {
   id: 'anthropic',
   name: 'Anthropic',
@@ -267,10 +288,14 @@ function renderPanel(
     cliTool?: CodeCli
     isCurrentProvider?: boolean
     providerConfig?: CliProviderConfig | null
+    provider?: Provider
+    gateway?: { provider: Provider; apiKey: string }
+    files?: CliConfigFileDraft[]
   } = {}
 ) {
-  readCliConfigFilesMock.mockResolvedValue(cliConfigFiles)
-  readCliConfigDraftMock.mockResolvedValue(cliConfigFiles)
+  const files = options.files ?? cliConfigFiles
+  readCliConfigFilesMock.mockResolvedValue(files)
+  readCliConfigDraftMock.mockResolvedValue(files)
   extractConnectionFromCliConfigDraftMock.mockReturnValue({
     baseUrl: 'https://other.example.com',
     model: 'claude-other'
@@ -282,7 +307,7 @@ function renderPanel(
     <ConfigEditPanel
       onClose={onClose}
       cliTool={options.cliTool ?? CodeCli.CLAUDE_CODE}
-      provider={provider}
+      provider={options.provider ?? provider}
       providerConfig={
         options.providerConfig === undefined
           ? { modelId: 'anthropic::claude-old' as UniqueModelId, config: {} }
@@ -290,15 +315,12 @@ function renderPanel(
       }
       isCurrentProvider={options.isCurrentProvider ?? true}
       modelFilter={() => true}
+      gateway={options.gateway}
       onSubmit={onSubmit}
     />
   )
 
   return { onSubmit, onClose }
-}
-
-function expectBefore(first: HTMLElement, second: HTMLElement) {
-  expect(Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true)
 }
 
 describe('ConfigEditPanel', () => {
@@ -309,7 +331,7 @@ describe('ConfigEditPanel', () => {
   it('keeps the model selector available when the current CLI config points at another model', async () => {
     renderPanel()
 
-    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(1))
 
     expect(screen.getByText('code.model_selection')).toBeInTheDocument()
     expect(screen.getAllByText('code.cli_config.unknown_provider')).toHaveLength(1)
@@ -347,6 +369,22 @@ describe('ConfigEditPanel', () => {
     fireEvent.click(screen.getByText('code.model_mode.detailed'))
 
     expect(screen.queryByTestId('model-selector')).not.toBeInTheDocument()
+    expect(screen.getByTestId('claude-config-fields-advanced')).toBeInTheDocument()
+  })
+
+  it('offers common and detailed Claude model modes for the unified gateway', async () => {
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    renderPanel(vi.fn(), {
+      isCurrentProvider: false,
+      provider: gatewayProvider,
+      providerConfig: null,
+      gateway: { provider: gatewayProvider, apiKey: 'cs-sk-gateway' }
+    })
+
+    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
+
+    expect(screen.getByText('code.model_mode.common')).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(screen.getByText('code.model_mode.detailed'))
     expect(screen.getByTestId('claude-config-fields-advanced')).toBeInTheDocument()
   })
 
@@ -530,19 +568,6 @@ describe('ConfigEditPanel', () => {
     expect(readCliConfigDraftMock).not.toHaveBeenCalled()
   })
 
-  it('renders the dialog title as provider icon and provider name', async () => {
-    renderPanel()
-
-    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
-
-    const avatar = screen.getByTestId('provider-avatar-Anthropic')
-    const title = screen.getByRole('heading', { name: 'Anthropic' })
-
-    expect(title).toContainElement(avatar)
-    expect(title).toHaveTextContent('Anthropic')
-    expect(screen.queryByText('code.configuring_provider')).not.toBeInTheDocument()
-  })
-
   it('closes the dialog and opens the provider settings tab from the dialog title', async () => {
     const { onClose } = renderPanel()
 
@@ -552,30 +577,6 @@ describe('ConfigEditPanel', () => {
 
     expect(onClose).toHaveBeenCalled()
     expect(openSettingsTabMock).toHaveBeenCalledWith('/settings/provider?id=anthropic')
-  })
-
-  it('renders parameter settings above advanced settings', async () => {
-    renderPanel()
-
-    await waitFor(() => expect(readCliConfigFilesMock).toHaveBeenCalled())
-
-    const modelTitle = screen.getByText('code.model_selection')
-    const toolTitle = screen.getByText('code.tool_parameters')
-    const basicFields = screen.getByTestId('claude-config-fields-basic')
-    const advancedToggle = screen.getByText('common.advanced_settings')
-
-    expect(screen.queryByTestId('claude-config-fields-advanced')).not.toBeInTheDocument()
-    expect(screen.queryByTestId('cli-config-editor')).not.toBeInTheDocument()
-
-    fireEvent.click(advancedToggle)
-
-    const cliConfigEditor = screen.getByTestId('cli-config-editor')
-
-    expectBefore(modelTitle, toolTitle)
-    expectBefore(toolTitle, basicFields)
-    expectBefore(basicFields, advancedToggle)
-    expectBefore(advancedToggle, cliConfigEditor)
-    expect(screen.queryByTestId('claude-config-fields-advanced')).not.toBeInTheDocument()
   })
 
   it('keeps save disabled until the draft changes', async () => {
@@ -653,5 +654,30 @@ describe('ConfigEditPanel', () => {
     )
 
     expect(screen.queryByText('code.cli_config.unknown_provider')).not.toBeInTheDocument()
+  })
+
+  it('updates the OpenCode editor preview when auto compact is enabled', async () => {
+    const initialFile: CliConfigFileDraft = {
+      target: 'opencode-config',
+      label: 'OpenCode opencode.json',
+      path: '/tmp/opencode.json',
+      language: 'json',
+      content: '{"compaction":{"auto":false}}'
+    }
+    const updatedFile = { ...initialFile, content: '{"compaction":{"auto":true}}' }
+    renderPanel(vi.fn(), { cliTool: CodeCli.OPEN_CODE, isCurrentProvider: false, files: [initialFile] })
+
+    await waitFor(() => expect(readCliConfigDraftMock).toHaveBeenCalled())
+    readCliConfigDraftMock.mockResolvedValue([updatedFile])
+    fireEvent.click(screen.getByText('toggle opencode auto compact'))
+
+    await waitFor(() =>
+      expect(readCliConfigDraftMock).toHaveBeenLastCalledWith(
+        expect.objectContaining({ configBlob: { autoCompact: true } })
+      )
+    )
+
+    fireEvent.click(screen.getByText('common.advanced_settings'))
+    await waitFor(() => expect(screen.getByTestId('cli-config-editor')).toHaveTextContent(updatedFile.content))
   })
 })

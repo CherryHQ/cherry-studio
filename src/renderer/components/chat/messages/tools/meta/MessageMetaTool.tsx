@@ -2,7 +2,7 @@ import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import type { ComponentPropsWithoutRef, FC } from 'react'
-import { memo, useEffect, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
@@ -239,11 +239,18 @@ const ToolExecBody: FC<{ toolResponse: NormalToolResponse }> = ({ toolResponse }
   const { highlightCode } = useCodeStyle()
   const [highlighted, setHighlighted] = useState<string>('')
 
+  // Tracks the inputs of the last completed highlight so an <Activity> re-show
+  // (which re-runs this effect with unchanged inputs) skips the shiki pass.
+  const highlightedForRef = useRef<{ code: string; highlight: typeof highlightCode } | null>(null)
   useEffect(() => {
     if (!code) return
+    const last = highlightedForRef.current
+    if (last && last.code === code && last.highlight === highlightCode) return
     let cancelled = false
     void highlightCode(code, 'javascript').then((html) => {
-      if (!cancelled) setHighlighted(html)
+      if (cancelled) return
+      highlightedForRef.current = { code, highlight: highlightCode }
+      setHighlighted(html)
     })
     return () => {
       cancelled = true
@@ -328,7 +335,7 @@ const CollapseShell = ({ className, ...props }: ComponentPropsWithoutRef<typeof 
   <ToolDisclosure
     variant="light"
     className={[
-      'border-none [--status-color-error:color-mix(in_oklch,var(--foreground)_66.6667%,transparent)] [--status-color-invoking:var(--primary)] [--status-color-success:var(--primary)] [--status-color-warning:var(--warning)]',
+      'border-none [--status-color-error:var(--muted-foreground)] [--status-color-invoking:var(--primary)] [--status-color-success:var(--primary)] [--status-color-warning:var(--warning)]',
       className
     ]
       .filter(Boolean)
@@ -354,7 +361,7 @@ const TitleContent = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) 
 const ToolName = ({ className, ...props }: ComponentPropsWithoutRef<'span'>) => (
   <span
     className={[
-      'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-[13px] text-foreground-secondary transition-colors duration-150 group-hover/tool:text-foreground',
+      'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap font-normal text-[13px] text-muted-foreground transition-colors duration-150 group-hover/tool:text-foreground',
       className
     ]
       .filter(Boolean)
@@ -371,7 +378,7 @@ const CopyButton = ({ className, type = 'button', ...props }: ComponentPropsWith
   <button
     type={type}
     className={[
-      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-foreground-secondary opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-2',
+      'flex h-5 cursor-pointer items-center justify-center rounded border-none bg-transparent px-1 text-[11px] text-muted-foreground opacity-70 transition-all duration-200 hover:bg-accent hover:text-foreground hover:opacity-100 focus-visible:bg-accent focus-visible:text-foreground focus-visible:opacity-100 focus-visible:outline-none',
       className
     ]
       .filter(Boolean)
@@ -406,7 +413,7 @@ const ToolNameChip = ({ className, ...props }: ComponentPropsWithoutRef<'code'>)
 
 const NamespaceTitle = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
   <div
-    className={['text-foreground-secondary text-xs [&_small]:opacity-70', className].filter(Boolean).join(' ')}
+    className={['text-muted-foreground text-xs [&_small]:opacity-70', className].filter(Boolean).join(' ')}
     {...props}
   />
 )
@@ -440,7 +447,7 @@ const Highlighted = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) =
 )
 
 const Empty = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => (
-  <div className={['text-foreground-muted text-xs italic', className].filter(Boolean).join(' ')} {...props} />
+  <div className={['text-foreground-tertiary text-xs italic', className].filter(Boolean).join(' ')} {...props} />
 )
 
 export default memo(MessageMetaTool)

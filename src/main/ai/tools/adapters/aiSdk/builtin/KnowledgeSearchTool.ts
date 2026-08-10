@@ -20,6 +20,7 @@ import {
   knowledgeSearchModelOutput,
   searchKnowledge
 } from '../../../knowledgeLookup'
+import { makeEntitiesCodec } from '../../../outputCodec'
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
 
@@ -32,7 +33,6 @@ const kbSearchTool = tool({
   description: KNOWLEDGE_SEARCH_DESCRIPTION,
   inputSchema: kbSearchInputSchema,
   outputSchema: knowledgeSearchResultSchema,
-  strict: true,
   execute: async ({ query, baseIds }, options) => {
     const { request } = getToolCallContext(options)
     return searchKnowledge(query, baseIds, request.knowledgeBaseIds ?? [])
@@ -43,6 +43,11 @@ const kbSearchTool = tool({
 export function createKbSearchToolEntry(): ToolEntry {
   return {
     name: KB_SEARCH_TOOL_NAME,
+    // Entity codec instead of the blanket truncatable:false (same rationale as
+    // web_fetch): id/baseId/conceptId/title citation anchors ride the skeleton,
+    // so per-chunk `content` trimming loses nothing the model cites. Near a
+    // no-op at default thresholds — kb chunks are small.
+    codec: makeEntitiesCodec({ contentKey: 'content' }),
     namespace: 'kb',
     description: "Search the user's private knowledge base",
     defer: 'never',

@@ -76,9 +76,11 @@ const ActionButtonWithConfirm = ({
   tooltip?: ReactNode | false
 }) => {
   const disabled = !action.availability.enabled
+  const label = typeof action.label === 'string' ? action.label : undefined
   const button = (
     <MessageActionButton
       className="message-action-button"
+      aria-label={label}
       onClick={(e) => {
         e.stopPropagation()
         if (!action.confirm) {
@@ -102,6 +104,7 @@ const ActionButtonWithConfirm = ({
       {(open) => (
         <MessageActionButton
           className="message-action-button"
+          aria-label={label}
           onClick={(e) => {
             e.stopPropagation()
             open()
@@ -212,6 +215,7 @@ const TranslateMenuPopover = ({
               type: 'item' as const,
               id: item.key,
               label: item.label,
+              enabled: item.enabled,
               onSelect: () => {
                 void item.onSelect()
               }
@@ -323,12 +327,19 @@ export function renderTranslateToolbarAction({
 
   if (translationItems.length === 0) return null
 
+  const handleMenuOpenChange = (open: boolean) => {
+    if (open) {
+      actionContext.actions.requestTranslationLanguages?.()
+    }
+    onMenuOpenChange?.(open)
+  }
+
   return (
     <TranslateToolbarAction
       action={action}
       translationItems={translationItems}
       softHoverBg={softHoverBg}
-      onMenuOpenChange={onMenuOpenChange}
+      onMenuOpenChange={handleMenuOpenChange}
     />
   )
 }

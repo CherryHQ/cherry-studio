@@ -1,6 +1,8 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ContextUsageSummary, getAgentContextUsageColor } from '@renderer/components/chat/agent/ContextUsageSummary'
+import { AgentContextUsageSummary } from '@renderer/components/chat/agent/AgentContextUsageSummary'
+import { ContextUsageMeter } from '@renderer/components/chat/contextUsage'
+import { useChatLayoutMode } from '@renderer/components/chat/layout/ChatLayoutModeContext'
 import {
   ConversationTopBarPortal,
   useConversationTopBarPortalLayout
@@ -22,6 +24,7 @@ import type { ComposerToolLauncher } from '@renderer/components/composer/toolLau
 import { getComposerToolConfig } from '@renderer/components/composer/tools/registry'
 import type { ToolContext } from '@renderer/components/composer/tools/types'
 import NewConversationIcon from '@renderer/components/icons/NewConversationIcon'
+import { McpLogo } from '@renderer/components/icons/SvgIcon'
 import {
   type QuickPanelInputAdapter,
   type QuickPanelListItem,
@@ -29,17 +32,15 @@ import {
 } from '@renderer/components/QuickPanel'
 import { openResourceEditDialog, ResourceEditDialogEventHost } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import { useAgent, useUpdateAgent } from '@renderer/hooks/agent/useAgent'
+import { useUpdateAgent } from '@renderer/hooks/agent/useAgent'
 import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { useAgentSessionCompaction } from '@renderer/hooks/agent/useAgentSessionCompaction'
 import { useAgentSessionContextUsage } from '@renderer/hooks/agent/useAgentSessionContextUsage'
 import { useAgentSessionSlashCommands } from '@renderer/hooks/agent/useAgentSessionSlashCommands'
-import { useAgentWorkspaceWarning } from '@renderer/hooks/agent/useAgentWorkspaceWarning'
-import { useSession, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
-import { useModelById } from '@renderer/hooks/useModel'
 import { useAvailableSkills } from '@renderer/hooks/useSkills'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -48,12 +49,11 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { toast } from '@renderer/services/toast'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
-import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
+import { buildAgentFileWorkspaceKey, buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@renderer/utils/file/buildFileParts'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
-import { cn } from '@renderer/utils/style'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
@@ -62,11 +62,13 @@ import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts, withKnowledgeScopePart } from '@shared/data/types/uiParts'
 import type { OutputFor } from '@shared/ipc/types'
 import type { LocalSkill } from '@shared/types/skill'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
 import { type CanonicalFilePath, canonicalizeFilePath, createFilePathHandle, toFileUrl } from '@shared/utils/file'
-import { Cable, Settings2, Terminal, ToolCase } from 'lucide-react'
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Settings2, Terminal, ToolCase } from 'lucide-react'
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { excludeComposerDraftTokens } from '../composerDraft'
 import type { InputHistoryDirection } from '../inputHistoryNavigation'
 import { QueuedFollowupsDock } from '../QueuedFollowupsDock'
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
@@ -80,12 +82,13 @@ import {
 } from './agent/AgentConversationControls'
 import {
   type AgentComposerDraftCache,
+  type AgentComposerDraftCacheKey,
   getAgentDraftCacheKey,
-  getCacheableDraftTokens,
-  getCachedKnowledgeBases,
+  getAgentDraftTokens,
   getCachedSkillTokens,
   getSkillFromCachedToken,
   readAgentDraftCache,
+  type RestoredAgentComposerDraftCache,
   writeAgentDraftCache
 } from './agent/agentDraftCache'
 import { useAgentResourceMentionSource } from './agent/useAgentResourceMentionSource'
@@ -105,6 +108,7 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
+import { ComposerSpeedControl, resolveComposerReasoningEffort } from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -117,6 +121,10 @@ const logger = loggerService.withContext('AgentComposer')
 const AGENT_MANAGED_TOKEN_KINDS = [
   'file',
   'knowledge',
+  'skill'
+] as const satisfies readonly ComposerDraftToken['kind'][]
+const AGENT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE = [
+  'file',
   'skill'
 ] as const satisfies readonly ComposerDraftToken['kind'][]
 const AGENT_SKILLS_LAUNCHER_ID = 'agent-skills'
@@ -249,16 +257,30 @@ type AgentComposerSessionSnapshot = {
   workspaceId?: string | null
 }
 
+export interface AgentComposerSendBody {
+  agentId: string
+  sessionId: string
+  userMessageParts: ComposerQueuedMessagePayload['userMessageParts']
+  reasoningEffort?: ThinkingOption
+  fastMode?: boolean
+}
+
+export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
+
+export interface AgentComposerLaunchOptions {
+  initialDraft: Pick<AgentComposerDraftCache, 'text' | 'tokens'>
+  onSent?: () => void
+}
+
 type Props = {
   agentId: string
   sessionId: string
-  sessionOverride?: AgentComposerSessionSnapshot
-  resolvedAgent?: AgentEntity
-  resolvedModel?: Model
-  resolvedWorkspaceWarning?: string | null
+  sessionOverride: AgentComposerSessionSnapshot
+  resolvedAgent: AgentEntity | undefined
+  resolvedModel: Model | undefined
+  resolvedWorkspaceWarning: string | null
   externalContextControls?: boolean
-  sendMessage: (message?: { text: string }, options?: { body?: Record<string, unknown> }) => Promise<void>
-  captureLocalSendScrollEligibility?: () => void
+  sendMessage: (message?: { text: string }, options?: AgentComposerSendOptions) => Promise<void>
   stop: () => Promise<void>
   onCreateEmptySession?: () => void | Promise<unknown>
   onAgentChange?: (agentId: string | null) => void | Promise<void>
@@ -271,6 +293,7 @@ type Props = {
   isStreaming: boolean
   sendDisabled?: boolean
   compactWhenSingleLine?: boolean
+  launchOptions?: AgentComposerLaunchOptions
 }
 
 type AgentComposerRootProps = Props & {
@@ -286,9 +309,7 @@ const AgentComposerRoot = ({
   resolvedAgent,
   resolvedModel,
   resolvedWorkspaceWarning,
-  externalContextControls = false,
   sendMessage,
-  captureLocalSendScrollEligibility,
   stop,
   onCreateEmptySession,
   onAgentChange,
@@ -301,19 +322,62 @@ const AgentComposerRoot = ({
   isStreaming,
   sendDisabled = false,
   compactWhenSingleLine = false,
+  launchOptions,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false
 }: AgentComposerRootProps) => {
-  const { session: loadedSession } = useSession(sessionOverride ? null : sessionId)
-  const session = sessionOverride ?? loadedSession
-  const { agent: loadedAgent } = useAgent(externalContextControls || resolvedAgent ? null : agentId)
-  const agent = resolvedAgent ?? loadedAgent
-  const { model: loadedModel, isLoading: isModelLoading } = useModelById(
-    externalContextControls || resolvedModel ? null : agent?.model
-  )
-  const sessionModel = resolvedModel ?? loadedModel
+  const session = sessionOverride
+  const agent = resolvedAgent
+  const sessionModel = resolvedModel
   const actionsRef = useRef<ProviderActionHandlers>({ ...emptyActions })
+  // The seed sticks to its session so clearing `launchOptions` on send does not re-key the
+  // composer mid-send, and it is consumed once: a later scope change (switching the session
+  // workspace) must not re-inject the template over what the user has already written.
+  const launchIdentityRef = useRef({ sessionId, initialDraft: launchOptions?.initialDraft, consumed: false })
+  if (
+    launchIdentityRef.current.sessionId !== sessionId ||
+    (launchOptions && launchOptions.initialDraft !== launchIdentityRef.current.initialDraft)
+  ) {
+    launchIdentityRef.current = { sessionId, initialDraft: launchOptions?.initialDraft, consumed: false }
+  }
+  const launchInitialDraft = launchIdentityRef.current.initialDraft
+  // Persistence follows the live launch options, not the sticky seed: once the launch message is
+  // sent the session owns its draft again, so follow-ups are cached like any other session's.
+  const draftPersistenceEnabled = launchOptions === undefined
+  const composerInstanceKey = `${sessionId}:${launchInitialDraft === undefined ? 'default' : 'launch'}`
+  const resolvedWorkspaceId = workspaceId ?? session?.workspaceId ?? null
+  const workspaceKey = buildAgentFileWorkspaceKey(resolvedWorkspaceId, session?.workspace?.path)
+  const draftCacheKey = getAgentDraftCacheKey(sessionId)
+  const initialDraftRef = useRef<{
+    instanceKey: string
+    draft: RestoredAgentComposerDraftCache
+  } | null>(null)
+  const scopedComposerInstanceKey = `${composerInstanceKey}:${workspaceKey}`
+  if (initialDraftRef.current?.instanceKey !== scopedComposerInstanceKey) {
+    let draft: RestoredAgentComposerDraftCache
+    if (launchInitialDraft === undefined) {
+      draft = readAgentDraftCache(draftCacheKey, { workspaceKey, agentId })
+    } else {
+      // A launch draft is never cached, so a scope change (switching the session workspace)
+      // has to carry the live edits over itself — re-seeding the template would silently
+      // discard whatever the user has written into it. Files stay behind: they belong to the
+      // workspace being left.
+      const seed = launchIdentityRef.current.consumed ? actionsRef.current.getDraft() : launchInitialDraft
+      launchIdentityRef.current.consumed = true
+      draft = {
+        text: seed.text,
+        tokens: [...seed.tokens],
+        files: [],
+        knowledgeBaseIds: [],
+        workspaceKey,
+        agentId,
+        shouldValidateSkills: false
+      }
+    }
+    initialDraftRef.current = { instanceKey: scopedComposerInstanceKey, draft }
+  }
+  const { draft: initialDraft } = initialDraftRef.current
   const handleNewSessionShortcut = useCallback(() => {
     void onCreateEmptySession?.()
   }, [onCreateEmptySession])
@@ -341,26 +405,18 @@ const AgentComposerRoot = ({
   const initialState = useMemo(
     () => ({
       mentionedModels: [],
-      // Seeded synchronously, like files: the cached draft restores its knowledge chips, and the
-      // surface's managed-token sync strips any chip the selection does not already contain.
-      selectedKnowledgeBases: getCachedKnowledgeBases(readAgentDraftCache(getAgentDraftCacheKey(agentId))),
-      files: [] as ComposerAttachment[],
+      selectedKnowledgeBases: [],
+      files: initialDraft.files,
       isExpanded: false,
       couldAddImageFile: false,
       extensions: [] as string[]
     }),
-    // `sessionId` is load-bearing despite not appearing above: the provider below is keyed by agent +
-    // session and seeds this object once per mount, so it must be re-read in the same render that
-    // changes the key — otherwise the remounted provider replays the previous session's selection.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [agentId, sessionId]
+    [initialDraft]
   )
-
-  if (!session) return null
 
   return (
     <ComposerToolRuntimeProvider
-      key={`${agentId}:${sessionId}`}
+      key={scopedComposerInstanceKey}
       initialState={initialState}
       actions={{
         onTextChange: (updater) => actionsRef.current.onTextChange(updater),
@@ -369,17 +425,21 @@ const AgentComposerRoot = ({
         }
       }}>
       <AgentComposerInner
+        key={scopedComposerInstanceKey}
         agent={agent}
         model={sessionModel}
-        modelPending={!resolvedModel && (isModelLoading || (externalContextControls && sendDisabled))}
+        modelPending={!resolvedModel && sendDisabled}
         agentId={agentId}
         sessionId={sessionId}
+        initialDraft={initialDraft}
+        draftCacheKey={draftCacheKey}
+        draftPersistenceEnabled={draftPersistenceEnabled}
+        workspaceKey={workspaceKey}
         sessionData={sessionData}
         workspace={session?.workspace ?? null}
-        workspaceId={workspaceId ?? session?.workspaceId ?? null}
+        workspaceId={resolvedWorkspaceId}
         actionsRef={actionsRef}
         chatSendMessage={sendMessage}
-        captureLocalSendScrollEligibility={captureLocalSendScrollEligibility}
         chatStop={stop}
         onCreateEmptySession={onCreateEmptySession}
         onAgentChange={onAgentChange}
@@ -391,6 +451,7 @@ const AgentComposerRoot = ({
         isStreaming={isStreaming}
         sendDisabled={sendDisabled}
         compactWhenSingleLine={compactWhenSingleLine}
+        launchOptions={launchOptions}
         renderControls={renderControls}
         forceNarrowLayout={forceNarrowLayout}
         deferQuickPanel={deferQuickPanel}
@@ -412,12 +473,15 @@ interface InnerProps {
   modelPending?: boolean
   agentId: string
   sessionId: string
+  initialDraft: RestoredAgentComposerDraftCache
+  draftCacheKey: AgentComposerDraftCacheKey
+  draftPersistenceEnabled: boolean
+  workspaceKey: string
   sessionData?: ToolContext['session']
   workspace?: AgentConversationWorkspace | null
   workspaceId?: string | null
   actionsRef: React.MutableRefObject<ProviderActionHandlers>
   chatSendMessage: Props['sendMessage']
-  captureLocalSendScrollEligibility?: Props['captureLocalSendScrollEligibility']
   chatStop: Props['stop']
   onCreateEmptySession?: Props['onCreateEmptySession']
   onAgentChange?: Props['onAgentChange']
@@ -429,10 +493,11 @@ interface InnerProps {
   isStreaming: boolean
   sendDisabled: boolean
   compactWhenSingleLine: boolean
+  launchOptions?: AgentComposerLaunchOptions
   renderControls: AgentComposerControlsRenderer
   forceNarrowLayout?: boolean
   deferQuickPanel?: boolean
-  resolvedWorkspaceWarning?: string | null
+  resolvedWorkspaceWarning: string | null
 }
 
 function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessionId: string }) {
@@ -443,7 +508,7 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
   if (percentage === null || !usage) return null
 
   const isCompacting = compaction.status === 'compacting'
-  const ringColor = getAgentContextUsageColor(percentage)
+  const label = t('agent.right_pane.info.context_usage')
 
   return (
     <Tooltip
@@ -452,39 +517,46 @@ function AgentComposerContextUsage({ model, sessionId }: { model?: Model; sessio
       showArrow={false}
       classNames={{
         placeholder: 'inline-grid',
-        content: 'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md'
+        content:
+          'w-64 max-w-64 rounded-md border border-border bg-card p-3 text-card-foreground shadow-md dark:bg-card dark:text-card-foreground'
       }}
       content={
-        <ContextUsageSummary
+        <AgentContextUsageSummary
           usage={usage}
           percentage={percentage}
-          color={ringColor}
           isCompacting={isCompacting}
+          modelName={model?.name}
           showCategories={false}
         />
       }>
-      <span
-        aria-label={`${t('agent.right_pane.info.context_usage')} ${percentage}%`}
-        aria-busy={isCompacting || undefined}
-        className={cn(
-          'relative inline-grid size-5 shrink-0 place-items-center rounded-full bg-[conic-gradient(var(--context-usage-color)_var(--context-usage-progress),var(--border-subtle)_0)]',
-          isCompacting && 'animate-pulse'
-        )}
-        style={
-          {
-            '--context-usage-color': ringColor,
-            '--context-usage-progress': `${percentage}%`
-          } as React.CSSProperties
-        }>
-        <span aria-hidden className="absolute inset-[2px] rounded-full bg-card" />
-      </span>
+      <ContextUsageMeter
+        label={label}
+        percentage={percentage}
+        isBusy={isCompacting}
+        // The cached reading is only refreshed when a turn settles, so it goes stale mid-turn. Main
+        // throttles this and answers on the shared-cache key; a session with no live connection
+        // keeps showing its last reading.
+        onPointerEnter={() => {
+          void ipcApi.request('ai.agent.session.refresh_context_usage', { sessionId })
+        }}
+      />
     </Tooltip>
   )
 }
 
 function getContextUsageModelCandidates(model: Model | undefined): string[] | undefined {
   if (!model) return undefined
-  return [model.apiModelId, parseUniqueModelId(model.id).modelId].filter((value): value is string => Boolean(value))
+  const { providerId, modelId } = parseUniqueModelId(model.id)
+  const apiModelId = model.apiModelId ?? modelId
+  const candidates = [apiModelId, modelId]
+
+  try {
+    candidates.push(formatGatewayModelId(providerId, apiModelId))
+  } catch {
+    // Some models are intentionally not gateway-addressable; their direct ids remain valid candidates.
+  }
+
+  return candidates
 }
 
 type AgentComposerControlProps = Omit<
@@ -635,12 +707,15 @@ const AgentComposerInner = ({
   modelPending,
   agentId,
   sessionId,
+  initialDraft,
+  draftCacheKey,
+  draftPersistenceEnabled,
+  workspaceKey,
   sessionData,
   workspace,
   workspaceId,
   actionsRef,
   chatSendMessage,
-  captureLocalSendScrollEligibility,
   chatStop,
   onCreateEmptySession,
   onAgentChange,
@@ -652,12 +727,13 @@ const AgentComposerInner = ({
   isStreaming,
   sendDisabled,
   compactWhenSingleLine,
+  launchOptions,
   renderControls,
   forceNarrowLayout = false,
   deferQuickPanel = false,
   resolvedWorkspaceWarning
 }: InnerProps) => {
-  const { updateModel } = useUpdateAgent()
+  const { updateAgent, updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -668,6 +744,8 @@ const AgentComposerInner = ({
   const [enableSpellCheck] = usePreference('app.spell_check.enabled')
   const [fontSize] = usePreference('chat.message.font_size')
   const [narrowMode] = usePreference('chat.narrow_mode')
+  // Yield the same rail gutter as the message column so the composer stays aligned.
+  const { railGutterPx } = useChatLayoutMode()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const {
@@ -688,64 +766,145 @@ const AgentComposerInner = ({
     () => pinnedToolIds.map((id) => (id === 'skills' ? AGENT_SKILLS_LAUNCHER_ID : id)),
     [pinnedToolIds]
   )
-  const initialDraftRef = useRef<AgentComposerDraftCache | null>(null)
-  if (initialDraftRef.current === null) {
-    initialDraftRef.current = readAgentDraftCache(getAgentDraftCacheKey(agentId))
-  }
-
-  const [reasoningEffort, setReasoningEffort] = useState<ThinkingOption>('default')
-  const previousModelIdRef = useRef(model?.id)
+  const configuredReasoningEffort = agent?.configuration?.reasoning_effort ?? 'default'
+  const canonicalReasoningEffort = model
+    ? (resolveReasoningEffortForModel(model, configuredReasoningEffort) ?? 'default')
+    : configuredReasoningEffort
+  const [reasoningOverride, setReasoningOverride] = useState<{
+    agentId: string
+    value: ThinkingOption
+    version: number
+    canonicalAtMutationStart?: ThinkingOption
+  } | null>(null)
+  const reasoningMutationVersionRef = useRef(0)
+  const pendingReasoningEditRef = useRef<{
+    agentId: string
+    version: number
+    effort: ThinkingOption
+  } | null>(null)
+  const activeReasoningOverride =
+    reasoningOverride &&
+    reasoningOverride.agentId === agent?.id &&
+    (reasoningOverride.canonicalAtMutationStart === undefined ||
+      reasoningOverride.canonicalAtMutationStart === canonicalReasoningEffort)
+      ? reasoningOverride
+      : null
+  useEffect(() => {
+    if (
+      !reasoningOverride ||
+      reasoningOverride.agentId !== agent?.id ||
+      reasoningOverride.canonicalAtMutationStart === undefined ||
+      reasoningOverride.canonicalAtMutationStart === canonicalReasoningEffort
+    ) {
+      return
+    }
+    setReasoningOverride((current) => (current === reasoningOverride ? null : current))
+  }, [agent?.id, canonicalReasoningEffort, reasoningOverride])
+  const reasoningEffort = activeReasoningOverride?.value ?? canonicalReasoningEffort
+  const [fastMode, setFastMode] = useState(false)
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
-    getCachedSkillTokens(initialDraftRef.current?.tokens ?? []).map(getSkillFromCachedToken)
+    getCachedSkillTokens(initialDraft.tokens).map(getSkillFromCachedToken)
   )
-  const draftCacheKey = getAgentDraftCacheKey(agentId)
-  const [text, setTextState] = useState(() => initialDraftRef.current?.text ?? '')
-  const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraftRef.current?.tokens ?? [])
-  const textRef = useRef(text)
+  const [shouldValidateSkills, setShouldValidateSkills] = useState(initialDraft.shouldValidateSkills)
+  const [text, setTextState] = useState(() => initialDraft.text)
+  const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[]>(() => initialDraft.tokens)
   const draftTokensRef = useRef(draftTokens)
+  const knowledgeBaseIdsRef = useRef([...initialDraft.knowledgeBaseIds])
+  const observedKnowledgeBaseSelectionKeyRef = useRef<string | null>(
+    initialDraft.knowledgeBaseIds.length === 0 ? JSON.stringify([]) : null
+  )
+  const [isKnowledgeBaseDraftHydrated, setIsKnowledgeBaseDraftHydrated] = useState(
+    initialDraft.knowledgeBaseIds.length === 0
+  )
   const sessionTopicId = buildAgentSessionTopicId(sessionId)
   const accessiblePaths = sessionData?.accessiblePaths ?? EMPTY_ACCESSIBLE_PATHS
   const enableResourceMention = accessiblePaths.length > 0
   const userWorkspacePath = workspace?.type === 'user' ? workspace.path : undefined
-  const detectedWorkspaceWarning = useAgentWorkspaceWarning(userWorkspacePath, resolvedWorkspaceWarning === undefined)
-  const workspaceWarning =
-    resolvedWorkspaceWarning === null ? undefined : (resolvedWorkspaceWarning ?? detectedWorkspaceWarning)
-  const { skills: availableSkills, refresh: refreshAvailableSkills } = useAvailableSkills(agentId, userWorkspacePath)
-  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
+  const workspaceWarning = resolvedWorkspaceWarning ?? undefined
+  const quickPanel = useOptionalQuickPanel()
+  const rootPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.Root)
+  const skillsPanelVisible = Boolean(quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID)
+  const knowledgeBasePanelVisible = Boolean(
+    quickPanel?.isVisible && quickPanel.symbol === ComposerPanelSymbol.KnowledgeBase
+  )
+  const skillsDataEnabled =
+    selectedSkills.length > 0 ||
+    getAgentComposerTokenIds(draftTokens, 'skill').size > 0 ||
+    rootPanelVisible ||
+    skillsPanelVisible
+  const knowledgeBasesDataEnabled =
+    selectedKnowledgeBases.length > 0 ||
+    getAgentComposerTokenIds(draftTokens, 'knowledge').size > 0 ||
+    rootPanelVisible ||
+    knowledgeBasePanelVisible
+  const {
+    skills: availableSkills,
+    loading: isAvailableSkillsLoading,
+    error: availableSkillsError,
+    refresh: refreshAvailableSkills
+  } = useAvailableSkills(agentId, userWorkspacePath, { enabled: skillsDataEnabled })
+  const skillByFilename = useMemo(
+    () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
+    [availableSkills]
+  )
+  const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases({
+    enabled: knowledgeBasesDataEnabled
+  })
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
 
   useEffect(() => {
-    if (previousModelIdRef.current === model?.id) return
-    previousModelIdRef.current = model?.id
-    setReasoningEffort((current) => (model ? (resolveReasoningEffortForModel(model, current) ?? 'default') : 'default'))
-  }, [model])
+    if (model?.supportsFastMode !== true) setFastMode(false)
+  }, [model?.supportsFastMode])
 
   const setText = useCallback(
-    (nextText: string, options: { persist?: boolean } = {}) => {
+    (nextText: string) => {
       clearTimeoutTimer('agentComposerSendMessage')
-      textRef.current = nextText
       setTextState(nextText)
-      if (options.persist ?? true) {
-        writeAgentDraftCache(draftCacheKey, nextText, draftTokensRef.current)
-      }
     },
-    [clearTimeoutTimer, draftCacheKey]
+    [clearTimeoutTimer]
   )
+
+  useEffect(() => {
+    if (!shouldValidateSkills || isAvailableSkillsLoading || availableSkillsError) return
+
+    const draft = { text, tokens: draftTokens }
+    const validatedDraft = excludeComposerDraftTokens(draft, (token) => {
+      if (token.kind !== 'skill') return false
+      return !skillByFilename.has(getSkillFromCachedToken(token).filename)
+    })
+    if (validatedDraft !== draft) {
+      actionsRef.current.replaceDraft(validatedDraft)
+      setText(validatedDraft.text)
+      setDraftTokens(validatedDraft.tokens)
+      draftTokensRef.current = validatedDraft.tokens
+    }
+    setSelectedSkills(
+      getCachedSkillTokens(validatedDraft.tokens).flatMap((token) => {
+        const skill = skillByFilename.get(getSkillFromCachedToken(token).filename)
+        return skill ? [skill] : []
+      })
+    )
+    setShouldValidateSkills(false)
+  }, [
+    availableSkillsError,
+    draftTokens,
+    isAvailableSkillsLoading,
+    setText,
+    shouldValidateSkills,
+    skillByFilename,
+    text
+  ])
   const filesRef = useLatest(files)
   const selectedKnowledgeBasesRef = useLatest(selectedKnowledgeBases)
   const inputHistoryToolsRef = useRef<InputHistoryToolSnapshot | null>(null)
   const applyHistoryDraft = useCallback(
     (historyDraft: ComposerSerializedDraft, options: { source: 'history' | 'draft' }) => {
-      const nextDraftTokens = getCacheableDraftTokens(historyDraft.tokens)
-      const persistDraft = options.source === 'draft'
+      const nextDraftTokens = getAgentDraftTokens(historyDraft.tokens)
       actionsRef.current.replaceDraft(historyDraft)
-      setText(historyDraft.text, { persist: false })
+      setText(historyDraft.text)
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
-      if (persistDraft) {
-        writeAgentDraftCache(draftCacheKey, historyDraft.text, nextDraftTokens)
-      }
       setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
 
       if (options.source === 'history') {
@@ -767,7 +926,7 @@ const AgentComposerInner = ({
       setFiles(savedTools.files)
       setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
     },
-    [actionsRef, draftCacheKey, filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases, setText]
+    [actionsRef, filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases, setText]
   )
   const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
@@ -786,10 +945,6 @@ const AgentComposerInner = ({
   )
 
   useEffect(() => {
-    textRef.current = text
-  }, [text])
-
-  useEffect(() => {
     draftTokensRef.current = draftTokens
   }, [draftTokens])
 
@@ -806,9 +961,87 @@ const AgentComposerInner = ({
     scopeKey: selectedKnowledgeBasesScopeKey,
     selectedKnowledgeBases,
     setSelectedKnowledgeBases,
-    // The tool provider above is keyed by agent + session, so this hook remounts with the scope.
+    // The tool provider above is keyed by agent + session + workspace, so this hook remounts with the scope.
     remountsOnScopeChange: true
   })
+
+  useEffect(() => {
+    if (isKnowledgeBaseDraftHydrated || isKnowledgeBasesLoading) return
+
+    const wantedIds = new Set(initialDraft.knowledgeBaseIds)
+    const restoredIds = selectableKnowledgeBases.filter((base) => wantedIds.has(base.id)).map((base) => base.id)
+    observedKnowledgeBaseSelectionKeyRef.current = JSON.stringify(restoredIds)
+    restoreKnowledgeBaseSelection(initialDraft.knowledgeBaseIds)
+    setIsKnowledgeBaseDraftHydrated(true)
+  }, [
+    initialDraft.knowledgeBaseIds,
+    isKnowledgeBaseDraftHydrated,
+    isKnowledgeBasesLoading,
+    restoreKnowledgeBaseSelection,
+    selectableKnowledgeBases
+  ])
+
+  const persistedOnceRef = useRef(false)
+  useEffect(() => {
+    if (!draftPersistenceEnabled || isInputHistoryActive || !isKnowledgeBaseDraftHydrated) return
+    if (!persistedOnceRef.current) {
+      persistedOnceRef.current = true
+      return
+    }
+
+    const selectedKnowledgeBaseIds = selectedKnowledgeBasesInScope.map((base) => base.id)
+    const selectedKnowledgeBaseIdsKey = JSON.stringify(selectedKnowledgeBaseIds)
+    if (observedKnowledgeBaseSelectionKeyRef.current === null) {
+      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
+    } else if (observedKnowledgeBaseSelectionKeyRef.current !== selectedKnowledgeBaseIdsKey) {
+      observedKnowledgeBaseSelectionKeyRef.current = selectedKnowledgeBaseIdsKey
+      const selectableKnowledgeBaseIdSet = new Set(selectableKnowledgeBases.map((base) => base.id))
+      const unresolvedKnowledgeBaseIds = knowledgeBaseIdsRef.current.filter(
+        (id) => !selectableKnowledgeBaseIdSet.has(id)
+      )
+      knowledgeBaseIdsRef.current = [...new Set([...unresolvedKnowledgeBaseIds, ...selectedKnowledgeBaseIds])]
+    }
+    const draft = actionsRef.current.getDraft()
+    writeAgentDraftCache(draftCacheKey, {
+      text,
+      tokens: draft.tokens,
+      files,
+      knowledgeBaseIds: knowledgeBaseIdsRef.current,
+      workspaceKey,
+      agentId,
+      shouldValidateSkills
+    })
+  }, [
+    actionsRef,
+    agentId,
+    draftCacheKey,
+    draftPersistenceEnabled,
+    draftTokens,
+    files,
+    isInputHistoryActive,
+    isKnowledgeBaseDraftHydrated,
+    selectableKnowledgeBases,
+    selectedKnowledgeBasesInScope,
+    text,
+    workspaceKey,
+    shouldValidateSkills
+  ])
+
+  const persistFinalDraft = useEffectEvent(() => {
+    if (!draftPersistenceEnabled || isInputHistoryActive) return
+    writeAgentDraftCache(draftCacheKey, {
+      text,
+      tokens: draftTokensRef.current,
+      files: filesRef.current,
+      knowledgeBaseIds: knowledgeBaseIdsRef.current,
+      workspaceKey,
+      agentId,
+      shouldValidateSkills
+    })
+  })
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the latest draft; cleanup is keyed only by persistence/session/workspace.
+  useEffect(() => () => persistFinalDraft(), [draftCacheKey, draftPersistenceEnabled, workspaceKey])
+
   const tokens = useMemo(
     () => [
       ...files.map(agentFileToComposerToken),
@@ -816,10 +1049,6 @@ const AgentComposerInner = ({
       ...selectedSkills.map(agentSkillToComposerToken)
     ],
     [files, selectedKnowledgeBasesInScope, selectedSkills]
-  )
-  const skillByFilename = useMemo(
-    () => new Map(availableSkills.map((skill) => [skill.filename, skill])),
-    [availableSkills]
   )
   const resolveSkillMarker = useCallback(
     (marker: string): ComposerDraftToken | null => {
@@ -843,6 +1072,12 @@ const AgentComposerInner = ({
       actionsRef.current.focus('end')
     })
   }, [actionsRef, sessionTopicId])
+
+  useEffect(() => {
+    if (!launchOptions?.initialDraft) return
+    const frameId = window.requestAnimationFrame(() => actionsRef.current.focus('end'))
+    return () => window.cancelAnimationFrame(frameId)
+  }, [actionsRef, launchOptions?.initialDraft])
 
   const insertSkillToken = useCallback(
     (skill: LocalSkill, inputAdapter?: QuickPanelInputAdapter) => {
@@ -920,8 +1155,6 @@ const AgentComposerInner = ({
   // Keep an already-open skills submenu in sync once a refresh resolves — the launcher action opens
   // it with the current (possibly stale) closure, so an externally installed/removed skill would
   // otherwise only appear on the next open (mirrors the MCP status panel).
-  const quickPanel = useOptionalQuickPanel()
-  const skillsPanelVisible = quickPanel?.isVisible && quickPanel.symbol === AGENT_SKILLS_LAUNCHER_ID
   const updateQuickPanelList = quickPanel?.updateList
   useEffect(() => {
     if (!skillsPanelVisible || !updateQuickPanelList) return
@@ -957,12 +1190,48 @@ const AgentComposerInner = ({
 
   const handleModelSelect = useCallback(
     async (nextModel?: Model) => {
-      if (!canChangeModel || !nextModel || nextModel.id === model?.id) return
-      const updatedAgent = await updateModel(agentId, nextModel.id, { showSuccessToast: false })
-      if (!updatedAgent) return
-      setReasoningEffort((current) => resolveReasoningEffortForModel(nextModel, current) ?? 'default')
+      if (!agent || !canChangeModel || !nextModel || nextModel.id === model?.id) return
+
+      const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default'
+      const pendingReasoningEdit =
+        pendingReasoningEditRef.current?.agentId === agent.id ? pendingReasoningEditRef.current : null
+      const pendingReasoningEffort = pendingReasoningEdit ? { reasoningEffort: pendingReasoningEdit.effort } : {}
+      const previousReasoningOverride = activeReasoningOverride
+      const version = ++reasoningMutationVersionRef.current
+      setReasoningOverride({
+        agentId: agent.id,
+        value: nextReasoningEffort,
+        version
+      })
+
+      const updatedAgent = await updateModel(
+        { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffort },
+        { showSuccessToast: false }
+      )
+      if (!updatedAgent) {
+        setReasoningOverride((current) => {
+          if (current?.agentId !== agent.id || current.version !== version) return current
+          if (!previousReasoningOverride) return null
+
+          const previousEditStillPending =
+            pendingReasoningEditRef.current?.agentId === previousReasoningOverride.agentId &&
+            pendingReasoningEditRef.current.version === previousReasoningOverride.version
+          return previousEditStillPending || previousReasoningOverride.canonicalAtMutationStart !== undefined
+            ? previousReasoningOverride
+            : { ...previousReasoningOverride, canonicalAtMutationStart: canonicalReasoningEffort }
+        })
+        return
+      }
+      if (
+        pendingReasoningEdit &&
+        pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
+        pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
+      ) {
+        pendingReasoningEditRef.current = null
+      }
+      setReasoningOverride((current) => (current?.agentId === agent.id && current.version === version ? null : current))
     },
-    [agentId, canChangeModel, model?.id, updateModel]
+    [activeReasoningOverride, agent, canChangeModel, canonicalReasoningEffort, model?.id, reasoningEffort, updateModel]
   )
 
   const handleCreateEmptySession = useCallback(() => {
@@ -990,9 +1259,46 @@ const AgentComposerInner = ({
   }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const toolsSession = sessionData
-  const reasoningContext = useMemo(
-    () => ({ effort: reasoningEffort, onEffortChange: setReasoningEffort }),
-    [reasoningEffort]
+  const handleReasoningEffortChange = useCallback(
+    (option: ThinkingOption) => {
+      if (!agent) return
+
+      const canonicalAtMutationStart = canonicalReasoningEffort
+      const version = ++reasoningMutationVersionRef.current
+      pendingReasoningEditRef.current = { agentId: agent.id, version, effort: option }
+      setReasoningOverride({
+        agentId: agent.id,
+        value: option,
+        version
+      })
+
+      void updateAgent(
+        {
+          id: agent.id,
+          configuration: { reasoning_effort: option }
+        },
+        { showSuccessToast: false }
+      ).then((updatedAgent) => {
+        if (!updatedAgent) return
+
+        if (
+          pendingReasoningEditRef.current?.agentId === agent.id &&
+          pendingReasoningEditRef.current.version === version
+        ) {
+          pendingReasoningEditRef.current = null
+        }
+        setReasoningOverride((current) =>
+          current?.agentId === agent.id && current.version === version
+            ? {
+                ...current,
+                value: updatedAgent.configuration?.reasoning_effort ?? 'default',
+                canonicalAtMutationStart
+              }
+            : current
+        )
+      })
+    },
+    [agent, canonicalReasoningEffort, updateAgent]
   )
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
@@ -1001,10 +1307,9 @@ const AgentComposerInner = ({
   const reconcileTokens = useComposerTokenReconcile({ scope, model, session: toolsSession })
   const handleTokensChange = useCallback(
     (draftTokens: readonly ComposerSerializedToken[]) => {
-      const nextDraftTokens = getCacheableDraftTokens(draftTokens)
+      const nextDraftTokens = getAgentDraftTokens(draftTokens)
       setDraftTokens(nextDraftTokens)
       draftTokensRef.current = nextDraftTokens
-      writeAgentDraftCache(draftCacheKey, textRef.current, nextDraftTokens)
       reconcileTokens(draftTokens)
 
       const skillTokenIds = getAgentComposerTokenIds(draftTokens, 'skill')
@@ -1031,7 +1336,7 @@ const AgentComposerInner = ({
         return changed ? next : prev
       })
     },
-    [availableSkills, draftCacheKey, reconcileTokens]
+    [availableSkills, reconcileTokens]
   )
 
   const placeholderText = useMemo(
@@ -1044,7 +1349,10 @@ const AgentComposerInner = ({
       const payload = buildComposerQueuedPayload(draft, {
         files,
         fileTokenId: agentComposerTokenId.file,
-        extra: () => ({ reasoningEffort })
+        extra: () => ({
+          reasoningEffort: model ? resolveComposerReasoningEffort(model, reasoningEffort) : reasoningEffort,
+          ...(fastMode && model?.supportsFastMode === true ? { fastMode: true } : {})
+        })
       })
       if (!payload) return null
 
@@ -1057,12 +1365,11 @@ const AgentComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [files, reasoningEffort, selectedKnowledgeBasesInScope]
+    [fastMode, files, model, reasoningEffort, selectedKnowledgeBasesInScope]
   )
 
   const sendQueuedPayload = useCallback(
-    async (payload: ComposerQueuedMessagePayload, scrollEligibilityCaptured = false) => {
-      if (!scrollEligibilityCaptured) captureLocalSendScrollEligibility?.()
+    async (payload: ComposerQueuedMessagePayload) => {
       try {
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
@@ -1073,36 +1380,40 @@ const AgentComposerInner = ({
               agentId,
               sessionId,
               userMessageParts: [...payload.userMessageParts, ...fileParts],
-              reasoningEffort: payload.reasoningEffort
+              reasoningEffort: payload.reasoningEffort,
+              ...(payload.fastMode ? { fastMode: true } : {})
             }
           }
         )
         void EventEmitter.emit(EVENT_NAMES.SEND_MESSAGE, { topicId: sessionTopicId })
         saveHistory(getComposerHistoryText(payload.userMessageParts))
+        launchOptions?.onSent?.()
         return true
       } catch (error: unknown) {
         logger.warn('Failed to send message:', error as Error)
         return false
       }
     },
-    [
-      accessiblePaths,
-      agentId,
-      captureLocalSendScrollEligibility,
-      chatSendMessage,
-      saveHistory,
-      sessionId,
-      sessionTopicId
-    ]
+    [accessiblePaths, agentId, chatSendMessage, launchOptions, saveHistory, sessionId, sessionTopicId]
   )
 
   const clearCurrentDraft = useCallback(() => {
     setText('')
     setFiles([])
     setSelectedSkills([])
+    setShouldValidateSkills(false)
     setDraftTokens([])
     draftTokensRef.current = []
-    writeAgentDraftCache(draftCacheKey, '', [])
+    if (draftPersistenceEnabled) {
+      writeAgentDraftCache(draftCacheKey, {
+        text: '',
+        tokens: [],
+        files: [],
+        knowledgeBaseIds: knowledgeBaseIdsRef.current,
+        workspaceKey,
+        agentId
+      })
+    }
     setTimeoutTimer('agentComposerSendMessage', () => setText(''), 500)
     // Drop the input-history nav state so a recalled draft that gets sent/queued
     // does not leave useInputHistory pointing at it; otherwise the next
@@ -1110,7 +1421,16 @@ const AgentComposerInner = ({
     // from a stale index.
     resetHistoryIndex()
     inputHistoryToolsRef.current = null
-  }, [draftCacheKey, resetHistoryIndex, setFiles, setText, setTimeoutTimer])
+  }, [
+    agentId,
+    draftCacheKey,
+    draftPersistenceEnabled,
+    resetHistoryIndex,
+    setFiles,
+    setText,
+    setTimeoutTimer,
+    workspaceKey
+  ])
 
   // Queue mode (same as chat): while the session streams, follow-ups queue here and auto-drain on idle.
   const { isFulfilled: sessionFulfilled, markSeen: markSessionSeen } = useTopicStreamStatus(sessionTopicId)
@@ -1129,11 +1449,11 @@ const AgentComposerInner = ({
     onDrainFailed: () => toast.error(t('chat.input.send_failed'))
   })
 
-  // Edit a queued item = atomically restore the whole editor draft, then synchronize the persisted
-  // skill subset and managed file/knowledge/skill state before dropping it from the queue.
+  // Edit a queued item = atomically restore the whole editor draft, then synchronize live token
+  // state and the managed file/knowledge/skill selections before dropping it from the queue.
   const restoreFollowupDraft = useCallback(
     (item: FollowupQueueItem) => {
-      const nextDraftTokens = getCacheableDraftTokens(item.draft.tokens)
+      const nextDraftTokens = getAgentDraftTokens(item.draft.tokens)
       resetHistoryIndex()
       inputHistoryToolsRef.current = null
       actionsRef.current.replaceDraft(item.draft)
@@ -1143,8 +1463,10 @@ const AgentComposerInner = ({
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
+      handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
+      setFastMode(item.payload.fastMode === true)
     },
-    [actionsRef, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
+    [actionsRef, handleReasoningEffortChange, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
   )
 
   const handleSendDraft = useCallback(
@@ -1173,27 +1495,39 @@ const AgentComposerInner = ({
       const previousFiles = files
       const previousSkills = selectedSkills
       const previousDraftTokens = draftTokensRef.current
+      const previousShouldValidateSkills = shouldValidateSkills
 
-      captureLocalSendScrollEligibility?.()
       clearCurrentDraft()
-      const sent = await sendQueuedPayload(payload, true)
+      const sent = await sendQueuedPayload(payload)
       if (!sent) {
         clearTimeoutTimer('agentComposerSendMessage')
         setText(previousText)
         setFiles(previousFiles)
         setSelectedSkills(previousSkills)
+        setShouldValidateSkills(previousShouldValidateSkills)
         setDraftTokens(previousDraftTokens)
         draftTokensRef.current = previousDraftTokens
-        writeAgentDraftCache(draftCacheKey, previousText, previousDraftTokens)
+        if (draftPersistenceEnabled) {
+          writeAgentDraftCache(draftCacheKey, {
+            text: previousText,
+            tokens: previousDraftTokens,
+            files: previousFiles,
+            knowledgeBaseIds: knowledgeBaseIdsRef.current,
+            workspaceKey,
+            agentId,
+            shouldValidateSkills: previousShouldValidateSkills
+          })
+        }
         toast.error(t('chat.input.send_failed'))
       }
     },
     [
       buildQueuedPayload,
-      captureLocalSendScrollEligibility,
       clearTimeoutTimer,
       clearCurrentDraft,
+      agentId,
       draftCacheKey,
+      draftPersistenceEnabled,
       enqueueFollowup,
       files,
       isStreaming,
@@ -1203,7 +1537,9 @@ const AgentComposerInner = ({
       setFiles,
       setText,
       selectedSkills,
+      shouldValidateSkills,
       t,
+      workspaceKey,
       workspaceWarning
     ]
   )
@@ -1253,7 +1589,7 @@ const AgentComposerInner = ({
       {
         id: ComposerPanelSymbol.McpStatus,
         label: 'MCP',
-        icon: <Cable size={18} aria-hidden />,
+        icon: <McpLogo width={18} height={18} aria-hidden />,
         onSelect: ({ unifiedPanelControl }) =>
           unifiedPanelControl?.open({ launcherId: ComposerPanelSymbol.McpStatus, searchText: 'MCP' })
       }
@@ -1318,7 +1654,18 @@ const AgentComposerInner = ({
   })
 
   const sendAccessory: ComposerSurfaceProps['sendAccessory'] = (
-    <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    <>
+      {model ? (
+        <ComposerSpeedControl
+          model={model}
+          reasoningEffort={reasoningEffort}
+          fastMode={fastMode}
+          onReasoningEffortChange={handleReasoningEffortChange}
+          onFastModeChange={setFastMode}
+        />
+      ) : null}
+      <AgentComposerContextUsage model={model} sessionId={sessionId} />
+    </>
   )
 
   return (
@@ -1326,9 +1673,7 @@ const AgentComposerInner = ({
       couldAddImageFile={canAddImageFile}
       extensions={supportedExts}
       selectableKnowledgeBases={selectableKnowledgeBases}>
-      {model && (
-        <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} reasoning={reasoningContext} />
-      )}
+      {model && <ComposerToolRuntimeHost scope={scope} model={model} session={toolsSession} />}
       <ResourceEditDialogEventHost />
       <ComposerPinnedToolsProvider value={pinnedLauncherIds}>
         <ComposerSurface
@@ -1336,7 +1681,11 @@ const AgentComposerInner = ({
           onTextChange={handleTextChange}
           tokens={tokens}
           draftTokens={draftTokens}
-          managedTokenKinds={AGENT_MANAGED_TOKEN_KINDS}
+          managedTokenKinds={
+            isKnowledgeBaseDraftHydrated
+              ? AGENT_MANAGED_TOKEN_KINDS
+              : AGENT_MANAGED_TOKEN_KINDS_BEFORE_KNOWLEDGE_RESTORE
+          }
           onTokensChange={handleTokensChange}
           resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
           resolveSkillMarker={resolveSkillMarker}
@@ -1353,30 +1702,32 @@ const AgentComposerInner = ({
           onSendDraft={handleSendDraft}
           onPause={abortAgentSession}
           queueContent={
-            queuedFollowups.length > 0 ? (
-              <QueuedFollowupsDock
-                items={queuedFollowups}
-                paused={followupPaused}
-                onTogglePause={() => setFollowupPaused(!followupPaused)}
-                onSteer={async (id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  // Only drop the item once the send actually succeeds; a failed manual
-                  // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
-                  const sent = await sendQueuedPayload(item.payload)
-                  if (sent) removeFollowup(id)
-                  else toast.error(t('chat.input.send_failed'))
-                }}
-                onEdit={(id) => {
-                  const item = queuedFollowups.find((entry) => entry.id === id)
-                  if (!item) return
-                  restoreFollowupDraft(item)
-                  removeFollowup(id)
-                }}
-                onRemove={removeFollowup}
-                onReorder={reorderFollowups}
-              />
-            ) : undefined
+            <>
+              {queuedFollowups.length > 0 ? (
+                <QueuedFollowupsDock
+                  items={queuedFollowups}
+                  paused={followupPaused}
+                  onTogglePause={() => setFollowupPaused(!followupPaused)}
+                  onSteer={async (id) => {
+                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    if (!item) return
+                    // Only drop the item once the send actually succeeds; a failed manual
+                    // steer keeps it in the dock + toasts, matching the direct-send/auto-drain paths.
+                    const sent = await sendQueuedPayload(item.payload)
+                    if (sent) removeFollowup(id)
+                    else toast.error(t('chat.input.send_failed'))
+                  }}
+                  onEdit={(id) => {
+                    const item = queuedFollowups.find((entry) => entry.id === id)
+                    if (!item) return
+                    restoreFollowupDraft(item)
+                    removeFollowup(id)
+                  }}
+                  onRemove={removeFollowup}
+                  onReorder={reorderFollowups}
+                />
+              ) : undefined}
+            </>
           }
           supportedExts={supportedExts}
           setFiles={setFiles}
@@ -1388,6 +1739,7 @@ const AgentComposerInner = ({
           enableSpellCheck={enableSpellCheck}
           fontSize={fontSize}
           narrowMode={forceNarrowLayout || narrowMode}
+          railGutterPx={railGutterPx}
           onActionsChange={handleSurfaceActionsChange}
           isInputHistoryActive={isInputHistoryActive}
           onInputHistoryNavigate={handleInputHistoryNavigate}
@@ -1431,6 +1783,8 @@ const MissingAgentHomeComposerInner = ({
   const [fontSize] = usePreference('chat.message.font_size')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const [narrowMode] = usePreference('chat.narrow_mode')
+  // Yield the same rail gutter as the message column so the composer stays aligned.
+  const { railGutterPx } = useChatLayoutMode()
   const { available: topBarPortalAvailable, iconOnly: topBarPortalIconOnly } = useConversationTopBarPortalLayout()
   const { t } = useTranslation()
   const [text, setText] = useState('')
@@ -1444,12 +1798,9 @@ const MissingAgentHomeComposerInner = ({
   const handleAgentChange = useCallback(
     async (nextAgentId: string | null) => {
       if (!nextAgentId) return
-      if (text.trim().length > 0) {
-        writeAgentDraftCache(getAgentDraftCacheKey(nextAgentId), text, [])
-      }
       await onAgentChange?.(nextAgentId)
     },
-    [onAgentChange, text]
+    [onAgentChange]
   )
   const handleBlockedSend = useCallback(() => {
     toast.error(selectAgentMessage)
@@ -1502,6 +1853,7 @@ const MissingAgentHomeComposerInner = ({
         enableSpellCheck={enableSpellCheck}
         fontSize={fontSize}
         narrowMode={narrowMode}
+        railGutterPx={railGutterPx}
         onActionsChange={handleSurfaceActionsChange}
         getToolLaunchers={() => getLaunchers()}
         toolLaunchersVersion={toolLaunchersVersion}
@@ -1539,7 +1891,7 @@ export const MissingAgentHomeComposer = (props: MissingAgentHomeComposerProps) =
   )
 }
 
-// Composer state is agent-scoped, so switching agents must also reset the draft and tool runtime.
+// Agent changes reset the composer root; session/workspace isolation is owned by AgentComposerRoot.
 const AgentComposer = (props: Props) => {
   return (
     <AgentComposerRoot

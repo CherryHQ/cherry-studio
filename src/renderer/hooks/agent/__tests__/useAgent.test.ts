@@ -1,7 +1,5 @@
-import type * as UseCacheModule from '@data/hooks/useCache'
 import { useQuery } from '@data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
-import { MockCacheUtils } from '@test-mocks/renderer/CacheService'
 import { MockUseDataApiUtils, mockUseInvalidateCache } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -24,13 +22,6 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@data/hooks/useCache', async (importOriginal) => ({
-  // Real hook over the globally mocked cacheService — useAgentTools reads MCP
-  // tool caches through it (physically empty here → misses).
-  useSharedCacheSelector: (await importOriginal<typeof UseCacheModule>()).useSharedCacheSelector,
-  useCache: vi.fn().mockReturnValue(['agent-1', vi.fn()])
-}))
-
 describe('useAgent', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
@@ -45,6 +36,7 @@ describe('useAgent', () => {
 
     expect(result.current.agent).toBeUndefined()
     expect(mockUseQuery).toHaveBeenCalledWith('/agents/:agentId', expect.objectContaining({ enabled: false }))
+    expect(mockUseQuery).not.toHaveBeenCalledWith('/mcp-servers', expect.anything())
   })
 
   it('fetches agent when id is provided', () => {
@@ -64,6 +56,7 @@ describe('useAgent', () => {
 
     expect(result.current.agent).toBeDefined()
     expect(result.current.agent?.id).toBe('agent-1')
+    expect(result.current.agent).not.toHaveProperty('tools')
     expect(result.current.isLoading).toBe(false)
     expect(mockUseQuery).toHaveBeenCalledWith(
       '/agents/:agentId',
@@ -72,6 +65,7 @@ describe('useAgent', () => {
         swrOptions: expect.objectContaining({ keepPreviousData: false })
       })
     )
+    expect(mockUseQuery).not.toHaveBeenCalledWith('/mcp-servers', expect.anything())
   })
 
   it('parses configuration through AgentConfigurationSchema preserving known and unknown fields', () => {
@@ -80,7 +74,7 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      configuration: { avatar: '🤖' },
+      configuration: { avatar: '🤖', reasoning_effort: 'high' },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
@@ -90,6 +84,7 @@ describe('useAgent', () => {
 
     // Known field preserved; optional fields not explicitly set remain undefined
     expect(result.current.agent?.configuration?.avatar).toBe('🤖')
+    expect(result.current.agent?.configuration?.reasoning_effort).toBe('high')
     expect(result.current.agent?.configuration?.permission_mode).toBeUndefined()
     expect(result.current.agent?.configuration?.max_turns).toBeUndefined()
   })
@@ -100,9 +95,9 @@ describe('useAgent', () => {
       name: 'Test Agent',
       model: 'claude-3',
       type: 'claude-code',
-      // permission_mode/'invalid' fails enum check; env_vars/null fails record check.
+      // permission_mode/reasoning_effort 'invalid' fail enum checks; env_vars/null fails record check.
       // max_turns/200 is well-typed and must survive.
-      configuration: { permission_mode: 'invalid', env_vars: null, max_turns: 200 },
+      configuration: { permission_mode: 'invalid', reasoning_effort: 'invalid', env_vars: null, max_turns: 200 },
       createdAt: '2024-01-01T00:00:00Z',
       updatedAt: '2024-01-01T00:00:00Z'
     }
@@ -138,7 +133,6 @@ describe('useAgent', () => {
 describe('useAgents', () => {
   beforeEach(() => {
     MockUseDataApiUtils.resetMocks()
-    MockCacheUtils.resetMocks()
     vi.clearAllMocks()
     mockUseInvalidateCache.mockReturnValue(invalidateSpy)
   })
@@ -326,26 +320,61 @@ describe('useUpdateAgent', () => {
   })
 
   describe('updateModel', () => {
-    it('delegates to updateAgent with model field', async () => {
+    it('sends the model and pending reasoning selection as a narrow patch', async () => {
       const mockTrigger = vi.fn().mockResolvedValue({
         id: 'agent-1',
         name: 'A',
         model: 'anthropic::new-model',
         type: 'claude-code',
-        configuration: {},
+        configuration: { avatar: '🤖', reasoning_effort: 'default' },
         createdAt: '',
         updatedAt: ''
       })
       MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
 
       const { result } = renderHook(() => useUpdateAgent())
-      const updated = await act(async () => result.current.updateModel('agent-1', 'anthropic::new-model'))
+      const updated = await act(async () =>
+        result.current.updateModel({
+          agentId: 'agent-1',
+          modelId: 'anthropic::new-model',
+          reasoningEffort: 'high'
+        })
+      )
+
+      expect(mockTrigger).toHaveBeenCalledWith({
+        params: { agentId: 'agent-1' },
+        body: {
+          model: 'anthropic::new-model',
+          configuration: { reasoning_effort: 'high' }
+        }
+      })
+      expect(updated?.model).toBe('anthropic::new-model')
+    })
+
+    it('does not send configuration when only the model changed', async () => {
+      const mockTrigger = vi.fn().mockResolvedValue({
+        id: 'agent-1',
+        name: 'A',
+        model: 'anthropic::new-model',
+        type: 'claude-code',
+        configuration: { avatar: '🤖', reasoning_effort: 'default' },
+        createdAt: '',
+        updatedAt: ''
+      })
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agents/:agentId', mockTrigger)
+
+      const { result } = renderHook(() => useUpdateAgent())
+      await act(async () =>
+        result.current.updateModel({
+          agentId: 'agent-1',
+          modelId: 'anthropic::new-model'
+        })
+      )
 
       expect(mockTrigger).toHaveBeenCalledWith({
         params: { agentId: 'agent-1' },
         body: { model: 'anthropic::new-model' }
       })
-      expect(updated?.model).toBe('anthropic::new-model')
     })
   })
 })

@@ -1,20 +1,25 @@
 /**
  * Storage-agnostic terminal-event listener: filters by `modelId`, folds
- * errors into `finalMessage.parts`, carries message-owned runtime timing,
- * and delegates the write to a `PersistenceBackend`.
+ * errors into `finalMessage.parts`, carries message-owned runtime stats, and
+ * delegates the write to a `PersistenceBackend`.
  */
 
 import { loggerService } from '@logger'
 import { serializeError } from '@main/ai/utils/serializeError'
-import type { CherryMessagePart, CherryUIMessage, MessageRuntimeTiming } from '@shared/data/types/message'
+import type {
+  CherryMessagePart,
+  CherryUIMessage,
+  MessageRuntimeStatsInput,
+  MessageRuntimeTiming
+} from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 
-import { normalizeAssistantMessageCitations } from '../persistence/normalizeCitations'
 import {
   dropEmptyContentParts,
   finalizeInterruptedParts,
-  type PersistenceBackend
+  type PersistenceBackend,
+  stripTransientStatusParts
 } from '../persistence/PersistenceBackend'
 import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
 
@@ -89,24 +94,31 @@ export class PersistenceListener implements StreamListener {
       return
     }
 
-    const normalizedMessage =
-      status === 'success' && finalMessage ? normalizeAssistantMessageCitations(finalMessage) : finalMessage
-    // Strip empty text/reasoning parts so invisible (zero-height) message blocks
-    // are never written to storage. Applied for all statuses. The `normalizedMessage`
+    // Strip live-only status parts (e.g. data-retry), then empty
+    // text/reasoning parts so neither can reach storage. Applied for all
+    // statuses. The `finalMessage`
     // guard is for the typed-undefined error path (no finalMessage).
-    const finalMessageForPersistence = normalizedMessage
+    const finalMessageForPersistence = finalMessage
       ? {
-          ...normalizedMessage,
-          parts: finalizeInterruptedParts(dropEmptyContentParts(normalizedMessage.parts as CherryMessagePart[]), status)
+          ...finalMessage,
+          parts: finalizeInterruptedParts(
+            dropEmptyContentParts(stripTransientStatusParts(finalMessage.parts as CherryMessagePart[])),
+            status
+          )
         }
-      : normalizedMessage
+      : finalMessage
+    const contextTokens = finalMessageForPersistence?.metadata?.stats?.contextTokens
+    const runtimeStats: MessageRuntimeStatsInput = {
+      ...(runtimeTiming ? { runtimeTiming } : {}),
+      ...(typeof contextTokens === 'number' && Number.isFinite(contextTokens) ? { contextTokens } : {})
+    }
 
     try {
       await this.opts.backend.persistAssistant({
         finalMessage: finalMessageForPersistence,
         status,
         modelId: this.opts.modelId,
-        ...(runtimeTiming ? { runtimeStats: { runtimeTiming } } : {})
+        ...(Object.keys(runtimeStats).length > 0 ? { runtimeStats } : {})
       })
       logger.info('Assistant message persisted', {
         backend: this.opts.backend.kind,

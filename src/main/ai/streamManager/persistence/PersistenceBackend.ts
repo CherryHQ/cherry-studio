@@ -4,8 +4,8 @@
  * they write to; stream-manager only owns the generic contract.
  *
  * The listener attaches error parts, terminalizes interrupted parts, and
- * composes `MessageStats` before calling the backend — backends never
- * synthesise UIMessages or repeat projection logic.
+ * extracts message-owned runtime stats before calling the backend — backends
+ * never synthesise UIMessages or repeat projection logic.
  */
 
 import type { CherryMessagePart, CherryUIMessage, MessageRuntimeStatsInput } from '@shared/data/types/message'
@@ -22,6 +22,17 @@ const TERMINAL_TOOL_STATES: ReadonlySet<string> = new Set(['output-available', '
 function isToolPart(part: CherryMessagePart): boolean {
   const t = part.type
   return t.startsWith('tool-') || t === 'dynamic-tool'
+}
+
+/**
+ * Drop transient status parts that must never reach storage. `data-retry`
+ * (model retry/fallback status) is emitted live for the renderer but is not
+ * part of the assistant's answer, so it is stripped before persistence.
+ * Returns the same array reference when nothing was removed.
+ */
+export function stripTransientStatusParts(parts: CherryMessagePart[]): CherryMessagePart[] {
+  const filtered = parts.filter((part) => part.type !== 'data-retry')
+  return filtered.length === parts.length ? parts : filtered
 }
 
 export function finalizeInterruptedParts(

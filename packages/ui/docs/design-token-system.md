@@ -162,6 +162,7 @@ Product concepts that Shadcn does not define extend the same unprefixed public s
 --success-subtle
 --success-subtle-foreground
 --chat-user
+--resource-list-row-selected
 ```
 
 Naming grammar:
@@ -184,10 +185,10 @@ All product variables are stable, consumer-backed Cherry Studio semantics not co
 `CHERRY_PRODUCT_VARIABLE_TOKENS` is the explicit runtime allowlist. Tailwind exposure is a separate concern and
 does not change API stability.
 
-A product semantic should reference an existing foundation or official semantic when that dependency expresses
-its role. It may own a light/dark literal only when no foundation token represents the product-specific value,
-the role has concrete consumers, and the literal remains centralized in `product.css`. Literal ownership is not
-permission for consumers to hard-code the same value.
+A product semantic should reference an existing foundation, official semantic, or stable product semantic when
+that dependency expresses its role. It may own a light/dark literal only when no existing token represents the
+product-specific value, the role has concrete consumers, and the literal remains centralized in `product.css`.
+Literal ownership is not permission for consumers to hard-code the same value.
 
 Example:
 
@@ -235,9 +236,10 @@ authored CSS references the official or stable product variable directly. Existi
 palette utilities remain available during primitive cleanup, but new shared UI should prefer semantic utilities.
 
 Historical semantic and status utilities are exposed only by the frozen
-`COMPATIBILITY_SEMANTIC_COLOR_TOKENS` and `COMPATIBILITY_STATUS_COLOR_TOKENS` lists. Adding a variable to a
-foundation stylesheet does not create a Tailwind color automatically. These compatibility lists are shrink-only
-and must not be used as the registration path for new component APIs.
+`COMPATIBILITY_SEMANTIC_COLOR_TOKENS` and `COMPATIBILITY_STATUS_COLOR_TOKENS` lists. The remaining semantic
+entries support the unchanged shared Button contract and existing component-local active treatments; the status
+list is empty. Adding a variable to a foundation stylesheet does not create a Tailwind color automatically. These
+compatibility lists are shrink-only and must not be used as the registration path for new component APIs.
 
 ### 3.6 Internal ownership boundaries
 
@@ -329,9 +331,18 @@ with:
 
 ```text
 --background-subtle
+--foreground-tertiary
+--foreground-disabled
 --border-subtle
 --border-strong
+--border-selected
+--link
 ```
+
+Foreground roles use solid providers so their resolved foreground color does not change with the surface beneath
+them. Contrast still depends on the foreground/background pair and must be validated on every supported surface.
+`--link` is independent from `--primary` and uses the mode-aware product defaults `--cs-blue-600` in light mode and
+`--cs-blue-400` in dark mode.
 
 The feedback intents are:
 
@@ -358,11 +369,12 @@ sharing semantics.
 
 `CHERRY_PRODUCT_SURFACE_PAIRS` lists only product surfaces with a concrete shared foreground contract. Other
 background roles deliberately keep text ownership with the consuming component until repeated usage proves a
-shared pair. Stable product variables may depend on official Shadcn variables or foundations, but never on
-historical names.
+shared pair. Stable product variables may depend on official Shadcn variables, other stable product variables, or
+foundations, but never on historical names.
 
-Hover and active colors are component-state decisions. The shared contract does not multiply every intent into
-global `hover` and `active` variables.
+Hover and active colors are normally component-state decisions. The shared contract does not multiply every
+intent into global `hover` and `active` variables. A cross-surface product domain may expose named interaction
+states only after its repeated invariant and concrete consumers are established, as with ResourceList rows.
 
 Historical renderer values that represented content hierarchy, layered surfaces, interaction states, shell
 colors, or platform constants are not automatically product semantics. Exact official aliases use the official
@@ -462,11 +474,6 @@ The repository codemod reads this registry and parses CSS plus TS/TSX syntax bef
 idempotent, reports every non-`preserve` migration source, and changes only approved `exact` rules. Generated and
 canonical providers, contract fixtures, vendor files, and explicitly listed isolated local themes are excluded;
 contextual and review rules remain visible manual work.
-
-Run `pnpm styles:legacy-vars` for a strategy-labelled dry-run report, `pnpm styles:legacy-vars --fix` to apply exact
-replacements, or `pnpm styles:legacy-vars:strict` to fail when any non-preserved migration source remains. After a
-fix, contextual and review findings intentionally remain. Reporting and replacement share the same registry, so
-migration policy and the syntax-aware tooling do not maintain separate hard-coded inventories.
 
 ## 8. Governance
 

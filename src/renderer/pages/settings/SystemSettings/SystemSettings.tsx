@@ -88,7 +88,9 @@ const SystemSettings: FC = () => {
   const handleHardwareAccelerationChange = async (checked: boolean) => {
     const confirmed = await popup.confirm({
       title: t('settings.hardware_acceleration.confirm.title'),
-      content: t('settings.hardware_acceleration.confirm.content'),
+      content: checked
+        ? t('settings.hardware_acceleration.confirm.content_disable')
+        : t('settings.hardware_acceleration.confirm.content_enable'),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
       centered: true
@@ -208,7 +210,7 @@ const SystemSettings: FC = () => {
             <SettingRow className="gap-3">
               <SettingRowTitle>{t('settings.developer.client_id')}</SettingRowTitle>
               <div className="flex min-w-0 items-center gap-2">
-                <span className="select-text break-all text-right font-mono text-foreground-muted text-xs">
+                <span className="select-text break-all text-right font-mono text-foreground-tertiary text-xs">
                   {clientId}
                 </span>
                 <CopyButton textToCopy={clientId} successFeedback="icon" />

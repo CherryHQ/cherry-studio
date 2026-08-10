@@ -148,7 +148,9 @@ const NpxSearch: FC = () => {
                 <div className="mb-1.5 flex items-start justify-between gap-3">
                   <h3 className="selectable m-0 min-w-0 truncate text-sm leading-6">{record.name}</h3>
                   <Flex className="shrink-0 items-center gap-1">
-                    <Badge className="border-success/30 bg-success/10 text-success">v{record.version}</Badge>
+                    <Badge className="border-success-border bg-success-subtle text-success-subtle-foreground">
+                      v{record.version}
+                    </Badge>
                     <Button
                       variant="ghost"
                       size="icon-sm"
@@ -189,7 +191,7 @@ const NpxSearch: FC = () => {
                     href={record.npmLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="selectable inline-flex items-center gap-1 text-link text-sm hover:text-link-hover">
+                    className="selectable inline-flex items-center gap-1 text-link text-sm hover:underline">
                     {record.npmLink}
                     <ExternalLink size={13} />
                   </a>
