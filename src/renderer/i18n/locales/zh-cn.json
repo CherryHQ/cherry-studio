@@ -496,10 +496,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "{{count}} 个",
+          "channels_count_other": "{{count}} 个",
+          "channels_empty": "没有频道需要调整。",
+          "channels_title": "将改为不使用工作目录的频道",
           "content": "删除该工作目录会同时删除该工作目录下的所有任务；只会删除数据库记录，不会删除磁盘上的真实目录。",
+          "disk_preserved": "磁盘上的目录及其中的文件不会被删除。",
           "error": {
             "failed": "删除工作目录失败"
           },
+          "more_count_one": "…以及另外 {{count}} 项",
+          "more_count_other": "…以及另外 {{count}} 项",
+          "preview": "删除工作目录「{{name}}」会删除其关联会话，并将关联频道和定时任务改为不使用工作目录。此操作不可撤销。",
+          "preview_failed": "无法加载删除影响范围，暂不能删除该工作目录",
+          "preview_loading": "正在加载删除影响范围…",
+          "sessions_count_one": "{{count}} 个",
+          "sessions_count_other": "{{count}} 个",
+          "sessions_empty": "没有会话会被删除。",
+          "sessions_title": "将一并删除的会话",
+          "tasks_count_one": "{{count}} 个",
+          "tasks_count_other": "{{count}} 个",
+          "tasks_empty": "没有定时任务需要调整。",
+          "tasks_title": "将改为不使用工作目录的定时任务",
           "title": "删除工作目录",
           "trigger": "删除工作目录"
         },

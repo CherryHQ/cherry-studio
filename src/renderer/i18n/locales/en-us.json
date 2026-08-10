@@ -496,10 +496,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "{{count}} channel",
+          "channels_count_other": "{{count}} channels",
+          "channels_empty": "No channels will be changed.",
+          "channels_title": "Channels changed to no work directory",
           "content": "Deleting this work directory will also delete all tasks under it. Only database records are removed; the actual folder on disk will not be deleted.",
+          "disk_preserved": "The folder on disk and its files will not be deleted.",
           "error": {
             "failed": "Failed to delete the work directory"
           },
+          "more_count_one": "…and {{count}} more item",
+          "more_count_other": "…and {{count}} more items",
+          "preview": "Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
+          "preview_failed": "The deletion impact could not be loaded, so this work directory cannot be deleted yet",
+          "preview_loading": "Loading deletion impact…",
+          "sessions_count_one": "{{count}} session",
+          "sessions_count_other": "{{count}} sessions",
+          "sessions_empty": "No sessions will be deleted.",
+          "sessions_title": "Sessions to be deleted",
+          "tasks_count_one": "{{count}} scheduled task",
+          "tasks_count_other": "{{count}} scheduled tasks",
+          "tasks_empty": "No scheduled tasks will be changed.",
+          "tasks_title": "Scheduled tasks changed to no work directory",
           "title": "Delete work directory",
           "trigger": "Delete work directory"
         },
