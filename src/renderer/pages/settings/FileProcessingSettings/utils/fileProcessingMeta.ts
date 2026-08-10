@@ -1,5 +1,3 @@
-import type { CompoundIcon } from '@cherrystudio/ui'
-import { Application, Doc2x, Intel, Mineru, Mistral, Paddleocr, TesseractJs } from '@cherrystudio/ui/icons'
 import { TESSERACT_LANG_MAP } from '@renderer/pages/settings/FileProcessingSettings/ocr'
 import { isWin } from '@renderer/utils/platform'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
@@ -27,14 +25,13 @@ const FILE_PROCESSING_FEATURE_SECTIONS: readonly {
   },
   {
     feature: 'document_to_markdown',
-    processors: ['mineru', 'paddleocr', 'doc2x', 'mistral', 'open-mineru']
+    processors: ['local-document', 'mineru', 'paddleocr', 'doc2x', 'mistral', 'open-mineru']
   }
 ] as const
 
 type ProcessorDisplayMeta = {
   nameKey: string
   descriptionKey: string
-  logo: CompoundIcon
   apiKeyWebsite: string | null
 }
 
@@ -42,55 +39,51 @@ const PROCESSOR_DISPLAY_META: Record<FileProcessorId, ProcessorDisplayMeta> = {
   system: {
     nameKey: 'settings.tool.file_processing.processors.system.name',
     descriptionKey: 'settings.tool.file_processing.processors.system.description',
-    logo: Application,
     apiKeyWebsite: null
   },
   tesseract: {
     nameKey: 'settings.tool.file_processing.processors.tesseract.name',
     descriptionKey: 'settings.tool.file_processing.processors.tesseract.description',
-    logo: TesseractJs,
     apiKeyWebsite: null
   },
   paddleocr: {
     nameKey: 'settings.tool.file_processing.processors.paddleocr.name',
     descriptionKey: 'settings.tool.file_processing.processors.paddleocr.description',
-    logo: Paddleocr,
     apiKeyWebsite: 'https://aistudio.baidu.com/paddleocr/'
   },
   'local-paddleocr': {
     nameKey: 'settings.tool.file_processing.processors.local_paddleocr.name',
     descriptionKey: 'settings.tool.file_processing.processors.local_paddleocr.description',
-    logo: Paddleocr,
+    apiKeyWebsite: null
+  },
+  'local-document': {
+    nameKey: 'settings.tool.file_processing.processors.local_document.name',
+    descriptionKey: 'settings.tool.file_processing.processors.local_document.description',
     apiKeyWebsite: null
   },
   ovocr: {
     nameKey: 'settings.tool.file_processing.processors.ovocr.name',
     descriptionKey: 'settings.tool.file_processing.processors.ovocr.description',
-    logo: Intel,
     apiKeyWebsite: null
   },
   mineru: {
     nameKey: 'settings.tool.file_processing.processors.mineru.name',
     descriptionKey: 'settings.tool.file_processing.processors.mineru.description',
-    logo: Mineru,
     apiKeyWebsite: 'https://mineru.net/apiManage'
   },
   doc2x: {
     nameKey: 'settings.tool.file_processing.processors.doc2x.name',
     descriptionKey: 'settings.tool.file_processing.processors.doc2x.description',
-    logo: Doc2x,
     apiKeyWebsite: 'https://open.noedgeai.com/apiKeys'
   },
   mistral: {
     nameKey: 'settings.tool.file_processing.processors.mistral.name',
     descriptionKey: 'settings.tool.file_processing.processors.mistral.description',
-    logo: Mistral,
     apiKeyWebsite: 'https://mistral.ai/api-keys'
   },
   'open-mineru': {
     nameKey: 'settings.tool.file_processing.processors.open_mineru.name',
     descriptionKey: 'settings.tool.file_processing.processors.open_mineru.description',
-    logo: Mineru,
     apiKeyWebsite: 'https://github.com/opendatalab/MinerU/'
   }
 } as const satisfies Record<FileProcessorId, ProcessorDisplayMeta>
@@ -166,10 +159,6 @@ export function getProcessorDescriptionKey(processorId: FileProcessorId): string
 
 export function getProcessorApiKeyWebsite(processorId: FileProcessorId): string | null {
   return PROCESSOR_DISPLAY_META[processorId].apiKeyWebsite
-}
-
-export function getProcessorLogo(processorId: FileProcessorId) {
-  return PROCESSOR_DISPLAY_META[processorId].logo
 }
 
 export function supportsApiSettings(processor: FileProcessorMerged): boolean {

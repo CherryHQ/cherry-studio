@@ -1,7 +1,10 @@
+import type * as NodeChildProcess from 'node:child_process'
+import { EventEmitter } from 'node:events'
 import type * as NodeFs from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { PassThrough } from 'node:stream'
 
 import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -18,6 +21,15 @@ const ripgrepAvailable = tryTestRipgrepPath() !== null
 // real fs / real ripgrep without per-test setup.
 const mockExistsSync = vi.hoisted(() => vi.fn())
 const mockPromisesStat = vi.hoisted(() => vi.fn())
+const mockSpawn = vi.hoisted(() => vi.fn())
+
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeChildProcess>()
+  return {
+    ...actual,
+    spawn: mockSpawn
+  }
+})
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFs>()
@@ -59,9 +71,36 @@ beforeEach(async () => {
   const actual = await vi.importActual<typeof NodeFs>('node:fs')
   mockExistsSync.mockReset()
   mockPromisesStat.mockReset()
+  mockSpawn.mockReset()
   mockExistsSync.mockImplementation((p: NodeFs.PathLike) => actual.existsSync(p))
   mockPromisesStat.mockImplementation((p: string) => actual.promises.stat(p))
+  const actualChildProcess = await vi.importActual<typeof NodeChildProcess>('node:child_process')
+  mockSpawn.mockImplementation(actualChildProcess.spawn)
 })
+
+const mockRipgrepResultOnce = ({
+  exitCode,
+  stdout = '',
+  stderr = ''
+}: {
+  exitCode: number
+  stdout?: string
+  stderr?: string
+}) => {
+  const child = new EventEmitter() as ReturnType<typeof NodeChildProcess.spawn>
+  const stdoutStream = new PassThrough()
+  const stderrStream = new PassThrough()
+  child.stdout = stdoutStream
+  child.stderr = stderrStream
+  mockSpawn.mockImplementationOnce(() => {
+    queueMicrotask(() => {
+      stdoutStream.end(stdout)
+      stderrStream.end(stderr)
+      child.emit('close', exitCode, null)
+    })
+    return child
+  })
+}
 
 const writeMany = async (root: string, count: number, prefix = 'file', ext = '.txt'): Promise<string[]> => {
   const created: string[] = []
@@ -172,6 +211,38 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
 
     expect(results[0]).toMatch(/updater\.ts$/)
     expect(results.some((p) => p.endsWith('unrelated.ts'))).toBe(false)
+  })
+
+  it('keeps valid files when ripgrep reports a non-fatal traversal error', async () => {
+    const validFile = path.join(tmp, 'readable.md').replace(/\\/g, '/')
+    await writeFile(validFile, 'readable')
+
+    mockRipgrepResultOnce({
+      exitCode: 2,
+      stdout: `${validFile}\n`,
+      stderr: 'rg: locked-directory: Access is denied. (os error 5)\n'
+    })
+
+    await expect(
+      listDirectory(tmp as AbsoluteFilePath, {
+        includeDirectories: false,
+        searchPattern: 'readable'
+      })
+    ).resolves.toEqual([validFile])
+  })
+
+  it('rejects a ripgrep traversal error without usable files', async () => {
+    mockRipgrepResultOnce({
+      exitCode: 2,
+      stderr: 'rg: locked-directory: Access is denied. (os error 5)\n'
+    })
+
+    await expect(
+      listDirectory(tmp as AbsoluteFilePath, {
+        includeDirectories: false,
+        searchPattern: 'readable'
+      })
+    ).rejects.toThrow(/Ripgrep failed with exit code 2:.*Access is denied/)
   })
 })
 
