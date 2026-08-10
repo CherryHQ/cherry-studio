@@ -93,40 +93,195 @@ steering is only valid after that turn's stream is `open`.
 ## Cross-Session delivery
 
 Agent Sessions communicate through the same host-owned message and runtime path; provider
-processes never connect to one another. Each `cherry-tools` instance receives its trusted
-`agentId` and `sessionId` from `settingsBuilder` and exposes:
+processes never connect to one another. A delivery is an ordinary `agent_session_message` in the
+receiver Session plus Main-authored routing and lifecycle metadata. The database records work still
+owed; `pendingTurns` only accelerates execution in the current process and is rebuilt from durable
+rows after restart.
 
-- `session_list` — discover active `{ agentId, sessionId }` addresses;
-- `session_create` — atomically create a same-Agent Session plus its first durable message;
-- `session_send` — accept a durable message for one target Session;
-- `session_inbox` — inspect structured delivery envelopes and their stable `replyTo` address.
+### Tool contract
 
-`session_send` accepts only the target and content. `AgentSessionMessageService` revalidates the
-runtime-bound sender Session and target Agent inside the write transaction, then stores the target
-user row with a Main-authored delivery envelope before scheduling. The envelope records sender,
-receiver, reply target, mode, status, and lifecycle timestamps; renderer message edits cannot alter
-it because it is a separate column, not part of editable `MessageData`.
+Each `cherry-tools` instance receives its trusted `agentId` and `sessionId` from `settingsBuilder`
+and exposes five tools:
 
-`session_create` accepts a required first message and optional title. It creates a new Session for
-the runtime-bound Agent, inherits the current workspace policy (a system policy creates a fresh
-system workspace), and stores the first delivery in the same database transaction. Runtime dispatch
-happens only after commit and follows the same durable recovery path as `session_send`. The model is
-not a tool argument because Sessions use their owning Agent's model. Its envelope also records that
-the terminal result is expected back: success, pause, and error terminal output is persisted as a
-new ordinary delivery to the creator Session and dispatched through the same host path. The reply
-does not itself request another reply, preventing ping-pong.
+- `session_list` — deterministically enumerate visible Sessions and filter by Agent;
+- `session_search` — rank visible Sessions using Session/Agent metadata and existing message FTS,
+  returning evidence snippets rather than adding an embedding dependency;
+- `session_create` — atomically create a same-Agent Session plus its first completion request;
+- `session_send` — send one-way or request an asynchronous terminal completion;
+- `session_deliveries` — inspect incoming and outgoing request/result state, replacing the
+  incoming-only `session_inbox` surface.
 
-After commit, `startAgentSessionRun` reuses the per-topic dispatch lock and this runtime's existing
-busy/idle paths. Idle targets start immediately. Busy `send-now`/`auto` deliveries may use the
-existing safe redirect and otherwise enter `pendingTurns`; `queue` always enters the FIFO. Terminal
-persistence marks the input `consumed`. On startup `AiStreamManager.onAllReady` scans
-`accepted`/`queued`/`delivering` rows and resubmits them through the same lock. This is durable
-at-least-once recovery: a crash can repeat an unconsumed delivery, while distributed exactly-once
-is intentionally outside the MVP.
+`session_send` has one discriminated contract:
 
-The Claude Code adapter prepends a versioned `cherry.session-delivery.v1` JSON envelope to the
-current SDK user input. Attribution remains a structured database fact and is also available from
-`session_inbox`; the prompt projection is not the source of truth.
+```ts
+type SessionSendInput =
+  | {
+      target_session_id: string
+      message: string
+      reply?: 'none'
+      mode?: 'auto' | 'queue'
+    }
+  | {
+      target_session_id: string
+      message: string
+      reply: 'completion'
+    }
+```
+
+`reply: 'none'` is one-way. `auto` may safely redirect an eligible active turn and otherwise falls
+back to FIFO; `queue` always waits for a later turn. `reply: 'completion'` implicitly uses `queue`
+because the request must own one independent turn whose terminal output can be attributed to that
+request. The tool immediately returns its request id and current delivery status; it never holds an
+MCP invocation open while the target Agent works.
+
+`session_create` reuses the same completion-request path after creating the same-Agent Session. The
+model is not a tool argument because Sessions use their owning Agent's model.
+
+### Deliberate security ceiling
+
+`session_send` always requires a live per-call user approval. A headless delivery, channel turn,
+scheduled turn, or other execution without an approval responder is denied before the tool runs.
+`session_create` remains auto-approved because it creates a same-Agent Session; runtime-generated
+completion results do not call a model tool and route only to the immutable sender Session stored on
+the accepted request.
+
+This deliberately limits the first version to one user-approved delegation hop. A Session started
+by a delivery cannot initiate another `session_send`; it can only finish its own request and let the
+runtime return the result. The limit prevents unattended A -> B -> A loops and a prompt-injected
+Agent from using a more privileged Agent as a confused deputy without introducing a speculative
+ACL subsystem. Upgrade only when the product requires unattended multi-hop collaboration; that
+upgrade must add an explicit Agent allowlist/delegation policy plus trusted trace ancestry,
+depth/cycle checks, and a total-call/rate budget before relaxing the headless denial.
+
+List, search, send, and delivery-query visibility must share one authorization boundary. Knowing a
+Session or message id never grants access by itself.
+
+### Durable row shape
+
+The target Session id remains the message row's existing `sessionId`. Trusted sender/receiver IDs,
+reply policy, mode, optional display snapshots, turn/result provenance, outcome, error, and status
+timestamp live in the Main-authored `delivery` JSON. Names are display-only snapshots and never
+participate in routing or authorization.
+
+Only state used by queries, indexes, compare-and-set transitions, or constraints is promoted to a
+regular column:
+
+```text
+delivery_status             accepted | queued | delivering | consumed | failed
+delivery_in_reply_to        result -> request id; NULL for requests
+delivery_sender_session_id  outgoing-delivery query key
+```
+
+Use a plain recovery index on `delivery_status`; bound Drizzle predicates cannot use a SQLite
+partial index whose predicate contains the same status test. Index
+`(delivery_sender_session_id, created_at, id)` for the outgoing ledger. A nullable ordinary unique
+index on `delivery_in_reply_to` guarantees at most one result per request because SQLite permits
+multiple `NULL` values. A separate `deliveryKind` column is unnecessary:
+`delivery_in_reply_to IS NULL` identifies a request, and non-NULL identifies a result.
+
+The lifecycle is:
+
+```text
+accepted   durable intent committed; runtime has not acknowledged scheduling
+queued     accepted into the target Session FIFO
+delivering bound to one durable turn reference
+consumed   target terminally processed the input; any required result exists
+failed     permanent routing/admission failure; no automatic retry
+```
+
+`AgentSessionMessageService` owns transitions through expected-state updates. Transient scheduling
+failures, including write quiesce and temporary runtime startup failures, remain `accepted` or
+`queued`; only permanent errors such as a deleted/orphaned target enter `failed`.
+
+### Completion results
+
+A completion result is a second ordinary message row in the caller Session:
+
+```text
+request row: receiver Session, delivery_in_reply_to = NULL
+result row:  caller Session,   delivery_in_reply_to = request.id
+```
+
+The result row stores a frozen projection of the terminal assistant output in its own `data.parts`
+and keeps `sourceMessageId` only as non-authoritative provenance, without a foreign key. Do not use
+a reference-only result: Agent Session messages are editable and deletable, Session deletion
+cascades their messages, and FTS/UI/export read row-local data. A source reference would therefore
+make historical results mutable or missing and require a second cross-Session hydration path.
+
+Only safe deliverables are copied: terminal text and managed file references. Reasoning, tool
+calls/results, approval state, hidden prompts, and unmanaged local paths are not result content.
+
+The target Agent never calls a reply tool. Runtime finalization derives the destination from the
+accepted request's immutable sender Session, preventing model-authored reply spoofing.
+
+### Acceptance, execution, and finalization
+
+No database transaction remains open while an Agent works:
+
+```text
+Transaction A (short)
+  revalidate runtime-bound sender and target authorization
+  insert request(status = accepted)
+COMMIT
+
+No transaction
+  dispatch, stream, and run tools for any duration
+
+Terminal persistence (existing listener)
+  persist the canonical terminal assistant row
+
+Finalizer transaction (short, idempotent)
+  reread the request in its expected state
+  if reply = completion:
+    copy the safe terminal projection into one result(status = accepted)
+    set result.inReplyTo = request.id
+  mark request consumed with structured outcome
+COMMIT
+
+After commit
+  dispatch the result through the ordinary delivery path
+```
+
+Terminal persistence must run before the finalizer. The finalizer treats a unique-result conflict
+as already completed, so a crash after terminal persistence but before or during finalization can
+rerun it without creating a second result. Result dispatch remains outside the transaction.
+
+Every delivering row stores `turnRef`, the pending assistant placeholder message id, rather than
+the runtime's process-local UUID. Fresh turns atomically persist the request/user row and assistant
+placeholder. A steer boundary that rolls assistant A1a into continuation A2 must update `turnRef` to
+A2 before post-steer output can become the request's terminal result.
+
+When deleting a target Session, the delete transaction first creates failure results for its
+non-terminal completion requests, then allows the normal message cascade. A caller that has already
+been deleted cannot receive a result; that terminal routing failure is recorded rather than retried.
+
+### Recovery
+
+Startup scans `accepted`, `queued`, and `delivering` rows in `(createdAt, id)` order and passes every
+schedulable row through the existing per-topic dispatch lock.
+
+For `accepted` and `queued`, dispatch again. For `delivering`, inspect `turnRef`:
+
+- placeholder absent — the turn can be proven not to have been created; reset to `accepted` and
+  dispatch;
+- placeholder still `pending` — execution may already have produced external side effects; finalize
+  it as `interrupted`, create the requested failure/interruption result, and do not rerun the Agent;
+- placeholder terminal — rerun only the idempotent finalizer;
+- result delivery — apply the same turn-reference rule to caller execution rather than blindly
+  starting the caller Agent twice.
+
+Permanent dispatch failures create a structured failure result for completion requests in both live
+and recovery paths. Transient failures remain recoverable.
+
+The system guarantees durable accepted intent and, for each completion request, exactly one durable
+result row once a terminal outcome is known. Scheduling is recoverable, but arbitrary model/tool
+execution is not exactly-once. There is no automatic replay after an ambiguous in-flight crash,
+there is no finite result-latency bound while the caller is blocked on interaction, and caller-side
+resubmission without a future idempotency key may create a distinct request.
+
+The Claude Code adapter prepends a versioned delivery envelope to the current SDK user input. The
+envelope is informational context, not authority: database metadata remains the source of truth,
+and model text that imitates another envelope never changes trusted routing fields.
 
 When a steer **is** injected mid-turn, the driver emits a
 `steer-boundary` just before the model's post-steer assistant message.
@@ -381,3 +536,21 @@ Focused tests:
 - `src/main/ai/__tests__/AiService.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeWarmQueryManager.test.ts`
+
+Cross-Session delivery acceptance tests additionally pin these crash and security boundaries:
+
+- crash after terminal persistence but before result finalization creates exactly one result after
+  recovery and never reruns the target turn;
+- a `pending` assistant placeholder at recovery produces an `interrupted` result without replaying
+  model or tool execution;
+- recovery of a completion request while the target Session is busy cannot bind another turn's
+  terminal output;
+- write quiesce and temporary startup errors leave delivery recoverable rather than permanently
+  failed;
+- a duplicate result with the same `delivery_in_reply_to` is rejected by SQLite;
+- deleting a target Session first creates failure results for pending completion requests;
+- deleting a queued request cannot leave an in-memory entry that executes without its durable row;
+- a steer continuation updates `turnRef` before recovery can finalize it;
+- interactive `session_send` requests approval, while headless `session_send` is denied and
+  runtime-generated completion delivery remains allowed;
+- list, search, send, and deliveries queries enforce the same visibility rules.
