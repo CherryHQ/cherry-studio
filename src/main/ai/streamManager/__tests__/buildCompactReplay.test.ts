@@ -1,7 +1,7 @@
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { buildCompactReplay } from '../buildCompactReplay'
+import { buildCompactReplay, mergeDeltaPayload } from '../buildCompactReplay'
 
 describe('buildCompactReplay', () => {
   it('merges consecutive text-delta chunks with the same id', () => {
@@ -241,8 +241,9 @@ describe('buildCompactReplay', () => {
 
     it('drops orphaned tool chunks whose part-creating chunk was evicted', () => {
       const result = buildCompactReplay([
-        // tc1's tool-input-start was evicted: its delta cannot be repaired (no
-        // toolName on a delta) and its output has no part to apply to.
+        // tc1's tool-input-start was evicted and no seed / evicted-creator
+        // context is provided: its delta cannot be repaired (no toolName on a
+        // delta) and its output has no part to apply to.
         {
           topicId: 'topic-1',
           chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'lo"}' } as UIMessageChunk
@@ -275,6 +276,99 @@ describe('buildCompactReplay', () => {
         },
         { topicId: 'topic-1', chunk: { type: 'tool-output-available', toolCallId: 'tc2', output: { ok: true } } }
       ])
+    })
+
+    it('keeps orphaned tool chunks whose toolCallId is on the accumulator seed', () => {
+      // A continue-conversation execution's buffer legitimately opens with
+      // bare tool results — the part lives on the persisted anchor message
+      // both the main accumulator and a cold-attaching renderer seed from.
+      const chunks = [
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } as UIMessageChunk
+        },
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-output-error', toolCallId: 'tc2', errorText: 'boom' } as UIMessageChunk
+        },
+        { topicId: 'topic-1', chunk: { type: 'tool-output-denied', toolCallId: 'tc3' } as UIMessageChunk },
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-approval-request', toolCallId: 'tc4', approvalId: 'ap1' } as UIMessageChunk
+        }
+      ]
+
+      // Without the seed they'd all be dropped as orphans…
+      expect(buildCompactReplay(chunks)).toEqual([])
+      // …with it they replay untouched.
+      expect(buildCompactReplay(chunks, { seedToolCallIds: new Set(['tc1', 'tc2', 'tc3', 'tc4']) })).toEqual(chunks)
+    })
+
+    it('synthesizes a start from the evicted-creator stash for a surviving delta run', () => {
+      const result = buildCompactReplay(
+        [
+          {
+            topicId: 'topic-1',
+            chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'lo"}' } as UIMessageChunk
+          },
+          {
+            topicId: 'topic-1',
+            chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } as UIMessageChunk
+          }
+        ],
+        { evictedToolCreators: new Map([['tc1', { toolName: 'searchWeb' }]]) }
+      )
+
+      expect(result).toEqual([
+        { topicId: 'topic-1', chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb' } },
+        { topicId: 'topic-1', chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'lo"}' } },
+        { topicId: 'topic-1', chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } }
+      ])
+    })
+
+    it('synthesizes a start from the evicted-creator stash for an orphaned approval request', () => {
+      const result = buildCompactReplay(
+        [
+          {
+            topicId: 'topic-1',
+            chunk: { type: 'tool-approval-request', toolCallId: 'tc1', approvalId: 'ap1' } as UIMessageChunk
+          }
+        ],
+        { evictedToolCreators: new Map([['tc1', { toolName: 'searchWeb', providerExecuted: false }]]) }
+      )
+
+      expect(result).toEqual([
+        {
+          topicId: 'topic-1',
+          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb', providerExecuted: false }
+        },
+        { topicId: 'topic-1', chunk: { type: 'tool-approval-request', toolCallId: 'tc1', approvalId: 'ap1' } }
+      ])
+    })
+  })
+
+  describe('mergeDeltaPayload segmentation', () => {
+    it('refuses a merge that would exceed maxMergedChars so ingest starts a new segment', () => {
+      const tail = { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'abcd' } as UIMessageChunk }
+      const incoming = { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'ef' } as UIMessageChunk }
+
+      expect(mergeDeltaPayload(tail, incoming, 5)).toBeUndefined()
+      expect(mergeDeltaPayload(tail, incoming, 6)).toMatchObject({ chunk: { delta: 'abcdef' } })
+      expect(mergeDeltaPayload(tail, incoming)).toMatchObject({ chunk: { delta: 'abcdef' } })
+    })
+
+    it('caps tool-input-delta merges the same way', () => {
+      const tail = {
+        topicId: 't',
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q"' } as UIMessageChunk
+      }
+      const incoming = {
+        topicId: 't',
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: ':1}' } as UIMessageChunk
+      }
+
+      expect(mergeDeltaPayload(tail, incoming, 6)).toBeUndefined()
+      expect(mergeDeltaPayload(tail, incoming, 7)).toMatchObject({ chunk: { inputTextDelta: '{"q":1}' } })
     })
   })
 })

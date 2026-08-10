@@ -1135,6 +1135,197 @@ describe('AiStreamManager', () => {
       ])
     })
 
+    it('repairs an evicted tool creator so the attach replay and later live deltas stay parseable', async () => {
+      // Interleaved tool-input streams can evict tool A's start while A is
+      // still streaming: [start(A), start(B), delta(A)] + delta(B) drops
+      // start(A). The replay must synthesize it back — otherwise not just the
+      // replayed delta(A) but every FUTURE live delta(A) the attached reader
+      // receives throws "tool-input-delta for missing tool call".
+      const ringMgr = createManager({ maxBufferChunks: 3 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'A',
+        toolName: 'alpha'
+      } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'B',
+        toolName: 'beta'
+      } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-delta',
+        toolCallId: 'A',
+        inputTextDelta: '{"a"'
+      } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-delta',
+        toolCallId: 'B',
+        inputTextDelta: '{"b"'
+      } as UIMessageChunk)
+
+      expect(ringMgr.inspect('a')!.executions[0].droppedChunks).toBe(1)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
+        'tool-input-start',
+        'tool-input-start',
+        'tool-input-delta',
+        'tool-input-delta'
+      ])
+      expect(response.bufferedChunks[1].chunk).toMatchObject({ toolCallId: 'A', toolName: 'alpha' })
+
+      // Replay + the live deltas that keep streaming after attach.
+      const errors: unknown[] = []
+      const stream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const { chunk } of response.bufferedChunks) controller.enqueue(chunk)
+          controller.enqueue({ type: 'tool-input-delta', toolCallId: 'A', inputTextDelta: ':1}' } as UIMessageChunk)
+          controller.enqueue({ type: 'tool-input-delta', toolCallId: 'B', inputTextDelta: ':2}' } as UIMessageChunk)
+          controller.close()
+        }
+      })
+      let message: CherryUIMessage | undefined
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+        stream,
+        terminateOnError: false,
+        onError: (err) => errors.push(err)
+      })) {
+        message = snapshot
+      }
+
+      expect(errors).toEqual([])
+      expect(message?.parts).toEqual([
+        expect.objectContaining({ type: 'tool-beta', toolCallId: 'B', input: { b: 2 } }),
+        expect.objectContaining({ type: 'tool-alpha', toolCallId: 'A', input: { a: 1 } })
+      ])
+    })
+
+    it('synthesizes an evicted creator start for an approval request that outlived it', () => {
+      // The approval-request only pauses eviction once it ARRIVES — a busy
+      // stream can evict the tool's creator chunks before that. The stash must
+      // keep the approval decidable after a cold reattach.
+      const ringMgr = createManager({ maxBufferChunks: 2 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-start',
+        toolCallId: 'A',
+        toolName: 'alpha'
+      } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'A',
+        toolName: 'alpha',
+        input: { a: 1 }
+      } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p2' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-approval-request',
+        toolCallId: 'A',
+        approvalId: 'ap-1'
+      } as UIMessageChunk)
+
+      // Both creator chunks were evicted before the approval arrived.
+      expect(ringMgr.inspect('a')!.executions[0].droppedChunks).toBe(2)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
+        'text-start',
+        'text-start',
+        'tool-input-start',
+        'tool-approval-request'
+      ])
+      expect(response.bufferedChunks[2].chunk).toMatchObject({ toolCallId: 'A', toolName: 'alpha' })
+      expect(response.bufferedChunks[3].chunk).toMatchObject({ toolCallId: 'A', approvalId: 'ap-1' })
+    })
+
+    it('keeps a seeded continuation tool result in the attach replay', () => {
+      // An approval continue-conversation seeds the accumulator with the
+      // persisted anchor message, so its buffer legitimately opens with a bare
+      // tool-output for the approved call — the renderer's cold-attach reader
+      // seeds from the same message and can apply it without a creator chunk.
+      const mgr = createManager()
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: {
+          chatId: 'a',
+          trigger: 'continue-conversation',
+          messages: [
+            { id: 'u1', role: 'user', parts: [{ type: 'text', text: 'hi' }] },
+            {
+              id: 'anchor-1',
+              role: 'assistant',
+              parts: [{ type: 'tool-search', toolCallId: 'call-1', state: 'input-available', input: { q: 'x' } }]
+            }
+          ]
+        } as any,
+        listeners: [new FakeListener('l:a')]
+      })
+
+      mgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'call-1',
+        output: { ok: true }
+      } as UIMessageChunk)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = mgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual(['tool-output-available'])
+      expect(response.bufferedChunks[0].chunk).toMatchObject({ toolCallId: 'call-1' })
+    })
+
+    it('segments merged delta runs at maxMergedDeltaChars so long content evicts instead of accreting', () => {
+      // Without the segment cap one part's delta run accretes the whole turn
+      // into a single ring entry — entry-bounded but byte-unbounded. Segmented,
+      // a long run spans entries and FIFO eviction trims its head.
+      const ringMgr = createManager({ maxBufferChunks: 2, maxMergedDeltaChars: 2 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' } as UIMessageChunk)
+      for (const delta of ['ab', 'cd', 'ef']) {
+        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p', delta } as UIMessageChunk)
+      }
+
+      const snap = ringMgr.inspect('a')!
+      expect(snap.executions[0].bufferedChunkCount).toBe(2)
+      expect(snap.executions[0].droppedChunks).toBe(2)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+      // Surviving segments re-merge at attach; the evicted start is synthesized.
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual(['text-start', 'text-delta'])
+      expect(response.bufferedChunks[1].chunk).toMatchObject({ delta: 'cdef' })
+    })
+
     it('attaches when the surviving ring contains a complete pending approval', () => {
       const approvalMgr = createManager({ maxBufferChunks: 3 })
       startSingle(approvalMgr, {

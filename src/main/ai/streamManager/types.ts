@@ -6,6 +6,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
+import type { EvictedToolCreator } from './buildCompactReplay'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import type { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 
@@ -100,9 +101,25 @@ export interface StreamExecution {
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
-  /** Per-execution chunk ring (cap = `maxBufferChunks`); contiguous deltas merge into the tail on ingest; overflow drops oldest and bumps `droppedChunks`. */
+  /** Per-execution chunk ring (cap = `maxBufferChunks`); contiguous deltas merge into the tail on ingest (segmented at `maxMergedDeltaChars` so the entry cap also bounds bytes); overflow drops oldest and bumps `droppedChunks`. */
   buffer: StreamChunkPayload[]
   droppedChunks: number
+  /**
+   * Part-creating tool chunks the ring evicted while their part was still
+   * open, keyed by toolCallId — attach-time repair synthesizes a
+   * `tool-input-start` from them so surviving orphans and future live chunks
+   * stay parseable. Self-cleaning: evicting a part's terminal chunk removes
+   * its entry (every earlier chunk of that part is already out of the ring,
+   * and no future chunk will reference it).
+   */
+  evictedToolCreators?: Map<string, EvictedToolCreator>
+  /**
+   * toolCallIds present on the accumulator seed (`continue-conversation`
+   * anchor message). Replay chunks referencing them are valid without an
+   * in-ring creator — the attaching reader seeds from the same persisted
+   * message.
+   */
+  seedToolCallIds?: ReadonlySet<string>
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
   finalMessage?: CherryUIMessage
   /**
@@ -166,6 +183,13 @@ export interface AiStreamManagerConfig {
   readonly backgroundMode: 'continue' | 'abort'
   /** Per-execution buffer cap; exceeding stops buffering, not streaming. */
   readonly maxBufferChunks: number
+  /**
+   * Max chars a buffer entry can hold before the ingest-time delta merge
+   * starts a new segment entry. Keeps `maxBufferChunks` a real byte bound
+   * (cap × segment size) instead of entry-count-only — one part's delta run
+   * can no longer accrete the whole turn into a single unbounded string.
+   */
+  readonly maxMergedDeltaChars: number
   /** Cap on retained oversized tool outputs. Small because each entry is large. */
   readonly maxDeferredOutputs: number
   /**

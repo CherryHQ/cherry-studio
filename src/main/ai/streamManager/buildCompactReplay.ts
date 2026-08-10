@@ -1,10 +1,37 @@
 import type { StreamChunkPayload } from '@shared/ai/transport'
 
 /**
+ * Minimal identity of a part-creating tool chunk (`tool-input-start` /
+ * `tool-input-available`) the ring evicted while its part was still open —
+ * just enough to synthesize a valid `tool-input-start` at attach time.
+ * Deliberately excludes the input payload so a stash entry stays O(1)-sized.
+ */
+export interface EvictedToolCreator {
+  toolName: string
+  providerExecuted?: boolean
+  dynamic?: boolean
+  title?: string
+}
+
+export interface CompactReplayContext {
+  /**
+   * toolCallIds whose parts already exist on the execution's accumulator seed
+   * (the `continue-conversation` anchor message). The renderer's cold-attach
+   * reader seeds from the same persisted message, so tool chunks referencing
+   * them are valid without an in-ring part-creating chunk.
+   */
+  seedToolCallIds?: ReadonlySet<string>
+  /** Evicted part creators, keyed by toolCallId. See `EvictedToolCreator`. */
+  evictedToolCreators?: ReadonlyMap<string, EvictedToolCreator>
+}
+
+/**
  * Merge `incoming` into `tail` when both are delta chunks continuing the same
  * part run (same part id / toolCallId, same executionId and anchorMessageId).
  * Returns the merged payload, or `undefined` when the two don't form a
- * contiguous run.
+ * contiguous run — or when merging would grow the entry past
+ * `maxMergedChars`, so ingestion starts a new segment entry and the ring's
+ * entry cap keeps bounding retained bytes (not just protocol units).
  *
  * Shared by `AiStreamManager.onChunk` (ingestion-time merge, so the ring
  * buffer's cap counts protocol units instead of raw deltas) and the
@@ -12,7 +39,8 @@ import type { StreamChunkPayload } from '@shared/ai/transport'
  */
 export function mergeDeltaPayload(
   tail: StreamChunkPayload,
-  incoming: StreamChunkPayload
+  incoming: StreamChunkPayload,
+  maxMergedChars?: number
 ): StreamChunkPayload | undefined {
   if (tail.executionId !== incoming.executionId || tail.anchorMessageId !== incoming.anchorMessageId) {
     return undefined
@@ -23,6 +51,7 @@ export function mergeDeltaPayload(
     (prev.type === 'text-delta' && next.type === 'text-delta' && prev.id === next.id) ||
     (prev.type === 'reasoning-delta' && next.type === 'reasoning-delta' && prev.id === next.id)
   ) {
+    if (maxMergedChars !== undefined && prev.delta.length + next.delta.length > maxMergedChars) return undefined
     return {
       ...tail,
       chunk: {
@@ -33,6 +62,9 @@ export function mergeDeltaPayload(
     }
   }
   if (prev.type === 'tool-input-delta' && next.type === 'tool-input-delta' && prev.toolCallId === next.toolCallId) {
+    if (maxMergedChars !== undefined && prev.inputTextDelta.length + next.inputTextDelta.length > maxMergedChars) {
+      return undefined
+    }
     return {
       ...tail,
       chunk: { ...prev, inputTextDelta: prev.inputTextDelta + next.inputTextDelta }
@@ -53,12 +85,23 @@ export function mergeDeltaPayload(
  *    coherent, and the persisted message restores the full text on terminal;
  *  - orphaned `text-end` / `reasoning-end` (all content evicted too): drop
  *    instead of rendering an empty part;
- *  - orphaned tool chunks: drop — a `tool-input-delta` carries no toolName so
- *    its start cannot be synthesized, and output/approval chunks need a
- *    surviving part-creating chunk (`tool-input-start` / `-available` /
- *    `-error`) to apply to.
+ *  - orphaned tool chunks referencing a `context.seedToolCallIds` part: keep
+ *    as-is — the attaching reader seeds from the same persisted anchor
+ *    message, so the part exists without any in-ring creator (a
+ *    `continue-conversation` execution's buffer legitimately opens with a
+ *    bare `tool-output-*` for the approved call);
+ *  - orphaned tool chunks whose creator is in `context.evictedToolCreators`:
+ *    synthesize a `tool-input-start` from the stashed metadata, so the part
+ *    exists for the replayed chunk AND for future live chunks of the same
+ *    toolCallId (the input streamed so far is lost until the terminal DB
+ *    refresh — same head-truncation degradation as text above);
+ *  - remaining orphaned tool chunks: drop — nothing to synthesize from, and
+ *    output/approval chunks need a part to apply to.
  */
-export function buildCompactReplay(buffer: readonly StreamChunkPayload[]): StreamChunkPayload[] {
+export function buildCompactReplay(
+  buffer: readonly StreamChunkPayload[],
+  context?: CompactReplayContext
+): StreamChunkPayload[] {
   const compact: StreamChunkPayload[] = []
   let pending: StreamChunkPayload | undefined
 
@@ -72,6 +115,31 @@ export function buildCompactReplay(buffer: readonly StreamChunkPayload[]): Strea
     if (!pending) return
     compact.push(pending)
     pending = undefined
+  }
+
+  /**
+   * Rebuild an evicted creator's `tool-input-start` from the stash so the
+   * orphaned chunk (and future live chunks of the same toolCallId) have a
+   * part to land on. Returns false when the stash doesn't know the id.
+   */
+  const synthesizeEvictedStart = (payload: StreamChunkPayload, toolCallId: string): boolean => {
+    const creator = context?.evictedToolCreators?.get(toolCallId)
+    if (!creator) return false
+    const key = scopedKey(payload, toolCallId)
+    createdToolParts.add(key)
+    startedToolInputs.add(key)
+    compact.push({
+      ...payload,
+      chunk: {
+        type: 'tool-input-start',
+        toolCallId,
+        toolName: creator.toolName,
+        ...(creator.providerExecuted !== undefined && { providerExecuted: creator.providerExecuted }),
+        ...(creator.dynamic !== undefined && { dynamic: creator.dynamic }),
+        ...(creator.title !== undefined && { title: creator.title })
+      }
+    })
+    return true
   }
 
   for (const payload of buffer) {
@@ -129,7 +197,15 @@ export function buildCompactReplay(buffer: readonly StreamChunkPayload[]): Strea
 
       case 'tool-input-delta': {
         flushPending()
-        if (!startedToolInputs.has(scopedKey(payload, chunk.toolCallId))) break
+        // A seed part can't host a delta — the reader tracks streaming input
+        // per `tool-input-start`, which a persisted part doesn't re-announce —
+        // so only an evicted-creator synthesis can repair one.
+        if (
+          !startedToolInputs.has(scopedKey(payload, chunk.toolCallId)) &&
+          !synthesizeEvictedStart(payload, chunk.toolCallId)
+        ) {
+          break
+        }
         pending = payload
         break
       }
@@ -147,7 +223,13 @@ export function buildCompactReplay(buffer: readonly StreamChunkPayload[]): Strea
       case 'tool-output-error':
       case 'tool-output-denied': {
         flushPending()
-        if (!createdToolParts.has(scopedKey(payload, chunk.toolCallId))) break
+        if (
+          !createdToolParts.has(scopedKey(payload, chunk.toolCallId)) &&
+          !context?.seedToolCallIds?.has(chunk.toolCallId) &&
+          !synthesizeEvictedStart(payload, chunk.toolCallId)
+        ) {
+          break
+        }
         compact.push(payload)
         break
       }

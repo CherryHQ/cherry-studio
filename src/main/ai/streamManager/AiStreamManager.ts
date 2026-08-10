@@ -22,7 +22,7 @@ import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/type
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
-import { type UIMessageChunk } from 'ai'
+import { isToolUIPart, type UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
@@ -148,9 +148,57 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
   backgroundMode: 'continue',
   maxBufferChunks: 10_000,
   maxDeferredOutputs: 64,
+  maxMergedDeltaChars: 16_384,
   // Generous (2 h) but bounded: a human can deliberate, yet a renderer that never responds (window
   // closed/crashed) can't leave the stream + subprocess hanging until app quit.
   approvalIdleTimeoutMs: 2 * 60 * 60 * 1000
+}
+
+/**
+ * Defensive cap on `evictedToolCreators` — the stash self-cleans when a part's
+ * terminal chunk is evicted, so this only bounds a pathological turn holding
+ * hundreds of tool parts open across an overflowing ring.
+ */
+const MAX_EVICTED_TOOL_CREATORS = 256
+
+/**
+ * Track the part-creating tool chunks the ring evicts, so attach-time repair
+ * can synthesize a `tool-input-start` for their surviving orphans (and for
+ * future live chunks — see `buildCompactReplay`). Terminal chunks close the
+ * part: evicting one means every earlier chunk of that part is already out of
+ * the ring (FIFO) and nothing will reference it again, so the entry drops.
+ */
+function recordEvictedToolCreator(exec: StreamExecution, evicted: StreamChunkPayload): void {
+  const chunk = evicted.chunk
+  if (chunk.type === 'tool-input-start' || chunk.type === 'tool-input-available') {
+    const creators = (exec.evictedToolCreators ??= new Map())
+    creators.set(chunk.toolCallId, {
+      toolName: chunk.toolName,
+      ...(chunk.providerExecuted !== undefined && { providerExecuted: chunk.providerExecuted }),
+      ...(chunk.dynamic !== undefined && { dynamic: chunk.dynamic }),
+      ...('title' in chunk && chunk.title !== undefined && { title: chunk.title })
+    })
+    if (creators.size > MAX_EVICTED_TOOL_CREATORS) {
+      const oldest = creators.keys().next()
+      if (!oldest.done) creators.delete(oldest.value)
+    }
+  } else if (
+    chunk.type === 'tool-input-error' ||
+    chunk.type === 'tool-output-available' ||
+    chunk.type === 'tool-output-error' ||
+    chunk.type === 'tool-output-denied'
+  ) {
+    exec.evictedToolCreators?.delete(chunk.toolCallId)
+  }
+}
+
+/** toolCallIds of the tool parts on a `continue-conversation` accumulator seed. */
+function collectSeedToolCallIds(seed: CherryUIMessage): ReadonlySet<string> | undefined {
+  const ids = new Set<string>()
+  for (const part of seed.parts) {
+    if (isToolUIPart(part)) ids.add(part.toolCallId)
+  }
+  return ids.size > 0 ? ids : undefined
 }
 
 /** `pending` covers the pre-first-chunk window — don't compare against `'streaming'` alone. */
@@ -935,17 +983,21 @@ export class AiStreamManager extends BaseService {
     // Contiguous deltas of one part collapse into the buffer tail on ingest,
     // so the cap counts protocol units (parts, tool events) rather than raw
     // deltas — a delta flood can no longer evict its own part's opening chunk
-    // and leave the replay unparseable for `readUIMessageStream`.
+    // and leave the replay unparseable for `readUIMessageStream`. Merged
+    // entries segment at `maxMergedDeltaChars`, so the entry cap stays a real
+    // byte bound: a long run spans multiple entries and FIFO eviction trims
+    // its head instead of one entry accreting the whole turn.
     const anchorMessageId = exec.anchorMessageId
     const payload: StreamChunkPayload = { topicId, executionId: sourceModelId, anchorMessageId, chunk }
     const tail = exec.buffer.at(-1)
-    const merged = tail ? mergeDeltaPayload(tail, payload) : undefined
+    const merged = tail ? mergeDeltaPayload(tail, payload, this.config.maxMergedDeltaChars) : undefined
     if (merged) {
       exec.buffer[exec.buffer.length - 1] = merged
     } else {
       if (exec.buffer.length >= this.config.maxBufferChunks && !exec.pendingApprovalToolCallIds?.size) {
-        exec.buffer.shift()
+        const evicted = exec.buffer.shift()
         exec.droppedChunks += 1
+        if (evicted) recordEvictedToolCreator(exec, evicted)
       }
       exec.buffer.push(payload)
     }
@@ -1385,7 +1437,12 @@ export class AiStreamManager extends BaseService {
 
     const bufferedChunks: StreamChunkPayload[] = []
     for (const exec of stream.executions.values()) {
-      bufferedChunks.push(...buildCompactReplay(exec.buffer).map(projectStreamChunkPayloadForRenderer))
+      bufferedChunks.push(
+        ...buildCompactReplay(exec.buffer, {
+          seedToolCallIds: exec.seedToolCallIds,
+          evictedToolCreators: exec.evictedToolCreators
+        }).map(projectStreamChunkPayloadForRenderer)
+      )
     }
     return { status: 'attached', bufferedChunks }
   }
@@ -1463,6 +1520,17 @@ export class AiStreamManager extends BaseService {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
 
+    // `continue-conversation` chunks reference toolCallIds on the anchor
+    // assistant message; without seeding, `readUIMessageStream`'s
+    // `getToolInvocation` throws and silently halts the accumulator.
+    // Extracted before the first await so `exec.seedToolCallIds` is set
+    // synchronously — attach-time replay repair consults it (the same seed
+    // makes bare tool-output chunks valid for a cold-attaching reader).
+    const lastIncoming = request.messages?.at(-1)
+    const accumulatorSeed: CherryUIMessage | undefined =
+      lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined
+    exec.seedToolCallIds = accumulatorSeed ? collectSeedToolCallIds(accumulatorSeed) : undefined
+
     let rawStream: ReadableStream<UIMessageChunk>
     try {
       // Pre-stream rejection (model resolution, param build) routes through
@@ -1501,13 +1569,6 @@ export class AiStreamManager extends BaseService {
     // Wrap before pipeStreamLoop's tee() so broadcast + accumulator share one
     // thinkingMs measurement (see withReasoningTimingMetadata).
     const stream = withReasoningTimingMetadata(idleStream)
-
-    // `continue-conversation` chunks reference toolCallIds on the anchor
-    // assistant message; without seeding, `readUIMessageStream`'s
-    // `getToolInvocation` throws and silently halts the accumulator.
-    const lastIncoming = request.messages?.at(-1)
-    const accumulatorSeed: CherryUIMessage | undefined =
-      lastIncoming?.role === 'assistant' ? (lastIncoming as CherryUIMessage) : undefined
 
     const result = await pipeStreamLoop(stream, signal, {
       onChunk: (chunk) => {
