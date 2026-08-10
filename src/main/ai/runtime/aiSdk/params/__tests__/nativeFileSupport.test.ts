@@ -46,7 +46,8 @@ describe('resolveNativeFileSupport', () => {
     ['groq', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, false, false],
     ['perplexity', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, false, false],
     ['openai-chat', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, true, false],
-    ['openai-compatible', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, true, false],
+    // Video rides the `openai-compatible-media` rewrite (`video_url`).
+    ['openai-compatible', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, true, true],
     ['google', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, true, true],
     ['google-vertex', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, true, true],
     ['openrouter', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, true, true]
@@ -89,7 +90,7 @@ describe('resolveNativeFileSupport', () => {
   it.each([
     [ENDPOINT_TYPE.ANTHROPIC_MESSAGES, false, false],
     [ENDPOINT_TYPE.OPENAI_RESPONSES, false, false],
-    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, true, false],
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, true, true],
     [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, true, true]
   ])('uses the resolved $0 endpoint for a multi-backend provider', (endpointType, audio, video) => {
     const ns = resolveNativeFileSupport(
@@ -125,6 +126,23 @@ describe('resolveNativeFileSupport', () => {
 
     expect(ns.audio).toBe(true)
     expect(ns.video).toBe(false)
+  })
+
+  it('keeps video non-native on BigModel, whose video_url rejects base64', () => {
+    const model = makeModel({
+      id: 'zhipu::glm-4-6v',
+      apiModelId: 'glm-4.6v',
+      name: 'glm-4.6v',
+      capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION, MODEL_CAPABILITY.VIDEO_RECOGNITION]
+    })
+    const ns = resolveNativeFileSupport(makeProvider({ id: 'zhipu' }), model, {
+      aiSdkProviderId: 'openai-compatible',
+      runtimeProviderId: 'zhipu' as never,
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+
+    expect(ns.video).toBe(false)
+    expect(ns.audio).toBe(true)
   })
 
   it('forces text for providers known to break on native files (qiniu)', () => {

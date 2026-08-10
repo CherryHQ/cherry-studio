@@ -20,6 +20,7 @@ import { devtoolsFeature } from './devtools'
 import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
 import { inLoopCompactionFeature } from './inLoopCompaction'
 import { noThinkFeature } from './noThink'
+import { openaiCompatibleMediaFeature } from './openaiCompatibleMedia'
 import { openrouterReasoningFeature } from './openrouterReasoning'
 import { providerUrlContextFeature } from './providerUrlContext'
 import { providerWebSearchFeature } from './providerWebSearch'
@@ -51,6 +52,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   noThinkFeature,
   qwenThinkingFeature,
   skipGeminiThoughtSignatureFeature,
+  // Audio/video file parts → `input_audio` / `video_url` on the openai-compatible wire.
+  openaiCompatibleMediaFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,
   // Stop when a trusted local tool cannot succeed without an external change.

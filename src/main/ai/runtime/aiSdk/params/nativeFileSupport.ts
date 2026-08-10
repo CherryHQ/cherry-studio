@@ -64,6 +64,19 @@ const NATIVE_FILE_PROVIDER_IDS = new Set<AppProviderId>([
 /** Providers known to choke on native file parts; force text extraction (e.g. Qiniu, #15090). */
 const FORCE_TEXT_PROVIDER_IDS = new Set<string>(['qiniu'])
 
+/**
+ * Vendors whose `video_url` takes a public URL only. Cherry inlines attachment
+ * bytes, so their video stays non-native (→ extracted text) rather than 400ing
+ * on a base64 data URL. BigModel documents the restriction explicitly.
+ * ponytail: drop the entry once provider file upload lands
+ * (`v2-refactor-temp/docs/ai/large-file-upload-port.md`).
+ */
+const NO_INLINE_VIDEO_PROVIDER_IDS = new Set<string>(['zhipu'])
+
+function matchesProviderIds(provider: Provider, ids: ReadonlySet<string>): boolean {
+  return ids.has(provider.id) || (provider.presetProviderId != null && ids.has(provider.presetProviderId))
+}
+
 /** AI SDK converters that reject or discard every audio/video file part. */
 const NO_NATIVE_AUDIO_VIDEO_PROVIDER_IDS = new Set<AppProviderId>([
   'openai',
@@ -86,11 +99,27 @@ const NATIVE_AUDIO_VIDEO_PROVIDER_IDS = new Set<AppProviderId>(['google', 'googl
 /** OpenAI chat-compatible converters: partial audio support, no video file parts. */
 const OPENAI_CHAT_MEDIA_PROVIDER_IDS = new Set<AppProviderId>([
   'openai-chat',
-  'openai-compatible',
   'azure',
   'github-copilot-openai-compatible',
   'google-vertex-maas'
 ])
+
+/**
+ * Whether the request is served by `OpenAICompatibleChatLanguageModel`, whose
+ * converter rejects video and all-but-wav/mp3 audio parts on its own. The
+ * `openai-compatible-media` feature rewrites those parts into `video_url` /
+ * `input_audio` for exactly this set, so both sides key off this predicate.
+ */
+export function usesOpenAICompatibleWire(runtimeProviderId: AppProviderId, endpointType?: EndpointType): boolean {
+  if (NO_NATIVE_AUDIO_VIDEO_PROVIDER_IDS.has(runtimeProviderId)) return false
+  if (NATIVE_AUDIO_VIDEO_PROVIDER_IDS.has(runtimeProviderId)) return false
+  if (OPENAI_CHAT_MEDIA_PROVIDER_IDS.has(runtimeProviderId)) return false
+  if (runtimeProviderId === 'openai-compatible') return true
+  // Cherry's per-vendor extensions (dashscope, zhipu, moonshot, minimax, …) keep
+  // their own provider id but all instantiate the same chat model class, so the
+  // resolved endpoint is what identifies the converter.
+  return endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+}
 
 interface NativeAudioVideoSupport {
   readonly audio: boolean
@@ -111,12 +140,8 @@ function resolveNativeAudioVideoSupport(
 
   // Multi-backend providers retain their own provider id, so their resolved
   // endpoint is the source of truth for which converter they select internally.
-  if (endpointType === ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS) {
-    // Chat-completions supports a subset of audio MIME types, but no video.
-    // Keep the existing boolean audio contract permissive rather than rejecting
-    // working WAV/MP3 input; MIME-aware routing is a separate concern.
-    return { audio: true, video: false }
-  }
+  // The openai-compatible wire takes both modalities via the media rewrite.
+  if (usesOpenAICompatibleWire(runtimeProviderId, endpointType)) return { audio: true, video: true }
   if (endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT) {
     return { audio: true, video: true }
   }
@@ -126,12 +151,7 @@ function resolveNativeAudioVideoSupport(
 }
 
 function isFirstPartyFileProvider(provider: Provider, aiSdkProviderId: AppProviderId): boolean {
-  if (
-    FORCE_TEXT_PROVIDER_IDS.has(provider.id) ||
-    (provider.presetProviderId != null && FORCE_TEXT_PROVIDER_IDS.has(provider.presetProviderId))
-  ) {
-    return false
-  }
+  if (matchesProviderIds(provider, FORCE_TEXT_PROVIDER_IDS)) return false
   return NATIVE_FILE_PROVIDER_IDS.has(aiSdkProviderId)
 }
 
@@ -159,6 +179,6 @@ export function resolveNativeFileSupport(
     image: isVisionModel(model),
     pdf: supportsNativePdf(provider, model, routing.aiSdkProviderId),
     audio: mediaSupport.audio && isAudioModel(model),
-    video: mediaSupport.video && isVideoModel(model)
+    video: mediaSupport.video && isVideoModel(model) && !matchesProviderIds(provider, NO_INLINE_VIDEO_PROVIDER_IDS)
   }
 }
