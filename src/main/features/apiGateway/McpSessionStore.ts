@@ -29,6 +29,14 @@ export class SessionLimitReachedError extends Error {
   }
 }
 
+/** Raised when a session is requested while the owning server is shutting down. */
+export class StoreClosedError extends Error {
+  constructor() {
+    super('MCP session store is closed')
+    this.name = 'StoreClosedError'
+  }
+}
+
 /**
  * Live `Mcp-Session-Id` → bridge/transport map for `/v1/mcps/:id/mcp`.
  *
@@ -42,33 +50,59 @@ export class SessionLimitReachedError extends Error {
 export class McpSessionStore {
   private readonly sessions = new Map<string, McpSession>()
   private sweepTimer: NodeJS.Timeout | null = null
+  /**
+   * Initializations that passed admission but have not reached `onsessioninitialized` yet.
+   * Counted against the cap: creation awaits `bridge.connect()` (and the route awaits cache
+   * warming before that), so a burst of concurrent initializes would otherwise all read a
+   * stale `sessions.size` and allocate unbounded bridges.
+   */
+  private pendingAdmissions = 0
+  /** Set by `closeAll()`. A session opened after the server started closing would never be reachable. */
+  private closed = false
 
   /**
    * Open a session for `server` and let it serve the `initialize` request that asked for one.
    * Creation and the first request are one step because the session id only exists once the
    * transport has processed that request — there is no meaningful half-built session to hand back.
    *
-   * Throws {@link SessionLimitReachedError} when the cap is reached.
+   * Throws {@link SessionLimitReachedError} when the cap is reached, or {@link StoreClosedError}
+   * once the owning server is shutting down.
    */
   async createAndHandle(server: McpServer, request: Request, parsedBody: unknown): Promise<Response> {
-    if (this.sessions.size >= MAX_SESSIONS) {
+    if (this.closed) throw new StoreClosedError()
+    // Reserve synchronously — nothing may await between the check and the increment.
+    if (this.sessions.size + this.pendingAdmissions >= MAX_SESSIONS) {
       throw new SessionLimitReachedError(MAX_SESSIONS)
     }
+    this.pendingAdmissions++
 
+    let registered = false
     const bridge = createMcpBridgeServer(server.id, server)
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: () => randomUUID(),
-      // POST replies stay plain JSON; server→client notifications ride the standalone
-      // GET stream instead, which `handleGetRequest` opens regardless of this flag.
-      enableJsonResponse: true,
+      // Responses stream as SSE rather than plain JSON: the SDK only writes
+      // request-related notifications (tool `notifications/progress`) when JSON response
+      // mode is OFF, so enabling it would resolve the call while silently dropping every
+      // progress update. See `WebStandardStreamableHTTPServerTransport.send`.
+      enableJsonResponse: false,
       onsessioninitialized: (sessionId) => {
-        this.sessions.set(sessionId, {
+        registered = true
+        const session: McpSession = {
           id: sessionId,
           serverId: server.id,
           transport,
           bridge,
           lastActivityAt: Date.now()
-        })
+        }
+        // Outbound traffic counts as activity too. Without this the timestamp only moves on a
+        // new HTTP request, so a client sitting on a GET stream and receiving notifications
+        // would be swept as "idle" — a hard lifetime, not the idle timeout we document.
+        const send = transport.send.bind(transport)
+        transport.send = async (message, options) => {
+          session.lastActivityAt = Date.now()
+          return send(message, options)
+        }
+        this.sessions.set(sessionId, session)
         this.ensureSweeping()
         logger.debug('MCP session opened', { sessionId, serverId: server.id, live: this.sessions.size })
       },
@@ -79,14 +113,19 @@ export class McpSessionStore {
       }
     })
 
-    await bridge.connect(transport)
-
     try {
-      return await transport.handleRequest(request, { parsedBody })
+      await bridge.connect(transport)
+      const response = await transport.handleRequest(request, { parsedBody })
+      // `closeAll()` may have run while we were connecting; that sweep could not have seen
+      // this session, so retire it here rather than leaving it behind a closed server.
+      if (registered && this.closed) await this.delete(transport.sessionId!)
+      return response
     } catch (error) {
-      // Nothing was registered if `initialize` failed — drop the bridge rather than leak it.
-      if (!transport.sessionId || !this.sessions.has(transport.sessionId)) await bridge.close().catch(() => {})
+      // A failed handshake registers nothing — drop the bridge rather than leak it.
+      if (!registered) await bridge.close().catch(() => {})
       throw error
+    } finally {
+      this.pendingAdmissions--
     }
   }
 
@@ -104,8 +143,15 @@ export class McpSessionStore {
     await this.closeSession(session)
   }
 
-  /** Drop every session and stop sweeping. Called by `ApiGateway.stop()`. */
+  /**
+   * Drop every session and stop sweeping, refusing new ones from here on.
+   *
+   * `ApiGateway.stop()` must call this **before** awaiting the HTTP server's close: a session's
+   * GET stream is an active response, and Node's `server.close()` waits for those, so closing
+   * in the other order deadlocks shutdown until the client disconnects.
+   */
   async closeAll(): Promise<void> {
+    this.closed = true
     if (this.sweepTimer) {
       clearInterval(this.sweepTimer)
       this.sweepTimer = null

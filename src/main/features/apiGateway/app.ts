@@ -7,7 +7,7 @@ import { Elysia } from 'elysia'
 import { v4 as uuidv4 } from 'uuid'
 
 import { gatewayErrorHandler } from './errors'
-import { McpSessionStore } from './mcpSessionStore'
+import { McpSessionStore } from './McpSessionStore'
 import { authorizeApiRequest } from './middleware/auth'
 import {
   buildOpenApiDocument,
@@ -94,6 +94,11 @@ export function buildApp({
         // boundary here (the API key is; non-browser clients ignore CORS entirely), so
         // reflecting the requested headers is the correct, maintenance-free choice.
         allowedHeaders: true,
+        // Must be an explicit list, not the default `true`. That default reflects the
+        // *request's* header names, and an `initialize` request cannot carry `mcp-session-id`
+        // yet — so a browser client would be unable to read the id the server just issued,
+        // would send every later request without it, and would orphan the session.
+        exposeHeaders: ['mcp-session-id', 'x-request-id'],
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
       })
     )

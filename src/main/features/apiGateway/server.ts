@@ -4,7 +4,7 @@ import type { Server } from 'elysia/universal/server'
 import type { Server as HttpServer } from 'http'
 
 import { type ApiGatewayApp, buildApp } from './app'
-import { McpSessionStore } from './mcpSessionStore'
+import { McpSessionStore } from './McpSessionStore'
 
 const logger = loggerService.withContext('ApiGateway')
 
@@ -115,11 +115,14 @@ export class ApiGateway {
       // never assigns `app.server`, so Elysia core's web-standard `stop()` throws
       // "Elysia isn't running". An unhandled throw would skip the cleanup below and
       // leave the service stuck `_activated` with a stale `running` cache state.
+      // BEFORE awaiting the close, not after: a session's GET stream is an active response,
+      // and `server.close()` waits for those to finish, so stopping first would hang here
+      // until the client disconnected or the idle sweep fired half an hour later. Closing the
+      // sessions ends those streams, which is what lets the close below settle. `closeAll`
+      // also latches the store shut, so an initialize racing this shutdown is refused.
+      await this.mcpSessions.closeAll()
       await this.serverInfo?.stop?.()
     } finally {
-      // After the socket is gone every session is unreachable; close them so their bridges
-      // and idle sweep don't outlive the server.
-      await this.mcpSessions.closeAll()
       this.running = false
       this.serverInfo = null
       this.app = null

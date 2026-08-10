@@ -10,7 +10,7 @@ import { Elysia } from 'elysia'
 import * as z from 'zod'
 
 import { jsonRpcEnvelope, MCP_TRANSPORT_ERROR } from '../errors'
-import { type McpSessionStore, SessionLimitReachedError } from '../mcpSessionStore'
+import { type McpSessionStore, SessionLimitReachedError, StoreClosedError } from '../McpSessionStore'
 import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 
 const logger = loggerService.withContext('McpRoutes')
@@ -115,6 +115,11 @@ function resolveServer(idOrName: string): McpServer {
  *
  * Only `tools/list` waits on the tools cache (see `needsWarmTools`); gating the handshake on
  * an upstream probe is what times clients out.
+ *
+ * Session POSTs answer in SSE, the one-shot path in JSON: the SDK only writes
+ * request-related notifications (a tool's `notifications/progress`) when JSON response
+ * mode is off, so a session using it would resolve the call and drop every progress
+ * update. The one-shot path has no stream to deliver them on either way.
  *
  * `detail.tags`/`summary` hold i18n *keys*, not translated text — see chat.ts.
  */
@@ -330,7 +335,9 @@ async function handleProxyPost(
     try {
       return await sessions.createAndHandle(server, request, body)
     } catch (error) {
-      if (error instanceof SessionLimitReachedError) {
+      // Both mean "cannot take a new session right now", which is a retryable 503 rather
+      // than a fault in the request.
+      if (error instanceof SessionLimitReachedError || error instanceof StoreClosedError) {
         logger.warn('Refused MCP session', { serverId: server.id, error })
         return new Response(
           JSON.stringify({ jsonrpc: '2.0', error: { code: -32000, message: error.message }, id: null }),
