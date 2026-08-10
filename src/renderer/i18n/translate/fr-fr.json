@@ -4096,6 +4096,9 @@
       "failed": "La restauration a échoué",
       "success": "La restauration a réussi"
     },
+    "retry": {
+      "status": "Nouvelle tentative avec {{model}} · tentative {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Enregistrement réussi"
@@ -7537,6 +7540,16 @@
         "label": "Modèle rapide",
         "setting_title": "Configuration rapide du modèle",
         "tooltip": "Il est recommandé de choisir un modèle léger et déconseillé de choisir un modèle de réflexion."
+      },
+      "retry": {
+        "backoff": "Temporisation exponentielle",
+        "description": "Réessaie les appels de chat, d'embedding et de reranking ; le chat peut basculer vers d'autres modèles",
+        "fallback_models": "Modèles de secours",
+        "fallback_models_count": "{{count}} modèles sélectionnés",
+        "fallback_models_description": "Modèles essayés dans l'ordre lorsque le modèle principal échoue",
+        "label": "Relance d'appel de modèle",
+        "max_attempts": "Nombre maximum de tentatives",
+        "tooltip": "Les nouvelles tentatives et les modèles de secours ne s'appliquent qu'avant que le modèle ne commence à diffuser du contenu"
       },
       "toolbar": {
         "custom_add": "Personnalisé",
