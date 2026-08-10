@@ -144,46 +144,52 @@ describe('toModelMessages', () => {
     })
   })
 
-  it('rewrites a v1 "server: tool" name to a wire-legal one on both call and result (#18199)', async () => {
-    const model = await toModelMessages([
-      ui('assistant', [
-        {
-          type: 'dynamic-tool',
-          toolName: 'jina: jina_reader',
-          toolCallId: 'call_00_1',
-          state: 'output-available',
-          input: { url: 'https://example.com' },
-          output: { ok: true }
-        }
-      ])
-    ])
+  const legacyTool = (toolName: string, toolCallId: string): UIMessage['parts'][number] => ({
+    type: 'dynamic-tool',
+    toolName,
+    toolCallId,
+    state: 'output-available',
+    input: {},
+    output: { ok: true }
+  })
 
-    expect(model[0]).toMatchObject({
-      role: 'assistant',
-      content: [expect.objectContaining({ type: 'tool-call', toolName: 'jina__jina_reader' })]
-    })
+  const namesOf = (message: ModelMessage) => (message.content as { toolName: string }[]).map((p) => p.toolName)
+
+  it('rewrites a v1 "server: tool" name to a wire-legal one on both call and result (#18199)', async () => {
+    const model = await toModelMessages([ui('assistant', [legacyTool('jina: jina_reader', 'call_00_1')])])
+
+    const wireName = namesOf(model[0])[0]
+    expect(wireName).toMatch(/^jina__jina_reader_[0-9a-f]{8}$/)
     expect(model[1]).toMatchObject({
       role: 'tool',
-      content: [expect.objectContaining({ type: 'tool-result', toolName: 'jina__jina_reader' })]
+      content: [expect.objectContaining({ type: 'tool-result', toolName: wireName })]
     })
   })
 
-  it('caps a v1 name at the 64-char / leading-letter provider limits', async () => {
+  it('keeps distinct v1 names distinct past the 64-char / leading-letter provider limits', async () => {
+    const server = `1${'长'.repeat(80)}`
     const model = await toModelMessages([
-      ui('assistant', [
-        {
-          type: 'dynamic-tool',
-          toolName: `1${'长'.repeat(80)}: search`,
-          toolCallId: 'call_00_2',
-          state: 'output-available',
-          input: {},
-          output: { ok: true }
-        }
-      ])
+      ui('assistant', [legacyTool(`${server}: search`, 'call_00_2'), legacyTool(`${server}: fetch`, 'call_00_3')])
     ])
 
-    const toolName = (model[0].content as { toolName: string }[])[0].toolName
-    expect(toolName).toMatch(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/)
+    const [search, fetch] = namesOf(model[0])
+    expect(search).toMatch(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/)
+    expect(fetch).toMatch(/^[A-Za-z_][A-Za-z0-9_-]{0,63}$/)
+    expect(search).not.toBe(fetch)
+  })
+
+  // The API Gateway shares this path and keys its ToolSet by the client's own function name.
+  it('leaves a declared tool name untouched even when it holds provider-specific characters', async () => {
+    const declared = 'maps.lookup'
+    const model = await toModelMessages([ui('assistant', [legacyTool(declared, 'call_00_4')])], undefined, {
+      [declared]: tool({ inputSchema: z.object({}), toModelOutput: () => ({ type: 'text', value: 'formatted' }) })
+    })
+
+    expect(namesOf(model[0])).toEqual([declared])
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ toolName: declared, output: { type: 'text', value: 'formatted' } })]
+    })
   })
 })
 

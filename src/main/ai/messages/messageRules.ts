@@ -5,6 +5,8 @@
  * end-to-end. Each step is pure and preserves element references when it changes nothing.
  */
 
+import { createHash } from 'node:crypto'
+
 import { convertToModelMessages, type ModelMessage, type ToolSet, type UIMessage } from 'ai'
 
 import { ALL_MEDIA, type MediaCapabilities, stripUnsupportedMedia } from './messageCapabilities'
@@ -65,25 +67,36 @@ export function ensureNonEmptyAssistantContent(messages: ModelMessage[]): ModelM
 
 /** Intersection of the provider rules: OpenAI `^[a-zA-Z0-9_-]{1,64}$`, Gemini's leading letter/underscore. */
 const WIRE_TOOL_NAME = /^[A-Za-z_][A-Za-z0-9_-]{0,63}$/
+const NAME_DIGEST_LENGTH = 8
 
+/**
+ * Sanitizing and truncating are both many-to-one, so a digest of the original name is what
+ * keeps two legacy names distinct — `@ai-sdk/google` serializes `functionCall`/`functionResponse`
+ * history by name with no tool-call id, so a collision there mispairs calls with results.
+ */
 function toWireToolName(name: string): string {
+  const digest = createHash('sha1').update(name).digest('hex').slice(0, NAME_DIGEST_LENGTH)
   const sanitized = name.replace(/[^A-Za-z0-9_-]/g, '_')
-  return (/^[A-Za-z_]/.test(sanitized) ? sanitized : `_${sanitized}`).slice(0, 64)
+  const head = (/^[A-Za-z_]/.test(sanitized) ? sanitized : `_${sanitized}`).slice(0, 63 - NAME_DIGEST_LENGTH)
+  return `${head}_${digest}`
 }
 
 /**
- * Make every `dynamic-tool` name wire-legal. The v1 migrator joins `"{server}: {tool}"` into
+ * Make an illegal `dynamic-tool` name wire-legal. The v1 migrator joins `"{server}: {tool}"` into
  * `toolName` for display (`ChatMappings`), and unlike v1 — which never replayed tool blocks —
- * v2 sends that field as `function_call.name`, which providers reject (#18199). Call and
- * result share one part, so the pair stays consistent; v2 wire ids are already legal, so this
- * is a no-op for them.
+ * v2 sends that field as `function_call.name`, which providers reject (#18199). Call and result
+ * share one part, so the pair stays consistent.
+ *
+ * A name this request declares is never rewritten: the API Gateway shares this path and keys its
+ * `ToolSet` by the client's own function name (which Gemini allows to hold `.` / `:`), so
+ * rewriting it would desync history from the declaration and skip the tool's `toModelOutput`.
  */
-export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[]): T[] {
+export function sanitizeDynamicToolNames<T extends UIMessage>(messages: T[], tools?: ToolSet): T[] {
   let out: T[] | undefined
   messages.forEach((message, messageIndex) => {
     let parts: T['parts'] | undefined
     message.parts.forEach((part, partIndex) => {
-      if (part.type !== 'dynamic-tool' || WIRE_TOOL_NAME.test(part.toolName)) return
+      if (part.type !== 'dynamic-tool' || WIRE_TOOL_NAME.test(part.toolName) || tools?.[part.toolName]) return
       parts ??= [...message.parts]
       parts[partIndex] = { ...part, toolName: toWireToolName(part.toolName) }
     })
@@ -110,7 +123,7 @@ export async function toModelMessages(
   caps?: MediaCapabilities,
   tools?: ToolSet
 ): Promise<ModelMessage[]> {
-  const rendered = sanitizeDynamicToolNames(renderPersistedToolOutputs(messages))
+  const rendered = sanitizeDynamicToolNames(renderPersistedToolOutputs(messages), tools)
   const shaped = stripUnsupportedMedia(rendered, caps ?? ALL_MEDIA)
   const model = await convertToModelMessages(shaped, { ignoreIncompleteToolCalls: true, tools })
   return ensureNonEmptyAssistantContent(coalesceConsecutiveSameRole(model))
