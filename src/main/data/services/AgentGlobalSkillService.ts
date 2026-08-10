@@ -15,7 +15,11 @@ import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentSkillUpdateDto } from '@shared/data/api/schemas/agents'
-import type { InstalledSkill, ListSkillsQuery } from '@shared/data/api/schemas/skills'
+import {
+  type InstalledSkill,
+  type ListSkillsQuery,
+  SKILL_LIST_MEMBERSHIP_DIMENSIONS
+} from '@shared/data/api/schemas/skills'
 import { and, asc, eq, inArray, or, type SQL, sql } from 'drizzle-orm'
 
 /**
@@ -124,7 +128,15 @@ export class AgentGlobalSkillService {
       .all()
     if (!updated) return null
 
-    notifyDataApiDataChange([{ endpoint: '/skills', kind: 'projection', entityIds: [id] }])
+    notifyDataApiDataChange([
+      { endpoint: '/skills', kind: 'projection', entityIds: [id] },
+      {
+        endpoint: '/skills',
+        kind: 'membership',
+        dimension: SKILL_LIST_MEMBERSHIP_DIMENSIONS.AGENT_ID,
+        entityIds: [id]
+      }
+    ])
     return this.rowToInstalledSkill(updated)
   }
 

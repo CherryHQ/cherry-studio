@@ -43,6 +43,11 @@ export const ListSkillsQuerySchema = z.strictObject({
 export type ListSkillsQueryParams = z.input<typeof ListSkillsQuerySchema>
 export type ListSkillsQuery = z.output<typeof ListSkillsQuerySchema>
 
+/** Query families whose membership can change independently for the skills collection. */
+export const SKILL_LIST_MEMBERSHIP_DIMENSIONS = {
+  AGENT_ID: 'agentId'
+} as const
+
 export const UpdateSkillSchema = z.strictObject({
   isGlobalEnabled: z.boolean()
 })

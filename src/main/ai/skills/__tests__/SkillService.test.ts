@@ -11,6 +11,8 @@ import { agentSkillTable } from '@data/db/schemas/agentSkill'
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { loggerService } from '@logger'
 import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import { SKILL_LIST_MEMBERSHIP_DIMENSIONS } from '@shared/data/api/schemas/skills'
+import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import AdmZip from 'adm-zip'
 import { eq } from 'drizzle-orm'
@@ -169,8 +171,12 @@ describe('SkillService', () => {
 
       expect(disabledSkill?.isGlobalEnabled).toBe(false)
       expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
-        { endpoint: '/skills', kind: 'projection', entityIds: [SKILL_ID_1] }
+        { endpoint: '/skills', kind: 'projection', entityIds: [SKILL_ID_1] },
+        { endpoint: '/skills', kind: 'membership', dimension: 'agentId', entityIds: [SKILL_ID_1] }
       ])
+      const emittedEffects = notifyDataApiDataChangeMock.mock.calls[0]?.[0] as DataApiDataChangeEffect[]
+      const membershipEffect = emittedEffects.find((effect) => effect.kind === 'membership')
+      expect(Object.values(SKILL_LIST_MEMBERSHIP_DIMENSIONS)).toContain(membershipEffect?.dimension)
       expect(globallyListed.find((skill) => skill.id === SKILL_ID_1)?.isGlobalEnabled).toBe(false)
       expect(agentListed.find((skill) => skill.id === SKILL_ID_1)).toBeUndefined()
       expect(storedPreference?.isEnabled).toBe(true)
