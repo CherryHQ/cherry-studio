@@ -496,10 +496,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "{{count}} channel",
+          "channels_count_other": "{{count}} channels",
+          "channels_empty": "No channels will be changed.",
+          "channels_title": "Channels changed to no work directory",
           "content": "Deleting this work directory will also delete all tasks under it. Only database records are removed; the actual folder on disk will not be deleted.",
+          "disk_preserved": "The folder on disk and its files will not be deleted.",
           "error": {
             "failed": "Failed to delete the work directory"
           },
+          "more_count_one": "…and {{count}} more item",
+          "more_count_other": "…and {{count}} more items",
+          "preview": "Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
+          "preview_failed": "The deletion impact could not be loaded, so this work directory cannot be deleted yet",
+          "preview_loading": "Loading deletion impact…",
+          "sessions_count_one": "{{count}} session",
+          "sessions_count_other": "{{count}} sessions",
+          "sessions_empty": "No sessions will be deleted.",
+          "sessions_title": "Sessions to be deleted",
+          "tasks_count_one": "{{count}} scheduled task",
+          "tasks_count_other": "{{count}} scheduled tasks",
+          "tasks_empty": "No scheduled tasks will be changed.",
+          "tasks_title": "Scheduled tasks changed to no work directory",
           "title": "Delete work directory",
           "trigger": "Delete work directory"
         },
@@ -2548,6 +2566,7 @@
       "503": "Service unavailable. Please try again later",
       "504": "Gateway timeout. Please try again later"
     },
+    "image_unreadable_for_non_vision_model": "The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "Last Error",
     "maxEmbeddingsPerCall": "Max Embeddings Per Call",
     "message": "Error Message",
@@ -3196,7 +3215,6 @@
       "updated_at": "Updated {{time}}"
     },
     "name_required": "Knowledge base name is required",
-    "not_set": "Not Set",
     "provider_not_found": "Provider not found",
     "rag": {
       "chunk_overlap": "Overlap Size",
@@ -3211,12 +3229,13 @@
       "chunking": "Chunking",
       "default_separator": "Auto (recommended)",
       "document_count": "Top K",
-      "download_local_embedding": "Download Local Model",
       "download_local_embedding_failed": "Failed to download the local embedding model",
+      "download_local_model": "Download Local Model",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
       "file_processing": "File Processing",
       "file_processing_hint": "Document preprocessing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
+      "file_processing_none": "Don't use",
       "hints": {
         "chunk_overlap": "Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
         "chunk_separator": "Delimiter the text is split on, in escaped form. With smart chunking on it adds a break point; with it off the text is split only by this delimiter.",
@@ -3230,6 +3249,8 @@
       },
       "processor": "Processing Provider",
       "processor_not_configured": "Not configured",
+      "processor_not_downloaded": "Not downloaded",
+      "processor_unreachable": "Service not running",
       "rerank_disabled": "Disabled",
       "rerank_model": "Rerank Model",
       "reset_action": "Restore Defaults",
@@ -8268,8 +8289,12 @@
             "description": "Advanced file restoration engine.",
             "name": "Doc2x"
           },
+          "local_document": {
+            "description": "Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
+            "name": "Local Document"
+          },
           "local_paddleocr": {
-            "description": "PaddleOCR (PP-OCRv6 medium) running in-process — fully offline, no API key, with recognition on a background thread so the UI stays responsive. Download the model (~140MB) in Environment Dependencies before first use.",
+            "description": "PaddleOCR (PP-OCRv6 medium) running inside the app — fully offline, no API key, and recognition happens on a background thread so the UI stays responsive.",
             "name": "Local PaddleOCR",
             "status": {
               "local": "Runs fully on your device"
