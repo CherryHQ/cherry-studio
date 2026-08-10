@@ -2,6 +2,7 @@
 
 import type { SpanEntity } from '@mcp-trace/trace-core'
 import { fireEvent, render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TRACE_ROW_HEIGHT } from '../traceNode'
@@ -9,21 +10,39 @@ import TraceTree, { getAnchoredTraceScrollTop, isTraceScrollAtBottom } from '../
 import { TraceTreeModel } from '../TraceTreeModel'
 
 const mocks = vi.hoisted(() => ({
-  scrollToIndex: vi.fn()
+  scrollToIndex: vi.fn(),
+  cachedKeys: [] as Array<string | number>,
+  previousCount: -1,
+  previousGetItemKey: null as ((index: number) => string | number) | null
 }))
 
 vi.mock('@tanstack/react-virtual', () => ({
-  useVirtualizer: (options: { count: number; estimateSize: () => number; getItemKey: (index: number) => string }) => ({
-    getTotalSize: () => options.count * options.estimateSize(),
-    getVirtualItems: () =>
-      Array.from({ length: Math.min(options.count, 24) }, (_, index) => ({
-        index,
-        key: options.getItemKey(index),
-        start: index * options.estimateSize(),
-        size: options.estimateSize()
-      })),
-    scrollToIndex: mocks.scrollToIndex
-  })
+  defaultRangeExtractor: ({ startIndex, endIndex }: { startIndex: number; endIndex: number }) =>
+    Array.from({ length: endIndex - startIndex + 1 }, (_, index) => startIndex + index),
+  useVirtualizer: (options: {
+    count: number
+    estimateSize: () => number
+    getItemKey: (index: number) => string | number
+  }) => {
+    const renderedCount = Math.min(options.count, 24)
+    if (mocks.previousCount !== options.count || mocks.previousGetItemKey !== options.getItemKey) {
+      mocks.cachedKeys = Array.from({ length: renderedCount }, (_, index) => options.getItemKey(index))
+      mocks.previousCount = options.count
+      mocks.previousGetItemKey = options.getItemKey
+    }
+
+    return {
+      getTotalSize: () => options.count * options.estimateSize(),
+      getVirtualItems: () =>
+        Array.from({ length: renderedCount }, (_, index) => ({
+          index,
+          key: mocks.cachedKeys[index],
+          start: index * options.estimateSize(),
+          size: options.estimateSize()
+        })),
+      scrollToIndex: mocks.scrollToIndex
+    }
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -65,6 +84,9 @@ function renderTree(model: TraceTreeModel, handleClick = vi.fn(), handleToggle =
 describe('TraceTree', () => {
   beforeEach(() => {
     mocks.scrollToIndex.mockReset()
+    mocks.cachedKeys = []
+    mocks.previousCount = -1
+    mocks.previousGetItemKey = null
   })
 
   afterEach(() => {
@@ -108,6 +130,65 @@ describe('TraceTree', () => {
     expect(document.querySelectorAll('[data-trace-row]')).toHaveLength(0)
   })
 
+  it('preserves row identity when visible nodes reorder without changing count', () => {
+    const model = new TraceTreeModel()
+    model.reset([span('root'), span('child-a', 'root', 1), span('child-b', 'root', 2)])
+    const view = renderTree(model)
+    const childB = screen.getByRole('treeitem', { name: 'child-b' })
+
+    model.applySpanChanges([span('child-b', 'root', 0)])
+    view.rerender(
+      <TraceTree model={model} revision={model.lastMutation.revision} handleClick={vi.fn()} handleToggle={vi.fn()} />
+    )
+
+    expect(model.visibleRows.map((row) => row.id)).toEqual(['root', 'child-b', 'child-a'])
+    expect(screen.getByRole('treeitem', { name: 'child-b' })).toBe(childB)
+  })
+
+  it('keeps long names inside the fixed-height row contract', () => {
+    const longName = 'a very long trace node name '.repeat(20)
+    const model = new TraceTreeModel()
+    model.reset([span('root', null, 0, { name: longName })])
+    renderTree(model)
+
+    const row = screen.getByRole('treeitem', { name: longName })
+    const label = screen.getByTitle(longName)
+
+    // Fixed-height virtualization requires both the row and its text to clip instead of growing.
+    expect(row).toHaveClass('h-8', 'overflow-hidden')
+    expect(label).toHaveClass('truncate', 'whitespace-nowrap')
+  })
+
+  it('exposes tree semantics and moves the active node with the keyboard', async () => {
+    const user = userEvent.setup()
+    const model = new TraceTreeModel()
+    model.reset([span('root'), span('child-a', 'root', 1), span('child-b', 'root', 2)])
+    const handleClick = vi.fn()
+    renderTree(model, handleClick)
+    const tree = screen.getByRole('tree', { name: 'trace.label' })
+    const root = screen.getByRole('treeitem', { name: 'root' })
+    const childA = screen.getByRole('treeitem', { name: 'child-a' })
+
+    expect(root).toHaveAttribute('aria-level', '1')
+    expect(root).toHaveAttribute('aria-expanded', 'true')
+    expect(childA).toHaveAttribute('aria-level', '2')
+    expect(childA).not.toHaveAttribute('aria-expanded')
+
+    tree.focus()
+    expect(tree).toHaveAttribute('aria-activedescendant', root.id)
+
+    await user.keyboard('{ArrowDown}')
+    expect(tree).toHaveAttribute('aria-activedescendant', childA.id)
+    expect(mocks.scrollToIndex).toHaveBeenLastCalledWith(1, { align: 'auto' })
+
+    await user.keyboard('{ArrowLeft}')
+    expect(tree).toHaveAttribute('aria-activedescendant', root.id)
+
+    await user.keyboard('{ArrowRight}{Enter}')
+    expect(tree).toHaveAttribute('aria-activedescendant', childA.id)
+    expect(handleClick).toHaveBeenCalledWith('child-a')
+  })
+
   it('delegates node selection and expansion without selecting on toggle', () => {
     const model = new TraceTreeModel()
     model.reset([span('root'), span('child', 'root', 1)])
@@ -119,7 +200,7 @@ describe('TraceTree', () => {
     fireEvent.click(within(rootRow).getByText('root'))
     expect(handleClick).toHaveBeenCalledWith('root')
 
-    fireEvent.click(within(rootRow).getByRole('button', { name: 'Toggle' }))
+    fireEvent.click(within(rootRow).getByRole('button', { name: 'common.collapse' }))
     expect(handleToggle).toHaveBeenCalledWith('root')
     expect(handleClick).toHaveBeenCalledTimes(1)
   })

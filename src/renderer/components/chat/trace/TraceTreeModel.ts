@@ -28,7 +28,7 @@ function normalizeParentId(parentId: string | null | undefined): string | null {
  * Normalized trace tree with a pre-order projection of expanded rows.
  *
  * Full snapshots rebuild once. Incremental span field updates keep the visible-row array intact;
- * structural changes splice only the moved subtree into that projection.
+ * structural changes splice the moved subtree, except late-parent adoption batches that rebuild once.
  */
 export class TraceTreeModel {
   private readonly nodesById = new Map<string, TraceNode>()
@@ -40,6 +40,7 @@ export class TraceTreeModel {
   private rootIds: string[] = []
   private _visibleRows: TraceVisibleRow[] = []
   private _lastMutation = INITIAL_MUTATION
+  private _virtualItemKey = (index: number): string | number => this._visibleRows[index]?.id ?? index
 
   get visibleRows(): readonly TraceVisibleRow[] {
     return this._visibleRows
@@ -47,6 +48,10 @@ export class TraceTreeModel {
 
   get lastMutation(): TraceTreeMutation {
     return this._lastMutation
+  }
+
+  get virtualItemKey(): (index: number) => string | number {
+    return this._virtualItemKey
   }
 
   get nodeCount(): number {
@@ -260,17 +265,26 @@ export class TraceTreeModel {
     const waiting = this.waitingChildrenByParentId.get(parentId)
     if (!waiting?.size) return false
 
-    let structureChanged = false
-    for (const childId of [...waiting]) {
+    const adoptedIds: string[] = []
+    for (const childId of waiting) {
       const child = this.nodesById.get(childId)
       if (!child || normalizeParentId(child.parentId) !== parentId) continue
-      structureChanged = this.removeVisibleSubtree(childId) || structureChanged
-      this.detachNode(childId)
-      this.attachNode(childId)
-      structureChanged = this.insertVisibleSubtree(childId) || structureChanged
+      adoptedIds.push(childId)
     }
     this.waitingChildrenByParentId.delete(parentId)
-    return structureChanged
+    if (adoptedIds.length === 0) return false
+
+    const adoptedIdSet = new Set(adoptedIds)
+    this.rootIds = this.rootIds.filter((rootId) => !adoptedIdSet.has(rootId))
+    for (const childId of adoptedIds) this.attachedParentById.set(childId, parentId)
+
+    const parent = this.nodesById.get(parentId)
+    if (parent) {
+      this.replaceChildIds(parentId, [...parent.childIds, ...adoptedIds].sort(this.compareNodeIds))
+    }
+
+    this.rebuildVisibleRows()
+    return true
   }
 
   private replaceChildIds(parentId: string, childIds: string[]): void {
@@ -409,11 +423,20 @@ export class TraceTreeModel {
     }
   }
 
+  private rebuildVisibleRows(): void {
+    this._visibleRows = this.flattenForest()
+    this.visibleIndexById.clear()
+    this.reindexVisibleRows(0)
+  }
+
   private recordMutation(
     kind: MutationKind,
     structureChanged: boolean,
     previousVisibleCount: number
   ): TraceTreeMutation {
+    if (structureChanged) {
+      this._virtualItemKey = (index: number): string | number => this._visibleRows[index]?.id ?? index
+    }
     this._lastMutation = {
       kind,
       revision: this._lastMutation.revision + 1,

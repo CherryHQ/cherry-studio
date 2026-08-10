@@ -95,11 +95,13 @@ describe('TraceTreeModel', () => {
     const model = new TraceTreeModel()
     model.reset([span('root', null, 0, { endTime: null })])
     const visibleRows = model.visibleRows
+    const virtualItemKey = model.virtualItemKey
 
     const mutation = model.applySpanChanges([span('root', null, 0, { name: 'updated', status: 'ERROR' })])
 
     expect(mutation).toMatchObject({ structureChanged: false, previousVisibleCount: 1, visibleCount: 1 })
     expect(model.visibleRows).toBe(visibleRows)
+    expect(model.virtualItemKey).toBe(virtualItemKey)
     expect(model.getNode('root')).toMatchObject({ name: 'updated', status: 'ERROR' })
     expect(model.isIdle).toBe(true)
   })
@@ -117,16 +119,53 @@ describe('TraceTreeModel', () => {
     ])
   })
 
+  it('adopts a large orphan batch with one rebuilt projection', () => {
+    const model = new TraceTreeModel()
+    const orphans = Array.from({ length: 1_000 }, (_, index) => span(`orphan-${index}`, 'parent', index + 1))
+    model.reset(orphans)
+    const virtualItemKey = model.virtualItemKey
+
+    model.applySpanChanges([span('parent')])
+
+    expect(model.virtualItemKey).not.toBe(virtualItemKey)
+    expect(model.getNode('parent')?.childIds).toHaveLength(1_000)
+    expect(model.visibleRows).toHaveLength(1_001)
+    expect(model.visibleRows[0]).toMatchObject({ id: 'parent', depth: 0, rootId: 'parent' })
+    expect(model.visibleRows.at(-1)).toMatchObject({ id: 'orphan-999', depth: 1, rootId: 'parent' })
+  })
+
   it('moves a node when its parent or start time changes', () => {
     const model = new TraceTreeModel()
-    model.reset([span('root-a'), span('root-b', null, 10), span('child', 'root-a', 5)])
+    model.reset([
+      span('root-a'),
+      span('root-b', null, 10),
+      span('before', 'root-b', 2),
+      span('child', 'root-a', 5),
+      span('grandchild', 'child', 6),
+      span('after', 'root-b', 30)
+    ])
 
     model.applySpanChanges([span('child', 'root-b', 20)])
-    expect(model.visibleRows.map((row) => row.id)).toEqual(['root-a', 'root-b', 'child'])
-    expect(model.visibleRows[2]).toMatchObject({ depth: 1, rootId: 'root-b' })
+    expect(model.visibleRows.map((row) => row.id)).toEqual([
+      'root-a',
+      'root-b',
+      'before',
+      'child',
+      'grandchild',
+      'after'
+    ])
+    expect(model.visibleRows[3]).toMatchObject({ depth: 1, rootId: 'root-b' })
 
     model.applySpanChanges([span('child', 'root-b', 1)])
-    expect(model.getNode('root-b')?.childIds).toEqual(['child'])
+    expect(model.getNode('root-b')?.childIds).toEqual(['child', 'before', 'after'])
+    expect(model.visibleRows.map((row) => row.id)).toEqual([
+      'root-a',
+      'root-b',
+      'child',
+      'grandchild',
+      'before',
+      'after'
+    ])
   })
 
   it('handles a deeply nested tree without recursive traversal', () => {
