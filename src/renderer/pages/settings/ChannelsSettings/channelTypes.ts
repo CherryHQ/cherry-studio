@@ -39,7 +39,7 @@ export const AVAILABLE_CHANNELS: AvailableChannel[] = [
     titleKey: 'agent.channels.qq.title',
     description: 'agent.channels.qq.description',
     available: true,
-    defaultConfig: { app_id: '', client_secret: '', allowed_chat_ids: [] }
+    defaultConfig: { app_id: '', client_secret: '', allowed_chat_ids: [], mention_only: true }
   },
   {
     type: 'wechat',
