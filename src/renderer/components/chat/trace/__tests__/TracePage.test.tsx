@@ -4,6 +4,7 @@ import { Activity, type ButtonHTMLAttributes, type HTMLAttributes, type PropsWit
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { TracePage } from '../TracePage'
+import type * as TraceTreeModule from '../TraceTree'
 
 const mocks = vi.hoisted(() => ({
   getData: vi.fn(),
@@ -46,7 +47,8 @@ vi.mock('@renderer/components/CodeViewer', () => ({
   default: ({ value }: { value: string }) => <pre data-testid="code-viewer">{value}</pre>
 }))
 
-vi.mock('../TraceTree', () => ({
+vi.mock('../TraceTree', async (importOriginal) => ({
+  ...(await importOriginal<typeof TraceTreeModule>()),
   default: ({ handleClick, node }: { handleClick: (nodeId: string) => void; node: { id: string; name: string } }) => (
     <button type="button" onClick={() => handleClick(node.id)}>
       {node.name}
