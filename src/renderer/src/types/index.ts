@@ -873,6 +873,7 @@ export const BuiltinMCPServerNames = {
 } as const
 
 export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]
+export const MCP_AUTO_INSTALL_ARGS = ['-y', '@mcpmarket/mcp-auto-install', 'connect', '--json']
 
 export const BuiltinMCPServerNamesArray = Object.values(BuiltinMCPServerNames)
 

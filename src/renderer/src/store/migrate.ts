@@ -42,7 +42,13 @@ import type {
   TranslateLanguageCode,
   WebSearchProvider
 } from '@renderer/types'
-import { isBuiltinMCPServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
+import {
+  BuiltinMCPServerNames,
+  isBuiltinMCPServer,
+  isSystemProvider,
+  MCP_AUTO_INSTALL_ARGS,
+  SystemProviderIds
+} from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import {
   isSupportArrayContentProvider,
@@ -3445,6 +3451,26 @@ const migrateConfig = {
       return state
     } catch (error) {
       logger.error('migrate 208 error', error as Error)
+      return state
+    }
+  },
+  '209': (state: RootState) => {
+    try {
+      state.mcp?.servers?.forEach((server) => {
+        if (
+          server.name === BuiltinMCPServerNames.mcpAutoInstall &&
+          server.args?.includes(BuiltinMCPServerNames.mcpAutoInstall)
+        ) {
+          server.args = server.args.map((arg) =>
+            arg === BuiltinMCPServerNames.mcpAutoInstall ? MCP_AUTO_INSTALL_ARGS[1] : arg
+          )
+        }
+      })
+
+      logger.info('migrate 209 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 209 error', error as Error)
       return state
     }
   }
