@@ -529,6 +529,53 @@ describe('McpRuntimeService.callTool cancellation', () => {
     expect((service as any).activeToolCalls.has('dup-call')).toBe(false)
   })
 
+  // The abort-wait racer must not leave its listener behind when client init wins: the
+  // composed signal is retained by the long-lived stream signal, so a lingering closure
+  // would accumulate once per tool call for the stream's whole lifetime.
+  it('removes every abort listener it added once the call settles without aborting', async () => {
+    const service = new McpRuntimeService()
+    const clientCallTool = vi.fn().mockResolvedValue({ content: [] })
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+    const controller = new AbortController()
+
+    const added: Array<{ target: AbortSignal; listener: unknown }> = []
+    const removed: Array<{ target: AbortSignal; listener: unknown }> = []
+    const originalAdd = AbortSignal.prototype.addEventListener
+    const originalRemove = AbortSignal.prototype.removeEventListener
+    const addSpy = vi.spyOn(AbortSignal.prototype, 'addEventListener').mockImplementation(function (
+      this: AbortSignal,
+      ...args: Parameters<typeof originalAdd>
+    ) {
+      if (args[0] === 'abort') added.push({ target: this, listener: args[1] })
+      return originalAdd.apply(this, args)
+    })
+    const removeSpy = vi.spyOn(AbortSignal.prototype, 'removeEventListener').mockImplementation(function (
+      this: AbortSignal,
+      ...args: Parameters<typeof originalRemove>
+    ) {
+      if (args[0] === 'abort') removed.push({ target: this, listener: args[1] })
+      return originalRemove.apply(this, args)
+    })
+
+    try {
+      await service.callTool({
+        serverId: server.id,
+        name: 'tool',
+        args: {},
+        callId: 'settled-call',
+        signal: controller.signal
+      })
+    } finally {
+      addSpy.mockRestore()
+      removeSpy.mockRestore()
+    }
+
+    expect(added.length).toBeGreaterThan(0)
+    for (const { target, listener } of added) {
+      expect(removed.some((entry) => entry.target === target && entry.listener === listener)).toBe(true)
+    }
+  })
+
   // Provider call ids can collide across topics; an abort scoped to one topic must never
   // cancel the identically-named in-flight call registered under another topic's scope.
   it('scopes abortTool so a colliding call id in another scope is untouched', async () => {

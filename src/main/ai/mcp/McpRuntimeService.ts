@@ -260,9 +260,10 @@ function withCache<T extends unknown[], R>(
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
-  // Keyed by caller-supplied call id, which is NOT guaranteed process-wide unique (AI SDK
-  // providers may reuse ids like "call_0" across sessions) — so every concurrent call
-  // registers its own controller under the id instead of overwriting the previous one.
+  // Keyed by toolCallKey(callId, scope). Caller-supplied call ids are NOT process-wide
+  // unique (AI SDK providers may reuse ids like "call_0" across topics), so scoped callers
+  // are namespaced, and every concurrent call registers its own controller under its key
+  // instead of overwriting the previous one.
   private activeToolCalls: Map<string, Set<AbortController>> = new Map()
   private serverLogs = new ServerLogBuffer(200)
   private stopping = false
@@ -1216,13 +1217,20 @@ export class McpRuntimeService extends BaseService {
         // layer — release this call's wait on abort instead of blocking until it settles.
         // The shared `pendingClients` init keeps running (only this caller's wait is released),
         // and both racers are consumed, so the loser's late rejection is never unhandled.
+        // The listener is removed once the race settles: `once` only cleans up after an
+        // abort fires, and the composed signal is retained by the long-lived stream signal —
+        // leaving it installed would accumulate a closure per tool call.
+        let handleAbort: (() => void) | undefined
         const client = await Promise.race([
           this.getOrCreateClient(server),
           new Promise<never>((_, reject) => {
-            if (effectiveSignal.aborted) return reject(getAbortReason(effectiveSignal))
-            effectiveSignal.addEventListener('abort', () => reject(getAbortReason(effectiveSignal)), { once: true })
+            handleAbort = (): void => reject(getAbortReason(effectiveSignal))
+            if (effectiveSignal.aborted) return handleAbort()
+            effectiveSignal.addEventListener('abort', handleAbort, { once: true })
           })
-        ])
+        ]).finally(() => {
+          if (handleAbort) effectiveSignal.removeEventListener('abort', handleAbort)
+        })
         const result = await client.callTool({ name, arguments: args }, undefined, {
           onprogress: (process) => {
             getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Progress`, {
