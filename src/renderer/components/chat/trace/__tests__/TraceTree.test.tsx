@@ -175,7 +175,7 @@ describe('TraceTree', () => {
   })
 
   it('keeps long names inside the fixed-height row contract', () => {
-    const longName = 'a very long trace node name '.repeat(20)
+    const longName = 'a very long trace node name '.repeat(20).trim()
     const model = new TraceTreeModel()
     model.reset([span('root', null, 0, { name: longName })])
     renderTree(model)
