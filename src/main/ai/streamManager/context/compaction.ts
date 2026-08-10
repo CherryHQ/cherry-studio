@@ -24,24 +24,43 @@ export function summaryMessageId(boundaryId: string): string {
 /**
  * Build the injected summary row (role 'user', continuation-framed).
  *
- * `attachmentHandles` restores the read_file call signal that folding erases:
- * the folded user message's file parts are gone from the served view, so
- * without this line the model has no idea an attachment exists or what name
- * `read_file` accepts (runtime-test finding #2). Callers pass ONLY the
- * handles of attachments folded behind the boundary (live ones still ride
- * served messages as file parts), making this row a pure function of the
- * boundary — attaching a file later never rewrites its bytes, so provider
- * prefix caches hold. Handle names match the request-level allow-list: dedup
- * is a left-to-right fold, so a prefix's handles equal the full pass's.
+ * Two manifest sections restore the call signals that folding erases. Both are
+ * APPEND-ONLY and render nothing when their kind is absent, so a conversation
+ * that has neither keeps byte-identical summary text and provider prefix
+ * caches hold (the extension contract in `retainedContext.ts`).
+ *
+ * `attachmentHandles` — the folded user message's file parts are gone from the
+ * served view, so without this line the model has no idea an attachment exists
+ * or what name `read_file` accepts (runtime-test finding #2).
+ *
+ * `persistedOutputPaths` — same hole one level down: a folded `<persisted-output>`
+ * marker keeps its blob on the fs_read allow-list, but the marker (and with it
+ * the physical path fs_read requires) is no longer in the prompt, so the model
+ * held a capability it had no legal argument for. Live markers are NOT listed
+ * here — they still carry their own path via `getVFSOffloadReminder`.
+ *
+ * Callers pass ONLY what is folded BEHIND the boundary for both, which is what
+ * makes this row a pure function of the boundary: attaching a file or
+ * offloading another output later never rewrites its bytes. Handles and paths
+ * match the request-level allow-list because both are left-to-right folds — a
+ * prefix's values equal the full pass's.
  */
-export function summaryRow(boundaryId: string, summary: string, attachmentHandles?: readonly string[]): CompactionRow {
-  const manifest = attachmentHandles?.length
+export function summaryRow(
+  boundaryId: string,
+  summary: string,
+  attachmentHandles?: readonly string[],
+  persistedOutputPaths?: readonly string[]
+): CompactionRow {
+  const attachments = attachmentHandles?.length
     ? `\n\n[Files attached in this conversation remain readable in full via the read_file tool: ${attachmentHandles.join(', ')}]`
+    : ''
+  const persisted = persistedOutputPaths?.length
+    ? `\n\n[Tool output archived from this conversation remains readable in full via the fs_read tool at: ${persistedOutputPaths.join(', ')}]`
     : ''
   return {
     id: summaryMessageId(boundaryId),
     role: 'user',
-    parts: [{ type: 'text', text: ContextPrompts.getCompactSummaryWrapper(summary) + manifest }]
+    parts: [{ type: 'text', text: ContextPrompts.getCompactSummaryWrapper(summary) + attachments + persisted }]
   }
 }
 
@@ -64,11 +83,18 @@ export function findDeepestMarker(rows: CompactionRow[]): number {
  * Returns the rows unchanged when no row carries a marker. Otherwise returns
  * `[summary(deepest)] + rows after the deepest marker`.
  */
-export function applyDeepestMarker(rows: CompactionRow[], attachmentHandles?: readonly string[]): CompactionRow[] {
+export function applyDeepestMarker(
+  rows: CompactionRow[],
+  attachmentHandles?: readonly string[],
+  persistedOutputPaths?: readonly string[]
+): CompactionRow[] {
   const d = findDeepestMarker(rows)
   if (d < 0) return rows
   // non-null: findDeepestMarker only returns an index whose compactionSummary is truthy
-  return [summaryRow(rows[d].id, rows[d].compactionSummary!, attachmentHandles), ...rows.slice(d + 1)]
+  return [
+    summaryRow(rows[d].id, rows[d].compactionSummary!, attachmentHandles, persistedOutputPaths),
+    ...rows.slice(d + 1)
+  ]
 }
 
 /**

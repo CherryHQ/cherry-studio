@@ -379,9 +379,13 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     ])
   })
 
-  it('1g. a served summary row keeps its folded prefix reachable inside a window', async () => {
-    // Folding is space-saving, not exclusion — and the summary row's manifest
-    // already advertises the handle, so revoking it would strand the model.
+  it('1g. a window ignores an older summary entirely and serves raw rows', async () => {
+    // A summary row summarizes everything up to its boundary, so serving one
+    // inside the window would carry pre-window content back into the prompt AND
+    // re-authorize the whole folded prefix for read_file. The window is a
+    // boundary the user drew: excluded means excluded from the prompt, the
+    // manifest and the allow-list alike. Serving raw is safe because N already
+    // bounds the size, and compaction only sets a column — the rows are still there.
     const foldedMsg = fakeMsg('u1', 'user', 'old question')
     ;(foldedMsg.data as { parts: unknown[] }).parts.push({
       type: 'file',
@@ -393,12 +397,40 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     const boundary = fakeMsg('a1', 'assistant', 'old answer')
     boundary.compactionSummary = 'PRIOR_SUMMARY'
     mockGetPathToNode.mockReturnValue([foldedMsg, boundary, fakeMsg('u2', 'user', 'now what')])
+    maxMessagesOn(1)
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    // Everything before the window is gone — no synthetic summary row, and the
+    // folded message's attachment leaves the read_file allow-list with it.
+    expect(messages.map((m) => m.id)).toEqual(['u2'])
+    expect(JSON.stringify(messages)).not.toContain('PRIOR_SUMMARY')
+    expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([])
+  })
+
+  it('1h. a window whose boundary row is inside it still serves raw, not the summary', async () => {
+    // The interesting half: even when the marker lands INSIDE the window, the
+    // summary is not served — its text covers everything up to the boundary,
+    // which reaches past the window. The rows themselves are served instead, so
+    // an attachment that is genuinely inside the window stays reachable.
+    const foldedMsg = fakeMsg('u1', 'user', 'old question')
+    ;(foldedMsg.data as { parts: unknown[] }).parts.push({
+      type: 'file',
+      mediaType: 'text/plain',
+      url: 'file:///tmp/folded.txt',
+      filename: 'folded.txt',
+      providerMetadata: { cherry: { fileEntryId: 'fe-folded' } }
+    })
+    const boundary = fakeMsg('a1', 'assistant', 'old answer')
+    boundary.compactionSummary = 'PRIOR_SUMMARY'
+    mockGetPathToNode.mockReturnValue([foldedMsg, boundary, fakeMsg('u2', 'user', 'now what')])
+    // Last 2 = [a1, u2] opens on an assistant row, so the window extends back to u1.
     maxMessagesOn(2)
 
     const { messages, prepared } = await makeHistory('u2')
 
-    // Window keeps the synthetic summary row + the live user row.
-    expect(messages[0].id).toBe('compaction:a1')
+    expect(messages.map((m) => m.id)).toEqual(['u1', 'a1', 'u2'])
+    expect(JSON.stringify(messages)).not.toContain('PRIOR_SUMMARY')
     expect(prepared.models[0].request.retainedContext?.fileAttachments).toEqual([
       { fileEntryId: 'fe-folded', handle: 'folded.txt', displayName: 'folded.txt' }
     ])
@@ -641,9 +673,71 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     const { messages, prepared } = await makeHistory('u2')
 
     expect(messages.map((m) => m.id)).not.toContain('a1')
-    expect([...(prepared.models[0].request.retainedContext?.persistedOutputPaths ?? [])]).toEqual([
-      '/blobs/fe-blob.txt'
+    const paths = [...(prepared.models[0].request.retainedContext?.persistedOutputPaths ?? [])]
+    expect(paths).toEqual(['/blobs/fe-blob.txt'])
+    // …and the summary row NAMES that path. Keeping the blob on the allow-list
+    // without it left the model holding fs_read with no legal argument: the
+    // marker (which normally carries the path) is gone from the served view.
+    expect(messages[0].parts?.[0]).toMatchObject({
+      text: expect.stringContaining('/blobs/fe-blob.txt')
+    })
+  })
+
+  // The whole point of scoping both manifests to the folded prefix: the summary
+  // row's bytes are a pure function of the boundary, so provider prefix caches
+  // survive. A conversation with neither kind must render exactly as before.
+  it('2d-bis. summary text is byte-identical when nothing is folded behind the boundary', async () => {
+    const path = [
+      fakeMsg('u1', 'user', 'old question'),
+      fakeMsg('a1', 'assistant', 'old answer', 'PRIOR SUMMARY'),
+      fakeMsg('u2', 'user', 'latest question')
+    ]
+    mockGetPathToNode.mockReturnValue(path)
+    compressionOn()
+
+    const { messages } = await makeHistory('u2')
+
+    const text = (messages[0].parts?.[0] as { text?: string })?.text ?? ''
+    expect(text).toContain('PRIOR SUMMARY')
+    expect(text).not.toContain('read_file tool')
+    expect(text).not.toContain('fs_read tool')
+  })
+
+  // The invariant both review findings add up to: everything fs_read is allowed
+  // to read must be nameable from the served prompt.
+  it('2d-ter. every allow-listed persisted path is visible in the served prompt', async () => {
+    const toolMsg = fakeMsg('a1', 'assistant', 'ran a tool')
+    ;(toolMsg.data as { parts: unknown[] }).parts.push({
+      type: 'tool-run_cmd',
+      toolCallId: 'call-1',
+      state: 'output-available',
+      input: {},
+      output: {
+        $persistedToolOutput: {
+          fileEntryId: 'fe-blob',
+          vfsFilename: 'vfs_0123456789abcdef.txt',
+          head: 'head',
+          tail: 'tail',
+          totalChars: 100_000,
+          totalLines: 2_000,
+          shape: 'text'
+        }
+      }
+    })
+    mockGetPathToNode.mockReturnValue([
+      fakeMsg('u1', 'user', 'old question'),
+      toolMsg,
+      fakeMsg('a2', 'assistant', 'old answer', 'PRIOR SUMMARY'),
+      fakeMsg('u2', 'user', 'latest question')
     ])
+    compressionOn()
+
+    const { messages, prepared } = await makeHistory('u2')
+
+    const served = JSON.stringify(messages)
+    for (const p of prepared.models[0].request.retainedContext?.persistedOutputPaths ?? []) {
+      expect(served).toContain(p)
+    }
   })
 
   it("2e. threads the assistant's context-settings override into the request-settings resolver (P2-D)", async () => {

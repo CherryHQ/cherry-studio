@@ -10,7 +10,7 @@ date: 2026-08-08
 
 The v1 "Context count" setting is back as "Recent messages kept", now in two places: Settings › Model › Context Management (global) and each assistant's Model tab. Leaving it empty means no limit, which is the v2 default for new installs. Migrated v1 assistants keep their old `contextCount` value instead of it being dropped — v1's default was 5, so most migrated assistants arrive with a limit of 5 recent messages. v1's "max" setting (100) migrates to no limit.
 
-Setting a limit takes over as the context policy: history is cut to that window and automatic compression no longer summarizes older turns for that assistant. Assistants left at no limit keep the v2 behavior of sending full history with compression handling the overflow.
+Setting a limit takes over as the context policy: the request carries the last N messages verbatim, automatic compression no longer summarizes older turns for that assistant, and any summary from an earlier compression is not sent either — a summary covers everything before it, so including one would smuggle older messages past the limit. Assistants left at no limit keep the v2 behavior of sending full history with compression handling the overflow.
 
 The assistant's "Context management" switch is also renamed to "Customize context management" — it always overrode the global settings; the old name read as if it turned the feature off.
 
@@ -18,7 +18,9 @@ The assistant's "Context management" switch is also renamed to "Customize contex
 
 Users upgrading from v1 will find their assistants answering from the last 5 messages, exactly as in v1, rather than the full conversation v2 otherwise sends. That also means those assistants do not get v2's automatic compression until the limit is cleared. Anyone who wants v2's behavior has to clear the field per assistant (or set the global one and clear the assistant override).
 
-The window applies to attachments too: a file attached in a message that falls outside it stops being reachable, including through the `read_file` tool. That is deliberate — the limit is a boundary the user drew, so leaving the file readable would let the model pull it back in and defeat the setting. Content folded away by automatic compression is different and stays reachable, because folding is the app saving space rather than the user excluding something.
+The window applies to attachments and archived tool output too: anything in a message that falls outside it stops being reachable, including through the `read_file` and `fs_read` tools. That is deliberate — the limit is a boundary the user drew, so leaving those readable would let the model pull them back in and defeat the setting.
+
+Automatic compression is different: it saves space rather than excluding anything, so what it folds away stays reachable, and the summary it leaves behind now names both the attachments and the archived tool output it covers so the model can actually retrieve them.
 
 ## What the user should do
 

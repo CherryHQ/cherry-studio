@@ -17,6 +17,7 @@ import {
   CONTEXT_COMPACT_TRIGGER_RATIO
 } from '@main/ai/constants'
 import { collectFileAttachments } from '@main/ai/messages/attachmentRouting'
+import { collectPersistedOutputPaths } from '@main/ai/messages/persistedOutputRendering'
 import { collectRetainedContext, type RetainedContext } from '@main/ai/messages/retainedContext'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
@@ -54,7 +55,6 @@ import {
   estimateRowTokens,
   findDeepestMarker,
   planKeepBoundary,
-  summaryMessageId,
   summaryRow
 } from './compaction'
 import type { MainContinueConversationRequest, MainDispatchRequest, MainSteerContinuationRequest } from './dispatch'
@@ -715,7 +715,15 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // (provider prefix caches hold).
     const d = findDeepestMarker(rows)
     const manifestHandles = (endIdx: number) => collectFileAttachments(rawUI.slice(0, endIdx + 1)).map((a) => a.handle)
-    const effective = applyDeepestMarker(rows, d >= 0 ? manifestHandles(d) : undefined)
+    // Same scoping rule as the handles, one level down: a folded marker's blob
+    // stays on the fs_read allow-list, so the summary has to name its path or
+    // the model holds a capability with no legal argument.
+    const manifestPaths = (endIdx: number) => [...collectPersistedOutputPaths(rawUI.slice(0, endIdx + 1))]
+    const effective = applyDeepestMarker(
+      rows,
+      d >= 0 ? manifestHandles(d) : undefined,
+      d >= 0 ? manifestPaths(d) : undefined
+    )
 
     /**
      * Retained context scoped to a `maxMessages` window.
@@ -727,17 +735,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
      * defeating the setting (and kept read_file registered for an attachment
      * no longer in the prompt).
      *
-     * A SERVED summary row is the exception: it stands for the folded prefix,
-     * and its manifest already advertises those handles, so that prefix stays
-     * reachable. Collected from the same `rawUI` array in the same order, so
-     * handle dedup for the folded prefix matches `manifestHandles` exactly.
+     * No summary-row exception: the window serves RAW rows (see below), so
+     * there is never a folded prefix to re-authorize.
      */
     const retainedForWindow = (windowed: CompactionRow[]): RetainedContext => {
       const servedIds = new Set(windowed.map((r) => r.id))
-      const keepsFoldedPrefix = d >= 0 && servedIds.has(summaryMessageId(rows[d].id))
-      return collectRetainedContext(
-        rawUI.filter((_, i) => (keepsFoldedPrefix && i <= d) || servedIds.has(rawMsgs[i].id))
-      )
+      return collectRetainedContext(rawUI.filter((_, i) => servedIds.has(rawMsgs[i].id)))
     }
 
     const { contextSettings, compressionModel } = await resolveRequestContextSettings(
@@ -757,7 +760,18 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // overflow policy silently served full history to someone who asked for
     // "last 1 message".
     if (contextSettings.maxMessages != null) {
-      const windowed = applyMaxMessagesWindow(effective, contextSettings.maxMessages)
+      // Window the RAW rows, and apply NO compaction state on the way. A summary
+      // row summarizes everything up to its boundary, so serving one — even a
+      // boundary that lands inside the window — carries content from before the
+      // window back into the prompt, plus its manifest re-authorizes the whole
+      // folded prefix for read_file / fs_read. The UI promises earlier messages
+      // are excluded, so they have to be excluded from the prompt, the manifest
+      // and the read-back allow-list alike.
+      //
+      // Serving raw rows is safe here precisely because N already bounds the
+      // size: folding exists to save space, and this branch does not need it.
+      // The rows are still there to serve — compaction only sets a column.
+      const windowed = applyMaxMessagesWindow(rows, contextSettings.maxMessages)
       return { messages: windowed.map((r) => this.toServed(r)), retainedContext: retainedForWindow(windowed) }
     }
     if (!on) return serve(effective)
@@ -847,7 +861,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       }
       messageService.setCompactionSummary(boundary.id, summary)
       // Boundary index in rawUI: recent = rows.slice(d + 1), boundary = recent[keepIdx - 1].
-      const served = [summaryRow(boundary.id, summary, manifestHandles(d + keepIdx)), ...recent.slice(keepIdx)]
+      const served = [
+        summaryRow(boundary.id, summary, manifestHandles(d + keepIdx), manifestPaths(d + keepIdx)),
+        ...recent.slice(keepIdx)
+      ]
       settle({ postTokens: this.estimateContext(served), foldedCount: keepIdx })
       return serve(served)
     } catch (error) {
