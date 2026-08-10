@@ -17,7 +17,7 @@ describe('usePaintingInitialDraft', () => {
     const { rerender } = renderHook<void, Props>((props) => usePaintingInitialDraft(props), {
       initialProps: {
         currentPainting: draft,
-        initialProviderId: 'zhipu',
+        draftDefaults: { providerId: 'zhipu' },
         setCurrentPainting
       }
     })
@@ -28,7 +28,7 @@ describe('usePaintingInitialDraft', () => {
     // Options resolve to a different default provider.
     rerender({
       currentPainting: draft,
-      initialProviderId: 'openai',
+      draftDefaults: { providerId: 'openai' },
       setCurrentPainting
     })
 
@@ -44,7 +44,7 @@ describe('usePaintingInitialDraft', () => {
     renderHook<void, Props>((props) => usePaintingInitialDraft(props), {
       initialProps: {
         currentPainting: draft,
-        initialProviderId: 'openai',
+        draftDefaults: { providerId: 'openai' },
         setCurrentPainting
       }
     })
@@ -54,6 +54,27 @@ describe('usePaintingInitialDraft', () => {
     expect(setCurrentPainting.mock.calls[0][0]).not.toBe(draft)
   })
 
+  it('re-seeds the untouched bootstrap draft when its configured model resolves', () => {
+    const draft = makeDraft('openai')
+    const setCurrentPainting = vi.fn()
+    const { rerender } = renderHook<void, Props>((props) => usePaintingInitialDraft(props), {
+      initialProps: {
+        currentPainting: draft,
+        draftDefaults: { providerId: 'openai' },
+        setCurrentPainting
+      }
+    })
+
+    rerender({
+      currentPainting: draft,
+      draftDefaults: { providerId: 'openai', modelId: 'dall-e-3' },
+      setCurrentPainting
+    })
+
+    expect(setCurrentPainting).toHaveBeenCalledTimes(1)
+    expect(setCurrentPainting.mock.calls[0][0]).toMatchObject({ providerId: 'openai', model: 'dall-e-3' })
+  })
+
   it('does not replace an edited unsaved draft when the provider resolves', () => {
     const draft = makeDraft('zhipu')
     const editedDraft = { ...draft, prompt: 'edited prompt' }
@@ -61,14 +82,14 @@ describe('usePaintingInitialDraft', () => {
     const { rerender } = renderHook<void, Props>((props) => usePaintingInitialDraft(props), {
       initialProps: {
         currentPainting: draft,
-        initialProviderId: 'zhipu',
+        draftDefaults: { providerId: 'zhipu' },
         setCurrentPainting
       }
     })
 
     rerender({
       currentPainting: editedDraft,
-      initialProviderId: 'openai',
+      draftDefaults: { providerId: 'openai' },
       setCurrentPainting
     })
 
@@ -82,14 +103,14 @@ describe('usePaintingInitialDraft', () => {
     const { rerender } = renderHook<void, Props>((props) => usePaintingInitialDraft(props), {
       initialProps: {
         currentPainting: initialDraft,
-        initialProviderId: 'zhipu',
+        draftDefaults: { providerId: 'zhipu' },
         setCurrentPainting
       }
     })
 
     rerender({
       currentPainting: userCreatedDraft,
-      initialProviderId: 'openai',
+      draftDefaults: { providerId: 'openai' },
       setCurrentPainting
     })
 
@@ -103,14 +124,14 @@ describe('usePaintingInitialDraft', () => {
     const { rerender } = renderHook<void, Props>((props) => usePaintingInitialDraft(props), {
       initialProps: {
         currentPainting: draft,
-        initialProviderId: 'zhipu',
+        draftDefaults: { providerId: 'zhipu' },
         setCurrentPainting
       }
     })
 
     rerender({
       currentPainting: newDraft,
-      initialProviderId: 'gemini',
+      draftDefaults: { providerId: 'gemini' },
       setCurrentPainting
     })
 

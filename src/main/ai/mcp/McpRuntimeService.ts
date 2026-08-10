@@ -56,6 +56,29 @@ import { McpOAuthClientProvider } from './oauth/provider'
 import { ServerLogBuffer } from './ServerLogBuffer'
 import type { GetResourceResponse, McpCallToolResponse } from './types'
 
+function buildStdioEnvironment(
+  loginShellEnv: Record<string, string>,
+  serverEnv: Record<string, string>
+): Record<string, string> {
+  const env = { ...loginShellEnv, ...serverEnv }
+  if (process.platform !== 'win32') return env
+
+  const serverPathKey = Object.keys(serverEnv)
+    .filter((key) => key.toLowerCase() === 'path')
+    .at(-1)
+  const shellPathKey = Object.keys(loginShellEnv)
+    .filter((key) => key.toLowerCase() === 'path')
+    .at(-1)
+  const pathValue = serverPathKey ? serverEnv[serverPathKey] : shellPathKey ? loginShellEnv[shellPathKey] : undefined
+
+  for (const key of Object.keys(env)) {
+    if (key.toLowerCase() === 'path') delete env[key]
+  }
+  if (pathValue !== undefined) env.PATH = pathValue
+
+  return env
+}
+
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
@@ -90,6 +113,10 @@ export interface McpToolListChangedEvent {
 // so a generous floor avoids false positives on slow SSE/streamableHttp handshakes while
 // still letting users raise it further via `server.timeout`.
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
+
+// Liveness ping before reusing a cached client. 1s falsely timed out on stdio servers busy
+// with a previous request, forcing needless reconnects.
+const PING_TIMEOUT_MS = 5_000
 
 // Order in which to attempt the URL-based transports for a given server. We try the
 // user-configured type first (no behavior change for correctly configured servers) and,
@@ -347,20 +374,19 @@ export class McpRuntimeService extends BaseService {
         // Check if the existing client is still connected
         const pingResult = await existingClient.ping({
           // add short timeout to prevent hanging
-          timeout: 1000
+          timeout: PING_TIMEOUT_MS
         })
         getServerLogger(server).debug(`Ping result`, { ok: !!pingResult })
-        // If the ping fails, remove the client from the cache
-        // and create a new one
+        // If the ping fails, close the client and create a new one
         if (!pingResult) {
-          this.clients.delete(serverKey)
+          await this.discardStaleClient(serverKey)
         } else {
           this.setServerStatus(server.id, 'connected')
           return existingClient
         }
       } catch (error: any) {
         getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
-        this.clients.delete(serverKey)
+        await this.discardStaleClient(serverKey)
       }
     }
 
@@ -584,6 +610,20 @@ export class McpRuntimeService extends BaseService {
                 connectEnv.UV_DEFAULT_INDEX = server.registryUrl
                 connectEnv.PIP_INDEX_URL = server.registryUrl
               }
+            } else {
+              // For any other command (e.g., globally installed npm packages, standalone binaries),
+              // try to resolve to a full path so cross-spawn doesn't depend on a potentially
+              // incomplete PATH in the environment.
+              const resolved = await findCommandInShellEnv(effectiveCommand, loginShellEnv)
+              if (resolved) {
+                cmd = resolved
+                getServerLogger(server).debug(`Resolved command to full path`, { command: cmd })
+              } else {
+                getServerLogger(server).warn(
+                  `Could not resolve command '${effectiveCommand}' to a full path. ` +
+                    `If the server fails to start, try providing the full path in the command field.`
+                )
+              }
             }
 
             getServerLogger(server).debug(`Starting server`, { command: cmd, args })
@@ -596,10 +636,9 @@ export class McpRuntimeService extends BaseService {
             const transportOptions: StdioServerParameters = {
               command: cmd,
               args,
-              env: {
-                ...loginShellEnv,
-                ...connectEnv
-              },
+              // On Windows the SDK prepends process.env.PATH before this object, so use
+              // one canonical key to ensure our fresh shell PATH replaces the stale value.
+              env: buildStdioEnvironment(loginShellEnv, connectEnv),
               stderr: 'pipe'
             }
 
@@ -919,6 +958,19 @@ export class McpRuntimeService extends BaseService {
       if (result.status === 'rejected') {
         logger.error(`Failed to close client`, result.reason as Error)
       }
+    }
+  }
+
+  /**
+   * A client that failed its liveness ping must still be closed — dropping it from the map
+   * alone orphans the stdio child process (issue #18144).
+   */
+  private async discardStaleClient(serverKey: string): Promise<void> {
+    try {
+      await this.closeClient(serverKey)
+    } catch (error) {
+      logger.error(`Failed to close stale client`, error as Error)
+      this.clients.delete(serverKey)
     }
   }
 

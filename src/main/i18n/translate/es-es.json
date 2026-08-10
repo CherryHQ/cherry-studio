@@ -2,14 +2,14 @@
   "agent": {
     "builtin": {
       "cherry_assistant": {
-        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Asesor integrado de Cherry Studio. Diagnostica problemas, guía las operaciones, recopila preguntas frecuentes, envía errores o solicitudes de funciones y busca o crea habilidades"
       }
     },
     "session": {
       "workspace_status": {
         "inaccessible": "La ruta del espacio de trabajo no es accesible: {{path}}",
         "missing": "La ruta del espacio de trabajo no existe: {{path}}",
-        "not_directory": "La ruta del espacio de trabajo no es un directorio: {{path}}"
+        "not_directory": "La ruta del espacio de trabajo no es una carpeta: {{path}}"
       }
     }
   },
@@ -87,6 +87,10 @@
       "message": "Se borrarán los chats, asistentes, bases de conocimiento, archivos y ajustes, y luego se reiniciará la aplicación. Esta acción no se puede deshacer. ¿Desea continuar?",
       "title": "Restablecer datos de la aplicación"
     },
+    "diagnostic_bundle": {
+      "title": "Guardar paquete de diagnóstico",
+      "zip_filter": "Archivo ZIP"
+    },
     "html_files": "Archivos HTML",
     "open_file": "Abrir archivo",
     "pdf_files": "Archivos PDF",
@@ -96,6 +100,14 @@
     "save_file": "Guardar archivo",
     "select_folder": "Seleccionar carpeta",
     "word_document": "Documento de Word"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "El binario de OpenClaw que utiliza Cherry Studio no es compatible con la configuración generada. Actualiza OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw rechazó una configuración fuera de la sección de proveedores gestionada por Cherry Studio. Corrige esa configuración o actualiza OpenClaw.{{details}}",
+      "more_issues": "y {{count}} problema(s) más",
+      "preflight_failed": "Cherry Studio no pudo validar la configuración de OpenClaw."
+    }
   },
   "paintings": {
     "generate_failed": "Error al generar la imagen",

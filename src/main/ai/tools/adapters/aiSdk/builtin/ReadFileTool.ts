@@ -41,7 +41,7 @@ import type { ToolEntry } from '../types'
 
 const logger = loggerService.withContext('ReadFile')
 
-const READ_FILE_DESCRIPTION = `Read more text from a file the user attached to this conversation.
+export const READ_FILE_DESCRIPTION = `Read more text from a file the user attached to this conversation.
 
 Attachments are already inlined into the conversation. Only call this when an attachment was truncated (the message says so and names this file) and you need the rest, or to page further through a long file with \`offset\` + \`limit\` (it returns \`nextOffset\` until the end is reached). Do not call it for content already fully inline — especially native images, which you can already see.`
 
@@ -115,8 +115,8 @@ export async function readFile(
       return textResult(`Cannot read the attached file "${entry.handle}" as text (unsupported file type).`)
     }
     if (!text.trim()) return textResult(noExtractableTextNote(entry.handle))
-    // 0 is the "use the default" sentinel for both (see `readFileInputSchema`).
-    return paginate(text, input.offset || undefined, input.limit || undefined)
+    // Both are optional; `paginate`'s parameter defaults cover an omitted one.
+    return paginate(text, input.offset, input.limit)
   } catch (error) {
     if (signal?.aborted || isAbortError(error)) throw error
     // Log the detail; return a sanitized, filename-level message (no entry ids / paths).
@@ -141,7 +141,6 @@ const readFileTool = tool({
   description: READ_FILE_DESCRIPTION,
   inputSchema: readFileInputSchema,
   outputSchema: readFileResultSchema,
-  strict: true,
   execute: async (input, options) => {
     const { request } = getToolCallContext(options)
     return readFile(input, { attachments: request.fileAttachments ?? [] }, request.abortSignal)

@@ -42,7 +42,7 @@ export type {
 } from './schemas/enums'
 
 // Schema-inferred types (replaces proto types)
-export { REASONING_FORMAT_PROFILES } from './reasoningProfiles'
+export { REASONING_FORMAT_PROFILES, selectFormatWire } from './reasoningProfiles'
 export type {
   ImageGenerationMode,
   ImageGenerationSupport,
@@ -54,6 +54,7 @@ export type {
   ReasoningSupport as ProtoReasoningSupport,
   ReasoningControl,
   ReasoningSupport,
+  ReasoningWireDialect,
   SupportSpec
 } from './schemas/model'
 export { ReasoningControlSchema } from './schemas/model'
@@ -90,7 +91,13 @@ export type { DerivedReasoningFields } from './utils/reasoningControls'
 export { deriveLegacyReasoningFields } from './utils/reasoningControls'
 
 // Model ID normalization utilities
-export { normalizeModelId } from './utils/normalize'
+export {
+  normalizeModelId,
+  stripBedrockDottedVendorPrefix,
+  stripBedrockRevision,
+  stripDateSnapshot,
+  stripVariantQuantDateSuffixes
+} from './utils/normalize'
 
 // Pure lookup and transformation utilities (no fs dependency)
 export type { ModelLookupResult, PersistedEndpointConfig } from './registry-utils'

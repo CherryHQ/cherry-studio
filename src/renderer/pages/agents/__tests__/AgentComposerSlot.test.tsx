@@ -1,16 +1,17 @@
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AgentComposerSlot from '../AgentComposerSlot'
 
 const agentComposerPropsMock = vi.hoisted(() => ({
   last: undefined as any
 }))
+const rightPanelPresentationMock = vi.hoisted(() => ({ maximized: false }))
 
 vi.mock('@renderer/components/chat/panes/Shell', () => ({
-  useOptionalRightPanelState: () => null
+  useRightPanelPresentationMaximized: () => rightPanelPresentationMock.maximized
 }))
 
 vi.mock('@renderer/components/composer/ConversationComposerSlot', () => ({
@@ -39,6 +40,11 @@ const baseProps = {
 }
 
 describe('AgentComposerSlot', () => {
+  beforeEach(() => {
+    agentComposerPropsMock.last = undefined
+    rightPanelPresentationMock.maximized = false
+  })
+
   it('mounts the real composer while agent metadata is resolving', () => {
     render(<AgentComposerSlot {...baseProps} />)
 
@@ -73,6 +79,25 @@ describe('AgentComposerSlot', () => {
     })
     expect(agentComposerPropsMock.last?.onAgentChange).toBeUndefined()
     expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()
+  })
+
+  it('forwards one-shot launch options to the real composer', () => {
+    const launchOptions = {
+      initialDraft: { text: 'Use the issue-reporter skill.', tokens: [] },
+      onSent: vi.fn()
+    }
+
+    render(<AgentComposerSlot {...baseProps} composerLaunchOptions={launchOptions} />)
+
+    expect(agentComposerPropsMock.last?.launchOptions).toBe(launchOptions)
+  })
+
+  it.each([true, false])('uses the shared right-panel presentation state when maximized is %s', (maximized) => {
+    rightPanelPresentationMock.maximized = maximized
+
+    render(<AgentComposerSlot {...baseProps} />)
+
+    expect(agentComposerPropsMock.last?.compactWhenSingleLine).toBe(maximized)
   })
 
   it('does not leave an orphan session in a permanent loading state', () => {

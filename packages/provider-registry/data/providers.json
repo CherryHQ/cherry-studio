@@ -18,6 +18,10 @@
           "reasoningFormat": {
             "type": "openai-chat"
           }
+        },
+        "openai-responses": {
+          "adapterFamily": "cherryin",
+          "baseUrl": "https://open.cherryin.net"
         }
       },
       "id": "cherryin",
@@ -307,7 +311,14 @@
           "official": "https://deepseek.com/"
         }
       },
-      "name": "deepseek"
+      "name": "deepseek",
+      "serverTools": [
+        {
+          "endpointTypes": ["openai-responses"],
+          "id": "web-search",
+          "modelScope": "model-dependent"
+        }
+      ]
     },
     {
       "defaultChatEndpoint": "openai-chat-completions",
@@ -536,7 +547,7 @@
       "description": "OpenRouter - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "openrouter",
+          "adapterFamily": "anthropic",
           "baseUrl": "https://openrouter.ai/api"
         },
         "openai-chat-completions": {
@@ -605,6 +616,10 @@
         {
           "id": "web-search",
           "modelScope": "all-chat-models"
+        },
+        {
+          "id": "url-context",
+          "modelScope": "all-chat-models"
         }
       ]
     },
@@ -638,11 +653,10 @@
       "description": "New API - AI model provider",
       "endpointConfigs": {
         "anthropic-messages": {
-          "adapterFamily": "newapi",
-          "baseUrl": "http://localhost:3000"
+          "adapterFamily": "newapi"
         },
         "google-generate-content": {
-          "baseUrl": "http://localhost:3000"
+          "adapterFamily": "newapi"
         },
         "openai-chat-completions": {
           "adapterFamily": "newapi",
@@ -652,7 +666,7 @@
           }
         },
         "openai-responses": {
-          "baseUrl": "http://localhost:3000"
+          "adapterFamily": "newapi"
         }
       },
       "id": "new-api",
@@ -855,6 +869,13 @@
           },
           "reasoningFormat": {
             "type": "openai-chat"
+          }
+        },
+        "openai-responses": {
+          "adapterFamily": "openai",
+          "baseUrl": "https://opencode.ai/zen/go/v1",
+          "reasoningFormat": {
+            "type": "openai-responses"
           }
         }
       },
@@ -1129,6 +1150,10 @@
       "serverTools": [
         {
           "id": "web-search",
+          "modelScope": "model-dependent"
+        },
+        {
+          "id": "url-context",
           "modelScope": "model-dependent"
         }
       ]
@@ -2043,5 +2068,5 @@
       "presetProviderId": "minimax"
     }
   ],
-  "version": "45d58e72a5aa1f35"
+  "version": "282f97dc0b272358"
 }

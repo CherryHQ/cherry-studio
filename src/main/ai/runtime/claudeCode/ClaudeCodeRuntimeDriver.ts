@@ -1,13 +1,13 @@
 import { fileURLToPath } from 'node:url'
 
-import {
-  type Options,
-  type Query,
-  query as createClaudeQuery,
-  type SDKAssistantMessage,
-  type SDKPartialAssistantMessage,
-  type SDKResultMessage,
-  type SDKUserMessage
+import type {
+  Options,
+  Query,
+  query,
+  SDKAssistantMessage,
+  SDKPartialAssistantMessage,
+  SDKResultMessage,
+  SDKUserMessage
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ImageBlockParam } from '@anthropic-ai/sdk/resources/messages'
 
@@ -16,6 +16,7 @@ import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { modelService } from '@data/services/ModelService'
 import { loggerService } from '@logger'
+import { collectAssistantFileAttachments } from '@main/ai/messages/assistantFileAttachments'
 import { collectFileAttachments, prepareChatMessages } from '@main/ai/messages/attachmentRouting'
 import { materializeNativeFilePart } from '@main/ai/messages/fileProcessor'
 import { wrapSteerReminder } from '@main/ai/steerReminder'
@@ -25,6 +26,7 @@ import {
   descriptorToTool,
   listClaudeAgentToolDescriptors
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
+import { probeReadable } from '@main/utils/file'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
 import type { AgentSessionSlashCommand } from '@shared/ai/agentSessionSlashCommands'
 import type { Tool } from '@shared/ai/tool'
@@ -34,7 +36,9 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { CherryUIMessage, FileUIPart } from '@shared/data/types/message'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { readCherryMeta } from '@shared/data/types/uiParts'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { parseDataUrl } from '@shared/utils/dataUrl'
+import { imageExts } from '@shared/utils/file'
 import { isVisionModel } from '@shared/utils/model'
 
 import type {
@@ -53,6 +57,7 @@ import {
   deriveConnectionConfig,
   toolPolicyFactsEqual
 } from './agentSessionWarmup'
+import { spawnClaudeCodeProcess } from './ClaudeCodeProcessManager'
 import {
   AgentSessionWorkspaceError,
   disposeToolPolicySnapshot,
@@ -79,17 +84,18 @@ function isFastSlashCommand(input: AgentRuntimeUserInput): boolean {
   return /^\/fast(?:\s|$)/i.test(text)
 }
 
-/**
- * The CLI reported that the resume target does not exist — deleted by its transcript cleanup, a
- * different CLAUDE_CONFIG_DIR, or a copied database. The SDK carries no typed reason for this, so
- * the discriminator is the CLI's error string, matched against the result's raw `errors` entries.
- */
-function isConversationNotFoundFailure(error: unknown): boolean {
-  return (
-    error instanceof ClaudeCodeResultError &&
-    error.subtype === 'error_during_execution' &&
-    error.errors.some((entry) => /no conversation found with session id/i.test(entry))
-  )
+type ResumeRecoveryReason = 'conversation-not-found' | 'duplicate-tool-use-id'
+
+/** The SDK has no typed execution-failure reason, so classify only its raw result error entries. */
+function getResumeRecoveryReason(error: unknown): ResumeRecoveryReason | undefined {
+  if (!(error instanceof ClaudeCodeResultError) || error.subtype !== 'error_during_execution') return undefined
+  if (error.errors.some((entry) => /no conversation found with session id/i.test(entry))) {
+    return 'conversation-not-found'
+  }
+  if (error.errors.some((entry) => /tool_use[`'"]?\s+ids?\s+must\s+be\s+unique/i.test(entry))) {
+    return 'duplicate-tool-use-id'
+  }
+  return undefined
 }
 
 function getChangedRebuildFacts(baseline: ConnectionConfig, fresh: ConnectionConfig): string[] {
@@ -349,10 +355,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private sdkInputQueue = new SdkInputQueue()
   private readonly abortController = new AbortController()
   private query?: Query
-  /** The exact spawn options of the live query — the stale-resume retry re-spawns from these. */
+  /** SDK `query` factory captured at connect — the sync stale-resume retry cannot await the import. */
+  private createQuery?: typeof query
+  private closePromise?: Promise<void>
+  /** The exact spawn options of the live query — resume recovery re-spawns from these. */
   private spawnOptions?: Options
   private lastSdkUserMessage?: SDKUserMessage
-  private staleResumeRetried = false
+  private resumeRecoveryRetried = false
   /** Session-scoped: dispatches every message for the connection's lifetime, resetting per turn. */
   private adapter?: ClaudeCodeStreamAdapter
   private adapterModelId?: string
@@ -361,6 +370,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
   private resumeToken?: string
   private toolPolicySnapshot?: ClaudeAgentToolPolicySnapshot
   private steerHolder?: SteerHolder
+  private assistantFileToolsEnabled = false
   private sessionTornDown = false
   /** Staleness identity captured by the materialized request; live facts advance during reconcile. */
   private connectionConfig?: ConnectionConfig
@@ -398,6 +408,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       throw new Error(`Unable to build Claude Code query options for agent session ${this.input.sessionId}`)
     }
     this.connectionConfig = request.connectionConfig
+    this.assistantFileToolsEnabled = Boolean(request.settings.mcpServers?.['assistant-files'])
 
     const traceEnv = await this.prepareTraceEnv()
     const options: Options = {
@@ -410,7 +421,8 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
             }
           }
         : {}),
-      abortController: this.abortController
+      abortController: this.abortController,
+      spawnClaudeCodeProcess
     }
     // Env is part of the warm signature, so a traced turn asks with the OTEL vars merged in and can
     // never match a query parked without them: the mismatch cold-starts and disposes the stale park,
@@ -429,6 +441,9 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     // describes the credential that will actually serve this connection.
     this._usageCapture = consumedWarmQuery?.usageCapture ?? request.usageCapture
     this.spawnOptions = options
+    // Delayed loading: the agent SDK stays out of the boot path and loads on first connection.
+    const createClaudeQuery = (await import('@anthropic-ai/claude-agent-sdk')).query
+    this.createQuery = createClaudeQuery
     this.query = consumedWarmQuery
       ? consumedWarmQuery.warmQuery.query(this.sdkInputQueue)
       : createClaudeQuery({ prompt: this.sdkInputQueue, options })
@@ -482,6 +497,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     this.adapter?.beginTurn()
 
     const sdkMessage = await toSdkUserMessage(input.message, this.resumeToken, input.systemReminder, {
+      supportsAttachmentReads: this.assistantFileToolsEnabled,
       supportsImages: resolveModelImageSupport(this.input.modelId)
     })
     this.lastSdkUserMessage = sdkMessage
@@ -544,25 +560,48 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     if (!baseline) return 'rebuild'
 
     const fresh = derived.config
+    const permissionModeChanged = baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode
+    // Claude's set_permission_mode control request can terminate work already in flight. Keep the
+    // mode (and the local approval gate that mirrors it) frozen for the active turn; the host pulls
+    // reconcile again before admitting the next turn, when the SDK update is safe to apply.
+    const deferPermissionMode = permissionModeChanged && this.adapter?.isTurnActive === true
+    const applicableToolPolicy = deferPermissionMode
+      ? { ...fresh.live.toolPolicy, permissionMode: baseline.live.toolPolicy.permissionMode }
+      : fresh.live.toolPolicy
     let patched = false
-    // Live-first: apply the tool-policy facts BEFORE the rebuild verdict, so a combined update
-    // (e.g. a wholesale configuration edit touching max_turns AND tightening the permission mode)
-    // can't defer the tighten behind a rebuild that a live turn postpones.
-    if (!toolPolicyFactsEqual(baseline.live.toolPolicy, fresh.live.toolPolicy)) {
+    // Apply the tool-policy facts that are safe for this turn BEFORE the rebuild verdict. Newly
+    // disabled tools still tighten immediately; permission-mode changes wait for the next boundary.
+    if (!toolPolicyFactsEqual(baseline.live.toolPolicy, applicableToolPolicy)) {
       try {
         const agent = agentService.getAgent(this.input.agentId)
         if (!agent) return 'invalid'
-        if (baseline.live.toolPolicy.permissionMode !== fresh.live.toolPolicy.permissionMode) {
+        if (permissionModeChanged && !deferPermissionMode) {
           await this.query.setPermissionMode((fresh.live.toolPolicy.permissionMode ?? 'default') as AgentPermissionMode)
         }
-        // Refresh the entire snapshot only after the SDK confirms the permission mode. update()
-        // itself changes the snapshot mode, so doing it first would make the SDK call look redundant.
-        await this.toolPolicySnapshot?.update(agent)
+        // Refresh only after the SDK confirms an applicable permission change. If the current turn
+        // keeps its old mode, preserve that mode in the snapshot while still applying other policy
+        // changes (for example, disabling a tool).
+        await this.toolPolicySnapshot?.update(
+          deferPermissionMode
+            ? {
+                ...agent,
+                configuration: {
+                  ...agent.configuration,
+                  permission_mode: (baseline.live.toolPolicy.permissionMode ?? undefined) as
+                    | AgentPermissionMode
+                    | undefined
+                }
+              }
+            : agent
+        )
       } catch (error) {
         logger.warn('Live tool-policy apply failed during reconcile', { sessionId: this.input.sessionId, error })
         return 'failed'
       }
-      this.connectionConfig = { ...baseline, live: fresh.live }
+      this.connectionConfig = {
+        ...baseline,
+        live: { ...fresh.live, toolPolicy: applicableToolPolicy }
+      }
       patched = true
     }
 
@@ -609,14 +648,30 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  close(): void {
+  close(): Promise<void> {
+    this.closePromise ??= this.closeQuery()
+    return this.closePromise
+  }
+
+  private async closeQuery(): Promise<void> {
+    const query = this.query
     this.settlePendingInvocations()
     this.sdkInputQueue.close()
     this.abortController.abort('agent-runtime-closed')
     this.steerBoundaryPending = undefined
     this.teardownSession()
-    this.query?.close()
     this.eventQueue.close()
+    if (!query) return
+    try {
+      query.close()
+    } catch (error) {
+      logger.warn('Claude Code query close failed', { sessionId: this.input.sessionId, error })
+    }
+    try {
+      await query.return(undefined)
+    } catch (error) {
+      logger.warn('Claude Code query cleanup failed', { sessionId: this.input.sessionId, error })
+    }
   }
 
   private async runQueryLoop(): Promise<void> {
@@ -672,7 +727,7 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
       }
     } catch (error) {
       this.settlePendingInvocations()
-      if (this.tryRecoverFromStaleResume(error)) {
+      if (this.tryRecoverWithoutResume(error)) {
         // `await` is load-bearing: without it the finally below closes the event queue while the
         // recovered loop is still streaming.
         return await this.runQueryLoop()
@@ -701,26 +756,39 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
     }
   }
 
-  /**
-   * A stale persisted resume token kills the CLI before it does any work ("No conversation found").
-   * Degrade instead of failing the turn: re-spawn once WITHOUT the resume token on a fresh input
-   * queue (the dead query's iterator still holds the old one), and replay the pending user message
-   * so the turn continues on a new conversation. The recovered init reports a new session id, which
-   * the host persists on the next assistant row — the stale token heals itself after one good turn.
-   * Context from the lost conversation is gone; that is the accepted cost of the degradation.
-   */
-  private tryRecoverFromStaleResume(error: unknown): boolean {
-    if (this.staleResumeRetried || !this.resumeToken || !this.spawnOptions) return false
-    if (!isConversationNotFoundFailure(error) || this.abortController.signal.aborted) return false
-    this.staleResumeRetried = true
+  /** Rebuilds one failed resumed query without its corrupt or missing conversation history. */
+  private tryRecoverWithoutResume(error: unknown): boolean {
+    const createClaudeQuery = this.createQuery
+    if (
+      this.resumeRecoveryRetried ||
+      !this.resumeToken ||
+      !this.spawnOptions ||
+      !createClaudeQuery ||
+      this.abortController.signal.aborted
+    ) {
+      return false
+    }
+    const reason = getResumeRecoveryReason(error)
+    if (!reason) return false
+    // Error results advance `resumeToken` before throwing. The pending input's session id proves the
+    // failed request actually resumed prior history rather than merely reporting a new session id.
+    if (reason === 'duplicate-tool-use-id' && !this.lastSdkUserMessage?.session_id) return false
+    if (reason === 'duplicate-tool-use-id' && this.adapter?.hasTurnActivity === true) {
+      logger.warn('Refusing resume recovery after the turn produced non-metadata activity', {
+        sessionId: this.input.sessionId,
+        reason
+      })
+      return false
+    }
+    this.resumeRecoveryRetried = true
 
-    logger.warn('Persisted resume token no longer resolves to a CLI conversation; retrying without it', {
+    logger.warn('Recovering Claude Code conversation without its resume history', {
       sessionId: this.input.sessionId,
-      staleResumeToken: this.resumeToken
+      reason
     })
     this.resumeToken = undefined
-    // Tell the user, in the transcript itself, that the prior conversation could not be found and
-    // the reply below starts fresh. Persisted with the recovered turn like any other data part.
+    // Tell the user, in the transcript itself, that the reply below starts fresh. Persisted with the
+    // recovered turn like any other data part.
     this.eventQueue.push({
       type: 'chunk',
       chunk: { type: 'data-conversation-reset', id: crypto.randomUUID(), data: {} }
@@ -1036,9 +1104,12 @@ async function toSdkUserMessage(
   message: AgentSessionMessageEntity,
   resumeToken?: string,
   systemReminder = false,
-  { supportsImages = true }: { supportsImages?: boolean } = {}
+  {
+    supportsAttachmentReads = false,
+    supportsImages = true
+  }: { supportsAttachmentReads?: boolean; supportsImages?: boolean } = {}
 ): Promise<SDKUserMessage> {
-  let content = await materializeUserContent(message, supportsImages)
+  let content = await materializeUserContent(message, supportsImages, supportsAttachmentReads)
   if (systemReminder) {
     content = applySteerReminder(content)
   }
@@ -1070,44 +1141,59 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
 }
 
 /**
- * Build SDK user content from a message entity. When the model supports vision,
- * supported image attachments (png, jpeg, gif, webp) are materialized into native
- * Anthropic image blocks; otherwise first-party images are OCR'd to text by the
- * shared routing, like first-party non-image files. External files and images that
- * cannot be materialized fall back to local paths when available.
+ * Build SDK user content from a message entity. Non-image attachments are sent as
+ * current local paths so the Agent decides how to inspect them with its tools. Images
+ * keep the capability-aware path: supported formats become native Anthropic image
+ * blocks, while first-party images use shared OCR/native-fallback routing when vision
+ * is unavailable. Assistant attachment handles remain an additional compatibility
+ * interface; external files and images that cannot be materialized fall back to paths.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
 async function materializeUserContent(
   message: AgentSessionMessageEntity,
-  supportsImages: boolean
+  supportsImages: boolean,
+  supportsAttachmentReads: boolean
 ): Promise<SDKUserMessage['message']['content']> {
   const parts = message.data?.parts ?? []
-  const firstPartyParts = parts.filter(
-    (part) => part.type === 'text' || (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId))
+  const firstPartyFileParts = parts.filter(
+    (part): part is FileUIPart => part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId)
+  )
+  const firstPartyImageParts = firstPartyFileParts.filter(isImageFilePart)
+  const firstPartyPathParts = firstPartyFileParts.filter((part) => !isImageFilePart(part))
+  const routedParts = parts.filter(
+    (part) =>
+      part.type === 'text' ||
+      (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && isImageFilePart(part))
   )
   const externalFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
   )
   const originalFirstPartyFiles = new Map(
-    firstPartyParts
-      .filter((part): part is FileUIPart => part.type === 'file')
+    firstPartyFileParts
       .map((part) => [readCherryMeta(part)?.fileEntryId, part] as const)
       .filter((entry): entry is [string, FileUIPart] => Boolean(entry[0]))
   )
 
-  let routedParts = firstPartyParts
-  if (firstPartyParts.some((part) => part.type === 'file')) {
-    const userMessage = { id: message.id, role: 'user', parts: firstPartyParts } as CherryUIMessage
+  let preparedParts = routedParts
+  let turnAttachments: ReturnType<typeof collectAssistantFileAttachments> = []
+  if (supportsAttachmentReads && firstPartyFileParts.length > 0) {
+    turnAttachments = collectAssistantFileAttachments([
+      { id: message.id, role: 'user', parts: firstPartyFileParts } as CherryUIMessage
+    ])
+  }
+  if (firstPartyImageParts.length > 0) {
+    const userMessage = { id: message.id, role: 'user', parts: routedParts } as CherryUIMessage
+    const attachments = supportsAttachmentReads ? turnAttachments : collectFileAttachments([userMessage])
     const [prepared] = await prepareChatMessages([userMessage], {
-      attachments: collectFileAttachments([userMessage]),
+      attachments,
       nativeSupport: { image: supportsImages, pdf: false, audio: false, video: false },
-      isToolCapable: false
+      isToolCapable: supportsAttachmentReads
     })
-    routedParts = prepared.parts
+    preparedParts = prepared.parts
   }
 
-  const text = routedParts
+  const text = preparedParts
     .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
     .map((part) => part.text)
     .join('\n')
@@ -1116,13 +1202,14 @@ async function materializeUserContent(
   const unavailableParts: FileUIPart[] = []
 
   for (const part of [
-    ...routedParts.filter((part): part is FileUIPart => part.type === 'file'),
+    ...preparedParts.filter((part): part is FileUIPart => part.type === 'file'),
+    ...firstPartyPathParts,
     ...externalFileParts
   ]) {
     const fileEntryId = readCherryMeta(part)?.fileEntryId
     const originalPart = (fileEntryId && originalFirstPartyFiles.get(fileEntryId)) || part
-    if (!supportsImages || !canBeClaudeImage(part)) {
-      const target = originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
+    if (!isImageFilePart(originalPart) || !supportsImages || !canBeClaudeImage(part)) {
+      const target = fileEntryId || originalPart.url?.startsWith('file://') ? fallbackParts : unavailableParts
       target.push(originalPart)
       continue
     }
@@ -1159,8 +1246,10 @@ async function materializeUserContent(
     }
   }
 
-  const paths = extractAttachmentPaths(fallbackParts)
-  let textContent = appendAttachmentPaths(text, paths)
+  const resolvedPaths = await extractAttachmentPaths(fallbackParts)
+  unavailableParts.push(...resolvedPaths.unavailable)
+  let textContent = appendAttachmentPaths(text, resolvedPaths.files)
+  if (supportsAttachmentReads) textContent = appendAttachmentManifest(textContent, turnAttachments)
   if (unavailableParts.length > 0) {
     const names = unavailableParts.map((part) => part.filename || 'attachment')
     logger.warn('Claude Code attachments could not be sent', { attachments: names })
@@ -1171,22 +1260,77 @@ async function materializeUserContent(
   return textContent.trim() ? [{ type: 'text', text: textContent }, ...images] : images
 }
 
-function appendAttachmentPaths(text: string, paths: string[]): string {
-  if (paths.length === 0) return text
+function appendAttachmentManifest(
+  text: string,
+  attachments: ReadonlyArray<{ displayName: string; handle: string }>
+): string {
+  if (attachments.length === 0) return text
 
-  const list = paths.map((path) => `- ${path}`).join('\n')
+  const list = attachments
+    .map(({ displayName, handle }) => `- ${JSON.stringify(displayName)} (handle: ${handle})`)
+    .join('\n')
+  const section = `Attachment manifest:\n${list}`
+  return text.trim() ? `${text}\n\n${section}` : section
+}
+
+function appendAttachmentPaths(text: string, files: ResolvedAttachmentPath[]): string {
+  if (files.length === 0) return text
+
+  // Managed copies are stored under a UUID filename, so the display name has to travel
+  // with the path — otherwise multiple attachments are indistinguishable to the model.
+  const list = files
+    .map(({ filename, path }) => (filename ? `- ${JSON.stringify(filename)}: ${path}` : `- ${path}`))
+    .join('\n')
   const section = `Attached files (read them with your tools using these absolute paths):\n${list}`
   return text.trim() ? `${text}\n\n${section}` : section
 }
 
-/** Absolute local paths of `file://`-backed attachment parts (shared path extraction). */
-function extractAttachmentPaths(parts: Array<{ type: string; url?: string }>): string[] {
-  const paths: string[] = []
+interface ResolvedAttachmentPath {
+  filename?: string
+  path: string
+}
+
+/** Resolve current managed paths so userData relocation never leaves a stale path in the prompt. */
+async function extractAttachmentPaths(
+  parts: FileUIPart[]
+): Promise<{ files: ResolvedAttachmentPath[]; unavailable: FileUIPart[] }> {
+  const files: ResolvedAttachmentPath[] = []
+  const unavailable: FileUIPart[] = []
   for (const part of parts) {
-    if (part.type !== 'file' || !part.url?.startsWith('file://')) continue
-    paths.push(fileURLToPath(part.url))
+    const fileEntryId = readCherryMeta(part)?.fileEntryId
+    try {
+      let resolved: AbsoluteFilePath
+      if (fileEntryId) {
+        resolved = application.get('FileManager').getPhysicalPath(fileEntryId)
+      } else if (part.url?.startsWith('file://')) {
+        resolved = AbsoluteFilePathSchema.parse(fileURLToPath(part.url))
+      } else {
+        unavailable.push(part)
+        continue
+      }
+
+      // `getPhysicalPath` is a DB lookup: it resolves an entry whose bytes may already be
+      // gone. Announcing a dead path would send the agent hunting; `unverifiable` (EACCES,
+      // a stalled network volume) still gets announced rather than dropped on a transient.
+      if ((await probeReadable(resolved)) === 'missing') {
+        logger.warn('Attachment path no longer exists', { fileEntryId })
+        unavailable.push(part)
+        continue
+      }
+      files.push({ filename: part.filename, path: resolved })
+    } catch (error) {
+      logger.warn('Failed to resolve an attachment path', error as Error, { fileEntryId })
+      unavailable.push(part)
+    }
   }
-  return paths
+  return { files, unavailable }
+}
+
+function isImageFilePart(part: FileUIPart): boolean {
+  if (part.mediaType?.toLowerCase().startsWith('image/')) return true
+  const filename = part.filename?.toLowerCase()
+  const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
+  return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
 }
 
 function canBeClaudeImage(part: FileUIPart): boolean {

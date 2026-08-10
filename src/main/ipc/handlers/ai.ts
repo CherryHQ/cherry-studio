@@ -4,6 +4,7 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import { messageService } from '@data/services/MessageService'
 import { loggerService } from '@logger'
 import { createAgent } from '@main/ai/agents/createAgent'
+import { createBuiltinAssistantFeedbackSession } from '@main/ai/agents/createBuiltinAssistantFeedbackSession'
 import { extractAgentSessionId, isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { inflateEntities, isToolOutputBlobEntry, reconstructOutput } from '@main/ai/contextBuild/toolOutputStore'
 import { WebContentsListener } from '@main/ai/streamManager'
@@ -192,18 +193,19 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
-  // Open the live connection eagerly (not just a warm-query park) so the session's slash-command
-  // catalog is read into the cache before the first message — the warm-query handle can't expose it.
-  // Trace mode is no exception: the primed connection resolves the session's container trace up front
-  // and spawns with TRACEPARENT, and the one thing a traced turn must not reuse — a trace-less warm
-  // query — is refused by the driver itself.
-  'ai.agent.session.prewarm': ({ sessionId }) =>
-    application.get('AgentSessionRuntimeService').primeConnection(sessionId),
-  'ai.agent.session.close_warm': async ({ sessionId }) => {
-    application.get('ClaudeCodeWarmQueryManager').closeAgentSessionWarm(sessionId)
-    // Prewarm now opens a real runtime connection, so releasing the warm-query park alone would leak
-    // the primed subprocess until the idle TTL. Tear it down on view close unless a turn is running.
-    application.get('AgentSessionRuntimeService').releaseIdleConnection(sessionId)
+  'ai.agent.feedback_session.create': async () => ({ sessionId: createBuiltinAssistantFeedbackSession().id }),
+  // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
+  // session's slash-command catalog is read into the cache before the first message — the
+  // warm-query handle can't expose it. Trace mode is no exception: the primed connection resolves
+  // the session's container trace up front and spawns with TRACEPARENT, and the one thing a traced
+  // turn must not reuse — a trace-less warm query — is refused by the driver itself.
+  // The per-session connection is shared across windows, so the runtime service aggregates leases
+  // by (session × sender WebContents) and tears down only once no window holds the session.
+  'ai.agent.session.prewarm': async ({ sessionId }, { senderId }) => {
+    application.get('AgentSessionRuntimeService').acquireWarmLease(sessionId, senderWebContents(senderId))
+  },
+  'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
+    application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
 
   // ── Agent session runtime queries & commands. ──

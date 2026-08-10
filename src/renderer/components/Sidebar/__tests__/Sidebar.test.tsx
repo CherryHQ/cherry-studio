@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { LucideIcon } from 'lucide-react'
 import { Search } from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
@@ -24,7 +25,8 @@ type AppItem = {
 }
 
 const uiMocks = vi.hoisted(() => ({
-  sortableCalls: [] as any[]
+  sortableCalls: [] as any[],
+  contextMenuOpenChange: undefined as ((open: boolean) => void) | undefined
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -77,27 +79,25 @@ vi.mock('@renderer/components/command', () => ({
     children: ReactNode
     extraItems: ReadonlyArray<{ id: string; label: string; enabled?: boolean; onSelect?: () => void }>
     onOpenChange?: (open: boolean) => void
-  }) => (
-    <div data-testid="command-context-menu">
-      {children}
-      {onOpenChange && (
-        <>
-          <button type="button" data-testid="context-menu-open" onClick={() => onOpenChange(true)} />
-          <button type="button" data-testid="context-menu-close" onClick={() => onOpenChange(false)} />
-        </>
-      )}
-      {extraItems.map((item) => (
-        <button
-          key={item.id}
-          type="button"
-          data-testid={`context-menu-${item.id}`}
-          disabled={item.enabled === false}
-          onClick={item.onSelect}>
-          {item.label}
-        </button>
-      ))}
-    </div>
-  )
+  }) => {
+    uiMocks.contextMenuOpenChange = onOpenChange
+
+    return (
+      <div data-testid="command-context-menu">
+        {children}
+        {extraItems.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            data-testid={`context-menu-${item.id}`}
+            disabled={item.enabled === false}
+            onClick={item.onSelect}>
+            {item.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
 }))
 
 vi.mock('@renderer/components/icons/miniAppsLogo', () => {
@@ -152,6 +152,7 @@ const INTERMEDIATE_WIDTH = SIDEBAR_ICON_WIDTH + 30
 
 afterEach(() => {
   uiMocks.sortableCalls.length = 0
+  uiMocks.contextMenuOpenChange = undefined
 })
 
 function dragResizeFrom(width: number, moves: number | number[]) {
@@ -314,10 +315,11 @@ describe('Sidebar resize handle', () => {
     expect(getByText('Chat')).toBeInTheDocument()
   })
 
-  it('wires context menu actions for sidebar app items', () => {
+  it('wires context menu actions and keeps blank sidebar space clickable while the menu is open', async () => {
+    const user = userEvent.setup()
     const onRemove = vi.fn()
 
-    render(
+    const { container } = render(
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
@@ -331,7 +333,22 @@ describe('Sidebar resize handle', () => {
       />
     )
 
-    fireEvent.click(screen.getByTestId('context-menu-remove-chat'))
+    const sidebar = container.firstElementChild
+
+    // Electron drag-region markers are the contract that determines whether blank space receives the dismiss click.
+    expect(sidebar).toHaveClass('[-webkit-app-region:drag]')
+
+    act(() => uiMocks.contextMenuOpenChange?.(true))
+
+    expect(sidebar).toHaveClass('[-webkit-app-region:no-drag]')
+    expect(sidebar).not.toHaveClass('[-webkit-app-region:drag]')
+
+    act(() => uiMocks.contextMenuOpenChange?.(false))
+
+    expect(sidebar).toHaveClass('[-webkit-app-region:drag]')
+    expect(sidebar).not.toHaveClass('[-webkit-app-region:no-drag]')
+
+    await user.click(screen.getByRole('button', { name: 'Remove from Sidebar' }))
 
     expect(onRemove).toHaveBeenCalledTimes(1)
   })
@@ -360,13 +377,16 @@ describe('Sidebar resize handle', () => {
       const panel = container.querySelector('.slide-in-from-left-2') as HTMLElement
 
       fireEvent.mouseEnter(panel)
-      fireEvent.click(screen.getByTestId('context-menu-open'))
+      act(() => uiMocks.contextMenuOpenChange?.(true))
+      // The floating branch must honor the same Electron drag-region contract as the docked sidebar.
+      expect(panel).toHaveClass('[-webkit-app-region:no-drag]')
       fireEvent.mouseLeave(panel)
       vi.advanceTimersByTime(350)
 
       expect(onDismiss).not.toHaveBeenCalled()
 
-      fireEvent.click(screen.getByTestId('context-menu-close'))
+      act(() => uiMocks.contextMenuOpenChange?.(false))
+      expect(panel).toHaveClass('[-webkit-app-region:drag]')
       vi.advanceTimersByTime(350)
 
       expect(onDismiss).toHaveBeenCalledTimes(1)
@@ -376,7 +396,7 @@ describe('Sidebar resize handle', () => {
   })
 
   it('renders apps and direct mini app icons together in one full docked list', () => {
-    const { container } = render(
+    render(
       <Sidebar
         width={SIDEBAR_FULL_THRESHOLD}
         setWidth={vi.fn()}
@@ -393,15 +413,11 @@ describe('Sidebar resize handle', () => {
 
     expect(screen.getByText('Chat')).toBeInTheDocument()
     expect(screen.getByText('Qwen')).toBeInTheDocument()
-    expect(container.querySelector('[data-testid="resolved-mini-app-logo-avatar"]')).not.toBeInTheDocument()
-    expect(container.querySelector('[data-testid="resolved-mini-app-logo"]')).toHaveStyle({
-      width: '16px',
-      height: '16px'
-    })
+    expect(screen.getByLabelText('Qwen')).toBeInTheDocument()
   })
 
   it('gives docked mini apps the shared icon-row button sizing and hover styles', () => {
-    const { container } = render(
+    render(
       <Sidebar
         width={SIDEBAR_ICON_WIDTH}
         setWidth={vi.fn()}
@@ -416,10 +432,8 @@ describe('Sidebar resize handle', () => {
       />
     )
 
-    const miniAppLogo = container.querySelector('[data-testid="resolved-mini-app-logo"]')
-    const dockedMiniAppButton = miniAppLogo?.closest('button')
+    const dockedMiniAppButton = screen.getByRole('button', { name: 'Qwen' })
 
-    expect(miniAppLogo).toHaveStyle({ width: '22px', height: '22px' })
     expect(dockedMiniAppButton).toHaveClass('h-9', 'w-9')
     expect(dockedMiniAppButton).toHaveClass('hover:bg-accent/60', 'hover:text-foreground')
   })

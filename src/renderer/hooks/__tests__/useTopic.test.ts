@@ -69,6 +69,62 @@ describe('getTopicMessages', () => {
     expect(dataApiService.get).toHaveBeenCalledTimes(2)
     expect(messages.map((message) => message.id)).toEqual(['older', 'newer'])
   })
+
+  it('filters awaiting-input messages and does not count them toward maxMessages', async () => {
+    const awaitingInput = {
+      ...apiMessage('awaiting-input'),
+      data: { parts: [] }
+    }
+
+    vi.mocked(dataApiService.get)
+      .mockResolvedValueOnce({
+        items: [{ message: awaitingInput }, { message: apiMessage('newer') }],
+        nextCursor: 'older-page',
+        activeNodeId: 'awaiting-input',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+      .mockResolvedValueOnce({
+        items: [{ message: apiMessage('older') }],
+        nextCursor: undefined,
+        activeNodeId: 'awaiting-input',
+        assistantId: 'assistant-1',
+        rootId: 'root'
+      } as never)
+
+    const messages = await getTopicMessages('topic-a', { maxMessages: 2 })
+
+    expect(dataApiService.get).toHaveBeenCalledTimes(2)
+    expect(messages.map((message) => message.id)).toEqual(['older', 'newer'])
+  })
+
+  it('filters awaiting-input messages from sibling groups', async () => {
+    const awaitingInputSibling = {
+      ...apiMessage('awaiting-input-sibling'),
+      data: { parts: [] }
+    }
+    const assistantSibling = {
+      ...apiMessage('assistant-sibling'),
+      role: 'assistant' as const
+    }
+
+    vi.mocked(dataApiService.get).mockResolvedValueOnce({
+      items: [
+        {
+          message: apiMessage('user'),
+          siblingsGroup: [awaitingInputSibling, assistantSibling]
+        }
+      ],
+      nextCursor: undefined,
+      activeNodeId: 'assistant-sibling',
+      assistantId: 'assistant-1',
+      rootId: 'root'
+    } as never)
+
+    const messages = await getTopicMessages('topic-a')
+
+    expect(messages.map((message) => message.id)).toEqual(['user', 'assistant-sibling'])
+  })
 })
 
 describe('useTopics', () => {
@@ -77,14 +133,14 @@ describe('useTopics', () => {
     vi.clearAllMocks()
   })
 
-  it('keeps revalidateAll off while a load-all topic chain is still growing', () => {
+  it('disables loaded-page revalidation while a load-all topic chain is still growing', () => {
     renderHook(() => useTopics({ loadAll: true }))
 
     expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/topics', {
       query: undefined,
       limit: 200,
       enabled: undefined,
-      swrOptions: { revalidateAll: false }
+      swrOptions: { revalidateAll: false, revalidateFirstPage: false }
     })
   })
 
@@ -107,7 +163,7 @@ describe('useTopics', () => {
       query: undefined,
       limit: 200,
       enabled: undefined,
-      swrOptions: { revalidateAll: true }
+      swrOptions: { revalidateAll: true, revalidateFirstPage: false }
     })
   })
 
@@ -118,7 +174,7 @@ describe('useTopics', () => {
       query: undefined,
       limit: 50,
       enabled: undefined,
-      swrOptions: { revalidateAll: false }
+      swrOptions: { revalidateAll: false, revalidateFirstPage: true }
     })
   })
 
@@ -126,9 +182,9 @@ describe('useTopics', () => {
     // Simulate a multi-page loadAll: each render grows `pages` by one and
     // keeps `hasNext` true until the final page. The auto-paginate effect
     // drives `loadNext`; we assert that across every growth render the
-    // `swrOptions.revalidateAll` passed to `useInfiniteQuery` stays false
-    // (no quadratic re-fetch of earlier pages) and `loadNext` is invoked
-    // once per new page — never extra revalidation-triggered fetches.
+    // loaded-page revalidation stays disabled: `revalidateAll` prevents a
+    // quadratic re-fetch of earlier pages, while `revalidateFirstPage`
+    // prevents one redundant page-0 request per `loadNext`.
     const loadNext = vi.fn()
     let pages: Array<{ items: Array<{ id: string }>; nextCursor?: string }> = [
       { items: [{ id: 't1' }], nextCursor: 'c1' }
@@ -161,21 +217,20 @@ describe('useTopics', () => {
     act(() => rerender())
 
     // The auto-paginate effect drives loadNext; the key regression check is
-    // that revalidateAll stays false across every growth render so earlier
-    // pages are never re-fetched on each setSize (1+2+...+n IPC traffic).
+    // that neither previous pages nor page 0 are revalidated during growth.
     expect(loadNext).toHaveBeenCalled()
 
     // All calls during growth (every call except the final post-fully-loaded
-    // re-render where the effect flips revalidateAll on) must keep
-    // revalidateAll off.
+    // re-render where the effect flips revalidateAll on) must keep both
+    // growth-time revalidation modes off.
     const growthCalls = mockUseInfiniteQuery.mock.calls.slice(0, -1)
     expect(growthCalls.length).toBeGreaterThan(0)
     for (const call of growthCalls) {
-      expect(call[1]).toMatchObject({ swrOptions: { revalidateAll: false } })
+      expect(call[1]).toMatchObject({ swrOptions: { revalidateAll: false, revalidateFirstPage: false } })
     }
     // The final call — after the chain is fully loaded — flips revalidateAll on.
     const lastCall = mockUseInfiniteQuery.mock.calls[mockUseInfiniteQuery.mock.calls.length - 1]
-    expect(lastCall[1]).toMatchObject({ swrOptions: { revalidateAll: true } })
+    expect(lastCall[1]).toMatchObject({ swrOptions: { revalidateAll: true, revalidateFirstPage: false } })
   })
 })
 

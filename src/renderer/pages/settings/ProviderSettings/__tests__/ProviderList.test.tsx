@@ -1,5 +1,6 @@
 import { toast } from '@renderer/services/toast'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -162,6 +163,7 @@ describe('ProviderList', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    MockUseCacheUtils.resetMocks()
     reorderSpy.mockClear()
     useProvidersMock.mockReturnValue({
       providers,
@@ -344,6 +346,21 @@ describe('ProviderList', () => {
     expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
   })
 
+  it('restores the provider filter after leaving and returning to the page', () => {
+    const first = render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '筛选服务商' }))
+    fireEvent.click(screen.getByRole('button', { name: '仅已禁用' }))
+
+    expect(MockUseCacheUtils.getPersistCacheValue('settings.provider.filter_mode')).toBe('disabled')
+
+    first.unmount()
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(screen.queryByText('OpenAI')).not.toBeInTheDocument()
+    expect(screen.queryByText('Anthropic')).not.toBeInTheDocument()
+  })
+
   it('keeps a single add action below the scrollable provider list', () => {
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
@@ -397,6 +414,7 @@ describe('ProviderList', () => {
     expect(screen.getByText('OpenAI')).toBeInTheDocument()
     expect(screen.getByText('Anthropic')).toBeInTheDocument()
     expect(screen.getByText('Gemini')).toBeInTheDocument()
+    expect(MockUseCacheUtils.getPersistCacheValue('settings.provider.filter_mode')).toBe('all')
   })
 
   it('shows management actions for preset-derived and custom providers but not canonical presets', () => {

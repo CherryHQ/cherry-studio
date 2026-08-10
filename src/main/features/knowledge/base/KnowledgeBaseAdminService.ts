@@ -19,6 +19,7 @@ import type { KnowledgeIngestionService } from '../ingestion/KnowledgeIngestionS
 import { classifyKnowledgeItemSource } from '../items'
 import { getKnowledgeBaseFilePath } from '../pathStorage'
 import { cancelActiveKnowledgeJobs } from '../tasks/utils/cancel'
+import { inspectOrphanBaseArtifacts, type OrphanBaseArtifactsInspection } from './orphanBaseArtifacts'
 
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
 
@@ -31,16 +32,18 @@ export class KnowledgeBaseAdminService {
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
     const base = knowledgeBaseService.create(dto)
-    const vectorStoreService = application.get('KnowledgeVectorStoreService')
+    return await this.knowledgeLockManager.runExclusive(base.id, async () => {
+      const vectorStoreService = application.get('KnowledgeVectorStoreService')
 
-    try {
-      vectorStoreService.getIndexStore(base)
-    } catch (error) {
-      await this.rollbackFailedBaseCreation(base.id)
-      throw error
-    }
+      try {
+        vectorStoreService.getIndexStore(base)
+      } catch (error) {
+        await this.rollbackFailedBaseCreation(base.id)
+        throw error
+      }
 
-    return base
+      return base
+    })
   }
 
   /**
@@ -89,6 +92,21 @@ export class KnowledgeBaseAdminService {
         )
       }
     })
+  }
+
+  /** Remove vector artifacts only when the base is still absent while holding its lifecycle lock. */
+  async removeOrphanBaseArtifacts(baseId: string): Promise<boolean> {
+    return await this.knowledgeLockManager.runExclusive(baseId, async () => {
+      if (knowledgeBaseService.listAllIds().has(baseId)) return false
+
+      const vectorStoreService = application.get('KnowledgeVectorStoreService')
+      await vectorStoreService.deleteStore(baseId)
+      return true
+    })
+  }
+
+  inspectOrphanBaseArtifacts(): Promise<OrphanBaseArtifactsInspection> {
+    return inspectOrphanBaseArtifacts()
   }
 
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {

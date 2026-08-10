@@ -8,6 +8,7 @@ import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
@@ -16,7 +17,6 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
-import { shouldDeferToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -26,7 +26,7 @@ import { type UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
-import type { AiStreamRequest, CallOverrides, InProcessUsageContext } from '../types'
+import type { AiStreamRequest, CallOverrides, ContextOwner, InProcessUsageContext } from '../types'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
@@ -634,6 +634,8 @@ export class AiStreamManager extends BaseService {
     listener: StreamListener | StreamListener[]
     /** Per-request overrides (sampling/tools/providerOptions) for assistant-less callers (API gateway). */
     callOverrides?: CallOverrides
+    /** Which layer owns history shaping; omitted means Cherry-managed. */
+    contextOwner?: ContextOwner
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
     /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
@@ -646,12 +648,14 @@ export class AiStreamManager extends BaseService {
         ? input.messages
         : [{ id: 'prompt-user', role: 'user', parts: [{ type: 'text', text: input.prompt ?? '' }] }]
 
+    const chatId = input.usageContext ? input.usageContext.agentSessionId : input.streamId
     const request: ManagedAiStreamRequest = {
-      chatId: input.streamId,
+      chatId,
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
       messages,
       callOverrides: input.callOverrides,
+      contextOwner: input.contextOwner,
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
@@ -922,7 +926,12 @@ export class AiStreamManager extends BaseService {
 
     // Per-execution ring buffer — a chatty model can't push a slower one's
     // replay out. Overflow drops oldest and bumps `droppedChunks`.
-    if (exec.buffer.length >= this.config.maxBufferChunks) {
+    // Eviction pauses while an approval is pending: evicted chunks are pure
+    // history, but a pending approval's tool-input chunks are still-operable
+    // state a reconnect must replay for the user to decide. Growth stays
+    // bounded because the approval blocks the round (almost no chunks stream
+    // during the wait) and `approvalIdleTimeoutMs` caps the window.
+    if (exec.buffer.length >= this.config.maxBufferChunks && !exec.pendingApprovalToolCallIds?.size) {
       exec.buffer.shift()
       exec.droppedChunks += 1
     }

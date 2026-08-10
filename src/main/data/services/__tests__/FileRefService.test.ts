@@ -1,6 +1,14 @@
 import { application } from '@application'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { fileEntryTable } from '@data/db/schemas/file'
-import { chatMessageFileRefTable, jobFileRefTable, paintingFileRefTable } from '@data/db/schemas/fileRelations'
+import {
+  agentSessionMessageFileRefTable,
+  chatMessageFileRefTable,
+  jobFileRefTable,
+  paintingFileRefTable
+} from '@data/db/schemas/fileRelations'
 import { jobTable } from '@data/db/schemas/job'
 import { messageTable } from '@data/db/schemas/message'
 import { paintingTable } from '@data/db/schemas/painting'
@@ -79,6 +87,31 @@ describe('FileRefService', () => {
     return messageId
   }
 
+  async function seedAgentSessionMessage(messageId = uuidv4()): Promise<string> {
+    const sessionId = `session-${messageId}`
+    const workspaceId = `workspace-${messageId}`
+    await dbh.db.insert(agentWorkspaceTable).values({
+      id: workspaceId,
+      name: workspaceId,
+      path: `/tmp/${workspaceId}`,
+      type: 'user',
+      orderKey: workspaceId
+    })
+    await dbh.db.insert(agentSessionTable).values({ id: sessionId, name: sessionId, workspaceId, orderKey: sessionId })
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: messageId,
+      sessionId,
+      role: 'user',
+      data: { parts: [] },
+      status: 'success'
+    })
+    return messageId
+  }
+
+  async function seedAgentSessionMessageRef(fileEntryId: FileEntryId, sourceId: string): Promise<void> {
+    await dbh.db.insert(agentSessionMessageFileRefTable).values({ fileEntryId, sourceId, role: 'attachment' })
+  }
+
   async function seedPaintingRef(fileEntryId: FileEntryId, sourceId: string, role: 'output' | 'input'): Promise<void> {
     await dbh.db.insert(paintingFileRefTable).values({ fileEntryId, sourceId, role })
   }
@@ -131,6 +164,25 @@ describe('FileRefService', () => {
 
     it('findBySource returns empty array when source key has no refs', async () => {
       expect(fileRefService.findBySource({ sourceType: 'painting', sourceId: 'no-such' })).toEqual([])
+    })
+
+    it('aggregates agent-session message refs so uploaded attachments are visible', async () => {
+      const entryId = '019606a0-0000-7000-8000-00000000aa04' as FileEntryId
+      const messageId = await seedAgentSessionMessage()
+      await seedEntry(entryId)
+      await seedAgentSessionMessageRef(entryId, messageId)
+
+      expect(fileRefService.findByEntryId(entryId)).toEqual([
+        expect.objectContaining({
+          fileEntryId: entryId,
+          sourceType: 'agent_session_message',
+          sourceId: messageId,
+          role: 'attachment'
+        })
+      ])
+      expect(fileRefService.findBySource({ sourceType: 'agent_session_message', sourceId: messageId })).toEqual([
+        expect.objectContaining({ fileEntryId: entryId, sourceType: 'agent_session_message', sourceId: messageId })
+      ])
     })
 
     it('aggregates job refs (findByEntryId / findBySource) so job-held inputs are visible', async () => {

@@ -76,7 +76,7 @@ async function prepareTopic(oldTopic: OldTopic, blocks: OldBlock[]): Promise<Pre
   m['topicMetaLookup'] = new Map()
   m['topicAssistantLookup'] = new Map()
   m['skippedMessages'] = 0
-  m['seenMessageIds'] = new Set()
+  m['reservedMessageIds'] = new Set()
   m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
 
   // No FileManager — tests don't touch images with base64; deps stays undefined so
@@ -119,6 +119,47 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('a1')?.parentId).toBe('u1')
   })
 
+  it('normalizes duplicate IDs before computing parent and active-node references', async () => {
+    const b1 = block('b1', 'duplicate')
+    const b2 = block('b2', 'duplicate')
+    const messages = [msg('duplicate', 'user', ['b1']), msg('duplicate', 'assistant', ['b2'])]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b2])
+
+    expect(result).not.toBeNull()
+    expect(result?.messages).toHaveLength(2)
+    const [first, second] = result!.messages
+    expect(first.id).toBe('duplicate')
+    expect(second.id).not.toBe('duplicate')
+    expect(second.parentId).toBe(first.id)
+    expect(result?.topic.activeNodeId).toBe(second.id)
+  })
+
+  it('normalizes cross-topic ID collisions before computing each topic active node', async () => {
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    const blocks = ['b1', 'b2', 'b3'].map((id) => block(id, 'duplicate'))
+    m['blockLookup'] = new Map(blocks.map((item) => [item.id, item]))
+
+    const fn = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const results: PreparedTopicData[] = []
+    for (const [index, topicId] of ['t1', 't2', 't3'].entries()) {
+      const prepared = await fn.call(
+        migrator,
+        topic(topicId, [msg('duplicate', 'user', [`b${index + 1}`], { topicId })])
+      )
+      expect(prepared).not.toBeNull()
+      results.push(prepared!)
+    }
+
+    const ids = results.map((result) => result.messages[0].id)
+    expect(ids[0]).toBe('duplicate')
+    expect(new Set(ids).size).toBe(3)
+    results.forEach((result) => {
+      expect(result.topic.activeNodeId).toBe(result.messages[0].id)
+    })
+  })
+
   it('snapshots the resolved assistant onto assistant-role messages, leaving user rows null', async () => {
     // Exercises the full lookup wiring (topic→assistant, legacy remap, validAssistantIds,
     // assistantLookup) that the other prepareTopicData tests leave empty, so a regression in
@@ -134,7 +175,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     m['legacyAssistantIdRemap'] = new Map()
     m['validAssistantIds'] = new Set(['ast-1'])
     m['skippedMessages'] = 0
-    m['seenMessageIds'] = new Set()
+    m['reservedMessageIds'] = new Set()
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
 
     const model = { id: 'qwen', name: 'Qwen', provider: 'cherryai', group: '' }
@@ -490,7 +531,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     m['topicAssistantLookup'] = new Map()
     m['skippedMessages'] = 0
     m['orphanedAssistantTopics'] = 0
-    m['seenMessageIds'] = new Set()
+    m['reservedMessageIds'] = new Set()
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
     // FK validation set with at least one valid id — proves the orphan branch
     // (not "no validAssistantIds at all") is what falls 'orphaned-id' to NULL.
@@ -524,7 +565,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     m['topicAssistantLookup'] = new Map()
     m['skippedMessages'] = 0
     m['orphanedAssistantTopics'] = 0
-    m['seenMessageIds'] = new Set()
+    m['reservedMessageIds'] = new Set()
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
     m['validAssistantIds'] = new Set([remappedDefaultId])
     m['legacyAssistantIdRemap'] = new Map([['default', remappedDefaultId]])
@@ -599,12 +640,18 @@ describe('ChatMigrator message block index', () => {
     vi.clearAllMocks()
   })
 
-  it('resolves blocks from the temporary SQLite index without loading the full table into memory', async () => {
+  it('indexes one decoded block at a time before resolving it from temporary SQLite', async () => {
     const b1 = block('b1', 'u1')
     const b2 = block('b2', 'u1')
-    const readInBatches = vi.fn(async (_batchSize: number, onBatch: (items: OldBlock[]) => Promise<void>) => {
-      await onBatch([b2, b1])
-      return 2
+    const sourceBlocks = [b2, b1]
+    const decodedBatchSizes: number[] = []
+    const readInBatches = vi.fn(async (batchSize: number, onBatch: (items: OldBlock[]) => Promise<void>) => {
+      for (let index = 0; index < sourceBlocks.length; index += batchSize) {
+        const batch = sourceBlocks.slice(index, index + batchSize)
+        decodedBatchSizes.push(batch.length)
+        await onBatch(batch)
+      }
+      return sourceBlocks.length
     })
     const migrator = new ChatMigrator()
     const m = migrator as unknown as Record<string, unknown>
@@ -634,7 +681,8 @@ describe('ChatMigrator message block index', () => {
     expect(result?.messages).toHaveLength(1)
     expect(result?.messages[0]?.searchableText).toContain('Content of b1')
     expect(result?.messages[0]?.searchableText).toContain('Content of b2')
-    expect(readInBatches).toHaveBeenCalledWith(1000, expect.any(Function))
+    expect(readInBatches).toHaveBeenCalledWith(1, expect.any(Function))
+    expect(decodedBatchSizes).toEqual([1, 1])
   })
 })
 
@@ -643,7 +691,7 @@ describe('ChatMigrator validate orphan-ratio diagnostic', () => {
     vi.clearAllMocks()
   })
 
-  function makeStubDb(targetTopicCount: number) {
+  function makeStubDb(targetTopicCount: number, unreachableMessageCount = 0) {
     // All count queries → constant; all sample queries → []. Tracks call order
     // so the first count query (topicTable) returns the desired target topic count.
     const select = vi.fn()
@@ -670,8 +718,26 @@ describe('ChatMigrator validate orphan-ratio diagnostic', () => {
         })
       }
     })
-    return { select }
+    return {
+      select,
+      all: vi.fn().mockReturnValue([{ count: unreachableMessageCount }])
+    }
   }
+
+  it('fails validation when messages are not reachable from a topic root', async () => {
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['topicCount'] = 0
+    m['skippedTopics'] = 0
+
+    const result = await migrator.validate({ db: makeStubDb(0, 2) } as unknown as MigrationContext)
+
+    expect(result.success).toBe(false)
+    expect(result.errors).toContainEqual({
+      key: 'unreachable_messages',
+      message: 'Found 2 messages not reachable from a topic root'
+    })
+  })
 
   it('warns when orphanedAssistantTopics / topicCount > 0.5', async () => {
     const migrator = new ChatMigrator()
@@ -803,6 +869,7 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
   function stage(migrator: ChatMigrator, items: PreparedTopicData[]): void {
     const m = migrator as unknown as Record<string, unknown>
     m['stagedTopics'] = items
+    m['reservedMessageIds'] = new Set(items.flatMap((item) => item.messages.map((message) => message.id)))
     m['validAssistantIds'] = new Set<string>()
     m['validModelIds'] = null
   }
@@ -1006,6 +1073,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
   function stage(migrator: ChatMigrator, items: PreparedTopicData[], fileEntryIds: string[]): void {
     const m = migrator as unknown as Record<string, unknown>
     m['stagedTopics'] = items
+    m['reservedMessageIds'] = new Set(items.flatMap((item) => item.messages.map((message) => message.id)))
     m['validAssistantIds'] = new Set<string>()
     m['validModelIds'] = null
     m['migratedFileEntryIds'] = new Set(fileEntryIds)
@@ -1066,22 +1134,11 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     const m1 = rows.find((r) => r.id === 'm1')
     expect(m1?.parentId).toBe(roots[0].id)
     expect(rows.filter((r) => r.role !== 'root').some((r) => r.parentId === null)).toBe(false)
+    expect((migrator as unknown as Record<string, Set<string>>)['reservedMessageIds'].size).toBe(0)
   })
 
-  /** Fetch a topic row and its single non-root content message after migration. */
-  async function readTopicAndContent(topicId: string) {
-    const [topic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topicId))
-    const content = (await dbh.db.select().from(messageTable).where(eq(messageTable.topicId, topicId))).filter(
-      (r) => r.role !== 'root'
-    )
-    return { topic, content }
-  }
-
-  it('scopes the activeNodeId remap per topic when a message id collides across topics', async () => {
+  it('rejects duplicate message IDs that bypass prepare-time normalization', () => {
     const migrator = new ChatMigrator()
-    // t1 and t2 both own a message id 'dup' AND both point activeNodeId at 'dup'. t1 is seen
-    // first and keeps 'dup'; t2's is renamed. Each activeNodeId must resolve to its OWN topic's
-    // message — a batch-global remap wrongly re-pointed t1's active node at t2's renamed message.
     stage(
       migrator,
       [
@@ -1101,48 +1158,9 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
 
     const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
       ctx: MigrationContext
-    ) => Promise<unknown>
-    await fn.call(migrator, ctxOf())
-
-    const t1 = await readTopicAndContent('t1')
-    const t2 = await readTopicAndContent('t2')
-
-    // t1 kept 'dup'; t2 got a fresh id. Neither active node dangles or crosses into the other topic.
-    expect(t1.content.map((r) => r.id)).toEqual(['dup'])
-    expect(t2.content).toHaveLength(1)
-    expect(t2.content[0].id).not.toBe('dup')
-    expect(t1.topic.activeNodeId).toBe('dup')
-    expect(t2.topic.activeNodeId).toBe(t2.content[0].id)
-  })
-
-  it('scopes the activeNodeId remap per topic on a triple message-id collision', async () => {
-    const migrator = new ChatMigrator()
-    // Same id in three topics, all pointing activeNodeId at it. The 2nd and 3rd are renamed to
-    // distinct ids; a batch-global Map would overwrite to the last remap and point all three there.
-    stage(
-      migrator,
-      ['t1', 't2', 't3'].map((id) => ({
-        topic: { ...newTopic(id, 100), activeNodeId: 'dup' },
-        messages: [newMessage('dup', id, [{ type: 'main_text', content: id }])],
-        pinned: false
-      })),
-      []
-    )
-
-    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
-      ctx: MigrationContext
-    ) => Promise<unknown>
-    await fn.call(migrator, ctxOf())
-
-    // Every topic's activeNodeId resolves to its OWN single content message.
-    for (const id of ['t1', 't2', 't3']) {
-      const { topic, content } = await readTopicAndContent(id)
-      expect(content).toHaveLength(1)
-      expect(topic.activeNodeId).toBe(content[0].id)
-    }
-    // And the three content ids are all distinct (no shared/overwritten remap).
-    const ids = (await Promise.all(['t1', 't2', 't3'].map((id) => readTopicAndContent(id)))).map((r) => r.content[0].id)
-    expect(new Set(ids).size).toBe(3)
+    ) => unknown
+    expect(() => fn.call(migrator, ctxOf())).toThrow('Duplicate message ID remained after normalization: dup')
+    expect((migrator as unknown as Record<string, Set<string>>)['reservedMessageIds'].size).toBe(0)
   })
 
   it('skips chat_message_file_ref for dangling fileId and records warning', async () => {
@@ -1228,44 +1246,6 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     const warnings = m['skippedWarnings'] as Map<string, { count: number; samples: string[] }>
     expect(warnings.has('chat_message_dangling_file_entry')).toBe(true)
     expect(warnings.get('chat_message_dangling_file_entry')!.count).toBe(1)
-  })
-
-  it('uses remapped message ID as chat_message_file_ref.sourceId when dedup renames a collided ID', async () => {
-    await seedFileEntry('fe-a')
-    await seedFileEntry('fe-b')
-
-    const migrator = new ChatMigrator()
-    const m = migrator as unknown as Record<string, unknown>
-    m['migratedFileEntryIds'] = new Set(['fe-a', 'fe-b'])
-
-    const collisionId = 'collision-id'
-    // A distinct text root keeps both colliding messages as non-root children
-    // (message_topic_root_uniq: one root per topic) without a self-referencing
-    // parentId — chaining the 2nd collision id onto the 1st would self-ref after
-    // dedup renames it.
-    const messages = [
-      newMessage('t1-root', 't1', [{ type: 'text', content: 'root' }]),
-      newMessage(collisionId, 't1', [{ type: 'image', fileId: 'fe-a' }], 't1-root'),
-      newMessage(collisionId, 't1', [{ type: 'file', fileId: 'fe-b' }], 't1-root')
-    ]
-
-    stage(migrator, [{ topic: newTopic('t1', 100), messages, pinned: false }], ['fe-a', 'fe-b'])
-
-    const fn = m['insertStagedTopics'] as (ctx: MigrationContext) => Promise<any>
-    await fn.call(migrator, ctxOf())
-
-    const refs = await dbh.db.select().from(chatMessageFileRefTable)
-    expect(refs).toHaveLength(2)
-
-    const sourceIds = refs.map((r) => r.sourceId).sort()
-    expect(sourceIds).toHaveLength(2)
-    expect(sourceIds[0]).not.toBe(sourceIds[1])
-    // One keeps the original, one gets remapped — but neither dangles
-    const hasOriginal = sourceIds.includes(collisionId)
-    expect(hasOriginal).toBe(true)
-    const remappedId = sourceIds.find((id) => id !== collisionId)!
-    expect(remappedId).not.toBe(collisionId)
-    expect(remappedId).toMatch(/^[0-9a-f]{8}-/)
   })
 
   it('accumulates chat_message_file_ref rows across multiple topic batches (>TOPIC_BATCH_SIZE)', async () => {

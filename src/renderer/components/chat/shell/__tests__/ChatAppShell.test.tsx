@@ -158,6 +158,7 @@ describe('ChatAppShell', () => {
     expect(chatMain).not.toContainElement(screen.getByTestId('settings-panel'))
     expect(chatMain).toContainElement(screen.getByTestId('main'))
     expect(chatMain).toHaveClass('relative')
+    expect(chatMain?.getAttribute('data-ui')?.split(/\s+/)).toContain('part:conversation-main')
 
     const sidePanelHost = container.querySelector('[data-chat-side-panel-host]')
     expect(sidePanelHost).not.toBeNull()

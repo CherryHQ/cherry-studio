@@ -3,7 +3,6 @@ import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
 import { loggerService } from '@logger'
-import { MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@main/ai/constants'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { getProviderForCapability, isPermanentWebSearchConfigError } from '@main/services/webSearch'
 import {
@@ -15,7 +14,12 @@ import {
 import type { CompactionSink } from '@shared/ai/compaction'
 import type { WebSearchCapability } from '@shared/data/preference/preferenceTypes'
 import { isWebSearchProviderReady } from '@shared/data/presets/webSearchProviders'
-import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import {
+  type Assistant,
+  DEFAULT_ASSISTANT_SETTINGS,
+  MAX_TOOL_CALLS,
+  MIN_TOOL_CALLS
+} from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { isFunctionCallingModel } from '@shared/utils/model'
@@ -123,7 +127,8 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     provider,
     model,
     resolvedEndpoint,
-    request.apiKeyOverride
+    request.apiKeyOverride,
+    request.chatId
   )
   applyHttpTrace(sdkConfig, request.chatId, model)
   // Prefer the request-carried retained context: the persistent chat provider
@@ -137,6 +142,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
   const toolSignals = canModelConsumeTools(model) ? await resolveRequestToolSignals(request) : undefined
   const webToolRoutes = await resolveRequestWebToolRoutes(model, provider, assistant, {
+    endpointType: resolvedEndpoint.endpointType,
     hasFunctionToolSignals: toolSignals
       ? toolSignals.mcpToolIds.size > 0 ||
         // Mirrors the KB tools' own `applies`: owning a base is not enough, this request must also
@@ -187,7 +193,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     maxTokens: requestedMaxOutputTokens ?? model.maxOutputTokens,
     assistantSummary: provider.settings.summaryText
   })
-  const nativeFileSupport = resolveNativeFileSupport(provider, model, aiSdkProviderId)
+  const nativeFileSupport = resolveNativeFileSupport(provider, model, {
+    endpointType,
+    aiSdkProviderId,
+    runtimeProviderId
+  })
 
   // Resolved before the tool context so fs_read's per-call cap can follow the
   // effective persist threshold instead of the compile-time default.
@@ -279,11 +289,13 @@ async function resolveSdkConfig(
   provider: Provider,
   model: Model,
   resolvedEndpoint: ResolvedEndpoint,
-  apiKeyOverride?: string
+  apiKeyOverride?: string,
+  sessionId?: string
 ): Promise<{ sdkConfig: SdkConfig; credentialReceipt: ServingCredentialReceipt }> {
   const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
     apiKeyOverride,
-    resolvedEndpoint
+    resolvedEndpoint,
+    sessionId
   })
   return {
     sdkConfig: {
@@ -354,9 +366,8 @@ export async function resolveTools(
 }> {
   const { mcpToolIds, hasAnyKnowledgeBase } = signals ?? (await resolveRequestToolSignals(request))
   if (mcpToolIds.size) {
-    // Scope the registry sync to servers that actually own a selected tool —
-    // avoids paying the per-server `listTools` round-trip for every active
-    // server when only one was picked for this request.
+    // Reconcile selected tool ids against every active server's cache-only catalog,
+    // resolving ownership by exact id without MCP network round trips.
     await syncMcpToolsToRegistry(undefined, { selectedToolIds: mcpToolIds })
   }
 
@@ -400,7 +411,11 @@ async function resolveRequestWebToolRoutes(
   model: Model,
   provider: Provider,
   assistant: Assistant | undefined,
-  requestContext: { hasFunctionToolSignals: boolean; reasoningEffort: string | undefined }
+  requestContext: {
+    endpointType: EndpointType | undefined
+    hasFunctionToolSignals: boolean
+    reasoningEffort: string | undefined
+  }
 ): Promise<WebToolRoutes> {
   if (!assistant) return NO_WEB_TOOL_ROUTES
 
@@ -419,6 +434,7 @@ async function resolveRequestWebToolRoutes(
     clientSearchAvailable,
     clientFetchAvailable,
     clientToolsPreferred,
+    endpointType: requestContext.endpointType,
     hasFunctionToolSignals: requestContext.hasFunctionToolSignals,
     reasoningEffort: requestContext.reasoningEffort
   })

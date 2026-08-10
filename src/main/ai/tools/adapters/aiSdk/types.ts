@@ -49,7 +49,7 @@ export interface ToolEntry {
   /**
    * Unique wire-name the LLM emits.
    *   builtin: 'web_search', 'web_fetch', 'kb_search'
-   *   mcp:     'mcp__{camelCase(serverName)}__{camelCase(toolName)}' (see `buildFunctionCallToolName`)
+   *   mcp:     'mcp__{serverSlug}__{toolSlug}_{identityDigest}'
    *   meta:    'tool_search', 'tool_inspect', 'tool_invoke', 'tool_exec'
    *
    * Double underscore is the segment separator so single `_` stays unambiguous.
@@ -82,12 +82,18 @@ export interface ToolEntry {
   codec?: ToolOutputCodec
 
   /**
-   * Grouping for `tool_search`. NOT part of the wire-name.
+   * Ownership key. NOT part of the wire-name, and never shown to the model.
    *   builtin: 'web', 'kb'
-   *   mcp:     'mcp:{serverName}'  (raw display name, not camelCased)
+   *   mcp:     'mcp:{serverId}'  (stable ownership key, not a display name)
    *   meta:    'meta'  (excluded from search results)
    */
   namespace: string
+
+  /**
+   * What `tool_search` groups by and shows the model. Defaults to `namespace`;
+   * set it when the namespace is an opaque id (MCP uses `mcp:{serverName}`).
+   */
+  namespaceLabel?: string
 
   /** One-line summary for `tool_search`. Full schema description lives on `tool.description`. */
   description: string

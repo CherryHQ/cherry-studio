@@ -85,6 +85,81 @@ function successResult(overrides: Record<string, unknown> = {}) {
 }
 
 describe('ClaudeCodeStreamAdapter', () => {
+  describe('turn activity', () => {
+    it('starts inactive and ignores metadata chunks', () => {
+      const { adapter } = createAdapter()
+
+      expect(adapter.hasTurnActivity).toBe(false)
+
+      adapter.handleMessage({
+        type: 'system',
+        subtype: 'init',
+        session_id: 'sdk-init',
+        uuid: crypto.randomUUID(),
+        mcp_servers: [],
+        model: 'claude-sonnet',
+        tools: [],
+        cwd: '/tmp',
+        claude_code_version: '1.0.0',
+        apiKeySource: 'none',
+        permissionMode: 'default',
+        slash_commands: [],
+        output_style: 'default',
+        skills: [],
+        plugins: []
+      } as any)
+
+      expect(adapter.hasTurnActivity).toBe(false)
+    })
+
+    it('tracks text chunks and resets when the next turn begins', () => {
+      const { adapter } = createAdapter()
+
+      adapter.handleMessage(
+        streamEvent({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'hello' } })
+      )
+      expect(adapter.hasTurnActivity).toBe(true)
+
+      adapter.beginTurn()
+      expect(adapter.hasTurnActivity).toBe(false)
+    })
+
+    it('tracks tool-use chunks emitted by a parented assistant flow', () => {
+      const { adapter } = createAdapter()
+
+      adapter.handleMessage({
+        type: 'assistant',
+        parent_tool_use_id: 'workflow-root',
+        uuid: crypto.randomUUID(),
+        session_id: 'sdk-1',
+        message: {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'tool-1', name: 'Read', input: { file_path: '/tmp/a.ts' } }]
+        }
+      } as any)
+
+      expect(adapter.hasTurnActivity).toBe(true)
+    })
+
+    it('remains inactive when an error result emits only usage metadata', () => {
+      const { adapter, parts } = createAdapter()
+
+      expect(() =>
+        adapter.handleMessage(
+          successResult({
+            subtype: 'error_during_execution',
+            is_error: true,
+            errors: ['boom'],
+            session_id: 'sdk-error'
+          })
+        )
+      ).toThrow('boom')
+
+      expect(parts.map((part) => part.type)).toEqual(['message-metadata'])
+      expect(adapter.hasTurnActivity).toBe(false)
+    })
+  })
+
   it('logs every SDK envelope with correlation ids but without text or tool input', () => {
     const { adapter } = createAdapter()
 
@@ -737,7 +812,7 @@ describe('ClaudeCodeStreamAdapter', () => {
       toolCallId: 'mcp-search',
       output: {
         content: results,
-        metadata: { type: 'mcp', serverName: 'cherry-tools', serverId: 'cherry-tools' }
+        metadata: { type: 'mcp', name: 'web_search', serverName: 'cherry-tools', serverId: 'cherry-tools' }
       }
     })
   })

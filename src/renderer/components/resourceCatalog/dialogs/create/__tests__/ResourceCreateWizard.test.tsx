@@ -35,7 +35,7 @@ vi.mock('@renderer/hooks/useModel', () => ({
 
 // Mock the step bodies so the wizard shell (navigation, validation gate, submit
 // mapping) is exercised in isolation. BasicInfoStep fills the fields that gate
-// the Next button; PersonaStep fills the prompt.
+// the Next button; SystemPromptStep fills the prompt.
 vi.mock('../steps/BasicInfoStep', async () => {
   const { useWatch } = await vi.importActual<typeof ReactHookForm>('react-hook-form')
 
@@ -44,15 +44,17 @@ vi.mock('../steps/BasicInfoStep', async () => {
       form
     }: {
       form: {
-        control: ReactHookForm.Control<{ modelId: string | null }>
+        control: ReactHookForm.Control<{ modelId: string | null; name: string }>
         setValue: (name: string, value: unknown) => void
       }
     }) => {
       const modelId = useWatch({ control: form.control, name: 'modelId' })
+      const name = useWatch({ control: form.control, name: 'name' })
 
       return (
         <>
           <div data-testid="model-id">{modelId ?? 'empty'}</div>
+          <div data-testid="name">{name || 'empty'}</div>
           <button type="button" onClick={() => form.setValue('name', 'My Resource')}>
             fill name
           </button>
@@ -69,10 +71,10 @@ vi.mock('../steps/BasicInfoStep', async () => {
     }
   }
 })
-vi.mock('../steps/PersonaStep', () => ({
-  PersonaStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
+vi.mock('../steps/SystemPromptStep', () => ({
+  SystemPromptStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
     <button type="button" onClick={() => form.setValue('prompt', 'be helpful')}>
-      fill persona
+      fill system prompt
     </button>
   )
 }))
@@ -96,6 +98,13 @@ afterEach(() => {
 })
 
 describe('ResourceCreateWizard', () => {
+  it.each(['assistant', 'agent'] as const)('labels the shared authoring step as System Prompt for %s', (kind) => {
+    render(<ResourceCreateWizard kind={kind} open onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
+
+    expect(screen.getByText('library.config.prompt.label')).toBeInTheDocument()
+    expect(screen.queryByText('library.config.dialogs.create.step.persona')).not.toBeInTheDocument()
+  })
+
   it('does not activate the default-model query while closed', () => {
     render(<ResourceCreateWizard kind="assistant" open={false} onOpenChange={vi.fn()} onSubmit={vi.fn()} />)
 
@@ -133,6 +142,26 @@ describe('ResourceCreateWizard', () => {
       knowledgeBaseIds: [],
       skillIds: []
     })
+  })
+
+  it('seeds the name from initialName so a caller-supplied name clears the first step', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    modelHook.defaultModel = makeModel()
+
+    render(
+      <ResourceCreateWizard kind="assistant" open onOpenChange={vi.fn()} onSubmit={onSubmit} initialName="测试助手" />
+    )
+
+    expect(await screen.findByTestId('name')).toHaveTextContent('测试助手')
+    // Name + default model are both set, so the first step is already cleared.
+    expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: NEXT }))
+    await user.click(screen.getByRole('button', { name: CREATE }))
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ name: '测试助手' }))
   })
 
   it('does not prefill a default model rejected by the wizard model filter', async () => {
@@ -180,9 +209,9 @@ describe('ResourceCreateWizard', () => {
     await user.click(screen.getByRole('button', { name: 'fill basic' }))
     expect(screen.getByRole('button', { name: NEXT })).toBeEnabled()
 
-    // Step 1 → 2 (persona)
+    // Step 1 → 2 (System Prompt)
     await user.click(screen.getByRole('button', { name: NEXT }))
-    await user.click(screen.getByRole('button', { name: 'fill persona' }))
+    await user.click(screen.getByRole('button', { name: 'fill system prompt' }))
 
     // Step 2 → 3 (assistant: knowledge)
     await user.click(screen.getByRole('button', { name: NEXT }))
