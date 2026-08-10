@@ -383,7 +383,42 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(settings.hooks?.PreToolUse?.[0]?.hooks).toContain(mocks.agentsMdHook)
   })
 
-  it('aligns automatic compaction with a model context window supported by Claude Code', async () => {
+  // The 400 this whole path exists to prevent: a turn is billed `input + max_tokens` against the
+  // context limit, so the declared budget plus the declared output must never exceed the window.
+  it.each([
+    ['1M window, output cap restating it (deepseek-v4-pro)', 1_048_600, 1_048_600],
+    ['1M window, real 393K output cap (deepseek-v4-flash)', 1_048_576, 393_216],
+    ['1M window, no declared output cap', 1_048_576, undefined],
+    ['128K window, output cap at half the window', 128_000, 64_000],
+    ['exactly at the Claude Code floor', 100_000, 8_192]
+  ])(
+    'keeps the budget plus its output reservation inside the window (%s)',
+    async (_label, contextWindow, maxOutputTokens) => {
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never,
+        { contextWindow, maxOutputTokens }
+      )
+
+      const budget = (settings.settings as { autoCompactWindow?: number }).autoCompactWindow
+      const reserved = Number(settings.env?.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
+      // The window is declared as itself; only the budget carries the reservation.
+      expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(contextWindow) })
+      expect(reserved).toBeGreaterThan(0)
+      // Floored budgets are the one documented over-promise, so exempt them from the ceiling check.
+      if (budget !== undefined && budget > 100_000) {
+        expect(budget + reserved).toBeLessThanOrEqual(contextWindow)
+      }
+    }
+  )
+
+  // #18318: maxOutputTokens === contextWindow drove the budget to zero, and the floor then told the
+  // SDK a 1M model held 100K — so it compacted from 100K on and never stopped.
+  it('does not collapse a 1M model to the compaction floor', async () => {
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
@@ -391,12 +426,65 @@ describe('buildClaudeCodeSessionSettings', () => {
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
-      { contextWindow: 128_000 }
+      { contextWindow: 1_048_600, maxOutputTokens: 1_048_600 }
     )
 
-    // No declared output reservation — budget against the raw window, less the estimate margin.
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 125_440 })
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '125440' })
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(800_000)
+  })
+
+  // A larger declared cap costs input room, so the two must move together or the budget lies.
+  it('reserves exactly what it tells the CLI to request', async () => {
+    const [narrow, wide] = await Promise.all(
+      [8_192, 128_000].map((maxOutputTokens) =>
+        buildClaudeCodeSessionSettings(
+          {
+            id: 'session-1',
+            agentId: 'agent-1',
+            workspace: { type: 'user', path: '/workspace/project' }
+          } as never,
+          {} as never,
+          { contextWindow: 1_048_576, maxOutputTokens }
+        )
+      )
+    )
+
+    const budgetOf = (s: Awaited<ReturnType<typeof buildClaudeCodeSessionSettings>>) =>
+      (s.settings as { autoCompactWindow?: number }).autoCompactWindow ?? 0
+    const reservedOf = (s: Awaited<ReturnType<typeof buildClaudeCodeSessionSettings>>) =>
+      Number(s.env?.CLAUDE_CODE_MAX_OUTPUT_TOKENS)
+
+    expect(reservedOf(wide)).toBeGreaterThan(reservedOf(narrow))
+    // Decoupling the two would leave the budget flat while the reservation grew.
+    expect(budgetOf(wide)).toBeLessThan(budgetOf(narrow))
+    expect(budgetOf(wide) + reservedOf(wide)).toBeLessThanOrEqual(1_048_576)
+  })
+
+  it('reserves an explicit output-token override instead of desyncing from it', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: '64000' } }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 1_048_576, maxOutputTokens: 8_192 }
+    )
+
+    const budget = (settings.settings as { autoCompactWindow?: number }).autoCompactWindow ?? 0
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '64000' })
+    expect(budget + 64_000).toBeLessThanOrEqual(1_048_576)
   })
 
   it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
@@ -446,9 +534,80 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 1_048_576, maxOutputTokens: 131_072 }
     )
 
-    // (1048576 - 131072) * 0.98 = 899153.92 -> 899153, safely under the real 917504 input ceiling.
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 899_153 })
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '899153' })
+    // The CLI clamps max_tokens to 128,000, so that — not the declared 131,072 — is what a request
+    // can consume: (1048576 - 128000) * 0.98 = 902164, under the real 920,576 input ceiling.
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 902_164 })
+    expect(settings.env).toMatchObject({
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '1048576',
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000'
+    })
+  })
+
+  it('ignores an output cap that meets the context window', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      // deepseek-v4-pro ships maxOutputTokens === contextWindow, which used to leave a zero budget.
+      { contextWindow: 1_048_600, maxOutputTokens: 1_048_600 }
+    )
+
+    // The CLI's 128,000 ceiling neutralizes the bogus cap: (1048600 - 128000) * 0.98 = 902188.
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 902_188 })
+    expect(settings.env).toMatchObject({
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '1048600',
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000'
+    })
+  })
+
+  it('keeps a real per-request output cap reserved', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      // deepseek-v4-flash declares 393,216, but no request can carry more than 128,000.
+      { contextWindow: 1_048_576, maxOutputTokens: 393_216 }
+    )
+
+    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 902_164 })
+    expect(settings.env).toMatchObject({
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '1048576',
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '128000'
+    })
+  })
+
+  it('reserves an explicit output-token override instead of desyncing from it', async () => {
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_CODE_MAX_OUTPUT_TOKENS: '64000' } }
+    })
+
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 1_048_576, maxOutputTokens: 8_192 }
+    )
+
+    // The override wins over the catalog cap and the budget subtracts the same 64,000.
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '64000' })
+    expect(settings.settings).toMatchObject({ autoCompactWindow: 964_884 })
   })
 
   it('floors the budget at the Claude Code minimum instead of dropping the setting', async () => {
@@ -462,13 +621,16 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 128_000, maxOutputTokens: 64_000 }
     )
 
-    // (128000 - 64000) * 0.98 = 62720, below the floor — clamped rather than omitted, because
-    // omitting it hands the SDK its own Claude-shaped default instead.
+    // The declared 64,000 would leave only 64,000 of input room, so the request is held to 28,000
+    // and the budget still floors rather than being omitted.
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 100_000 })
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '100000' })
+    expect(settings.env).toMatchObject({
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: '128000',
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '28000'
+    })
   })
 
-  it('clamps model context windows above Claude Code limits', async () => {
+  it('clamps the auto-compact window above Claude Code limits without shrinking the declared window', async () => {
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
@@ -476,11 +638,12 @@ describe('buildClaudeCodeSessionSettings', () => {
         workspace: { type: 'user', path: '/workspace/project' }
       } as never,
       {} as never,
-      { contextWindow: 1_048_576 }
+      // Wide enough that the budget would exceed the SDK's accepted maximum.
+      { contextWindow: 2_000_000 }
     )
 
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 1_000_000 })
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '1000000' })
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBe(1_000_000)
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '2000000' })
   })
 
   it.each([undefined, 64_000, 99_999])(
@@ -499,14 +662,13 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(settings.settings).toMatchObject({ autoCompactEnabled: true })
       expect(settings.settings).not.toHaveProperty('autoCompactWindow')
       expect(settings.env).not.toHaveProperty('CLAUDE_CODE_MAX_CONTEXT_TOKENS')
+      // Without a budget there is nothing to reserve against, so the CLI keeps its own output default.
+      expect(settings.env).not.toHaveProperty('CLAUDE_CODE_MAX_OUTPUT_TOKENS')
     }
   )
 
-  // Floor case is clamped back up to 100_000; ceiling case keeps the margin (980_000 < the 1M cap).
-  it.each([
-    [100_000, 100_000],
-    [1_000_000, 980_000]
-  ])('accepts the inclusive Claude Code boundary %i', async (contextWindow, expected) => {
+  // The SDK rejects a window outside 100K-1M, so both boundaries must land inside it.
+  it.each([100_000, 1_000_000])('accepts the inclusive Claude Code boundary %i', async (contextWindow) => {
     const settings = await buildClaudeCodeSessionSettings(
       {
         id: 'session-1',
@@ -517,8 +679,10 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow }
     )
 
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: expected })
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(expected) })
+    const budget = (settings.settings as { autoCompactWindow?: number }).autoCompactWindow
+    expect(budget).toBeGreaterThanOrEqual(100_000)
+    expect(budget).toBeLessThanOrEqual(1_000_000)
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(contextWindow) })
   })
 
   it('preserves an explicit maximum context window environment override', async () => {
@@ -544,8 +708,9 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 256_000 }
     )
 
-    expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 250_880 })
+    // The explicit override wins for the env var; the budget still tracks the real window.
     expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: '131072' })
+    expect((settings.settings as { autoCompactWindow?: number }).autoCompactWindow).toBeGreaterThan(131_072)
   })
 
   it('builds configured MCP bridges from the request snapshot instead of re-reading edited rows', async () => {

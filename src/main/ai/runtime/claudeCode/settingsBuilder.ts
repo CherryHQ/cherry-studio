@@ -112,6 +112,10 @@ const MAX_AUTO_COMPACT_WINDOW = 1_000_000
  * Widen it if 400s reappear while the reported input sits just under budget.
  */
 const AUTO_COMPACT_ESTIMATE_MARGIN = 0.02
+// The CLI's per-request `max_tokens` ceiling and its unset default — measured against the
+// bundled CLI, undocumented either way, so re-measure them on SDK upgrades.
+const MAX_REQUESTED_OUTPUT_TOKENS = 128_000
+const DEFAULT_REQUESTED_OUTPUT_TOKENS = 32_000
 /**
  * Percentage of the auto-compact window at which compaction triggers, passed
  * through `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` (integer 1-100, not a 0-1 fraction).
@@ -154,29 +158,9 @@ ${instructions}
 </agent_instructions>`
 }
 
-/**
- * The input budget Claude Code may fill before it must compact.
- *
- * Providers bill `input + max_tokens` against the context limit, so history can
- * only ever occupy `contextWindow - maxOutputTokens`. Budgeting against the raw
- * window hands the SDK room that no request can actually use: a 1M-window model
- * reserving 131,072 output tokens reached ~924K input — below the SDK's compact
- * threshold, but already past the real 917,504 ceiling — so the turn 400'd and
- * auto-compaction never got a chance to fire.
- *
- * `maxOutputTokens` is optional model metadata; without it we can only budget
- * against the raw window, exactly as before.
- *
- * Deliberate ceiling: the result is clamped to `MIN_AUTO_COMPACT_WINDOW` rather
- * than dropped, because omitting the setting falls back to the SDK's own
- * Claude-shaped default — further from the truth than a floored budget. A model
- * whose real budget lands under that floor is still over-promised; declaring a
- * sub-100K window to the SDK is the upgrade trigger for revisiting the floor.
- */
-function resolveAutoCompactWindow(
-  contextWindow: number | undefined,
-  maxOutputTokens: number | undefined
-): number | undefined {
+// Providers bill `input + max_tokens` against the context limit, so history can only occupy
+// `contextWindow - requestedOutput`; the floor over-promises models whose real budget is smaller.
+function resolveAutoCompactWindow(contextWindow: number | undefined, requestedOutput: number): number | undefined {
   if (
     typeof contextWindow !== 'number' ||
     !Number.isInteger(contextWindow) ||
@@ -184,12 +168,28 @@ function resolveAutoCompactWindow(
   ) {
     return undefined
   }
-  const reservedOutput =
-    typeof maxOutputTokens === 'number' && Number.isInteger(maxOutputTokens) && maxOutputTokens > 0
-      ? maxOutputTokens
-      : 0
-  const budget = Math.floor((contextWindow - reservedOutput) * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
+  const budget = Math.floor((contextWindow - requestedOutput) * (1 - AUTO_COMPACT_ESTIMATE_MARGIN))
   return Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
+}
+
+// Bounded by the CLI ceiling and by leaving MIN_AUTO_COMPACT_WINDOW of input room, so a 131K-window
+// model declaring a 131K cap cannot request 128K of output and leave 3K for history.
+function resolveRequestedOutputTokens(
+  contextWindow: number | undefined,
+  maxOutputTokens: number | undefined,
+  override: string | undefined
+): number {
+  const parsedOverride = Number(override)
+  const declared = Number.isInteger(parsedOverride) && parsedOverride > 0 ? parsedOverride : maxOutputTokens
+  const requested =
+    typeof declared === 'number' && Number.isInteger(declared) && declared > 0
+      ? declared
+      : DEFAULT_REQUESTED_OUTPUT_TOKENS
+  const inputRoom =
+    typeof contextWindow === 'number' && Number.isInteger(contextWindow) && contextWindow >= MIN_AUTO_COMPACT_WINDOW
+      ? contextWindow - MIN_AUTO_COMPACT_WINDOW
+      : Number.POSITIVE_INFINITY
+  return Math.max(1, Math.min(requested, MAX_REQUESTED_OUTPUT_TOKENS, inputRoom))
 }
 const promptBuilder = new PromptBuilder()
 const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
@@ -564,9 +564,25 @@ export async function buildClaudeCodeSessionSettings(
   const skills = await buildSkillWhitelist(agent.id, cwd, builtinRole)
 
   // 10. Build settings
-  const autoCompactWindow = resolveAutoCompactWindow(options?.contextWindow, options?.maxOutputTokens)
-  if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined) {
-    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(autoCompactWindow)
+  const declaredContextWindow = options?.contextWindow
+  const requestedOutputTokens = resolveRequestedOutputTokens(
+    declaredContextWindow,
+    options?.maxOutputTokens,
+    env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
+  )
+  const autoCompactWindow = resolveAutoCompactWindow(declaredContextWindow, requestedOutputTokens)
+  // Only pin the request when we also budget for it; otherwise the CLI's own default applies.
+  if (autoCompactWindow !== undefined && env.CLAUDE_CODE_MAX_OUTPUT_TOKENS === undefined) {
+    env.CLAUDE_CODE_MAX_OUTPUT_TOKENS = String(requestedOutputTokens)
+  }
+  // Undocumented, and the only way to declare a third-party model's window — without it every
+  // non-`claude-*` model is treated as 200K. The budget belongs in `autoCompactWindow`.
+  if (
+    autoCompactWindow !== undefined &&
+    declaredContextWindow !== undefined &&
+    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS === undefined
+  ) {
+    env.CLAUDE_CODE_MAX_CONTEXT_TOKENS = String(declaredContextWindow)
   }
   // Unconditional: unlike the window, a trigger percentage is meaningful even for models that
   // declare no usable context window. An explicit agent `env_vars` entry still wins.
