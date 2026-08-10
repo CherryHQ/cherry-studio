@@ -52,10 +52,15 @@ export interface AgentWorkspaceReferenceItem {
   name: string
 }
 
+export interface AgentWorkspaceReferenceList {
+  items: AgentWorkspaceReferenceItem[]
+  total: number
+}
+
 export interface AgentWorkspaceReferences {
-  sessions: AgentWorkspaceReferenceItem[]
-  channels: AgentWorkspaceReferenceItem[]
-  tasks: AgentWorkspaceReferenceItem[]
+  sessions: AgentWorkspaceReferenceList
+  channels: AgentWorkspaceReferenceList
+  tasks: AgentWorkspaceReferenceList
 }
 
 export type AgentWorkspaceSchemas = {

@@ -1,4 +1,4 @@
-import { EmptyState, Tooltip } from '@cherrystudio/ui'
+import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from '@renderer/components/ModelSelector'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -17,11 +17,12 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WorkspaceSelector')
 const DEFAULT_MIN_LIST_HEIGHT = 144
-const WorkspaceDeleteConfirmDialog = lazy(() =>
-  import('@renderer/components/resourceCatalog/dialogs/WorkspaceDeleteConfirmDialog').then((module) => ({
+const loadWorkspaceDeleteConfirmDialog = () =>
+  import('@renderer/components/resourceCatalog/dialogs/workspace').then((module) => ({
     default: module.WorkspaceDeleteConfirmDialog
   }))
-)
+const WorkspaceDeleteConfirmDialog = lazy(() => loadWorkspaceDeleteConfirmDialog())
+const preloadWorkspaceDeleteConfirmDialog = () => void loadWorkspaceDeleteConfirmDialog()
 
 type SharedProps = {
   trigger: ReactElement
@@ -38,7 +39,7 @@ export type WorkspaceSelectorProps = SharedProps & {
   value: string | null | undefined
   onChange: (value: string | null) => void | Promise<void>
   /** Clear a selected value after deletion. Session-backed consumers opt out because the session itself is deleted. */
-  clearSelectionOnDelete?: boolean
+  shouldClearSelectionOnDelete?: boolean
 }
 
 function workspaceMatchesSearch(workspace: AgentWorkspaceEntity, searchValue: string) {
@@ -59,7 +60,7 @@ export function WorkspaceSelector({
   disabled,
   value,
   onChange,
-  clearSelectionOnDelete = true
+  shouldClearSelectionOnDelete = true
 }: WorkspaceSelectorProps) {
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
@@ -156,11 +157,11 @@ export function WorkspaceSelector({
 
   const handleWorkspaceDeleted = useCallback(
     async (workspaceId: string) => {
-      if (clearSelectionOnDelete && workspaceId === selectedId) {
+      if (shouldClearSelectionOnDelete && workspaceId === selectedId) {
         await onChange(null)
       }
     },
-    [clearSelectionOnDelete, onChange, selectedId]
+    [onChange, selectedId, shouldClearSelectionOnDelete]
   )
 
   const renderWorkspaceRow = (workspace: AgentWorkspaceEntity) => {
@@ -173,14 +174,15 @@ export function WorkspaceSelector({
           showSelectedIndicator={selected}
           leading={<Folder className="size-4 text-muted-foreground" />}
           actions={
-            <Tooltip content={t('agent.session.workdir.delete.trigger')} delay={300}>
-              <ModelSelectorRowActionButton
-                disabled={disabled}
-                aria-label={t('agent.session.workdir.delete.trigger')}
-                onClick={() => handleRequestDeleteWorkspace(workspace)}>
-                <Trash2 className="size-3.5" />
-              </ModelSelectorRowActionButton>
-            </Tooltip>
+            <ModelSelectorRowActionButton
+              disabled={disabled}
+              aria-label={t('agent.session.workdir.delete.trigger')}
+              className="focus-visible:opacity-100"
+              onMouseEnter={preloadWorkspaceDeleteConfirmDialog}
+              onFocus={preloadWorkspaceDeleteConfirmDialog}
+              onClick={() => handleRequestDeleteWorkspace(workspace)}>
+              <Trash2 className="size-3.5" />
+            </ModelSelectorRowActionButton>
           }
           onSelect={() => void handleSelectWorkspace(workspace.id)}
           rootProps={{ 'data-option-row': workspace.id, className: 'pr-1' }}

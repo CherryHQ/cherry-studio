@@ -137,6 +137,14 @@ export class AgentTaskService {
     ).map(({ schedule }) => ({ id: schedule.id, name: schedule.name ?? '' }))
   }
 
+  /**
+   * This cleanup changes only the template used when the task creates a new
+   * session. A reused session keeps its own workspace, and any reused session
+   * bound to this workspace is deleted by the same outer transaction. The
+   * trigger is unchanged and JobManager re-reads the schedule before each run,
+   * so this path does not bump the reuse revision, clear the schedule, or re-arm
+   * its timer.
+   */
   resetWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
     const references = findWorkspaceScheduleReferences(
       jobScheduleService.listAllTx(tx, { type: AGENT_TASK_TYPE }),

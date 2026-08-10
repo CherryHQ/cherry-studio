@@ -64,6 +64,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'agent.session.workdir.delete.channels_empty': 'No channels will be changed.',
           'agent.session.workdir.delete.channels_title': 'Channels changed to no work directory',
           'agent.session.workdir.delete.disk_preserved': 'The folder on disk and its files will not be deleted.',
+          'agent.session.workdir.delete.more_count': `…and ${options?.count} more items`,
           'agent.session.workdir.delete.preview': `Deleting “${options?.name}” shows every impact.`,
           'agent.session.workdir.delete.preview_failed': 'The deletion impact could not be loaded',
           'agent.session.workdir.delete.preview_loading': 'Loading deletion impact…',
@@ -163,9 +164,18 @@ const SESSIONS = [
 ]
 
 const REFERENCES = {
-  sessions: SESSIONS.slice(0, 2).map(({ id, name }) => ({ id, name })),
-  channels: [{ id: 'channel-alpha', name: 'Release bot' }],
-  tasks: [{ id: 'task-alpha', name: 'Nightly review' }]
+  sessions: {
+    items: SESSIONS.slice(0, 2).map(({ id, name }) => ({ id, name })),
+    total: 5
+  },
+  channels: {
+    items: [{ id: 'channel-alpha', name: 'Release bot' }],
+    total: 1
+  },
+  tasks: {
+    items: [{ id: 'task-alpha', name: 'Nightly review' }],
+    total: 1
+  }
 }
 
 let referencesQueryResult: {
@@ -355,7 +365,7 @@ describe('WorkspaceSelector', () => {
     expect(onChange).toHaveBeenCalledWith('workspace-created')
   })
 
-  it('previews every affected resource before deleting a workspace', async () => {
+  it('previews capped affected resource summaries before deleting a workspace', async () => {
     const user = userEvent.setup()
     renderSelector()
     openPopover()
@@ -364,15 +374,17 @@ describe('WorkspaceSelector', () => {
 
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveTextContent('cherry-studio')
-    expect(dialog).toHaveTextContent('2 sessions')
+    expect(dialog).toHaveTextContent('5 sessions')
     expect(dialog).toHaveTextContent('Fix workspace selector')
     expect(dialog).toHaveTextContent('Review delete dialog')
     expect(dialog).not.toHaveTextContent('Unrelated session')
+    expect(dialog).toHaveTextContent('…and 3 more items')
     expect(dialog).toHaveTextContent('1 channels')
     expect(dialog).toHaveTextContent('Release bot')
     expect(dialog).toHaveTextContent('1 scheduled tasks')
     expect(dialog).toHaveTextContent('Nightly review')
     expect(dialog).toHaveTextContent('/Users/jd/cherry-studio')
+    expect(screen.getByRole('list', { name: 'Sessions to be deleted' })).toHaveAttribute('tabindex', '0')
 
     await user.click(screen.getByRole('button', { name: 'Delete' }))
 

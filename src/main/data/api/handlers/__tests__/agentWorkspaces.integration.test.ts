@@ -138,9 +138,9 @@ describe('agentWorkspaceHandlers integration', () => {
         params: { workspaceId: workspace.id }
       } as never)
     ).resolves.toEqual({
-      sessions: [],
-      channels: [{ id: channel.id, name: channel.name }],
-      tasks: [{ id: task.id, name: task.name }]
+      sessions: { items: [], total: 0 },
+      channels: { items: [{ id: channel.id, name: channel.name }], total: 1 },
+      tasks: { items: [{ id: task.id, name: task.name }], total: 1 }
     })
 
     await agentWorkspaceHandlers['/agent-workspaces/:workspaceId'].DELETE({
@@ -149,5 +149,24 @@ describe('agentWorkspaceHandlers integration', () => {
 
     expect(agentChannelService.getChannel(channel.id)?.workspace).toEqual({ type: 'system' })
     expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ workspace: { type: 'system' } })
+  })
+
+  it('caps workspace reference previews while reporting the full total', async () => {
+    const workspace = await createWorkspace('many-references')
+    for (let index = 0; index < 23; index += 1) {
+      agentSessionService.create({
+        agentId,
+        name: `Session ${index}`,
+        workspace: { type: 'user', workspaceId: workspace.id }
+      })
+    }
+
+    const references = await agentWorkspaceHandlers['/agent-workspaces/:workspaceId/references'].GET({
+      params: { workspaceId: workspace.id }
+    } as never)
+    if ('data' in references) throw new Error('Expected the default handler response shape')
+
+    expect(references.sessions).toMatchObject({ total: 23 })
+    expect(references.sessions.items).toHaveLength(21)
   })
 })

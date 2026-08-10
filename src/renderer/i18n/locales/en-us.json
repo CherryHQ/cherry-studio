@@ -505,6 +505,8 @@
           "error": {
             "failed": "Failed to delete the work directory"
           },
+          "more_count_one": "…and {{count}} more item",
+          "more_count_other": "…and {{count}} more items",
           "preview": "Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
           "preview_failed": "The deletion impact could not be loaded, so this work directory cannot be deleted yet",
           "preview_loading": "Loading deletion impact…",

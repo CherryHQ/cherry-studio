@@ -137,9 +137,9 @@ describe('agentWorkspaceHandlers', () => {
 
   it('delegates workspace reference lookup to AgentWorkspaceService', async () => {
     const references = {
-      sessions: [{ id: 'session-1', name: 'Session' }],
-      channels: [{ id: 'channel-1', name: 'Channel' }],
-      tasks: [{ id: 'task-1', name: 'Task' }]
+      sessions: { items: [{ id: 'session-1', name: 'Session' }], total: 1 },
+      channels: { items: [{ id: 'channel-1', name: 'Channel' }], total: 1 },
+      tasks: { items: [{ id: 'task-1', name: 'Task' }], total: 1 }
     }
     getReferencesMock.mockReturnValueOnce(references)
 

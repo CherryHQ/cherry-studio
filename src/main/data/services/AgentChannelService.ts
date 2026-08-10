@@ -14,6 +14,7 @@ import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import {
   AGENT_WORKSPACE_TYPE,
   type AgentSessionWorkspaceSource,
+  AgentSessionWorkspaceSourceSchema,
   type AgentWorkspaceReferenceItem
 } from '@shared/data/api/schemas/agentWorkspaces'
 import type { ChannelConfig, ChannelType } from '@shared/data/types/channel'
@@ -111,10 +112,14 @@ export class AgentChannelService {
       .select({ id: channelsTable.id, name: channelsTable.name, workspace: channelsTable.workspace })
       .from(channelsTable)
       .all()
-      .filter(
-        (channel) =>
-          channel.workspace.type === AGENT_WORKSPACE_TYPE.USER && channel.workspace.workspaceId === workspaceId
-      )
+      .filter((channel) => {
+        const workspace = AgentSessionWorkspaceSourceSchema.safeParse(channel.workspace)
+        return (
+          workspace.success &&
+          workspace.data.type === AGENT_WORKSPACE_TYPE.USER &&
+          workspace.data.workspaceId === workspaceId
+        )
+      })
       .map(({ id, name }) => ({ id, name }))
   }
 

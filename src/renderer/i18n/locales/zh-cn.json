@@ -505,6 +505,8 @@
           "error": {
             "failed": "删除工作目录失败"
           },
+          "more_count_one": "…以及另外 {{count}} 项",
+          "more_count_other": "…以及另外 {{count}} 项",
           "preview": "删除工作目录「{{name}}」会删除其关联会话，并将关联频道和定时任务改为不使用工作目录。此操作不可撤销。",
           "preview_failed": "无法加载删除影响范围，暂不能删除该工作目录",
           "preview_loading": "正在加载删除影响范围…",

@@ -15,7 +15,7 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentWorkspaceEntity, AgentWorkspaceReferenceItem } from '@shared/data/api/schemas/agentWorkspaces'
 import type { LucideIcon } from 'lucide-react'
 import { BotMessageSquare, CalendarClock, FolderOpen, Loader2, MousePointerClick, TriangleAlert } from 'lucide-react'
-import { useCallback, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WorkspaceDeleteConfirmDialog')
@@ -31,11 +31,15 @@ interface ImpactSectionProps {
   countLabel: string
   emptyLabel: string
   items: readonly AgentWorkspaceReferenceItem[]
+  total: number
   icon: LucideIcon
   fallbackName: string
 }
 
-function ImpactSection({ title, countLabel, emptyLabel, items, icon: Icon, fallbackName }: ImpactSectionProps) {
+function ImpactSection({ title, countLabel, emptyLabel, items, total, icon: Icon, fallbackName }: ImpactSectionProps) {
+  const { t } = useTranslation()
+  const hiddenCount = total - items.length
+
   return (
     <div className="overflow-hidden rounded-lg border border-border-subtle bg-background-subtle">
       <div className="flex h-9 items-center justify-between border-border-subtle border-b px-3">
@@ -43,7 +47,11 @@ function ImpactSection({ title, countLabel, emptyLabel, items, icon: Icon, fallb
         <span className="text-muted-foreground text-xs">{countLabel}</span>
       </div>
       {items.length > 0 ? (
-        <div role="list" aria-label={title} className="max-h-32 overflow-y-auto p-1">
+        <div
+          role="list"
+          aria-label={title}
+          tabIndex={0}
+          className="max-h-32 overflow-y-auto p-1 outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-inset">
           {items.map((item) => (
             <div key={item.id} role="listitem" className="flex min-h-8 items-center gap-2 rounded-md px-2 py-1 text-xs">
               <Icon aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
@@ -52,6 +60,11 @@ function ImpactSection({ title, countLabel, emptyLabel, items, icon: Icon, fallb
               </span>
             </div>
           ))}
+          {hiddenCount > 0 ? (
+            <p role="listitem" className="px-2 py-1.5 text-center text-muted-foreground text-xs">
+              {t('agent.session.workdir.delete.more_count', { count: hiddenCount })}
+            </p>
+          ) : null}
         </div>
       ) : (
         <p className="px-3 py-3 text-center text-muted-foreground text-xs">{emptyLabel}</p>
@@ -62,14 +75,14 @@ function ImpactSection({ title, countLabel, emptyLabel, items, icon: Icon, fallb
 
 export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: WorkspaceDeleteConfirmDialogProps) {
   const { t } = useTranslation()
-  const [pending, setPending] = useState(false)
-  const pendingRef = useRef(false)
+  const [isPending, setIsPending] = useState(false)
+  const isPendingRef = useRef(false)
   const closeConversationTabs = useCloseConversationTabs()
   const invalidateCache = useInvalidateCache()
   const {
     data: references,
-    isLoading: areReferencesLoading,
-    isRefreshing: areReferencesRefreshing,
+    isLoading: isReferencesLoading,
+    isRefreshing: isReferencesRefreshing,
     error: referencesError,
     refetch: refetchReferences
   } = useQuery('/agent-workspaces/:workspaceId/references', {
@@ -80,14 +93,14 @@ export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: 
     refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels', '/agent-tasks']
   })
 
-  const previewPending = areReferencesLoading || areReferencesRefreshing
-  const canConfirm = references !== undefined && !previewPending && !referencesError && !pending
+  const isPreviewPending = isReferencesLoading || isReferencesRefreshing
+  const canConfirm = references !== undefined && !isPreviewPending && !referencesError && !isPending
 
-  const handleConfirm = useCallback(async () => {
-    if (!canConfirm || pendingRef.current) return
-    pendingRef.current = true
-    setPending(true)
-    let succeeded = false
+  const handleConfirm = async () => {
+    if (!canConfirm || isPendingRef.current) return
+    isPendingRef.current = true
+    setIsPending(true)
+    let hasSucceeded = false
     try {
       const result = await deleteWorkspace({ params: { workspaceId: workspace.id } })
 
@@ -108,21 +121,21 @@ export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: 
         })
       }
       toast.success(t('common.delete_success'))
-      succeeded = true
+      hasSucceeded = true
     } catch (error) {
       logger.error('Failed to delete workspace', error as Error, { workspaceId: workspace.id })
       toast.error(formatErrorMessageWithPrefix(error, t('agent.session.workdir.delete.error.failed')))
     } finally {
-      pendingRef.current = false
-      setPending(false)
+      isPendingRef.current = false
+      setIsPending(false)
     }
 
-    if (succeeded) onClose()
-  }, [canConfirm, closeConversationTabs, deleteWorkspace, invalidateCache, onClose, onDeleted, t, workspace.id])
+    if (hasSucceeded) onClose()
+  }
 
   const content = references ? (
     <div className="min-h-0 space-y-3 overflow-y-auto">
-      {previewPending ? (
+      {isPreviewPending ? (
         <div className="flex items-center gap-2 text-muted-foreground text-xs">
           <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
           <span>{t('agent.session.workdir.delete.preview_loading')}</span>
@@ -141,25 +154,28 @@ export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: 
       ) : null}
       <ImpactSection
         title={t('agent.session.workdir.delete.sessions_title')}
-        countLabel={t('agent.session.workdir.delete.sessions_count', { count: references.sessions.length })}
+        countLabel={t('agent.session.workdir.delete.sessions_count', { count: references.sessions.total })}
         emptyLabel={t('agent.session.workdir.delete.sessions_empty')}
-        items={references.sessions}
+        items={references.sessions.items}
+        total={references.sessions.total}
         icon={MousePointerClick}
         fallbackName={t('agent.session.new')}
       />
       <ImpactSection
         title={t('agent.session.workdir.delete.channels_title')}
-        countLabel={t('agent.session.workdir.delete.channels_count', { count: references.channels.length })}
+        countLabel={t('agent.session.workdir.delete.channels_count', { count: references.channels.total })}
         emptyLabel={t('agent.session.workdir.delete.channels_empty')}
-        items={references.channels}
+        items={references.channels.items}
+        total={references.channels.total}
         icon={BotMessageSquare}
         fallbackName={t('common.unnamed')}
       />
       <ImpactSection
         title={t('agent.session.workdir.delete.tasks_title')}
-        countLabel={t('agent.session.workdir.delete.tasks_count', { count: references.tasks.length })}
+        countLabel={t('agent.session.workdir.delete.tasks_count', { count: references.tasks.total })}
         emptyLabel={t('agent.session.workdir.delete.tasks_empty')}
-        items={references.tasks}
+        items={references.tasks.items}
+        total={references.tasks.total}
         icon={CalendarClock}
         fallbackName={t('agent.session.new')}
       />
@@ -194,12 +210,12 @@ export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: 
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open && !pendingRef.current) onClose()
+        if (!open && !isPendingRef.current) onClose()
       }}>
       <DialogContent
         motion="fade-scale"
         showCloseButton={false}
-        closeOnOverlayClick={!pending}
+        closeOnOverlayClick={!isPending}
         className="max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t('agent.session.workdir.delete.title')}</DialogTitle>
@@ -207,10 +223,10 @@ export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: 
         </DialogHeader>
         {content}
         <DialogFooter>
-          <Button variant="outline" disabled={pending} onClick={onClose}>
+          <Button variant="outline" disabled={isPending} onClick={onClose}>
             {t('common.cancel')}
           </Button>
-          <Button variant="destructive" loading={pending} disabled={!canConfirm} onClick={() => void handleConfirm()}>
+          <Button variant="destructive" loading={isPending} disabled={!canConfirm} onClick={() => void handleConfirm()}>
             {t('common.delete')}
           </Button>
         </DialogFooter>
