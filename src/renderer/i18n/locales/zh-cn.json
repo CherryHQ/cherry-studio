@@ -4626,6 +4626,8 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "字体设置",
+        "line_breaks": "换行方式",
+        "line_breaks_description": "开启后单个换行符将渲染为新的一行（类似 Obsidian）。关闭时换行符会被折叠为空格，直到出现空行才会分段。",
         "serif_font": "衬线字体",
         "show_table_of_contents": "显示目录大纲",
         "show_table_of_contents_description": "显示目录大纲侧边栏，方便文档内导航",
@@ -5393,6 +5395,7 @@
         "insertRowBefore": "在上方插入"
       }
     },
+    "backToTop": "回到顶部",
     "commands": {
       "blockMath": {
         "description": "插入数学公式",
