@@ -34,7 +34,12 @@ function span(overrides: Partial<SpanEntity>): SpanEntity {
 }
 
 // Minimal ReadableSpan shaped for the fields convertSpanToSpanEntity / createSpan / endSpan read.
-function readableSpan(overrides: { spanId: string; traceId: string; ended: boolean }): ReadableSpan {
+function readableSpan(overrides: {
+  spanId: string
+  traceId: string
+  ended: boolean
+  events?: TimedEvent[]
+}): ReadableSpan {
   return {
     name: 'otel-span',
     kind: 0,
@@ -45,7 +50,7 @@ function readableSpan(overrides: { spanId: string; traceId: string; ended: boole
     ended: overrides.ended,
     status: { code: SpanStatusCode.OK },
     attributes: {},
-    events: [],
+    events: overrides.events ?? [],
     links: []
   } as unknown as ReadableSpan
 }
@@ -306,6 +311,20 @@ describe('TraceStorageService', () => {
     expect(service['pendingEvents'].has('span-9')).toBe(true)
   })
 
+  it('drops a single orphan event that exceeds the pending byte budget', async () => {
+    await service._doInit()
+    const oversized = {
+      name: 'llm_request',
+      time: [0, 0],
+      attributes: { body: 'x'.repeat(17 * 1024 * 1024) }
+    } as TimedEvent
+
+    service.addSpanEvent('trace', 'oversized', oversized)
+
+    expect(service['pendingEventBytes']).toBe(0)
+    expect(service['pendingEvents']).toEqual(new Map())
+  })
+
   // The MAX_PENDING_* caps guard only the orphan buffer; once the span is stored, addSpanEvent
   // appended to it without limit. Claude Code streams events for a whole turn, and a measured span
   // reached ~1.5k events / ~20 MiB that then crossed IPC and sat in the renderer heap whole.
@@ -318,6 +337,31 @@ describe('TraceStorageService', () => {
     }
 
     const names = service['store'].getSpan('cc')?.events?.map((e) => e.name) ?? []
+    expect(names).toHaveLength(200)
+    expect(names.at(0)).toBe('event-50')
+    expect(names.at(-1)).toBe('event-249')
+  })
+
+  it('caps events when a complete span first arrives through saveEntity', async () => {
+    await service._doInit()
+    const events = Array.from({ length: 250 }, (_, index) => timedEvent(`event-${index}`))
+
+    service.saveEntity(span({ id: 'complete', traceId: 'trace', topicId: 'topic', events }))
+
+    const names = service['store'].getSpan('complete')?.events?.map((event) => event.name) ?? []
+    expect(names).toHaveLength(200)
+    expect(names.at(0)).toBe('event-50')
+    expect(names.at(-1)).toBe('event-249')
+  })
+
+  it('caps events when endSpan replaces the event array', async () => {
+    await service._doInit()
+    const events = Array.from({ length: 250 }, (_, index) => timedEvent(`event-${index}`))
+
+    service.createSpan(readableSpan({ spanId: 'live', traceId: 'trace', ended: false }))
+    service.endSpan(readableSpan({ spanId: 'live', traceId: 'trace', ended: true, events }))
+
+    const names = service['store'].getSpan('live')?.events?.map((event) => event.name) ?? []
     expect(names).toHaveLength(200)
     expect(names.at(0)).toBe('event-50')
     expect(names.at(-1)).toBe('event-249')
@@ -343,11 +387,13 @@ describe('TraceStorageService', () => {
     expect(service['store'].getSpan('cc')?.events).toHaveLength(200)
   })
 
-  // Raw API bodies make the count cap alone useless — a handful of events can carry tens of MiB. The
-  // newest event is kept even when it alone busts the budget, so a span never renders empty.
-  it('caps a stored span by bytes, keeping the newest event when one event exceeds the budget', async () => {
+  // Raw API bodies make the count cap alone useless — a single event can carry tens of MiB. It must
+  // be dropped when it exceeds the byte budget, or the supposed cap would not protect the process.
+  it('drops a stored span event that alone exceeds the byte budget', async () => {
     await service._doInit()
-    service.saveEntity(span({ id: 'big', traceId: 'trace', topicId: 'topic' }))
+    service.saveEntity(
+      span({ id: 'big', traceId: 'trace', topicId: 'topic', events: [timedEvent('retained-before-oversized')] })
+    )
 
     const bigEvent = (name: string): TimedEvent =>
       ({ name, time: [0, 0], attributes: { body: 'x'.repeat(3 * 1024 * 1024) } }) as TimedEvent
@@ -355,7 +401,7 @@ describe('TraceStorageService', () => {
       service.addSpanEvent('trace', 'big', bigEvent(name))
     }
 
-    expect(service['store'].getSpan('big')?.events?.map((e) => e.name)).toEqual(['body-2'])
+    expect(service['store'].getSpan('big')?.events?.map((event) => event.name)).toEqual(['retained-before-oversized'])
   })
 
   // A container trace file accumulates every turn of a session, and each viewer resync parses the

@@ -8,30 +8,20 @@ import { TRACE_ROW_GRID, type TraceNode } from './traceNode'
 import TraceTree from './TraceTree'
 
 const TRACE_POLL_INTERVAL_MS = 1_000
-const EMPTY_POLL_LIMIT = 10
-const ENDED_POLL_LIMIT = 6
+const TRACE_IDLE_POLL_INTERVAL_MS = 5_000
 
 export interface TracePageProps {
   topicId: string
   traceId: string
-  /**
-   * Opaque restart token. Each new value tears down the current poll loop and
-   * starts a fresh one, so callers must pass something that changes whenever
-   * polling should re-trigger (e.g. a turn counter or last-message id). A
-   * constant derived from `topicId`/`traceId` will never change on its own and
-   * therefore can never restart polling after it stops.
-   */
-  reload?: string | number | boolean
 }
 
-export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload = false }) => {
+export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId }) => {
   const [spans, setSpans] = useState<TraceNode[]>([])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const [pollError, setPollError] = useState<string | null>(null)
   const failureCountRef = useRef(0)
-  const emptyCountRef = useRef(0)
   const nodesByIdRef = useRef(new Map<string, TraceNode>())
-  const rootsRef = useRef<TraceNode[]>([])
+  const traceIdleRef = useRef(true)
   const { t } = useTranslation()
 
   const updatePercentAndStart = useCallback((nodes: TraceNode[], rootStart?: number, rootEnd?: number) => {
@@ -65,7 +55,11 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
     }
 
     const roots: TraceNode[] = []
-    for (const node of nodesById.values()) node.children = []
+    let hasInFlightSpan = false
+    for (const node of nodesById.values()) {
+      node.children = []
+      if (!node.endTime || node.endTime <= 0) hasInFlightSpan = true
+    }
     for (const node of nodesById.values()) {
       const parent = node.parentId ? nodesById.get(node.parentId) : undefined
       if (parent) {
@@ -74,7 +68,7 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
         roots.push(node)
       }
     }
-    rootsRef.current = roots
+    traceIdleRef.current = nodesById.size === 0 || !hasInFlightSpan
     return roots
   }, [])
 
@@ -102,7 +96,7 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
     if (resetKeyRef.current === key) return
     resetKeyRef.current = key
     nodesByIdRef.current.clear()
-    rootsRef.current = []
+    traceIdleRef.current = true
     setSpans([])
     setSelectedNodeId(null)
   }, [topicId, traceId])
@@ -114,7 +108,6 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
     let cursor: TraceDataCursor | undefined
 
     failureCountRef.current = 0
-    emptyCountRef.current = 0
     setPollError(null)
 
     const stop = () => {
@@ -125,16 +118,13 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
       }
     }
 
-    let lastSpanCount = 0
-    let consecutiveEnded = 0
-    const poll = async () => {
+    const poll = async (): Promise<number> => {
       try {
         const result = await window.api.trace.getData(topicId, traceId, cursor)
-        if (cancelled) return
+        if (cancelled) return TRACE_IDLE_POLL_INTERVAL_MS
         cursor = result.cursor
         failureCountRef.current = 0
         const changedRoots = applySpanChanges(result.spans, result.reset)
-        const matchedSpans = changedRoots ?? rootsRef.current
 
         // Publish on every change to the node map, INCLUDING a reset that emptied it. `spans` is what
         // renders while `nodesByIdRef` resolves clicks and the selection, so letting the two diverge
@@ -144,41 +134,29 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
           setSpans(changedRoots)
         }
 
-        if (matchedSpans.length === 0) {
-          emptyCountRef.current++
-          if (emptyCountRef.current >= EMPTY_POLL_LIMIT && lastSpanCount === 0) {
-            stop()
-            return
-          }
-        } else {
-          emptyCountRef.current = 0
-          lastSpanCount = matchedSpans.length
-        }
-
-        const allEnded = matchedSpans.length > 0 && matchedSpans.every((e) => e.endTime && e.endTime > 0)
-        consecutiveEnded = allEnded ? consecutiveEnded + 1 : 0
-        if (consecutiveEnded >= ENDED_POLL_LIMIT) stop()
+        return traceIdleRef.current ? TRACE_IDLE_POLL_INTERVAL_MS : TRACE_POLL_INTERVAL_MS
       } catch (error) {
-        if (cancelled) return
+        if (cancelled) return TRACE_IDLE_POLL_INTERVAL_MS
         failureCountRef.current++
         if (failureCountRef.current >= 3) {
           stop()
           setPollError(error instanceof Error ? error.message : String(error))
         }
+        return TRACE_POLL_INTERVAL_MS
       }
     }
 
     const run = async () => {
-      await poll()
+      const nextInterval = await poll()
       // Schedule only after the request settles so a slow trace read can never create
       // overlapping IPC requests and concurrent full-file parsing work.
       if (cancelled || finished) return
-      timeoutId = setTimeout(() => void run(), TRACE_POLL_INTERVAL_MS)
+      timeoutId = setTimeout(() => void run(), nextInterval)
     }
 
     if (!topicId || !traceId) {
       nodesByIdRef.current.clear()
-      rootsRef.current = []
+      traceIdleRef.current = true
       setSpans([])
       return
     }
@@ -192,7 +170,7 @@ export const TracePage: React.FC<TracePageProps> = ({ topicId, traceId, reload =
         timeoutId = null
       }
     }
-  }, [topicId, traceId, reload, applySpanChanges, updatePercentAndStart])
+  }, [topicId, traceId, applySpanChanges, updatePercentAndStart])
 
   return (
     <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col overflow-hidden bg-card text-card-foreground">

@@ -65,20 +65,33 @@ function sumEventBytes(events: TimedEvent[]): number {
 /**
  * Trim `events` to the retention budget, dropping oldest first. `bytes` is the caller's running
  * total for the whole array; the trimmed total is returned so an appending caller never has to
- * re-measure what it already retains. The newest event is always kept, so one event larger than the
- * budget caps out instead of emptying the span.
+ * re-measure what it already retains. An event larger than the byte budget is dropped: trace detail
+ * is best-effort and must not defeat the memory bound by itself.
  */
 function capSpanEvents(events: TimedEvent[], bytes: number): { events: TimedEvent[]; bytes: number } {
   let dropped = 0
   let retained = bytes
   while (
-    events.length - dropped > 1 &&
+    events.length - dropped > 0 &&
     (events.length - dropped > MAX_SPAN_EVENTS || retained > MAX_SPAN_EVENT_BYTES)
   ) {
     retained -= estimateEventBytes(events[dropped])
     dropped++
   }
   return { events: dropped > 0 ? events.slice(dropped) : events, bytes: Math.max(0, retained) }
+}
+
+function capSpanEventArray(events: TimedEvent[] | undefined): { events: TimedEvent[] | undefined; bytes: number } {
+  if (!events || events.length === 0) return { events, bytes: 0 }
+  const retained: TimedEvent[] = []
+  let bytes = 0
+  for (const event of events) {
+    const eventBytes = estimateEventBytes(event)
+    if (eventBytes > MAX_SPAN_EVENT_BYTES) continue
+    retained.push(event)
+    bytes += eventBytes
+  }
+  return capSpanEvents(retained, bytes)
 }
 
 /** Union spans by id; `overrides` (e.g. the live, fresher copy) wins over `base` (e.g. the history file). */
@@ -145,6 +158,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     if (!this.isActivated) return
     const spanEntity = convertSpanToSpanEntity(span)
     spanEntity.isEnd = false
+    this.setRetainedEvents(spanEntity, spanEntity.events)
     this.applyTraceMeta(spanEntity)
     this.store.setSpan(spanEntity)
     this.updateModelName(spanEntity)
@@ -166,9 +180,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     spanEntity.endTime = span.endTime ? span.endTime[0] * 1e3 + Math.floor(span.endTime[1] / 1e6) : null
     spanEntity.status = SpanStatusCode[span.status.code]
     spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
-    // Replacing the array invalidates the retained-byte total; the next append re-measures once.
-    spanEntity.events = span.events
-    this.spanEventBytes.delete(spanEntity)
+    this.setRetainedEvents(spanEntity, span.events)
     spanEntity.links = span.links
     spanEntity.isEnd = true
     this.updateModelName(spanEntity)
@@ -224,11 +236,12 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       // Preserve events already on the span (incl. orphan log events drained earlier): a later
       // /v1/traces export carrying empty/partial events must not drop them. Merge into the incoming
       // entity, which is the object ultimately stored (updateModelName re-sets it after updateEntity).
-      entity.events = this.mergeEvents(existing.events, entity.events)
+      this.setRetainedEvents(entity, this.mergeEvents(existing.events, entity.events))
       // updateEntity copies onto `existing`, so its cached retained-byte total is now stale.
       this.spanEventBytes.delete(existing)
       this.updateEntity(entity)
     } else {
+      this.setRetainedEvents(entity, entity.events)
       this.addEntity(entity)
     }
     this.updateModelName(entity)
@@ -255,14 +268,22 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
 
   private appendEventsToSpan(span: SpanEntity, events: TimedEvent[]): void {
     if (events.length === 0) return
+    const incoming = capSpanEventArray(events)
+    if (!incoming.events || incoming.events.length === 0) return
     const existing = Array.isArray(span.events) ? span.events : []
     const before = this.spanEventBytes.get(span) ?? sumEventBytes(existing)
-    const trimmed = capSpanEvents([...existing, ...events], before + sumEventBytes(events))
+    const trimmed = capSpanEvents([...existing, ...incoming.events], before + incoming.bytes)
     span.events = trimmed.events
     this.spanEventBytes.set(span, trimmed.bytes)
     // The span object is already stored and was mutated in place, so report the size delta rather
     // than re-inserting it — setSpan would re-measure the whole span on every log event.
     this.store.touchSpan(span.id, trimmed.bytes - before)
+  }
+
+  private setRetainedEvents(span: SpanEntity, events: TimedEvent[] | undefined): void {
+    const retained = capSpanEventArray(events)
+    span.events = retained.events
+    this.spanEventBytes.set(span, retained.bytes)
   }
 
   private bufferPendingEvent(spanId: string, event: TimedEvent): void {
@@ -276,9 +297,9 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
     if (events.length >= MAX_PENDING_EVENTS_PER_SPAN) return
     events.push(event)
     this.pendingEventBytes += estimateEventBytes(event)
-    // Evict oldest buffered spans until retained plaintext fits the byte budget. Stop at one span so a
-    // single active span (already bounded by MAX_PENDING_EVENTS_PER_SPAN) is never dropped mid-buffer.
-    while (this.pendingEventBytes > MAX_PENDING_EVENT_BYTES && this.pendingEvents.size > 1) {
+    // Evict oldest buffered spans until retained plaintext fits the byte budget. A single oversized
+    // orphan is dropped too: it may never receive a parent span and cannot be allowed to pin memory.
+    while (this.pendingEventBytes > MAX_PENDING_EVENT_BYTES && this.pendingEvents.size > 0) {
       this.evictOldestPendingSpan()
     }
   }
@@ -419,14 +440,13 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
   }
 
   /**
-   * Union span events by name+time, preserving existing (incl. log-derived) events. Only ever shrinks
-   * at the retention budget — the other place a stored span's events accumulate, so it caps too.
-   * Runs once per span export against an already-bounded array, so measuring it in full is cheap
-   * here in a way it would not be on the per-event append path.
+   * Union span events by name+time, preserving existing (incl. log-derived) events. The caller sends
+   * the result through the same retention path used by new and ended spans, so no storage entry point
+   * can bypass the per-span cap.
    */
   private mergeEvents(saved: TimedEvent[] | undefined, incoming: TimedEvent[] | undefined): TimedEvent[] | undefined {
     if (!incoming || incoming.length === 0) return saved
-    if (!saved || saved.length === 0) return capSpanEvents(incoming, sumEventBytes(incoming)).events
+    if (!saved || saved.length === 0) return incoming
     const eventKey = (event: TimedEvent) =>
       `${event.name}@${Array.isArray(event.time) ? `${event.time[0]}.${event.time[1]}` : String(event.time)}`
     const seen = new Set<string>()
@@ -437,7 +457,7 @@ export class TraceStorageService extends BaseService implements TraceStore, Acti
       seen.add(key)
       merged.push(event)
     }
-    return capSpanEvents(merged, sumEventBytes(merged)).events
+    return merged
   }
 
   private mergeAttributes(savedEntity: SpanEntity, value: unknown): void {

@@ -23,7 +23,7 @@ vi.mock('../TraceTree', () => ({
 function TracePageHarness({ visible }: { visible: boolean }) {
   return (
     <Activity mode={visible ? 'visible' : 'hidden'}>
-      <TracePage topicId="topic-1" traceId="a1b2c3" reload="turn-1" />
+      <TracePage topicId="topic-1" traceId="a1b2c3" />
     </Activity>
   )
 }
@@ -51,21 +51,19 @@ describe('TracePage', () => {
     vi.useRealTimers()
   })
 
-  it('polls again when a naturally completed trace is shown again', async () => {
-    const view = render(<TracePageHarness visible />)
+  it('keeps checking a completed container trace for later turns', async () => {
+    render(<TracePageHarness visible />)
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(6_000)
     })
-    const callsAfterNaturalStop = mocks.getData.mock.calls.length
+    const callsAfterIdlePeriod = mocks.getData.mock.calls.length
 
-    view.rerender(<TracePageHarness visible={false} />)
-    view.rerender(<TracePageHarness visible />)
     await act(async () => {
-      await Promise.resolve()
+      await vi.advanceTimersByTimeAsync(5_000)
     })
 
-    expect(mocks.getData.mock.calls.length).toBeGreaterThan(callsAfterNaturalStop)
+    expect(mocks.getData.mock.calls.length).toBeGreaterThan(callsAfterIdlePeriod)
   })
 
   it('passes the server cursor and applies a changed span without requesting another full snapshot', async () => {

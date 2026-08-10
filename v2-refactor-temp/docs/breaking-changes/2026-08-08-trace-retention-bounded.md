@@ -11,8 +11,9 @@ date: 2026-08-08
 The AI trace data captured under Settings → Developer Mode is now bounded instead of growing for the
 lifetime of a topic. Each topic's trace history file is capped (8 MiB, oldest spans dropped first),
 and a single span keeps at most its 200 most recent log events or 2 MiB of them, whichever comes
-first. Previously nothing aged out: measured trace files reached 66 MB for one topic and 185 MB
-across a two-day session, with individual spans holding ~20 MB of captured request/response bodies.
+first. An individual event larger than 2 MiB is dropped instead of bypassing the memory budget.
+Previously nothing aged out: measured trace files reached 66 MB for one topic and 185 MB across a
+two-day session, with individual spans holding ~20 MB of captured request/response bodies.
 
 ## Why this matters to the user
 
