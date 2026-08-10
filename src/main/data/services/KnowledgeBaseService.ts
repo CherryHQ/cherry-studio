@@ -17,7 +17,7 @@ import type {
   UpdateKnowledgeBaseDto
 } from '@shared/data/api/schemas/knowledges'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { OffsetPaginationResponse } from '@shared/data/api/types'
+import type { CursorPaginationResponse, OffsetPaginationResponse } from '@shared/data/api/types'
 import {
   type CreateKnowledgeBaseDto,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -31,6 +31,7 @@ import {
 } from '@shared/data/types/knowledge'
 import { and, asc, count as sqlCount, desc, eq, gte, inArray, ne, type SQL, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
+import * as z from 'zod'
 
 import { groupService } from './GroupService'
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
@@ -42,6 +43,14 @@ type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
 type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
 type KnowledgeBaseListSortBy = NonNullable<ListKnowledgeBasesQuery['sortBy']>
 type KnowledgeBaseOffsetListQuery = Omit<ListKnowledgeBasesQuery, 'cursor'> & { page: number }
+type KnowledgeBaseDiscoveryQuery = {
+  limit: number
+  cursor?: string
+  query?: string
+  groupId?: string
+  restrictedIds?: readonly [string, ...string[]]
+}
+type KnowledgeBaseDiscoveryPage = CursorPaginationResponse<KnowledgeBase> & { total: number }
 type KnowledgeBaseListFilters = {
   groupId?: string
   ids?: readonly string[]
@@ -49,6 +58,7 @@ type KnowledgeBaseListFilters = {
 }
 
 const sourceItemTable = alias(knowledgeItemTable, 'source_item')
+const KnowledgeBaseProjectionSchema = z.object(KnowledgeBaseSchema.shape)
 
 function validateKnowledgeBaseGroupTx(tx: Pick<DbType, 'select'>, groupId: string | null | undefined): void {
   if (groupId == null) return
@@ -144,6 +154,10 @@ function rowToKnowledgeBaseListItem(row: { base: KnowledgeBaseRow; itemCount: nu
     ...rowToKnowledgeBase(row.base),
     itemCount: row.itemCount
   }
+}
+
+function knowledgeBaseListItemToBase(item: KnowledgeBaseListItem): KnowledgeBase {
+  return KnowledgeBaseSchema.parse(KnowledgeBaseProjectionSchema.parse(item))
 }
 
 export class KnowledgeBaseService {
@@ -267,7 +281,35 @@ export class KnowledgeBaseService {
     }
   }
 
-  listCursor(query: ListKnowledgeBasesQuery, filters: KnowledgeBaseListFilters = {}): KnowledgeBaseListResponse {
+  listCursor(query: ListKnowledgeBasesQuery): KnowledgeBaseListResponse {
+    return this.listCursorWithFilters(query)
+  }
+
+  listForDiscovery(query: KnowledgeBaseDiscoveryQuery): KnowledgeBaseDiscoveryPage {
+    const page = this.listCursorWithFilters(
+      {
+        limit: query.limit,
+        ...(query.cursor ? { cursor: query.cursor } : {}),
+        ...(query.query ? { search: query.query } : {})
+      },
+      {
+        ...(query.groupId ? { groupId: query.groupId } : {}),
+        ...(query.restrictedIds ? { ids: query.restrictedIds } : {}),
+        includeItemSourcesInSearch: true
+      }
+    )
+
+    return {
+      items: page.items.map(knowledgeBaseListItemToBase),
+      total: page.total,
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
+    }
+  }
+
+  private listCursorWithFilters(
+    query: ListKnowledgeBasesQuery,
+    filters: KnowledgeBaseListFilters = {}
+  ): KnowledgeBaseListResponse {
     const { limit } = query
     const filterConditions = buildListFilterConditions(query, filters)
     const sortBy = query.sortBy ?? 'createdAt'

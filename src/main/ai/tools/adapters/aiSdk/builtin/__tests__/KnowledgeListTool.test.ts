@@ -4,7 +4,7 @@ import type { Assistant } from '@shared/data/types/assistant'
 import type { KnowledgeBase, KnowledgeItem } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const knowledgeServiceListBases = vi.fn()
+const knowledgeServiceListBasesForDiscovery = vi.fn()
 const knowledgeServiceListRootItems = vi.fn<(baseId: string) => KnowledgeItem[]>()
 // Outline mode (kb_list with a baseId) routes to getOrganizationTree.
 const knowledgeServiceGetOrganizationTree = vi.fn()
@@ -14,7 +14,7 @@ vi.mock('@application', () => ({
     get: (name: string) => {
       if (name === 'KnowledgeService') {
         return {
-          listBases: knowledgeServiceListBases,
+          listBasesForDiscovery: knowledgeServiceListBasesForDiscovery,
           listRootItems: knowledgeServiceListRootItems,
           getOrganizationTree: knowledgeServiceGetOrganizationTree
         }
@@ -187,7 +187,7 @@ function callExecute(args: ListArgs, ctx: { knowledgeBaseIds?: string[] } = {}):
 
 describe('kb_list', () => {
   beforeEach(() => {
-    knowledgeServiceListBases.mockReset()
+    knowledgeServiceListBasesForDiscovery.mockReset()
     knowledgeServiceListRootItems.mockReset()
     knowledgeServiceGetOrganizationTree.mockReset()
   })
@@ -201,41 +201,49 @@ describe('kb_list', () => {
   })
 
   it('passes the assistant scope into the paged service query', async () => {
-    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1', name: 'Allowed' })]))
+    knowledgeServiceListBasesForDiscovery.mockReturnValue(listPage([makeBase({ id: 'kb-1', name: 'Allowed' })]))
     knowledgeServiceListRootItems.mockReturnValue([])
 
     const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as { items: Array<{ id: string }> }
     expect(result.items.map((b) => b.id)).toEqual(['kb-1'])
-    expect(knowledgeServiceListBases).toHaveBeenCalledWith({ limit: 20, allowedIds: ['kb-1'] })
+    expect(knowledgeServiceListBasesForDiscovery).toHaveBeenCalledWith({
+      limit: 20,
+      scope: { kind: 'restricted', baseIds: ['kb-1'] }
+    })
     expect(knowledgeServiceListRootItems).toHaveBeenCalledWith('kb-1')
   })
 
   it('returns all bases when assistant scope is empty (future toggle path)', async () => {
-    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1' }), makeBase({ id: 'kb-2' })]))
+    knowledgeServiceListBasesForDiscovery.mockReturnValue(
+      listPage([makeBase({ id: 'kb-1' }), makeBase({ id: 'kb-2' })])
+    )
     knowledgeServiceListRootItems.mockReturnValue([])
 
     const result = (await callExecute({}, { knowledgeBaseIds: [] })) as { items: Array<{ id: string }> }
     expect(result.items.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-2'])
-    expect(knowledgeServiceListBases).toHaveBeenCalledWith({ limit: 20 })
+    expect(knowledgeServiceListBasesForDiscovery).toHaveBeenCalledWith({
+      limit: 20,
+      scope: { kind: 'unrestricted' }
+    })
   })
 
   it('passes groupId into the paged service query', async () => {
-    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1', groupId: 'g1' })]))
+    knowledgeServiceListBasesForDiscovery.mockReturnValue(listPage([makeBase({ id: 'kb-1', groupId: 'g1' })]))
     knowledgeServiceListRootItems.mockReturnValue([])
 
     const result = (await callExecute({ groupId: 'g1' }, { knowledgeBaseIds: ['kb-1', 'kb-2'] })) as {
       items: Array<{ id: string }>
     }
     expect(result.items.map((b) => b.id)).toEqual(['kb-1'])
-    expect(knowledgeServiceListBases).toHaveBeenCalledWith({
+    expect(knowledgeServiceListBasesForDiscovery).toHaveBeenCalledWith({
       limit: 20,
       groupId: 'g1',
-      allowedIds: ['kb-1', 'kb-2']
+      scope: { kind: 'restricted', baseIds: ['kb-1', 'kb-2'] }
     })
   })
 
   it('treats an omitted groupId as no filter, not as "ungrouped"', async () => {
-    knowledgeServiceListBases.mockReturnValue(
+    knowledgeServiceListBasesForDiscovery.mockReturnValue(
       listPage([makeBase({ id: 'kb-1', groupId: 'g1' }), makeBase({ id: 'kb-2', groupId: null })])
     )
     knowledgeServiceListRootItems.mockReturnValue([])
@@ -245,11 +253,16 @@ describe('kb_list', () => {
     }
     // An absent groupId must not collapse to `base.groupId === null`; both bases come back.
     expect(result.items.map((b) => b.id).sort()).toEqual(['kb-1', 'kb-2'])
-    expect(knowledgeServiceListBases).toHaveBeenCalledWith({ limit: 20, allowedIds: ['kb-1', 'kb-2'] })
+    expect(knowledgeServiceListBasesForDiscovery).toHaveBeenCalledWith({
+      limit: 20,
+      scope: { kind: 'restricted', baseIds: ['kb-1', 'kb-2'] }
+    })
   })
 
   it('passes case-insensitive name search and cursor pagination to the service', async () => {
-    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1', name: 'Rust Notes' })], 'cursor-2'))
+    knowledgeServiceListBasesForDiscovery.mockReturnValue(
+      listPage([makeBase({ id: 'kb-1', name: 'Rust Notes' })], 'cursor-2')
+    )
     knowledgeServiceListRootItems.mockReturnValue([])
 
     const result = (await callExecute(
@@ -258,17 +271,16 @@ describe('kb_list', () => {
     )) as { items: Array<{ id: string }>; nextCursor?: string }
     expect(result.items.map((b) => b.id)).toEqual(['kb-1'])
     expect(result.nextCursor).toBe('cursor-2')
-    expect(knowledgeServiceListBases).toHaveBeenCalledWith({
+    expect(knowledgeServiceListBasesForDiscovery).toHaveBeenCalledWith({
       limit: 10,
       cursor: 'cursor-1',
-      search: 'RUST',
-      allowedIds: ['kb-1', 'kb-2'],
-      includeItemSourcesInSearch: true
+      query: 'RUST',
+      scope: { kind: 'restricted', baseIds: ['kb-1', 'kb-2'] }
     })
   })
 
   it('derives sampleSources per item type and skips non-completed items', async () => {
-    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
+    knowledgeServiceListBasesForDiscovery.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
     knowledgeServiceListRootItems.mockReturnValue([
       makeFileItem('i1', 'design-doc.pdf'),
       makeUrlItem('i2', 'https://example.com/post'),
@@ -291,7 +303,7 @@ describe('kb_list', () => {
   })
 
   it('truncates long note first lines to fit the snippet limit', async () => {
-    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
+    knowledgeServiceListBasesForDiscovery.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
     knowledgeServiceListRootItems.mockReturnValue([makeNoteItem('n1', 'a'.repeat(200))])
 
     const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as {
@@ -305,7 +317,7 @@ describe('kb_list', () => {
   })
 
   it('caps sampleSources at 8 entries', async () => {
-    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
+    knowledgeServiceListBasesForDiscovery.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
     const items = Array.from({ length: 12 }, (_, idx) => makeFileItem(`i${idx}`, `file-${idx}.md`))
     knowledgeServiceListRootItems.mockReturnValue(items)
 
@@ -317,7 +329,7 @@ describe('kb_list', () => {
   })
 
   it('lists failed bases with empty sampleSources and does not call listRootItems', async () => {
-    knowledgeServiceListBases.mockReturnValue(
+    knowledgeServiceListBasesForDiscovery.mockReturnValue(
       listPage([makeBase({ id: 'kb-1', status: 'failed', error: 'missing_embedding_model' })])
     )
 
@@ -333,7 +345,7 @@ describe('kb_list', () => {
   })
 
   it('flags itemsUnavailable (not a fabricated empty) when listRootItems throws for a completed base', async () => {
-    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
+    knowledgeServiceListBasesForDiscovery.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
     knowledgeServiceListRootItems.mockImplementation(() => {
       throw new Error('boom')
     })
@@ -355,7 +367,7 @@ describe('kb_list', () => {
   })
 
   it('reports a real itemCount and no itemsUnavailable flag on a successful (empty) read', async () => {
-    knowledgeServiceListBases.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
+    knowledgeServiceListBasesForDiscovery.mockReturnValue(listPage([makeBase({ id: 'kb-1' })]))
     knowledgeServiceListRootItems.mockReturnValue([])
 
     const result = (await callExecute({}, { knowledgeBaseIds: ['kb-1'] })) as {
@@ -395,8 +407,8 @@ describe('kb_list', () => {
           { depth: 1, title: 'report.pdf', type: 'file', status: 'completed', conceptId: 'report.pdf' }
         ]
       })
-      // listBases must NOT run in outline mode (baseId routes to getOrganizationTree).
-      expect(knowledgeServiceListBases).not.toHaveBeenCalled()
+      // Discovery listing must NOT run in outline mode (baseId routes to getOrganizationTree).
+      expect(knowledgeServiceListBasesForDiscovery).not.toHaveBeenCalled()
     })
 
     it('outlines to unlimited depth when maxDepth is omitted', async () => {

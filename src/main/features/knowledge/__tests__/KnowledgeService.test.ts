@@ -27,7 +27,7 @@ const {
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
   knowledgeBaseListAllIdsMock,
-  knowledgeBaseListCursorMock,
+  knowledgeBaseListForDiscoveryMock,
   knowledgeBaseListMock,
   knowledgeBaseUpdateMock,
   knowledgeItemCreateActiveMock,
@@ -69,7 +69,7 @@ const {
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeBaseListAllIdsMock: vi.fn(),
-  knowledgeBaseListCursorMock: vi.fn(),
+  knowledgeBaseListForDiscoveryMock: vi.fn(),
   knowledgeBaseListMock: vi.fn(),
   knowledgeBaseUpdateMock: vi.fn(),
   knowledgeItemCreateActiveMock: vi.fn(),
@@ -163,7 +163,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
     delete: knowledgeBaseDeleteMock,
     getById: knowledgeBaseGetByIdMock,
     listAllIds: knowledgeBaseListAllIdsMock,
-    listCursor: knowledgeBaseListCursorMock,
+    listForDiscovery: knowledgeBaseListForDiscoveryMock,
     list: knowledgeBaseListMock,
     update: knowledgeBaseUpdateMock
   }
@@ -330,7 +330,7 @@ describe('KnowledgeService', () => {
     knowledgeBaseDeleteMock.mockReturnValue(undefined)
     knowledgeBaseGetByIdMock.mockReturnValue(createBase())
     knowledgeBaseListAllIdsMock.mockReturnValue(new Set())
-    knowledgeBaseListCursorMock.mockReturnValue({ items: [], total: 0 })
+    knowledgeBaseListForDiscoveryMock.mockReturnValue({ items: [], total: 0 })
     knowledgeBaseUpdateMock.mockImplementation((_id: string, patch: Partial<KnowledgeBase>) => createBase(patch))
     fsStatMock.mockResolvedValue({
       isFile: () => true,
@@ -2085,28 +2085,40 @@ describe('KnowledgeService', () => {
     })
   })
 
-  describe('listBases', () => {
-    it('returns one filtered cursor page', () => {
+  describe('listBasesForDiscovery', () => {
+    it('returns one restricted cursor page', () => {
       const firstBase = createBase({ id: 'kb-1', name: 'First' })
       const page = { items: [firstBase], total: 21, nextCursor: 'cursor-2' }
-      knowledgeBaseListCursorMock.mockReturnValue(page)
+      knowledgeBaseListForDiscoveryMock.mockReturnValue(page)
 
       const service = new KnowledgeService()
 
       expect(
-        service.listBases({
+        service.listBasesForDiscovery({
           limit: 20,
           cursor: 'cursor-1',
-          search: 'notes',
+          query: 'notes',
           groupId: 'group-1',
-          allowedIds: ['kb-1', 'kb-2'],
-          includeItemSourcesInSearch: true
+          scope: { kind: 'restricted', baseIds: ['kb-1', 'kb-2'] }
         })
       ).toEqual(page)
-      expect(knowledgeBaseListCursorMock).toHaveBeenCalledWith(
-        { limit: 20, cursor: 'cursor-1', search: 'notes' },
-        { groupId: 'group-1', ids: ['kb-1', 'kb-2'], includeItemSourcesInSearch: true }
-      )
+      expect(knowledgeBaseListForDiscoveryMock).toHaveBeenCalledWith({
+        limit: 20,
+        cursor: 'cursor-1',
+        query: 'notes',
+        groupId: 'group-1',
+        restrictedIds: ['kb-1', 'kb-2']
+      })
+    })
+
+    it('passes unrestricted discovery without an id filter', () => {
+      const page = { items: [createBase()], total: 1 }
+      knowledgeBaseListForDiscoveryMock.mockReturnValue(page)
+
+      const service = new KnowledgeService()
+
+      expect(service.listBasesForDiscovery({ limit: 20, scope: { kind: 'unrestricted' } })).toEqual(page)
+      expect(knowledgeBaseListForDiscoveryMock).toHaveBeenCalledWith({ limit: 20 })
     })
   })
 

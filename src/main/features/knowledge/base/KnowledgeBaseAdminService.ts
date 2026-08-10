@@ -4,7 +4,6 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import type { KnowledgeBaseListResponse } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
   type KnowledgeAddItemInput,
@@ -23,16 +22,7 @@ import { inspectOrphanBaseArtifacts, type OrphanBaseArtifactsInspection } from '
 
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
 
-export interface ListKnowledgeBasesOptions {
-  limit: number
-  cursor?: string
-  search?: string
-  groupId?: string
-  allowedIds?: readonly string[]
-  includeItemSourcesInSearch?: boolean
-}
-
-/** Knowledge base lifecycle: create (with rollback), delete, restore, and list — everything about the base row + its on-disk artifacts, not about items. */
+/** Knowledge base lifecycle: create (with rollback), delete, and restore — everything about the base row + its on-disk artifacts, not about items. */
 export class KnowledgeBaseAdminService {
   constructor(
     private readonly knowledgeLockManager: KeyedMutex,
@@ -194,21 +184,6 @@ export class KnowledgeBaseAdminService {
     }
 
     return { base: restoredBase, skippedMissingSourceCount }
-  }
-
-  listBases(options: ListKnowledgeBasesOptions): KnowledgeBaseListResponse {
-    return knowledgeBaseService.listCursor(
-      {
-        limit: options.limit,
-        ...(options.cursor ? { cursor: options.cursor } : {}),
-        ...(options.search ? { search: options.search } : {})
-      },
-      {
-        ...(options.groupId ? { groupId: options.groupId } : {}),
-        ...(options.allowedIds ? { ids: options.allowedIds } : {}),
-        ...(options.includeItemSourcesInSearch ? { includeItemSourcesInSearch: true } : {})
-      }
-    )
   }
 
   /** Whether the user has any knowledge base at all — a cheap count (not a full list) for tool-availability gating. */

@@ -376,26 +376,6 @@ describe('KnowledgeBaseService', () => {
       ])
     })
 
-    it('searches names and completed root item sources before discovery pagination and counting', async () => {
-      await seedKnowledgeBase({ name: 'General', createdAt: 3 })
-      await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Operations', createdAt: 2 })
-      await seedKnowledgeBase({ id: ALPHA_KNOWLEDGE_BASE_ID, name: 'Invoice Archive', createdAt: 1 })
-      await seedFileKnowledgeItem({ data: { source: '/docs/invoice.pdf', relativePath: 'invoice.pdf' } })
-
-      const first = service.listCursor({ limit: 1, search: 'invoice' }, { includeItemSourcesInSearch: true })
-      const second = service.listCursor(
-        { limit: 1, search: 'invoice', cursor: first.nextCursor },
-        { includeItemSourcesInSearch: true }
-      )
-      const nameOnly = service.listCursor({ limit: 10, search: 'invoice' })
-
-      expect(first.total).toBe(2)
-      expect(first.items.map((item) => item.id)).toEqual([KNOWLEDGE_BASE_ID])
-      expect(first.nextCursor).toBeDefined()
-      expect(second.items.map((item) => item.id)).toEqual([ALPHA_KNOWLEDGE_BASE_ID])
-      expect(nameOnly.items.map((item) => item.id)).toEqual([ALPHA_KNOWLEDGE_BASE_ID])
-    })
-
     it('falls back to the first page for a malformed cursor', async () => {
       await seedKnowledgeBase({ id: OLD_KNOWLEDGE_BASE_ID, name: 'Old', createdAt: 1 })
       await seedKnowledgeBase({ id: NEWER_KNOWLEDGE_BASE_ID, name: 'Newer', createdAt: 2 })
@@ -405,8 +385,28 @@ describe('KnowledgeBaseService', () => {
 
       expect(malformed).toEqual(first)
     })
+  })
 
-    it('applies group and id scope before pagination and total counting', async () => {
+  describe('listForDiscovery', () => {
+    it('searches names and completed root item sources before pagination and counting', async () => {
+      await seedKnowledgeBase({ name: 'General', createdAt: 3 })
+      await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Operations', createdAt: 2 })
+      await seedKnowledgeBase({ id: ALPHA_KNOWLEDGE_BASE_ID, name: 'Invoice Archive', createdAt: 1 })
+      await seedFileKnowledgeItem({ data: { source: '/docs/invoice.pdf', relativePath: 'invoice.pdf' } })
+
+      const first = service.listForDiscovery({ limit: 1, query: 'invoice' })
+      const second = service.listForDiscovery({ limit: 1, query: 'invoice', cursor: first.nextCursor })
+      const nameOnly = service.listCursor({ limit: 10, search: 'invoice' })
+
+      expect(first.total).toBe(2)
+      expect(first.items.map((item) => item.id)).toEqual([KNOWLEDGE_BASE_ID])
+      expect(first.items[0]).not.toHaveProperty('itemCount')
+      expect(first.nextCursor).toBeDefined()
+      expect(second.items.map((item) => item.id)).toEqual([ALPHA_KNOWLEDGE_BASE_ID])
+      expect(nameOnly.items.map((item) => item.id)).toEqual([ALPHA_KNOWLEDGE_BASE_ID])
+    })
+
+    it('applies group and restricted ids before pagination and total counting', async () => {
       await dbh.db.insert(groupTable).values([
         { id: KNOWLEDGE_GROUP_ID, entityType: 'knowledge', name: 'Knowledge', orderKey: 'a0' },
         { id: SECOND_KNOWLEDGE_GROUP_ID, entityType: 'knowledge', name: 'Other knowledge', orderKey: 'a1' }
@@ -436,13 +436,12 @@ describe('KnowledgeBaseService', () => {
         createdAt: 4
       })
 
-      const page = service.listCursor(
-        { limit: 1, search: 'Notes' },
-        {
-          groupId: KNOWLEDGE_GROUP_ID,
-          ids: [OLD_KNOWLEDGE_BASE_ID, ALPHA_KNOWLEDGE_BASE_ID, BETA_KNOWLEDGE_BASE_ID]
-        }
-      )
+      const page = service.listForDiscovery({
+        limit: 1,
+        query: 'Notes',
+        groupId: KNOWLEDGE_GROUP_ID,
+        restrictedIds: [OLD_KNOWLEDGE_BASE_ID, ALPHA_KNOWLEDGE_BASE_ID, BETA_KNOWLEDGE_BASE_ID]
+      })
 
       expect(page.total).toBe(2)
       expect(page.items.map((item) => item.id)).toEqual([ALPHA_KNOWLEDGE_BASE_ID])

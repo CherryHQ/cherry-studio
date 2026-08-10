@@ -129,7 +129,7 @@ export type KnowledgeManageResultOrError = KbManageOutput | KnowledgeLookupError
 export const KNOWLEDGE_LOOKUP_ERROR_NOTE =
   'Knowledge base search failed (the embedding provider or vector store errored); tell the user instead of retrying.'
 
-/** kb_list infra failure (e.g. `KnowledgeService.listBases()` threw) — a fixed note, not a raw error string. */
+/** kb_list infra failure (e.g. `KnowledgeService.listBasesForDiscovery()` threw) — a fixed note, not a raw error string. */
 export const KNOWLEDGE_LIST_ERROR_NOTE =
   'Listing the knowledge bases failed (a knowledge-service error); tell the user instead of retrying.'
 
@@ -596,12 +596,12 @@ async function listKnowledgeBases(
 ): Promise<KnowledgeListResultOrError> {
   try {
     const knowledgeService = application.get('KnowledgeService')
-    const page = knowledgeService.listBases({
+    const page = knowledgeService.listBasesForDiscovery({
       limit: input.limit ?? KB_LIST_DEFAULT_LIMIT,
       ...(input.cursor ? { cursor: input.cursor } : {}),
-      ...(input.query ? { search: input.query, includeItemSourcesInSearch: true } : {}),
+      ...(input.query ? { query: input.query } : {}),
       ...(input.groupId ? { groupId: input.groupId } : {}),
-      ...(allowedIds.length > 0 ? { allowedIds } : {})
+      scope: toKnowledgeBaseDiscoveryScope(allowedIds)
     })
 
     // Build each base's summary with bounded concurrency (see KB_LIST_ROOT_ITEMS_CONCURRENCY).
@@ -618,12 +618,19 @@ async function listKnowledgeBases(
       ...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
     }
   } catch (error) {
-    // `listBases()` (or the service lookup) threw — surface a fixed note instead of leaking the raw
+    // `listBasesForDiscovery()` (or the service lookup) threw — surface a fixed note instead of leaking the raw
     // error string through the MCP catch-all, mirroring kb_search's all-bases-failed path.
     const message = error instanceof Error ? error.message : String(error)
-    logger.warn('KnowledgeService.listBases failed', { error: message })
+    logger.warn('KnowledgeService.listBasesForDiscovery failed', { error: message })
     return { error: message }
   }
+}
+
+function toKnowledgeBaseDiscoveryScope(allowedIds: readonly string[]) {
+  const [first, ...rest] = allowedIds
+  return first === undefined
+    ? { kind: 'unrestricted' as const }
+    : { kind: 'restricted' as const, baseIds: [first, ...rest] as readonly [string, ...string[]] }
 }
 
 export function knowledgeListModelOutput(
@@ -634,7 +641,7 @@ export function knowledgeListModelOutput(
 
   if ('error' in output) {
     // Outline mode surfaces the specific error (out-of-scope / not-found / service); list mode hides
-    // the raw listBases() infra error behind a fixed note (mirrors kb_search's all-failed path).
+    // the raw listBasesForDiscovery() infra error behind a fixed note (mirrors kb_search's all-failed path).
     return { type: 'text', value: outlineMode ? output.error : KNOWLEDGE_LIST_ERROR_NOTE }
   }
 

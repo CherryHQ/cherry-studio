@@ -16,7 +16,7 @@ const kbGetOrganizationTree = vi.fn()
 const kbAddItems = vi.fn()
 const kbDeleteConcepts = vi.fn()
 const kbRefreshConcepts = vi.fn()
-const listBases = vi.fn()
+const listBasesForDiscovery = vi.fn()
 const listRootItems = vi.fn()
 const getPreference = vi.fn()
 const generateImage = vi.fn()
@@ -44,7 +44,7 @@ vi.mock('@application', () => ({
           addItems: kbAddItems,
           deleteConcepts: kbDeleteConcepts,
           refreshConcepts: kbRefreshConcepts,
-          listBases,
+          listBasesForDiscovery,
           listRootItems
         }
       }
@@ -121,7 +121,7 @@ describe('cherryBuiltinTools', () => {
     kbAddItems.mockReset()
     kbDeleteConcepts.mockReset()
     kbRefreshConcepts.mockReset()
-    listBases.mockReset()
+    listBasesForDiscovery.mockReset()
     listRootItems.mockReset()
     getPreference.mockReset()
     generateImage.mockReset()
@@ -163,10 +163,10 @@ describe('cherryBuiltinTools', () => {
       expect.arrayContaining(['kb_search', 'kb_read', 'kb_list', 'kb_manage'])
     )
 
-    listBases.mockResolvedValue({ items: [], total: 0 })
+    listBasesForDiscovery.mockResolvedValue({ items: [], total: 0 })
     await knowledge.call('kb_list', {})
 
-    expect(listBases).toHaveBeenCalledOnce()
+    expect(listBasesForDiscovery).toHaveBeenCalledWith({ limit: 20, scope: { kind: 'unrestricted' } })
   })
 
   it('keeps runtime knowledge tools aligned with the shared wire-name registry', () => {
@@ -446,7 +446,7 @@ describe('cherryBuiltinTools', () => {
 
     expect(kbGetOrganizationTree).toHaveBeenCalledWith('b1', { maxDepth: 2 })
     // list mode must NOT run when a baseId is present.
-    expect(listBases).not.toHaveBeenCalled()
+    expect(listBasesForDiscovery).not.toHaveBeenCalled()
     const json = JSON.parse(textOf(result))
     expect(json.totalItems).toBe(2)
     expect(json.nodes[1]).toMatchObject({ type: 'file', conceptId: 'report.pdf' })
@@ -522,7 +522,7 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('routes a bounded kb_list page through KnowledgeService with filters and cursor', async () => {
-    listBases.mockReturnValue({
+    listBasesForDiscovery.mockReturnValue({
       items: [{ id: 'b2', name: 'Invoices', groupId: 'g2', status: 'completed', documentCount: 1 }],
       total: 21,
       nextCursor: 'cursor-2'
@@ -545,13 +545,12 @@ describe('cherryBuiltinTools', () => {
       itemCount: 1,
       sampleSources: ['Soup']
     })
-    expect(listBases).toHaveBeenCalledWith({
+    expect(listBasesForDiscovery).toHaveBeenCalledWith({
       limit: 10,
       cursor: 'cursor-1',
-      search: 'invoice',
+      query: 'invoice',
       groupId: 'g2',
-      allowedIds: ['b1', 'b2'],
-      includeItemSourcesInSearch: true
+      scope: { kind: 'restricted', baseIds: ['b1', 'b2'] }
     })
     expect(listRootItems).toHaveBeenCalledWith('b2')
     expect(listRootItems).not.toHaveBeenCalledWith('b1')
@@ -561,7 +560,7 @@ describe('cherryBuiltinTools', () => {
     // base.documentCount is the configured retrieval top-K (search results to return), not a count of
     // stored documents — it is usually null. Exposing it made the agent report "0 documents" for a
     // populated base. itemCount (root items) is the real count the agent should see.
-    listBases.mockReturnValue({
+    listBasesForDiscovery.mockReturnValue({
       items: [{ id: 'b1', name: 'Recipes', groupId: 'g1', status: 'completed', documentCount: 5 }],
       total: 1
     })
@@ -577,7 +576,7 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('returns a fixed note (not a raw error) when listing the knowledge bases fails', async () => {
-    listBases.mockImplementation(() => {
+    listBasesForDiscovery.mockImplementation(() => {
       throw new Error('sqlite gone')
     })
 
@@ -590,7 +589,7 @@ describe('cherryBuiltinTools', () => {
   })
 
   it('forwards the kb_list input to the model-output projection (filtered-empty message)', async () => {
-    listBases.mockReturnValue({ items: [], total: 0 })
+    listBasesForDiscovery.mockReturnValue({ items: [], total: 0 })
     listRootItems.mockReturnValue([])
 
     // A query that matches nothing -> the "matches the filter" message proves `input` reached the
