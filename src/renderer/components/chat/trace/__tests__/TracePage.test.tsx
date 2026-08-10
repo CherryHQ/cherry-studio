@@ -128,7 +128,7 @@ describe('TracePage', () => {
   })
 
   it('updates the selected span detail after receiving a delta', async () => {
-    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTimeAsync })
     const cursor = { historyVersion: '1:100', liveRevision: 4 }
     mocks.getData
       .mockResolvedValueOnce({
