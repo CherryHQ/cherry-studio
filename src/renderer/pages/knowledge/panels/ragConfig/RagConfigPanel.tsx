@@ -170,6 +170,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
         <div className="flex flex-col gap-4">
           <FileProcessingSection
             fileProcessorId={values.fileProcessorId}
+            initialFileProcessorId={initialValues.fileProcessorId}
             fileProcessorOptions={fileProcessorOptions}
             onFileProcessorChange={(fileProcessorId) =>
               setValues((currentValues) => ({ ...currentValues, fileProcessorId }))
