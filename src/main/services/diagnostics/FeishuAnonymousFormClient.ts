@@ -11,6 +11,7 @@ const UPLOAD_MOUNT_POINT = 'bitable_tmp_point'
 const MAX_REDIRECTS = 8
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024
 const MAX_UPLOAD_BYTES = 60 * 1024 * 1024
+const MAX_UPLOAD_BLOCKS = 64
 const REQUEST_TIMEOUT_MS = 30_000
 const CHUNK_UPLOAD_TIMEOUT_MS = 60_000
 const ALLOWED_FEISHU_HOSTNAMES = new Set([
@@ -352,8 +353,10 @@ async function prepareUpload(
   if (
     !Number.isInteger(blockSize) ||
     (blockSize as number) <= 0 ||
+    (blockSize as number) > MAX_UPLOAD_BYTES ||
     !Number.isInteger(totalBlocks) ||
     (totalBlocks as number) <= 0 ||
+    (totalBlocks as number) > MAX_UPLOAD_BLOCKS ||
     typeof uploadId !== 'string' ||
     uploadId.length === 0 ||
     uploadId.length > 4096

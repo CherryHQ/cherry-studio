@@ -200,6 +200,25 @@ describe('FeishuAnonymousFormClient', () => {
     expect(fetch.mock.calls.some(([url]) => String(url).includes('/box/stream/upload/all/'))).toBe(false)
   })
 
+  it('rejects an excessive prepared block count before uploading any blocks', async () => {
+    const file = Buffer.alloc(65, 1)
+    await writeFile(filePath, file)
+    const { browserSession, fetch } = createSessionMock([
+      guestSessionResponse(),
+      jsonResponse({ code: 0, data: { snapshot: JSON.stringify(formSnapshot()) } }),
+      jsonResponse({ code: 0, data: { uploadCode: 'upload-code' } }),
+      jsonResponse({ code: 0, data: { block_size: 1, num_blocks: file.length, upload_id: 'upload-id' } })
+    ])
+    const client = new FeishuAnonymousFormClient(() => browserSession)
+
+    await expect(client.upload({ fileName: 'diagnostics.zip', filePath, fileSize: file.length })).resolves.toEqual({
+      reason: 'attachment_upload_failed',
+      status: 'manual_upload_required'
+    })
+    expect(fetch).toHaveBeenCalledTimes(4)
+    expect(fetch.mock.calls.some(([url]) => String(url).includes('/merge_block/'))).toBe(false)
+  })
+
   it('follows guarded guest-login redirects and removes the temporary listeners', async () => {
     const responses = successfulPreparedResponses()
     const { browserSession, fetch, onBeforeRedirect, onBeforeRequest, triggerBeforeRedirect, triggerBeforeRequest } =
