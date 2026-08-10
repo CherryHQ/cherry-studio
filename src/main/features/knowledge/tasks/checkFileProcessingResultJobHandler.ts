@@ -24,6 +24,14 @@ const logger = loggerService.withContext('Knowledge:CheckFileProcessingResultJob
 // Remote document processors can be slow, but a stale paid job should not poll forever.
 const FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000
 const FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON = 'knowledge-file-processing-item-unavailable'
+// Every job type `FileProcessingService.startJob` can enqueue. Keep in sync with
+// its routing — a missing type here makes the poll below never recognise its own
+// child job, parking the item at `waiting` until the max-wait timer fires.
+const FILE_PROCESSING_JOB_TYPES: ReadonlySet<string> = new Set([
+  'file-processing.background',
+  'file-processing.background-local',
+  'file-processing.remote-poll'
+])
 
 export function createCheckFileProcessingResultJobHandler(
   knowledgeLockManager: KeyedMutex,
@@ -177,7 +185,7 @@ function reportWaitingProgress(
 }
 
 function isExpectedFileProcessingJob(snapshot: JobSnapshot, itemId: string): boolean {
-  if (snapshot.type !== 'file-processing.background' && snapshot.type !== 'file-processing.remote-poll') {
+  if (!FILE_PROCESSING_JOB_TYPES.has(snapshot.type)) {
     return false
   }
   if (!snapshot.input || typeof snapshot.input !== 'object') {
