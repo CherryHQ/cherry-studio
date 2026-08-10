@@ -3480,6 +3480,7 @@
         "context_compress_model": "Модель сжатия",
         "context_compress_model_follow": "По умолчанию",
         "context_count": "Количество контекста",
+        "context_count_follow_global": "[to be translated]:Follow global ({{count}})",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
@@ -4631,6 +4632,8 @@
         "font_size_medium": "Средний",
         "font_size_small": "маленький",
         "font_title": "Настройки шрифта",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "Шрифт с засечками",
         "show_table_of_contents": "Показать оглавление",
         "show_table_of_contents_description": "Показать боковую панель оглавления для удобной навигации по документу",
@@ -5398,6 +5401,7 @@
         "insertRowBefore": "Вставьте выше"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "Вставьте математические формулы",

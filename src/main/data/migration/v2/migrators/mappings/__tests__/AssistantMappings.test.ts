@@ -232,15 +232,21 @@ describe('AssistantMappings', () => {
       })
     })
 
-    it('maps v1 contextCount to contextSettings.maxMessages, honoring the sentinels', () => {
+    // v1 served `takeRight(contextCount + 2)` and then dropped leading non-user
+    // rows; v2 keeps the last N and extends BACKWARD to a user row. The same
+    // served history therefore needs N = C + 1 — mapping C straight across
+    // would silently cost every migrated assistant two messages of context.
+    it('maps v1 contextCount to contextSettings.maxMessages with the +1 offset', () => {
       const maxMessagesOf = (contextCount: unknown) =>
         transformAssistant({ id: 'ast-16', settings: { contextCount } as never }).assistant.settings.contextSettings
           ?.maxMessages
 
-      expect(maxMessagesOf(5)).toBe(5)
-      // 0 (no history) and 1 behaved identically in v1 → both floor to 1.
+      // v1 C=5 served [u,a,u,a,u,a,u] (7 rows) → v2 N=6 extends back to the same 7.
+      expect(maxMessagesOf(5)).toBe(6)
+      expect(maxMessagesOf(1)).toBe(2)
+      // C=0 meant "no history": v1's user-start filter left only the current
+      // user message, which is N=1 (no offset — +1 would add a turn back).
       expect(maxMessagesOf(0)).toBe(1)
-      expect(maxMessagesOf(1)).toBe(1)
       // MAX_CONTEXT_COUNT (100) meant unlimited → no override written.
       expect(
         transformAssistant({ id: 'ast-17', settings: { contextCount: 100 } as never }).assistant.settings

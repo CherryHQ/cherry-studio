@@ -3480,6 +3480,7 @@
         "context_compress_model": "壓縮模型",
         "context_compress_model_follow": "預設",
         "context_count": "上下文數量",
+        "context_count_follow_global": "[to be translated]:Follow global ({{count}})",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
@@ -4631,6 +4632,8 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "字型設定",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "襯線字型",
         "show_table_of_contents": "顯示目錄大綱",
         "show_table_of_contents_description": "顯示目錄大綱側邊欄，方便在檔案內導覽",
@@ -5398,6 +5401,7 @@
         "insertRowBefore": "在上方插入"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "插入數學公式",

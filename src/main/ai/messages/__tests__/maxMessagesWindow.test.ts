@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyMaxMessagesWindow } from '../maxMessagesWindow'
+import { applyMaxMessagesWindow, normalizeMaxMessages } from '../maxMessagesWindow'
 
 const u = (id: string) => ({ id, role: 'user' })
 const a = (id: string) => ({ id, role: 'assistant' })
@@ -33,5 +33,22 @@ describe('applyMaxMessagesWindow', () => {
   it('serves everything when no user row exists inside reach', () => {
     const messages = [a('a1'), a('a2'), a('a3')]
     expect(applyMaxMessagesWindow(messages, 1).map((m) => m.id)).toEqual(['a1', 'a2', 'a3'])
+  })
+
+  // The preference and the assistant settings JSON are loaded straight from the
+  // database with no schema enforcement, so malformed values reach this window.
+  // 0 and negatives used to put `start` at or past the end, and reading `.role`
+  // off `undefined` threw — failing the whole request.
+  it('treats malformed limits as no limit instead of throwing', () => {
+    const messages = [u('u1'), a('a1'), u('u2')]
+    for (const bad of [0, -3, Number.NaN, Number.POSITIVE_INFINITY, '2' as never, {} as never]) {
+      expect(() => applyMaxMessagesWindow(messages, bad as never)).not.toThrow()
+      expect(applyMaxMessagesWindow(messages, bad as never)).toBe(messages)
+    }
+  })
+
+  it('floors a fractional limit', () => {
+    expect(normalizeMaxMessages(2.7)).toBe(2)
+    expect(normalizeMaxMessages(0.4)).toBeNull()
   })
 })

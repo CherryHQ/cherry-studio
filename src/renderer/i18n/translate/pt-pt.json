@@ -3480,6 +3480,7 @@
         "context_compress_model": "Modelo de compressão",
         "context_compress_model_follow": "Padrão",
         "context_count": "Contagem de contexto",
+        "context_count_follow_global": "[to be translated]:Follow global ({{count}})",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
@@ -4631,6 +4632,8 @@
         "font_size_medium": "Médio",
         "font_size_small": "Pequeno",
         "font_title": "Definições do tipo de letra",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "Tipo de letra serifado",
         "show_table_of_contents": "Mostrar índice",
         "show_table_of_contents_description": "Apresenta uma barra lateral com o índice para facilitar a navegação no documento",
@@ -5398,6 +5401,7 @@
         "insertRowBefore": "inserir acima"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "inserir fórmula matemática",

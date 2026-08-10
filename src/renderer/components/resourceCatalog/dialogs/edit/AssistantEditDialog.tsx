@@ -35,6 +35,7 @@ import {
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
 import { DEFAULT_ASSISTANT_SETTINGS, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/data/types/assistant'
+import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { Sparkles, Trash2 } from 'lucide-react'
@@ -665,6 +666,7 @@ function AssistantAdvancedFields({
   // Global defaults, shown as the seed when the user turns the override on for
   // an assistant that has none stored yet.
   const [globalContextEnabled] = usePreference('chat.context_settings.enabled')
+  const [globalMaxMessages] = usePreference('chat.context_settings.max_messages')
   const [globalCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
   const [globalTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
   const [globalCompressModelId] = usePreference('chat.context_settings.compress.model_id')
@@ -834,6 +836,7 @@ function AssistantAdvancedFields({
         globalDefaults={{
           enabled: globalContextEnabled,
           compressEnabled: globalCompressEnabled,
+          maxMessages: globalMaxMessages,
           truncateThreshold: globalTruncateThreshold,
           compressModelId: globalCompressModelId || null
         }}
@@ -869,6 +872,7 @@ function ContextManagementFields({
     enabled: boolean
     compressEnabled: boolean
     truncateThreshold: number
+    maxMessages: number | null
     compressModelId: string | null
   }
 }) {
@@ -910,7 +914,11 @@ function ContextManagementFields({
                 precision={0}
                 align="start"
                 changeOnBlur
-                placeholder={t('library.config.basic.context_count_unlimited')}
+                placeholder={
+                  globalDefaults.maxMessages === null
+                    ? t('library.config.basic.context_count_unlimited')
+                    : t('library.config.basic.context_count_follow_global', { count: globalDefaults.maxMessages })
+                }
                 className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
                 value={field.value}
                 onChange={(value) => field.onChange(value === null ? null : Math.floor(value))}
@@ -989,15 +997,23 @@ function ContextManagementFields({
                 <FormControl>
                   <EditableNumber
                     block
-                    min={1}
-                    step={1000}
+                    // Same floor and step as the global panel — see
+                    // MIN_TRUNCATE_THRESHOLD: this value doubles as fs_read's
+                    // per-call cap, and step=1000 with min=1 made the default
+                    // a stepMismatch.
+                    min={MIN_TRUNCATE_THRESHOLD}
+                    step={1}
                     precision={0}
                     align="start"
                     changeOnBlur
                     className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
                     value={field.value}
                     onChange={(value) =>
-                      field.onChange(typeof value === 'number' && value > 0 ? value : globalDefaults.truncateThreshold)
+                      field.onChange(
+                        typeof value === 'number' && Number.isFinite(value)
+                          ? Math.max(MIN_TRUNCATE_THRESHOLD, Math.floor(value))
+                          : globalDefaults.truncateThreshold
+                      )
                     }
                   />
                 </FormControl>

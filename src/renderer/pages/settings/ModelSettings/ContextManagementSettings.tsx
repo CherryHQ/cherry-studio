@@ -11,6 +11,7 @@ import {
 import { useModelById } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
+import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { useCallback } from 'react'
@@ -37,10 +38,12 @@ export const ContextManagementSettings = () => {
   const { model: compressModel } = useModelById(compressModelId as UniqueModelId | null)
   const { providers } = useProviders({ enabled: true })
 
+  // `undefined` is the selector's CLEAR signal, not a no-op: swallowing it left
+  // the field stuck on whatever model was picked first, with no way back to
+  // "follow current model".
   const handleSelectCompressModel = useCallback(
     (selected: Model | undefined) => {
-      if (!selected) return
-      void setCompressModelId(selected.id)
+      void setCompressModelId(selected?.id ?? null)
     },
     [setCompressModelId]
   )
@@ -83,7 +86,13 @@ export const ContextManagementSettings = () => {
             {t('settings.models.context_management.enabled_description')}
           </SettingDescription>
         </div>
-        <Switch checked={enabled} onCheckedChange={setEnabled} />
+        <Switch
+          checked={enabled}
+          onCheckedChange={setEnabled}
+          // SettingRowTitle renders a plain div, so it contributes no accessible
+          // name — without this the control announces as an unnamed "switch".
+          aria-label={t('settings.models.context_management.enabled')}
+        />
       </SettingRow>
       {enabled && (
         <>
@@ -98,8 +107,15 @@ export const ContextManagementSettings = () => {
             <div className="w-[220px] shrink-0">
               <EditableNumber
                 block
-                min={1}
-                step={1000}
+                // Floor, not 1: this value is handed to fs_read as its per-call
+                // output cap, and every line it returns carries a 7-char gutter
+                // (`padStart(6)` + tab). Below this a single line can exceed the
+                // cap, so persisted output becomes permanently unreadable.
+                min={MIN_TRUNCATE_THRESHOLD}
+                // step=1000 with min=1 made the 50000 default a stepMismatch
+                // (49999 % 1000 !== 0), which native validation and assistive
+                // tech both report as invalid.
+                step={1}
                 precision={0}
                 align="start"
                 changeOnBlur
@@ -107,7 +123,8 @@ export const ContextManagementSettings = () => {
                 className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
                 value={truncateThreshold}
                 onChange={(value) => {
-                  if (typeof value === 'number' && value > 0) void setTruncateThreshold(Math.floor(value))
+                  if (typeof value !== 'number' || !Number.isFinite(value)) return
+                  void setTruncateThreshold(Math.max(MIN_TRUNCATE_THRESHOLD, Math.floor(value)))
                 }}
               />
             </div>
@@ -120,7 +137,11 @@ export const ContextManagementSettings = () => {
                 {t('settings.models.context_management.compress_enabled_description')}
               </SettingDescription>
             </div>
-            <Switch checked={compressEnabled} onCheckedChange={setCompressEnabled} />
+            <Switch
+              checked={compressEnabled}
+              onCheckedChange={setCompressEnabled}
+              aria-label={t('settings.models.context_management.compress_enabled')}
+            />
           </SettingRow>
           {compressEnabled && (
             <>

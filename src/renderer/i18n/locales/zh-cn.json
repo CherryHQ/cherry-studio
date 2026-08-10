@@ -3480,6 +3480,7 @@
         "context_compress_model": "压缩模型",
         "context_compress_model_follow": "跟随当前模型",
         "context_count": "保留最近消息数",
+        "context_count_follow_global": "跟随全局（{{count}} 条）",
         "context_count_unlimited": "不限制",
         "context_globally_disabled": "全局已关闭上下文管理，此处的转存与压缩设置暂不生效",
         "context_inherited": "当前跟随全局设置：{{compress}}，工具输出超过 {{threshold}} 字符时转存",
@@ -3502,7 +3503,7 @@
             "hint": "接近上下文窗口上限时自动摘要较早的对话"
           },
           "context_count": {
-            "hint": "仅发送最近若干条消息，更早的消息不进入上下文；留空表示不限制"
+            "hint": "仅发送最近若干条消息，更早的消息不进入上下文；留空表示跟随全局设置"
           },
           "context_management": {
             "hint": "此助手使用独立的上下文管理设置，关闭时跟随全局设置"

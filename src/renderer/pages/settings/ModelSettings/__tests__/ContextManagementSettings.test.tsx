@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest'
 
+import { MIN_TRUNCATE_THRESHOLD } from '@shared/data/types/contextSettings'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -100,16 +101,24 @@ describe('ContextManagementSettings', () => {
     expect(prefs.setters['chat.context_settings.enabled']).toHaveBeenCalledWith(true)
   })
 
-  it('writes a floored positive threshold and ignores invalid input', () => {
+  it('floors the threshold and clamps it to the fs_read-safe minimum', () => {
     render(<ContextManagementSettings />)
     const input = screen.getByLabelText('settings.models.context_management.truncate_threshold')
+    const setter = prefs.setters['chat.context_settings.truncate_threshold']
+
     fireEvent.change(input, { target: { value: '80000.7' } })
     fireEvent.blur(input)
-    expect(prefs.setters['chat.context_settings.truncate_threshold']).toHaveBeenCalledWith(80_000)
+    expect(setter).toHaveBeenLastCalledWith(80_000)
 
+    // Not ignored — clamped. The value doubles as fs_read's per-call output cap,
+    // so anything below the floor makes persisted output permanently unreadable.
     fireEvent.change(input, { target: { value: '-5' } })
     fireEvent.blur(input)
-    expect(prefs.setters['chat.context_settings.truncate_threshold']).toHaveBeenCalledTimes(1)
+    expect(setter).toHaveBeenLastCalledWith(MIN_TRUNCATE_THRESHOLD)
+
+    fireEvent.change(input, { target: { value: '1' } })
+    fireEvent.blur(input)
+    expect(setter).toHaveBeenLastCalledWith(MIN_TRUNCATE_THRESHOLD)
   })
 
   it('shows the compress model selector only while compression is on', () => {

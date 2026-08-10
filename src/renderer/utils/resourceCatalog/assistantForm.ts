@@ -83,10 +83,15 @@ function buildAssistantSettingsFromForm(
     customParameters: form.customParameters,
     mcpMode: form.mcpMode,
     // null = clear the override (inherit globals). The `enabled` kill-switch
-    // is deliberately not written here — it stays a global/topic-layer concern.
-    // Absent (not null) = unlimited — the override schema has no null.
-    // maxMessages rides the same object but is independent of the override
-    // switch, so it must survive when only it is set.
+    // is deliberately not written here — it stays a global-layer concern.
+    //
+    // An empty limit is written as ABSENT (inherit), never as an explicit null:
+    // the field's placeholder names the inherited global, so "empty" reads as
+    // "follow global" in the UI and must mean the same thing in storage. The
+    // schema can still carry an explicit null (see ContextSettingsOverride) —
+    // no assistant-level control produces one today. maxMessages rides the same
+    // object but is independent of the override switch, so it must survive when
+    // only it is set.
     contextSettings: form.contextOverrideEnabled
       ? {
           truncateThreshold: form.contextTruncateThreshold,

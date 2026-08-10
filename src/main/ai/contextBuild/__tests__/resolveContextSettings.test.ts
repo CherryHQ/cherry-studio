@@ -10,23 +10,25 @@ describe('resolveContextSettings', () => {
     expect(resolveContextSettings({ globals })).toEqual(globals)
   })
 
-  it('topic over assistant over global, per field', () => {
+  it('assistant over global, per field', () => {
     const out = resolveContextSettings({
       globals,
-      assistant: { truncateThreshold: 50_000, compress: { enabled: false } },
-      topic: { truncateThreshold: 20_000 }
+      assistant: { truncateThreshold: 20_000, compress: { enabled: false } }
     })
-    expect(out.truncateThreshold).toBe(20_000) // topic wins
-    expect(out.compress.enabled).toBe(false) // assistant wins (topic silent)
-    expect(out.enabled).toBe(true) // global floor
+    expect(out.truncateThreshold).toBe(20_000) // assistant wins
+    expect(out.compress.enabled).toBe(false) // assistant wins
+    expect(out.enabled).toBe(true) // global floor (assistant silent)
   })
 
-  it('maxMessages merges topic ?? assistant ?? globals (null = unlimited)', () => {
-    expect(resolveContextSettings({ globals }).maxMessages).toBeNull()
-    expect(resolveContextSettings({ globals, assistant: { maxMessages: 5 } }).maxMessages).toBe(5)
-    expect(
-      resolveContextSettings({ globals, assistant: { maxMessages: 5 }, topic: { maxMessages: 1 } }).maxMessages
-    ).toBe(1)
+  // maxMessages is three-state, so it merges by property PRESENCE rather than
+  // `??`: an assistant explicitly set to "no limit" has to beat a finite
+  // global, which `??` cannot express.
+  it('maxMessages: absent inherits, a value wins, an explicit null means unlimited', () => {
+    const limited = { ...globals, maxMessages: 5 }
+    expect(resolveContextSettings({ globals: limited }).maxMessages).toBe(5)
+    expect(resolveContextSettings({ globals: limited, assistant: {} }).maxMessages).toBe(5)
+    expect(resolveContextSettings({ globals: limited, assistant: { maxMessages: 1 } }).maxMessages).toBe(1)
+    expect(resolveContextSettings({ globals: limited, assistant: { maxMessages: null } }).maxMessages).toBeNull()
   })
 
   it('explicit compress.modelId from any layer wins; else null', () => {

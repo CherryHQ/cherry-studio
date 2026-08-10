@@ -3480,6 +3480,7 @@
         "context_compress_model": "圧縮モデル",
         "context_compress_model_follow": "デフォルト",
         "context_count": "コンテキストカウント",
+        "context_count_follow_global": "[to be translated]:Follow global ({{count}})",
         "context_count_unlimited": "[to be translated]:Unlimited",
         "context_globally_disabled": "[to be translated]:Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "[to be translated]:Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
@@ -4631,6 +4632,8 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "フォント設定",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "セリフフォント",
         "show_table_of_contents": "目次アウトラインを表示",
         "show_table_of_contents_description": "目次アウトラインサイドバーを表示し、文書内のナビゲーションを容易にする",
@@ -5398,6 +5401,7 @@
         "insertRowBefore": "上に挿入"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "数式を挿入します",

@@ -3480,6 +3480,7 @@
         "context_compress_model": "Compression model",
         "context_compress_model_follow": "Follow current model",
         "context_count": "Recent messages kept",
+        "context_count_follow_global": "Follow global ({{count}})",
         "context_count_unlimited": "Unlimited",
         "context_globally_disabled": "Context management is off globally, so the offload and compression settings here have no effect",
         "context_inherited": "Following the global settings: {{compress}}; tool outputs beyond {{threshold}} characters are offloaded",
@@ -3502,7 +3503,7 @@
             "hint": "Summarize older turns automatically when nearing the context window"
           },
           "context_count": {
-            "hint": "Send only the most recent messages; earlier ones are excluded from context. Leave empty for no limit"
+            "hint": "Send only the most recent messages; earlier ones are excluded from context. Leave empty to follow the global setting"
           },
           "context_management": {
             "hint": "Use this assistant’s own context-management settings; off follows the global settings"
