@@ -1,16 +1,24 @@
 import type { StreamChunkPayload } from '@shared/ai/transport'
+import type { UIMessageChunk } from 'ai'
+
+type ChunkPayload<TYPE extends UIMessageChunk['type']> = Omit<StreamChunkPayload, 'chunk'> & {
+  chunk: Extract<UIMessageChunk, { type: TYPE }>
+}
+
+export type ToolCreatorPayload = ChunkPayload<'tool-input-start' | 'tool-input-available'>
+export type ToolApprovalRequestPayload = ChunkPayload<'tool-approval-request'>
 
 /**
- * Minimal identity of a part-creating tool chunk (`tool-input-start` /
- * `tool-input-available`) the ring evicted while its part was still open —
- * just enough to synthesize a valid `tool-input-start` at attach time.
- * Deliberately excludes the input payload so a stash entry stays O(1)-sized.
+ * Complete part-creating tool chunk the ring evicted while its part was still
+ * open. `tool-input-available.input` is retained because it is the evidence a
+ * user needs to decide a later approval request.
  */
-export interface EvictedToolCreator {
-  toolName: string
-  providerExecuted?: boolean
-  dynamic?: boolean
-  title?: string
+export type EvictedToolCreator = ToolCreatorPayload
+
+/** Operational state retained independently from the lossy history ring. */
+export interface PendingApprovalCheckpoint {
+  creator?: ToolCreatorPayload
+  request: ToolApprovalRequestPayload
 }
 
 export interface CompactReplayContext {
@@ -23,6 +31,74 @@ export interface CompactReplayContext {
   seedToolCallIds?: ReadonlySet<string>
   /** Evicted part creators, keyed by toolCallId. See `EvictedToolCreator`. */
   evictedToolCreators?: ReadonlyMap<string, EvictedToolCreator>
+  /** Complete requests still awaiting a user decision, keyed by toolCallId. */
+  pendingApprovalCheckpoints?: ReadonlyMap<string, PendingApprovalCheckpoint>
+  /** Maximum UTF-8 bytes in one replayed delta chunk. */
+  maxDeltaBytes?: number
+}
+
+function utf8CodePointBytes(codePoint: number): number {
+  if (codePoint <= 0x7f) return 1
+  if (codePoint <= 0x7ff) return 2
+  if (codePoint <= 0xffff) return 3
+  return 4
+}
+
+function utf8ByteLength(value: string): number {
+  let bytes = 0
+  for (let index = 0; index < value.length; ) {
+    const codePoint = value.codePointAt(index)!
+    bytes += utf8CodePointBytes(codePoint)
+    index += codePoint > 0xffff ? 2 : 1
+  }
+  return bytes
+}
+
+/** Split without breaking Unicode code points. A configured limit below four bytes cannot split a single emoji further. */
+function splitUtf8(value: string, maxBytes: number): string[] {
+  if (!value || !Number.isFinite(maxBytes) || maxBytes <= 0) return [value]
+
+  const segments: string[] = []
+  let segmentStart = 0
+  let segmentBytes = 0
+
+  for (let index = 0; index < value.length; ) {
+    const codePoint = value.codePointAt(index)!
+    const codeUnits = codePoint > 0xffff ? 2 : 1
+    const codePointBytes = utf8CodePointBytes(codePoint)
+
+    if (segmentBytes > 0 && segmentBytes + codePointBytes > maxBytes) {
+      segments.push(value.slice(segmentStart, index))
+      segmentStart = index
+      segmentBytes = 0
+    }
+
+    segmentBytes += codePointBytes
+    index += codeUnits
+  }
+
+  segments.push(value.slice(segmentStart))
+  return segments
+}
+
+/** Split a single oversized incoming delta before it enters the replay ring. */
+export function splitDeltaPayload(payload: StreamChunkPayload, maxDeltaBytes: number): StreamChunkPayload[] {
+  const chunk = payload.chunk
+  const value =
+    chunk.type === 'text-delta' || chunk.type === 'reasoning-delta'
+      ? chunk.delta
+      : chunk.type === 'tool-input-delta'
+        ? chunk.inputTextDelta
+        : undefined
+  if (value === undefined) return [payload]
+
+  const segments = splitUtf8(value, maxDeltaBytes)
+  if (segments.length === 1) return [payload]
+
+  return segments.map((segment) => ({
+    ...payload,
+    chunk: chunk.type === 'tool-input-delta' ? { ...chunk, inputTextDelta: segment } : { ...chunk, delta: segment }
+  }))
 }
 
 /**
@@ -30,8 +106,8 @@ export interface CompactReplayContext {
  * part run (same part id / toolCallId, same executionId and anchorMessageId).
  * Returns the merged payload, or `undefined` when the two don't form a
  * contiguous run — or when merging would grow the entry past
- * `maxMergedChars`, so ingestion starts a new segment entry and the ring's
- * entry cap keeps bounding retained bytes (not just protocol units).
+ * `maxDeltaBytes`, so ingestion starts a new segment entry and the ring's
+ * entry cap keeps bounding retained UTF-8 bytes (not just protocol units).
  *
  * The merge is lossy w.r.t. the original chunks: `providerMetadata` keeps the
  * run's last non-undefined value. That is exactly the part state AI SDK's
@@ -48,7 +124,7 @@ export interface CompactReplayContext {
 export function mergeDeltaPayload(
   tail: StreamChunkPayload,
   incoming: StreamChunkPayload,
-  maxMergedChars?: number
+  maxDeltaBytes?: number
 ): StreamChunkPayload | undefined {
   if (tail.executionId !== incoming.executionId || tail.anchorMessageId !== incoming.anchorMessageId) {
     return undefined
@@ -59,7 +135,9 @@ export function mergeDeltaPayload(
     (prev.type === 'text-delta' && next.type === 'text-delta' && prev.id === next.id) ||
     (prev.type === 'reasoning-delta' && next.type === 'reasoning-delta' && prev.id === next.id)
   ) {
-    if (maxMergedChars !== undefined && prev.delta.length + next.delta.length > maxMergedChars) return undefined
+    if (maxDeltaBytes !== undefined && utf8ByteLength(prev.delta) + utf8ByteLength(next.delta) > maxDeltaBytes) {
+      return undefined
+    }
     return {
       ...tail,
       chunk: {
@@ -70,7 +148,10 @@ export function mergeDeltaPayload(
     }
   }
   if (prev.type === 'tool-input-delta' && next.type === 'tool-input-delta' && prev.toolCallId === next.toolCallId) {
-    if (maxMergedChars !== undefined && prev.inputTextDelta.length + next.inputTextDelta.length > maxMergedChars) {
+    if (
+      maxDeltaBytes !== undefined &&
+      utf8ByteLength(prev.inputTextDelta) + utf8ByteLength(next.inputTextDelta) > maxDeltaBytes
+    ) {
       return undefined
     }
     return {
@@ -99,10 +180,10 @@ export function mergeDeltaPayload(
  *    `continue-conversation` execution's buffer legitimately opens with a
  *    bare `tool-output-*` for the approved call);
  *  - orphaned tool chunks whose creator is in `context.evictedToolCreators`:
- *    synthesize a `tool-input-start` from the stashed metadata, so the part
- *    exists for the replayed chunk AND for future live chunks of the same
- *    toolCallId (the input streamed so far is lost until the terminal DB
- *    refresh — same head-truncation degradation as text above);
+ *    replay the complete creator, so the part exists for the replayed chunk
+ *    and future live chunks of the same toolCallId;
+ *  - pending approvals whose history was evicted: prepend their complete
+ *    creator + request checkpoint so the user can still inspect and decide;
  *  - remaining orphaned tool chunks: drop — nothing to synthesize from, and
  *    output/approval chunks need a part to apply to.
  */
@@ -112,6 +193,18 @@ export function buildCompactReplay(
 ): StreamChunkPayload[] {
   const compact: StreamChunkPayload[] = []
   let pending: StreamChunkPayload | undefined
+
+  const bufferedApprovalIds = new Set<string>()
+  for (const payload of buffer) {
+    if (payload.chunk.type === 'tool-approval-request') bufferedApprovalIds.add(payload.chunk.approvalId)
+  }
+  const approvalPrelude: StreamChunkPayload[] = []
+  for (const checkpoint of context?.pendingApprovalCheckpoints?.values() ?? []) {
+    if (bufferedApprovalIds.has(checkpoint.request.chunk.approvalId)) continue
+    if (checkpoint.creator) approvalPrelude.push(checkpoint.creator)
+    approvalPrelude.push(checkpoint.request)
+  }
+  const replayBuffer = approvalPrelude.length > 0 ? [...approvalPrelude, ...buffer] : buffer
 
   const openParts = new Set<string>()
   const createdToolParts = new Set<string>()
@@ -129,33 +222,29 @@ export function buildCompactReplay(
   }
 
   /**
-   * Rebuild an evicted creator's `tool-input-start` from the stash so the
-   * orphaned chunk (and future live chunks of the same toolCallId) have a
-   * part to land on. Returns false when the stash doesn't know the id.
+   * Replay a complete creator from operational approval state or the evicted
+   * creator stash. A tool-input delta specifically requires a start chunk;
+   * terminal/approval chunks can use either creator form.
    */
-  const synthesizeEvictedStart = (payload: StreamChunkPayload, toolCallId: string): boolean => {
-    const creator = context?.evictedToolCreators?.get(toolCallId)
+  const replayEvictedCreator = (
+    payload: StreamChunkPayload,
+    toolCallId: string,
+    requireInputStart = false
+  ): boolean => {
+    const creator =
+      context?.pendingApprovalCheckpoints?.get(toolCallId)?.creator ?? context?.evictedToolCreators?.get(toolCallId)
     if (!creator) return false
+    if (requireInputStart && creator.chunk.type !== 'tool-input-start') return false
     const key = scopedKey(payload, toolCallId)
     createdToolParts.add(key)
-    startedToolInputs.add(key)
-    compact.push({
-      ...payload,
-      chunk: {
-        type: 'tool-input-start',
-        toolCallId,
-        toolName: creator.toolName,
-        ...(creator.providerExecuted !== undefined && { providerExecuted: creator.providerExecuted }),
-        ...(creator.dynamic !== undefined && { dynamic: creator.dynamic }),
-        ...(creator.title !== undefined && { title: creator.title })
-      }
-    })
+    if (creator.chunk.type === 'tool-input-start') startedToolInputs.add(key)
+    compact.push(creator)
     return true
   }
 
-  for (const payload of buffer) {
+  for (const payload of replayBuffer) {
     if (pending) {
-      const merged = mergeDeltaPayload(pending, payload)
+      const merged = mergeDeltaPayload(pending, payload, context?.maxDeltaBytes)
       if (merged) {
         pending = merged
         continue
@@ -212,7 +301,7 @@ export function buildCompactReplay(
         // so only an evicted-creator synthesis can repair one.
         if (
           !startedToolInputs.has(scopedKey(payload, chunk.toolCallId)) &&
-          !synthesizeEvictedStart(payload, chunk.toolCallId)
+          !replayEvictedCreator(payload, chunk.toolCallId, true)
         ) {
           break
         }
@@ -236,7 +325,7 @@ export function buildCompactReplay(
         if (
           !createdToolParts.has(scopedKey(payload, chunk.toolCallId)) &&
           !context?.seedToolCallIds?.has(chunk.toolCallId) &&
-          !synthesizeEvictedStart(payload, chunk.toolCallId)
+          !replayEvictedCreator(payload, chunk.toolCallId)
         ) {
           break
         }

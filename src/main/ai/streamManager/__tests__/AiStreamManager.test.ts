@@ -1210,10 +1210,128 @@ describe('AiStreamManager', () => {
       ])
     })
 
-    it('synthesizes an evicted creator start for an approval request that outlived it', () => {
-      // The approval-request only pauses eviction once it ARRIVES — a busy
-      // stream can evict the tool's creator chunks before that. The stash must
-      // keep the approval decidable after a cold reattach.
+    it('keeps an evicted creator through preliminary outputs so the final replay stays parseable', async () => {
+      vi.useRealTimers()
+      const ringMgr = createManager({ maxBufferChunks: 2 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'A',
+        toolName: 'search',
+        input: { query: 'Cherry Studio' }
+      } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'A',
+        output: { progress: 50 },
+        preliminary: true
+      } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p2' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-output-available',
+        toolCallId: 'A',
+        output: { done: true }
+      } as UIMessageChunk)
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+
+      const errors: unknown[] = []
+      const stream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const { chunk } of response.bufferedChunks) controller.enqueue(chunk)
+          controller.close()
+        }
+      })
+      let message: CherryUIMessage | undefined
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+        stream,
+        terminateOnError: false,
+        onError: (err) => errors.push(err)
+      })) {
+        message = snapshot
+      }
+
+      expect(errors).toEqual([])
+      expect(message?.parts.find((part) => 'toolCallId' in part && part.toolCallId === 'A')).toMatchObject({
+        input: { query: 'Cherry Studio' },
+        output: { done: true },
+        state: 'output-available'
+      })
+    })
+
+    it('keeps later preliminary output and a future live final on the same repaired tool part', async () => {
+      vi.useRealTimers()
+      const ringMgr = createManager({ maxBufferChunks: 2 })
+      startSingle(ringMgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [new FakeListener('l:a')]
+      })
+
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'tool-input-available',
+        toolCallId: 'A',
+        toolName: 'search',
+        input: { query: 'Cherry Studio' }
+      } as UIMessageChunk)
+      for (const progress of [25, 50]) {
+        ringMgr.onChunk('a', 'provider-a::model-a', {
+          type: 'tool-output-available',
+          toolCallId: 'A',
+          output: { progress },
+          preliminary: true
+        } as UIMessageChunk)
+        if (progress === 25) {
+          ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
+        }
+      }
+
+      const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
+      const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      expect(response.status).toBe('attached')
+      if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
+
+      const errors: unknown[] = []
+      const stream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const { chunk } of response.bufferedChunks) controller.enqueue(chunk)
+          controller.enqueue({
+            type: 'tool-output-available',
+            toolCallId: 'A',
+            output: { done: true }
+          } as UIMessageChunk)
+          controller.close()
+        }
+      })
+      let message: CherryUIMessage | undefined
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+        stream,
+        terminateOnError: false,
+        onError: (err) => errors.push(err)
+      })) {
+        message = snapshot
+      }
+
+      expect(errors).toEqual([])
+      expect(message?.parts.find((part) => 'toolCallId' in part && part.toolCallId === 'A')).toMatchObject({
+        output: { done: true },
+        state: 'output-available'
+      })
+    })
+
+    it('replays a complete pending approval checkpoint after history evicts its request', async () => {
+      vi.useRealTimers()
       const ringMgr = createManager({ maxBufferChunks: 2 })
       startSingle(ringMgr, {
         topicId: 'a',
@@ -1230,8 +1348,18 @@ describe('AiStreamManager', () => {
       ringMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-input-available',
         toolCallId: 'A',
-        toolName: 'alpha',
-        input: { a: 1 }
+        toolName: 'AskUserQuestion',
+        input: {
+          questions: [
+            {
+              question: 'Continue?',
+              options: [
+                { label: 'Yes', description: 'Continue the task' },
+                { label: 'No', description: 'Stop here' }
+              ]
+            }
+          ]
+        }
       } as UIMessageChunk)
       ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p1' } as UIMessageChunk)
       ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p2' } as UIMessageChunk)
@@ -1240,22 +1368,51 @@ describe('AiStreamManager', () => {
         toolCallId: 'A',
         approvalId: 'ap-1'
       } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p3' } as UIMessageChunk)
+      ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p4' } as UIMessageChunk)
 
-      // Both creator chunks were evicted before the approval arrived.
-      expect(ringMgr.inspect('a')!.executions[0].droppedChunks).toBe(2)
+      // Both the input and approval request have left the ordinary ring, which
+      // remains hard-capped while the operational checkpoint stays complete.
+      expect(ringMgr.inspect('a')!.executions[0]).toMatchObject({ bufferedChunkCount: 2, droppedChunks: 4 })
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
       const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
       expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual([
+        'tool-input-available',
+        'tool-approval-request',
         'text-start',
-        'text-start',
-        'tool-input-start',
-        'tool-approval-request'
+        'text-start'
       ])
-      expect(response.bufferedChunks[2].chunk).toMatchObject({ toolCallId: 'A', toolName: 'alpha' })
-      expect(response.bufferedChunks[3].chunk).toMatchObject({ toolCallId: 'A', approvalId: 'ap-1' })
+      expect(response.bufferedChunks[0].chunk).toMatchObject({
+        toolCallId: 'A',
+        toolName: 'AskUserQuestion',
+        input: { questions: [{ question: 'Continue?' }] }
+      })
+
+      const errors: unknown[] = []
+      const stream = new ReadableStream<UIMessageChunk>({
+        start(controller) {
+          for (const { chunk } of response.bufferedChunks) controller.enqueue(chunk)
+          controller.close()
+        }
+      })
+      let message: CherryUIMessage | undefined
+      for await (const snapshot of readUIMessageStream<CherryUIMessage>({
+        stream,
+        terminateOnError: false,
+        onError: (err) => errors.push(err)
+      })) {
+        message = snapshot
+      }
+
+      expect(errors).toEqual([])
+      expect(message?.parts.find((part) => 'toolCallId' in part && part.toolCallId === 'A')).toMatchObject({
+        state: 'approval-requested',
+        approval: { id: 'ap-1' },
+        input: { questions: [{ question: 'Continue?' }] }
+      })
     })
 
     it('keeps a seeded continuation tool result in the attach replay', () => {
@@ -1296,11 +1453,8 @@ describe('AiStreamManager', () => {
       expect(response.bufferedChunks[0].chunk).toMatchObject({ toolCallId: 'call-1' })
     })
 
-    it('segments merged delta runs at maxMergedDeltaChars so long content evicts instead of accreting', () => {
-      // Without the segment cap one part's delta run accretes the whole turn
-      // into a single ring entry — entry-bounded but byte-unbounded. Segmented,
-      // a long run spans entries and FIFO eviction trims its head.
-      const ringMgr = createManager({ maxBufferChunks: 2, maxMergedDeltaChars: 2 })
+    it('splits one oversized delta at maxDeltaBytes so long content evicts instead of accreting', () => {
+      const ringMgr = createManager({ maxBufferChunks: 2, maxDeltaBytes: 4 })
       startSingle(ringMgr, {
         topicId: 'a',
         modelId: 'provider-a::model-a',
@@ -1309,9 +1463,11 @@ describe('AiStreamManager', () => {
       })
 
       ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-start', id: 'p' } as UIMessageChunk)
-      for (const delta of ['ab', 'cd', 'ef']) {
-        ringMgr.onChunk('a', 'provider-a::model-a', { type: 'text-delta', id: 'p', delta } as UIMessageChunk)
-      }
+      ringMgr.onChunk('a', 'provider-a::model-a', {
+        type: 'text-delta',
+        id: 'p',
+        delta: 'abcdefghijkl'
+      } as UIMessageChunk)
 
       const snap = ringMgr.inspect('a')!
       expect(snap.executions[0].bufferedChunkCount).toBe(2)
@@ -1321,9 +1477,12 @@ describe('AiStreamManager', () => {
       const response = ringMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
       expect(response.status).toBe('attached')
       if (response.status !== 'attached') throw new Error(`Expected attached, got ${response.status}`)
-      // Surviving segments re-merge at attach; the evicted start is synthesized.
-      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual(['text-start', 'text-delta'])
-      expect(response.bufferedChunks[1].chunk).toMatchObject({ delta: 'cdef' })
+      // Attach preserves the same ceiling instead of reassembling the retained
+      // segments into one large string.
+      expect(response.bufferedChunks.map(({ chunk }) => chunk.type)).toEqual(['text-start', 'text-delta', 'text-delta'])
+      expect(response.bufferedChunks.slice(1).map(({ chunk }) => ('delta' in chunk ? chunk.delta : undefined))).toEqual(
+        ['efgh', 'ijkl']
+      )
     })
 
     it('attaches when the surviving ring contains a complete pending approval', () => {
@@ -1370,7 +1529,7 @@ describe('AiStreamManager', () => {
       expect(response.bufferedChunks[1].chunk).toMatchObject({ delta: '01234' })
     })
 
-    it('pauses ring eviction while an approval is pending and resumes once it resolves', () => {
+    it('keeps the history ring capped while an approval is pending and after it resolves', () => {
       const approvalMgr = createManager({ maxBufferChunks: 3 })
       startSingle(approvalMgr, {
         topicId: 'a',
@@ -1397,8 +1556,8 @@ describe('AiStreamManager', () => {
         approvalId: 'approval-1',
         toolCallId: 'call-1'
       } as UIMessageChunk)
-      // Over the cap while pending: nothing may be evicted, so the tool input
-      // needed to render and act on the approval stays replayable.
+      // The operational approval checkpoint keeps the input replayable while
+      // ordinary history continues to obey the cap.
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'text-delta',
         id: 'p2',
@@ -1407,8 +1566,8 @@ describe('AiStreamManager', () => {
 
       const snap = approvalMgr.inspect('a')!
       // The two same-part deltas merged into one entry on ingest.
-      expect(snap.executions[0].bufferedChunkCount).toBe(4)
-      expect(snap.executions[0].droppedChunks).toBe(0)
+      expect(snap.executions[0].bufferedChunkCount).toBe(3)
+      expect(snap.executions[0].droppedChunks).toBe(1)
 
       const sender = { id: 1, isDestroyed: () => false, send: vi.fn(), once: vi.fn() }
       const response = approvalMgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
@@ -1425,8 +1584,8 @@ describe('AiStreamManager', () => {
       ])
       expect(response.bufferedChunks[0].chunk).toMatchObject({ toolCallId: 'call-1' })
 
-      // The approval response clears the pending set before the eviction
-      // check runs, so this same chunk resumes ordinary ring behaviour.
+      // Resolving the approval removes its checkpoint; the ring remains at the
+      // same hard cap instead of preserving an over-cap length.
       approvalMgr.onChunk('a', 'provider-a::model-a', {
         type: 'tool-output-available',
         toolCallId: 'call-1',
@@ -1434,8 +1593,8 @@ describe('AiStreamManager', () => {
       } as UIMessageChunk)
 
       const after = approvalMgr.inspect('a')!
-      expect(after.executions[0].bufferedChunkCount).toBe(4)
-      expect(after.executions[0].droppedChunks).toBe(1)
+      expect(after.executions[0].bufferedChunkCount).toBe(3)
+      expect(after.executions[0].droppedChunks).toBe(2)
     })
 
     it('stream remains accessible during grace period', async () => {

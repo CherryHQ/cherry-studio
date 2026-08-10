@@ -6,7 +6,7 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
-import type { EvictedToolCreator } from './buildCompactReplay'
+import type { EvictedToolCreator, PendingApprovalCheckpoint } from './buildCompactReplay'
 import type { StreamLifecycle } from './lifecycle/StreamLifecycle'
 import type { MessageRuntimeTimingCollector } from './MessageRuntimeTimingCollector'
 
@@ -101,18 +101,20 @@ export interface StreamExecution {
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
-  /** Per-execution chunk ring (cap = `maxBufferChunks`); contiguous deltas merge into the tail on ingest (segmented at `maxMergedDeltaChars` so the entry cap also bounds bytes); overflow drops oldest and bumps `droppedChunks`. */
+  /** Per-execution history ring (cap = `maxBufferChunks`); delta entries are capped by `maxDeltaBytes`; overflow drops oldest and bumps `droppedChunks`. */
   buffer: StreamChunkPayload[]
   droppedChunks: number
   /**
    * Part-creating tool chunks the ring evicted while their part was still
-   * open, keyed by toolCallId — attach-time repair synthesizes a
-   * `tool-input-start` from them so surviving orphans and future live chunks
-   * stay parseable. Self-cleaning: evicting a part's terminal chunk removes
-   * its entry (every earlier chunk of that part is already out of the ring,
-   * and no future chunk will reference it).
+   * open, keyed by toolCallId — attach-time repair replays the exact creator
+   * so surviving orphans and future live chunks stay parseable and retain
+   * complete approval input. Self-cleaning: evicting a part's terminal chunk
+   * removes its entry (every earlier chunk of that part is already out of the
+   * ring, and no future chunk will reference it).
    */
   evictedToolCreators?: Map<string, EvictedToolCreator>
+  /** Complete input + request for approvals that remain actionable after lossy history eviction. */
+  pendingApprovalCheckpoints?: Map<string, PendingApprovalCheckpoint>
   /**
    * toolCallIds present on the accumulator seed (`continue-conversation`
    * anchor message). Replay chunks referencing them are valid without an
@@ -184,12 +186,11 @@ export interface AiStreamManagerConfig {
   /** Per-execution buffer cap; exceeding stops buffering, not streaming. */
   readonly maxBufferChunks: number
   /**
-   * Max chars a buffer entry can hold before the ingest-time delta merge
-   * starts a new segment entry. Keeps `maxBufferChunks` a real byte bound
-   * (cap × segment size) instead of entry-count-only — one part's delta run
-   * can no longer accrete the whole turn into a single unbounded string.
+   * Maximum UTF-8 bytes in one buffered or replayed delta entry. Oversized
+   * incoming deltas are split before ingestion, and attach-time compaction
+   * observes the same ceiling.
    */
-  readonly maxMergedDeltaChars: number
+  readonly maxDeltaBytes: number
   /** Cap on retained oversized tool outputs. Small because each entry is large. */
   readonly maxDeferredOutputs: number
   /**

@@ -1,7 +1,14 @@
 import type { UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { buildCompactReplay, mergeDeltaPayload } from '../buildCompactReplay'
+import {
+  buildCompactReplay,
+  mergeDeltaPayload,
+  type PendingApprovalCheckpoint,
+  splitDeltaPayload,
+  type ToolApprovalRequestPayload,
+  type ToolCreatorPayload
+} from '../buildCompactReplay'
 
 describe('buildCompactReplay', () => {
   it('merges consecutive text-delta chunks with the same id', () => {
@@ -316,7 +323,17 @@ describe('buildCompactReplay', () => {
             chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } as UIMessageChunk
           }
         ],
-        { evictedToolCreators: new Map([['tc1', { toolName: 'searchWeb' }]]) }
+        {
+          evictedToolCreators: new Map<string, ToolCreatorPayload>([
+            [
+              'tc1',
+              {
+                topicId: 'topic-1',
+                chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb' }
+              }
+            ]
+          ])
+        }
       )
 
       expect(result).toEqual([
@@ -326,7 +343,7 @@ describe('buildCompactReplay', () => {
       ])
     })
 
-    it('synthesizes a start from the evicted-creator stash for an orphaned approval request', () => {
+    it('replays the complete input from the evicted-creator stash for an orphaned approval request', () => {
       const result = buildCompactReplay(
         [
           {
@@ -334,27 +351,80 @@ describe('buildCompactReplay', () => {
             chunk: { type: 'tool-approval-request', toolCallId: 'tc1', approvalId: 'ap1' } as UIMessageChunk
           }
         ],
-        { evictedToolCreators: new Map([['tc1', { toolName: 'searchWeb', providerExecuted: false }]]) }
+        {
+          evictedToolCreators: new Map<string, ToolCreatorPayload>([
+            [
+              'tc1',
+              {
+                topicId: 'topic-1',
+                chunk: {
+                  type: 'tool-input-available',
+                  toolCallId: 'tc1',
+                  toolName: 'searchWeb',
+                  input: { query: 'Cherry Studio' },
+                  providerExecuted: false
+                }
+              }
+            ]
+          ])
+        }
       )
 
       expect(result).toEqual([
         {
           topicId: 'topic-1',
-          chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb', providerExecuted: false }
+          chunk: {
+            type: 'tool-input-available',
+            toolCallId: 'tc1',
+            toolName: 'searchWeb',
+            input: { query: 'Cherry Studio' },
+            providerExecuted: false
+          }
         },
         { topicId: 'topic-1', chunk: { type: 'tool-approval-request', toolCallId: 'tc1', approvalId: 'ap1' } }
       ])
     })
+
+    it('prepends a pending approval checkpoint when history eviction removed the request', () => {
+      const creator = {
+        topicId: 'topic-1',
+        chunk: {
+          type: 'tool-input-available',
+          toolCallId: 'tc1',
+          toolName: 'AskUserQuestion',
+          input: { questions: [{ question: 'Continue?', options: [{ label: 'Yes' }, { label: 'No' }] }] }
+        }
+      } satisfies ToolCreatorPayload
+      const request = {
+        topicId: 'topic-1',
+        chunk: { type: 'tool-approval-request', toolCallId: 'tc1', approvalId: 'ap1' }
+      } satisfies ToolApprovalRequestPayload
+
+      const result = buildCompactReplay(
+        [{ topicId: 'topic-1', chunk: { type: 'text-start', id: 'later' } as UIMessageChunk }],
+        { pendingApprovalCheckpoints: new Map<string, PendingApprovalCheckpoint>([['tc1', { creator, request }]]) }
+      )
+
+      expect(result).toEqual([creator, request, { topicId: 'topic-1', chunk: { type: 'text-start', id: 'later' } }])
+    })
   })
 
   describe('mergeDeltaPayload segmentation', () => {
-    it('refuses a merge that would exceed maxMergedChars so ingest starts a new segment', () => {
+    it('refuses a merge that would exceed maxDeltaBytes so ingest starts a new segment', () => {
       const tail = { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'abcd' } as UIMessageChunk }
       const incoming = { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'ef' } as UIMessageChunk }
 
       expect(mergeDeltaPayload(tail, incoming, 5)).toBeUndefined()
       expect(mergeDeltaPayload(tail, incoming, 6)).toMatchObject({ chunk: { delta: 'abcdef' } })
       expect(mergeDeltaPayload(tail, incoming)).toMatchObject({ chunk: { delta: 'abcdef' } })
+    })
+
+    it('measures the merge ceiling in UTF-8 bytes', () => {
+      const tail = { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: '中' } as UIMessageChunk }
+      const incoming = { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'a' } as UIMessageChunk }
+
+      expect(mergeDeltaPayload(tail, incoming, 3)).toBeUndefined()
+      expect(mergeDeltaPayload(tail, incoming, 4)).toMatchObject({ chunk: { delta: '中a' } })
     })
 
     it('caps tool-input-delta merges the same way', () => {
@@ -369,6 +439,36 @@ describe('buildCompactReplay', () => {
 
       expect(mergeDeltaPayload(tail, incoming, 6)).toBeUndefined()
       expect(mergeDeltaPayload(tail, incoming, 7)).toMatchObject({ chunk: { inputTextDelta: '{"q":1}' } })
+    })
+
+    it('splits one oversized incoming delta without breaking Unicode code points', () => {
+      const payload = {
+        topicId: 't',
+        chunk: { type: 'text-delta', id: 'p1', delta: 'a🙂bc' } as UIMessageChunk
+      }
+
+      expect(splitDeltaPayload(payload, 4).map(({ chunk }) => ('delta' in chunk ? chunk.delta : undefined))).toEqual([
+        'a',
+        '🙂',
+        'bc'
+      ])
+    })
+
+    it('keeps attach-time compaction under the same delta byte ceiling', () => {
+      const result = buildCompactReplay(
+        [
+          { topicId: 't', chunk: { type: 'text-start', id: 'p1' } as UIMessageChunk },
+          { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'abcd' } as UIMessageChunk },
+          { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'efgh' } as UIMessageChunk }
+        ],
+        { maxDeltaBytes: 4 }
+      )
+
+      expect(result).toEqual([
+        { topicId: 't', chunk: { type: 'text-start', id: 'p1' } },
+        { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'abcd' } },
+        { topicId: 't', chunk: { type: 'text-delta', id: 'p1', delta: 'efgh' } }
+      ])
     })
   })
 })

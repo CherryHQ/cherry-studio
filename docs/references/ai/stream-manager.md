@@ -311,10 +311,15 @@ interface StreamExecution {
 
   // Per-execution ring buffer for reconnect replay. Hitting
   // `maxBufferChunks` drops the oldest entry and bumps `droppedChunks`.
+  // Delta entries are split/merged under `maxDeltaBytes` in UTF-8 bytes.
   // Independent buffers prevent a chatty model from evicting a slower
   // model's replay (a shared buffer would).
   buffer: StreamChunkPayload[]
   droppedChunks: number
+
+  // Complete creator chunks for still-open tool parts whose history entry
+  // was evicted, used to repair orphaned replay/live tool chunks.
+  evictedToolCreators?: Map<string, EvictedToolCreator>
 
   finalMessage?: CherryUIMessage
 
@@ -322,6 +327,11 @@ interface StreamExecution {
   // response. Read by `resolveTerminalStatus` to surface
   // `awaiting-approval` on the topic.
   pendingApprovalToolCallIds?: Set<string>
+
+  // Complete input + request for each still-pending approval. Operational
+  // state lives outside the lossy history ring and is cleared on response or
+  // terminal interruption.
+  pendingApprovalCheckpoints?: Map<string, PendingApprovalCheckpoint>
 
   error?: SerializedError
   siblingsGroupId?: number
@@ -357,14 +367,17 @@ The terminal status is derived once when the last execution terminates.
 
 ### Approval reconnect integrity
 
-The ordinary per-execution ring remains bounded and lossy; pending tool
-approvals do not introduce a second recovery buffer. Instead, ring eviction
-pauses while an execution's `pendingApprovalToolCallIds` set is non-empty:
-evicted chunks are pure history, but a pending approval's `tool-input-*`
-chunks are still-operable state a reconnect must replay for the user to
-decide. Growth stays bounded because the approval blocks the round (almost no
-chunks stream during the wait) and `approvalIdleTimeoutMs` caps the window.
-Eviction resumes with the same chunk that resolves the approval.
+The ordinary per-execution history ring is always bounded and lossy, including
+while a tool approval is pending. Actionable approval state is retained
+separately in `pendingApprovalCheckpoints`: the complete
+`tool-input-available` creator (including its input) plus the
+`tool-approval-request`. `attach` replays that checkpoint when either chunk has
+left the ring, so a reconnect can still show the parameters and accept a user
+decision without allowing unrelated history to exceed `maxBufferChunks`.
+
+The checkpoint exists only while the approval is pending. A user response,
+tool output, abort, or error clears it. `approvalIdleTimeoutMs` remains an idle
+execution bound; it is not used as a history-memory bound.
 
 This keeps `attach` observational: subscribing a new window may never abort,
 pause, or otherwise change the topic or agent runtime. Runtime termination stays
@@ -909,7 +922,7 @@ the new.
 | Multi-window on same topic | Each window has its own `WebContentsListener`; chunks fan out to all alive listeners |
 | Same window re-attaches | Listener id is stable (`wc:${wc.id}:${topicId}`); `addListener` upserts by id |
 | Attach mid-stream | `attach` returns compact ring replay per execution; observer fills in the available tail without changing runtime state |
-| Ring overflow with pending approval | Eviction pauses while `pendingApprovalToolCallIds` is non-empty, so the approval's tool-input chunks stay replayable; it resumes with the chunk that resolves the approval |
+| Ring overflow with pending approval | History eviction continues at `maxBufferChunks`; `pendingApprovalCheckpoints` independently preserves the complete input + request needed to decide |
 | Multi-model + resubmit | the steer is queued once per topic; every model's execution yields via `steerYield`, and the single continuation answers it after the turn completes |
 | Stream emits `tool-approval-request` | Its `toolCallId` enters `exec.pendingApprovalToolCallIds`; on stream end the topic surfaces `awaiting-approval` via the shared cache |
 | Main process restart | `activeStreams` clears; in-flight streams are lost; the renderer re-reads from the DB |
