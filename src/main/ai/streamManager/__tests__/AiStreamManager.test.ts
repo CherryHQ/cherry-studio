@@ -1235,13 +1235,29 @@ describe('AiStreamManager', () => {
       // `attach` is the public IPC-facing method; tests pass a minimal
       // WebContents-shaped stub.
       const response = mgr.attach(sender as unknown as Electron.WebContents, { topicId: 'a' })
+      const attemptId = mgr.inspect('a')?.executions[0].attemptId
 
       expect(response).toEqual({
         status: 'attached',
         bufferedChunks: [
-          { topicId: 'a', executionId: 'provider-a::model-a', chunk: { type: 'text-start', id: 'p1' } },
-          { topicId: 'a', executionId: 'provider-a::model-a', chunk: { type: 'text-delta', id: 'p1', delta: 'hello' } },
-          { topicId: 'a', executionId: 'provider-a::model-a', chunk: { type: 'text-end', id: 'p1' } }
+          {
+            topicId: 'a',
+            executionId: 'provider-a::model-a',
+            attemptId,
+            chunk: { type: 'text-start', id: 'p1' }
+          },
+          {
+            topicId: 'a',
+            executionId: 'provider-a::model-a',
+            attemptId,
+            chunk: { type: 'text-delta', id: 'p1', delta: 'hello' }
+          },
+          {
+            topicId: 'a',
+            executionId: 'provider-a::model-a',
+            attemptId,
+            chunk: { type: 'text-end', id: 'p1' }
+          }
         ]
       })
     })

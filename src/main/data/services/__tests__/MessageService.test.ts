@@ -337,7 +337,7 @@ describe('MessageService', () => {
       expect(invalidatedRows.every((row) => row.stats?.contextTokens === undefined)).toBe(true)
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.stats?.totalTokens).toBe(80)
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.stats?.totalTokens).toBe(90)
-      expect(invalidatedRows.find((row) => row.id === 'm-a1')?.updatedAt).toBe(210)
+      expect(invalidatedRows.find((row) => row.id === 'm-a1')?.updatedAt).toBe(Date.parse(before.updatedAt))
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-user')?.updatedAt).toBe(400)
       expect(invalidatedRows.find((row) => row.id === 'm-a1-child-assistant')?.updatedAt).toBe(500)
 

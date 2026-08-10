@@ -156,6 +156,10 @@ export function useChatRuntimeState({
   const [translationOverlay, setTranslationOverlayMap] = useState<Record<string, TranslationOverlayEntry>>({})
   const [branchLiveMessages, setBranchLiveMessages] = useState<CherryUIMessage[]>([])
   const [branchLiveExecutions, setBranchLiveExecutions] = useState<ActiveExecution[]>([])
+  const [branchLiveActiveNodeOverride, setBranchLiveActiveNodeOverride] = useState<{
+    previousActiveNodeId: string | null
+    activeNodeId: string
+  } | null>(null)
   const finishedBranchExecutionIdsRef = useRef<Set<string>>(new Set())
   const runtimeBranchLiveStatePublishedRef = useRef(false)
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
@@ -169,7 +173,13 @@ export function useChatRuntimeState({
     runtimeBranchLiveStatePublishedRef.current = false
     setBranchLiveMessages([])
     setBranchLiveExecutions([])
+    setBranchLiveActiveNodeOverride(null)
   }, [topic.id])
+  useEffect(() => {
+    setBranchLiveActiveNodeOverride((current) =>
+      current && current.previousActiveNodeId !== activeNodeId ? null : current
+    )
+  }, [activeNodeId])
   const setTranslationOverlay = useCallback<TranslationOverlaySetter>((messageId, entry) => {
     setTranslationOverlayMap((prev) => {
       if (entry == null) {
@@ -274,10 +284,16 @@ export function useChatRuntimeState({
           setBranchLiveExecutions((current) => mergeActiveExecutions(current, reservedExecutions))
         }
         setBranchLiveMessages((current) => mergeMessagesById(current, reservedMessages))
+        if (!preserveActiveNode) {
+          const reservedActiveNodeId = reservedMessages.at(-1)?.id
+          if (reservedActiveNodeId) {
+            setBranchLiveActiveNodeOverride({ previousActiveNodeId: activeNodeId, activeNodeId: reservedActiveNodeId })
+          }
+        }
       }
       await seedMessagesCache(reservedMessages, { preserveActiveNode })
     },
-    [seedMessagesCache]
+    [activeNodeId, seedMessagesCache]
   )
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
@@ -329,6 +345,10 @@ export function useChatRuntimeState({
     () => mergeMessagesById(branchLiveMessages, activeAnchorMessages, liveAssistants),
     [activeAnchorMessages, branchLiveMessages, liveAssistants]
   )
+  const branchFlowActiveNodeId =
+    branchLiveActiveNodeOverride?.previousActiveNodeId === activeNodeId
+      ? branchLiveActiveNodeOverride.activeNodeId
+      : activeNodeId
 
   useEffect(() => {
     if (!onBranchLiveStateChange) return
@@ -345,9 +365,10 @@ export function useChatRuntimeState({
       topicId: topic.id,
       messages: branchFlowLiveMessages,
       partsByMessageId,
-      // Live overlays may belong to any branch. Only the persisted active node (changed by an
-      // explicit user action/send) determines the active path; streaming must not switch it.
-      activeNodeId,
+      // Ordinary reservations optimistically activate their persisted branch before the cache
+      // catches up. In-place retry/live-group append do not create this override, and a persisted
+      // or user-selected active node immediately supersedes it.
+      activeNodeId: branchFlowActiveNodeId,
       streamingMessageIds: activeStreamingMessageIds
     })
 
@@ -362,7 +383,7 @@ export function useChatRuntimeState({
     runtimeBranchLiveStatePublishedRef.current = true
     onBranchLiveStateChange(liveState)
   }, [
-    activeNodeId,
+    branchFlowActiveNodeId,
     branchActiveExecutions.length,
     activeStreamingMessageIds,
     branchFlowLiveMessages,
@@ -415,6 +436,7 @@ export function useChatRuntimeState({
               setBranchLiveMessages((current) => current.filter((item) => item.id !== message.id))
             } else {
               setBranchLiveMessages([])
+              setBranchLiveActiveNodeOverride(null)
               runtimeBranchLiveStatePublishedRef.current = false
               onBranchLiveStateChange?.(null)
             }

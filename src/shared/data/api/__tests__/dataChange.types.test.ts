@@ -98,8 +98,13 @@ describe('DataApiDataChangeEffect invariants', () => {
     // @ts-expect-error entityIds is a readonly array — no in-place mutation
     effect.entityIds?.push('t2')
 
+    const scopedEffect: DataApiDataChangeEffect = {
+      endpoint: '/topics/:id',
+      routeParams: { id: 't1' },
+      entityIds: ['t1']
+    }
     // @ts-expect-error concrete route scope is read-only for shared listeners
-    effect.routeParams!.topicId = 't2'
+    scopedEffect.routeParams!.id = 't2'
 
     expectTypeOf(effect).toExtend<DataApiDataChangeEffect>()
   })

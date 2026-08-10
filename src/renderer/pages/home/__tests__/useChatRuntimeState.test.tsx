@@ -31,8 +31,17 @@ vi.mock('@data/hooks/useDataApi', () => ({
 // The live-state builder is the guard's observable output surface: the test
 // asserts on the topic/message ids it forwards to onBranchLiveStateChange.
 vi.mock('@renderer/components/chat/flow', () => ({
-  buildTopicMessageFlowLiveState: ({ topicId, messages }: { topicId: string; messages: CherryUIMessage[] }) => ({
+  buildTopicMessageFlowLiveState: ({
     topicId,
+    messages,
+    activeNodeId
+  }: {
+    topicId: string
+    messages: CherryUIMessage[]
+    activeNodeId: string | null
+  }) => ({
+    topicId,
+    activeNodeId,
     messageIds: messages.map((message) => message.id)
   })
 }))
@@ -125,7 +134,7 @@ const reservedMessage = {
   metadata: { status: 'pending', modelId: 'provider::model' }
 } as unknown as CherryUIMessage
 
-function RuntimeHost({ topicId }: { topicId: string }) {
+function RuntimeHost({ topicId, activeNodeId = null }: { topicId: string; activeNodeId?: string | null }) {
   const topic = useMemo(() => makeTopic(topicId), [topicId])
   useChatRuntimeState({
     topic,
@@ -133,7 +142,7 @@ function RuntimeHost({ topicId }: { topicId: string }) {
     initialMessages: [],
     uiMessages: [],
     refresh: mocks.refresh,
-    activeNodeId: null,
+    activeNodeId,
     messagesCacheMutate: vi.fn(),
     onBranchLiveStateChange: mocks.onBranchLiveStateChange
   })
@@ -187,13 +196,28 @@ describe('useChatRuntimeState', () => {
   })
 
   it('preserves the cached active node when Main marks a live-group append as non-activating', async () => {
-    render(<RuntimeHost topicId="topic-1" />)
+    render(<RuntimeHost topicId="topic-1" activeNodeId="selected-branch" />)
 
     await act(async () => {
       await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], undefined, true)
     })
 
     expect(mocks.seedMessagesCache).toHaveBeenCalledWith([reservedMessage], { preserveActiveNode: true })
+    expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ activeNodeId: 'selected-branch' })
+    )
+  })
+
+  it('optimistically activates an ordinary reserved turn before the topic cache catches up', async () => {
+    render(<RuntimeHost topicId="topic-1" activeNodeId="selected-branch" />)
+
+    await act(async () => {
+      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage])
+    })
+
+    expect(mocks.onBranchLiveStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ activeNodeId: 'reserved-1' })
+    )
   })
 
   it('lets the newer Main attempt replace a stale optimistic attempt for the same model and anchor', async () => {
