@@ -33,6 +33,14 @@ export interface CompactReplayContext {
  * `maxMergedChars`, so ingestion starts a new segment entry and the ring's
  * entry cap keeps bounding retained bytes (not just protocol units).
  *
+ * The merge is lossy w.r.t. the original chunks: `providerMetadata` keeps the
+ * run's last non-undefined value. That is exactly the part state AI SDK's
+ * `processUIMessageStream` leaves after consuming the raw sequence
+ * (`chunk.providerMetadata ?? part.providerMetadata` per delta), so a replay
+ * reader can't tell the difference — but the buffer no longer holds the
+ * original chunks; the authoritative copy comes from persistence via the
+ * independent accumulator tee.
+ *
  * Shared by `AiStreamManager.onChunk` (ingestion-time merge, so the ring
  * buffer's cap counts protocol units instead of raw deltas) and the
  * attach-time compaction below.
@@ -110,6 +118,9 @@ export function buildCompactReplay(
   const startedToolInputs = new Set<string>()
   const scopedKey = (payload: StreamChunkPayload, id: string): string =>
     JSON.stringify([payload.executionId ?? null, payload.anchorMessageId ?? null, id])
+  /** Key for a text/reasoning part in `openParts` — namespaced explicitly so the two part kinds can't collide on a shared id. */
+  const openPartKey = (payload: StreamChunkPayload, kind: 'text' | 'reasoning', id: string): string =>
+    scopedKey(payload, `${kind}:${id}`)
 
   const flushPending = () => {
     if (!pending) return
@@ -156,7 +167,7 @@ export function buildCompactReplay(
       case 'text-start':
       case 'reasoning-start': {
         flushPending()
-        openParts.add(scopedKey(payload, `${chunk.type}:${chunk.id}`))
+        openParts.add(openPartKey(payload, chunk.type === 'text-start' ? 'text' : 'reasoning', chunk.id))
         compact.push(payload)
         break
       }
@@ -164,11 +175,11 @@ export function buildCompactReplay(
       case 'text-delta':
       case 'reasoning-delta': {
         flushPending()
-        const startType = chunk.type === 'text-delta' ? ('text-start' as const) : ('reasoning-start' as const)
-        const key = scopedKey(payload, `${startType}:${chunk.id}`)
+        const kind = chunk.type === 'text-delta' ? ('text' as const) : ('reasoning' as const)
+        const key = openPartKey(payload, kind, chunk.id)
         if (!openParts.has(key)) {
           openParts.add(key)
-          compact.push({ ...payload, chunk: { type: startType, id: chunk.id } })
+          compact.push({ ...payload, chunk: { type: `${kind}-start`, id: chunk.id } })
         }
         pending = payload
         break
@@ -177,8 +188,7 @@ export function buildCompactReplay(
       case 'text-end':
       case 'reasoning-end': {
         flushPending()
-        const startType = chunk.type === 'text-end' ? 'text-start' : 'reasoning-start'
-        if (!openParts.has(scopedKey(payload, `${startType}:${chunk.id}`))) break
+        if (!openParts.has(openPartKey(payload, chunk.type === 'text-end' ? 'text' : 'reasoning', chunk.id))) break
         compact.push(payload)
         break
       }
