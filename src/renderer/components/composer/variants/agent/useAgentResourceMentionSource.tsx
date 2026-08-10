@@ -51,6 +51,7 @@ const createAgentResourceItemId = (filePath: string) =>
   `agent-resource:${createStablePathHash(filePath.replace(/\\/g, '/'))}`
 
 const EMPTY_QUERY_FILE_LIMIT = 5
+const AGENT_RESOURCE_SEARCH_MAX_DEPTH = 10
 
 const createGroupHeaderItem = (id: string, label: string): ComposerSuggestionItem => ({
   id,
@@ -115,7 +116,7 @@ export function useAgentResourceMentionSource({
             accessiblePaths.map((dirPath) =>
               window.api.file.listDirectoryEntries(dirPath, {
                 recursive: true,
-                maxDepth: 3,
+                maxDepth: AGENT_RESOURCE_SEARCH_MAX_DEPTH,
                 includeHidden: false,
                 includeFiles: true,
                 includeDirectories: false,
