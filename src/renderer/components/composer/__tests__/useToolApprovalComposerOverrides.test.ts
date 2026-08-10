@@ -93,12 +93,29 @@ describe('useToolApprovalComposerOverrides', () => {
     expect(result.current).toEqual([])
   })
 
-  it('optimistically removes permission overrides while a response is pending', async () => {
-    const onRespond = vi.fn(() => new Promise<void>(() => undefined))
+  it('keeps the queue head until its response succeeds, then advances to the next permission', async () => {
+    let resolveResponse: (() => void) | undefined
+    const onRespond = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveResponse = resolve
+          })
+      )
+      .mockResolvedValueOnce(undefined)
     const { result } = renderHook(() =>
       useToolApprovalComposerOverrides({
         partsByMessageId: {
-          'message-1': [makePermissionPart()]
+          'message-1': [
+            makePermissionPart(),
+            makePermissionPart({
+              toolCallId: 'call-write',
+              approval: { id: 'approval-write' },
+              type: 'tool-Write',
+              toolName: 'Write'
+            })
+          ]
         },
         onRespond
       })
@@ -107,17 +124,40 @@ describe('useToolApprovalComposerOverrides', () => {
     const override = result.current.find((override) => override.id === 'tool-permission:approval-read')
     const element = override?.render({}) as ReactElement<{ onRespond: (input: any) => Promise<void> }> | undefined
 
-    await act(async () => {
-      void element?.props.onRespond({
+    let response: Promise<void> | undefined
+    act(() => {
+      response = element?.props.onRespond({
         match: { approvalId: 'approval-read' }
       })
-      await Promise.resolve()
+    })
+
+    expect(result.current.map((override) => override.id)).toContain('tool-permission:approval-read')
+    expect(result.current.map((override) => override.id)).not.toContain('tool-permission:approval-write')
+
+    await act(async () => {
+      resolveResponse?.()
+      await response
     })
 
     expect(result.current.map((override) => override.id)).not.toContain('tool-permission:approval-read')
+    expect(result.current.map((override) => override.id)).toContain('tool-permission:approval-write')
+
+    const nextOverride = result.current.find((override) => override.id === 'tool-permission:approval-write')
+    const nextElement = nextOverride?.render({}) as
+      | ReactElement<{ onRespond: (input: any) => Promise<void> }>
+      | undefined
+
+    await act(async () => {
+      await nextElement?.props.onRespond({
+        match: { approvalId: 'approval-write' }
+      })
+    })
+
+    expect(result.current.filter((override) => override.id.startsWith('tool-permission:'))).toEqual([])
+    expect(onRespond.mock.calls.map(([input]) => input.match.approvalId)).toEqual(['approval-read', 'approval-write'])
   })
 
-  it('restores permission overrides when an optimistic response fails', async () => {
+  it('keeps the queue head when its response fails', async () => {
     const onRespond = vi.fn().mockRejectedValue(new Error('failed'))
     const { result } = renderHook(() =>
       useToolApprovalComposerOverrides({

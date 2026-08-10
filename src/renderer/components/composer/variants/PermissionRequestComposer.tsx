@@ -19,7 +19,7 @@ import type { ComposerOverride } from '../ComposerContext'
 import type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
 
 export type { PermissionRequestComposerRequest } from './permissionRequestComposerRequest'
-export { findLatestPendingPermissionRequest } from './permissionRequestComposerRequest'
+export { findNextPendingPermissionRequest } from './permissionRequestComposerRequest'
 
 const logger = loggerService.withContext('PermissionRequestComposer')
 
