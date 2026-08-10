@@ -50,6 +50,7 @@ import { nanoid } from 'nanoid'
 import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
 
+import { isMcpCancellation } from './mcpAbort'
 import type { McpPackageService } from './McpPackageService'
 import { CallBackServer } from './oauth/callback'
 import { McpOAuthClientProvider } from './oauth/provider'
@@ -263,7 +264,10 @@ function withCache<T extends unknown[], R>(
 export class McpRuntimeService extends BaseService {
   private clients: Map<string, Client> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
-  private activeToolCalls: Map<string, AbortController> = new Map()
+  // Keyed by caller-supplied call id, which is NOT guaranteed process-wide unique (AI SDK
+  // providers may reuse ids like "call_0" across sessions) — so every concurrent call
+  // registers its own controller under the id instead of overwriting the previous one.
+  private activeToolCalls: Map<string, Set<AbortController>> = new Map()
   private serverLogs = new ServerLogBuffer(200)
   private stopping = false
   private readonly _onToolListChanged = new Emitter<McpToolListChangedEvent>()
@@ -972,8 +976,10 @@ export class McpRuntimeService extends BaseService {
   }
 
   private abortActiveToolCalls() {
-    for (const [callId, controller] of this.activeToolCalls) {
-      controller.abort()
+    for (const [callId, controllers] of this.activeToolCalls) {
+      for (const controller of controllers) {
+        controller.abort()
+      }
       logger.debug(`Aborted active tool call during MCP runtime stop`, { callId })
     }
     this.activeToolCalls.clear()
@@ -1178,7 +1184,9 @@ export class McpRuntimeService extends BaseService {
     const toolCallId = callId || uuidv4()
     const abortController = new AbortController()
     const effectiveSignal = signal ? AbortSignal.any([abortController.signal, signal]) : abortController.signal
-    this.activeToolCalls.set(toolCallId, abortController)
+    const controllersForId = this.activeToolCalls.get(toolCallId) ?? new Set()
+    controllersForId.add(abortController)
+    this.activeToolCalls.set(toolCallId, controllersForId)
 
     const callToolFunc = async ({ server, name, args }: RuntimeCallToolArgs) => {
       try {
@@ -1228,15 +1236,23 @@ export class McpRuntimeService extends BaseService {
         })
         return result as McpCallToolResponse
       } catch (error) {
-        if (effectiveSignal.aborted) {
+        if (isMcpCancellation(error, effectiveSignal)) {
           // Expected cancellation (user stop / stream abort) — keep it out of error logs.
+          // A genuine failure that merely raced the abort does not match and stays error-level.
           getServerLogger(server, { tool: name, callId: toolCallId }).debug(`Tool call aborted`)
         } else {
           getServerLogger(server, { tool: name, callId: toolCallId }).error(`Error calling tool`, error as Error)
         }
         throw error
       } finally {
-        this.activeToolCalls.delete(toolCallId)
+        // Remove only this call's controller — a concurrent call sharing the id must stay abortable.
+        const controllers = this.activeToolCalls.get(toolCallId)
+        if (controllers) {
+          controllers.delete(abortController)
+          if (controllers.size === 0) {
+            this.activeToolCalls.delete(toolCallId)
+          }
+        }
       }
     }
 
@@ -1431,9 +1447,13 @@ export class McpRuntimeService extends BaseService {
 
   // 实现 abortTool 方法
   public async abortTool(callId: string) {
-    const activeToolCall = this.activeToolCalls.get(callId)
-    if (activeToolCall) {
-      activeToolCall.abort()
+    const controllers = this.activeToolCalls.get(callId)
+    if (controllers) {
+      // Ids are not guaranteed unique, so abort every call registered under this one —
+      // cancelling a bystander is recoverable; leaving one un-cancellable is not.
+      for (const controller of controllers) {
+        controller.abort()
+      }
       this.activeToolCalls.delete(callId)
       logger.debug(`Aborted tool call`, { callId })
       return true

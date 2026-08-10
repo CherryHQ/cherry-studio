@@ -1,6 +1,7 @@
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mcpCatalogMock = vi.hoisted(() => ({
@@ -371,6 +372,8 @@ describe('McpRuntimeService.callTool cancellation', () => {
     MockMainCacheServiceUtils.resetMocks()
     getByIdMock.mockReset()
     getByIdMock.mockReturnValue(server)
+    mockMainLoggerService.debug.mockClear()
+    mockMainLoggerService.error.mockClear()
   })
 
   function createAbortableCallTool(abortError: Error) {
@@ -475,6 +478,84 @@ describe('McpRuntimeService.callTool cancellation', () => {
 
     expect(getOrCreateClientSpy).not.toHaveBeenCalled()
     expect((service as any).activeToolCalls.has('pre-aborted-call')).toBe(false)
+  })
+
+  // Call ids are caller-supplied and not process-wide unique: a duplicate must neither be
+  // deregistered by the other call's cleanup nor able to abort only one of the two.
+  it('keeps a duplicate call id abortable after the first call with that id settles', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const first = createDeferred<unknown>()
+    const clientCallTool = vi
+      .fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(
+        (_request: unknown, _resultSchema: unknown, options: { signal: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            options.signal.addEventListener('abort', () => reject(abortError), { once: true })
+          })
+      )
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const firstCall = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'dup-call' })
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledTimes(1), { interval: 1 })
+    const secondCall = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'dup-call' })
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledTimes(2), { interval: 1 })
+
+    first.resolve({ content: [] })
+    await expect(firstCall).resolves.toEqual({ content: [] })
+    // The settled call's cleanup must not deregister the still-running duplicate.
+    expect((service as any).activeToolCalls.has('dup-call')).toBe(true)
+
+    await expect(service.abortTool('dup-call')).resolves.toBe(true)
+    await expect(secondCall).rejects.toBe(abortError)
+    expect((service as any).activeToolCalls.has('dup-call')).toBe(false)
+  })
+
+  it('aborts every in-flight call registered under a duplicated call id', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const clientCallTool = createAbortableCallTool(abortError)
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const firstCall = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'dup-call' })
+    const secondCall = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'dup-call' })
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledTimes(2), { interval: 1 })
+
+    await expect(service.abortTool('dup-call')).resolves.toBe(true)
+
+    await expect(firstCall).rejects.toBe(abortError)
+    await expect(secondCall).rejects.toBe(abortError)
+    expect((service as any).activeToolCalls.has('dup-call')).toBe(false)
+  })
+
+  // A genuine transport/server failure whose catch continuation runs after the external
+  // abort landed must NOT be downgraded to the debug "Tool call aborted" path.
+  it('keeps error-level logging for a genuine failure that races cancellation', async () => {
+    const service = new McpRuntimeService()
+    const transportError = new Error('connection reset')
+    const controller = new AbortController()
+    const clientCallTool = vi.fn(
+      () =>
+        new Promise((_resolve, reject) => {
+          // Real failure settles the call first; the abort lands before the catch runs.
+          reject(transportError)
+          controller.abort(new Error('user stopped'))
+        })
+    )
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const call = service.callTool({
+      serverId: server.id,
+      name: 'tool',
+      args: {},
+      callId: 'racing-call',
+      signal: controller.signal
+    })
+
+    await expect(call).rejects.toBe(transportError)
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith('Error calling tool', transportError)
+    expect(mockMainLoggerService.debug).not.toHaveBeenCalledWith('Tool call aborted')
   })
 })
 

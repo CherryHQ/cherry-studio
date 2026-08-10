@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
+import { isMcpCancellation } from '@main/ai/mcp/mcpAbort'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import {
   CallToolRequestSchema,
@@ -154,7 +155,7 @@ export function createSdkMcpServerInstance(mcpId: string, serverSnapshot?: McpSe
       })
       return result as CallToolResult
     } catch (error) {
-      if (extra.signal.aborted) {
+      if (isMcpCancellation(error, extra.signal)) {
         // Expected cancellation from the SDK side — the runtime already logged it at debug.
         logger.debug('SDK bridge: tool call aborted', { mcpId, tool: request.params.name })
       } else {
