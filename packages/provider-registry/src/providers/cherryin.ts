@@ -1,3 +1,4 @@
+import type { ProviderModelOverride } from '../schemas/provider-models'
 import { defineProvider } from './types'
 import { modeWire } from './wires'
 
@@ -25,6 +26,61 @@ const deepSeekThinkingWire = modeWire('extra_body.thinking.type', {
 })
 
 const deepSeekModels = ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v3-1', 'deepseek-v3-2']
+
+const qwenAudioCompatibilityOverrides = [
+  {
+    modelId: 'qwen3-5-122b-a10b',
+    capabilities: { remove: ['audio-recognition'] },
+    inputModalities: ['text', 'image', 'video'],
+    reason: 'CherryIN rejects native audio; base Qwen3.5 supports text/image/video input'
+  },
+  {
+    modelId: 'qwen3-5-27b',
+    capabilities: { remove: ['audio-recognition'] },
+    inputModalities: ['text', 'image', 'video'],
+    reason: 'CherryIN rejects native audio; base Qwen3.5 supports text/image/video input'
+  },
+  {
+    modelId: 'qwen3-5-35b-a3b',
+    capabilities: { remove: ['audio-recognition'] },
+    inputModalities: ['text', 'image', 'video'],
+    reason: 'CherryIN rejects native audio; base Qwen3.5 supports text/image/video input'
+  },
+  {
+    modelId: 'qwen3-5-35b-a3b',
+    apiModelId: 'qwen/qwen3.5-35b-a3b(free)',
+    modelVariants: ['35b', 'free'],
+    capabilities: { remove: ['audio-recognition', 'video-recognition'] },
+    inputModalities: ['text', 'image'],
+    reason: 'CherryIN free endpoint accepts text and image_url parts only'
+  },
+  {
+    modelId: 'qwen3-5-397b-a17b',
+    capabilities: { remove: ['audio-recognition'] },
+    inputModalities: ['text', 'image', 'video'],
+    reason: 'CherryIN rejects native audio; base Qwen3.5 supports text/image/video input'
+  },
+  {
+    modelId: 'qwen3-5-4b',
+    apiModelId: 'qwen/qwen3.5-4b(free)',
+    modelVariants: ['4b', 'free'],
+    name: 'Qwen3.5 4B (Free)',
+    family: 'qwen',
+    ownedBy: 'alibaba',
+    capabilities: { force: ['function-call', 'reasoning', 'image-recognition', 'structured-output'] },
+    inputModalities: ['text', 'image'],
+    outputModalities: ['text'],
+    reason: 'CherryIN free endpoint accepts text and image_url parts only'
+  },
+  {
+    modelId: 'qwen3-5-9b',
+    apiModelId: 'qwen/qwen3.5-9b(free)',
+    modelVariants: ['9b', 'free'],
+    capabilities: { remove: ['audio-recognition', 'video-recognition'] },
+    inputModalities: ['text', 'image'],
+    reason: 'CherryIN free endpoint accepts text and image_url parts only'
+  }
+] satisfies Array<Partial<ProviderModelOverride>>
 
 export default defineProvider({
   id: 'cherryin',
@@ -76,10 +132,13 @@ export default defineProvider({
       official: 'https://open.cherryin.ai'
     }
   },
-  overrides: deepSeekModels.map((modelId) => ({
-    modelId,
-    reasoningContracts: {
-      'openai-chat-completions': { wire: deepSeekThinkingWire }
-    }
-  }))
+  overrides: [
+    ...deepSeekModels.map((modelId) => ({
+      modelId,
+      reasoningContracts: {
+        'openai-chat-completions': { wire: deepSeekThinkingWire }
+      }
+    })),
+    ...qwenAudioCompatibilityOverrides
+  ]
 })
