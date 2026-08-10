@@ -58,6 +58,11 @@ export function SkillCatalogPicker({
     () => availableSkills.filter((skill) => mode === 'edit' || skill.source !== 'builtin').map((skill) => skill.id),
     [availableSkills, mode]
   )
+  const selectableIdSet = useMemo(() => new Set(selectableIds), [selectableIds])
+  const preservedHiddenSelectedIds = useMemo(
+    () => (mode === 'edit' ? selectedIds.filter((id) => !selectableIdSet.has(id)) : []),
+    [mode, selectableIdSet, selectedIds]
+  )
   const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds])
   const enabledIds = useMemo(() => new Set([...selectedIds, ...builtinIds]), [builtinIds, selectedIds])
   const catalog = useMemo<CatalogItem[]>(() => {
@@ -133,7 +138,11 @@ export function SkillCatalogPicker({
           size="sm"
           checked={allSelected}
           disabled={loading || disabled || selectableIds.length === 0}
-          onCheckedChange={(selected) => onSelectedIdsChange(selected ? selectableIds : [])}
+          onCheckedChange={(selected) =>
+            onSelectedIdsChange(
+              selected ? [...preservedHiddenSelectedIds, ...selectableIds] : preservedHiddenSelectedIds
+            )
+          }
           aria-label={t('library.config.agent.section.tools.skills_enable_all')}
         />
       </div>
