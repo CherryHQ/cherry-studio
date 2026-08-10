@@ -496,10 +496,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "{{count}} 个",
+          "channels_count_other": "{{count}} 个",
+          "channels_empty": "没有频道需要调整。",
+          "channels_title": "将改为不使用工作目录的频道",
           "content": "删除该工作目录会同时删除该工作目录下的所有任务；只会删除数据库记录，不会删除磁盘上的真实目录。",
+          "disk_preserved": "磁盘上的目录及其中的文件不会被删除。",
           "error": {
             "failed": "删除工作目录失败"
           },
+          "more_count_one": "…以及另外 {{count}} 项",
+          "more_count_other": "…以及另外 {{count}} 项",
+          "preview": "删除工作目录「{{name}}」会删除其关联会话，并将关联频道和定时任务改为不使用工作目录。此操作不可撤销。",
+          "preview_failed": "无法加载删除影响范围，暂不能删除该工作目录",
+          "preview_loading": "正在加载删除影响范围…",
+          "sessions_count_one": "{{count}} 个",
+          "sessions_count_other": "{{count}} 个",
+          "sessions_empty": "没有会话会被删除。",
+          "sessions_title": "将一并删除的会话",
+          "tasks_count_one": "{{count}} 个",
+          "tasks_count_other": "{{count}} 个",
+          "tasks_empty": "没有定时任务需要调整。",
+          "tasks_title": "将改为不使用工作目录的定时任务",
           "title": "删除工作目录",
           "trigger": "删除工作目录"
         },
@@ -2548,6 +2566,7 @@
       "503": "服务不可用，请稍后再试",
       "504": "网关超时，请稍后再试"
     },
+    "image_unreadable_for_non_vision_model": "当前模型不支持图片，且 Cherry Studio 未能从附件中识别出有效文字。请选择支持图片的模型，或移除图片后重试。",
     "lastError": "最后错误",
     "maxEmbeddingsPerCall": "每次调用的最大嵌入",
     "message": "错误信息",
@@ -3196,7 +3215,6 @@
       "updated_at": "更新于 {{time}}"
     },
     "name_required": "知识库名称为必填项",
-    "not_set": "未设置",
     "provider_not_found": "未找到服务商",
     "rag": {
       "chunk_overlap": "重叠大小",
@@ -3211,12 +3229,13 @@
       "chunking": "Chunking",
       "default_separator": "自动（推荐）",
       "document_count": "Top K",
-      "download_local_embedding": "下载本地模型",
       "download_local_embedding_failed": "本地嵌入模型下载失败",
+      "download_local_model": "下载本地模型",
       "embedding_model": "嵌入模型",
       "embedding_model_select": "模型选择",
       "file_processing": "文档处理",
       "file_processing_hint": "文档预处理将在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量",
+      "file_processing_none": "不使用",
       "hints": {
         "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
         "chunk_separator": "切分文本所用的分隔符（转义形式）。开启智能分段时作为额外切分点；关闭后仅按此分隔符切分。",
@@ -3230,6 +3249,8 @@
       },
       "processor": "处理服务商",
       "processor_not_configured": "未配置",
+      "processor_not_downloaded": "未下载",
+      "processor_unreachable": "服务未启动",
       "rerank_disabled": "不使用",
       "rerank_model": "重排模型",
       "reset_action": "恢复默认",
@@ -4626,6 +4647,8 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "字体设置",
+        "line_breaks": "换行方式",
+        "line_breaks_description": "开启后单个换行符将渲染为新的一行（类似 Obsidian）。关闭时换行符会被折叠为空格，直到出现空行才会分段。",
         "serif_font": "衬线字体",
         "show_table_of_contents": "显示目录大纲",
         "show_table_of_contents_description": "显示目录大纲侧边栏，方便文档内导航",
@@ -5393,6 +5416,7 @@
         "insertRowBefore": "在上方插入"
       }
     },
+    "backToTop": "回到顶部",
     "commands": {
       "blockMath": {
         "description": "插入数学公式",
@@ -8245,8 +8269,12 @@
             "description": "高级文件还原引擎。",
             "name": "Doc2x"
           },
+          "local_document": {
+            "description": "完全在本机将 PDF 转换为 Markdown。带文本层的文档直接解析，扫描版回退到本地 OCR 模型。",
+            "name": "本地文档解析"
+          },
           "local_paddleocr": {
-            "description": "在本地进程内运行的 PaddleOCR（PP-OCRv6 中等模型），完全离线、无需 API Key，识别在后台线程进行不阻塞界面。首次使用请先在「环境依赖」中下载模型（约 140MB）。",
+            "description": "在本地进程内运行的 PaddleOCR（PP-OCRv6 中等模型），完全离线、无需 API Key，识别在后台线程进行不阻塞界面。",
             "name": "本地 PaddleOCR",
             "status": {
               "local": "完全本地离线运行"
