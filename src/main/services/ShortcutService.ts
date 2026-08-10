@@ -18,8 +18,10 @@ import {
   evaluateContextExpr,
   findCommandDefinition,
   REGISTERED_KEYBINDINGS,
+  resolveCommandByKeybinding,
   resolveCommandKeybinding
 } from '@shared/utils/command'
+import { getShortcutBindingFromKeyboardEvent } from '@shared/utils/shortcut'
 import type { BrowserWindow } from 'electron'
 import { globalShortcut } from 'electron'
 
@@ -39,9 +41,13 @@ const relevantKeybindings = mainKeybindings.filter(
     (!rule.supportedPlatforms || rule.supportedPlatforms.includes(process.platform as SupportedPlatform))
 )
 
+const globalKeybindings = relevantKeybindings.filter((rule) => rule.global)
+const localKeybindings = relevantKeybindings.filter((rule) => !rule.global)
+const localCommands = new Set(localKeybindings.map((rule) => rule.command))
+
 const contextKeys = Array.from(
   new Set(
-    relevantKeybindings.flatMap((rule) => {
+    globalKeybindings.flatMap((rule) => {
       const command = findCommandDefinition(rule.command)
       return [...collectContextKeys(command?.enablement), ...collectContextKeys(rule.when)].filter(
         (key) => key !== 'platform'
@@ -64,7 +70,6 @@ export class ShortcutService extends BaseService {
   private handlers = new Map<CommandId, ShortcutHandler>()
   private registeredWindows = new Set<BrowserWindow>()
   private conflictedKeys = new Set<CommandShortcutPreferenceKey<CommandId>>()
-  private isRegisterOnBoot = true
   private registeredAccelerators = new Map<string, RegisteredShortcut>()
 
   protected async onInit() {
@@ -90,7 +95,7 @@ export class ShortcutService extends BaseService {
 
   private subscribeToPreferenceChanges(): void {
     const preferenceService = application.get('PreferenceService')
-    for (const rule of relevantKeybindings) {
+    for (const rule of globalKeybindings) {
       this.registerDisposable(
         preferenceService.subscribeChange(rule.preferenceKey, () => {
           logger.debug(`Shortcut preference changed: ${rule.preferenceKey}`)
@@ -112,28 +117,43 @@ export class ShortcutService extends BaseService {
   private registerForWindow(window: BrowserWindow): void {
     this.mainWindow = window
 
-    if (this.isRegisterOnBoot) {
-      const onReadyToShow = () => {
-        if (!this.mainWindow || this.mainWindow.isDestroyed()) return
-        if (application.get('PreferenceService').get('app.tray.on_launch')) {
-          this.registerShortcuts(window, true)
-        }
-      }
-      window.once('ready-to-show', onReadyToShow)
-      this.registerDisposable(() => window.off('ready-to-show', onReadyToShow))
-      this.isRegisterOnBoot = false
-    }
-
     if (!this.registeredWindows.has(window)) {
       this.registeredWindows.add(window)
 
-      const onFocus = () => {
-        if (this.mainWindow !== window) return
-        this.registerShortcuts(window, false)
-      }
-      const onBlur = () => {
-        if (this.mainWindow !== window) return
-        this.registerShortcuts(window, true)
+      const onBeforeInput = (event: Electron.Event, input: Electron.Input) => {
+        if (input.type !== 'keyDown' || input.isComposing) return
+
+        const preferenceService = application.get('PreferenceService')
+        const context: ContextReader = (key) => {
+          if (key === 'platform') return process.platform
+          return toContextValue(preferenceService.get(key as PreferenceKeyType))
+        }
+        const preferences = Object.fromEntries(
+          localKeybindings.map((rule) => [rule.command, preferenceService.get(rule.preferenceKey)])
+        ) as Partial<Record<CommandId, PreferenceShortcutType>>
+        const command = resolveCommandByKeybinding({
+          binding: getShortcutBindingFromKeyboardEvent(
+            {
+              key: input.key,
+              code: input.code,
+              ctrlKey: input.control,
+              metaKey: input.meta,
+              altKey: input.alt,
+              shiftKey: input.shift
+            },
+            process.platform as SupportedPlatform
+          ),
+          preferences,
+          context,
+          platform: process.platform as SupportedPlatform,
+          scope: 'main',
+          canExecuteCommand: (candidate) => localCommands.has(candidate) && this.handlers.has(candidate)
+        })
+
+        if (!command) return
+
+        event.preventDefault()
+        this.handlers.get(command)?.(window)
       }
       const onClosed = () => {
         this.registeredWindows.delete(window)
@@ -142,20 +162,18 @@ export class ShortcutService extends BaseService {
         }
       }
 
-      window.on('focus', onFocus)
-      window.on('blur', onBlur)
+      window.webContents.on('before-input-event', onBeforeInput)
       window.once('closed', onClosed)
-      this.registerDisposable(() => window.off('focus', onFocus))
-      this.registerDisposable(() => window.off('blur', onBlur))
+      this.registerDisposable(() => window.webContents.off('before-input-event', onBeforeInput))
       this.registerDisposable(() => window.off('closed', onClosed))
     }
 
     if (!window.isDestroyed()) {
-      this.registerShortcuts(window, !window.isFocused())
+      this.registerGlobalShortcuts(window)
     }
   }
 
-  private registerShortcuts(window: BrowserWindow, onlyPersistent: boolean): void {
+  private registerGlobalShortcuts(window: BrowserWindow): void {
     if (window.isDestroyed()) return
 
     const preferenceService = application.get('PreferenceService')
@@ -169,9 +187,7 @@ export class ShortcutService extends BaseService {
       return toContextValue(preferenceService.get(key as PreferenceKeyType))
     }
 
-    for (const rule of relevantKeybindings) {
-      if (onlyPersistent && !rule.global) continue
-
+    for (const rule of globalKeybindings) {
       const command = findCommandDefinition(rule.command)
       if (!command || !evaluateContextExpr(command.enablement, context)) {
         continue
@@ -252,12 +268,7 @@ export class ShortcutService extends BaseService {
 
   private reregisterShortcuts(): void {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return
-
-    if (this.mainWindow.isFocused()) {
-      this.registerShortcuts(this.mainWindow, false)
-    } else {
-      this.registerShortcuts(this.mainWindow, true)
-    }
+    this.registerGlobalShortcuts(this.mainWindow)
   }
 
   private unregisterAll(): void {
@@ -275,7 +286,6 @@ export class ShortcutService extends BaseService {
     this.mainWindow = null
     this.registeredWindows.clear()
     this.conflictedKeys.clear()
-    this.isRegisterOnBoot = true
   }
 
   private markRegistrationConflict(key: CommandShortcutPreferenceKey<CommandId>, accelerator: string): void {

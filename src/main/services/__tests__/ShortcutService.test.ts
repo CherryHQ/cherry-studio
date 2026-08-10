@@ -91,7 +91,6 @@ import { ShortcutService } from '../ShortcutService'
 
 // Mirrors the selection commands' supportedPlatforms (darwin/win32/linux) — SelectionService supports linux too.
 const supportsSelectionShortcuts = ['darwin', 'win32', 'linux'].includes(process.platform)
-const settingsShortcutHandledByNativeMenu = process.platform === 'darwin'
 
 class MockBrowserWindow {
   private readonly events = new EventEmitter()
@@ -102,6 +101,12 @@ class MockBrowserWindow {
   public readonly webContents = {
     send: vi.fn(),
     isLoadingMainFrame: vi.fn(() => false),
+    on: vi.fn((event: string, callback: (...args: any[]) => void) => {
+      this.webContentsEvents.on(event, callback)
+    }),
+    off: vi.fn((event: string, callback: (...args: any[]) => void) => {
+      this.webContentsEvents.off(event, callback)
+    }),
     once: vi.fn((event: string, callback: (...args: any[]) => void) => {
       this.webContentsEvents.once(event, callback)
     })
@@ -168,16 +173,38 @@ describe('ShortcutService', () => {
     service = new ShortcutService()
   })
 
-  it('registers focused window shortcuts including shortcut variants', async () => {
+  it('registers only explicitly global shortcuts with Electron globalShortcut', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+      binding: ['CommandOrControl', 'M'],
+      enabled: true
+    })
+
     await (service as any).onInit()
 
-    if (settingsShortcutHandledByNativeMenu) {
-      expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+,', expect.any(Function))
-    } else {
-      expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+,', expect.any(Function))
-    }
-    expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+=', expect.any(Function))
-    expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+numadd', expect.any(Function))
+    expect(globalShortcutMock.register).toHaveBeenCalledWith('CommandOrControl+M', expect.any(Function))
+    expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+,', expect.any(Function))
+    expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+=', expect.any(Function))
+    expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+numadd', expect.any(Function))
+  })
+
+  it('handles window-local zoom shortcuts without registering them globally', async () => {
+    await (service as any).onInit()
+
+    expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+=', expect.any(Function))
+
+    const event = { preventDefault: vi.fn() }
+    mainWindow.emitWebContents('before-input-event', event, {
+      type: 'keyDown',
+      key: '+',
+      code: 'Equal',
+      control: process.platform !== 'darwin',
+      meta: process.platform === 'darwin',
+      alt: false,
+      shift: false
+    })
+
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', mainWindow)
   })
 
   it('registers global shortcuts immediately for an unfocused main window', async () => {
@@ -211,7 +238,7 @@ describe('ShortcutService', () => {
     expect(windowServiceMock.showMainWindow).not.toHaveBeenCalled()
   })
 
-  it('re-registers only the changed accelerator when shortcut binding changes', async () => {
+  it('uses current preferences when handling a window-local shortcut', async () => {
     await (service as any).onInit()
     globalShortcutMock.register.mockClear()
     globalShortcutMock.unregister.mockClear()
@@ -221,9 +248,22 @@ describe('ShortcutService', () => {
       enabled: true
     })
 
-    expect(globalShortcutMock.unregister).toHaveBeenCalledWith('CommandOrControl+=')
-    expect(globalShortcutMock.register).toHaveBeenCalledWith('Alt+=', expect.any(Function))
-    expect(globalShortcutMock.register).not.toHaveBeenCalledWith('CommandOrControl+=', expect.any(Function))
+    const event = { preventDefault: vi.fn() }
+    mainWindow.emitWebContents('before-input-event', event, {
+      type: 'keyDown',
+      key: '+',
+      code: 'Equal',
+      control: false,
+      meta: false,
+      alt: true,
+      shift: false,
+      isComposing: false
+    })
+
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', mainWindow)
+    expect(globalShortcutMock.register).not.toHaveBeenCalled()
+    expect(globalShortcutMock.unregister).not.toHaveBeenCalled()
   })
 
   it('reacts to quick assistant enablement changes for quick assistant shortcut', async () => {
@@ -265,6 +305,10 @@ describe('ShortcutService', () => {
   })
 
   it('re-registers window-bound shortcuts when the main window instance changes', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+      binding: ['CommandOrControl', 'M'],
+      enabled: true
+    })
     await (service as any).onInit()
 
     const nextWindow = new MockBrowserWindow()
@@ -273,20 +317,20 @@ describe('ShortcutService', () => {
 
     ;(service as any).registerForWindow(nextWindow)
 
-    expect(globalShortcutMock.unregister).toHaveBeenCalledWith('CommandOrControl+=')
+    expect(globalShortcutMock.unregister).toHaveBeenCalledWith('CommandOrControl+M')
 
-    const zoomInRegistration = globalShortcutMock.register.mock.calls.find(
-      ([accelerator]) => accelerator === 'CommandOrControl+='
+    const showMainRegistration = globalShortcutMock.register.mock.calls.find(
+      ([accelerator]) => accelerator === 'CommandOrControl+M'
     )
-    expect(zoomInRegistration).toBeTruthy()
+    expect(showMainRegistration).toBeTruthy()
 
-    const zoomInHandler = zoomInRegistration?.[1] as (() => void) | undefined
-    zoomInHandler?.()
+    const showMainHandler = showMainRegistration?.[1] as (() => void) | undefined
+    showMainHandler?.()
 
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', nextWindow)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.window.show', nextWindow)
   })
 
-  it('resets boot registration state when the service stops and starts again', async () => {
+  it('registers the window-local shortcut listener after the service restarts', async () => {
     await (service as any).onInit()
     await (service as any).onStop()
 
@@ -295,10 +339,14 @@ describe('ShortcutService', () => {
 
     await (service as any).onInit()
 
-    expect(nextWindow.once).toHaveBeenCalledWith('ready-to-show', expect.any(Function))
+    expect(nextWindow.webContents.on).toHaveBeenCalledWith('before-input-event', expect.any(Function))
   })
 
   it('notifies the renderer when a shortcut cannot be registered', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+      binding: ['CommandOrControl', '0'],
+      enabled: true
+    })
     globalShortcutMock.register.mockImplementation((accelerator: string) => accelerator !== 'CommandOrControl+0')
 
     await (service as any).onInit()
@@ -307,7 +355,7 @@ describe('ShortcutService', () => {
       WindowType.Main,
       IpcChannel.Shortcut_RegistrationConflict,
       {
-        key: 'shortcut.app.zoom.reset',
+        key: 'shortcut.app.window.show',
         accelerator: 'CommandOrControl+0',
         hasConflict: true
       }
@@ -315,6 +363,10 @@ describe('ShortcutService', () => {
   })
 
   it('does not notify repeatedly for the same shortcut conflict', async () => {
+    MockMainPreferenceServiceUtils.setPreferenceValue('shortcut.app.window.show', {
+      binding: ['CommandOrControl', '0'],
+      enabled: true
+    })
     globalShortcutMock.register.mockImplementation((accelerator: string) => accelerator !== 'CommandOrControl+0')
 
     await (service as any).onInit()
@@ -326,7 +378,7 @@ describe('ShortcutService', () => {
       WindowType.Main,
       IpcChannel.Shortcut_RegistrationConflict,
       expect.objectContaining({
-        key: 'shortcut.app.zoom.reset',
+        key: 'shortcut.app.window.show',
         hasConflict: true
       })
     )
