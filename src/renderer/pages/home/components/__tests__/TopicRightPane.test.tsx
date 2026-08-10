@@ -235,6 +235,24 @@ describe('TopicRightPane', () => {
     expect(screen.getByTestId('trace-pane')).toHaveAttribute('data-trace-id', 'trace-a')
   })
 
+  it('unmounts the trace pane after switching away so its trace tree can be collected', async () => {
+    render(
+      <TopicRightPane.Scope topicId="topic-a" traceId="trace-a">
+        <TopicRightPane.Shortcuts />
+        <TopicRightPane.Viewport />
+      </TopicRightPane.Scope>
+    )
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
+    const tracePane = await screen.findByTestId('trace-pane')
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="branch"]') as HTMLElement)
+    expect(screen.queryByTestId('trace-pane')).toBeNull()
+
+    fireEvent.click(document.querySelector('[data-shell-tab-shortcut="trace"]') as HTMLElement)
+    expect(await screen.findByTestId('trace-pane')).not.toBe(tracePane)
+  })
+
   it('hides the trace tab when developer mode is off', () => {
     developerModeEnabled.mockReturnValue(false)
 
