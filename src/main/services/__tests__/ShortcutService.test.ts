@@ -200,7 +200,7 @@ describe('ShortcutService', () => {
       control: process.platform !== 'darwin',
       meta: process.platform === 'darwin',
       alt: false,
-      shift: false
+      shift: true
     })
 
     expect(event.preventDefault).toHaveBeenCalledOnce()

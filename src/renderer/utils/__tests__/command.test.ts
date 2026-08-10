@@ -21,10 +21,9 @@ describe('getShortcutBindingFromKeyboardEvent', () => {
       'CommandOrControl',
       'numadd'
     ])
-    expect(getShortcutBindingFromKeyboardEvent({ key: '+', code: 'Equal', ctrlKey: true }, 'win32')).toEqual([
-      'CommandOrControl',
-      '='
-    ])
+    expect(
+      getShortcutBindingFromKeyboardEvent({ key: '+', code: 'Equal', ctrlKey: true, shiftKey: true }, 'win32')
+    ).toEqual(['CommandOrControl', 'Shift', '='])
   })
 })
 
