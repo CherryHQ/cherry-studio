@@ -1318,9 +1318,44 @@ describe('AiService tool approval', () => {
     expect(mockCreateRetryableWrap).toHaveBeenCalledWith(
       expect.objectContaining({
         fallbacks: [],
+        imageInputFallback: undefined,
         retryPolicy: expect.objectContaining({ enabled: true, maxAttempts: 3 }),
         onRetryEvent: expect.any(Function)
       })
+    )
+  })
+
+  it('enables image-rejection recovery only for an in-process Agent request', async () => {
+    const service = createService()
+    vi.spyOn(service as never, 'buildAgentParamsFor').mockResolvedValue({
+      sdkConfig: { providerId: 'test-provider', providerSettings: {}, modelId: 'test-model' },
+      credentialReceipt: { attribution: 'explicit', id: 'key-a', masked: 'sk-a****aaaa' },
+      provider: { id: 'test-provider', name: 'Test Provider', apiFeatures: { reportsActualCost: false } },
+      model: { id: 'test-provider::test-model', name: 'Test Model', capabilities: [] },
+      tools: undefined,
+      plugins: [],
+      system: undefined,
+      options: {},
+      hookParts: [],
+      assistant: undefined,
+      nativeFileSupport: { image: true, pdf: false, audio: false, video: false },
+      fileAttachments: []
+    } as never)
+
+    await service.streamText({
+      chatId: 'agent-session-1',
+      trigger: 'submit-message',
+      messages: [],
+      usageContext: {
+        agentSessionId: 'agent-session-1',
+        assistantMessageId: 'assistant-message-1',
+        source: null
+      },
+      requestOptions: { signal: new AbortController().signal }
+    } as never)
+
+    expect(mockCreateRetryableWrap).toHaveBeenCalledWith(
+      expect.objectContaining({ imageInputFallback: expect.any(Function) })
     )
   })
 

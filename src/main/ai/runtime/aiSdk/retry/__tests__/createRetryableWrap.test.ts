@@ -17,6 +17,25 @@ function makeApiError(statusCode: number): APICallError {
   })
 }
 
+function makeImageApiError(): APICallError {
+  return new APICallError({
+    message: 'Invalid content type: image_url is not supported by this model',
+    url: 'https://api.test/v1',
+    requestBodyValues: {},
+    statusCode: 400,
+    responseBody: '{"error":{"message":"This model does not support image input"}}'
+  })
+}
+
+function makePluralImageApiError(): APICallError {
+  return new APICallError({
+    message: 'This model does not support images',
+    url: 'https://api.test/v1',
+    requestBodyValues: {},
+    statusCode: 400
+  })
+}
+
 const okResult = {
   content: [{ type: 'text' as const, text: 'ok' }],
   finishReason: { unified: 'stop' as const, raw: 'stop' },
@@ -78,6 +97,149 @@ function policy(overrides: Partial<RetryPolicy> = {}): RetryPolicy {
 describe('createRetryableWrap', () => {
   it('returns undefined when retry is disabled', () => {
     expect(createRetryableWrap({ fallbacks: [], retryPolicy: policy({ enabled: false }) })).toBeUndefined()
+  })
+
+  it('recovers from an image-related 400 with one rewritten-prompt retry even when normal retries are disabled', async () => {
+    const originalPrompt = [
+      {
+        role: 'user' as const,
+        content: [{ type: 'file' as const, data: 'AQID', mediaType: 'image/png' }]
+      }
+    ]
+    const rewrittenPrompt = [
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Attached image:\nOCR text' }] }
+    ]
+    const imageInputFallback = vi.fn().mockResolvedValue(rewrittenPrompt)
+    const generate = vi.fn().mockRejectedValueOnce(makeImageApiError()).mockResolvedValueOnce(okResult)
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      imageInputFallback,
+      retryPolicy: policy({ enabled: false })
+    })
+
+    const result = await wrap!(makeFakeLanguageModel('text-model', generate)).doGenerate({
+      prompt: originalPrompt
+    } as never)
+
+    expect(result.content).toEqual(okResult.content)
+    expect(generate).toHaveBeenCalledTimes(2)
+    expect(generate).toHaveBeenNthCalledWith(1, expect.objectContaining({ prompt: originalPrompt }))
+    expect(generate).toHaveBeenNthCalledWith(2, expect.objectContaining({ prompt: rewrittenPrompt }))
+    expect(imageInputFallback).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the OCR prompt and a separate transient retry budget after image recovery', async () => {
+    vi.useFakeTimers()
+    try {
+      const originalPrompt = [
+        {
+          role: 'user' as const,
+          content: [{ type: 'file' as const, data: 'AQID', mediaType: 'image/png' }]
+        }
+      ]
+      const rewrittenPrompt = [
+        { role: 'user' as const, content: [{ type: 'text' as const, text: 'Attached image:\nOCR text' }] }
+      ]
+      const generate = vi
+        .fn()
+        .mockRejectedValueOnce(makeImageApiError())
+        .mockRejectedValueOnce(makeApiError(429))
+        .mockResolvedValueOnce(okResult)
+      const wrap = createRetryableWrap({
+        fallbacks: [],
+        imageInputFallback: vi.fn().mockResolvedValue(rewrittenPrompt),
+        retryPolicy: policy({ maxAttempts: 1 })
+      })
+
+      const pending = wrap!(makeFakeLanguageModel('text-model', generate)).doGenerate({
+        prompt: originalPrompt
+      } as never)
+      await vi.advanceTimersByTimeAsync(2_000)
+      await expect(pending).resolves.toMatchObject({ content: okResult.content })
+
+      expect(generate).toHaveBeenCalledTimes(3)
+      expect(generate).toHaveBeenNthCalledWith(2, expect.objectContaining({ prompt: rewrittenPrompt }))
+      expect(generate).toHaveBeenNthCalledWith(3, expect.objectContaining({ prompt: rewrittenPrompt }))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('recovers from unsupported images errors that use the plural noun', async () => {
+    const rewrittenPrompt = [
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Attached image:\nOCR text' }] }
+    ]
+    const generate = vi.fn().mockRejectedValueOnce(makePluralImageApiError()).mockResolvedValueOnce(okResult)
+    const imageInputFallback = vi.fn().mockResolvedValue(rewrittenPrompt)
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      imageInputFallback,
+      retryPolicy: policy({ enabled: false })
+    })
+
+    await expect(
+      wrap!(makeFakeLanguageModel('text-model', generate)).doGenerate({ prompt: [] } as never)
+    ).resolves.toMatchObject({ content: okResult.content })
+
+    expect(imageInputFallback).toHaveBeenCalledOnce()
+    expect(generate).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not rewrite the prompt for an unrelated 400', async () => {
+    const imageInputFallback = vi.fn()
+    const error = makeApiError(400)
+    const generate = vi.fn().mockRejectedValue(error)
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      imageInputFallback,
+      retryPolicy: policy({ enabled: false })
+    })
+
+    await expect(wrap!(makeFakeLanguageModel('text-model', generate)).doGenerate({ prompt: [] } as never)).rejects.toBe(
+      error
+    )
+
+    expect(generate).toHaveBeenCalledOnce()
+    expect(imageInputFallback).not.toHaveBeenCalled()
+  })
+
+  it('recovers when the image-related 400 arrives as a pre-content stream error', async () => {
+    const originalPrompt = [
+      {
+        role: 'user' as const,
+        content: [{ type: 'file' as const, data: 'AQID', mediaType: 'image/png' }]
+      }
+    ]
+    const rewrittenPrompt = [
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Attached image:\nOCR text' }] }
+    ]
+    const doStream = vi
+      .fn()
+      .mockResolvedValueOnce(streamResult([{ type: 'error', error: makeImageApiError() }]))
+      .mockResolvedValueOnce(
+        streamResult([
+          { type: 'text-delta', id: 'text', delta: 'ok' },
+          {
+            type: 'finish',
+            finishReason: { unified: 'stop', raw: 'stop' },
+            usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }
+          }
+        ])
+      )
+    const wrap = createRetryableWrap({
+      fallbacks: [],
+      imageInputFallback: vi.fn().mockResolvedValue(rewrittenPrompt),
+      retryPolicy: policy({ enabled: false })
+    })
+    const wrapped = wrap!(makeFakeLanguageModel('text-model', vi.fn(), doStream))
+
+    const result = await wrapped.doStream({ prompt: originalPrompt } as never)
+    const parts = await collectStream(result.stream)
+
+    expect(doStream).toHaveBeenCalledTimes(2)
+    expect(doStream).toHaveBeenNthCalledWith(2, expect.objectContaining({ prompt: rewrittenPrompt }))
+    expect(parts).toContainEqual(expect.objectContaining({ type: 'text-delta', delta: 'ok' }))
+    expect(parts).not.toContainEqual(expect.objectContaining({ type: 'error' }))
   })
 
   it('falls back to the first fallback when the primary fails non-retryably', async () => {
@@ -143,6 +305,52 @@ describe('createRetryableWrap', () => {
 
     // ai-retry merges the fallback's options into the call options it replays.
     expect(fallbackGenerate).toHaveBeenCalledWith(expect.objectContaining({ temperature: 0.1, maxOutputTokens: 256 }))
+  })
+
+  it("preserves a fallback's option overrides when its image input is rewritten", async () => {
+    const originalPrompt = [
+      {
+        role: 'user' as const,
+        content: [{ type: 'file' as const, data: 'AQID', mediaType: 'image/png' }]
+      }
+    ]
+    const rewrittenPrompt = [
+      { role: 'user' as const, content: [{ type: 'text' as const, text: 'Attached image:\nOCR text' }] }
+    ]
+    const fallbackGenerate = vi.fn().mockRejectedValueOnce(makeImageApiError()).mockResolvedValueOnce(okResult)
+    const wrap = createRetryableWrap({
+      fallbacks: [
+        fallbackOf(makeFakeLanguageModel('fallback', fallbackGenerate), {
+          temperature: 0.1,
+          maxOutputTokens: 256,
+          headers: { 'x-fallback': 'true' }
+        })
+      ],
+      imageInputFallback: vi.fn().mockResolvedValue(rewrittenPrompt),
+      retryPolicy: policy()
+    })
+    const primaryGenerate = vi.fn().mockRejectedValue(makeApiError(401))
+
+    await wrap!(makeFakeLanguageModel('primary', primaryGenerate)).doGenerate({
+      prompt: originalPrompt,
+      temperature: 0.9
+    } as never)
+
+    const fallbackOptions = expect.objectContaining({
+      temperature: 0.1,
+      maxOutputTokens: 256,
+      headers: { 'x-fallback': 'true' }
+    })
+    expect(fallbackGenerate).toHaveBeenNthCalledWith(1, fallbackOptions)
+    expect(fallbackGenerate).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        prompt: rewrittenPrompt,
+        temperature: 0.1,
+        maxOutputTokens: 256,
+        headers: { 'x-fallback': 'true' }
+      })
+    )
   })
 
   it('performs exactly max_attempts same-model retries (the displayed number)', async () => {

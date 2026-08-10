@@ -104,11 +104,11 @@ async function resolveTrustedImageMime(buffer: Buffer, response: Response, url: 
  * Download an image URL via Electron's net.fetch (respects system proxy) and
  * return base64-encoded data. Returns null on failure.
  */
-export async function downloadImageAsBase64(url: string): Promise<ImageAttachment | null> {
+export async function downloadImageAsBase64(url: string, signal?: AbortSignal): Promise<ImageAttachment | null> {
   try {
     // Reject non-http(s) schemes and local/private hosts before fetching (SSRF guard).
     const safeUrl = sanitizeRemoteUrl(url)
-    const response = await net.fetch(safeUrl)
+    const response = await net.fetch(safeUrl, { signal })
     if (!response.ok) {
       logger.warn('Failed to download image', { url, status: response.status })
       return null

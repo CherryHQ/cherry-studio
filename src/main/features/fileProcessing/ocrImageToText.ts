@@ -10,9 +10,14 @@
  * `image_to_text` processor (local Tesseract/System, or a remote OCR).
  */
 
+import { randomUUID } from 'node:crypto'
+import path from 'node:path'
+
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { mimeToExt, mkdir, removeDir, write } from '@main/utils/file'
 import type { FileHandle } from '@shared/data/types/file'
+import { AbsoluteFilePathSchema } from '@shared/types/file'
 
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
@@ -58,6 +63,31 @@ export async function ocrImageToText(file: FileHandle, signal?: AbortSignal): Pr
   const text = await runOcr(file, signal)
   if (cacheKey) cache.set(cacheKey, text, CACHE_TTL_MS)
   return text
+}
+
+/**
+ * OCR image bytes that are already present in an AI provider request. The
+ * file-processing adapters are path-based, so keep the short-lived bridge in
+ * this domain and clean it up after the inline OCR call.
+ */
+export async function ocrImageBytesToText(data: Uint8Array, mediaType: string, signal?: AbortSignal): Promise<string> {
+  if (signal?.aborted) throw signal.reason
+
+  const tempDir = AbsoluteFilePathSchema.parse(
+    path.join(application.getPath('feature.file_processing.temp'), `inline-ocr-${randomUUID()}`)
+  )
+  const ext = mimeToExt(mediaType.split(';', 1)[0]) ?? 'png'
+  const imagePath = AbsoluteFilePathSchema.parse(path.join(tempDir, `image.${ext}`))
+
+  await mkdir(tempDir)
+  try {
+    await write(imagePath, data)
+    return await runOcr({ kind: 'path', path: imagePath }, signal)
+  } finally {
+    await removeDir(tempDir).catch((error) => {
+      logger.warn('Failed to clean up inline OCR temporary directory', { error })
+    })
+  }
 }
 
 async function runOcr(file: FileHandle, signal?: AbortSignal): Promise<string> {
