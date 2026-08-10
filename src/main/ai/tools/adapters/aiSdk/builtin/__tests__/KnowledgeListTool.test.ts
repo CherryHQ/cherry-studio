@@ -262,7 +262,8 @@ describe('kb_list', () => {
       limit: 10,
       cursor: 'cursor-1',
       search: 'RUST',
-      allowedIds: ['kb-1', 'kb-2']
+      allowedIds: ['kb-1', 'kb-2'],
+      includeItemSourcesInSearch: true
     })
   })
 
@@ -428,7 +429,7 @@ describe('kb_list', () => {
   describe('toModelOutput', () => {
     type ToModelOutputFn = (opts: {
       toolCallId: string
-      input: { query?: string; groupId?: string; baseId?: string }
+      input: { query?: string; groupId?: string; baseId?: string; cursor?: string }
       output: { items: Array<{ id: string }>; total: number; nextCursor?: string }
     }) => { type: string; value: unknown }
 
@@ -442,6 +443,19 @@ describe('kb_list', () => {
       const result = toModelOutput({ toolCallId: 'tc-1', input: {}, output: { items: [], total: 0 } })
       expect(result.type).toBe('text')
       expect(result.value).toMatch(/no knowledge base/i)
+    })
+
+    it('steers an empty stale-cursor page back to the first page', () => {
+      const toModelOutput = entry.tool.toModelOutput as ToModelOutputFn
+      const result = toModelOutput({
+        toolCallId: 'tc-1',
+        input: { cursor: 'stale-cursor' },
+        output: { items: [], total: 1 }
+      })
+
+      expect(result.type).toBe('text')
+      expect(result.value).toMatch(/without.*cursor/i)
+      expect(result.value).not.toMatch(/no knowledge base/i)
     })
 
     it('hints "broaden the filter" when output is empty but a query/groupId was passed', () => {

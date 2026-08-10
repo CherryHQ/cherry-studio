@@ -140,23 +140,52 @@ describe('useKnowledgeBases', () => {
     expect(result.current.isLoading).toBe(true)
   })
 
-  it('stops automatic pagination on a later-page error', () => {
-    const error = new Error('page 2 failed')
-    const loadNext = vi.fn()
+  it('ends loading when the first page fails', () => {
+    const error = new Error('page 1 failed')
     mockUseInfiniteQuery.mockReturnValue({
-      pages: [{ items: [createKnowledgeBase({ id: 'base-1' })], nextCursor: 'cursor-2' }],
+      pages: [],
       isLoading: false,
       isRefreshing: false,
       error,
-      hasNext: true,
-      loadNext,
+      hasNext: false,
+      loadNext: vi.fn(),
       refresh: vi.fn()
     })
 
     const { result } = renderHook(() => useKnowledgeBases())
 
     expect(result.current.bases).toEqual([])
-    expect(result.current.isLoading).toBe(true)
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.error).toBe(error)
+  })
+
+  it('stops automatic pagination and preserves the last complete list on a later-page error', () => {
+    const error = new Error('page 2 failed')
+    const loadNext = vi.fn()
+    const completeBases = [createKnowledgeBase({ id: 'base-1' })]
+    let queryState = {
+      pages: [{ items: completeBases }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined as Error | undefined,
+      hasNext: false,
+      loadNext,
+      refresh: vi.fn()
+    }
+    mockUseInfiniteQuery.mockImplementation(() => queryState)
+
+    const { result, rerender } = renderHook(() => useKnowledgeBases())
+
+    queryState = {
+      ...queryState,
+      pages: [{ items: completeBases, nextCursor: 'cursor-2' }] as never,
+      error,
+      hasNext: true
+    }
+    rerender()
+
+    expect(result.current.bases).toEqual(completeBases)
+    expect(result.current.isLoading).toBe(false)
     expect(result.current.error).toBe(error)
     expect(loadNext).not.toHaveBeenCalled()
   })

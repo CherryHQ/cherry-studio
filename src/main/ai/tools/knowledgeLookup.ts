@@ -85,7 +85,7 @@ Workflow: call kb_list first to discover available bases and their contents, the
 export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
 
 Two modes, selected by \`baseId\`:
-- Omit \`baseId\` to list one page of available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Use \`query\` to filter by base name. If \`nextCursor\` is returned, pass it as \`cursor\` to continue. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use kb_search.
+- Omit \`baseId\` to list one page of available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Use \`query\` to filter by base name or source. If \`nextCursor\` is returned, pass it as \`cursor\` to continue. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use kb_search.
 - Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.`
 
 export const KNOWLEDGE_READ_DESCRIPTION = `Read a single knowledge base document by its Concept ID — or grep inside it.
@@ -599,7 +599,7 @@ async function listKnowledgeBases(
     const page = knowledgeService.listBases({
       limit: input.limit ?? KB_LIST_DEFAULT_LIMIT,
       ...(input.cursor ? { cursor: input.cursor } : {}),
-      ...(input.query ? { search: input.query } : {}),
+      ...(input.query ? { search: input.query, includeItemSourcesInSearch: true } : {}),
       ...(input.groupId ? { groupId: input.groupId } : {}),
       ...(allowedIds.length > 0 ? { allowedIds } : {})
     })
@@ -628,7 +628,7 @@ async function listKnowledgeBases(
 
 export function knowledgeListModelOutput(
   output: KnowledgeListResultOrError,
-  input: { query?: string | null; groupId?: string | null; baseId?: string | null }
+  input: { query?: string | null; groupId?: string | null; baseId?: string | null; cursor?: string | null }
 ): { type: 'text'; value: string } | { type: 'json'; value: KbListOutput | KbTreeOutput } {
   const outlineMode = input?.baseId != null
 
@@ -640,6 +640,13 @@ export function knowledgeListModelOutput(
 
   if ('items' in output) {
     if (output.items.length === 0) {
+      if (output.total > 0 || input.cursor) {
+        return {
+          type: 'text',
+          value:
+            'This knowledge-base cursor is exhausted or stale. Call kb_list again without cursor, keeping the same query and groupId filters if they still apply.'
+        }
+      }
       const filtered = Boolean(input?.query) || Boolean(input?.groupId)
       return {
         type: 'text',

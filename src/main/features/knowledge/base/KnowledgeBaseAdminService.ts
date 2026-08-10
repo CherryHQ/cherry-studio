@@ -29,6 +29,7 @@ export interface ListKnowledgeBasesOptions {
   search?: string
   groupId?: string
   allowedIds?: readonly string[]
+  includeItemSourcesInSearch?: boolean
 }
 
 /** Knowledge base lifecycle: create (with rollback), delete, restore, and list — everything about the base row + its on-disk artifacts, not about items. */
@@ -204,7 +205,8 @@ export class KnowledgeBaseAdminService {
       },
       {
         ...(options.groupId ? { groupId: options.groupId } : {}),
-        ...(options.allowedIds ? { ids: options.allowedIds } : {})
+        ...(options.allowedIds ? { ids: options.allowedIds } : {}),
+        ...(options.includeItemSourcesInSearch ? { includeItemSourcesInSearch: true } : {})
       }
     )
   }

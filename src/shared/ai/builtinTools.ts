@@ -70,7 +70,9 @@ export const kbListInputSchema = z.object({
     .min(1)
     .max(200)
     .optional()
-    .describe('List mode only: case-insensitive substring filter against the knowledge base name.'),
+    .describe(
+      'List mode only: case-insensitive substring filter against the knowledge base name or source names such as filenames, URLs, and note titles.'
+    ),
   groupId: z
     .string()
     .trim()

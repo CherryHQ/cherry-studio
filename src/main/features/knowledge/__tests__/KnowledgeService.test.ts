@@ -2099,12 +2099,13 @@ describe('KnowledgeService', () => {
           cursor: 'cursor-1',
           search: 'notes',
           groupId: 'group-1',
-          allowedIds: ['kb-1', 'kb-2']
+          allowedIds: ['kb-1', 'kb-2'],
+          includeItemSourcesInSearch: true
         })
       ).toEqual(page)
       expect(knowledgeBaseListCursorMock).toHaveBeenCalledWith(
         { limit: 20, cursor: 'cursor-1', search: 'notes' },
-        { groupId: 'group-1', ids: ['kb-1', 'kb-2'] }
+        { groupId: 'group-1', ids: ['kb-1', 'kb-2'], includeItemSourcesInSearch: true }
       )
     })
   })

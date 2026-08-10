@@ -550,7 +550,8 @@ describe('cherryBuiltinTools', () => {
       cursor: 'cursor-1',
       search: 'invoice',
       groupId: 'g2',
-      allowedIds: ['b1', 'b2']
+      allowedIds: ['b1', 'b2'],
+      includeItemSourcesInSearch: true
     })
     expect(listRootItems).toHaveBeenCalledWith('b2')
     expect(listRootItems).not.toHaveBeenCalledWith('b1')

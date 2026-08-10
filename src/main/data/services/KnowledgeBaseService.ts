@@ -30,6 +30,7 @@ import {
   KnowledgeBaseWriteSchema
 } from '@shared/data/types/knowledge'
 import { and, asc, count as sqlCount, desc, eq, gte, inArray, ne, type SQL, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/sqlite-core'
 
 import { groupService } from './GroupService'
 import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
@@ -41,6 +42,13 @@ type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
 type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
 type KnowledgeBaseListSortBy = NonNullable<ListKnowledgeBasesQuery['sortBy']>
 type KnowledgeBaseOffsetListQuery = Omit<ListKnowledgeBasesQuery, 'cursor'> & { page: number }
+type KnowledgeBaseListFilters = {
+  groupId?: string
+  ids?: readonly string[]
+  includeItemSourcesInSearch?: boolean
+}
+
+const sourceItemTable = alias(knowledgeItemTable, 'source_item')
 
 function validateKnowledgeBaseGroupTx(tx: Pick<DbType, 'select'>, groupId: string | null | undefined): void {
   if (groupId == null) return
@@ -73,20 +81,39 @@ function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   })
 }
 
-function buildSearchPredicate(search: string | undefined): SQL | undefined {
+function buildSearchPredicate(search: string | undefined, includeItemSources = false): SQL | undefined {
   const trimmed = search?.trim()
   if (!trimmed) return undefined
 
   const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
-  return sql`${knowledgeBaseTable.name} LIKE ${pattern} ESCAPE '\\'`
+  const nameMatch = sql`${knowledgeBaseTable.name} LIKE ${pattern} ESCAPE '\\'`
+  if (!includeItemSources) return nameMatch
+
+  const itemSourceMatch = sql`EXISTS (
+    SELECT 1
+    FROM ${knowledgeItemTable} AS ${sql.identifier('source_item')}
+    WHERE ${sourceItemTable.baseId} = ${knowledgeBaseTable.id}
+      AND ${sourceItemTable.groupId} IS NULL
+      AND ${sourceItemTable.status} = 'completed'
+      AND (
+        json_extract(${sourceItemTable.data}, '$.source') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.url') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.relativePath') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.file.origin_name') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.file.name') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.content') LIKE ${pattern} ESCAPE '\\'
+      )
+  )`
+
+  return sql`(${nameMatch} OR (${knowledgeBaseTable.status} = 'completed' AND ${itemSourceMatch}))`
 }
 
 function buildListFilterConditions(
   query: Pick<ListKnowledgeBasesQuery, 'search' | 'updatedAtFrom'>,
-  filters: { groupId?: string; ids?: readonly string[] } = {}
+  filters: KnowledgeBaseListFilters = {}
 ): SQL[] {
   const conditions: SQL[] = []
-  const search = buildSearchPredicate(query.search)
+  const search = buildSearchPredicate(query.search, filters.includeItemSourcesInSearch)
   if (search) conditions.push(search)
   if (query.updatedAtFrom !== undefined) {
     conditions.push(gte(knowledgeBaseTable.updatedAt, Date.parse(query.updatedAtFrom)))
@@ -240,10 +267,7 @@ export class KnowledgeBaseService {
     }
   }
 
-  listCursor(
-    query: ListKnowledgeBasesQuery,
-    filters: { groupId?: string; ids?: readonly string[] } = {}
-  ): KnowledgeBaseListResponse {
+  listCursor(query: ListKnowledgeBasesQuery, filters: KnowledgeBaseListFilters = {}): KnowledgeBaseListResponse {
     const { limit } = query
     const filterConditions = buildListFilterConditions(query, filters)
     const sortBy = query.sortBy ?? 'createdAt'

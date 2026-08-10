@@ -60,7 +60,7 @@ export const useKnowledgeBases = (options: { enabled?: boolean; revalidateOnFocu
 
   return {
     bases,
-    isLoading: enabled && !isFullyLoaded,
+    isLoading: enabled && !isFullyLoaded && !error,
     error,
     refetch: refresh
   }
