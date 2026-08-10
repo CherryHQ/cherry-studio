@@ -118,6 +118,31 @@ describe('toModelMessages', () => {
     expect(JSON.stringify(model)).not.toContain(imageData)
     expect(messages).toEqual(originalMessages)
   })
+
+  it('replays a completed legacy MCP tool name unchanged', async () => {
+    const legacyToolName = 'mcp__mysql__executeSql'
+    const model = await toModelMessages([
+      ui('assistant', [
+        {
+          type: 'dynamic-tool',
+          toolName: legacyToolName,
+          toolCallId: 'legacy-call',
+          state: 'output-available',
+          input: { sql: 'select 1' },
+          output: { ok: true }
+        }
+      ])
+    ])
+
+    expect(model[0]).toMatchObject({
+      role: 'assistant',
+      content: [expect.objectContaining({ type: 'tool-call', toolName: legacyToolName })]
+    })
+    expect(model[1]).toMatchObject({
+      role: 'tool',
+      content: [expect.objectContaining({ type: 'tool-result', toolName: legacyToolName })]
+    })
+  })
 })
 
 describe('ensureNonEmptyAssistantContent', () => {

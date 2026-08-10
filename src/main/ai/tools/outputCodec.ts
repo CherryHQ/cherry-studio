@@ -15,16 +15,14 @@
  * byte-stable for prefix caching.
  */
 
-import type { ToolOutputCodec } from './adapters/aiSdk/types'
+import { CITATION_SNIPPET_MAX_CHARS } from '@shared/ai/builtinTools'
 
-/** Persist-lane inline stand-in for a blobbed content field. Byte-aligned with
- *  the renderer citation snippet (`toSnippet` in citations.ts). */
-const SNIPPET_MAX_CHARS = 300
+import type { ToolOutputCodec } from './adapters/aiSdk/types'
 
 function snippet(text: string): string {
   const trimmed = text.trim()
-  if (trimmed.length <= SNIPPET_MAX_CHARS) return trimmed
-  return `${trimmed.slice(0, SNIPPET_MAX_CHARS)}…`
+  if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
+  return `${trimmed.slice(0, CITATION_SNIPPET_MAX_CHARS)}…`
 }
 
 /** Codec for entity-array outputs: `[{…identity, [contentKey]: string}, …]`. */

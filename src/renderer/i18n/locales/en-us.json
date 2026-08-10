@@ -318,7 +318,7 @@
         }
       },
       "info": {
-        "artifacts": "Deliverables",
+        "artifacts": "Outputs",
         "context_categories": {
           "autocompact_buffer": "Autocompact buffer",
           "custom_agents": "Custom agents",
@@ -334,7 +334,7 @@
         "context_usage": "Context usage",
         "label": "Session information",
         "more": "+{{count}} more",
-        "no_artifacts": "No declared deliverables",
+        "no_artifacts": "No declared outputs",
         "no_subagents": "No sub-agents",
         "shell_tasks": "Background commands",
         "subagents": "Sub-agents",
@@ -1759,12 +1759,6 @@
       "top": "Back to top"
     },
     "resend": "Resend",
-    "resource_view": {
-      "menu": {
-        "agent": "Agents",
-        "assistant": "Assistants"
-      }
-    },
     "save": {
       "file": {
         "title": "Save to Local File"
@@ -1937,6 +1931,7 @@
         "time": "Time",
         "title": "Display mode"
       },
+      "draft": "Draft",
       "edit": {
         "placeholder": "Enter new name",
         "title": "Edit conversation name",
@@ -2181,6 +2176,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Qwen Code"
     },
@@ -4118,6 +4114,9 @@
       "failed": "Restore failed",
       "success": "Restored successfully"
     },
+    "retry": {
+      "status": "Retrying with {{model}} · attempt {{attempt}}"
+    },
     "save": {
       "success": {
         "title": "Saved successfully"
@@ -4645,6 +4644,8 @@
         "font_size_medium": "Medium",
         "font_size_small": "Small",
         "font_title": "Font settings",
+        "line_breaks": "Line Break Mode",
+        "line_breaks_description": "Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "Serif font",
         "show_table_of_contents": "Show Table of Contents",
         "show_table_of_contents_description": "Display a table of contents sidebar for easy navigation within documents",
@@ -5412,6 +5413,7 @@
         "insertRowBefore": "Insert Above"
       }
     },
+    "backToTop": "Back to top",
     "commands": {
       "blockMath": {
         "description": "Insert mathematical formula",
@@ -7546,6 +7548,16 @@
         "label": "Quick Model",
         "setting_title": "Quick model setup",
         "tooltip": "Choose a lightweight model and avoid reasoning models."
+      },
+      "retry": {
+        "backoff": "Exponential backoff",
+        "description": "Retry chat, embedding, and rerank calls; chat can fall back to other models",
+        "fallback_models": "Fallback models",
+        "fallback_models_count": "{{count}} models selected",
+        "fallback_models_description": "Models tried in order when the primary model fails",
+        "label": "Model Call Retry",
+        "max_attempts": "Max retry attempts",
+        "tooltip": "Retries and fallbacks only apply before the model starts streaming content"
       },
       "toolbar": {
         "custom_add": "Custom",

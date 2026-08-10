@@ -1759,12 +1759,6 @@
       "top": "回到顶部"
     },
     "resend": "重新发送",
-    "resource_view": {
-      "menu": {
-        "agent": "智能体",
-        "assistant": "助手"
-      }
-    },
     "save": {
       "file": {
         "title": "保存到本地文件"
@@ -1937,6 +1931,7 @@
         "time": "时间",
         "title": "展示方式"
       },
+      "draft": "草稿",
       "edit": {
         "placeholder": "输入新名称",
         "title": "编辑对话名",
@@ -2181,6 +2176,7 @@
       "openai_codex": "OpenAI Codex",
       "openclaw": "OpenClaw",
       "opencode": "OpenCode",
+      "pi": "Pi",
       "qoder_cli": "Qoder CLI",
       "qwen_code": "Qwen Code"
     },
@@ -4118,6 +4114,9 @@
       "failed": "恢复失败",
       "success": "恢复成功"
     },
+    "retry": {
+      "status": "正在用 {{model}} 重试 · 第 {{attempt}} 次"
+    },
     "save": {
       "success": {
         "title": "保存成功"
@@ -4645,6 +4644,8 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "字体设置",
+        "line_breaks": "换行方式",
+        "line_breaks_description": "开启后单个换行符将渲染为新的一行（类似 Obsidian）。关闭时换行符会被折叠为空格，直到出现空行才会分段。",
         "serif_font": "衬线字体",
         "show_table_of_contents": "显示目录大纲",
         "show_table_of_contents_description": "显示目录大纲侧边栏，方便文档内导航",
@@ -5412,6 +5413,7 @@
         "insertRowBefore": "在上方插入"
       }
     },
+    "backToTop": "回到顶部",
     "commands": {
       "blockMath": {
         "description": "插入数学公式",
@@ -7546,6 +7548,16 @@
         "label": "快速模型",
         "setting_title": "快速模型设置",
         "tooltip": "建议选择轻量模型，不建议选择思考模型"
+      },
+      "retry": {
+        "backoff": "指数退避",
+        "description": "重试聊天、嵌入和重排调用；聊天失败时可回退到其他模型",
+        "fallback_models": "回退模型",
+        "fallback_models_count": "已选择 {{count}} 个模型",
+        "fallback_models_description": "主模型失败时按顺序尝试的模型",
+        "label": "模型调用重试",
+        "max_attempts": "最大重试次数",
+        "tooltip": "重试与回退仅在模型开始输出内容前生效"
       },
       "toolbar": {
         "custom_add": "自定义",
