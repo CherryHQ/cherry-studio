@@ -22,9 +22,11 @@ import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import {
   AgentSessionDeliveryModeSchema,
+  AgentSessionDeliveryStatusSchema,
   SESSION_CREATE_TOOL_NAME,
-  SESSION_INBOX_TOOL_NAME,
+  SESSION_DELIVERIES_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
+  SESSION_SEARCH_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 } from '@shared/ai/agentSessionDelivery'
 import { CONFIG_TOOL_NAME, CRON_TOOL_NAME, NOTIFY_TOOL_NAME } from '@shared/ai/builtinTools'
@@ -280,13 +282,29 @@ const SESSION_LIST_TOOL: Tool = {
   }
 }
 
-const SESSION_INBOX_TOOL: Tool = {
-  name: SESSION_INBOX_TOOL_NAME,
-  description:
-    'Read structured cross-Session delivery envelopes received by the current Session, including the stable replyTo address.',
+const SESSION_SEARCH_TOOL: Tool = {
+  name: SESSION_SEARCH_TOOL_NAME,
+  description: 'Search visible Cherry Agent Sessions by metadata and message evidence.',
   inputSchema: {
     type: 'object',
     properties: {
+      query: { type: 'string', description: 'Natural-language or keyword query.' },
+      agent_id: { type: 'string', description: 'Optional Agent id filter.' },
+      limit: { type: 'number', description: 'Maximum message matches to inspect (default 20, max 100).' }
+    },
+    required: ['query']
+  }
+}
+
+const SESSION_DELIVERIES_TOOL: Tool = {
+  name: SESSION_DELIVERIES_TOOL_NAME,
+  description: 'Inspect durable incoming or outgoing cross-Session requests, results, and delivery state.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      direction: { type: 'string', enum: ['incoming', 'outgoing'] },
+      request_id: { type: 'string', description: 'Optional request id; correlated results are included.' },
+      status: { type: 'string', enum: ['accepted', 'queued', 'delivering', 'consumed', 'failed'] },
       limit: { type: 'number', description: 'Maximum deliveries to return (default 20, max 100).' }
     }
   }
@@ -313,12 +331,20 @@ const SESSION_SEND_TOOL: Tool = {
   inputSchema: {
     type: 'object',
     properties: {
-      target_session_id: { type: 'string', description: 'Target sessionId returned by session_list or replyTo.' },
+      target_session_id: {
+        type: 'string',
+        description: 'Target sessionId returned by session_list or delivery sender.'
+      },
       message: { type: 'string', description: 'Message for the target Agent.' },
       mode: {
         type: 'string',
-        enum: ['send-now', 'queue', 'auto'],
-        description: 'send-now may steer a busy turn; queue waits for a later FIFO turn; auto chooses safely.'
+        enum: ['queue', 'auto'],
+        description: 'auto may safely steer; queue always waits for a later FIFO turn.'
+      },
+      reply: {
+        type: 'string',
+        enum: ['none', 'completion'],
+        description: 'completion returns one asynchronous terminal result in a separate queued turn.'
       }
     },
     required: ['target_session_id', 'message']
@@ -330,8 +356,9 @@ const AUTONOMY_TOOLS: readonly Tool[] = [
   NOTIFY_TOOL,
   CONFIG_TOOL,
   SESSION_LIST_TOOL,
+  SESSION_SEARCH_TOOL,
   SESSION_CREATE_TOOL,
-  SESSION_INBOX_TOOL,
+  SESSION_DELIVERIES_TOOL,
   SESSION_SEND_TOOL
 ]
 
@@ -378,10 +405,12 @@ export class CherryAutonomyTools {
           return await this.sendNotification(args)
         case SESSION_LIST_TOOL_NAME:
           return this.listSessions(args)
+        case SESSION_SEARCH_TOOL_NAME:
+          return this.searchSessions(args)
         case SESSION_CREATE_TOOL_NAME:
           return await this.createSession(args)
-        case SESSION_INBOX_TOOL_NAME:
-          return this.listSessionInbox(args)
+        case SESSION_DELIVERIES_TOOL_NAME:
+          return this.listSessionDeliveries(args)
         case SESSION_SEND_TOOL_NAME:
           return await this.sendSessionMessage(args)
         case CONFIG_TOOL_NAME: {
@@ -457,22 +486,81 @@ export class CherryAutonomyTools {
     return { content: [{ type: 'text' as const, text: JSON.stringify({ sessions }) }] }
   }
 
-  private listSessionInbox(args: Record<string, unknown>) {
+  private searchSessions(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    const query = typeof args.query === 'string' ? args.query.trim() : ''
+    if (!query) throw new McpError(ErrorCode.InvalidParams, "'query' is required")
+    const agentId = typeof args.agent_id === 'string' && args.agent_id.trim() ? args.agent_id.trim() : undefined
+    const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 20
+    const matches = agentSessionMessageService
+      .search({ q: query, limit })
+      .items.filter((item) => !agentId || item.agentId === agentId)
+    const sessions = new Map<
+      string,
+      {
+        agentId?: string
+        agentName?: string
+        sessionId: string
+        sessionName: string
+        isCurrent: boolean
+        matches: Array<{ messageId: string; snippet: string; createdAt: string }>
+      }
+    >()
+    for (const match of agentSessionService.search({ q: query, limit })) {
+      if (agentId && match.target.agentId !== agentId) continue
+      sessions.set(match.id, {
+        agentId: match.target.agentId ?? undefined,
+        agentName: match.subtitle,
+        sessionId: match.id,
+        sessionName: match.title,
+        isCurrent: match.id === this.sessionId,
+        matches: []
+      })
+    }
+    for (const match of matches) {
+      const candidate = sessions.get(match.sessionId) ?? {
+        agentId: match.agentId,
+        agentName: match.agentName,
+        sessionId: match.sessionId,
+        sessionName: match.sessionName,
+        isCurrent: match.sessionId === this.sessionId,
+        matches: []
+      }
+      candidate.matches.push({ messageId: match.messageId, snippet: match.snippet, createdAt: match.createdAt })
+      sessions.set(match.sessionId, candidate)
+    }
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ sessions: [...sessions.values()] }) }] }
+  }
+
+  private listSessionDeliveries(args: Record<string, unknown>) {
     this.assertCurrentSessionIdentity()
     const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 20
-    const deliveries = agentSessionMessageService.listSessionDeliveries(this.sessionId, limit).flatMap((message) =>
-      message.delivery
-        ? [
-            {
-              envelope: message.delivery,
-              content: (message.data.parts ?? [])
-                .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
-                .map((part) => part.text)
-                .join('\n')
-            }
-          ]
-        : []
-    )
+    const direction = args.direction === 'outgoing' ? 'outgoing' : 'incoming'
+    const requestId = typeof args.request_id === 'string' ? args.request_id.trim() : undefined
+    const statusResult = args.status === undefined ? undefined : AgentSessionDeliveryStatusSchema.safeParse(args.status)
+    if (statusResult && !statusResult.success) throw new McpError(ErrorCode.InvalidParams, "invalid 'status'")
+    const deliveries = agentSessionMessageService
+      .listSessionDeliveries({
+        sessionId: this.sessionId,
+        direction,
+        requestId,
+        status: statusResult?.data,
+        limit
+      })
+      .flatMap((message) =>
+        message.delivery
+          ? [
+              {
+                id: message.id,
+                envelope: message.delivery,
+                content: (message.data.parts ?? [])
+                  .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+                  .map((part) => part.text)
+                  .join('\n')
+              }
+            ]
+          : []
+      )
     return { content: [{ type: 'text' as const, text: JSON.stringify({ deliveries }) }] }
   }
 
@@ -501,6 +589,7 @@ export class CherryAutonomyTools {
             ok: true,
             agentId: created.session.agentId,
             sessionId: created.session.id,
+            requestId: created.message.id,
             delivery: { ...created.message.delivery, status: disposition }
           })
         }
@@ -511,24 +600,39 @@ export class CherryAutonomyTools {
   private async sendSessionMessage(args: Record<string, unknown>) {
     const receiverSessionId = typeof args.target_session_id === 'string' ? args.target_session_id.trim() : ''
     const content = typeof args.message === 'string' ? args.message.trim() : ''
-    const modeResult = AgentSessionDeliveryModeSchema.safeParse(args.mode ?? 'auto')
+    const reply = args.reply === undefined ? 'none' : args.reply
+    if (reply !== 'none' && reply !== 'completion') {
+      throw new McpError(ErrorCode.InvalidParams, "'reply' must be none or completion")
+    }
+    if (reply === 'completion' && args.mode !== undefined && args.mode !== 'queue') {
+      throw new McpError(ErrorCode.InvalidParams, "completion requests cannot use 'auto' mode")
+    }
+    const modeResult = AgentSessionDeliveryModeSchema.safeParse(
+      reply === 'completion' ? 'queue' : (args.mode ?? 'auto')
+    )
     if (!receiverSessionId) throw new McpError(ErrorCode.InvalidParams, "'target_session_id' is required")
     if (!content) throw new McpError(ErrorCode.InvalidParams, "'message' is required")
-    if (!modeResult.success) throw new McpError(ErrorCode.InvalidParams, "'mode' must be send-now, queue, or auto")
+    if (!modeResult.success) throw new McpError(ErrorCode.InvalidParams, "'mode' must be queue or auto")
 
     const accepted = agentSessionMessageService.acceptSessionDelivery({
       senderAgentId: this.agentId,
       senderSessionId: this.sessionId,
       receiverSessionId,
       content,
-      mode: modeResult.data
+      mode: modeResult.data,
+      replyPolicy: reply
     })
     const disposition = await dispatchAcceptedAgentSessionDelivery(accepted)
     return {
       content: [
         {
           type: 'text' as const,
-          text: JSON.stringify({ ok: true, delivery: { ...accepted.delivery, status: disposition } })
+          text: JSON.stringify({
+            ok: true,
+            requestId: accepted.id,
+            status: disposition,
+            delivery: { ...accepted.delivery, status: disposition }
+          })
         }
       ]
     }

@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
@@ -8,67 +8,27 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import { agentChatContextProvider } from '../context/AgentChatContextProvider'
-import type { StreamDoneResult, StreamErrorResult, StreamListener, StreamPausedResult } from '../types'
+import type { StreamListener } from '../types'
 
 const logger = loggerService.withContext('AgentSessionDelivery')
 
-class AgentSessionDeliveryListener implements StreamListener {
+class AgentSessionDeliverySubscriber implements StreamListener {
   readonly id: string
-  private replied = false
 
-  constructor(private readonly message: AgentSessionMessageEntity) {
-    this.id = `agent-delivery:${message.delivery?.id ?? message.id}`
+  constructor(messageId: string) {
+    this.id = `agent-delivery:${messageId}`
   }
 
   onChunk(): void {}
 
-  async onDone(result: StreamDoneResult): Promise<void> {
-    await this.reply(this.extractText(result.finalMessage) || 'Session completed without a text response.')
-  }
+  onDone(): void {}
 
-  async onPaused(result: StreamPausedResult): Promise<void> {
-    await this.reply(this.extractText(result.finalMessage) || 'Session paused without a text response.')
-  }
+  onPaused(): void {}
 
-  async onError(result: StreamErrorResult): Promise<void> {
-    const partial = this.extractText(result.finalMessage)
-    const error = result.error.message ?? 'Unknown error'
-    await this.reply(partial ? `${partial}\n\nSession ended with an error: ${error}` : `Session failed: ${error}`)
-  }
+  onError(): void {}
 
   isAlive(): boolean {
     return true
-  }
-
-  private extractText(message: StreamDoneResult['finalMessage']): string {
-    return (message?.parts ?? [])
-      .flatMap((part) => (part.type === 'text' ? [part.text] : []))
-      .join('')
-      .trim()
-  }
-
-  private async reply(content: string): Promise<void> {
-    const delivery = this.message.delivery
-    if (!delivery?.expectsReply || this.replied) return
-    this.replied = true
-
-    try {
-      const reply = agentSessionMessageService.acceptSessionDelivery({
-        senderAgentId: delivery.receiver.agentId,
-        senderSessionId: delivery.receiver.sessionId,
-        receiverSessionId: delivery.replyTo.sessionId,
-        content,
-        mode: 'auto'
-      })
-      await dispatchAcceptedAgentSessionDelivery(reply)
-    } catch (error) {
-      logger.error('Failed to return Agent Session delivery result', {
-        deliveryId: delivery.id,
-        senderSessionId: delivery.receiver.sessionId,
-        receiverSessionId: delivery.replyTo.sessionId,
-        error
-      })
-    }
   }
 }
 
@@ -196,9 +156,13 @@ export async function startAgentSessionRun(input: {
       siblingsGroupId: prepared.siblingsGroupId,
       lifecycle: prepared.lifecycle
     })
-    const disposition = wasBusy ? 'queued' : 'delivering'
+    const disposition = wasBusy || input.queueOnly ? 'queued' : 'delivering'
     if (input.deliveryMessage?.delivery) {
-      agentSessionMessageService.updateSessionDeliveryStatus(input.sessionId, input.deliveryMessage.id, disposition)
+      const turnRef = disposition === 'delivering' ? prepared.models[0]?.request.messageId : undefined
+      agentSessionMessageService.transitionSessionDelivery(input.sessionId, input.deliveryMessage.id, disposition, {
+        expected: ['accepted', 'queued'],
+        ...(turnRef ? { turnRef } : {})
+      })
     }
     result = input.deliveryMessage ? { mode: 'started', disposition } : { mode: 'started' }
   })
@@ -213,19 +177,37 @@ export async function dispatchAcceptedAgentSessionDelivery(
     const result = await startAgentSessionRun({
       sessionId: message.sessionId,
       userParts: message.data.parts ?? [],
-      listeners: [new AgentSessionDeliveryListener(message)],
+      listeners: [new AgentSessionDeliverySubscriber(message.id)],
       headless: true,
       deliveryMessage: message,
-      queueOnly: message.delivery.mode === 'queue'
+      queueOnly: message.delivery.mode === 'queue' || message.delivery.replyPolicy === 'completion'
     })
-    if (result.mode !== 'started') throw new Error(`Delivery was not started: ${result.reason}`)
+    if (result.mode !== 'started') {
+      if (result.reason === 'session-invalid') {
+        throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', 'Target Session cannot start an Agent turn')
+      }
+      throw new Error(`Delivery was not started: ${result.reason}`)
+    }
     if (!result.disposition) throw new Error('Delivery started without a disposition')
     return result.disposition
   } catch (error) {
-    agentSessionMessageService.updateSessionDeliveryStatus(message.sessionId, message.id, 'failed', {
-      code: 'TARGET_UNAVAILABLE',
-      message: error instanceof Error ? error.message : String(error)
-    })
+    if (error instanceof AgentSessionDeliveryRoutingError) {
+      const result = agentSessionMessageService.failSessionDelivery(message, {
+        code: error.code,
+        message: error.message
+      })
+      if (result) {
+        void application
+          .get('AiStreamManager')
+          .dispatchAgentSessionDelivery(result)
+          .catch((dispatchError) => {
+            logger.warn('Failed to dispatch Agent Session routing failure result', {
+              resultMessageId: result.id,
+              error: dispatchError
+            })
+          })
+      }
+    }
     throw error
   }
 }
@@ -236,10 +218,47 @@ export async function recoverAcceptedAgentSessionDeliveries(): Promise<void> {
   logger.info('Recovering durable agent-session deliveries', { count: messages.length })
   for (const message of messages) {
     try {
+      if (message.delivery?.status === 'delivering') {
+        const turnRef = message.delivery.turnRef
+        if (!turnRef) {
+          agentSessionMessageService.transitionSessionDelivery(message.sessionId, message.id, 'accepted', {
+            expected: ['delivering']
+          })
+        } else {
+          let assistant: AgentSessionMessageEntity | null = null
+          try {
+            assistant = agentSessionMessageService.getSessionMessage(message.sessionId, turnRef)
+          } catch (error) {
+            if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) throw error
+          }
+          if (assistant?.status === 'pending') {
+            agentSessionMessageService.markMessagesError([assistant.id])
+            const result = agentSessionMessageService.finalizeSessionDelivery({
+              requestSessionId: message.sessionId,
+              requestMessageId: message.id,
+              assistantMessageId: assistant.id,
+              outcome: 'interrupted'
+            })
+            if (result) await dispatchAcceptedAgentSessionDelivery(result)
+            continue
+          }
+          if (assistant) {
+            const result = agentSessionMessageService.finalizeSessionDelivery({
+              requestSessionId: message.sessionId,
+              requestMessageId: message.id,
+              assistantMessageId: assistant.id,
+              outcome:
+                assistant.status === 'success' ? 'success' : assistant.status === 'paused' ? 'interrupted' : 'failed'
+            })
+            if (result) await dispatchAcceptedAgentSessionDelivery(result)
+            continue
+          }
+        }
+      }
       await dispatchAcceptedAgentSessionDelivery(message)
     } catch (error) {
       logger.warn('Failed to recover agent-session delivery', {
-        deliveryId: message.delivery?.id,
+        deliveryId: message.id,
         sessionId: message.sessionId,
         error
       })

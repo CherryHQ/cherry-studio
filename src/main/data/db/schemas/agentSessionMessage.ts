@@ -1,4 +1,4 @@
-import type { AgentSessionDelivery } from '@shared/ai/agentSessionDelivery'
+import type { AgentSessionDeliveryEnvelope, AgentSessionDeliveryStatus } from '@shared/ai/agentSessionDelivery'
 import type { MessageData, MessageSnapshot, MessageStats } from '@shared/data/types/message'
 import { sql } from 'drizzle-orm'
 import { check, index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
@@ -26,7 +26,10 @@ export const agentSessionMessageTable = sqliteTable(
     runtimeResumeToken: text(),
     // Main-authored cross-session attribution and delivery state. Kept outside `data` so renderer
     // message edits cannot forge sender identity or mutate delivery lifecycle.
-    delivery: text({ mode: 'json' }).$type<AgentSessionDelivery>(),
+    delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),
+    deliveryStatus: text().$type<AgentSessionDeliveryStatus>(),
+    deliveryInReplyTo: text(),
+    deliverySenderSessionId: text(),
     // Stable integer surrogate for the FTS5 content_rowid (see message.ts for full rationale):
     // trigger-assigned, local-only, nullable because the AFTER INSERT trigger fills it.
     ftsRowid: integer(),
@@ -37,11 +40,18 @@ export const agentSessionMessageTable = sqliteTable(
     // Backs findPendingAssistantMessageIds (boot reconcile); avoids a full SCAN. Plain, not
     // partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('agent_session_message_status_idx').on(t.status),
+    index('agent_session_message_delivery_status_idx').on(t.deliveryStatus),
+    index('agent_session_message_delivery_sender_idx').on(t.deliverySenderSessionId, t.createdAt, t.id),
+    uniqueIndex('agent_session_message_delivery_reply_uniq').on(t.deliveryInReplyTo),
     // FTS5 content_rowid key — UNIQUE so its index keeps the per-row MAX(fts_rowid)+1 assignment
     // O(log N) (see ftsRowid column + message.ts for the rationale).
     uniqueIndex('agent_session_message_fts_rowid_uniq').on(t.ftsRowid),
     check('agent_session_message_role_check', sql`${t.role} IN ('user', 'assistant', 'system')`),
-    check('agent_session_message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`)
+    check('agent_session_message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`),
+    check(
+      'agent_session_message_delivery_status_check',
+      sql`${t.deliveryStatus} IS NULL OR ${t.deliveryStatus} IN ('accepted', 'queued', 'delivering', 'consumed', 'failed')`
+    )
   ]
 )
 

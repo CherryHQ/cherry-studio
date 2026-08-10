@@ -776,22 +776,25 @@ describe('MessageGroup', () => {
       messageStyle: 'bubble',
       showMessageOutline: false
     })
-    const sender = { agentId: 'agent-a', sessionId: 'sender', agentName: 'Agent A', sessionName: 'Sender' }
+    const sender = { agentId: 'agent-a', sessionId: 'sender' }
     const message = {
       ...createMessage('delivered-user-1', 0, 'vertical'),
       role: 'user',
       delivery: {
-        id: 'delivery-1',
+        version: 1,
         sender,
-        receiver: { agentId: 'agent-b', sessionId: 'target', agentName: 'Agent B', sessionName: 'Target' },
-        replyTo: sender,
+        receiver: { agentId: 'agent-b', sessionId: 'target' },
+        senderSnapshot: { agentName: 'Agent A', sessionName: 'Sender' },
+        receiverSnapshot: { agentName: 'Agent B', sessionName: 'Target' },
+        replyPolicy: 'none',
         mode: 'auto',
+        turnRef: null,
+        sourceMessageId: null,
+        outcome: 'success',
+        error: null,
+        statusAt: new Date().toISOString(),
         status: 'consumed',
-        acceptedAt: new Date().toISOString(),
-        scheduledAt: new Date().toISOString(),
-        consumedAt: new Date().toISOString(),
-        failedAt: null,
-        error: null
+        inReplyTo: null
       }
     } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
 

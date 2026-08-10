@@ -1,3 +1,5 @@
+import '@data/services/AgentSessionMessageService'
+
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'

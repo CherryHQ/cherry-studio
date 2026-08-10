@@ -561,6 +561,7 @@ export class AgentSessionService {
   delete(id: string): void {
     const taskScheduleIds = application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
     publishTaskReadModelChanges(taskScheduleIds)
+    this.dispatchDeletionResults()
   }
 
   deleteTx(tx: DbOrTx, id: string): string[] {
@@ -592,6 +593,7 @@ export class AgentSessionService {
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
+    this.dispatchDeletionResults()
     logger.info('Deleted sessions', { count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }
@@ -613,10 +615,18 @@ export class AgentSessionService {
       resetChannelCount: result.channelReferences.length,
       resetTaskCount: result.taskReferences.length
     })
+    this.dispatchDeletionResults()
     return { deletedIds: result.deletedIds }
   }
 
   deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): string[] {
+    const existingSessionIds = tx
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.workspaceId, workspaceId))
+      .all()
+      .map((session) => session.id)
+    getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, existingSessionIds)
     const deletedSessions = tx
       .delete(sessionsTable)
       .where(eq(sessionsTable.workspaceId, workspaceId))
@@ -635,6 +645,7 @@ export class AgentSessionService {
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
+    this.dispatchDeletionResults()
     logger.info('Deleted agent sessions', { agentId, count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }
@@ -724,6 +735,7 @@ export class AgentSessionService {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
+    getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, uniqueIds)
     const rows = tx
       .delete(sessionsTable)
       .where(inArray(sessionsTable.id, uniqueIds))
@@ -735,6 +747,24 @@ export class AgentSessionService {
 
     pinService.purgeForEntitiesTx(tx, 'session', deletedIds)
     return deletedIds
+  }
+
+  dispatchDeletionResults(): void {
+    try {
+      const messageService = getDataService('AgentSessionMessageService')
+      const results = messageService.listAcceptedDeletionResults()
+      messageService.publishDeliveryChanges(results)
+      for (const result of results) {
+        void application
+          .get('AiStreamManager')
+          .dispatchAgentSessionDelivery(result)
+          .catch((error) => {
+            logger.warn('Failed to dispatch Agent Session deletion result', { resultMessageId: result.id, error })
+          })
+      }
+    } catch (error) {
+      logger.warn('Agent Session delivery recovery is unavailable after deletion', { error })
+    }
   }
 
   reorder(id: string, anchor: OrderRequest): void {

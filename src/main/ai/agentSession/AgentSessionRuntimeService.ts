@@ -849,7 +849,32 @@ export class AgentSessionRuntimeService extends BaseService {
       this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
       for (const message of new Map(completedDeliveryMessages.map((message) => [message.id, message])).values()) {
         if (message.delivery) {
-          agentSessionMessageService.updateSessionDeliveryStatus(entry.sessionId, message.id, 'consumed')
+          try {
+            const result = agentSessionMessageService.finalizeSessionDelivery({
+              requestSessionId: entry.sessionId,
+              requestMessageId: message.id,
+              assistantMessageId: completedTurn.assistantMessageId,
+              outcome: status === 'success' ? 'success' : status === 'paused' ? 'interrupted' : 'failed'
+            })
+            if (result) {
+              void application
+                .get('AiStreamManager')
+                .dispatchAgentSessionDelivery(result)
+                .catch((error) => {
+                  logger.warn('Failed to dispatch Agent Session completion result', {
+                    requestMessageId: message.id,
+                    resultMessageId: result.id,
+                    error
+                  })
+                })
+            }
+          } catch (error) {
+            logger.warn('Failed to finalize Agent Session delivery; recovery will retry it', {
+              requestMessageId: message.id,
+              assistantMessageId: completedTurn.assistantMessageId,
+              error
+            })
+          }
         }
       }
     }
@@ -1559,7 +1584,9 @@ export class AgentSessionRuntimeService extends BaseService {
         })
         for (const input of event.inputs) {
           if (input.message.delivery) {
-            agentSessionMessageService.updateSessionDeliveryStatus(entry.sessionId, input.message.id, 'delivering')
+            agentSessionMessageService.transitionSessionDelivery(entry.sessionId, input.message.id, 'delivering', {
+              expected: ['accepted', 'queued']
+            })
           }
         }
         break
@@ -2409,6 +2436,17 @@ export class AgentSessionRuntimeService extends BaseService {
       this.refreshIdleTimer(entry)
       return
     }
+    if (
+      pendingTurn.message.delivery &&
+      !agentSessionMessageService.hasSessionMessage(entry.sessionId, pendingTurn.message.id)
+    ) {
+      // The user deleted the durable request while it was queued. The database is authoritative;
+      // discard the stale runtime cache entry instead of executing a ghost turn.
+      this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
+      if (entry.runtimeState.queue.length > 0) this.requestRuntimeLaunch(entry, 'queued-turn')
+      else this.refreshIdleTimer(entry)
+      return
+    }
     this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
     const { message: nextMessage, reasoningEffort, knowledgeBaseIds, fastMode = false } = pendingTurn
 
@@ -2431,10 +2469,18 @@ export class AgentSessionRuntimeService extends BaseService {
           serializeError(new Error(`Agent ${entry.agentId} has no model configured`))
         )
       if (nextMessage.delivery) {
-        agentSessionMessageService.updateSessionDeliveryStatus(entry.sessionId, nextMessage.id, 'failed', {
+        const result = agentSessionMessageService.failSessionDelivery(nextMessage, {
           code: 'TARGET_UNAVAILABLE',
           message: `Agent ${entry.agentId} has no model configured`
         })
+        if (result) {
+          void application
+            .get('AiStreamManager')
+            .dispatchAgentSessionDelivery(result)
+            .catch((error) => {
+              logger.warn('Failed to dispatch unavailable-target result', { resultMessageId: result.id, error })
+            })
+        }
       }
       this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
       this.markTurnTerminal(entry.sessionId, 'error')
@@ -2469,12 +2515,8 @@ export class AgentSessionRuntimeService extends BaseService {
       rootSpan?.setStatus({ code: SpanStatusCode.ERROR, message: 'Placeholder save failed' })
       rootSpan?.end()
       application.get('AiStreamManager').terminateHeldTopicStream(entry.topicId, entry.modelId, serializeError(error))
-      if (nextMessage.delivery) {
-        agentSessionMessageService.updateSessionDeliveryStatus(entry.sessionId, nextMessage.id, 'failed', {
-          code: 'TARGET_UNAVAILABLE',
-          message: error instanceof Error ? error.message : String(error)
-        })
-      }
+      // A placeholder write can fail transiently during write quiesce. The durable request remains
+      // accepted and recovery will retry it; do not convert a scheduling failure into terminal loss.
       this.markTurnTerminal(entry.sessionId, 'error')
       return
     }
@@ -2499,7 +2541,10 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn: nextTurn })
     if (nextMessage.delivery) {
-      agentSessionMessageService.updateSessionDeliveryStatus(entry.sessionId, nextMessage.id, 'delivering')
+      agentSessionMessageService.transitionSessionDelivery(entry.sessionId, nextMessage.id, 'delivering', {
+        expected: ['accepted', 'queued'],
+        turnRef: assistantMessageId
+      })
     }
 
     const messages = createRuntimeSeedMessages(nextMessage, assistantMessageId)
@@ -2776,6 +2821,14 @@ export class AgentSessionRuntimeService extends BaseService {
       headless
     }
     this.applyRuntimeStateEvent(entry, { type: 'continuation-turn-created', turn: continuationTurn })
+    for (const input of transition.inputs) {
+      if (input.message.delivery) {
+        agentSessionMessageService.transitionSessionDelivery(entry.sessionId, input.message.id, 'delivering', {
+          expected: ['delivering'],
+          turnRef: assistantMessageId
+        })
+      }
+    }
     await this.refreshTurnTraceContext(entry, continuationTurn)
     if (
       !this.isCurrentEntry(entry) ||

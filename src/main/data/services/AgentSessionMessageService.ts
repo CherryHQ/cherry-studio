@@ -12,14 +12,17 @@ import { agentSessionMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { registerDataService } from '@data/services/dataServiceRegistry'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import {
   AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES,
-  type AgentSessionDelivery,
+  type AgentSessionDeliveryEnvelope,
   type AgentSessionDeliveryError,
   type AgentSessionDeliveryMode,
+  type AgentSessionDeliveryOutcome,
+  type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
 } from '@shared/ai/agentSessionDelivery'
 import { applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
@@ -40,6 +43,7 @@ import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/s
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import {
   AGENT_SESSION_MESSAGE_SEARCH_ROLES,
+  type CherryMessagePart,
   coerceSearchRole,
   type MessageRuntimeStatsInput
 } from '@shared/data/types/message'
@@ -88,14 +92,20 @@ type SaveAgentSessionMessageParams = {
   sessionId: string
   runtimeResumeToken?: string
   runtimeStats?: MessageRuntimeStatsInput
-  message: CreateAgentSessionMessageDto & { delivery?: AgentSessionDelivery }
+  message: CreateAgentSessionMessageDto & {
+    delivery?: AgentSessionDeliveryEnvelope
+    deliveryStatus?: AgentSessionDeliveryStatus
+    deliveryInReplyTo?: string | null
+    deliverySenderSessionId?: string | null
+  }
 }
 
 export const AGENT_SESSION_DELIVERY_ERROR_CODES = {
   SENDER_FORBIDDEN: 'SENDER_FORBIDDEN',
   TARGET_AGENT_DELETED: 'TARGET_AGENT_DELETED',
   TARGET_SESSION_NOT_FOUND: 'TARGET_SESSION_NOT_FOUND',
-  TARGET_SESSION_ORPHANED: 'TARGET_SESSION_ORPHANED'
+  TARGET_SESSION_ORPHANED: 'TARGET_SESSION_ORPHANED',
+  TARGET_UNAVAILABLE: 'TARGET_UNAVAILABLE'
 } as const
 
 export type AgentSessionDeliveryErrorCode =
@@ -171,6 +181,28 @@ function replaceAgentSessionMessageFileRefsTx(
       .values(rows.slice(index, index + SQLITE_INARRAY_CHUNK))
       .run()
   }
+}
+
+function terminalResultData(
+  message: SessionMessageRow | null,
+  outcome: AgentSessionDeliveryOutcome,
+  error?: AgentSessionDeliveryError | null
+): AgentSessionMessageEntity['data'] {
+  const parts = (message?.data.parts ?? []).flatMap((part): CherryMessagePart[] => {
+    if (part.type === 'text') return [{ type: 'text', text: part.text }]
+    if (part.type === 'file' && readCherryMeta(part)?.fileEntryId) return [structuredClone(part)]
+    return []
+  })
+  if (parts.length > 0) return { parts }
+
+  const text =
+    error?.message ??
+    (outcome === 'success'
+      ? 'Session completed without a text response.'
+      : outcome === 'interrupted'
+        ? 'Session was interrupted before producing a result.'
+        : 'Session failed without a text response.')
+  return { parts: [{ type: 'text', text }] }
 }
 
 export class AgentSessionMessageService {
@@ -250,6 +282,10 @@ export class AgentSessionMessageService {
         .limit(1)
         .all().length > 0
     )
+  }
+
+  hasSessionMessage(sessionId: string, messageId: string): boolean {
+    return this.findExistingMessageRow(application.get('DbService').getDb(), sessionId, messageId) !== null
   }
 
   /**
@@ -394,7 +430,17 @@ export class AgentSessionMessageService {
     const rows = database
       .select({ id: sessionMessagesTable.id })
       .from(sessionMessagesTable)
-      .where(and(eq(sessionMessagesTable.role, 'assistant'), eq(sessionMessagesTable.status, 'pending')))
+      .where(
+        and(
+          eq(sessionMessagesTable.role, 'assistant'),
+          eq(sessionMessagesTable.status, 'pending'),
+          sql`NOT EXISTS (
+            SELECT 1 FROM agent_session_message AS delivery_message
+            WHERE delivery_message.delivery_status = 'delivering'
+              AND json_extract(delivery_message.delivery, '$.turnRef') = ${sessionMessagesTable.id}
+          )`
+        )
+      )
       .all()
     return rows.map((row) => row.id)
   }
@@ -418,7 +464,10 @@ export class AgentSessionMessageService {
       messageSnapshot: row.messageSnapshot,
       stats: row.stats,
       runtimeResumeToken: row.runtimeResumeToken,
-      delivery: row.delivery,
+      delivery:
+        row.delivery && row.deliveryStatus
+          ? { ...row.delivery, status: row.deliveryStatus, inReplyTo: row.deliveryInReplyTo }
+          : null,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
     }
@@ -489,6 +538,13 @@ export class AgentSessionMessageService {
         message.messageSnapshot === undefined ? existingRow.messageSnapshot : message.messageSnapshot
       const stats = mergeMessageRuntimeStats(existingRow.stats, runtimeStats) ?? null
       const delivery = message.delivery === undefined ? existingRow.delivery : message.delivery
+      const deliveryStatus = message.deliveryStatus === undefined ? existingRow.deliveryStatus : message.deliveryStatus
+      const deliveryInReplyTo =
+        message.deliveryInReplyTo === undefined ? existingRow.deliveryInReplyTo : message.deliveryInReplyTo
+      const deliverySenderSessionId =
+        message.deliverySenderSessionId === undefined
+          ? existingRow.deliverySenderSessionId
+          : message.deliverySenderSessionId
 
       withSqliteErrors(
         () =>
@@ -503,6 +559,9 @@ export class AgentSessionMessageService {
               stats,
               runtimeResumeToken: runtimeResumeTokenToPersist,
               delivery,
+              deliveryStatus,
+              deliveryInReplyTo,
+              deliverySenderSessionId,
               updatedAt: updatedAtMs
             })
             .where(eq(sessionMessagesTable.id, existingRow.id))
@@ -523,6 +582,9 @@ export class AgentSessionMessageService {
           stats,
           runtimeResumeToken: runtimeResumeTokenToPersist,
           delivery,
+          deliveryStatus,
+          deliveryInReplyTo,
+          deliverySenderSessionId,
           updatedAt: updatedAtMs
         }),
         dataChange: 'projection'
@@ -540,6 +602,9 @@ export class AgentSessionMessageService {
       stats: mergeMessageRuntimeStats(undefined, runtimeStats) ?? null,
       runtimeResumeToken,
       delivery: message.delivery,
+      deliveryStatus: message.deliveryStatus,
+      deliveryInReplyTo: message.deliveryInReplyTo,
+      deliverySenderSessionId: message.deliverySenderSessionId,
       createdAt: timestampMs,
       updatedAt: timestampMs
     }
@@ -614,6 +679,7 @@ export class AgentSessionMessageService {
     receiverSessionId: string
     content: string
     mode: AgentSessionDeliveryMode
+    replyPolicy?: AgentSessionDeliveryReplyPolicy
   }): AgentSessionMessageEntity {
     const content = input.content.trim()
     if (!content) throw DataApiErrorFactory.validation({ content: ['must not be empty'] })
@@ -651,8 +717,8 @@ export class AgentSessionMessageService {
             senderSessionId: input.senderSessionId,
             receiverSessionId: sessionId,
             content,
-            mode: 'auto',
-            expectsReply: true
+            mode: 'queue',
+            replyPolicy: 'completion'
           })
         }),
       {
@@ -680,7 +746,7 @@ export class AgentSessionMessageService {
       receiverSessionId: string
       content: string
       mode: AgentSessionDeliveryMode
-      expectsReply?: true
+      replyPolicy?: AgentSessionDeliveryReplyPolicy
     }
   ): AgentSessionMessageEntity {
     const [sender] = tx
@@ -729,31 +795,33 @@ export class AgentSessionMessageService {
     }
 
     const id = uuidv7()
-    const acceptedAt = new Date().toISOString()
-    const senderAddress = {
+    const statusAt = new Date().toISOString()
+    const senderIdentity = {
       agentId: input.senderAgentId,
-      sessionId: input.senderSessionId,
-      agentName: sender.agentName,
-      sessionName: sender.sessionName
+      sessionId: input.senderSessionId
     }
-    const delivery: AgentSessionDelivery = {
-      id,
-      sender: senderAddress,
+    const delivery: AgentSessionDeliveryEnvelope = {
+      version: 1,
+      sender: senderIdentity,
       receiver: {
         agentId: receiverSession.agentId,
-        sessionId: input.receiverSessionId,
+        sessionId: input.receiverSessionId
+      },
+      senderSnapshot: {
+        agentName: sender.agentName,
+        sessionName: sender.sessionName
+      },
+      receiverSnapshot: {
         agentName: receiverAgent.name,
         sessionName: receiverSession.sessionName
       },
-      replyTo: senderAddress,
-      ...(input.expectsReply ? { expectsReply: true as const } : {}),
+      replyPolicy: input.replyPolicy ?? 'none',
       mode: input.mode,
-      status: 'accepted',
-      acceptedAt,
-      scheduledAt: null,
-      consumedAt: null,
-      failedAt: null,
-      error: null
+      turnRef: null,
+      sourceMessageId: null,
+      outcome: null,
+      error: null,
+      statusAt
     }
 
     return this.saveMessageTx(tx, {
@@ -763,40 +831,139 @@ export class AgentSessionMessageService {
         role: 'user',
         status: 'success',
         data: { parts: [{ type: 'text', text: input.content }] },
-        delivery
+        delivery,
+        deliveryStatus: 'accepted',
+        deliveryInReplyTo: null,
+        deliverySenderSessionId: senderIdentity.sessionId
       }
     }).entity
   }
 
   listRecoverableSessionDeliveries(): AgentSessionMessageEntity[] {
-    const statuses = AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES.map((status) => sql`${status}`)
+    return application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(sessionMessagesTable)
+      .where(inArray(sessionMessagesTable.deliveryStatus, [...AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES]))
+      .orderBy(sessionMessagesTable.createdAt, sessionMessagesTable.id)
+      .all()
+      .map((row) => this.rowToEntity(row))
+  }
+
+  listAcceptedDeletionResults(): AgentSessionMessageEntity[] {
     return application
       .get('DbService')
       .getDb()
       .select()
       .from(sessionMessagesTable)
       .where(
-        and(
-          isNotNull(sessionMessagesTable.delivery),
-          sql`json_extract(${sessionMessagesTable.delivery}, '$.status') IN (${sql.join(statuses, sql`, `)})`
-        )
+        and(eq(sessionMessagesTable.deliveryStatus, 'accepted'), isNotNull(sessionMessagesTable.deliveryInReplyTo))
       )
-      .orderBy(sessionMessagesTable.createdAt, sessionMessagesTable.id)
       .all()
+      .filter((row) => row.delivery?.error?.code === 'TARGET_SESSION_DELETED')
       .map((row) => this.rowToEntity(row))
   }
 
-  listSessionDeliveries(sessionId: string, limit = 20): AgentSessionMessageEntity[] {
+  publishDeliveryChanges(messages: readonly AgentSessionMessageEntity[]): void {
+    const ids = messages.map((message) => message.id)
+    if (ids.length === 0) return
+    notifyDataApiDataChange([
+      {
+        endpoint: '/agent-sessions/:sessionId/messages',
+        kind: 'membership',
+        entityIds: ids
+      }
+    ])
+  }
+
+  listSessionDeliveries(
+    input:
+      | string
+      | {
+          sessionId: string
+          direction?: 'incoming' | 'outgoing'
+          requestId?: string
+          status?: AgentSessionDeliveryStatus
+          limit?: number
+        },
+    legacyLimit?: number
+  ): AgentSessionMessageEntity[] {
+    const query = typeof input === 'string' ? { sessionId: input, limit: legacyLimit } : input
+    const filters = [isNotNull(sessionMessagesTable.delivery)]
+    if (query.requestId) {
+      filters.push(
+        or(eq(sessionMessagesTable.id, query.requestId), eq(sessionMessagesTable.deliveryInReplyTo, query.requestId))!
+      )
+    }
+    if (query.status) filters.push(eq(sessionMessagesTable.deliveryStatus, query.status))
+    if (query.requestId) {
+      filters.push(
+        or(
+          eq(sessionMessagesTable.sessionId, query.sessionId),
+          eq(sessionMessagesTable.deliverySenderSessionId, query.sessionId)
+        )!
+      )
+    } else if (query.direction === 'outgoing') {
+      filters.push(eq(sessionMessagesTable.deliverySenderSessionId, query.sessionId))
+    } else {
+      filters.push(eq(sessionMessagesTable.sessionId, query.sessionId))
+    }
+
     return application
       .get('DbService')
       .getDb()
       .select()
       .from(sessionMessagesTable)
-      .where(and(eq(sessionMessagesTable.sessionId, sessionId), isNotNull(sessionMessagesTable.delivery)))
+      .where(and(...filters))
       .orderBy(desc(sessionMessagesTable.createdAt), desc(sessionMessagesTable.id))
-      .limit(Math.min(Math.max(limit, 1), 100))
+      .limit(Math.min(Math.max(query.limit ?? 20, 1), 100))
       .all()
       .map((row) => this.rowToEntity(row))
+  }
+
+  transitionSessionDelivery(
+    sessionId: string,
+    messageId: string,
+    status: AgentSessionDeliveryStatus,
+    options: {
+      expected?: AgentSessionDeliveryStatus[]
+      turnRef?: string | null
+      outcome?: AgentSessionDeliveryOutcome | null
+      error?: AgentSessionDeliveryError | null
+    } = {}
+  ): AgentSessionMessageEntity | null {
+    const updated = application.get('DbService').withWriteTx((tx) => {
+      const existing = this.findExistingMessageRow(tx, sessionId, messageId)
+      if (!existing?.delivery || !existing.deliveryStatus) return null
+      if (options.expected && !options.expected.includes(existing.deliveryStatus)) return null
+      if (existing.deliveryStatus === 'consumed' || existing.deliveryStatus === 'failed') {
+        return this.rowToEntity(existing)
+      }
+
+      const delivery: AgentSessionDeliveryEnvelope = {
+        ...existing.delivery,
+        ...(options.turnRef !== undefined ? { turnRef: options.turnRef } : {}),
+        ...(options.outcome !== undefined ? { outcome: options.outcome } : {}),
+        ...(options.error !== undefined ? { error: options.error } : {}),
+        statusAt: new Date().toISOString()
+      }
+      const [row] = tx
+        .update(sessionMessagesTable)
+        .set({ delivery, deliveryStatus: status })
+        .where(
+          and(
+            eq(sessionMessagesTable.id, messageId),
+            eq(sessionMessagesTable.sessionId, sessionId),
+            ...(options.expected ? [inArray(sessionMessagesTable.deliveryStatus, options.expected)] : [])
+          )
+        )
+        .returning()
+        .all()
+      return row ? this.rowToEntity(row) : null
+    })
+    if (updated) this.publishDeliveryChange(messageId, 'projection')
+    return updated
   }
 
   updateSessionDeliveryStatus(
@@ -805,35 +972,250 @@ export class AgentSessionMessageService {
     status: AgentSessionDeliveryStatus,
     error: AgentSessionDeliveryError | null = null
   ): AgentSessionMessageEntity | null {
-    const updated = application.get('DbService').withWriteTx((tx) => {
-      const existing = this.findExistingMessageRow(tx, sessionId, messageId)
-      if (!existing?.delivery) return null
-      if (existing.delivery.status === 'consumed' || existing.delivery.status === 'failed') {
-        return this.rowToEntity(existing)
+    return this.transitionSessionDelivery(sessionId, messageId, status, {
+      ...(status === 'failed' ? { error, outcome: 'failed' as const } : {})
+    })
+  }
+
+  finalizeSessionDelivery(input: {
+    requestSessionId: string
+    requestMessageId: string
+    assistantMessageId: string
+    outcome: AgentSessionDeliveryOutcome
+  }): AgentSessionMessageEntity | null {
+    const finalized = application.get('DbService').withWriteTx((tx) => {
+      const request = this.findExistingMessageRow(tx, input.requestSessionId, input.requestMessageId)
+      if (!request?.delivery || !request.deliveryStatus) return { requestId: null, result: null }
+
+      const existingResult = tx
+        .select()
+        .from(sessionMessagesTable)
+        .where(eq(sessionMessagesTable.deliveryInReplyTo, request.id))
+        .limit(1)
+        .get()
+      if (existingResult) {
+        if (request.deliveryStatus !== 'consumed') {
+          tx.update(sessionMessagesTable)
+            .set({
+              deliveryStatus: 'consumed',
+              delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
+            })
+            .where(eq(sessionMessagesTable.id, request.id))
+            .run()
+        }
+        return {
+          requestId: request.id,
+          result: existingResult.deliveryStatus === 'accepted' ? this.rowToEntity(existingResult) : null
+        }
       }
 
-      const timestamp = new Date().toISOString()
-      const delivery: AgentSessionDelivery = {
-        ...existing.delivery,
-        status,
-        scheduledAt:
-          status === 'queued' || status === 'delivering'
-            ? (existing.delivery.scheduledAt ?? timestamp)
-            : existing.delivery.scheduledAt,
-        consumedAt: status === 'consumed' ? timestamp : existing.delivery.consumedAt,
-        failedAt: status === 'failed' ? timestamp : existing.delivery.failedAt,
-        error: status === 'failed' ? error : existing.delivery.error
+      const assistant = this.findExistingMessageRow(tx, input.requestSessionId, input.assistantMessageId)
+      if (!assistant || assistant.role !== 'assistant' || assistant.status === 'pending') {
+        return { requestId: null, result: null }
       }
-      const [row] = tx
-        .update(sessionMessagesTable)
-        .set({ delivery })
-        .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
-        .returning()
-        .all()
-      return this.rowToEntity(row)
+
+      let result: AgentSessionMessageEntity | null = null
+      if (request.delivery.replyPolicy === 'completion') {
+        const callerExists = tx
+          .select({ id: sessionTable.id })
+          .from(sessionTable)
+          .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+          .limit(1)
+          .all()[0]
+        if (!callerExists) {
+          tx.update(sessionMessagesTable)
+            .set({
+              deliveryStatus: 'failed',
+              delivery: {
+                ...request.delivery,
+                outcome: 'failed',
+                error: { code: 'CALLER_SESSION_DELETED', message: 'Caller Session was deleted' },
+                statusAt: new Date().toISOString()
+              }
+            })
+            .where(eq(sessionMessagesTable.id, request.id))
+            .run()
+          return { requestId: request.id, result: null }
+        }
+        const resultEnvelope: AgentSessionDeliveryEnvelope = {
+          version: 1,
+          sender: request.delivery.receiver,
+          receiver: request.delivery.sender,
+          senderSnapshot: request.delivery.receiverSnapshot,
+          receiverSnapshot: request.delivery.senderSnapshot,
+          replyPolicy: 'none',
+          mode: 'auto',
+          turnRef: null,
+          sourceMessageId: assistant.id,
+          outcome: input.outcome,
+          error: null,
+          statusAt: new Date().toISOString()
+        }
+        result = this.saveMessageTx(tx, {
+          sessionId: request.delivery.sender.sessionId,
+          message: {
+            id: uuidv7(),
+            role: 'user',
+            status: 'success',
+            data: terminalResultData(assistant, input.outcome),
+            delivery: resultEnvelope,
+            deliveryStatus: 'accepted',
+            deliveryInReplyTo: request.id,
+            deliverySenderSessionId: request.delivery.receiver.sessionId
+          }
+        }).entity
+      }
+
+      tx.update(sessionMessagesTable)
+        .set({
+          deliveryStatus: 'consumed',
+          delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
+        })
+        .where(eq(sessionMessagesTable.id, request.id))
+        .run()
+      return { requestId: request.id, result }
     })
-    if (updated) this.publishDeliveryChange(messageId, 'projection')
-    return updated
+
+    if (finalized.requestId) this.publishDeliveryChange(finalized.requestId, 'projection')
+    if (finalized.result) this.publishDeliveryChange(finalized.result.id, 'membership')
+    return finalized.result
+  }
+
+  failSessionDelivery(
+    message: AgentSessionMessageEntity,
+    error: AgentSessionDeliveryError
+  ): AgentSessionMessageEntity | null {
+    const failed = application.get('DbService').withWriteTx((tx) => {
+      const request = this.findExistingMessageRow(tx, message.sessionId, message.id)
+      if (!request?.delivery || !request.deliveryStatus) return { requestId: null, result: null }
+      const now = new Date().toISOString()
+      let result: AgentSessionMessageEntity | null = null
+      if (request.delivery.replyPolicy === 'completion') {
+        const callerExists = tx
+          .select({ id: sessionTable.id })
+          .from(sessionTable)
+          .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+          .limit(1)
+          .all()[0]
+        const existingResult = tx
+          .select()
+          .from(sessionMessagesTable)
+          .where(eq(sessionMessagesTable.deliveryInReplyTo, request.id))
+          .limit(1)
+          .get()
+        result = !callerExists
+          ? null
+          : existingResult
+            ? existingResult.deliveryStatus === 'accepted'
+              ? this.rowToEntity(existingResult)
+              : null
+            : this.saveMessageTx(tx, {
+                sessionId: request.delivery.sender.sessionId,
+                message: {
+                  id: uuidv7(),
+                  role: 'user',
+                  status: 'success',
+                  data: terminalResultData(null, 'failed', error),
+                  delivery: {
+                    version: 1,
+                    sender: request.delivery.receiver,
+                    receiver: request.delivery.sender,
+                    senderSnapshot: request.delivery.receiverSnapshot,
+                    receiverSnapshot: request.delivery.senderSnapshot,
+                    replyPolicy: 'none',
+                    mode: 'auto',
+                    turnRef: null,
+                    sourceMessageId: null,
+                    outcome: 'failed',
+                    error,
+                    statusAt: now
+                  },
+                  deliveryStatus: 'accepted',
+                  deliveryInReplyTo: request.id,
+                  deliverySenderSessionId: request.delivery.receiver.sessionId
+                }
+              }).entity
+      }
+      tx.update(sessionMessagesTable)
+        .set({
+          deliveryStatus: 'failed',
+          delivery: { ...request.delivery, outcome: 'failed', error, statusAt: now }
+        })
+        .where(eq(sessionMessagesTable.id, request.id))
+        .run()
+      return { requestId: request.id, result }
+    })
+    if (failed.requestId) this.publishDeliveryChange(failed.requestId, 'projection')
+    if (failed.result) this.publishDeliveryChange(failed.result.id, 'membership')
+    return failed.result
+  }
+
+  prepareSessionDeletionTx(tx: DbOrTx, sessionIds: readonly string[]): AgentSessionMessageEntity[] {
+    const deleting = [...new Set(sessionIds)]
+    if (deleting.length === 0) return []
+    const requests = tx
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(
+          inArray(sessionMessagesTable.sessionId, deleting),
+          inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'queued', 'delivering'])
+        )
+      )
+      .all()
+    const results: AgentSessionMessageEntity[] = []
+    const now = new Date().toISOString()
+    for (const request of requests) {
+      if (
+        !request.delivery ||
+        request.delivery.replyPolicy !== 'completion' ||
+        deleting.includes(request.delivery.sender.sessionId)
+      )
+        continue
+      const existingResult = tx
+        .select({ id: sessionMessagesTable.id })
+        .from(sessionMessagesTable)
+        .where(eq(sessionMessagesTable.deliveryInReplyTo, request.id))
+        .limit(1)
+        .all()[0]
+      if (existingResult) continue
+      const callerExists = tx
+        .select({ id: sessionTable.id })
+        .from(sessionTable)
+        .where(eq(sessionTable.id, request.delivery.sender.sessionId))
+        .limit(1)
+        .all()[0]
+      if (!callerExists) continue
+      results.push(
+        this.saveMessageTx(tx, {
+          sessionId: request.delivery.sender.sessionId,
+          message: {
+            id: uuidv7(),
+            role: 'user',
+            status: 'success',
+            data: { parts: [{ type: 'text', text: 'Target Session was deleted before completing the request.' }] },
+            delivery: {
+              version: 1,
+              sender: request.delivery.receiver,
+              receiver: request.delivery.sender,
+              senderSnapshot: request.delivery.receiverSnapshot,
+              receiverSnapshot: request.delivery.senderSnapshot,
+              replyPolicy: 'none',
+              mode: 'auto',
+              turnRef: null,
+              sourceMessageId: null,
+              outcome: 'failed',
+              error: { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' },
+              statusAt: now
+            },
+            deliveryStatus: 'accepted',
+            deliveryInReplyTo: request.id,
+            deliverySenderSessionId: request.delivery.receiver.sessionId
+          }
+        }).entity
+      )
+    }
+    return results
   }
 
   private publishDeliveryChange(messageId: string, kind: 'membership' | 'projection'): void {
@@ -936,3 +1318,4 @@ export class AgentSessionMessageService {
 }
 
 export const agentSessionMessageService = new AgentSessionMessageService()
+registerDataService('AgentSessionMessageService', agentSessionMessageService)

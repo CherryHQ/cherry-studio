@@ -24,6 +24,8 @@ const mockUpdateChannel = vi.fn()
 const mockDeleteChannel = vi.fn()
 const mockGetSession = vi.fn()
 const mockListSessions = vi.fn()
+const mockSearchSessions = vi.fn()
+const mockSearchSessionMessages = vi.fn()
 const mockAcceptSessionDelivery = vi.fn()
 const mockCreateSessionWithDelivery = vi.fn()
 const mockListSessionDeliveries = vi.fn()
@@ -47,7 +49,8 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mockGetSession,
-    listByCursor: mockListSessions
+    listByCursor: mockListSessions,
+    search: mockSearchSessions
   }
 }))
 
@@ -63,7 +66,8 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
     acceptSessionDelivery: mockAcceptSessionDelivery,
     createSessionWithDelivery: mockCreateSessionWithDelivery,
-    listSessionDeliveries: mockListSessionDeliveries
+    listSessionDeliveries: mockListSessionDeliveries,
+    search: mockSearchSessionMessages
   }
 }))
 
@@ -148,20 +152,23 @@ describe('CherryAutonomyTools', () => {
     vi.clearAllMocks()
     mockGetSession.mockReturnValue({ id: 'session_test', agentId: 'agent_test' })
     mockListSessions.mockReturnValue({ items: [], nextCursor: undefined })
+    mockSearchSessions.mockReturnValue([])
+    mockSearchSessionMessages.mockReturnValue({ items: [], nextCursor: undefined })
     mockListSessionDeliveries.mockReturnValue([])
   })
 
   it('should list all tools', () => {
     const server = createServer()
     const tools = server.tools()
-    expect(tools).toHaveLength(7)
+    expect(tools).toHaveLength(8)
     expect(tools.map((t) => t.name)).toEqual([
       'cron',
       'notify',
       'config',
       'session_list',
+      'session_search',
       'session_create',
-      'session_inbox',
+      'session_deliveries',
       'session_send'
     ])
   })
@@ -219,13 +226,58 @@ describe('CherryAutonomyTools', () => {
         senderSessionId: 'session_test',
         receiverSessionId: 'session_b',
         content: 'Implement this',
-        mode: 'auto'
+        mode: 'auto',
+        replyPolicy: 'none'
       })
       expect(mockDispatchSessionDelivery).toHaveBeenCalledWith(accepted)
       expect(JSON.parse(result.content[0].text)).toMatchObject({
         ok: true,
         delivery: { id: 'delivery-1', status: 'queued' }
       })
+    })
+
+    it('forces completion requests onto a separate queued turn', async () => {
+      mockAcceptSessionDelivery.mockReturnValue({
+        id: 'request-1',
+        sessionId: 'session_b',
+        delivery: { status: 'accepted', replyPolicy: 'completion' }
+      })
+      mockDispatchSessionDelivery.mockResolvedValue('queued')
+
+      await callTool(
+        createServer('agent_test'),
+        { target_session_id: 'session_b', message: 'Return the result', reply: 'completion' },
+        'session_send'
+      )
+
+      expect(mockAcceptSessionDelivery).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: 'queue', replyPolicy: 'completion' })
+      )
+    })
+
+    it('returns message evidence for session search candidates', async () => {
+      mockSearchSessionMessages.mockReturnValue({
+        items: [
+          {
+            messageId: 'message-1',
+            sessionId: 'session_b',
+            sessionName: 'Build',
+            agentId: 'agent_b',
+            agentName: 'Agent B',
+            snippet: 'implemented auth',
+            createdAt: '2026-08-10T00:00:00.000Z'
+          }
+        ]
+      })
+
+      const result = await callTool(createServer(), { query: 'auth' }, 'session_search')
+
+      expect(JSON.parse(result.content[0].text).sessions).toEqual([
+        expect.objectContaining({
+          sessionId: 'session_b',
+          matches: [expect.objectContaining({ messageId: 'message-1', snippet: 'implemented auth' })]
+        })
+      ])
     })
 
     it('creates a same-Agent Session with its first message before dispatching it', async () => {

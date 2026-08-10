@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3fc51cff-06cd-4211-bec2-34bbb6905f53",
+  "id": "69f96bd6-45e5-4abd-ad62-fdcd88d01d4d",
   "prevId": "749b7a35-ec67-4508-bccf-495941a94a9d",
   "tables": {
     "agent": {
@@ -689,6 +689,27 @@
           "notNull": false,
           "autoincrement": false
         },
+        "delivery_status": {
+          "name": "delivery_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "delivery_in_reply_to": {
+          "name": "delivery_in_reply_to",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "delivery_sender_session_id": {
+          "name": "delivery_sender_session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "fts_rowid": {
           "name": "fts_rowid",
           "type": "integer",
@@ -721,6 +742,21 @@
           "name": "agent_session_message_status_idx",
           "columns": ["status"],
           "isUnique": false
+        },
+        "agent_session_message_delivery_status_idx": {
+          "name": "agent_session_message_delivery_status_idx",
+          "columns": ["delivery_status"],
+          "isUnique": false
+        },
+        "agent_session_message_delivery_sender_idx": {
+          "name": "agent_session_message_delivery_sender_idx",
+          "columns": ["delivery_sender_session_id", "created_at", "id"],
+          "isUnique": false
+        },
+        "agent_session_message_delivery_reply_uniq": {
+          "name": "agent_session_message_delivery_reply_uniq",
+          "columns": ["delivery_in_reply_to"],
+          "isUnique": true
         },
         "agent_session_message_fts_rowid_uniq": {
           "name": "agent_session_message_fts_rowid_uniq",
@@ -758,6 +794,10 @@
         "agent_session_message_status_check": {
           "name": "agent_session_message_status_check",
           "value": "\"agent_session_message\".\"status\" IN ('pending', 'success', 'error', 'paused')"
+        },
+        "agent_session_message_delivery_status_check": {
+          "name": "agent_session_message_delivery_status_check",
+          "value": "\"agent_session_message\".\"delivery_status\" IS NULL OR \"agent_session_message\".\"delivery_status\" IN ('accepted', 'queued', 'delivering', 'consumed', 'failed')"
         }
       }
     },

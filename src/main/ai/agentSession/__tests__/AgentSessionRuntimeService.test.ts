@@ -10,11 +10,16 @@ const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
   replaceMessageParts: vi.fn(),
   getSessionMessage: vi.fn(),
+  hasSessionMessage: vi.fn(() => true),
   applyToolApprovalDecision: vi.fn(),
   getLastRuntimeResumeToken: vi.fn(),
   findPendingAssistantMessageIds: vi.fn(),
   markMessagesError: vi.fn(),
   updateSessionDeliveryStatus: vi.fn(),
+  transitionSessionDelivery: vi.fn(),
+  finalizeSessionDelivery: vi.fn(),
+  failSessionDelivery: vi.fn(),
+  dispatchAgentSessionDelivery: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
@@ -50,11 +55,15 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
     saveMessage: mocks.saveMessage,
     replaceMessageParts: mocks.replaceMessageParts,
     getSessionMessage: mocks.getSessionMessage,
+    hasSessionMessage: mocks.hasSessionMessage,
     applyToolApprovalDecision: mocks.applyToolApprovalDecision,
     getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken,
     findPendingAssistantMessageIds: mocks.findPendingAssistantMessageIds,
     markMessagesError: mocks.markMessagesError,
-    updateSessionDeliveryStatus: mocks.updateSessionDeliveryStatus
+    updateSessionDeliveryStatus: mocks.updateSessionDeliveryStatus,
+    transitionSessionDelivery: mocks.transitionSessionDelivery,
+    finalizeSessionDelivery: mocks.finalizeSessionDelivery,
+    failSessionDelivery: mocks.failSessionDelivery
   }
 }))
 
@@ -109,19 +118,22 @@ function userMessage(id: string, knowledgeBaseIds: string[] = []) {
 
 function deliveryUserMessage(id: string) {
   const message = userMessage(id)
-  const sender = { agentId: 'agent-a', sessionId: 'sender', agentName: 'A', sessionName: 'Sender' }
+  const sender = { agentId: 'agent-a', sessionId: 'sender' }
   message.delivery = {
-    id: `delivery-${id}`,
+    version: 1,
     sender,
-    receiver: { agentId: 'agent-1', sessionId: 'session-1', agentName: 'B', sessionName: 'Target' },
-    replyTo: sender,
-    mode: 'send-now',
+    receiver: { agentId: 'agent-1', sessionId: 'session-1' },
+    senderSnapshot: { agentName: 'A', sessionName: 'Sender' },
+    receiverSnapshot: { agentName: 'B', sessionName: 'Target' },
+    replyPolicy: 'none',
+    mode: 'auto',
+    turnRef: null,
+    sourceMessageId: null,
+    outcome: null,
+    error: null,
+    statusAt: new Date().toISOString(),
     status: 'queued',
-    acceptedAt: new Date().toISOString(),
-    scheduledAt: new Date().toISOString(),
-    consumedAt: null,
-    failedAt: null,
-    error: null
+    inReplyTo: null
   }
   return message
 }
@@ -283,7 +295,8 @@ describe('AgentSessionRuntimeService', () => {
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
           resolveToolApproval: mocks.resolveToolApproval,
-          terminateHeldTopicStream: mocks.terminateHeldTopicStream
+          terminateHeldTopicStream: mocks.terminateHeldTopicStream,
+          dispatchAgentSessionDelivery: mocks.dispatchAgentSessionDelivery
         }
       }
       if (name === 'CacheService')
@@ -388,30 +401,18 @@ describe('AgentSessionRuntimeService', () => {
     })
 
     it('marks a durable cross-session input consumed only at the terminal boundary', () => {
-      const sender = { agentId: 'agent-a', sessionId: 'sender', agentName: 'A', sessionName: 'Sender' }
-      const message = {
-        ...userMessage('delivery-message'),
-        sessionId: 'session-1',
-        delivery: {
-          id: 'delivery-1',
-          sender,
-          receiver: { agentId: 'agent-1', sessionId: 'session-1', agentName: 'B', sessionName: 'Target' },
-          replyTo: sender,
-          mode: 'auto',
-          status: 'delivering',
-          acceptedAt: new Date().toISOString(),
-          scheduledAt: new Date().toISOString(),
-          consumedAt: null,
-          failedAt: null,
-          error: null
-        }
-      }
+      const message = deliveryUserMessage('delivery-message')
       const service = new AgentSessionRuntimeService()
       service.beginTurn({ ...baseTurnInput, userMessage: message })
 
-      expect(mocks.updateSessionDeliveryStatus).not.toHaveBeenCalled()
+      expect(mocks.finalizeSessionDelivery).not.toHaveBeenCalled()
       service.markTurnTerminal('session-1', 'success')
-      expect(mocks.updateSessionDeliveryStatus).toHaveBeenCalledWith('session-1', 'delivery-message', 'consumed')
+      expect(mocks.finalizeSessionDelivery).toHaveBeenCalledWith({
+        requestSessionId: 'session-1',
+        requestMessageId: 'delivery-message',
+        assistantMessageId: 'assistant-1',
+        outcome: 'success'
+      })
     })
 
     it('stays busy throughout the next-turn drain, closing the clobber window', async () => {
@@ -4300,8 +4301,12 @@ describe('AgentSessionRuntimeService', () => {
       // message_start emits this boundary and opens the visible A2 row with the exact same id.
       events.push({ type: 'steer-boundary', inputs: injected })
       await vi.waitFor(() => expect(getEntry(service).runtimeState.execution.kind).toBe('steer-transition'))
-      expect(mocks.updateSessionDeliveryStatus).toHaveBeenCalledWith('session-1', 'user-2', 'delivering')
-      expect(mocks.updateSessionDeliveryStatus).toHaveBeenCalledWith('session-1', 'user-3', 'delivering')
+      expect(mocks.transitionSessionDelivery).toHaveBeenCalledWith('session-1', 'user-2', 'delivering', {
+        expected: ['accepted', 'queued']
+      })
+      expect(mocks.transitionSessionDelivery).toHaveBeenCalledWith('session-1', 'user-3', 'delivering', {
+        expected: ['accepted', 'queued']
+      })
       await expect(reader.read()).resolves.toMatchObject({ done: true })
       void terminalListener(handle).onDone({ status: 'success', isTopicDone: false })
       await vi.waitFor(() => expect(getEntry(service).currentTurn.userMessage.id).toBe('user-2'))
@@ -4321,8 +4326,18 @@ describe('AgentSessionRuntimeService', () => {
 
       const continuationTurnId = getEntry(service).currentTurn.turnId
       service.markTurnTerminal('session-1', 'success', continuationTurnId)
-      expect(mocks.updateSessionDeliveryStatus).toHaveBeenCalledWith('session-1', 'user-2', 'consumed')
-      expect(mocks.updateSessionDeliveryStatus).toHaveBeenCalledWith('session-1', 'user-3', 'consumed')
+      expect(mocks.finalizeSessionDelivery).toHaveBeenCalledWith({
+        requestSessionId: 'session-1',
+        requestMessageId: 'user-2',
+        assistantMessageId: reservedContext?.assistantMessageId,
+        outcome: 'success'
+      })
+      expect(mocks.finalizeSessionDelivery).toHaveBeenCalledWith({
+        requestSessionId: 'session-1',
+        requestMessageId: 'user-3',
+        assistantMessageId: reservedContext?.assistantMessageId,
+        outcome: 'success'
+      })
 
       void service.closeSession('session-1')
       await reader.cancel().catch(() => undefined)

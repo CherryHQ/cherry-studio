@@ -17,6 +17,7 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
@@ -27,7 +28,7 @@ import { type UIMessageChunk } from 'ai'
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
 import type { AiStreamRequest, CallOverrides, ContextOwner, InProcessUsageContext } from '../types'
-import { recoverAcceptedAgentSessionDeliveries } from './api/startAgentSessionRun'
+import { dispatchAcceptedAgentSessionDelivery, recoverAcceptedAgentSessionDeliveries } from './api/startAgentSessionRun'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
@@ -292,6 +293,14 @@ export class AiStreamManager extends BaseService {
     void recoverAcceptedAgentSessionDeliveries().catch((error) => {
       logger.error('Agent-session delivery recovery failed', { error })
     })
+  }
+
+  dispatchAgentSessionDelivery(message: AgentSessionMessageEntity): Promise<'queued' | 'delivering'> {
+    return dispatchAcceptedAgentSessionDelivery(message)
+  }
+
+  recoverAgentSessionDeliveries(): Promise<void> {
+    return recoverAcceptedAgentSessionDeliveries()
   }
 
   /**

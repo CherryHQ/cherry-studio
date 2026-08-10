@@ -178,22 +178,25 @@ describe('MessageHeader', () => {
   })
 
   it('shows durable sender attribution and delivery state on a received message', () => {
-    const sender = { agentId: 'agent-a', sessionId: 'session-a', agentName: 'Agent A', sessionName: 'Research' }
+    const sender = { agentId: 'agent-a', sessionId: 'session-a' }
     const { getByText } = render(
       <MessageHeader
         message={createMessage('user', {
           delivery: {
-            id: 'delivery-1',
+            version: 1,
             sender,
-            receiver: { agentId: 'agent-b', sessionId: 'session-b', agentName: 'Agent B', sessionName: 'Build' },
-            replyTo: sender,
+            receiver: { agentId: 'agent-b', sessionId: 'session-b' },
+            senderSnapshot: { agentName: 'Agent A', sessionName: 'Research' },
+            receiverSnapshot: { agentName: 'Agent B', sessionName: 'Build' },
+            replyPolicy: 'none',
             mode: 'auto',
+            turnRef: null,
+            sourceMessageId: null,
+            outcome: null,
+            error: null,
+            statusAt: '2026-06-06T00:00:01.000Z',
             status: 'queued',
-            acceptedAt: '2026-06-06T00:00:00.000Z',
-            scheduledAt: '2026-06-06T00:00:01.000Z',
-            consumedAt: null,
-            failedAt: null,
-            error: null
+            inReplyTo: null
           }
         })}
       />

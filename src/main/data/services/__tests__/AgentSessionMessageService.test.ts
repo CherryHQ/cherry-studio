@@ -9,6 +9,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import type { AgentSessionDeliveryRoutingError } from '@data/services/AgentSessionMessageService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { aiUsageRecordService } from '@data/services/AiUsageRecordService'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -109,7 +110,7 @@ describe('AgentSessionMessageService', () => {
       expect(sameAgent.delivery).toMatchObject({
         sender: { agentId: 'agent-a', sessionId: 'sender' },
         receiver: { agentId: 'agent-a', sessionId: 'same-target' },
-        replyTo: { agentId: 'agent-a', sessionId: 'sender' },
+        replyPolicy: 'none',
         status: 'accepted'
       })
       expect(crossAgent.delivery).toMatchObject({
@@ -153,7 +154,8 @@ describe('AgentSessionMessageService', () => {
         delivery: {
           sender: { agentId: 'agent-a', sessionId: 'sender' },
           receiver: { agentId: 'agent-a', sessionId: created.session.id },
-          expectsReply: true,
+          replyPolicy: 'completion',
+          mode: 'queue',
           status: 'accepted'
         }
       })
@@ -251,8 +253,109 @@ describe('AgentSessionMessageService', () => {
       expect(agentSessionMessageService.listRecoverableSessionDeliveries()).toHaveLength(1)
 
       const consumed = agentSessionMessageService.updateSessionDeliveryStatus('target', accepted.id, 'consumed')
-      expect(consumed?.delivery).toMatchObject({ status: 'consumed', consumedAt: expect.any(String) })
+      expect(consumed?.delivery).toMatchObject({ status: 'consumed', statusAt: expect.any(String) })
       expect(agentSessionMessageService.listRecoverableSessionDeliveries()).toEqual([])
+    })
+
+    it('finalizes one frozen completion result after terminal persistence', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        mode: 'queue',
+        replyPolicy: 'completion'
+      })
+      const assistantId = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d090'
+      agentSessionMessageService.saveMessage({
+        sessionId: 'target',
+        message: {
+          id: assistantId,
+          role: 'assistant',
+          status: 'success',
+          data: { parts: [{ type: 'text', text: 'Frozen result' }] }
+        }
+      })
+      agentSessionMessageService.transitionSessionDelivery('target', request.id, 'delivering', {
+        expected: ['accepted'],
+        turnRef: assistantId
+      })
+
+      const first = agentSessionMessageService.finalizeSessionDelivery({
+        requestSessionId: 'target',
+        requestMessageId: request.id,
+        assistantMessageId: assistantId,
+        outcome: 'success'
+      })
+      const second = agentSessionMessageService.finalizeSessionDelivery({
+        requestSessionId: 'target',
+        requestMessageId: request.id,
+        assistantMessageId: assistantId,
+        outcome: 'success'
+      })
+
+      expect(first).toMatchObject({
+        id: second?.id,
+        sessionId: 'sender',
+        data: { parts: [{ type: 'text', text: 'Frozen result' }] },
+        delivery: {
+          inReplyTo: request.id,
+          sourceMessageId: assistantId,
+          outcome: 'success',
+          status: 'accepted'
+        }
+      })
+      agentSessionMessageService.updateSessionMessage('target', assistantId, {
+        data: { parts: [{ type: 'text', text: 'Edited later' }] }
+      })
+      expect(agentSessionMessageService.getSessionMessage('sender', first!.id).data).toEqual({
+        parts: [{ type: 'text', text: 'Frozen result' }]
+      })
+      expect(agentSessionMessageService.getSessionMessage('target', request.id).delivery).toMatchObject({
+        status: 'consumed',
+        outcome: 'success'
+      })
+      expect(
+        agentSessionMessageService
+          .listSessionDeliveries({ sessionId: 'sender', requestId: request.id })
+          .map((message) => message.id)
+          .sort()
+      ).toEqual([first!.id, request.id].sort())
+    })
+
+    it('creates a failure result before deleting a target with an unfinished completion request', async () => {
+      await seedAgent('agent-a', 'Agent A')
+      await seedAgent('agent-b', 'Agent B')
+      await seedSession({ id: 'sender', agentId: 'agent-a', name: 'Sender', orderKey: 'b0' })
+      await seedSession({ id: 'target', agentId: 'agent-b', name: 'Target', orderKey: 'b1' })
+      const request = agentSessionMessageService.acceptSessionDelivery({
+        senderAgentId: 'agent-a',
+        senderSessionId: 'sender',
+        receiverSessionId: 'target',
+        content: 'Do the work',
+        mode: 'queue',
+        replyPolicy: 'completion'
+      })
+
+      agentSessionService.delete('target')
+
+      const [result] = agentSessionMessageService.listSessionDeliveries({
+        sessionId: 'sender',
+        requestId: request.id
+      })
+      expect(agentSessionMessageService.listAcceptedDeletionResults().map((message) => message.id)).toContain(result.id)
+      expect(result).toMatchObject({
+        sessionId: 'sender',
+        delivery: {
+          inReplyTo: request.id,
+          outcome: 'failed',
+          error: { code: 'TARGET_SESSION_DELETED' }
+        }
+      })
     })
   })
 

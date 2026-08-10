@@ -27,15 +27,12 @@ const prepareDispatchMock = vi.fn((primary: StreamListener, req: { topicId: stri
   })
 })
 
-const { acceptDelivery, listRecoverableDeliveries, sessionGetById, runtimeBusy, updateDeliveryStatus } = vi.hoisted(
-  () => ({
-    acceptDelivery: vi.fn(),
-    listRecoverableDeliveries: vi.fn<() => unknown[]>(() => []),
-    sessionGetById: vi.fn(),
-    runtimeBusy: vi.fn(() => false),
-    updateDeliveryStatus: vi.fn()
-  })
-)
+const { listRecoverableDeliveries, sessionGetById, runtimeBusy, transitionDelivery } = vi.hoisted(() => ({
+  listRecoverableDeliveries: vi.fn<() => unknown[]>(() => []),
+  sessionGetById: vi.fn(),
+  runtimeBusy: vi.fn(() => false),
+  transitionDelivery: vi.fn()
+}))
 
 vi.mock('../../context/AgentChatContextProvider', () => ({
   agentChatContextProvider: { prepareDispatch: prepareDispatchMock }
@@ -47,9 +44,8 @@ vi.mock('@data/services/AgentSessionService', () => ({
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
-    acceptSessionDelivery: acceptDelivery,
     listRecoverableSessionDeliveries: listRecoverableDeliveries,
-    updateSessionDeliveryStatus: updateDeliveryStatus
+    transitionSessionDelivery: transitionDelivery
   }
 }))
 
@@ -67,8 +63,7 @@ vi.mock('@application', () => ({
 }))
 
 const { AiStreamManager } = await import('../../AiStreamManager')
-const { dispatchAcceptedAgentSessionDelivery, recoverAcceptedAgentSessionDeliveries, startAgentSessionRun } =
-  await import('../startAgentSessionRun')
+const { recoverAcceptedAgentSessionDeliveries, startAgentSessionRun } = await import('../startAgentSessionRun')
 
 type ManagerInstance = InstanceType<typeof AiStreamManager>
 
@@ -78,9 +73,9 @@ function listener(id: string): StreamListener {
   return { id, onChunk: vi.fn(), onDone: vi.fn(), onPaused: vi.fn(), onError: vi.fn(), isAlive: () => true }
 }
 
-function deliveryMessage(mode: 'send-now' | 'queue' | 'auto' = 'auto', expectsReply = false) {
+function deliveryMessage(mode: 'queue' | 'auto' = 'auto', replyPolicy: 'none' | 'completion' = 'none') {
   const acceptedAt = new Date().toISOString()
-  const sender = { agentId: 'agent-a', sessionId: 'sender', agentName: 'A', sessionName: 'Sender' }
+  const sender = { agentId: 'agent-a', sessionId: 'sender' }
   return {
     id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d001',
     sessionId: 'target',
@@ -93,18 +88,20 @@ function deliveryMessage(mode: 'send-now' | 'queue' | 'auto' = 'auto', expectsRe
     stats: null,
     runtimeResumeToken: null,
     delivery: {
-      id: 'delivery-1',
+      version: 1 as const,
       sender,
-      receiver: { agentId: 'agent-b', sessionId: 'target', agentName: 'B', sessionName: 'Target' },
-      replyTo: sender,
-      ...(expectsReply ? { expectsReply: true as const } : {}),
+      receiver: { agentId: 'agent-b', sessionId: 'target' },
+      senderSnapshot: { agentName: 'A', sessionName: 'Sender' },
+      receiverSnapshot: { agentName: 'B', sessionName: 'Target' },
+      replyPolicy,
       mode,
+      turnRef: null,
+      sourceMessageId: null,
+      outcome: null,
+      error: null,
+      statusAt: acceptedAt,
       status: 'accepted' as const,
-      acceptedAt,
-      scheduledAt: null,
-      consumedAt: null,
-      failedAt: null,
-      error: null
+      inReplyTo: null
     },
     createdAt: acceptedAt,
     updatedAt: acceptedAt
@@ -121,8 +118,7 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
     prepareDispatchMock.mockClear()
     sessionGetById.mockReset().mockReturnValue({ agentId: 'agent-1' })
     runtimeBusy.mockReset().mockReturnValue(false)
-    updateDeliveryStatus.mockReset()
-    acceptDelivery.mockReset()
+    transitionDelivery.mockReset()
     listRecoverableDeliveries.mockReset().mockReturnValue([])
 
     const Ctor = AiStreamManager as unknown as new () => ManagerInstance
@@ -263,11 +259,12 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
       expect.objectContaining({ agentDeliveryMessage: message }),
       expect.anything()
     )
-    expect(updateDeliveryStatus).toHaveBeenCalledWith(message.sessionId, message.id, 'delivering')
+    expect(transitionDelivery).toHaveBeenCalledWith(message.sessionId, message.id, 'delivering', {
+      expected: ['accepted', 'queued']
+    })
   })
 
-  it('queues a busy delivery without overwriting the running turn', async () => {
-    runtimeBusy.mockReturnValue(true)
+  it('honors queue-only delivery even while the target is idle', async () => {
     const message = deliveryMessage('queue')
     const run = startAgentSessionRun({
       sessionId: message.sessionId,
@@ -285,7 +282,9 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
       expect.objectContaining({ agentDeliveryQueueOnly: true }),
       expect.anything()
     )
-    expect(updateDeliveryStatus).toHaveBeenCalledWith(message.sessionId, message.id, 'queued')
+    expect(transitionDelivery).toHaveBeenCalledWith(message.sessionId, message.id, 'queued', {
+      expected: ['accepted', 'queued']
+    })
   })
 
   it('replays a recoverable delivery after restart through the same dispatch lock', async () => {
@@ -297,56 +296,8 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
 
     await recovery
     expect(sendSpy).toHaveBeenCalledOnce()
-    expect(updateDeliveryStatus).toHaveBeenCalledWith(message.sessionId, message.id, 'delivering')
-  })
-
-  it('returns a creation delivery result to its creator through a new durable delivery', async () => {
-    const message = deliveryMessage('auto', true)
-    const replyMessage = {
-      ...deliveryMessage(),
-      id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d002',
-      sessionId: 'sender'
-    }
-    acceptDelivery.mockReturnValue(replyMessage)
-
-    const initialDispatch = dispatchAcceptedAgentSessionDelivery(message)
-    await flush()
-    prepareResolvers[0]()
-    await initialDispatch
-
-    const firstSend = sendSpy.mock.calls[0][0] as { listeners: StreamListener[] }
-    const completion = firstSend.listeners[0].onDone({
-      status: 'success',
-      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [text('Completed work')] }
+    expect(transitionDelivery).toHaveBeenCalledWith(message.sessionId, message.id, 'delivering', {
+      expected: ['accepted', 'queued']
     })
-    await flush()
-    prepareResolvers[1]()
-    await completion
-
-    expect(acceptDelivery).toHaveBeenCalledWith({
-      senderAgentId: 'agent-b',
-      senderSessionId: 'target',
-      receiverSessionId: 'sender',
-      content: 'Completed work',
-      mode: 'auto'
-    })
-    expect(sendSpy).toHaveBeenCalledTimes(2)
-  })
-
-  it('does not manufacture completion replies for ordinary session_send deliveries', async () => {
-    const message = deliveryMessage()
-    const initialDispatch = dispatchAcceptedAgentSessionDelivery(message)
-    await flush()
-    prepareResolvers[0]()
-    await initialDispatch
-
-    const firstSend = sendSpy.mock.calls[0][0] as { listeners: StreamListener[] }
-    await firstSend.listeners[0].onDone({
-      status: 'success',
-      finalMessage: { id: 'assistant-1', role: 'assistant', parts: [text('No return requested')] }
-    })
-
-    expect(acceptDelivery).not.toHaveBeenCalled()
-    expect(sendSpy).toHaveBeenCalledOnce()
   })
 })

@@ -1,4 +1,5 @@
 import '@data/services/AgentTaskService'
+import '@data/services/AgentSessionMessageService'
 
 import { application } from '@application'
 import { agentWorkspaceHandlers } from '@data/api/handlers/agentWorkspaces'

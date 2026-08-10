@@ -44,7 +44,8 @@ export const AgentSessionDeliveryBadge: FC<{
   delivery: NonNullable<MessageListItem['delivery']>
 }> = ({ delivery }) => {
   const { t } = useTranslation()
-  const senderSessionLabel = delivery.sender.sessionName.trim() || delivery.sender.sessionId
+  const senderSessionLabel = delivery.senderSnapshot?.sessionName.trim() || delivery.sender.sessionId
+  const senderAgentLabel = delivery.senderSnapshot?.agentName.trim() || delivery.sender.agentId
 
   return (
     <Tooltip
@@ -54,7 +55,7 @@ export const AgentSessionDeliveryBadge: FC<{
         className="h-5 max-w-[min(28rem,50vw)] gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs">
         <span className="truncate">
           {t('agent.session_delivery.from', {
-            agent: delivery.sender.agentName,
+            agent: senderAgentLabel,
             session: senderSessionLabel
           })}
         </span>

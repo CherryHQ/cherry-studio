@@ -1200,7 +1200,7 @@ async function materializeUserContent(
   if (message.delivery) {
     const context = JSON.stringify({
       schema: 'cherry.session-delivery.v1',
-      deliveryId: message.delivery.id,
+      deliveryId: message.id,
       sender: {
         agentId: message.delivery.sender.agentId,
         sessionId: message.delivery.sender.sessionId
@@ -1209,10 +1209,8 @@ async function materializeUserContent(
         agentId: message.delivery.receiver.agentId,
         sessionId: message.delivery.receiver.sessionId
       },
-      replyTo: {
-        agentId: message.delivery.replyTo.agentId,
-        sessionId: message.delivery.replyTo.sessionId
-      }
+      inReplyTo: message.delivery.inReplyTo,
+      outcome: message.delivery.outcome
     })
     text = `<cherry-session-delivery>${context}</cherry-session-delivery>\n\n${text}`
   }
