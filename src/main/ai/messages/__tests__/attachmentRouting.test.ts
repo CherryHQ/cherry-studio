@@ -74,7 +74,9 @@ describe('prepareChatMessages — routing', () => {
   })
 
   it.each([
+    ['audio', 'wav', 'audio/wav'],
     ['audio', 'mp3', 'audio/mpeg'],
+    ['audio', 'm4a', 'audio/mp4'],
     ['video', 'mp4', 'video/mp4']
   ] as const)('keeps a supported managed %s part inline', async (_kind, ext, mediaType) => {
     getByIdMock.mockResolvedValueOnce({ ext })
@@ -155,7 +157,9 @@ describe('prepareChatMessages — routing', () => {
   })
 
   it.each([
+    ['audio', 'wav', 'audio/wav'],
     ['audio', 'mp3', 'audio/mpeg'],
+    ['audio', 'm4a', 'audio/mp4'],
     ['video', 'mp4', 'video/mp4']
   ] as const)('notes a managed %s part the endpoint cannot process', async (kind, ext, mediaType) => {
     getByIdMock.mockResolvedValueOnce({ ext })
@@ -236,6 +240,8 @@ describe('prepareChatMessages — routing', () => {
 
   it.each([
     ['audio', 'wav', 'audio/wav'],
+    ['audio', 'mp3', 'audio/mpeg'],
+    ['audio', 'm4a', 'audio/mp4'],
     ['video', 'mp4', 'video/mp4']
   ] as const)(
     'omits a normalized legacy %s part when the endpoint does not accept it',
@@ -261,6 +267,8 @@ describe('prepareChatMessages — routing', () => {
 
   it.each([
     ['audio', 'wav', 'audio/wav'],
+    ['audio', 'mp3', 'audio/mpeg'],
+    ['audio', 'm4a', 'audio/mp4'],
     ['video', 'mp4', 'video/mp4']
   ] as const)('keeps a normalized legacy %s part when the endpoint accepts it', async (_kind, ext, mediaType) => {
     const materialized = { type: 'file', url: `data:${mediaType};base64,AA`, mediaType }

@@ -1,11 +1,68 @@
-import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
+import { resolve } from 'node:path'
+
+import { RegistryLoader } from '@cherrystudio/provider-registry/node'
+import { mergePresetModel, synthesizePresetFromOverride } from '@data/services/ProviderRegistryService'
+import { ENDPOINT_TYPE, type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
 import { makeModel } from '../../../../__tests__/fixtures/model'
 import { makeProvider } from '../../../../__tests__/fixtures/provider'
 import { resolveNativeFileSupport } from '../nativeFileSupport'
 
+const registryDataDir = resolve('packages/provider-registry/data')
+const registryLoader = new RegistryLoader({
+  models: resolve(registryDataDir, 'models.json'),
+  providers: resolve(registryDataDir, 'providers.json'),
+  providerModels: resolve(registryDataDir, 'provider-models.json')
+})
+
+const cherryInUnsupportedAudioModelIds = [
+  'qwen/qwen3.5-122b-a10b',
+  'qwen/qwen3.5-27b',
+  'qwen/qwen3.5-35b-a3b',
+  'qwen/qwen3.5-35b-a3b(free)',
+  'qwen/qwen3.5-397b-a17b',
+  'qwen/qwen3.5-4b(free)',
+  'qwen/qwen3.5-9b(free)'
+] as const
+
+function cherryInRegistryModel(apiModelId: string): Model {
+  const override = registryLoader.findOverride('cherryin', apiModelId)
+  if (!override) throw new Error(`Missing CherryIN override: ${apiModelId}`)
+  const preset = registryLoader.findModel(override.modelId) ?? synthesizePresetFromOverride(override)
+  return { ...mergePresetModel(preset, override, 'cherryin'), apiModelId }
+}
+
 describe('resolveNativeFileSupport', () => {
+  it.each(cherryInUnsupportedAudioModelIds)('denies native audio for CherryIN %s', (apiModelId) => {
+    const support = resolveNativeFileSupport(makeProvider({ id: 'cherryin' }), cherryInRegistryModel(apiModelId), {
+      aiSdkProviderId: 'cherryin',
+      runtimeProviderId: 'cherryin-chat',
+      endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+    })
+
+    expect(support.audio).toBe(false)
+  })
+
+  it('keeps native audio for an audio-capable CherryIN model not covered by an override', () => {
+    const support = resolveNativeFileSupport(
+      makeProvider({ id: 'cherryin' }),
+      makeModel({
+        id: 'cherryin::qwen3-omni-flash',
+        apiModelId: 'qwen3-omni-flash',
+        name: 'qwen3-omni-flash',
+        capabilities: [MODEL_CAPABILITY.AUDIO_RECOGNITION]
+      }),
+      {
+        aiSdkProviderId: 'cherryin',
+        runtimeProviderId: 'cherryin-chat',
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      }
+    )
+
+    expect(support.audio).toBe(true)
+  })
+
   it('native PDF on an OpenAI Responses LLM model', () => {
     const ns = resolveNativeFileSupport(
       makeProvider({ id: 'openai' }),

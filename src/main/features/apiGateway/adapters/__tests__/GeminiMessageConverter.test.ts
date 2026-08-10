@@ -49,7 +49,7 @@ describe('GeminiMessageConverter.toUIMessages', () => {
     expect(msgs[0]).toMatchObject({ role: 'system', parts: [{ type: 'text', text: 'A\nB' }] })
   })
 
-  it('maps text, inlineData and fileData parts', () => {
+  it('maps text, image/audio/video inlineData and fileData parts', () => {
     const msgs = converter.toUIMessages(
       request({
         contents: [
@@ -58,6 +58,10 @@ describe('GeminiMessageConverter.toUIMessages', () => {
             parts: [
               { text: 'look' },
               { inlineData: { mimeType: 'image/png', data: 'AAAA' } },
+              { inlineData: { mimeType: 'audio/wav', data: 'V0FW' } },
+              { inlineData: { mimeType: 'audio/mpeg', data: 'TVAz' } },
+              { inlineData: { mimeType: 'audio/mp4', data: 'TTRB' } },
+              { inlineData: { mimeType: 'video/mp4', data: 'TVA0' } },
               { fileData: { mimeType: 'application/pdf', fileUri: 'gs://bucket/f.pdf' } }
             ]
           }
@@ -67,6 +71,10 @@ describe('GeminiMessageConverter.toUIMessages', () => {
     expect(msgs[0].parts).toEqual([
       { type: 'text', text: 'look' },
       { type: 'file', mediaType: 'image/png', url: 'data:image/png;base64,AAAA' },
+      { type: 'file', mediaType: 'audio/wav', url: 'data:audio/wav;base64,V0FW' },
+      { type: 'file', mediaType: 'audio/mpeg', url: 'data:audio/mpeg;base64,TVAz' },
+      { type: 'file', mediaType: 'audio/mp4', url: 'data:audio/mp4;base64,TTRB' },
+      { type: 'file', mediaType: 'video/mp4', url: 'data:video/mp4;base64,TVA0' },
       { type: 'file', mediaType: 'application/pdf', url: 'gs://bucket/f.pdf' }
     ])
   })
