@@ -7,6 +7,7 @@ import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpTool } from '@shared/types/mcp'
 import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
 
+import { getRequestContext } from '../context'
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
 import { mcpResultToTextSummary } from './utils'
@@ -41,7 +42,8 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
     metadata: { cherry: { tool: metadata } },
     inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
     needsApproval: async () => forcePrompt,
-    execute: async (args: Record<string, unknown>, { toolCallId, abortSignal }) => {
+    execute: async (args: Record<string, unknown>, options) => {
+      const { toolCallId, abortSignal } = options
       const server = resolveActiveServerById(mcpTool.serverId)
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
@@ -51,6 +53,9 @@ function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
         name: mcpTool.name,
         args,
         callId: toolCallId,
+        // Isolation scope for abort-by-id: provider call ids (e.g. "call_0") can collide
+        // across topics, and the renderer's abort presents the same topicId.
+        scope: getRequestContext(options)?.topicId,
         signal: abortSignal
       })
 

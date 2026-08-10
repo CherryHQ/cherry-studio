@@ -529,6 +529,35 @@ describe('McpRuntimeService.callTool cancellation', () => {
     expect((service as any).activeToolCalls.has('dup-call')).toBe(false)
   })
 
+  // Provider call ids can collide across topics; an abort scoped to one topic must never
+  // cancel the identically-named in-flight call registered under another topic's scope.
+  it('scopes abortTool so a colliding call id in another scope is untouched', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const clientCallTool = vi.fn(
+      (_request: unknown, _resultSchema: unknown, options: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          options.signal.addEventListener('abort', () => reject(abortError), { once: true })
+        })
+    )
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const callA = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'call_0', scope: 'topic-a' })
+    const callB = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'call_0', scope: 'topic-b' })
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledTimes(2), { interval: 1 })
+
+    // An unscoped abort must not reach into scoped registrations either.
+    await expect(service.abortTool('call_0')).resolves.toBe(false)
+
+    await expect(service.abortTool('call_0', 'topic-a')).resolves.toBe(true)
+    await expect(callA).rejects.toBe(abortError)
+
+    // The other topic's identically-named call is still running and still abortable.
+    expect(clientCallTool.mock.calls[1][2].signal.aborted).toBe(false)
+    await expect(service.abortTool('call_0', 'topic-b')).resolves.toBe(true)
+    await expect(callB).rejects.toBe(abortError)
+  })
+
   // A genuine transport/server failure whose catch continuation runs after the external
   // abort landed must NOT be downgraded to the debug "Tool call aborted" path.
   it('keeps error-level logging for a genuine failure that races cancellation', async () => {

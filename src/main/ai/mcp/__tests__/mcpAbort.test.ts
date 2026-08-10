@@ -37,4 +37,16 @@ describe('isMcpCancellation', () => {
       false
     )
   })
+
+  // The SDK's genuine request timeout reuses ErrorCode.RequestTimeout — the code alone
+  // must never count as cancellation evidence when the timeout races an abort.
+  it('does not classify a genuine SDK request timeout that raced the abort as cancellation', () => {
+    const controller = new AbortController()
+    controller.abort(new Error('user stopped'))
+    const genuineTimeout = McpError.fromError(ErrorCode.RequestTimeout, 'Request timed out', { timeout: 60000 })
+    expect(isMcpCancellation(genuineTimeout, controller.signal)).toBe(false)
+    // Even stripped of its data, the timeout's message does not carry the abort reason.
+    const dataLessTimeout = new McpError(ErrorCode.RequestTimeout, 'Request timed out')
+    expect(isMcpCancellation(dataLessTimeout, controller.signal)).toBe(false)
+  })
 })
