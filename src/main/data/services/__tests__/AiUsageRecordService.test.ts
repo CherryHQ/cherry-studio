@@ -547,6 +547,25 @@ describe('AiUsageRecordService', () => {
     })
   })
 
+  it('does not invent a currency for tiered pricing without an explicit currency', () => {
+    expect(
+      createAiUsagePricingSnapshot(
+        {
+          input: { perMillionTokens: 1 },
+          output: { perMillionTokens: 2 },
+          inputTokenTiers: [
+            {
+              minInputTokens: 1_000,
+              input: { perMillionTokens: 10 },
+              output: { perMillionTokens: 20 }
+            }
+          ]
+        },
+        '2026-07-28T00:00:00.000Z'
+      )
+    ).toBeNull()
+  })
+
   it('captures immutable input-token tiers and rejects mixed tier currencies', () => {
     const pricing = {
       input: { perMillionTokens: 1, currency: 'USD' as const },

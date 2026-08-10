@@ -1,5 +1,5 @@
 import { CURRENCY, type Model } from '@shared/data/types/model'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -190,6 +190,43 @@ describe('EditModelDrawer pricing', () => {
     expect(updateModelMock).toHaveBeenCalledTimes(1)
     expect(updateModelMock.mock.calls[0][2]).toEqual(expect.objectContaining({ name: 'Claude 4 Sonnet Renamed' }))
     expect(updateModelMock.mock.calls[0][2]).not.toHaveProperty('pricing')
+  })
+
+  it('keeps a queued pricing save when a later unrelated field is edited', async () => {
+    const user = userEvent.setup()
+    let resolveFirstSave!: () => void
+    updateModelMock
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveFirstSave = resolve
+          })
+      )
+      .mockResolvedValue(undefined)
+    render(<EditModelDrawer providerId="openai" open onClose={vi.fn()} model={makeTieredPricingModel()} />)
+
+    const modelName = screen.getByLabelText('settings.models.add.model_name.label')
+    await user.clear(modelName)
+    await user.type(modelName, 'Claude 4 Sonnet Renamed')
+    await user.tab()
+    await user.click(screen.getByLabelText('currency-¥'))
+    await user.click(screen.getByRole('switch', { name: 'settings.models.add.supported_text_delta.label' }))
+
+    expect(updateModelMock).toHaveBeenCalledTimes(1)
+    resolveFirstSave()
+
+    await waitFor(() => expect(updateModelMock).toHaveBeenCalledTimes(2))
+    expect(updateModelMock.mock.calls[1][2]).toEqual(
+      expect.objectContaining({
+        supportsStreaming: false,
+        pricing: expect.objectContaining({
+          input: { perMillionTokens: 3, currency: CURRENCY.CNY },
+          inputTokenTiers: expect.arrayContaining([
+            expect.objectContaining({ input: { perMillionTokens: 2.5, currency: CURRENCY.CNY } })
+          ])
+        })
+      })
+    )
   })
 
   it('preserves explicit zero cache rates and unedited pricing fields when a price is saved', async () => {

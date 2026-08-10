@@ -263,7 +263,12 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         modelId,
         patch: buildPatch(overrides)
       }
-      autoSavePendingItemsRef.current.set(`${item.providerId}/${item.modelId}`, item)
+      const queueKey = `${item.providerId}/${item.modelId}`
+      const pendingItem = autoSavePendingItemsRef.current.get(queueKey)
+      autoSavePendingItemsRef.current.set(
+        queueKey,
+        pendingItem ? { ...item, patch: { ...pendingItem.patch, ...item.patch } } : item
+      )
       void processAutoSaveQueue()
     },
     [buildPatch, model, processAutoSaveQueue, providerId]
