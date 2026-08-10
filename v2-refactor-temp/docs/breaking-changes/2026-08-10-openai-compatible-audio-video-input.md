@@ -2,7 +2,7 @@
 title: Video and more audio formats now reach OpenAI-compatible models
 category: changed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: '#18316'
 date: 2026-08-10
 ---
 
@@ -34,3 +34,9 @@ Video capability comes from the model registry (`inputModalities` including `vid
 user-editable per model. Provider-side size limits still apply and are not enforced client
 side: MiniMax caps the request body at 64 MB, Kimi and Qwen accept base64 data URLs, BigModel
 does not.
+
+Container support is also unenforced. Cherry accepts mp4, avi, mov, wmv, flv and mkv, while
+vendors document a much shorter list (BigModel: mp4/mkv/mov; MiniMax: mp4/avi/mov/mkv) — an
+`.mkv` or `.avi` that used to produce a graceful note can now come back as a provider error.
+A per-container allowlist would have to live in attachment routing, since `NativeFileSupport`
+is per-modality booleans; worth a follow-up if it generates reports.

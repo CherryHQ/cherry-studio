@@ -48,6 +48,8 @@ describe('resolveNativeFileSupport', () => {
     ['openai-chat', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, true, false],
     // Video rides the `openai-compatible-media` rewrite (`video_url`).
     ['openai-compatible', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, true, true],
+    // Forwards the V3 prompt verbatim and converts server-side — it wants a real file part.
+    ['gateway', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, true, true],
     ['google', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, true, true],
     ['google-vertex', ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT, true, true],
     ['openrouter', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, true, true]

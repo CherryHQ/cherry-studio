@@ -93,8 +93,12 @@ const NO_NATIVE_AUDIO_VIDEO_PROVIDER_IDS = new Set<AppProviderId>([
   'perplexity'
 ])
 
-/** AI SDK converters with native support for both audio and video file parts. */
-const NATIVE_AUDIO_VIDEO_PROVIDER_IDS = new Set<AppProviderId>(['google', 'google-vertex', 'openrouter'])
+/**
+ * AI SDK converters with native support for both audio and video file parts.
+ * `gateway` forwards the V3 prompt verbatim and converts server-side, so a real
+ * file part is what it wants — the model's own capability is the only gate.
+ */
+const NATIVE_AUDIO_VIDEO_PROVIDER_IDS = new Set<AppProviderId>(['google', 'google-vertex', 'openrouter', 'gateway'])
 
 /** OpenAI chat-compatible converters: partial audio support, no video file parts. */
 const OPENAI_CHAT_MEDIA_PROVIDER_IDS = new Set<AppProviderId>([
@@ -108,7 +112,8 @@ const OPENAI_CHAT_MEDIA_PROVIDER_IDS = new Set<AppProviderId>([
  * Whether the request is served by `OpenAICompatibleChatLanguageModel`, whose
  * converter rejects video and all-but-wav/mp3 audio parts on its own. The
  * `openai-compatible-media` feature rewrites those parts into `video_url` /
- * `input_audio` for exactly this set, so both sides key off this predicate.
+ * `input_audio` for this set, and additionally re-checks the per-model dispatch
+ * of multi-backend gateways, which this provider-level predicate cannot see.
  */
 export function usesOpenAICompatibleWire(runtimeProviderId: AppProviderId, endpointType?: EndpointType): boolean {
   if (NO_NATIVE_AUDIO_VIDEO_PROVIDER_IDS.has(runtimeProviderId)) return false

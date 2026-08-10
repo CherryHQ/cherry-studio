@@ -8,9 +8,11 @@
 
 import { OpenAICompatibleChatLanguageModel } from '@ai-sdk/openai-compatible'
 import type { LanguageModelV3Prompt } from '@ai-sdk/provider'
+import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { createOpenAICompatibleMediaMiddleware } from '../openaiCompatibleMedia'
+import type { RequestScope } from '../../scope'
+import { createOpenAICompatibleMediaMiddleware, openaiCompatibleMediaFeature } from '../openaiCompatibleMedia'
 
 const CHAT_RESPONSE = {
   id: 'r1',
@@ -20,8 +22,8 @@ const CHAT_RESPONSE = {
 }
 
 /** Run a prompt through the middleware + the real converter, return the wire body. */
-async function wireBody(prompt: LanguageModelV3Prompt, options = { audioAsDataUrl: false }) {
-  const middleware = createOpenAICompatibleMediaMiddleware(options)
+async function wireBody(prompt: LanguageModelV3Prompt) {
+  const middleware = createOpenAICompatibleMediaMiddleware()
   const params = { prompt } as Parameters<NonNullable<typeof middleware.transformParams>>[0]['params']
   const transformed = await middleware.transformParams!({ params, type: 'generate', model: {} as never })
 
@@ -62,8 +64,10 @@ describe('openai-compatible media rewrite', () => {
   it('keeps an attachment-only message multi-part so it is not collapsed to a string', async () => {
     const message = await wireBody([{ role: 'user', content: [VIDEO[0].content[1]] }] as LanguageModelV3Prompt)
 
-    expect(Array.isArray(message.content)).toBe(true)
-    expect(message.content).toContainEqual({ type: 'video_url', video_url: { url: 'data:video/mp4;base64,AAEC' } })
+    expect(message.content).toEqual([
+      { type: 'text', text: ' ' },
+      { type: 'video_url', video_url: { url: 'data:video/mp4;base64,AAEC' } }
+    ])
   })
 
   it.each([
@@ -89,26 +93,6 @@ describe('openai-compatible media rewrite', () => {
     ])
   })
 
-  it('sends a Base64 Data URL for DashScope, which documents that shape', async () => {
-    const message = await wireBody(
-      [
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: 'listen' },
-            { type: 'file', mediaType: 'audio/mp3', data: 'AAEC' }
-          ]
-        }
-      ],
-      { audioAsDataUrl: true }
-    )
-
-    expect(message.content).toEqual([
-      { type: 'text', text: 'listen' },
-      { type: 'input_audio', input_audio: { data: 'data:audio/mp3;base64,AAEC', format: 'mp3' } }
-    ])
-  })
-
   it('does not double-prefix a data URL that reached the part as-is', async () => {
     const message = await wireBody([
       {
@@ -120,7 +104,10 @@ describe('openai-compatible media rewrite', () => {
       }
     ])
 
-    expect(message.content).toContainEqual({ type: 'video_url', video_url: { url: 'data:video/mp4;base64,AAEC' } })
+    expect(message.content).toEqual([
+      { type: 'text', text: 'what happens here?' },
+      { type: 'video_url', video_url: { url: 'data:video/mp4;base64,AAEC' } }
+    ])
   })
 
   it('leaves images and PDFs to the converter', async () => {
@@ -138,5 +125,49 @@ describe('openai-compatible media rewrite', () => {
       { type: 'text', text: 'look' },
       { type: 'image_url', image_url: { url: 'data:image/png;base64,AAEC' } }
     ])
+  })
+})
+
+/**
+ * The rewrite is destructive: a converter that ignores `providerOptions.openaiCompatible`
+ * forwards an empty text part and loses the file with no note. Activation therefore has to
+ * be certain about the model class, not merely about the resolved endpoint.
+ */
+describe('openai-compatible media activation', () => {
+  const ALL_ENDPOINTS = {
+    [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://x.test' },
+    [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: { baseUrl: 'https://x.test' }
+  }
+
+  const scope = (providerId: string, endpointType: EndpointType, apiModelId = 'some-model'): RequestScope =>
+    ({
+      provider: { id: providerId, endpointConfigs: ALL_ENDPOINTS },
+      model: { id: `${providerId}::${apiModelId}`, apiModelId },
+      sdkConfig: { providerId },
+      endpointType
+    }) as unknown as RequestScope
+
+  const applies = (s: RequestScope) => openaiCompatibleMediaFeature.applies!(s)
+
+  it('applies to the generic openai-compatible adapter', () => {
+    expect(applies(scope('openai-compatible', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))).toBe(true)
+  })
+
+  it('skips Vercel AI Gateway, which forwards file parts verbatim and converts server-side', () => {
+    expect(applies(scope('gateway', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))).toBe(false)
+  })
+
+  it("skips @ai-sdk/openai's own chat converter", () => {
+    expect(applies(scope('openai-chat', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS))).toBe(false)
+  })
+
+  it('applies to a multi-backend gateway on its compat route', () => {
+    expect(applies(scope('aihubmix', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'some-compat-model'))).toBe(true)
+  })
+
+  it('skips a multi-backend gateway whose model dispatches to another SDK class', () => {
+    // AiHubMix routes `gemini-*` to GoogleGenerativeAILanguageModel by model id; a model row
+    // pinning openai-chat-completions would otherwise install the middleware for that dispatch.
+    expect(applies(scope('aihubmix', ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, 'gemini-2.5-pro'))).toBe(false)
   })
 })

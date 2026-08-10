@@ -21,14 +21,9 @@ import { definePlugin } from '@cherrystudio/ai-core'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 import type { LanguageModelMiddleware } from 'ai'
 
+import { resolveGatewayRoute } from '../../../../provider/gatewayRouting'
 import type { RequestFeature } from '../feature'
 import { usesOpenAICompatibleWire } from '../nativeFileSupport'
-
-interface MediaWireOptions {
-  /** DashScope documents `input_audio.data` as a URL or Base64 Data URL; the
-   *  OpenAI spec (and vLLM) want bare base64. */
-  readonly audioAsDataUrl: boolean
-}
 
 /**
  * The one value that has to escape its type: `undefined` deletes the converter's
@@ -66,30 +61,26 @@ function audioFormat(mediaType: string): string {
 }
 
 /** Rewrite one media file part, or `undefined` to leave it to the converter. */
-function rewriteMediaPart(
-  part: LanguageModelV3FilePart,
-  options: MediaWireOptions
-): LanguageModelV3TextPart | undefined {
+function rewriteMediaPart(part: LanguageModelV3FilePart): LanguageModelV3TextPart | undefined {
   if (part.mediaType.startsWith('video/')) {
     const url = part.data instanceof URL ? part.data.toString() : `data:${part.mediaType};base64,${toBase64(part.data)}`
     return overriddenTextPart({ type: 'video_url', video_url: { url } })
   }
   if (part.mediaType.startsWith('audio/')) {
-    // No bytes to inline — `input_audio` has no URL form, so leave it alone.
+    // `input_audio` carries bytes only. A URL-backed part is left to the converter,
+    // which rejects it — unreachable today, since routing inlines or drops first.
     if (part.data instanceof URL) return undefined
-    const base64 = toBase64(part.data)
+    // Bare base64, per the OpenAI spec. DashScope's docs show a `data:;base64,…`
+    // data URL instead; that divergence is untested, so it is not special-cased.
     return overriddenTextPart({
       type: 'input_audio',
-      input_audio: {
-        data: options.audioAsDataUrl ? `data:${part.mediaType};base64,${base64}` : base64,
-        format: audioFormat(part.mediaType)
-      }
+      input_audio: { data: toBase64(part.data), format: audioFormat(part.mediaType) }
     })
   }
   return undefined
 }
 
-export function createOpenAICompatibleMediaMiddleware(options: MediaWireOptions): LanguageModelMiddleware {
+export function createOpenAICompatibleMediaMiddleware(): LanguageModelMiddleware {
   return {
     specificationVersion: 'v3',
 
@@ -102,7 +93,7 @@ export function createOpenAICompatibleMediaMiddleware(options: MediaWireOptions)
         let touched = false
         const content = message.content.map((part) => {
           if (part.type !== 'file') return part
-          const rewritten = rewriteMediaPart(part, options)
+          const rewritten = rewriteMediaPart(part)
           if (!rewritten) return part
           touched = true
           return rewritten
@@ -111,7 +102,8 @@ export function createOpenAICompatibleMediaMiddleware(options: MediaWireOptions)
         changed = true
         // A lone text part is collapsed into a plain string message by the
         // converter, which would drop the metadata carrying the media object.
-        if (content.length === 1) content.unshift({ type: 'text', text: '' })
+        // A space rather than '': some vendors reject empty text content parts.
+        if (content.length === 1) content.unshift({ type: 'text', text: ' ' })
         return { ...message, content }
       })
       return changed ? { ...params, prompt } : params
@@ -119,22 +111,33 @@ export function createOpenAICompatibleMediaMiddleware(options: MediaWireOptions)
   }
 }
 
-const createOpenAICompatibleMediaPlugin = (options: MediaWireOptions) =>
+const createOpenAICompatibleMediaPlugin = () =>
   definePlugin({
     name: 'openai-compatible-media',
     enforce: 'pre',
 
     configureContext: (context) => {
       context.middlewares = context.middlewares || []
-      context.middlewares.push(createOpenAICompatibleMediaMiddleware(options))
+      context.middlewares.push(createOpenAICompatibleMediaMiddleware())
     }
   })
+
+/**
+ * Rewriting is destructive — a converter that ignores `providerOptions.openaiCompatible`
+ * would forward an empty text part and silently lose the file. So the model class has to
+ * be certain, not merely likely: multi-backend gateways (AiHubMix, DMXAPI) dispatch it by
+ * model id, which the resolved `endpointType` only reflects when the model row pins no
+ * endpoint of its own.
+ */
+function servedByOpenAICompatibleModel(scope: Parameters<NonNullable<RequestFeature['applies']>>[0]): boolean {
+  const route = resolveGatewayRoute(scope.provider, scope.model)
+  if (route && route.endpointType !== scope.endpointType) return false
+  return usesOpenAICompatibleWire(scope.sdkConfig.providerId, scope.endpointType)
+}
 
 /** Send audio/video as `input_audio` / `video_url` on the openai-compatible wire. */
 export const openaiCompatibleMediaFeature: RequestFeature = {
   name: 'openai-compatible-media',
-  applies: (scope) => usesOpenAICompatibleWire(scope.sdkConfig.providerId, scope.endpointType),
-  contributeModelAdapters: (scope) => [
-    createOpenAICompatibleMediaPlugin({ audioAsDataUrl: scope.sdkConfig.providerId === 'dashscope' })
-  ]
+  applies: servedByOpenAICompatibleModel,
+  contributeModelAdapters: () => [createOpenAICompatibleMediaPlugin()]
 }
