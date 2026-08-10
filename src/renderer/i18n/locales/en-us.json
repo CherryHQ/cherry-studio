@@ -4627,6 +4627,8 @@
         "font_size_medium": "Medium",
         "font_size_small": "Small",
         "font_title": "Font settings",
+        "line_breaks": "Line Break Mode",
+        "line_breaks_description": "Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "Serif font",
         "show_table_of_contents": "Show Table of Contents",
         "show_table_of_contents_description": "Display a table of contents sidebar for easy navigation within documents",
@@ -5394,6 +5396,7 @@
         "insertRowBefore": "Insert Above"
       }
     },
+    "backToTop": "Back to top",
     "commands": {
       "blockMath": {
         "description": "Insert mathematical formula",
