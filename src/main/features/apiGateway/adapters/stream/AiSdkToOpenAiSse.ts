@@ -304,7 +304,17 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   /**
    * Finalize the stream and emit closing events
    */
+  private static readonly DEEPSEEK_MODEL_PATTERN = /^deepseek/i
+
   protected finalize(): void {
+    // DeepSeek thinking-mode dialects require reasoning_content on every
+    // assistant message once a tool call occurred — emit an empty delta when
+    // this turn produced no reasoning so the streamed message still carries
+    // the key.  Non-DeepSeek models are unaffected.  Fixes #18150.
+    if (AiSdkToOpenAiSse.DEEPSEEK_MODEL_PATTERN.test(this.state.model) && !this.reasoningContent) {
+      this.emit(this.createBaseChunk({ reasoning_content: '' }))
+    }
+
     // Emit final chunk with finish_reason and usage
     const finalChunk: OpenAiCompatibleChunk = {
       id: `chatcmpl-${this.state.messageId}`,

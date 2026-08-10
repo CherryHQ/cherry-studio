@@ -334,6 +334,13 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
   }
 
   const createChatModel = (modelId: string, settings: OpenAIProviderSettings = {}) => {
+    // DeepSeek thinking-mode models must always use the chat-completions path
+    // regardless of endpointType — it carries the #18121 reasoning_content patch.
+    // An explicit 'openai-response' endpoint would otherwise route through the
+    // Responses API and drop the key.  Fixes #18150.
+    if (isDeepSeekModel(modelId)) {
+      return createOpenAIChatModel(modelId, settings)
+    }
     if (!endpointType) return createChatModelByModelId(modelId, settings)
     switch (endpointType) {
       case 'anthropic':
