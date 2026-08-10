@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { isAvailableSystemMock } = vi.hoisted(() => ({
-  isAvailableSystemMock: vi.fn(() => true)
+const { isSupportedSystemMock, isLocalModelReadyMock } = vi.hoisted(() => ({
+  isSupportedSystemMock: vi.fn(() => true),
+  isLocalModelReadyMock: vi.fn(() => true)
 }))
 
 vi.mock('@application', async () => {
@@ -10,16 +11,22 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
+vi.mock('@main/services/localModel', () => ({
+  isLocalModelReady: isLocalModelReadyMock
+}))
+
 vi.mock('../../processors/registry', () => ({
   processorRegistry: {
-    tesseract: { isAvailable: () => true },
-    system: { isAvailable: isAvailableSystemMock },
-    paddleocr: { isAvailable: () => true },
-    ovocr: { isAvailable: () => true },
-    mineru: { isAvailable: () => true },
-    doc2x: { isAvailable: () => true },
-    mistral: { isAvailable: () => true },
-    'open-mineru': { isAvailable: () => true }
+    tesseract: { isSupported: () => true },
+    system: { isSupported: isSupportedSystemMock },
+    paddleocr: { isSupported: () => true },
+    'local-paddleocr': { isSupported: () => true },
+    'local-document': { isSupported: () => true },
+    ovocr: { isSupported: () => true },
+    mineru: { isSupported: () => true },
+    doc2x: { isSupported: () => true },
+    mistral: { isSupported: () => true },
+    'open-mineru': { isSupported: () => true }
   }
 }))
 
@@ -39,7 +46,8 @@ describe('resolveProcessorConfig', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
-    isAvailableSystemMock.mockReturnValue(true)
+    isSupportedSystemMock.mockReturnValue(true)
+    isLocalModelReadyMock.mockReturnValue(true)
     resolveDefaultImageToTextProcessorMock.mockReturnValue('tesseract')
   })
 
@@ -162,10 +170,37 @@ describe('resolveProcessorConfig', () => {
 
   it('throws when the configured default processor is not available on this platform', () => {
     MockMainPreferenceServiceUtils.setPreferenceValue('feature.file_processing.default_image_to_text', 'system')
-    isAvailableSystemMock.mockReturnValue(false)
+    isSupportedSystemMock.mockReturnValue(false)
 
     expect(() => resolveProcessorConfigByFeature('image_to_text')).toThrowError(
       'File processor system is not available on this platform'
     )
+  })
+
+  // A missing model is fixable in one click; a missing platform API never is.
+  // The two must not share a message — the platform wording sent users hunting
+  // for an OS problem when all they had to do was download the model.
+  it('distinguishes a missing local model from an unsupported platform', () => {
+    isLocalModelReadyMock.mockReturnValue(false)
+
+    expect(() => resolveProcessorConfigByFeature('document_to_markdown', 'local-document')).toThrowError(
+      'File processor local-document needs the local ocr model to be downloaded first'
+    )
+    expect(isLocalModelReadyMock).toHaveBeenCalledWith('ocr')
+  })
+
+  it('accepts a local model processor once its model is ready', () => {
+    expect(resolveProcessorConfigByFeature('document_to_markdown', 'local-document')).toEqual(
+      expect.objectContaining({ id: 'local-document' })
+    )
+  })
+
+  it('does not probe a local model for processors that need none', () => {
+    isLocalModelReadyMock.mockReturnValue(false)
+
+    expect(resolveProcessorConfigByFeature('document_to_markdown', 'paddleocr')).toEqual(
+      expect.objectContaining({ id: 'paddleocr' })
+    )
+    expect(isLocalModelReadyMock).not.toHaveBeenCalled()
   })
 })
