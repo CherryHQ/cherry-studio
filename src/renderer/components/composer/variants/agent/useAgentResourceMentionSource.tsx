@@ -1,12 +1,11 @@
-import { defaultFilterFn, defaultSortFn, type QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { FILE_TYPE } from '@renderer/types/file'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { createComposerFileTokenSourceId } from '@renderer/utils/message/composerFileTokenSource'
-import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema, type DirectoryEntry } from '@shared/types/file'
 import { getFileTypeByExt } from '@shared/utils/file'
 import type { Editor } from '@tiptap/core'
 import { File, Folder } from 'lucide-react'
-import { useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { serializeComposerDocument } from '../../composerDraft'
@@ -52,70 +51,20 @@ const createStablePathHash = (value: string) => {
 const createAgentResourceItemId = (filePath: string) =>
   `agent-resource:${createStablePathHash(filePath.replace(/\\/g, '/'))}`
 
-const AGENT_RESOURCE_SEARCH_MAX_DEPTH = 10
 const EMPTY_QUERY_RESOURCE_LIMIT = 5
-const DIRECTORY_SEARCH_MAX_DEPTH = 3
-const DIRECTORY_RESULT_LIMIT = 20
+const RESOURCE_SEARCH_MAX_DEPTH = 3
+const RESOURCE_RESULT_LIMIT = 40
+const RESOURCE_SEARCH_DEBOUNCE_MS = 200
 
-type DirectoryListingMode = 'root' | 'search'
+type ResourceSearchResult = PromiseSettledResult<DirectoryEntry[]>[] | null
 
-interface DirectoryListingResult {
-  paths: AbsoluteFilePath[]
-  hadFailure: boolean
+interface PendingResourceSearch {
+  resolve: (results: ResourceSearchResult) => void
+  timerId: number
 }
-
-type DirectorySuggestionItem = ComposerSuggestionItem & QuickPanelListItem
 
 const createAccessiblePathsKey = (accessiblePaths: readonly string[]) =>
   accessiblePaths.map((item) => item.replace(/\\/g, '/')).join('\0')
-
-const createFuzzyRegex = (query: string) => {
-  const pattern = query
-    .toLowerCase()
-    .split('')
-    .map((character) => character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
-    .join('.*')
-  return new RegExp(pattern, 'i')
-}
-
-const filterDirectoryItems = (items: DirectorySuggestionItem[], query: string): DirectorySuggestionItem[] => {
-  if (!query) return items.slice(0, DIRECTORY_RESULT_LIMIT)
-
-  const fuzzyRegex = createFuzzyRegex(query)
-  const pinyinCache = new WeakMap<QuickPanelListItem, string>()
-  const filtered = items.filter((item) => defaultFilterFn(item, query, fuzzyRegex, pinyinCache))
-  return (defaultSortFn(filtered, query) as DirectorySuggestionItem[]).slice(0, DIRECTORY_RESULT_LIMIT)
-}
-
-async function listWorkspaceDirectories(
-  accessiblePaths: readonly string[],
-  mode: DirectoryListingMode
-): Promise<DirectoryListingResult> {
-  const recursive = mode === 'search'
-  const results = await Promise.allSettled(
-    accessiblePaths.map((dirPath) =>
-      window.api.file.listDirectory(dirPath, {
-        recursive,
-        ...(recursive ? { maxDepth: DIRECTORY_SEARCH_MAX_DEPTH } : {}),
-        includeHidden: false,
-        includeFiles: false,
-        includeDirectories: true,
-        searchPattern: '.'
-      })
-    )
-  )
-  const collected = new Set<AbsoluteFilePath>()
-  for (const result of results) {
-    if (result.status !== 'fulfilled') continue
-    for (const directoryPath of result.value) {
-      collected.add(AbsoluteFilePathSchema.parse(directoryPath.replace(/\\/g, '/')))
-    }
-  }
-  return {
-    paths: [...collected],
-    hadFailure: results.some((result) => result.status === 'rejected')
-  }
-}
 
 const createGroupHeaderItem = (id: string, label: string): ComposerSuggestionItem => ({
   id,
@@ -136,9 +85,8 @@ interface AgentResourceMentionOptions {
 
 /**
  * Provides the agent composer's `@`-mention suggestion source, which lists workspace files and
- * folders. Files become managed file tokens; folders become path-only folder tokens. Directory
- * traversal is lazy and cached for one `@` panel session: an empty query reads one level, while
- * the first real query indexes the configured depth for renderer-side filtering.
+ * folders. Files become managed file tokens; folders become path-only folder tokens. An empty
+ * query reads one bounded root page, while a real query delegates bounded fuzzy search to main.
  * Returns an empty list when disabled and no additional source is registered.
  */
 export function useAgentResourceMentionSource({
@@ -149,10 +97,9 @@ export function useAgentResourceMentionSource({
   getAdditionalItems
 }: AgentResourceMentionOptions): ComposerSuggestionSource[] {
   const { t } = useTranslation()
-  const directoryListingCacheRef = useRef(new Map<string, Promise<DirectoryListingResult>>())
-  const directoryListingGenerationRef = useRef(0)
+  const pendingResourceSearchRef = useRef<PendingResourceSearch | undefined>(undefined)
+  const resourceSearchGenerationRef = useRef(0)
   const accessiblePathsKey = createAccessiblePathsKey(accessiblePaths)
-  const directoryListingScopeKeyRef = useRef(accessiblePathsKey)
   const resourceMentionStateRef = useRef({
     accessiblePaths,
     accessiblePathsKey,
@@ -170,6 +117,65 @@ export function useAgentResourceMentionSource({
     t
   }
 
+  const invalidateResourceSearch = useCallback(() => {
+    resourceSearchGenerationRef.current += 1
+    const pending = pendingResourceSearchRef.current
+    if (!pending) return resourceSearchGenerationRef.current
+    window.clearTimeout(pending.timerId)
+    pendingResourceSearchRef.current = undefined
+    pending.resolve(null)
+    return resourceSearchGenerationRef.current
+  }, [])
+
+  const queryWorkspaceResources = useCallback(
+    (searchPaths: readonly string[], normalizedQuery: string): Promise<ResourceSearchResult> => {
+      const requestGeneration = invalidateResourceSearch()
+      const options = normalizedQuery
+        ? {
+            recursive: true,
+            maxDepth: RESOURCE_SEARCH_MAX_DEPTH,
+            includeHidden: false,
+            includeFiles: true,
+            includeDirectories: true,
+            maxEntries: RESOURCE_RESULT_LIMIT,
+            searchPattern: normalizedQuery
+          }
+        : {
+            recursive: false,
+            includeHidden: false,
+            includeFiles: true,
+            includeDirectories: true,
+            maxEntries: RESOURCE_RESULT_LIMIT,
+            searchPattern: '.'
+          }
+      const execute = async (): Promise<ResourceSearchResult> => {
+        const results = await Promise.allSettled(
+          searchPaths.map((dirPath) => window.api.file.listDirectoryEntries(dirPath, options))
+        )
+        return requestGeneration === resourceSearchGenerationRef.current ? results : null
+      }
+
+      if (!normalizedQuery) return execute()
+
+      return new Promise<ResourceSearchResult>((resolve) => {
+        const timerId = window.setTimeout(() => {
+          if (pendingResourceSearchRef.current === pendingSearch) pendingResourceSearchRef.current = undefined
+          void execute().then(resolve)
+        }, RESOURCE_SEARCH_DEBOUNCE_MS)
+        const pendingSearch = { resolve, timerId }
+        pendingResourceSearchRef.current = pendingSearch
+      })
+    },
+    [invalidateResourceSearch]
+  )
+
+  useEffect(
+    () => () => {
+      invalidateResourceSearch()
+    },
+    [accessiblePathsKey, invalidateResourceSearch]
+  )
+
   const resourceMentionSource = useMemo<ComposerSuggestionSource>(
     () => ({
       pluginKey: 'agent-resource-mention-suggestion',
@@ -177,18 +183,11 @@ export function useAgentResourceMentionSource({
       title: t('chat.input.resource_panel.title'),
       allowedPrefixes: [' ', '\n'],
       onExit: () => {
-        directoryListingCacheRef.current.clear()
-        directoryListingGenerationRef.current += 1
+        invalidateResourceSearch()
       },
       items: async ({ query, editor }) => {
         const { accessiblePaths, accessiblePathsKey, files, setFiles, getAdditionalItems, t } =
           resourceMentionStateRef.current
-        if (directoryListingScopeKeyRef.current !== accessiblePathsKey) {
-          directoryListingScopeKeyRef.current = accessiblePathsKey
-          directoryListingCacheRef.current.clear()
-          directoryListingGenerationRef.current += 1
-        }
-        const requestGeneration = directoryListingGenerationRef.current
         const normalizedQuery = query.trim()
         // Settled here, not at the await below: a rejection there would reject the whole source
         // and the suggestion wrapper would replace the loaded file results with a single error row.
@@ -204,79 +203,24 @@ export function useAgentResourceMentionSource({
 
         const resourceItems: ComposerSuggestionItem[] = []
         if (accessiblePaths.length > 0) {
-          // `.` is the list-all sentinel for the file tree search; a real query switches to search mode.
-          const searchPattern = normalizedQuery || '.'
-          const fileResultsPromise = Promise.allSettled(
-            accessiblePaths.map((dirPath) =>
-              window.api.file.listDirectoryEntries(dirPath, {
-                recursive: true,
-                maxDepth: AGENT_RESOURCE_SEARCH_MAX_DEPTH,
-                includeHidden: false,
-                includeFiles: true,
-                includeDirectories: false,
-                maxEntries: 20,
-                searchPattern
-              })
-            )
-          )
-          const directoryMode: DirectoryListingMode = normalizedQuery ? 'search' : 'root'
-          const directoryCacheKey = `${accessiblePathsKey}\0${directoryMode}`
-          let directoryListingPromise = directoryListingCacheRef.current.get(directoryCacheKey)
-          if (!directoryListingPromise) {
-            directoryListingPromise = listWorkspaceDirectories(accessiblePaths, directoryMode)
-            directoryListingCacheRef.current.set(directoryCacheKey, directoryListingPromise)
-          }
-          const [fileResults, directoryListing] = await Promise.all([fileResultsPromise, directoryListingPromise])
-          if (
-            requestGeneration !== directoryListingGenerationRef.current ||
-            accessiblePathsKey !== resourceMentionStateRef.current.accessiblePathsKey
-          ) {
-            return []
-          }
+          // `.` is main's bounded direct-root listing sentinel; a real query switches to
+          // bounded recursive fuzzy search without building a renderer-side directory index.
+          const results = await queryWorkspaceResources(accessiblePaths, normalizedQuery)
+          if (results === null || accessiblePathsKey !== resourceMentionStateRef.current.accessiblePathsKey) return []
 
-          const collectedFiles = new Set<AbsoluteFilePath>()
-          for (const result of fileResults) {
+          const collectedResources = new Map<AbsoluteFilePath, DirectoryEntry>()
+          for (const result of results) {
             if (result.status !== 'fulfilled') continue
             for (const entry of result.value) {
-              if (!entry.isDirectory) {
-                // `entry.path` is already an `AbsoluteFilePath`; the separator
-                // normalization drops the brand, so re-assert it.
-                collectedFiles.add(AbsoluteFilePathSchema.parse(entry.path.replace(/\\/g, '/')))
-              }
+              // `entry.path` is already an `AbsoluteFilePath`; separator normalization drops
+              // the brand, so parse it again while preserving main/root order and first-wins dedupe.
+              const entryPath = AbsoluteFilePathSchema.parse(entry.path.replace(/\\/g, '/'))
+              if (!collectedResources.has(entryPath)) collectedResources.set(entryPath, { ...entry, path: entryPath })
             }
           }
 
-          const directoryItems = directoryListing.paths.map<DirectorySuggestionItem>((directoryPath) => {
-            const relativePath = getAccessiblePathRelativePath(directoryPath, accessiblePaths)
-            return {
-              id: createAgentResourceItemId(directoryPath),
-              label: relativePath,
-              description: directoryPath,
-              icon: <Folder size={16} />,
-              filterText: `${relativePath} ${directoryPath}`,
-              disabled: false,
-              command: ({ editor }) => {
-                const exists = serializeComposerDocument(editor).tokens.some(
-                  (currentToken) => currentToken.kind === 'folder' && currentToken.promptText === directoryPath
-                )
-                if (!exists) {
-                  editor
-                    .chain()
-                    .focus()
-                    .insertComposerToken(createComposerFolderToken(directoryPath))
-                    .insertContent(' ')
-                    .run()
-                }
-              }
-            }
-          })
-          resourceItems.push(...filterDirectoryItems(directoryItems, normalizedQuery))
-
-          if (
-            directoryListing.paths.length === 0 &&
-            collectedFiles.size === 0 &&
-            (directoryListing.hadFailure || fileResults.some((result) => result.status === 'rejected'))
-          ) {
+          const allRootsFailed = results.length > 0 && results.every((result) => result.status === 'rejected')
+          if (collectedResources.size === 0 && allRootsFailed) {
             resourceItems.push({
               id: 'agent-resource:error',
               label: t('common.error'),
@@ -286,8 +230,40 @@ export function useAgentResourceMentionSource({
               command: () => undefined
             })
           } else {
-            for (const filePath of [...collectedFiles].slice(0, 50)) {
-              const relativePath = getAccessiblePathRelativePath(filePath, accessiblePaths)
+            const mentionedFolderPaths = new Set(
+              serializeComposerDocument(editor).tokens.flatMap((token) =>
+                token.kind === 'folder' && token.promptText ? [token.promptText] : []
+              )
+            )
+
+            for (const [entryPath, entry] of collectedResources) {
+              const relativePath = getAccessiblePathRelativePath(entryPath, accessiblePaths)
+              if (entry.isDirectory) {
+                resourceItems.push({
+                  id: createAgentResourceItemId(entryPath),
+                  label: relativePath,
+                  description: entryPath,
+                  icon: <Folder size={16} />,
+                  filterText: `${relativePath} ${entryPath}`,
+                  disabled: mentionedFolderPaths.has(entryPath),
+                  command: ({ editor }) => {
+                    const exists = serializeComposerDocument(editor).tokens.some(
+                      (currentToken) => currentToken.kind === 'folder' && currentToken.promptText === entryPath
+                    )
+                    if (!exists) {
+                      editor
+                        .chain()
+                        .focus()
+                        .insertComposerToken(createComposerFolderToken(entryPath))
+                        .insertContent(' ')
+                        .run()
+                    }
+                  }
+                })
+                continue
+              }
+
+              const filePath = entryPath
               const file = files.find((currentFile) => currentFile.path === filePath)
               const tokenFile = file ?? createAttachmentFromPath(filePath)
               const token = agentFileToComposerToken(tokenFile)
@@ -349,7 +325,7 @@ export function useAgentResourceMentionSource({
         return [...resourceItems, ...additionalItems]
       }
     }),
-    [t]
+    [invalidateResourceSearch, queryWorkspaceResources, t]
   )
 
   return useMemo(

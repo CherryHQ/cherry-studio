@@ -1,7 +1,10 @@
+import { basename } from 'node:path'
+
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import { toast } from '@renderer/services/toast'
 import type { FileMetadata } from '@renderer/types/file'
+import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import type { AgentConfiguration } from '@shared/data/api/schemas/agents'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
@@ -9,17 +12,18 @@ import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { LocalSkill } from '@shared/types/skill'
 import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react'
 import { type ComponentProps, type ReactNode, useEffect, useRef } from 'react'
 import type * as ReactI18nextModule from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { installSyncRafMock } from '../../../../../../tests/__mocks__/requestAnimationFrame'
-import type * as ComposerDraftModule from '../../composerDraft'
+import * as ComposerDraftModule from '../../composerDraft'
 import type { ComposerSurfaceProps } from '../../ComposerSurface'
 import { COMPOSER_TOKEN_NODE_NAME } from '../../ComposerTokenNode'
 import type { ComposerSerializedToken } from '../../tokens'
 import type { ComposerToolLauncher } from '../../toolLauncher'
+import { useAgentResourceMentionSource } from '../agent/useAgentResourceMentionSource'
 import AgentComposerImpl, {
   AgentHomeComposer as AgentHomeComposerImpl,
   MissingAgentHomeComposer
@@ -117,6 +121,36 @@ function createDeferred<T>() {
     resolve = resolvePromise
   })
   return { promise, resolve }
+}
+
+const createSerializedFolderToken = (folderPath: string): ComposerSerializedToken => ({
+  id: `folder:${folderPath}`,
+  kind: 'folder',
+  label: basename(folderPath),
+  description: folderPath,
+  promptText: folderPath,
+  index: 0,
+  textOffset: 0
+})
+
+const renderAgentResourceMentionSource = (accessiblePaths: readonly string[] = ['/workspace']) =>
+  renderHook(
+    ({ paths }) =>
+      useAgentResourceMentionSource({
+        accessiblePaths: paths,
+        files: mocks.files as unknown as ComposerAttachment[],
+        setFiles: mocks.setFiles,
+        enabled: true
+      }),
+    { initialProps: { paths: accessiblePaths } }
+  )
+
+const requireFirstResourceMentionSource = (
+  sources: ReturnType<typeof useAgentResourceMentionSource>
+): NonNullable<ReturnType<typeof useAgentResourceMentionSource>[number]> => {
+  const source = sources[0]
+  if (!source) throw new Error('Expected an agent resource mention source')
+  return source
 }
 
 interface ResizeObserverMockInstance {
@@ -741,6 +775,8 @@ describe('AgentComposer', () => {
     mocks.listDirectory.mockResolvedValue([])
     mocks.listDirectoryEntries.mockReset()
     mocks.listDirectoryEntries.mockResolvedValue([])
+    vi.mocked(ComposerDraftModule.serializeComposerDocument).mockReset()
+    vi.mocked(ComposerDraftModule.serializeComposerDocument).mockReturnValue({ text: '', tokens: [] })
     vi.mocked(cacheService.get).mockReset()
     vi.mocked(cacheService.get).mockReturnValue(undefined)
     vi.mocked(cacheService.has).mockReset()
@@ -2253,158 +2289,284 @@ describe('AgentComposer', () => {
   })
 
   it('provides workspace file resources through the @ mention suggestion source', async () => {
-    mocks.listDirectory.mockResolvedValue(['/workspace/docs'])
-    mocks.listDirectoryEntries.mockResolvedValue([
-      { path: '/workspace/docs', isDirectory: true },
-      { path: '/workspace/docs/notes.md', isDirectory: false },
-      { path: '/workspace/docs/notes.md', isDirectory: false }
-    ])
+    vi.useFakeTimers()
+    try {
+      mocks.listDirectoryEntries.mockResolvedValue([
+        { path: '/workspace/docs', isDirectory: true },
+        { path: '/workspace/docs/notes.md', isDirectory: false },
+        { path: '/workspace/docs/notes.md', isDirectory: false }
+      ])
 
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
+      render(
+        <AgentComposer
+          agentId="agent-1"
+          sessionId="session-1"
+          sendMessage={mocks.sendMessage}
+          stop={mocks.stop}
+          isStreaming={false}
+        />
+      )
 
-    expect(mocks.surfaceProps?.resourceProvider).toBeUndefined()
-    const source = mocks.surfaceProps?.suggestionSources?.[0]
-    expect(mocks.surfaceProps?.suggestionSources).toHaveLength(1)
-    expect(source?.char).toBe('@')
+      const source = mocks.surfaceProps?.suggestionSources?.[0]
+      expect(mocks.surfaceProps?.resourceProvider).toBeUndefined()
+      expect(mocks.surfaceProps?.suggestionSources).toHaveLength(1)
+      expect(source?.char).toBe('@')
 
-    // Typing `@` alone lists the whole workspace via the list-all sentinel.
-    const emptyItems = await source?.items({ query: '', editor: {} as any })
-    expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith(
-      '/workspace',
-      expect.objectContaining({ searchPattern: '.' })
-    )
-    expect(mocks.listDirectory).toHaveBeenLastCalledWith(
-      '/workspace',
-      expect.objectContaining({
+      const emptyItems = await source?.items({ query: '', editor: buildComposerEditorMock().editor })
+      expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith('/workspace', {
         recursive: false,
-        includeFiles: false,
+        includeHidden: false,
+        includeFiles: true,
         includeDirectories: true,
+        maxEntries: 40,
         searchPattern: '.'
       })
-    )
-    expect(emptyItems?.some((item) => item.label === 'docs')).toBe(true)
-    expect(emptyItems?.some((item) => item.label === 'docs/notes.md')).toBe(true)
+      expect(mocks.listDirectory).not.toHaveBeenCalled()
+      expect(emptyItems?.map((item) => item.label)).toEqual(['docs', 'docs/notes.md'])
 
-    const items = await source?.items({ query: 'notes', editor: {} as any })
-    expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith(
-      '/workspace',
-      expect.objectContaining({
+      const itemsPromise = source?.items({ query: ' notes ', editor: buildComposerEditorMock().editor })
+      await vi.advanceTimersByTimeAsync(200)
+      const items = await itemsPromise
+      expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith('/workspace', {
         recursive: true,
-        includeDirectories: false,
-        maxDepth: 10,
+        maxDepth: 3,
+        includeHidden: false,
+        includeFiles: true,
+        includeDirectories: true,
+        maxEntries: 40,
         searchPattern: 'notes'
       })
-    )
-    expect(items).toHaveLength(1)
-    const item = items?.[0]
-    if (!item?.id) throw new Error('Expected a suggestion item')
-    expect(item).toEqual(
-      expect.objectContaining({
-        id: expect.stringMatching(/^agent-resource:.+/),
-        label: 'docs/notes.md',
-        description: '/workspace/docs/notes.md',
-        disabled: false
-      })
-    )
-    expect(item.id).not.toContain('/workspace/docs/notes.md')
+      expect(mocks.listDirectory).not.toHaveBeenCalled()
+      expect(items?.map((item) => item.label)).toEqual(['docs', 'docs/notes.md'])
 
-    const refreshedItems = await source?.items({ query: 'notes', editor: {} as any })
-    expect(refreshedItems?.[0]?.id).toBe(item.id)
+      const item = items?.find((candidate) => candidate.label === 'docs/notes.md')
+      if (!item?.id) throw new Error('Expected a file suggestion item')
+      expect(item).toEqual(
+        expect.objectContaining({
+          id: expect.stringMatching(/^agent-resource:.+/),
+          description: '/workspace/docs/notes.md',
+          disabled: false
+        })
+      )
+      expect(item.id).not.toContain('/workspace/docs/notes.md')
 
-    const { editor, chain } = buildComposerEditorMock()
-    item.command?.({ editor, range: { from: 0, to: 0 }, item, query: 'notes' })
+      const { editor, chain } = buildComposerEditorMock()
+      item.command?.({ editor, range: { from: 0, to: 0 }, item, query: 'notes' })
 
-    expect(chain.insertComposerToken).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: expect.stringMatching(/^file:.+/),
-        kind: 'file',
-        label: 'notes.md',
-        payload: expect.objectContaining({
+      expect(chain.insertComposerToken).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: expect.stringMatching(/^file:.+/),
+          kind: 'file',
+          label: 'notes.md',
+          payload: expect.objectContaining({
+            fileTokenSourceId: expect.any(String),
+            path: '/workspace/docs/notes.md'
+          })
+        })
+      )
+
+      const setFilesUpdater = mocks.setFiles.mock.calls.at(-1)?.[0]
+      expect(typeof setFilesUpdater).toBe('function')
+      const selectedFile = { id: '/workspace/docs/notes.md', path: '/workspace/docs/notes.md' } as FileMetadata
+      expect(setFilesUpdater([])).toEqual([
+        expect.objectContaining({
           fileTokenSourceId: expect.any(String),
           path: '/workspace/docs/notes.md'
         })
-      })
-    )
-
-    const setFilesUpdater = mocks.setFiles.mock.calls.at(-1)?.[0]
-    expect(typeof setFilesUpdater).toBe('function')
-    const selectedFile = { id: '/workspace/docs/notes.md', path: '/workspace/docs/notes.md' } as FileMetadata
-    expect(setFilesUpdater([])).toEqual([
-      expect.objectContaining({
-        fileTokenSourceId: expect.any(String),
-        path: '/workspace/docs/notes.md'
-      })
-    ])
-    expect(setFilesUpdater([selectedFile])).toBeInstanceOf(Array)
-    expect(setFilesUpdater([selectedFile])).toHaveLength(1)
+      ])
+      expect(setFilesUpdater([selectedFile])).toHaveLength(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
-  it('lazily caches searchable empty folders and inserts them as folder tokens', async () => {
-    mocks.listDirectoryEntries.mockResolvedValue([])
-    mocks.listDirectory.mockResolvedValue(['/workspace/docs', '/workspace/docs/empty', '/workspace/assets'])
+  it('lists an empty folder through one bounded combined root query and inserts a folder token', async () => {
+    mocks.listDirectoryEntries.mockResolvedValue([{ path: '/workspace/empty', isDirectory: true }])
+    const { result } = renderAgentResourceMentionSource()
+    const source = requireFirstResourceMentionSource(result.current)
 
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        isStreaming={false}
-      />
-    )
+    const items = await source.items({ query: '', editor: buildComposerEditorMock().editor })
 
-    const source = mocks.surfaceProps?.suggestionSources?.[0]
-    const docsItems = await source?.items({ query: 'docs', editor: {} as any })
-    const emptyItems = await source?.items({ query: 'empty', editor: {} as any })
+    expect(mocks.listDirectoryEntries).toHaveBeenCalledOnce()
+    expect(mocks.listDirectoryEntries).toHaveBeenCalledWith('/workspace', {
+      recursive: false,
+      includeHidden: false,
+      includeFiles: true,
+      includeDirectories: true,
+      maxEntries: 40,
+      searchPattern: '.'
+    })
+    expect(mocks.listDirectory).not.toHaveBeenCalled()
 
-    expect(mocks.listDirectory).toHaveBeenCalledTimes(1)
-    expect(mocks.listDirectory).toHaveBeenCalledWith(
-      '/workspace',
-      expect.objectContaining({
-        recursive: true,
-        maxDepth: 3,
-        includeFiles: false,
-        includeDirectories: true,
-        searchPattern: '.'
-      })
-    )
-    expect(docsItems?.some((item) => item.label === 'docs')).toBe(true)
-
-    const emptyFolderItem = emptyItems?.find((item) => item.label === 'docs/empty')
-    if (!emptyFolderItem) throw new Error('Expected an empty-folder suggestion item')
-    expect(emptyFolderItem).toEqual(
-      expect.objectContaining({
-        id: expect.stringMatching(/^agent-resource:.+/),
-        description: '/workspace/docs/empty',
-        disabled: false
-      })
-    )
-
+    const folderItem = items.find((item) => item.label === 'empty')
+    if (!folderItem) throw new Error('Expected an empty-folder suggestion item')
     mocks.setFiles.mockClear()
     const { editor, chain } = buildComposerEditorMock()
-    emptyFolderItem.command?.({ editor, range: { from: 0, to: 0 }, item: emptyFolderItem, query: 'empty' })
+    folderItem.command?.({ editor, range: { from: 0, to: 0 }, item: folderItem, query: '' })
 
     expect(chain.insertComposerToken).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: 'folder',
         label: 'empty',
-        description: '/workspace/docs/empty',
-        promptText: '/workspace/docs/empty'
+        description: '/workspace/empty',
+        promptText: '/workspace/empty'
       })
     )
     expect(mocks.setFiles).not.toHaveBeenCalled()
+  })
 
-    source?.onExit?.({} as any)
-    await source?.items({ query: 'assets', editor: {} as any })
-    expect(mocks.listDirectory).toHaveBeenCalledTimes(2)
+  it('debounces non-empty combined resource search for 200ms', async () => {
+    vi.useFakeTimers()
+    try {
+      const { result } = renderAgentResourceMentionSource()
+      const source = requireFirstResourceMentionSource(result.current)
+      const itemsPromise = source.items({ query: 'notes', editor: buildComposerEditorMock().editor })
+
+      await vi.advanceTimersByTimeAsync(199)
+      expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(1)
+      expect(mocks.listDirectoryEntries).toHaveBeenCalledTimes(1)
+      expect(mocks.listDirectoryEntries).toHaveBeenLastCalledWith('/workspace', {
+        recursive: true,
+        maxDepth: 3,
+        includeHidden: false,
+        includeFiles: true,
+        includeDirectories: true,
+        maxEntries: 40,
+        searchPattern: 'notes'
+      })
+
+      await itemsPromise
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('drops stale in-flight combined resource results when a newer query finishes first', async () => {
+    vi.useFakeTimers()
+    try {
+      const noteResult = createDeferred<Array<{ path: string; isDirectory: boolean }>>()
+      const notesResult = createDeferred<Array<{ path: string; isDirectory: boolean }>>()
+      mocks.listDirectoryEntries.mockImplementation((_dirPath: string, options: { searchPattern?: string }) =>
+        options.searchPattern === 'note' ? noteResult.promise : notesResult.promise
+      )
+      const { result } = renderAgentResourceMentionSource()
+      const source = requireFirstResourceMentionSource(result.current)
+
+      const staleItemsPromise = source.items({ query: 'note', editor: buildComposerEditorMock().editor })
+      await vi.advanceTimersByTimeAsync(200)
+      const latestItemsPromise = source.items({ query: 'notes', editor: buildComposerEditorMock().editor })
+      await vi.advanceTimersByTimeAsync(200)
+
+      notesResult.resolve([{ path: '/workspace/latest.md', isDirectory: false }])
+      await expect(latestItemsPromise).resolves.toEqual([
+        expect.objectContaining({ label: 'latest.md', description: '/workspace/latest.md' })
+      ])
+
+      noteResult.resolve([{ path: '/workspace/stale.md', isDirectory: false }])
+      await expect(staleItemsPromise).resolves.toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('invalidates an in-flight resource query when the accessible path scope changes', async () => {
+    const staleResult = createDeferred<Array<{ path: string; isDirectory: boolean }>>()
+    mocks.listDirectoryEntries.mockImplementation((dirPath: string) => {
+      if (dirPath === '/workspace') return staleResult.promise
+      return Promise.resolve([{ path: '/workspace-2/current', isDirectory: true }])
+    })
+    const hook = renderAgentResourceMentionSource(['/workspace'])
+    const staleSource = requireFirstResourceMentionSource(hook.result.current)
+    const staleItemsPromise = staleSource.items({ query: '', editor: buildComposerEditorMock().editor })
+
+    hook.rerender({ paths: ['/workspace-2'] })
+    const currentSource = requireFirstResourceMentionSource(hook.result.current)
+    await expect(currentSource.items({ query: '', editor: buildComposerEditorMock().editor })).resolves.toEqual([
+      expect.objectContaining({ label: 'current', description: '/workspace-2/current' })
+    ])
+
+    staleResult.resolve([{ path: '/workspace/stale', isDirectory: true }])
+    await expect(staleItemsPromise).resolves.toEqual([])
+  })
+
+  it('cancels a pending debounced resource query when the mention panel exits', async () => {
+    vi.useFakeTimers()
+    try {
+      const { result } = renderAgentResourceMentionSource()
+      const source = requireFirstResourceMentionSource(result.current)
+      const itemsPromise = source.items({ query: 'notes', editor: buildComposerEditorMock().editor })
+
+      source.onExit?.({} as any)
+      await vi.advanceTimersByTimeAsync(200)
+
+      expect(mocks.listDirectoryEntries).not.toHaveBeenCalled()
+      await expect(itemsPromise).resolves.toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps successful resource rows when another accessible root fails', async () => {
+    mocks.listDirectoryEntries
+      .mockResolvedValueOnce([{ path: '/workspace/docs', isDirectory: true }])
+      .mockRejectedValueOnce(new Error('offline'))
+    const { result } = renderAgentResourceMentionSource(['/workspace', '/offline'])
+    const source = requireFirstResourceMentionSource(result.current)
+
+    const items = await source.items({ query: '', editor: buildComposerEditorMock().editor })
+
+    expect(items).toEqual([expect.objectContaining({ label: 'docs', disabled: false })])
+    expect(items.some((item) => item.id === 'agent-resource:error')).toBe(false)
+  })
+
+  it('shows the resource error row only when every accessible root rejects', async () => {
+    mocks.listDirectoryEntries.mockRejectedValue(new Error('offline'))
+    const { result } = renderAgentResourceMentionSource(['/workspace', '/offline'])
+    const source = requireFirstResourceMentionSource(result.current)
+
+    await expect(source.items({ query: '', editor: buildComposerEditorMock().editor })).resolves.toEqual([
+      expect.objectContaining({ id: 'agent-resource:error', disabled: true })
+    ])
+  })
+
+  it('marks an already mentioned folder disabled after serializing the editor once', async () => {
+    const folderPath = '/workspace/docs'
+    mocks.listDirectoryEntries.mockResolvedValue([{ path: folderPath, isDirectory: true }])
+    vi.mocked(ComposerDraftModule.serializeComposerDocument).mockReturnValue({
+      text: '',
+      tokens: [createSerializedFolderToken(folderPath)]
+    })
+    const { result } = renderAgentResourceMentionSource()
+    const source = requireFirstResourceMentionSource(result.current)
+    const { editor } = buildComposerEditorMock()
+
+    const items = await source.items({ query: '', editor })
+
+    expect(items).toEqual([expect.objectContaining({ label: 'docs', disabled: true })])
+    expect(ComposerDraftModule.serializeComposerDocument).toHaveBeenCalledOnce()
+    expect(ComposerDraftModule.serializeComposerDocument).toHaveBeenCalledWith(editor)
+  })
+
+  it('rechecks the live editor before inserting a folder from a stale enabled item', async () => {
+    const folderPath = '/workspace/docs'
+    mocks.listDirectoryEntries.mockResolvedValue([{ path: folderPath, isDirectory: true }])
+    const { result } = renderAgentResourceMentionSource()
+    const source = requireFirstResourceMentionSource(result.current)
+    const { editor, chain } = buildComposerEditorMock()
+    const items = await source.items({ query: '', editor })
+    const folderItem = items[0]
+    expect(folderItem).toEqual(expect.objectContaining({ label: 'docs', disabled: false }))
+
+    vi.mocked(ComposerDraftModule.serializeComposerDocument).mockReturnValue({
+      text: '',
+      tokens: [createSerializedFolderToken(folderPath)]
+    })
+    folderItem?.command?.({ editor, range: { from: 0, to: 0 }, item: folderItem, query: '' })
+
+    expect(chain.insertComposerToken).not.toHaveBeenCalled()
+    expect(chain.insertContent).not.toHaveBeenCalled()
   })
 
   it('groups files and sessions under header rows when @ has no query', async () => {

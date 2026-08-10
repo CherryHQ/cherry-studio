@@ -16,6 +16,8 @@ import type { ExternalAppInfo } from '@shared/types/externalApp'
 import type {
   AbsoluteFilePath,
   CreateInternalEntryIpcParams,
+  DirectoryEntry,
+  DirectoryListOptions,
   EnsureExternalEntryIpcParams,
   GetPhysicalPathIpcParams
 } from '@shared/types/file'
@@ -35,21 +37,6 @@ import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
 
 import { ipcApi } from './ipc'
-
-type DirectoryListOptions = {
-  recursive?: boolean
-  maxDepth?: number
-  includeHidden?: boolean
-  includeFiles?: boolean
-  includeDirectories?: boolean
-  maxEntries?: number
-  searchPattern?: string
-}
-
-type DirectoryEntry = {
-  path: string
-  isDirectory: boolean
-}
 
 type ShortcutRegistrationConflictPayload = {
   key: ShortcutPreferenceKey
