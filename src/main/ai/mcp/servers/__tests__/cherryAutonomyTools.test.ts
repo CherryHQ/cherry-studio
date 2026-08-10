@@ -50,7 +50,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mockGetSession,
     listByCursor: mockListSessions,
-    search: mockSearchSessions
+    searchWithMetadataEvidence: mockSearchSessions
   }
 }))
 
@@ -300,10 +300,13 @@ describe('CherryAutonomyTools', () => {
       ])
       mockSearchSessions.mockReturnValue([
         {
-          id: 'session-metadata',
-          title: 'Metadata only',
-          subtitle: 'Agent B',
-          target: { agentId: 'agent_b' }
+          item: {
+            id: 'session-metadata',
+            title: 'Metadata only',
+            subtitle: 'Agent B',
+            target: { agentId: 'agent_b' }
+          },
+          matches: [{ field: 'name', snippet: 'Metadata only' }]
         }
       ])
 
@@ -311,7 +314,67 @@ describe('CherryAutonomyTools', () => {
 
       expect(JSON.parse(result.content[0].text).sessions).toEqual([
         expect.objectContaining({ sessionId: 'session-ranked', matches: [expect.anything()] }),
-        expect.objectContaining({ sessionId: 'session-metadata', matches: [] })
+        expect.objectContaining({
+          sessionId: 'session-metadata',
+          matches: [],
+          metadataMatches: [{ field: 'name', snippet: 'Metadata only' }]
+        })
+      ])
+    })
+
+    it('merges metadata evidence and applies limit to final Sessions', async () => {
+      mockSearchSessionMessages.mockReturnValue([
+        {
+          messageId: 'message-ranked',
+          sessionId: 'session-ranked',
+          sessionName: 'Ranked evidence',
+          agentId: 'agent_a',
+          agentName: 'Agent A',
+          snippet: 'ranked evidence',
+          createdAt: '2026-08-10T00:00:00.000Z'
+        }
+      ])
+      mockSearchSessions.mockReturnValue([
+        {
+          item: {
+            id: 'session-metadata',
+            title: 'Metadata only',
+            subtitle: 'Agent B',
+            target: { agentId: 'agent_b' }
+          },
+          matches: [{ field: 'description', snippet: 'Contains ranked evidence' }]
+        },
+        {
+          item: {
+            id: 'session-over-limit',
+            title: 'Over limit',
+            subtitle: 'Agent C',
+            target: { agentId: 'agent_c' }
+          },
+          matches: [{ field: 'description', snippet: 'More ranked evidence' }]
+        },
+        {
+          item: {
+            id: 'session-ranked',
+            title: 'Ranked evidence',
+            subtitle: 'Agent A',
+            target: { agentId: 'agent_a' }
+          },
+          matches: [{ field: 'name', snippet: 'Ranked evidence' }]
+        }
+      ])
+
+      const result = await callTool(createServer(), { query: 'evidence', limit: 2 }, 'session_search')
+
+      expect(JSON.parse(result.content[0].text).sessions).toEqual([
+        expect.objectContaining({
+          sessionId: 'session-ranked',
+          metadataMatches: [{ field: 'name', snippet: 'Ranked evidence' }]
+        }),
+        expect.objectContaining({
+          sessionId: 'session-metadata',
+          metadataMatches: [{ field: 'description', snippet: 'Contains ranked evidence' }]
+        })
       ])
     })
 

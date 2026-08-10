@@ -290,7 +290,7 @@ const SESSION_SEARCH_TOOL: Tool = {
     properties: {
       query: { type: 'string', description: 'Natural-language or keyword query, ranked by lexical relevance.' },
       agent_id: { type: 'string', description: 'Optional Agent id filter.' },
-      limit: { type: 'number', description: 'Maximum message matches to inspect (default 20, max 100).' }
+      limit: { type: 'number', description: 'Maximum Sessions to return (default 20, max 100).' }
     },
     required: ['query']
   }
@@ -502,6 +502,7 @@ export class CherryAutonomyTools {
         sessionName: string
         isCurrent: boolean
         matches: Array<{ messageId: string; snippet: string; createdAt: string }>
+        metadataMatches: Array<{ field: 'name' | 'description'; snippet: string }>
       }
     >()
     for (const match of matches) {
@@ -511,20 +512,28 @@ export class CherryAutonomyTools {
         sessionId: match.sessionId,
         sessionName: match.sessionName,
         isCurrent: match.sessionId === this.sessionId,
-        matches: []
+        matches: [],
+        metadataMatches: []
       }
       candidate.matches.push({ messageId: match.messageId, snippet: match.snippet, createdAt: match.createdAt })
       sessions.set(match.sessionId, candidate)
     }
-    for (const match of agentSessionService.search({ q: query, limit, agentId })) {
-      if (sessions.has(match.id)) continue
+    for (const result of agentSessionService.searchWithMetadataEvidence({ q: query, limit, agentId })) {
+      const match = result.item
+      const existing = sessions.get(match.id)
+      if (existing) {
+        existing.metadataMatches.push(...result.matches)
+        continue
+      }
+      if (sessions.size >= limit) continue
       sessions.set(match.id, {
         agentId: match.target.agentId ?? undefined,
         agentName: match.subtitle,
         sessionId: match.id,
         sessionName: match.title,
         isCurrent: match.id === this.sessionId,
-        matches: []
+        matches: [],
+        metadataMatches: result.matches
       })
     }
     return { content: [{ type: 'text' as const, text: JSON.stringify({ sessions: [...sessions.values()] }) }] }

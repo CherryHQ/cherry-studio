@@ -106,8 +106,9 @@ and exposes five tools:
 - `session_list` — deterministically enumerate visible Sessions and filter by Agent;
 - `session_search` — rank visible Sessions with BM25 over the existing trigram message FTS plus
   Session metadata, returning evidence snippets rather than adding an embedding dependency. Agent
-  filters are applied before either search limit; metadata-only hits intentionally have no message
-  snippets;
+  filters are applied before either search limit. The final limit counts distinct Sessions, each
+  Session keeps its strongest message evidence, and `metadataMatches` identifies name/description
+  hits instead of overloading an empty message-match list;
 - `session_create` — atomically create a same-Agent Session plus its first completion request;
 - `session_send` — send one-way or request an asynchronous terminal completion;
 - `session_deliveries` — inspect incoming and outgoing request/result state, replacing the

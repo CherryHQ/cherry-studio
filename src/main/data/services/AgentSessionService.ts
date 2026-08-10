@@ -14,6 +14,7 @@ import { getDataService } from '@data/services/dataServiceRegistry'
 import { pinService } from '@data/services/PinService'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
@@ -42,6 +43,15 @@ const logger = loggerService.withContext('AgentSessionService')
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
 type SessionEntitySearchItem = Extract<EntitySearchItem, { type: 'session' }>
+export type SessionMetadataSearchMatch = {
+  field: 'name' | 'description'
+  snippet: string
+}
+
+export type SessionMetadataSearchResult = {
+  item: SessionEntitySearchItem
+  matches: SessionMetadataSearchMatch[]
+}
 
 function publishTaskReadModelChanges(taskIds: readonly string[]): void {
   if (taskIds.length === 0) return
@@ -85,6 +95,15 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 
 export class AgentSessionService {
   search(query: { q: string; limit: number; updatedAtFrom?: number; agentId?: string }): SessionEntitySearchItem[] {
+    return this.searchWithMetadataEvidence(query).map((result) => result.item)
+  }
+
+  searchWithMetadataEvidence(query: {
+    q: string
+    limit: number
+    updatedAtFrom?: number
+    agentId?: string
+  }): SessionMetadataSearchResult[] {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit, MAX_LIMIT)
     const filters: SQL[] = []
@@ -101,6 +120,7 @@ export class AgentSessionService {
         agentId: sessionsTable.agentId,
         agentName: agentsTable.name,
         name: sessionsTable.name,
+        description: sessionsTable.description,
         updatedAt: sessionsTable.updatedAt
       })
       .from(sessionsTable)
@@ -110,14 +130,31 @@ export class AgentSessionService {
       .limit(limit)
       .all()
 
-    return rows.map((row) => ({
-      type: 'session',
-      id: row.id,
-      title: row.name,
-      subtitle: row.agentName ?? undefined,
-      updatedAt: timestampToISO(row.updatedAt),
-      target: { sessionId: row.id, agentId: row.agentId }
-    }))
+    const searchTerm = query.q.trim()
+    const normalizedQuery = searchTerm.toLocaleLowerCase()
+    return rows.map((row) => {
+      const matches: SessionMetadataSearchMatch[] = []
+      if (searchTerm && row.name.toLocaleLowerCase().includes(normalizedQuery)) {
+        matches.push({ field: 'name', snippet: buildSearchSnippet(row.name, [searchTerm], 'substring') })
+      }
+      if (searchTerm && row.description?.toLocaleLowerCase().includes(normalizedQuery)) {
+        matches.push({
+          field: 'description',
+          snippet: buildSearchSnippet(row.description, [searchTerm], 'substring')
+        })
+      }
+      return {
+        item: {
+          type: 'session',
+          id: row.id,
+          title: row.name,
+          subtitle: row.agentName ?? undefined,
+          updatedAt: timestampToISO(row.updatedAt),
+          target: { sessionId: row.id, agentId: row.agentId }
+        },
+        matches
+      }
+    })
   }
 
   create(dto: CreateAgentSessionDto): AgentSessionEntity {

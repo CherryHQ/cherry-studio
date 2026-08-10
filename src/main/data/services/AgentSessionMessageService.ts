@@ -294,7 +294,7 @@ export class AgentSessionMessageService {
     const matchQuery = toFtsMatchQuery(query.q)
     const snippetTerms = [...extractMatchTerms(query.q), ...extractShortTerms(query.q)]
 
-    const fetchMatchRows = (shortTerms: string[]): SessionMessageSearchRow[] => {
+    const fetchMatchRows = (shortTerms: string[], chunkLimit: number, offset: number): SessionMessageSearchRow[] => {
       if (!matchQuery) return []
       const shortTermConditions = shortTerms.map(
         (term) => sql`sm.searchable_text LIKE ${toFtsLikePattern(term)} ESCAPE '\\'`
@@ -317,8 +317,30 @@ export class AgentSessionMessageService {
           AND ${agentCondition}
           ${shortTermConditions.length > 0 ? sql`AND ${sql.join(shortTermConditions, sql` AND `)}` : sql``}
         ORDER BY bm25(agent_session_message_fts), sm.created_at DESC, sm.id DESC
-        LIMIT ${limit}
+        LIMIT ${chunkLimit}
+        OFFSET ${offset}
       `)
+    }
+
+    const collectDistinctSessions = (
+      fetchRows: (chunkLimit: number, offset: number) => SessionMessageSearchRow[]
+    ): SessionMessageSearchRow[] => {
+      const rows: SessionMessageSearchRow[] = []
+      const seenSessionIds = new Set<string>()
+      const chunkLimit = Math.max(limit, 20)
+      let offset = 0
+      while (rows.length < limit) {
+        const chunk = fetchRows(chunkLimit, offset)
+        for (const row of chunk) {
+          if (seenSessionIds.has(row.sessionId)) continue
+          seenSessionIds.add(row.sessionId)
+          rows.push(row)
+          if (rows.length === limit) break
+        }
+        if (chunk.length < chunkLimit) break
+        offset += chunk.length
+      }
+      return rows
     }
 
     let rows: SessionMessageSearchRow[]
@@ -326,32 +348,37 @@ export class AgentSessionMessageService {
       const terms = extractFtsTokens(query.q)
       if (terms.length === 0) return []
       const conditions = terms.map((term) => sql`sm.searchable_text LIKE ${toFtsLikePattern(term)} ESCAPE '\\'`)
-      rows = database.all<SessionMessageSearchRow>(sql`
-        SELECT
-          sm.id AS "rowId",
-          sm.searchable_text AS "searchableText",
-          sm.session_id AS "sessionId",
-          s.name AS "sessionName",
-          s.agent_id AS "agentId",
-          a.name AS "agentName",
-          sm.role,
-          sm.created_at AS "createdAt"
-        FROM agent_session_message sm
-        JOIN agent_session s ON s.id = sm.session_id
-        LEFT JOIN agent a ON a.id = s.agent_id
-        WHERE ${agentCondition}
-          AND ${sql.join(conditions, sql` AND `)}
-        ORDER BY length(sm.searchable_text), sm.created_at DESC, sm.id DESC
-        LIMIT ${limit}
-      `)
+      rows = collectDistinctSessions((chunkLimit, offset) =>
+        database.all<SessionMessageSearchRow>(sql`
+          SELECT
+            sm.id AS "rowId",
+            sm.searchable_text AS "searchableText",
+            sm.session_id AS "sessionId",
+            s.name AS "sessionName",
+            s.agent_id AS "agentId",
+            a.name AS "agentName",
+            sm.role,
+            sm.created_at AS "createdAt"
+          FROM agent_session_message sm
+          JOIN agent_session s ON s.id = sm.session_id
+          LEFT JOIN agent a ON a.id = s.agent_id
+          WHERE ${agentCondition}
+            AND ${sql.join(conditions, sql` AND `)}
+          ORDER BY length(sm.searchable_text), sm.created_at DESC, sm.id DESC
+          LIMIT ${chunkLimit}
+          OFFSET ${offset}
+        `)
+      )
       return rows.map((row) =>
         mapSessionMessageSearchRow(row, buildSearchSnippet(row.searchableText, terms, 'substring'))
       )
     }
 
     const shortTerms = extractShortTerms(query.q)
-    rows = fetchMatchRows(shortTerms)
-    if (rows.length === 0 && shortTerms.length > 0) rows = fetchMatchRows([])
+    rows = collectDistinctSessions((chunkLimit, offset) => fetchMatchRows(shortTerms, chunkLimit, offset))
+    if (rows.length === 0 && shortTerms.length > 0) {
+      rows = collectDistinctSessions((chunkLimit, offset) => fetchMatchRows([], chunkLimit, offset))
+    }
     return rows.map((row) =>
       mapSessionMessageSearchRow(row, buildSearchSnippet(row.searchableText, snippetTerms, 'substring'))
     )

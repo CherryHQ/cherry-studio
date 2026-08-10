@@ -190,6 +190,42 @@ describe('AgentSessionService', () => {
     expect(result.map((item) => item.id)).toEqual(['session-search-target-agent'])
   })
 
+  it('returns explicit Session name and description evidence', async () => {
+    const workspace = await createWorkspace('search-evidence')
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'session-name-evidence',
+        agentId: 'agent-session-test',
+        name: '中文问候 Session',
+        workspaceId: workspace.id,
+        orderKey: 'c0',
+        updatedAt: 200
+      },
+      {
+        id: 'session-description-evidence',
+        agentId: 'agent-session-test',
+        name: 'Other Session',
+        description: '记录中文问候的测试过程',
+        workspaceId: workspace.id,
+        orderKey: 'c1',
+        updatedAt: 100
+      }
+    ])
+
+    const result = agentSessionService.searchWithMetadataEvidence({ q: '问候', limit: 5 })
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        item: expect.objectContaining({ id: 'session-name-evidence' }),
+        matches: [{ field: 'name', snippet: '中文问候 Session' }]
+      }),
+      expect.objectContaining({
+        item: expect.objectContaining({ id: 'session-description-evidence' }),
+        matches: [{ field: 'description', snippet: '记录中文问候的测试过程' }]
+      })
+    ])
+  })
+
   describe('getLatestUpdated', () => {
     it('returns the globally most-recently-updated session, independent of orderKey ordering', async () => {
       const workspace = await createWorkspace('latest')

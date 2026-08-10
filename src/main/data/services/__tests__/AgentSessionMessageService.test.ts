@@ -1001,10 +1001,11 @@ describe('AgentSessionMessageService', () => {
 
   it('ranks Agent-tool search by BM25 instead of requiring every term', async () => {
     await seedSession({ id: 'session-ranked', name: 'Session Ranked', orderKey: 'sr0' })
+    await seedSession({ id: 'session-ranked-secondary', name: 'Session Ranked Secondary', orderKey: 'sr1' })
     await dbh.db.insert(agentSessionMessageTable).values([
       {
         id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ca',
-        sessionId: 'session-ranked',
+        sessionId: 'session-ranked-secondary',
         role: 'assistant',
         data: { parts: [{ type: 'text', text: 'hyperfine benchmark setup' }] },
         status: 'success',
@@ -1028,6 +1029,35 @@ describe('AgentSessionMessageService', () => {
       '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cb',
       '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1ca'
     ])
+  })
+
+  it('applies ranked-search limit to distinct Sessions', async () => {
+    await seedSession({ id: 'session-ranked-frequent', name: 'Ranked Frequent', orderKey: 'srf0' })
+    await seedSession({ id: 'session-ranked-diverse', name: 'Ranked Diverse', orderKey: 'srd0' })
+    await dbh.db.insert(agentSessionMessageTable).values([
+      ...Array.from({ length: 25 }, (_, index) => ({
+        id: `018f6ed6-73b8-7f40-8d0d-9bb2f8f1${String(index).padStart(4, '0')}`,
+        sessionId: 'session-ranked-frequent',
+        role: 'assistant' as const,
+        data: { parts: [{ type: 'text' as const, text: 'needle' }] },
+        status: 'success' as const,
+        createdAt: 500 - index,
+        updatedAt: 500 - index
+      })),
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1cf',
+        sessionId: 'session-ranked-diverse',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'needle appears in another Session' }] },
+        status: 'success',
+        createdAt: 100,
+        updatedAt: 100
+      }
+    ])
+
+    const result = agentSessionMessageService.searchRanked({ q: 'needle', limit: 2 })
+
+    expect(result.map((item) => item.sessionId)).toEqual(['session-ranked-frequent', 'session-ranked-diverse'])
   })
 
   it('applies the Agent filter before the ranked-search limit', async () => {
