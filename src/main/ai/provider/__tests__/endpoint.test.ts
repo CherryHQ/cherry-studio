@@ -356,6 +356,67 @@ describe('resolveEffectiveEndpoint', () => {
     expect(baseUrl).toBe('')
   })
 
+  describe('preferredEndpointType', () => {
+    // DeepSeek V4 Flash: `openai-responses` leads because it routes in-app chat, but the model also
+    // serves Anthropic Messages — which is the only dialect the Claude Agent SDK can speak.
+    const deepseek = makeProvider({
+      id: 'deepseek',
+      defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_RESPONSES]: { baseUrl: 'https://api.deepseek.com' },
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.deepseek.com' },
+        [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.deepseek.com/anthropic' }
+      }
+    })
+    const flash = {
+      id: 'deepseek-v4-flash',
+      endpointTypes: [
+        ENDPOINT_TYPE.OPENAI_RESPONSES,
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      ]
+    } as never
+
+    it('wins over model.endpointTypes[0] when the model declares it', () => {
+      expect(resolveEffectiveEndpoint(deepseek, flash, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toMatchObject({
+        endpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES,
+        baseUrl: 'https://api.deepseek.com/anthropic'
+      })
+      expect(resolveEffectiveEndpoint(deepseek, flash).endpointType).toBe(ENDPOINT_TYPE.OPENAI_RESPONSES)
+    })
+
+    it('is declined when the model does not declare it', () => {
+      const chatOnly = { id: 'deepseek-chat', endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS] } as never
+      expect(resolveEffectiveEndpoint(deepseek, chatOnly, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType).toBe(
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+    })
+
+    it('is declined when the provider configures no base URL for it', () => {
+      // `getBaseUrl` cascades, so honouring the preference here would hand back the OpenAI host.
+      const relay = makeProvider({
+        id: 'relay',
+        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        endpointConfigs: { [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://relay.example.com' } }
+      })
+      const model = {
+        id: 'm',
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS, ENDPOINT_TYPE.ANTHROPIC_MESSAGES]
+      } as never
+      expect(resolveEffectiveEndpoint(relay, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES)).toMatchObject({
+        endpointType: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        baseUrl: 'https://relay.example.com'
+      })
+    })
+
+    it('leaves the gateway route untouched for models that declare no endpoints', () => {
+      const model = { id: 'm' } as never
+      expect(resolveEffectiveEndpoint(deepseek, model, ENDPOINT_TYPE.ANTHROPIC_MESSAGES).endpointType).toBe(
+        ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS
+      )
+    })
+  })
+
   describe('multi-backend gateway per-model routing (AiHubMix)', () => {
     // AiHubMix models carry no `endpointTypes` (its /models list has no `supported_endpoint_types`),
     // so the endpoint must be resolved from the model id — otherwise every route collapses onto the
