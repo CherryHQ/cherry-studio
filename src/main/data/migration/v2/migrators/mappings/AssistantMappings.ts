@@ -186,6 +186,34 @@ function extractLegacyTag(source: OldAssistant): { name: string | null; discarde
   }
 }
 
+/** v1's MAX_CONTEXT_COUNT — the slider's top stop, which meant "unlimited". */
+const V1_UNLIMITED_CONTEXT_COUNT = 100
+
+/**
+ * v1 `contextCount` → v2 `contextSettings.maxMessages`. Returns `undefined` for
+ * "leave absent" (unlimited or unusable input).
+ *
+ * The units differ by one. v1's pipeline was `takeRight(contextCount + 2)`
+ * followed by a filter that DROPS leading non-user rows, so `C = 1` on an
+ * alternating path ending at the current user served three rows
+ * (`[prev user, prev assistant, current user]`). v2's window keeps the last N
+ * and then EXTENDS BACKWARD to a user row, so the same three rows come from
+ * `N = 2`. Mapping C→N directly would hand every migrated assistant two
+ * messages less context than it had in v1.
+ *
+ * Sentinels: 100 (v1's slider max) meant unlimited → absent; `0` meant "no
+ * history" and v1's user-start filter collapsed it to the current user alone →
+ * `N = 1` (no offset — +1 would hand a whole turn back).
+ *
+ * Shared with the default-assistant → global-preference mapping so both sides
+ * of the migration convert identically.
+ */
+export function contextCountToMaxMessages(raw: unknown): number | undefined {
+  if (typeof raw !== 'number' || !Number.isInteger(raw)) return undefined
+  if (raw < 0 || raw >= V1_UNLIMITED_CONTEXT_COUNT) return undefined
+  return raw === 0 ? 1 : raw + 1
+}
+
 /**
  * Transform a legacy Redux Assistant to v2 assistant table row + junction rows.
  *
@@ -215,33 +243,11 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   // life with a value that future PATCHes will reject.
   const sanitized = sanitizeLegacySettings(legacySettings)
   const settings: InsertAssistantRow['settings'] = { ...DEFAULT_ASSISTANT_SETTINGS, ...sanitized }
-  // v1 `contextCount` → v2 `contextSettings.maxMessages`, with a +1 offset.
-  //
-  // The units are not the same. v1's pipeline was `takeRight(contextCount + 2)`
-  // followed by a filter that DROPS leading non-user rows, so `C = 1` on an
-  // alternating path ending at the current user served three rows
-  // (`[prev user, prev assistant, current user]`). v2's window keeps the last N
-  // and then EXTENDS BACKWARD to a user row, so the same three rows come from
-  // `N = 2`. Mapping C→N directly would hand every migrated assistant two
-  // messages less context than it had in v1.
-  //
-  // Sentinels: MAX_CONTEXT_COUNT (100) meant unlimited → leave the field absent
-  // so the assistant inherits; `0` meant "no history" and v1's user-start
-  // filter collapsed it to the current user alone → `N = 1`.
-  //
-  // The per-field sanitiser drops the legacy key itself (no such column in the
-  // v2 schema), so map it explicitly here.
-  const legacyContextCount = legacySettings.contextCount
-  if (
-    typeof legacyContextCount === 'number' &&
-    Number.isInteger(legacyContextCount) &&
-    legacyContextCount >= 0 &&
-    legacyContextCount < 100
-  ) {
-    settings.contextSettings = {
-      ...settings.contextSettings,
-      maxMessages: legacyContextCount === 0 ? 1 : legacyContextCount + 1
-    }
+  // The per-field sanitiser drops `contextCount` (no such column in the v2
+  // schema), so map it explicitly. See contextCountToMaxMessages for the offset.
+  const maxMessages = contextCountToMaxMessages(legacySettings.contextCount)
+  if (maxMessages !== undefined) {
+    settings.contextSettings = { ...settings.contextSettings, maxMessages }
   }
 
   return {
