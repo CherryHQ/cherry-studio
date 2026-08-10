@@ -14,6 +14,6 @@ export const fileProcessingHandlers: IpcHandlersFor<typeof fileProcessingRequest
     application.get('FileProcessingService').startJob({ ...input, file: input.file }),
   'file_processing.list_available_processors': async () =>
     application.get('FileProcessingService').listAvailableProcessors(),
-  'file_processing.processor.check_connectivity': async (input) =>
-    application.get('FileProcessingService').checkProcessorConnectivity(input)
+  'file_processing.open_mineru.check_connectivity': async () =>
+    application.get('FileProcessingService').checkOpenMineruConnectivity()
 }

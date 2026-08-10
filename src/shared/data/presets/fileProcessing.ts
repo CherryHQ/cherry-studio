@@ -293,13 +293,3 @@ export const FILE_PROCESSOR_LOCAL_MODEL: Partial<Record<FileProcessorId, LocalMo
   'local-paddleocr': 'ocr',
   'local-document': 'ocr'
 }
-
-/**
- * Processors that talk to a server the *user* runs.
- *
- * Their auth is optional and the preset ships a default host, so neither "has an
- * API key" nor "has a host" says anything about readiness — both are true for a
- * user who has done nothing at all. Whether something is actually listening is
- * the only real signal, so the renderer probes these before offering them.
- */
-export const SELF_HOSTED_FILE_PROCESSORS: ReadonlySet<FileProcessorId> = new Set<FileProcessorId>(['open-mineru'])

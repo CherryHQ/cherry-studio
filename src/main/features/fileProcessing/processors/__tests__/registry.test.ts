@@ -2,7 +2,13 @@ import { FILE_PROCESSOR_FEATURES } from '@shared/data/preference/preferenceTypes
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
 import { describe, expect, it, vi } from 'vitest'
 
-type Platform = { isLinux: boolean; isMac: boolean; isWin: boolean; isDarwinX64?: boolean }
+type Platform = {
+  isLinux: boolean
+  isMac: boolean
+  isWin: boolean
+  isDarwinX64?: boolean
+  isWinArm64?: boolean
+}
 
 async function importRegistryWithPlatform(platform: Platform) {
   vi.resetModules()
@@ -10,7 +16,8 @@ async function importRegistryWithPlatform(platform: Platform) {
     isLinux: platform.isLinux,
     isMac: platform.isMac,
     isWin: platform.isWin,
-    isDarwinX64: platform.isDarwinX64 ?? false
+    isDarwinX64: platform.isDarwinX64 ?? false,
+    isWinArm64: platform.isWinArm64 ?? false
   }))
 
   const { processorRegistry } = await import('../registry')
@@ -80,4 +87,16 @@ describe('processorRegistry', () => {
       expect(processorRegistry['local-document'].isSupported()).toBe(expected)
     }
   )
+
+  it('keeps local PaddleOCR available but excludes local document processing on Windows ARM64', async () => {
+    const processorRegistry = await importRegistryWithPlatform({
+      isLinux: false,
+      isMac: false,
+      isWin: true,
+      isWinArm64: true
+    })
+
+    expect(processorRegistry['local-paddleocr'].isSupported()).toBe(true)
+    expect(processorRegistry['local-document'].isSupported()).toBe(false)
+  })
 })

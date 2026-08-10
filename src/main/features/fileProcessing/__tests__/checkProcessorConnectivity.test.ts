@@ -1,5 +1,5 @@
 /**
- * Pins the probe's verdict table for `FileProcessingService.checkProcessorConnectivity`.
+ * Pins the probe's verdict table for `FileProcessingService.checkOpenMineruConnectivity`.
  *
  * The asymmetry is the whole design: 404 is the only status that means "not the
  * service we want", and everything else — including 503, which is how MinerU
@@ -44,18 +44,14 @@ const configWithHost = (apiHost: string | undefined): FileProcessorMerged =>
     capabilities: [{ feature: 'document_to_markdown', inputs: ['document'], output: 'markdown', apiHost }]
   }) as FileProcessorMerged
 
-const probe = () =>
-  new FileProcessingService().checkProcessorConnectivity({
-    processorId: 'open-mineru',
-    feature: 'document_to_markdown'
-  })
+const probe = () => new FileProcessingService().checkOpenMineruConnectivity()
 
 beforeEach(() => {
   vi.clearAllMocks()
   getFileProcessorConfigByIdMock.mockReturnValue(configWithHost('http://127.0.0.1:8000'))
 })
 
-describe('checkProcessorConnectivity', () => {
+describe('checkOpenMineruConnectivity', () => {
   it('probes /health on the configured host with a bounded signal', async () => {
     fetchMock.mockResolvedValue({ status: 200 })
 

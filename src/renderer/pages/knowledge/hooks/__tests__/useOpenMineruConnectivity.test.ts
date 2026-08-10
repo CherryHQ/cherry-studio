@@ -8,25 +8,22 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
 }))
 
-import { useFileProcessorConnectivity } from '../useFileProcessorConnectivity'
+import { useOpenMineruConnectivity } from '../useOpenMineruConnectivity'
 
-const renderProbe = () => renderHook(() => useFileProcessorConnectivity('open-mineru', 'document_to_markdown'))
+const renderProbe = () => renderHook(() => useOpenMineruConnectivity())
 
 beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('useFileProcessorConnectivity', () => {
-  it('starts optimistic and unresolved so a working host never flickers', () => {
+describe('useOpenMineruConnectivity', () => {
+  it('starts unreachable and unresolved so selection stays blocked until the probe answers', () => {
     requestMock.mockReturnValue(new Promise(() => undefined))
 
     const { result } = renderProbe()
 
-    expect(result.current).toEqual({ reachable: true, isResolved: false })
-    expect(requestMock).toHaveBeenCalledWith('file_processing.processor.check_connectivity', {
-      processorId: 'open-mineru',
-      feature: 'document_to_markdown'
-    })
+    expect(result.current).toEqual({ reachable: false, isResolved: false })
+    expect(requestMock).toHaveBeenCalledWith('file_processing.open_mineru.check_connectivity')
   })
 
   it('reports the verdict once the probe answers', async () => {
@@ -60,6 +57,6 @@ describe('useFileProcessorConnectivity', () => {
     settle(false)
     await Promise.resolve()
 
-    expect(result.current).toEqual({ reachable: true, isResolved: false })
+    expect(result.current).toEqual({ reachable: false, isResolved: false })
   })
 })

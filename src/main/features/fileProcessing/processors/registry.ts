@@ -1,4 +1,4 @@
-import { isDarwinX64, isMac, isWin } from '@main/core/platform'
+import { isDarwinX64, isMac, isWin, isWinArm64 } from '@main/core/platform'
 
 import { doc2xDocumentToMarkdownHandler } from './doc2x/documentToMarkdown/handler'
 import { localDocumentToMarkdownHandler } from './localDocument/documentToMarkdown/handler'
@@ -50,8 +50,9 @@ export const processorRegistry = {
   },
   'local-document': {
     runtime: 'local',
-    // Scanned PDFs fall back to the local OCR model, so this shares its platform gate.
-    isSupported: () => !isDarwinX64,
+    // Scanned PDFs need the local OCR model, while text PDFs need anydoc. The
+    // latter ships no Windows ARM64 binding or wasm fallback.
+    isSupported: () => !isDarwinX64 && !isWinArm64,
     capabilities: {
       document_to_markdown: localDocumentToMarkdownHandler
     }

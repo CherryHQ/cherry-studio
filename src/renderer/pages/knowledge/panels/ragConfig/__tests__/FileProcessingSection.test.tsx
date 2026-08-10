@@ -29,8 +29,8 @@ vi.mock('@renderer/components/popups/LocalModelDownloadPopup', () => ({
   default: { show: mocks.showDownloadPopup }
 }))
 vi.mock('@renderer/hooks/useLocalModel', () => ({ useLocalModel: () => mocks.localModel }))
-vi.mock('../../../hooks/useFileProcessorConnectivity', () => ({
-  useFileProcessorConnectivity: () => mocks.connectivity
+vi.mock('../../../hooks/useOpenMineruConnectivity', () => ({
+  useOpenMineruConnectivity: () => mocks.connectivity
 }))
 
 vi.mock('react-i18next', () => ({
@@ -80,6 +80,7 @@ const renderWithSelfHostedProcessor = (onFileProcessorChange = vi.fn()) => {
   render(
     <FileProcessingSection
       fileProcessorId={null}
+      initialFileProcessorId={null}
       fileProcessorOptions={[...options, SELF_HOSTED_OPTION]}
       onFileProcessorChange={onFileProcessorChange}
     />
@@ -92,6 +93,7 @@ const renderSection = (onFileProcessorChange = vi.fn()) => {
   render(
     <FileProcessingSection
       fileProcessorId={null}
+      initialFileProcessorId={null}
       fileProcessorOptions={options}
       onFileProcessorChange={onFileProcessorChange}
     />
@@ -103,6 +105,7 @@ const renderWithLocalProcessor = (onFileProcessorChange = vi.fn()) => {
   render(
     <FileProcessingSection
       fileProcessorId={null}
+      initialFileProcessorId={null}
       fileProcessorOptions={[...options, LOCAL_OPTION]}
       onFileProcessorChange={onFileProcessorChange}
     />
@@ -141,6 +144,7 @@ describe('FileProcessingSection', () => {
     render(
       <FileProcessingSection
         fileProcessorId="local-document"
+        initialFileProcessorId="local-document"
         fileProcessorOptions={[LOCAL_OPTION, { value: 'not-a-real-processor', label: 'Unmapped', disabled: false }]}
         onFileProcessorChange={onFileProcessorChange}
       />
@@ -247,9 +251,23 @@ describe('FileProcessingSection', () => {
     it('holds back the status label until the probe answers', () => {
       mocks.localModel.status = 'not_downloaded'
       mocks.localModel.isStatusResolved = false
-      renderWithLocalProcessor()
+      const onFileProcessorChange = renderWithLocalProcessor()
 
       expect(screen.queryByText('Not downloaded')).not.toBeInTheDocument()
+      const option = screen.getByRole('option', { name: 'Local document' })
+      expect(option).toHaveAttribute('aria-disabled', 'true')
+      fireEvent.click(option)
+      expect(onFileProcessorChange).not.toHaveBeenCalled()
+    })
+
+    it('does not select a processor while its model is still downloading', () => {
+      mocks.localModel.status = 'downloading'
+      const onFileProcessorChange = renderWithLocalProcessor()
+
+      const option = screen.getByRole('option', { name: 'Local document' })
+      expect(option).toHaveAttribute('aria-disabled', 'true')
+      fireEvent.click(option)
+      expect(onFileProcessorChange).not.toHaveBeenCalled()
     })
   })
 
@@ -275,15 +293,15 @@ describe('FileProcessingSection', () => {
       expect(onFileProcessorChange).toHaveBeenCalledWith('open-mineru')
     })
 
-    // A working deployment must not flicker through a disabled state on the way to
-    // being offered, so the unresolved probe stays optimistic.
-    it('stays selectable while the probe is still in flight', () => {
+    it('stays disabled while the probe is still in flight', () => {
       mocks.connectivity = { reachable: false, isResolved: false }
       const onFileProcessorChange = renderWithSelfHostedProcessor()
 
       expect(screen.queryByText('Service not running')).not.toBeInTheDocument()
-      fireEvent.click(screen.getByRole('option', { name: 'Open MinerU' }))
-      expect(onFileProcessorChange).toHaveBeenCalledWith('open-mineru')
+      const option = screen.getByRole('option', { name: 'Open MinerU' })
+      expect(option).toHaveAttribute('aria-disabled', 'true')
+      fireEvent.click(option)
+      expect(onFileProcessorChange).not.toHaveBeenCalled()
     })
 
     it('leaves every other processor untouched when the probe fails', () => {
@@ -304,6 +322,7 @@ describe('FileProcessingSection', () => {
       render(
         <FileProcessingSection
           fileProcessorId="open-mineru"
+          initialFileProcessorId="open-mineru"
           fileProcessorOptions={[...options, SELF_HOSTED_OPTION]}
           onFileProcessorChange={vi.fn()}
         />
@@ -312,6 +331,21 @@ describe('FileProcessingSection', () => {
       expect(screen.getByRole('button', { name: 'File processing' })).toHaveTextContent('Open MinerU')
       fireEvent.click(screen.getByRole('button', { name: 'File processing' }))
       expect(screen.getByText('Service not running')).toBeInTheDocument()
+    })
+
+    it('does not treat an unreachable draft as an already saved selection', () => {
+      mocks.connectivity = { reachable: false, isResolved: true }
+      render(
+        <FileProcessingSection
+          fileProcessorId="open-mineru"
+          initialFileProcessorId={null}
+          fileProcessorOptions={[...options, SELF_HOSTED_OPTION]}
+          onFileProcessorChange={vi.fn()}
+        />
+      )
+
+      fireEvent.click(screen.getByRole('button', { name: 'File processing' }))
+      expect(screen.queryByRole('option', { name: /Open MinerU/ })).not.toBeInTheDocument()
     })
   })
 })

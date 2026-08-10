@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import type { EnqueueOptions } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileHandle } from '@shared/data/types/file'
 import { ListAvailableFileProcessorsResultSchema } from '@shared/data/types/fileProcessing'
 import { net } from 'electron'
@@ -146,13 +146,9 @@ export class FileProcessingService extends BaseService {
    * sends an unauthenticated GET whose body we never read. A probe stricter than
    * the execution path would report "unreachable" for hosts that actually work.
    */
-  async checkProcessorConnectivity({
-    processorId,
-    feature
-  }: {
-    processorId: FileProcessorId
-    feature: FileProcessorFeature
-  }): Promise<boolean> {
+  async checkOpenMineruConnectivity(): Promise<boolean> {
+    const processorId = 'open-mineru'
+    const feature = 'document_to_markdown'
     const config = getFileProcessorConfigById(processorId)
     const capability = getRequiredCapability(config, feature, processorId)
 

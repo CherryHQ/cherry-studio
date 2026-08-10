@@ -7,6 +7,7 @@ import { useKnowledgeRagConfig } from '../useKnowledgeRagConfig'
 const mockUseMutation = vi.fn()
 const mockTrigger = vi.fn()
 const mockUsePreference = vi.fn()
+const mockUseAvailableFileProcessors = vi.hoisted(() => vi.fn())
 const mockLogger = vi.hoisted(() => ({
   error: vi.fn()
 }))
@@ -17,6 +18,10 @@ vi.mock('@data/hooks/useDataApi', () => ({
 
 vi.mock('@data/hooks/usePreference', () => ({
   usePreference: (...args: unknown[]) => mockUsePreference(...args)
+}))
+
+vi.mock('@renderer/hooks/useAvailableFileProcessors', () => ({
+  useAvailableFileProcessors: () => mockUseAvailableFileProcessors()
 }))
 
 vi.mock('@logger', () => ({
@@ -89,6 +94,10 @@ describe('useKnowledgeRagConfig', () => {
         }
       }
     ])
+    mockUseAvailableFileProcessors.mockReturnValue({
+      processorIds: new Set(['paddleocr', 'local-document', 'mineru', 'doc2x', 'mistral', 'open-mineru']),
+      status: 'ready'
+    })
   })
 
   it('marks unconfigured document processors as unavailable and exposes the save mutation', async () => {
@@ -165,6 +174,39 @@ describe('useKnowledgeRagConfig', () => {
       disabled: false
     })
   })
+
+  it('offers only processors reported as supported by main', () => {
+    mockUseAvailableFileProcessors.mockReturnValue({
+      processorIds: new Set(['paddleocr', 'mineru']),
+      status: 'ready'
+    })
+
+    const { result } = renderHook(() =>
+      useKnowledgeRagConfig(createKnowledgeBase({ fileProcessorId: 'local-document' }))
+    )
+
+    expect(result.current.fileProcessorOptions.map((option) => option.value)).toEqual(['paddleocr', 'mineru'])
+  })
+
+  it.each(['loading', 'error'] as const)(
+    'keeps only the persisted processor visible and disabled when support is %s',
+    (status) => {
+      mockUseAvailableFileProcessors.mockReturnValue({ processorIds: new Set(), status })
+
+      const { result } = renderHook(() =>
+        useKnowledgeRagConfig(createKnowledgeBase({ fileProcessorId: 'local-document' }))
+      )
+
+      expect(result.current.fileProcessorOptions).toEqual([
+        {
+          value: 'local-document',
+          label: 'Local Document',
+          disabled: true,
+          statusLabel: undefined
+        }
+      ])
+    }
+  )
 
   it('includes an explicit embedding model override in the patch body', async () => {
     const { result } = renderHook(() => useKnowledgeRagConfig(createKnowledgeBase()))

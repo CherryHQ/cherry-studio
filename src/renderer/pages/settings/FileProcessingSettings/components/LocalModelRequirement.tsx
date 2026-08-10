@@ -5,6 +5,7 @@ import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { toast } from '@renderer/services/toast'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import { Download, RefreshCw, SquareCheckBig, X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const SUBTITLE_KEY = {
@@ -16,6 +17,8 @@ type LocalModelRequirementProps = {
   model: LocalModelKind
   /** The processor's own description, shown either way. */
   description: string
+  /** Commits a pending processor selection once this panel observes a ready model. */
+  onReady?: () => Promise<void>
 }
 
 /**
@@ -27,9 +30,28 @@ type LocalModelRequirementProps = {
  * settings page the user had no reason to visit. Mounted per processor rather
  * than per row so the status probe fires once, when the panel is open.
  */
-export function LocalModelRequirement({ model, description }: LocalModelRequirementProps) {
+export function LocalModelRequirement({ model, description, onReady }: LocalModelRequirementProps) {
   const { t } = useTranslation()
   const { status, percent, download, cancel } = useLocalModel(model)
+  const onReadyRef = useRef(onReady)
+
+  useEffect(() => {
+    onReadyRef.current = onReady
+  }, [onReady])
+
+  useEffect(() => {
+    if (status === 'ready') {
+      void onReadyRef.current?.()
+    }
+  }, [status])
+
+  const handleDownload = async () => {
+    try {
+      await download()
+    } catch {
+      toast.error(t('settings.dependencies.localModels.notice.downloadFailed'))
+    }
+  }
 
   if (status === 'unsupported') {
     return null
@@ -65,13 +87,7 @@ export function LocalModelRequirement({ model, description }: LocalModelRequirem
       ) : null}
 
       {!ready && !downloading ? (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 w-full gap-1 text-xs"
-          onClick={() =>
-            void download().catch(() => toast.error(t('settings.dependencies.localModels.notice.downloadFailed')))
-          }>
+        <Button variant="outline" size="sm" className="h-7 w-full gap-1 text-xs" onClick={() => void handleDownload()}>
           {status === 'error' ? <RefreshCw className="size-3.5" /> : <Download className="size-3.5" />}
           {t(status === 'error' ? 'common.retry' : 'settings.dependencies.localModels.download')}
         </Button>

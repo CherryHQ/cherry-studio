@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { ocrModelPaths } from '@main/ai/inference/ocrModelPaths'
-import { ensureDir, removeDir, write } from '@main/utils/file'
+import { ensureDir, remove, removeDir, write } from '@main/utils/file'
 import { createPdfParser } from '@main/utils/pdf'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 
@@ -91,6 +91,10 @@ async function recognizePage(
   const imagePath = AbsoluteFilePathSchema.parse(path.join(workDir, `page-${pageNumber}.png`))
   await write(imagePath, await preprocessImage(Buffer.from(rendered)))
 
-  const text = await application.get('OcrInferenceService').recognize(modelPaths, imagePath, signal)
-  return text.trim()
+  try {
+    const text = await application.get('OcrInferenceService').recognize(modelPaths, imagePath, signal)
+    return text.trim()
+  } finally {
+    await remove(imagePath)
+  }
 }

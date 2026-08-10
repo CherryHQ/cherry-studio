@@ -22,6 +22,7 @@ const comboboxMockState = vi.hoisted(() => ({
   value: undefined as string | string[] | undefined
 }))
 const selectMockState = vi.hoisted(() => ({
+  disabled: false,
   onValueChange: undefined as ((value: string) => void) | undefined,
   value: undefined as string | undefined
 }))
@@ -200,16 +201,26 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
     PopoverTrigger: ({ children }: React.HTMLAttributes<HTMLDivElement> & { asChild?: boolean }) => <>{children}</>,
     Select: ({
       children,
+      disabled,
       onValueChange,
       value
-    }: React.HTMLAttributes<HTMLDivElement> & { onValueChange?: (value: string) => void; value?: string }) => {
+    }: React.HTMLAttributes<HTMLDivElement> & {
+      disabled?: boolean
+      onValueChange?: (value: string) => void
+      value?: string
+    }) => {
+      selectMockState.disabled = disabled ?? false
       selectMockState.onValueChange = onValueChange
       selectMockState.value = value
       return <div data-value={value}>{children}</div>
     },
     SelectContent: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>,
     SelectItem: ({ children, value, ...props }: React.HTMLAttributes<HTMLButtonElement> & { value: string }) => (
-      <button type="button" {...props} onClick={() => selectMockState.onValueChange?.(value)}>
+      <button
+        type="button"
+        {...props}
+        disabled={selectMockState.disabled}
+        onClick={() => selectMockState.onValueChange?.(value)}>
         {children}
       </button>
     ),
@@ -220,7 +231,7 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       void size
 
       return (
-        <button type="button" {...buttonProps}>
+        <button type="button" {...buttonProps} disabled={selectMockState.disabled}>
           {children}
           {selectedValue ?? selectMockState.value}
         </button>
@@ -253,6 +264,7 @@ describe('processing settings pages', () => {
     comboboxMockState.options = []
     comboboxMockState.value = undefined
     selectMockState.onValueChange = undefined
+    selectMockState.disabled = false
     selectMockState.value = undefined
     setPreferencesMock.mockReset()
     setPreferencesMock.mockResolvedValue(undefined)
@@ -416,6 +428,7 @@ describe('processing settings pages', () => {
     expect(
       screen.queryByText('settings.tool.file_processing.processors.local_paddleocr.status.local')
     ).not.toBeInTheDocument()
+    expect(setPreferencesMock).not.toHaveBeenCalled()
   })
 
   it('replaces the download with the ready notice once the local model is on disk', async () => {
@@ -438,6 +451,76 @@ describe('processing settings pages', () => {
       await screen.findByText('settings.tool.file_processing.processors.local_paddleocr.status.local')
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'settings.dependencies.localModels.download' })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(setPreferencesMock).toHaveBeenCalledWith({ defaultImageProcessor: 'local-paddleocr' })
+    })
+  })
+
+  it.each([
+    { result: 'cancelled', rejects: false },
+    { result: null, rejects: true }
+  ])(
+    'keeps the previous default when a local model download does not finish ($result)',
+    async ({ result, rejects }) => {
+      preferencesMock.defaultImageProcessor = 'system'
+      ipcRequestMock.mockImplementation((route: string) => {
+        if (route === 'file_processing.list_available_processors') {
+          return Promise.resolve({
+            processorIds: ['system', 'tesseract', 'paddleocr', 'local-paddleocr', 'mineru', 'doc2x', 'mistral']
+          })
+        }
+        if (route === 'local_model.get_status') {
+          return Promise.resolve({ status: 'not_downloaded' })
+        }
+        if (route === 'local_model.download') {
+          return rejects ? Promise.reject(new Error('download failed')) : Promise.resolve({ result })
+        }
+        return Promise.resolve(undefined)
+      })
+
+      const user = userEvent.setup()
+      render(<OcrSettings />)
+
+      await user.click(
+        await screen.findByRole('button', { name: /settings.tool.file_processing.processors.local_paddleocr.name/ })
+      )
+      await user.click(await screen.findByRole('button', { name: 'settings.dependencies.localModels.download' }))
+
+      await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('local_model.download', { model: 'ocr' }))
+      expect(setPreferencesMock).not.toHaveBeenCalled()
+    }
+  )
+
+  it('sets the document default only after the local model download succeeds', async () => {
+    preferencesMock.defaultDocumentProcessor = 'mineru'
+    ipcRequestMock.mockImplementation((route: string) => {
+      if (route === 'file_processing.list_available_processors') {
+        return Promise.resolve({
+          processorIds: ['paddleocr', 'local-document', 'mineru', 'doc2x', 'mistral', 'open-mineru']
+        })
+      }
+      if (route === 'local_model.get_status') {
+        return Promise.resolve({ status: 'not_downloaded' })
+      }
+      if (route === 'local_model.download') {
+        return Promise.resolve({ result: 'ready' })
+      }
+      return Promise.resolve(undefined)
+    })
+
+    const user = userEvent.setup()
+    render(<DocumentProcessingSettings />)
+
+    await user.click(
+      await screen.findByRole('button', { name: /settings.tool.file_processing.processors.local_document.name/ })
+    )
+    expect(setPreferencesMock).not.toHaveBeenCalled()
+
+    await user.click(await screen.findByRole('button', { name: 'settings.dependencies.localModels.download' }))
+
+    await waitFor(() => {
+      expect(setPreferencesMock).toHaveBeenCalledWith({ defaultDocumentProcessor: 'local-document' })
+    })
   })
 
   it('shows OV OCR only when file processing reports it as available', async () => {
@@ -481,6 +564,20 @@ describe('processing settings pages', () => {
     expect(screen.getByText('settings.tool.file_processing.errors.load_processors_failed')).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /settings.tool.file_processing.processors.ovocr.name/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows only the persisted default and disables selection while processor support is unresolved', () => {
+    preferencesMock.defaultImageProcessor = 'system'
+    ipcRequestMock.mockReturnValue(new Promise(() => undefined))
+
+    render(<OcrSettings />)
+
+    expect(
+      screen.getByRole('button', { name: 'settings.tool.file_processing.features.image_to_text.title' })
+    ).toBeDisabled()
+    expect(
+      screen.queryByRole('button', { name: /settings.tool.file_processing.processors.mistral.name/ })
     ).not.toBeInTheDocument()
   })
 

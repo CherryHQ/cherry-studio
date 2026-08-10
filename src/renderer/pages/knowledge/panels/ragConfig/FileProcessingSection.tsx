@@ -2,11 +2,11 @@ import LocalModelDownloadPopup from '@renderer/components/popups/LocalModelDownl
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
-import { FILE_PROCESSOR_LOCAL_MODEL, SELF_HOSTED_FILE_PROCESSORS } from '@shared/data/presets/fileProcessing'
+import { FILE_PROCESSOR_LOCAL_MODEL } from '@shared/data/presets/fileProcessing'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useFileProcessorConnectivity } from '../../hooks/useFileProcessorConnectivity'
+import { useOpenMineruConnectivity } from '../../hooks/useOpenMineruConnectivity'
 import { FileProcessorSelector, type FileProcessorSelectorOption } from './FileProcessorSelector'
 import { RagFieldLabel } from './panelPrimitives'
 
@@ -24,44 +24,44 @@ const requiresLocalOcrModel = (processorId: string) =>
 
 interface FileProcessingSectionProps {
   fileProcessorId: string | null
+  initialFileProcessorId: string | null
   fileProcessorOptions: FileProcessorSelectorOption[]
   onFileProcessorChange: (value: string | null) => void
 }
 
 const FileProcessingSection = ({
   fileProcessorId,
+  initialFileProcessorId,
   fileProcessorOptions,
   onFileProcessorChange
 }: FileProcessingSectionProps) => {
   const { t } = useTranslation()
   const { status, isStatusResolved } = useLocalModel('ocr')
-  // Open MinerU is the only self-hosted processor, and it is always in this list,
-  // so one unconditional probe covers it. Probing every API processor instead would
+  // Open MinerU is the only self-hosted processor, so one unconditional probe
+  // covers it. Probing every API processor instead would
   // fire requests at third-party SaaS hosts the user never asked us to contact.
-  const { reachable, isResolved: isConnectivityResolved } = useFileProcessorConnectivity(
-    'open-mineru',
-    'document_to_markdown'
-  )
+  const { reachable, isResolved: isConnectivityResolved } = useOpenMineruConnectivity()
 
   const options = useMemo(
     () =>
       fileProcessorOptions.flatMap((option) => {
-        if (SELF_HOSTED_FILE_PROCESSORS.has(option.value as FileProcessorId)) {
+        if (option.value === 'open-mineru') {
           const unreachable = isConnectivityResolved && !reachable
+          const isPersistedSelection = option.value === initialFileProcessorId
 
           // Starting the server is something only the user can do, outside the app,
           // so a dead row offers nothing to act on — drop it rather than grey it out.
           // Unless this base is already saved with it: the trigger reads its label
           // from this list, so hiding it would show "not in use" for a base that is
           // still configured to use it.
-          if (unreachable && option.value !== fileProcessorId) {
+          if (unreachable && !isPersistedSelection) {
             return []
           }
 
           return [
             {
               ...option,
-              disabled: option.disabled || unreachable,
+              disabled: option.disabled || !isConnectivityResolved || unreachable,
               statusLabel: unreachable ? t('knowledge.rag.processor_unreachable') : option.statusLabel
             }
           ]
@@ -71,11 +71,11 @@ const FileProcessingSection = ({
           return [option]
         }
 
-        // Only `unsupported` hides the row: it means this machine can never run
-        // the model, so there is nothing to offer. Not-downloaded stays listed —
-        // picking it is how the user gets the download prompt.
+        // The support-list layer removes unsupported processors once its request
+        // resolves. Before that (or after a request failure), only a persisted
+        // processor can reach here, and it must remain visible but disabled.
         if (status === 'unsupported') {
-          return []
+          return [{ ...option, disabled: true }]
         }
 
         // `useLocalModel` starts at `not_downloaded` before the probe answers;
@@ -86,15 +86,29 @@ const FileProcessingSection = ({
         return [
           {
             ...option,
+            disabled: option.disabled || !isStatusResolved || status === 'downloading',
             statusLabel: needsDownload ? t('knowledge.rag.processor_not_downloaded') : option.statusLabel
           }
         ]
       }),
-    [fileProcessorId, fileProcessorOptions, isConnectivityResolved, isStatusResolved, reachable, status, t]
+    [fileProcessorOptions, initialFileProcessorId, isConnectivityResolved, isStatusResolved, reachable, status, t]
   )
 
   const handleChange = async (value: string | null) => {
-    if (value === null || !requiresLocalOcrModel(value) || status === 'ready' || status === 'downloading') {
+    if (value === 'open-mineru' && (!isConnectivityResolved || !reachable)) {
+      return
+    }
+
+    if (value === null || !requiresLocalOcrModel(value)) {
+      onFileProcessorChange(value)
+      return
+    }
+
+    if (!isStatusResolved || status === 'downloading') {
+      return
+    }
+
+    if (status === 'ready') {
       onFileProcessorChange(value)
       return
     }

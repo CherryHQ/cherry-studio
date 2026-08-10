@@ -13,12 +13,13 @@ const {
   ocrModelPathsMock,
   toMarkdownBytesMock,
   formatFromExtensionMock,
-  getInfoMock,
+  getTextMock,
   getScreenshotMock,
   destroyMock,
   readFileMock,
   ensureDirMock,
   removeDirMock,
+  removeMock,
   writeMock,
   preprocessImageMock
 } = vi.hoisted(() => ({
@@ -31,12 +32,13 @@ const {
   ocrModelPathsMock: vi.fn(),
   toMarkdownBytesMock: vi.fn(),
   formatFromExtensionMock: vi.fn(),
-  getInfoMock: vi.fn(),
+  getTextMock: vi.fn(),
   getScreenshotMock: vi.fn(),
   destroyMock: vi.fn(),
   readFileMock: vi.fn(),
   ensureDirMock: vi.fn(),
   removeDirMock: vi.fn(),
+  removeMock: vi.fn(),
   writeMock: vi.fn(),
   preprocessImageMock: vi.fn()
 }))
@@ -71,7 +73,7 @@ vi.mock('@firecrawl/anydoc', () => ({
 
 vi.mock('@main/utils/pdf', () => ({
   createPdfParser: vi.fn(async () => ({
-    getInfo: getInfoMock,
+    getText: getTextMock,
     getScreenshot: getScreenshotMock,
     destroy: destroyMock
   }))
@@ -85,6 +87,7 @@ vi.mock('node:fs/promises', async (importOriginal) => ({
 vi.mock('@main/utils/file', async (importOriginal) => ({
   ...(await importOriginal<typeof MainFileUtils>()),
   ensureDir: ensureDirMock,
+  remove: removeMock,
   removeDir: removeDirMock,
   write: writeMock
 }))
@@ -146,9 +149,17 @@ describe('localDocumentToMarkdownHandler', () => {
     ocrModelPathsMock.mockReturnValue(MODEL_PATHS)
     formatFromExtensionMock.mockReturnValue('pdf')
     readFileMock.mockResolvedValue(PDF_BYTES)
-    getInfoMock.mockResolvedValue({ total: 3 })
+    getTextMock.mockResolvedValue({
+      total: 3,
+      pages: [
+        { num: 1, text: 'one' },
+        { num: 2, text: 'two' },
+        { num: 3, text: 'three' }
+      ]
+    })
     preprocessImageMock.mockImplementation(async (buffer: Buffer) => buffer)
     ensureDirMock.mockResolvedValue(undefined)
+    removeMock.mockResolvedValue(undefined)
     removeDirMock.mockResolvedValue(undefined)
     writeMock.mockResolvedValue(undefined)
     destroyMock.mockResolvedValue(undefined)
@@ -173,7 +184,7 @@ describe('localDocumentToMarkdownHandler', () => {
     })
 
     it('rejects a PDF past the page limit, naming the actual page count', async () => {
-      getInfoMock.mockResolvedValue({ total: 301 })
+      getTextMock.mockResolvedValue({ total: 301, pages: [] })
 
       await expect(prepareBackground()).rejects.toThrow(
         'PDF has 301 pages, which exceeds the 300-page local processing limit'
@@ -181,7 +192,7 @@ describe('localDocumentToMarkdownHandler', () => {
     })
 
     it('accepts a PDF exactly at the page limit', async () => {
-      getInfoMock.mockResolvedValue({ total: 300 })
+      getTextMock.mockResolvedValue({ total: 300, pages: [] })
 
       await expect(prepareBackground()).resolves.toBeDefined()
     })
@@ -212,8 +223,15 @@ describe('localDocumentToMarkdownHandler', () => {
     })
 
     it('falls back to per-page OCR when anydoc reports no extractable text', async () => {
+      getTextMock.mockResolvedValue({
+        total: 3,
+        pages: [
+          { num: 1, text: '' },
+          { num: 2, text: '' },
+          { num: 3, text: '' }
+        ]
+      })
       const prepared = await prepareBackground()
-      toMarkdownBytesMock.mockRejectedValueOnce(SCANNED_PDF_ERROR)
       getScreenshotMock.mockImplementation(async ({ partial }: { partial: number[] }) => ({
         pages: [{ data: new Uint8Array([partial[0]]) }]
       }))
@@ -242,12 +260,45 @@ describe('localDocumentToMarkdownHandler', () => {
       expect(path.basename(path.dirname(firstImagePath))).toMatch(/^local-document-[\w-]+$/)
       expect(path.basename(firstImagePath)).toBe('page-1.png')
       expect(reportProgress.mock.calls.map(([value]) => value)).toEqual([33, 67, 100])
+      expect(toMarkdownBytesMock).not.toHaveBeenCalled()
+      expect(removeMock).toHaveBeenCalledTimes(3)
+    })
+
+    it('OCRs every page of a mixed PDF instead of accepting incomplete anydoc output', async () => {
+      getTextMock.mockResolvedValue({
+        total: 3,
+        pages: [
+          { num: 1, text: 'text page' },
+          { num: 2, text: '' },
+          { num: 3, text: 'another text page' }
+        ]
+      })
+      const prepared = await prepareBackground()
+      getScreenshotMock.mockImplementation(async ({ partial }: { partial: number[] }) => ({
+        pages: [{ data: new Uint8Array([partial[0]]) }]
+      }))
+      recognizeMock
+        .mockResolvedValueOnce('page one')
+        .mockResolvedValueOnce('page two')
+        .mockResolvedValueOnce('page three')
+
+      await expect(
+        prepared.execute({ signal: new AbortController().signal, reportProgress: vi.fn() })
+      ).resolves.toEqual({ kind: 'markdown', markdownContent: 'page one\n\npage two\n\npage three' })
+
+      expect(toMarkdownBytesMock).not.toHaveBeenCalled()
+      expect(getScreenshotMock).toHaveBeenCalledTimes(3)
     })
 
     it('skips a page the rasterizer could not render rather than failing the document', async () => {
-      getInfoMock.mockResolvedValue({ total: 2 })
+      getTextMock.mockResolvedValue({
+        total: 2,
+        pages: [
+          { num: 1, text: '' },
+          { num: 2, text: '' }
+        ]
+      })
       const prepared = await prepareBackground()
-      toMarkdownBytesMock.mockRejectedValueOnce(SCANNED_PDF_ERROR)
       getScreenshotMock.mockResolvedValueOnce({ pages: [] }).mockResolvedValueOnce({
         pages: [{ data: new Uint8Array([2]) }]
       })
@@ -258,6 +309,7 @@ describe('localDocumentToMarkdownHandler', () => {
       ).resolves.toEqual({ kind: 'markdown', markdownContent: 'only page two' })
 
       expect(recognizeMock).toHaveBeenCalledTimes(1)
+      expect(removeMock).toHaveBeenCalledTimes(1)
     })
 
     it.each([
@@ -290,6 +342,7 @@ describe('localDocumentToMarkdownHandler', () => {
 
       expect(recognizeMock).toHaveBeenCalledTimes(1)
       expect(removeDirMock).toHaveBeenCalledTimes(1)
+      expect(removeMock).toHaveBeenCalledTimes(1)
       expect(destroyMock).toHaveBeenCalled()
     })
 
@@ -304,6 +357,7 @@ describe('localDocumentToMarkdownHandler', () => {
       )
 
       expect(removeDirMock).toHaveBeenCalledTimes(1)
+      expect(removeMock).toHaveBeenCalledTimes(1)
     })
   })
 })

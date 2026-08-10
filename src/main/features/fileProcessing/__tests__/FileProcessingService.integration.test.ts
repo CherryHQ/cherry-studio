@@ -67,7 +67,7 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 
 vi.mock('../config/resolveProcessorConfig', () => ({
   resolveProcessorConfigByFeature: resolveProcessorConfigByFeatureMock,
-  // Unused here — the SUT imports it for checkProcessorConnectivity, which has its
+  // Unused here — the SUT imports it for checkOpenMineruConnectivity, which has its
   // own suite. A mock factory must still name it or the import binding is missing.
   getFileProcessorConfigById: vi.fn()
 }))

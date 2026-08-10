@@ -27,7 +27,7 @@ import { cn } from '@renderer/utils/style'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { FILE_PROCESSOR_LOCAL_MODEL } from '@shared/data/presets/fileProcessing'
 import { List, SquareCheckBig } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -51,6 +51,7 @@ const logger = loggerService.withContext('ProcessorPanel')
 type ProcessorPanelProps = {
   entry: FileProcessingMenuEntry
   entries: FileProcessingMenuEntry[]
+  selectionDisabled?: boolean
   onSelectEntry: (entry: FileProcessingMenuEntry) => void
   onSetApiKeys: (processorId: FileProcessorId, apiKeys: string[]) => Promise<void>
   onSetCapabilityField: (
@@ -69,6 +70,7 @@ type ProcessorPanelProps = {
 export function ProcessorPanel({
   entry,
   entries,
+  selectionDisabled = false,
   onSelectEntry,
   onSetApiKeys,
   onSetCapabilityField,
@@ -102,6 +104,7 @@ export function ProcessorPanel({
   const [apiKeysInput, setApiKeysInput] = useState(() => joinApiKeyString(processor.apiKeys ?? []))
   const [apiHostInput, setApiHostInput] = useState(entry.capability.apiHost ?? '')
   const [modelIdInput, setModelIdInput] = useState(entry.capability.modelId ?? '')
+  const pendingDefaultKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     setApiKeysInput(joinApiKeyString(processor.apiKeys ?? []))
@@ -187,6 +190,23 @@ export function ProcessorPanel({
     [entry.feature, onSetCapabilityField, persist, processor.id]
   )
 
+  const commitPendingDefault = useCallback(
+    async (selectedEntry: FileProcessingMenuEntry) => {
+      if (pendingDefaultKeyRef.current !== selectedEntry.key) {
+        return
+      }
+
+      const saved = await persist(
+        () => onSetDefaultProcessor(selectedEntry.feature, selectedEntry.processor.id),
+        'set default processor'
+      )
+      if (saved && pendingDefaultKeyRef.current === selectedEntry.key) {
+        pendingDefaultKeyRef.current = null
+      }
+    },
+    [onSetDefaultProcessor, persist]
+  )
+
   const handleProcessorChange = useCallback(
     (processorId: string) => {
       const selectedEntry = entries.find((item) => item.processor.id === processorId)
@@ -195,7 +215,14 @@ export function ProcessorPanel({
         return
       }
 
+      const selectedModel = FILE_PROCESSOR_LOCAL_MODEL[selectedEntry.processor.id]
+      pendingDefaultKeyRef.current = selectedModel ? selectedEntry.key : null
       onSelectEntry(selectedEntry)
+
+      if (selectedModel) {
+        return
+      }
+
       void persist(
         () => onSetDefaultProcessor(selectedEntry.feature, selectedEntry.processor.id),
         'set default processor'
@@ -233,7 +260,7 @@ export function ProcessorPanel({
             iconProps={{ size: 13, color: 'currentColor', className: 'shrink-0 opacity-80' }}
           />
         </SettingTitle>
-        <Select value={processor.id} onValueChange={handleProcessorChange}>
+        <Select value={processor.id} disabled={selectionDisabled} onValueChange={handleProcessorChange}>
           <SelectTrigger size="sm" className="h-8 w-56 text-sm" aria-label={featureTitle}>
             <SelectValue placeholder={t('common.select')} />
           </SelectTrigger>
@@ -313,7 +340,11 @@ export function ProcessorPanel({
       {processor.id === 'paddleocr' ? <PaddleOcrDeploymentInfo /> : null}
 
       {requiredLocalModel ? (
-        <LocalModelRequirement model={requiredLocalModel} description={t(getProcessorDescriptionKey(processor.id))} />
+        <LocalModelRequirement
+          model={requiredLocalModel}
+          description={t(getProcessorDescriptionKey(processor.id))}
+          onReady={() => commitPendingDefault(entry)}
+        />
       ) : null}
 
       {processor.id === 'system' ? (

@@ -18,7 +18,7 @@ const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
 // assertions read.
 const FILE_PROCESSING_PROBES: Record<string, unknown> = {
   'local_model.get_status': { status: 'ready' },
-  'file_processing.processor.check_connectivity': true
+  'file_processing.open_mineru.check_connectivity': true
 }
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {

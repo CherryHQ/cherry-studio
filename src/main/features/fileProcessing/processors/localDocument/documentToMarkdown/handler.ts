@@ -41,16 +41,11 @@ function loadAnydocModule(): Promise<AnydocModule> {
 }
 
 /**
- * Fully offline PDF to markdown. anydoc handles PDFs that carry a text layer;
- * scanned ones fall through to the local PaddleOCR model. `prepare` refuses the
- * whole job unless that model is ready, even for a text-layer PDF that would
- * never touch it — a scan must not reach a dead end halfway through.
- *
- * Known limitation: a *mixed* PDF (text pages plus scanned pages) converts
- * successfully through anydoc with the scanned pages silently dropped. anydoc's
- * Node surface returns only a markdown string, discarding the per-page
- * `pagesNeedingOcr` signal its underlying pdf-inspector computes, so there is
- * nothing here to branch on.
+ * Fully offline PDF to markdown. anydoc handles PDFs whose every page carries a
+ * text layer; a scan or mixed PDF goes through local PaddleOCR in full so no page
+ * can disappear from the result. `prepare` refuses the whole job unless that
+ * model is ready, even for a text-layer PDF that would never touch it — a scan
+ * must not reach a dead end halfway through.
  */
 export const localDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'document_to_markdown'> = {
   mode: 'background',
@@ -67,7 +62,7 @@ export const localDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'do
     const pdfBytes = await readFile(file.path)
     signal?.throwIfAborted()
 
-    const pageCount = await readPdfPageCount(pdfBytes)
+    const { pageCount, hasTextlessPages } = await inspectPdf(pdfBytes)
     if (pageCount > MAX_PDF_PAGES) {
       throw new Error(`PDF has ${pageCount} pages, which exceeds the ${MAX_PDF_PAGES}-page local processing limit`)
     }
@@ -75,14 +70,18 @@ export const localDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'do
     return {
       mode: 'background',
       async execute(executionContext) {
-        const anydocMarkdown = await convertWithAnydoc(pdfBytes)
+        if (!hasTextlessPages) {
+          const anydocMarkdown = await convertWithAnydoc(pdfBytes)
 
-        if (anydocMarkdown !== null) {
-          executionContext.reportProgress(100)
-          return { kind: 'markdown', markdownContent: anydocMarkdown }
+          if (anydocMarkdown !== null) {
+            executionContext.reportProgress(100)
+            return { kind: 'markdown', markdownContent: anydocMarkdown }
+          }
         }
 
-        logger.info('PDF has no text layer, falling back to local OCR', { pageCount })
+        logger.info('PDF requires OCR fallback; using local OCR for the complete document', {
+          pageCount
+        })
         return {
           kind: 'markdown',
           markdownContent: await ocrPdfPagesToMarkdown(pdfBytes, pageCount, executionContext)
@@ -113,10 +112,14 @@ export function isScannedPdfError(error: unknown): boolean {
   return error instanceof Error && SCANNED_PDF_MESSAGE.test(error.message)
 }
 
-async function readPdfPageCount(pdfBytes: Uint8Array): Promise<number> {
+async function inspectPdf(pdfBytes: Uint8Array): Promise<{ pageCount: number; hasTextlessPages: boolean }> {
   const parser = await createPdfParser({ data: pdfBytes })
   try {
-    return (await parser.getInfo()).total
+    const result = await parser.getText()
+    return {
+      pageCount: result.total,
+      hasTextlessPages: result.pages.some((page) => page.text.trim().length === 0)
+    }
   } finally {
     await parser.destroy()
   }
