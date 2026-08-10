@@ -32,6 +32,9 @@ export const messageTable = sqliteTable(
     searchableText: text().notNull().default(''),
     // Final status: SUCCESS, ERROR, PAUSED
     status: text().notNull(),
+    // First transition of an assistant response into a terminal state. Kept
+    // separate from updatedAt because streaming/data writes also modify rows.
+    terminalAt: integer(),
     // Group ID for siblings (0 = normal branch)
     siblingsGroupId: integer().notNull().default(0),
     // Assistant info is derived via topic → assistant FK chain; not stored on message.

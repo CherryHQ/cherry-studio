@@ -36,7 +36,7 @@ import { toast } from '@renderer/services/toast'
 import type { Topic } from '@renderer/types/topic'
 import { getTopicAssistantDisplayGroupId } from '@renderer/utils/chat/topicsHelpers'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { findLatestUpdated } from '@renderer/utils/resourceEntity'
+import { findLatestActive, findLatestUpdated } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -572,7 +572,7 @@ const HomePage: FC = () => {
   // a real empty topic with another available assistant.
   const handleActiveAssistantDeleted = useCallback(
     async (deletedAssistantId: string) => {
-      const nextTopic = findLatestUpdated(allTopics.filter((topic) => topic.assistantId !== deletedAssistantId))
+      const nextTopic = findLatestActive(allTopics.filter((topic) => topic.assistantId !== deletedAssistantId))
       if (lastUsedAssistantId === deletedAssistantId) {
         setLastUsedAssistantId(null)
       }

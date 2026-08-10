@@ -10,19 +10,15 @@ import { drizzle } from 'drizzle-orm/better-sqlite3'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 /**
- * Does *this branch's* `cleanup_policy` migration preserve real data?
+ * Do migrations that rebuild populated tables preserve real data and derive
+ * new columns correctly?
  *
  * `applyMigrations.test.ts` covers the runner: that it disables foreign keys
  * where the pragma applies, proven against a synthetic recreate (#17569). This
- * file covers the migration itself, against the real released baseline and real
- * `file_entry` rows — a different question, and the one that matters on upgrade.
- *
- * Worth its own file because the recreate has several independent ways to lose
- * data that a correct runner does not prevent: a column dropped from the
- * `INSERT … SELECT` list silently nulls it for every existing row, a CHECK or a
- * functional index can fail to survive the rename, and pre-existing rows could
- * land on the wrong `cleanup_policy` default. None of it is observable when
- * migrating an empty database, which is all the suite did before.
+ * file covers individual migrations against real released baselines. Table
+ * recreation can silently lose columns, constraints, indexes or child rows,
+ * while backfills can produce plausible but incorrect values; none of that is
+ * observable when migrating an empty database.
  */
 
 /**
@@ -325,5 +321,79 @@ describe('applyMigrations over a populated database', () => {
       task_schedule_id: null
     })
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
+  })
+
+  it('backfills conversation activity from message phases without losing populated rows', () => {
+    applyMigrations(db, baselineMigrationsFolder(join(tempDir, 'baseline')))
+
+    sqlite
+      .prepare(
+        `INSERT INTO agent_workspace (id, name, path, type, order_key, created_at, updated_at)
+         VALUES ('workspace-activity', 'Workspace', '/tmp/activity', 'user', 'a0', 100, 100)`
+      )
+      .run()
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session (id, name, workspace_id, order_key, created_at, updated_at)
+         VALUES ('session-activity', 'Session', 'workspace-activity', 'a0', 100, 1000)`
+      )
+      .run()
+    for (const row of [
+      ['asm-user', 'user', 'success', 250, 900],
+      ['asm-assistant', 'assistant', 'success', 350, 650],
+      ['asm-system', 'system', 'success', 950, 950]
+    ] as const) {
+      sqlite
+        .prepare(
+          `INSERT INTO agent_session_message
+            (id, session_id, role, data, searchable_text, status, created_at, updated_at)
+           VALUES (?, 'session-activity', ?, '{"parts":[]}', '', ?, ?, ?)`
+        )
+        .run(...row)
+    }
+
+    sqlite
+      .prepare(
+        `INSERT INTO topic (id, name, order_key, created_at, updated_at)
+         VALUES ('topic-activity', 'Topic', 'a0', 100, 900)`
+      )
+      .run()
+    for (const row of [
+      ['message-root', null, 'root', 'success', 100, 100],
+      ['message-user', 'message-root', 'user', 'success', 200, 800],
+      ['message-assistant', 'message-user', 'assistant', 'success', 300, 700],
+      ['message-system', 'message-assistant', 'system', 'success', 900, 900]
+    ] as const) {
+      sqlite
+        .prepare(
+          `INSERT INTO message
+            (id, parent_id, topic_id, role, data, searchable_text, status, siblings_group_id, created_at, updated_at, deleted_at)
+           VALUES (?, ?, 'topic-activity', ?, '{"parts":[]}', '', ?, 0, ?, ?, NULL)`
+        )
+        .run(...row)
+    }
+
+    applyMigrations(db, resolveMigrationsPath())
+
+    expect(sqlite.prepare(`SELECT last_activity_at FROM topic WHERE id = 'topic-activity'`).get()).toEqual({
+      last_activity_at: 700
+    })
+    expect(sqlite.prepare(`SELECT last_activity_at FROM agent_session WHERE id = 'session-activity'`).get()).toEqual({
+      last_activity_at: 650
+    })
+    expect(sqlite.prepare(`SELECT terminal_at FROM message WHERE id = 'message-assistant'`).get()).toEqual({
+      terminal_at: 700
+    })
+    expect(sqlite.prepare(`SELECT terminal_at FROM agent_session_message WHERE id = 'asm-assistant'`).get()).toEqual({
+      terminal_at: 650
+    })
+    expect(sqlite.prepare(`SELECT count(*) AS count FROM message WHERE topic_id = 'topic-activity'`).get()).toEqual({
+      count: 4
+    })
+    expect(
+      sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message WHERE session_id = 'session-activity'`).get()
+    ).toEqual({ count: 3 })
+    expect(sqlite.pragma('foreign_key_check')).toEqual([])
+    expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
   })
 })

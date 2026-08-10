@@ -154,11 +154,11 @@ describe('AgentSessionService', () => {
     expect(result[0]).not.toHaveProperty('workspace')
   })
 
-  describe('getLatestUpdated', () => {
-    it('returns the globally most-recently-updated session, independent of orderKey ordering', async () => {
+  describe('getLatestActive', () => {
+    it('returns the globally most-recently-active session, independent of orderKey and updatedAt', async () => {
       const workspace = await createWorkspace('latest')
       // `active-latest` has the largest orderKey (oldest-created → last under `orderKey ASC` paging) yet
-      // the highest updatedAt, so returning it proves the query ranks by updatedAt, not list position.
+      // the highest lastActivityAt despite an older updatedAt, proving activity drives this query.
       await dbh.db.insert(agentSessionTable).values([
         {
           id: 'created-newest',
@@ -166,7 +166,8 @@ describe('AgentSessionService', () => {
           name: 'A',
           workspaceId: workspace.id,
           orderKey: 'a0',
-          updatedAt: 100
+          lastActivityAt: 100,
+          updatedAt: 300
         },
         {
           id: 'mid',
@@ -174,6 +175,7 @@ describe('AgentSessionService', () => {
           name: 'B',
           workspaceId: workspace.id,
           orderKey: 'a1',
+          lastActivityAt: 200,
           updatedAt: 200
         },
         {
@@ -182,11 +184,12 @@ describe('AgentSessionService', () => {
           name: 'C',
           workspaceId: workspace.id,
           orderKey: 'a2',
-          updatedAt: 300
+          lastActivityAt: 300,
+          updatedAt: 100
         }
       ])
 
-      const latest = agentSessionService.getLatestUpdated()
+      const latest = agentSessionService.getLatestActive()
       expect(latest?.id).toBe('active-latest')
       // Fully hydrated (workspace joined), matching getById.
       expect(latest?.workspace.id).toBe(workspace.id)
@@ -202,6 +205,7 @@ describe('AgentSessionService', () => {
           name: 'Bound older',
           workspaceId: workspace.id,
           orderKey: 'a0',
+          lastActivityAt: 100,
           updatedAt: 100
         },
         {
@@ -210,6 +214,7 @@ describe('AgentSessionService', () => {
           name: 'Actually latest',
           workspaceId: workspace.id,
           orderKey: 'a1',
+          lastActivityAt: 200,
           updatedAt: 200
         }
       ])
@@ -217,16 +222,16 @@ describe('AgentSessionService', () => {
       bindTaskSession('bound-older', task.id)
 
       expect(agentSessionService.getById('bound-older').updatedAt).toBe('1970-01-01T00:00:00.100Z')
-      expect(agentSessionService.getLatestUpdated()?.id).toBe('actually-latest')
+      expect(agentSessionService.getLatestActive()?.id).toBe('actually-latest')
 
       dbh.db.transaction((tx) => agentSessionService.clearTaskScheduleTx(tx, task.id))
 
       expect(agentSessionService.getById('bound-older').updatedAt).toBe('1970-01-01T00:00:00.100Z')
-      expect(agentSessionService.getLatestUpdated()?.id).toBe('actually-latest')
+      expect(agentSessionService.getLatestActive()?.id).toBe('actually-latest')
     })
 
     it('returns null when there are no sessions', () => {
-      expect(agentSessionService.getLatestUpdated()).toBeNull()
+      expect(agentSessionService.getLatestActive()).toBeNull()
     })
   })
 

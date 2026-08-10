@@ -67,6 +67,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     workspace: rowToAgentWorkspace(row.workspace),
     traceId: clean.traceId,
     orderKey: clean.orderKey,
+    lastActivityAt: timestampToISO(row.session.lastActivityAt),
     createdAt: timestampToISO(row.session.createdAt),
     updatedAt: timestampToISO(row.session.updatedAt)
   }
@@ -173,13 +174,48 @@ export class AgentSessionService {
     })
   }
 
-  /**
-   * Bump the session's `updatedAt` from a foreign service's transaction —
-   * message writes call this so the session surfaces in recency-ordered lists.
-   * Lives here because this service owns the session table's invariants.
-   */
+  /** Bump metadata modification time from a foreign service's transaction. */
   touchUpdatedAtTx(tx: DbOrTx, sessionId: string, timestampMs: number): void {
     tx.update(sessionsTable).set({ updatedAt: timestampMs }).where(eq(sessionsTable.id, sessionId)).run()
+  }
+
+  /** Monotonically advance a session's activity time within the caller's write transaction. */
+  advanceLastActivityAtTx(tx: DbOrTx, sessionId: string, timestamp: number): void {
+    const updated = tx
+      .update(sessionsTable)
+      .set({ lastActivityAt: sql`max(${sessionsTable.lastActivityAt}, ${timestamp})` })
+      .where(eq(sessionsTable.id, sessionId))
+      .returning({ id: sessionsTable.id })
+      .all()
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Session', sessionId)
+  }
+
+  /** Restore the exact activity invariant after session-message deletion. */
+  recomputeLastActivityAtTx(tx: DbOrTx, sessionId: string): void {
+    const [session] = tx
+      .select({ createdAt: sessionsTable.createdAt })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, sessionId))
+      .limit(1)
+      .all()
+    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
+
+    const [activity] = tx
+      .select({
+        timestamp: sql<number | null>`max(case
+          when ${agentSessionMessageTable.role} = 'user' then ${agentSessionMessageTable.createdAt}
+          when ${agentSessionMessageTable.role} = 'assistant' then max(${agentSessionMessageTable.createdAt}, coalesce(${agentSessionMessageTable.terminalAt}, ${agentSessionMessageTable.createdAt}))
+          else null
+        end)`
+      })
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.sessionId, sessionId))
+      .all()
+
+    tx.update(sessionsTable)
+      .set({ lastActivityAt: activity?.timestamp ?? session.createdAt })
+      .where(eq(sessionsTable.id, sessionId))
+      .run()
   }
 
   private assertAgentExistsTx(tx: DbOrTx, agentId: string): void {
@@ -299,21 +335,21 @@ export class AgentSessionService {
   }
 
   /**
-   * The single most-recently-updated session, or `null` when there are none.
+   * The single most-recently-active session, or `null` when there are none.
    *
    * First-entry restore resumes the last-touched session. It cannot read the
    * regular first page of `listByCursor` for this: that pages pinned-first then
    * by `orderKey ASC` (creation/manual order, newest-created first), so a
    * recently-active session is not guaranteed to be on it. This
-   * `updatedAt DESC LIMIT 1` proves global latest independent of the rail's ordering.
+   * `lastActivityAt DESC LIMIT 1` proves global latest independent of the rail's ordering.
    */
-  getLatestUpdated(): AgentSessionEntity | null {
+  getLatestActive(): AgentSessionEntity | null {
     const db = application.get('DbService').getDb()
     const [row] = db
       .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
       .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
-      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(1)
       .all()
     return row ? rowToSession(row) : null
@@ -555,7 +591,15 @@ export class AgentSessionService {
       updatedAt: number
     }
   ): void {
-    insertWithOrderKey(tx, sessionsTable, values, { pkColumn: sessionsTable.id, position: 'first' })
+    insertWithOrderKey(
+      tx,
+      sessionsTable,
+      { ...values, lastActivityAt: values.createdAt },
+      {
+        pkColumn: sessionsTable.id,
+        position: 'first'
+      }
+    )
   }
 
   delete(id: string): void {

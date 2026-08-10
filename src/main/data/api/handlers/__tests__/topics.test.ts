@@ -7,7 +7,7 @@ const {
   deleteMock,
   duplicateMock,
   getByIdMock,
-  getLatestUpdatedMock,
+  getLatestActiveMock,
   listByCursorMock,
   reorderBatchMock,
   reorderMock,
@@ -20,7 +20,7 @@ const {
   deleteMock: vi.fn(),
   duplicateMock: vi.fn(),
   getByIdMock: vi.fn(),
-  getLatestUpdatedMock: vi.fn(),
+  getLatestActiveMock: vi.fn(),
   listByCursorMock: vi.fn(),
   reorderBatchMock: vi.fn(),
   reorderMock: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock('@data/services/TopicService', () => ({
     deleteByIds: deleteByIdsMock,
     duplicate: duplicateMock,
     getById: getByIdMock,
-    getLatestUpdated: getLatestUpdatedMock,
+    getLatestActive: getLatestActiveMock,
     listByCursor: listByCursorMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock,
@@ -94,13 +94,13 @@ describe('topicHandlers', () => {
   describe('/topics/latest', () => {
     it('wraps the latest topic from TopicService', async () => {
       const topic = { id: 'topic-latest' }
-      getLatestUpdatedMock.mockReturnValueOnce(topic)
+      getLatestActiveMock.mockReturnValueOnce(topic)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic })
     })
 
     it('returns { topic: null } when the library is empty', async () => {
-      getLatestUpdatedMock.mockReturnValueOnce(null)
+      getLatestActiveMock.mockReturnValueOnce(null)
 
       await expect(topicHandlers['/topics/latest'].GET({} as never)).resolves.toEqual({ topic: null })
     })

@@ -691,6 +691,7 @@ const AgentToolFlowMessageList = memo(function AgentToolFlowMessageList({
       type: TopicType.Session as TopicTypeEnum,
       assistantId: meta.agentId,
       name: meta.sessionName ?? meta.sessionId ?? 'agent-tool-flow',
+      lastActivityAt: FALLBACK_TIMESTAMP,
       createdAt: FALLBACK_TIMESTAMP,
       updatedAt: FALLBACK_TIMESTAMP,
       messages: []

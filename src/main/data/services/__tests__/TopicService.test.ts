@@ -1627,22 +1627,30 @@ describe('TopicService', () => {
     })
   })
 
-  describe('getLatestUpdated', () => {
-    it('returns the globally most-recently-updated non-deleted topic, independent of pin/order', async () => {
+  describe('getLatestActive', () => {
+    it('returns the globally most-recently-active non-deleted topic, independent of pin/order/updatedAt', async () => {
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
-        { id: 'old', name: 'old', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
-        // Highest updatedAt but soft-deleted → must be excluded.
-        { id: 'deleted-newest', name: 'deleted', orderKey: 'a1', deletedAt: 999, createdAt: 2, updatedAt: 900 },
-        { id: 'latest', name: 'latest', orderKey: 'a2', createdAt: 3, updatedAt: 300 },
-        { id: 'mid', name: 'mid', orderKey: 'a3', createdAt: 4, updatedAt: 200 }
+        { id: 'old', name: 'old', orderKey: 'a0', lastActivityAt: 100, createdAt: 1, updatedAt: 900 },
+        // Highest activity but soft-deleted → must be excluded.
+        {
+          id: 'deleted-newest',
+          name: 'deleted',
+          orderKey: 'a1',
+          deletedAt: 999,
+          lastActivityAt: 900,
+          createdAt: 2,
+          updatedAt: 200
+        },
+        { id: 'latest', name: 'latest', orderKey: 'a2', lastActivityAt: 300, createdAt: 3, updatedAt: 100 },
+        { id: 'mid', name: 'mid', orderKey: 'a3', lastActivityAt: 200, createdAt: 4, updatedAt: 300 }
       ])
 
-      expect(service.getLatestUpdated()?.id).toBe('latest')
+      expect(service.getLatestActive()?.id).toBe('latest')
     })
 
     it('returns null when there are no topics', () => {
-      expect(new TopicService().getLatestUpdated()).toBeNull()
+      expect(new TopicService().getLatestActive()).toBeNull()
     })
   })
 })

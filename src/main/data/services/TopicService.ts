@@ -55,6 +55,7 @@ function rowToTopic(row: TopicRow): Topic {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
+    lastActivityAt: timestampToISO(row.lastActivityAt),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
@@ -131,27 +132,66 @@ export class TopicService {
   }
 
   /**
-   * The single most-recently-updated non-deleted topic across all assistants, or
+   * The single most-recently-active non-deleted topic across all assistants, or
    * `null` when the library is empty.
    *
    * First-entry restore resumes the last-touched conversation. It cannot read the
    * regular first page of `listByCursor` for this: that page is pinned-first then
-   * unpinned-by-`orderKey` (manual/creation order), so the globally latest-updated
-   * topic is not guaranteed to be on it. This `updatedAt DESC LIMIT 1` proves global
+   * unpinned-by-`orderKey` (manual/creation order), so the globally latest-active
+   * topic is not guaranteed to be on it. This `lastActivityAt DESC LIMIT 1` proves global
    * latest independent of how the rail happens to page.
    */
-  getLatestUpdated(): Topic | null {
+  getLatestActive(): Topic | null {
     const db = application.get('DbService').getDb()
 
     const [row] = db
       .select()
       .from(topicTable)
       .where(isNull(topicTable.deletedAt))
-      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .orderBy(desc(topicTable.lastActivityAt), asc(topicTable.id))
       .limit(1)
       .all()
 
     return row ? rowToTopic(row) : null
+  }
+
+  /** Monotonically advance a topic's activity time within the caller's write transaction. */
+  advanceLastActivityAtTx(tx: DbOrTx, topicId: string, timestamp: number): void {
+    const updated = tx
+      .update(topicTable)
+      .set({ lastActivityAt: sql`max(${topicTable.lastActivityAt}, ${timestamp})` })
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .returning({ id: topicTable.id })
+      .all()
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
+  }
+
+  /** Restore the exact activity invariant after content deletion or copying. */
+  recomputeLastActivityAtTx(tx: DbOrTx, topicId: string): void {
+    const [topic] = tx
+      .select({ createdAt: topicTable.createdAt })
+      .from(topicTable)
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .limit(1)
+      .all()
+    if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
+
+    const [activity] = tx
+      .select({
+        timestamp: sql<number | null>`max(case
+          when ${messageTable.role} = 'user' then ${messageTable.createdAt}
+          when ${messageTable.role} = 'assistant' then max(${messageTable.createdAt}, coalesce(${messageTable.terminalAt}, ${messageTable.createdAt}))
+          else null
+        end)`
+      })
+      .from(messageTable)
+      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
+      .all()
+
+    tx.update(topicTable)
+      .set({ lastActivityAt: activity?.timestamp ?? topic.createdAt })
+      .where(eq(topicTable.id, topicId))
+      .run()
   }
 
   ensureTraceId(topicId: string): string {
@@ -195,8 +235,14 @@ export class TopicService {
           scope: isNull(topicTable.deletedAt)
         }
       ) as TopicRow
+      const [initializedTopicRow] = tx
+        .update(topicTable)
+        .set({ lastActivityAt: topicRow.createdAt, updatedAt: topicRow.updatedAt })
+        .where(eq(topicTable.id, topicRow.id))
+        .returning()
+        .all()
       messageService.createRootMessageTx(tx, topicRow.id)
-      return topicRow
+      return initializedTopicRow
     })
 
     logger.info('Created empty topic', { id: row.id })
@@ -247,6 +293,7 @@ export class TopicService {
       // Intentionally copies only topic metadata, root-to-node messages, and chat-message file refs.
       // Pins, tags, trace links, and pruned siblings/descendants stay with their original rows.
       copyChatMessageFileRefsBySourceIdMapTx(tx, copiedMessageIds)
+      this.recomputeLastActivityAtTx(tx, newTopicRow.id)
 
       const [updatedTopicRow] = tx
         .update(topicTable)

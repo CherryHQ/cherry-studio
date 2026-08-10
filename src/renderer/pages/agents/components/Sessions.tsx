@@ -294,24 +294,24 @@ export function buildCreateSessionSeedIndex(
   sessions: readonly SessionListItem[],
   getGroupId: (session: SessionListItem) => string | null | undefined
 ) {
-  let latestSession: { session: SessionListItem; updatedAtMs: number } | null = null
-  const latestSessionByGroupId = new Map<string, { session: SessionListItem; updatedAtMs: number }>()
+  let latestSession: { session: SessionListItem; lastActivityAtMs: number } | null = null
+  const latestSessionByGroupId = new Map<string, { session: SessionListItem; lastActivityAtMs: number }>()
 
   for (const session of sessions) {
     if (session.pinned) continue
 
-    const parsedUpdatedAtMs = Date.parse(session.updatedAt)
-    const updatedAtMs = Number.isFinite(parsedUpdatedAtMs) ? parsedUpdatedAtMs : Number.NEGATIVE_INFINITY
-    if (!latestSession || updatedAtMs > latestSession.updatedAtMs) {
-      latestSession = { session, updatedAtMs }
+    const parsedLastActivityAtMs = Date.parse(session.lastActivityAt)
+    const lastActivityAtMs = Number.isFinite(parsedLastActivityAtMs) ? parsedLastActivityAtMs : Number.NEGATIVE_INFINITY
+    if (!latestSession || lastActivityAtMs > latestSession.lastActivityAtMs) {
+      latestSession = { session, lastActivityAtMs }
     }
 
     const groupId = getGroupId(session)
     if (!groupId) continue
 
     const latestGroupSession = latestSessionByGroupId.get(groupId)
-    if (!latestGroupSession || updatedAtMs > latestGroupSession.updatedAtMs) {
-      latestSessionByGroupId.set(groupId, { session, updatedAtMs })
+    if (!latestGroupSession || lastActivityAtMs > latestGroupSession.lastActivityAtMs) {
+      latestSessionByGroupId.set(groupId, { session, lastActivityAtMs })
     }
   }
 

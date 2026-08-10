@@ -9,6 +9,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { messageService } from '@data/services/MessageService'
+import { topicService } from '@data/services/TopicService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import { CreateMessageSchema } from '@shared/data/api/schemas/messages'
@@ -18,7 +19,7 @@ import { rootRow, setupTestDatabase, withRoot } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq, isNull } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
@@ -191,6 +192,55 @@ describe('MessageService', () => {
       .insert(fileEntryTable)
       .values({ id, origin: 'internal', name: `file-${id.slice(-4)}`, ext: 'txt', size: 1 })
   }
+
+  it('tracks conversation activity independently from metadata and later assistant rewrites', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-activity',
+      name: 'Activity',
+      orderKey: 'a0',
+      lastActivityAt: 100,
+      createdAt: 100,
+      updatedAt: 100
+    })
+    messageService.createRootMessageTx(dbh.db, 'topic-activity')
+
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    try {
+      const assistant = messageService.create('topic-activity', {
+        parentId: null,
+        role: 'assistant',
+        status: 'pending',
+        data: { parts: [] }
+      })
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:01.000Z')
+
+      now.mockReturnValue(2_000)
+      messageService.finalizeAssistantMessage(assistant.id, {
+        data: mainText('done'),
+        status: 'success'
+      })
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:02.000Z')
+
+      now.mockReturnValue(3_000)
+      messageService.finalizeAssistantMessage(assistant.id, {
+        data: mainText('projection rewrite'),
+        status: 'success'
+      })
+      topicService.update('topic-activity', { name: 'Renamed' })
+
+      const [message] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id))
+      const renamed = topicService.getById('topic-activity')
+      expect(message.terminalAt).toBe(2_000)
+      expect(renamed.lastActivityAt).toBe('1970-01-01T00:00:02.000Z')
+      expect(renamed.updatedAt).toBe('1970-01-01T00:00:03.000Z')
+
+      now.mockReturnValue(4_000)
+      messageService.delete(assistant.id)
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:00.100Z')
+    } finally {
+      now.mockRestore()
+    }
+  })
 
   /**
    * Build a small message tree with a multi-model siblings group.

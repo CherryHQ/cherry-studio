@@ -185,6 +185,7 @@ describe('Chat panels', () => {
     id: 'topic-1',
     name: 'Topic',
     assistantId: 'assistant-1',
+    lastActivityAt: '2026-05-14T00:00:00.000Z',
     createdAt: '2026-05-14T00:00:00.000Z',
     updatedAt: '2026-05-14T00:00:00.000Z',
     messages: []

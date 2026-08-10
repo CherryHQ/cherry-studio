@@ -33,7 +33,7 @@ import type { ResourceListRevealPayload } from '@renderer/services/resourceListR
 import { toast } from '@renderer/services/toast'
 import { buildAgentFileWorkspaceKey } from '@renderer/utils/agentSession'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
-import { findLatestUpdated, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
+import { findLatestActive, isUntouchedSinceCreation } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
 import { isDataApiNotFoundError } from '@shared/data/api/errors'
@@ -912,7 +912,7 @@ const AgentPage = () => {
   // correct even before the session cache refetches.
   const handleActiveAgentDeleted = useCallback(
     async (deletedAgentId: string) => {
-      const nextSession = findLatestUpdated(agentSessions.filter((session) => session.agentId !== deletedAgentId))
+      const nextSession = findLatestActive(agentSessions.filter((session) => session.agentId !== deletedAgentId))
       if (nextSession) {
         setActiveSessionAndClearTransient(nextSession.id, nextSession)
         return

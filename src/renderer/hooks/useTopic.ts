@@ -16,6 +16,7 @@
 import { cacheService } from '@data/CacheService'
 import { dataApiService } from '@data/DataApiService'
 import {
+  useDataChange,
   useInfiniteFlatItems,
   useInfiniteQuery,
   useInvalidateCache,
@@ -62,6 +63,7 @@ export function mapApiTopicToRendererTopic(t: Topic): RendererTopic {
     id: t.id,
     assistantId: t.assistantId,
     name: t.name ?? '',
+    lastActivityAt: t.lastActivityAt,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     activeNodeId: t.activeNodeId,
@@ -257,6 +259,10 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
   const isLoadingAll = isLoading || (loadAll && hasNext)
 
+  useDataChange('/topics', () => {
+    void refresh()
+  })
+
   useEffect(() => {
     setRevalidateAllPages(loadAll && isFullyLoaded)
   }, [loadAll, isFullyLoaded])
@@ -293,6 +299,12 @@ export function useTopicById(topicId: string | undefined) {
     enabled: !!topicId
   })
 
+  useDataChange('/topics/:id', (effects) => {
+    if (topicId && effects.some((effect) => !effect.entityIds || effect.entityIds.includes(topicId))) {
+      void refetch()
+    }
+  })
+
   return {
     topic: data,
     isLoading,
@@ -303,21 +315,24 @@ export function useTopicById(topicId: string | undefined) {
 }
 
 /**
- * The globally most-recently-updated topic, for first-entry restore.
+ * The globally most-recently-active topic, for first-entry restore.
  *
- * Backed by a dedicated `updatedAt DESC LIMIT 1` server query, so it resumes the
+ * Backed by a dedicated `lastActivityAt DESC LIMIT 1` server query, so it resumes the
  * last-touched conversation without waiting for the full topic history to
  * paginate in and without depending on the pinned-first `/topics` list order.
  *
- * `/topics/latest` is a global MAX(updatedAt) aggregate, so keeping its cache
- * coherent would mean every updatedAt-bumping write invalidating it (an
- * unbounded fan-out). It's read-on-demand instead: the first-entry effect reads
- * it once on mount, and folding `isRefreshing` into `isLoading` makes that read
- * wait for the on-mount revalidation to settle rather than trust a stale cache.
+ * Activity-bearing writes publish a scalar data-change signal so a mounted
+ * first-entry surface cannot keep a stale winner from another window. Folding
+ * `isRefreshing` into `isLoading` also makes the initial read wait for on-mount
+ * revalidation rather than trust a stale cache.
  * `latestTopic` is `undefined` while loading and when the library is empty.
  */
 export function useLatestTopic(opts?: { enabled?: boolean }) {
   const { data, isLoading, isRefreshing, refetch, mutate } = useQuery('/topics/latest', { enabled: opts?.enabled })
+
+  useDataChange('/topics/latest', () => {
+    void refetch()
+  })
 
   return {
     latestTopic: data?.topic ?? undefined,

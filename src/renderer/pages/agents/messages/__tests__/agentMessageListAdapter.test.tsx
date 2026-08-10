@@ -195,6 +195,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -384,6 +385,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -415,6 +417,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -461,6 +464,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session:session-1',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -535,6 +539,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -603,6 +608,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -642,6 +648,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session-topic',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []
@@ -688,6 +695,7 @@ describe('useAgentMessageListProviderValue', () => {
       id: 'agent-session:session-a',
       assistantId: 'agent-1',
       name: 'Agent session',
+      lastActivityAt: '2026-01-01T00:00:00.000Z',
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
       messages: []

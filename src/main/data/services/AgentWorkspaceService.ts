@@ -125,7 +125,7 @@ export class AgentWorkspaceService {
       .select({ id: sessionsTable.id, name: sessionsTable.name })
       .from(sessionsTable)
       .where(eq(sessionsTable.workspaceId, id))
-      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .orderBy(desc(sessionsTable.lastActivityAt), asc(sessionsTable.id))
       .limit(AGENT_WORKSPACE_REFERENCE_PREVIEW_LIMIT)
       .all()
     const channels = agentChannelService.listWorkspaceReferencesTx(db, id)

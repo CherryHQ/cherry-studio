@@ -6,6 +6,14 @@ Before using, read the [Row → Entity Mapping](../../../../../docs/references/d
 
 ## File Index
 
+### `activityTime.ts` — conversation activity semantics
+
+Shared by Topic and Agent Session message persistence. It recognizes terminal
+assistant statuses, preserves the first assistant terminal transition, and
+derives the activity contribution of user/assistant rows while excluding
+system and structural rows. Container-table writes and deletion recomputation
+remain owned by their respective services.
+
 ### `rowMappers.ts` — Row → Entity mapping utilities
 
 Serves each Service's `rowToEntity` function, performing the boundary translation from a SQLite row to a domain entity.

@@ -40,7 +40,9 @@ describe('AgentSessionMessageService', () => {
       type: 'user',
       orderKey: `workspace-${values.orderKey}`
     })
-    await dbh.db.insert(agentSessionTable).values({ ...values, workspaceId })
+    await dbh.db
+      .insert(agentSessionTable)
+      .values({ createdAt: 0, lastActivityAt: 0, updatedAt: 0, ...values, workspaceId })
   }
 
   async function seedSessions(rows: Array<Omit<AgentSessionInsert, 'workspaceId'> & { workspaceId?: string }>) {
@@ -200,6 +202,7 @@ describe('AgentSessionMessageService', () => {
     expect(row.createdAt).toBe(1_700_000_000_000)
     expect(row.updatedAt).toBe(1_700_000_000_000)
     expect(session.updatedAt).toBe(1_700_000_000_000)
+    expect(session.lastActivityAt).toBe(1_700_000_000_000)
     expect(saved.createdAt).toBe('2023-11-14T22:13:20.000Z')
     expect(saved.updatedAt).toBe('2023-11-14T22:13:20.000Z')
   })
@@ -252,8 +255,48 @@ describe('AgentSessionMessageService', () => {
     expect(row.createdAt).toBe(1_700_000_000_000)
     expect(row.updatedAt).toBe(1_700_000_000_500)
     expect(session.updatedAt).toBe(1_700_000_000_500)
+    expect(session.lastActivityAt).toBe(1_700_000_000_000)
     expect(updated.createdAt).toBe(created.createdAt)
     expect(updated.updatedAt).toBe('2023-11-14T22:13:20.500Z')
+  })
+
+  it('advances activity on the first assistant terminal transition only', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+
+    now.mockReturnValue(1_700_000_000_500)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'done' }] }
+      }
+    })
+
+    now.mockReturnValue(1_700_000_001_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: {
+        id: ASSISTANT_MESSAGE_ID,
+        role: 'assistant',
+        status: 'success',
+        data: { parts: [{ type: 'text', text: 'projection rewrite' }] }
+      }
+    })
+
+    const [message] = await dbh.db
+      .select()
+      .from(agentSessionMessageTable)
+      .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(message.terminalAt).toBe(1_700_000_000_500)
+    expect(session.lastActivityAt).toBe(1_700_000_000_500)
+    expect(session.updatedAt).toBe(1_700_000_001_000)
   })
 
   it('publishes the data change derived from an inserted or updated message', () => {

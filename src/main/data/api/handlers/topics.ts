@@ -42,7 +42,7 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
   '/topics/latest': {
     GET: async () => {
-      return { topic: topicService.getLatestUpdated() }
+      return { topic: topicService.getLatestActive() }
     }
   },
 
