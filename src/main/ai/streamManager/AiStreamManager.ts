@@ -27,7 +27,7 @@ import { type UIMessageChunk } from 'ai'
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
 import type { AiStreamRequest, CallOverrides, ContextOwner, InProcessUsageContext } from '../types'
-import { buildCompactReplay } from './buildCompactReplay'
+import { buildCompactReplay, mergeDeltaPayload } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
 import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
@@ -931,12 +931,24 @@ export class AiStreamManager extends BaseService {
     // state a reconnect must replay for the user to decide. Growth stays
     // bounded because the approval blocks the round (almost no chunks stream
     // during the wait) and `approvalIdleTimeoutMs` caps the window.
-    if (exec.buffer.length >= this.config.maxBufferChunks && !exec.pendingApprovalToolCallIds?.size) {
-      exec.buffer.shift()
-      exec.droppedChunks += 1
-    }
+    //
+    // Contiguous deltas of one part collapse into the buffer tail on ingest,
+    // so the cap counts protocol units (parts, tool events) rather than raw
+    // deltas — a delta flood can no longer evict its own part's opening chunk
+    // and leave the replay unparseable for `readUIMessageStream`.
     const anchorMessageId = exec.anchorMessageId
-    exec.buffer.push({ topicId, executionId: sourceModelId, anchorMessageId, chunk })
+    const payload: StreamChunkPayload = { topicId, executionId: sourceModelId, anchorMessageId, chunk }
+    const tail = exec.buffer.at(-1)
+    const merged = tail ? mergeDeltaPayload(tail, payload) : undefined
+    if (merged) {
+      exec.buffer[exec.buffer.length - 1] = merged
+    } else {
+      if (exec.buffer.length >= this.config.maxBufferChunks && !exec.pendingApprovalToolCallIds?.size) {
+        exec.buffer.shift()
+        exec.droppedChunks += 1
+      }
+      exec.buffer.push(payload)
+    }
 
     // Keeps stripped outputs resolvable until the message lands in SQLite. Bounded; an evicted
     // entry just falls through to the persisted copy.

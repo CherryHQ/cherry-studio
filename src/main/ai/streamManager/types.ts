@@ -100,7 +100,7 @@ export interface StreamExecution {
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
-  /** Per-execution chunk ring (cap = `maxBufferChunks`); overflow drops oldest and bumps `droppedChunks`. */
+  /** Per-execution chunk ring (cap = `maxBufferChunks`); contiguous deltas merge into the tail on ingest; overflow drops oldest and bumps `droppedChunks`. */
   buffer: StreamChunkPayload[]
   droppedChunks: number
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
