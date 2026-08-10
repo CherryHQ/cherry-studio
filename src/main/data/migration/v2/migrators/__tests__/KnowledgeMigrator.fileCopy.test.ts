@@ -1,7 +1,7 @@
 // Integration tests for `KnowledgeMigrator`'s legacy-file copy step.
 //
 // Runs KnowledgeMigrator against a real SQLite DB and a real temp filesystem so
-// the copy from `<filesDataDir>/<storageName>` into
+// the copy from `<filesDataDir>/<storage name candidate>` into
 // `<knowledgeBaseDir>/<baseId>/<relativePath>` is exercised end to end:
 //   - the upload is copied and the row's relativePath matches the file on disk,
 //   - same-name uploads in one base get deduped relativePaths (no collision),
@@ -193,6 +193,52 @@ describe('KnowledgeMigrator legacy file copy (integration)', () => {
     expect(readFileSync(path.join(knowledgeBaseDir, baseId, 'raw', relativePath), 'utf8')).toBe('DUP')
     const warnings = (migrator as unknown as { warnings: string[] }).warnings
     expect(warnings.some((w) => w.includes('source missing'))).toBe(false)
+    // The bytes survive but the user-facing name did not. Reporting that is FileMigrator's job:
+    // it owns the global `files` row and fires once per file, whereas warning here would add one
+    // notice per knowledge item referencing that same file.
+    expect(warnings.some((w) => w.includes('original filename was lost'))).toBe(false)
+  })
+
+  it('locates the source of a dotless-ext row, the way FileMigrator does in the same run', async () => {
+    // `saveBase64Image` stored `ext: 'png'` without the leading dot while writing `{id}.png` to
+    // disk, so reconstructing a single `{id}{ext}` yields `{id}png` and finds nothing. That would
+    // report "source missing" for a file that is right there — and FileMigrator, walking the same
+    // candidate list, would migrate its file_entry row successfully in the very same run.
+    tempRoot = mkdtempSync(path.join(tmpdir(), 'knowledge-file-copy-dotless-'))
+    const filesDataDir = path.join(tempRoot, 'Files')
+    const knowledgeBaseDir = path.join(tempRoot, 'KnowledgeBase')
+    mkdirSync(filesDataDir, { recursive: true })
+    writeFileSync(path.join(filesDataDir, 'c3d4.png'), 'IMG')
+
+    const dexieFiles: FileMetadata[] = [
+      dexieFileRow({ id: 'c3d4', name: 'c3d4.png', origin_name: 'diagram.png', ext: 'png', type: 'image' })
+    ]
+    const reduxKnowledge = {
+      bases: [
+        {
+          id: 'kb-dotless',
+          name: 'KB Dotless',
+          dimensions: 1024,
+          model: { id: 'emb', name: 'emb', provider: 'openai' },
+          items: [{ id: 'item-dotless', type: 'file', content: 'c3d4' }]
+        }
+      ]
+    }
+
+    const ctx = makeCtx(dbh, dexieFiles, reduxKnowledge, { knowledgeBaseDir, filesDataDir })
+
+    const migrator = new KnowledgeMigrator()
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    const baseId = (migrator as unknown as { preparedBases: { id: string }[] }).preparedBases[0].id
+    expect((await migrator.execute(ctx)).success).toBe(true)
+
+    const [row] = await dbh.db.select({ data: knowledgeItemTable.data }).from(knowledgeItemTable)
+    const relativePath = (row.data as { relativePath: string }).relativePath
+    expect(readFileSync(path.join(knowledgeBaseDir, baseId, 'raw', relativePath), 'utf8')).toBe('IMG')
+    const warnings = (migrator as unknown as { warnings: string[] }).warnings
+    expect(warnings.some((w) => w.includes('source missing'))).toBe(false)
+    // A generated image never had a user filename to lose — this must stay quiet.
+    expect(warnings.some((w) => w.includes('the original filename was lost'))).toBe(false)
   })
 
   it('falls back to the storage name when a legacy file has a blank origin_name', async () => {
