@@ -1,5 +1,6 @@
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion, TransientMiniApp } from '@shared/data/types/miniApp'
+import type { AutoBackupType } from '@shared/types/backup'
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import type { TopicStatusSnapshotEntry } from '../../ai/transport'
@@ -433,6 +434,9 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
  * with, or readable by the renderer.
  */
 export type MainPersistCacheSchema = {
+  // Last completed automatic-backup attempt (or manual backup) per backend.
+  // AutoBackupService owns this restart-safe scheduling baseline.
+  'backup.auto_sync.last_attempt_times': Record<AutoBackupType, number | null>
   // Persist-layer self-test key: exercises the typed persist API and round-trip
   // tests for the generic mechanism, independent of any real consumer.
   'internal.persist_probe': number
@@ -444,6 +448,7 @@ export type MainPersistCacheSchema = {
 }
 
 export const DefaultMainPersistCache: MainPersistCacheSchema = {
+  'backup.auto_sync.last_attempt_times': { webdav: null, s3: null, local: null, nutstore: null },
   'internal.persist_probe': 0,
   'window.bounds': {}
 }
