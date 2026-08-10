@@ -160,6 +160,16 @@ describe('native markdown round-trip matrix', () => {
     expect(top?.content?.some((n) => n.type === 'hardBreak')).toBe(true)
   })
 
+  it('keeps single line breaks as soft breaks inside paragraph text nodes', () => {
+    // Single \n stays in the text node (rendered via white-space in production), so the
+    // "line break mode" display toggle can switch it on without touching the file content.
+    const top = parse('line1\nline2')[0]
+    expect(top?.type).toBe('paragraph')
+    const text = top?.content?.find((n) => n.type === 'text') as JSONContent
+    expect(text?.text).toContain('\n')
+    expect(roundTrip('line1\nline2')).toBe('line1\nline2')
+  })
+
   it('serializes an empty document to an empty string', () => {
     expect(roundTrip('')).toBe('')
   })
