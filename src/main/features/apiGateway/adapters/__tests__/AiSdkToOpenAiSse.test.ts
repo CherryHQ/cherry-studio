@@ -93,6 +93,24 @@ describe('AiSdkToOpenAiSse', () => {
       const reasoning = events.find((e) => typeof e.choices[0].delta.reasoning_content === 'string')
       expect(reasoning?.choices[0].delta.reasoning_content).toBe('thinking...')
     })
+
+    it('emits an empty reasoning_content delta for DeepSeek models with no reasoning', async () => {
+      const adapter = new AiSdkToOpenAiSse({ model: 'cherryin:deepseek-v4' })
+      const stream = createMockStream([createTextDelta('answer'), createFinish('stop')])
+      const events = await collectEvents(adapter.transform(stream))
+
+      const emptyReasoning = events.find((e) => e.choices[0].delta.reasoning_content === '')
+      expect(emptyReasoning).toBeDefined()
+    })
+
+    it('does not emit empty reasoning_content for non-DeepSeek models', async () => {
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
+      const stream = createMockStream([createTextDelta('answer'), createFinish('stop')])
+      const events = await collectEvents(adapter.transform(stream))
+
+      const emptyReasoning = events.filter((e) => e.choices[0].delta.reasoning_content === '')
+      expect(emptyReasoning).toHaveLength(0)
+    })
   })
 
   describe('Tool Call Processing', () => {
@@ -186,6 +204,19 @@ describe('AiSdkToOpenAiSse', () => {
         function: { name: 'test', arguments: JSON.stringify({ arg: 'value' }) }
       })
       expect(response.usage).toMatchObject({ prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 })
+    })
+
+    it('falls back to empty reasoning_content when the turn produced no reasoning', async () => {
+      const adapter = new AiSdkToOpenAiSse({ model: 'cherryin:deepseek-v4' })
+      const stream = createMockStream([createTextDelta('answer'), createFinish('stop')])
+      const reader = adapter.transform(stream).getReader()
+      while (!(await reader.read()).done) {
+        /* drain to populate state */
+      }
+      reader.releaseLock()
+
+      const response = adapter.buildNonStreamingResponse()
+      expect(response.choices[0].message.reasoning_content).toBe('')
     })
   })
 

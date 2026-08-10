@@ -304,7 +304,7 @@ export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   /**
    * Finalize the stream and emit closing events
    */
-  private static readonly DEEPSEEK_MODEL_PATTERN = /^deepseek/i
+  private static readonly DEEPSEEK_MODEL_PATTERN = /deepseek/i
 
   protected finalize(): void {
     // DeepSeek thinking-mode dialects require reasoning_content on every
