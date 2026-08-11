@@ -12,11 +12,12 @@ import { loggerService } from '@logger'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api/errors'
 import type {
   KnowledgeBaseListItem,
+  KnowledgeBaseListResponse,
   ListKnowledgeBasesQuery,
   UpdateKnowledgeBaseDto
 } from '@shared/data/api/schemas/knowledges'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
-import type { OffsetPaginationResponse } from '@shared/data/api/types'
+import type { CursorPaginationResponse, OffsetPaginationResponse } from '@shared/data/api/types'
 import {
   type CreateKnowledgeBaseDto,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -28,15 +29,36 @@ import {
   KnowledgeBaseSchema,
   KnowledgeBaseWriteSchema
 } from '@shared/data/types/knowledge'
-import { and, asc, count as sqlCount, desc, eq, gte, ne, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count as sqlCount, desc, eq, gte, inArray, ne, type SQL, sql } from 'drizzle-orm'
+import { alias } from 'drizzle-orm/sqlite-core'
+import * as z from 'zod'
 
 import { groupService } from './GroupService'
+import { asNumericKey, asStringKey, decodeListCursor, encodeCursor, keysetOrdering } from './utils/keysetCursor'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:KnowledgeBaseService')
 
 type KnowledgeBaseRow = typeof knowledgeBaseTable.$inferSelect
 type KnowledgeBaseEntitySearchItem = Extract<EntitySearchItem, { type: 'knowledge-base' }>
+type KnowledgeBaseListSortBy = NonNullable<ListKnowledgeBasesQuery['sortBy']>
+type KnowledgeBaseOffsetListQuery = Omit<ListKnowledgeBasesQuery, 'cursor'> & { page: number }
+type KnowledgeBaseDiscoveryQuery = {
+  limit: number
+  cursor?: string
+  query?: string
+  groupId?: string
+  restrictedIds?: readonly [string, ...string[]]
+}
+type KnowledgeBaseDiscoveryPage = CursorPaginationResponse<KnowledgeBase> & { total: number }
+type KnowledgeBaseListFilters = {
+  groupId?: string
+  ids?: readonly string[]
+  includeItemSourcesInSearch?: boolean
+}
+
+const sourceItemTable = alias(knowledgeItemTable, 'source_item')
+const KnowledgeBaseProjectionSchema = z.object(KnowledgeBaseSchema.shape)
 
 function validateKnowledgeBaseGroupTx(tx: Pick<DbType, 'select'>, groupId: string | null | undefined): void {
   if (groupId == null) return
@@ -69,12 +91,73 @@ function rowToKnowledgeBase(row: KnowledgeBaseRow): KnowledgeBase {
   })
 }
 
-function buildSearchPredicate(search: string | undefined): SQL | undefined {
+function buildSearchPredicate(search: string | undefined, includeItemSources = false): SQL | undefined {
   const trimmed = search?.trim()
   if (!trimmed) return undefined
 
   const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
-  return sql`${knowledgeBaseTable.name} LIKE ${pattern} ESCAPE '\\'`
+  const nameMatch = sql`${knowledgeBaseTable.name} LIKE ${pattern} ESCAPE '\\'`
+  if (!includeItemSources) return nameMatch
+
+  const itemSourceMatch = sql`EXISTS (
+    SELECT 1
+    FROM ${knowledgeItemTable} AS ${sql.identifier('source_item')}
+    WHERE ${sourceItemTable.baseId} = ${knowledgeBaseTable.id}
+      AND ${sourceItemTable.groupId} IS NULL
+      AND ${sourceItemTable.status} = 'completed'
+      AND (
+        json_extract(${sourceItemTable.data}, '$.source') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.url') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.relativePath') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.file.origin_name') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.file.name') LIKE ${pattern} ESCAPE '\\'
+        OR json_extract(${sourceItemTable.data}, '$.content') LIKE ${pattern} ESCAPE '\\'
+      )
+  )`
+
+  return sql`(${nameMatch} OR (${knowledgeBaseTable.status} = 'completed' AND ${itemSourceMatch}))`
+}
+
+function buildListFilterConditions(
+  query: Pick<ListKnowledgeBasesQuery, 'search' | 'updatedAtFrom'>,
+  filters: KnowledgeBaseListFilters = {}
+): SQL[] {
+  const conditions: SQL[] = []
+  const search = buildSearchPredicate(query.search, filters.includeItemSourcesInSearch)
+  if (search) conditions.push(search)
+  if (query.updatedAtFrom !== undefined) {
+    conditions.push(gte(knowledgeBaseTable.updatedAt, Date.parse(query.updatedAtFrom)))
+  }
+  if (filters.groupId !== undefined) {
+    conditions.push(eq(knowledgeBaseTable.groupId, filters.groupId))
+  }
+  if (filters.ids !== undefined) {
+    conditions.push(filters.ids.length > 0 ? inArray(knowledgeBaseTable.id, [...filters.ids]) : sql`0`)
+  }
+  return conditions
+}
+
+function getListSortColumn(sortBy: KnowledgeBaseListSortBy) {
+  return {
+    createdAt: knowledgeBaseTable.createdAt,
+    updatedAt: knowledgeBaseTable.updatedAt,
+    name: knowledgeBaseTable.name
+  }[sortBy]
+}
+
+function getListSortValue(row: KnowledgeBaseRow, sortBy: KnowledgeBaseListSortBy): string | number {
+  return sortBy === 'name' ? row.name : row[sortBy]
+}
+
+function rowToKnowledgeBaseListItem(row: { base: KnowledgeBaseRow; itemCount: number }): KnowledgeBaseListItem {
+  return {
+    ...rowToKnowledgeBase(row.base),
+    itemCount: row.itemCount
+  }
+}
+
+function knowledgeBaseListItemToBase(item: KnowledgeBaseListItem): KnowledgeBase {
+  return KnowledgeBaseSchema.parse(KnowledgeBaseProjectionSchema.parse(item))
 }
 
 export class KnowledgeBaseService {
@@ -160,25 +243,15 @@ export class KnowledgeBaseService {
     )
   }
 
-  list(query: ListKnowledgeBasesQuery): OffsetPaginationResponse<KnowledgeBaseListItem> {
+  list(query: KnowledgeBaseOffsetListQuery): OffsetPaginationResponse<KnowledgeBaseListItem> {
     const { page, limit } = query
     const offset = (page - 1) * limit
-    const conditions: SQL[] = []
-    const search = buildSearchPredicate(query.search)
-    if (search) conditions.push(search)
-    if (query.updatedAtFrom !== undefined) {
-      conditions.push(gte(knowledgeBaseTable.updatedAt, Date.parse(query.updatedAtFrom)))
-    }
+    const conditions = buildListFilterConditions(query)
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined
     const sortBy = query.sortBy ?? 'createdAt'
     const sortOrder = query.sortOrder ?? 'desc'
     const orderFn = sortOrder === 'asc' ? asc : desc
-    const sortByToColumn = {
-      createdAt: knowledgeBaseTable.createdAt,
-      updatedAt: knowledgeBaseTable.updatedAt,
-      name: knowledgeBaseTable.name
-    } as const
-    const sortColumn = sortByToColumn[sortBy]
+    const sortColumn = getListSortColumn(sortBy)
     const rows = this.db
       .select({
         base: knowledgeBaseTable,
@@ -202,12 +275,84 @@ export class KnowledgeBaseService {
       .all()
 
     return {
-      items: rows.map((row) => ({
-        ...rowToKnowledgeBase(row.base),
-        itemCount: row.itemCount
-      })),
+      items: rows.map(rowToKnowledgeBaseListItem),
       total: count,
       page
+    }
+  }
+
+  listCursor(query: ListKnowledgeBasesQuery): KnowledgeBaseListResponse {
+    return this.listCursorWithFilters(query)
+  }
+
+  listForDiscovery(query: KnowledgeBaseDiscoveryQuery): KnowledgeBaseDiscoveryPage {
+    const page = this.listCursorWithFilters(
+      {
+        limit: query.limit,
+        ...(query.cursor ? { cursor: query.cursor } : {}),
+        ...(query.query ? { search: query.query } : {})
+      },
+      {
+        ...(query.groupId ? { groupId: query.groupId } : {}),
+        ...(query.restrictedIds ? { ids: query.restrictedIds } : {}),
+        includeItemSourcesInSearch: true
+      }
+    )
+
+    return {
+      items: page.items.map(knowledgeBaseListItemToBase),
+      total: page.total,
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
+    }
+  }
+
+  private listCursorWithFilters(
+    query: ListKnowledgeBasesQuery,
+    filters: KnowledgeBaseListFilters = {}
+  ): KnowledgeBaseListResponse {
+    const { limit } = query
+    const filterConditions = buildListFilterConditions(query, filters)
+    const sortBy = query.sortBy ?? 'createdAt'
+    const sortOrder = query.sortOrder ?? 'desc'
+    const sortColumn = getListSortColumn(sortBy)
+    const ordering = keysetOrdering(sortColumn, knowledgeBaseTable.id, { major: sortOrder, tie: sortOrder })
+    const cursor =
+      sortBy === 'name'
+        ? decodeListCursor(query.cursor, asStringKey, 'knowledge-base')
+        : decodeListCursor(query.cursor, asNumericKey, 'knowledge-base')
+    const conditions = [...filterConditions]
+    if (cursor) conditions.push(ordering.where(cursor))
+
+    const whereClause = conditions.length > 0 ? and(...conditions) : undefined
+    const filterWhereClause = filterConditions.length > 0 ? and(...filterConditions) : undefined
+    const rows = this.db
+      .select({
+        base: knowledgeBaseTable,
+        itemCount: sqlCount(knowledgeItemTable.id)
+      })
+      .from(knowledgeBaseTable)
+      .leftJoin(
+        knowledgeItemTable,
+        and(eq(knowledgeItemTable.baseId, knowledgeBaseTable.id), ne(knowledgeItemTable.status, 'deleting'))
+      )
+      .groupBy(knowledgeBaseTable.id)
+      .where(whereClause)
+      .orderBy(...ordering.orderBy)
+      .limit(limit + 1)
+      .all()
+    const [{ count }] = this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(knowledgeBaseTable)
+      .where(filterWhereClause)
+      .all()
+    const pageRows = rows.slice(0, limit)
+    const tail = pageRows.at(-1)
+
+    return {
+      items: pageRows.map(rowToKnowledgeBaseListItem),
+      total: count,
+      nextCursor:
+        rows.length > limit && tail ? encodeCursor(getListSortValue(tail.base, sortBy), tail.base.id) : undefined
     }
   }
 

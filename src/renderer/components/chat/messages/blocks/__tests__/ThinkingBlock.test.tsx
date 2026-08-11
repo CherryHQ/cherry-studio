@@ -8,7 +8,7 @@ const mockUseTranslation = vi.fn()
 const mockRenderConfig = vi.hoisted(() => ({
   messageFont: 'sans-serif',
   fontSize: 14,
-  thoughtAutoCollapse: false
+  thoughtAutoCollapse: true
 }))
 type ThinkingBlockFixture = {
   id: string
@@ -51,7 +51,7 @@ describe('ThinkingBlock', () => {
 
     mockRenderConfig.messageFont = 'sans-serif'
     mockRenderConfig.fontSize = 14
-    mockRenderConfig.thoughtAutoCollapse = false
+    mockRenderConfig.thoughtAutoCollapse = true
 
     mockUseTranslation.mockReturnValue({
       t: (key: string) => {
@@ -253,6 +253,43 @@ describe('ThinkingBlock', () => {
       renderThinkingBlock(block)
 
       fireEvent.click(getToggleButton())
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
+    })
+
+    it('should render expanded by default when auto-collapse is disabled', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock()
+      renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
+    })
+
+    it('should collapse all blocks when auto-collapse is enabled', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock()
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+
+      mockRenderConfig.thoughtAutoCollapse = true
+      rerender(<ThinkingBlock id={block.id} content={`${block.content} updated`} isStreaming={false} />)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+    })
+
+    it('should expand all blocks when auto-collapse is disabled after being enabled', () => {
+      mockRenderConfig.thoughtAutoCollapse = true
+      const block = createThinkingBlock()
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+
+      mockRenderConfig.thoughtAutoCollapse = false
+      rerender(<ThinkingBlock id={block.id} content={`${block.content} updated`} isStreaming={false} />)
 
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
       expect(getContentContainer()).not.toHaveAttribute('hidden')

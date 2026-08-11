@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import type { McpError } from '@modelcontextprotocol/sdk/types.js'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
+import CopyButton from '@renderer/components/CopyButton'
 import DeleteIcon from '@renderer/components/icons/DeleteIcon'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { SettingContainer, SettingDivider, SettingTitle } from '@renderer/components/SettingsPrimitives'
@@ -23,7 +24,7 @@ import type { McpPrompt, McpResource, McpServerLogEntry } from '@shared/types/mc
 import { isInMemoryBuiltinMcpServer } from '@shared/utils/mcp'
 import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
 import { ArrowLeft, SaveIcon } from 'lucide-react'
-import React, { useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
@@ -44,7 +45,7 @@ import {
 } from './McpServerFields'
 import McpToolsSection from './McpTool'
 import { useMcpServerTrust } from './useMcpServerTrust'
-import { toUpdateMcpServerDto } from './utils'
+import { formatMcpLogData, formatMcpLogs, toUpdateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpSettings')
 
@@ -99,6 +100,8 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
   const fetchServerLogsRequestRef = useRef(0)
   const handledAutoEnableServerIdRef = useRef<string | null>(null)
+
+  const logsText = useMemo(() => formatMcpLogs(logs), [logs])
 
   const { theme } = useTheme()
 
@@ -519,25 +522,37 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
     key: 'logs',
     label: t('settings.mcp.logs', 'Logs'),
     children: (
-      <LogList>
-        {logs.length === 0 && (
-          <span className="text-foreground-tertiary text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
-        )}
-        {logs.map((log, idx) => (
-          <LogItem key={`${log.timestamp}-${idx}`}>
-            <LogHeader>
-              <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
-              <Badge variant="outline" className={mapLogLevelClass(log.level)}>
-                {log.level}
-              </Badge>
-              <LogMessage>{log.message}</LogMessage>
-            </LogHeader>
-            {log.data && (
-              <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
-            )}
-          </LogItem>
-        ))}
-      </LogList>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-foreground-tertiary text-sm">
+            {t('settings.mcp.logsHint', 'Logs from the MCP server process')}
+          </span>
+          <CopyButton
+            textToCopy={logsText}
+            size={14}
+            successFeedback="icon"
+            disabled={logs.length === 0}
+            tooltip={t('settings.mcp.copyLogs', 'Copy logs')}
+          />
+        </div>
+        <LogList className="selectable pt-0">
+          {logs.length === 0 && (
+            <span className="text-foreground-tertiary text-sm">{t('settings.mcp.noLogs', 'No logs yet')}</span>
+          )}
+          {logs.map((log, idx) => (
+            <LogItem key={`${log.timestamp}-${idx}`}>
+              <LogHeader>
+                <Timestamp>{new Date(log.timestamp).toLocaleTimeString()}</Timestamp>
+                <Badge variant="outline" className={mapLogLevelClass(log.level)}>
+                  {log.level}
+                </Badge>
+                <LogMessage>{log.message}</LogMessage>
+              </LogHeader>
+              {log.data && <PreBlock>{formatMcpLogData(log.data)}</PreBlock>}
+            </LogItem>
+          ))}
+        </LogList>
+      </div>
     )
   })
 
