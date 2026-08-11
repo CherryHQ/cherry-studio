@@ -268,6 +268,15 @@ export interface WindowQuirks {
    * No-op when `behavior.alwaysOnTop.level` is unset.
    */
   macReapplyAlwaysOnTop?: boolean
+
+  /**
+   * [Windows] Re-apply `setAlwaysOnTop(true, level, relativeLevel)` after every
+   * `show()`/`showInactive()` call, ensuring the toolbar stays above other
+   * floating windows that also use alwaysOnTop. Pure boolean switch — the actual
+   * level/relativeLevel are read from `behavior.alwaysOnTop` (single source of
+   * truth). No-op when `behavior.alwaysOnTop.level` is unset.
+   */
+  winReapplyAlwaysOnTop?: boolean
 }
 
 /** Common fields shared by all window type metadata variants */

@@ -207,7 +207,8 @@ vi.mock('../windowRegistry', () => {
       quirks: {
         macRestoreFocusOnHide: true,
         macClearHoverOnHide: true,
-        macReapplyAlwaysOnTop: true
+        macReapplyAlwaysOnTop: true,
+        winReapplyAlwaysOnTop: true
       }
     },
     // Pooled action with only restoreFocusOnHide (like SelectionAction)
@@ -234,6 +235,14 @@ vi.mock('../windowRegistry', () => {
       htmlPath: 'floatingTop/index.html',
       windowOptions: {},
       quirks: { macReapplyAlwaysOnTop: true }
+    },
+    // Windows variant of floatingTop
+    winFloatingTop: {
+      type: 'winFloatingTop',
+      lifecycle: 'default',
+      htmlPath: 'winFloatingTop/index.html',
+      windowOptions: {},
+      quirks: { winReapplyAlwaysOnTop: true }
     },
     // behavior.hideOnBlur — singleton, declarative blur→hide
     blurHider: {
@@ -569,23 +578,102 @@ describe('WindowManager quirks — applyQuirks monkey-patching', () => {
     })
   })
 
+  // ─── winReapplyAlwaysOnTop ──────────────────────────────────
+
+  describe('winReapplyAlwaysOnTop', () => {
+    beforeEach(() => {
+      platform.isMac = false
+      platform.isWin = true
+    })
+
+    it('re-applies setAlwaysOnTop(true, level) after show()', () => {
+      wm.open('toolbar' as never)
+      const toolbar = firstWindow()
+      toolbar.setAlwaysOnTop.mockClear()
+
+      toolbar.show()
+
+      expect(toolbar.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
+    })
+
+    it('re-applies setAlwaysOnTop(true, level) after showInactive()', () => {
+      wm.open('toolbar' as never)
+      const toolbar = firstWindow()
+      toolbar.setAlwaysOnTop.mockClear()
+
+      toolbar.showInactive()
+
+      expect(toolbar.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
+    })
+
+    it('does NOT wrap hide/close', () => {
+      wm.open('toolbar' as never)
+      const toolbar = firstWindow()
+
+      const hideMock = toolbar.hide
+      const closeMock = toolbar.close
+
+      expect(toolbar.hide).toBe(hideMock)
+      expect(toolbar.close).toBe(closeMock)
+    })
+
+    it('does NOT fire when quirk is absent', () => {
+      wm.open('plain' as never)
+      const plain = firstWindow()
+
+      plain.show()
+      plain.showInactive()
+
+      expect(plain.setAlwaysOnTop).not.toHaveBeenCalled()
+    })
+
+    it('defaults level to "floating" when flag is true', () => {
+      wm.open('winFloatingTop' as never)
+      const win = firstWindow()
+      win.setAlwaysOnTop.mockClear()
+
+      win.show()
+
+      expect(win.setAlwaysOnTop).toHaveBeenCalledWith(true, 'floating')
+    })
+  })
+
   // ─── Non-mac identity check ─────────────────────────────────
 
   describe('non-mac platforms', () => {
-    it('does NOT patch any method when isMac=false — identity preserved', () => {
+    it('patches show/showInactive on Windows when winReapplyAlwaysOnTop is set', () => {
+      platform.isMac = false
+      platform.isWin = true
+
+      wm.open('toolbar' as never)
+      const toolbar = firstWindow()
+
+      // hide/close must remain untouched (mac-only quirks)
+      toolbar.hide()
+      expect(toolbar.webContents.sendInputEvent).not.toHaveBeenCalled()
+
+      // show/showInactive must trigger re-apply
+      toolbar.setAlwaysOnTop.mockClear()
+      toolbar.show()
+      expect(toolbar.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
+
+      toolbar.setAlwaysOnTop.mockClear()
+      toolbar.showInactive()
+      expect(toolbar.setAlwaysOnTop).toHaveBeenCalledWith(true, 'screen-saver')
+    })
+
+    it('does NOT patch any method on Linux — identity preserved', () => {
       platform.isMac = false
       platform.isLinux = true
 
       wm.open('toolbar' as never)
       const toolbar = firstWindow()
 
-      // Capture the mock fn refs stored at construction time
       const hideMock = toolbar.hide
       const closeMock = toolbar.close
       const showMock = toolbar.show
       const showInactiveMock = toolbar.showInactive
 
-      // After applyQuirks on non-mac: methods must remain the original mock fns
       expect(toolbar.hide).toBe(hideMock)
       expect(toolbar.close).toBe(closeMock)
       expect(toolbar.show).toBe(showMock)

@@ -1,4 +1,4 @@
-import { isMac } from '@main/core/platform'
+import { isMac, isWin } from '@main/core/platform'
 import type { WindowBehavior, WindowQuirks } from '@main/core/window/types'
 import { BrowserWindow } from 'electron'
 
@@ -97,6 +97,38 @@ export function applyWindowQuirks(
       if (window.isDestroyed()) return
       // Pass relativeLevel only when declared — avoids polluting the call
       // site with a trailing `undefined` that changes spy signatures.
+      if (relativeLevel !== undefined) {
+        window.setAlwaysOnTop(true, level, relativeLevel)
+      } else {
+        window.setAlwaysOnTop(true, level)
+      }
+    }
+    window.show = () => {
+      originalShow()
+      reapply()
+    }
+    window.showInactive = () => {
+      originalShowInactive()
+      reapply()
+    }
+  }
+
+  // ── winReapplyAlwaysOnTop ───────────────────────────────────────────
+  // Why:   On Windows, other floating windows (e.g. translation toolbars)
+  //        may also use alwaysOnTop, and the toolbar's stacking level can
+  //        be lost after hide/show cycles, causing it to appear behind them.
+  // Does:  Same as macReapplyAlwaysOnTop — re-applies the level after every
+  //        show()/showInactive() call.
+  // When:  Windows floating toolbar overlays that must stay above other
+  //        always-on-top windows. No-op when `behavior.alwaysOnTop.level`
+  //        is unset.
+  if (isWin && quirks.winReapplyAlwaysOnTop) {
+    const level = behavior?.alwaysOnTop?.level ?? 'floating'
+    const relativeLevel = behavior?.alwaysOnTop?.relativeLevel
+    const originalShow = window.show.bind(window)
+    const originalShowInactive = window.showInactive.bind(window)
+    const reapply = () => {
+      if (window.isDestroyed()) return
       if (relativeLevel !== undefined) {
         window.setAlwaysOnTop(true, level, relativeLevel)
       } else {

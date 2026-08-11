@@ -431,7 +431,8 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     quirks: {
       macRestoreFocusOnHide: true,
       macClearHoverOnHide: true,
-      macReapplyAlwaysOnTop: true
+      macReapplyAlwaysOnTop: true,
+      winReapplyAlwaysOnTop: true
     }
   },
 
