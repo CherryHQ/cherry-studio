@@ -48,7 +48,19 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     }
   }, [])
 
-  const observeSignIn = useCallback((): Promise<void> => {
+  const applySignInSuccess = useCallback(
+    async (account: { accountId: string | null }) => {
+      if (!mountedRef.current) return
+      setLoggedIn(true)
+      setAccountId(account.accountId)
+      // The main process enabled the provider; mirror it into the renderer cache.
+      await updateProvider({ isEnabled: true })
+      if (mountedRef.current) toast.success(t(`${ns}.sign_in_success`))
+    },
+    [ns, t, updateProvider]
+  )
+
+  const startSignIn = useCallback((): Promise<void> => {
     const existing = signInRequestRef.current
     if (existing) return existing
 
@@ -56,12 +68,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     const request = Promise.resolve().then(async () => {
       try {
         const account = await ipcApi.request('oauth.sign_in', { providerId })
-        if (!mountedRef.current) return
-        setLoggedIn(true)
-        setAccountId(account.accountId)
-        // The main process enabled the provider; mirror it into the renderer cache.
-        await updateProvider({ isEnabled: true })
-        if (mountedRef.current) toast.success(t(`${ns}.sign_in_success`))
+        await applySignInSuccess(account)
       } catch (error) {
         if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
         if (!mountedRef.current) return
@@ -76,7 +83,36 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
     })
     signInRequestRef.current = request
     return request
-  }, [providerId, ns, t, updateProvider])
+  }, [applySignInSuccess, providerId, ns, t])
+
+  const attachActiveSignIn = useCallback(async () => {
+    setSigningIn(true)
+    try {
+      const result = await ipcApi.request('oauth.sign_in.attach', { providerId })
+      if (result.status === 'completed') {
+        await applySignInSuccess(result.account)
+        return
+      }
+
+      const hasToken = await ipcApi.request('oauth.has_token', { providerId })
+      if (!mountedRef.current) return
+      if (hasToken) {
+        const account = showAccountId ? await ipcApi.request('oauth.get_account', { providerId }) : { accountId: null }
+        await applySignInSuccess(account)
+        return
+      }
+
+      setLoggedIn(false)
+      setAccountId(null)
+    } catch (error) {
+      if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
+      if (!mountedRef.current) return
+      logger.error(`${providerId} attached sign-in failed`, error as Error)
+      toast.error(t(`${ns}.sign_in_failed`))
+    } finally {
+      if (mountedRef.current) setSigningIn(false)
+    }
+  }, [applySignInSuccess, ns, providerId, showAccountId, t])
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -87,15 +123,14 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
         return
       }
 
+      setLoggedIn(false)
       setAccountId(null)
-      if (await ipcApi.request('oauth.is_signing_in', { providerId })) {
-        void observeSignIn()
-      }
+      await attachActiveSignIn()
     } catch (error) {
       logger.error(`Failed to check ${providerId} login status`, error as Error)
       setLoggedIn(false)
     }
-  }, [observeSignIn, providerId, showAccountId])
+  }, [attachActiveSignIn, providerId, showAccountId])
 
   useEffect(() => {
     void refreshStatus()
@@ -172,7 +207,7 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <Button disabled={signingIn} onClick={() => void observeSignIn()}>
+            <Button disabled={signingIn} onClick={() => void startSignIn()}>
               {signingIn ? <RefreshCw className="size-4 animate-spin" /> : <LogIn className="size-4" />}
               {signingIn ? t(`${ns}.signing_in`) : t(`${ns}.sign_in_button`)}
             </Button>

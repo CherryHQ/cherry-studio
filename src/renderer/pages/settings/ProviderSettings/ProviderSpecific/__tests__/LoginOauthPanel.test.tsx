@@ -9,8 +9,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import LoginOauthPanel from '../LoginOauthPanel'
 
-const { requestMock, updateProviderMock } = vi.hoisted(() => ({
+const { requestMock, tMock, updateProviderMock } = vi.hoisted(() => ({
   requestMock: vi.fn(),
+  tMock: (key: string) => key,
   updateProviderMock: vi.fn().mockResolvedValue(undefined)
 }))
 
@@ -18,7 +19,7 @@ vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ error: vi.fn(), warn: vi.fn(), info: vi.fn() }) }
 }))
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key })
+  useTranslation: () => ({ t: tMock })
 }))
 vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: () => ({ updateProvider: updateProviderMock })
@@ -42,7 +43,7 @@ describe('LoginOauthPanel', () => {
   it('mirrors the main-process enable into the renderer cache after sign-in', async () => {
     requestMock.mockImplementation((channel: string) => {
       if (channel === 'oauth.has_token') return Promise.resolve(false)
-      if (channel === 'oauth.is_signing_in') return Promise.resolve(false)
+      if (channel === 'oauth.sign_in.attach') return Promise.resolve({ status: 'not-found' })
       if (channel === 'oauth.sign_in') return Promise.resolve({ accountId: null })
       throw new Error(`unexpected channel: ${channel}`)
     })
@@ -80,11 +81,11 @@ describe('LoginOauthPanel', () => {
     expect(requestMock).toHaveBeenCalledWith('oauth.logout', { providerId: 'codex' })
   })
 
-  it('restores the waiting state by observing an active main-process sign-in', async () => {
+  it('restores the waiting state by attaching to an active main-process sign-in', async () => {
     requestMock.mockImplementation((channel: string) => {
       if (channel === 'oauth.has_token') return Promise.resolve(false)
-      if (channel === 'oauth.is_signing_in') return Promise.resolve(true)
-      if (channel === 'oauth.sign_in') return new Promise(() => {})
+      if (channel === 'oauth.sign_in.attach') return new Promise(() => {})
+      if (channel === 'oauth.sign_in') throw new Error('mount must not start sign-in')
       throw new Error(`unexpected channel: ${channel}`)
     })
 
@@ -92,7 +93,45 @@ describe('LoginOauthPanel', () => {
 
     expect(await screen.findByText('settings.provider.codex.signing_in')).toBeDisabled()
     expect(screen.getByRole('button', { name: 'common.cancel' })).toBeEnabled()
-    expect(requestMock).toHaveBeenCalledWith('oauth.sign_in', { providerId: 'codex' })
+    expect(requestMock).toHaveBeenCalledWith('oauth.sign_in.attach', { providerId: 'codex' })
+    expect(requestMock).not.toHaveBeenCalledWith('oauth.sign_in', expect.anything())
+  })
+
+  it('recovers completion between the first token read and attach without starting a new flow', async () => {
+    let tokenRead = 0
+    requestMock.mockImplementation((channel: string) => {
+      if (channel === 'oauth.has_token') {
+        tokenRead += 1
+        return Promise.resolve(tokenRead === 2)
+      }
+      if (channel === 'oauth.sign_in.attach') return Promise.resolve({ status: 'not-found' })
+      if (channel === 'oauth.get_account') return Promise.resolve({ accountId: 'acc-1' })
+      if (channel === 'oauth.sign_in') throw new Error('recovery must not start sign-in')
+      throw new Error(`unexpected channel: ${channel}`)
+    })
+
+    render(<LoginOauthPanel providerId="codex" i18nNs="codex" showAccountId />)
+
+    expect(await screen.findByText('settings.provider.codex.logged_in')).toBeInTheDocument()
+    expect(requestMock).toHaveBeenCalledTimes(4)
+    expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
+    expect(requestMock).not.toHaveBeenCalledWith('oauth.sign_in', expect.anything())
+  })
+
+  it('recovers cancellation between the first token read and attach without a failure toast', async () => {
+    requestMock.mockImplementation((channel: string) => {
+      if (channel === 'oauth.has_token') return Promise.resolve(false)
+      if (channel === 'oauth.sign_in.attach') return Promise.resolve({ status: 'not-found' })
+      if (channel === 'oauth.sign_in') throw new Error('recovery must not start sign-in')
+      throw new Error(`unexpected channel: ${channel}`)
+    })
+
+    render(<LoginOauthPanel providerId="codex" i18nNs="codex" />)
+
+    expect(await screen.findByRole('button', { name: 'settings.provider.codex.sign_in_button' })).toBeEnabled()
+    expect(requestMock).toHaveBeenCalledTimes(3)
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(requestMock).not.toHaveBeenCalledWith('oauth.sign_in', expect.anything())
   })
 
   it('cancels without a failure toast and permits an immediate retry', async () => {
@@ -100,7 +139,7 @@ describe('LoginOauthPanel', () => {
     let signInAttempt = 0
     requestMock.mockImplementation((channel: string) => {
       if (channel === 'oauth.has_token') return Promise.resolve(false)
-      if (channel === 'oauth.is_signing_in') return Promise.resolve(false)
+      if (channel === 'oauth.sign_in.attach') return Promise.resolve({ status: 'not-found' })
       if (channel === 'oauth.sign_in') {
         signInAttempt += 1
         if (signInAttempt === 1) {
