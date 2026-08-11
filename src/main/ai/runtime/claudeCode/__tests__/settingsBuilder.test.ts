@@ -2248,6 +2248,40 @@ describe('buildClaudeCodeSessionSettings', () => {
       expect(mocks.approvalRegister).not.toHaveBeenCalled()
     })
 
+    it('requires live approval when a background agent delegates to another Session', async () => {
+      mocks.applicationGet.mockImplementation((name: string) => {
+        if (name === 'PreferenceService') return { get: vi.fn(() => undefined) }
+        if (name === 'McpCatalogService') return { listTools: vi.fn(async () => []) }
+        if (name === 'AgentSessionRuntimeService') {
+          return {
+            getInteractionState: () => ({ currentTurn: 'interactive', userResponse: 'stream' })
+          }
+        }
+        throw new Error(`Unexpected application.get(${name})`)
+      })
+      const settings = await buildClaudeCodeSessionSettings(sessionWith('warm-bg-delegation'), {} as never)
+      const emit = vi.fn()
+      settings.approvalEmitter!.emit = emit
+
+      void settings.canUseTool!(toCherryBuiltinRuntimeName('session_send'), { target_session_id: 'target' }, {
+        signal: { aborted: false },
+        toolUseID: 'tu-bg-delegation',
+        agentID: 'subagent-1'
+      } as never)
+      await Promise.resolve()
+
+      expect(mocks.approvalRegister).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionId: 'warm-bg-delegation',
+          toolCallId: 'tu-bg-delegation',
+          presentation: 'message'
+        })
+      )
+      expect(emit).toHaveBeenCalledWith(
+        expect.objectContaining({ toolName: toCherryBuiltinRuntimeName('session_send') })
+      )
+    })
+
     // A channel/scheduled turn has no approval UI, so an ordinary tool must not be denied for
     // lacking a responder — but an interactive turn on the same session must still prompt.
     it.each([

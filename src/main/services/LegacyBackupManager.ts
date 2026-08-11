@@ -324,16 +324,19 @@ class BackupManager {
 
         const aiStreamManager = application.get('AiStreamManager')
         const agentSessionRuntime = application.get('AgentSessionRuntimeService')
+        const agentSessionDelivery = application.get('AgentSessionDeliveryService')
         const jobManager = application.get('JobManager')
         const writerHolds: Array<{ dispose(): void }> = []
         try {
           writerHolds.push(aiStreamManager.pause(quiesceReason))
           writerHolds.push(agentSessionRuntime.pause(quiesceReason))
+          writerHolds.push(agentSessionDelivery.pause(quiesceReason))
           writerHolds.push(jobManager.pause(quiesceReason))
 
           const writerVerdicts = await Promise.all([
             aiStreamManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             agentSessionRuntime.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
+            agentSessionDelivery.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS }),
             jobManager.drainInFlight({ timeoutMs: QUIESCE_TIMEOUT_MS })
           ])
           signal?.throwIfAborted()
@@ -1444,7 +1447,8 @@ class BackupManager {
   private assertNoActiveDataWriters(): void {
     if (
       application.get('AiStreamManager').hasLiveStreams() ||
-      application.get('AgentSessionRuntimeService').hasBusySessions()
+      application.get('AgentSessionRuntimeService').hasBusySessions() ||
+      application.get('AgentSessionDeliveryService').listActiveWork().length > 0
     ) {
       throw new Error(
         `${BACKUP_ACTIVE_WRITERS_ERROR_CODE}: A conversation is still running. Wait for it to finish, then retry the backup or restore.`

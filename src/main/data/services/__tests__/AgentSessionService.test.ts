@@ -226,6 +226,48 @@ describe('AgentSessionService', () => {
     ])
   })
 
+  it('pages only Sessions whose active Agent can receive a delivery', async () => {
+    const workspace = await createWorkspace('addressable')
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-deleted',
+      type: 'claude-code',
+      name: 'Deleted Agent',
+      instructions: '',
+      orderKey: 'deleted',
+      deletedAt: Date.now()
+    })
+    await dbh.db.insert(agentSessionTable).values([
+      {
+        id: 'addressable-a',
+        agentId: 'agent-session-test',
+        name: 'Addressable A',
+        workspaceId: workspace.id,
+        orderKey: 'a'
+      },
+      {
+        id: 'addressable-b',
+        agentId: 'agent-session-test',
+        name: 'Addressable B',
+        workspaceId: workspace.id,
+        orderKey: 'b'
+      },
+      { id: 'orphan', name: 'Orphan', workspaceId: workspace.id, orderKey: 'c' },
+      {
+        id: 'soft-deleted-agent',
+        agentId: 'agent-deleted',
+        name: 'Deleted target',
+        workspaceId: workspace.id,
+        orderKey: 'd'
+      }
+    ])
+
+    const first = agentSessionService.listAddressableByCursor({ limit: 1 })
+    const second = agentSessionService.listAddressableByCursor({ limit: 1, cursor: first.nextCursor })
+
+    expect([...first.items, ...second.items].map((item) => item.sessionId)).toEqual(['addressable-a', 'addressable-b'])
+    expect(second.nextCursor).toBeUndefined()
+  })
+
   describe('getLatestUpdated', () => {
     it('returns the globally most-recently-updated session, independent of orderKey ordering', async () => {
       const workspace = await createWorkspace('latest')

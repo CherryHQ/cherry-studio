@@ -787,7 +787,6 @@ describe('MessageGroup', () => {
         senderSnapshot: { agentName: 'Agent A', sessionName: 'Sender' },
         receiverSnapshot: { agentName: 'Agent B', sessionName: 'Target' },
         replyPolicy: 'none',
-        mode: 'auto',
         turnRef: null,
         sourceMessageId: null,
         outcome: 'success',

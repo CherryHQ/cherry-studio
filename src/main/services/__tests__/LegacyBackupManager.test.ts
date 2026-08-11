@@ -54,6 +54,7 @@ const {
   mockAiStreamHold,
   mockAgentSessionRuntime,
   mockAgentSessionHold,
+  mockAgentSessionDelivery,
   mockWindowManager,
   mockRelaunch,
   mockHashDbFile,
@@ -71,6 +72,7 @@ const {
   const mockJobHold = { dispose: vi.fn() }
   const mockAiStreamHold = { dispose: vi.fn() }
   const mockAgentSessionHold = { dispose: vi.fn() }
+  const mockAgentSessionDeliveryHold = { dispose: vi.fn() }
   const mockZipExtract = vi.fn()
   const mockZipClose = vi.fn()
   return {
@@ -104,6 +106,11 @@ const {
       hasBusySessions: vi.fn(() => false)
     },
     mockAgentSessionHold,
+    mockAgentSessionDelivery: {
+      pause: vi.fn(() => mockAgentSessionDeliveryHold),
+      drainInFlight: vi.fn(async (): Promise<{ stragglerIds: string[] }> => ({ stragglerIds: [] })),
+      listActiveWork: vi.fn(() => [])
+    },
     mockWindowManager: { broadcastToType: vi.fn(), getWindowsByType: vi.fn(() => []) },
     mockRelaunch: vi.fn(),
     mockHashDbFile: vi.fn(),
@@ -261,6 +268,9 @@ vi.mock('@application', () => ({
       }
       if (name === 'AgentSessionRuntimeService') {
         return mockAgentSessionRuntime
+      }
+      if (name === 'AgentSessionDeliveryService') {
+        return mockAgentSessionDelivery
       }
       throw new Error(`[MockApplication] Unknown service: ${name}`)
     }),
@@ -467,6 +477,8 @@ describe('BackupManager direct v2 data compatibility', () => {
     expect(mockAiStreamManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockAgentSessionRuntime.pause).toHaveBeenCalledOnce()
     expect(mockAgentSessionRuntime.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
+    expect(mockAgentSessionDelivery.pause).toHaveBeenCalledOnce()
+    expect(mockAgentSessionDelivery.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockJobManager.pause).toHaveBeenCalledOnce()
     expect(mockJobManager.drainInFlight).toHaveBeenCalledWith({ timeoutMs: 30_000 })
     expect(mockDbService.checkpointTruncate).toHaveBeenCalledTimes(2)

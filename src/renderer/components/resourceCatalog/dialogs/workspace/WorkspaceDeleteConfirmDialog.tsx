@@ -8,8 +8,9 @@ import {
   DialogTitle
 } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useInvalidateCache, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
+import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { AgentWorkspaceEntity, AgentWorkspaceReferenceItem } from '@shared/data/api/schemas/agentWorkspaces'
@@ -89,10 +90,6 @@ export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: 
     params: { workspaceId: workspace.id },
     swrOptions: { dedupingInterval: 0 }
   })
-  const { trigger: deleteWorkspace } = useMutation('DELETE', '/agent-workspaces/:workspaceId', {
-    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels', '/agent-tasks']
-  })
-
   const isPreviewPending = isReferencesLoading || isReferencesRefreshing
   const canConfirm = references !== undefined && !isPreviewPending && !referencesError && !isPending
 
@@ -102,7 +99,12 @@ export function WorkspaceDeleteConfirmDialog({ workspace, onDeleted, onClose }: 
     setIsPending(true)
     let hasSucceeded = false
     try {
-      const result = await deleteWorkspace({ params: { workspaceId: workspace.id } })
+      const result = await ipcApi.request('ai.agent.workspace.delete', { workspaceId: workspace.id })
+      await Promise.all(
+        ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels', '/agent-tasks'].map((key) =>
+          invalidateCache(key)
+        )
+      )
 
       closeConversationTabs('agents', result.deletedIds)
       try {

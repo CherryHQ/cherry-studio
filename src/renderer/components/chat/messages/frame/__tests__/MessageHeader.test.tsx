@@ -195,13 +195,12 @@ describe('MessageHeader', () => {
             senderSnapshot: { agentName: 'Agent A', sessionName: 'Research' },
             receiverSnapshot: { agentName: 'Agent B', sessionName: 'Build' },
             replyPolicy: 'none',
-            mode: 'auto',
             turnRef: null,
             sourceMessageId: null,
             outcome: null,
             error: null,
             statusAt: '2026-06-06T00:00:01.000Z',
-            status: 'queued',
+            status: 'accepted',
             inReplyTo: null
           }
         })}
@@ -210,7 +209,7 @@ describe('MessageHeader', () => {
 
     expect(getByText('From Agent A / Research')).toBeTruthy()
     expect(container.querySelector('.lucide-mouse-pointer-click')).not.toBeNull()
-    expect(screen.queryByText('agent.session_delivery.status.queued')).toBeNull()
+    expect(screen.queryByText('agent.session_delivery.status.accepted')).toBeNull()
   })
 
   it('opens the sending session from durable attribution', async () => {
@@ -228,13 +227,12 @@ describe('MessageHeader', () => {
             senderSnapshot: { agentName: 'Agent A', sessionName: 'Research' },
             receiverSnapshot: { agentName: 'Agent B', sessionName: 'Build' },
             replyPolicy: 'none',
-            mode: 'auto',
             turnRef: null,
             sourceMessageId: null,
             outcome: null,
             error: null,
             statusAt: '2026-06-06T00:00:01.000Z',
-            status: 'queued',
+            status: 'accepted',
             inReplyTo: null
           }
         })}

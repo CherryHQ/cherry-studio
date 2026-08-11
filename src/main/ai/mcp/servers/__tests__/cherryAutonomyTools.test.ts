@@ -29,7 +29,7 @@ const mockSearchSessionMessages = vi.fn()
 const mockAcceptSessionDelivery = vi.fn()
 const mockCreateSessionWithDelivery = vi.fn()
 const mockListSessionDeliveries = vi.fn()
-const mockDispatchSessionDelivery = vi.fn()
+const mockGetInteractionState = vi.fn()
 
 // Task reads stay on AgentTaskService; task commands (create / delete) go
 // through the AgentJobsService routed via the application mock below.
@@ -49,7 +49,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: {
     getById: mockGetSession,
-    listByCursor: mockListSessions,
+    listAddressableByCursor: mockListSessions,
     searchWithMetadataEvidence: mockSearchSessions
   }
 }))
@@ -71,16 +71,19 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
-vi.mock('@main/ai/streamManager', () => ({
-  dispatchAcceptedAgentSessionDelivery: mockDispatchSessionDelivery
-}))
-
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     AgentJobsService: {
       createTask: mockCreateTask,
       deleteTask: mockDeleteTask
+    },
+    AgentSessionRuntimeService: {
+      getInteractionState: mockGetInteractionState
+    },
+    AgentSessionDeliveryService: {
+      accept: mockAcceptSessionDelivery,
+      acceptWithNewSession: mockCreateSessionWithDelivery
     },
     ChannelManager: {
       getNotifyAdapters: mockGetNotifyAdapters,
@@ -155,6 +158,7 @@ describe('CherryAutonomyTools', () => {
     mockSearchSessions.mockReturnValue([])
     mockSearchSessionMessages.mockReturnValue([])
     mockListSessionDeliveries.mockReturnValue([])
+    mockGetInteractionState.mockReturnValue({ currentTurn: 'interactive', userResponse: 'stream' })
   })
 
   it('should list all tools', () => {
@@ -174,16 +178,39 @@ describe('CherryAutonomyTools', () => {
   })
 
   describe('session tools', () => {
+    it.each(['session_list', 'session_search', 'session_deliveries', 'session_create', 'session_send'])(
+      'denies %s from a headless turn before reading or mutating another Session',
+      async (toolName) => {
+        mockGetInteractionState.mockReturnValue({ currentTurn: 'headless', userResponse: 'unavailable' })
+        const args =
+          toolName === 'session_search'
+            ? { query: 'secret' }
+            : toolName === 'session_create'
+              ? { message: 'delegate' }
+              : toolName === 'session_send'
+                ? { target_session_id: 'session_b', message: 'delegate' }
+                : {}
+
+        const result = await callTool(createServer(), args, toolName)
+
+        expect(result.isError).toBe(true)
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          ok: false,
+          error: { code: 'SESSION_TOOL_FORBIDDEN' }
+        })
+        expect(mockSearchSessionMessages).not.toHaveBeenCalled()
+        expect(mockAcceptSessionDelivery).not.toHaveBeenCalled()
+        expect(mockCreateSessionWithDelivery).not.toHaveBeenCalled()
+      }
+    )
+
     it('discovers active Session addresses without exposing workspace data', async () => {
       mockListSessions.mockReturnValue({
         items: [
-          { id: 'session_test', agentId: 'agent_test', name: 'Current' },
-          { id: 'session_b', agentId: 'agent_b', name: 'Build' }
+          { sessionId: 'session_test', agentId: 'agent_test', sessionName: 'Current', agentName: 'Agent A' },
+          { sessionId: 'session_b', agentId: 'agent_b', sessionName: 'Build', agentName: 'Agent B' }
         ]
       })
-      mockGetAgent.mockImplementation((id: string) =>
-        id === 'agent_test' ? { id, name: 'Agent A' } : { id, name: 'Agent B' }
-      )
 
       const result = await callTool(createServer(), { limit: 10 }, 'session_list')
       const payload = JSON.parse(result.content[0].text)
@@ -206,6 +233,15 @@ describe('CherryAutonomyTools', () => {
       ])
     })
 
+    it('passes the addressable Session cursor through and returns the next page cursor', async () => {
+      mockListSessions.mockReturnValue({ items: [], nextCursor: 'session-next' })
+
+      const result = await callTool(createServer(), { cursor: 'session-prev', limit: 5 }, 'session_list')
+
+      expect(mockListSessions).toHaveBeenCalledWith({ agentId: undefined, cursor: 'session-prev', limit: 5 })
+      expect(JSON.parse(result.content[0].text)).toEqual({ sessions: [], nextCursor: 'session-next' })
+    })
+
     it('injects the trusted current identity when sending across Agents', async () => {
       const accepted = {
         id: 'message-1',
@@ -213,11 +249,9 @@ describe('CherryAutonomyTools', () => {
         delivery: { id: 'delivery-1', status: 'accepted' }
       }
       mockAcceptSessionDelivery.mockReturnValue(accepted)
-      mockDispatchSessionDelivery.mockResolvedValue('queued')
-
       const result = await callTool(
         createServer('agent_test'),
-        { target_session_id: 'session_b', message: 'Implement this', mode: 'auto' },
+        { target_session_id: 'session_b', message: 'Implement this' },
         'session_send'
       )
 
@@ -226,33 +260,27 @@ describe('CherryAutonomyTools', () => {
         senderSessionId: 'session_test',
         receiverSessionId: 'session_b',
         content: 'Implement this',
-        mode: 'auto',
         replyPolicy: 'none'
       })
-      expect(mockDispatchSessionDelivery).toHaveBeenCalledWith(accepted)
       expect(JSON.parse(result.content[0].text)).toMatchObject({
         ok: true,
-        delivery: { id: 'delivery-1', status: 'queued' }
+        delivery: { id: 'delivery-1', status: 'accepted' }
       })
     })
 
-    it('forces completion requests onto a separate queued turn', async () => {
+    it('records completion requests without a redundant delivery mode', async () => {
       mockAcceptSessionDelivery.mockReturnValue({
         id: 'request-1',
         sessionId: 'session_b',
         delivery: { status: 'accepted', replyPolicy: 'completion' }
       })
-      mockDispatchSessionDelivery.mockResolvedValue('queued')
-
       await callTool(
         createServer('agent_test'),
         { target_session_id: 'session_b', message: 'Return the result', reply: 'completion' },
         'session_send'
       )
 
-      expect(mockAcceptSessionDelivery).toHaveBeenCalledWith(
-        expect.objectContaining({ mode: 'queue', replyPolicy: 'completion' })
-      )
+      expect(mockAcceptSessionDelivery).toHaveBeenCalledWith(expect.objectContaining({ replyPolicy: 'completion' }))
     })
 
     it('returns message evidence for session search candidates', async () => {
@@ -276,13 +304,23 @@ describe('CherryAutonomyTools', () => {
           matches: [expect.objectContaining({ messageId: 'message-1', snippet: 'implemented auth' })]
         })
       ])
-      expect(mockSearchSessionMessages).toHaveBeenCalledWith({ q: 'auth', limit: 20, agentId: undefined })
+      expect(mockSearchSessionMessages).toHaveBeenCalledWith({
+        q: 'auth',
+        limit: 20,
+        agentId: undefined,
+        addressableOnly: true
+      })
     })
 
     it('scopes ranked message and metadata searches before their limits', async () => {
       await callTool(createServer(), { query: 'auth', agent_id: 'agent_b', limit: 3 }, 'session_search')
 
-      expect(mockSearchSessionMessages).toHaveBeenCalledWith({ q: 'auth', limit: 3, agentId: 'agent_b' })
+      expect(mockSearchSessionMessages).toHaveBeenCalledWith({
+        q: 'auth',
+        limit: 3,
+        agentId: 'agent_b',
+        addressableOnly: true
+      })
       expect(mockSearchSessions).toHaveBeenCalledWith({ q: 'auth', limit: 3, agentId: 'agent_b' })
     })
 
@@ -388,8 +426,6 @@ describe('CherryAutonomyTools', () => {
         session: { id: 'session-new', agentId: 'agent_test' },
         message
       })
-      mockDispatchSessionDelivery.mockResolvedValue('delivering')
-
       const result = await callTool(createServer(), { message: 'Hello', title: 'English greeting' }, 'session_create')
 
       expect(mockCreateSessionWithDelivery).toHaveBeenCalledWith({
@@ -399,12 +435,11 @@ describe('CherryAutonomyTools', () => {
         workspace: WORKSPACE_SOURCE,
         content: 'Hello'
       })
-      expect(mockDispatchSessionDelivery).toHaveBeenCalledWith(message)
       expect(JSON.parse(result.content[0].text)).toMatchObject({
         ok: true,
         agentId: 'agent_test',
         sessionId: 'session-new',
-        delivery: { id: 'delivery-1', status: 'delivering' }
+        delivery: { id: 'delivery-1', status: 'accepted' }
       })
     })
   })

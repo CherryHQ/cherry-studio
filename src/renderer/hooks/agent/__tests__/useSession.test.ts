@@ -22,6 +22,7 @@ import {
 
 const mockCloseConversationTabs = vi.hoisted(() => vi.fn())
 const mockUseIpcOn = vi.hoisted(() => vi.fn())
+const mockIpcRequest = vi.hoisted(() => vi.fn())
 const mockT = vi.hoisted(() => (key: string) => key)
 
 vi.mock('@renderer/hooks/tab', () => ({
@@ -29,6 +30,7 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: mockIpcRequest },
   useIpcOn: mockUseIpcOn
 }))
 
@@ -651,26 +653,28 @@ describe('useSessions', () => {
   })
 
   it('deletes a session and closes the matching agent conversation tab', async () => {
-    const deleteTrigger = vi.fn().mockResolvedValue(undefined)
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agent-sessions/:sessionId', deleteTrigger)
+    mockIpcRequest.mockResolvedValue({ deletedIds: ['session-a'] })
 
     const { result } = renderHook(() => useSessions('agent-1'))
+    const invalidate = mockUseInvalidateCache.mock.results.at(-1)?.value
     const deleted = await act(async () => result.current.deleteSession('session-a'))
 
-    expect(deleteTrigger).toHaveBeenCalledWith({ params: { sessionId: 'session-a' } })
+    expect(mockIpcRequest).toHaveBeenCalledWith('ai.agent.session.delete', { sessionIds: ['session-a'] })
+    expect(invalidate).toHaveBeenCalledWith(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('agents', ['session-a'])
     expect(deleted).toBe(true)
   })
 
-  it('deletes selected sessions through comma-separated query ids', async () => {
-    const response = { deletedIds: ['session-a', 'session-b'], deletedCount: 2 }
-    const deleteTrigger = vi.fn().mockResolvedValue(response)
-    MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agent-sessions', deleteTrigger)
+  it('deletes selected Sessions through the mixed-operation IPC command', async () => {
+    const response = { deletedIds: ['session-a', 'session-b'] }
+    mockIpcRequest.mockResolvedValue(response)
 
     const { result } = renderHook(() => useSessions('agent-1'))
     const deleted = await act(async () => result.current.deleteSessions(['session-a', 'session-b']))
 
-    expect(deleteTrigger).toHaveBeenCalledWith({ query: { ids: 'session-a,session-b' } })
+    expect(mockIpcRequest).toHaveBeenCalledWith('ai.agent.session.delete', {
+      sessionIds: ['session-a', 'session-b']
+    })
     expect(mockCloseConversationTabs).toHaveBeenCalledWith('agents', response.deletedIds)
     expect(deleted).toBe(response)
   })

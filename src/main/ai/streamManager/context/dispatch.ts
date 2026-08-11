@@ -59,7 +59,6 @@ export type MainDispatchRequest = (
   /** Main-only durable user row accepted by the cross-session delivery path. */
   agentDeliveryMessage?: AgentSessionMessageEntity
   /** Main-only queue policy: never redirect this delivery into the currently-running turn. */
-  agentDeliveryQueueOnly?: boolean
 }
 
 const logger = loggerService.withContext('chatContextDispatch')

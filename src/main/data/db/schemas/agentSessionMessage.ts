@@ -28,6 +28,9 @@ export const agentSessionMessageTable = sqliteTable(
     // message edits cannot forge sender identity or mutate delivery lifecycle.
     delivery: text({ mode: 'json' }).$type<AgentSessionDeliveryEnvelope>(),
     deliveryStatus: text().$type<AgentSessionDeliveryStatus>(),
+    // Application-managed soft reference to the assistant placeholder that owns a delivery turn.
+    // No FK: a missing row is recovery evidence and must not silently null the reference on delete.
+    deliveryTurnRef: text(),
     deliveryInReplyTo: text(),
     deliverySenderSessionId: text(),
     // Stable integer surrogate for the FTS5 content_rowid (see message.ts for full rationale):
@@ -41,6 +44,7 @@ export const agentSessionMessageTable = sqliteTable(
     // partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
     index('agent_session_message_status_idx').on(t.status),
     index('agent_session_message_delivery_status_idx').on(t.deliveryStatus),
+    index('agent_session_message_delivery_turn_ref_idx').on(t.deliveryTurnRef),
     index('agent_session_message_delivery_sender_idx').on(t.deliverySenderSessionId, t.createdAt, t.id),
     uniqueIndex('agent_session_message_delivery_reply_uniq').on(t.deliveryInReplyTo),
     // FTS5 content_rowid key — UNIQUE so its index keeps the per-row MAX(fts_rowid)+1 assignment
@@ -50,7 +54,11 @@ export const agentSessionMessageTable = sqliteTable(
     check('agent_session_message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`),
     check(
       'agent_session_message_delivery_status_check',
-      sql`${t.deliveryStatus} IS NULL OR ${t.deliveryStatus} IN ('accepted', 'queued', 'delivering', 'consumed', 'failed')`
+      sql`${t.deliveryStatus} IS NULL OR ${t.deliveryStatus} IN ('accepted', 'delivering', 'consumed', 'failed')`
+    ),
+    check(
+      'agent_session_message_delivery_turn_ref_check',
+      sql`(${t.deliveryStatus} = 'delivering' AND ${t.deliveryTurnRef} IS NOT NULL) OR (${t.deliveryStatus} != 'delivering' AND ${t.deliveryTurnRef} IS NULL) OR (${t.deliveryStatus} IS NULL AND ${t.deliveryTurnRef} IS NULL)`
     )
   ]
 )

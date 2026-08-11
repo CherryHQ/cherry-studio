@@ -7,7 +7,16 @@ import { loggerService } from '@logger'
 import { resolveKnowledgeBaseScope } from '@main/ai/utils/knowledgeScope'
 import { serializeError } from '@main/ai/utils/serializeError'
 import { createAiUsageCaptureContext } from '@main/ai/utils/usageCapture'
-import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import {
+  BaseService,
+  DependsOn,
+  type Disposable,
+  Emitter,
+  type Event,
+  Injectable,
+  Phase,
+  ServicePhase
+} from '@main/core/lifecycle'
 import { topicNamingService } from '@main/services/TopicNamingService'
 import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { AGENT_SESSION_API_RETRY_CACHE_KEY, type AgentSessionApiRetryInfo } from '@shared/ai/agentSessionApiRetry'
@@ -107,6 +116,11 @@ function knowledgeScopeEquals(left: readonly string[], right: readonly string[])
 
 export type AgentSessionRuntimeStatus = 'active' | 'idle'
 export type AgentSessionRuntimeTerminalStatus = AgentSessionTerminalStatus
+export type AgentSessionTurnTerminalEvent = {
+  sessionId: string
+  assistantMessageId: string
+  status: AgentSessionRuntimeTerminalStatus
+}
 
 export interface BeginAgentSessionTurnInput {
   sessionId: string
@@ -292,6 +306,10 @@ class AgentSessionRuntimeTerminalListener implements StreamListener {
 // these entries are closed — do not drop it as unused. Covered by a stop-order test.
 @DependsOn(['ClaudeCodeProcessManager'])
 export class AgentSessionRuntimeService extends BaseService {
+  private readonly _onTurnTerminal = new Emitter<AgentSessionTurnTerminalEvent>()
+  readonly onTurnTerminal: Event<AgentSessionTurnTerminalEvent> = this._onTurnTerminal.event
+  private readonly _onRuntimeIdle = new Emitter<{ sessionId: string }>()
+  readonly onRuntimeIdle: Event<{ sessionId: string }> = this._onRuntimeIdle.event
   private readonly entries = new Map<string, AgentSessionRuntimeEntry>()
   /** Write-quiesce holds (backup restore). Quiesced ⇔ non-empty. Distinct from the BaseService
    *  lifecycle pause — this never touches service state. See `pause()`. */
@@ -843,7 +861,12 @@ export class AgentSessionRuntimeService extends BaseService {
 
   markTurnTerminal(sessionId: string, status: AgentSessionRuntimeTerminalStatus, expectedTurnId?: string): void {
     const entry = this.entries.get(sessionId)
-    if (!entry) return
+    if (!entry) {
+      // closeSession may remove the runtime before AiStreamManager publishes the terminal callback.
+      // That callback is the reliable post-stream wake for durable work blocked by the old turn.
+      this._onRuntimeIdle.fire({ sessionId })
+      return
+    }
     const completedTurn = this.currentTurn(entry)
     if (expectedTurnId) {
       const execution = entry.runtimeState.execution
@@ -856,42 +879,12 @@ export class AgentSessionRuntimeService extends BaseService {
     }
     if (completedTurn) this.markFlowMessagePersisted(entry, completedTurn.assistantMessageId)
     if (completedTurn) {
-      const execution = entry.runtimeState.execution
-      const completedDeliveryMessages =
-        execution.kind === 'steer-transition' && execution.continuationTurn === completedTurn
-          ? execution.inputs.map((input) => input.message)
-          : [completedTurn.userMessage]
       this.applyRuntimeStateEvent(entry, { type: 'turn-terminal', turn: completedTurn, status })
-      for (const message of new Map(completedDeliveryMessages.map((message) => [message.id, message])).values()) {
-        if (message.delivery) {
-          try {
-            const result = agentSessionMessageService.finalizeSessionDelivery({
-              requestSessionId: entry.sessionId,
-              requestMessageId: message.id,
-              assistantMessageId: completedTurn.assistantMessageId,
-              outcome: status === 'success' ? 'success' : status === 'paused' ? 'interrupted' : 'failed'
-            })
-            if (result) {
-              void application
-                .get('AiStreamManager')
-                .dispatchAgentSessionDelivery(result)
-                .catch((error) => {
-                  logger.warn('Failed to dispatch Agent Session completion result', {
-                    requestMessageId: message.id,
-                    resultMessageId: result.id,
-                    error
-                  })
-                })
-            }
-          } catch (error) {
-            logger.warn('Failed to finalize Agent Session delivery; recovery will retry it', {
-              requestMessageId: message.id,
-              assistantMessageId: completedTurn.assistantMessageId,
-              error
-            })
-          }
-        }
-      }
+      this._onTurnTerminal.fire({
+        sessionId: entry.sessionId,
+        assistantMessageId: completedTurn.assistantMessageId,
+        status
+      })
     }
 
     // Connection stays warm across turns (no per-turn close) — only `closeSession`/idle TTL tears it
@@ -904,6 +897,7 @@ export class AgentSessionRuntimeService extends BaseService {
       this.requestRuntimeLaunch(entry, 'queued-turn')
     } else {
       this.refreshIdleTimer(entry)
+      if (!this.isSessionBusy(entry.sessionId)) this._onRuntimeIdle.fire({ sessionId: entry.sessionId })
     }
   }
 
@@ -918,7 +912,10 @@ export class AgentSessionRuntimeService extends BaseService {
       logger.warn('Agent runtime entry close failed', { sessionId, error })
       closing = this.closeRuntimeConnection(fallbackConnection, sessionId)
     }
-    if (this.entries.get(sessionId) === entry) this.entries.delete(sessionId)
+    if (this.entries.get(sessionId) === entry) {
+      this.entries.delete(sessionId)
+      this._onRuntimeIdle.fire({ sessionId })
+    }
     return closing
   }
 
@@ -1310,6 +1307,8 @@ export class AgentSessionRuntimeService extends BaseService {
     } catch (error) {
       logger.warn('Failed to clear agent runtime approvals during destroy', { error })
     }
+    this._onTurnTerminal.dispose()
+    this._onRuntimeIdle.dispose()
   }
 
   private isCurrentEntry(entry: AgentSessionRuntimeEntry): boolean {
@@ -1597,13 +1596,6 @@ export class AgentSessionRuntimeService extends BaseService {
           inputs: event.inputs,
           headless: this.currentTurn(entry)?.headless === true && event.inputs.every((input) => input.headless === true)
         })
-        for (const input of event.inputs) {
-          if (input.message.delivery) {
-            agentSessionMessageService.transitionSessionDelivery(entry.sessionId, input.message.id, 'delivering', {
-              expected: ['accepted', 'queued']
-            })
-          }
-        }
         break
       case 'steer-undelivered':
         // Steers stashed via redirect() that this turn ended before injecting → queue them as the
@@ -2451,17 +2443,6 @@ export class AgentSessionRuntimeService extends BaseService {
       this.refreshIdleTimer(entry)
       return
     }
-    if (
-      pendingTurn.message.delivery &&
-      !agentSessionMessageService.hasSessionMessage(entry.sessionId, pendingTurn.message.id)
-    ) {
-      // The user deleted the durable request while it was queued. The database is authoritative;
-      // discard the stale runtime cache entry instead of executing a ghost turn.
-      this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
-      if (entry.runtimeState.queue.length > 0) this.requestRuntimeLaunch(entry, 'queued-turn')
-      else this.refreshIdleTimer(entry)
-      return
-    }
     this.applyRuntimeStateEvent(entry, { type: 'dequeue-turn' })
     const { message: nextMessage, reasoningEffort, knowledgeBaseIds, fastMode = false } = pendingTurn
 
@@ -2483,20 +2464,6 @@ export class AgentSessionRuntimeService extends BaseService {
           entry.modelId,
           serializeError(new Error(`Agent ${entry.agentId} has no model configured`))
         )
-      if (nextMessage.delivery) {
-        const result = agentSessionMessageService.failSessionDelivery(nextMessage, {
-          code: 'TARGET_UNAVAILABLE',
-          message: `Agent ${entry.agentId} has no model configured`
-        })
-        if (result) {
-          void application
-            .get('AiStreamManager')
-            .dispatchAgentSessionDelivery(result)
-            .catch((error) => {
-              logger.warn('Failed to dispatch unavailable-target result', { resultMessageId: result.id, error })
-            })
-        }
-      }
       this.applyRuntimeStateEvent(entry, { type: 'clear-queue' })
       this.markTurnTerminal(entry.sessionId, 'error')
       return
@@ -2555,13 +2522,6 @@ export class AgentSessionRuntimeService extends BaseService {
       headless
     }
     this.applyRuntimeStateEvent(entry, { type: 'begin-turn', turn: nextTurn })
-    if (nextMessage.delivery) {
-      agentSessionMessageService.transitionSessionDelivery(entry.sessionId, nextMessage.id, 'delivering', {
-        expected: ['accepted', 'queued'],
-        turnRef: assistantMessageId
-      })
-    }
-
     const messages = createRuntimeSeedMessages(nextMessage, assistantMessageId)
     // Author the turn span's input/identity here (the runtime owns its continuation turns).
     if (rootSpan) {
@@ -2836,14 +2796,6 @@ export class AgentSessionRuntimeService extends BaseService {
       headless
     }
     this.applyRuntimeStateEvent(entry, { type: 'continuation-turn-created', turn: continuationTurn })
-    for (const input of transition.inputs) {
-      if (input.message.delivery) {
-        agentSessionMessageService.transitionSessionDelivery(entry.sessionId, input.message.id, 'delivering', {
-          expected: ['delivering'],
-          turnRef: assistantMessageId
-        })
-      }
-    }
     await this.refreshTurnTraceContext(entry, continuationTurn)
     if (
       !this.isCurrentEntry(entry) ||

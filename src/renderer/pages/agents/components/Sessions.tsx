@@ -28,7 +28,7 @@ import {
 } from '@renderer/components/resourceCatalog/dialogs/edit'
 import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMultiplePreferences, usePreference } from '@renderer/data/hooks/usePreference'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useUpdateSession } from '@renderer/hooks/agent/useSession'
@@ -1018,12 +1018,7 @@ const Sessions = ({
       refresh: ['/agent-workspaces', '/agent-sessions']
     }
   )
-  const { trigger: deleteWorkspace } = useMutation('DELETE', '/agent-workspaces/:workspaceId', {
-    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
-  })
-  const { trigger: deleteAgent } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
-  })
+  const invalidate = useInvalidateCache()
   const { trigger: reorderWorkspace } = useMutation('PATCH', '/agent-workspaces/:id/order')
   const { trigger: reorderAgent } = useMutation('PATCH', '/agents/:id/order', { refresh: ['/agents'] })
 
@@ -1149,7 +1144,12 @@ const Sessions = ({
         if (deleteTasksOnly) {
           if (sessionIds.length > 0 && !(await deleteSessions(sessionIds))) return
         } else {
-          const result = await deleteAgent({ params: { agentId }, query: { deleteSessions: true } })
+          const result = await ipcApi.request('ai.agent.delete', { agentId, deleteSessions: true })
+          await Promise.all(
+            ['/agents', '/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) =>
+              invalidate(key)
+            )
+          )
           closeConversationTabs('agents', result.deletedSessionIds ?? [])
         }
         if (currentActiveSession?.agentId === agentId) {
@@ -1175,9 +1175,9 @@ const Sessions = ({
     [
       closeConversationTabs,
       agentById,
-      deleteAgent,
       deleteSessions,
       deletingAgentId,
+      invalidate,
       onActiveAgentDeleted,
       refetchAgents,
       refetchWorkspaces,
@@ -1212,7 +1212,10 @@ const Sessions = ({
       setDeletingWorkspaceGroupId(group.id)
 
       try {
-        const result = await deleteWorkspace({ params: { workspaceId } })
+        const result = await ipcApi.request('ai.agent.workspace.delete', { workspaceId })
+        await Promise.all(
+          ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'].map((key) => invalidate(key))
+        )
         closeConversationTabs('agents', result.deletedIds)
         const affectedSessionIds = new Set(result.deletedIds)
 
@@ -1234,8 +1237,8 @@ const Sessions = ({
     [
       activeSessionId,
       closeConversationTabs,
-      deleteWorkspace,
       deletingWorkspaceGroupId,
+      invalidate,
       refetchWorkspaces,
       reload,
       sessionItems,

@@ -1,9 +1,6 @@
 export { AiStreamManager } from './AiStreamManager'
-export {
-  dispatchAcceptedAgentSessionDelivery,
-  recoverAcceptedAgentSessionDeliveries,
-  startAgentSessionRun
-} from './api/startAgentSessionRun'
+export { startAgentSessionRun } from './api/startAgentSessionRun'
+export { agentChatContextProvider } from './context/AgentChatContextProvider'
 export { ChannelAdapterListener } from './listeners/ChannelAdapterListener'
 export { PersistenceListener } from './listeners/PersistenceListener'
 export { SseListener } from './listeners/SseListener'

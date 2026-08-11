@@ -28,7 +28,6 @@ import {
   AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES,
   type AgentSessionDeliveryEnvelope,
   type AgentSessionDeliveryError,
-  type AgentSessionDeliveryMode,
   type AgentSessionDeliveryOutcome,
   type AgentSessionDeliveryReplyPolicy,
   type AgentSessionDeliveryStatus
@@ -66,6 +65,9 @@ import { asNumericKey, decodeListCursor, encodeCursor, keysetOrdering } from './
 
 const logger = loggerService.withContext('AgentSessionMessageService')
 const SQLITE_INARRAY_CHUNK = 500
+// A ranked tool search runs synchronously on Main. Cap evidence scanning at 20 pages per requested
+// result; raise this only if relevance telemetry shows valid Sessions routinely beyond the ceiling.
+const RANKED_SESSION_SEARCH_SCAN_MULTIPLIER = 20
 const MESSAGE_CURSOR_CONFIG = {
   fieldMessage: 'must be a valid message cursor',
   errorMessage: 'Invalid message cursor'
@@ -94,6 +96,7 @@ type RankedSessionMessageSearchInput = {
   q: string
   limit?: number
   agentId?: string
+  addressableOnly?: boolean
 }
 
 type ListSessionMessagesOptions = {
@@ -109,6 +112,7 @@ type SaveAgentSessionMessageParams = {
   message: CreateAgentSessionMessageDto & {
     delivery?: AgentSessionDeliveryEnvelope
     deliveryStatus?: AgentSessionDeliveryStatus
+    deliveryTurnRef?: string | null
     deliveryInReplyTo?: string | null
     deliverySenderSessionId?: string | null
   }
@@ -129,10 +133,17 @@ function mapSessionMessageSearchRow(row: SessionMessageSearchRow, snippet: strin
 
 export const AGENT_SESSION_DELIVERY_ERROR_CODES = {
   SENDER_FORBIDDEN: 'SENDER_FORBIDDEN',
+  SESSION_TOOL_FORBIDDEN: 'SESSION_TOOL_FORBIDDEN',
   TARGET_AGENT_DELETED: 'TARGET_AGENT_DELETED',
   TARGET_SESSION_NOT_FOUND: 'TARGET_SESSION_NOT_FOUND',
   TARGET_SESSION_ORPHANED: 'TARGET_SESSION_ORPHANED',
-  TARGET_UNAVAILABLE: 'TARGET_UNAVAILABLE'
+  TARGET_UNAVAILABLE: 'TARGET_UNAVAILABLE',
+  INTERNAL_ERROR: 'INTERNAL_ERROR',
+  TURN_START_INTERRUPTED: 'TURN_START_INTERRUPTED',
+  DELIVERY_TURN_DELETED: 'DELIVERY_TURN_DELETED',
+  CANCELLED: 'CANCELLED',
+  TARGET_SESSION_DELETED: 'TARGET_SESSION_DELETED',
+  CALLER_SESSION_DELETED: 'CALLER_SESSION_DELETED'
 } as const
 
 export type AgentSessionDeliveryErrorCode =
@@ -291,6 +302,9 @@ export class AgentSessionMessageService {
     const database = application.get('DbService').getDb()
     const limit = Math.min(Math.max(Math.trunc(query.limit ?? 20), 1), 100)
     const agentCondition = query.agentId ? sql`s.agent_id = ${query.agentId}` : sql`1 = 1`
+    const addressableCondition = query.addressableOnly
+      ? sql`s.agent_id IS NOT NULL AND a.id IS NOT NULL AND a.deleted_at IS NULL`
+      : sql`1 = 1`
     const matchQuery = toFtsMatchQuery(query.q)
     const snippetTerms = [...extractMatchTerms(query.q), ...extractShortTerms(query.q)]
 
@@ -315,6 +329,7 @@ export class AgentSessionMessageService {
         LEFT JOIN agent a ON a.id = s.agent_id
         WHERE agent_session_message_fts MATCH ${matchQuery}
           AND ${agentCondition}
+          AND ${addressableCondition}
           ${shortTermConditions.length > 0 ? sql`AND ${sql.join(shortTermConditions, sql` AND `)}` : sql``}
         ORDER BY bm25(agent_session_message_fts), sm.created_at DESC, sm.id DESC
         LIMIT ${chunkLimit}
@@ -328,9 +343,10 @@ export class AgentSessionMessageService {
       const rows: SessionMessageSearchRow[] = []
       const seenSessionIds = new Set<string>()
       const chunkLimit = Math.max(limit, 20)
+      const scanLimit = chunkLimit * RANKED_SESSION_SEARCH_SCAN_MULTIPLIER
       let offset = 0
-      while (rows.length < limit) {
-        const chunk = fetchRows(chunkLimit, offset)
+      while (rows.length < limit && offset < scanLimit) {
+        const chunk = fetchRows(Math.min(chunkLimit, scanLimit - offset), offset)
         for (const row of chunk) {
           if (seenSessionIds.has(row.sessionId)) continue
           seenSessionIds.add(row.sessionId)
@@ -363,6 +379,7 @@ export class AgentSessionMessageService {
           JOIN agent_session s ON s.id = sm.session_id
           LEFT JOIN agent a ON a.id = s.agent_id
           WHERE ${agentCondition}
+            AND ${addressableCondition}
             AND ${sql.join(conditions, sql` AND `)}
           ORDER BY length(sm.searchable_text), sm.created_at DESC, sm.id DESC
           LIMIT ${chunkLimit}
@@ -490,6 +507,11 @@ export class AgentSessionMessageService {
       .all()
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
+    const existing = this.findExistingMessageRow(database, sessionId, messageId)
+    if (existing?.deliveryStatus === 'accepted' || existing?.deliveryStatus === 'delivering') {
+      throw DataApiErrorFactory.resourceLocked('Message', messageId, 'an in-flight Session delivery')
+    }
+
     const result = withSqliteErrors(
       () => this.deleteSessionMessageTx(database, sessionId, messageId),
       defaultHandlersFor('Message', messageId)
@@ -559,7 +581,7 @@ export class AgentSessionMessageService {
           sql`NOT EXISTS (
             SELECT 1 FROM agent_session_message AS delivery_message
             WHERE delivery_message.delivery_status = 'delivering'
-              AND json_extract(delivery_message.delivery, '$.turnRef') = ${sessionMessagesTable.id}
+              AND delivery_message.delivery_turn_ref = ${sessionMessagesTable.id}
           )`
         )
       )
@@ -608,7 +630,12 @@ export class AgentSessionMessageService {
       runtimeResumeToken: row.runtimeResumeToken,
       delivery:
         row.delivery && row.deliveryStatus
-          ? { ...row.delivery, status: row.deliveryStatus, inReplyTo: row.deliveryInReplyTo }
+          ? {
+              ...row.delivery,
+              status: row.deliveryStatus,
+              inReplyTo: row.deliveryInReplyTo,
+              turnRef: row.deliveryTurnRef
+            }
           : null,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)
@@ -681,6 +708,8 @@ export class AgentSessionMessageService {
       const stats = mergeMessageRuntimeStats(existingRow.stats, runtimeStats) ?? null
       const delivery = message.delivery === undefined ? existingRow.delivery : message.delivery
       const deliveryStatus = message.deliveryStatus === undefined ? existingRow.deliveryStatus : message.deliveryStatus
+      const deliveryTurnRef =
+        message.deliveryTurnRef === undefined ? existingRow.deliveryTurnRef : message.deliveryTurnRef
       const deliveryInReplyTo =
         message.deliveryInReplyTo === undefined ? existingRow.deliveryInReplyTo : message.deliveryInReplyTo
       const deliverySenderSessionId =
@@ -702,6 +731,7 @@ export class AgentSessionMessageService {
               runtimeResumeToken: runtimeResumeTokenToPersist,
               delivery,
               deliveryStatus,
+              deliveryTurnRef,
               deliveryInReplyTo,
               deliverySenderSessionId,
               updatedAt: updatedAtMs
@@ -725,6 +755,7 @@ export class AgentSessionMessageService {
           runtimeResumeToken: runtimeResumeTokenToPersist,
           delivery,
           deliveryStatus,
+          deliveryTurnRef,
           deliveryInReplyTo,
           deliverySenderSessionId,
           updatedAt: updatedAtMs
@@ -745,6 +776,7 @@ export class AgentSessionMessageService {
       runtimeResumeToken,
       delivery: message.delivery,
       deliveryStatus: message.deliveryStatus,
+      deliveryTurnRef: message.deliveryTurnRef,
       deliveryInReplyTo: message.deliveryInReplyTo,
       deliverySenderSessionId: message.deliverySenderSessionId,
       createdAt: timestampMs,
@@ -789,25 +821,32 @@ export class AgentSessionMessageService {
     return result.entity
   }
 
-  saveMessages(params: CreateAgentSessionMessagesDto, expectedAgentId?: string): AgentSessionMessageEntity[] {
-    const { sessionId, runtimeResumeToken, messages } = params
-
-    const saved = application.get('DbService').withWriteTx((tx) => {
-      this.assertExpectedAgentTx(tx, sessionId, expectedAgentId)
-      const timestampMs = Date.now()
-      const result: AgentSessionMessageEntity[] = []
-      for (const message of messages) {
-        result.push(this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs).entity)
-      }
-      agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
-      return result
-    })
+  saveMessages(
+    params: CreateAgentSessionMessagesDto,
+    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+  ): AgentSessionMessageEntity[] {
+    const saved = application.get('DbService').withWriteTx((tx) => this.saveMessagesTx(tx, params, expectedAgent))
     for (const entity of saved) {
       if (entity.role === 'assistant') {
         aiUsageRecordService.refreshMessageProjection({ kind: 'agent-session', id: entity.id })
       }
     }
     return saved
+  }
+
+  saveMessagesTx(
+    tx: DbOrTx,
+    params: CreateAgentSessionMessagesDto,
+    expectedAgent?: string | { id: string; updatedAt: string; model: string; type: string }
+  ): AgentSessionMessageEntity[] {
+    const { sessionId, runtimeResumeToken, messages } = params
+    this.assertExpectedAgentTx(tx, sessionId, expectedAgent)
+    const timestampMs = Date.now()
+    const result = messages.map(
+      (message) => this.upsertMessage(tx, { sessionId, runtimeResumeToken, message }, timestampMs).entity
+    )
+    agentSessionService.touchUpdatedAtTx(tx, sessionId, timestampMs)
+    return result
   }
 
   /**
@@ -820,7 +859,6 @@ export class AgentSessionMessageService {
     senderSessionId: string
     receiverSessionId: string
     content: string
-    mode: AgentSessionDeliveryMode
     replyPolicy?: AgentSessionDeliveryReplyPolicy
   }): AgentSessionMessageEntity {
     const content = input.content.trim()
@@ -859,7 +897,6 @@ export class AgentSessionMessageService {
             senderSessionId: input.senderSessionId,
             receiverSessionId: sessionId,
             content,
-            mode: 'queue',
             replyPolicy: 'completion'
           })
         }),
@@ -887,7 +924,6 @@ export class AgentSessionMessageService {
       senderSessionId: string
       receiverSessionId: string
       content: string
-      mode: AgentSessionDeliveryMode
       replyPolicy?: AgentSessionDeliveryReplyPolicy
     }
   ): AgentSessionMessageEntity {
@@ -958,8 +994,6 @@ export class AgentSessionMessageService {
         sessionName: receiverSession.sessionName
       },
       replyPolicy: input.replyPolicy ?? 'none',
-      mode: input.mode,
-      turnRef: null,
       sourceMessageId: null,
       outcome: null,
       error: null,
@@ -993,18 +1027,32 @@ export class AgentSessionMessageService {
       .map((row) => this.rowToEntity(row))
   }
 
-  listAcceptedDeletionResults(): AgentSessionMessageEntity[] {
+  listAcceptedSessionDeliveries(sessionId?: string): AgentSessionMessageEntity[] {
+    const filters = [eq(sessionMessagesTable.deliveryStatus, 'accepted')]
+    if (sessionId) filters.push(eq(sessionMessagesTable.sessionId, sessionId))
     return application
       .get('DbService')
       .getDb()
       .select()
       .from(sessionMessagesTable)
-      .where(
-        and(eq(sessionMessagesTable.deliveryStatus, 'accepted'), isNotNull(sessionMessagesTable.deliveryInReplyTo))
-      )
+      .where(and(...filters))
+      .orderBy(sessionMessagesTable.createdAt, sessionMessagesTable.id)
       .all()
-      .filter((row) => row.delivery?.error?.code === 'TARGET_SESSION_DELETED')
       .map((row) => this.rowToEntity(row))
+  }
+
+  findDeliveringSessionDeliveryByTurnRef(turnRef: string): AgentSessionMessageEntity | null {
+    const row = application
+      .get('DbService')
+      .getDb()
+      .select()
+      .from(sessionMessagesTable)
+      .where(
+        and(eq(sessionMessagesTable.deliveryStatus, 'delivering'), eq(sessionMessagesTable.deliveryTurnRef, turnRef))
+      )
+      .limit(1)
+      .get()
+    return row ? this.rowToEntity(row) : null
   }
 
   publishDeliveryChanges(messages: readonly AgentSessionMessageEntity[]): void {
@@ -1085,14 +1133,17 @@ export class AgentSessionMessageService {
 
       const delivery: AgentSessionDeliveryEnvelope = {
         ...existing.delivery,
-        ...(options.turnRef !== undefined ? { turnRef: options.turnRef } : {}),
         ...(options.outcome !== undefined ? { outcome: options.outcome } : {}),
         ...(options.error !== undefined ? { error: options.error } : {}),
         statusAt: new Date().toISOString()
       }
       const [row] = tx
         .update(sessionMessagesTable)
-        .set({ delivery, deliveryStatus: status })
+        .set({
+          delivery,
+          deliveryStatus: status,
+          deliveryTurnRef: status === 'delivering' ? (options.turnRef ?? existing.deliveryTurnRef) : null
+        })
         .where(
           and(
             eq(sessionMessagesTable.id, messageId),
@@ -1106,6 +1157,30 @@ export class AgentSessionMessageService {
     })
     if (updated) this.publishDeliveryChange(messageId, 'projection')
     return updated
+  }
+
+  claimSessionDeliveryTx(
+    tx: DbOrTx,
+    sessionId: string,
+    messageId: string,
+    turnRef: string
+  ): AgentSessionMessageEntity | null {
+    const existing = this.findExistingMessageRow(tx, sessionId, messageId)
+    if (!existing?.delivery || existing.deliveryStatus !== 'accepted') return null
+    const delivery = { ...existing.delivery, statusAt: new Date().toISOString() }
+    const row = tx
+      .update(sessionMessagesTable)
+      .set({ delivery, deliveryStatus: 'delivering', deliveryTurnRef: turnRef })
+      .where(
+        and(
+          eq(sessionMessagesTable.id, messageId),
+          eq(sessionMessagesTable.sessionId, sessionId),
+          eq(sessionMessagesTable.deliveryStatus, 'accepted')
+        )
+      )
+      .returning()
+      .get()
+    return row ? this.rowToEntity(row) : null
   }
 
   updateSessionDeliveryStatus(
@@ -1129,6 +1204,10 @@ export class AgentSessionMessageService {
       const request = this.findExistingMessageRow(tx, input.requestSessionId, input.requestMessageId)
       if (!request?.delivery || !request.deliveryStatus) return { requestId: null, result: null }
 
+      if (request.deliveryStatus !== 'delivering' || request.deliveryTurnRef !== input.assistantMessageId) {
+        return { requestId: null, result: null }
+      }
+
       const existingResult = tx
         .select()
         .from(sessionMessagesTable)
@@ -1136,15 +1215,14 @@ export class AgentSessionMessageService {
         .limit(1)
         .get()
       if (existingResult) {
-        if (request.deliveryStatus !== 'consumed') {
-          tx.update(sessionMessagesTable)
-            .set({
-              deliveryStatus: 'consumed',
-              delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
-            })
-            .where(eq(sessionMessagesTable.id, request.id))
-            .run()
-        }
+        tx.update(sessionMessagesTable)
+          .set({
+            deliveryStatus: 'consumed',
+            deliveryTurnRef: null,
+            delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
+          })
+          .where(eq(sessionMessagesTable.id, request.id))
+          .run()
         return {
           requestId: request.id,
           result: existingResult.deliveryStatus === 'accepted' ? this.rowToEntity(existingResult) : null
@@ -1168,6 +1246,7 @@ export class AgentSessionMessageService {
           tx.update(sessionMessagesTable)
             .set({
               deliveryStatus: 'failed',
+              deliveryTurnRef: null,
               delivery: {
                 ...request.delivery,
                 outcome: 'failed',
@@ -1186,8 +1265,6 @@ export class AgentSessionMessageService {
           senderSnapshot: request.delivery.receiverSnapshot,
           receiverSnapshot: request.delivery.senderSnapshot,
           replyPolicy: 'none',
-          mode: 'auto',
-          turnRef: null,
           sourceMessageId: assistant.id,
           outcome: input.outcome,
           error: null,
@@ -1211,6 +1288,7 @@ export class AgentSessionMessageService {
       tx.update(sessionMessagesTable)
         .set({
           deliveryStatus: 'consumed',
+          deliveryTurnRef: null,
           delivery: { ...request.delivery, outcome: input.outcome, statusAt: new Date().toISOString() }
         })
         .where(eq(sessionMessagesTable.id, request.id))
@@ -1265,8 +1343,6 @@ export class AgentSessionMessageService {
                     senderSnapshot: request.delivery.receiverSnapshot,
                     receiverSnapshot: request.delivery.senderSnapshot,
                     replyPolicy: 'none',
-                    mode: 'auto',
-                    turnRef: null,
                     sourceMessageId: null,
                     outcome: 'failed',
                     error,
@@ -1281,6 +1357,7 @@ export class AgentSessionMessageService {
       tx.update(sessionMessagesTable)
         .set({
           deliveryStatus: 'failed',
+          deliveryTurnRef: null,
           delivery: { ...request.delivery, outcome: 'failed', error, statusAt: now }
         })
         .where(eq(sessionMessagesTable.id, request.id))
@@ -1301,7 +1378,7 @@ export class AgentSessionMessageService {
       .where(
         and(
           inArray(sessionMessagesTable.sessionId, deleting),
-          inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'queued', 'delivering'])
+          inArray(sessionMessagesTable.deliveryStatus, ['accepted', 'delivering'])
         )
       )
       .all()
@@ -1343,8 +1420,6 @@ export class AgentSessionMessageService {
               senderSnapshot: request.delivery.receiverSnapshot,
               receiverSnapshot: request.delivery.senderSnapshot,
               replyPolicy: 'none',
-              mode: 'auto',
-              turnRef: null,
               sourceMessageId: null,
               outcome: 'failed',
               error: { code: 'TARGET_SESSION_DELETED', message: 'Target Session was deleted' },
@@ -1371,16 +1446,36 @@ export class AgentSessionMessageService {
   }
 
   /** Reject ownership changes before any message row is written in this transaction. */
-  private assertExpectedAgentTx(db: DbOrTx, sessionId: string, expectedAgentId: string | undefined): void {
-    if (!expectedAgentId) return
+  private assertExpectedAgentTx(
+    db: DbOrTx,
+    sessionId: string,
+    expectedAgent: string | { id: string; updatedAt: string; model: string; type: string } | undefined
+  ): void {
+    if (!expectedAgent) return
+    const expectedAgentId = typeof expectedAgent === 'string' ? expectedAgent : expectedAgent.id
     const [session] = db
-      .select({ agentId: sessionTable.agentId })
+      .select({
+        agentId: sessionTable.agentId,
+        agentUpdatedAt: agentTable.updatedAt,
+        agentModel: agentTable.model,
+        agentType: agentTable.type
+      })
       .from(sessionTable)
+      .leftJoin(agentTable, eq(sessionTable.agentId, agentTable.id))
       .where(eq(sessionTable.id, sessionId))
       .limit(1)
       .all()
     if (!session || session.agentId !== expectedAgentId) {
       throw DataApiErrorFactory.notFound('Session', sessionId)
+    }
+    if (
+      typeof expectedAgent !== 'string' &&
+      (!session.agentUpdatedAt ||
+        new Date(session.agentUpdatedAt).toISOString() !== expectedAgent.updatedAt ||
+        session.agentModel !== expectedAgent.model ||
+        session.agentType !== expectedAgent.type)
+    ) {
+      throw DataApiErrorFactory.concurrentModification('Agent', expectedAgent.id)
     }
   }
 

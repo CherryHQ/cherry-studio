@@ -530,8 +530,7 @@
         "accepted": "[to be translated]:Accepted",
         "consumed": "[to be translated]:Consumed",
         "delivering": "[to be translated]:Delivering",
-        "failed": "[to be translated]:Failed",
-        "queued": "[to be translated]:Queued"
+        "failed": "[to be translated]:Failed"
       }
     },
     "settings": {

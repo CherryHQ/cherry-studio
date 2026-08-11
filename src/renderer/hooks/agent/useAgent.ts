@@ -7,6 +7,7 @@
  */
 
 import { useInvalidateCache, useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { ipcApi } from '@renderer/ipc'
 import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import { toast } from '@renderer/services/toast'
 import type { AddAgentForm, UpdateAgentBaseOptions, UpdateAgentForm, UpdateAgentFunction } from '@renderer/types/agent'
@@ -85,19 +86,17 @@ export const useAgents = () => {
     [invalidate, t]
   )
 
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/agents/:agentId', {
-    refresh: ['/agents', '/agent-sessions', '/pins']
-  })
   const deleteAgent = useCallback(
     async (id: string) => {
       try {
-        await deleteTrigger({ params: { agentId: id } })
+        await ipcApi.request('ai.agent.delete', { agentId: id, deleteSessions: false })
+        await Promise.all([invalidate('/agents'), invalidate('/agent-sessions'), invalidate('/pins')])
         toast.success(t('common.delete_success'))
       } catch (error) {
         toast.error(formatErrorMessageWithPrefix(error, t('agent.delete.error.failed')))
       }
     },
-    [deleteTrigger, t]
+    [invalidate, t]
   )
 
   return { agents, error, isLoading, addAgent, deleteAgent, refetch }

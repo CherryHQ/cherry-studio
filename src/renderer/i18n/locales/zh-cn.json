@@ -550,8 +550,7 @@
         "accepted": "已接受",
         "consumed": "已消费",
         "delivering": "投递中",
-        "failed": "失败",
-        "queued": "排队中"
+        "failed": "失败"
       }
     },
     "settings": {

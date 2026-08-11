@@ -17,7 +17,7 @@ import {
 } from '@renderer/data/hooks/useDataApi'
 import { useReorder } from '@renderer/data/hooks/useReorder'
 import { useCloseConversationTabs } from '@renderer/hooks/tab'
-import { useIpcOn } from '@renderer/ipc'
+import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
 import type { UpdateAgentBaseOptions } from '@renderer/types/agent'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
@@ -207,6 +207,7 @@ export const useSessions = (
 ) => {
   const { t } = useTranslation()
   const closeConversationTabs = useCloseConversationTabs()
+  const invalidate = useInvalidateCache()
   const pageSize = typeof options === 'number' ? options : (options.pageSize ?? DEFAULT_SESSION_PAGE_SIZE)
   const loadAll = typeof options === 'number' ? false : (options.loadAll ?? false)
   const enabled = typeof options === 'number' ? undefined : options.enabled
@@ -305,16 +306,11 @@ export const useSessions = (
     [agentId, createTrigger, refresh, t]
   )
 
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-sessions/:sessionId', {
-    refresh: ['/agent-sessions']
-  })
-  const { trigger: deleteManyTrigger } = useMutation('DELETE', '/agent-sessions', {
-    refresh: ['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels']
-  })
   const deleteSession = useCallback(
     async (id: string): Promise<boolean> => {
       try {
-        await deleteTrigger({ params: { sessionId: id } })
+        await ipcApi.request('ai.agent.session.delete', { sessionIds: [id] })
+        await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
         closeConversationTabs('agents', [id])
         return true
       } catch (error) {
@@ -322,13 +318,14 @@ export const useSessions = (
         return false
       }
     },
-    [closeConversationTabs, deleteTrigger, t]
+    [closeConversationTabs, invalidate, t]
   )
 
   const deleteSessions = useCallback(
     async (ids: string[]): Promise<DeleteAgentSessionsResult | null> => {
       try {
-        const result = await deleteManyTrigger({ query: { ids: ids.join(',') } })
+        const result = await ipcApi.request('ai.agent.session.delete', { sessionIds: ids })
+        await invalidate(['/agent-sessions', '/agent-workspaces', '/pins', '/agent-channels'])
         closeConversationTabs('agents', result.deletedIds)
         return result
       } catch (error) {
@@ -336,7 +333,7 @@ export const useSessions = (
         return null
       }
     },
-    [closeConversationTabs, deleteManyTrigger, t]
+    [closeConversationTabs, invalidate, t]
   )
 
   const reorderSessions = useCallback(

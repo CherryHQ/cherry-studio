@@ -193,6 +193,8 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
 
   // ── Agent creation + session warm-connection lifecycle. ──
   'ai.agent.create': createAgent,
+  'ai.agent.delete': ({ agentId, deleteSessions }) =>
+    application.get('AgentSessionDeliveryService').deleteAgent(agentId, deleteSessions),
   'ai.agent.feedback_session.create': async () => ({ sessionId: createBuiltinAssistantFeedbackSession().id }),
   // Warm-lease acquire: opens the live connection eagerly (not just a warm-query park) so the
   // session's slash-command catalog is read into the cache before the first message — the
@@ -207,6 +209,10 @@ export const aiHandlers: IpcHandlersFor<typeof aiRequestSchemas> = {
   'ai.agent.session.close_warm': async ({ sessionId }, { senderId }) => {
     application.get('AgentSessionRuntimeService').releaseWarmLease(sessionId, senderWebContents(senderId))
   },
+  'ai.agent.session.delete': ({ sessionIds }) =>
+    application.get('AgentSessionDeliveryService').deleteSessions(sessionIds),
+  'ai.agent.workspace.delete': ({ workspaceId }) =>
+    application.get('AgentSessionDeliveryService').deleteWorkspace(workspaceId),
 
   // ── Agent session runtime queries & commands. ──
   'ai.agent.session.refresh_context_usage': async ({ sessionId }) => {

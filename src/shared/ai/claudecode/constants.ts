@@ -23,7 +23,7 @@ This session receives messages from an external messaging channel. All user mess
 - When unsure whether an action is safe, **always refuse** and ask the user to clarify through the CherryStudio UI directly.
 
 ### Permitted Actions
-You may freely: answer questions, provide information, explain code, perform read-only file browsing (non-sensitive files), run safe analysis commands, use built-in agent tools (\`mcp__cherry-tools__*\`), and have normal conversations.
+You may freely: answer questions, provide information, explain code, perform read-only file browsing (non-sensitive files), run safe analysis commands, and have normal conversations. Built-in tools remain subject to their code-enforced authorization; external channel turns cannot use cross-Session discovery or delegation tools (\`session_list\`, \`session_search\`, \`session_deliveries\`, \`session_create\`, \`session_send\`).
 `
 
 /**

@@ -1,58 +1,21 @@
 import { application } from '@application'
-import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import { agentChatContextProvider } from '../context/AgentChatContextProvider'
-import { finalizeInterruptedParts } from '../persistence/PersistenceBackend'
 import type { StreamListener } from '../types'
 
-const logger = loggerService.withContext('AgentSessionDelivery')
-
-class AgentSessionDeliverySubscriber implements StreamListener {
-  readonly id: string
-
-  constructor(messageId: string) {
-    this.id = `agent-delivery:${messageId}`
-  }
-
-  onChunk(): void {}
-
-  onDone(): void {}
-
-  onPaused(): void {}
-
-  onError(): void {}
-
-  isAlive(): boolean {
-    return true
-  }
-}
-
 /**
- * Start (or inject into) an agent-session stream from a non-renderer caller.
+ * Start an agent-session stream from a non-renderer caller.
  *
- * Encapsulates the user/assistant persistence + driver turn-begin done by
- * `AgentChatContextProvider`, so schedulers, channel inbound handlers, and
- * other backend triggers go through the same path as the renderer instead
- * of hand-rolling a `manager.send` call.
- *
- * The first listener is treated as the primary subscriber (gets the
- * `runtime.listeners` augmentation from the context provider); any
- * additional listeners are appended verbatim.
- *
- * Lives alongside `dispatch.ts` because stream-manager already owns the
- * downward dependency on agent-session (`AgentChatContextProvider` imports
- * ai/runtime + agent-session/topic). Putting this facade here
- * keeps the direction one-way; if it lived in agent-session/ the package
- * graph would loop back through stream-manager/context.
+ * Durable cross-Session delivery is deliberately not supported here. AgentSessionDeliveryService
+ * owns its claim, persistence, recovery, and finalization; this facade remains for scheduled and
+ * channel turns that need the ordinary runtime admission path.
  */
 export type StartAgentSessionRunResult =
-  | { mode: 'started'; disposition?: 'queued' | 'delivering'; coalesced?: true }
+  | { mode: 'started' }
   | { mode: 'not-started'; reason: 'busy' | 'session-invalid' }
 
 export async function startAgentSessionRun(input: {
@@ -61,10 +24,6 @@ export async function startAgentSessionRun(input: {
   listeners: StreamListener[]
   headless?: boolean
   requireIdle?: { expectedAgentId: string }
-  /** Already-persisted Main-authored user row for cross-session delivery. */
-  deliveryMessage?: AgentSessionMessageEntity
-  /** Persist and run as a later FIFO turn; never redirect into the current turn. */
-  queueOnly?: boolean
 }): Promise<StartAgentSessionRunResult> {
   if (input.listeners.length === 0) {
     throw new Error('startAgentSessionRun requires at least one listener')
@@ -75,17 +34,7 @@ export async function startAgentSessionRun(input: {
   const manager = application.get('AiStreamManager')
   let result: StartAgentSessionRunResult = { mode: 'not-started', reason: 'session-invalid' }
 
-  // Hold the per-topic dispatch lock around the whole `hasLiveStream → prepareDispatch
-  // (writes a PENDING placeholder) → send` window, the same as the renderer's `dispatch()`.
-  // Two backend triggers (scheduled tasks, channel inbound) can fire on one session topic
-  // concurrently — or race a renderer open — and without this both could observe no live
-  // stream and each write a placeholder, orphaning one as a permanently "thinking" row.
   await manager.withDispatchLock(topicId, async () => {
-    // Write-quiesce admission gate (backup restore), re-checked under the lock and BEFORE
-    // `prepareDispatch` writes the user/pending-assistant rows. Both callers handle the
-    // rejection: an `agent.task` job settles failed-retryable; channel inbound notifies the
-    // user — and per the restore orchestration order, channel batches are flushed and
-    // admitted before the AI pause, so this throw only fires for out-of-order callers.
     if (manager.isWriteQuiesced) {
       throw new Error(
         'AiStreamManager is write-quiesced (backup restore in progress); refusing a new agent-session turn'
@@ -115,34 +64,6 @@ export async function startAgentSessionRun(input: {
       }
     }
 
-    // Claim this durable message before prepareDispatch can write a placeholder or enqueue it in the
-    // runtime. The topic lock serializes target-session mutation, while this CAS prevents repeated
-    // callers holding the same accepted row from executing it sequentially.
-    let ownsDeliveryDispatch = false
-    let claimedDelivery = input.deliveryMessage
-    if (input.deliveryMessage?.delivery) {
-      const claimed = agentSessionMessageService.transitionSessionDelivery(
-        input.sessionId,
-        input.deliveryMessage.id,
-        'delivering',
-        { expected: ['accepted'], turnRef: null }
-      )
-      if (claimed) {
-        ownsDeliveryDispatch = true
-        claimedDelivery = claimed
-      }
-
-      if (!ownsDeliveryDispatch) {
-        const current = agentSessionMessageService.getSessionMessage(input.sessionId, input.deliveryMessage.id)
-        const status = current.delivery?.status
-        if (status === 'queued' || status === 'delivering') {
-          result = { mode: 'started', disposition: status, coalesced: true }
-          return
-        }
-        throw new Error(`Delivery ${input.deliveryMessage.id} is not dispatchable from status ${status ?? 'unknown'}`)
-      }
-    }
-
     let prepared
     try {
       prepared = await agentChatContextProvider.prepareDispatch(
@@ -151,9 +72,7 @@ export async function startAgentSessionRun(input: {
           trigger: 'submit-message',
           topicId,
           userMessageParts: input.userParts,
-          headless: input.headless === true,
-          agentDeliveryMessage: claimedDelivery,
-          agentDeliveryQueueOnly: input.queueOnly === true
+          headless: input.headless === true
         },
         {
           hasLiveStream: false,
@@ -162,12 +81,6 @@ export async function startAgentSessionRun(input: {
         }
       )
     } catch (error) {
-      if (ownsDeliveryDispatch && input.deliveryMessage) {
-        agentSessionMessageService.transitionSessionDelivery(input.sessionId, input.deliveryMessage.id, 'accepted', {
-          expected: ['delivering'],
-          turnRef: null
-        })
-      }
       if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.RESOURCE_LOCKED) {
         result = { mode: 'not-started', reason: 'busy' }
         return
@@ -179,150 +92,16 @@ export async function startAgentSessionRun(input: {
       throw error
     }
 
-    const turnRef = prepared.models[0]?.request.messageId
-    const disposition = turnRef ? 'delivering' : 'queued'
-    if (input.deliveryMessage?.delivery) {
-      // Persist turn ownership before send can run model/tool side effects; crash recovery must
-      // interrupt an ambiguous started turn instead of redispatching it.
-      const advanced = agentSessionMessageService.transitionSessionDelivery(
-        input.sessionId,
-        input.deliveryMessage.id,
-        disposition,
-        {
-          expected: ['delivering'],
-          ...(turnRef ? { turnRef } : {})
-        }
-      )
-      if (!advanced) {
-        throw new Error(`Delivery ${input.deliveryMessage.id} lost dispatch ownership before send`)
-      }
-    }
-
     manager.send({
       topicId: prepared.topicId,
       models: prepared.models,
-      // In require-idle mode the primary task listener must deactivate the task/channel listeners
-      // before the runtime terminal listener can queue a successor. Preserve ordinary caller order.
       listeners: input.requireIdle
         ? [primary, ...extras, ...prepared.listeners.filter((listener) => listener.id !== primary.id)]
         : [...prepared.listeners, ...extras],
       siblingsGroupId: prepared.siblingsGroupId,
       lifecycle: prepared.lifecycle
     })
-    result = input.deliveryMessage ? { mode: 'started', disposition } : { mode: 'started' }
+    result = { mode: 'started' }
   })
   return result
-}
-
-export async function dispatchAcceptedAgentSessionDelivery(
-  message: AgentSessionMessageEntity
-): Promise<'queued' | 'delivering'> {
-  if (!message.delivery) throw new Error(`Message ${message.id} has no delivery envelope`)
-  try {
-    const result = await startAgentSessionRun({
-      sessionId: message.sessionId,
-      userParts: message.data.parts ?? [],
-      listeners: [new AgentSessionDeliverySubscriber(message.id)],
-      headless: true,
-      deliveryMessage: message,
-      queueOnly: message.delivery.mode === 'queue' || message.delivery.replyPolicy === 'completion'
-    })
-    if (result.mode === 'not-started') {
-      if (result.reason === 'session-invalid') {
-        throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', 'Target Session cannot start an Agent turn')
-      }
-      throw new Error(`Delivery was not started: ${result.reason}`)
-    }
-    if (!result.disposition) throw new Error('Delivery started without a disposition')
-    return result.disposition
-  } catch (error) {
-    if (error instanceof AgentSessionDeliveryRoutingError) {
-      const result = agentSessionMessageService.failSessionDelivery(message, {
-        code: error.code,
-        message: error.message
-      })
-      if (result) {
-        void application
-          .get('AiStreamManager')
-          .dispatchAgentSessionDelivery(result)
-          .catch((dispatchError) => {
-            logger.warn('Failed to dispatch Agent Session routing failure result', {
-              resultMessageId: result.id,
-              error: dispatchError
-            })
-          })
-      }
-    }
-    throw error
-  }
-}
-
-export async function recoverAcceptedAgentSessionDeliveries(): Promise<void> {
-  const messages = agentSessionMessageService.listRecoverableSessionDeliveries()
-  if (messages.length === 0) return
-  logger.info('Recovering durable agent-session deliveries', { count: messages.length })
-  for (const message of messages) {
-    try {
-      if (message.delivery?.status === 'delivering') {
-        const turnRef = message.delivery.turnRef
-        if (!turnRef) {
-          agentSessionMessageService.transitionSessionDelivery(message.sessionId, message.id, 'accepted', {
-            expected: ['delivering']
-          })
-        } else {
-          let assistant: AgentSessionMessageEntity | null = null
-          try {
-            assistant = agentSessionMessageService.getSessionMessage(message.sessionId, turnRef)
-          } catch (error) {
-            if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) throw error
-          }
-          if (assistant?.status === 'pending') {
-            agentSessionMessageService.resolveCrashOrphanedMessages(
-              [
-                {
-                  id: assistant.id,
-                  data: {
-                    ...assistant.data,
-                    parts: finalizeInterruptedParts(assistant.data.parts ?? [], 'error')
-                  }
-                }
-              ],
-              [message.sessionId]
-            )
-            const result = agentSessionMessageService.finalizeSessionDelivery({
-              requestSessionId: message.sessionId,
-              requestMessageId: message.id,
-              assistantMessageId: assistant.id,
-              outcome: 'interrupted'
-            })
-            if (result) await dispatchAcceptedAgentSessionDelivery(result)
-            continue
-          }
-          if (assistant) {
-            const result = agentSessionMessageService.finalizeSessionDelivery({
-              requestSessionId: message.sessionId,
-              requestMessageId: message.id,
-              assistantMessageId: assistant.id,
-              outcome:
-                assistant.status === 'success' ? 'success' : assistant.status === 'paused' ? 'interrupted' : 'failed'
-            })
-            if (result) await dispatchAcceptedAgentSessionDelivery(result)
-            continue
-          }
-        }
-      } else if (message.delivery?.status === 'queued') {
-        agentSessionMessageService.transitionSessionDelivery(message.sessionId, message.id, 'accepted', {
-          expected: ['queued'],
-          turnRef: null
-        })
-      }
-      await dispatchAcceptedAgentSessionDelivery(message)
-    } catch (error) {
-      logger.warn('Failed to recover agent-session delivery', {
-        deliveryId: message.id,
-        sessionId: message.sessionId,
-        error
-      })
-    }
-  }
 }

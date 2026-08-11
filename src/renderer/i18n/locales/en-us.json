@@ -550,8 +550,7 @@
         "accepted": "Accepted",
         "consumed": "Consumed",
         "delivering": "Delivering",
-        "failed": "Failed",
-        "queued": "Queued"
+        "failed": "Failed"
       }
     },
     "settings": {

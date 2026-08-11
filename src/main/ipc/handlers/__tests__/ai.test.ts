@@ -58,6 +58,7 @@ const fileManager = { read: vi.fn() }
 
 const claudeCodeWarmQueryManager = { prewarmAgentSession: vi.fn(), closeAgentSessionWarm: vi.fn() }
 const agentSessionRuntimeService = { acquireWarmLease: vi.fn(), releaseWarmLease: vi.fn() }
+const agentSessionDeliveryService = { deleteSessions: vi.fn(), deleteAgent: vi.fn(), deleteWorkspace: vi.fn() }
 const claudeCodeTraceBridgeService = { isTraceModeEnabled: vi.fn() }
 const agentJobsService = {
   createTask: vi.fn(),
@@ -93,6 +94,8 @@ beforeEach(() => {
         return claudeCodeWarmQueryManager
       case 'AgentSessionRuntimeService':
         return agentSessionRuntimeService
+      case 'AgentSessionDeliveryService':
+        return agentSessionDeliveryService
       case 'ClaudeCodeTraceBridgeService':
         return claudeCodeTraceBridgeService
       case 'AgentJobsService':
@@ -112,6 +115,34 @@ beforeEach(() => {
 const ctx = { senderId: 'w1' }
 
 describe('aiHandlers', () => {
+  it('delegates mixed-effect Session deletion to the delivery owner', async () => {
+    agentSessionDeliveryService.deleteSessions.mockResolvedValue({ deletedIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.session.delete']({ sessionIds: ['session-1'] }, ctx)).resolves.toEqual({
+      deletedIds: ['session-1']
+    })
+    expect(agentSessionDeliveryService.deleteSessions).toHaveBeenCalledWith(['session-1'])
+  })
+
+  it('delegates mixed-effect Agent deletion to the delivery owner', async () => {
+    agentSessionDeliveryService.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.delete']({ agentId: 'agent-1', deleteSessions: true }, ctx)).resolves.toEqual({
+      deleted: true,
+      deletedSessionIds: ['session-1']
+    })
+    expect(agentSessionDeliveryService.deleteAgent).toHaveBeenCalledWith('agent-1', true)
+  })
+
+  it('delegates mixed-effect workspace deletion to the delivery owner', async () => {
+    agentSessionDeliveryService.deleteWorkspace.mockResolvedValue({ deletedIds: ['session-1'] })
+
+    await expect(aiHandlers['ai.agent.workspace.delete']({ workspaceId: 'workspace-1' }, ctx)).resolves.toEqual({
+      deletedIds: ['session-1']
+    })
+    expect(agentSessionDeliveryService.deleteWorkspace).toHaveBeenCalledWith('workspace-1')
+  })
+
   it('delegates feedback-session creation and returns its id', async () => {
     const result = await aiHandlers['ai.agent.feedback_session.create'](undefined, ctx)
 

@@ -35,6 +35,8 @@ const agentDataMocks = vi.hoisted(() => ({
     }
   ],
   deleteAgent: vi.fn(),
+  invalidate: vi.fn(),
+  ipcRequest: vi.fn(),
   refetchAgents: vi.fn(),
   toggleAgentPin: vi.fn()
 }))
@@ -344,9 +346,14 @@ vi.mock('@renderer/hooks/useTopic', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => agentDataMocks.invalidate,
   useMutation: (_method: string, path: string) => ({
     trigger: path === '/agents/:agentId' ? agentDataMocks.deleteAgent : vi.fn()
   })
+}))
+
+vi.mock('@renderer/ipc', () => ({
+  ipcApi: { request: agentDataMocks.ipcRequest, on: vi.fn(() => () => undefined) }
 }))
 
 vi.mock('@renderer/utils/chat/topicsHelpers', () => ({
@@ -396,6 +403,15 @@ describe('classic layout entity resource list actions', () => {
     assistantDataMocks.refetchAssistants.mockClear()
     agentDataMocks.deleteAgent.mockResolvedValue({ deleted: true, deletedSessionIds: [] })
     agentDataMocks.deleteAgent.mockClear()
+    agentDataMocks.invalidate.mockResolvedValue(undefined)
+    agentDataMocks.invalidate.mockClear()
+    agentDataMocks.ipcRequest.mockImplementation((_route, input) =>
+      agentDataMocks.deleteAgent({
+        params: { agentId: input.agentId },
+        query: { deleteSessions: input.deleteSessions }
+      })
+    )
+    agentDataMocks.ipcRequest.mockClear()
     agentDataMocks.refetchAgents.mockResolvedValue(undefined)
     agentDataMocks.refetchAgents.mockClear()
     agentDataMocks.toggleAgentPin.mockResolvedValue(undefined)

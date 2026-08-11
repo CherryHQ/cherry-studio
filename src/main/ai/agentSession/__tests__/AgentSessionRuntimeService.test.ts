@@ -19,7 +19,6 @@ const mocks = vi.hoisted(() => ({
   transitionSessionDelivery: vi.fn(),
   finalizeSessionDelivery: vi.fn(),
   failSessionDelivery: vi.fn(),
-  dispatchAgentSessionDelivery: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
@@ -114,28 +113,6 @@ function userMessage(id: string, knowledgeBaseIds: string[] = []) {
     createdAt: '',
     updatedAt: ''
   } as any
-}
-
-function deliveryUserMessage(id: string) {
-  const message = userMessage(id)
-  const sender = { agentId: 'agent-a', sessionId: 'sender' }
-  message.delivery = {
-    version: 1,
-    sender,
-    receiver: { agentId: 'agent-1', sessionId: 'session-1' },
-    senderSnapshot: { agentName: 'A', sessionName: 'Sender' },
-    receiverSnapshot: { agentName: 'B', sessionName: 'Target' },
-    replyPolicy: 'none',
-    mode: 'auto',
-    turnRef: null,
-    sourceMessageId: null,
-    outcome: null,
-    error: null,
-    statusAt: new Date().toISOString(),
-    status: 'queued',
-    inReplyTo: null
-  }
-  return message
 }
 
 function terminalListener(handle: { listeners: any[] }) {
@@ -295,8 +272,7 @@ describe('AgentSessionRuntimeService', () => {
           pauseRuntimeTurn: mocks.pauseRuntimeTurn,
           broadcastTopicError: mocks.broadcastTopicError,
           resolveToolApproval: mocks.resolveToolApproval,
-          terminateHeldTopicStream: mocks.terminateHeldTopicStream,
-          dispatchAgentSessionDelivery: mocks.dispatchAgentSessionDelivery
+          terminateHeldTopicStream: mocks.terminateHeldTopicStream
         }
       }
       if (name === 'CacheService')
@@ -400,19 +376,19 @@ describe('AgentSessionRuntimeService', () => {
       expect(service.hasBusySessions()).toBe(false)
     })
 
-    it('marks a durable cross-session input consumed only at the terminal boundary', () => {
-      const message = deliveryUserMessage('delivery-message')
+    it('emits a generic terminal event without owning delivery persistence', () => {
       const service = new AgentSessionRuntimeService()
-      service.beginTurn({ ...baseTurnInput, userMessage: message })
+      const listener = vi.fn()
+      service.onTurnTerminal(listener)
+      service.beginTurn(baseTurnInput)
 
-      expect(mocks.finalizeSessionDelivery).not.toHaveBeenCalled()
       service.markTurnTerminal('session-1', 'success')
-      expect(mocks.finalizeSessionDelivery).toHaveBeenCalledWith({
-        requestSessionId: 'session-1',
-        requestMessageId: 'delivery-message',
+      expect(listener).toHaveBeenCalledWith({
+        sessionId: 'session-1',
         assistantMessageId: 'assistant-1',
-        outcome: 'success'
+        status: 'success'
       })
+      expect(mocks.finalizeSessionDelivery).not.toHaveBeenCalled()
     })
 
     it('stays busy throughout the next-turn drain, closing the clobber window', async () => {
@@ -2967,6 +2943,8 @@ describe('AgentSessionRuntimeService', () => {
 
   it('clears the runtime and closes the connection on closeSession', () => {
     const service = new AgentSessionRuntimeService()
+    const onIdle = vi.fn()
+    service.onRuntimeIdle(onIdle)
     service.beginTurn(baseTurnInput)
     const connection = { close: vi.fn(), send: vi.fn(), events: [], reconcile: vi.fn().mockResolvedValue('current') }
     const entry = getEntry(service)
@@ -2982,6 +2960,11 @@ describe('AgentSessionRuntimeService', () => {
     expect(entry.currentTurn).toBeUndefined()
     expect(entry.runtimeState.launch).toEqual({ kind: 'idle' })
     expect(service.inspect('session-1')).toBeUndefined()
+    expect(onIdle).toHaveBeenCalledWith({ sessionId: 'session-1' })
+
+    onIdle.mockClear()
+    service.markTurnTerminal('session-1', 'success')
+    expect(onIdle).toHaveBeenCalledWith({ sessionId: 'session-1' })
   })
 
   it('declares ClaudeCodeProcessManager so the CLI owner stops last', () => {
@@ -4303,8 +4286,8 @@ describe('AgentSessionRuntimeService', () => {
       await expect(reader.read()).resolves.toMatchObject({ value: { type: 'start' }, done: false })
       await vi.waitFor(() => expect(connection.send).toHaveBeenCalledOnce())
 
-      const steerMessage = deliveryUserMessage('user-2')
-      const secondSteerMessage = deliveryUserMessage('user-3')
+      const steerMessage = userMessage('user-2')
+      const secondSteerMessage = userMessage('user-3')
       const continuationSnapshot = {
         id: 'agent-1',
         name: 'Renamed Before Steer',
@@ -4335,12 +4318,6 @@ describe('AgentSessionRuntimeService', () => {
       // message_start emits this boundary and opens the visible A2 row with the exact same id.
       events.push({ type: 'steer-boundary', inputs: injected })
       await vi.waitFor(() => expect(getEntry(service).runtimeState.execution.kind).toBe('steer-transition'))
-      expect(mocks.transitionSessionDelivery).toHaveBeenCalledWith('session-1', 'user-2', 'delivering', {
-        expected: ['accepted', 'queued']
-      })
-      expect(mocks.transitionSessionDelivery).toHaveBeenCalledWith('session-1', 'user-3', 'delivering', {
-        expected: ['accepted', 'queued']
-      })
       await expect(reader.read()).resolves.toMatchObject({ done: true })
       void terminalListener(handle).onDone({ status: 'success', isTopicDone: false })
       await vi.waitFor(() => expect(getEntry(service).currentTurn.userMessage.id).toBe('user-2'))
@@ -4359,18 +4336,13 @@ describe('AgentSessionRuntimeService', () => {
       })
 
       const continuationTurnId = getEntry(service).currentTurn.turnId
+      const onTurnTerminal = vi.fn()
+      service.onTurnTerminal(onTurnTerminal)
       service.markTurnTerminal('session-1', 'success', continuationTurnId)
-      expect(mocks.finalizeSessionDelivery).toHaveBeenCalledWith({
-        requestSessionId: 'session-1',
-        requestMessageId: 'user-2',
+      expect(onTurnTerminal).toHaveBeenCalledWith({
+        sessionId: 'session-1',
         assistantMessageId: reservedContext?.assistantMessageId,
-        outcome: 'success'
-      })
-      expect(mocks.finalizeSessionDelivery).toHaveBeenCalledWith({
-        requestSessionId: 'session-1',
-        requestMessageId: 'user-3',
-        assistantMessageId: reservedContext?.assistantMessageId,
-        outcome: 'success'
+        status: 'success'
       })
 
       void service.closeSession('session-1')

@@ -225,9 +225,8 @@ describe('useAgents', () => {
   })
 
   describe('deleteAgent', () => {
-    it('calls deleteTrigger and shows success toast', async () => {
-      const mockTrigger = vi.fn().mockResolvedValue(undefined)
-      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agents/:agentId', mockTrigger)
+    it('calls the mixed-effect deletion command and shows success toast', async () => {
+      ipcRequestMock.mockResolvedValue({ deleted: true })
       MockUseDataApiUtils.mockQueryResult('/agents', {
         data: {
           items: [
@@ -242,13 +241,16 @@ describe('useAgents', () => {
       const { result } = renderHook(() => useAgents())
       await act(async () => result.current.deleteAgent('agent-1'))
 
-      expect(mockTrigger).toHaveBeenCalledWith({ params: { agentId: 'agent-1' } })
+      expect(ipcRequestMock).toHaveBeenCalledWith('ai.agent.delete', {
+        agentId: 'agent-1',
+        deleteSessions: false
+      })
+      expect(invalidateSpy).toHaveBeenCalledWith('/agents')
       expect(toast.success).toHaveBeenCalledWith('common.delete_success')
     })
 
-    it('shows error toast when deleteTrigger throws', async () => {
-      const mockTrigger = vi.fn().mockRejectedValue(new Error('Delete failed'))
-      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agents/:agentId', mockTrigger)
+    it('shows error toast when the deletion command throws', async () => {
+      ipcRequestMock.mockRejectedValue(new Error('Delete failed'))
       MockUseDataApiUtils.mockQueryResult('/agents', { data: { items: [], total: 0, page: 1 } as any })
 
       const { result } = renderHook(() => useAgents())

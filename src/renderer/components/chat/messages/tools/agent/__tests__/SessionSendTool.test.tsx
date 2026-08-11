@@ -5,7 +5,7 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
       ({
-        'agent.session_delivery.status.queued': 'Queued',
+        'agent.session_delivery.status.accepted': 'Accepted',
         'message.tools.sessionSend.open': 'Open session',
         'message.tools.sessionSend.sent': 'Sent to',
         'message.tools.sessionSend.to': 'To'
@@ -40,7 +40,7 @@ describe('SessionSendTool', () => {
                 type: 'text',
                 text: JSON.stringify({
                   ok: true,
-                  status: 'queued',
+                  status: 'accepted',
                   delivery: {
                     receiver: { agentId: 'agent-builder', sessionId: 'session-build' },
                     receiverSnapshot: { agentName: 'Builder', sessionName: 'Build session' }
@@ -55,6 +55,6 @@ describe('SessionSendTool', () => {
 
     expect(screen.getAllByText('Builder / Build session')).toHaveLength(2)
     expect(screen.getByText('Implement the reviewed plan.')).toBeInTheDocument()
-    expect(screen.getByText('Queued')).toBeInTheDocument()
+    expect(screen.getByText('Accepted')).toBeInTheDocument()
   })
 })

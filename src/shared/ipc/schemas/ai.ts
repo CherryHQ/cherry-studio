@@ -255,6 +255,10 @@ export const aiRequestSchemas = {
     input: CreateAgentCommandSchema,
     output: AgentEntitySchema
   }),
+  'ai.agent.delete': defineRoute({
+    input: z.strictObject({ agentId: z.string().min(1), deleteSessions: z.boolean().default(false) }),
+    output: z.strictObject({ deleted: z.boolean(), deletedSessionIds: z.array(z.string()).optional() })
+  }),
   'ai.agent.feedback_session.create': defineRoute({
     input: z.void(),
     output: z.strictObject({ sessionId: z.string().min(1) })
@@ -266,6 +270,14 @@ export const aiRequestSchemas = {
   'ai.agent.session.close_warm': defineRoute({
     input: z.strictObject({ sessionId: z.string().min(1) }),
     output: z.void()
+  }),
+  'ai.agent.session.delete': defineRoute({
+    input: z.strictObject({ sessionIds: z.array(z.string().min(1)).min(1) }),
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
+  }),
+  'ai.agent.workspace.delete': defineRoute({
+    input: z.strictObject({ workspaceId: z.string().min(1) }),
+    output: z.strictObject({ deletedIds: z.array(z.string()) })
   }),
 
   // ── Agent session runtime queries & commands ──

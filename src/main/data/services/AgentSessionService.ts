@@ -17,6 +17,7 @@ import { loggerService } from '@logger'
 import { buildSearchSnippet } from '@main/utils/searchSnippet'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type {
   AgentSessionEntity,
   CreateAgentSessionDto,
@@ -53,6 +54,13 @@ export type SessionMetadataSearchResult = {
   matches: SessionMetadataSearchMatch[]
 }
 
+export type AddressableAgentSession = {
+  agentId: string
+  agentName: string
+  sessionId: string
+  sessionName: string
+}
+
 function publishTaskReadModelChanges(taskIds: readonly string[]): void {
   if (taskIds.length === 0) return
   // Resolve lazily because AgentTaskService reads the Session-owned relation.
@@ -62,6 +70,12 @@ function publishTaskReadModelChanges(taskIds: readonly string[]): void {
 type JoinedSessionRow = {
   session: SessionRow
   workspace: AgentWorkspaceRow
+}
+
+export type AgentSessionDeletionOutcome = {
+  deletedIds: string[]
+  taskScheduleIds: string[]
+  deliveryResults: AgentSessionMessageEntity[]
 }
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
@@ -94,6 +108,35 @@ function buildSearchPredicate(search: string | undefined): SQL | undefined {
 }
 
 export class AgentSessionService {
+  listAddressableByCursor(query: {
+    agentId?: string
+    cursor?: string
+    limit?: number
+  }): CursorPaginationResponse<AddressableAgentSession> {
+    const limit = Math.min(Math.max(query.limit ?? DEFAULT_LIMIT, 1), 100)
+    const filters = [isNull(agentsTable.deletedAt)]
+    if (query.agentId) filters.push(eq(sessionsTable.agentId, query.agentId))
+    if (query.cursor) filters.push(gt(sessionsTable.id, query.cursor))
+    const rows = application
+      .get('DbService')
+      .getDb()
+      .select({
+        agentId: agentsTable.id,
+        agentName: agentsTable.name,
+        sessionId: sessionsTable.id,
+        sessionName: sessionsTable.name
+      })
+      .from(sessionsTable)
+      .innerJoin(agentsTable, eq(sessionsTable.agentId, agentsTable.id))
+      .where(and(...filters))
+      .orderBy(asc(sessionsTable.id))
+      .limit(limit + 1)
+      .all()
+    const hasNext = rows.length > limit
+    const items = hasNext ? rows.slice(0, limit) : rows
+    return { items, nextCursor: hasNext ? items.at(-1)?.sessionId : undefined }
+  }
+
   search(query: { q: string; limit: number; updatedAtFrom?: number; agentId?: string }): SessionEntitySearchItem[] {
     return this.searchWithMetadataEvidence(query).map((result) => result.item)
   }
@@ -124,7 +167,7 @@ export class AgentSessionService {
         updatedAt: sessionsTable.updatedAt
       })
       .from(sessionsTable)
-      .leftJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
+      .innerJoin(agentsTable, and(eq(sessionsTable.agentId, agentsTable.id), isNull(agentsTable.deletedAt)))
       .where(filters.length > 0 ? and(...filters) : undefined)
       .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
       .limit(limit)
@@ -358,21 +401,23 @@ export class AgentSessionService {
   }
 
   ensureTraceId(sessionId: string): string {
-    return application.get('DbService').withWriteTx((tx) => {
-      const [row] = tx
-        .select({ traceId: sessionsTable.traceId })
-        .from(sessionsTable)
-        .where(eq(sessionsTable.id, sessionId))
-        .limit(1)
-        .all()
+    return application.get('DbService').withWriteTx((tx) => this.ensureTraceIdTx(tx, sessionId))
+  }
 
-      if (!row) throw DataApiErrorFactory.notFound('Session', sessionId)
-      if (row.traceId) return row.traceId
+  ensureTraceIdTx(tx: DbOrTx, sessionId: string): string {
+    const [row] = tx
+      .select({ traceId: sessionsTable.traceId })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.id, sessionId))
+      .limit(1)
+      .all()
 
-      const traceId = randomBytes(16).toString('hex')
-      tx.update(sessionsTable).set({ traceId }).where(eq(sessionsTable.id, sessionId)).run()
-      return traceId
-    })
+    if (!row) throw DataApiErrorFactory.notFound('Session', sessionId)
+    if (row.traceId) return row.traceId
+
+    const traceId = randomBytes(16).toString('hex')
+    tx.update(sessionsTable).set({ traceId }).where(eq(sessionsTable.id, sessionId)).run()
+    return traceId
   }
 
   /**
@@ -597,9 +642,17 @@ export class AgentSessionService {
   }
 
   delete(id: string): void {
-    const taskScheduleIds = application.get('DbService').withWriteTx((tx) => this.deleteTx(tx, id))
-    publishTaskReadModelChanges(taskScheduleIds)
-    this.dispatchDeletionResults()
+    this.deleteForDelivery(id)
+  }
+
+  deleteForDelivery(id: string): AgentSessionDeletionOutcome {
+    const result = application.get('DbService').withWriteTx((tx) => {
+      const row = this.getJoinedSessionRowTx(tx, id)
+      return this.cascadeDeleteSessionRowsTx(tx, [row])
+    })
+    publishTaskReadModelChanges(result.taskScheduleIds)
+    getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
+    return result
   }
 
   deleteTx(tx: DbOrTx, id: string): string[] {
@@ -616,8 +669,13 @@ export class AgentSessionService {
   }
 
   deleteByIds(ids: string[]): DeleteAgentSessionsResult {
+    const result = this.deleteByIdsForDelivery(ids)
+    return { deletedIds: result.deletedIds }
+  }
+
+  deleteByIdsForDelivery(ids: string[]): AgentSessionDeletionOutcome {
     const uniqueIds = Array.from(new Set(ids))
-    if (uniqueIds.length === 0) return { deletedIds: [] }
+    if (uniqueIds.length === 0) return { deletedIds: [], taskScheduleIds: [], deliveryResults: [] }
 
     const result = application.get('DbService').withWriteTx((tx) => {
       const rows = tx
@@ -631,20 +689,32 @@ export class AgentSessionService {
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
-    this.dispatchDeletionResults()
+    getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
     logger.info('Deleted sessions', { count: result.deletedIds.length })
-    return { deletedIds: result.deletedIds }
+    return result
   }
 
   deleteWorkspaceCascade(workspaceId: string): DeleteAgentSessionsResult {
+    const result = this.deleteWorkspaceCascadeForDelivery(workspaceId)
+    return { deletedIds: result.deletedIds }
+  }
+
+  deleteWorkspaceCascadeForDelivery(workspaceId: string): AgentSessionDeletionOutcome {
     const result = application.get('DbService').withWriteTx((tx) => {
       agentWorkspaceService.getRowByIdTx(tx, workspaceId)
       const channelReferences = agentChannelService.resetWorkspaceReferencesTx(tx, workspaceId)
       const taskReferences = getDataService('AgentTaskService').resetWorkspaceReferencesTx(tx, workspaceId)
       const taskScheduleIds = this.getTaskScheduleIdsForWorkspaceTx(tx, workspaceId)
+      const sessionIds = tx
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.workspaceId, workspaceId))
+        .all()
+        .map((session) => session.id)
+      const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, sessionIds)
       const deletedIds = this.deleteByWorkspaceTx(tx, workspaceId)
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
-      return { deletedIds, taskScheduleIds, channelReferences, taskReferences }
+      return { deletedIds, taskScheduleIds, channelReferences, taskReferences, deliveryResults }
     })
     publishTaskReadModelChanges([...result.taskScheduleIds, ...result.taskReferences.map((task) => task.id)])
     logger.info('Deleted user workspace', {
@@ -653,18 +723,15 @@ export class AgentSessionService {
       resetChannelCount: result.channelReferences.length,
       resetTaskCount: result.taskReferences.length
     })
-    this.dispatchDeletionResults()
-    return { deletedIds: result.deletedIds }
+    getDataService('AgentSessionMessageService').publishDeliveryChanges(result.deliveryResults)
+    return {
+      deletedIds: result.deletedIds,
+      taskScheduleIds: result.taskScheduleIds,
+      deliveryResults: result.deliveryResults
+    }
   }
 
   deleteByWorkspaceTx(tx: DbOrTx, workspaceId: string): string[] {
-    const existingSessionIds = tx
-      .select({ id: sessionsTable.id })
-      .from(sessionsTable)
-      .where(eq(sessionsTable.workspaceId, workspaceId))
-      .all()
-      .map((session) => session.id)
-    getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, existingSessionIds)
     const deletedSessions = tx
       .delete(sessionsTable)
       .where(eq(sessionsTable.workspaceId, workspaceId))
@@ -683,12 +750,15 @@ export class AgentSessionService {
     })
 
     publishTaskReadModelChanges(result.taskScheduleIds)
-    this.dispatchDeletionResults()
     logger.info('Deleted agent sessions', { agentId, count: result.deletedIds.length })
     return { deletedIds: result.deletedIds }
   }
 
-  deleteByAgentIdTx(tx: DbOrTx, agentId: string, options: { validateAgent?: boolean } = {}): string[] {
+  deleteByAgentIdTx(
+    tx: DbOrTx,
+    agentId: string,
+    options: { validateAgent?: boolean; deliveryResults?: AgentSessionMessageEntity[] } = {}
+  ): string[] {
     if (options.validateAgent ?? true) {
       const [agent] = tx
         .select({ id: agentsTable.id })
@@ -706,13 +776,25 @@ export class AgentSessionService {
       .where(eq(sessionsTable.agentId, agentId))
       .all()
 
-    return this.cascadeDeleteSessionRowsTx(tx, rows).deletedIds
+    const result = this.cascadeDeleteSessionRowsTx(tx, rows)
+    options.deliveryResults?.push(...result.deliveryResults)
+    return result.deletedIds
   }
 
-  private cascadeDeleteSessionRowsTx(
-    tx: DbOrTx,
-    rows: JoinedSessionRow[]
-  ): { deletedIds: string[]; taskScheduleIds: string[] } {
+  listIdsByAgentTx(tx: DbOrTx, agentId: string): string[] {
+    return tx
+      .select({ id: sessionsTable.id })
+      .from(sessionsTable)
+      .where(eq(sessionsTable.agentId, agentId))
+      .all()
+      .map((row) => row.id)
+  }
+
+  private cascadeDeleteSessionRowsTx(tx: DbOrTx, rows: JoinedSessionRow[]): AgentSessionDeletionOutcome {
+    const deliveryResults = getDataService('AgentSessionMessageService').prepareSessionDeletionTx(
+      tx,
+      rows.map((row) => row.session.id)
+    )
     const taskScheduleIds = this.getTaskScheduleIdsForSessionIdsTx(
       tx,
       rows.map((row) => row.session.id)
@@ -738,7 +820,7 @@ export class AgentSessionService {
       agentWorkspaceService.deleteByIdTx(tx, workspaceId)
     }
 
-    return { deletedIds: Array.from(deleted), taskScheduleIds }
+    return { deletedIds: Array.from(deleted), taskScheduleIds, deliveryResults }
   }
 
   private getTaskScheduleIdsForSessionIdsTx(tx: DbOrTx, sessionIds: readonly string[]): string[] {
@@ -773,7 +855,6 @@ export class AgentSessionService {
     const uniqueIds = Array.from(new Set(ids))
     if (uniqueIds.length === 0) return []
 
-    getDataService('AgentSessionMessageService').prepareSessionDeletionTx(tx, uniqueIds)
     const rows = tx
       .delete(sessionsTable)
       .where(inArray(sessionsTable.id, uniqueIds))
@@ -785,24 +866,6 @@ export class AgentSessionService {
 
     pinService.purgeForEntitiesTx(tx, 'session', deletedIds)
     return deletedIds
-  }
-
-  dispatchDeletionResults(): void {
-    try {
-      const messageService = getDataService('AgentSessionMessageService')
-      const results = messageService.listAcceptedDeletionResults()
-      messageService.publishDeliveryChanges(results)
-      for (const result of results) {
-        void application
-          .get('AiStreamManager')
-          .dispatchAgentSessionDelivery(result)
-          .catch((error) => {
-            logger.warn('Failed to dispatch Agent Session deletion result', { resultMessageId: result.id, error })
-          })
-      }
-    } catch (error) {
-      logger.warn('Agent Session delivery recovery is unavailable after deletion', { error })
-    }
   }
 
   reorder(id: string, anchor: OrderRequest): void {

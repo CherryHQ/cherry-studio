@@ -1,0 +1,535 @@
+import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
+import { AgentSessionDeliveryRoutingError, agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { loggerService } from '@logger'
+import { BaseService, DependsOn, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
+
+import { agentChatContextProvider, finalizeInterruptedParts, type StreamListener } from '../streamManager'
+import { buildAgentSessionTopicId } from './topic'
+
+const logger = loggerService.withContext('AgentSessionDeliveryService')
+
+class DeliveryClaimLostError extends Error {}
+
+class AgentSessionDeliverySubscriber implements StreamListener {
+  readonly id: string
+
+  constructor(messageId: string) {
+    this.id = `agent-delivery:${messageId}`
+  }
+
+  onChunk(): void {}
+  onDone(): void {}
+  onPaused(): void {}
+  onError(): void {}
+  isAlive(): boolean {
+    return true
+  }
+}
+
+export type AcceptSessionDeliveryInput = {
+  senderAgentId: string
+  senderSessionId: string
+  receiverSessionId: string
+  content: string
+  replyPolicy?: 'none' | 'completion'
+}
+
+export type CreateSessionDeliveryInput = {
+  senderAgentId: string
+  senderSessionId: string
+  sessionName: string
+  workspace: AgentSessionWorkspaceSource
+  content: string
+}
+
+@Injectable('AgentSessionDeliveryService')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['AgentSessionRuntimeService', 'AiStreamManager'])
+export class AgentSessionDeliveryService extends BaseService {
+  private readonly pauseHolds = new Set<symbol>()
+  private readonly kicks = new Map<string, Promise<void>>()
+  private readonly pendingKicks = new Set<string>()
+  private readonly inFlight = new Map<string, Promise<void>>()
+  private readonly suppressedSessionIds = new Set<string>()
+  private isShuttingDown = false
+
+  protected override onInit(): void {
+    this.isShuttingDown = false
+    const runtime = application.get('AgentSessionRuntimeService')
+    this.registerDisposable(
+      runtime.onTurnTerminal((event) => {
+        this.track(`terminal:${event.assistantMessageId}`, this.handleTurnTerminal(event))
+      })
+    )
+    this.registerDisposable(runtime.onRuntimeIdle(({ sessionId }) => this.kick(sessionId)))
+    this.recoverDeliveries()
+  }
+
+  protected override onAllReady(): void {
+    this.kick()
+  }
+
+  protected override async onStop(): Promise<void> {
+    this.isShuttingDown = true
+    await this.waitForInFlight()
+  }
+
+  accept(input: AcceptSessionDeliveryInput): AgentSessionMessageEntity {
+    this.assertWritesAvailable()
+    const message = agentSessionMessageService.acceptSessionDelivery(input)
+    this.kick(message.sessionId)
+    return message
+  }
+
+  acceptWithNewSession(input: CreateSessionDeliveryInput): {
+    session: AgentSessionEntity
+    message: AgentSessionMessageEntity
+  } {
+    this.assertWritesAvailable()
+    const created = agentSessionMessageService.createSessionWithDelivery(input)
+    this.kick(created.message.sessionId)
+    return created
+  }
+
+  cancelDelivery(sessionId: string, messageId: string): boolean {
+    this.assertWritesAvailable()
+    let message: AgentSessionMessageEntity
+    try {
+      message = agentSessionMessageService.getSessionMessage(sessionId, messageId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return false
+      throw error
+    }
+    if (message.delivery?.status !== 'accepted') return false
+    const result = agentSessionMessageService.failSessionDelivery(message, {
+      code: 'CANCELLED',
+      message: 'Session delivery was cancelled'
+    })
+    if (result) this.kick(result.sessionId)
+    return true
+  }
+
+  deleteSessions(ids: string[]): Promise<{ deletedIds: string[] }> {
+    const uniqueIds = [...new Set(ids)]
+    const work = this.deleteSessionsInternal(uniqueIds)
+    this.track(
+      `delete:${uniqueIds.join(',')}`,
+      work.then(() => undefined)
+    )
+    return work
+  }
+
+  deleteAgent(agentId: string, deleteSessions: boolean): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
+    const work = this.deleteAgentInternal(agentId, deleteSessions)
+    this.track(
+      `delete-agent:${agentId}`,
+      work.then(() => undefined)
+    )
+    return work
+  }
+
+  deleteWorkspace(workspaceId: string): Promise<{ deletedIds: string[] }> {
+    const work = this.deleteWorkspaceInternal(workspaceId)
+    this.track(
+      `delete-workspace:${workspaceId}`,
+      work.then(() => undefined)
+    )
+    return work
+  }
+
+  kick(sessionId?: string): void {
+    if (this.isShuttingDown) return
+    if (this.isWriteQuiesced) {
+      if (sessionId) this.suppressedSessionIds.add(sessionId)
+      else {
+        for (const message of agentSessionMessageService.listAcceptedSessionDeliveries()) {
+          this.suppressedSessionIds.add(message.sessionId)
+        }
+      }
+      return
+    }
+
+    if (!sessionId) {
+      for (const targetSessionId of new Set(
+        agentSessionMessageService.listAcceptedSessionDeliveries().map((message) => message.sessionId)
+      )) {
+        this.kick(targetSessionId)
+      }
+      return
+    }
+    if (this.kicks.has(sessionId)) {
+      this.pendingKicks.add(sessionId)
+      return
+    }
+
+    const work = Promise.resolve()
+      .then(() => this.runSessionQueue(sessionId))
+      .catch((error) => logger.error('Agent Session delivery kick failed', { sessionId, error }))
+      .finally(() => {
+        this.kicks.delete(sessionId)
+        this.inFlight.delete(`kick:${sessionId}`)
+        if (this.pendingKicks.delete(sessionId)) this.kick(sessionId)
+      })
+    this.kicks.set(sessionId, work)
+    this.inFlight.set(`kick:${sessionId}`, work)
+  }
+
+  get isWriteQuiesced(): boolean {
+    return this.pauseHolds.size > 0
+  }
+
+  pause(reason?: string): Disposable {
+    const token = Symbol(reason)
+    this.pauseHolds.add(token)
+    logger.info('AgentSessionDeliveryService paused', { reason: reason ?? null, holds: this.pauseHolds.size })
+    return {
+      dispose: () => {
+        if (!this.pauseHolds.delete(token)) return
+        logger.info('AgentSessionDeliveryService pause hold released', {
+          reason: reason ?? null,
+          holds: this.pauseHolds.size
+        })
+        if (this.pauseHolds.size > 0 || this.isShuttingDown) return
+        const sessionIds = [...this.suppressedSessionIds]
+        this.suppressedSessionIds.clear()
+        if (sessionIds.length === 0) this.kick()
+        else sessionIds.forEach((sessionId) => this.kick(sessionId))
+      }
+    }
+  }
+
+  async drainInFlight(opts: { timeoutMs: number }): Promise<{ stragglerIds: string[] }> {
+    const deadline = Date.now() + opts.timeoutMs
+    while (this.inFlight.size > 0 && Date.now() < deadline) {
+      const snapshot = [...this.inFlight.values()]
+      const remaining = deadline - Date.now()
+      await Promise.race([
+        Promise.allSettled(snapshot),
+        new Promise<void>((resolve) => setTimeout(resolve, Math.max(remaining, 0)))
+      ])
+    }
+    return { stragglerIds: [...this.inFlight.keys()] }
+  }
+
+  listActiveWork(): Array<{ id: string; summary: string }> {
+    return [...this.inFlight.keys()].map((id) => ({ id, summary: 'Agent Session delivery handoff' }))
+  }
+
+  private track(id: string, work: Promise<void>): void {
+    this.inFlight.set(id, work)
+    void work
+      .catch((error) => logger.error('Tracked Agent Session delivery work failed', { id, error }))
+      .finally(() => {
+        if (this.inFlight.get(id) === work) this.inFlight.delete(id)
+      })
+  }
+
+  private async waitForInFlight(): Promise<void> {
+    while (this.inFlight.size > 0) {
+      await Promise.allSettled([...this.inFlight.values()])
+    }
+  }
+
+  private async deleteSessionsInternal(ids: string[]): Promise<{ deletedIds: string[] }> {
+    this.assertWritesAvailable()
+    const result = agentSessionService.deleteByIdsForDelivery(ids)
+    await this.finishDeletion(result.deletedIds, result.deliveryResults)
+    return { deletedIds: result.deletedIds }
+  }
+
+  private async deleteAgentInternal(
+    agentId: string,
+    deleteSessions: boolean
+  ): Promise<{ deleted: boolean; deletedSessionIds?: string[] }> {
+    this.assertWritesAvailable()
+    const result = agentService.deleteAgentForDelivery(agentId, { deleteSessions })
+    await this.finishDeletion(
+      result.affectedSessionIds,
+      result.deliveryResults,
+      deleteSessions ? [] : result.affectedSessionIds
+    )
+    return {
+      deleted: result.deleted,
+      ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
+    }
+  }
+
+  private async deleteWorkspaceInternal(workspaceId: string): Promise<{ deletedIds: string[] }> {
+    this.assertWritesAvailable()
+    const result = agentSessionService.deleteWorkspaceCascadeForDelivery(workspaceId)
+    await this.finishDeletion(result.deletedIds, result.deliveryResults)
+    return { deletedIds: result.deletedIds }
+  }
+
+  private async finishDeletion(
+    sessionIds: string[],
+    deliveryResults: AgentSessionMessageEntity[],
+    retrySessionIds: string[] = []
+  ): Promise<void> {
+    const closed = await Promise.allSettled(
+      sessionIds.map((sessionId) => application.get('AgentSessionRuntimeService').closeSession(sessionId))
+    )
+    for (const deliveryResult of deliveryResults) this.kick(deliveryResult.sessionId)
+    retrySessionIds.forEach((sessionId) => this.kick(sessionId))
+
+    const failures = closed.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+    if (failures.length > 0) {
+      throw new AggregateError(failures, 'One or more deleted Agent Session runtimes failed to close')
+    }
+  }
+
+  private assertWritesAvailable(): void {
+    if (this.isShuttingDown || this.isWriteQuiesced || application.get('AiStreamManager').isWriteQuiesced) {
+      throw new Error('Agent Session delivery writes are paused')
+    }
+  }
+
+  private async runSessionQueue(sessionId: string): Promise<void> {
+    while (!this.isShuttingDown && !this.isWriteQuiesced) {
+      const next = agentSessionMessageService.listAcceptedSessionDeliveries(sessionId)[0]
+      if (!next) return
+      const outcome = await this.dispatchOne(next)
+      if (outcome === 'blocked' || outcome === 'started') return
+    }
+  }
+
+  private async dispatchOne(
+    message: AgentSessionMessageEntity
+  ): Promise<'blocked' | 'started' | 'settled' | 'skipped'> {
+    const manager = application.get('AiStreamManager')
+    const runtime = application.get('AgentSessionRuntimeService')
+    const topicId = buildAgentSessionTopicId(message.sessionId)
+    let outcome: 'blocked' | 'started' | 'settled' | 'skipped' = 'skipped'
+
+    await manager.withDispatchLock(topicId, async () => {
+      if (this.isShuttingDown || this.isWriteQuiesced || manager.isWriteQuiesced) {
+        this.suppressedSessionIds.add(message.sessionId)
+        outcome = 'blocked'
+        return
+      }
+      if (manager.hasLiveStream(topicId) || runtime.isSessionBusy(message.sessionId)) {
+        outcome = 'blocked'
+        return
+      }
+
+      let current: AgentSessionMessageEntity
+      try {
+        current = agentSessionMessageService.getSessionMessage(message.sessionId, message.id)
+      } catch (error) {
+        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return
+        throw error
+      }
+      if (current.delivery?.status !== 'accepted') return
+
+      let validated
+      try {
+        validated = await agentChatContextProvider.validateDispatch({
+          trigger: 'submit-message',
+          topicId,
+          userMessageParts: current.data.parts ?? [],
+          headless: true,
+          agentDeliveryMessage: current
+        })
+      } catch (error) {
+        this.failBeforeStart(current, error)
+        outcome = 'settled'
+        return
+      }
+
+      // Validation crosses an async boundary. Backup pause, lifecycle stop, or another writer may
+      // have changed admission state while the driver was validating the target.
+      if (this.isShuttingDown || this.isWriteQuiesced || manager.isWriteQuiesced) {
+        this.suppressedSessionIds.add(message.sessionId)
+        outcome = 'blocked'
+        return
+      }
+      if (manager.hasLiveStream(topicId) || runtime.isSessionBusy(message.sessionId)) {
+        outcome = 'blocked'
+        return
+      }
+
+      let persisted
+      try {
+        persisted = application.get('DbService').withWriteTx((tx) => {
+          const prepared = agentChatContextProvider.persistDispatchTx(tx, validated, {
+            id: validated.agentId,
+            updatedAt: validated.agentUpdatedAt,
+            model: validated.uniqueModelId,
+            type: validated.agentType
+          })
+          const claimed = agentSessionMessageService.claimSessionDeliveryTx(
+            tx,
+            current.sessionId,
+            current.id,
+            prepared.assistantMessageId
+          )
+          if (!claimed) throw new DeliveryClaimLostError(`Delivery ${current.id} lost its accepted claim`)
+          return prepared
+        })
+      } catch (error) {
+        if (error instanceof DeliveryClaimLostError) return
+        if (isDataApiError(error) && error.code === ErrorCode.CONCURRENT_MODIFICATION) {
+          outcome = 'skipped'
+          return
+        }
+        this.failBeforeStart(current, error)
+        outcome = 'settled'
+        return
+      }
+
+      try {
+        const prepared = agentChatContextProvider.activateDispatch(
+          persisted,
+          new AgentSessionDeliverySubscriber(current.id)
+        )
+        try {
+          manager.send({
+            topicId: prepared.topicId,
+            models: prepared.models,
+            listeners: prepared.listeners,
+            siblingsGroupId: prepared.siblingsGroupId,
+            lifecycle: prepared.lifecycle
+          })
+        } catch (error) {
+          // send() launches before its final lifecycle callback. A callback failure can therefore
+          // throw after ownership has crossed into a live stream; do not label that turn pre-start
+          // failure or make it eligible for replay.
+          if (!manager.hasLiveStream(prepared.topicId)) throw error
+          logger.warn('Delivery send threw after runtime ownership handoff; keeping it delivering', error as Error, {
+            requestId: current.id,
+            sessionId: current.sessionId,
+            assistantMessageId: persisted.assistantMessageId
+          })
+        }
+        outcome = 'started'
+      } catch (error) {
+        await runtime.closeSession(current.sessionId)
+        const assistant = persisted.savedMessages[1]
+        agentSessionMessageService.resolveCrashOrphanedMessages(
+          [
+            {
+              id: persisted.assistantMessageId,
+              data: {
+                ...assistant.data,
+                parts: finalizeInterruptedParts(assistant.data.parts ?? [], 'error')
+              }
+            }
+          ],
+          [current.sessionId]
+        )
+        const result = agentSessionMessageService.finalizeSessionDelivery({
+          requestSessionId: current.sessionId,
+          requestMessageId: current.id,
+          assistantMessageId: persisted.assistantMessageId,
+          outcome: 'interrupted'
+        })
+        logger.warn('Agent Session delivery turn handoff was interrupted', {
+          deliveryId: current.id,
+          assistantMessageId: persisted.assistantMessageId,
+          error
+        })
+        if (result) this.kick(result.sessionId)
+        outcome = 'settled'
+      }
+    })
+    return outcome
+  }
+
+  private failBeforeStart(message: AgentSessionMessageEntity, error: unknown): void {
+    const deliveryError =
+      error instanceof AgentSessionDeliveryRoutingError
+        ? { code: error.code, message: error.message }
+        : isDataApiError(error) && error.code === ErrorCode.NOT_FOUND
+          ? { code: 'TARGET_UNAVAILABLE', message: error.message }
+          : {
+              code: 'INTERNAL_ERROR',
+              message: error instanceof Error ? error.message : 'Internal Session delivery error'
+            }
+    const result = agentSessionMessageService.failSessionDelivery(message, deliveryError)
+    logger.warn('Agent Session delivery admission failed', {
+      deliveryId: message.id,
+      code: deliveryError.code,
+      error
+    })
+    if (result) this.kick(result.sessionId)
+  }
+
+  private async handleTurnTerminal(event: {
+    sessionId: string
+    assistantMessageId: string
+    status: 'success' | 'paused' | 'error'
+  }): Promise<void> {
+    const request = agentSessionMessageService.findDeliveringSessionDeliveryByTurnRef(event.assistantMessageId)
+    if (!request) return
+    const result = agentSessionMessageService.finalizeSessionDelivery({
+      requestSessionId: event.sessionId,
+      requestMessageId: request.id,
+      assistantMessageId: event.assistantMessageId,
+      outcome: event.status === 'success' ? 'success' : event.status === 'paused' ? 'interrupted' : 'failed'
+    })
+    if (result) this.kick(result.sessionId)
+  }
+
+  private recoverDeliveries(): void {
+    const recoverable = agentSessionMessageService.listRecoverableSessionDeliveries()
+    for (const message of recoverable) {
+      if (message.delivery?.status !== 'delivering') continue
+      const turnRef = message.delivery.turnRef
+      if (!turnRef) {
+        const result = agentSessionMessageService.failSessionDelivery(message, {
+          code: 'INTERNAL_ERROR',
+          message: 'Delivering Session request has no turn reference'
+        })
+        if (result) this.suppressedSessionIds.add(result.sessionId)
+        continue
+      }
+
+      let assistant: AgentSessionMessageEntity | null = null
+      try {
+        assistant = agentSessionMessageService.getSessionMessage(message.sessionId, turnRef)
+      } catch (error) {
+        if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) throw error
+      }
+      if (!assistant) {
+        const result = agentSessionMessageService.failSessionDelivery(message, {
+          code: 'DELIVERY_TURN_DELETED',
+          message: 'The delivery turn was deleted before it could be recovered'
+        })
+        if (result) this.suppressedSessionIds.add(result.sessionId)
+        continue
+      }
+      if (assistant.status === 'pending') {
+        agentSessionMessageService.resolveCrashOrphanedMessages(
+          [
+            {
+              id: assistant.id,
+              data: {
+                ...assistant.data,
+                parts: finalizeInterruptedParts(assistant.data.parts ?? [], 'error')
+              }
+            }
+          ],
+          [message.sessionId]
+        )
+      }
+      const result = agentSessionMessageService.finalizeSessionDelivery({
+        requestSessionId: message.sessionId,
+        requestMessageId: message.id,
+        assistantMessageId: assistant.id,
+        outcome:
+          assistant.status === 'success'
+            ? 'success'
+            : assistant.status === 'paused' || assistant.status === 'pending'
+              ? 'interrupted'
+              : 'failed'
+      })
+      if (result) this.suppressedSessionIds.add(result.sessionId)
+    }
+  }
+}

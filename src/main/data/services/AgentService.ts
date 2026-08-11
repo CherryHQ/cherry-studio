@@ -26,6 +26,7 @@ import {
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
@@ -685,11 +686,29 @@ export class AgentService {
     id: string,
     options: { deleteSessions?: boolean } = {}
   ): { deleted: boolean; deletedSessionIds?: string[] } {
+    const result = this.deleteAgentForDelivery(id, options)
+    return {
+      deleted: result.deleted,
+      ...(result.deletedSessionIds ? { deletedSessionIds: result.deletedSessionIds } : {})
+    }
+  }
+
+  deleteAgentForDelivery(
+    id: string,
+    options: { deleteSessions?: boolean } = {}
+  ): {
+    deleted: boolean
+    deletedSessionIds?: string[]
+    affectedSessionIds: string[]
+    deliveryResults: AgentSessionMessageEntity[]
+  } {
     // By default sessions detach (agentId → NULL) via FK ON DELETE SET NULL; callers
     // can opt into deleting them in this same transaction. `pin` has no FK back
     // to agent, so purge it alongside the agent row. Junction table rows are
     // cascade-deleted by FK.
     let deletedSessionIds: string[] | undefined
+    let affectedSessionIds: string[] = []
+    const deliveryResults: AgentSessionMessageEntity[] = []
     let affectedTaskScheduleIds: string[] = []
     const result = withSqliteErrors(
       () =>
@@ -702,9 +721,14 @@ export class AgentService {
             .all()
           if (!agent) return { rowsAffected: 0 }
 
+          affectedSessionIds = agentSessionService.listIdsByAgentTx(tx, id)
+
           if (options.deleteSessions === true) {
             affectedTaskScheduleIds = agentSessionService.getTaskScheduleIdsForAgentTx(tx, id)
-            deletedSessionIds = agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
+            deletedSessionIds = agentSessionService.deleteByAgentIdTx(tx, id, {
+              validateAgent: false,
+              deliveryResults
+            })
           } else {
             // Agent FK deletion would otherwise leave a task bound to an orphan
             // session. Clear the relation before that implicit detach.
@@ -719,10 +743,10 @@ export class AgentService {
     const deleted = result.rowsAffected > 0
     if (deleted) {
       agentTaskService.notifyReadModelChange(affectedTaskScheduleIds)
-      if (deletedSessionIds) agentSessionService.dispatchDeletionResults()
+      getDataService('AgentSessionMessageService').publishDeliveryChanges(deliveryResults)
       this._onAgentDeleted.fire({ agentId: id })
     }
-    return { deleted, deletedSessionIds }
+    return { deleted, deletedSessionIds, affectedSessionIds, deliveryResults }
   }
 
   deleteAgentTx(tx: DbOrTx, id: string): { rowsAffected: number } {

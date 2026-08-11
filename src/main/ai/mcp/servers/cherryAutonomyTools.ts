@@ -17,11 +17,9 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentTaskService as taskService } from '@data/services/AgentTaskService'
 import { loggerService } from '@logger'
 import { type ChannelAdapter, resolveWorkspaceFile, sanitizeChannelOutput } from '@main/ai/channels'
-import { dispatchAcceptedAgentSessionDelivery } from '@main/ai/streamManager'
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js'
 import { ErrorCode, McpError } from '@modelcontextprotocol/sdk/types.js'
 import {
-  AgentSessionDeliveryModeSchema,
   AgentSessionDeliveryStatusSchema,
   SESSION_CREATE_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
@@ -277,6 +275,7 @@ const SESSION_LIST_TOOL: Tool = {
     type: 'object',
     properties: {
       agent_id: { type: 'string', description: 'Optional Agent id filter.' },
+      cursor: { type: 'string', description: 'Opaque cursor returned by the previous page.' },
       limit: { type: 'number', description: 'Maximum Sessions to return (default 50, max 100).' }
     }
   }
@@ -304,7 +303,7 @@ const SESSION_DELIVERIES_TOOL: Tool = {
     properties: {
       direction: { type: 'string', enum: ['incoming', 'outgoing'] },
       request_id: { type: 'string', description: 'Optional request id; correlated results are included.' },
-      status: { type: 'string', enum: ['accepted', 'queued', 'delivering', 'consumed', 'failed'] },
+      status: { type: 'string', enum: ['accepted', 'delivering', 'consumed', 'failed'] },
       limit: { type: 'number', description: 'Maximum deliveries to return (default 20, max 100).' }
     }
   }
@@ -336,15 +335,10 @@ const SESSION_SEND_TOOL: Tool = {
         description: 'Target sessionId returned by session_list or delivery sender.'
       },
       message: { type: 'string', description: 'Message for the target Agent.' },
-      mode: {
-        type: 'string',
-        enum: ['queue', 'auto'],
-        description: 'auto may safely steer; queue always waits for a later FIFO turn.'
-      },
       reply: {
         type: 'string',
         enum: ['none', 'completion'],
-        description: 'completion returns one asynchronous terminal result in a separate queued turn.'
+        description: 'completion returns one asynchronous terminal result in a separate turn.'
       }
     },
     required: ['target_session_id', 'message']
@@ -465,34 +459,40 @@ export class CherryAutonomyTools {
     }
   }
 
+  private assertSessionToolsAuthorized(): void {
+    const interaction = application.get('AgentSessionRuntimeService').getInteractionState(this.sessionId)
+    if (interaction.currentTurn === 'headless' || interaction.userResponse === 'unavailable') {
+      throw new AgentSessionDeliveryRoutingError(
+        'SESSION_TOOL_FORBIDDEN',
+        'Cross-Session discovery and delegation require an interactive user turn'
+      )
+    }
+  }
+
   private listSessions(args: Record<string, unknown>) {
     this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
     const agentId = typeof args.agent_id === 'string' && args.agent_id.trim() ? args.agent_id.trim() : undefined
+    const cursor = typeof args.cursor === 'string' && args.cursor.trim() ? args.cursor.trim() : undefined
     const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 50
-    const sessions = agentSessionService.listByCursor({ agentId, limit }).items.flatMap((session) => {
-      if (!session.agentId) return []
-      const agent = agentService.getAgent(session.agentId)
-      if (!agent) return []
-      return [
-        {
-          agentId: agent.id,
-          agentName: agent.name,
-          sessionId: session.id,
-          sessionName: session.name,
-          isCurrent: session.id === this.sessionId
-        }
-      ]
-    })
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ sessions }) }] }
+    const page = agentSessionService.listAddressableByCursor({ agentId, cursor, limit })
+    const sessions = page.items.map((session) => ({
+      ...session,
+      isCurrent: session.sessionId === this.sessionId
+    }))
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify({ sessions, nextCursor: page.nextCursor }) }]
+    }
   }
 
   private searchSessions(args: Record<string, unknown>) {
     this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
     const query = typeof args.query === 'string' ? args.query.trim() : ''
     if (!query) throw new McpError(ErrorCode.InvalidParams, "'query' is required")
     const agentId = typeof args.agent_id === 'string' && args.agent_id.trim() ? args.agent_id.trim() : undefined
     const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 20
-    const matches = agentSessionMessageService.searchRanked({ q: query, limit, agentId })
+    const matches = agentSessionMessageService.searchRanked({ q: query, limit, agentId, addressableOnly: true })
     const sessions = new Map<
       string,
       {
@@ -541,6 +541,7 @@ export class CherryAutonomyTools {
 
   private listSessionDeliveries(args: Record<string, unknown>) {
     this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
     const limit = typeof args.limit === 'number' ? Math.min(Math.max(Math.trunc(args.limit), 1), 100) : 20
     const direction = args.direction === 'outgoing' ? 'outgoing' : 'incoming'
     const requestId = typeof args.request_id === 'string' ? args.request_id.trim() : undefined
@@ -572,6 +573,8 @@ export class CherryAutonomyTools {
   }
 
   private async createSession(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
     const content = typeof args.message === 'string' ? args.message.trim() : ''
     const title = typeof args.title === 'string' ? args.title.trim() : ''
     if (!content) throw new McpError(ErrorCode.InvalidParams, "'message' is required")
@@ -580,14 +583,13 @@ export class CherryAutonomyTools {
     }
     if (title.length > 255) throw new McpError(ErrorCode.InvalidParams, "'title' must be at most 255 characters")
 
-    const created = agentSessionMessageService.createSessionWithDelivery({
+    const created = application.get('AgentSessionDeliveryService').acceptWithNewSession({
       senderAgentId: this.agentId,
       senderSessionId: this.sessionId,
       sessionName: title,
       workspace: this.workspace,
       content
     })
-    const disposition = await dispatchAcceptedAgentSessionDelivery(created.message)
     return {
       content: [
         {
@@ -597,7 +599,7 @@ export class CherryAutonomyTools {
             agentId: created.session.agentId,
             sessionId: created.session.id,
             requestId: created.message.id,
-            delivery: { ...created.message.delivery, status: disposition }
+            delivery: created.message.delivery
           })
         }
       ]
@@ -605,31 +607,24 @@ export class CherryAutonomyTools {
   }
 
   private async sendSessionMessage(args: Record<string, unknown>) {
+    this.assertCurrentSessionIdentity()
+    this.assertSessionToolsAuthorized()
     const receiverSessionId = typeof args.target_session_id === 'string' ? args.target_session_id.trim() : ''
     const content = typeof args.message === 'string' ? args.message.trim() : ''
     const reply = args.reply === undefined ? 'none' : args.reply
     if (reply !== 'none' && reply !== 'completion') {
       throw new McpError(ErrorCode.InvalidParams, "'reply' must be none or completion")
     }
-    if (reply === 'completion' && args.mode !== undefined && args.mode !== 'queue') {
-      throw new McpError(ErrorCode.InvalidParams, "completion requests cannot use 'auto' mode")
-    }
-    const modeResult = AgentSessionDeliveryModeSchema.safeParse(
-      reply === 'completion' ? 'queue' : (args.mode ?? 'auto')
-    )
     if (!receiverSessionId) throw new McpError(ErrorCode.InvalidParams, "'target_session_id' is required")
     if (!content) throw new McpError(ErrorCode.InvalidParams, "'message' is required")
-    if (!modeResult.success) throw new McpError(ErrorCode.InvalidParams, "'mode' must be queue or auto")
 
-    const accepted = agentSessionMessageService.acceptSessionDelivery({
+    const accepted = application.get('AgentSessionDeliveryService').accept({
       senderAgentId: this.agentId,
       senderSessionId: this.sessionId,
       receiverSessionId,
       content,
-      mode: modeResult.data,
       replyPolicy: reply
     })
-    const disposition = await dispatchAcceptedAgentSessionDelivery(accepted)
     return {
       content: [
         {
@@ -637,8 +632,8 @@ export class CherryAutonomyTools {
           text: JSON.stringify({
             ok: true,
             requestId: accepted.id,
-            status: disposition,
-            delivery: { ...accepted.delivery, status: disposition }
+            status: 'accepted',
+            delivery: accepted.delivery
           })
         }
       ]

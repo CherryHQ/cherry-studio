@@ -1,9 +1,6 @@
 import * as z from 'zod'
 
-export const AgentSessionDeliveryModeSchema = z.enum(['queue', 'auto'])
-export type AgentSessionDeliveryMode = z.infer<typeof AgentSessionDeliveryModeSchema>
-
-export const AgentSessionDeliveryStatusSchema = z.enum(['accepted', 'queued', 'delivering', 'consumed', 'failed'])
+export const AgentSessionDeliveryStatusSchema = z.enum(['accepted', 'delivering', 'consumed', 'failed'])
 export type AgentSessionDeliveryStatus = z.infer<typeof AgentSessionDeliveryStatusSchema>
 
 export const AgentSessionDeliveryIdentitySchema = z.strictObject({
@@ -38,8 +35,6 @@ export const AgentSessionDeliveryEnvelopeSchema = z.strictObject({
   senderSnapshot: AgentSessionDeliverySnapshotSchema.optional(),
   receiverSnapshot: AgentSessionDeliverySnapshotSchema.optional(),
   replyPolicy: AgentSessionDeliveryReplyPolicySchema,
-  mode: AgentSessionDeliveryModeSchema,
-  turnRef: z.string().nullable(),
   sourceMessageId: z.string().nullable(),
   outcome: AgentSessionDeliveryOutcomeSchema.nullable(),
   error: AgentSessionDeliveryErrorSchema.nullable(),
@@ -50,7 +45,8 @@ export type AgentSessionDeliveryEnvelope = z.infer<typeof AgentSessionDeliveryEn
 /** Entity projection: indexed columns are folded back into the trusted envelope for consumers. */
 export const AgentSessionDeliverySchema = AgentSessionDeliveryEnvelopeSchema.extend({
   status: AgentSessionDeliveryStatusSchema,
-  inReplyTo: z.string().nullable()
+  inReplyTo: z.string().nullable(),
+  turnRef: z.string().nullable()
 })
 export type AgentSessionDelivery = z.infer<typeof AgentSessionDeliverySchema>
 
@@ -60,4 +56,4 @@ export const SESSION_CREATE_TOOL_NAME = 'session_create'
 export const SESSION_DELIVERIES_TOOL_NAME = 'session_deliveries'
 export const SESSION_SEND_TOOL_NAME = 'session_send'
 
-export const AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES = ['accepted', 'queued', 'delivering'] as const
+export const AGENT_SESSION_DELIVERY_RECOVERABLE_STATUSES = ['accepted', 'delivering'] as const

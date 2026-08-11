@@ -114,28 +114,20 @@ and exposes five tools:
 - `session_deliveries` — inspect incoming and outgoing request/result state, replacing the
   incoming-only `session_inbox` surface.
 
-`session_send` has one discriminated contract:
+`session_send` has one asynchronous contract:
 
 ```ts
-type SessionSendInput =
-  | {
-      target_session_id: string
-      message: string
-      reply?: 'none'
-      mode?: 'auto' | 'queue'
-    }
-  | {
-      target_session_id: string
-      message: string
-      reply: 'completion'
-    }
+type SessionSendInput = {
+  target_session_id: string
+  message: string
+  reply?: 'none' | 'completion'
+}
 ```
 
-`reply: 'none'` is one-way. `auto` may safely redirect an eligible active turn and otherwise falls
-back to FIFO; `queue` always waits for a later turn. `reply: 'completion'` implicitly uses `queue`
-because the request must own one independent turn whose terminal output can be attributed to that
-request. The tool immediately returns its request id and current delivery status; it never holds an
-MCP invocation open while the target Agent works.
+`reply: 'none'` is one-way. `reply: 'completion'` creates one frozen terminal result in the sender
+Session. Every request owns one independent target turn; delivery never redirects into an active
+turn and never enters the runtime's process-local follow-up queue. The tool returns after the
+durable request reaches `accepted`; it never waits for scheduling or target execution.
 
 `session_create` reuses the same completion-request path after creating the same-Agent Session. The
 model is not a tool argument because Sessions use their owning Agent's model.
@@ -156,13 +148,15 @@ speculative ACL subsystem. Upgrade only when the product requires unattended mul
 collaboration; that upgrade must add an explicit Agent allowlist/delegation policy plus trusted trace
 ancestry, depth/cycle checks, and a total-call/rate budget before relaxing the headless denial.
 
-List, search, send, and delivery-query visibility must share one authorization boundary. Knowing a
-Session or message id never grants access by itself.
+List, search, send, create, and delivery-query visibility share one authorization boundary. Channel,
+scheduled, and delivery-triggered turns are denied in code; Task sub-agents may discover Sessions
+but still require a live approval for delegation. Knowing a Session or message id never grants
+access by itself. `session_list` pages only addressable Sessions and returns an opaque cursor.
 
 ### Durable row shape
 
 The target Session id remains the message row's existing `sessionId`. Trusted sender/receiver IDs,
-reply policy, mode, optional display snapshots, turn/result provenance, outcome, error, and status
+reply policy, optional display snapshots, result provenance, outcome, error, and status
 timestamp live in the Main-authored `delivery` JSON. Names are display-only snapshots and never
 participate in routing or authorization.
 
@@ -170,13 +164,13 @@ Only state used by queries, indexes, compare-and-set transitions, or constraints
 regular column:
 
 ```text
-delivery_status             accepted | queued | delivering | consumed | failed
+delivery_status             accepted | delivering | consumed | failed
+delivery_turn_ref           assistant placeholder id while delivering; NULL otherwise
 delivery_in_reply_to        result -> request id; NULL for requests
 delivery_sender_session_id  outgoing-delivery query key
 ```
 
-Use a plain recovery index on `delivery_status`; bound Drizzle predicates cannot use a SQLite
-partial index whose predicate contains the same status test. Index
+Use plain indexes on `delivery_status` and `delivery_turn_ref`. Index
 `(delivery_sender_session_id, created_at, id)` for the outgoing ledger. A nullable ordinary unique
 index on `delivery_in_reply_to` guarantees at most one result per request because SQLite permits
 multiple `NULL` values. A separate `deliveryKind` column is unnecessary:
@@ -186,15 +180,16 @@ The lifecycle is:
 
 ```text
 accepted   durable intent committed; runtime has not acknowledged scheduling
-queued     accepted into the target Session FIFO
 delivering bound to one durable turn reference
 consumed   target terminally processed the input; any required result exists
 failed     permanent routing/admission failure; no automatic retry
 ```
 
-`AgentSessionMessageService` owns transitions through expected-state updates. Transient scheduling
-failures, including write quiesce and temporary runtime startup failures, remain `accepted` or
-`queued`; only permanent errors such as a deleted/orphaned target enter `failed`.
+SQLite `accepted` rows are the only delivery queue. `AgentSessionDeliveryService` owns scheduling,
+state transitions, finalization, recovery, and shutdown coordination; `AgentSessionMessageService`
+provides synchronous transaction primitives for the message table. Busy, write-quiesced, and
+shutting-down targets remain `accepted` until a known wake event. Permanent routing errors and
+unknown admission failures enter structured `failed` terminal state rather than retrying forever.
 
 ### Completion results
 
@@ -249,37 +244,45 @@ Terminal persistence must run before the finalizer. The finalizer treats a uniqu
 as already completed, so a crash after terminal persistence but before or during finalization can
 rerun it without creating a second result. Result dispatch remains outside the transaction.
 
-Before mutating the runtime, dispatch claims one durable row with an `accepted -> delivering` CAS and
-an empty `turnRef`; callers that lose the claim coalesce onto its durable disposition. A fresh turn
-then atomically persists the request/user row and assistant placeholder before updating `turnRef` to
-that placeholder id, rather than the runtime's process-local UUID. Only after a delivery is handed to
-the existing runtime FIFO without a new placeholder does it move to `queued`. A steer boundary that
-rolls assistant A1a into continuation A2 must update `turnRef` to A2 before post-steer output can
-become the request's terminal result.
+After asynchronous validation and while holding the target topic's dispatch lock, one synchronous
+transaction persists the user row and pending assistant placeholder and CAS-claims
+`accepted -> delivering` with `delivery_turn_ref = assistant.id`. A database CHECK enforces that
+`delivering` has a non-null turn reference and every other state has a null reference. The
+transaction rolls back all three writes when the CAS loses. Only after commit does the owner call
+`beginTurn` / `AiStreamManager.send`, so crash recovery never mistakes an unowned turn for
+redispatchable intent. Because `send()` installs its live stream before its final lifecycle callback,
+a thrown callback is treated as post-handoff when `hasLiveStream(topicId)` is already true; only a
+throw with no live stream is finalized as `TURN_START_FAILED`.
 
-When deleting a target Session, the delete transaction first creates failure results for its
-non-terminal completion requests, then allows the normal message cascade. A caller that has already
+Validation captures the owning Agent's update timestamp. The claim transaction verifies both the
+Session-to-Agent binding and that timestamp before writing either placeholder; a concurrent Agent
+model/configuration edit leaves the request `accepted` and reruns validation with the new state.
+
+Session deletion is a mixed operation and therefore uses the IpcApi
+`ai.agent.session.delete`, not DataApi DELETE. `AgentSessionDeliveryService` calls the data service
+for one transaction that creates exact failure results before cascading target rows, then closes the
+deleted Sessions' runtimes before kicking only those returned result rows. A caller that has already
 been deleted cannot receive a result; that terminal routing failure is recorded rather than retried.
 
 ### Recovery
 
-Startup scans `accepted`, `queued`, and `delivering` rows in `(createdAt, id)` order and passes every
-schedulable row through the existing per-topic dispatch lock.
+During lifecycle initialization the delivery owner scans `accepted` and `delivering` rows in
+`(createdAt, id)` order. Accepted rows already are the queue and remain untouched until the
+system-wide ready hook kicks them through the per-topic dispatch lock. For `delivering`, inspect the
+indexed `delivery_turn_ref`:
 
-For `accepted`, dispatch again. A startup-only recovery step first resets `queued` to `accepted`
-because the process-local FIFO no longer exists; an ordinary duplicate caller must instead coalesce
-onto `queued` without enqueueing it again. For `delivering`, inspect `turnRef`:
+- placeholder absent — mark `failed(DELIVERY_TURN_DELETED)` and never replay the request; absence is
+  evidence of deletion, not proof that execution never started;
+- placeholder still `pending` — execution may already have produced external side effects;
+  terminalize interrupted parts, discard the Session resume token, finalize `interrupted`, and do
+  not rerun the Agent;
+- placeholder terminal — run only the idempotent finalizer.
 
-- placeholder absent — the turn can be proven not to have been created; reset to `accepted` and
-  dispatch;
-- placeholder still `pending` — execution may already have produced external side effects; finalize
-  it as `interrupted`, create the requested failure/interruption result, and do not rerun the Agent;
-- placeholder terminal — rerun only the idempotent finalizer;
-- result delivery — apply the same turn-reference rule to caller execution rather than blindly
-  starting the caller Agent twice.
-
-Permanent dispatch failures create a structured failure result for completion requests in both live
-and recovery paths. Transient failures remain recoverable.
+The generic pending-assistant sweep excludes rows referenced by `delivery_turn_ref`; therefore its
+write set and delivery recovery's write set are disjoint and their relative initialization order is
+irrelevant. Delivery kicks, deletion handlers, and terminal finalization are tracked by the owner;
+`onStop` suppresses new kicks and joins admitted handoffs. Backup pause/drain includes the delivery
+owner alongside the stream manager and runtime.
 
 The system guarantees durable accepted intent and, for each completion request, exactly one durable
 result row once a terminal outcome is known. Scheduling is recoverable, but arbitrary model/tool
@@ -504,7 +507,7 @@ from the app — either would disarm this.
 
 ## Write quiesce
 
-For backup restore (#16849) the service exposes `pause(reason?): Disposable` +
+For backup restore (#16849) the runtime and delivery owner expose `pause(reason?): Disposable` +
 `drainInFlight({ timeoutMs }) → { stragglerIds }` + `listActiveWork()`, the same
 contract as `AiStreamManager` and `JobManager` (see
 [stream-manager.md](./stream-manager.md#write-quiesce-pause--draininflight) for the
@@ -517,7 +520,13 @@ the last hold's disposal re-kicks it. New-turn admission through `prepareDispatc
 `inFlightTurnStarts` — launches admitted before the pause, through their placeholder
 write and `startRuntimeTurn` handoff; the resulting stream writes belong to
 `AiStreamManager`'s drain. This is distinct from the BaseService lifecycle pause and
-never touches service state.
+never touches service state. `AgentSessionDeliveryService` suppresses accepted-row kicks while a
+hold is live, tracks validation/claim/send handoffs and deletion orchestration in its drain set,
+rechecks the hold and target busy/live state after asynchronous validation before any transaction, then re-kicks
+suppressed target Sessions when the final hold releases. Runtime `closeSession()` also emits the
+generic idle event so accepted work blocked by a stopped turn is not stranded.
+Per-Session kicks use a rerun latch: an idle/terminal wake arriving while the previous single-flight
+kick unwinds is replayed after ownership releases rather than being dropped as a duplicate.
 
 ## Removed old path
 
@@ -540,6 +549,7 @@ Focused tests:
 
 - `src/main/ai/streamManager/context/__tests__/AgentChatContextProvider.test.ts`
 - `src/main/ai/agentSession/__tests__/AgentSessionRuntimeService.test.ts`
+- `src/main/ai/agentSession/__tests__/AgentSessionDeliveryService.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/ClaudeCodeRuntimeDriver.test.ts`
 - `src/main/ai/__tests__/AiService.test.ts`
 - `src/main/ai/runtime/claudeCode/__tests__/streamAdapter.test.ts`
@@ -553,14 +563,13 @@ Cross-Session delivery acceptance tests additionally pin these crash and securit
   model or tool execution;
 - recovery of a completion request while the target Session is busy cannot bind another turn's
   terminal output;
-- write quiesce and temporary startup errors leave delivery recoverable rather than permanently
-  failed;
+- write quiesce and target-busy gates leave delivery `accepted` until their explicit wake event;
 - a duplicate result with the same `delivery_in_reply_to` is rejected by SQLite;
 - deleting a target Session first creates failure results for pending completion requests;
-- deleting a queued request cannot leave an in-memory entry that executes without its durable row;
-- a steer continuation updates `turnRef` before recovery can finalize it;
+- deleting an accepted request cannot leave an in-memory entry because delivery has no runtime FIFO;
+- a missing `delivery_turn_ref` target fails recovery without replaying model/tool work;
 - interactive `session_send` and `session_create` request approval, while headless calls are denied
   and runtime-generated completion delivery remains allowed;
-- concurrent dispatch attempts for one durable message acquire one pre-runtime CAS owner and produce
-  only one placeholder/FIFO entry and one send;
+- concurrent dispatch attempts for one durable message atomically persist one placeholder plus one
+  CAS owner before producing one send;
 - list, search, send, and deliveries queries enforce the same visibility rules.

@@ -90,7 +90,7 @@ describe('SessionCreateTool', () => {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify({ ok: true, sessionId: 'session-copy', delivery: { status: 'queued' } })
+                text: JSON.stringify({ ok: true, sessionId: 'session-copy', delivery: { status: 'accepted' } })
               }
             ]
           } as never

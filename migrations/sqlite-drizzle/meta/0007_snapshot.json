@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "69f96bd6-45e5-4abd-ad62-fdcd88d01d4d",
+  "id": "70db5103-1d72-479c-9c55-4f1d5940c692",
   "prevId": "749b7a35-ec67-4508-bccf-495941a94a9d",
   "tables": {
     "agent": {
@@ -696,6 +696,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "delivery_turn_ref": {
+          "name": "delivery_turn_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "delivery_in_reply_to": {
           "name": "delivery_in_reply_to",
           "type": "text",
@@ -748,6 +755,11 @@
           "columns": ["delivery_status"],
           "isUnique": false
         },
+        "agent_session_message_delivery_turn_ref_idx": {
+          "name": "agent_session_message_delivery_turn_ref_idx",
+          "columns": ["delivery_turn_ref"],
+          "isUnique": false
+        },
         "agent_session_message_delivery_sender_idx": {
           "name": "agent_session_message_delivery_sender_idx",
           "columns": ["delivery_sender_session_id", "created_at", "id"],
@@ -797,7 +809,11 @@
         },
         "agent_session_message_delivery_status_check": {
           "name": "agent_session_message_delivery_status_check",
-          "value": "\"agent_session_message\".\"delivery_status\" IS NULL OR \"agent_session_message\".\"delivery_status\" IN ('accepted', 'queued', 'delivering', 'consumed', 'failed')"
+          "value": "\"agent_session_message\".\"delivery_status\" IS NULL OR \"agent_session_message\".\"delivery_status\" IN ('accepted', 'delivering', 'consumed', 'failed')"
+        },
+        "agent_session_message_delivery_turn_ref_check": {
+          "name": "agent_session_message_delivery_turn_ref_check",
+          "value": "(\"agent_session_message\".\"delivery_status\" = 'delivering' AND \"agent_session_message\".\"delivery_turn_ref\" IS NOT NULL) OR (\"agent_session_message\".\"delivery_status\" != 'delivering' AND \"agent_session_message\".\"delivery_turn_ref\" IS NULL) OR (\"agent_session_message\".\"delivery_status\" IS NULL AND \"agent_session_message\".\"delivery_turn_ref\" IS NULL)"
         }
       }
     },
