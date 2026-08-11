@@ -46,4 +46,4 @@ This change does not expand cancellation into token exchange or persistence. The
 - IPC handler: `OAuthSignInCancelledError` is mapped to `SIGN_IN_CANCELLED`.
 - Existing cancel-and-immediate-retry behavior remains covered.
 
-Verification is limited to the affected Vitest files plus the repository's required build check; the full test suite remains excluded per user instruction.
+Verification is limited to the affected Vitest files plus type, i18n, documentation-link, and local formatting/lint checks. `pnpm test`, `pnpm lint`, and `pnpm build:check` remain excluded because they invoke the full test suite, per user instruction.
