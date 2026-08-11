@@ -34,9 +34,6 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Consilier integrat Cherry Studio. Diagnostică probleme, ghidează operațiuni, colectează întrebări frecvente, trimite rapoarte de erori/cereri de funcționalități și caută/crează Abilități (Skills)"
-      },
-      "cherry_support": {
-        "description": "Agent oficial de asistență Cherry Studio pentru configurare, diagnosticare, întrebări frecvente și feedback"
       }
     },
     "channels": {
@@ -2862,6 +2859,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "Feedback",
+    "guide": "Ghid de utilizare",
+    "star": "Susține-ne",
+    "title": "Ajutor",
+    "whats_new": "Noutăți"
+  },
   "history": {
     "continue_chat": "Continuă conversația",
     "error": {
@@ -3483,12 +3487,6 @@
         "context_compress_model": "Model de compresie",
         "context_compress_model_follow": "Implicit",
         "context_count": "Număr de contexte",
-        "context_count_follow_global": "Urmează setarea globală ({{count}})",
-        "context_count_unlimited": "Nelimitat",
-        "context_globally_disabled": "Gestionarea contextului este dezactivată global, așa că setările de descărcare și comprimare de aici nu au efect",
-        "context_inherited": "Urmează setările globale: {{compress}}; rezultatele instrumentelor peste {{threshold}} de caractere sunt descărcate",
-        "context_inherited_compress_off": "comprimare automată dezactivată",
-        "context_inherited_compress_on": "comprimare automată activată",
         "context_management": "Gestionarea contextului",
         "context_truncate_threshold": "Prag de trunchiere a ieșirii instrumentului (caractere)",
         "creative": "Creativ",
@@ -4105,9 +4103,6 @@
       "failed": "Restaurare eșuată",
       "success": "Restaurat cu succes"
     },
-    "retry": {
-      "status": "Reîncercare cu {{model}} · încercarea {{attempt}}"
-    },
     "save": {
       "success": {
         "title": "Salvat cu succes"
@@ -4476,27 +4471,14 @@
     },
     "pinned": "Fixat",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
       "cache_read": "Preț Citire Cache",
-      "cache_write": "[to be translated]:Cache Write Price",
       "cost": "Cost",
       "currency": "Monedă",
       "custom": "Personalizat",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
       "input": "Preț intrare",
       "million_tokens": "M Tokeni",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
       "output": "Preț ieșire",
-      "price": "Preț",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "price": "Preț"
     },
     "reasoning": "Raționament",
     "rerank_model": "Model de reranking",
@@ -4648,8 +4630,6 @@
         "font_size_medium": "Mediu",
         "font_size_small": "Mic",
         "font_title": "Setări font",
-        "line_breaks": "[to be translated]:Line Break Mode",
-        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "Font cu serife",
         "show_table_of_contents": "Afișează cuprinsul",
         "show_table_of_contents_description": "Afișează o bară laterală cu cuprinsul pentru o navigare ușoară în documente",
@@ -5417,7 +5397,6 @@
         "insertRowBefore": "Inserează deasupra"
       }
     },
-    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "Inserează formulă matematică",
@@ -5907,7 +5886,7 @@
           "title": "Pachet de diagnosticare"
         },
         "errors": {
-          "busy": "Se exportă deja un alt pachet de diagnosticare",
+          "busy": "Este deja în curs o altă operațiune cu un pachet de diagnosticare",
           "copy_failed": "Nu s-a putut copia adresa de e-mail pentru asistență",
           "destination_conflict": "Locația de salvare selectată intră în conflict cu datele de diagnosticare. Alege un alt director.",
           "email_client_failed": "Nu s-a putut deschide un client de e-mail. În schimb, poți copia adresa de e-mail pentru asistență.",
@@ -5956,6 +5935,44 @@
           "title": "Pachet de diagnosticare exportat"
         },
         "unknown": "Necunoscut",
+        "upload": {
+          "actions": {
+            "consent_upload": "Acceptă și încarcă",
+            "open_form": "Deschide formularul",
+            "uploading": "Se încarcă..."
+          },
+          "dialog": {
+            "description": "Creează un pachet de diagnosticare și trimite-l anonim echipei Cherry Studio.",
+            "title": "Încarcă pachetul de diagnosticare"
+          },
+          "errors": {
+            "open_form_failed": "Formularul de feedback nu a putut fi deschis",
+            "upload_failed": "Pachetul de diagnosticare nu a putut fi creat sau salvat"
+          },
+          "manual": {
+            "description": "Arhiva ZIP a fost salvată în Descărcări, iar formularul anonim a fost deschis. Selectează acolo fișierul salvat pentru a finaliza trimiterea.",
+            "title": "Este necesară încărcarea manuală"
+          },
+          "privacy": {
+            "description": "Pachetul include întotdeauna informații despre aplicație și dispozitiv. Jurnalele și înregistrările detaliate selectate pot conține informații introduse de tine, locații de fișiere, conținutul solicitărilor și răspunsurilor și informații despre conexiunile la servicii. Este trimis anonim către un formular Feishu privat și este limitat la {{size}}. Dacă apeși „Acceptă și încarcă”, ești de acord cu crearea și trimiterea acestui pachet.",
+            "title": "Notificare privind confidențialitatea"
+          },
+          "reasons": {
+            "attachment_upload_failed": "Atașamentul nu a putut fi încărcat automat.",
+            "form_changed": "Structura formularului de feedback s-a modificat și nu a putut fi verificată în siguranță.",
+            "form_unavailable": "Formularul de feedback nu este disponibil momentan.",
+            "network_failed": "Solicitarea de rețea nu a putut fi finalizată.",
+            "submission_rejected": "Formularul de feedback a respins trimiterea."
+          },
+          "success": {
+            "description": "Dimensiune fișier {{size}} · {{included}} fișiere colectate · {{omitted}} fișiere necolectate",
+            "title": "Pachetul de diagnosticare a fost încărcat"
+          },
+          "unknown": {
+            "description": "Arhiva ZIP a fost salvată în Descărcări, dar răspunsul serverului a fost întrerupt. Este posibil ca trimiterea să fi fost deja finalizată. Verifică înainte de a deschide formularul pentru a evita trimiterea de două ori.",
+            "title": "Este posibil ca trimiterea să fi reușit"
+          }
+        },
         "warning": "Unele informații de diagnosticare nu au fost disponibile. Este posibil ca pachetul exportat să fie incomplet."
       },
       "downloading": "Se descarcă...",
@@ -5964,11 +5981,15 @@
       },
       "feedback": {
         "agent": {
-          "description": "Discută cu Cherry Support pentru ajutor sau pentru a împărtăși feedback-ul tău.",
-          "title": "Folosește agentul"
+          "description": "Pornește o sesiune Cherry Assistant separată, cu skill-ul de feedback pregătit.",
+          "title": "Întreabă Cherry Assistant"
         },
-        "agent_error": "Nu se poate deschide Cherry Support pentru feedback. Încearcă din nou.",
+        "agent_error": "Nu se poate deschide Cherry Assistant pentru feedback. Încearcă din nou.",
         "button": "Feedback",
+        "diagnostics": {
+          "description": "Verifică informațiile recente de diagnosticare, apoi încarcă-le anonim într-un singur pas.",
+          "title": "Încarcă pachetul de diagnosticare"
+        },
         "dialog": {
           "description": "Alege cum să partajezi feedback-ul și ajută-ne să facem Cherry Studio mai bun.",
           "title": "Alege un canal de feedback"
@@ -5978,10 +5999,6 @@
           "title": "Problemă GitHub"
         },
         "recommended": "Recomandat",
-        "survey": {
-          "description": "Împărtășiți feedback-ul prin sondajul nostru Feishu.",
-          "title": "Sondaj de feedback"
-        },
         "title": "Feedback"
       },
       "label": "Despre și feedback",
@@ -7440,20 +7457,6 @@
         "use_all_keys": "Cheie(i)"
       },
       "collapse_all": "Restrânge tot",
-      "context_management": {
-        "compress_enabled": "Comprimare automată",
-        "compress_enabled_description": "Rezumă automat schimburile mai vechi când se apropie limita ferestrei de context. Asistenții pot suprascrie această setare",
-        "compress_model": "Model de comprimare",
-        "compress_model_follow": "Urmează modelul curent",
-        "enabled": "Activează gestionarea contextului",
-        "enabled_description": "Gestionează automat contextul conversației: descarcă rezultatele prea mari ale instrumentelor și comprimă istoricul aproape de limita ferestrei. Dezactivată, nu se gestionează nimic, iar cererile care depășesc fereastra eșuează",
-        "max_messages": "Mesaje recente păstrate",
-        "max_messages_description": "Trimite doar cele mai recente mesaje; cele anterioare sunt excluse din context. Lăsați gol pentru fără limită. Asistenții pot suprascrie această setare",
-        "max_messages_unlimited": "Nelimitat",
-        "title": "Gestionarea contextului",
-        "truncate_threshold": "Prag de trunchiere a rezultatelor instrumentelor (caractere)",
-        "truncate_threshold_description": "Rezultatele instrumentelor peste acest număr de caractere sunt descărcate într-un fișier și trunchiate; modelul le poate reciti la nevoie. Asistenții pot suprascrie această setare"
-      },
       "default_assistant_model": "Model asistent implicit",
       "default_assistant_model_description": "Folosit când un asistent nu are model.",
       "docs": "Documentația modelului",
@@ -7566,16 +7569,6 @@
         "label": "Model rapid",
         "setting_title": "Configurare model rapid",
         "tooltip": "Alege un model ușor și evită modelele de raționament."
-      },
-      "retry": {
-        "backoff": "Așteptare exponențială",
-        "description": "Reîncearcă apelurile de chat, embedding și rerank; chat-ul poate trece la alte modele",
-        "fallback_models": "Modele de rezervă",
-        "fallback_models_count": "{{count}} modele selectate",
-        "fallback_models_description": "Modele încercate în ordine când modelul principal eșuează",
-        "label": "Reîncercarea apelurilor către model",
-        "max_attempts": "Număr maxim de reîncercări",
-        "tooltip": "Reîncercările și mecanismele de rezervă se aplică numai înainte ca modelul să înceapă să transmită conținut în flux"
       },
       "toolbar": {
         "custom_add": "Personalizat",

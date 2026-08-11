@@ -2,13 +2,30 @@ import { tanstackRouter } from '@tanstack/router-plugin/vite'
 import react from '@vitejs/plugin-react-swc'
 import { CodeInspectorPlugin } from 'code-inspector-plugin'
 import { defineConfig } from 'electron-vite'
+import { readFileSync } from 'fs'
 import { resolve } from 'path'
 import { visualizer } from 'rollup-plugin-visualizer'
+import { parse } from 'yaml'
 
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
 import { uiContractPlugin } from './scripts/uiContract/vitePlugin'
+
+type ElectronBuilderConfig = {
+  releaseInfo?: {
+    releaseNotes?: unknown
+  }
+}
+
+const electronBuilderConfig = parse(
+  readFileSync(resolve(__dirname, 'electron-builder.yml'), 'utf8')
+) as ElectronBuilderConfig
+const bundledReleaseNotes = electronBuilderConfig.releaseInfo?.releaseNotes
+
+if (typeof bundledReleaseNotes !== 'string' || !bundledReleaseNotes.trim()) {
+  throw new Error('electron-builder.yml must define non-empty releaseInfo.releaseNotes')
+}
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
@@ -104,6 +121,10 @@ export default defineConfig({
     }
   },
   renderer: {
+    define: {
+      __APP_RELEASE_NOTES__: JSON.stringify(bundledReleaseNotes),
+      __APP_RELEASE_VERSION__: JSON.stringify(pkg.version)
+    },
     plugins: [
       uiContractPlugin(),
       tanstackRouter({

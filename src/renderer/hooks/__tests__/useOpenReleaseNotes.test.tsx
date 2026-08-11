@@ -3,21 +3,11 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  ipcRequest: vi.fn(),
-  openSmartMiniApp: vi.fn(),
-  theme: 'light'
+  openTab: vi.fn()
 }))
 
-vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (...args: unknown[]) => mocks.ipcRequest(...args) }
-}))
-
-vi.mock('@renderer/hooks/useMiniAppPopup', () => ({
-  useMiniAppPopup: () => ({ openSmartMiniApp: mocks.openSmartMiniApp })
-}))
-
-vi.mock('@renderer/hooks/useTheme', () => ({
-  useTheme: () => ({ theme: mocks.theme })
+vi.mock('@renderer/hooks/tab', () => ({
+  useTabs: () => ({ openTab: mocks.openTab })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -29,26 +19,15 @@ import { useOpenReleaseNotes } from '../useOpenReleaseNotes'
 describe('useOpenReleaseNotes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.theme = 'light'
-    mocks.ipcRequest.mockResolvedValue({ appPath: '/Applications/Cherry Studio.app/Contents' })
   })
 
-  it.each([
-    ['light', 'light'],
-    ['dark', 'dark']
-  ])('opens the bundled Releases mini-app in %s mode', async (theme, expectedTheme) => {
-    mocks.theme = theme
+  it('opens the bundled release notes in an app tab', () => {
     const { result } = renderHook(() => useOpenReleaseNotes())
 
-    await act(() => result.current())
+    act(() => result.current())
 
-    expect(mocks.ipcRequest).toHaveBeenCalledWith('app.get_info')
-    expect(mocks.openSmartMiniApp).toHaveBeenCalledWith(
-      expect.objectContaining({
-        appId: 'cherrystudio-releases',
-        name: 'settings.about.releases.title',
-        url: `file:///Applications/Cherry Studio.app/Contents/resources/cherry-studio/releases.html?theme=${expectedTheme}`
-      })
-    )
+    expect(mocks.openTab).toHaveBeenCalledWith('/app/release-notes', {
+      title: 'settings.about.releases.title'
+    })
   })
 })

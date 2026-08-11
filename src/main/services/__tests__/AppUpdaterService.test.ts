@@ -193,97 +193,6 @@ describe('AppUpdaterService', () => {
     })
   })
 
-  describe('parseMultiLangReleaseNotes', () => {
-    const sampleReleaseNotes = `<!--LANG:en-->
-🚀 New Features:
-- Feature A
-- Feature B
-
-🎨 UI Improvements:
-- Improvement A
-<!--LANG:zh-CN-->
-🚀 新功能：
-- 功能 A
-- 功能 B
-
-🎨 界面改进：
-- 改进 A
-<!--LANG:END-->`
-
-    it('returns Chinese notes for zh-CN users', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
-
-      expect(result).toContain('新功能')
-      expect(result).toContain('功能 A')
-      expect(result).not.toContain('New Features')
-    })
-
-    it('returns Chinese notes for zh-TW users', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-TW')
-
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
-
-      expect(result).toContain('新功能')
-      expect(result).not.toContain('New Features')
-    })
-
-    it('returns English notes for non-Chinese users', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'en-US')
-
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
-
-      expect(result).toContain('New Features')
-      expect(result).not.toContain('新功能')
-    })
-
-    it('returns English notes for other languages', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'ru-RU')
-
-      const result = (appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)
-
-      expect(result).toContain('New Features')
-      expect(result).not.toContain('新功能')
-    })
-
-    it('handles release notes without language markers', () => {
-      const releaseNotes = 'Simple release notes without markers'
-
-      expect((appUpdater as any).parseMultiLangReleaseNotes(releaseNotes)).toBe(releaseNotes)
-    })
-
-    it('cleans malformed markers', () => {
-      MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
-
-      const result = (appUpdater as any).parseMultiLangReleaseNotes('<!--LANG:en-->English only')
-
-      expect(result).toBe('English only')
-    })
-
-    it('handles empty release notes', () => {
-      expect((appUpdater as any).parseMultiLangReleaseNotes('')).toBe('')
-    })
-
-    it('returns the original notes when language lookup fails', () => {
-      vi.mocked(application.get('PreferenceService').get).mockImplementationOnce(() => {
-        throw new Error('Test error')
-      })
-
-      expect((appUpdater as any).parseMultiLangReleaseNotes(sampleReleaseNotes)).toBe(sampleReleaseNotes)
-    })
-  })
-
-  describe('hasMultiLanguageMarkers', () => {
-    it('detects language markers', () => {
-      expect((appUpdater as any).hasMultiLanguageMarkers('<!--LANG:en-->Test')).toBe(true)
-    })
-
-    it('rejects unmarked notes', () => {
-      expect((appUpdater as any).hasMultiLanguageMarkers('Simple release notes')).toBe(false)
-    })
-  })
-
   describe('processReleaseInfo', () => {
     it('localizes marked release notes', () => {
       MockMainPreferenceServiceUtils.setPreferenceValue('app.language', 'zh-CN')
@@ -341,6 +250,22 @@ describe('AppUpdaterService', () => {
       } as UpdateInfo
 
       expect((appUpdater as any).processReleaseInfo(releaseInfo).releaseNotes).toBeNull()
+    })
+
+    it('leaves marked release notes unchanged when language lookup fails', () => {
+      const releaseInfo = {
+        version: '1.0.0',
+        files: [],
+        path: '',
+        sha512: '',
+        releaseDate: new Date().toISOString(),
+        releaseNotes: '<!--LANG:en-->English notes<!--LANG:zh-CN-->中文说明<!--LANG:END-->'
+      } as UpdateInfo
+      vi.mocked(application.get('PreferenceService').get).mockImplementationOnce(() => {
+        throw new Error('Test error')
+      })
+
+      expect((appUpdater as any).processReleaseInfo(releaseInfo).releaseNotes).toBe(releaseInfo.releaseNotes)
     })
   })
 })

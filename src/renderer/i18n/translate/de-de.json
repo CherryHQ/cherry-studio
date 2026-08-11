@@ -34,9 +34,6 @@
     "builtin": {
       "cherry_assistant": {
         "description": "Integrierter Cherry Studio Berater. Diagnose von Problemen, Anleitung bei Bedienung, Sammlung von FAQs, Einreichung von Fehlern/Feature-Anfragen sowie Suche/Erstellung von Skills"
-      },
-      "cherry_support": {
-        "description": "Offizieller Cherry Studio Support-Agent für Einrichtung, Fehlerbehebung, FAQs und Feedback"
       }
     },
     "channels": {
@@ -2862,6 +2859,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "Feedback",
+    "guide": "Benutzerhandbuch",
+    "star": "Unterstützt uns",
+    "title": "Hilfe",
+    "whats_new": "Neuigkeiten"
+  },
   "history": {
     "continue_chat": "Chat fortsetzen",
     "error": {
@@ -3483,12 +3487,6 @@
         "context_compress_model": "Komprimierungsmodell",
         "context_compress_model_follow": "Standard",
         "context_count": "Kontextzählung",
-        "context_count_follow_global": "Global folgen ({{count}})",
-        "context_count_unlimited": "Unbegrenzt",
-        "context_globally_disabled": "Die Kontextverwaltung ist global deaktiviert, daher haben die Auslagerungs- und Komprimierungseinstellungen hier keine Wirkung",
-        "context_inherited": "Folgt den globalen Einstellungen: {{compress}}; Werkzeugausgaben über {{threshold}} Zeichen werden ausgelagert",
-        "context_inherited_compress_off": "automatische Komprimierung inaktiv",
-        "context_inherited_compress_on": "automatische Komprimierung aktiv",
         "context_management": "Kontextverwaltung",
         "context_truncate_threshold": "Zeichengrenzwert für Tool-Ausgabe-Abkürzung",
         "creative": "Kreativ",
@@ -4105,9 +4103,6 @@
       "failed": "Wiederherstellung fehlgeschlagen",
       "success": "Erfolgreich wiederhergestellt"
     },
-    "retry": {
-      "status": "Wiederholung mit {{model}} · Versuch {{attempt}}"
-    },
     "save": {
       "success": {
         "title": "Erfolgreich gespeichert"
@@ -4476,27 +4471,14 @@
     },
     "pinned": "Angeheftet",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
       "cache_read": "Cache-Lesepreis",
-      "cache_write": "[to be translated]:Cache Write Price",
       "cost": "Kosten",
       "currency": "Währung",
       "custom": "Benutzerdefiniert",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
       "input": "Eingabepreis",
       "million_tokens": "Million Token",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
       "output": "Ausgabepreis",
-      "price": "Preis",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "price": "Preis"
     },
     "reasoning": "Reasoning",
     "rerank_model": "Reranking-Modell",
@@ -4648,8 +4630,6 @@
         "font_size_medium": "Mittel",
         "font_size_small": "Klein",
         "font_title": "Schrifteinstellungen",
-        "line_breaks": "[to be translated]:Line Break Mode",
-        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "Serifenschrift",
         "show_table_of_contents": "Inhaltsverzeichnis anzeigen",
         "show_table_of_contents_description": "Inhaltsverzeichnis-Seitenleiste anzeigen für einfache Navigation im Dokument",
@@ -5417,7 +5397,6 @@
         "insertRowBefore": "Oben einfügen"
       }
     },
-    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "Mathematische Formel einfügen",
@@ -5907,7 +5886,7 @@
           "title": "Diagnosepaket"
         },
         "errors": {
-          "busy": "Ein anderes Diagnosepaket wird bereits exportiert",
+          "busy": "Ein anderer Diagnosevorgang wird bereits ausgeführt",
           "copy_failed": "Die Support-E-Mail-Adresse konnte nicht kopiert werden",
           "destination_conflict": "Der ausgewählte Speicherort steht in Konflikt mit den Diagnosedaten. Wählen Sie einen anderen Ordner.",
           "email_client_failed": "Es konnte kein E-Mail-Programm geöffnet werden. Sie können stattdessen die Support-E-Mail-Adresse kopieren.",
@@ -5956,6 +5935,44 @@
           "title": "Diagnosepaket exportiert"
         },
         "unknown": "Unbekannt",
+        "upload": {
+          "actions": {
+            "consent_upload": "Zustimmen und hochladen",
+            "open_form": "Formular öffnen",
+            "uploading": "Wird hochgeladen..."
+          },
+          "dialog": {
+            "description": "Erstellen Sie ein Diagnosepaket und senden Sie es anonym an das Cherry-Studio-Team.",
+            "title": "Diagnosepaket hochladen"
+          },
+          "errors": {
+            "open_form_failed": "Das Feedback-Formular konnte nicht geöffnet werden",
+            "upload_failed": "Das Diagnosepaket konnte nicht erstellt oder gespeichert werden"
+          },
+          "manual": {
+            "description": "Die ZIP-Datei wurde im Downloads-Ordner gespeichert und das anonyme Formular geöffnet. Wählen Sie dort die gespeicherte Datei aus, um die Übermittlung abzuschließen.",
+            "title": "Manuelles Hochladen erforderlich"
+          },
+          "privacy": {
+            "description": "Das Paket enthält immer App- und Geräteinformationen. Ausgewählte Protokolle und detaillierte Aufzeichnungen können Ihre Eingaben, Dateispeicherorte, Anfrage- und Antwortinhalte sowie Informationen zu Dienstverbindungen enthalten. Es wird anonym an ein privates Feishu-Formular gesendet und ist auf {{size}} begrenzt. Mit einem Klick auf „Zustimmen und hochladen“ stimmen Sie der Erstellung und Übermittlung dieses Pakets zu.",
+            "title": "Datenschutzhinweis"
+          },
+          "reasons": {
+            "attachment_upload_failed": "Der Anhang konnte nicht automatisch hochgeladen werden.",
+            "form_changed": "Die Struktur des Feedback-Formulars hat sich geändert und konnte nicht sicher überprüft werden.",
+            "form_unavailable": "Das Feedback-Formular ist derzeit nicht verfügbar.",
+            "network_failed": "Die Netzwerkanfrage konnte nicht abgeschlossen werden.",
+            "submission_rejected": "Das Feedback-Formular hat die Übermittlung abgelehnt."
+          },
+          "success": {
+            "description": "Dateigröße {{size}} · {{included}} Dateien erfasst · {{omitted}} Dateien nicht erfasst",
+            "title": "Diagnosepaket hochgeladen"
+          },
+          "unknown": {
+            "description": "Die ZIP-Datei wurde im Downloads-Ordner gespeichert, aber die Serverantwort wurde unterbrochen. Die Übermittlung war möglicherweise bereits erfolgreich. Prüfen Sie dies, bevor Sie das Formular öffnen, um eine doppelte Übermittlung zu vermeiden.",
+            "title": "Übermittlung möglicherweise erfolgreich"
+          }
+        },
         "warning": "Einige Diagnoseinformationen waren nicht verfügbar. Das exportierte Paket ist möglicherweise unvollständig."
       },
       "downloading": "Update wird heruntergeladen...",
@@ -5964,11 +5981,15 @@
       },
       "feedback": {
         "agent": {
-          "description": "Chatte mit Cherry Support, um Hilfe zu erhalten oder Feedback zu teilen.",
-          "title": "Verwenden Sie Agent"
+          "description": "Starten Sie eine separate Cherry-Assistant-Sitzung mit vorbereitetem Feedback-Skill.",
+          "title": "Cherry Assistant fragen"
         },
-        "agent_error": "Cherry Support für Feedback kann nicht geöffnet werden. Bitte versuchen Sie es erneut.",
+        "agent_error": "Cherry Assistant für Feedback kann nicht geöffnet werden. Bitte versuchen Sie es erneut.",
         "button": "Feedback",
+        "diagnostics": {
+          "description": "Prüfen Sie die aktuellen Diagnoseinformationen und laden Sie sie anschließend in einem Schritt anonym hoch.",
+          "title": "Diagnosepaket hochladen"
+        },
         "dialog": {
           "description": "Wählen Sie, wie Sie Feedback geben möchten, und helfen Sie uns, Cherry Studio zu verbessern.",
           "title": "Wählen Sie einen Feedback-Kanal"
@@ -5978,10 +5999,6 @@
           "title": "GitHub Issue"
         },
         "recommended": "Empfohlen",
-        "survey": {
-          "description": "Geben Sie Feedback über unsere Feishu-Umfrage.",
-          "title": "Feedback-Umfrage"
-        },
         "title": "Feedback"
       },
       "label": "Über uns",
@@ -7440,20 +7457,6 @@
         "use_all_keys": "Schlüssel verwenden"
       },
       "collapse_all": "Alle einklappen",
-      "context_management": {
-        "compress_enabled": "Automatisch komprimieren",
-        "compress_enabled_description": "Ältere Gesprächsrunden automatisch zusammenfassen, wenn das Kontextfenster fast erreicht ist. Assistenten können dies überschreiben",
-        "compress_model": "Komprimierungsmodell",
-        "compress_model_follow": "Aktuellem Modell folgen",
-        "enabled": "Kontextverwaltung aktivieren",
-        "enabled_description": "Gesprächskontext automatisch verwalten: übergroße Werkzeugausgaben auslagern und den Verlauf nahe der Fenstergrenze komprimieren. Deaktiviert wird nichts verwaltet und Anfragen über die Fenstergröße schlagen fehl",
-        "max_messages": "Beibehaltene letzte Nachrichten",
-        "max_messages_description": "Nur die neuesten Nachrichten senden; ältere werden vom Kontext ausgeschlossen. Leer lassen für keine Begrenzung. Assistenten können dies überschreiben",
-        "max_messages_unlimited": "Unbegrenzt",
-        "title": "Kontextverwaltung",
-        "truncate_threshold": "Kürzungsschwelle für Werkzeugausgaben (Zeichen)",
-        "truncate_threshold_description": "Werkzeugausgaben über dieser Zeichenzahl werden in eine Datei ausgelagert und gekürzt; das Modell kann sie bei Bedarf wieder lesen. Assistenten können dies überschreiben"
-      },
       "default_assistant_model": "Standard-Assistent-Modell",
       "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "docs": "Modelldokumentation",
@@ -7566,16 +7569,6 @@
         "label": "Schnellmodell",
         "setting_title": "Schnellmodell-Einstellungen",
         "tooltip": "Leichtes Modell empfohlen, Denkmodell nicht empfohlen"
-      },
-      "retry": {
-        "backoff": "Exponentielles Backoff",
-        "description": "Wiederholt Chat-, Embedding- und Rerank-Aufrufe; Chat kann auf andere Modelle zurückgreifen",
-        "fallback_models": "Fallback-Modelle",
-        "fallback_models_count": "{{count}} Modelle ausgewählt",
-        "fallback_models_description": "Modelle, die der Reihe nach ausprobiert werden, wenn das primäre Modell fehlschlägt",
-        "label": "Modellaufruf-Wiederholung",
-        "max_attempts": "Maximale Wiederholungsversuche",
-        "tooltip": "Wiederholungsversuche und Fallbacks gelten nur, bevor das Modell mit dem Streaming von Inhalten beginnt"
       },
       "toolbar": {
         "custom_add": "Benutzerdefiniert",

@@ -9,6 +9,7 @@ import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
 import type { RetryPolicy } from '@shared/data/api/schemas/jobs'
 import { UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { APP_NAME } from '@shared/utils/constants'
+import { hasMultiLanguageReleaseNotes, localizeReleaseNotes } from '@shared/utils/releaseNotes'
 import type { ProgressInfo, UpdateInfo } from 'builder-util-runtime'
 import { CancellationToken } from 'builder-util-runtime'
 import { app } from 'electron'
@@ -29,13 +30,6 @@ function getUpdateHeaders(region: ReleaseRegion) {
     OS: process.platform,
     'X-Region': region
   }
-}
-
-// Language markers constants for multi-language release notes
-const LANG_MARKERS = {
-  EN_START: '<!--LANG:en-->',
-  ZH_CN_START: '<!--LANG:zh-CN-->',
-  END: '<!--LANG:END-->'
 }
 
 // Auto update-check scheduling. The cadence lives in the main process (this
@@ -287,57 +281,6 @@ export class AppUpdaterService extends BaseService {
   }
 
   /**
-   * Check if release notes contain multi-language markers
-   */
-  private hasMultiLanguageMarkers(releaseNotes: string): boolean {
-    return releaseNotes.includes(LANG_MARKERS.EN_START)
-  }
-
-  /**
-   * Parse multi-language release notes and return the appropriate language version
-   * @param releaseNotes - Release notes string with language markers
-   * @returns Parsed release notes for the user's language
-   *
-   * Expected format:
-   * <!--LANG:en-->English content<!--LANG:zh-CN-->Chinese content<!--LANG:END-->
-   */
-  private parseMultiLangReleaseNotes(releaseNotes: string): string {
-    try {
-      const language = application.get('PreferenceService').get('app.language')
-      const isChineseUser = language === 'zh-CN' || language === 'zh-TW'
-
-      // Create regex patterns using constants
-      const enPattern = new RegExp(
-        `${LANG_MARKERS.EN_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${LANG_MARKERS.ZH_CN_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
-      )
-      const zhPattern = new RegExp(
-        `${LANG_MARKERS.ZH_CN_START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([\\s\\S]*?)${LANG_MARKERS.END.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`
-      )
-
-      // Extract language sections
-      const enMatch = releaseNotes.match(enPattern)
-      const zhMatch = releaseNotes.match(zhPattern)
-
-      // Return appropriate language version with proper fallback
-      if (isChineseUser && zhMatch) {
-        return zhMatch[1].trim()
-      } else if (enMatch) {
-        return enMatch[1].trim()
-      } else {
-        // Clean fallback: remove all language markers
-        logger.warn('Failed to extract language-specific release notes, using cleaned fallback')
-        return releaseNotes
-          .replace(new RegExp(`${LANG_MARKERS.EN_START}|${LANG_MARKERS.ZH_CN_START}|${LANG_MARKERS.END}`, 'g'), '')
-          .trim()
-      }
-    } catch (error) {
-      logger.error('Failed to parse multi-language release notes', error as Error)
-      // Return original notes as safe fallback
-      return releaseNotes
-    }
-  }
-
-  /**
    * Process release info to handle multi-language release notes
    * @param releaseInfo - Original release info from updater
    * @returns Processed release info with localized release notes
@@ -347,9 +290,13 @@ export class AppUpdaterService extends BaseService {
 
     // Handle multi-language release notes in string format
     if (releaseInfo.releaseNotes && typeof releaseInfo.releaseNotes === 'string') {
-      // Check if it contains multi-language markers
-      if (this.hasMultiLanguageMarkers(releaseInfo.releaseNotes)) {
-        processedInfo.releaseNotes = this.parseMultiLangReleaseNotes(releaseInfo.releaseNotes)
+      if (hasMultiLanguageReleaseNotes(releaseInfo.releaseNotes)) {
+        try {
+          const language = application.get('PreferenceService').get('app.language')
+          processedInfo.releaseNotes = localizeReleaseNotes(releaseInfo.releaseNotes, language)
+        } catch (error) {
+          logger.error('Failed to localize release notes', error as Error)
+        }
       }
     }
 

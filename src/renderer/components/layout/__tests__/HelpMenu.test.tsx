@@ -65,6 +65,10 @@ describe('HelpMenu', () => {
     const trigger = screen.getByRole('button', { name: 'help.title' })
     expect(trigger).toBeInTheDocument()
     expect(trigger).toHaveTextContent(hasVisibleLabel ? 'help.title' : '')
+    if (layout === 'full') {
+      expect(trigger).toHaveClass('min-w-0', 'overflow-hidden')
+      expect(trigger.querySelector('span')).toHaveClass('min-w-0', 'truncate')
+    }
   })
 
   it('shows four compact 32px actions and opens release notes', async () => {

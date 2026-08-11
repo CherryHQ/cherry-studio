@@ -39,6 +39,7 @@ describe('icon catalog lazy boundary', () => {
     async () => {
       const { getMiniAppsLogoRef } = await import('@renderer/components/icons/miniAppsLogo')
       expect(getMiniAppsLogoRef('doubao')?.key).toBe('doubao')
+      expect(getMiniAppsLogoRef('github')?.key).toBe('github')
       expect(providerCatalogEvaluated).not.toHaveBeenCalled()
       expect(modelCatalogEvaluated).not.toHaveBeenCalled()
     },

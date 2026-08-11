@@ -34,9 +34,6 @@
     "builtin": {
       "cherry_assistant": {
         "description": "内蔵のCherry Studioアドバイザー。問題の診断、操作ガイド、FAQの収集、バグ/機能リクエストの提出、およびスキルの検索/作成を行います。"
-      },
-      "cherry_support": {
-        "description": "設定案内、トラブル診断、FAQ、フィードバックに対応する Cherry Studio 公式サポート Agent"
       }
     },
     "channels": {
@@ -2862,6 +2859,13 @@
     },
     "title": "GPUStack"
   },
+  "help": {
+    "feedback": "フィードバック",
+    "guide": "ユーザーガイド",
+    "star": "応援する",
+    "title": "ヘルプ",
+    "whats_new": "新機能"
+  },
   "history": {
     "continue_chat": "チャットを続ける",
     "error": {
@@ -3483,12 +3487,6 @@
         "context_compress_model": "圧縮モデル",
         "context_compress_model_follow": "デフォルト",
         "context_count": "コンテキストカウント",
-        "context_count_follow_global": "グローバル設定に従う（{{count}}）",
-        "context_count_unlimited": "無制限",
-        "context_globally_disabled": "コンテキスト管理がグローバルで無効のため、ここの退避・圧縮設定は反映されません",
-        "context_inherited": "グローバル設定に従います：{{compress}}、{{threshold}} 文字を超えるツール出力は退避されます",
-        "context_inherited_compress_off": "自動圧縮オフ",
-        "context_inherited_compress_on": "自動圧縮オン",
         "context_management": "コンテキスト管理",
         "context_truncate_threshold": "ツール出力の切り捨てしきい値（文字数）",
         "creative": "クリエイティブ",
@@ -4105,9 +4103,6 @@
       "failed": "復元に失敗しました",
       "success": "復元に成功しました"
     },
-    "retry": {
-      "status": "{{model}}を使用して再試行中 · 試行 {{attempt}}回目"
-    },
     "save": {
       "success": {
         "title": "保存に成功しました"
@@ -4476,27 +4471,14 @@
     },
     "pinned": "固定済み",
     "price": {
-      "add_tier": "[to be translated]:Add pricing tier",
-      "cache_fallback_help": "[to be translated]:Leave cache prices blank to use this tier's input price; enter 0 for free.",
       "cache_read": "キャッシュ読み取り価格",
-      "cache_write": "[to be translated]:Cache Write Price",
       "cost": "コスト",
       "currency": "通貨",
       "custom": "カスタム",
-      "field_for_tier": "[to be translated]:{{field}}, tier {{index}}",
       "input": "入力価格",
       "million_tokens": "百万トークン",
-      "min_input_tokens": "[to be translated]:Starts at input tokens",
-      "min_input_tokens_help": "[to be translated]:Inclusive boundary; must be greater than the previous tier.",
       "output": "出力価格",
-      "price": "価格",
-      "remove_tier": "[to be translated]:Remove pricing tier {{index}}",
-      "tier": "[to be translated]:Tier {{index}}",
-      "tier_from": "[to be translated]:From {{boundary}} input tokens (inclusive)",
-      "use_input_price": "[to be translated]:Use input price",
-      "validation_min_input_tokens": "[to be translated]:Enter a positive whole number.",
-      "validation_min_input_tokens_order": "[to be translated]:The tier must start after the previous tier.",
-      "validation_price": "[to be translated]:Enter a price greater than or equal to 0."
+      "price": "価格"
     },
     "reasoning": "思考",
     "rerank_model": "リランクモデル",
@@ -4648,8 +4630,6 @@
         "font_size_medium": "中",
         "font_size_small": "小",
         "font_title": "フォント設定",
-        "line_breaks": "[to be translated]:Line Break Mode",
-        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "セリフフォント",
         "show_table_of_contents": "目次アウトラインを表示",
         "show_table_of_contents_description": "目次アウトラインサイドバーを表示し、文書内のナビゲーションを容易にする",
@@ -5417,7 +5397,6 @@
         "insertRowBefore": "上に挿入"
       }
     },
-    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "数式を挿入します",
@@ -5907,7 +5886,7 @@
           "title": "診断バンドル"
         },
         "errors": {
-          "busy": "別の診断バンドルをエクスポートしています",
+          "busy": "別の診断バンドル処理がすでに進行中です",
           "copy_failed": "サポート用メールアドレスをコピーできませんでした",
           "destination_conflict": "選択した保存場所が診断データと競合しています。別のフォルダーを選択してください。",
           "email_client_failed": "メールクライアントを開けませんでした。代わりにサポート用メールアドレスをコピーできます。",
@@ -5956,6 +5935,44 @@
           "title": "診断バンドルをエクスポートしました"
         },
         "unknown": "不明",
+        "upload": {
+          "actions": {
+            "consent_upload": "同意してアップロード",
+            "open_form": "フォームを開く",
+            "uploading": "アップロード中..."
+          },
+          "dialog": {
+            "description": "診断バンドルを作成し、Cherry Studio チームに匿名で送信します。",
+            "title": "診断バンドルをアップロード"
+          },
+          "errors": {
+            "open_form_failed": "フィードバックフォームを開けませんでした",
+            "upload_failed": "診断バンドルを作成または保存できませんでした"
+          },
+          "manual": {
+            "description": "ZIP ファイルは「ダウンロード」に保存され、匿名フォームが開かれました。フォームで保存済みのファイルを選択し、送信を完了してください。",
+            "title": "手動アップロードが必要です"
+          },
+          "privacy": {
+            "description": "バンドルには常にアプリとデバイスの情報が含まれます。選択したログや詳細記録には、入力内容、ファイルの場所、リクエストとレスポンスの内容、サービス接続情報が含まれる場合があります。バンドルは非公開の Feishu フォームに匿名で送信され、サイズは {{size}} に制限されます。「同意してアップロード」をクリックすると、このバンドルの作成と送信に同意したものとみなされます。",
+            "title": "プライバシーに関するお知らせ"
+          },
+          "reasons": {
+            "attachment_upload_failed": "添付ファイルを自動でアップロードできませんでした。",
+            "form_changed": "フィードバックフォームの構造が変更され、安全に検証できませんでした。",
+            "form_unavailable": "フィードバックフォームは現在利用できません。",
+            "network_failed": "ネットワークリクエストを完了できませんでした。",
+            "submission_rejected": "フィードバックフォームで送信が拒否されました。"
+          },
+          "success": {
+            "description": "ファイルサイズ {{size}} · 収集済み {{included}} ファイル · 未収集 {{omitted}} ファイル",
+            "title": "診断バンドルをアップロードしました"
+          },
+          "unknown": {
+            "description": "ZIP ファイルは「ダウンロード」に保存されましたが、サーバーからの応答が途切れました。すでに送信済みの可能性があります。重複送信を避けるため、フォームを開く前に確認してください。",
+            "title": "送信済みの可能性があります"
+          }
+        },
         "warning": "一部の診断情報を取得できなかったため、エクスポートされたバンドルが不完全な可能性があります。"
       },
       "downloading": "ダウンロード中...",
@@ -5964,11 +5981,15 @@
       },
       "feedback": {
         "agent": {
-          "description": "Cherry Support とチャットして、ヘルプを受けたりフィードバックを共有したりできます。",
-          "title": "エージェントを使用する"
+          "description": "フィードバック Skill が選択済みの専用 Cherry Assistant セッションを開始します。",
+          "title": "Cherry Assistant に質問"
         },
-        "agent_error": "フィードバック用の Cherry Support を開けません。もう一度お試しください。",
+        "agent_error": "フィードバック用のCherry Assistantを開けません。もう一度お試しください。",
         "button": "フィードバック",
+        "diagnostics": {
+          "description": "最近の診断情報を確認し、ワンクリックで匿名アップロードします。",
+          "title": "診断バンドルをアップロード"
+        },
         "dialog": {
           "description": "フィードバックの共有方法を選択して、Cherry Studioの改善にご協力ください。",
           "title": "フィードバックチャンネルを選択してください"
@@ -5978,10 +5999,6 @@
           "title": "GitHub Issue"
         },
         "recommended": "おすすめ",
-        "survey": {
-          "description": "Feishuアンケートを通じてフィードバックをお寄せください。",
-          "title": "フィードバック調査"
-        },
         "title": "フィードバック"
       },
       "label": "について",
@@ -7440,20 +7457,6 @@
         "use_all_keys": "キー"
       },
       "collapse_all": "すべて折りたたむ",
-      "context_management": {
-        "compress_enabled": "自動圧縮",
-        "compress_enabled_description": "コンテキストウィンドウの上限に近づいたとき、古いやり取りを自動で要約します。アシスタントごとに上書きできます",
-        "compress_model": "圧縮モデル",
-        "compress_model_follow": "現在のモデルに従う",
-        "enabled": "コンテキスト管理を有効にする",
-        "enabled_description": "会話のコンテキストを自動管理します：大きすぎるツール出力を退避し、ウィンドウ上限に近づいたら履歴を圧縮します。無効にすると何も管理されず、ウィンドウを超えるリクエストは失敗します",
-        "max_messages": "保持する直近メッセージ数",
-        "max_messages_description": "直近のメッセージのみを送信し、それより前はコンテキストから除外します。空欄で無制限。アシスタントごとに上書きできます",
-        "max_messages_unlimited": "無制限",
-        "title": "コンテキスト管理",
-        "truncate_threshold": "ツール出力の切り詰めしきい値（文字）",
-        "truncate_threshold_description": "この文字数を超えるツール出力はファイルへ退避して切り詰めます。モデルは必要に応じて読み戻せます。アシスタントごとに上書きできます"
-      },
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "docs": "モデルドキュメント",
@@ -7566,16 +7569,6 @@
         "label": "高速モデル",
         "setting_title": "高速モデル設定",
         "tooltip": "軽量モデルを選択し、推論モデルは避けてください。"
-      },
-      "retry": {
-        "backoff": "指数関数的バックオフ",
-        "description": "チャット、埋め込み、リランクの呼び出しを再試行します。チャットは他のモデルにフォールバックできます。",
-        "fallback_models": "フォールバックモデル",
-        "fallback_models_count": "{{count}} 個のモデルを選択中",
-        "fallback_models_description": "プライマリモデルが失敗した場合に順番に試行されるモデル",
-        "label": "モデル呼び出しの再試行",
-        "max_attempts": "最大再試行回数",
-        "tooltip": "再試行とフォールバックは、モデルがコンテンツのストリーミングを開始する前にのみ適用されます"
       },
       "toolbar": {
         "custom_add": "カスタム",

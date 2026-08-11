@@ -68,9 +68,9 @@ export function HelpMenu({ layout }: { layout: SidebarVisibleLayout }) {
         type="button"
         variant="ghost"
         aria-label={t('help.title')}
-        className="flex w-full items-center justify-start gap-2.5 rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60">
+        className="flex w-full min-w-0 items-center justify-start gap-2.5 overflow-hidden rounded-lg px-2.5 py-1.75 text-[13px] text-foreground transition-colors hover:bg-accent/60">
         <CircleQuestionMark size={16} strokeWidth={1.6} />
-        <span>{t('help.title')}</span>
+        <span className="min-w-0 truncate">{t('help.title')}</span>
       </Button>
     )
 
