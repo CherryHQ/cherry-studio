@@ -1,7 +1,7 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Badge, Button, Tooltip } from '@cherrystudio/ui'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
-import { Check, Copy, GitBranchPlus, MessageSquareText } from 'lucide-react'
+import { ArrowUpRight, Check, Copy, GitBranchPlus, MessageSquareText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
@@ -9,6 +9,7 @@ import type { ToolInput, ToolOutput } from '../shared/agentToolTypes'
 import { useIsStreaming } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
+import { getSessionDeliveryStatus } from './sessionDeliveryStatus'
 
 interface SessionCreateInput {
   message?: string
@@ -65,31 +66,6 @@ function getInput(input: ToolInput | Record<string, unknown> | undefined): Sessi
   }
 }
 
-function getDeliveryStatus(status: string | undefined, t: ReturnType<typeof useTranslation>['t']) {
-  switch (status) {
-    case 'delivering':
-      return {
-        label: t('message.tools.agent_background'),
-        className: 'border-info-border bg-info-subtle text-info-subtle-foreground'
-      }
-    case 'consumed':
-      return {
-        label: t('message.tools.completed'),
-        className: 'border-success-border bg-success-subtle text-success-subtle-foreground'
-      }
-    case 'failed':
-      return {
-        label: t('message.tools.status.failed'),
-        className: 'border-error-border bg-error-subtle text-error-subtle-foreground'
-      }
-    default:
-      return {
-        label: t('message.tools.pending'),
-        className: 'border-border bg-muted text-muted-foreground'
-      }
-  }
-}
-
 export function SessionCreateTool({
   input,
   output,
@@ -107,7 +83,7 @@ export function SessionCreateTool({
   const result = parseSessionCreateResult(output)
   const title = sessionInput.title?.trim() || t('message.tools.sessionCreate.untitled')
   const message = sessionInput.message?.trim()
-  const deliveryStatus = getDeliveryStatus(result?.delivery?.status, t)
+  const deliveryStatus = getSessionDeliveryStatus(result?.delivery?.status, t)
   const errorText = hasError ? extractToolErrorText(output) : undefined
 
   const copySessionId = () => {
@@ -115,6 +91,11 @@ export function SessionCreateTool({
     Promise.resolve(actions.copyText(result.sessionId, { successMessage: t('common.copied') }))
       .then(() => setCopied(true))
       .catch(() => actions.notifyError?.(t('message.copy.failed')))
+  }
+
+  const openSession = () => {
+    if (!result?.sessionId || !actions?.navigateToRoute) return
+    void actions.navigateToRoute({ path: '/app/agents', query: { sessionId: result.sessionId } })
   }
 
   return {
@@ -156,10 +137,11 @@ export function SessionCreateTool({
                 </div>
               </div>
               {result ? (
-                <span
-                  className={`shrink-0 rounded-full border px-2 py-0.5 font-medium text-[11px] ${deliveryStatus.className}`}>
+                <Badge
+                  variant="outline"
+                  className={`h-5 shrink-0 px-2 py-0 font-medium text-[11px] ${deliveryStatus.className}`}>
                   {deliveryStatus.label}
-                </span>
+                </Badge>
               ) : null}
             </div>
           </div>
@@ -206,6 +188,12 @@ export function SessionCreateTool({
                   )}
                 </Button>
               </Tooltip>
+            ) : null}
+            {actions?.navigateToRoute ? (
+              <Button type="button" variant="outline" size="sm" onClick={openSession}>
+                {t('message.tools.sessionCreate.open')}
+                <ArrowUpRight aria-hidden="true" size={13} />
+              </Button>
             ) : null}
           </div>
         ) : null}

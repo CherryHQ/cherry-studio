@@ -1,11 +1,15 @@
-import { render } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import MessageHeader from '../MessageHeader'
 
 const providerState = vi.hoisted(() => ({
-  actions: {} as { selectMessage?: (messageId: string, selected: boolean) => void },
+  actions: {} as {
+    navigateToRoute?: (target: { path: string; query?: Record<string, string> }) => void
+    selectMessage?: (messageId: string, selected: boolean) => void
+  },
   selection: undefined as { isMultiSelectMode: boolean; selectedMessageIds: string[] } | undefined
 }))
 
@@ -17,7 +21,8 @@ vi.mock('@cherrystudio/ui', () => ({
     <div className={className}>{children}</div>
   ),
   AvatarImage: ({ className }: { className?: string }) => <div className={className} />,
-  Badge: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
+  Badge: ({ asChild, children }: { asChild?: boolean; children?: ReactNode }) =>
+    asChild ? <>{children}</> : <span>{children}</span>,
   Checkbox: ({
     className,
     ...props
@@ -55,6 +60,7 @@ vi.mock('@renderer/utils/naming', () => ({
 
 vi.mock('../../MessageListProvider', () => ({
   useMessageListActions: () => providerState.actions,
+  useOptionalMessageListActions: () => providerState.actions,
   useMessageListMeta: () => ({
     assistantProfile: undefined,
     userProfile: undefined
@@ -204,5 +210,41 @@ describe('MessageHeader', () => {
 
     expect(getByText('From Agent A / Research')).toBeTruthy()
     expect(getByText('agent.session_delivery.status.queued')).toBeTruthy()
+  })
+
+  it('opens the sending session from durable attribution', async () => {
+    const user = userEvent.setup()
+    const navigateToRoute = vi.fn()
+    providerState.actions = { navigateToRoute }
+
+    render(
+      <MessageHeader
+        message={createMessage('user', {
+          delivery: {
+            version: 1,
+            sender: { agentId: 'agent-a', sessionId: 'session-source' },
+            receiver: { agentId: 'agent-b', sessionId: 'session-current' },
+            senderSnapshot: { agentName: 'Agent A', sessionName: 'Research' },
+            receiverSnapshot: { agentName: 'Agent B', sessionName: 'Build' },
+            replyPolicy: 'none',
+            mode: 'auto',
+            turnRef: null,
+            sourceMessageId: null,
+            outcome: null,
+            error: null,
+            statusAt: '2026-06-06T00:00:01.000Z',
+            status: 'queued',
+            inReplyTo: null
+          }
+        })}
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: /From Agent A \/ Research/ }))
+
+    expect(navigateToRoute).toHaveBeenCalledWith({
+      path: '/app/agents',
+      query: { sessionId: 'session-source' }
+    })
   })
 })

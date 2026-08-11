@@ -1,9 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   copyText: vi.fn().mockResolvedValue(undefined),
+  navigateToRoute: vi.fn(),
   setCopied: vi.fn()
 }))
 
@@ -14,15 +15,20 @@ vi.mock('react-i18next', () => ({
         'message.tools.sessionCreate.created': 'Started a new session',
         'message.tools.sessionCreate.firstMessage': 'First message',
         'message.tools.sessionCreate.inheritedContext': 'Using this agent and workspace',
+        'message.tools.sessionCreate.open': 'Open session',
         'message.tools.sessionCreate.sessionId': 'Session ID',
-        'message.tools.agent_background': 'Running in background',
+        'agent.session_delivery.status.delivering': 'Delivering',
         'common.copy': 'Copy',
         'common.copied': 'Copied'
       })[key] ?? key
   })
 }))
 vi.mock('../../../MessageListProvider', () => ({
-  useOptionalMessageListActions: () => ({ copyText: mocks.copyText, notifyError: vi.fn() })
+  useOptionalMessageListActions: () => ({
+    copyText: mocks.copyText,
+    navigateToRoute: mocks.navigateToRoute,
+    notifyError: vi.fn()
+  })
 }))
 vi.mock('@renderer/hooks/useTemporaryValue', () => ({
   useTemporaryValue: () => [false, mocks.setCopied]
@@ -44,6 +50,10 @@ function Harness(props: Parameters<typeof SessionCreateTool>[0]) {
 }
 
 describe('SessionCreateTool', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('presents the new session as a background branch instead of raw MCP JSON', () => {
     render(
       <Harness
@@ -67,7 +77,7 @@ describe('SessionCreateTool', () => {
 
     expect(screen.getAllByText('Research pricing')).toHaveLength(2)
     expect(screen.getByText('Compare the three enterprise plans and cite each source.')).toBeInTheDocument()
-    expect(screen.getByText('Running in background')).toBeInTheDocument()
+    expect(screen.getByText('Delivering')).toBeInTheDocument()
     expect(screen.getByText('session-research')).toBeInTheDocument()
     expect(screen.queryByText(/"sessionId"/)).not.toBeInTheDocument()
   })
@@ -94,5 +104,31 @@ describe('SessionCreateTool', () => {
 
     expect(mocks.copyText).toHaveBeenCalledWith('session-copy', { successMessage: 'Copied' })
     expect(mocks.setCopied).toHaveBeenCalledWith(true)
+  })
+
+  it('opens the created session from the result card', async () => {
+    const user = userEvent.setup()
+    render(
+      <Harness
+        input={{ title: 'Research pricing', message: 'Do the work.' }}
+        output={
+          {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify({ ok: true, sessionId: 'session-open', delivery: { status: 'queued' } })
+              }
+            ]
+          } as never
+        }
+      />
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Open session' }))
+
+    expect(mocks.navigateToRoute).toHaveBeenCalledWith({
+      path: '/app/agents',
+      query: { sessionId: 'session-open' }
+    })
   })
 })

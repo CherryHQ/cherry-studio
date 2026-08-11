@@ -6,7 +6,7 @@ import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import dayjs from 'dayjs'
-import { Sparkle } from 'lucide-react'
+import { ArrowUpRight, Sparkle } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,7 +15,8 @@ import {
   useMessageListActions,
   useMessageListMeta,
   useMessageListSelection,
-  useMessageRenderConfig
+  useMessageRenderConfig,
+  useOptionalMessageListActions
 } from '../MessageListProvider'
 import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
@@ -44,24 +45,47 @@ export const AgentSessionDeliveryBadge: FC<{
   delivery: NonNullable<MessageListItem['delivery']>
 }> = ({ delivery }) => {
   const { t } = useTranslation()
+  const actions = useOptionalMessageListActions()
   const senderSessionLabel = delivery.senderSnapshot?.sessionName.trim() || delivery.sender.sessionId
   const senderAgentLabel = delivery.senderSnapshot?.agentName.trim() || delivery.sender.agentId
+  const content = (
+    <>
+      <span className="truncate">
+        {t('agent.session_delivery.from', {
+          agent: senderAgentLabel,
+          session: senderSessionLabel
+        })}
+      </span>
+      <span aria-hidden="true">·</span>
+      <span className="shrink-0">{t(DELIVERY_STATUS_LABEL_KEYS[delivery.status])}</span>
+    </>
+  )
+
+  const openSenderSession = () => {
+    if (!actions?.navigateToRoute) return
+    void actions.navigateToRoute({ path: '/app/agents', query: { sessionId: delivery.sender.sessionId } })
+  }
 
   return (
     <Tooltip
       content={`${delivery.sender.agentId}/${delivery.sender.sessionId} → ${delivery.receiver.agentId}/${delivery.receiver.sessionId}`}>
-      <Badge
-        variant="outline"
-        className="h-5 max-w-[min(28rem,50vw)] gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs">
-        <span className="truncate">
-          {t('agent.session_delivery.from', {
-            agent: senderAgentLabel,
-            session: senderSessionLabel
-          })}
-        </span>
-        <span aria-hidden="true">·</span>
-        <span className="shrink-0">{t(DELIVERY_STATUS_LABEL_KEYS[delivery.status])}</span>
-      </Badge>
+      {actions?.navigateToRoute ? (
+        <Badge
+          asChild
+          variant="outline"
+          className="h-5 max-w-[min(28rem,50vw)] cursor-pointer gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs hover:bg-accent hover:text-accent-foreground">
+          <button type="button" onClick={openSenderSession}>
+            {content}
+            <ArrowUpRight aria-hidden="true" />
+          </button>
+        </Badge>
+      ) : (
+        <Badge
+          variant="outline"
+          className="h-5 max-w-[min(28rem,50vw)] gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs">
+          {content}
+        </Badge>
+      )}
     </Tooltip>
   )
 }

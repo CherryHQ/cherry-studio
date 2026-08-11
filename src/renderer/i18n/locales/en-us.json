@@ -4325,8 +4325,15 @@
         "creating": "Starting a new session",
         "firstMessage": "First message",
         "inheritedContext": "Using this agent and workspace",
+        "open": "Open session",
         "sessionId": "Session ID",
         "untitled": "Untitled session"
+      },
+      "sessionSend": {
+        "open": "Open session",
+        "sending": "Sending to",
+        "sent": "Sent to",
+        "to": "To"
       },
       "status": {
         "done": "Done",

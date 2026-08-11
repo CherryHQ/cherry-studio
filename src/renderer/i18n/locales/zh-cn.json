@@ -4325,8 +4325,15 @@
         "creating": "正在启动新会话",
         "firstMessage": "首条消息",
         "inheritedContext": "沿用当前智能体与工作区",
+        "open": "打开会话",
         "sessionId": "会话 ID",
         "untitled": "未命名会话"
+      },
+      "sessionSend": {
+        "open": "打开会话",
+        "sending": "正在发送至",
+        "sent": "已发送至",
+        "to": "发送至"
       },
       "status": {
         "done": "完成",
