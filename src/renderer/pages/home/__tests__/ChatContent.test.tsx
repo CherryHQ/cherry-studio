@@ -487,7 +487,8 @@ describe('ChatContent', () => {
 
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
-      reservedMessages: [reservedAssistant]
+      reservedMessages: [reservedAssistant],
+      activeExecutions: [{ executionId: 'provider::model-a', anchorMessageId: 'reserved-assistant' }]
     })
     mockUseTopicMessages.mockReturnValue({
       uiMessages: [historyUser, historyAssistant],
@@ -796,7 +797,8 @@ describe('ChatContent', () => {
 
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
-      reservedMessages: [reservedUser, reservedAssistant]
+      reservedMessages: [reservedUser, reservedAssistant],
+      activeExecutions: [{ executionId: 'provider::model', anchorMessageId: 'reserved-assistant' }]
     })
 
     const view = render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
@@ -1430,7 +1432,11 @@ describe('ChatContent', () => {
 
     streamOpen.mockResolvedValueOnce({
       mode: 'started',
-      reservedMessages: [reservedUser, reservedAssistantA, reservedAssistantB]
+      reservedMessages: [reservedUser, reservedAssistantA, reservedAssistantB],
+      activeExecutions: [
+        { executionId: 'provider::model-a', anchorMessageId: 'reserved-assistant-a' },
+        { executionId: 'provider::model-b', anchorMessageId: 'reserved-assistant-b' }
+      ]
     })
     const refresh = vi.fn().mockResolvedValue([])
     mockUseTopicMessages.mockReturnValue({
