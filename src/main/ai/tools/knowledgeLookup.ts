@@ -27,6 +27,7 @@ import { loggerService } from '@logger'
 import { citeId, newCitePrefix } from '@main/ai/utils/citationIds'
 import type {
   KbGrepOutput,
+  KbListInput,
   KbListOutput,
   KbListOutputItem,
   KbManageOutput,
@@ -35,6 +36,7 @@ import type {
   KbSearchOutput,
   KbTreeOutput
 } from '@shared/ai/builtinTools'
+import { KB_LIST_DEFAULT_LIMIT } from '@shared/ai/builtinTools'
 import { ErrorCode, isDataApiError } from '@shared/data/api/errors'
 import type {
   KnowledgeAddItemInput,
@@ -51,9 +53,9 @@ const logger = loggerService.withContext('KnowledgeLookup')
 const SAMPLE_LIMIT = 8
 const NOTE_SNIPPET_MAX_CHARS = 80
 /**
- * Max concurrent `listRootItems` reads behind one kb_list call. A user with 50+ KBs would otherwise
- * fire 50 concurrent SQLite reads; 8 in-flight keeps the agent loop responsive without overwhelming
- * the knowledge service. (listRootItems is a pure Drizzle/SQLite read — no vector store.)
+ * Max concurrent `listRootItems` reads behind one bounded kb_list page. Eight in-flight keeps the
+ * agent loop responsive without overwhelming the knowledge service. (listRootItems is a pure
+ * Drizzle/SQLite read — no vector store.)
  */
 const KB_LIST_ROOT_ITEMS_CONCURRENCY = 8
 
@@ -83,7 +85,7 @@ Workflow: call kb_list first to discover available bases and their contents, the
 export const KNOWLEDGE_LIST_DESCRIPTION = `Browse the user's knowledge bases and their structure.
 
 Two modes, selected by \`baseId\`:
-- Omit \`baseId\` to list the available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use kb_search.
+- Omit \`baseId\` to list one page of available bases — each with its name, group, item count, and a few sample sources (filenames, URLs, note titles) so you can judge what it covers. Use \`query\` to filter by base name or source. If \`nextCursor\` is returned, pass it as \`cursor\` to continue. Call this first when the user asks about their materials and you don't already know which base is relevant, then call kb_search with the chosen baseIds. If a base comes back with \`itemsUnavailable: true\` its contents could not be read this call (not that it is empty) — do not tell the user it holds nothing; retry or use kb_search.
 - Pass a \`baseId\` to outline that base instead: a flat top-down list of its folders and documents, each with a \`depth\`, title, type, \`status\`, and — for a readable document — a \`conceptId\` you can pass to kb_read. A node only carries a \`conceptId\` once its \`status\` is "completed"; a still-indexing or failed document has none. Use this to see how a base is organized, or to find a document's conceptId, without searching.`
 
 export const KNOWLEDGE_READ_DESCRIPTION = `Read a single knowledge base document by its Concept ID — or grep inside it.
@@ -127,13 +129,13 @@ export type KnowledgeManageResultOrError = KbManageOutput | KnowledgeLookupError
 export const KNOWLEDGE_LOOKUP_ERROR_NOTE =
   'Knowledge base search failed (the embedding provider or vector store errored); tell the user instead of retrying.'
 
-/** kb_list infra failure (e.g. `KnowledgeService.listBases()` threw) — a fixed note, not a raw error string. */
+/** kb_list infra failure (e.g. `KnowledgeService.listBasesForDiscovery()` threw) — a fixed note, not a raw error string. */
 export const KNOWLEDGE_LIST_ERROR_NOTE =
   'Listing the knowledge bases failed (a knowledge-service error); tell the user instead of retrying.'
 
 export function isKnowledgeLookupError(output: KnowledgeSearchResultOrError): output is KnowledgeLookupError {
   // kb_search success is always the results array; the error object is the only non-array shape.
-  // (kb_list can't use this — its success is an array OR a tree object; see knowledgeListModelOutput.)
+  // kb_list has two object success shapes, so it uses explicit property discriminants instead.
   return !Array.isArray(output)
 }
 
@@ -429,13 +431,13 @@ function readTree(
  * and MCP bridge) omit the fields their mode does not use, so no sentinel translation happens here.
  */
 export async function listOrOutlineKnowledge(
-  input: { query?: string; groupId?: string; baseId?: string; maxDepth?: number },
+  input: KbListInput,
   allowedIds: readonly string[]
 ): Promise<KnowledgeListResultOrError> {
   if (input.baseId) {
     return readTree(input.baseId, { maxDepth: input.maxDepth ?? undefined }, allowedIds)
   }
-  return listKnowledgeBases(input.query, input.groupId, allowedIds)
+  return listKnowledgeBases(input, allowedIds)
 }
 
 /** Longest a derived note title (its first line) may be before it is truncated. */
@@ -589,47 +591,69 @@ function deriveNoteSource(content: string, title?: string | null): string {
 }
 
 async function listKnowledgeBases(
-  query: string | null | undefined,
-  groupId: string | null | undefined,
+  input: KbListInput,
   allowedIds: readonly string[]
 ): Promise<KnowledgeListResultOrError> {
   try {
     const knowledgeService = application.get('KnowledgeService')
-    const allBases = knowledgeService.listBases()
-    const scopedBases = allowedIds.length > 0 ? allBases.filter((base) => allowedIds.includes(base.id)) : allBases
-
-    // null and undefined both mean "no group filter" — kb_list's nullable input passes null for that.
-    const groupFiltered = groupId != null ? scopedBases.filter((base) => base.groupId === groupId) : scopedBases
+    const page = knowledgeService.listBasesForDiscovery({
+      limit: input.limit ?? KB_LIST_DEFAULT_LIMIT,
+      ...(input.cursor ? { cursor: input.cursor } : {}),
+      ...(input.query ? { query: input.query } : {}),
+      ...(input.groupId ? { groupId: input.groupId } : {}),
+      scope: toKnowledgeBaseDiscoveryScope(allowedIds)
+    })
 
     // Build each base's summary with bounded concurrency (see KB_LIST_ROOT_ITEMS_CONCURRENCY).
     // `throwOnTimeout: true` keeps p-queue's add() return type as the value (not `T | void`), so the
     // ordered map stays typed; map preserves order and no task is given a timeout.
     const queue = new PQueue({ concurrency: KB_LIST_ROOT_ITEMS_CONCURRENCY })
     const items: KbListOutputItem[] = await Promise.all(
-      groupFiltered.map((base) => queue.add(() => buildOutputItem(base, knowledgeService), { throwOnTimeout: true }))
+      page.items.map((base) => queue.add(() => buildOutputItem(base, knowledgeService), { throwOnTimeout: true }))
     )
 
-    const lowered = query?.toLowerCase()
-    if (!lowered) return items
-    return items.filter((item) => matchesQuery(item, lowered))
+    return {
+      items,
+      total: page.total,
+      ...(page.nextCursor ? { nextCursor: page.nextCursor } : {})
+    }
   } catch (error) {
-    // `listBases()` (or the service lookup) threw — surface a fixed note instead of leaking the raw
+    // `listBasesForDiscovery()` (or the service lookup) threw — surface a fixed note instead of leaking the raw
     // error string through the MCP catch-all, mirroring kb_search's all-bases-failed path.
     const message = error instanceof Error ? error.message : String(error)
-    logger.warn('KnowledgeService.listBases failed', { error: message })
+    logger.warn('KnowledgeService.listBasesForDiscovery failed', { error: message })
     return { error: message }
   }
 }
 
+function toKnowledgeBaseDiscoveryScope(allowedIds: readonly string[]) {
+  const [first, ...rest] = allowedIds
+  return first === undefined
+    ? { kind: 'unrestricted' as const }
+    : { kind: 'restricted' as const, baseIds: [first, ...rest] as readonly [string, ...string[]] }
+}
+
 export function knowledgeListModelOutput(
   output: KnowledgeListResultOrError,
-  input: { query?: string | null; groupId?: string | null; baseId?: string | null }
+  input: { query?: string | null; groupId?: string | null; baseId?: string | null; cursor?: string | null }
 ): { type: 'text'; value: string } | { type: 'json'; value: KbListOutput | KbTreeOutput } {
   const outlineMode = input?.baseId != null
 
-  // List mode success is the array of bases.
-  if (Array.isArray(output)) {
-    if (output.length === 0) {
+  if ('error' in output) {
+    // Outline mode surfaces the specific error (out-of-scope / not-found / service); list mode hides
+    // the raw listBasesForDiscovery() infra error behind a fixed note (mirrors kb_search's all-failed path).
+    return { type: 'text', value: outlineMode ? output.error : KNOWLEDGE_LIST_ERROR_NOTE }
+  }
+
+  if ('items' in output) {
+    if (output.items.length === 0) {
+      if (output.total > 0 || input.cursor) {
+        return {
+          type: 'text',
+          value:
+            'This knowledge-base cursor is exhausted or stale. Call kb_list again without cursor, keeping the same query and groupId filters if they still apply.'
+        }
+      }
       const filtered = Boolean(input?.query) || Boolean(input?.groupId)
       return {
         type: 'text',
@@ -641,12 +665,6 @@ export function knowledgeListModelOutput(
     return { type: 'json', value: output }
   }
 
-  // Non-array: an outline-mode tree object, or an `{ error }`.
-  if ('error' in output) {
-    // Outline mode surfaces the specific error (out-of-scope / not-found / service); list mode hides
-    // the raw listBases() infra error behind a fixed note (mirrors kb_search's all-failed path).
-    return { type: 'text', value: outlineMode ? output.error : KNOWLEDGE_LIST_ERROR_NOTE }
-  }
   // Outline mode success: one base's tree.
   if (output.nodes.length === 0) {
     return { type: 'text', value: `Knowledge base "${output.baseId}" has no items yet.` }
@@ -719,9 +737,4 @@ function deriveSampleSource(item: KnowledgeItem): string | null {
     default:
       return null
   }
-}
-
-function matchesQuery(item: KbListOutputItem, lowered: string): boolean {
-  if (item.name.toLowerCase().includes(lowered)) return true
-  return item.sampleSources.some((source) => source.toLowerCase().includes(lowered))
 }
