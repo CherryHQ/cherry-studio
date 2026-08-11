@@ -958,7 +958,6 @@
       "executing": "実行中...",
       "expired": "期限切れ",
       "inputPreview": "ツール入力プレビュー",
-      "pending": "確認待ち",
       "pendingBadge": "保留中",
       "permissionExpired": "許可リクエストの期限が切れました。新しい指示を待っています...",
       "requiresElevatedPermissions": "このツールは昇格した権限が必要です。",

@@ -17,7 +17,6 @@ vi.mock('react-i18next', async (importOriginal) => ({
         'agent.toolPermission.error.sendFailed': 'Failed to send your decision. Please try again.',
         'agent.toolPermission.confirmation': 'Allow tool call?',
         'agent.toolPermission.inputPreview': 'Tool input preview',
-        'agent.toolPermission.pending': 'Waiting for confirmation',
         'agent.toolPermission.button.allow': 'Allow',
         'agent.toolPermission.button.deny': 'Deny',
         'agent.toolPermission.button.run': 'Run',
@@ -224,8 +223,8 @@ describe('PermissionRequestComposer', () => {
   it('hides the request subtitle when it only repeats the tool name', () => {
     render(<PermissionRequestComposer request={makeRequest()} onRespond={vi.fn()} />)
 
-    const heading = screen.getByRole('heading', { name: 'Processing' })
-    expect(heading.parentElement?.children).toHaveLength(1)
+    expect(screen.getByRole('heading', { name: 'Processing' })).toBeInTheDocument()
+    expect(screen.getAllByText('CustomTool')).toHaveLength(1)
   })
 
   it('approves when Enter is pressed outside editable controls', async () => {
@@ -299,7 +298,7 @@ describe('PermissionRequestComposer', () => {
     })
     rerender(<PermissionRequestComposer request={nextRequest} onRespond={onRespond} />)
 
-    expect(screen.getByRole('status')).toHaveTextContent('Waiting for confirmation')
+    expect(screen.getByRole('status')).toBeEmptyDOMElement()
     expect(screen.getByRole('button', { name: 'Allow' })).not.toBeDisabled()
     expect(screen.getByRole('button', { name: 'Deny' })).not.toBeDisabled()
   })
