@@ -93,32 +93,28 @@ describe('useToolApprovalComposerOverrides', () => {
     expect(result.current).toEqual([])
   })
 
-  it('keeps the queue head until its response succeeds, then advances to the next permission', async () => {
+  it('keeps the queue head until refreshed parts advance to the next permission', async () => {
     let resolveResponse: (() => void) | undefined
-    const onRespond = vi
-      .fn()
-      .mockImplementationOnce(
-        () =>
-          new Promise<void>((resolve) => {
-            resolveResponse = resolve
-          })
-      )
-      .mockResolvedValueOnce(undefined)
-    const { result } = renderHook(() =>
-      useToolApprovalComposerOverrides({
-        partsByMessageId: {
-          'message-1': [
-            makePermissionPart(),
-            makePermissionPart({
-              toolCallId: 'call-write',
-              approval: { id: 'approval-write' },
-              type: 'tool-Write',
-              toolName: 'Write'
-            })
-          ]
-        },
-        onRespond
-      })
+    const onRespond = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveResponse = resolve
+        })
+    )
+    const firstPart = makePermissionPart()
+    const secondPart = makePermissionPart({
+      toolCallId: 'call-write',
+      approval: { id: 'approval-write' },
+      type: 'tool-Write',
+      toolName: 'Write'
+    })
+    const { result, rerender } = renderHook(
+      ({ partsByMessageId }) => useToolApprovalComposerOverrides({ partsByMessageId, onRespond }),
+      {
+        initialProps: {
+          partsByMessageId: { 'message-1': [firstPart, secondPart] }
+        }
+      }
     )
 
     const override = result.current.find((override) => override.id === 'tool-permission:approval-read')
@@ -139,22 +135,19 @@ describe('useToolApprovalComposerOverrides', () => {
       await response
     })
 
-    expect(result.current.map((override) => override.id)).not.toContain('tool-permission:approval-read')
-    expect(result.current.map((override) => override.id)).toContain('tool-permission:approval-write')
+    // The IPC success alone is not a second source of truth: the same persisted parts keep A visible.
+    expect(result.current.map((override) => override.id)).toContain('tool-permission:approval-read')
+    expect(result.current.map((override) => override.id)).not.toContain('tool-permission:approval-write')
 
-    const nextOverride = result.current.find((override) => override.id === 'tool-permission:approval-write')
-    const nextElement = nextOverride?.render({}) as
-      | ReactElement<{ onRespond: (input: any) => Promise<void> }>
-      | undefined
-
-    await act(async () => {
-      await nextElement?.props.onRespond({
-        match: { approvalId: 'approval-write' }
-      })
+    rerender({
+      partsByMessageId: {
+        'message-1': [makePermissionPart({ state: 'approval-responded' }), secondPart]
+      }
     })
 
-    expect(result.current.filter((override) => override.id.startsWith('tool-permission:'))).toEqual([])
-    expect(onRespond.mock.calls.map(([input]) => input.match.approvalId)).toEqual(['approval-read', 'approval-write'])
+    expect(result.current.map((override) => override.id)).not.toContain('tool-permission:approval-read')
+    expect(result.current.map((override) => override.id)).toContain('tool-permission:approval-write')
+    expect(onRespond).toHaveBeenCalledTimes(1)
   })
 
   it('keeps the queue head when its response fails', async () => {

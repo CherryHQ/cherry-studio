@@ -14,7 +14,7 @@
  */
 
 import { usePreference } from '@data/hooks/usePreference'
-import { useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
+import { useDataChange, useInfiniteFlatItems, useInfiniteQuery } from '@renderer/data/hooks/useDataApi'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
 import type {
@@ -245,6 +245,25 @@ export function useTopicMessages(
     () => projectBranchMessagesToUI(branchItems, projectionCacheRef.current),
     [branchItems]
   )
+  const loadedMessageIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const item of branchItems) {
+      ids.add(item.message.id)
+      for (const sibling of item.siblingsGroup ?? []) ids.add(sibling.id)
+    }
+    return ids
+  }, [branchItems])
+
+  useDataChange('/topics/:topicId/messages', (effects) => {
+    if (
+      enabled &&
+      effects.some(
+        (effect) => !effect.entityIds || effect.entityIds.some((messageId) => loadedMessageIds.has(messageId))
+      )
+    ) {
+      void mutate()
+    }
+  })
 
   const siblingsMap = useMemo<Record<string, SharedMessage[]>>(() => buildSiblingsMap(branchItems), [branchItems])
 

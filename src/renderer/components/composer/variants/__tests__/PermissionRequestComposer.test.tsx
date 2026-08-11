@@ -2,6 +2,7 @@ import { toast } from '@renderer/services/toast'
 import type { NormalToolResponse } from '@renderer/types/mcpTool'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -227,15 +228,38 @@ describe('PermissionRequestComposer', () => {
     expect(heading.parentElement?.children).toHaveLength(1)
   })
 
-  it('disables actions while a response is submitting', async () => {
+  it('shows progress and resets actions when the next approval becomes active', async () => {
+    const user = userEvent.setup()
     const onRespond = vi.fn(() => new Promise<void>(() => undefined))
-    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+    const { rerender } = render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Allow' }))
+    await user.click(screen.getByRole('button', { name: 'Allow' }))
 
     await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(screen.getByRole('status')).toHaveTextContent('Processing')
     expect(screen.getByRole('button', { name: 'Allow' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Deny' })).toBeDisabled()
+
+    const nextPart = {
+      ...part,
+      toolCallId: 'call-2',
+      approval: { id: 'approval-2' }
+    } as unknown as CherryMessagePart
+    const nextRequest = makeRequest({
+      toolCallId: 'call-2',
+      approvalId: 'approval-2',
+      match: {
+        ...makeRequest().match,
+        part: nextPart,
+        toolCallId: 'call-2',
+        approvalId: 'approval-2'
+      }
+    })
+    rerender(<PermissionRequestComposer request={nextRequest} onRespond={onRespond} />)
+
+    expect(screen.getByRole('status')).toHaveTextContent('Waiting for confirmation')
+    expect(screen.getByRole('button', { name: 'Allow' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Deny' })).not.toBeDisabled()
   })
 
   it('re-enables the request when submitting the response fails', async () => {

@@ -51,7 +51,15 @@ describe('findNextPendingPermissionRequest', () => {
       state: 'approval-requested'
     })
 
-    expect(findNextPendingPermissionRequest(partsByMessageId, new Set(['approval-2']))).toMatchObject({
+    expect(
+      findNextPendingPermissionRequest({
+        ...partsByMessageId,
+        'message-2': [
+          makePart({ toolCallId: 'call-2', approval: { id: 'approval-2' }, state: 'approval-responded' }),
+          makePart({ toolCallId: 'call-3', approval: { id: 'approval-3' } })
+        ]
+      })
+    ).toMatchObject({
       messageId: 'message-2',
       toolCallId: 'call-3',
       approvalId: 'approval-3'

@@ -1,6 +1,6 @@
 import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { useCallback, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 
 import type { ComposerOverride } from './ComposerContext'
 import { createAskUserQuestionComposerOverride } from './variants/AskUserQuestionComposer'
@@ -19,7 +19,6 @@ export function useToolApprovalComposerOverrides({
   streamingLayers,
   onRespond
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
-  const [respondedApprovalIds, setRespondedApprovalIds] = useState<ReadonlySet<string>>(() => new Set())
   const settledHistoryParts = useMemo<Record<string, CherryMessagePart[]> | null>(() => {
     if (!streamingLayers) return null
 
@@ -50,23 +49,11 @@ export function useToolApprovalComposerOverrides({
   )
   const askUserQuestionRequest = currentAskUserQuestionRequest ?? historyAskUserQuestionRequest
   const historyPermissionRequest = useMemo(
-    () => (settledHistoryParts ? findNextPendingPermissionRequest(settledHistoryParts, respondedApprovalIds) : null),
-    [respondedApprovalIds, settledHistoryParts]
+    () => (settledHistoryParts ? findNextPendingPermissionRequest(settledHistoryParts) : null),
+    [settledHistoryParts]
   )
-  const currentPermissionRequest = useMemo(
-    () => findNextPendingPermissionRequest(currentParts, respondedApprovalIds),
-    [currentParts, respondedApprovalIds]
-  )
+  const currentPermissionRequest = useMemo(() => findNextPendingPermissionRequest(currentParts), [currentParts])
   const permissionRequest = currentPermissionRequest ?? historyPermissionRequest
-
-  const respondInOrder = useCallback(
-    async (input: MessageToolApprovalInput) => {
-      const approvalId = input.match.approvalId
-      await onRespond(input)
-      setRespondedApprovalIds((current) => new Set(current).add(approvalId))
-    },
-    [onRespond]
-  )
 
   return useMemo(() => {
     const overrides: ComposerOverride[] = []
@@ -84,11 +71,11 @@ export function useToolApprovalComposerOverrides({
       overrides.push(
         createPermissionRequestComposerOverride({
           request: permissionRequest,
-          onRespond: respondInOrder
+          onRespond
         })
       )
     }
 
     return overrides
-  }, [askUserQuestionRequest, onRespond, permissionRequest, respondInOrder])
+  }, [askUserQuestionRequest, onRespond, permissionRequest])
 }

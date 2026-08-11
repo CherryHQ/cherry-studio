@@ -9,6 +9,7 @@
  */
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { type MessageRow, messageTable } from '@data/db/schemas/message'
@@ -1467,7 +1468,8 @@ export class MessageService {
    * `approval-requested` part (overlay-only — the part isn't persisted yet) the row is left untouched
    * and the still-overlay parts are returned; the caller carries the decision to the continuation,
    * which applies it authoritatively. A decision that targets an already-settled part is reported so
-   * stale duplicate clicks don't dispatch another continuation.
+   * stale duplicate clicks don't dispatch another continuation. Every actual write publishes the
+   * affected message read model after the transaction commits.
    */
   applyToolApprovalDecisions(
     anchorId: string,
@@ -1478,7 +1480,7 @@ export class MessageService {
     alreadySettledApprovalIds: string[]
   } | null {
     const completedAt = Date.now()
-    return application.get('DbService').withWriteTx((tx) => {
+    const result = application.get('DbService').withWriteTx((tx) => {
       const [row] = tx.select().from(messageTable).where(eq(messageTable.id, anchorId)).limit(1).all()
       if (!row) return null
 
@@ -1512,6 +1514,18 @@ export class MessageService {
       }
       return { parts: after, appliedApprovalIds, alreadySettledApprovalIds }
     })
+
+    if (result === null) return null
+    if (result.appliedApprovalIds.length > 0) {
+      notifyDataApiDataChange([
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          entityIds: [anchorId]
+        }
+      ])
+    }
+    return result
   }
 
   /**

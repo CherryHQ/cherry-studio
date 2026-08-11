@@ -1,14 +1,14 @@
-import { mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
+import { MockUseDataApiUtils, mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { act, renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useTopicMessages } from '../useTopicMessages'
 
 describe('useTopicMessages', () => {
   beforeEach(() => {
     MockUsePreferenceUtils.resetMocks()
-    mockUseInfiniteQuery.mockClear()
+    MockUseDataApiUtils.resetMocks()
   })
 
   describe('page size by navigation mode', () => {
@@ -42,5 +42,61 @@ describe('useTopicMessages', () => {
         expect.objectContaining({ limit: 50 })
       )
     })
+  })
+
+  it('revalidates when a loaded message read model changes', () => {
+    const mutate = vi.fn().mockResolvedValue(undefined)
+    mockUseInfiniteQuery.mockReturnValueOnce({
+      pages: [
+        {
+          items: [
+            {
+              message: {
+                id: 'anchor-1',
+                topicId: 'topic-1',
+                parentId: null,
+                role: 'assistant',
+                data: { parts: [] },
+                searchableText: '',
+                status: 'success',
+                siblingsGroupId: 0,
+                modelId: null,
+                messageSnapshot: null,
+                stats: null,
+                createdAt: '2026-01-01T00:00:00.000Z',
+                updatedAt: '2026-01-01T00:00:00.000Z'
+              },
+              siblingsGroup: []
+            }
+          ],
+          nextCursor: undefined,
+          activeNodeId: 'anchor-1'
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate
+    } as never)
+
+    renderHook(() => useTopicMessages('topic-1'))
+
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([
+        { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: ['other-anchor'] }
+      ])
+    })
+    expect(mutate).not.toHaveBeenCalled()
+
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([
+        { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: ['anchor-1'] }
+      ])
+    })
+    expect(mutate).toHaveBeenCalled()
   })
 })
