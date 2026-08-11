@@ -1544,21 +1544,20 @@
       "resource_panel": {
         "categories": {
           "agents": "Agent",
-          "resources": "[to be translated]:Files & Folders",
+          "files": "檔案",
           "skills": "技能"
         },
         "description": "從檔案、Agent 或技能中選擇",
-        "load_failed": "[to be translated]:Failed to load workspace resources",
         "loading": "載入中...",
+        "no_file_found": {
+          "description": "目前工作區沒有可搜尋的檔案",
+          "label": "找不到檔案"
+        },
         "no_items_found": {
           "description": "沒有可用的檔案、Agent 或技能",
           "label": "未找到項目"
         },
-        "no_resources_found": {
-          "description": "[to be translated]:No searchable files or folders in the current workspace",
-          "label": "[to be translated]:No Resources Found"
-        },
-        "title": "[to be translated]:Resources & Sessions"
+        "title": "檔案與工作階段"
       },
       "restore": "還原",
       "send": "傳送",
