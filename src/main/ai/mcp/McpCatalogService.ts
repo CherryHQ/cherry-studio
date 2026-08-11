@@ -84,7 +84,7 @@ export class McpCatalogService extends BaseService {
    * (see `writeToolsCache`). This is the push-invalidation channel that keeps per-session
    * tool snapshots consistent with the cache: the Claude Agent SDK snapshots each MCP bridge
    * server's tools once per session and never re-reads on its own, so the bridge
-   * (`createSdkMcpServerInstance`) subscribes here and relays every cache change as an MCP
+   * (`createMcpBridgeServer`) subscribes here and relays every cache change as an MCP
    * `tools/list_changed` notification, prompting the SDK to re-list against the fresh cache.
    *
    * Deliberately a NEW event, not a re-fire of `McpRuntimeService.onToolListChanged`: that
