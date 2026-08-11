@@ -45,7 +45,7 @@ export interface MigrationPaths {
 
   // ── Derived from userData (pre-computed, consumers use directly) ──
 
-  /** {userData}/cherrystudio.sqlite */
+  /** {userData}/Data/cherrystudio.sqlite */
   readonly databaseFile: string
   /** {userData}/Data/KnowledgeBase */
   readonly knowledgeBaseDir: string
@@ -55,12 +55,30 @@ export interface MigrationPaths {
   readonly versionLogFile: string
   /** {userData}/Data/agents.db — legacy standalone agents SQLite location. */
   readonly legacyAgentDbFile: string
+  /** {userData}/.claude — v1 Claude Agent SDK config source. */
+  readonly legacyClaudeConfigDir: string
+  /** {userData}/.claude/projects — v1 Claude Agent SDK project-session source. */
+  readonly legacyClaudeProjectsDir: string
   /** {userData}/Data/Agents — v2 agent identity/memory data and system-workspace root. */
   readonly agentsDataDir: string
+  /** {userData}/Data/Agents/.claude — v2 Claude Agent SDK config destination. */
+  readonly claudeConfigDir: string
+  /** {userData}/Data/Agents/.claude/projects — v2 Claude Agent SDK project-session destination. */
+  readonly claudeProjectsDir: string
   /** {userData}/Data/Agents/system — app-owned per-session workspace root. */
   readonly agentSystemWorkspacesDir: string
   /** {userData}/Data/Files/custom-minapps.json — v1 sidecar with full custom miniapp records (logos stripped from Redux). */
   readonly customMiniAppsFile: string
+  /** {userData}/migration_temp — renderer export staging root. */
+  readonly migrationTempDir: string
+  /** {userData}/migration_temp/redux_export — per-category Redux exports. */
+  readonly migrationReduxExportDir: string
+  /** {userData}/migration_temp/dexie_export — per-table Dexie exports. */
+  readonly migrationDexieExportDir: string
+  /** {userData}/migration_temp/localstorage_export — migration-owned localStorage export. */
+  readonly migrationLocalStorageExportDir: string
+  /** {userData}/migration_temp/localstorage_export/localStorage.json. */
+  readonly migrationLocalStorageExportFile: string
 
   // ── Derived from cherryHome ──
 
@@ -206,17 +224,28 @@ export function resolveMigrationPaths(): MigrationPathsResult {
   }
 
   const filesDataDir = path.join(currentUserData, 'Data', 'Files')
+  const migrationTempDir = path.join(currentUserData, 'migration_temp')
+  const migrationLocalStorageExportDir = path.join(migrationTempDir, 'localstorage_export')
   const paths: MigrationPaths = Object.freeze({
     userData: currentUserData,
     cherryHome: CHERRY_HOME,
-    databaseFile: path.join(currentUserData, DB_NAME),
+    databaseFile: path.join(currentUserData, 'Data', DB_NAME),
     knowledgeBaseDir: path.join(currentUserData, 'Data', 'KnowledgeBase'),
     filesDataDir,
     versionLogFile: path.join(currentUserData, 'version.log'),
     legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
+    legacyClaudeConfigDir: path.join(currentUserData, '.claude'),
+    legacyClaudeProjectsDir: path.join(currentUserData, '.claude', 'projects'),
     agentsDataDir: path.join(currentUserData, 'Data', 'Agents'),
+    claudeConfigDir: path.join(currentUserData, 'Data', 'Agents', '.claude'),
+    claudeProjectsDir: path.join(currentUserData, 'Data', 'Agents', '.claude', 'projects'),
     agentSystemWorkspacesDir: path.join(currentUserData, 'Data', 'Agents', 'system'),
     customMiniAppsFile: path.join(filesDataDir, 'custom-minapps.json'),
+    migrationTempDir,
+    migrationReduxExportDir: path.join(migrationTempDir, 'redux_export'),
+    migrationDexieExportDir: path.join(migrationTempDir, 'dexie_export'),
+    migrationLocalStorageExportDir,
+    migrationLocalStorageExportFile: path.join(migrationLocalStorageExportDir, 'localStorage.json'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)
@@ -461,7 +490,7 @@ function configHasKeys(configFile: string): boolean {
  */
 function hasValidSqlite(dir: string): boolean {
   try {
-    const stat = fs.statSync(path.join(dir, DB_NAME))
+    const stat = fs.statSync(path.join(dir, 'Data', DB_NAME))
     return stat.isFile() && stat.size > 0
   } catch {
     return false

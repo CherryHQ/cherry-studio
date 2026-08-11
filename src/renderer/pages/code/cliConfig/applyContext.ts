@@ -1,4 +1,4 @@
-import { parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
+import { type Model, parseUniqueModelId, type UniqueModelId, UniqueModelIdSchema } from '@shared/data/types/model'
 import { CodeCli } from '@shared/types/codeCli'
 
 import { sanitizeCliConfigBlob } from './adapters'
@@ -18,11 +18,12 @@ export function parseConfiguredModelId(
 export function resolveCliConfigApplyContext(
   cliTool: CodeCli,
   providerId: string,
-  providerConfig: { modelId?: string | null; config?: Record<string, unknown> } | undefined
+  providerConfig: { modelId?: string | null; config?: Record<string, unknown> } | undefined,
+  gatewayModels?: Map<UniqueModelId, Model>
 ): { modelId: UniqueModelId; providerId: string; rawModelId: string; writePrimaryModel: boolean } | null {
   const config = sanitizeCliConfigBlob(cliTool, providerConfig?.config ?? {})
   if (cliTool === CodeCli.CLAUDE_CODE && hasClaudeDetailedModels(config)) {
-    const detailedModelId = getClaudeContextModelId(providerId, config)
+    const detailedModelId = getClaudeContextModelId(providerId, config, gatewayModels)
     const parsedDetailedModelId = parseConfiguredModelId(detailedModelId)
     if (detailedModelId && parsedDetailedModelId) {
       return {

@@ -19,6 +19,7 @@ How to approach any coding task in this repo.
 - No "flexibility" or "configurability" that was not requested.
 - No error handling for impossible scenarios.
 - If you wrote 200 lines and it could be 50, rewrite it.
+- Inline comments cap at 2 lines. Needing more means the code is a patch — fix the implementation instead of narrating it. Say *why*, never restate *what*; no changelogs, no rationale essays, no pasted chat/review replies. (Doc comments on an exported API — TSDoc `@param`/`@returns`/`@deprecated` — are documentation, not narration, and are exempt.)
 
 #### Surgical Changes
 
@@ -56,7 +57,6 @@ Project-specific tools, paths, and conventions.
 - **Access paths centrally**: Use `application.getPath('namespace.key', filename?)` for all main-process filesystem paths—never call `app.getPath()`, `os.homedir()`, or construct paths ad-hoc. Import the singleton via `import { application } from '@application'`.
 - **Lint, test, and format before completion**: Coding tasks are only complete after running `pnpm lint`, `pnpm test`, and `pnpm format` successfully.
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat(data-api):`, `fix(lifecycle):`, `refactor(quick-assistant):`, `docs(testing):`, `chore(deps):`, `test(window-manager):`). Scope must be a specific kebab-case module, never generic like `main` — when `git log` conflicts with this rule, this rule wins.
-- **Keep history linear**: On shared branches, never use plain `git pull` — it creates merge commits. Always `git pull --rebase` (or `git fetch && git rebase origin/<branch>`). Before `git push`, run `git fetch`; if `origin/<branch>` has advanced, rebase your local commits onto it first. If you notice a merge commit in local history that hasn't been pushed yet, rebase it away — cleaning one up after it's public requires a risky force-push on a shared branch.
 - **Sign commits and sign off**: Every commit must be both cryptographically signed and DCO-signed off. Use `git commit -S --signoff` (not `--signoff` alone), verify the commit object contains a `gpgsig` header with `git cat-file commit HEAD`, and verify the pushed PR commits show `Verified` on GitHub.
 - **Target the right branch**: `main` is the default branch for active development — submit features, refactors, optimizations, and fixes for the current codebase here. v1 maintenance fixes (hotfixes and subsequent v1 releases) must branch from and target the `v1` branch (never `main`); a v1 fix does not auto-carry to `main`, so forward-port it with a separate PR if the bug also exists on `main`. See [v2 Refactoring](#v2-refactoring-in-progress).
 
@@ -75,7 +75,8 @@ Run `pnpm install` first (Node and pnpm versions are pinned in `package.json` �
 ### Testing
 
 - Tests run with Vitest 3 (see `vitest.config.*` for project setup).
-- **Features without tests are not considered complete**
+- **No behavior-pinning tests**: a test whose only assertion records what the code currently does — a snapshot of whatever came out, `toHaveBeenCalled` on a mock, an expected value re-derived the way the implementation derives it — has zero value. It cannot fail for a real reason, it breaks on every refactor, and it certifies existing bugs as "expected". Assert the contract instead: real input → the outcome the feature promises, plus the failure and edge cases. Before writing a test, state the bug it would catch; if you cannot, do not write it. **The existing suite is full of these** — delete the ones in a file you are already editing (same standing exception as v1 residue) rather than keeping them green; a repo-wide purge is its own task, not a side effect of an unrelated PR.
+- **Frontend Tests — MUST READ**: [Frontend Testing Guidelines](docs/references/testing/frontend-testing.md).
 - **Test Mocking**: Use the unified mock system — do NOT create ad-hoc mocks for `application`, services, or data layers. See [tests/__mocks__/README.md](tests/__mocks__/README.md) for available mocks, usage patterns, and best practices.
 - **Database Tests**: For any service/handler/seeder that reads or writes SQLite, use `setupTestDatabase()` from `@test-helpers/db` — it provides a real file-backed DB with production migrations. Do NOT hand-write `CREATE TABLE` SQL, override `@application`, or stub Drizzle chains. See [docs/references/testing/database-testing.md](docs/references/testing/database-testing.md).
 
@@ -213,11 +214,9 @@ Services without long-lived resources or persistent side effects: use **named ex
 
 ### Coexistence Mindset
 
-Two things on this branch are throwaway — do not defend them.
-
 **v1 residue is throwaway.** v1 data reaches v2 only through the migrators in `src/main/data/migration/v2/` — never add fallbacks, dual-writes, or guards for v1 save / read / loss. When you're already editing an area, delete the v1 residue you touch (dead legacy-stack call sites, disabled v1 code blocks, now-unused modules) instead of leaving it in place. Don't go hunting for v1 code to delete in unrelated PRs, never delete code still wired into live v2 behavior (flag it instead), and don't fix v1 bugs on `main` — they go to the `v1` branch.
 
-**Schemas and drizzle SQL are throwaway.** `src/main/data/db/schemas/` may change freely; `migrations/sqlite-drizzle/*.sql` are dev-only artifacts overwritten by `drizzle-kit generate` on every schema change. Mid-development DB drift is acceptable — do not author patch migrations to "fix" it. `migrations/sqlite-drizzle/` will be wiped and regenerated from the final schemas as a single clean initial migration before release; only that regenerated migration must be correct.
+**The migration chain is no longer throwaway.** It was consolidated into a single clean initial migration and shipped with `v2.0.0-rc.1`, so `migrations/sqlite-drizzle/` now runs against databases holding real user rows. Never wipe or rewrite an already-shipped migration, and never tell a user to delete their database: schema changes go in as new appended migrations generated by `pnpm db:migrations:generate`. `src/main/data/db/schemas/` still changes freely — but every change must survive a migrate-forward on a populated database.
 
 **Resolving migration merge conflicts: regenerate, never rename.** When an upstream migration conflicts with your local one, delete your local `.sql` + its `meta/*_snapshot.json` and re-run `pnpm db:migrations:generate`. Renaming/renumbering instead silently reuses the snapshot's random `id`, forking the chain for everyone — and `drizzle-kit generate` still exits `0`; only `pnpm db:migrations:check` catches it. CI enforces both the chain check and a schema↔migration generate-and-diff step.
 

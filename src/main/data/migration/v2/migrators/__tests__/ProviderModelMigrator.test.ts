@@ -10,11 +10,13 @@ import { providerLogoFileRefTable } from '@data/db/schemas/fileRelations'
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -581,6 +583,11 @@ describe('ProviderModelMigrator', () => {
       const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, logoFileId))
       expect(entry?.origin).toBe('internal')
       expect(entry?.ext).toBe('webp')
+      // Must match what the live `bindLogoImage` path assigns: the logo is held
+      // only by the ref row above, so deleting the provider or replacing its logo
+      // has to make it a cleanup candidate. The DB default `'manual'` would strand
+      // the row and its WebP forever.
+      expect(entry?.cleanupPolicy).toBe('delete_when_unreferenced')
       expect(existsSync(path.join(filesDataDir, `${logoFileId}.webp`))).toBe(true)
 
       const [withoutLogo] = await dbh.db
@@ -776,6 +783,104 @@ describe('ProviderModelMigrator', () => {
       expect(modelRow.supportsStreaming).toBeNull()
     })
 
+    it('matches global model metadata for a fully custom provider without using provider overrides', async () => {
+      const providerId = 'custom-provider'
+      registryFixtures.providers = [{ id: providerId, name: 'Catalog collision', endpointConfigs: {} }]
+      registryFixtures.models.set('known-model', {
+        id: 'known-model',
+        name: 'Registry Model',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+        inputModalities: ['text', 'image'],
+        outputModalities: ['text'],
+        contextWindow: 128_000,
+        maxInputTokens: 120_000,
+        maxOutputTokens: 8_000
+      })
+      registryFixtures.models.set('override-model', {
+        id: 'override-model',
+        name: 'Wrong Override Model',
+        capabilities: [MODEL_CAPABILITY.RERANK],
+        contextWindow: 1_024
+      })
+      registryFixtures.overrides.set(`${providerId}::known-model`, {
+        providerId,
+        modelId: 'override-model',
+        apiModelId: 'known-model'
+      })
+
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: providerId,
+              name: 'My Custom Provider',
+              type: 'openai',
+              enabled: true,
+              apiHost: 'https://custom.example/v1',
+              models: [
+                {
+                  id: 'known-model',
+                  name: 'My Known Model',
+                  group: 'My Models',
+                  supported_endpoint_types: ['openai-response'],
+                  supported_text_delta: false,
+                  pricing: {
+                    input_per_million_tokens: 1,
+                    output_per_million_tokens: 2
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [providerRow] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, providerId))
+      expect(providerRow.presetProviderId).toBeNull()
+
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, `${providerId}::known-model`))
+      expect(modelRow).toMatchObject({
+        presetModelId: 'known-model',
+        name: 'My Known Model',
+        group: 'My Models',
+        capabilities: null,
+        inputModalities: null,
+        outputModalities: null,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+        contextWindow: null,
+        maxInputTokens: null,
+        maxOutputTokens: null,
+        supportsStreaming: false,
+        pricing: {
+          input: { perMillionTokens: 1 },
+          output: { perMillionTokens: 2 }
+        }
+      })
+
+      const runtimeModel = modelService.getByKey(providerId, 'known-model')
+      expect(runtimeModel).toMatchObject({
+        name: 'My Known Model',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.IMAGE_RECOGNITION],
+        inputModalities: ['text', 'image'],
+        outputModalities: ['text'],
+        contextWindow: 128_000,
+        maxInputTokens: 120_000,
+        maxOutputTokens: 8_000,
+        endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES],
+        supportsStreaming: false
+      })
+    })
+
     it('resolves a custom provider id through presetProviderId before projecting its models', async () => {
       registryFixtures.providers = [{ id: 'azure-openai', name: 'Azure OpenAI', endpointConfigs: {} }]
       registryFixtures.models.set('gpt-4o', {
@@ -900,6 +1005,107 @@ describe('ProviderModelMigrator', () => {
       const [modelRow] = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, 'openai::gpt-4o'))
       expect(modelRow.group).toBeNull()
       expect(modelRow.pricing).toBeNull()
+    })
+
+    it.each([
+      {
+        providerId: 'cherryin',
+        providerName: 'CherryIN',
+        providerType: 'openai',
+        modelId: 'anthropic/claude-sonnet-5',
+        endpointType: 'anthropic',
+        expectedEndpointType: ENDPOINT_TYPE.ANTHROPIC_MESSAGES
+      },
+      {
+        providerId: 'new-api',
+        providerName: 'New API',
+        providerType: 'new-api',
+        modelId: 'dynamic-responses-model',
+        endpointType: 'openai-response',
+        expectedEndpointType: ENDPOINT_TYPE.OPENAI_RESPONSES
+      },
+      {
+        providerId: 'custom-new-api',
+        providerName: 'Custom New API',
+        providerType: 'new-api',
+        modelId: 'dynamic-gemini-model',
+        endpointType: 'gemini',
+        expectedEndpointType: ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
+      }
+    ])(
+      'preserves legacy endpoint routing for $providerId when the current registry cannot re-derive it',
+      async ({ providerId, providerName, providerType, modelId, endpointType, expectedEndpointType }) => {
+        registryFixtures.providers = [{ id: providerId, name: providerName, endpointConfigs: {} }]
+        registryFixtures.models.set(modelId, {
+          id: modelId,
+          name: modelId
+        })
+        const migrationContext = createContext(dbh.db, {
+          llm: {
+            providers: [
+              {
+                id: providerId,
+                name: providerName,
+                type: providerType,
+                enabled: true,
+                models: [
+                  {
+                    id: modelId,
+                    name: modelId,
+                    supported_endpoint_types: [endpointType]
+                  }
+                ]
+              }
+            ]
+          }
+        })
+        await migrator.prepare(migrationContext)
+
+        const result = await migrator.execute(migrationContext)
+
+        expect(result.success).toBe(true)
+        const [modelRow] = await dbh.db
+          .select()
+          .from(userModelTable)
+          .where(eq(userModelTable.id, `${providerId}::${modelId}`))
+        expect(modelRow.endpointTypes).toEqual([expectedEndpointType])
+      }
+    )
+
+    it('restores CherryIN prefix routing when the legacy model omitted endpoint metadata', async () => {
+      registryFixtures.providers = [{ id: 'cherryin', name: 'CherryIN', endpointConfigs: {} }]
+      registryFixtures.models.set('google/gemini-3.1-pro-preview', {
+        id: 'google/gemini-3.1-pro-preview',
+        name: 'Gemini 3.1 Pro Preview'
+      })
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: 'cherryin',
+              name: 'CherryIN',
+              type: 'openai',
+              enabled: true,
+              models: [
+                {
+                  id: 'google/gemini-3.1-pro-preview',
+                  name: 'Gemini 3.1 Pro Preview'
+                }
+              ]
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [modelRow] = await dbh.db
+        .select()
+        .from(userModelTable)
+        .where(eq(userModelTable.id, 'cherryin::google/gemini-3.1-pro-preview'))
+      expect(modelRow.endpointTypes).toEqual([ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT])
     })
 
     it('stores genuine legacy model deltas directly in sparse columns', async () => {
@@ -1175,6 +1381,57 @@ describe('ProviderModelMigrator', () => {
   })
 
   describe('validate', () => {
+    it('allows migration when a legacy API key contains no usable entries', async () => {
+      const providerId = 'a8ffe6fa-c3f8-42f5-9b32-0baaf40676de'
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider(providerId),
+              apiKey: ' ,\n, '
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      await migrator.execute(migrationContext)
+      mockMainLoggerService.warn.mockClear()
+
+      const result = await migrator.validate(migrationContext)
+
+      expect(result.success).toBe(true)
+      expect(result.errors).toEqual([])
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Legacy provider API key contained no migratable entries; continuing without API keys',
+        { providerId }
+      )
+    })
+
+    it('still rejects migration when a usable API key is missing from the target row', async () => {
+      const providerId = 'custom-provider'
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider(providerId),
+              apiKey: 'sk-valid'
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      await migrator.execute(migrationContext)
+      dbh.db.update(userProviderTable).set({ apiKeys: [] }).where(eq(userProviderTable.providerId, providerId)).run()
+
+      const result = await migrator.validate(migrationContext)
+
+      expect(result.success).toBe(false)
+      expect(result.errors).toContainEqual({
+        key: `missing_api_key_${providerId}`,
+        message: `Provider ${providerId} should include migrated API keys`
+      })
+    })
+
     it('returns an error ID when validation throws', async () => {
       const cause = new Error('count query failed')
       const migrationContext = createContext({

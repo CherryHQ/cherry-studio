@@ -328,7 +328,11 @@ describe('ResourceViewSourceProvider', () => {
     expect(sourceMocks.assistantEnabled.at(-1)).toBe(true)
     expect(sourceMocks.agentEnabled.at(-1)).toBe(false)
     expect(
-      shouldLoadResourceViewSource([createTab('message', '/app/chat?view=message')], 'message', 'assistants')
-    ).toBe(false)
+      shouldLoadResourceViewSource(
+        [createTab('malformed-message', '/app/chat?view=message')],
+        'malformed-message',
+        'assistants'
+      )
+    ).toBe(true)
   })
 })

@@ -1,7 +1,7 @@
 import type { UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
 import type { CreateKnowledgeBaseDto, KnowledgeBase, RestoreKnowledgeBaseResult } from '@shared/data/types/knowledge'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
-import { act, renderHook } from '@testing-library/react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -15,14 +15,15 @@ import {
 
 type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
 
-const mockUseQuery = vi.fn()
+const mockUseInfiniteQuery = vi.fn()
 const mockUseMutation = vi.fn()
 const mockUseInvalidateCache = vi.fn()
 const mockInvalidateCache = vi.fn()
 const mockIpcRequest = vi.fn()
 
 vi.mock('@data/hooks/useDataApi', () => ({
-  useQuery: (...args: unknown[]) => mockUseQuery(...args),
+  useInfiniteQuery: (...args: unknown[]) => mockUseInfiniteQuery(...args),
+  useInfiniteFlatItems: (pages: Array<{ items: KnowledgeBase[] }> = []) => pages.flatMap((page) => page.items),
   useMutation: (...args: unknown[]) => mockUseMutation(...args),
   useInvalidateCache: () => mockUseInvalidateCache()
 }))
@@ -58,52 +59,155 @@ describe('useKnowledgeBases', () => {
     vi.clearAllMocks()
   })
 
-  it('queries the knowledge base list and returns flattened bases', () => {
+  it('returns every loaded knowledge base once the cursor chain is complete', async () => {
     const bases = [
       createKnowledgeBase({ id: 'base-1', name: 'Base 1' }),
       createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
     ]
     const refetch = vi.fn()
 
-    mockUseQuery.mockReturnValue({
-      data: {
-        items: bases,
-        total: bases.length,
-        page: 1
-      },
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: bases }],
       isLoading: false,
+      isRefreshing: false,
       error: undefined,
-      refetch
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: refetch
     })
 
     const { result } = renderHook(() => useKnowledgeBases())
 
-    expect(mockUseQuery).toHaveBeenCalledWith('/knowledge-bases', {
-      query: { page: 1, limit: 100 }
-    })
     expect(result.current.bases).toEqual(bases)
     expect(result.current.isLoading).toBe(false)
     expect(result.current.error).toBeUndefined()
     expect(result.current.refetch).toBe(refetch)
+
+    await waitFor(() => {
+      expect(mockUseInfiniteQuery).toHaveBeenLastCalledWith('/knowledge-bases', {
+        limit: 100,
+        enabled: undefined,
+        swrOptions: { revalidateAll: true, revalidateFirstPage: false }
+      })
+    })
   })
 
-  it('returns an empty list when the query has no data yet', () => {
-    const error = new Error('pending')
-    const refetch = vi.fn()
+  it('auto-loads the next page without publishing a partial list', async () => {
+    const loadNext = vi.fn()
+    const firstPageBase = createKnowledgeBase({ id: 'base-1', name: 'Base 1' })
 
-    mockUseQuery.mockReturnValue({
-      data: undefined,
-      isLoading: true,
-      error,
-      refetch
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [{ items: [firstPageBase], nextCursor: 'cursor-2' }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: true,
+      loadNext,
+      refresh: vi.fn()
     })
 
     const { result } = renderHook(() => useKnowledgeBases())
 
     expect(result.current.bases).toEqual([])
     expect(result.current.isLoading).toBe(true)
+    await waitFor(() => expect(loadNext).toHaveBeenCalledTimes(1))
+  })
+
+  it('keeps the last complete list while a refreshed chain grows', () => {
+    const completeBases = [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })]
+    let queryState = {
+      pages: [{ items: completeBases }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
+    }
+    mockUseInfiniteQuery.mockImplementation(() => queryState)
+
+    const { result, rerender } = renderHook(() => useKnowledgeBases())
+    expect(result.current.bases).toEqual(completeBases)
+
+    queryState = {
+      ...queryState,
+      pages: [{ items: completeBases, nextCursor: 'cursor-2' }] as never,
+      hasNext: true
+    }
+    rerender()
+
+    expect(result.current.bases).toEqual(completeBases)
+    expect(result.current.isLoading).toBe(true)
+  })
+
+  it('ends loading when the first page fails', () => {
+    const error = new Error('page 1 failed')
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [],
+      isLoading: false,
+      isRefreshing: false,
+      error,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
+    })
+
+    const { result } = renderHook(() => useKnowledgeBases())
+
+    expect(result.current.bases).toEqual([])
+    expect(result.current.isLoading).toBe(false)
     expect(result.current.error).toBe(error)
-    expect(result.current.refetch).toBe(refetch)
+  })
+
+  it('stops automatic pagination and preserves the last complete list on a later-page error', () => {
+    const error = new Error('page 2 failed')
+    const loadNext = vi.fn()
+    const completeBases = [createKnowledgeBase({ id: 'base-1' })]
+    let queryState = {
+      pages: [{ items: completeBases }],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined as Error | undefined,
+      hasNext: false,
+      loadNext,
+      refresh: vi.fn()
+    }
+    mockUseInfiniteQuery.mockImplementation(() => queryState)
+
+    const { result, rerender } = renderHook(() => useKnowledgeBases())
+
+    queryState = {
+      ...queryState,
+      pages: [{ items: completeBases, nextCursor: 'cursor-2' }] as never,
+      error,
+      hasNext: true
+    }
+    rerender()
+
+    expect(result.current.bases).toEqual(completeBases)
+    expect(result.current.isLoading).toBe(false)
+    expect(result.current.error).toBe(error)
+    expect(loadNext).not.toHaveBeenCalled()
+  })
+
+  it('passes an explicit activation boundary to DataApi', () => {
+    mockUseInfiniteQuery.mockReturnValue({
+      pages: [],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn()
+    })
+
+    renderHook(() => useKnowledgeBases({ enabled: false }))
+
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/knowledge-bases', {
+      limit: 100,
+      enabled: false,
+      swrOptions: { revalidateAll: false, revalidateFirstPage: false }
+    })
   })
 })
 
@@ -270,6 +374,35 @@ describe('useRestoreKnowledgeBase', () => {
     expect(restored).toEqual({ base: restoredBase, skippedMissingSourceCount: 0 })
     expect(result.current.isRestoring).toBe(false)
     expect(result.current.restoreError).toBeUndefined()
+  })
+
+  it('restores a BM25-only knowledge base with a null embedding config', async () => {
+    const restoredBase = createKnowledgeBase({
+      id: 'restored-base',
+      name: 'Legacy KB BM25',
+      embeddingModelId: null,
+      dimensions: null
+    })
+    mockIpcRequest.mockResolvedValueOnce({ base: restoredBase, skippedMissingSourceCount: 0 })
+
+    const { result } = renderHook(() => useRestoreKnowledgeBase())
+
+    await act(async () => {
+      await result.current.restoreBase({
+        sourceBaseId: 'source-base',
+        name: 'Legacy KB BM25',
+        embeddingModelId: null,
+        dimensions: null
+      })
+    })
+
+    expect(mockIpcRequest).toHaveBeenCalledWith('knowledge.restore_base', {
+      sourceBaseId: 'source-base',
+      name: 'Legacy KB BM25',
+      embeddingModelId: null,
+      dimensions: null
+    })
+    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases')
   })
 
   it('keeps restore rejected when runtime IPC fails without refreshing the list', async () => {

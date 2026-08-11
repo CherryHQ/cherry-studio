@@ -22,12 +22,13 @@ vi.mock('@renderer/components/layout/AppShell', () => ({
 }))
 
 vi.mock('@renderer/hooks/useWindowRuntime', () => ({ useWindowRuntime: () => {} }))
+vi.mock('@renderer/hooks/tab', () => ({ useMainWindowNavigation: () => {} }))
 vi.mock('@renderer/hooks/useStorageMonitorNotification', () => ({ useStorageMonitorNotification: () => {} }))
+vi.mock('../hooks/useAutoBackupEvents', () => ({ useAutoBackupEvents: () => {} }))
 vi.mock('../hooks/useTopicNamingErrorNotification', () => ({ useTopicNamingErrorNotification: () => {} }))
 vi.mock('../hooks/useAppUpdateHandler', () => ({ useAppUpdateHandler: () => {} }))
 vi.mock('@renderer/components/PopupHost', () => ({ PopupHost: () => null }))
 vi.mock('@renderer/components/ToastHost', () => ({ default: () => null }))
-
 vi.mock('@renderer/components/ThemeProvider', () => ({
   ThemeProvider: () => {
     throw new Error('theme provider boom')
@@ -35,6 +36,12 @@ vi.mock('@renderer/components/ThemeProvider', () => ({
 }))
 
 import MainApp, { MainWindowContent } from '../MainApp'
+
+function appendBootSpinner() {
+  const spinner = document.createElement('div')
+  spinner.id = 'spinner'
+  document.body.appendChild(spinner)
+}
 
 describe('MainWindowContent', () => {
   beforeEach(() => {
@@ -47,12 +54,14 @@ describe('MainWindowContent', () => {
 
   it('renders onboarding before the user completes first-run setup', () => {
     MockUsePreferenceUtils.setPreferenceValue('app.onboarding.provider_setup.status', 'pending')
+    appendBootSpinner()
 
     render(<MainWindowContent />)
 
     expect(screen.getByTestId('onboarding-page')).toBeInTheDocument()
     expect(screen.queryByTestId('app-shell')).not.toBeInTheDocument()
     expect(screen.queryByTestId('privacy-policy-gate')).not.toBeInTheDocument()
+    expect(document.getElementById('spinner')).toBeNull()
   })
 
   it.each(['completed', 'skipped'] as const)('renders the normal app shell when onboarding is %s', (status) => {
@@ -70,9 +79,7 @@ describe('MainWindowContent', () => {
 describe('MainApp top-level error boundary', () => {
   it('shows the window fatal fallback instead of a white screen when a provider throws', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const spinner = document.createElement('div')
-    spinner.id = 'spinner'
-    document.body.appendChild(spinner)
+    appendBootSpinner()
 
     render(<MainApp />)
 

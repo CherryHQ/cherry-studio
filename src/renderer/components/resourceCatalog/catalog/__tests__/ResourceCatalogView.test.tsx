@@ -73,8 +73,7 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/detail', () => {
 vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => {
   dialogImplementationsLoadedMock('edit')
   return {
-    AgentEditDialog: () => null,
-    AssistantEditDialog: () => null
+    ResourceEditDialogHost: () => null
   }
 })
 vi.mock('@renderer/components/resourceCatalog/dialogs/import', () => {
@@ -92,10 +91,6 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/skill', () => {
     }
   }
 })
-
-vi.mock('@renderer/utils/resourceCatalog/assistantModelFilter', () => ({
-  isSelectableAssistantModel: () => true
-}))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
   useAgentModelFilter: () => () => true
@@ -150,16 +145,14 @@ function createController(resourceError?: Error) {
       createDialogOpen: false,
       creatingResource: false,
       deleteConfirm: null,
-      editDialog: null,
-      editDialogOpen: false,
+      editDialogTarget: null,
       handleCreateDialogOpenChange: vi.fn(),
-      handleEditDialogOpenChange: vi.fn(),
-      handleEditSaved: vi.fn(),
       handleSubmitCreateResource: vi.fn(),
       selectedSkill: null,
       setAssistantImportOpen: vi.fn(),
       setAssistantLibraryOpen: vi.fn(),
       setDeleteConfirm: vi.fn(),
+      setEditDialogTarget: vi.fn(),
       setSelectedSkill: vi.fn(),
       setSkillImportOpen: vi.fn(),
       setSkillMarketplaceOpen: vi.fn(),
@@ -181,18 +174,6 @@ describe('ResourceCatalogView', () => {
     skillDetailDialogMock.mockClear()
     systemSkillDialogMock.mockClear()
     resourceCatalogControllerMock.mockReturnValue(createController())
-  })
-
-  it('keeps the Skill settings surface transparent without changing other catalogs', () => {
-    const { container, rerender } = render(<ResourceCatalogView resourceType="skill" />)
-
-    expect(container.firstElementChild).toHaveClass('bg-transparent')
-    expect(container.firstElementChild).not.toHaveClass('bg-background')
-
-    rerender(<ResourceCatalogView resourceType="assistant" />)
-
-    expect(container.firstElementChild).toHaveClass('bg-background')
-    expect(container.firstElementChild).not.toHaveClass('bg-transparent')
   })
 
   it('loads dialog implementations only after activation and keeps the dialog host mounted', async () => {

@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@logger', () => ({
@@ -57,7 +61,11 @@ function createSchemaInfo() {
 function createMigrationContext(overrides: Record<string, unknown> = {}) {
   return {
     paths: {
-      legacyAgentDbFile: '/mock/Data/agents.db'
+      legacyAgentDbFile: '/mock/Data/agents.db',
+      legacyClaudeConfigDir: '/mock/.claude',
+      legacyClaudeProjectsDir: '/mock/.claude/projects',
+      claudeConfigDir: '/mock/Data/Agents/.claude',
+      claudeProjectsDir: '/mock/Data/Agents/.claude/projects'
     },
     sharedData: new Map(),
     ...overrides
@@ -66,6 +74,13 @@ function createMigrationContext(overrides: Record<string, unknown> = {}) {
 
 function getExecutedSql(run: ReturnType<typeof vi.fn>) {
   return run.mock.calls.map(([statement]) => statement.queryChunks[0]?.value?.[0])
+}
+
+function withSynchronousTransaction<T extends object>(members: T) {
+  const transaction = vi.fn()
+  const db = { ...members, transaction }
+  transaction.mockImplementation((callback: (tx: typeof db) => unknown) => callback(db))
+  return db
 }
 
 describe('AgentsMigrator', () => {
@@ -84,6 +99,62 @@ describe('AgentsMigrator', () => {
     expect(result.success).toBe(true)
     expect(result.itemCount).toBe(0)
     expect(result.warnings).toEqual(['agents.db not found - no agents data to migrate'])
+  })
+
+  it('copies the legacy Claude config even when no legacy agents db exists', async () => {
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue(null)
+    const tempRoot = await mkdtemp(join(tmpdir(), 'agents-migrator-claude-config-'))
+    const source = join(tempRoot, '.claude')
+    const destination = join(tempRoot, 'Data', 'Agents', '.claude')
+    const progressKeys: string[] = []
+    const progressValues: number[] = []
+    migrator.setProgressCallback((progress, message) => {
+      progressValues.push(progress)
+      if (message.i18nMessage) progressKeys.push(message.i18nMessage.key)
+    })
+    await mkdir(source)
+    await writeFile(join(source, 'settings.json'), '{"migrated":true}')
+
+    try {
+      await migrator.execute(
+        createMigrationContext({
+          paths: {
+            legacyAgentDbFile: join(tempRoot, 'Data', 'agents.db'),
+            legacyClaudeConfigDir: source,
+            legacyClaudeProjectsDir: join(source, 'projects'),
+            claudeConfigDir: destination,
+            claudeProjectsDir: join(destination, 'projects')
+          }
+        })
+      )
+
+      expect(await readFile(join(destination, 'settings.json'), 'utf8')).toBe('{"migrated":true}')
+      expect(await readFile(join(source, 'settings.json'), 'utf8')).toBe('{"migrated":true}')
+      expect(progressKeys).toEqual(
+        expect.arrayContaining([
+          'migration.progress.agents_claude_config_scanning',
+          'migration.progress.agents_claude_config_copying',
+          'migration.progress.agents_claude_config_verifying'
+        ])
+      )
+      expect(progressValues).toEqual(expect.arrayContaining([15, 30, 44, 45]))
+      expect(progressValues.every((progress, index) => index === 0 || progress >= progressValues[index - 1])).toBe(true)
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  it('reports monotonic Agent subphase progress through validation', async () => {
+    vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue(null)
+    const progressValues: number[] = []
+    migrator.setProgressCallback((progress) => progressValues.push(progress))
+
+    const context = createMigrationContext()
+    await migrator.execute(context)
+    await migrator.validate(context)
+
+    expect(progressValues).toEqual([1, 45, 98, 99, 100])
+    expect(progressValues.every((progress, index) => index === 0 || progress >= progressValues[index - 1])).toBe(true)
   })
 
   it('prepare counts all legacy agents rows', async () => {
@@ -107,7 +178,9 @@ describe('AgentsMigrator', () => {
     const select = vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         orderBy: vi.fn().mockResolvedValue([]),
-        where: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
+        where: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) }),
+        // readSessionAuthors joins agent_session with agent; no sessions in these fixtures.
+        innerJoin: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
       })
     })
     const update = vi.fn().mockReturnValue({
@@ -132,9 +205,8 @@ describe('AgentsMigrator', () => {
     vi.spyOn(LegacyAgentsDbReader.prototype, 'countRows').mockReturnValue(createCounts())
 
     await migrator.prepare(createMigrationContext())
-    const result = await migrator.execute(
-      createMigrationContext({ db: { run, select, update, all, delete: del, insert } })
-    )
+    const db = withSynchronousTransaction({ run, select, update, all, delete: del, insert })
+    const result = await migrator.execute(createMigrationContext({ db }))
 
     expect(result.success).toBe(true)
     // sourceCounts now sums only the 6 importStatement-driven specs (the 3
@@ -148,10 +220,16 @@ describe('AgentsMigrator', () => {
     expect(outer[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
     expect(outer[1]).toBe('BEGIN')
     // run tail after import COMMIT: remapAgentPrefixIds emits BEGIN → COMMIT (no old-prefix
-    // IDs here, so no UPDATEs), then execute() emits DETACH.
-    expect(outer.at(-4)).toBe('COMMIT')
-    expect(outer.at(-3)).toBe('BEGIN')
-    expect(outer.at(-2)).toBe('COMMIT')
+    // IDs here, so no UPDATEs), then execute() drops message staging and emits DETACH.
+    const beginIndexes = outer.flatMap((statement, index) => (statement === 'BEGIN' ? [index] : []))
+    const commitIndexes = outer.flatMap((statement, index) => (statement === 'COMMIT' ? [index] : []))
+    expect(beginIndexes).toHaveLength(2)
+    expect(commitIndexes).toHaveLength(2)
+    expect(beginIndexes[0]).toBeLessThan(commitIndexes[0])
+    expect(commitIndexes[0]).toBeLessThan(beginIndexes[1])
+    expect(beginIndexes[1]).toBeLessThan(commitIndexes[1])
+    expect(outer.at(-3)).toBe('DROP TABLE IF EXISTS agent_session_message_migration_staging')
+    expect(outer.at(-2)).toBe('DROP TABLE IF EXISTS agent_session_message_source_cursor')
     expect(outer.at(-1)).toBe('DETACH DATABASE agents_legacy')
     // Session-workspace staging runs first inside the import transaction, emitted
     // via run() before the table INSERTs.
@@ -348,7 +426,9 @@ describe('AgentsMigrator', () => {
     const select = vi.fn().mockReturnValue({
       from: vi.fn().mockReturnValue({
         orderBy: vi.fn().mockResolvedValue([]),
-        where: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
+        where: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) }),
+        // readSessionAuthors joins agent_session with agent; no sessions in these fixtures.
+        innerJoin: vi.fn().mockReturnValue({ all: vi.fn().mockReturnValue([]) })
       })
     })
     const update = vi.fn().mockReturnValue({
@@ -363,7 +443,7 @@ describe('AgentsMigrator', () => {
     })
     const all = vi.fn().mockReturnValue([])
     const migrationContext = createMigrationContext({
-      db: { run, select, update, all, delete: del, insert }
+      db: withSynchronousTransaction({ run, select, update, all, delete: del, insert })
     })
 
     await migrator.prepare(migrationContext)
@@ -391,9 +471,8 @@ describe('AgentsMigrator', () => {
   describe('migrateAgentMcps', () => {
     it('remaps legacy mcp ids to new ids and inserts junction rows', async () => {
       const all = vi.fn().mockReturnValue([
-        { agentId: 'agent-1', oldMcpId: 'mcp-a' },
-        { agentId: 'agent-1', oldMcpId: 'mcp-b' },
-        { agentId: 'agent-2', oldMcpId: 'mcp-a' }
+        { agentId: 'agent-1', mcps: JSON.stringify(['mcp-a', 'mcp-b']) },
+        { agentId: 'agent-2', mcps: JSON.stringify(['mcp-a']) }
       ])
       const run = vi.fn()
       const onConflictDoNothing = vi.fn().mockReturnValue({ run })
@@ -424,10 +503,7 @@ describe('AgentsMigrator', () => {
     })
 
     it('drops legacy refs whose id is missing from the mapping', async () => {
-      const all = vi.fn().mockReturnValue([
-        { agentId: 'agent-1', oldMcpId: 'mcp-a' },
-        { agentId: 'agent-1', oldMcpId: 'mcp-gone' }
-      ])
+      const all = vi.fn().mockReturnValue([{ agentId: 'agent-1', mcps: JSON.stringify(['mcp-a', 'mcp-gone']) }])
       const run = vi.fn()
       const onConflictDoNothing = vi.fn().mockReturnValue({ run })
       const valuesFn = vi.fn().mockReturnValue({ onConflictDoNothing })
@@ -454,8 +530,29 @@ describe('AgentsMigrator', () => {
       expect(insert).not.toHaveBeenCalled()
     })
 
+    it('skips non-array legacy MCP payloads', async () => {
+      const all = vi.fn().mockReturnValue([{ agentId: 'agent-1', mcps: JSON.stringify({ id: 'mcp-a' }) }])
+      const insert = vi.fn()
+
+      migrateAgentMcps({ all, insert } as never, new Map())
+
+      expect(insert).not.toHaveBeenCalled()
+    })
+
+    it('keeps valid string ids from mixed legacy MCP arrays', async () => {
+      const all = vi.fn().mockReturnValue([{ agentId: 'agent-1', mcps: JSON.stringify(['mcp-a', 123]) }])
+      const run = vi.fn()
+      const onConflictDoNothing = vi.fn().mockReturnValue({ run })
+      const valuesFn = vi.fn().mockReturnValue({ onConflictDoNothing })
+      const insert = vi.fn().mockReturnValue({ values: valuesFn })
+
+      migrateAgentMcps({ all, insert } as never, new Map([['mcp-a', 'new-a']]))
+
+      expect(valuesFn.mock.calls[0][0]).toEqual([expect.objectContaining({ agentId: 'agent-1', mcpServerId: 'new-a' })])
+    })
+
     it('throws when rows need remapping but the mapping is absent', async () => {
-      const all = vi.fn().mockReturnValue([{ agentId: 'agent-1', oldMcpId: 'mcp-a' }])
+      const all = vi.fn().mockReturnValue([{ agentId: 'agent-1', mcps: JSON.stringify(['mcp-a']) }])
       const insert = vi.fn()
 
       expect(() => migrateAgentMcps({ all, insert } as never, undefined)).toThrow(/mcpServerIdMapping not found/)

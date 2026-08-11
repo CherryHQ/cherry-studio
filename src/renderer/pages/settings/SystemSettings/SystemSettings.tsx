@@ -1,5 +1,5 @@
 import { Flex, InfoTooltip, Input, Switch } from '@cherrystudio/ui'
-import { usePreference } from '@data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import CopyButton from '@renderer/components/CopyButton'
 import Selector from '@renderer/components/Selector'
 import {
@@ -22,6 +22,13 @@ import { useTranslation } from 'react-i18next'
 
 const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
+const TRAY_PREFERENCE_KEYS = {
+  enabled: 'app.tray.enabled',
+  onClose: 'app.tray.on_close',
+  onLaunch: 'app.tray.on_launch',
+  clickTrayToShowQuickAssistant: 'feature.quick_assistant.click_tray_to_show'
+} as const
+
 const SystemSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
@@ -31,9 +38,8 @@ const SystemSettings: FC = () => {
     'BootConfig.app.disable_hardware_acceleration'
   )
   const [launchOnBoot, setLaunchOnBoot] = usePreference('app.launch_on_boot')
-  const [launchToTray, setLaunchToTray] = usePreference('app.tray.on_launch')
-  const [trayOnClose, setTrayOnClose] = usePreference('app.tray.on_close')
-  const [tray, setTray] = usePreference('app.tray.enabled')
+  const [trayPreferences, setTrayPreferences] = useMultiplePreferences(TRAY_PREFERENCE_KEYS)
+  const { enabled: tray, onClose: trayOnClose, onLaunch: launchToTray } = trayPreferences
   const [preventSleepWhenBusy, setPreventSleepWhenBusy] = usePreference('app.power.prevent_sleep_when_busy')
   const [storeProxyMode, setProxyMode] = usePreference('app.proxy.mode')
   const [storeProxyBypassRules, _setProxyBypassRules] = usePreference('app.proxy.bypass_rules')
@@ -51,25 +57,19 @@ const SystemSettings: FC = () => {
   ]
 
   const updateTray = (isShowTray: boolean) => {
-    void setTray(isShowTray)
-    if (!isShowTray) {
-      updateTrayOnClose(false)
-      updateLaunchToTray(false)
-    }
+    void setTrayPreferences(
+      isShowTray
+        ? { enabled: true }
+        : { enabled: false, onClose: false, onLaunch: false, clickTrayToShowQuickAssistant: false }
+    )
   }
 
   const updateTrayOnClose = (isTrayOnClose: boolean) => {
-    void setTrayOnClose(isTrayOnClose)
-    if (isTrayOnClose && !tray) {
-      updateTray(true)
-    }
+    void setTrayPreferences(isTrayOnClose && !tray ? { enabled: true, onClose: true } : { onClose: isTrayOnClose })
   }
 
   const updateLaunchToTray = (isLaunchToTray: boolean) => {
-    void setLaunchToTray(isLaunchToTray)
-    if (isLaunchToTray && !tray) {
-      updateTray(true)
-    }
+    void setTrayPreferences(isLaunchToTray && !tray ? { enabled: true, onLaunch: true } : { onLaunch: isLaunchToTray })
   }
 
   const onSetProxyUrl = () => {
@@ -88,7 +88,9 @@ const SystemSettings: FC = () => {
   const handleHardwareAccelerationChange = async (checked: boolean) => {
     const confirmed = await popup.confirm({
       title: t('settings.hardware_acceleration.confirm.title'),
-      content: t('settings.hardware_acceleration.confirm.content'),
+      content: checked
+        ? t('settings.hardware_acceleration.confirm.content_disable')
+        : t('settings.hardware_acceleration.confirm.content_enable'),
       okText: t('common.confirm'),
       cancelText: t('common.cancel'),
       centered: true
@@ -208,7 +210,7 @@ const SystemSettings: FC = () => {
             <SettingRow className="gap-3">
               <SettingRowTitle>{t('settings.developer.client_id')}</SettingRowTitle>
               <div className="flex min-w-0 items-center gap-2">
-                <span className="select-text break-all text-right font-mono text-foreground-muted text-xs">
+                <span className="select-text break-all text-right font-mono text-foreground-tertiary text-xs">
                   {clientId}
                 </span>
                 <CopyButton textToCopy={clientId} successFeedback="icon" />

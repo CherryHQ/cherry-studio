@@ -1,7 +1,8 @@
 import { toast } from '@renderer/services/toast'
 import { LOCAL_EMBEDDING_UNIQUE_MODEL_ID } from '@shared/data/presets/localEmbedding'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -12,12 +13,27 @@ const mockSave = vi.fn()
 const mockEnableEmbedding = vi.fn()
 // embedMany goes through ipcApi.request('ai.embedding.embed_many', …) now (Main IPC).
 const { mockEmbedMany } = vi.hoisted(() => ({ mockEmbedMany: vi.fn() }))
+// FileProcessingSection probes the local OCR model and Open MinerU's host on mount;
+// answering both here keeps those calls out of the embedMany spy the embedding
+// assertions read.
+const FILE_PROCESSING_PROBES: Record<string, unknown> = {
+  'local_model.get_status': { status: 'ready' },
+  'file_processing.open_mineru.check_connectivity': true
+}
 vi.mock('@renderer/ipc', () => ({
-  ipcApi: { request: (_route: string, input: unknown) => mockEmbedMany(input) }
+  ipcApi: {
+    request: (route: string, input: unknown) =>
+      route in FILE_PROCESSING_PROBES ? Promise.resolve(FILE_PROCESSING_PROBES[route]) : mockEmbedMany(input)
+  },
+  useIpcOn: () => {}
 }))
 
 vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useEnableKnowledgeBaseEmbedding: () => ({ enableEmbedding: mockEnableEmbedding, isEnabling: false })
+}))
+
+vi.mock('../FileProcessorSelector', () => ({
+  FileProcessorSelector: () => null
 }))
 
 const renderRagConfigPanel = (
@@ -183,16 +199,17 @@ vi.mock('../../../hooks/useEmbeddingDimensions', () => ({
 }))
 
 vi.mock('../../../components/KnowledgeModelSelect', () => ({
-  isEmbeddingModel: () => true,
   isRerankModel: () => true,
   KnowledgeModelSelect: ({
     value,
     placeholder,
+    noneOptionLabel,
     onChange,
     'aria-label': ariaLabel
   }: {
     value: string | null
     placeholder: string
+    noneOptionLabel?: string
     onChange: (modelId: string | null) => void
     'aria-label'?: string
   }) => (
@@ -203,23 +220,47 @@ vi.mock('../../../components/KnowledgeModelSelect', () => ({
         value={value ?? ''}
         onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
       />
+      {noneOptionLabel ? (
+        <button type="button" onClick={() => onChange(null)}>
+          {noneOptionLabel}
+        </button>
+      ) : null}
     </div>
   )
 }))
 
-// Stub the download button as a plain button that fires onSelected with the local
-// model id, so tests can drive the "download finished → auto-select + save" path.
-// Async factory + dynamic import keeps the id out of the hoisted-factory scope rules.
-vi.mock('../../../components/LocalEmbeddingDownloadButton', async () => {
-  const { LOCAL_EMBEDDING_UNIQUE_MODEL_ID: localModelId } = await import('@shared/data/presets/localEmbedding')
-  return {
-    default: ({ onSelected }: { onSelected: (modelId: string) => void }) => (
-      <button type="button" onClick={() => onSelected(localModelId)}>
-        download-local-embedding
+vi.mock('../../../components/KnowledgeEmbeddingModelSelect', () => ({
+  KnowledgeEmbeddingModelSelect: ({
+    value,
+    placeholder,
+    noneOptionLabel,
+    onChange,
+    'aria-label': ariaLabel
+  }: {
+    value: string | null
+    placeholder: string
+    noneOptionLabel?: string
+    onChange: (modelId: string | null) => void
+    'aria-label'?: string
+  }) => (
+    <div>
+      <span>{value ?? placeholder}</span>
+      <input
+        aria-label={ariaLabel ?? placeholder}
+        value={value ?? ''}
+        onChange={(event) => onChange(event.target.value === '' ? null : event.target.value)}
+      />
+      <button type="button" onClick={() => onChange('local-embedding::qwen3-embedding-0.6b')}>
+        select-local-embedding
       </button>
-    )
-  }
-})
+      {noneOptionLabel ? (
+        <button type="button" onClick={() => onChange(null)}>
+          {noneOptionLabel}
+        </button>
+      ) : null}
+    </div>
+  )
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -231,7 +272,6 @@ vi.mock('react-i18next', () => ({
           'knowledge.error.failed_to_edit': '保存失败',
           'knowledge.error.missing_embedding_model':
             '迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。',
-          'knowledge.not_set': '未设置',
           'knowledge.embedding_model': '嵌入模型',
           'knowledge.embedding_model_required': '请选择嵌入模型',
           'knowledge.provider_not_found': '找不到提供商',
@@ -335,10 +375,6 @@ describe('RagConfigPanel', () => {
     })
 
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(screen.getByTestId('rag-failed-state').parentElement?.parentElement).toHaveClass(
-      'items-center',
-      'justify-center'
-    )
     expect(screen.getByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')).toBeInTheDocument()
     expect(screen.queryByText('文档处理')).not.toBeInTheDocument()
     expect(screen.queryByText('分块大小')).not.toBeInTheDocument()
@@ -359,7 +395,8 @@ describe('RagConfigPanel', () => {
     expect(screen.getByText('文档处理')).toBeInTheDocument()
     expect(screen.getByText('Top K')).toBeInTheDocument()
     expect(screen.getByText('重排模型')).toBeInTheDocument()
-    expect(screen.getByText('不使用')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: '不使用' })).toHaveLength(2)
+    expect(screen.queryByText('未设置')).not.toBeInTheDocument()
     expect(screen.getByLabelText('嵌入模型')).toHaveValue('openai::text-embedding-3-small')
     expect(screen.getByDisplayValue('512')).toBeInTheDocument()
     expect(screen.getByDisplayValue('64')).toBeInTheDocument()
@@ -403,6 +440,37 @@ describe('RagConfigPanel', () => {
     })
   })
 
+  it('disables a configured rerank model and saves null', async () => {
+    const user = userEvent.setup()
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        chunkStrategy: 'structured',
+        chunkSeparator: '\\n\\n',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        rerankModelId: 'jina::jina-reranker-v2-base-multilingual',
+        documentCount: 6,
+        threshold: 0.5
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    renderRagConfigPanel()
+    const rerankSelect = screen.getByLabelText('重排模型').parentElement
+    expect(rerankSelect).not.toBeNull()
+    await user.click(within(rerankSelect!).getByRole('button', { name: '不使用' }))
+    await user.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ rerankModelId: null }))
+    })
+  })
+
   it('shows save failure toast with the original error', async () => {
     mockSave.mockRejectedValueOnce(new Error('save failed'))
 
@@ -414,30 +482,6 @@ describe('RagConfigPanel', () => {
     await waitFor(() => {
       expect(toast.error).toHaveBeenCalledWith('保存失败: save failed')
     })
-  })
-
-  it('collapses only chunking under an advanced section, keeping the essentials on top', () => {
-    renderRagConfigPanel()
-
-    // Advanced section houses the set-and-forget chunking knobs.
-    expect(screen.getByRole('button', { name: '高级设置' })).toBeInTheDocument()
-    // The advanced fields still render (accordion mock keeps content mounted).
-    expect(screen.getByText('分块大小')).toBeInTheDocument()
-    // Essentials — including file processing — stay outside the advanced section.
-    expect(screen.getByText('文档处理')).toBeInTheDocument()
-    expect(screen.getByText('嵌入模型')).toBeInTheDocument()
-    expect(screen.getByText('Top K')).toBeInTheDocument()
-  })
-
-  it('renders flat fields without legacy section headings', () => {
-    renderRagConfigPanel()
-
-    // Section-level small-caps headings are gone — no Chunking / Embedding / Retrieval section title in the DOM.
-    expect(screen.queryByText('Chunking')).not.toBeInTheDocument()
-    expect(screen.queryByText('Embedding')).not.toBeInTheDocument()
-    expect(screen.queryByText('Retrieval')).not.toBeInTheDocument()
-    expect(screen.getAllByText('分段大小和重叠大小修改只针对新添加的内容有效')).toHaveLength(1)
-    expect(screen.getByRole('slider', { name: 'Top K' })).toBeInTheDocument()
   })
 
   it('disables save when a required chunk field is cleared or becomes non-positive', () => {
@@ -565,6 +609,26 @@ describe('RagConfigPanel', () => {
     expect(toast.success).toHaveBeenCalledWith('已保存')
   })
 
+  it('saves disabled embedding directly when the base has no items', async () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase, {}, 0)
+
+    const embeddingSelect = screen.getByLabelText('嵌入模型').parentElement
+    expect(embeddingSelect).not.toBeNull()
+    fireEvent.click(within(embeddingSelect!).getByRole('button', { name: '不使用' }))
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(expect.objectContaining({ embeddingModelId: null }), {
+        embeddingModelId: null,
+        dimensions: null
+      })
+    })
+    expect(mockEmbedMany).not.toHaveBeenCalled()
+    expect(onRestoreBase).not.toHaveBeenCalled()
+  })
+
   it('shows a dimension-fetch failure toast and does not save when saving the embedding model directly fails', async () => {
     mockEmbedMany.mockRejectedValueOnce(new Error('probe failed'))
     const onRestoreBase = vi.fn()
@@ -609,7 +673,7 @@ describe('RagConfigPanel', () => {
     expect(screen.getByRole('tooltip', { name: '对初步召回结果重新排序的模型。' })).toBeInTheDocument()
   })
 
-  it('auto-saves the downloaded local embedding model directly on an empty base', async () => {
+  it('saves the local embedding model on an empty base only after confirmation', async () => {
     const onRestoreBase = vi.fn()
     mockUseKnowledgeRagConfig.mockReturnValue({
       initialValues: {
@@ -631,7 +695,10 @@ describe('RagConfigPanel', () => {
 
     renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null }, 0)
 
-    fireEvent.click(screen.getByRole('button', { name: 'download-local-embedding' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-local-embedding' }))
+    expect(mockSave).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
       expect(mockSave).toHaveBeenCalledWith(
@@ -643,7 +710,7 @@ describe('RagConfigPanel', () => {
     expect(toast.success).toHaveBeenCalledWith('已保存')
   })
 
-  it('enables the downloaded local embedding model in place when a BM25-only base already has items', async () => {
+  it('enables the local embedding model only after confirmation on a BM25-only base', async () => {
     const onRestoreBase = vi.fn()
     mockUseKnowledgeRagConfig.mockReturnValue({
       initialValues: {
@@ -665,7 +732,10 @@ describe('RagConfigPanel', () => {
 
     renderRagConfigPanel(onRestoreBase, { embeddingModelId: null, dimensions: null }, 5)
 
-    fireEvent.click(screen.getByRole('button', { name: 'download-local-embedding' }))
+    fireEvent.click(screen.getByRole('button', { name: 'select-local-embedding' }))
+    expect(mockEnableEmbedding).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
 
     await waitFor(() => {
       expect(mockEnableEmbedding).toHaveBeenCalledWith(
@@ -729,6 +799,23 @@ describe('RagConfigPanel', () => {
     expect(mockEnableEmbedding).not.toHaveBeenCalled()
     expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
       embeddingModelId: 'voyage::voyage-3-large'
+    })
+  })
+
+  it('routes disabled embedding through rebuild when an already-configured base has items', () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase, {}, 5)
+
+    const embeddingSelect = screen.getByLabelText('嵌入模型').parentElement
+    expect(embeddingSelect).not.toBeNull()
+    fireEvent.click(within(embeddingSelect!).getByRole('button', { name: '不使用' }))
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(mockEnableEmbedding).not.toHaveBeenCalled()
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
+      embeddingModelId: null
     })
   })
 })

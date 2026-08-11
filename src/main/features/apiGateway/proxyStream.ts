@@ -16,10 +16,12 @@
  * `Response`. The Elysia route handlers return this `Response` directly.
  */
 
+import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { SseListener, type StreamListener } from '@main/ai/streamManager'
 import type { CallOverrides } from '@main/ai/types'
+import { applyFastModeToProviderOptions } from '@main/ai/utils/options'
 import type { Provider } from '@shared/data/types/provider'
 import type { UIMessageChunk } from 'ai'
 import { v4 as uuidv4 } from 'uuid'
@@ -28,6 +30,8 @@ import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, Output
 import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
 import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
+import { appendInternalAgentContinuation } from './utils/agentContinuation'
+import { normalizeAnthropicToolHistory } from './utils/anthropicToolHistory'
 import { resolveGatewayModelAddress } from './utils/models'
 
 const logger = loggerService.withContext('ProxyStreamService')
@@ -76,6 +80,8 @@ type InputParams = InputParamsMap[InputFormat]
 export interface MessageConfig {
   provider?: Provider
   modelId?: string
+  /** Internal Agent-session hint carried by the Claude Code SDK gateway route. */
+  fastMode?: boolean
   /**
    * The loosely-validated gateway request body. Routes validate only the fields
    * the gateway needs (`model`, `messages`/`input`, …) and pass the rest through,
@@ -99,6 +105,8 @@ export interface MessageConfig {
   outputFormat?: OutputFormat
   /** Request abort signal (`context.request.signal`); aborts the upstream stream on client disconnect. */
   signal?: AbortSignal
+  /** Raw request headers used only to validate Cherry-internal usage correlation. */
+  requestHeaders?: Headers
   onError?: (error: unknown) => void
   onComplete?: () => void
 }
@@ -138,6 +146,12 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const { providerId, apiModelId: modelId, uniqueModelId, provider: resolvedProvider, model } = resolvedAddress
 
   const isStreaming = config.streaming ?? ('stream' in params && (params as { stream?: boolean }).stream === true)
+  const usageContext = config.requestHeaders
+    ? application.get('ApiGatewayService').resolveAgentSessionUsage(config.requestHeaders)
+    : undefined
+  const isInternalAgentRequest =
+    config.requestHeaders !== undefined &&
+    application.get('ApiGatewayService').isInternalAgentRequest(config.requestHeaders)
 
   logger.info(`Starting ${isStreaming ? 'streaming' : 'non-streaming'} message`, {
     providerId,
@@ -146,36 +160,78 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
     outputFormat
   })
 
+  const provider: Provider = config.provider ?? resolvedProvider
+  const isInternalAnthropicAgentRequest = inputFormat === 'anthropic' && isInternalAgentRequest
+  let effectiveParams = params
+
+  if (isInternalAnthropicAgentRequest) {
+    const anthropicParams = params as MessageCreateParams
+    const normalization = normalizeAnthropicToolHistory(anthropicParams.messages)
+
+    if (normalization.status === 'conflict') {
+      logger.warn('Rejected conflicting tool history in internal Agent request', {
+        providerId,
+        modelId,
+        toolUseId: normalization.toolUseId,
+        reason: normalization.reason,
+        firstLocation: normalization.firstLocation,
+        duplicateLocation: normalization.duplicateLocation
+      })
+      throw asClientError(new Error('Invalid Anthropic tool history: tool_use ids must be unique'))
+    }
+
+    if (normalization.status === 'repaired') {
+      effectiveParams = { ...anthropicParams, messages: normalization.messages }
+      logger.warn('Repaired duplicate tool history in internal Agent request', {
+        providerId,
+        modelId,
+        duplicateToolUseCount: normalization.duplicateToolUseCount,
+        duplicateToolResultCount: normalization.duplicateToolResultCount
+      })
+    }
+  }
+
   // 2. Build converter and extract messages / tools / sampling / provider options.
   const converter = MessageConverterFactory.create(inputFormat, {
     googleReasoningCache,
     openRouterReasoningCache
   })
 
-  const messages = converter.toUIMessages(params)
-  const tools = converter.toAiSdkTools?.(params)
-  const streamOptions = converter.extractStreamOptions(params)
+  const convertedMessages = converter.toUIMessages(effectiveParams)
+  const messages = isInternalAnthropicAgentRequest
+    ? appendInternalAgentContinuation(convertedMessages)
+    : convertedMessages
+  const tools = converter.toAiSdkTools?.(effectiveParams)
+  const streamOptions = converter.extractStreamOptions(effectiveParams)
 
   // Provider options (reasoning/thinking) use the same enabled provider resolved above.
-  const provider: Provider = config.provider ?? resolvedProvider
-  const providerOptions = provider
-    ? converter.extractProviderOptions(provider, model, params, streamOptions.maxOutputTokens)
-    : undefined
+  const extractedProviderOptions =
+    converter.extractProviderOptions(provider, model, effectiveParams, streamOptions.maxOutputTokens) ?? {}
+  const providerOptions = applyFastModeToProviderOptions(
+    provider,
+    model,
+    extractedProviderOptions,
+    config.fastMode === true
+  )
 
   // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
   const callOverrides: CallOverrides = {
     ...streamOptions,
     ...(tools ? { tools } : {}),
-    ...(providerOptions ? { providerOptions } : {})
+    ...(Object.keys(providerOptions).length > 0 ? { providerOptions } : {})
   }
 
   // 4. Adapter + formatter translate UIMessageChunk → output format.
   const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, {
-    model: `${providerId}:${modelId}`
+    model: `${providerId}:${modelId}`,
+    ...(converter.toClientToolName ? { toClientToolName: converter.toClientToolName.bind(converter) } : {})
   })
   const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
 
   const streamId = `gateway-${uuidv4()}`
+  if (messages !== convertedMessages) {
+    logger.info('Appended assistant-tail continuation for internal agent request', { providerId, modelId, streamId })
+  }
   const aiStreamManager = application.get('AiStreamManager')
 
   if (isStreaming) {
@@ -309,6 +365,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
             messages,
             listener,
             callOverrides,
+            contextOwner: 'caller',
+            ...(usageContext ? { usageContext } : {}),
             idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
           })
         } catch (error) {
@@ -390,6 +448,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       messages,
       listener,
       callOverrides,
+      contextOwner: 'caller',
+      ...(usageContext ? { usageContext } : {}),
       idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })
 

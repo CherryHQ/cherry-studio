@@ -52,10 +52,26 @@ describe('DefaultPreferences', () => {
     expect(DefaultPreferences.default['ui.sidebar.favorites']).toEqual(sidebarFavoritesDefault)
   })
 
+  it('pins permission mode on the agent composer toolbar for new users', () => {
+    const agentPinnedToolsDefault: PreferenceSchemas['default']['agent.input.toolbar.pinned_tools'] = [
+      'composer:new-session',
+      'skills',
+      'permission-mode'
+    ]
+
+    expect(DefaultPreferences.default['agent.input.toolbar.pinned_tools']).toEqual(agentPinnedToolsDefault)
+  })
+
   it('defaults transparent windows on for new users', () => {
     const windowStyleDefault: PreferenceSchemas['default']['ui.window_style'] = 'transparent'
 
     expect(DefaultPreferences.default['ui.window_style']).toBe(windowStyleDefault)
+  })
+
+  it('defaults message navigation to the anchor rail for new users', () => {
+    const messageNavigationDefault: PreferenceSchemas['default']['chat.message.navigation_mode'] = 'anchor'
+
+    expect(DefaultPreferences.default['chat.message.navigation_mode']).toBe(messageNavigationDefault)
   })
 
   it('does not keep legacy classic/modern layout preferences', () => {

@@ -8,8 +8,11 @@ import {
   CherryReasoningMetaSchema,
   CherryTextMetaSchema,
   CherryToolMetaSchema,
+  createClearContextPart,
   type DiagnosisResult,
   getKnowledgeBaseIdsFromParts,
+  hasClearContextPart,
+  isBlankUserTurn,
   KnowledgeScopePartDataSchema,
   readCherryMeta,
   withCherryMeta,
@@ -148,6 +151,26 @@ describe('knowledge scope parts', () => {
         { type: 'data-knowledge-scope', data: { baseIds: [42] } } as unknown as CherryMessagePart
       ])
     ).toBeUndefined()
+  })
+})
+
+describe('clear context parts', () => {
+  it('creates and detects a hidden data UI part', () => {
+    const part = createClearContextPart()
+
+    expect(part).toEqual({ type: 'data-clear', data: {} })
+    expect(hasClearContextPart([{ type: 'text', text: 'before' }, part])).toBe(true)
+    expect(hasClearContextPart([{ type: 'text', text: 'before' }])).toBe(false)
+    expect(hasClearContextPart(undefined)).toBe(false)
+  })
+})
+
+describe('blank user turns', () => {
+  it('requires a successful user role with no parts', () => {
+    expect(isBlankUserTurn({ role: 'user', status: 'success', parts: [] })).toBe(true)
+    expect(isBlankUserTurn({ role: 'assistant', status: 'success', parts: [] })).toBe(false)
+    expect(isBlankUserTurn({ role: 'user', status: 'pending', parts: [] })).toBe(false)
+    expect(isBlankUserTurn({ role: 'user', status: 'success', parts: [{ type: 'text' }] })).toBe(false)
   })
 })
 

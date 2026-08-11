@@ -9,6 +9,10 @@ Per-key serialisation of independent items: one lazily-created mutex per key, dr
 Tasks sharing a key run one at a time (FIFO); different keys run concurrently. `runExclusive(key, task)`
 accepts sync or async tasks and returns the task's result.
 
+For critical sections whose lifetime ends on an event rather than a function return,
+`await acquire(key)` returns an idempotent release callback. Call it on every terminal path;
+prefer `runExclusive` whenever a scoped task is sufficient.
+
 Division of labour with the reconciler below: `KeyedMutex` is a FIFO queue — **every** task runs, in
 order, per key (command / delta semantics). The reconciler coalesces — intermediate requests are
 dropped and only the latest intent converges. Pick by whether skipped work is a bug or a feature.

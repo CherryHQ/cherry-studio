@@ -1,22 +1,23 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
+import { toast } from '@renderer/services/toast'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
 import type { Assistant } from '@shared/data/types/assistant'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { EDIT_DIALOG_PROMPT_MAX_HEIGHT, EDIT_DIALOG_PROMPT_MIN_HEIGHT } from '../../components/EditDialogShared'
-
 const {
-  agentTools,
+  createGroupMock,
   fetchGenerateMock,
   installedSkillsState,
   ipcRequestMock,
   knowledgeBasesState,
   mcpStatusState,
   openSettingsTabMock,
+  promptProcessorMock,
   settingsNavigateMock,
   skillCatalogPickerMock,
   updateAgentMock,
@@ -24,33 +25,7 @@ const {
   useMutationMock,
   useQueryMock
 } = vi.hoisted(() => ({
-  agentTools: [
-    { id: 'Bash', name: 'Bash', description: 'Run shell commands', origin: 'builtin', approval: 'prompt' },
-    { id: 'Edit', name: 'Edit', description: 'Edit files', origin: 'builtin', approval: 'prompt' },
-    { id: 'Glob', name: 'Glob', description: 'Find files', origin: 'builtin', approval: 'auto' },
-    { id: 'Grep', name: 'Grep', description: 'Search files', origin: 'builtin', approval: 'auto' },
-    { id: 'MultiEdit', name: 'MultiEdit', description: 'Edit multiple ranges', origin: 'builtin', approval: 'prompt' },
-    {
-      id: 'NotebookEdit',
-      name: 'NotebookEdit',
-      description: 'Edit notebooks',
-      origin: 'builtin',
-      approval: 'prompt'
-    },
-    {
-      id: 'NotebookRead',
-      name: 'NotebookRead',
-      description: 'Read notebooks',
-      origin: 'builtin',
-      approval: 'auto'
-    },
-    { id: 'Read', name: 'Read', description: 'Read files', origin: 'builtin', approval: 'auto' },
-    { id: 'Task', name: 'Task', description: 'Run sub-agents', origin: 'builtin', approval: 'auto' },
-    { id: 'TodoWrite', name: 'TodoWrite', description: 'Manage todos', origin: 'builtin', approval: 'auto' },
-    { id: 'WebFetch', name: 'WebFetch', description: 'Fetch websites', origin: 'builtin', approval: 'prompt' },
-    { id: 'WebSearch', name: 'WebSearch', description: 'Search web', origin: 'builtin', approval: 'prompt' },
-    { id: 'Write', name: 'Write', description: 'Write files', origin: 'builtin', approval: 'prompt' }
-  ],
+  createGroupMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
   installedSkillsState: {
     current: {
@@ -78,6 +53,7 @@ const {
   },
   mcpStatusState: { current: {} as Record<string, { state: string; lastCheckedAt: number }> },
   openSettingsTabMock: vi.fn(),
+  promptProcessorMock: vi.fn(({ prompt }: { prompt: string }) => prompt),
   settingsNavigateMock: vi.fn(),
   skillCatalogPickerMock: vi.fn(),
   updateAgentMock: vi.fn(),
@@ -142,6 +118,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value,
     onChange,
     placeholder,
+    previewValue,
     resetPreviewKey,
     minHeight,
     maxHeight
@@ -152,6 +129,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
     value: string
     onChange: (value: string) => void
     placeholder?: string
+    previewValue?: string
     resetPreviewKey?: number
     minHeight?: string
     maxHeight?: string
@@ -169,6 +147,7 @@ vi.mock('@renderer/components/PromptEditorField', () => ({
         onChange={(event) => onChange(event.target.value)}
         style={{ minHeight, maxHeight }}
       />
+      <output aria-label="Prompt preview">{previewValue}</output>
       <output data-testid="prompt-preview-reset-key">{resetPreviewKey}</output>
     </div>
   )
@@ -236,20 +215,25 @@ vi.mock('@renderer/hooks/useGroups', () => ({
         updatedAt: '2024-01-01T00:00:00.000Z'
       }
     ]
+  }),
+  useGroupMutations: () => ({
+    createGroup: createGroupMock
   })
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
+  useInfiniteQuery: () => ({
+    pages: [{ items: knowledgeBasesState.current, total: knowledgeBasesState.current.length }],
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined,
+    hasNext: false,
+    loadNext: vi.fn(),
+    refresh: vi.fn()
+  }),
   useMutation: useMutationMock,
   useQuery: useQueryMock
-}))
-
-vi.mock('@renderer/hooks/agent/useAgentTools', () => ({
-  useAgentTools: () => ({
-    tools: agentTools,
-    isLoading: false,
-    error: undefined
-  })
 }))
 
 vi.mock('@renderer/hooks/useMcpRuntimeStatus', () => ({
@@ -261,6 +245,7 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/hooks/useSkills', () => ({
+  useReconcileSkillsOnOpen: vi.fn(),
   useInstalledSkills: () => ({
     ...installedSkillsState.current,
     refresh: vi.fn()
@@ -268,7 +253,7 @@ vi.mock('@renderer/hooks/useSkills', () => ({
 }))
 
 vi.mock('@renderer/hooks/usePromptProcessor', () => ({
-  usePromptProcessor: ({ prompt }: { prompt: string }) => prompt
+  usePromptProcessor: promptProcessorMock
 }))
 
 vi.mock('@renderer/utils/aiGeneration', () => ({
@@ -288,12 +273,11 @@ vi.mock('react-i18next', async (importOriginal) => {
         ({
           'agent.settings.tooling.preapproved.autoBadge': 'Added by mode',
           'agent.settings.tooling.preapproved.autoDisabledTooltip': 'Added by {{mode}}',
-          'agent.settings.tooling.permissionMode.acceptEdits.title': 'Auto-edit Mode',
-          'agent.settings.tooling.permissionMode.bypassPermissions.title': 'Full Auto Mode',
-          'agent.settings.tooling.permissionMode.default.title': 'Normal Mode',
-          'agent.settings.tooling.permissionMode.plan.title': 'Plan Mode',
+          // Permission-mode titles intentionally absent: they fall through to the card
+          // definitions' own fallbacks, so copy changes need no edit here.
           'agent.settings.skills.addMore': 'Manage Skills',
           'common.avatar': 'Avatar',
+          'common.add': 'Add',
           'common.cancel': 'Cancel',
           'common.clear': 'Clear',
           'common.close': 'Close',
@@ -301,6 +285,10 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.description': 'Description',
           'common.edit': 'Edit',
           'common.help': 'Help',
+          'common.group.create': 'New Group',
+          'common.group.create_failed': 'Failed to create group',
+          'common.group.name_placeholder': 'Enter group name...',
+          'common.group.name_required': 'Group name is required',
           'common.loading': 'Loading',
           'common.model': 'Model',
           'common.name': 'Name',
@@ -325,8 +313,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.field.plan_model.label': 'Plan model',
           'library.config.agent.field.small_model.hint': 'Small model.',
           'library.config.agent.field.small_model.label': 'Small model',
-          'library.config.agent.field.instructions.label': 'Instructions',
-          'library.config.agent.field.instructions.placeholder': 'Tell this agent how to work',
           'library.config.agent.field.env_vars.help': 'One KEY=VALUE per line',
           'library.config.agent.field.env_vars.label': 'Environment variables',
           'library.config.agent.field.env_vars.placeholder': 'KEY=value\nANOTHER_KEY=another_value',
@@ -342,7 +328,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.agent.section.tools.tab.mcp': 'MCP',
           'library.config.agent.section.tools.tab.skills': '技能',
           'library.config.agent.section.tools.tab.tools': 'Built-in tools',
-          'library.config.agent.model_config': 'Model configuration',
+          'library.config.agent.model_config': 'Model',
           'library.config.basic.field.description.hint': 'Short assistant summary.',
           'library.config.basic.field.description.placeholder': 'Describe this assistant',
           'library.config.basic.custom_params': 'Custom parameters',
@@ -355,14 +341,15 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.field.tags.hint': 'Group related assistants.',
           'library.config.basic.field.custom_params.hint': 'Extra provider parameters.',
           'library.config.basic.field.max_tokens.hint': 'Caps response length.',
-          'library.config.basic.field.max_tool_calls.hint': 'Caps tool loops.',
+          'library.config.basic.field.max_tool_calls.hint': 'Caps tool-call rounds at 1000.',
           'library.config.basic.field.stream_output.hint': 'Stream responses.',
           'library.config.basic.field.temperature.hint': 'Controls randomness.',
           'library.config.basic.field.top_p.hint': 'Controls nucleus sampling.',
           'library.config.basic.creative': 'Creative',
           'library.config.basic.json_invalid': 'Invalid JSON',
           'library.config.basic.max_tokens': 'Max tokens',
-          'library.config.basic.max_tool_calls': 'Max tool calls',
+          'library.config.basic.max_tool_calls': 'Max tool call rounds',
+          'library.config.basic.max_tool_calls_default': 'Default (100 rounds)',
           'library.config.basic.model_clear': 'Clear',
           'library.config.basic.model_pick': 'Pick model',
           'library.config.basic.model_not_found': 'Model {{id}} is unavailable.',
@@ -378,7 +365,6 @@ vi.mock('react-i18next', async (importOriginal) => {
           'library.config.basic.mcp_mode': 'MCP Mode',
           'library.config.basic.temperature': 'Temperature',
           'library.config.basic.top_p': 'Top-P',
-          'library.config.basic.unlimited': 'Unlimited',
           'library.config.dialogs.edit.advanced_tab': 'Advanced',
           'library.config.prompt.label': 'Prompt',
           'library.config.prompt.placeholder': 'Tell this assistant how to respond',
@@ -523,6 +509,7 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  promptProcessorMock.mockReset().mockImplementation(({ prompt }: { prompt: string }) => prompt)
   installedSkillsState.current = {
     skills: [
       {
@@ -591,6 +578,14 @@ beforeEach(() => {
     return { trigger: vi.fn(), isLoading: false, error: undefined }
   })
   updateAssistantMock.mockResolvedValue({ ...ASSISTANT, name: 'Updated Assistant' })
+  createGroupMock.mockResolvedValue({
+    id: 'group-created',
+    entityType: 'assistant',
+    name: 'created',
+    orderKey: 'a2',
+    createdAt: '2024-01-01T00:00:00.000Z',
+    updatedAt: '2024-01-01T00:00:00.000Z'
+  })
   updateAgentMock.mockResolvedValue({ ...AGENT, instructions: 'Updated instructions' })
   fetchGenerateMock.mockResolvedValue('Generated prompt')
   knowledgeBasesState.current = [
@@ -669,8 +664,7 @@ function mockDeferredAnimationFrames() {
 
 describe('edit dialogs', () => {
   it('submits assistant name, description, and model changes as a PATCH', async () => {
-    const onSaved = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={onSaved} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Updated Assistant' } })
     fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Updated assistant description' } })
@@ -688,18 +682,15 @@ describe('edit dialogs', () => {
         })
       })
     )
-    await waitFor(() => expect(onSaved).toHaveBeenCalled())
   })
 
   it('shows the clear model affordance beside the chevron and clears the selected model', async () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
     const clearButton = screen.getByRole('button', { name: 'Model Clear' })
 
-    expect(modelTrigger).toHaveClass('hover:bg-muted')
-    expect(modelTrigger).not.toHaveClass('pr-7')
-    expect(clearButton).toHaveClass('right-1.5', 'rounded-full', 'bg-transparent', 'hover:bg-muted', 'opacity-0')
+    expect(modelTrigger).toBeInTheDocument()
 
     fireEvent.click(clearButton)
     await waitFor(() =>
@@ -712,7 +703,7 @@ describe('edit dialogs', () => {
   })
 
   it('submits assistant group changes directly', async () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     openGroupSelect()
     fireEvent.click(await screen.findByRole('option', { name: 'personal' }))
@@ -725,11 +716,30 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('creates and selects an assistant group from the group field', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
+
+    openGroupSelect()
+    fireEvent.click(await screen.findByRole('option', { name: 'New Group' }))
+
+    const createDialog = screen.getByRole('dialog', { name: 'New Group' })
+    fireEvent.change(within(createDialog).getByLabelText('Name'), { target: { value: '  created  ' } })
+    fireEvent.click(within(createDialog).getByRole('button', { name: 'Add' }))
+
+    await waitFor(() => expect(createGroupMock).toHaveBeenCalledWith('created'))
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          groupId: 'group-created'
+        })
+      })
+    )
+  })
+
   it('clears the assistant group from the single-select group field', async () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     const clearButton = screen.getByRole('button', { name: 'Group Clear' })
-    expect(clearButton).toHaveClass('focus-visible:pointer-events-auto', 'focus-visible:opacity-100')
     fireEvent.click(clearButton)
     await waitFor(() =>
       expect(updateAssistantMock).toHaveBeenCalledWith({
@@ -740,18 +750,18 @@ describe('edit dialogs', () => {
     )
   })
 
-  it('limits assistant group editing to existing groups', async () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+  it('keeps assistant grouping single-select while exposing the shared create action', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     openGroupSelect()
     expect(screen.queryByPlaceholderText('Search groups')).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'No group' })).not.toBeInTheDocument()
-    expect(screen.queryByText('new-group')).not.toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: 'New Group' })).toBeInTheDocument()
   })
 
   it('closes the group selector without closing the assistant edit dialog when clicking elsewhere inside it', async () => {
     const onOpenChange = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
     openGroupSelect()
     await screen.findByRole('option', { name: 'personal' })
@@ -763,37 +773,141 @@ describe('edit dialogs', () => {
   })
 
   it('submits agent instructions and model changes as a PATCH', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    promptProcessorMock.mockImplementation(({ prompt, modelName }: { prompt: string; modelName?: string }) =>
+      prompt.replaceAll('{{model_name}}', modelName ?? '')
+    )
+    render(
+      <AgentEditDialog
+        open
+        resource={{ ...AGENT, instructions: 'Original instructions {{model_name}}' }}
+        onOpenChange={vi.fn()}
+      />
+    )
 
     selectTab('Prompt')
-    await expectVariablesHelpOnOpen()
-    expect(screen.getByText('Instructions')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'System variables' })).toBeInTheDocument()
+    expect(within(screen.getByRole('tabpanel', { name: 'Prompt' })).getByText('Prompt')).toBeInTheDocument()
     const instructionsInput = screen.getByLabelText('Prompt editor')
-    expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this agent how to work')
-    expect(instructionsInput).toHaveStyle({
-      minHeight: EDIT_DIALOG_PROMPT_MIN_HEIGHT,
-      maxHeight: EDIT_DIALOG_PROMPT_MAX_HEIGHT
+    expect(instructionsInput).toHaveAttribute('placeholder', 'Tell this assistant how to respond')
+    expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Original instructions Old Model')
+    expect(promptProcessorMock).toHaveBeenLastCalledWith({
+      prompt: 'Original instructions {{model_name}}',
+      modelName: 'Old Model'
     })
-    fireEvent.change(instructionsInput, { target: { value: 'Updated instructions' } })
+    fireEvent.change(instructionsInput, { target: { value: 'Updated instructions {{model_name}}' } })
     selectTab('Basic')
     const modelTrigger = screen.getByRole('button', { name: 'Model' })
     expect(modelTrigger).toHaveTextContent('Old Model')
     expect(modelTrigger).not.toHaveTextContent('Provider')
     fireEvent.click(modelTrigger)
     fireEvent.click(screen.getAllByRole('button', { name: 'Pick model' })[0])
+    selectTab('Prompt')
+    await waitFor(() =>
+      expect(screen.getByLabelText('Prompt preview')).toHaveTextContent('Updated instructions Updated Model')
+    )
+    expect(promptProcessorMock).toHaveBeenLastCalledWith({
+      prompt: 'Updated instructions {{model_name}}',
+      modelName: 'Updated Model'
+    })
     await waitFor(() =>
       expect(updateAgentMock).toHaveBeenCalledWith({
         body: expect.objectContaining({
           model: MODEL.id,
-          instructions: 'Updated instructions'
+          instructions: 'Updated instructions {{model_name}}'
         })
       })
     )
   })
 
+  it('does not turn externally refreshed agent fields into stale PATCH values', async () => {
+    const props = { open: true, onOpenChange: vi.fn() }
+    const { rerender } = render(<AgentEditDialog {...props} resource={AGENT} />)
+
+    rerender(
+      <AgentEditDialog
+        {...props}
+        resource={{
+          ...AGENT,
+          configuration: { ...AGENT.configuration, permission_mode: 'plan' }
+        }}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Locally renamed' } })
+
+    await waitFor(() =>
+      expect(updateAgentMock).toHaveBeenCalledWith({
+        body: { name: 'Locally renamed' }
+      })
+    )
+  })
+
+  it('advances the agent form baseline before a queued follow-up save', async () => {
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...AGENT, name: 'First edit' })
+        })
+    )
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'First edit' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    fireEvent.change(screen.getByLabelText('Description'), { target: { value: 'Second edit' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    resolveFirstSave?.()
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock.mock.calls[1][0]).toEqual({
+      body: { description: 'Second edit' }
+    })
+  })
+
+  it('preserves skill baseline initialization while an unrelated save is pending', async () => {
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      refreshing: true
+    }
+    let resolveFirstSave: (() => void) | undefined
+    updateAgentMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirstSave = () => resolve({ ...AGENT, name: 'First edit' })
+        })
+    )
+    const props = { open: true, resource: AGENT, onOpenChange: vi.fn() }
+    const { rerender } = render(<AgentEditDialog {...props} />)
+
+    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'First edit' } })
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(1))
+
+    installedSkillsState.current = {
+      ...installedSkillsState.current,
+      skills: installedSkillsState.current.skills.map((skill) => ({ ...skill, isEnabled: true })),
+      refreshing: false
+    }
+    rerender(<AgentEditDialog {...props} />)
+    selectTab('技能')
+    await waitFor(() => {
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeChecked()
+      expect(screen.getByRole('switch', { name: 'Skill One' })).toBeEnabled()
+    })
+
+    fireEvent.click(screen.getByRole('switch', { name: 'Skill One' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    resolveFirstSave?.()
+
+    await waitFor(() => expect(updateAgentMock).toHaveBeenCalledTimes(2))
+    expect(updateAgentMock.mock.calls[1][0]).toEqual({
+      body: { skillUpdates: [{ skillId: 'skill-1', isEnabled: false }] }
+    })
+  })
+
   it('polishes agent instructions and auto-saves the polished value', async () => {
     fetchGenerateMock.mockResolvedValue('Polished agent instructions')
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('Prompt')
     fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
@@ -814,7 +928,7 @@ describe('edit dialogs', () => {
 
   it('generates agent instructions from the agent name when instructions are blank', async () => {
     fetchGenerateMock.mockResolvedValue('Generated agent instructions')
-    render(<AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={{ ...AGENT, instructions: '' }} onOpenChange={vi.fn()} />)
 
     selectTab('Prompt')
     expect(screen.getByTestId('prompt-preview-reset-key')).toHaveTextContent('0')
@@ -838,7 +952,7 @@ describe('edit dialogs', () => {
   it('allows closing and tab navigation while an agent prompt action is in flight', async () => {
     fetchGenerateMock.mockReturnValueOnce(new Promise<string>(() => undefined))
     const onOpenChange = vi.fn()
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
 
     selectTab('Prompt')
     fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
@@ -874,7 +988,7 @@ describe('edit dialogs', () => {
       return { data: { items: [] }, isLoading: false }
     })
 
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('MCP')
 
@@ -887,7 +1001,7 @@ describe('edit dialogs', () => {
   })
 
   it('submits assistant knowledge, MCP, and model parameter changes', async () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     expect(screen.queryByRole('button', { name: 'Tools' })).not.toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'MCP' })).toBeInTheDocument()
@@ -902,19 +1016,21 @@ describe('edit dialogs', () => {
     fireEvent.click(screen.getByText('Knowledge One'))
 
     selectTab('MCP')
-    await waitFor(() => expect(screen.getByRole('switch', { name: 'Enable MCP' })).toBeVisible())
+    await waitFor(() => expect(screen.getByRole('radiogroup', { name: 'MCP Mode' })).toBeVisible())
     expect(screen.queryByRole('button', { name: 'Add MCP server' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('combobox', { name: 'MCP Mode' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'Manual' }))
+    const mcpModeGroup = screen.getByRole('radiogroup', { name: 'MCP Mode' })
+    expect(within(mcpModeGroup).getByRole('radio', { name: 'Disabled' })).toHaveAttribute('aria-checked', 'false')
+    expect(within(mcpModeGroup).getByRole('radio', { name: 'Auto' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(within(mcpModeGroup).getByRole('radio', { name: 'Manual' }))
     fireEvent.click(screen.getByRole('switch', { name: 'MCP One' }))
 
-    selectTab('Model configuration')
+    selectTab('Model')
     await waitFor(() => expect(screen.getByRole('button', { name: 'Temperature Help' })).toBeVisible())
     expectHelpTrigger('Temperature', 'Controls randomness.')
     expectHelpTrigger('Top-P', 'Controls nucleus sampling.')
     expectHelpTrigger('Max tokens', 'Caps response length.')
     expectHelpTrigger('Stream output', 'Stream responses.')
-    expectHelpTrigger('Max tool calls', 'Caps tool loops.')
+    expectHelpTrigger('Max tool call rounds', 'Caps tool-call rounds at 100.')
     expectHelpTrigger('Custom parameters', 'Extra provider parameters.')
     fireEvent.click(screen.getByRole('switch', { name: 'Temperature' }))
     await waitFor(() =>
@@ -931,9 +1047,79 @@ describe('edit dialogs', () => {
     )
   })
 
+  it('repairs invalid legacy max tokens when enabling the limit', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: { ...ASSISTANT.settings, maxTokens: 0, enableMaxTokens: false }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+    fireEvent.click(await screen.findByRole('switch', { name: 'Max tokens' }))
+
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: {
+          settings: {
+            maxTokens: 4096,
+            enableMaxTokens: true
+          }
+        }
+      })
+    )
+  })
+
+  it('shows the default tool-call cap and clamps custom rounds at 1000', async () => {
+    render(
+      <AssistantEditDialog
+        open
+        resource={{
+          ...ASSISTANT,
+          settings: {
+            ...ASSISTANT.settings,
+            enableMaxToolCalls: false
+          }
+        }}
+        onOpenChange={vi.fn()}
+      />
+    )
+
+    selectTab('Model')
+    const maxToolCallsSwitch = await screen.findByRole('switch', { name: 'Max tool call rounds' })
+
+    expect(maxToolCallsSwitch).not.toBeChecked()
+    expect(screen.getByText('Default (100 rounds)')).toBeVisible()
+
+    fireEvent.click(maxToolCallsSwitch)
+    const maxToolCallsInput = await screen.findByDisplayValue('20')
+    expect(maxToolCallsInput).toHaveAttribute('min', '1')
+    expect(maxToolCallsInput).toHaveAttribute('max', '1000')
+
+    fireEvent.focus(maxToolCallsInput)
+    fireEvent.change(maxToolCallsInput, { target: { value: '1001' } })
+    fireEvent.blur(maxToolCallsInput)
+
+    expect(maxToolCallsInput).toHaveValue(1000)
+    await waitFor(() =>
+      expect(updateAssistantMock).toHaveBeenCalledWith({
+        body: expect.objectContaining({
+          settings: expect.objectContaining({
+            enableMaxToolCalls: true,
+            maxToolCalls: 1000
+          })
+        })
+      })
+    )
+  })
+
   it('polishes and restores assistant prompts through the shared action', async () => {
     fetchGenerateMock.mockResolvedValueOnce('Polished assistant prompt')
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     selectTab('Prompt')
     await expectVariablesHelpOnOpen()
@@ -957,9 +1143,7 @@ describe('edit dialogs', () => {
   })
 
   it('generates an assistant prompt from its name when the prompt is blank', async () => {
-    render(
-      <AssistantEditDialog open resource={{ ...ASSISTANT, prompt: '' }} onOpenChange={vi.fn()} onSaved={vi.fn()} />
-    )
+    render(<AssistantEditDialog open resource={{ ...ASSISTANT, prompt: '' }} onOpenChange={vi.fn()} />)
 
     selectTab('Prompt')
     const generateButton = screen.getByRole('button', { name: 'Generate prompt' })
@@ -980,7 +1164,7 @@ describe('edit dialogs', () => {
   it('allows closing and tab navigation while an assistant prompt action is in flight', async () => {
     fetchGenerateMock.mockReturnValueOnce(new Promise<string>(() => undefined))
     const onOpenChange = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
     selectTab('Prompt')
     fireEvent.click(screen.getByRole('button', { name: 'Polish prompt' }))
@@ -992,11 +1176,12 @@ describe('edit dialogs', () => {
   })
 
   it('submits agent permission defaults and advanced changes', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     expect(screen.queryByRole('tab', { name: 'Permission' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('combobox', { name: 'Permission mode' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'Plan Mode' }))
+    // Name matches loosely: each option renders its title and its description.
+    fireEvent.click(await screen.findByRole('option', { name: /Plan Only/ }))
 
     selectTab('Advanced')
     expect(screen.queryByText('Max turns')).not.toBeInTheDocument()
@@ -1006,11 +1191,7 @@ describe('edit dialogs', () => {
     await waitFor(() => expect(updateAgentMock).toHaveBeenCalled())
     const body = vi.mocked(updateAgentMock).mock.calls[0][0].body
     expect(body).not.toHaveProperty('allowedTools')
-    expect(body).toEqual(
-      expect.objectContaining({
-        configuration: expect.not.objectContaining({ max_turns: expect.anything() })
-      })
-    )
+    expect(body.configuration).toHaveProperty('max_turns', undefined)
     expect(body.configuration).toEqual(
       expect.objectContaining({
         env_vars: { FOO: 'bar' },
@@ -1020,7 +1201,7 @@ describe('edit dialogs', () => {
   })
 
   it('shows agent tool categories directly in the left tab list', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     expect(screen.queryByRole('button', { name: 'Tools' })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Tools' })).not.toBeInTheDocument()
@@ -1040,20 +1221,13 @@ describe('edit dialogs', () => {
 
   it('removes deleted knowledge bases from an open agent form', async () => {
     const boundAgent = { ...AGENT, knowledgeBaseIds: ['kb-1'] }
-    const { rerender } = render(<AgentEditDialog open resource={boundAgent} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    const { rerender } = render(<AgentEditDialog open resource={boundAgent} onOpenChange={vi.fn()} />)
 
     selectTab('Built-in tools')
     expect(screen.getByText('Knowledge Search')).toBeInTheDocument()
 
     knowledgeBasesState.current = []
-    rerender(
-      <AgentEditDialog
-        open
-        resource={{ ...boundAgent, knowledgeBaseIds: [] }}
-        onOpenChange={vi.fn()}
-        onSaved={vi.fn()}
-      />
-    )
+    rerender(<AgentEditDialog open resource={{ ...boundAgent, knowledgeBaseIds: [] }} onOpenChange={vi.fn()} />)
 
     await waitFor(() => expect(screen.queryByText('Knowledge Search')).not.toBeInTheDocument())
     expect(updateAgentMock).not.toHaveBeenCalled()
@@ -1068,7 +1242,7 @@ describe('edit dialogs', () => {
         })
     )
     const boundAgent = { ...AGENT, knowledgeBaseIds: ['kb-1'] }
-    const props = { open: true, onOpenChange: vi.fn(), onSaved: vi.fn(), initialTab: 'tools.knowledge' }
+    const props = { open: true, onOpenChange: vi.fn(), initialTab: 'tools.knowledge' }
     const { rerender } = render(<AgentEditDialog {...props} resource={boundAgent} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove knowledge base' }))
@@ -1090,7 +1264,7 @@ describe('edit dialogs', () => {
   })
 
   it('opens the agent edit dialog directly on the requested initial tab', () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="tools.skills" />)
 
     expect(screen.getByRole('tab', { name: '技能' })).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Skill One')).toBeInTheDocument()
@@ -1098,14 +1272,11 @@ describe('edit dialogs', () => {
 
   it('opens Skill settings in an app tab without closing the agent edit dialog', () => {
     const onOpenChange = vi.fn()
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
 
     selectTab('技能')
 
     const manageSkillsButton = screen.getByRole('button', { name: 'Manage Skills' })
-    expect(manageSkillsButton).toHaveClass('min-h-11', 'w-full', 'border-dashed')
-    expect(manageSkillsButton.querySelector('.lucide-tool-case')).toBeInTheDocument()
-    expect(manageSkillsButton.parentElement).toHaveClass('sm:grid-cols-2')
 
     fireEvent.click(manageSkillsButton)
 
@@ -1115,7 +1286,7 @@ describe('edit dialogs', () => {
   })
 
   it('reuses the shared skill catalog in the agent edit dialog', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.skills" />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} initialTab="tools.skills" />)
 
     await waitFor(() =>
       expect(skillCatalogPickerMock).toHaveBeenLastCalledWith(
@@ -1137,9 +1308,8 @@ describe('edit dialogs', () => {
       refreshing: true
     }
     const onOpenChange = vi.fn()
-    const onSaved = vi.fn()
     const { rerender } = render(
-      <AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={onSaved} initialTab="tools.skills" />
+      <AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} initialTab="tools.skills" />
     )
 
     expect(screen.getByText('Skill One')).toBeInTheDocument()
@@ -1150,9 +1320,7 @@ describe('edit dialogs', () => {
       skills: installedSkillsState.current.skills.map((skill) => ({ ...skill, isEnabled: true })),
       refreshing: false
     }
-    rerender(
-      <AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={onSaved} initialTab="tools.skills" />
-    )
+    rerender(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} initialTab="tools.skills" />)
 
     await waitFor(() => {
       expect(screen.getByRole('switch', { name: 'Skill One' })).toBeChecked()
@@ -1172,15 +1340,13 @@ describe('edit dialogs', () => {
   })
 
   it('opens the assistant edit dialog directly on the requested initial tab', () => {
-    render(
-      <AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} initialTab="tools.mcp" />
-    )
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} initialTab="tools.mcp" />)
 
     expect(screen.getByRole('tab', { name: 'MCP' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('auto-saves agent skill toggles after a debounce', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('技能')
 
@@ -1199,11 +1365,10 @@ describe('edit dialogs', () => {
 
   it('uses the same MCP server list presentation in assistant and agent editing', async () => {
     const onAssistantOpenChange = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onAssistantOpenChange} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onAssistantOpenChange} />)
 
     selectTab('MCP')
-    fireEvent.click(screen.getByRole('combobox', { name: 'MCP Mode' }))
-    fireEvent.click(await screen.findByRole('option', { name: 'Manual' }))
+    fireEvent.click(within(screen.getByRole('radiogroup', { name: 'MCP Mode' })).getByRole('radio', { name: 'Manual' }))
 
     expect(screen.getByText('MCP services')).toBeInTheDocument()
     expect(screen.getByText('MCP One')).toBeInTheDocument()
@@ -1216,7 +1381,7 @@ describe('edit dialogs', () => {
     openSettingsTabMock.mockClear()
     const onAgentOpenChange = vi.fn()
 
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={onAgentOpenChange} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onAgentOpenChange} />)
 
     selectTab('MCP')
 
@@ -1238,7 +1403,7 @@ describe('edit dialogs', () => {
         if (!nextOpen) setTarget(null)
       }
 
-      return <AssistantEditDialog open={open} resource={target} onOpenChange={handleOpenChange} onSaved={vi.fn()} />
+      return <AssistantEditDialog open={open} resource={target} onOpenChange={handleOpenChange} />
     }
 
     render(<Host />)
@@ -1269,7 +1434,7 @@ describe('edit dialogs', () => {
         if (!nextOpen) setTarget(null)
       }
 
-      return <AgentEditDialog open={open} resource={target} onOpenChange={handleOpenChange} onSaved={vi.fn()} />
+      return <AgentEditDialog open={open} resource={target} onOpenChange={handleOpenChange} />
     }
 
     render(<Host />)
@@ -1291,7 +1456,7 @@ describe('edit dialogs', () => {
   })
 
   it('keeps popover content inside the dialog container', async () => {
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     const dialog = screen.getByRole('dialog')
     fireEvent.click(screen.getByLabelText('Pick avatar'))
@@ -1300,7 +1465,7 @@ describe('edit dialogs', () => {
   })
 
   it('keeps edited values while switching tabs before save', async () => {
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Draft Agent' } })
     selectTab('Prompt')
@@ -1309,31 +1474,39 @@ describe('edit dialogs', () => {
     expect(screen.getByLabelText('Name')).toHaveValue('Draft Agent')
   })
 
-  it('keeps the dialog open and shows an error when save fails', async () => {
+  it('shows an auto-save error and still allows the dialog to close', async () => {
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    const user = userEvent.setup()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Broken Assistant' } })
+    const nameInput = screen.getByLabelText('Name')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Broken Assistant')
     expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('Save failed')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+
+    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
-  it('does not show a save error when the post-save callback fails', async () => {
+  it('keeps the dialog open after a successful auto-save', async () => {
     const onOpenChange = vi.fn()
-    const onSaved = vi.fn().mockRejectedValue(new Error('Refresh failed'))
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={onSaved} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Saved Assistant' } })
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalled())
-    await waitFor(() => expect(onSaved).toHaveBeenCalled())
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
     expect(screen.queryByText('Save failed')).not.toBeInTheDocument()
   })
 
   it('flushes a pending change and closes when the dialog is closed', async () => {
     const onOpenChange = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Updated Assistant' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
@@ -1355,7 +1528,7 @@ describe('edit dialogs', () => {
           resolveFirstSave = () => resolve({ ...ASSISTANT, name: 'First Edit' })
         })
     )
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     const nameInput = screen.getByLabelText('Name')
     fireEvent.change(nameInput, { target: { value: 'First Edit' } })
@@ -1377,79 +1550,82 @@ describe('edit dialogs', () => {
     })
   })
 
-  it('keeps the dialog open with a visible error when the save on close fails', async () => {
-    updateAssistantMock.mockRejectedValue(new Error('Network down'))
+  it('allows discarding an unchanged failed assistant save without retrying it', async () => {
+    updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    const user = userEvent.setup()
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Edit' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    const nameInput = screen.getByLabelText('Name')
+    await user.clear(nameInput)
+    await user.type(nameInput, 'Closing Edit')
+    await user.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('Save failed')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    const saveAttemptsAfterFailure = updateAssistantMock.mock.calls.length
 
-    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await user.click(screen.getByRole('button', { name: 'Close' }))
+    await new Promise((resolve) => setTimeout(resolve, 700))
 
+    expect(toast.error).toHaveBeenCalledTimes(2)
+    expect(updateAssistantMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
     expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(updateAssistantMock).toHaveBeenCalledTimes(1)
   })
 
   it('retries saving when the form changes after a failed close', async () => {
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
     const nameInput = screen.getByLabelText('Name')
     fireEvent.change(nameInput, { target: { value: 'First Closing Edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    await screen.findByText('Save failed', undefined, { timeout: 5000 })
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    const saveAttemptsAfterFailure = updateAssistantMock.mock.calls.length
 
     fireEvent.change(nameInput, { target: { value: 'Retry Closing Edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(2))
-    expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
+    await waitFor(() => expect(updateAssistantMock.mock.calls.length).toBeGreaterThan(saveAttemptsAfterFailure))
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
       body: expect.objectContaining({ name: 'Retry Closing Edit' })
     })
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 
-  it('does not silently discard a save when reopened within the exit-animation window with an identical edit', async () => {
+  it('clears the failed assistant save snapshot when reopened within the exit-animation window', async () => {
     // The host (useResourceCatalogController) keeps this dialog instance mounted for
     // DIALOG_EXIT_ANIMATION_MS after `open` goes false, so a reopen within that window
     // reuses the SAME component instance instead of remounting — simulate that with
     // `rerender` rather than a fresh `render`.
     updateAssistantMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
-    const { rerender } = render(
-      <AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />
-    )
+    const { rerender } = render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Repro Edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    await screen.findByText('Save failed', undefined, { timeout: 5000 })
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
 
-    // Discard-close, then reopen on the same instance before it unmounts.
-    rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
-    rerender(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    // Simulate an external close, then reopen on the same instance before it unmounts.
+    rerender(<AssistantEditDialog open={false} resource={ASSISTANT} onOpenChange={onOpenChange} />)
+    rerender(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
+    const saveAttemptsBeforeRetry = updateAssistantMock.mock.calls.length
 
-    // Make the exact same edit again — this reproduces the identical changeKey as the
-    // failed attempt above. Without clearing failedSaveKeyRef on reopen, the stale key
-    // still matches this "new" changeKey, so handleOpenChange takes its synchronous
-    // discard branch and calls onOpenChange(false) immediately — without ever invoking
-    // the save mutation a second time. Assert synchronously (no waitFor) right after the
-    // click so an independent debounced auto-save firing later can't mask that bug.
+    // Make the exact same edit again. The new editing session must not mistake it
+    // for the prior session's failed snapshot and block the save.
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Repro Edit' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
-    expect(updateAssistantMock).toHaveBeenCalledTimes(2)
-    expect(updateAssistantMock).toHaveBeenNthCalledWith(2, {
+    expect(updateAssistantMock.mock.calls.length).toBeGreaterThan(saveAttemptsBeforeRetry)
+    expect(updateAssistantMock).toHaveBeenLastCalledWith({
       body: expect.objectContaining({ name: 'Repro Edit' })
     })
     await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
@@ -1464,7 +1640,7 @@ describe('edit dialogs', () => {
         })
     )
     const onOpenChange = vi.fn()
-    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={onOpenChange} />)
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Mid Save' } })
     await waitFor(() => expect(updateAssistantMock).toHaveBeenCalledTimes(1))
@@ -1480,16 +1656,36 @@ describe('edit dialogs', () => {
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
   })
 
-  it('keeps the agent dialog open with a visible error when the save on close fails', async () => {
-    updateAgentMock.mockRejectedValue(new Error('Network down'))
+  it('prompts without closing or retrying an unchanged failed agent save', async () => {
+    updateAgentMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
-    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} onSaved={vi.fn()} />)
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Closing Agent' } })
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'Closing Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
     expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    expect(toast.error).toHaveBeenCalledWith('Save failed')
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    const saveAttemptsAfterFailure = updateAgentMock.mock.calls.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    await new Promise((resolve) => setTimeout(resolve, 700))
+
+    expect(toast.error).toHaveBeenCalledTimes(2)
+    expect(updateAgentMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onOpenChange).not.toHaveBeenCalledWith(false)
+
+    fireEvent.change(nameInput, { target: { value: 'Retry Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    await waitFor(() => expect(updateAgentMock.mock.calls.length).toBeGreaterThan(saveAttemptsAfterFailure))
+    expect(updateAgentMock).toHaveBeenLastCalledWith({
+      body: expect.objectContaining({ name: 'Retry Agent' })
+    })
+    await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false))
   })
 })

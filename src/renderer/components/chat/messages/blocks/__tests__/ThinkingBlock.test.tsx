@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ThinkingBlock from '../ThinkingBlock'
@@ -8,7 +8,7 @@ const mockUseTranslation = vi.fn()
 const mockRenderConfig = vi.hoisted(() => ({
   messageFont: 'sans-serif',
   fontSize: 14,
-  thoughtAutoCollapse: false
+  thoughtAutoCollapse: true
 }))
 type ThinkingBlockFixture = {
   id: string
@@ -51,7 +51,7 @@ describe('ThinkingBlock', () => {
 
     mockRenderConfig.messageFont = 'sans-serif'
     mockRenderConfig.fontSize = 14
-    mockRenderConfig.thoughtAutoCollapse = false
+    mockRenderConfig.thoughtAutoCollapse = true
 
     mockUseTranslation.mockReturnValue({
       t: (key: string) => {
@@ -89,7 +89,6 @@ describe('ThinkingBlock', () => {
   }
 
   const getThinkingContent = () => screen.queryByText(/markdown:/i)
-  const getCopyButton = () => document.querySelector<HTMLButtonElement>('button[aria-label="Copy"]')
   const getThinkingTimeText = () => screen.getByTestId('thinking-time-text')
   const getToggleButton = () => document.querySelector<HTMLElement>('[aria-controls][aria-expanded][role="button"]')!
   const getContentContainer = () => {
@@ -106,6 +105,9 @@ describe('ThinkingBlock', () => {
       // User should see the thinking content
       expect(screen.getByText('Markdown: Deep thoughts about AI')).toBeInTheDocument()
       expect(screen.getByTestId('mock-marquee-component')).toBeInTheDocument()
+      expect(
+        screen.getByText('Markdown: Deep thoughts about AI').closest('[data-ui~="part:message-reasoning"]')
+      ).not.toBeNull()
     })
 
     it('should not render when content is empty', () => {
@@ -117,26 +119,6 @@ describe('ThinkingBlock', () => {
         expect(container.firstChild).toBeNull()
         unmount()
       })
-    })
-
-    it('should not show copy button in streaming or success states', () => {
-      // When thinking (streaming)
-      const thinkingBlock = createThinkingBlock({ status: 'streaming' })
-      const { rerender } = renderThinkingBlock(thinkingBlock)
-
-      expect(getCopyButton()).not.toBeInTheDocument()
-
-      // When thinking is complete
-      const completedBlock = createThinkingBlock({ status: 'success' })
-      rerender(
-        <ThinkingBlock
-          id={completedBlock.id}
-          content={completedBlock.content}
-          isStreaming={completedBlock.status === 'streaming'}
-        />
-      )
-
-      expect(getCopyButton()).not.toBeInTheDocument()
     })
 
     it('should not show a reasoning preview in the title by default', () => {
@@ -157,30 +139,81 @@ describe('ThinkingBlock', () => {
       expect(getContentContainer()).toHaveAttribute('hidden')
     })
 
-    it('should keep the newest rolling reasoning visible while streaming without expanding', () => {
+    it('should show the latest completed segment after the preview has remained stable for one second', async () => {
       const block = createThinkingBlock({
         status: 'streaming',
-        content: 'First thought\n\nsecond thought\tthird thought'
+        content: 'First line\nsecond thought in progress'
       })
       const { rerender } = renderThinkingBlock(block)
-      const preview = screen.getByText('First thought second thought third thought')
-      Object.defineProperty(preview, 'scrollWidth', {
-        configurable: true,
-        value: 240
-      })
+
+      expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
+      expect(within(getToggleButton()).queryByText('second thought in progress')).toBeNull()
 
       rerender(
         <ThinkingBlock
           id={block.id}
-          content={`${block.content} fourth thought`}
-          isStreaming={block.status === 'streaming'}
+          content={'First line\nsecond thought complete. third thought in progress'}
+          isStreaming
         />
       )
 
-      expect(screen.getByText('First thought second thought third thought fourth thought')).toBe(preview)
-      expect(preview.scrollLeft).toBe(240)
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-      expect(getContentContainer()).toHaveAttribute('hidden')
+      await act(() => vi.advanceTimersByTime(500))
+      rerender(
+        <ThinkingBlock
+          id={block.id}
+          content={'First line\nsecond thought complete. third thought complete. fourth thought in progress'}
+          isStreaming
+        />
+      )
+
+      await act(() => vi.advanceTimersByTime(499))
+      expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
+      expect(within(getToggleButton()).queryByText('second thought complete.')).toBeNull()
+      expect(within(getToggleButton()).queryByText('third thought complete.')).toBeNull()
+
+      await act(() => vi.advanceTimersByTime(1))
+      expect(within(getToggleButton()).getByText('third thought complete.')).toBeInTheDocument()
+      expect(within(getToggleButton()).queryByText('fourth thought in progress')).toBeNull()
+    })
+
+    it('should keep unfinished streaming text out of the title until a segment is completed', () => {
+      const block = createThinkingBlock({ status: 'streaming', content: 'Still thinking without a boundary' })
+      renderThinkingBlock(block)
+
+      expect(within(getToggleButton()).queryByText('Still thinking without a boundary')).toBeNull()
+      expect(screen.getByTestId('thinking-loading-indicator')).toBeInTheDocument()
+    })
+
+    it('should wait for a following character before treating trailing ASCII punctuation as complete', () => {
+      const block = createThinkingBlock({ status: 'streaming', content: 'First line\nVersion 3.' })
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
+      expect(within(getToggleButton()).queryByText('Version 3.')).toBeNull()
+
+      rerender(<ThinkingBlock id={block.id} content={'First line\nVersion 3.1 is still streaming'} isStreaming />)
+
+      expect(within(getToggleButton()).getByText('First line')).toBeInTheDocument()
+      expect(within(getToggleButton()).queryByText('Version 3.')).toBeNull()
+    })
+
+    it('should keep consecutive CJK sentence endings with the completed segment', () => {
+      const block = createThinkingBlock({ status: 'streaming', content: '真的吗？！还要继续思考' })
+      renderThinkingBlock(block)
+
+      expect(within(getToggleButton()).getByText('真的吗？！')).toBeInTheDocument()
+    })
+
+    it('should show the loading indicator only while thinking is streaming', () => {
+      const block = createThinkingBlock({ status: 'streaming' })
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(screen.getByTestId('thinking-loading-indicator')).toBeInTheDocument()
+
+      rerender(<ThinkingBlock id={block.id} content={block.content} isStreaming={false} />)
+
+      expect(screen.queryByTestId('thinking-loading-indicator')).toBeNull()
+      expect(getThinkingTimeText()).toHaveTextContent('Deep reasoning')
     })
   })
 
@@ -203,60 +236,16 @@ describe('ThinkingBlock', () => {
       expect(activeTimeText).toHaveTextContent('Thinking')
       expect(activeTimeText).not.toHaveTextContent('1.0s')
     })
-
-    it('should not display live estimated thinking tokens', () => {
-      const thinkingBlock = createThinkingBlock({ status: 'streaming' })
-      const { rerender } = renderThinkingBlock(thinkingBlock)
-
-      expect(getThinkingTimeText()).toHaveTextContent('Thinking')
-      expect(getThinkingTimeText()).not.toHaveTextContent('~1,234 tokens')
-
-      rerender(<ThinkingBlock id={thinkingBlock.id} content={thinkingBlock.content} isStreaming />)
-
-      expect(getThinkingTimeText()).not.toHaveTextContent('~2,048 tokens')
-    })
   })
 
   describe('collapse behavior', () => {
     it('should render collapsed by default', () => {
       const block = createThinkingBlock()
-      const { unmount } = renderThinkingBlock(block)
-
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-      expect(getContentContainer()).toHaveAttribute('hidden')
-      expect(getContentContainer()).toHaveClass('rounded-xl', 'bg-muted', 'px-4', 'py-3')
-      expect(getThinkingContent()).toBeInTheDocument()
-      unmount()
-
-      mockRenderConfig.thoughtAutoCollapse = true
-
       renderThinkingBlock(block)
 
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
       expect(getContentContainer()).toHaveAttribute('hidden')
-    })
-
-    it('should auto-collapse when thinking completes if setting enabled', () => {
-      mockRenderConfig.thoughtAutoCollapse = true
-
-      const streamingBlock = createThinkingBlock({ status: 'streaming' })
-      const { rerender } = renderThinkingBlock(streamingBlock)
-
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-
-      // Stop thinking
-      const completedBlock = createThinkingBlock({ status: 'success' })
-      rerender(
-        <ThinkingBlock
-          id={completedBlock.id}
-          content={completedBlock.content}
-          isStreaming={completedBlock.status === 'streaming'}
-        />
-      )
-
-      // Should remain collapsed
-      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
-      expect(getContentContainer()).toHaveAttribute('hidden')
+      expect(getThinkingContent()).toBeInTheDocument()
     })
 
     it('should toggle expanded state when clicked', () => {
@@ -268,44 +257,42 @@ describe('ThinkingBlock', () => {
       expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
       expect(getContentContainer()).not.toHaveAttribute('hidden')
     })
-  })
 
-  describe('font and styling', () => {
-    it('should apply font settings to thinking content', () => {
-      const testCases = [
-        {
-          settings: { messageFont: 'serif', fontSize: 16 },
-          expectedFont: 'var(--font-family-serif)',
-          expectedSize: '16px'
-        },
-        {
-          settings: { messageFont: 'sans-serif', fontSize: 14 },
-          expectedFont: 'var(--font-family)',
-          expectedSize: '14px'
-        }
-      ]
+    it('should render expanded by default when auto-collapse is disabled', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock()
+      renderThinkingBlock(block)
 
-      testCases.forEach(({ settings, expectedFont, expectedSize }) => {
-        mockRenderConfig.messageFont = settings.messageFont
-        mockRenderConfig.fontSize = settings.fontSize
-        mockRenderConfig.thoughtAutoCollapse = false
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
+    })
 
-        const block = createThinkingBlock()
-        const { unmount } = renderThinkingBlock(block)
+    it('should collapse all blocks when auto-collapse is enabled', () => {
+      mockRenderConfig.thoughtAutoCollapse = false
+      const block = createThinkingBlock()
+      const { rerender } = renderThinkingBlock(block)
 
-        const styledDiv = screen.getByTestId('mock-markdown').parentElement
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
 
-        expect(styledDiv).toHaveClass('[&_.markdown>p:only-child]:mb-0!')
-        expect(styledDiv).toHaveStyle(
-          '--markdown-foreground: color-mix(in oklch, var(--foreground) 44.4444%, transparent)'
-        )
-        expect(styledDiv).toHaveStyle({
-          fontFamily: expectedFont,
-          fontSize: expectedSize
-        })
+      mockRenderConfig.thoughtAutoCollapse = true
+      rerender(<ThinkingBlock id={block.id} content={`${block.content} updated`} isStreaming={false} />)
 
-        unmount()
-      })
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+      expect(getContentContainer()).toHaveAttribute('hidden')
+    })
+
+    it('should expand all blocks when auto-collapse is disabled after being enabled', () => {
+      mockRenderConfig.thoughtAutoCollapse = true
+      const block = createThinkingBlock()
+      const { rerender } = renderThinkingBlock(block)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'false')
+
+      mockRenderConfig.thoughtAutoCollapse = false
+      rerender(<ThinkingBlock id={block.id} content={`${block.content} updated`} isStreaming={false} />)
+
+      expect(getToggleButton()).toHaveAttribute('aria-expanded', 'true')
+      expect(getContentContainer()).not.toHaveAttribute('hidden')
     })
   })
 
@@ -321,23 +308,6 @@ describe('ThinkingBlock', () => {
 
       expect(screen.getByText('Markdown: Updated thought')).toBeInTheDocument()
       expect(screen.queryByText('Markdown: Original thought')).not.toBeInTheDocument()
-    })
-
-    it('should handle rapid status changes gracefully', () => {
-      const block = createThinkingBlock({ status: 'streaming' })
-      const { rerender } = renderThinkingBlock(block)
-
-      // Rapidly toggle between states
-      for (let i = 0; i < 3; i++) {
-        const streamingBlock = createThinkingBlock({ status: 'streaming' })
-        rerender(<ThinkingBlock id={streamingBlock.id} content={streamingBlock.content} isStreaming={true} />)
-        const successBlock = createThinkingBlock({ status: 'success' })
-        rerender(<ThinkingBlock id={successBlock.id} content={successBlock.content} isStreaming={false} />)
-      }
-
-      // Should still render correctly
-      expect(getThinkingContent()).toBeInTheDocument()
-      expect(getCopyButton()).not.toBeInTheDocument()
     })
   })
 })

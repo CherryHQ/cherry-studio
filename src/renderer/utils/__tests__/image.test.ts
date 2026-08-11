@@ -206,6 +206,23 @@ describe('utils/image', () => {
       expect(result).toBe(finalCanvas)
     })
 
+    it('should exclude HTML artifacts from image capture', async () => {
+      const div = document.createElement('div')
+      const content = document.createElement('div')
+      const htmlArtifact = document.createElement('div')
+      htmlArtifact.setAttribute('data-html-artifact', '')
+      div.append(content, htmlArtifact)
+      Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      const ref = { current: div } as React.RefObject<HTMLDivElement>
+
+      await captureScrollable(ref)
+
+      const captureOptions = vi.mocked(htmlToImage.toCanvas).mock.calls[0]?.[1]
+      expect(captureOptions?.filter?.(htmlArtifact)).toBe(false)
+      expect(captureOptions?.filter?.(content)).toBe(true)
+    })
+
     it('inlines file image sources while capturing and restores them afterward', async () => {
       ipcMocks.request.mockResolvedValue({
         content: new Uint8Array([1, 2, 3]),
@@ -234,7 +251,7 @@ describe('utils/image', () => {
       expect(ipcMocks.request).toHaveBeenCalledTimes(1)
       expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
         handle: { kind: 'path', path: '/tmp/avatar.webp' },
-        options: { encoding: 'binary' }
+        options: { mode: 'full', encoding: 'binary' }
       })
       expect(image.getAttribute('src')).toBe('file:///tmp/avatar.webp')
       expect(image.getAttribute('srcset')).toBe('file:///tmp/avatar@2x.webp 2x')
@@ -316,9 +333,7 @@ describe('utils/image', () => {
       expect(image.getAttribute('srcset')).toBe('file:///tmp/avatar@2x.webp 2x')
     })
 
-    it('should restore styles when html-to-image capture fails', async () => {
-      vi.mocked(htmlToImage.toCanvas).mockRejectedValueOnce(new Error('capture failed'))
-
+    it('applies full-content styles only to the html-to-image clone', async () => {
       const div = document.createElement('div')
       div.style.height = '120px'
       div.style.maxHeight = '240px'
@@ -326,18 +341,32 @@ describe('utils/image', () => {
       div.style.position = 'relative'
       div.scrollTop = 32
       Object.defineProperty(div, 'scrollWidth', { value: 100, configurable: true })
-      Object.defineProperty(div, 'scrollHeight', { value: 100, configurable: true })
+      Object.defineProperty(div, 'scrollHeight', { value: 360, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
 
-      await expect(captureScrollable(ref)).rejects.toThrow('capture failed')
+      vi.mocked(htmlToImage.toCanvas).mockImplementation(async (_node, options) => {
+        expect(options).toMatchObject({
+          width: 100,
+          height: 360,
+          canvasWidth: 100,
+          canvasHeight: 360,
+          style: {
+            height: 'auto',
+            maxHeight: 'none',
+            overflow: 'visible',
+            position: 'static',
+            scrollbarWidth: 'none'
+          }
+        })
+        expect(div.style.height).toBe('120px')
+        expect(div.style.maxHeight).toBe('240px')
+        expect(div.style.overflow).toBe('auto')
+        expect(div.style.position).toBe('relative')
+        expect(div.scrollTop).toBe(32)
+        return { toDataURL: vi.fn(() => 'final') } as unknown as HTMLCanvasElement
+      })
 
-      expect(div.style.height).toBe('120px')
-      expect(div.style.maxHeight).toBe('240px')
-      expect(div.style.overflow).toBe('auto')
-      expect(div.style.position).toBe('relative')
-      expect(div.classList.contains('hide-scrollbar')).toBe(false)
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      expect(div.scrollTop).toBe(32)
+      await captureScrollable(ref)
     })
 
     it('should return undefined when elRef.current is null', async () => {
@@ -352,7 +381,6 @@ describe('utils/image', () => {
       Object.defineProperty(div, 'scrollHeight', { value: 40000, configurable: true })
       const ref = { current: div } as React.RefObject<HTMLDivElement>
       await expect(captureScrollable(ref)).rejects.toThrow()
-      expect(div.classList.contains('hide-scrollbar')).toBe(false)
     })
   })
 
@@ -510,7 +538,7 @@ describe('utils/image', () => {
 
       expect(ipcMocks.request).toHaveBeenCalledWith('file.read', {
         handle: { kind: 'path', path: '/tmp/example.png' },
-        options: { encoding: 'binary' }
+        options: { mode: 'full', encoding: 'binary' }
       })
       expect(blob.type).toBe('image/png')
     })

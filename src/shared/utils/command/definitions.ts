@@ -75,7 +75,10 @@ export const COMMAND_DEFINITIONS = [
     scope: 'main',
     keybinding: {
       defaultBinding: ['CommandOrControl', '='],
-      additionalBindings: [['CommandOrControl', 'numadd']],
+      additionalBindings: [
+        ['CommandOrControl', 'Shift', '='],
+        ['CommandOrControl', 'numadd']
+      ],
       editable: false
     }
   }),
@@ -98,6 +101,15 @@ export const COMMAND_DEFINITIONS = [
     keybinding: {
       defaultBinding: ['CommandOrControl', '0'],
       editable: false
+    }
+  }),
+  defineCommand({
+    id: 'chat.context.toggle_new',
+    titleKey: 'settings.shortcuts.toggle_new_context',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'K']
     }
   }),
   defineCommand({

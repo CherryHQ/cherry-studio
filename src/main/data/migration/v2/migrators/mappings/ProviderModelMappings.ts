@@ -3,6 +3,8 @@
  */
 
 import {
+  CURRENCY,
+  type Currency,
   ENDPOINT_TYPE,
   endpointImpliedCapability,
   type EndpointType,
@@ -51,7 +53,6 @@ const CAPABILITY_MAP: Partial<Record<ModelType, ModelCapability | undefined>> = 
   reasoning: MODEL_CAPABILITY.REASONING,
   function_calling: MODEL_CAPABILITY.FUNCTION_CALL,
   embedding: MODEL_CAPABILITY.EMBEDDING,
-  web_search: MODEL_CAPABILITY.WEB_SEARCH,
   rerank: MODEL_CAPABILITY.RERANK
 }
 
@@ -255,7 +256,7 @@ function isAzureOpenAIProvider(legacy: LegacyProvider): boolean {
   return legacy.id === 'azure-openai' || legacy.type === 'azure-openai'
 }
 
-function buildProviderApiKeys(legacy: LegacyProvider, settings: OldLlmSettings): ApiKeyEntry[] {
+export function buildProviderApiKeys(legacy: LegacyProvider, settings: OldLlmSettings): ApiKeyEntry[] {
   if (isAwsBedrockProvider(legacy) && settings.awsBedrock?.authType === 'apiKey') {
     return buildApiKeys(settings.awsBedrock.apiKey ?? '')
   }
@@ -483,7 +484,7 @@ function mapCapabilities(
   for (const capability of capabilities ?? []) {
     const result = CAPABILITY_MAP[capability.type]
     if (result === undefined) {
-      if (capability.type !== 'text') {
+      if (capability.type !== 'text' && capability.type !== 'web_search') {
         logger.warn('Unknown capability type dropped during migration', { type: capability.type })
       }
       continue
@@ -523,13 +524,25 @@ function mapEndpointTypes(
   return mapped.length > 0 ? Array.from(new Set(mapped)) : null
 }
 
+/** Map only currencies the v2 pricing contract can represent without changing value semantics. */
+function mapPricingCurrency(currencySymbol?: string): Currency | null {
+  const symbol = currencySymbol?.trim()
+  if (!symbol || symbol === '$') return CURRENCY.USD
+  if (symbol === '¥' || symbol === '￥') return CURRENCY.CNY
+
+  logger.warn('Unsupported legacy pricing currency dropped during migration', { currencySymbol })
+  return null
+}
+
 function mapPricing(pricing?: LegacyModel['pricing']): RuntimeModelPricing | null {
   if (!pricing) {
     return null
   }
 
+  const currency = mapPricingCurrency(pricing.currencySymbol)
+  if (!currency) return null
   return {
-    input: { perMillionTokens: pricing.input_per_million_tokens },
-    output: { perMillionTokens: pricing.output_per_million_tokens }
+    input: { perMillionTokens: pricing.input_per_million_tokens, currency },
+    output: { perMillionTokens: pricing.output_per_million_tokens, currency }
   }
 }

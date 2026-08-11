@@ -1,5 +1,6 @@
-import type { UniqueModelId } from '@shared/data/types/model'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
+import { gatewayModelIdFromAddress } from './gatewayModel'
 import { safeCreateUniqueModelId, stringValue } from './values'
 
 export const CLAUDE_DETAILED_MODEL_ROLES = [
@@ -73,13 +74,18 @@ export function stripClaudeDetailedModels(config: Record<string, unknown>): Reco
 
 export function getClaudeContextModelId(
   providerId: string,
-  config: Record<string, unknown>
+  config: Record<string, unknown>,
+  gatewayModels?: Map<UniqueModelId, Model>
 ): UniqueModelId | undefined {
   const env = getEnv(config)
   for (const role of CLAUDE_DETAILED_MODEL_ROLES) {
     const modelId = stripClaudeOneMMarker(stringValue(env[role.model]) ?? '').trim()
-    // env values are user-typed; a value createUniqueModelId rejects yields no context model.
-    if (modelId) return safeCreateUniqueModelId(providerId, modelId)
+    // Env values are user-typed; invalid direct ids and unknown gateway addresses yield no context model.
+    if (modelId) {
+      return gatewayModels
+        ? gatewayModelIdFromAddress(modelId, gatewayModels)
+        : safeCreateUniqueModelId(providerId, modelId)
+    }
   }
   return undefined
 }

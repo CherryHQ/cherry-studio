@@ -1,8 +1,8 @@
 # AI Reference
 
 This is the entry point for the AI pipeline in Cherry Studio v2 — the
-main-process service that owns every LLM call (chat streams, agent loops,
-translate, summarisation) and the renderer-side transport that connects to it.
+main-process runtimes that own provider calls (AI SDK and direct Agent SDK),
+plus the renderer-side transport that connects to them.
 
 ## Quick navigation
 
@@ -20,11 +20,14 @@ translate, summarisation) and the renderer-side transport that connects to it.
 | Document | What it covers |
 |---|---|
 | [Agent Loop](./agent-loop.md) | Main-process `Agent.stream()`: single-pass stream, hook composition, observer pattern, error/abort semantics |
+| [Agent Prompt Layers](./agent-prompt-layers.md) | Agent System Prompt, workspace `system.md`, `SOUL.md`, precedence, update boundary, and variable lifecycle |
 | [Params Pipeline](./params-pipeline.md) | `buildAgentParams` + `RequestFeature` model: how capabilities, plugins, tools, and provider-specific quirks are composed |
 | [Tool Registry](./tool-registry.md) | Built-in tools (knowledge / web search), MCP tools, meta-tools (`tool_search` / `tool_inspect` / `tool_invoke` / `tool_exec`), deferred exposition |
 | [Chat Attachments](./chat-attachments.md) | How attached files reach the model: native file parts when supported, capped extracted text otherwise, `read_file` for overflow paging |
 | [Provider Resolution](./provider-resolution.md) | `Provider.endpointConfigs` schema, endpoint resolution chain, variant suffixes, custom provider extensions (aihubmix, newapi) |
+| [Model Retry & Fallback](./model-retry.md) | `ai-retry` integration: same-model transient retry + user-configured fallback models, `wrapModel` hook, `chat.retry.*` preferences, embedding/rerank policies |
 | [Observability (trace / telemetry)](./observability.md) | `AiSdkSpanAdapter`, root span propagation, OTel attribute shape, local span projection, sinks |
+| [AI Usage Records](./ai-usage-records.md) | Best-effort per-provider-invocation usage/cost analytics: capture ownership, immutable attribution snapshots, message projection, bounded query API, migration, freshness |
 
 ### Renderer-side glue
 
@@ -38,9 +41,9 @@ translate, summarisation) and the renderer-side transport that connects to it.
 
 > **Scope of the focused docs.** The reference documents in this folder map
 > the **chat / stream pipeline** (dispatch → stream manager → runtime →
-> tools → persistence → renderer transport). The `agents/`, `channels/`,
-> `skills/`, and `mcp/` subsystems are mapped in the tree below but do not
-> yet have dedicated deep-dive docs.
+> tools → persistence → renderer transport). The `channels/`, `skills/`, and
+> `mcp/` subsystems are mapped in the tree below but do not yet have dedicated
+> deep-dive docs.
 
 ```
 src/main/ai/

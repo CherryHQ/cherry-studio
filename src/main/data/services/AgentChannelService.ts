@@ -10,8 +10,14 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { AgentChannelEntity, CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
-import type { AgentSessionWorkspaceSource } from '@shared/data/api/schemas/agentWorkspaces'
-import type { ChannelConfig } from '@shared/data/types/channel'
+import type { AgentPermissionMode } from '@shared/data/api/schemas/agents'
+import {
+  AGENT_WORKSPACE_TYPE,
+  type AgentSessionWorkspaceSource,
+  AgentSessionWorkspaceSourceSchema,
+  type AgentWorkspaceReferenceItem
+} from '@shared/data/api/schemas/agentWorkspaces'
+import type { ChannelConfig, ChannelType } from '@shared/data/types/channel'
 import { and, eq, inArray } from 'drizzle-orm'
 
 const logger = loggerService.withContext('ChannelService')
@@ -28,7 +34,7 @@ export class AgentChannelService {
     const clean = nullsToUndefined(row)
     return {
       ...clean,
-      type: row.type as AgentChannelEntity['type'],
+      type: row.type,
       config: normalizeChannelConfig(row.config) as AgentChannelEntity['config'],
       workspace: row.workspace,
       permissionMode: (row.permissionMode ?? undefined) as AgentChannelEntity['permissionMode'],
@@ -47,7 +53,10 @@ export class AgentChannelService {
           workspace: AgentSessionWorkspaceSource
           config: ChannelConfig | Record<string, unknown>
           isActive?: boolean
-          permissionMode?: string | null
+          // Narrow, not `string`: with the DB CHECK constraint gone this parameter type is
+          // what stops an internal caller (one that bypasses the DataApi zod boundary) from
+          // persisting a mode the SDK will reject at run time.
+          permissionMode?: AgentPermissionMode | null
         }
   ): AgentChannelEntity {
     const database = application.get('DbService').getDb()
@@ -84,7 +93,7 @@ export class AgentChannelService {
     return result[0] ? this.rowToEntity(result[0]) : null
   }
 
-  listChannels(filters?: { agentId?: string; type?: string }): AgentChannelEntity[] {
+  listChannels(filters?: { agentId?: string; type?: ChannelType }): AgentChannelEntity[] {
     const database = application.get('DbService').getDb()
 
     const agentCond = filters?.agentId ? eq(channelsTable.agentId, filters.agentId) : undefined
@@ -96,6 +105,38 @@ export class AgentChannelService {
       : database.select().from(channelsTable).all()
 
     return rows.map((row) => this.rowToEntity(row))
+  }
+
+  listWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    return tx
+      .select({ id: channelsTable.id, name: channelsTable.name, workspace: channelsTable.workspace })
+      .from(channelsTable)
+      .all()
+      .filter((channel) => {
+        const workspace = AgentSessionWorkspaceSourceSchema.safeParse(channel.workspace)
+        return (
+          workspace.success &&
+          workspace.data.type === AGENT_WORKSPACE_TYPE.USER &&
+          workspace.data.workspaceId === workspaceId
+        )
+      })
+      .map(({ id, name }) => ({ id, name }))
+  }
+
+  resetWorkspaceReferencesTx(tx: DbOrTx, workspaceId: string): AgentWorkspaceReferenceItem[] {
+    const references = this.listWorkspaceReferencesTx(tx, workspaceId)
+    if (references.length === 0) return references
+
+    tx.update(channelsTable)
+      .set({ workspace: { type: AGENT_WORKSPACE_TYPE.SYSTEM } })
+      .where(
+        inArray(
+          channelsTable.id,
+          references.map((channel) => channel.id)
+        )
+      )
+      .run()
+    return references
   }
 
   /**

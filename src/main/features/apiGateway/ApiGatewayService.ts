@@ -1,6 +1,9 @@
+import { timingSafeEqual } from 'node:crypto'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { ApiGatewayConfig } from '@shared/types/apiGateway'
@@ -9,11 +12,17 @@ import { v4 as uuidv4 } from 'uuid'
 import { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
+const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
+const INTERNAL_USAGE_TOKEN_HEADER = 'x-cherry-internal-usage-token'
 
 @Injectable('ApiGatewayService')
 @ServicePhase(Phase.WhenReady)
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
+  /** Process-local proof that a gateway request originated from Cherry's agent runtime. */
+  private readonly internalUsageToken = uuidv4()
+  /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
+  private readonly internalRequestToken = uuidv4()
   /** Latest desired running state — the `enabled` preference, or the boot auto-start decision. */
   private desiredEnabled = false
   /**
@@ -143,6 +152,17 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return this.apiGateway?.isRunning() ?? false
   }
 
+  getInternalRequestToken(): string {
+    return this.internalRequestToken
+  }
+
+  isInternalRequestToken(candidate: string | undefined): boolean {
+    if (!candidate) return false
+    const expected = Buffer.from(this.internalRequestToken)
+    const received = Buffer.from(candidate)
+    return expected.length === received.length && timingSafeEqual(expected, received)
+  }
+
   getCurrentConfig(): ApiGatewayConfig {
     const config = application.get('PreferenceService').getMultiple({
       enabled: 'feature.api_gateway.enabled',
@@ -163,6 +183,31 @@ export class ApiGatewayService extends BaseService implements Activatable {
       logger.info('Generated new API key')
     }
     return apiKey
+  }
+
+  /**
+   * Headers injected only into the Claude Agent SDK subprocess that Cherry
+   * launches for this session. They let the HTTP gateway retain per-provider
+   * request records while attaching them to the owning agent.
+   */
+  getAgentSessionUsageHeaders(sessionId: string): Record<string, string> {
+    return {
+      [AGENT_SESSION_ID_HEADER]: sessionId,
+      [INTERNAL_USAGE_TOKEN_HEADER]: this.internalUsageToken
+    }
+  }
+
+  /** Process-local proof that the request came from a Cherry-launched SDK subprocess. */
+  isInternalAgentRequest(headers: Headers): boolean {
+    return headers.get(INTERNAL_USAGE_TOKEN_HEADER) === this.internalUsageToken
+  }
+
+  /** Validate the process-local proof, then capture the reserved continuation or active turn. */
+  resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
+    if (!this.isInternalAgentRequest(headers)) return undefined
+    const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()
+    if (!sessionId) return undefined
+    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
   }
 
   private shouldAutoStart(): boolean {

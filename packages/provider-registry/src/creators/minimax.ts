@@ -7,6 +7,7 @@ export default defineCreator({
   idPrefixes: ['minimax', 'abab'],
   reasoningFamilies: [{ pattern: 'minimax-m\\d' }],
   models: [
+    { id: 'minimax-m2-1' },
     // Video generation models (text-to-video / image-to-video). The MiniMax video API is an async
     // submit/poll flow; request params such as
     // duration/resolution belong on the serving provider transport, so the catalog only declares the

@@ -1,9 +1,9 @@
 import type { McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types/mcpTool'
 import type { BaseTool, McpTool } from '@renderer/types/tool'
+import { extractOutputMetadata, isToolType, type ToolMetadata, type ToolType } from '@renderer/utils/message/toolOutput'
 import { GENERATE_IMAGE_TOOL_NAME } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { CherryMessagePart } from '@shared/data/types/message'
-import { isMcpContentBlock } from '@shared/utils/mcp'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
 import { getToolName, isToolUIPart } from 'ai'
 
@@ -17,16 +17,6 @@ export const CLAUDE_AGENT_TRANSPORT = 'claude-agent'
 const AGENT_MCP_TOOLS_PREFIX = 'mcp__'
 const AGENT_TOOL_NAMES = new Set<string>(Object.values(AgentToolsType))
 
-type ToolType = 'mcp' | 'builtin' | 'provider'
-
-type ToolMetadata = {
-  description?: string
-  name?: string
-  serverId?: string
-  serverName?: string
-  type?: ToolType
-}
-
 type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 
 export type ToolResponseLike = McpToolResponse | NormalToolResponse
@@ -38,14 +28,6 @@ export interface ToolRenderItem {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function isToolType(value: unknown): value is ToolType {
-  return value === 'mcp' || value === 'builtin' || value === 'provider'
-}
-
-function isMcpContentArray(value: unknown): value is unknown[] {
-  return Array.isArray(value) && value.every(isMcpContentBlock)
 }
 
 function normalizeToolName(part: ToolResponsePart): string {
@@ -74,31 +56,6 @@ function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus 
   }
 }
 
-function extractOutputMetadata(output: unknown): { response: unknown; metadata?: ToolMetadata } {
-  if (!isRecord(output)) return { response: output }
-
-  const metadata = isRecord(output.metadata) ? output.metadata : undefined
-  if ('content' in output || metadata) {
-    const normalizedMeta: ToolMetadata | undefined = metadata
-      ? {
-          description: typeof metadata.description === 'string' ? metadata.description : undefined,
-          name: typeof metadata.name === 'string' ? metadata.name : undefined,
-          serverId: typeof metadata.serverId === 'string' ? metadata.serverId : undefined,
-          serverName: typeof metadata.serverName === 'string' ? metadata.serverName : undefined,
-          type: isToolType(metadata.type) ? metadata.type : undefined
-        }
-      : undefined
-    const response = normalizedMeta?.type === 'mcp' && isMcpContentArray(output.content) ? output : output.content
-    return { response, metadata: normalizedMeta }
-  }
-
-  return { response: output }
-}
-
-export function normalizeToolOutputResponse(output: unknown): unknown {
-  return extractOutputMetadata(output).response
-}
-
 function hasProviderMetadata(part: ToolResponsePart, provider: string): boolean {
   return isRecord(part.callProviderMetadata) && provider in part.callProviderMetadata
 }
@@ -107,7 +64,7 @@ function isLegacyAgentToolName(toolName: string): boolean {
   return AGENT_TOOL_NAMES.has(toolName) || toolName.startsWith(AGENT_MCP_TOOLS_PREFIX)
 }
 
-function extractCherryToolMetadataFrom(metadata: ProviderMetadata | undefined): ToolMetadata | undefined {
+function extractCherryToolMetadataFrom(metadata: unknown): ToolMetadata | undefined {
   if (!isRecord(metadata)) return undefined
   const cherry = isRecord(metadata.cherry) ? metadata.cherry : undefined
   const tool = cherry && isRecord(cherry.tool) ? cherry.tool : undefined
@@ -123,8 +80,11 @@ function extractCherryToolMetadataFrom(metadata: ProviderMetadata | undefined): 
 
 function extractCherryToolMetadata(part: ToolResponsePart): ToolMetadata | undefined {
   const resultProviderMetadata = 'resultProviderMetadata' in part ? part.resultProviderMetadata : undefined
+  const toolMetadata = 'toolMetadata' in part ? part.toolMetadata : undefined
   return (
-    extractCherryToolMetadataFrom(part.callProviderMetadata) ?? extractCherryToolMetadataFrom(resultProviderMetadata)
+    extractCherryToolMetadataFrom(toolMetadata) ??
+    extractCherryToolMetadataFrom(part.callProviderMetadata) ??
+    extractCherryToolMetadataFrom(resultProviderMetadata)
   )
 }
 
@@ -154,12 +114,17 @@ function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: To
   if (metadata?.type) return metadata.type
   if (parseFunctionCallToolName(toolName)) return 'mcp'
   if (toolName === GENERATE_IMAGE_TOOL_NAME) return 'builtin'
+  if (toolPartWasProviderExecuted(part)) return 'provider'
   if (hasProviderMetadata(part, 'claude-code')) return 'provider'
   if (hasCherryTransport(part.callProviderMetadata)) return 'provider'
   if (part.type === 'dynamic-tool' && isLegacyAgentToolName(toolName)) return 'provider'
   if (part.type === 'dynamic-tool') return 'mcp'
   if (toolName.startsWith('builtin_')) return 'builtin'
   return 'builtin'
+}
+
+function toolPartWasProviderExecuted(part: ToolResponsePart): boolean {
+  return 'providerExecuted' in part && part.providerExecuted === true
 }
 
 function buildMcpToolDescriptor(toolName: string, metadata?: ToolMetadata): McpTool {

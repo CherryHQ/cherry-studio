@@ -27,6 +27,7 @@ const NEWEST_KNOWLEDGE_BASE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'
 const FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abc'
 const OTHER_BASE_FILE_ITEM_ID = '0198f3f2-7d60-7abc-8def-123456789abd'
 const KNOWLEDGE_GROUP_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee'
+const SECOND_KNOWLEDGE_GROUP_ID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeef'
 const OTHER_ENTITY_GROUP_ID = 'ffffffff-ffff-4fff-8fff-ffffffffffff'
 
 describe('KnowledgeBaseService', () => {
@@ -92,6 +93,26 @@ describe('KnowledgeBaseService', () => {
     return values
   }
 
+  async function seedKnowledgeBases(count: number) {
+    await dbh.db.insert(knowledgeBaseTable).values(
+      Array.from({ length: count }, (_, index) => ({
+        id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+        name: `Knowledge Base ${index}`,
+        dimensions: null,
+        embeddingModelId: null,
+        status: 'completed' as const,
+        error: null,
+        rerankModelId: null,
+        fileProcessorId: null,
+        chunkSize: 800,
+        chunkOverlap: 120,
+        documentCount: 5,
+        createdAt: 1,
+        updatedAt: 1
+      }))
+    )
+  }
+
   async function seedFileKnowledgeItem(overrides: Partial<typeof knowledgeItemTable.$inferInsert> = {}) {
     await dbh.db.insert(knowledgeItemTable).values({
       id: FILE_ITEM_ID,
@@ -109,6 +130,13 @@ describe('KnowledgeBaseService', () => {
   }
 
   describe('list', () => {
+    it('returns every knowledge base id for filesystem ownership checks', async () => {
+      await seedKnowledgeBase()
+      await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Another Base' })
+
+      expect(service.listAllIds()).toEqual(new Set([KNOWLEDGE_BASE_ID, SECOND_KNOWLEDGE_BASE_ID]))
+    })
+
     it('should return paginated knowledge bases', async () => {
       await seedKnowledgeBase()
       await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Another Base' })
@@ -279,6 +307,148 @@ describe('KnowledgeBaseService', () => {
     })
   })
 
+  describe('listCursor', () => {
+    it('walks 201 knowledge bases without gaps or duplicates', async () => {
+      await seedKnowledgeBases(201)
+
+      const ids: string[] = []
+      const totals: number[] = []
+      let cursor: string | undefined
+      do {
+        const page = service.listCursor({ limit: 100, cursor })
+        ids.push(...page.items.map((item) => item.id))
+        totals.push(page.total)
+        cursor = page.nextCursor
+      } while (cursor)
+
+      expect(ids).toHaveLength(201)
+      expect(new Set(ids).size).toBe(201)
+      expect(ids).toEqual([...ids].sort().reverse())
+      expect(totals).toEqual([201, 201, 201])
+    })
+
+    it('paginates name sorting with an id tie-breaker', async () => {
+      await seedKnowledgeBase({ id: OLD_KNOWLEDGE_BASE_ID, name: 'Alpha', createdAt: 1 })
+      await seedKnowledgeBase({ id: ALPHA_KNOWLEDGE_BASE_ID, name: 'Same', createdAt: 2 })
+      await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Same', createdAt: 3 })
+      await seedKnowledgeBase({ id: NEWEST_KNOWLEDGE_BASE_ID, name: 'Zulu', createdAt: 4 })
+
+      const first = service.listCursor({ limit: 2, sortBy: 'name', sortOrder: 'asc' })
+      const second = service.listCursor({
+        limit: 2,
+        sortBy: 'name',
+        sortOrder: 'asc',
+        cursor: first.nextCursor
+      })
+
+      expect(first.nextCursor).toBeDefined()
+      expect([...first.items, ...second.items].map((item) => item.id)).toEqual([
+        OLD_KNOWLEDGE_BASE_ID,
+        ALPHA_KNOWLEDGE_BASE_ID,
+        BETA_KNOWLEDGE_BASE_ID,
+        NEWEST_KNOWLEDGE_BASE_ID
+      ])
+    })
+
+    it('keeps search and updatedAt filters across cursor pages', async () => {
+      const cutoffIso = '2026-05-01T00:00:00.000Z'
+      const cutoff = Date.parse(cutoffIso)
+      await seedKnowledgeBase({ id: OLD_KNOWLEDGE_BASE_ID, name: 'Research old', updatedAt: cutoff - 1 })
+      await seedKnowledgeBase({ id: CUTOFF_KNOWLEDGE_BASE_ID, name: 'Research cutoff', updatedAt: cutoff })
+      await seedKnowledgeBase({ id: NEWER_KNOWLEDGE_BASE_ID, name: 'Research newer', updatedAt: cutoff + 1 })
+      await seedKnowledgeBase({ id: OTHER_KNOWLEDGE_BASE_ID, name: 'Other', updatedAt: cutoff + 2 })
+
+      const query = {
+        limit: 1,
+        search: 'Research',
+        updatedAtFrom: cutoffIso,
+        sortBy: 'updatedAt' as const,
+        sortOrder: 'desc' as const
+      }
+      const first = service.listCursor(query)
+      const second = service.listCursor({ ...query, cursor: first.nextCursor })
+
+      expect(first.total).toBe(2)
+      expect(second.total).toBe(2)
+      expect([...first.items, ...second.items].map((item) => item.id)).toEqual([
+        NEWER_KNOWLEDGE_BASE_ID,
+        CUTOFF_KNOWLEDGE_BASE_ID
+      ])
+    })
+
+    it('falls back to the first page for a malformed cursor', async () => {
+      await seedKnowledgeBase({ id: OLD_KNOWLEDGE_BASE_ID, name: 'Old', createdAt: 1 })
+      await seedKnowledgeBase({ id: NEWER_KNOWLEDGE_BASE_ID, name: 'Newer', createdAt: 2 })
+
+      const first = service.listCursor({ limit: 1 })
+      const malformed = service.listCursor({ limit: 1, cursor: 'not-a-cursor' })
+
+      expect(malformed).toEqual(first)
+    })
+  })
+
+  describe('listForDiscovery', () => {
+    it('searches names and completed root item sources before pagination and counting', async () => {
+      await seedKnowledgeBase({ name: 'General', createdAt: 3 })
+      await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Operations', createdAt: 2 })
+      await seedKnowledgeBase({ id: ALPHA_KNOWLEDGE_BASE_ID, name: 'Invoice Archive', createdAt: 1 })
+      await seedFileKnowledgeItem({ data: { source: '/docs/invoice.pdf', relativePath: 'invoice.pdf' } })
+
+      const first = service.listForDiscovery({ limit: 1, query: 'invoice' })
+      const second = service.listForDiscovery({ limit: 1, query: 'invoice', cursor: first.nextCursor })
+      const nameOnly = service.listCursor({ limit: 10, search: 'invoice' })
+
+      expect(first.total).toBe(2)
+      expect(first.items.map((item) => item.id)).toEqual([KNOWLEDGE_BASE_ID])
+      expect(first.items[0]).not.toHaveProperty('itemCount')
+      expect(first.nextCursor).toBeDefined()
+      expect(second.items.map((item) => item.id)).toEqual([ALPHA_KNOWLEDGE_BASE_ID])
+      expect(nameOnly.items.map((item) => item.id)).toEqual([ALPHA_KNOWLEDGE_BASE_ID])
+    })
+
+    it('applies group and restricted ids before pagination and total counting', async () => {
+      await dbh.db.insert(groupTable).values([
+        { id: KNOWLEDGE_GROUP_ID, entityType: 'knowledge', name: 'Knowledge', orderKey: 'a0' },
+        { id: SECOND_KNOWLEDGE_GROUP_ID, entityType: 'knowledge', name: 'Other knowledge', orderKey: 'a1' }
+      ])
+      await seedKnowledgeBase({
+        id: OLD_KNOWLEDGE_BASE_ID,
+        name: 'Notes old',
+        groupId: KNOWLEDGE_GROUP_ID,
+        createdAt: 1
+      })
+      await seedKnowledgeBase({
+        id: ALPHA_KNOWLEDGE_BASE_ID,
+        name: 'Notes allowed',
+        groupId: KNOWLEDGE_GROUP_ID,
+        createdAt: 2
+      })
+      await seedKnowledgeBase({
+        id: BETA_KNOWLEDGE_BASE_ID,
+        name: 'Notes other group',
+        groupId: SECOND_KNOWLEDGE_GROUP_ID,
+        createdAt: 3
+      })
+      await seedKnowledgeBase({
+        id: NEWEST_KNOWLEDGE_BASE_ID,
+        name: 'Other',
+        groupId: KNOWLEDGE_GROUP_ID,
+        createdAt: 4
+      })
+
+      const page = service.listForDiscovery({
+        limit: 1,
+        query: 'Notes',
+        groupId: KNOWLEDGE_GROUP_ID,
+        restrictedIds: [OLD_KNOWLEDGE_BASE_ID, ALPHA_KNOWLEDGE_BASE_ID, BETA_KNOWLEDGE_BASE_ID]
+      })
+
+      expect(page.total).toBe(2)
+      expect(page.items.map((item) => item.id)).toEqual([ALPHA_KNOWLEDGE_BASE_ID])
+      expect(page.nextCursor).toBeDefined()
+    })
+  })
+
   describe('search', () => {
     it('returns lean navigation items without item counts', async () => {
       await seedKnowledgeBase({
@@ -345,6 +515,12 @@ describe('KnowledgeBaseService', () => {
       await seedKnowledgeBase({ chunkSize: 100, chunkOverlap: 100 })
 
       expect(() => service.getById(KNOWLEDGE_BASE_ID)).toThrow('Chunk overlap must be smaller than chunk size')
+    })
+
+    it('should reject an invalid persisted separator at the read boundary', async () => {
+      await seedKnowledgeBase({ chunkStrategy: 'delimiter', chunkSeparator: '' })
+
+      expect(() => service.getById(KNOWLEDGE_BASE_ID)).toThrow('Separator is required when chunk strategy is delimiter')
     })
   })
 
@@ -453,17 +629,17 @@ describe('KnowledgeBaseService', () => {
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
-            dimensions: ['A knowledge base with an embedding model requires positive dimensions']
+            dimensions: ['Embedding model and dimensions must be set together']
           }
         }
       })
     })
 
     it.each([
-      ['zero', 0],
-      ['negative', -1],
-      ['non-integer', 1.5]
-    ])('rejects an embedding model with %s dimensions', (_label, dimensions) => {
+      ['zero', 0, 'Too small: expected number to be >0'],
+      ['negative', -1, 'Too small: expected number to be >0'],
+      ['non-integer', 1.5, 'Invalid input: expected int, received number']
+    ])('rejects an embedding model with %s dimensions', (_label, dimensions, message) => {
       let err: unknown
       try {
         service.create({
@@ -478,7 +654,7 @@ describe('KnowledgeBaseService', () => {
         code: ErrorCode.VALIDATION_ERROR,
         details: {
           fieldErrors: {
-            dimensions: ['A knowledge base with an embedding model requires positive dimensions']
+            dimensions: [message]
           }
         }
       })
@@ -759,6 +935,24 @@ describe('KnowledgeBaseService', () => {
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.threshold).toBe(0.7)
+    })
+
+    it('allows renaming or moving a recoverable failed base despite a leftover mismatched embedding/dimensions pair', async () => {
+      // A migration-failed base can carry a leftover embeddingModelId with null
+      // dimensions (or vice versa); the DB CHECK only constrains this pairing for
+      // completed bases, so a plain metadata PATCH must not resurrect that check
+      // (the pairing invariant is still enforced for completed bases — see "rejects
+      // an embedding model without positive dimensions" above).
+      await seedKnowledgeBase({
+        embeddingModelId: createUniqueModelId('openai', 'embed-model'),
+        dimensions: null,
+        status: 'failed',
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+      })
+
+      const result = service.update(KNOWLEDGE_BASE_ID, { name: 'Renamed while failed' })
+      expect(result.name).toBe('Renamed while failed')
+      expect(result.dimensions).toBeNull()
     })
 
     it('should reject shrinking chunkSize when the existing chunkOverlap no longer fits', async () => {
@@ -1052,6 +1246,43 @@ describe('KnowledgeBaseService', () => {
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
+    })
+  })
+
+  describe('embedding model removal guard', () => {
+    const embeddingModelId = createUniqueModelId('openai', 'embed-model')
+
+    it('does not acquire the guard while a knowledge base references the model', async () => {
+      await seedKnowledgeBase()
+
+      expect(service.acquireEmbeddingModelRemovalGuard(embeddingModelId)).toBeUndefined()
+    })
+
+    it('rejects writes that add the model until the removal guard is released', async () => {
+      await seedKnowledgeBase({ embeddingModelId: null, dimensions: null })
+      const releaseGuard = service.acquireEmbeddingModelRemovalGuard(embeddingModelId)
+      expect(releaseGuard).toBeTypeOf('function')
+
+      let createError: unknown
+      try {
+        service.create({ name: 'Concurrent Base', embeddingModelId, dimensions: 1536 })
+      } catch (error) {
+        createError = error
+      }
+      expect(createError).toMatchObject({ code: ErrorCode.RESOURCE_LOCKED })
+
+      let updateError: unknown
+      try {
+        service.update(KNOWLEDGE_BASE_ID, { embeddingModelId, dimensions: 1536 })
+      } catch (error) {
+        updateError = error
+      }
+      expect(updateError).toMatchObject({ code: ErrorCode.RESOURCE_LOCKED })
+
+      releaseGuard?.()
+      expect(service.update(KNOWLEDGE_BASE_ID, { embeddingModelId, dimensions: 1536 }).embeddingModelId).toBe(
+        embeddingModelId
+      )
     })
   })
 })

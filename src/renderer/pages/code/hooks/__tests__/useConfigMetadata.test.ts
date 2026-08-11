@@ -18,9 +18,15 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 vi.mock('@renderer/pages/code/cliConfig', () => ({
   hasClaudeDetailedModels: (config: Record<string, unknown>) =>
     Boolean((config.env as Record<string, string> | undefined)?.ANTHROPIC_DEFAULT_FABLE_MODEL),
-  getClaudeContextModelId: (providerId: string, config: Record<string, unknown>) => {
+  getClaudeContextModelId: (
+    providerId: string,
+    config: Record<string, unknown>,
+    gatewayModels?: Map<string, Model>
+  ) => {
     const model = (config.env as Record<string, string> | undefined)?.ANTHROPIC_DEFAULT_FABLE_MODEL
-    return model ? `${providerId}::${model}` : undefined
+    if (!model) return undefined
+    if (!gatewayModels) return `${providerId}::${model}`
+    return [...gatewayModels.values()].find((entry) => `${entry.providerId}:${entry.apiModelId}` === model)?.id
   }
 }))
 
@@ -145,6 +151,24 @@ describe('useConfigMetadata.resolveProviderMeta', () => {
     })
 
     expect(meta.modelName).toBe('claude-fable-5')
+  })
+
+  it('resolves a detailed gateway address to the model name', () => {
+    const model = {
+      ...makeModel('anthropic', 'claude-chat'),
+      apiModelId: 'claude-chat',
+      name: 'Claude Chat'
+    } as Model
+    modelRecords.push(model)
+    const gatewayProvider = { id: CLI_API_GATEWAY_PROVIDER_ID, name: 'Unified Gateway' } as Provider
+    const { result } = renderHook(() => useConfigMetadata(CodeCli.CLAUDE_CODE, [apiKeyProvider]))
+
+    const meta = result.current.resolveProviderMeta(gatewayProvider, {
+      modelId: null,
+      config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'anthropic:claude-chat' } }
+    })
+
+    expect(meta.modelName).toBe('Claude Chat')
   })
 
   it('resolves the plain configured model for non-detailed configs', () => {

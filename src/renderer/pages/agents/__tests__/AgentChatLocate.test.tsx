@@ -132,7 +132,6 @@ vi.mock('@renderer/components/chat/shell/RightPaneHost', () => ({
 
 vi.mock('@renderer/components/chat/panes/ArtifactPane', () => ({
   ARTIFACT_PANE_WIDTH: 460,
-  ArtifactFilePreview: () => <div />,
   normalizeArtifactPaneFilePath: (workspacePath: string, rawPath: string) =>
     rawPath.startsWith(`${workspacePath}/`) ? rawPath.slice(workspacePath.length + 1) : rawPath,
   resolveArtifactPaneFileSelection: (workspacePath: string | undefined, rawPath: string) =>
@@ -186,12 +185,17 @@ vi.mock('@renderer/components/NavbarIcon', () => ({
   )
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  useCache: () => [false],
-  useSharedCache: () => [null, vi.fn()],
-  useSharedCacheValue: () => undefined,
-  usePersistCache: () => [undefined, vi.fn()]
-}))
+vi.mock('@renderer/data/hooks/useCache', async () => {
+  const { MockUseCache } = await import('@test-mocks/renderer/useCache')
+
+  return {
+    ...MockUseCache,
+    useCache: () => [false],
+    useSharedCache: () => [null, vi.fn()],
+    useSharedCacheValue: () => undefined,
+    usePersistCache: () => [undefined, vi.fn()]
+  }
+})
 
 vi.mock('@renderer/data/hooks/usePreference', () => ({
   usePreference: (key: string) => [key === 'chat.narrow_mode' ? false : 'none', vi.fn()]
@@ -311,13 +315,26 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
 }))
 
 describe('AgentChat locate pending message', () => {
-  const activeSessionProps = (): Pick<
-    ComponentProps<typeof AgentChat>,
-    'activeSession' | 'activeSessionLoading' | 'activeSessionSource'
-  > => ({
-    activeSession: activeSessionMocks.result.session as ComponentProps<typeof AgentChat>['activeSession'],
-    activeSessionLoading: activeSessionMocks.result.isLoading,
-    activeSessionSource: activeSessionMocks.result.session ? 'query' : 'none'
+  const createConversationBootstrap = (
+    session: ComponentProps<typeof AgentChat>['conversationBootstrap']['session'] = activeSessionMocks.result
+      .session as ComponentProps<typeof AgentChat>['conversationBootstrap']['session'],
+    sessionLoading = activeSessionMocks.result.isLoading,
+    sessionSource: ComponentProps<typeof AgentChat>['conversationBootstrap']['sessionSource'] = session
+      ? 'query'
+      : 'none'
+  ): ComponentProps<typeof AgentChat>['conversationBootstrap'] => ({
+    session,
+    sessionLoading,
+    sessionSource,
+    resources: {
+      agent: session?.agentId ? ({ id: session.agentId, model: 'provider:model-1' } as any) : undefined,
+      agentLoading: false,
+      model: session?.agentId ? ({ id: 'provider:model-1', name: 'Model 1' } as any) : undefined,
+      modelLoading: false
+    }
+  })
+  const activeSessionProps = (): Pick<ComponentProps<typeof AgentChat>, 'conversationBootstrap'> => ({
+    conversationBootstrap: createConversationBootstrap()
   })
 
   beforeEach(() => {
@@ -346,7 +363,6 @@ describe('AgentChat locate pending message', () => {
           }
         },
         file: {
-          isTextFile: vi.fn().mockResolvedValue(true),
           getMetadata: vi.fn().mockResolvedValue({ kind: 'file', size: 1024 })
         }
       }
@@ -381,12 +397,7 @@ describe('AgentChat locate pending message', () => {
 
   it('renders the navbar and loading center while the active session is resolving', () => {
     render(
-      <AgentChat
-        activeSession={undefined}
-        activeSessionLoading={true}
-        activeSessionSource="pending"
-        showResourceListControls
-      />
+      <AgentChat conversationBootstrap={createConversationBootstrap(null, true, 'pending')} showResourceListControls />
     )
 
     expect(screen.getByTestId('agent-chat-navbar')).toBeInTheDocument()
@@ -499,9 +510,7 @@ describe('AgentChat locate pending message', () => {
 
     const { rerender } = render(
       <AgentChat
-        activeSession={undefined}
-        activeSessionLoading={false}
-        activeSessionSource="none"
+        conversationBootstrap={createConversationBootstrap(null, false, 'none')}
         missingAgentSelection={true}
         pane={<aside data-testid="session-pane" />}
         paneOpen={true}

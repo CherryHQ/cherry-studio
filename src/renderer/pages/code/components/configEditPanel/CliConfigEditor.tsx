@@ -32,6 +32,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
   if (!files.length) return null
 
   const updateFile = (target: string, content: string) => {
+    if (files.find((file) => file.target === target)?.content === content) return
     onChange(files.map((file) => (file.target === target ? { ...file, content } : file)))
   }
 
@@ -49,7 +50,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-baseline gap-2">
           <span className="shrink-0 font-normal text-foreground text-xs">{t('code.cli_config.title')}</span>
-          <span className="min-w-0 truncate text-[10px] text-muted-foreground/55">{activeFile?.path}</span>
+          <span className="min-w-0 truncate text-[10px] text-foreground-tertiary">{activeFile?.path}</span>
         </div>
         <Tooltip content={t('code.format_json')}>
           <Button
@@ -85,7 +86,7 @@ export const CliConfigEditor: FC<CliConfigEditorProps> = ({ files, error, onChan
       )}
 
       {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-2 py-1.5 text-destructive text-xs">
+        <div className="rounded-md border border-error-border bg-error-subtle px-2 py-1.5 text-error-subtle-foreground text-xs">
           {error}
         </div>
       )}
@@ -99,7 +100,7 @@ const EditorBody: FC<{
   theme: React.ComponentProps<typeof CodeEditor>['theme']
   onChange: (target: string, content: string) => void
 }> = ({ file, fontSize, theme, onChange }) => (
-  <div className={cn('overflow-hidden rounded-lg border border-border/60 bg-background')}>
+  <div className={cn('overflow-hidden rounded-lg border border-border-subtle bg-background')}>
     <CodeEditor
       theme={theme}
       fontSize={fontSize - 1}

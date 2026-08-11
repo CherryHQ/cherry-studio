@@ -7,21 +7,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@main/services/RegionService', () => ({ regionService: { isInChina: vi.fn().mockResolvedValue(false) } }))
 
-// onnxruntime binary presence is a separate concern (see OnnxRuntimeBinaryService.test.ts) —
-// stub it as already-ready so these tests only exercise the OCR weight/dictionary lifecycle.
-vi.mock('@main/services/localModel/OnnxRuntimeBinaryService', () => ({
-  onnxRuntimeBinaryService: {
-    isReady: vi.fn(() => true),
-    ensure: vi.fn(async () => undefined)
-  }
-}))
-
-const { createWriteStream, mkdir, rename, writeFile, rm } = vi.hoisted(() => ({
+const { createWriteStream, mkdir, rename, writeFile, rm, ensureOnnxRuntime, onnxRuntimeIsReady } = vi.hoisted(() => ({
   createWriteStream: vi.fn(),
   mkdir: vi.fn(),
   rename: vi.fn(),
   writeFile: vi.fn(),
-  rm: vi.fn()
+  rm: vi.fn(),
+  ensureOnnxRuntime: vi.fn(),
+  onnxRuntimeIsReady: vi.fn()
+}))
+
+// onnxruntime binary presence is a separate concern (see OnnxRuntimeBinaryService.test.ts) —
+// stub it as already-ready so these tests only exercise the OCR weight/dictionary lifecycle,
+// while letting the failure-cleanup regressions model a runtime fetch that rejects.
+vi.mock('@main/services/localModel/OnnxRuntimeBinaryService', () => ({
+  onnxRuntimeBinaryService: {
+    isReady: onnxRuntimeIsReady,
+    ensure: ensureOnnxRuntime
+  }
 }))
 
 vi.mock('@application', async () => {
@@ -88,21 +91,30 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
     rename.mockResolvedValue(undefined)
     writeFile.mockResolvedValue(undefined)
     rm.mockResolvedValue(undefined)
+    onnxRuntimeIsReady.mockReturnValue(true)
+    ensureOnnxRuntime.mockResolvedValue(undefined)
     // Drain each download into a black hole; the min-size guard only needs the byte count.
     createWriteStream.mockImplementation(() => new Writable({ write: (_chunk, _encoding, cb) => cb() }))
   })
+
+  /** Paths the recursive rm was pointed at — a `.tmp` staging file is fine, the model dir is not. */
+  function recursiveRmTargets(): string[] {
+    return rm.mock.calls
+      .filter(([, options]) => (options as { recursive?: boolean } | undefined)?.recursive)
+      .map(([target]) => String(target))
+  }
 
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('downloads every file and promotes local OCR to the default image-to-text engine', async () => {
+  it('downloads every file without changing the default image-to-text engine', async () => {
     vi.mocked(net.fetch).mockImplementation((async (url: string) =>
       url.endsWith('.yml') ? dictResponse() : weightResponse(VALID_WEIGHT_BYTES)) as unknown as typeof net.fetch)
 
     await localOcrDownloadService.download()
 
-    expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).toBe('local-paddleocr')
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).not.toBe('local-paddleocr')
   })
 
   it('does not clobber an engine the user already explicitly chose', async () => {
@@ -112,8 +124,7 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
 
     await localOcrDownloadService.download()
 
-    // The model still downloads successfully — it's just not silently made the
-    // active default when the user already picked something else.
+    // Downloading a dependency never owns the user's processor selection.
     expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).toBe('mistral')
   })
 
@@ -130,7 +141,7 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
     // Not in China → HuggingFace first (fails) → ModelScope (succeeds) for every file.
     expect(urls.some((u) => u.startsWith('https://huggingface.co'))).toBe(true)
     expect(urls.some((u) => u.startsWith('https://www.modelscope.cn'))).toBe(true)
-    expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).toBe('local-paddleocr')
+    expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).not.toBe('local-paddleocr')
   })
 
   it('rejects a too-small download (LFS pointer / error page) after exhausting mirrors', async () => {
@@ -138,7 +149,7 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
 
     await expect(localOcrDownloadService.download()).rejects.toThrow()
 
-    // Never promoted — the guard rejected before any weights landed.
+    // A failed dependency download also leaves processor selection untouched.
     expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).not.toBe('local-paddleocr')
   })
 
@@ -152,5 +163,44 @@ describe('LocalOcrDownloadService.download — mirror fallback + min-size guard'
 
     // A truncated-but-parseable yml must not silently produce an incomplete dictionary.
     expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).not.toBe('local-paddleocr')
+  })
+
+  describe('failure cleanup', () => {
+    const OCR_MODEL_DIR = '/mock/feature.ocr.paddleocr'
+
+    it('keeps the existing weights when the shared runtime fetch fails', async () => {
+      // ensure() runs before any weight is touched, so its failure must not reach the
+      // weights an earlier download already completed.
+      onnxRuntimeIsReady.mockReturnValue(false)
+      ensureOnnxRuntime.mockRejectedValueOnce(new Error('every registry mirror failed'))
+
+      await expect(localOcrDownloadService.download()).rejects.toThrow('every registry mirror failed')
+
+      expect(vi.mocked(net.fetch)).not.toHaveBeenCalled()
+      expect(recursiveRmTargets()).not.toContain(OCR_MODEL_DIR)
+    })
+
+    it('drops only the staging file when a weight download is rejected', async () => {
+      vi.mocked(net.fetch).mockImplementation((async () => weightResponse(200)) as unknown as typeof net.fetch)
+
+      await expect(localOcrDownloadService.download()).rejects.toThrow()
+
+      // fetchToFile renames into place only after the size check passes, so the failure
+      // leaves nothing but its own `.tmp` to clean up.
+      expect(recursiveRmTargets()).not.toContain(OCR_MODEL_DIR)
+    })
+
+    it('leaves an explicitly selected default OCR engine backed by its weights', async () => {
+      // Wiping the weights on failure cannot demote the default the way remove() does, so it
+      // would strand `default_image_to_text` on an unavailable local-paddleocr and break every
+      // OCR consumer (translation / chat attachments / read_file) with no self-heal.
+      MockMainPreferenceServiceUtils.setPreferenceValue(DEFAULT_KEY, 'local-paddleocr')
+      vi.mocked(net.fetch).mockImplementation((async () => weightResponse(200)) as unknown as typeof net.fetch)
+
+      await expect(localOcrDownloadService.download()).rejects.toThrow()
+
+      expect(MockMainPreferenceServiceUtils.getPreferenceValue(DEFAULT_KEY)).toBe('local-paddleocr')
+      expect(recursiveRmTargets()).not.toContain(OCR_MODEL_DIR)
+    })
   })
 })

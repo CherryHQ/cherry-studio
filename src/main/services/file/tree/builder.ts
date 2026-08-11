@@ -97,6 +97,24 @@ async function statQuiet(absPath: string): Promise<TreeNodeStats | undefined> {
   }
 }
 
+async function findNearestExistingDirectory(absPath: string): Promise<string> {
+  let candidate = normalizePath(path.posix.dirname(absPath))
+  while (true) {
+    try {
+      const stats = await nodeStat(candidate)
+      if (stats.isDirectory()) return candidate
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+
+    const parent = normalizePath(path.posix.dirname(candidate))
+    if (parent === candidate) {
+      throw new Error(`No existing directory found above ${absPath}`)
+    }
+    candidate = parent
+  }
+}
+
 export interface DirectoryTreeBuilder extends Disposable {
   readonly root: TreeDirRoot
   readonly onMutation: (listener: (e: TreeMutationEvent) => void) => Disposable
@@ -144,6 +162,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private watcherClosePromise: Promise<void> | null = null
   private readonly options: ResolvedTreeOptions
   private readonly rootPath: string
+  private watcherRootPath: string
   // Loaded once during `init()`; what the user's `.gitignore` (plus the
   // always-on `.git` exclusion) says to skip. `null` when the caller
   // opted out via `respectGitignore: false` or the file isn't readable.
@@ -152,6 +171,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private ignorePredicate: GitignorePredicate | null = null
   private disposed = false
   private initialScanPromise: Promise<void> | null = null
+  private rootMissingAtInit = false
   // Paths recently affected by an explicit `rename()` — used to suppress the
   // chokidar `unlink(oldPath)` + `add(newPath)` events that follow shortly
   // after, so the renderer doesn't apply `removed` + `added` on top of the
@@ -162,6 +182,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
 
   constructor(rootPath: string, options: ResolvedTreeOptions) {
     this.rootPath = normalizePath(rootPath)
+    this.watcherRootPath = this.rootPath
     this.options = options
     this.root = new TreeDirRoot(this.rootPath)
     this.map.set(this.rootPath, this.root)
@@ -188,6 +209,15 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     if (this.options.respectGitignore) {
       this.ignorePredicate = await loadGitignorePredicate(this.rootPath)
     }
+    if (this.options.watchMissingRoot) {
+      try {
+        await nodeStat(this.rootPath)
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+        this.rootMissingAtInit = true
+        this.watcherRootPath = await findNearestExistingDirectory(this.rootPath)
+      }
+    }
     // Start the watcher *before* the initial scan completes so we don't
     // miss events for paths created during the scan window. The events are
     // queued behind the scan promise and applied after it resolves.
@@ -210,7 +240,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       }
     }
 
-    // Let scan failures propagate. Swallowing them resolves File_TreeCreate
+    // Let scan failures propagate. Swallowing them resolves file.tree.create
     // with an empty tree — indistinguishable from "the directory is genuinely
     // empty" to the renderer, which produces a silent regression (the user
     // sees zero notes when ripgrep is missing or the root is unreadable).
@@ -283,14 +313,30 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // is a real code repo with a `node_modules` blob. The predicate
     // fires before chokidar recurses into the dir, so the cost stays
     // at "one Ignore.ignores() call per entry".
-    const watcherIgnore = ((p: AbsoluteFilePath) => this.shouldIgnorePath(p)) as (path: AbsoluteFilePath) => boolean
+    const watcherIgnore = ((p: AbsoluteFilePath) => {
+      const normalized = normalizePath(p)
+      if (this.rootMissingAtInit) {
+        const isTargetPath = normalized === this.rootPath || normalized.startsWith(`${this.rootPath}/`)
+        const isTargetAncestor = normalized === this.watcherRootPath || this.rootPath.startsWith(`${normalized}/`)
+        if (!isTargetPath && !isTargetAncestor) return true
+        if (isTargetAncestor && !isTargetPath) return false
+      }
+      return this.shouldIgnorePath(normalized)
+    }) as (path: AbsoluteFilePath) => boolean
+    const rootDepthOffset = path.posix.relative(this.watcherRootPath, this.rootPath).split('/').filter(Boolean).length
     const watcherMaxDepth =
-      this.options.maxDepth === Number.MAX_SAFE_INTEGER ? undefined : Math.max(0, this.options.maxDepth)
+      this.options.maxDepth === Number.MAX_SAFE_INTEGER
+        ? undefined
+        : Math.max(0, this.options.maxDepth + rootDepthOffset)
 
-    const watcher = createDirectoryWatcher(this.rootPath as AbsoluteFilePath, {
+    const watcher = createDirectoryWatcher(this.watcherRootPath as AbsoluteFilePath, {
       recursive: true,
       maxDepth: watcherMaxDepth,
       stabilityThresholdMs: 200,
+      // A missing root can appear with children before chokidar attaches to
+      // the new directory. Emit that first scan so the builder cannot miss
+      // files created in the same burst as the root.
+      emitInitial: this.rootMissingAtInit,
       ignore: watcherIgnore
     })
     this.watcher = watcher
@@ -335,6 +381,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     }
 
     const evPath = normalizePath(ev.path)
+    if (evPath !== this.rootPath && !evPath.startsWith(`${this.rootPath}/`)) return
     // Belt-and-suspenders: chokidar's ignore predicate runs before
     // recursion, but in case of races (a `node_modules` event arrives
     // before chokidar processes the ignore for it), drop it here too.
@@ -355,6 +402,12 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     }
 
     if (ev.kind === 'unlink' || ev.kind === 'unlinkDir') {
+      if (evPath === this.rootPath) {
+        for (const child of Object.values(this.root.children)) {
+          this.removeNode(child.path, /* emit */ true)
+        }
+        return
+      }
       this.removeNode(evPath, /* emit */ true)
       return
     }
