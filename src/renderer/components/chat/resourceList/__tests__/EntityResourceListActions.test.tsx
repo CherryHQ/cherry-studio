@@ -3,6 +3,7 @@ import type { ResourceEntityRailItem } from '@renderer/components/chat/resourceL
 import type { AgentSessionsSource, AssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { MockUseCacheUtils } from '@test-mocks/renderer/useCache'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps, ReactNode } from 'react'
@@ -49,6 +50,10 @@ const preferenceMocks = vi.hoisted(() => ({
   sortType: 'list' as 'list' | 'tags',
   setSortType: vi.fn(),
   values: new Map<string, unknown>()
+}))
+
+const resourceEntityRailMocks = vi.hoisted(() => ({
+  collapsedGroupId: 'resource-entity-rail:section:["group","group-work"]'
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -140,10 +145,12 @@ vi.mock('@renderer/components/chat/resourceList/useResourceEntityRail', () => ({
 
 vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
   ResourceEntityRail: ({
+    collapsedState,
     getContextMenuActions,
     groupByGroup,
     headerActions,
     items,
+    onCollapsedStateChange,
     onContextMenuAction,
     onGroupReorder,
     onReorder,
@@ -151,10 +158,12 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
     selectedId,
     selectionSuppressed
   }: {
+    collapsedState?: readonly string[]
     getContextMenuActions?: (item: ResourceEntityRailItem) => readonly ResolvedAction[]
     groupByGroup?: boolean
     headerActions?: ReactNode
     items: readonly ResourceEntityRailItem[]
+    onCollapsedStateChange?: (collapsedIds: string[]) => void
     onContextMenuAction?: (item: ResourceEntityRailItem, action: ResolvedAction) => void | Promise<void>
     onGroupReorder?: (groupId: string, anchor: { before: string }) => void | Promise<void>
     onReorder?: unknown
@@ -173,8 +182,14 @@ vi.mock('@renderer/components/chat/resourceList/ResourceEntityRail', () => ({
         data-item-reorder={onReorder && reorderEnabled ? 'enabled' : 'disabled'}
         data-group-reorder={onGroupReorder && reorderEnabled ? 'enabled' : 'disabled'}
         data-sortable-container={onReorder || onGroupReorder ? 'enabled' : 'disabled'}
+        data-collapsed-state={collapsedState?.join(',') ?? 'uncontrolled'}
         data-selected-id={selectionSuppressed ? '' : (selectedId ?? '')}
         data-selection-suppressed={String(!!selectionSuppressed)}>
+        <button
+          type="button"
+          aria-label="Collapse work group"
+          onClick={() => onCollapsedStateChange?.([resourceEntityRailMocks.collapsedGroupId])}
+        />
         {headerActions}
         {items.map((item) => {
           const actions = getContextMenuActions?.(item) ?? []
@@ -352,6 +367,7 @@ vi.mock('@renderer/utils/error', () => ({
 
 describe('classic layout entity resource list actions', () => {
   beforeEach(() => {
+    MockUseCacheUtils.resetMocks()
     agentDataMocks.agents = [
       {
         id: 'agent-1',
@@ -597,6 +613,21 @@ describe('classic layout entity resource list actions', () => {
     expect(railInTags).toHaveAttribute('data-group-by-group', 'true')
     expect(railInTags).toHaveAttribute('data-item-reorder', 'disabled')
     expect(railInTags).toHaveAttribute('data-group-reorder', 'enabled')
+  })
+
+  it('restores collapsed assistant groups after the classic rail unmounts and remounts', () => {
+    preferenceMocks.sortType = 'tags'
+    const props = { activeAssistantId: 'assistant-1', onSelectTopic: vi.fn(), onCreateTopic: vi.fn() }
+    const firstMount = render(<TestAssistantResourceList {...props} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse work group' }))
+    firstMount.unmount()
+    render(<TestAssistantResourceList {...props} />)
+
+    expect(screen.getByTestId('resource-entity-rail')).toHaveAttribute(
+      'data-collapsed-state',
+      resourceEntityRailMocks.collapsedGroupId
+    )
   })
 
   it('keeps sortable rail containers mounted while refresh temporarily blocks reorder', () => {

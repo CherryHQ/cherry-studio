@@ -1183,7 +1183,7 @@ describe('AgentRightPane', () => {
     expect(useArtifactFileTreeModelMock).not.toHaveBeenCalled()
   })
 
-  it('keeps a visited trace capability mounted while inactive', () => {
+  it('unmounts a visited trace capability while inactive to release its retained tree', () => {
     render(
       <TestAgentRightPane sessionId="session-a" workspacePath="/workspace" messages={[]} partsByMessageId={{}}>
         <AgentRightPane.Shortcuts />
@@ -1195,7 +1195,10 @@ describe('AgentRightPane', () => {
     const tracePane = screen.getByTestId('trace-pane')
 
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
-    expect(screen.getByTestId('trace-pane')).toBe(tracePane)
+    expect(screen.queryByTestId('trace-pane')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
+    expect(screen.getByTestId('trace-pane')).not.toBe(tracePane)
   })
 
   it('keeps a visited files instance through pending and removes it when unavailable', () => {

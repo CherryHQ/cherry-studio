@@ -136,7 +136,8 @@ function TopicBranchRightPanel({ active, scope }: RightPanelComponentProps<Topic
   )
 }
 
-function TopicTraceRightPanel({ scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+function TopicTraceRightPanel({ active, scope }: RightPanelComponentProps<TopicRightPanelScope>) {
+  if (!active) return null
   return (
     <Suspense fallback={null}>
       <TracePane payload={{ topicId: scope.topicId ?? '', traceId: scope.traceId ?? '' }} />
