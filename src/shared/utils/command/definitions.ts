@@ -75,7 +75,10 @@ export const COMMAND_DEFINITIONS = [
     scope: 'main',
     keybinding: {
       defaultBinding: ['CommandOrControl', '='],
-      additionalBindings: [['CommandOrControl', 'numadd']],
+      additionalBindings: [
+        ['CommandOrControl', 'Shift', '='],
+        ['CommandOrControl', 'numadd']
+      ],
       editable: false
     }
   }),
