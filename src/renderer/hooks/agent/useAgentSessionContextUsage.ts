@@ -3,6 +3,9 @@ import {
   AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY,
   type AgentSessionContextUsage
 } from '@shared/ai/agentSessionContextUsage'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import { formatGatewayModelId } from '@shared/utils/apiGateway'
+import { useMemo } from 'react'
 
 const EMPTY_SESSION_ID = '__none__'
 
@@ -21,13 +24,13 @@ interface AgentSessionContextUsageState {
  */
 export function useAgentSessionContextUsage(
   sessionId: string | undefined,
-  expectedModels?: readonly (string | null | undefined)[],
-  contextWindow?: number
+  model?: Model
 ): AgentSessionContextUsageState {
   const cachedUsage = useSharedCacheValue(AGENT_SESSION_CONTEXT_USAGE_CACHE_KEY(sessionId ?? EMPTY_SESSION_ID))
+  const expectedModels = useMemo(() => getContextUsageModelCandidates(model), [model])
   const sessionUsage = sessionId ? (cachedUsage ?? null) : null
   const effectiveUsage = isExpectedModelUsage(sessionUsage, expectedModels) ? sessionUsage : null
-  const maxTokens = resolveMaxTokens(effectiveUsage, contextWindow)
+  const maxTokens = resolveMaxTokens(effectiveUsage, model?.contextWindow)
   const rawPercentage =
     effectiveUsage && maxTokens ? (effectiveUsage.totalTokens / maxTokens) * 100 : effectiveUsage?.percentage
   const percentage = rawPercentage === undefined ? null : Math.round(Math.min(100, Math.max(0, rawPercentage)))
@@ -39,6 +42,29 @@ function resolveMaxTokens(usage: AgentSessionContextUsage | null, contextWindow:
   if (!usage) return null
   if (typeof contextWindow === 'number' && contextWindow > 0) return contextWindow
   return usage.maxTokens > 0 ? usage.maxTokens : null
+}
+
+// The usage cache deliberately survives reconnects, so a stale entry from the previous model must
+// not be divided by the new model's window.
+function getContextUsageModelCandidates(model: Model | undefined): string[] | undefined {
+  if (!model) return undefined
+  let parsed: ReturnType<typeof parseUniqueModelId>
+  try {
+    parsed = parseUniqueModelId(model.id)
+  } catch {
+    // An id outside the `provider::model` format cannot be matched, and must not take the pane down.
+    return model.apiModelId ? [model.apiModelId] : undefined
+  }
+
+  const apiModelId = model.apiModelId ?? parsed.modelId
+  const candidates = [apiModelId, parsed.modelId]
+  try {
+    candidates.push(formatGatewayModelId(parsed.providerId, apiModelId))
+  } catch {
+    // Some models are intentionally not gateway-addressable; their direct ids remain valid candidates.
+  }
+
+  return candidates
 }
 
 function isExpectedModelUsage(

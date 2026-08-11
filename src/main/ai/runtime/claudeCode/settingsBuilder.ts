@@ -172,18 +172,21 @@ function resolveAutoCompactWindow(contextWindow: number | undefined, requestedOu
   return Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
 }
 
-// Bounded by the CLI ceiling and by leaving MIN_AUTO_COMPACT_WINDOW of input room, so a 131K-window
-// model declaring a 131K cap cannot request 128K of output and leave 3K for history.
+// An explicit entry reaches the CLI untouched, so budget against it rather than a value it will
+// never see. Otherwise leave MIN_AUTO_COMPACT_WINDOW of input room, so a 131K-window model
+// declaring a 131K cap cannot request 128K of output and leave 3K for history.
 function resolveRequestedOutputTokens(
   contextWindow: number | undefined,
   maxOutputTokens: number | undefined,
   override: string | undefined
 ): number {
   const parsedOverride = Number(override)
-  const declared = Number.isInteger(parsedOverride) && parsedOverride > 0 ? parsedOverride : maxOutputTokens
+  if (Number.isInteger(parsedOverride) && parsedOverride > 0) {
+    return Math.min(parsedOverride, MAX_REQUESTED_OUTPUT_TOKENS)
+  }
   const requested =
-    typeof declared === 'number' && Number.isInteger(declared) && declared > 0
-      ? declared
+    typeof maxOutputTokens === 'number' && Number.isInteger(maxOutputTokens) && maxOutputTokens > 0
+      ? maxOutputTokens
       : DEFAULT_REQUESTED_OUTPUT_TOKENS
   const inputRoom =
     typeof contextWindow === 'number' && Number.isInteger(contextWindow) && contextWindow >= MIN_AUTO_COMPACT_WINDOW

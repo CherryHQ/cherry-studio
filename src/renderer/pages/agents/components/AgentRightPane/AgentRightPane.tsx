@@ -51,6 +51,7 @@ import type { AgentSessionTaskEvents } from '@shared/ai/agentSessionBackgroundTa
 import { isDeferredToolOutput } from '@shared/ai/transport'
 import { AGENT_WORKSPACE_TYPE, type AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import { AbsoluteFilePathSchema } from '@shared/types/file'
 import { createFilePathHandle, type TreeDirRoot } from '@shared/utils/file'
 import {
@@ -149,8 +150,8 @@ interface AgentRightPaneMeta {
   workspaceId?: string
   workspacePath?: string
   workspaceType?: AgentWorkspaceType
-  /** Model context window, used as the denominator for context usage. */
-  contextWindow?: number
+  /** Active model — supplies the context-usage denominator and guards against stale readings. */
+  model?: Model
 }
 
 interface AgentRightPaneRuntime {
@@ -362,7 +363,7 @@ function AgentRightPaneStateProvider({
   agentId,
   agentName,
   agentAvatar,
-  contextWindow,
+  model,
   conversationState = 'ready',
   present = true,
   resourcePane = null,
@@ -543,14 +544,14 @@ function AgentRightPaneStateProvider({
       workspaceId,
       workspacePath,
       workspaceType,
-      contextWindow
+      model
     }),
     [
       agentAvatar,
       agentId,
       agentName,
-      contextWindow,
       conversationState,
+      model,
       sessionId,
       sessionName,
       traceId,
@@ -1006,7 +1007,7 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   const actions = useAgentRightPaneActions()
   const { t } = useTranslation()
   const status = useAgentRightPaneStatus(active)
-  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, undefined, meta.contextWindow)
+  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
   const artifacts = actions.canOpenArtifactFile ? status.artifacts : []
@@ -1274,7 +1275,7 @@ function AgentRightPaneHighlights({
 function AgentRightPaneStatusPreview() {
   const meta = useAgentRightPaneMeta()
   const status = useAgentRightPaneStatus()
-  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, undefined, meta.contextWindow)
+  const { usage, percentage, maxTokens } = useAgentSessionContextUsage(meta.sessionId, meta.model)
   const compaction = useAgentSessionCompaction(meta.sessionId)
   const isCompacting = compaction.status === 'compacting'
 
