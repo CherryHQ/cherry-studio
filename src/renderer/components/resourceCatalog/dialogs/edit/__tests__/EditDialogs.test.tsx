@@ -1656,7 +1656,7 @@ describe('edit dialogs', () => {
     expect(updateAssistantMock).toHaveBeenCalledTimes(1)
   })
 
-  it('prompts without closing or retrying an unchanged failed agent save', async () => {
+  it('allows discarding an unchanged failed agent save without retrying it', async () => {
     updateAgentMock.mockRejectedValueOnce(new Error('Network down'))
     const onOpenChange = vi.fn()
     render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
@@ -1676,8 +1676,21 @@ describe('edit dialogs', () => {
 
     expect(toast.error).toHaveBeenCalledTimes(2)
     expect(updateAgentMock).toHaveBeenCalledTimes(saveAttemptsAfterFailure)
-    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+  })
+
+  it('retries saving the agent when the form changes after a failed close', async () => {
+    updateAgentMock.mockRejectedValueOnce(new Error('Network down'))
+    const onOpenChange = vi.fn()
+    render(<AgentEditDialog open resource={AGENT} onOpenChange={onOpenChange} />)
+
+    const nameInput = screen.getByLabelText('Name')
+    fireEvent.change(nameInput, { target: { value: 'Closing Agent' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    await screen.findByText('Save failed', undefined, { timeout: 5000 })
     expect(onOpenChange).not.toHaveBeenCalledWith(false)
+    const saveAttemptsAfterFailure = updateAgentMock.mock.calls.length
 
     fireEvent.change(nameInput, { target: { value: 'Retry Agent' } })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
