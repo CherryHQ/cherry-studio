@@ -1,4 +1,6 @@
 import {
+  agentSessionMessageRoles,
+  agentSessionMessageSourceType,
   chatMessageRoles,
   chatMessageSourceType,
   type FileRefSourceType,
@@ -13,6 +15,7 @@ import { type SQL, sql, type SQLWrapper } from 'drizzle-orm'
 import { check, index, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
+import { agentSessionMessageTable } from './agentSessionMessage'
 import { fileEntryTable } from './file'
 import { jobTable } from './job'
 import { messageTable } from './message'
@@ -55,6 +58,28 @@ export const chatMessageFileRefTable = sqliteTable(
     index('cmfr_source_id_idx').on(t.sourceId),
     uniqueIndex('cmfr_unique_idx').on(t.fileEntryId, t.sourceId, t.role),
     check('cmfr_role_check', roleCheck(t.role, chatMessageRoles))
+  ]
+)
+
+/** Agent-session message attachments; both owner and file deletion cascade the ref. */
+export const agentSessionMessageFileRefTable = sqliteTable(
+  'agent_session_message_file_ref',
+  {
+    id: uuidPrimaryKey(),
+    fileEntryId: text()
+      .notNull()
+      .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
+    sourceId: text()
+      .notNull()
+      .references(() => agentSessionMessageTable.id, { onDelete: 'cascade' }),
+    role: text().notNull().$type<(typeof agentSessionMessageRoles)[number]>(),
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    index('asmfr_entry_id_idx').on(t.fileEntryId),
+    index('asmfr_source_id_idx').on(t.sourceId),
+    uniqueIndex('asmfr_unique_idx').on(t.fileEntryId, t.sourceId, t.role),
+    check('asmfr_role_check', roleCheck(t.role, agentSessionMessageRoles))
   ]
 )
 
@@ -188,12 +213,14 @@ export const singleFileRefTablesBySourceType = {
  */
 export const persistentFileRefTablesBySourceType = {
   [chatMessageSourceType]: chatMessageFileRefTable,
+  [agentSessionMessageSourceType]: agentSessionMessageFileRefTable,
   [paintingSourceType]: paintingFileRefTable,
   [jobSourceType]: jobFileRefTable,
   ...singleFileRefTablesBySourceType
 } as const satisfies Record<
   PersistentFileRefSourceType,
   | typeof chatMessageFileRefTable
+  | typeof agentSessionMessageFileRefTable
   | typeof paintingFileRefTable
   | typeof jobFileRefTable
   | typeof providerLogoFileRefTable
@@ -213,6 +240,8 @@ export function persistentRefAbsenceConditions(): SQL[] {
 
 export type ChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferSelect
 export type InsertChatMessageFileRefRow = typeof chatMessageFileRefTable.$inferInsert
+export type AgentSessionMessageFileRefRow = typeof agentSessionMessageFileRefTable.$inferSelect
+export type InsertAgentSessionMessageFileRefRow = typeof agentSessionMessageFileRefTable.$inferInsert
 export type PaintingFileRefRow = typeof paintingFileRefTable.$inferSelect
 export type InsertPaintingFileRefRow = typeof paintingFileRefTable.$inferInsert
 export type JobFileRefRow = typeof jobFileRefTable.$inferSelect

@@ -640,12 +640,18 @@ describe('ChatMigrator message block index', () => {
     vi.clearAllMocks()
   })
 
-  it('resolves blocks from the temporary SQLite index without loading the full table into memory', async () => {
+  it('indexes one decoded block at a time before resolving it from temporary SQLite', async () => {
     const b1 = block('b1', 'u1')
     const b2 = block('b2', 'u1')
-    const readInBatches = vi.fn(async (_batchSize: number, onBatch: (items: OldBlock[]) => Promise<void>) => {
-      await onBatch([b2, b1])
-      return 2
+    const sourceBlocks = [b2, b1]
+    const decodedBatchSizes: number[] = []
+    const readInBatches = vi.fn(async (batchSize: number, onBatch: (items: OldBlock[]) => Promise<void>) => {
+      for (let index = 0; index < sourceBlocks.length; index += batchSize) {
+        const batch = sourceBlocks.slice(index, index + batchSize)
+        decodedBatchSizes.push(batch.length)
+        await onBatch(batch)
+      }
+      return sourceBlocks.length
     })
     const migrator = new ChatMigrator()
     const m = migrator as unknown as Record<string, unknown>
@@ -675,7 +681,8 @@ describe('ChatMigrator message block index', () => {
     expect(result?.messages).toHaveLength(1)
     expect(result?.messages[0]?.searchableText).toContain('Content of b1')
     expect(result?.messages[0]?.searchableText).toContain('Content of b2')
-    expect(readInBatches).toHaveBeenCalledWith(1000, expect.any(Function))
+    expect(readInBatches).toHaveBeenCalledWith(1, expect.any(Function))
+    expect(decodedBatchSizes).toEqual([1, 1])
   })
 })
 

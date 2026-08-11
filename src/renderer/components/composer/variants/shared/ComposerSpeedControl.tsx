@@ -4,7 +4,7 @@ import { cn } from '@renderer/utils/style'
 import { deriveThinkingOptions } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
 import { ChevronDown, Gauge, Zap } from 'lucide-react'
-import { useMemo } from 'react'
+import { type ReactNode, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const SLIDER_EFFORT_ORDER: readonly ThinkingOption[] = [
@@ -31,12 +31,8 @@ const EFFORT_LABEL_KEYS: Record<ThinkingOption, string> = {
   auto: 'assistants.settings.reasoning_effort.auto'
 }
 
-/** Keep the submitted selection valid without changing the provider's Default semantics. */
-export function resolveComposerReasoningEffort(model: Model, effort: ThinkingOption): ThinkingOption {
-  const reasoningOptions = deriveThinkingOptions(model) ?? []
-
-  return reasoningOptions.includes(effort) ? effort : 'default'
-}
+const WHEEL_STEP_THRESHOLD = 40
+const WHEEL_IDLE_RESET_MS = 120
 
 interface ComposerSpeedControlProps {
   model: Model
@@ -44,6 +40,85 @@ interface ComposerSpeedControlProps {
   fastMode: boolean
   onReasoningEffortChange: (effort: ThinkingOption) => void
   onFastModeChange: (enabled: boolean) => void
+}
+
+interface WheelStepControlProps {
+  children: ReactNode
+  className?: string
+  min: number
+  max: number
+  value: number
+  onValueChange: (value: number) => void
+}
+
+function normalizeWheelDelta(event: WheelEvent): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PIXEL) return event.deltaY
+  return Math.sign(event.deltaY) * WHEEL_STEP_THRESHOLD
+}
+
+function WheelStepControl({ children, className, min, max, value, onValueChange }: WheelStepControlProps) {
+  const wheelDeltaRef = useRef(0)
+  const wheelIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleWheel = useCallback(
+    (event: WheelEvent) => {
+      if (event.ctrlKey || event.metaKey || event.deltaY === 0) return
+
+      const normalizedDelta = normalizeWheelDelta(event)
+      const direction = normalizedDelta < 0 ? 1 : -1
+      const nextValue = Math.min(Math.max(value + direction, min), max)
+
+      if (nextValue === value) {
+        wheelDeltaRef.current = 0
+        return
+      }
+
+      event.preventDefault()
+      event.stopPropagation()
+
+      if (Math.sign(wheelDeltaRef.current) !== Math.sign(normalizedDelta)) wheelDeltaRef.current = 0
+      wheelDeltaRef.current += normalizedDelta
+
+      if (wheelIdleTimerRef.current) clearTimeout(wheelIdleTimerRef.current)
+      wheelIdleTimerRef.current = setTimeout(() => {
+        wheelDeltaRef.current = 0
+      }, WHEEL_IDLE_RESET_MS)
+
+      if (Math.abs(wheelDeltaRef.current) < WHEEL_STEP_THRESHOLD) return
+
+      wheelDeltaRef.current = 0
+      onValueChange(nextValue)
+    },
+    [max, min, onValueChange, value]
+  )
+
+  const setWheelTargetRef = useCallback(
+    (wheelTarget: HTMLDivElement | null) => {
+      if (!wheelTarget) return
+
+      wheelTarget.addEventListener('wheel', handleWheel, { passive: false })
+      return () => {
+        wheelTarget.removeEventListener('wheel', handleWheel)
+        wheelDeltaRef.current = 0
+        if (wheelIdleTimerRef.current) clearTimeout(wheelIdleTimerRef.current)
+        wheelIdleTimerRef.current = null
+      }
+    },
+    [handleWheel]
+  )
+
+  return (
+    <div ref={setWheelTargetRef} className={className}>
+      {children}
+    </div>
+  )
+}
+
+/** Keep the submitted selection valid without changing the provider's Default semantics. */
+export function resolveComposerReasoningEffort(model: Model, effort: ThinkingOption): ThinkingOption {
+  const reasoningOptions = deriveThinkingOptions(model) ?? []
+
+  return reasoningOptions.includes(effort) ? effort : 'default'
 }
 
 export function ComposerSpeedControl({
@@ -58,12 +133,13 @@ export function ComposerSpeedControl({
     const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
     return SLIDER_EFFORT_ORDER.filter((effort) => declaredEfforts.has(effort))
   }, [model])
-  const sliderEfforts = reasoningOptions.filter((effort) => effort !== 'default')
   const supportsReasoning = reasoningOptions.length > 1
-  const showEffortSlider = sliderEfforts.filter((effort) => effort !== 'none' && effort !== 'auto').length > 1
   const supportsFast = model.supportsFastMode === true
 
   if (!supportsReasoning && !supportsFast) return null
+
+  const sliderEfforts = reasoningOptions.filter((effort) => effort !== 'default')
+  const showEffortSlider = sliderEfforts.filter((effort) => effort !== 'none' && effort !== 'auto').length > 1
 
   // Model changes reconcile in an effect owned by the composer. During that one render, preserve
   // provider Default rather than displaying or submitting an invalid explicit tier.
@@ -80,7 +156,12 @@ export function ComposerSpeedControl({
   const currentIndex = selectedIndex >= 0 ? selectedIndex : 0
   const displayedEffort = showEffortSlider ? effectiveReasoningEffort : selectedOption
   const effortLabel = displayedEffort ? t(EFFORT_LABEL_KEYS[displayedEffort]) : ''
-  const triggerLabel = supportsReasoning ? effortLabel : fastMode ? t('agent.speed.fast') : t('agent.speed.label')
+  const effortControlLabel = t('agent.speed.effort')
+  const triggerLabel = fastMode ? t('agent.speed.fast') : t('agent.speed.label')
+  const handleSliderValueChange = (index: number) => {
+    const effort = sliderEfforts[index]
+    if (effort) onReasoningEffortChange(effort)
+  }
 
   return (
     <Popover>
@@ -92,7 +173,7 @@ export function ComposerSpeedControl({
           className="h-8 gap-1 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground"
           aria-label={t('agent.speed.title')}>
           <Gauge size={14} className="shrink-0" />
-          <span>{triggerLabel}</span>
+          <span>{supportsReasoning ? effortLabel : triggerLabel}</span>
           {supportsReasoning && fastMode && supportsFast ? <span>· {t('agent.speed.fast')}</span> : null}
           <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
         </Button>
@@ -105,7 +186,7 @@ export function ComposerSpeedControl({
         <div className="flex h-10 items-center px-2">
           {supportsReasoning ? (
             <div className="flex min-w-0 items-baseline gap-1 text-xs">
-              <span className="shrink-0 text-muted-foreground">{t('agent.speed.effort')}:</span>
+              <span className="shrink-0 text-muted-foreground">{effortControlLabel}:</span>
               <span
                 data-testid="composer-effort-slider-label"
                 aria-live="polite"
@@ -153,14 +234,19 @@ export function ComposerSpeedControl({
               <span className="text-muted-foreground">{t('agent.speed.faster')}</span>
               <span className="text-primary">{t('agent.speed.smarter')}</span>
             </div>
-            <div className="relative mt-1.5 h-8">
+            <WheelStepControl
+              value={currentIndex}
+              min={0}
+              max={sliderEfforts.length - 1}
+              className="relative mt-1.5 h-8"
+              onValueChange={handleSliderValueChange}>
               <Slider
                 value={[currentIndex]}
                 min={0}
                 max={sliderEfforts.length - 1}
                 step={1}
                 size="lg"
-                getThumbAriaLabel={() => t('agent.speed.effort')}
+                getThumbAriaLabel={() => effortControlLabel}
                 getThumbAriaValueText={() => effortLabel}
                 className={cn(
                   'h-8',
@@ -170,10 +256,7 @@ export function ComposerSpeedControl({
                   '[&_[data-slot=slider-thumb]]:border-border [&_[data-slot=slider-thumb]]:bg-popover! [&_[data-slot=slider-thumb]]:shadow-sm',
                   '[&_[data-slot=slider-thumb]:hover]:ring-0'
                 )}
-                onValueChange={([index]) => {
-                  const effort = sliderEfforts[index]
-                  if (effort) onReasoningEffortChange(effort)
-                }}
+                onValueChange={([index]) => handleSliderValueChange(index)}
               />
               <div className="pointer-events-none absolute inset-x-3 top-1/2 z-10 h-0">
                 {sliderEfforts.map((effort, index) =>
@@ -188,12 +271,12 @@ export function ComposerSpeedControl({
                   )
                 )}
               </div>
-            </div>
+            </WheelStepControl>
           </div>
         ) : supportsReasoning ? (
           <RadioGroup
             value={displayedEffort}
-            aria-label={t('agent.speed.effort')}
+            aria-label={effortControlLabel}
             className="gap-0"
             onValueChange={(effort) => onReasoningEffortChange(effort as ThinkingOption)}>
             {reasoningOptions.map((effort) => (

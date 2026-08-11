@@ -1,3 +1,4 @@
+import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
 import type { UpdateInfo } from 'builder-util-runtime'
 
@@ -10,6 +11,8 @@ import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommand
 import type { ExternalAppId } from '../../types/externalApp'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
+import type { UniqueModelId } from '../types/model'
+import type { ComposerMessageTokenKind } from '../types/uiParts'
 import type { WebSearchStatus } from '../types/webSearch'
 
 export type CacheAppUpdateState = {
@@ -126,6 +129,49 @@ export interface ChatScrollAnchor {
   key: string
   /** Pixels scrolled past the top of that group. */
   offset: number
+}
+
+export interface CacheComposerSerializedToken {
+  id: string
+  kind: ComposerMessageTokenKind | 'promptVariable'
+  label: string
+  icon?: string
+  description?: string
+  promptText?: string
+  payload?: unknown
+  index: number
+  textOffset: number
+}
+
+export interface CacheComposerAttachment {
+  fileTokenSourceId: string
+  path?: AbsoluteFilePath
+  name: string
+  origin_name: string
+  ext: string
+  size: number
+  type: FileType
+  composerFileKind?: 'pasted-text'
+}
+
+export interface CacheComposerDraftBase {
+  text: string
+  tokens: CacheComposerSerializedToken[]
+  files: CacheComposerAttachment[]
+  knowledgeBaseIds: string[]
+}
+
+export interface CacheChatComposerDraft extends CacheComposerDraftBase {
+  /** Explicit per-topic model selection; runtime model records are resolved when restoring. */
+  mentionedModelIds: UniqueModelId[]
+  /** Selection behavior cannot be inferred when zero or one models remain selected. */
+  modelMultiSelectMode: boolean
+}
+
+export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
+  workspaceKey: string
+  agentId: string
+  shouldValidateSkills?: boolean
 }
 
 export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null

@@ -5,11 +5,12 @@ import { BaseService, DependsOn, Emitter, type Event, Injectable, Phase, Service
 import { withSpanFunc } from '@mcp-trace/trace-core'
 import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import { buildFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import type { McpPrompt, McpResource, McpTool } from '@shared/types/mcp'
 import * as z from 'zod'
+
+import { buildMcpToolWireId } from './mcpToolId'
 
 const logger = loggerService.withContext('McpCatalogService')
 const mcpToolsCacheKey = (serverId: string): SharedCacheKey => `mcp.tools.${serverId}` as SharedCacheKey
@@ -83,7 +84,7 @@ export class McpCatalogService extends BaseService {
    * (see `writeToolsCache`). This is the push-invalidation channel that keeps per-session
    * tool snapshots consistent with the cache: the Claude Agent SDK snapshots each MCP bridge
    * server's tools once per session and never re-reads on its own, so the bridge
-   * (`createSdkMcpServerInstance`) subscribes here and relays every cache change as an MCP
+   * (`createMcpBridgeServer`) subscribes here and relays every cache change as an MCP
    * `tools/list_changed` notification, prompting the SDK to re-list against the fresh cache.
    *
    * Deliberately a NEW event, not a re-fire of `McpRuntimeService.onToolListChanged`: that
@@ -181,7 +182,11 @@ export class McpCatalogService extends BaseService {
           ...tool,
           inputSchema: MCP_TOOL_INPUT_SCHEMA.parse(tool.inputSchema),
           outputSchema: tool.outputSchema ? MCP_TOOL_OUTPUT_SCHEMA.parse(tool.outputSchema) : undefined,
-          id: buildFunctionCallToolName(server.name, tool.name),
+          id: buildMcpToolWireId({
+            serverId: server.id,
+            serverName: server.name,
+            toolName: tool.name
+          }),
           serverId: server.id,
           serverName: server.name,
           type: 'mcp'

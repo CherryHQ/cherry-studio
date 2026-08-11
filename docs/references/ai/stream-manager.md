@@ -311,6 +311,7 @@ interface StreamExecution {
 
   // Per-execution ring buffer for reconnect replay. Hitting
   // `maxBufferChunks` drops the oldest entry and bumps `droppedChunks`.
+  // Delta entries are split/merged under `maxDeltaBytes` in UTF-8 bytes.
   // Independent buffers prevent a chatty model from evicting a slower
   // model's replay (a shared buffer would).
   buffer: StreamChunkPayload[]

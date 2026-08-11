@@ -127,12 +127,14 @@ import { SessionResourceList } from '../../SessionResourceList'
 import { TopicResourceList } from '../../TopicResourceList'
 import {
   ResourceList,
+  type ResourceListPresentation,
   useResourceList,
   useResourceListActions,
   useResourceListGroupState,
   useResourceListRowState
 } from '../ResourceList'
 import type { ResourceListContextValue, ResourceListItemBase } from '../ResourceListContext'
+import { RESOURCE_LIST_DEFAULT_ROW_LAYOUT } from '../resourceListLayout'
 
 afterEach(() => {
   dndMocks.droppableData.clear()
@@ -163,6 +165,16 @@ const ITEMS: TestItem[] = [
   { id: 'beta', name: 'Beta', kind: 'session', pinned: true, updatedAt: 3 },
   { id: 'gamma', name: 'Gamma', kind: 'topic', pinned: true, updatedAt: 2 }
 ]
+
+/**
+ * On a header that switches away when clicked, the fold control is its own button beside the label,
+ * so `aria-expanded` lives there rather than on the header button carrying the group name.
+ */
+function chevronFor(groupHeaderButton: HTMLElement): HTMLElement {
+  const chevron = groupHeaderButton.parentElement?.querySelector(':scope > button[aria-expanded]')
+  if (!chevron) throw new Error('group header has no chevron button')
+  return chevron as HTMLElement
+}
 
 function Inspector() {
   const { state, view } = useResourceList<TestItem>()
@@ -539,7 +551,7 @@ describe('ResourceList', () => {
   })
 
   it('uses caller item size estimates while keeping group chrome at the shared row height', () => {
-    const estimateItemSize = vi.fn(() => 38)
+    const estimateItemSize = vi.fn(() => 44)
     const Provider = ResourceList.Provider<TestItem>
 
     render(
@@ -561,8 +573,9 @@ describe('ResourceList', () => {
 
     const options = lastVirtualizerOptions()
 
-    expect(options.estimateSize(0)).toBe(38)
-    expect(options.estimateSize(1)).toBe(38)
+    // index 0 is the group header (shared row height), index 1 the first item (caller's estimate)
+    expect(options.estimateSize(0)).toBe(RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size)
+    expect(options.estimateSize(1)).toBe(44)
     expect(estimateItemSize).toHaveBeenCalledWith(0)
   })
 
@@ -623,6 +636,13 @@ describe('ResourceList', () => {
     expect(listbox).toHaveAttribute('aria-activedescendant', 'resource-list-option-alpha')
     expect(screen.getByTestId('alpha-active')).toHaveTextContent('active')
     expect(screen.getByTestId('alpha-selected')).toHaveTextContent('selected')
+    const alphaRow = screen.getByTestId('alpha-selected').closest('[role="option"]')
+    expect(alphaRow).not.toHaveAttribute('data-active-descendant')
+    expect(alphaRow).toHaveClass(
+      'bg-resource-list-row-selected',
+      'text-resource-list-row-selected-foreground',
+      'hover:bg-resource-list-row-selected'
+    )
 
     fireEvent.keyDown(listbox, { key: 'ArrowDown' })
 
@@ -631,6 +651,13 @@ describe('ResourceList', () => {
     expect(screen.getByTestId('alpha-active')).toHaveTextContent('idle')
     expect(screen.getByTestId('beta-active')).toHaveTextContent('active')
     expect(screen.getByTestId('alpha-selected')).toHaveTextContent('selected')
+    const betaRow = screen.getByTestId('beta-active').closest('[role="option"]')
+    expect(betaRow).toHaveAttribute('data-active-descendant', 'true')
+    expect(betaRow).toHaveClass(
+      'bg-resource-list-row-active',
+      'text-resource-list-row-active-foreground',
+      'hover:bg-resource-list-row-active'
+    )
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(1, { align: 'auto' })
 
     fireEvent.keyDown(listbox, { key: 'End' })
@@ -812,7 +839,12 @@ describe('ResourceList', () => {
         <ResourceList.Item item={item}>
           <ResourceList.RenameField item={item} aria-label={`Rename ${item.name}`} />
           <span>{item.name}</span>
-          <button type="button" onClick={() => actions.startRename(item.id)}>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              actions.startRename(item.id)
+            }}>
             Rename {item.name}
           </button>
         </ResourceList.Item>
@@ -830,6 +862,8 @@ describe('ResourceList', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Rename Alpha' }))
     const input = screen.getByLabelText('Rename Alpha')
+    expect(input.closest('[role="option"]')).toHaveAttribute('aria-selected', 'false')
+    expect(input).toHaveClass('text-inherit')
     fireEvent.change(input, { target: { value: 'Renamed Alpha' } })
     fireEvent.keyDown(input, { key: 'Enter' })
 
@@ -837,6 +871,104 @@ describe('ResourceList', () => {
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       renamingId: null
     })
+  })
+
+  it('uses product row semantics without flattening foreground hierarchy', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider items={[ITEMS[0]]}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item} data-testid="resource-row">
+                <ResourceList.ItemLeadingSlot data-testid="resource-leading-slot">#</ResourceList.ItemLeadingSlot>
+                <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
+                <ResourceList.ItemActions>
+                  <ResourceList.ItemAction aria-label="Item action">#</ResourceList.ItemAction>
+                </ResourceList.ItemActions>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByTestId('resource-row')).toHaveClass(
+      'hover:bg-resource-list-row-hover',
+      'focus-visible:bg-resource-list-row-hover',
+      'has-[:focus-visible]:bg-resource-list-row-hover'
+    )
+    expect(screen.getByTestId('resource-row')).not.toHaveClass(
+      'hover:text-resource-list-row-active-foreground',
+      'hover:text-resource-list-row-selected-foreground'
+    )
+    expect(screen.getByText('Alpha')).toHaveClass(
+      'group-data-[active-descendant=true]:text-resource-list-row-active-foreground',
+      'group-data-[selected=true]:text-resource-list-row-selected-foreground'
+    )
+    expect(screen.getByText('Alpha')).not.toHaveClass('group-hover:text-inherit', 'group-focus-visible:text-inherit')
+    expect(screen.getByTestId('resource-leading-slot')).toHaveClass(
+      'group-data-[active-descendant=true]:text-resource-list-row-active-foreground',
+      'group-data-[selected=true]:text-resource-list-row-selected-foreground'
+    )
+    expect(screen.getByTestId('resource-leading-slot')).not.toHaveClass(
+      'group-hover:text-inherit',
+      'group-focus-visible:text-inherit'
+    )
+    expect(screen.getByRole('button', { name: 'Item action' })).toHaveClass(
+      'hover:bg-accent',
+      'hover:text-accent-foreground!',
+      'focus-visible:text-accent-foreground!'
+    )
+    // The action rail owns its intrinsic layout reserve; Item no longer needs to inspect React child types.
+    expect(
+      screen.getByRole('button', { name: 'Item action' }).closest('[data-resource-list-item-actions]')
+    ).toHaveClass('grid-cols-[0fr]', 'group-hover:grid-cols-[1fr]', 'focus-within:grid-cols-[1fr]')
+  })
+
+  it('owns left- and right-panel presentation styling without sidebar semantics', () => {
+    const Provider = ResourceList.Provider<TestItem>
+    const renderPresentation = (presentation: ResourceListPresentation) => (
+      <Provider items={[ITEMS[0]]}>
+        <ResourceList.Frame data-testid="resource-frame" presentation={presentation}>
+          <ResourceList.Header data-testid="resource-header">
+            <ResourceList.Search placeholder="Search resources" />
+          </ResourceList.Header>
+          <ResourceList.Body<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <ResourceList.ItemTitle>{item.name}</ResourceList.ItemTitle>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const view = render(renderPresentation('left-panel'))
+    const frame = screen.getByTestId('resource-frame')
+    const header = screen.getByTestId('resource-header')
+    const search = screen.getByPlaceholderText('Search resources')
+    const listbox = screen.getByRole('listbox')
+
+    expect(frame).toHaveAttribute('data-resource-list-presentation', 'left-panel')
+    expect(frame).toHaveClass('bg-background', 'border-r-[0.5px]')
+    expect(header).toHaveClass('gap-1')
+    expect(header).not.toHaveClass('pb-1')
+    expect(search).toHaveClass('h-7', 'rounded-full', 'border-border-subtle', 'bg-background-subtle', 'pl-6')
+    expect(search).not.toHaveClass('border-sidebar-border', 'bg-sidebar', 'text-sidebar-foreground')
+    expect(listbox).toHaveClass('pt-0', 'pb-3')
+
+    view.rerender(renderPresentation('right-panel'))
+
+    expect(frame).toHaveAttribute('data-resource-list-presentation', 'right-panel')
+    expect(frame).toHaveClass('h-full', 'bg-background')
+    expect(frame).not.toHaveClass('border-r-[0.5px]')
+    expect(header).toHaveClass('gap-1', 'pb-1')
+    expect(search).toHaveClass('h-8', 'rounded-lg', 'border-border-subtle', 'bg-background-subtle', 'pl-7')
+    expect(search.parentElement?.parentElement).toHaveClass('pt-1')
+    expect(listbox).toHaveClass('pt-0', 'pb-8')
   })
 
   it('cancels inline rename with Escape without committing the draft name', () => {
@@ -1461,17 +1593,24 @@ describe('ResourceList', () => {
     )
 
     const sessionButton = screen.getByRole('button', { name: 'session' })
+    expect(sessionButton.parentElement).toHaveClass('has-[:focus-visible]:bg-resource-list-row-hover')
     const sessionLabel = sessionButton.querySelector('span')
     const sessionChevron = sessionButton.querySelector<SVGSVGElement>('svg')
     expect(sessionLabel).not.toBeNull()
     expect(sessionChevron).not.toBeNull()
-    expect(sessionChevron!.previousElementSibling).toBe(sessionLabel)
+    // The chevron sits in its own icon-sized slot right after the label, so it lines up with the
+    // hover action buttons instead of hugging the text.
+    const sessionChevronSlot = sessionChevron!.parentElement
+    expect(sessionChevronSlot).toBe(sessionLabel!.nextElementSibling)
     expect(sessionLabel!).not.toHaveClass('flex-1')
-    expect(sessionChevron!).toHaveClass(
+    // Keyboard focus reveals it, a mouse click on the title does not — otherwise the chevron stays
+    // pinned open after every click.
+    expect(sessionChevronSlot!).toHaveClass(
       'hidden',
-      'group-hover/resource-list-group:block',
-      'group-focus-within/resource-list-group:block',
-      'group-has-data-[state=open]/resource-list-group:block'
+      'size-6',
+      'group-hover/resource-list-group:flex',
+      'group-has-[:focus-visible]/resource-list-group:flex',
+      'group-has-data-[state=open]/resource-list-group:flex'
     )
     expect(sessionChevron!.style.transform).toBe('rotate(90deg)')
 
@@ -1512,7 +1651,8 @@ describe('ResourceList', () => {
     )
     expect(screen.getByTestId('gamma-leading-slot').closest('[data-resource-list-item-row="true"]')).toHaveClass(
       '[&_[data-resource-list-leading-slot=true]]:hidden',
-      '[&_[role=option]]:!px-2.5'
+      '[&_[role=option]]:!px-2.5',
+      '[&_[data-resource-list-item-actions=true]]:!-mr-1'
     )
   })
 
@@ -1582,17 +1722,25 @@ describe('ResourceList', () => {
     )
 
     const sessionGroupButton = screen.getByRole('button', { name: 'session' })
+    const sessionChevron = chevronFor(sessionGroupButton)
     const sessionGroupHeader = sessionGroupButton.closest('[data-selected]')
-    expect(screen.getByText('session')).toHaveClass('font-normal')
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+    // One type voice for the whole list; a bucket header is set apart by colour, not size or weight.
+    expect(screen.getByText('session')).toHaveClass('font-normal', 'text-[13px]')
+    // The strip filling the rest of the row runs the same click as the label, so it has to look
+    // clickable too — a `cursor-default` there reads as dead space in the middle of a live row.
+    const sessionRowFiller = sessionChevron.nextElementSibling
+    expect(sessionRowFiller).toHaveAttribute('aria-hidden', 'true')
+    expect(sessionRowFiller).toHaveClass('cursor-pointer')
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
     expect(sessionGroupHeader).toBeNull()
 
     fireEvent.click(sessionGroupButton)
 
     expect(onGroupHeaderSelectItem).toHaveBeenCalledWith('alpha')
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'true')
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('Alpha').closest('[role="option"]')).toHaveAttribute('aria-selected', 'true')
-    expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
+    // The row itself is on screen and announces the selection — the header must not announce a second one.
+    expect(sessionGroupButton).not.toHaveAttribute('aria-current')
     expect(sessionGroupButton.closest('[data-selected]')).toHaveAttribute('data-selected', 'true')
     expect(sessionGroupButton.closest('[data-selected]')?.firstElementChild?.className).toContain('h-8')
     expect(screen.getByRole('button', { name: 'topic' })).not.toHaveAttribute('aria-current')
@@ -1603,11 +1751,59 @@ describe('ResourceList', () => {
 
     fireEvent.click(sessionGroupButton)
 
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'false')
     expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
     expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
       collapsedGroups: ['session'],
       selectedId: 'alpha'
+    })
+  })
+
+  it('folds a group open from its chevron without selecting anything in it', () => {
+    const onGroupHeaderSelectItem = vi.fn()
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        groupHeaderClickBehavior="select-first-then-toggle"
+        onGroupHeaderSelectItem={onGroupHeaderSelectItem}>
+        <ResourceList.Frame>
+          <Inspector />
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    const sessionChevron = chevronFor(screen.getByRole('button', { name: 'session' }))
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
+
+    fireEvent.click(sessionChevron)
+
+    // Peeking at the group leaves the current selection — and the conversation you are in — alone.
+    expect(onGroupHeaderSelectItem).not.toHaveBeenCalled()
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('Alpha')).not.toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: ['session'],
+      selectedId: null
+    })
+
+    fireEvent.click(sessionChevron)
+
+    expect(onGroupHeaderSelectItem).not.toHaveBeenCalled()
+    expect(sessionChevron).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('Alpha')).toBeInTheDocument()
+    expect(JSON.parse(screen.getByTestId('inspector').textContent ?? '{}')).toMatchObject({
+      collapsedGroups: [],
+      selectedId: null
     })
   })
 
@@ -1637,13 +1833,14 @@ describe('ResourceList', () => {
     )
 
     const sessionGroupButton = screen.getByRole('button', { name: 'session' })
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(chevronFor(sessionGroupButton)).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(sessionGroupButton)
 
     expect(onGroupHeaderSelectItem).toHaveBeenCalledWith('alpha')
     expect(onCollapsedStateChange).not.toHaveBeenCalled()
-    expect(sessionGroupButton).toHaveAttribute('aria-expanded', 'false')
+    expect(chevronFor(sessionGroupButton)).toHaveAttribute('aria-expanded', 'false')
+    // Collapsed: the selected row isn't rendered, so the header takes over announcing it.
     expect(sessionGroupButton).toHaveAttribute('aria-current', 'true')
   })
 
@@ -1725,6 +1922,66 @@ describe('ResourceList', () => {
     fireEvent.contextMenu(screen.getAllByRole('button', { name: 'Group more' })[0])
 
     expect(screen.queryByText('Group Context Menu')).not.toBeInTheDocument()
+  })
+
+  it('keeps bucket headers on the shared row rhythm while retaining their recessed voice', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderKind={(group) => (group.id === 'topic' ? 'bucket' : 'entity')}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    // Bucket semantics change the label voice, not the list's shared vertical rhythm.
+    const [firstHeader, secondHeader] = screen.getAllByRole('button', { name: /session|topic/ })
+    expect(firstHeader.closest('.h-9')).not.toBeNull()
+    expect(secondHeader.closest('.h-9')).not.toBeNull()
+
+    // The estimate has to agree with what got rendered or the virtualiser scrolls jumpily.
+    const rows = lastVirtualizerOptions()
+    expect(rows.estimateSize(0)).toBe(RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size)
+    expect(rows.estimateSize(1 + ITEMS.filter((item) => item.kind === 'session').length)).toBe(
+      RESOURCE_LIST_DEFAULT_ROW_LAYOUT.size
+    )
+
+    // Rhythm stays shared; the label voice still distinguishes a bucket from an entity.
+    expect(secondHeader.closest('.text-muted-foreground')).not.toBeNull()
+    expect(firstHeader.closest('.text-muted-foreground')).toBeNull()
+  })
+
+  it('renders headers of manageable groups at the same type as list content', () => {
+    const Provider = ResourceList.Provider<TestItem>
+
+    render(
+      <Provider
+        items={ITEMS}
+        groupBy={(item) => ({ id: item.kind, label: item.kind })}
+        getGroupHeaderAction={() => <ResourceList.GroupHeaderActionButton aria-label="Group more" />}>
+        <ResourceList.Frame>
+          <ResourceList.VirtualItems<TestItem>
+            renderItem={(item) => (
+              <ResourceList.Item item={item}>
+                <span>{item.name}</span>
+              </ResourceList.Item>
+            )}
+          />
+        </ResourceList.Frame>
+      </Provider>
+    )
+
+    expect(screen.getByText('session')).toHaveClass('font-normal', 'text-[13px]')
   })
 
   it('routes group header context menu items to the right group', async () => {
@@ -2039,8 +2296,10 @@ describe('ResourceList', () => {
     expect(screen.getByText('Alpha 6')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Collapse' })).toBeInTheDocument()
 
-    const sectionHeader = screen.getByRole('button', { name: 'Assistants' }).closest('div')
+    const sectionButton = screen.getByRole('button', { name: 'Assistants' })
+    const sectionHeader = sectionButton.closest('div')
     expect(sectionHeader).not.toBeNull()
+    expect(sectionButton.parentElement).toHaveClass('has-[:focus-visible]:bg-resource-list-row-hover')
 
     fireEvent.click(within(sectionHeader as HTMLElement).getByRole('button', { name: 'Collapse display' }))
 
@@ -2531,7 +2790,7 @@ describe('ResourceList', () => {
     expect(virtualMocks.scrollToIndex).toHaveBeenCalledWith(expect.any(Number), { align: 'center' })
   })
 
-  it('exposes explicit business variants without a shared mode prop', () => {
+  it('keeps business variants independent from presentation', () => {
     const variants = [
       ['session', SessionResourceList],
       ['topic', TopicResourceList]
@@ -2539,7 +2798,7 @@ describe('ResourceList', () => {
 
     for (const [name, Component] of variants) {
       const { unmount } = render(
-        <Component items={[{ id: `${name}-1`, name: `${name} item` }]}>
+        <Component items={[{ id: `${name}-1`, name: `${name} item` }]} presentation="left-panel">
           <ResourceList.VirtualItems
             renderItem={(item) => (
               <ResourceList.Item item={item}>

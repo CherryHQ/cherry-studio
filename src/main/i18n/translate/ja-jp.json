@@ -2,14 +2,14 @@
   "agent": {
     "builtin": {
       "cherry_assistant": {
-        "description": "Built-in Cherry Studio advisor. Diagnose issues, guide operations, collect FAQs, submit bugs/feature requests, and search/create Skills"
+        "description": "Cherry Studio 内蔵のアドバイザーです。問題の診断、操作案内、FAQ の収集、バグや機能リクエストの送信、スキルの検索と作成を行います。"
       }
     },
     "session": {
       "workspace_status": {
         "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
         "missing": "ワークスペースパスが存在しません: {{path}}",
-        "not_directory": "ワークスペースパスがディレクトリではありません: {{path}}"
+        "not_directory": "ワークスペースパスがフォルダーではありません: {{path}}"
       }
     }
   },
@@ -22,10 +22,13 @@
         "count_tokens": "Anthropic 形式のメッセージが消費する入力トークン数を見積もります。",
         "generate_content": "Gemini の `generateContent` メソッドでコンテンツを生成します。リクエストとレスポンスの形式は Gemini API と同じで、`streamGenerateContent` も同じパスで提供されます。",
         "get_knowledge_base": "ID を指定してナレッジベースを 1 件取得します。",
+        "get_mcp_server": "[to be translated]:Get an MCP server's details and its tool list.",
         "health": "サービスの稼働状態、現在時刻、バージョンを返します。認証は不要です。",
         "info": "API の名称・バージョンと主要なエンドポイントを返します。認証は不要です。",
         "list_knowledge_bases": "この Cherry Studio で利用できるナレッジベースの一覧を返します。",
+        "list_mcp_servers": "[to be translated]:List the MCP servers enabled in Cherry Studio, each with the URL to connect to it.",
         "list_models": "このゲートウェイで利用できるモデルを OpenAI の models 形式で一覧表示します。",
+        "mcp_proxy": "[to be translated]:Model Context Protocol endpoint for an MCP server (Streamable HTTP). Point any MCP client at this URL to use the server through Cherry Studio.",
         "messages": "メッセージを作成します。リクエストとレスポンスの形式は Anthropic Messages と同じで、`stream: true` を指定すると逐次出力になります。",
         "responses": "レスポンスを作成します。リクエストとレスポンスの形式は OpenAI Responses と同じです。",
         "search_knowledge_bases": "1 つ以上のナレッジベースを検索し、該当するドキュメントの断片を返します。"
@@ -42,7 +45,7 @@
     "about": "について",
     "close": "ウィンドウを閉じる",
     "copy": "コピー",
-    "cut": "切る",
+    "cut": "切り取り",
     "delete": "削除",
     "documentation": "ドキュメント",
     "edit": "編集",
@@ -50,12 +53,12 @@
     "file": "ファイル",
     "forceReload": "強制再読み込み",
     "front": "すべてを前面に移動",
-    "help": "助け",
-    "hide": "隠す",
-    "hideOthers": "他を隠す",
+    "help": "ヘルプ",
+    "hide": "Cherry Studio を隠す",
+    "hideOthers": "ほかを隠す",
     "minimize": "最小化",
     "paste": "ペースト",
-    "quit": "やめる",
+    "quit": "Cherry Studio を終了",
     "redo": "やり直し",
     "releases": "リリース",
     "reload": "リロード",
@@ -68,7 +71,7 @@
     "unhide": "すべて表示",
     "view": "表示",
     "website": "ウェブサイト",
-    "window": "窓",
+    "window": "ウィンドウ",
     "zoom": "ズーム",
     "zoomIn": "ズームイン",
     "zoomOut": "ズームアウト"
@@ -76,7 +79,7 @@
   "common": {
     "copy": "コピー",
     "cut": "切り取り",
-    "inspect": "検査",
+    "inspect": "要素を調査",
     "paste": "貼り付け"
   },
   "dialog": {
@@ -87,6 +90,10 @@
       "message": "チャット、アシスタント、ナレッジベース、ファイル、設定を消去して、アプリを再起動します。この操作は元に戻せません。続行しますか？",
       "title": "アプリデータをリセット"
     },
+    "diagnostic_bundle": {
+      "title": "診断バンドルを保存",
+      "zip_filter": "ZIP アーカイブ"
+    },
     "html_files": "HTMLファイル",
     "open_file": "ファイルを開く",
     "pdf_files": "PDFファイル",
@@ -94,7 +101,7 @@
     "save_as_html": "HTMLとして保存",
     "save_as_pdf": "PDFとして保存",
     "save_file": "ファイルを保存",
-    "select_folder": "フォルダを選択",
+    "select_folder": "フォルダーを選択",
     "word_document": "ワード文書"
   },
   "openclaw": {

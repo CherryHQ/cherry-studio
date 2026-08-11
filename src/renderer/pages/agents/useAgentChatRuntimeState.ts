@@ -25,7 +25,7 @@ import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
 import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -206,7 +206,13 @@ export function useAgentChatRuntimeState({
   // Deterministic overlay→DB handoff at terminal (see hook docs).
   useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay))
 
+  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
+  // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
+  // setState bail-out and force a re-render on every tab switch.
+  const optimisticInputsResetTopicIdRef = useRef(sessionTopicId)
   useEffect(() => {
+    if (optimisticInputsResetTopicIdRef.current === sessionTopicId) return
+    optimisticInputsResetTopicIdRef.current = sessionTopicId
     setOptimisticAskUserQuestionInputsByToolCallId({})
   }, [sessionTopicId])
 

@@ -18,7 +18,6 @@ import { contextBuildFeature } from './contextBuild'
 import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { devtoolsFeature } from './devtools'
 import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
-import { geminiToolSchemaCompatibilityFeature } from './geminiToolSchemaCompatibility'
 import { inLoopCompactionFeature } from './inLoopCompaction'
 import { noThinkFeature } from './noThink'
 import { openrouterReasoningFeature } from './openrouterReasoning'
@@ -30,6 +29,7 @@ import { simulateStreamingFeature } from './simulateStreaming'
 import { skipGeminiThoughtSignatureFeature } from './skipGeminiThoughtSignature'
 import { steerYieldFeature } from './steerYield'
 import { terminalToolFailureFeature } from './terminalToolFailure'
+import { toolSchemaCompatibilityFeature } from './toolSchemaCompatibility'
 
 export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   devtoolsFeature,
@@ -45,10 +45,11 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   contextBuildFeature,
   anthropicCacheFeature,
   anthropicHeadersFeature,
+  // Provider-agnostic: tool schemas lose the keywords providers reject.
+  toolSchemaCompatibilityFeature,
   openrouterReasoningFeature,
   noThinkFeature,
   qwenThinkingFeature,
-  geminiToolSchemaCompatibilityFeature,
   skipGeminiThoughtSignatureFeature,
   providerWebSearchFeature,
   providerUrlContextFeature,

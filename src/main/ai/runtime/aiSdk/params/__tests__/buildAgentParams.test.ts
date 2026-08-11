@@ -64,6 +64,28 @@ beforeEach(() => {
 })
 
 describe('buildAgentParams provider resolution', () => {
+  it('passes the conversation id to provider configuration as the session id', async () => {
+    resolveProviderAiSdkConfigMock.mockResolvedValue({
+      config: { providerId: 'openai-compatible', providerSettings: {} },
+      credentialReceipt: { attribution: 'explicit', id: 'key', masked: 'sk-****' }
+    })
+    const provider = makeProvider({ id: 'opencode' })
+    const model = makeModel({ id: 'opencode::glm-5', providerId: 'opencode', apiModelId: 'glm-5' })
+
+    await buildAgentParams({
+      request: { chatId: 'topic-123' },
+      signal: undefined,
+      provider,
+      model
+    })
+
+    expect(resolveProviderAiSdkConfigMock).toHaveBeenLastCalledWith(
+      provider,
+      model,
+      expect.objectContaining({ sessionId: 'topic-123' })
+    )
+  })
+
   it('uses the resolved Vertex MaaS adapter, wire profile, and provider-options namespace', async () => {
     resolveProviderAiSdkConfigMock.mockResolvedValue({
       config: {
@@ -84,7 +106,11 @@ describe('buildAgentParams provider resolution', () => {
       id: 'vertex::openai/gpt-oss-120b-maas',
       providerId: 'vertex',
       apiModelId: 'openai/gpt-oss-120b-maas',
-      capabilities: [MODEL_CAPABILITY.REASONING],
+      capabilities: [
+        MODEL_CAPABILITY.REASONING,
+        MODEL_CAPABILITY.AUDIO_RECOGNITION,
+        MODEL_CAPABILITY.VIDEO_RECOGNITION
+      ],
       reasoning: {
         controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
         selectableEfforts: ['low', 'medium', 'high']
@@ -112,6 +138,7 @@ describe('buildAgentParams provider resolution', () => {
     })
 
     expect(result.sdkConfig.providerId).toBe('google-vertex-maas')
+    expect(result.nativeFileSupport).toMatchObject({ audio: true, video: false })
     expect(result.credentialReceipt).toEqual({ attribution: 'auth', method: 'iam-gcp' })
     expect(result.options.providerOptions).toMatchObject({
       vertex: {
@@ -1172,11 +1199,15 @@ describe('resolveToolCallLimit', () => {
 
   it('retains the effective default cap for assistant-less and disabled-limit requests', () => {
     expect(resolveToolCallLimit(undefined)).toBe(20)
-    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { enableMaxToolCalls: false, maxToolCalls: 7 } }))).toBe(100)
   })
 
   it('falls back when the configured limit is outside the supported range', () => {
-    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 101 } }))).toBe(20)
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 1001 } }))).toBe(100)
+  })
+
+  it('accepts a limit above the previous 100-round ceiling', () => {
+    expect(resolveToolCallLimit(makeAssistant({ settings: { maxToolCalls: 500 } }))).toBe(500)
   })
 })
 

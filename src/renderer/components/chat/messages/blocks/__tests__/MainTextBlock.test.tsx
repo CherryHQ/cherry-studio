@@ -5,6 +5,7 @@ import type { Model } from '@renderer/types/model'
 import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import type { ComposerMessageSnapshot } from '@shared/data/types/uiParts'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { Fragment, type HTMLAttributes, type ReactNode, type Ref } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -14,6 +15,7 @@ import MainTextBlock from '../MainTextBlock'
 const mockRenderConfig = vi.hoisted(() => ({
   renderInputMessageAsMarkdown: false
 }))
+const imagePreviewShowMock = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 
 const mockTranslations = vi.hoisted(() => ({
   'message.message.user_content.expand': 'Expand',
@@ -23,6 +25,12 @@ const mockTranslations = vi.hoisted(() => ({
 vi.mock('../../MessageListProvider', () => ({
   useMessageRenderConfig: () => mockRenderConfig,
   useOptionalMessageListActions: () => undefined
+}))
+
+vi.mock('@renderer/services/ImagePreviewService', () => ({
+  ImagePreviewService: {
+    show: imagePreviewShowMock
+  }
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -868,7 +876,8 @@ Hidden answer
       }
     )
 
-    it('should open a sent image preview from its linked file part with the composer keyboard contract', () => {
+    it('should open the shared image preview when a sent image token is activated', async () => {
+      const user = userEvent.setup()
       renderMainTextBlock({
         content: 'View photo.png now',
         role: 'user',
@@ -903,23 +912,19 @@ Hidden answer
       expect(trigger).toHaveAttribute('role', 'button')
       expect(trigger).toHaveAttribute('tabindex', '0')
 
-      trigger.focus()
-      fireEvent.keyDown(trigger, { key: 'Enter' })
-
-      const popover = screen.getByTestId('composer-message-token-popover-content')
-      expect(popover).toHaveAttribute('data-side', 'top')
-      expect(popover).toHaveAttribute('data-align', 'start')
-      expect(popover).toHaveAttribute('data-side-offset', '8')
-      expect(popover).toHaveFocus()
-      expect(screen.getByAltText('photo.png')).toHaveAttribute('src', 'file:///internal/message-files/photo.png')
-      expect(popover).not.toHaveTextContent('/internal/message-files/photo.png')
-
-      fireEvent.keyDown(trigger, { key: 'Escape' })
+      await user.click(trigger)
+      expect(imagePreviewShowMock).toHaveBeenCalledWith('file:///internal/message-files/photo.png')
       expect(screen.queryByTestId('composer-message-token-popover-content')).toBeNull()
-      expect(trigger).toHaveFocus()
+
+      trigger.focus()
+      await user.keyboard('{Enter}')
+      expect(imagePreviewShowMock).toHaveBeenCalledTimes(2)
+      expect(imagePreviewShowMock).toHaveBeenLastCalledWith('file:///internal/message-files/photo.png')
+      expect(screen.queryByTestId('composer-message-token-popover-content')).toBeNull()
     })
 
-    it('should apply the shared dangerous-file safety rule to a linked sent image preview', () => {
+    it('should apply the shared dangerous-file safety rule to a linked sent image preview', async () => {
+      const user = userEvent.setup()
       renderMainTextBlock({
         content: 'View icon.svg now',
         role: 'user',
@@ -950,10 +955,9 @@ Hidden answer
 
       const token = document.querySelector('[data-composer-token-kind="file"]') as HTMLElement
       const trigger = token.closest('[data-popover-trigger="true"]') as HTMLElement
-      trigger.focus()
-      fireEvent.keyDown(trigger, { key: 'Enter' })
+      await user.click(trigger)
 
-      expect(screen.getByAltText('icon.svg')).toHaveAttribute('src', 'file:///internal/message-files')
+      expect(imagePreviewShowMock).toHaveBeenCalledWith('file:///internal/message-files')
     })
 
     it('should preview sent pasted text from the linked internal file without persisting its path', async () => {

@@ -1,17 +1,18 @@
 ---
 name: cherry-tool-guide
-description: Cherry Studio first-party tool routing guide for general agents. Use this WHENEVER a task could be served by Cherry's built-in tools — even if the user never names a tool — including researching current/online information or requesting browser interaction (Cherry's web built-ins search and fetch but do not automate pages), answering from the user's own documents and knowledge bases, recalling or saving things across sessions (persistent memory), scheduling recurring or one-time tasks and sending notifications, connecting or repairing IM channels (Telegram/Feishu/Discord/Slack/WeChat/QQ), generating images or reporting produced files, discovering or installing command-line tools, and finding or installing new skills. Consult it BEFORE reaching for shell, Bash, or file tools to do any of these, so you route through the correct mcp__cherry-tools__*, mcp__agent-memory__*, and mcp__skills__* tool instead of inventing a workaround.
-version: 1.0.0
+description: Cherry Studio first-party tool and bundled-shell routing for general agents. For straightforward local work in shell-capable sessions, run JS/TS with `bun <file>` and one-off JS tools with `bun x`; run Python with `uv run [--with <pkg>] python` and one-off Python CLIs with `uvx`; search with `rg`. Load this guide before changing project dependencies, deciding whether a tool should be ephemeral or reusable, reading or converting local Office/PDF files, or using Cherry-owned web/browser, knowledge, persistent memory, schedules/notifications, IM channels, image generation, artifact reporting, managed CLI, or skill capabilities—even if the user names no tool. Consult it before shell/file workarounds; live tool schemas are authoritative.
+version: 1.2.0
 ---
 
 # Cherry Tool Guide
 
 Cherry Studio injects first-party tools into your session over three MCP servers
-(`mcp__cherry-tools__*`, `mcp__agent-memory__*`, `mcp__skills__*`). They act on the
-running app — the user's knowledge bases, IM channels, schedules, managed CLIs, and
+(`mcp__cherry-tools__*`, `mcp__agent-memory__*`, `mcp__skills__*`) and gives
+shell-capable general agents bundled runtimes for local execution. The MCP tools act on
+the running app — the user's knowledge bases, IM channels, schedules, managed CLIs, and
 skill library — through boundaries only Cherry owns. Shell and file tools cannot reach
-those boundaries correctly, so when a task matches a row below, route through the named
-tool rather than improvising with `Bash`/`Write`.
+those app boundaries correctly; use the bundled runtimes only for the local execution
+cases routed below.
 
 **This file is a router.** It carries only the global rules and the intent → tool →
 reference table. Each reference holds that domain's prerequisites, sequencing,
@@ -53,6 +54,7 @@ parameter names, enums, and required fields. Read it before every call.
 | Browser interaction (click, forms, screenshots) | *(unavailable via web built-ins)* | [web.md](references/web.md) |
 | Answer from the user's own documents | `mcp__cherry-tools__kb_list` → `mcp__cherry-tools__kb_search` → `mcp__cherry-tools__kb_read` | [knowledge.md](references/knowledge.md) |
 | Add / delete / re-index knowledge | `mcp__cherry-tools__kb_manage` (resolve IDs first; needs approval) | [knowledge.md](references/knowledge.md) |
+| Read or convert a local document | `mcp__cherry-tools__to_markdown` → read the returned temporary Markdown path as needed | [documents.md](references/documents.md) |
 | Recall a past fact, correction, or preference | `mcp__agent-memory__memory` (`search`) before re-asking | [memory.md](references/memory.md) |
 | Save durable knowledge vs. a one-off event | `mcp__agent-memory__memory` (`update` vs. `append`) | [memory.md](references/memory.md) |
 | Schedule a recurring / future task | `mcp__cherry-tools__cron` (Cherry scheduling only) | [autonomy.md](references/autonomy.md) |
@@ -60,6 +62,7 @@ parameter names, enums, and required fields. Read it before every call.
 | Inspect / connect / repair IM channels, rename agent | `mcp__cherry-tools__config` | [autonomy.md](references/autonomy.md) |
 | Generate an image | `mcp__cherry-tools__generate_image` (needs a painting model) | [outputs.md](references/outputs.md) |
 | Declare final deliverable file(s) | `mcp__cherry-tools__report_artifacts` | [outputs.md](references/outputs.md) |
+| Run JS/TS or Python, invoke a one-off package, search local code/files | bundled `bun`, `uv` / `uvx`, or `rg` according to task lifetime | [cli.md](references/cli.md) |
 | Find / install a command-line tool | `command -v` check → `mcp__cherry-tools__cli_list` → `mcp__cherry-tools__cli_search` → `mcp__cherry-tools__cli_install` (approval) | [cli.md](references/cli.md) |
 | Find / install a new capability skill | `mcp__skills__search_skills` → `mcp__skills__install_skill` (approval) | [skills.md](references/skills.md) |
 

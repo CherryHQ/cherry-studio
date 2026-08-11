@@ -1,7 +1,7 @@
-import { isLocalPaddleocrModelDownloaded } from '@main/ai/inference/ocrModelPaths'
-import { isMac, isWin } from '@main/core/platform'
+import { isDarwinX64, isMac, isWin, isWinArm64 } from '@main/core/platform'
 
 import { doc2xDocumentToMarkdownHandler } from './doc2x/documentToMarkdown/handler'
+import { localDocumentToMarkdownHandler } from './localDocument/documentToMarkdown/handler'
 import { localPaddleocrImageToTextHandler } from './localPaddleocr/imageToText/handler'
 import { mineruDocumentToMarkdownHandler } from './mineru/documentToMarkdown/handler'
 import { mistralDocumentToMarkdownHandler } from './mistral/documentToMarkdown/handler'
@@ -17,58 +17,78 @@ import type { FileProcessingProcessorRegistry } from './types'
 
 export const processorRegistry = {
   tesseract: {
-    isAvailable: () => true,
+    runtime: 'local',
+    isSupported: () => true,
     capabilities: {
       image_to_text: tesseractImageToTextHandler
     }
   },
   system: {
-    isAvailable: () => isMac || isWin,
+    runtime: 'local',
+    isSupported: () => isMac || isWin,
     capabilities: {
       image_to_text: systemImageToTextHandler
     }
   },
   paddleocr: {
-    isAvailable: () => true,
+    runtime: 'remote',
+    isSupported: () => true,
     capabilities: {
       image_to_text: paddleImageToTextHandler,
       document_to_markdown: paddleDocumentToMarkdownHandler
     }
   },
   'local-paddleocr': {
-    // Only usable once the model files are on disk (downloaded via the settings card).
-    isAvailable: isLocalPaddleocrModelDownloaded,
+    runtime: 'local',
+    // Intel Mac ships no onnxruntime-node binding, so the model can never run
+    // there. Whether it is *downloaded* is a separate, user-fixable question the
+    // UI must keep offering — see FILE_PROCESSOR_LOCAL_MODEL.
+    isSupported: () => !isDarwinX64,
     capabilities: {
       image_to_text: localPaddleocrImageToTextHandler
     }
   },
+  'local-document': {
+    runtime: 'local',
+    // Scanned PDFs need the local OCR model, while text PDFs need anydoc. The
+    // latter ships no Windows ARM64 binding or wasm fallback.
+    isSupported: () => !isDarwinX64 && !isWinArm64,
+    capabilities: {
+      document_to_markdown: localDocumentToMarkdownHandler
+    }
+  },
   ovocr: {
-    isAvailable: isOvOcrAvailable,
+    runtime: 'local',
+    isSupported: isOvOcrAvailable,
     capabilities: {
       image_to_text: ovocrImageToTextHandler
     }
   },
   mineru: {
-    isAvailable: () => true,
+    runtime: 'remote',
+    isSupported: () => true,
     capabilities: {
       document_to_markdown: mineruDocumentToMarkdownHandler
     }
   },
   doc2x: {
-    isAvailable: () => true,
+    runtime: 'remote',
+    isSupported: () => true,
     capabilities: {
       document_to_markdown: doc2xDocumentToMarkdownHandler
     }
   },
   mistral: {
-    isAvailable: () => true,
+    runtime: 'remote',
+    isSupported: () => true,
     capabilities: {
       document_to_markdown: mistralDocumentToMarkdownHandler,
       image_to_text: mistralImageToTextHandler
     }
   },
   'open-mineru': {
-    isAvailable: () => true,
+    runtime: 'remote',
+    isSupported: () => true,
     capabilities: {
       document_to_markdown: openMineruDocumentToMarkdownHandler
     }

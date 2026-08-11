@@ -34,7 +34,7 @@ import {
   initialAssistantFormState
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
-import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import { DEFAULT_ASSISTANT_SETTINGS, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { isNonChatModel } from '@shared/utils/model'
 import { Sparkles, Trash2 } from 'lucide-react'
@@ -102,7 +102,6 @@ type AssistantToolTab = 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
-const UI_MAX_TOOL_CALLS = 100
 
 function isAssistantToolTab(value: string): value is AssistantToolTab {
   return value === 'tools.mcp' || value === 'tools.knowledge'
@@ -236,7 +235,7 @@ function AssistantEditDialogContent({
   )
 
   // Tracks the exact form snapshot that failed so it cannot be retried until
-  // the user changes the form.
+  // the user changes the form, while a later close can explicitly discard it.
   const failedSaveKeyRef = useRef<string | null>(null)
 
   const wasOpenRef = useRef(false)
@@ -309,6 +308,7 @@ function AssistantEditDialogContent({
     }
     if (failedSaveKeyRef.current === changeKey) {
       toast.error(saveFailedMessage)
+      onOpenChange(false)
       return
     }
     void (async () => {
@@ -792,7 +792,9 @@ function AssistantAdvancedFields({
                 count: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
               })
         }
-        description={t('library.config.basic.field.max_tool_calls.hint')}
+        description={t('library.config.basic.field.max_tool_calls.hint', {
+          count: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+        })}
         enabled={values.enableMaxToolCalls}
         onEnabledChange={(checked) => form.setValue('enableMaxToolCalls', checked, { shouldDirty: true })}
         control={
@@ -802,8 +804,8 @@ function AssistantAdvancedFields({
             render={({ field }) => (
               <EditableNumber
                 block
-                min={1}
-                max={UI_MAX_TOOL_CALLS}
+                min={MIN_TOOL_CALLS}
+                max={MAX_TOOL_CALLS}
                 step={1}
                 precision={0}
                 align="start"

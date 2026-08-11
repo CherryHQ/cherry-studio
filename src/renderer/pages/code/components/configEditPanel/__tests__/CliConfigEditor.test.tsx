@@ -1,5 +1,5 @@
 import type { CliConfigFileDraft } from '@renderer/pages/code/cliConfig/types'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -15,7 +15,17 @@ vi.mock('@cherrystudio/ui', () => ({
       {children}
     </button>
   ),
-  CodeEditor: ({ value }: { value: string }) => <textarea readOnly value={value} />,
+  CodeEditor: ({ value, onChange }: { value: string; onChange?: (value: string) => void }) => (
+    <>
+      <textarea readOnly value={value} />
+      <button type="button" onClick={() => onChange?.(value)}>
+        echo value
+      </button>
+      <button type="button" onClick={() => onChange?.(`${value}\n`)}>
+        edit value
+      </button>
+    </>
+  ),
   Tabs: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsContent: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   TabsList: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -46,5 +56,23 @@ describe('CliConfigEditor', () => {
     render(<CliConfigEditor files={files} onChange={vi.fn()} />)
 
     expect(screen.getByRole('button', { name: 'code.format_json' })).toBeInTheDocument()
+  })
+
+  it('ignores a controlled editor change that echoes the current file content', () => {
+    const onChange = vi.fn()
+    render(<CliConfigEditor files={files} onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('echo value'))
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('forwards an actual editor content change', () => {
+    const onChange = vi.fn()
+    render(<CliConfigEditor files={files} onChange={onChange} />)
+
+    fireEvent.click(screen.getByText('edit value'))
+
+    expect(onChange).toHaveBeenCalledWith([{ ...files[0], content: `${files[0].content}\n` }])
   })
 })

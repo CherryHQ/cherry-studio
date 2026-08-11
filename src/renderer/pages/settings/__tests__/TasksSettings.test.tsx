@@ -814,7 +814,12 @@ describe('TasksSettings routing and creation', () => {
     taskPaginationMock.hasNext = false
     taskPaginationMock.hasPrev = false
     taskMutationMocks.createTask.mockResolvedValue(undefined)
-    taskMutationMocks.deleteTask.mockResolvedValue(true)
+    taskMutationMocks.deleteTask.mockImplementation(
+      async (_agentId: string, _taskId: string, options?: { onDeleted?: () => void | Promise<void> }) => {
+        await options?.onDeleted?.()
+        return true
+      }
+    )
     taskMutationMocks.refetchTasks.mockResolvedValue(undefined)
     taskMutationMocks.runTask.mockResolvedValue(true)
     taskMutationMocks.setTaskEnabled.mockResolvedValue(taskDataMock.task)
@@ -936,7 +941,13 @@ describe('TasksSettings routing and creation', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'agent.tasks.delete.label' }))
     fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'agent.tasks.delete.label' }))
 
-    await waitFor(() => expect(taskMutationMocks.deleteTask).toHaveBeenCalledWith('agent-1', 'task-1'))
+    await waitFor(() =>
+      expect(taskMutationMocks.deleteTask).toHaveBeenCalledWith(
+        'agent-1',
+        'task-1',
+        expect.objectContaining({ onDeleted: expect.any(Function) })
+      )
+    )
     expect(navigationMocks.navigate).toHaveBeenCalledWith({ to: '/settings/scheduled-tasks' })
     expect(taskMutationMocks.refetchTasks).not.toHaveBeenCalled()
   })

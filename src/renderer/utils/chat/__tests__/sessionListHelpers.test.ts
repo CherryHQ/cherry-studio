@@ -2,6 +2,7 @@ import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { describe, expect, it } from 'vitest'
 
+import { withSoleGroupLabelHidden } from '../resourceListBase'
 import {
   buildSessionDropAnchor,
   buildSessionWorkdirGroupDropAnchor,
@@ -14,6 +15,7 @@ import {
   normalizeSessionDropPayload,
   normalizeSessionWorkdirPath,
   SESSION_NO_PROJECT_GROUP_ID,
+  SESSION_PINNED_GROUP_ID,
   sortSessionsForDisplayGroups
 } from '../sessionListHelpers'
 import { createResourceListGroupReorderPayload, createResourceListItemReorderPayload } from './resourceListFixtures'
@@ -147,6 +149,50 @@ describe('SessionList helpers', () => {
       id: 'session:time:earlier',
       label: 'Earlier'
     })
+  })
+
+  it('drops the time bucket label when every session falls into the same bucket', () => {
+    const now = new Date(2026, 4, 15, 12)
+    const groupSession = createSessionDisplayGroupResolver({
+      labels: SESSION_GROUP_LABELS,
+      mode: 'time',
+      now
+    })
+    const earlierOnly = [
+      createSession({ id: 'earlier-a', updatedAt: localIso(2026, 5, 8, 9) }),
+      createSession({ id: 'earlier-b', updatedAt: localIso(2026, 5, 7, 9) })
+    ]
+
+    const soleBucket = withSoleGroupLabelHidden(groupSession, earlierOnly)
+    expect(soleBucket(earlierOnly[0])).toEqual({ id: 'session:time:earlier', label: '' })
+
+    const mixed = [...earlierOnly, createSession({ id: 'today', updatedAt: localIso(2026, 5, 15, 9) })]
+    const twoBuckets = withSoleGroupLabelHidden(groupSession, mixed)
+    expect(twoBuckets(earlierOnly[0])).toEqual({ id: 'session:time:earlier', label: 'Earlier' })
+  })
+
+  it('keeps the time bucket label once a pinned group shares the list, and never blanks pinned itself', () => {
+    const now = new Date(2026, 4, 15, 12)
+    const groupSession = createSessionDisplayGroupResolver({
+      labels: SESSION_GROUP_LABELS,
+      mode: 'time',
+      now
+    })
+    const pinned = createSession({ id: 'pinned', pinned: true, updatedAt: localIso(2026, 5, 8, 9) })
+    const earlier = createSession({ id: 'earlier', updatedAt: localIso(2026, 5, 7, 9) })
+
+    // "Earlier" now marks where the pinned block ends, so it keeps its label.
+    const withPinned = withSoleGroupLabelHidden(groupSession, [pinned, earlier], {
+      ignoreGroupIds: [SESSION_PINNED_GROUP_ID]
+    })
+    expect(withPinned(earlier)).toEqual({ id: 'session:time:earlier', label: 'Earlier' })
+    expect(withPinned(pinned)).toEqual({ id: SESSION_PINNED_GROUP_ID, label: 'Pinned' })
+
+    // A list that is nothing but pinned rows still says so — "Pinned" is a state, not a time bucket.
+    const allPinned = withSoleGroupLabelHidden(groupSession, [pinned], {
+      ignoreGroupIds: [SESSION_PINNED_GROUP_ID]
+    })
+    expect(allPinned(pinned)).toEqual({ id: SESSION_PINNED_GROUP_ID, label: 'Pinned' })
   })
 
   it('groups sessions by agent and workdir', () => {
