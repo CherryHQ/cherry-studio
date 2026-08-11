@@ -1,145 +1,156 @@
 {
-  "snapshot_date": "2026-08-10",
-  "generated_at": "2026-08-10T18:00:00Z",
-  "data_source": "GitHub MCP API (automated daily run)",
-  "open_issues": {
-    "total": 853,
-    "delta_from_yesterday": 15,
-    "new_last_24h": 24,
-    "no_label": 106,
-    "no_label_pct": 12.4,
-    "by_label": {
-      "UI/UX": 293,
-      "Models": 131,
-      "Assistant": 69,
-      "Data": 57,
-      "MCP": 52,
-      "Performance": 40,
-      "RAG": 31,
-      "help wanted": 23,
-      "discussion": 23,
-      "Connectivity": 18,
-      "needs-more-info": 15,
-      "needs-repro": 14,
-      "Docs": 13,
-      "internal_team": 7,
-      "feature": 7,
-      "needs-triage": 6,
-      "inactive": 52,
-      "Code Mate": 4,
-      "Agent": 3,
-      "P1": 3,
-      "no_label": 106
-    }
-  },
-  "open_prs": {
-    "total": 200,
-    "v2_base_open": 0,
-    "v1_base_open": 8,
-    "main_base_open": 170,
-    "feature_branch_open": 22,
-    "note": "All v2 development consolidated on main. 8 PRs target v1 for maintenance. 7 open toolchain PRs (typescript-7, vite-8, drop-eslint, oxfmt, tsgolint, ui-contract-oxc, drop-electron-toolkit-tsconfig). Oldest open PR: #14493 (chore: version packages, 2026-04-22, bot)."
-  },
-  "p1_open_issues": [
+  "generated_at": "2026-08-11T18:00:00Z",
+  "source": "mcp_github_api (sample 300/865 issues)",
+  "open_issues_total": 865,
+  "open_prs_total": 100,
+  "open_prs_targeting_main": 100,
+  "open_prs_targeting_v2": 0,
+  "unlabeled_pct_sample": 24.3,
+  "unlabeled_est_total": 210,
+  "p1_urgent_issues": [
     {
-      "number": 14899,
-      "title": "[Feature]: Unified Notification Center",
-      "labels": ["Planned", "P1", "feature", "UI/UX"],
-      "created_at": "2026-05-07T05:01:00Z",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/14899"
+      "number": 18408,
+      "title": "[Bug]: Custom API address is ignored, requests incorrectly routed to Anthropic (DeepSeek→Claude)",
+      "updated": "2026-08-11T17:43:51Z"
     },
     {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["P1", "Models"],
-      "created_at": "2026-03-18T14:34:38Z",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13608"
+      "number": 18397,
+      "title": "[Bug]: Model context window not passed to Claude Code SDK — [1m] suffix not parsed, context_window N",
+      "updated": "2026-08-11T15:58:02Z"
     },
     {
-      "number": 13193,
-      "title": "[Bug]: Azure OpenAI Resource not found (default use responses API)",
-      "labels": ["P1", "Models"],
-      "created_at": "2026-03-04T05:07:59Z",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/13193"
-    }
-  ],
-  "urgent_heuristic_issues": [
-    {
-      "number": 18273,
-      "title": "[Bug]: Backup restore extracts ZIP entries without path containment checks (zip-slip)",
-      "labels": ["Data"],
-      "created_at": "2026-08-09T17:20:37Z",
-      "severity": "CRITICAL_SECURITY",
-      "status": "STILL OPEN — unpatched",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18273"
+      "number": 18373,
+      "title": "Data directory relocation leaves stale absolute paths in DB (breaks agent workspace validation)",
+      "updated": "2026-08-11T09:08:26Z"
     },
     {
-      "number": 18318,
-      "title": "[Bug]: DeepSeek V4 Pro & 57 more models clamped to 100K context, constant auto-compaction and thrashing",
-      "labels": ["Models"],
-      "created_at": "2026-08-10T13:36:49Z",
-      "severity": "HIGH",
-      "status": "NEW TODAY",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18318"
+      "number": 18346,
+      "title": "[Bug]: Agent loses all conversation memory after restoring a backup on different machine",
+      "updated": "2026-08-11T04:33:32Z"
+    },
+    {
+      "number": 18336,
+      "title": "[Bug]: Agent Feishu channel WebSocket connects but inbound messages never reach session",
+      "updated": "2026-08-11T11:33:51Z"
     },
     {
       "number": 18317,
-      "title": "[Bug]: Agent session deadlocks — live-stream replay ring overflow blanks the assistant message and hides its pending tool-approval card",
-      "labels": ["Assistant"],
-      "created_at": "2026-08-10T13:20:31Z",
-      "severity": "HIGH",
-      "status": "NEW TODAY",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18317"
+      "title": "[Bug]: Agent session deadlocks — live-stream replay ring overflow blanks assistant message",
+      "updated": "2026-08-10T13:22:34Z"
     },
     {
-      "number": 18074,
-      "title": "[Bug]: CherryStudio v1.9.13 update suspected of accidentally deleting files in user's D drive folder",
-      "labels": [],
-      "created_at": "2026-08-07T03:18:10Z",
-      "severity": "CRITICAL_DATA_LOSS",
-      "status": "OPEN — unresolved",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18074"
+      "number": 18284,
+      "title": "[Bug]: S3 backup/restore failures: LOCK files, multipart 405, proxy corruption",
+      "updated": "2026-08-10T06:15:05Z"
+    },
+    {
+      "number": 18283,
+      "title": "[Bug]: cannot update from v.19.13 to v2",
+      "updated": "2026-08-10T03:28:20Z"
+    },
+    {
+      "number": 18273,
+      "title": "[Bug]: Backup restore extracts ZIP without path containment checks (zip-slip)",
+      "updated": "2026-08-09T17:22:44Z"
     },
     {
       "number": 18242,
-      "title": "[Bug]: v2.0.2 Normal chat triggers multiple redundant model calls without cache, causing duplicate billing",
-      "labels": ["Performance"],
-      "created_at": "2026-08-09T02:30:41Z",
-      "severity": "HIGH",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18242"
+      "title": "[Bug]: v2.0.2 Normal chat triggers multiple redundant model calls, duplicate billing",
+      "updated": "2026-08-11T06:08:32Z"
     },
     {
-      "number": 18314,
-      "title": "[Bug]: Knowledge path dedup suffix can push a filename past the filesystem limit, storing an item whose file was never written",
-      "labels": ["Data"],
-      "created_at": "2026-08-10T12:40:39Z",
-      "severity": "MEDIUM",
-      "status": "NEW TODAY",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18314"
+      "number": 18129,
+      "title": "[Bug]: Data migration failed",
+      "updated": "2026-08-07T11:00:48Z"
+    },
+    {
+      "number": 18063,
+      "title": "[Bug]: V8 SIGTRAP crash on main thread after ~9.5 days uptime",
+      "updated": "2026-08-08T13:52:45Z"
+    },
+    {
+      "number": 17890,
+      "title": "[Bug]: Unable to restore data",
+      "updated": "2026-08-05T11:34:14Z"
+    },
+    {
+      "number": 17846,
+      "title": "[Bug]: Can't download and install; crashes on install button",
+      "updated": "2026-08-05T01:38:32Z"
+    },
+    {
+      "number": 17629,
+      "title": "[Bug]: Processes remain running after closing window with Minimize to tray disabled",
+      "updated": "2026-08-11T12:34:41Z"
+    },
+    {
+      "number": 17490,
+      "title": "[Bug]: Clicking update button on knowledge base crashes Windows 11",
+      "updated": "2026-07-27T09:46:09Z"
+    },
+    {
+      "number": 17329,
+      "title": "[Bug]: Built-in Cherry Assistant agent crashes on first use",
+      "updated": "2026-07-24T02:16:12Z"
     }
   ],
-  "new_issues_today_sample": [
-    "#18325 [Feature]: Add outline/scrollbar navigation for messages",
-    "#18324 [Feature]: Show real-time API cost per conversation",
-    "#18323 [Bug]: Painting panel hardcodes response_format for Agnes AI (400 error)",
-    "#18321 [Feature]: Support per-model system prompts in multi-model turns",
-    "#18319 [Feature]: Make auto-compact trigger percentage configurable",
-    "#18318 [Bug]: DeepSeek V4 Pro & 57 more models clamped to 100K context (HIGH)",
-    "#18317 [Bug]: Agent session deadlocks — replay ring overflow (HIGH)",
-    "#18315 [Feature]: Allow selecting reasoning effort for multi-model turns",
-    "#18314 [Bug]: Knowledge path dedup suffix can overflow filesystem limit (MEDIUM)",
-    "#18311 [Bug]: Same model ID cannot configure multiple endpoints at one provider",
-    "#18310 [Feature]: Add API Key group management by model group",
-    "#18309 [Bug]: Same model from different providers hard to distinguish in painting params",
-    "#18307 [Bug]: File editor tabs lack right-click context menu",
-    "#18305 [Feature]: Add support for Qianwen AI platform",
-    "#18303 [Bug]: Multiple tool permission confirmations cause message flow stuck"
-  ],
-  "merged_prs_last_30d_estimate": 48,
-  "closed_issues_last_30d": 525,
-  "release_status": {
-    "latest_published": "v2.0.0-rc.4 (2026-08-02, pre-release)",
-    "next_draft": "v2.0.3 (draft, release PR #18210 merged 2026-08-08)"
+  "issue_health_sample": {
+    "active_lt7d": 178,
+    "aging_7_14d": 36,
+    "stale_14_30d": 86,
+    "zombie_gt30d": 0,
+    "active_pct": 59.3,
+    "aging_pct": 12.0,
+    "stale_pct": 28.7,
+    "zombie_pct": 0.0
   },
-  "velocity_note": "853 open issues (+15 from yesterday). 24 new issues filed today. CRITICAL: zip-slip (#18273) still unpatched. HIGH: DeepSeek models clamped to 100K context (#18318, NEW). HIGH: Agent session deadlock on replay ring overflow (#18317, NEW). Uncategorized rate improved significantly: 22.1% → 12.4% (team labeled ~79 issues). PR count 200 (full 2-page fetch). 5 active backup-stack PRs, 7 toolchain PRs in flight."
+  "top_labels": {
+    "UI/UX": 79,
+    "Models": 57,
+    "Assistant": 23,
+    "Performance": 22,
+    "help wanted": 20,
+    "discussion": 20,
+    "Data": 19,
+    "RAG": 13,
+    "needs-repro": 11,
+    "MCP": 10,
+    "Connectivity": 7,
+    "needs-more-info": 7,
+    "Docs": 5,
+    "internal_team": 4,
+    "feature": 3
+  },
+  "merges_today": 38,
+  "merges_sample_titles": [
+    "fix(doubao): normalize missing Responses annotations (#18392)",
+    "fix(system-ocr): transcode non-PNG images to PNG on Windows (#18361)",
+    "feat(agent-composer): support folder mentions (#18342)",
+    "fix(claude-code-runtime): budget auto-compaction against real request (#18338)",
+    "fix(window-manager): hide Dock icon on close-to-tray (#18366→#18186)",
+    "fix(tool-approval): advance multiple permission requests (#18312)",
+    "fix(image-viewer): bake rotation/flip into saved image (#18322)",
+    "feat(qq-channel): handle GROUP_MESSAGE_CREATE event (#18152)",
+    "fix(painting): keep size controls clear of nearby content (#18360)",
+    "fix(agent-session): discard crashed sessions resume tokens at boot reconcile (#18289)"
+  ],
+  "v2_branch_prs": {
+    "open": 0,
+    "merged_30d": "N/A – v2 PRs merged into main branch directly",
+    "note": "No open PRs target 'v2' branch; main is the active development branch"
+  },
+  "label_summary": {
+    "Models": 57,
+    "UI/UX": 79,
+    "Performance": 22,
+    "RAG": 13,
+    "Data": 19,
+    "MCP": 10,
+    "Assistant": 23,
+    "Connectivity": 7,
+    "discussion": 20,
+    "needs_repro": 11,
+    "needs_more_info": 7,
+    "internal_team": 4
+  }
 }

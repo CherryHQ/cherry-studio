@@ -1,181 +1,296 @@
 {
-  "report_date": "2026-08-10",
-  "generated_at": "2026-08-10T18:00:00Z",
-  "data_source": "GitHub MCP API — 853 open issues (200 sampled in detail)",
-  "total_open": 853,
-  "health_summary": {
-    "Active": {"count": 130, "pct": 15.2, "definition": "created in last 7 days (since Aug 3)"},
-    "Aging":  {"count": 170, "pct": 19.9, "definition": "created 7–30 days ago (Jul 11–Aug 3)"},
-    "Stale":  {"count": 285, "pct": 33.4, "definition": "created 30–90 days ago (May 11–Jul 11)"},
-    "Zombie": {"count": 268, "pct": 31.4, "definition": "created >90 days ago (before May 11)"}
+  "generated_at": "2026-08-11T18:00:00Z",
+  "methodology": "Sampled 300 of 865 open issues, classified by last-updated date",
+  "cutoff_today": "2026-08-11",
+  "thresholds": {
+    "active_days": 7,
+    "aging_days": 14,
+    "stale_days": 30
   },
-  "label_coverage": {
-    "labeled":   747,
-    "unlabeled": 106,
-    "unlabeled_pct": 12.4,
-    "note": "Significant improvement from yesterday (22.1% → 12.4%); team labeled ~79 issues overnight"
+  "sample_300": {
+    "active_lt7d": {
+      "count": 178,
+      "pct": 59.3
+    },
+    "aging_7_14d": {
+      "count": 36,
+      "pct": 12.0
+    },
+    "stale_14_30d": {
+      "count": 86,
+      "pct": 28.7
+    },
+    "zombie_gt30d": {
+      "count": 0,
+      "pct": 0.0
+    }
   },
-  "top_labels": {
-    "UI/UX": 293,
-    "Models": 131,
-    "Assistant": 69,
-    "Data": 57,
-    "MCP": 52,
-    "inactive": 52,
-    "Performance": 40,
-    "RAG": 31,
-    "help wanted": 23,
-    "discussion": 23,
-    "Connectivity": 18,
-    "needs-more-info": 15,
-    "needs-repro": 14,
-    "Docs": 13,
-    "internal_team": 7,
-    "feature": 7,
-    "needs-triage": 6,
-    "Code Mate": 4,
-    "Agent": 3,
-    "P1": 3
+  "estimated_total_865": {
+    "active_lt7d": 513,
+    "aging_7_14d": 104,
+    "stale_14_30d": 248,
+    "zombie_gt30d": 0
   },
-  "notable_active_issues": [
+  "unlabeled": {
+    "sample_count": 73,
+    "sample_pct": 24.3,
+    "estimated_total": 210,
+    "sample_unlabeled_issues": [
+      {
+        "number": 18408,
+        "title": "[Bug]: Custom API address is ignored, requests incorrectly routed to Anthropic (",
+        "created": "2026-08-11T17:42:52Z"
+      },
+      {
+        "number": 18396,
+        "title": "[Feature]: Add Branching Functionality to Agent Sessions",
+        "created": "2026-08-11T14:45:35Z"
+      },
+      {
+        "number": 18395,
+        "title": "[Feature]: Voice Playback",
+        "created": "2026-08-11T14:10:50Z"
+      },
+      {
+        "number": 18382,
+        "title": "[Bug]: 发送超过8000字符的文件会被截断",
+        "created": "2026-08-11T10:14:16Z"
+      },
+      {
+        "number": 18346,
+        "title": "[Bug]: Agent loses all conversation memory after restoring a backup on different",
+        "created": "2026-08-11T04:33:32Z"
+      },
+      {
+        "number": 18340,
+        "title": "[Bug]: Debug panel cannot capture all requests",
+        "created": "2026-08-11T03:19:10Z"
+      },
+      {
+        "number": 18333,
+        "title": "[Bug]: Detached sub-window live stream stuck; unsent draft lost on detach",
+        "created": "2026-08-11T02:17:04Z"
+      },
+      {
+        "number": 18328,
+        "title": "[Bug]: Knowledge base returns 503 'Query has no searchable tokens' for emoji/sym",
+        "created": "2026-08-10T22:51:21Z"
+      },
+      {
+        "number": 18319,
+        "title": "[Feature]: Make auto-compact trigger percentage configurable",
+        "created": "2026-08-10T13:45:42Z"
+      },
+      {
+        "number": 18287,
+        "title": "[Feature]: Support nested/categorized skill directory structure",
+        "created": "2026-08-10T05:27:20Z"
+      },
+      {
+        "number": 18284,
+        "title": "[Bug]: S3 backup/restore failures: LOCK files, multipart 405, proxy corruption",
+        "created": "2026-08-10T04:52:58Z"
+      },
+      {
+        "number": 18283,
+        "title": "[Bug]: cannot update from v.19.13 to v2",
+        "created": "2026-08-10T03:23:07Z"
+      },
+      {
+        "number": 18281,
+        "title": "[Bug]: v2.0.2 Work Agent freezes workspace after restoring interrupted task",
+        "created": "2026-08-10T02:31:45Z"
+      },
+      {
+        "number": 18279,
+        "title": "[Code Quality] pluginEngine: context.model update asymmetry",
+        "created": "2026-08-10T01:43:48Z"
+      },
+      {
+        "number": 18271,
+        "title": "[Feature]: Transparency and manual control over context compression",
+        "created": "2026-08-09T17:08:55Z"
+      },
+      {
+        "number": 18261,
+        "title": "[Bug]: Auto permission mode classifier has no fallback, model jitter rejects all",
+        "created": "2026-08-09T11:08:50Z"
+      },
+      {
+        "number": 18255,
+        "title": "[Bug]: Agent gateway doesn't set prompt_cache_key for GPT-5.6, unreliable cache ",
+        "created": "2026-08-09T07:38:56Z"
+      },
+      {
+        "number": 18240,
+        "title": "[Feature]: Version 2.0 no longer allows 0-context conversations",
+        "created": "2026-08-09T01:41:35Z"
+      },
+      {
+        "number": 18220,
+        "title": "[Feature]: Restore subscription source for web search blacklist (v1 feature)",
+        "created": "2026-08-08T16:42:33Z"
+      },
+      {
+        "number": 18207,
+        "title": "[Bug]: canonicalizeFilePath silently collapses leading //, bypassing UNC rejecti",
+        "created": "2026-08-08T11:37:30Z"
+      }
+    ]
+  },
+  "p1_critical_bugs": [
     {
-      "number": 18318,
-      "title": "[Bug]: DeepSeek V4 Pro & 57 more models clamped to 100K context, constant auto-compaction and thrashing",
-      "age_days": 0.2,
-      "labels": ["Models"],
-      "severity": "HIGH",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18318"
+      "number": 18408,
+      "title": "[Bug]: Custom API address is ignored, requests incorrectly routed to Anthropic (DeepSeek→Claude)",
+      "updated": "2026-08-11T17:43:51Z",
+      "labels": []
+    },
+    {
+      "number": 18397,
+      "title": "[Bug]: Model context window not passed to Claude Code SDK — [1m] suffix not parsed, context_window N",
+      "updated": "2026-08-11T15:58:02Z",
+      "labels": [
+        "Models"
+      ]
+    },
+    {
+      "number": 18373,
+      "title": "Data directory relocation leaves stale absolute paths in DB (breaks agent workspace validation)",
+      "updated": "2026-08-11T09:08:26Z",
+      "labels": [
+        "Data"
+      ]
+    },
+    {
+      "number": 18346,
+      "title": "[Bug]: Agent loses all conversation memory after restoring a backup on different machine",
+      "updated": "2026-08-11T04:33:32Z",
+      "labels": []
+    },
+    {
+      "number": 18336,
+      "title": "[Bug]: Agent Feishu channel WebSocket connects but inbound messages never reach session",
+      "updated": "2026-08-11T11:33:51Z",
+      "labels": [
+        "BUG",
+        "Connectivity"
+      ]
     },
     {
       "number": 18317,
       "title": "[Bug]: Agent session deadlocks — live-stream replay ring overflow blanks assistant message",
-      "age_days": 0.2,
-      "labels": ["Assistant"],
-      "severity": "HIGH",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18317"
+      "updated": "2026-08-10T13:22:34Z",
+      "labels": [
+        "Assistant"
+      ]
+    },
+    {
+      "number": 18284,
+      "title": "[Bug]: S3 backup/restore failures: LOCK files, multipart 405, proxy corruption",
+      "updated": "2026-08-10T06:15:05Z",
+      "labels": []
+    },
+    {
+      "number": 18283,
+      "title": "[Bug]: cannot update from v.19.13 to v2",
+      "updated": "2026-08-10T03:28:20Z",
+      "labels": []
     },
     {
       "number": 18273,
-      "title": "[Bug]: Backup restore extracts ZIP entries without path containment checks (zip-slip)",
-      "age_days": 1.0,
-      "labels": ["Data"],
-      "severity": "CRITICAL_SECURITY",
-      "url": "https://github.com/CherryHQ/cherry-studio/issues/18273"
-    },
-    {
-      "number": 18272,
-      "title": "[Bug]: Knowledge material filenames not sanitized on native add",
-      "age_days": 1.0,
-      "labels": ["Data"],
-      "severity": "HIGH"
+      "title": "[Bug]: Backup restore extracts ZIP without path containment checks (zip-slip)",
+      "updated": "2026-08-09T17:22:44Z",
+      "labels": [
+        "Data"
+      ]
     },
     {
       "number": 18242,
-      "title": "[Bug]: v2.0.2 Normal chat triggers redundant model calls, causing duplicate billing",
-      "age_days": 1.5,
-      "labels": ["Performance"],
-      "severity": "HIGH"
+      "title": "[Bug]: v2.0.2 Normal chat triggers multiple redundant model calls, duplicate billing",
+      "updated": "2026-08-11T06:08:32Z",
+      "labels": [
+        "Performance"
+      ]
     },
     {
-      "number": 18314,
-      "title": "[Bug]: Knowledge path dedup suffix can push filename past filesystem limit",
-      "age_days": 0.2,
-      "labels": ["Data"],
-      "severity": "MEDIUM"
+      "number": 18129,
+      "title": "[Bug]: Data migration failed",
+      "updated": "2026-08-07T11:00:48Z",
+      "labels": [
+        "Data"
+      ]
     },
     {
-      "number": 18243,
-      "title": "[Bug]: AI messages cannot be edited (user messages can be edited)",
-      "age_days": 1.6,
-      "labels": ["UI/UX"],
-      "comments": 1,
-      "note": "Related to discussion #18299 — v2 regression from v1.9.x"
-    }
-  ],
-  "notable_aging_issues": [
-    {
-      "number": 18074,
-      "title": "[Bug]: CherryStudio v1.9.13 update suspected of accidentally deleting files in user's D drive folder",
-      "age_days": 3.6,
-      "labels": [],
-      "severity": "CRITICAL_DATA_LOSS"
+      "number": 18063,
+      "title": "[Bug]: V8 SIGTRAP crash on main thread after ~9.5 days uptime",
+      "updated": "2026-08-08T13:52:45Z",
+      "labels": []
     },
     {
-      "number": 17957,
-      "title": "[Bug]: V2 repeated crash during data migration",
-      "age_days": 4.7,
-      "labels": ["Data"],
-      "comments": 3,
-      "note": "CLOSED 2026-08-10 — resolved by backup fixes"
+      "number": 17890,
+      "title": "[Bug]: Unable to restore data",
+      "updated": "2026-08-05T11:34:14Z",
+      "labels": [
+        "Data"
+      ]
     },
     {
-      "number": 17979,
-      "title": "[Bug]: .md files with Chinese filenames in subdirectories cannot be @-referenced",
-      "age_days": 4.5,
-      "labels": [],
-      "comments": 4,
-      "note": "CLOSED 2026-08-10"
-    },
-    {
-      "number": 17735,
-      "title": "[Bug]: Built-in web search fetches unlimited content → Agent context overflow",
-      "age_days": 10.0,
-      "labels": [],
-      "comments": 3
-    },
-    {
-      "number": 18054,
-      "title": "[Feature]: QQ adapter does not handle GROUP_MESSAGE_CREATE",
-      "age_days": 4.0,
-      "labels": [],
-      "comments": 7,
-      "note": "Fix PR #18152 open — fix(qq-channel): handle GROUP_MESSAGE_CREATE"
-    }
-  ],
-  "notable_stale_issues": [
-    {
-      "number": 17689,
-      "title": "MCP stdio server process leak — duplicate python instances per tool call",
-      "age_days": 10,
-      "labels": ["MCP", "Performance"],
-      "comments": 4,
-      "note": "Fix merged (#18146)"
+      "number": 17846,
+      "title": "[Bug]: Can't download and install; crashes on install button",
+      "updated": "2026-08-05T01:38:32Z",
+      "labels": [
+        "needs-more-info"
+      ]
     },
     {
       "number": 17629,
-      "title": "[Bug]: Processes remain running after closing window (minimize-to-tray disabled)",
-      "age_days": 11,
-      "labels": [],
-      "comments": 6
+      "title": "[Bug]: Processes remain running after closing window with Minimize to tray disabled",
+      "updated": "2026-08-11T12:34:41Z",
+      "labels": []
     },
     {
-      "number": 16825,
-      "title": "cherry-claw service: ToolCallChunkHandler fails to parse streaming args (all tool calls with long params fail)",
-      "age_days": 33,
-      "labels": [],
-      "comments": 3
+      "number": 17490,
+      "title": "[Bug]: Clicking update button on knowledge base crashes Windows 11",
+      "updated": "2026-07-27T09:46:09Z",
+      "labels": [
+        "RAG"
+      ]
+    },
+    {
+      "number": 17329,
+      "title": "[Bug]: Built-in Cherry Assistant agent crashes on first use",
+      "updated": "2026-07-24T02:16:12Z",
+      "labels": [
+        "Assistant"
+      ]
     }
   ],
-  "triage_recommendations": [
-    "#18273 (zip-slip): IMMEDIATE — security patch must ship BEFORE v2.0.3. Day 2 still open.",
-    "#18318 (DeepSeek 100K clamp): HIGH — 57 models affected, regressed today. Investigate context cap logic.",
-    "#18317 (Agent deadlock): HIGH — replay ring overflow + tool-approval hide. Should be paired with fix PR #18295.",
-    "#18074 (file deletion v1.9.13): INVESTIGATE — potential data-loss CVE, unresolved since Aug 7.",
-    "#18242 (duplicate billing): HIGH — users double-charged. Needs hotfix.",
-    "106 unlabeled issues (12.4%): Good progress! Continue triage sprint.",
-    "268 Zombie issues (>90d): quarterly sweep — most feature requests overtaken by v2 release.",
-    "Close resolved: #17957, #17979 already closed today. Check #18175 (agent leak, fix merged #18239)."
-  ],
-  "high_comment_issues": [
-    {"number": 6505, "title": "FAQ: Selection Assistant feedback thread", "comments": 367},
-    {"number": 5640, "title": "Cherry Studio as a Service (CSaaS)", "comments": 29},
-    {"number": 11906, "title": "Add video upload support", "comments": 8},
-    {"number": 18054, "title": "QQ adapter GROUP_MESSAGE_CREATE not handled", "comments": 7},
-    {"number": 17629, "title": "Processes remain after window close", "comments": 6},
-    {"number": 17954, "title": "v2.0 conversation history limit removed", "comments": 4},
-    {"number": 17689, "title": "MCP stdio server process leak", "comments": 4},
-    {"number": 17979, "title": ".md with Chinese filenames cannot be @-referenced (CLOSED today)", "comments": 4},
-    {"number": 17957, "title": "V2 repeated crash during data migration (CLOSED today)", "comments": 3},
-    {"number": 17735, "title": "Web search fetches unlimited content → overflow", "comments": 3}
+  "label_distribution_sample": {
+    "UI/UX": 79,
+    "Models": 57,
+    "Assistant": 23,
+    "Performance": 22,
+    "help wanted": 20,
+    "discussion": 20,
+    "Data": 19,
+    "RAG": 13,
+    "needs-repro": 11,
+    "MCP": 10,
+    "Connectivity": 7,
+    "needs-more-info": 7,
+    "Docs": 5,
+    "internal_team": 4,
+    "feature": 3,
+    "BUG": 1,
+    "Agent": 1
+  },
+  "bugs_in_sample": 147,
+  "features_in_sample": 108,
+  "recommendations": [
+    "865 open issues is high — recommend bug-triage sprint targeting P1 issues first",
+    "24.3% unlabeled in sample (~210 total) — needs label sweep",
+    "Agent/session reliability issues (deadlock, stale state, 401 auth) require urgent attention",
+    "Security issues: #18273 (zip-slip in restore), #17948 (localhost API exposure) — patch needed",
+    "v1→v2 migration failures (#18129, #18283, #17470) still open — migration UX needs hardening"
   ]
 }
