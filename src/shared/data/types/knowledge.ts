@@ -1,5 +1,5 @@
 import { AbsoluteFilePathSchema } from '@shared/types/file'
-import { sanitizeFilename } from '@shared/utils/file'
+import { PosixRelativeFilePathSchema, resolvePosixRelativeSegments, sanitizeFilename } from '@shared/utils/file'
 import * as z from 'zod'
 
 import { GroupIdSchema } from './group'
@@ -15,6 +15,44 @@ import { GroupIdSchema } from './group'
 // ============================================================================
 // Constants and Field Schemas
 // ============================================================================
+
+/**
+ * A path to a material under a knowledge base's `raw/` directory.
+ *
+ * POSIX, not the union brand: material paths are `/`-separated by construction
+ * (main spells them that way before storing) and are read back with `path.join`,
+ * which accepts `/` on Windows too. So a `\` in a stored value is part of a
+ * filename — a file legitimately named `a\b.txt` on Linux — and must survive
+ * round-tripping rather than being re-read as a directory boundary.
+ *
+ * `PosixRelativeFilePathSchema` carries the shape rules (non-empty, not anchored
+ * to a root, every segment legal on a POSIX filesystem). Layered on top are the
+ * two rules that depend on `raw/` being the base, which the shape layer has no
+ * way to know about:
+ *
+ * - **Stays inside it.** `../x` is a perfectly good relative path; as a material
+ *   path it is a traversal out of the knowledge base.
+ * - **Points below it, never at it.** `.` and `a/..` denote `raw/` itself, which
+ *   would make the base its own material — `deleteKnowledgeItemFiles` would then
+ *   remove the entire `raw/` tree instead of one item's file.
+ *
+ * The remaining knowledge rule — the reserved `CHERRY_META_DIR` prefix — stays
+ * imperative in `assertSafeKnowledgeRelativePath` (`main/features/knowledge/
+ * pathStorage.ts`), which guards the filesystem boundary and so also covers
+ * paths derived after this schema has run.
+ *
+ * Not checked here: whether the value could be restored onto Windows. A Linux
+ * user's `a\b.txt` or `CON.txt` is storable but has no Windows spelling — that
+ * is a migration-time conflict (`WindowsRelativeFilePathSchema` is the check),
+ * not a reason to refuse the row.
+ */
+export const KnowledgeRelativePathSchema = PosixRelativeFilePathSchema.refine((value) => {
+  // `PosixRelativeFilePath` permits `../x` — a relative path that points outside
+  // its base. Containment is the base owner's rule, so the material root asserts
+  // it here: `null` is a climb-out, `[]` is the root itself.
+  const segments = resolvePosixRelativeSegments(value)
+  return segments !== null && segments.length > 0
+}, 'must stay inside the knowledge base material root and point below it')
 
 export const KNOWLEDGE_ITEM_TYPES = ['file', 'url', 'note', 'directory'] as const
 export const KnowledgeItemTypeSchema = z.enum(KNOWLEDGE_ITEM_TYPES)
@@ -264,26 +302,12 @@ const KnowledgeItemSharedSchema = z.strictObject({
  * File item data.
  */
 export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
-  // relativePath / indexedRelativePath are always produced by main-side helpers
-  // (copyFileIntoKnowledgeBaseAt, toMaterialRelativePath, ...), never raw caller
-  // input. The base-relative, POSIX-normalized, no-traversal invariant is
-  // enforced imperatively by assertSafeKnowledgeRelativePath at the filesystem
-  // boundary (getKnowledgeBaseFilePath). This schema only validates shape, so a
-  // refined path schema here would duplicate that check — and cannot use
-  // node:path since this module also runs in the renderer.
-  relativePath: z
-    .string()
-    .trim()
-    .min(1)
-    .describe('Knowledge-base-relative, POSIX-normalized path for the copied source file.'),
-  indexedRelativePath: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .describe(
-      'Knowledge-base-relative, POSIX-normalized path for the file actually indexed, such as a processed markdown artifact.'
-    )
+  relativePath: KnowledgeRelativePathSchema.describe(
+    'Knowledge-base-relative, POSIX-normalized path for the copied source file.'
+  ),
+  indexedRelativePath: KnowledgeRelativePathSchema.optional().describe(
+    'Knowledge-base-relative, POSIX-normalized path for the file actually indexed, such as a processed markdown artifact.'
+  )
 })
 export type FileItemData = z.infer<typeof FileItemDataSchema>
 
@@ -293,14 +317,10 @@ export type FileItemData = z.infer<typeof FileItemDataSchema>
 export const UrlItemDataSchema = KnowledgeItemSharedSchema.extend({
   url: z.string().trim().min(1).describe('URL to read and index.'),
   // Written lazily by main on first index/refresh, never by raw caller input
-  // (add omits it). Same base-relative, POSIX-normalized, no-traversal invariant
-  // as FileItemData.relativePath, enforced at the filesystem boundary.
-  relativePath: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .describe('Knowledge-base-relative path for the captured URL snapshot markdown, written on first index.')
+  // (add omits it).
+  relativePath: KnowledgeRelativePathSchema.optional().describe(
+    'Knowledge-base-relative path for the captured URL snapshot markdown, written on first index.'
+  )
 })
 
 /**
@@ -309,14 +329,10 @@ export const UrlItemDataSchema = KnowledgeItemSharedSchema.extend({
 export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
   content: z.string().max(KNOWLEDGE_NOTE_CONTENT_MAX).describe('Plain text note content to index.'),
   // Written lazily by main on first index, never by raw caller input (add omits
-  // it). Same base-relative, POSIX-normalized, no-traversal invariant as
-  // FileItemData.relativePath, enforced at the filesystem boundary.
-  relativePath: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .describe('Knowledge-base-relative path for the captured note snapshot markdown, written on first index.')
+  // it).
+  relativePath: KnowledgeRelativePathSchema.optional().describe(
+    'Knowledge-base-relative path for the captured note snapshot markdown, written on first index.'
+  )
 })
 
 /**
@@ -327,15 +343,9 @@ export const NoteItemDataSchema = KnowledgeItemSharedSchema.extend({
 export const DirectoryItemDataSchema = KnowledgeItemSharedSchema.extend({
   // Written lazily by main on first expansion (add omits it): the deduped, base-relative
   // `raw/` directory prefix the container's files live under (e.g. `docs` or `docs_2`).
-  // Same POSIX-normalized, no-traversal invariant as FileItemData.relativePath.
-  relativePath: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .describe(
-      'Knowledge-base-relative `raw/` directory prefix the expanded files are stored under, written on first expansion.'
-    )
+  relativePath: KnowledgeRelativePathSchema.optional().describe(
+    'Knowledge-base-relative `raw/` directory prefix the expanded files are stored under, written on first expansion.'
+  )
 })
 export type DirectoryItemData = z.infer<typeof DirectoryItemDataSchema>
 
