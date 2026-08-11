@@ -1576,7 +1576,8 @@ export class MessageService {
    * `approval-requested` part (overlay-only — the part isn't persisted yet) the row is left untouched
    * and the still-overlay parts are returned; the caller carries the decision to the continuation,
    * which applies it authoritatively. A decision that targets an already-settled part is reported so
-   * stale duplicate clicks don't dispatch another continuation.
+   * stale duplicate clicks don't dispatch another continuation. Every actual write publishes the
+   * affected message read model after the transaction commits.
    */
   applyToolApprovalDecisions(
     anchorId: string,
@@ -1625,7 +1626,16 @@ export class MessageService {
         activityTopicId: targetPresent ? row.topicId : null
       }
     })
-    if (result.activityTopicId) notifyTopicActivityChange([result.activityTopicId])
+    if (result.activityTopicId) {
+      notifyTopicActivityChange([result.activityTopicId])
+      notifyDataApiDataChange([
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          entityIds: [anchorId]
+        }
+      ])
+    }
     return result.response
   }
 

@@ -21,6 +21,14 @@ import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { and, eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({
+  notifyDataApiDataChangeMock: vi.fn()
+}))
+
+vi.mock('@data/dataApiDataChange', () => ({
+  notifyDataApiDataChange: notifyDataApiDataChangeMock
+}))
+
 function mainText(content: string): MessageData {
   return { parts: [{ type: 'text', text: content }] }
 }
@@ -129,6 +137,7 @@ describe('MessageService', () => {
 
   beforeEach(async () => {
     mockMainLoggerService.warn.mockClear()
+    notifyDataApiDataChangeMock.mockClear()
     const [providerAKey, providerBKey, modelAKey, modelBKey] = generateOrderKeySequence(4)
     await dbh.db.insert(userProviderTable).values([
       { providerId: 'provider-a', name: 'Provider A', orderKey: providerAKey },
@@ -2943,6 +2952,32 @@ describe('MessageService', () => {
       const committed = messageService.getById('anchor')
       expect(stateOf(committed.data.parts, 'ap-a')).toBe('approval-responded')
       expect(stateOf(committed.data.parts, 'ap-b')).toBe('approval-responded')
+    })
+
+    it('publishes the message read-model change after every committed approval decision', async () => {
+      await seedAnchorWithTwoApprovals()
+
+      messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: true }])
+      messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-b', approved: false }])
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          entityIds: ['anchor']
+        }
+      ])
+      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          entityIds: ['anchor']
+        }
+      ])
+
+      messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-b', approved: true }])
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
     })
 
     it('commits the approval response and wait-span completion together', async () => {
