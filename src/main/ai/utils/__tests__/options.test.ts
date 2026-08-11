@@ -145,6 +145,7 @@ describe('mergeCustomProviderParameters', () => {
     // to `reasoningEffort` before being merged into the `copilot` provider namespace.
     const result = mergeCustomProviderParameters(
       { copilot: {} } as unknown as Record<string, Record<string, never>>,
+      { copilot: {} } as Record<string, Record<string, never>>,
       { reasoning_effort: 'high' },
       'github-copilot-openai-compatible',
       'github-copilot-openai-compatible'
@@ -160,6 +161,9 @@ describe('mergeCustomProviderParameters', () => {
     const result = mergeCustomProviderParameters(
       { copilot: {} } as unknown as Record<string, Record<string, never>>,
       { reasoning_effort: 'high', reasoningEffort: 'low' },
+    const result = mergeCustomProviderParameters(
+      { copilot: { reasoningEffort: 'low' } } as Record<string, Record<string, never>>,
+      { reasoning_effort: 'high' },
       'github-copilot-openai-compatible',
       'github-copilot-openai-compatible'
     )
