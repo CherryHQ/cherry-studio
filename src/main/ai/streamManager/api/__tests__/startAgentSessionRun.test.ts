@@ -28,15 +28,25 @@ const prepareDispatchMock = vi.fn((primary: StreamListener, req: { topicId: stri
   })
 })
 
-const { deliveryRows, getSessionMessage, listRecoverableDeliveries, sessionGetById, runtimeBusy, transitionDelivery } =
-  vi.hoisted(() => ({
-    deliveryRows: new Map<string, any>(),
-    getSessionMessage: vi.fn(),
-    listRecoverableDeliveries: vi.fn<() => unknown[]>(() => []),
-    sessionGetById: vi.fn(),
-    runtimeBusy: vi.fn(() => false),
-    transitionDelivery: vi.fn()
-  }))
+const {
+  deliveryRows,
+  finalizeDelivery,
+  getSessionMessage,
+  listRecoverableDeliveries,
+  resolveCrashOrphanedMessages,
+  sessionGetById,
+  runtimeBusy,
+  transitionDelivery
+} = vi.hoisted(() => ({
+  deliveryRows: new Map<string, any>(),
+  finalizeDelivery: vi.fn(),
+  getSessionMessage: vi.fn(),
+  listRecoverableDeliveries: vi.fn<() => unknown[]>(() => []),
+  resolveCrashOrphanedMessages: vi.fn(),
+  sessionGetById: vi.fn(),
+  runtimeBusy: vi.fn(() => false),
+  transitionDelivery: vi.fn()
+}))
 
 vi.mock('../../context/AgentChatContextProvider', () => ({
   agentChatContextProvider: { prepareDispatch: prepareDispatchMock }
@@ -48,8 +58,10 @@ vi.mock('@data/services/AgentSessionService', () => ({
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
+    finalizeSessionDelivery: finalizeDelivery,
     getSessionMessage,
     listRecoverableSessionDeliveries: listRecoverableDeliveries,
+    resolveCrashOrphanedMessages,
     transitionSessionDelivery: transitionDelivery
   }
 }))
@@ -151,7 +163,9 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
           return updated
         }
       )
+    finalizeDelivery.mockReset().mockReturnValue(null)
     listRecoverableDeliveries.mockReset().mockReturnValue([])
+    resolveCrashOrphanedMessages.mockReset()
 
     const Ctor = AiStreamManager as unknown as new () => ManagerInstance
     const manager = new Ctor()
@@ -405,6 +419,40 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
       expected: ['delivering'],
       turnRef: 'assistant-recovered'
     })
+  })
+
+  it('terminalizes a crashed delivery turn and discards its resume token before finalizing', async () => {
+    const accepted = deliveryMessage()
+    const delivering = {
+      ...accepted,
+      delivery: { ...accepted.delivery, status: 'delivering' as const, turnRef: 'assistant-crashed' }
+    }
+    const assistant = {
+      ...accepted,
+      id: 'assistant-crashed',
+      role: 'assistant' as const,
+      status: 'pending' as const,
+      data: { parts: [text('partial result')] },
+      delivery: null
+    }
+    deliveryRows.set(delivering.id, delivering)
+    getSessionMessage.mockReturnValueOnce(assistant)
+    listRecoverableDeliveries.mockReturnValue([delivering])
+
+    await recoverAcceptedAgentSessionDeliveries()
+
+    expect(resolveCrashOrphanedMessages).toHaveBeenCalledWith(
+      [{ id: assistant.id, data: assistant.data }],
+      [delivering.sessionId]
+    )
+    expect(finalizeDelivery).toHaveBeenCalledWith({
+      requestSessionId: delivering.sessionId,
+      requestMessageId: delivering.id,
+      assistantMessageId: assistant.id,
+      outcome: 'interrupted'
+    })
+    expect(prepareDispatchMock).not.toHaveBeenCalled()
+    expect(sendSpy).not.toHaveBeenCalled()
   })
 
   it('reclaims a queued delivery only during startup recovery after its process-local FIFO is gone', async () => {

@@ -8,6 +8,7 @@ import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { buildAgentSessionTopicId } from '../../agentSession/topic'
 import { agentChatContextProvider } from '../context/AgentChatContextProvider'
+import { finalizeInterruptedParts } from '../persistence/PersistenceBackend'
 import type { StreamListener } from '../types'
 
 const logger = loggerService.withContext('AgentSessionDelivery')
@@ -276,7 +277,18 @@ export async function recoverAcceptedAgentSessionDeliveries(): Promise<void> {
             if (!(isDataApiError(error) && error.code === ErrorCode.NOT_FOUND)) throw error
           }
           if (assistant?.status === 'pending') {
-            agentSessionMessageService.markMessagesError([assistant.id])
+            agentSessionMessageService.resolveCrashOrphanedMessages(
+              [
+                {
+                  id: assistant.id,
+                  data: {
+                    ...assistant.data,
+                    parts: finalizeInterruptedParts(assistant.data.parts ?? [], 'error')
+                  }
+                }
+              ],
+              [message.sessionId]
+            )
             const result = agentSessionMessageService.finalizeSessionDelivery({
               requestSessionId: message.sessionId,
               requestMessageId: message.id,

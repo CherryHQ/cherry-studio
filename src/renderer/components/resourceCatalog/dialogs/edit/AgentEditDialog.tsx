@@ -438,6 +438,7 @@ function AgentEditDialogContent({
     }
     if (failedSaveKeyRef.current === autoSaveChangeKey) {
       toast.error(saveFailedMessage)
+      onOpenChange(false)
       return
     }
     void (async () => {
