@@ -7299,7 +7299,6 @@
       },
       "progress": {
         "analyzing": "正在分析文档版式",
-        "details": "阶段 {{stageProgress}}% · 总体 {{overallProgress}}%",
         "downloading_assets": "正在下载 PDF 处理资源...",
         "generating": "正在生成译文 PDF",
         "percent": "{{progress}}%",

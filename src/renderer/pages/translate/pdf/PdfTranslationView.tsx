@@ -409,10 +409,6 @@ const PdfTranslationResult = ({
             progress={state.progress.overallProgress}
             label={progressLabel}
             percentLabel={t('translate.pdf.progress.percent', { progress: roundedOverallProgress })}
-            detailsLabel={t('translate.pdf.progress.details', {
-              overallProgress: roundedOverallProgress,
-              stageProgress: roundedStageProgress
-            })}
             valueText={t('translate.pdf.progress.value', {
               stage: progressLabel,
               overallProgress: roundedOverallProgress,
@@ -487,13 +483,11 @@ const PdfProgress = ({
   progress,
   label,
   percentLabel,
-  detailsLabel,
   valueText
 }: {
   progress: number
   label: string
   percentLabel: string
-  detailsLabel: string
   valueText: string
 }) => {
   const roundedProgress = Math.round(progress)
@@ -515,10 +509,7 @@ const PdfProgress = ({
           labelClassName="font-medium text-foreground text-xs"
         />
       </div>
-      <div className="flex max-w-64 flex-col gap-1 text-sm">
-        <span className="text-foreground">{label}</span>
-        <span className="text-muted-foreground text-xs">{detailsLabel}</span>
-      </div>
+      <span className="max-w-64 text-foreground text-sm">{label}</span>
     </div>
   )
 }

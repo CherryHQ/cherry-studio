@@ -159,7 +159,7 @@ describe('PdfTranslationView', () => {
       'aria-valuenow',
       '10'
     )
-    expect(screen.getByText('translate.pdf.progress.details')).toBeInTheDocument()
+    expect(screen.queryByText('translate.pdf.progress.details')).not.toBeInTheDocument()
 
     act(() => {
       mocks.progressHandler?.({
