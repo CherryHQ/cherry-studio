@@ -108,7 +108,7 @@ cancelSignIn: vi.fn(() => Promise.resolve()),
 
 ~~~ts
 it('dispatches sign_in.attach to the active main-process sign-in', async () => {
-  await expect(oauthHandlers['oauth.sign_in.attach'](provider, ctx)).resolves.toEqual({
+  await expect((oauthHandlers['oauth.sign_in.attach'])(provider, ctx)).resolves.toEqual({
     status: 'completed',
     account: { accountId: 'acc-1' }
   })
@@ -206,7 +206,7 @@ pnpm exec vitest run --project main src/main/services/oauth/runtime/__tests__/OA
 it('maps a sign-in cancellation to the stable IPC error code', async () => {
   runtimeService.signIn.mockRejectedValueOnce(new OAuthSignInCancelledError('codex'))
 
-  const error = await oauthHandlers['oauth.sign_in'](provider, ctx).catch((value: unknown) => value)
+  const error = await (oauthHandlers['oauth.sign_in'])(provider, ctx).catch((value: unknown) => value)
 
   expect(error).toBeInstanceOf(IpcError)
   expect(error).toMatchObject({ code: oauthErrorCodes.SIGN_IN_CANCELLED })
@@ -215,7 +215,7 @@ it('maps a sign-in cancellation to the stable IPC error code', async () => {
 it('maps an attached sign-in cancellation to the stable IPC error code', async () => {
   runtimeService.joinActiveSignIn.mockRejectedValueOnce(new OAuthSignInCancelledError('codex'))
 
-  const error = await oauthHandlers['oauth.sign_in.attach'](provider, ctx).catch((value: unknown) => value)
+  const error = await (oauthHandlers['oauth.sign_in.attach'])(provider, ctx).catch((value: unknown) => value)
 
   expect(error).toBeInstanceOf(IpcError)
   expect(error).toMatchObject({ code: oauthErrorCodes.SIGN_IN_CANCELLED })
