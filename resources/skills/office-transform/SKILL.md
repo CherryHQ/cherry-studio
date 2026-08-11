@@ -95,6 +95,31 @@ styles, charts, images, and macros in untouched parts survive exactly. Edit shap
   paragraph keeps its paragraph style and the first run's character style; other inline
   content within that one paragraph (mixed run styling, hyperlinks) is flattened.
 
+### Generate — write ad-hoc library code for new documents
+
+Generation (a fresh deck, workbook, or document — from scratch or from data you
+just extracted) has no source file to protect, so there is no fixed script: write a
+short Python program against the matching library (`python-pptx`, `openpyxl`,
+`python-docx`) and run it via `uv run --with <pkg> python`. The two skill
+invariants still apply: write to a new file (never a path the user's original
+occupies), and verify the output by reopening it before reporting success.
+
+### Edit pptx — use python-pptx, saving to a new path
+
+pptx edits do not go through `office_patch_copy.py`. `python-pptx` mutates the
+original lxml tree in place and preserves XML it does not understand, so it is
+round-trip safe (unlike `openpyxl`, which drops charts and drawings — that is why
+xlsx edits use patch-copy). Open the source, apply the targeted change (locate
+shapes by `shape_id` to match anchor `nodeId`), and `save()` to a NEW path:
+
+```python
+from pptx import Presentation
+p = Presentation("/abs/deck.pptx")
+shape = next(s for s in p.slides[1].shapes if s.shape_id == 4)
+shape.text_frame.text = "new text"
+p.save("/abs/deck-updated.pptx")  # never save over the source
+```
+
 ## Output conventions
 
 - Name derived files after the source with an operation suffix:
@@ -117,8 +142,9 @@ If verification fails, say so and show the error — do not present an unverifie
 
 ## Limits
 
-- pptx supports anchored text extraction only; patch-copy edits and slide-copy
-  outputs are not available yet — say so when asked for them.
+- pptx edits go through python-pptx (see "Edit pptx"), not patch-copy; slide-copy
+  into a new deck is not supported (python-pptx cannot clone slides) — say so
+  when asked for it.
 - Patched xlsx string cells become inline strings (valid OOXML; Excel reads them fine).
 - Edited XML parts lose insignificant whitespace formatting; semantics are preserved.
 - Scanned/image-only PDFs yield no text (no OCR here).
