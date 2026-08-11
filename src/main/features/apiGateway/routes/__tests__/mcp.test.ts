@@ -489,6 +489,26 @@ describe('/v1/mcps', () => {
       expect(res.headers.get('access-control-expose-headers')?.toLowerCase()).toContain('mcp-session-id')
     })
 
+    // The SDK unregisters its standalone stream from that stream's `cancel` callback, so a
+    // cancellation that never reaches the source strands the mapping and every later GET on
+    // the session answers 409 — for the rest of its life, since nothing else clears it.
+    it('lets a client reopen the stream after cancelling the previous one', async () => {
+      const sessionId = await openSession(app)
+      const streamHeaders = {
+        'x-api-key': 'test-key',
+        accept: 'text/event-stream',
+        'mcp-session-id': sessionId
+      }
+
+      const first = await get(app, '/v1/mcps/server-1/mcp', streamHeaders)
+      expect(first.status).toBe(200)
+      await first.body!.cancel()
+
+      const second = await get(app, '/v1/mcps/server-1/mcp', streamHeaders)
+      expect(second.status).toBe(200)
+      void second.body?.cancel()
+    })
+
     it('refuses new sessions once closed, so a shutdown race cannot strand one', async () => {
       await sessions.closeAll()
       const res = await rpc(app, '/v1/mcps/server-1/mcp', INITIALIZE)
@@ -518,5 +538,14 @@ describe('/v1/mcps', () => {
     expect(spec.paths['/v1/mcps/{server_id}/mcp'].post.description).toBe('apiGateway.docs.operations.mcp_proxy::en-US')
     // GET/DELETE on the proxy path are transport plumbing, not part of the documented API.
     expect(spec.paths['/v1/mcps/{server_id}/mcp'].get).toBeUndefined()
+  })
+
+  // The proxy answers JSON on the one-shot path and SSE on a session, so a client generated
+  // from this spec must be told about both — declaring only JSON makes it pick a JSON parser
+  // and never see a session response.
+  it('advertises both response media types for the proxy', async () => {
+    const spec = await (await get(app, '/openapi/json', {})).json()
+    const content = spec.paths['/v1/mcps/{server_id}/mcp'].post.responses['200'].content
+    expect(Object.keys(content).sort()).toEqual(['application/json', 'text/event-stream'])
   })
 })

@@ -69,6 +69,13 @@ const JSON_RPC_REQUEST_DOC = {
   },
   example: { jsonrpc: '2.0', id: 1, method: 'tools/list' }
 } as const
+/** The SSE framing a session request answers with; each `data:` line is a JSON-RPC message. */
+const SSE_RESPONSE_DOC = {
+  type: 'string',
+  description:
+    'Server-sent event stream. Each event carries one JSON-RPC message in `data:` — zero or more notifications, then the response.',
+  example: 'event: message\ndata: {"jsonrpc":"2.0","id":1,"result":{}}\n\n'
+} as const
 const JSON_RPC_RESPONSE_DOC = {
   type: 'object',
   properties: {
@@ -203,8 +210,12 @@ export function createMcpRoutes(sessions: McpSessionStore) {
             },
             responses: {
               200: {
-                description: 'JSON-RPC response',
-                content: { 'application/json': { schema: JSON_RPC_RESPONSE_DOC } }
+                description:
+                  'JSON-RPC response. A session request — one carrying `Mcp-Session-Id`, and the `initialize` that opens one — answers as `text/event-stream`, so notifications tied to the request (a tool call’s `notifications/progress`) can precede its result. The sessionless one-shot path answers as `application/json`.',
+                content: {
+                  'application/json': { schema: JSON_RPC_RESPONSE_DOC },
+                  'text/event-stream': { schema: SSE_RESPONSE_DOC }
+                }
               },
               403: { description: 'Origin is not local' },
               404: { description: 'MCP server not found, or unknown Mcp-Session-Id' },
@@ -387,8 +398,20 @@ function primeEventStream(response: Response): Response {
 
 async function primeAndPipe(writable: WritableStream<Uint8Array>, source: ReadableStream<Uint8Array>): Promise<void> {
   const writer = writable.getWriter()
-  await writer.write(new TextEncoder().encode(': open\n\n'))
-  writer.releaseLock()
+  try {
+    await writer.write(new TextEncoder().encode(': open\n\n'))
+  } catch (error) {
+    // The client vanished before the priming byte landed, so the `pipeTo` below never runs.
+    // `pipeTo` is what would otherwise cancel `source`, and the SDK unregisters its standalone
+    // stream from that cancel callback — skipping it strands the mapping, so every later GET
+    // on this session answers 409 "only one SSE stream" until DELETE or the idle sweep.
+    await source.cancel(error).catch(() => {})
+    throw error
+  } finally {
+    writer.releaseLock()
+  }
+  // Past this point cancellation is `pipeTo`'s job: a destination error cancels the source,
+  // since `preventCancel` defaults to false.
   await source.pipeTo(writable)
 }
 
