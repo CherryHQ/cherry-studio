@@ -424,9 +424,8 @@ describe('ComplexPreferenceMappings', () => {
     })
   })
 
-  // v1 cloned defaultAssistant.settings.contextCount into every new assistant,
-  // so migrating it onto assistant rows alone would lose the policy for
-  // assistants created after the upgrade.
+  // v1 cloned this into every new assistant, so migrating it onto rows alone
+  // loses the policy for assistants created after the upgrade.
   describe('default_assistant_context_count_migrate', () => {
     const transform = () =>
       COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'default_assistant_context_count_migrate')!.transform

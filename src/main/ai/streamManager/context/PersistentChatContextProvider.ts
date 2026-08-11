@@ -715,9 +715,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // (provider prefix caches hold).
     const d = findDeepestMarker(rows)
     const manifestHandles = (endIdx: number) => collectFileAttachments(rawUI.slice(0, endIdx + 1)).map((a) => a.handle)
-    // Same scoping rule as the handles, one level down: a folded marker's blob
-    // stays on the fs_read allow-list, so the summary has to name its path or
-    // the model holds a capability with no legal argument.
+    // A folded marker's blob stays allow-listed, so the summary must name its
+    // path or the model holds fs_read with no legal argument.
     const manifestPaths = (endIdx: number) => [...collectPersistedOutputPaths(rawUI.slice(0, endIdx + 1))]
     const effective = applyDeepestMarker(
       rows,
@@ -725,19 +724,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       d >= 0 ? manifestPaths(d) : undefined
     )
 
-    /**
-     * Retained context scoped to a `maxMessages` window.
-     *
-     * An explicit window is a boundary the USER drew, unlike a compaction fold
-     * the system performs to save space — so what slid out has to stop being
-     * reachable through read_file / fs_read too. Leaving the raw-path context
-     * in place let the model pull an excluded attachment straight back in,
-     * defeating the setting (and kept read_file registered for an attachment
-     * no longer in the prompt).
-     *
-     * No summary-row exception: the window serves RAW rows (see below), so
-     * there is never a folded prefix to re-authorize.
-     */
+    // A user-drawn window, unlike a space-saving fold, must also revoke
+    // read_file / fs_read access to whatever slid out of it.
     const retainedForWindow = (windowed: CompactionRow[]): RetainedContext => {
       const servedIds = new Set(windowed.map((r) => r.id))
       return collectRetainedContext(rawUI.filter((_, i) => servedIds.has(rawMsgs[i].id)))
@@ -749,28 +737,11 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     )
     const on = contextSettings.enabled && contextSettings.compress.enabled && Boolean(compressionModel)
     const serve = (rows_: typeof effective) => ({ messages: rows_.map((r) => this.toServed(r)), retainedContext })
-    // Bounded scope (v1 contextCount successor): an explicit maxMessages IS the
-    // context policy — serve the window and skip turn-start folding. Nothing
-    // else rewrites history (the in-loop prepareStep hook still guards mid-loop
-    // growth).
-    //
-    // Deliberately NOT gated on `contextSettings.enabled`: that switch governs
-    // offload + compression (what to do when the context grows too large),
-    // while this decides how much history is sent at all. Gating scope on the
-    // overflow policy silently served full history to someone who asked for
-    // "last 1 message".
+    // NOT gated on `contextSettings.enabled`: that switch owns the overflow
+    // policy, while this decides how much history is sent at all.
     if (contextSettings.maxMessages != null) {
-      // Window the RAW rows, and apply NO compaction state on the way. A summary
-      // row summarizes everything up to its boundary, so serving one — even a
-      // boundary that lands inside the window — carries content from before the
-      // window back into the prompt, plus its manifest re-authorizes the whole
-      // folded prefix for read_file / fs_read. The UI promises earlier messages
-      // are excluded, so they have to be excluded from the prompt, the manifest
-      // and the read-back allow-list alike.
-      //
-      // Serving raw rows is safe here precisely because N already bounds the
-      // size: folding exists to save space, and this branch does not need it.
-      // The rows are still there to serve — compaction only sets a column.
+      // RAW rows, no compaction state: a summary covers everything up to its
+      // boundary, so serving one would carry pre-window content back in.
       const windowed = applyMaxMessagesWindow(rows, contextSettings.maxMessages)
       return { messages: windowed.map((r) => this.toServed(r)), retainedContext: retainedForWindow(windowed) }
     }

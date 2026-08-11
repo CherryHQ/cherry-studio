@@ -50,8 +50,7 @@ describe('EditableNumber', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 
-  // The props are a closed set — anything not listed never reaches the DOM, so
-  // `FormControl`'s id (paired with `FormLabel htmlFor`) silently vanished and
+  // The props are a closed set, so `FormControl`'s id silently vanished and
   // every field built this way had an unnamed input.
   it('forwards id and aria attributes so the input can be named', () => {
     render(
@@ -72,9 +71,8 @@ describe('EditableNumber', () => {
     expect(screen.getByLabelText('Tool-output truncation threshold')).toBe(screen.getByRole('spinbutton'))
   })
 
-  // A formatter/prefix/suffix used to swap the input for a presentational div
-  // that carried the tab stop but no role, id or name — so the labelled control
-  // was unreachable and `FormLabel`'s htmlFor pointed at a hidden element.
+  // An affix used to swap the input for a nameless div that carried the tab
+  // stop, leaving the labelled control unreachable.
   it.each([
     ['formatter', { formatter: (v: number | null) => `${v ?? 0} rounds` }],
     ['suffix', { suffix: ' chars' }],

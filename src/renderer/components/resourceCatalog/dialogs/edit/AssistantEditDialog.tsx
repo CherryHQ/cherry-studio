@@ -905,9 +905,7 @@ function ContextManagementFields({
               help={t('library.config.basic.field.context_count.hint')}
             />
             <FormControl>
-              {/* Top level, outside the override group: this decides how much
-                  history a request carries, which is independent of the
-                  offload/compression settings below. Empty = no limit. */}
+              {/* Outside the override group: scope is not an overflow policy. */}
               <EditableNumber
                 block
                 min={1}
@@ -937,9 +935,8 @@ function ContextManagementFields({
         onEnabledChange={onOverrideToggle}
       />
       {!globalDefaults.enabled ? (
-        // These settings resolve through the global master switch, so with it
-        // off they are stored but inert. Say so instead of showing live-looking
-        // controls that do nothing.
+        // Stored but inert while the global master switch is off — say so
+        // rather than showing live-looking controls.
         <div className="-mt-2 text-muted-foreground text-xs leading-5">
           {t('library.config.basic.context_globally_disabled')}
         </div>
@@ -998,10 +995,8 @@ function ContextManagementFields({
                 <FormControl>
                   <EditableNumber
                     block
-                    // Same floor and step as the global panel — see
-                    // MIN_TRUNCATE_THRESHOLD: this value doubles as fs_read's
-                    // per-call cap, and step=1000 with min=1 made the default
-                    // a stepMismatch.
+                    // Same floor and step as the global panel — this doubles as
+                    // fs_read's per-call cap. See MIN_TRUNCATE_THRESHOLD.
                     min={MIN_TRUNCATE_THRESHOLD}
                     step={1}
                     precision={0}

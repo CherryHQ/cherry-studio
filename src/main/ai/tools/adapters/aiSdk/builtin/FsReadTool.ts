@@ -313,10 +313,8 @@ export function createFsReadToolEntry(): ToolEntry {
     description: 'Read a text file by absolute path (persisted-output retrieval; paginated)',
     defer: 'never',
     tool: fsReadTool,
-    // Read-back must stay possible wherever offload is possible: markers already
-    // in the conversation, or the truncate lane able to mint new ones this
-    // request. resolveTools additionally drops a lone fs_read (nothing else can
-    // produce an offloadable output) — see the post-filter there.
+    // Read-back must exist wherever offload can; resolveTools additionally
+    // drops a lone fs_read, which has nothing to read back.
     applies: (scope) => scope.hasPersistedOutputs === true || scope.canOffloadToolOutputs === true
   }
 }

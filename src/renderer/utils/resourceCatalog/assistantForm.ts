@@ -44,10 +44,8 @@ export interface AssistantFormState {
   enableMaxToolCalls: boolean
   customParameters: CustomParameter[]
   mcpMode: AssistantSettings['mcpMode']
-  // context management (P2-D assistant override). `contextOverrideEnabled`
-  // is the "自定义/customize" master switch for the OFFLOAD + COMPRESSION
-  // settings: false → those inherit the globals; true → the fields below form
-  // the override object.
+  // context management (P2-D assistant override). `contextOverrideEnabled` is
+  // the master switch for the OFFLOAD + COMPRESSION fields only.
   contextOverrideEnabled: boolean
   contextCompressEnabled: boolean
   contextTruncateThreshold: number
@@ -87,9 +85,8 @@ export function initialAssistantFormState(assistant: Assistant): AssistantFormSt
     enableMaxToolCalls: settings.enableMaxToolCalls ?? true,
     customParameters: settings.customParameters ?? [],
     mcpMode: mcpMode.success ? mcpMode.data : DEFAULT_ASSISTANT_SETTINGS.mcpMode,
-    // Override is on only when an offload/compression field is stored — a
-    // contextSettings carrying nothing but maxMessages is the scope control
-    // saved on its own, not a customization of the globals.
+    // Only an offload/compression field means "override": a lone maxMessages is
+    // the scope control saved on its own.
     contextOverrideEnabled: ctx != null && (ctx.truncateThreshold !== undefined || ctx.compress !== undefined),
     contextCompressEnabled: ctx?.compress?.enabled ?? DEFAULT_CONTEXT_SETTINGS.compress.enabled,
     contextTruncateThreshold: ctx?.truncateThreshold ?? DEFAULT_CONTEXT_SETTINGS.truncateThreshold,
@@ -166,14 +163,8 @@ export function diffAssistantUpdate(
     ...(customParametersChanged ? { customParameters: form.customParameters } : {}),
     ...(contextSettingsChanged
       ? {
-          // null = clear the override (inherit globals). The `enabled` kill-switch
-          // is deliberately not written here — it stays a global-layer concern.
-          //
-          // An empty limit is ABSENT rather than an explicit null, because the
-          // field's placeholder names the inherited global: "empty" reads as
-          // "follow global" in the UI and must mean the same in storage. It also
-          // rides this object independently of the override switch, so it has to
-          // survive when it is the only thing set.
+          // null clears the override; the `enabled` kill-switch stays global.
+          // An empty limit is ABSENT, matching the "follow global" placeholder.
           contextSettings: form.contextOverrideEnabled
             ? {
                 truncateThreshold: form.contextTruncateThreshold,

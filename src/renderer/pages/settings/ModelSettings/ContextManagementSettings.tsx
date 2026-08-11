@@ -38,9 +38,8 @@ export const ContextManagementSettings = () => {
   const { model: compressModel } = useModelById(compressModelId as UniqueModelId | null)
   const { providers } = useProviders({ enabled: true })
 
-  // `undefined` is the selector's CLEAR signal, not a no-op: swallowing it left
-  // the field stuck on whatever model was picked first, with no way back to
-  // "follow current model".
+  // `undefined` is the selector's CLEAR signal — swallowing it left no way
+  // back to "follow current model".
   const handleSelectCompressModel = useCallback(
     (selected: Model | undefined) => {
       void setCompressModelId(selected?.id ?? null)
@@ -52,9 +51,7 @@ export const ContextManagementSettings = () => {
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.models.context_management.title')}</SettingTitle>
       <SettingDivider />
-      {/* Outside the master switch: this bounds how much history each request
-          carries, which is independent of the offload/compression machinery
-          the switch below governs. */}
+      {/* Outside the master switch: scope is not an overflow policy. */}
       <SettingRow>
         <div className="min-w-0 flex-1">
           <SettingRowTitle>{t('settings.models.context_management.max_messages')}</SettingRowTitle>
@@ -107,14 +104,10 @@ export const ContextManagementSettings = () => {
             <div className="w-[220px] shrink-0">
               <EditableNumber
                 block
-                // Floor, not 1: this value is handed to fs_read as its per-call
-                // output cap, and every line it returns carries a 7-char gutter
-                // (`padStart(6)` + tab). Below this a single line can exceed the
-                // cap, so persisted output becomes permanently unreadable.
+                // Floor: this doubles as fs_read's per-call cap, and below it a
+                // single gutter-prefixed line already overflows.
                 min={MIN_TRUNCATE_THRESHOLD}
-                // step=1000 with min=1 made the 50000 default a stepMismatch
-                // (49999 % 1000 !== 0), which native validation and assistive
-                // tech both report as invalid.
+                // step=1000 made the 50000 default a stepMismatch.
                 step={1}
                 precision={0}
                 align="start"

@@ -81,9 +81,8 @@ function makeScope(overrides: ScopeOverrides = {}): RequestScope {
     requestContext: { requestId: 'anchor-1', persistedOutputPaths: new Set<string>(), ...overrides.requestContext },
     contextSettings: overrides.contextSettings ?? DEFAULT_CONTEXT_SETTINGS,
     compressionModel: overrides.compressionModel ?? null,
-    // Anchored, enabled, cherry-owned — the normal chat turn. The anchor lookup
-    // itself now happens once in buildAgentParams and arrives on the scope, so
-    // storage routing reads this flag rather than re-querying the row.
+    // The normal chat turn. The anchor lookup happens once upstream, so storage
+    // routing reads this flag rather than re-querying the row.
     canOffloadToolOutputs: overrides.canOffloadToolOutputs ?? true
   } as never
 }
@@ -258,22 +257,8 @@ describe('buildContextOptions — storage routing', () => {
   })
 })
 
-// The anchor lookup moved out of resolveTruncateStorage so it can gate fs_read's
-// admission too (a request that cannot mint a marker has no use for the tool
-// that reads one back). It runs once per request in buildAgentParams.
-// A marker minted on the final permitted tool step can never be read back — the
-// producing tool consumed that step. Without a pre-existing marker fs_read is
-// then dead weight for the whole request.
-describe('fs_read step budget', () => {
-  it('reports no read-back step when the tool-call limit is 1', async () => {
-    const { resolveToolCallLimit } = await import('../../buildAgentParams')
-    const one = { settings: { enableMaxToolCalls: true, maxToolCalls: 1 } } as never
-    const many = { settings: { enableMaxToolCalls: true, maxToolCalls: 5 } } as never
-    expect(resolveToolCallLimit(one)).toBe(1)
-    expect(resolveToolCallLimit(many)).toBeGreaterThan(1)
-  })
-})
-
+// The lookup moved out of resolveTruncateStorage so it can gate fs_read's
+// admission too, and now runs once per request in buildAgentParams.
 describe('hasAnchorRow', () => {
   it('reports an anchored request when the id resolves to a message row', () => {
     expect(hasAnchorRow('anchor-1')).toBe(true)

@@ -36,9 +36,8 @@ export const mockPreferenceDefaults: Record<string, any> = {
   'app.user.name': 'MockUser',
   'app.language': 'zh-CN',
 
-  // Context management — mirrors the generated schema defaults. Without these
-  // the hook returns null, so any UI branching on the master switch renders its
-  // disabled state and tests assert against a configuration users never see.
+  // Mirrors the generated schema defaults — without them the hook returns
+  // null and UI gated on the master switch renders its disabled state.
   'chat.context_settings.enabled': true,
   'chat.context_settings.max_messages': null,
   'chat.context_settings.truncate_threshold': 50000,

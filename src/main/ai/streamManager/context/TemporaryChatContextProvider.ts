@@ -101,10 +101,8 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       role: toContentRole(m.role),
       parts: m.data.parts ?? []
     }))
-    // Same "last N" scope rule as the persistent provider. Independent of the
-    // `enabled` kill-switch: that one governs offload/compression, while this
-    // is how much history the request carries in the first place.
-    // `settings` is optional on legacy/partial assistant rows.
+    // Same scope rule as the persistent provider, and likewise independent of
+    // the `enabled` kill-switch, which owns the overflow policy instead.
     const contextSettings = resolveContextSettings({
       globals: resolveGlobalContextSettings(),
       assistant: assistant?.settings?.contextSettings

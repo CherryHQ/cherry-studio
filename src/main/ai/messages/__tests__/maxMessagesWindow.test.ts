@@ -35,10 +35,8 @@ describe('applyMaxMessagesWindow', () => {
     expect(applyMaxMessagesWindow(messages, 1).map((m) => m.id)).toEqual(['a1', 'a2', 'a3'])
   })
 
-  // The preference and the assistant settings JSON are loaded straight from the
-  // database with no schema enforcement, so malformed values reach this window.
-  // 0 and negatives used to put `start` at or past the end, and reading `.role`
-  // off `undefined` threw — failing the whole request.
+  // Both sources load from the database unvalidated, and 0/negatives used to
+  // read `.role` off `undefined`, failing the whole request.
   it('treats malformed limits as no limit instead of throwing', () => {
     const messages = [u('u1'), a('a1'), u('u2')]
     for (const bad of [0, -3, Number.NaN, Number.POSITIVE_INFINITY, '2' as never, {} as never]) {

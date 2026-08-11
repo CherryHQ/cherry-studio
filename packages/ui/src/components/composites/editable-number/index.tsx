@@ -184,11 +184,8 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
     'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
     sizeClasses[size],
     inputAlignClass,
-    // NOT `hidden`: hiding the input moved the tab stop onto the presentational
-    // overlay below, which has no role, no id and no accessible name — and
-    // `FormLabel`'s `htmlFor` pointed at an element the user could not reach.
-    // The input stays the interactive control and simply goes see-through while
-    // the formatted overlay is painted over it.
+    // See-through rather than `hidden`: hiding it moved the tab stop onto the
+    // nameless overlay, which `FormLabel`'s `htmlFor` could never reach.
     shouldRenderDisplayValue && !isEditing && 'text-transparent caret-transparent',
     className
   )
@@ -198,9 +195,8 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
       <input
         ref={inputRef}
         id={id}
-        // Without this the prop only reached the display overlay, which renders
-        // solely when a formatter/prefix/suffix is set — so a plain field's
-        // placeholder was silently dropped.
+        // Only reached the overlay before, so a plain field's placeholder
+        // was silently dropped.
         placeholder={placeholder}
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}
@@ -222,8 +218,7 @@ const EditableNumber: React.FC<EditableNumberProps> = ({
       {shouldRenderDisplayValue && !isEditing && (
         <div
           className={cn(
-            // Absolutely positioned and click-through: the input keeps the
-            // layout box and every interaction, this only paints over it.
+            // Click-through: the input keeps the layout box and every interaction.
             'absolute inset-0 pointer-events-none',
             'border-input bg-background flex w-full items-center rounded-md border px-3 text-sm shadow-xs',
             disabled && 'cursor-not-allowed opacity-50',

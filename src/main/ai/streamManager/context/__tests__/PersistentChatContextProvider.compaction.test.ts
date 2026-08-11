@@ -321,9 +321,8 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   it('1d. maxMessages still bounds the window when the context-management master switch is off', async () => {
-    // The master switch governs offload + compression (what happens when the
-    // context overflows); it must not silently serve full history to someone
-    // who asked for "last 1 message".
+    // The master switch owns the overflow policy, so it must not silently
+    // serve full history to someone who asked for "last 1 message".
     const path = [
       fakeMsg('u1', 'user', 'hello'),
       fakeMsg('a1', 'assistant', 'hi'),
@@ -339,9 +338,8 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   it('1e. a maxMessages window revokes read_file/fs_read access to what slid out', async () => {
-    // The window is a boundary the USER drew, not a space-saving fold: leaving
-    // the raw-path context in place let the model pull the excluded attachment
-    // straight back in through read_file, defeating the setting.
+    // Leaving the raw-path context in place let the model pull the excluded
+    // attachment back in through read_file, defeating the setting.
     const attachedMsg = fakeMsg('u1', 'user', 'here is the doc')
     ;(attachedMsg.data as { parts: unknown[] }).parts.push({
       type: 'file',
@@ -380,12 +378,8 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   it('1g. a window ignores an older summary entirely and serves raw rows', async () => {
-    // A summary row summarizes everything up to its boundary, so serving one
-    // inside the window would carry pre-window content back into the prompt AND
-    // re-authorize the whole folded prefix for read_file. The window is a
-    // boundary the user drew: excluded means excluded from the prompt, the
-    // manifest and the allow-list alike. Serving raw is safe because N already
-    // bounds the size, and compaction only sets a column — the rows are still there.
+    // A summary covers everything up to its boundary, so serving one would
+    // carry pre-window content back in and re-authorize the folded prefix.
     const foldedMsg = fakeMsg('u1', 'user', 'old question')
     ;(foldedMsg.data as { parts: unknown[] }).parts.push({
       type: 'file',
@@ -409,10 +403,8 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   })
 
   it('1h. a window whose boundary row is inside it still serves raw, not the summary', async () => {
-    // The interesting half: even when the marker lands INSIDE the window, the
-    // summary is not served — its text covers everything up to the boundary,
-    // which reaches past the window. The rows themselves are served instead, so
-    // an attachment that is genuinely inside the window stays reachable.
+    // Even a boundary INSIDE the window is not served: its text still reaches
+    // past the window. The raw rows go instead.
     const foldedMsg = fakeMsg('u1', 'user', 'old question')
     ;(foldedMsg.data as { parts: unknown[] }).parts.push({
       type: 'file',
@@ -675,17 +667,15 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     expect(messages.map((m) => m.id)).not.toContain('a1')
     const paths = [...(prepared.models[0].request.retainedContext?.persistedOutputPaths ?? [])]
     expect(paths).toEqual(['/blobs/fe-blob.txt'])
-    // …and the summary row NAMES that path. Keeping the blob on the allow-list
-    // without it left the model holding fs_read with no legal argument: the
-    // marker (which normally carries the path) is gone from the served view.
+    // …and the summary NAMES it. Without that the model held fs_read with no
+    // legal argument — the marker carrying the path is gone from the view.
     expect(messages[0].parts?.[0]).toMatchObject({
       text: expect.stringContaining('/blobs/fe-blob.txt')
     })
   })
 
-  // The whole point of scoping both manifests to the folded prefix: the summary
-  // row's bytes are a pure function of the boundary, so provider prefix caches
-  // survive. A conversation with neither kind must render exactly as before.
+  // Scoping both manifests to the folded prefix keeps the row a pure function
+  // of the boundary, so provider prefix caches survive.
   it('2d-bis. summary text is byte-identical when nothing is folded behind the boundary', async () => {
     const path = [
       fakeMsg('u1', 'user', 'old question'),

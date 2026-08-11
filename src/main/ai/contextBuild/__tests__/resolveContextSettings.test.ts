@@ -20,9 +20,8 @@ describe('resolveContextSettings', () => {
     expect(out.enabled).toBe(true) // global floor (assistant silent)
   })
 
-  // maxMessages is three-state, so it merges by property PRESENCE rather than
-  // `??`: an assistant explicitly set to "no limit" has to beat a finite
-  // global, which `??` cannot express.
+  // Three-state, so it merges by property PRESENCE: an explicit "no limit"
+  // must beat a finite global, which `??` cannot express.
   it('maxMessages: absent inherits, a value wins, an explicit null means unlimited', () => {
     const limited = { ...globals, maxMessages: 5 }
     expect(resolveContextSettings({ globals: limited }).maxMessages).toBe(5)

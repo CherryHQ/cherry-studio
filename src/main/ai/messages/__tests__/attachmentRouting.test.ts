@@ -329,9 +329,12 @@ describe('resolveAttachmentInlineCap', () => {
     expect(resolveAttachmentInlineCap(0, 1)).toBe(READ_FILE_PAGE_SIZE)
   })
 
-  it('scales with the window and splits across attachments', () => {
-    expect(resolveAttachmentInlineCap(400_000, 1)).toBe(200_000)
-    expect(resolveAttachmentInlineCap(400_000, 4)).toBe(50_000)
+  // Without the split, four attachments would each inline a whole window share
+  // and together blow past the window they were sized against.
+  it('splits one window share across the attachments of a turn', () => {
+    const whole = resolveAttachmentInlineCap(400_000, 1)
+    expect(whole).toBeLessThan(400_000)
+    expect(resolveAttachmentInlineCap(400_000, 4) * 4).toBe(whole)
   })
 
   it('never drops below the flat page size on a tiny window', () => {

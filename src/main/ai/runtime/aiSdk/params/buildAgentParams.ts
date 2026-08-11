@@ -148,18 +148,11 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     assistant?.settings.contextSettings
   )
   const hasPersistedOutputs = retained.persistedOutputPaths.size > 0
-  // Mirrors buildContextOptions' enablement (contextBuild.ts): when the truncate
-  // lane cannot run, no new <persisted-output> markers can appear this request.
-  // The anchor lookup is the third condition — without a real message row the
-  // truncator has nowhere to hang a blob and degrades to inline head/tail
-  // truncation, so temporary chats and one-shot calls (translate / topic naming
-  // / probes) can never mint a marker. Resolved here once and carried on the
-  // scope; `resolveTruncateStorage` reuses it rather than re-querying.
-  // A marker minted on the last permitted tool step can never be read back:
-  // the producing tool consumes that step and the loop ends before fs_read
-  // could be called. With no pre-existing marker its schema is therefore dead
-  // weight for the whole request, so require room for a read-back step too.
+  // A marker minted on the last permitted tool step can never be read back —
+  // the producing tool consumes that step and the loop ends.
   const hasReadBackStep = resolveToolCallLimit(assistant) > 1
+  // Every condition a <persisted-output> marker needs to appear this request;
+  // `resolveTruncateStorage` reuses the result rather than re-querying the row.
   const canOffloadToolOutputs =
     contextSettings.enabled && request.contextOwner !== 'caller' && hasAnchorRow(request.messageId) && hasReadBackStep
   const knowledgeBaseIds = resolveKnowledgeBaseScope(assistant?.knowledgeBaseIds, request.knowledgeBaseIds)
@@ -413,14 +406,12 @@ export async function resolveTools(
     knowledgeBaseIds,
     webToolRoutes
   })
-  // First-class client tools (no `execute`) supplied per request by assistant-less
-  // callers (the API gateway). Merged below so they share the registry/defer-exposition
-  // path instead of being mutated onto raw SDK params.
+  // Client tools (no `execute`) from assistant-less callers; merged below so
+  // they share the registry/defer-exposition path.
   const clientTools = request.callOverrides?.tools
   const clientToolNames = new Set(Object.keys(clientTools ?? {}))
-  // fs_read reads back offloaded TOOL outputs; with no other function tool in
-  // the request (client tools included) nothing can be offloaded mid-loop, so a
-  // lone fs_read without pre-existing markers is dead weight (#18084) — drop it.
+  // A lone fs_read has nothing to read back: no other tool can produce an
+  // offloadable output mid-loop (#18084).
   const activeEntries =
     !hasPersistedOutputs &&
     clientToolNames.size === 0 &&

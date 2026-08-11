@@ -232,10 +232,8 @@ describe('AssistantMappings', () => {
       })
     })
 
-    // v1 served `takeRight(contextCount + 2)` and then dropped leading non-user
-    // rows; v2 keeps the last N and extends BACKWARD to a user row. The same
-    // served history therefore needs N = C + 1 — mapping C straight across
-    // would silently cost every migrated assistant two messages of context.
+    // v1 took `contextCount + 2` then dropped leading non-user rows; v2 extends
+    // backward instead, so the same history needs N = C + 1.
     it('maps v1 contextCount to contextSettings.maxMessages with the +1 offset', () => {
       const maxMessagesOf = (contextCount: unknown) =>
         transformAssistant({ id: 'ast-16', settings: { contextCount } as never }).assistant.settings.contextSettings

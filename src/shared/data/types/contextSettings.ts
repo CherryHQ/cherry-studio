@@ -38,11 +38,8 @@ export const ContextSettingsOverrideSchema = z.object({
 })
 export type ContextSettingsOverride = z.infer<typeof ContextSettingsOverrideSchema>
 
-// NOTE: in production `resolveRequestContextSettings` builds the effective
-// settings as a plain object cast to this type and never `.parse()`s them, and
-// the global prefs have no min — so the guards here are NOT enforced at the
-// boundary. Values that must hold at runtime are clamped by their consumer
-// instead (see `normalizeMaxMessages` and the truncate-threshold floor).
+// Never `.parse()`d in production, so these guards are not enforced at the
+// boundary — consumers clamp instead (`normalizeMaxMessages`, the threshold floor).
 export const EffectiveContextSettingsSchema = z.object({
   enabled: z.boolean(),
   truncateThreshold: z.number().int().positive(),

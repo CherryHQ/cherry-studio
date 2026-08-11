@@ -243,8 +243,7 @@ export function transformAssistant(source: OldAssistant): AssistantTransformResu
   // life with a value that future PATCHes will reject.
   const sanitized = sanitizeLegacySettings(legacySettings)
   const settings: InsertAssistantRow['settings'] = { ...DEFAULT_ASSISTANT_SETTINGS, ...sanitized }
-  // The per-field sanitiser drops `contextCount` (no such column in the v2
-  // schema), so map it explicitly. See contextCountToMaxMessages for the offset.
+  // The per-field sanitiser drops `contextCount` — no such column in v2.
   const maxMessages = contextCountToMaxMessages(legacySettings.contextCount)
   if (maxMessages !== undefined) {
     settings.contextSettings = { ...settings.contextSettings, maxMessages }
