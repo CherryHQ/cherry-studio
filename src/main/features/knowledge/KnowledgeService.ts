@@ -32,6 +32,7 @@ import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
+import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from './types'
 
 /**
  * Facade of the knowledge feature: registers the job handlers, runs boot-time
@@ -92,8 +93,8 @@ export class KnowledgeService extends BaseService {
     return await this.baseAdmin.restoreBase(dto)
   }
 
-  listBases(): KnowledgeBase[] {
-    return this.baseAdmin.listBases()
+  listBasesForDiscovery(options: KnowledgeBaseDiscoveryOptions): KnowledgeBaseDiscoveryPage {
+    return this.queryService.listBasesForDiscovery(options)
   }
 
   /** Whether the user has any knowledge base at all — a cheap count (not a full list) for tool-availability gating. */
