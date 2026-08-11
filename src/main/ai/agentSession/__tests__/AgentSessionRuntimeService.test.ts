@@ -1526,6 +1526,7 @@ describe('AgentSessionRuntimeService', () => {
     entry.currentTurn = undefined
     const connecting = (service as any).ensureConnection(entry) as Promise<boolean>
     await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
+    const runtimeOwnerId = mocks.acquireRuntimeOwnership.mock.calls[0][1]
 
     // An agent update clears the model (explicit `PATCH { model: null }`). The entry must be invalidated
     // so the in-flight old-model connect can't install against a now-modelless agent. (Deleting the model
@@ -1533,14 +1534,105 @@ describe('AgentSessionRuntimeService', () => {
     await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
     expect(service.inspect('session-1')).toBeUndefined()
     expect(mocks.pauseRuntimeTurn).not.toHaveBeenCalled()
+    // The unresolved attempt still owns the durable marker. A process exit in this gap must leave it
+    // for boot quarantine rather than reopening the unsafe resume-token window.
+    expect(mocks.releaseRuntimeOwnership).not.toHaveBeenCalled()
 
     // The stale connect resolves after the invalidation: it must close the connection it opened and
-    // resolve false (not install), leaving no entry behind.
+    // release its captured owner only after that close succeeds.
     pendingConnect.resolve(connection)
     await expect(connecting).resolves.toBe(false)
     await vi.waitFor(() => expect(connection.close).toHaveBeenCalledOnce())
+    expect(mocks.releaseRuntimeOwnership).toHaveBeenCalledWith('session-1', runtimeOwnerId)
     expect(getEntry(service)).toBeUndefined()
     expect(connect).toHaveBeenCalledTimes(1)
+  })
+
+  it('releases a closed entry runtime owner after its in-flight connect rejects', async () => {
+    const pendingConnect = createDeferred<any>()
+    const connect = vi.fn().mockReturnValue(pendingConnect.promise)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const entry = getEntry(service)
+    entry.currentTurn = undefined
+    const connecting = (service as any).ensureConnection(entry) as Promise<boolean>
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
+    const runtimeOwnerId = mocks.acquireRuntimeOwnership.mock.calls[0][1]
+
+    await (service as any).handleAgentUpdated('agent-1', { model: null }, { id: 'agent-1', model: null })
+    expect(mocks.releaseRuntimeOwnership).not.toHaveBeenCalled()
+
+    pendingConnect.reject(new Error('connect failed'))
+    await expect(connecting).rejects.toThrow('connect failed')
+    expect(mocks.releaseRuntimeOwnership).toHaveBeenCalledWith('session-1', runtimeOwnerId)
+  })
+
+  it('fences a late in-flight owner cleanup from a replacement runtime entry', async () => {
+    let durableOwnerId: string | undefined
+    mocks.acquireRuntimeOwnership.mockImplementation((_sessionId, ownerId) => {
+      durableOwnerId = ownerId
+    })
+    mocks.releaseRuntimeOwnership.mockImplementation((_sessionId, ownerId) => {
+      if (durableOwnerId === ownerId) durableOwnerId = undefined
+    })
+
+    const firstConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const secondConnection = {
+      events: createAsyncQueue<any>().iterable,
+      send: vi.fn(),
+      close: vi.fn(),
+      reconcile: vi.fn().mockResolvedValue('current')
+    }
+    const firstConnect = createDeferred<any>()
+    const secondConnect = createDeferred<any>()
+    const connect = vi.fn().mockReturnValueOnce(firstConnect.promise).mockReturnValueOnce(secondConnect.promise)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const firstEntry = getEntry(service)
+    firstEntry.currentTurn = undefined
+    const firstConnecting = (service as any).ensureConnection(firstEntry) as Promise<boolean>
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledOnce())
+    const firstOwnerId = durableOwnerId
+
+    await service.closeSession('session-1')
+    service.beginTurn({ ...baseTurnInput, assistantMessageId: 'assistant-2', userMessage: userMessage('user-2') })
+    const secondEntry = getEntry(service)
+    secondEntry.currentTurn = undefined
+    const secondConnecting = (service as any).ensureConnection(secondEntry) as Promise<boolean>
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledTimes(2))
+    const secondOwnerId = durableOwnerId
+    expect(secondOwnerId).not.toBe(firstOwnerId)
+
+    secondConnect.resolve(secondConnection)
+    await expect(secondConnecting).resolves.toBe(true)
+    firstConnect.resolve(firstConnection)
+    await expect(firstConnecting).resolves.toBe(false)
+
+    expect(firstConnection.close).toHaveBeenCalledOnce()
+    expect(mocks.releaseRuntimeOwnership).toHaveBeenCalledWith('session-1', firstOwnerId)
+    expect(durableOwnerId).toBe(secondOwnerId)
+
+    await service.closeSession('session-1')
+    expect(durableOwnerId).toBeUndefined()
   })
 
   it('pauses a live turn and tears the session down when the agent model is cleared', async () => {

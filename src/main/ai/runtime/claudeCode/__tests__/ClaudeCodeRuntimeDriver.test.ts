@@ -373,6 +373,27 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
   })
 
+  it('cleans up a partially started connection before connect rejects', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    const startError = new Error('catalog registration failed')
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.registerMcpSessionCatalogSync.mockImplementationOnce(() => {
+      throw startError
+    })
+
+    await expect(
+      new ClaudeCodeRuntimeDriver().connect({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::sonnet' as any
+      })
+    ).rejects.toBe(startError)
+
+    expect(query.close).toHaveBeenCalledOnce()
+    expect(queryQueue.iterable.return).toHaveBeenCalledOnce()
+  })
+
   it('uses the serving receipt retained by a consumed warm process', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }

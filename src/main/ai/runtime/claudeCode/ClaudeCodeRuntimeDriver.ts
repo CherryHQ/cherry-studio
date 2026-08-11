@@ -1379,7 +1379,20 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   }
 
   async connect(input: AgentRuntimeConnectInput): Promise<AgentRuntimeConnection> {
-    return new ClaudeCodeRuntimeConnection(input).start()
+    const connection = new ClaudeCodeRuntimeConnection(input)
+    try {
+      return await connection.start()
+    } catch (error) {
+      try {
+        await connection.close()
+      } catch (cleanupError) {
+        logger.warn('Failed to clean up rejected Claude Code runtime connection', {
+          sessionId: input.sessionId,
+          error: cleanupError
+        })
+      }
+      throw error
+    }
   }
 
   onSessionIdle(sessionId: string): void {

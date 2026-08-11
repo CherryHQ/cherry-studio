@@ -222,6 +222,8 @@ type AgentSessionRuntimeEntry = {
   sessionId: string
   /** Durable lease identity; only this entry may clear the DB crash-recovery marker it acquired. */
   runtimeOwnerId?: string
+  /** Clean-close result awaited by a connect attempt that outlives this entry. */
+  closeCleanup?: Promise<boolean>
   topicId: string
   /** Container-level OTel trace id (one trace tree per session); the warm connection's traceparent. */
   sessionTraceId?: string
@@ -1473,25 +1475,35 @@ export class AgentSessionRuntimeService extends BaseService {
     this.hydrateResumeToken(entry)
     if (!this.isCurrentEntry(entry)) return false
 
-    const connection = await driver.connect({
-      sessionId: entry.sessionId,
-      agentId: entry.agentId,
-      modelId: target.modelId,
-      reasoningEffort: target.reasoningEffort,
-      knowledgeBaseIds: target.knowledgeBaseIds,
-      fastMode: target.fastMode,
-      resumeToken: entry.lastResumeToken,
-      trace: this.sessionTraceContext(entry, target.modelId),
-      onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
-    })
+    let connection: AgentRuntimeConnection
+    try {
+      connection = await driver.connect({
+        sessionId: entry.sessionId,
+        agentId: entry.agentId,
+        modelId: target.modelId,
+        reasoningEffort: target.reasoningEffort,
+        knowledgeBaseIds: target.knowledgeBaseIds,
+        fastMode: target.fastMode,
+        resumeToken: entry.lastResumeToken,
+        trace: this.sessionTraceContext(entry, target.modelId),
+        onSteerInjected: (inputs) => this.reserveSteerContinuation(entry, inputs)
+      })
+    } catch (error) {
+      // A rejected driver connect owns cleanup of any partially-created resources. If the entry was
+      // cleanly closed while it awaited, the now-settled attempt is the final holder of this lease.
+      if (!this.isCurrentEntry(entry)) {
+        await this.releaseRuntimeOwnershipAfterStaleConnect(entry, runtimeOwnerId, true)
+      }
+      throw error
+    }
     if (!this.isCurrentEntry(entry) || !this.connectionTargetEquals(entry, target)) {
-      void this.closeRuntimeConnection(connection, entry.sessionId)
+      await this.closeDiscardedConnection(entry, connection, runtimeOwnerId)
       return false
     }
 
     this.applyRuntimeStateEvent(entry, { type: 'connection-connected', attemptId, connection })
     if (this.currentConnection(entry) !== connection) {
-      void this.closeRuntimeConnection(connection, entry.sessionId)
+      await this.closeDiscardedConnection(entry, connection, runtimeOwnerId)
       return false
     }
     entry.usageCapture = connection.usageCapture
@@ -3003,18 +3015,47 @@ export class AgentSessionRuntimeService extends BaseService {
     this.connectionAttempts.delete(entry.sessionId)
     this.inFlightTurnStarts.delete(entry.sessionId)
 
-    return Promise.all([backgroundFlowsFlushed, this.closeRuntimeConnection(connection, entry.sessionId)]).then(
-      ([flushed, closed]) => {
-        // A stale async connect self-closes only after it resolves. Keep the lease when one was in
-        // flight so a process exit in that gap is conservatively quarantined on the next boot.
-        if (!flushed || !closed || hadConnectionAttempt || !entry.runtimeOwnerId) return
-        try {
-          agentSessionService.releaseRuntimeOwnership(entry.sessionId, entry.runtimeOwnerId)
-        } catch (error) {
-          logger.warn('Failed to release agent runtime crash-recovery lease', { sessionId: entry.sessionId, error })
-        }
-      }
-    )
+    const closeCleanup = Promise.all([
+      backgroundFlowsFlushed,
+      this.closeRuntimeConnection(connection, entry.sessionId)
+    ]).then(([flushed, closed]) => flushed && closed)
+    entry.closeCleanup = closeCleanup
+
+    return closeCleanup.then((cleaned) => {
+      // A stale async connect self-closes only after it resolves. Keep the lease when one was in
+      // flight so a process exit in that gap is conservatively quarantined on the next boot. The
+      // attempt takes over release after it settles and closes any connection it produced.
+      if (!cleaned || hadConnectionAttempt || !entry.runtimeOwnerId) return
+      this.releaseRuntimeOwnership(entry.sessionId, entry.runtimeOwnerId)
+    })
+  }
+
+  private async closeDiscardedConnection(
+    entry: AgentSessionRuntimeEntry,
+    connection: AgentRuntimeConnection,
+    runtimeOwnerId: string
+  ): Promise<void> {
+    const closed = await this.closeRuntimeConnection(connection, entry.sessionId)
+    if (!this.isCurrentEntry(entry)) {
+      await this.releaseRuntimeOwnershipAfterStaleConnect(entry, runtimeOwnerId, closed)
+    }
+  }
+
+  private async releaseRuntimeOwnershipAfterStaleConnect(
+    entry: AgentSessionRuntimeEntry,
+    runtimeOwnerId: string,
+    attemptCleaned: boolean
+  ): Promise<void> {
+    if (!attemptCleaned || !entry.closeCleanup || !(await entry.closeCleanup)) return
+    this.releaseRuntimeOwnership(entry.sessionId, runtimeOwnerId)
+  }
+
+  private releaseRuntimeOwnership(sessionId: string, runtimeOwnerId: string): void {
+    try {
+      agentSessionService.releaseRuntimeOwnership(sessionId, runtimeOwnerId)
+    } catch (error) {
+      logger.warn('Failed to release agent runtime crash-recovery lease', { sessionId, error })
+    }
   }
 
   private closeFailedPolicyUpdateConnection(entry: AgentSessionRuntimeEntry, connection: AgentRuntimeConnection): void {
