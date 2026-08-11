@@ -2956,28 +2956,25 @@ describe('MessageService', () => {
 
     it('publishes the message read-model change after every committed approval decision', async () => {
       await seedAnchorWithTwoApprovals()
+      const getMessageProjectionNotifications = () =>
+        notifyDataApiDataChangeMock.mock.calls
+          .map(([effects]) => effects)
+          .filter(([effect]) => effect?.endpoint === '/topics/:topicId/messages')
+      const expectedNotification = [
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          entityIds: ['anchor']
+        }
+      ]
 
       messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: true }])
       messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-b', approved: false }])
 
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(1, [
-        {
-          endpoint: '/topics/:topicId/messages',
-          kind: 'projection',
-          entityIds: ['anchor']
-        }
-      ])
-      expect(notifyDataApiDataChangeMock).toHaveBeenNthCalledWith(2, [
-        {
-          endpoint: '/topics/:topicId/messages',
-          kind: 'projection',
-          entityIds: ['anchor']
-        }
-      ])
+      expect(getMessageProjectionNotifications()).toEqual([expectedNotification, expectedNotification])
 
       messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-b', approved: true }])
-      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(2)
+      expect(getMessageProjectionNotifications()).toEqual([expectedNotification, expectedNotification])
     })
 
     it('commits the approval response and wait-span completion together', async () => {
