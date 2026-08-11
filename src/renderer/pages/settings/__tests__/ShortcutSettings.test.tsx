@@ -1,5 +1,6 @@
 import type { ShortcutListItem } from '@renderer/hooks/command/useCommandShortcuts'
 import type * as RendererConstantModule from '@renderer/utils/platform'
+import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { type CommandId, commandShortcutPreferenceKey } from '@shared/utils/command'
 import type { ShortcutBinding } from '@shared/utils/shortcut'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -16,6 +17,7 @@ const shortcutsMock = vi.hoisted(() => ({
 const setTimeoutTimerMock = vi.hoisted(() => vi.fn((_key: string, callback: () => void) => callback()))
 const clearTimeoutTimerMock = vi.hoisted(() => vi.fn())
 const registrationConflictMock = vi.hoisted(() => vi.fn(() => vi.fn()))
+const preferenceServiceSetMultipleMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -57,6 +59,12 @@ vi.mock('@renderer/hooks/command/useCommandShortcuts', () => ({
     shortcuts: shortcutsMock.shortcuts,
     updatePreference: shortcutsMock.updatePreference
   })
+}))
+
+vi.mock('@data/PreferenceService', () => ({
+  preferenceService: {
+    setMultiple: preferenceServiceSetMultipleMock
+  }
 }))
 
 vi.mock('@renderer/components/Scrollbar', () => ({
@@ -120,8 +128,17 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-const makeShortcut = (binding: ShortcutBinding = []): ShortcutListItem => {
-  const command: CommandId = 'app.search'
+const makeShortcut = ({
+  command = 'app.search',
+  binding = [],
+  enabled = binding.length > 0,
+  defaultPreference = { binding: [], enabled: false }
+}: {
+  command?: CommandId
+  binding?: ShortcutBinding
+  enabled?: boolean
+  defaultPreference?: PreferenceShortcutType
+} = {}): ShortcutListItem => {
   const key = commandShortcutPreferenceKey(command)
 
   return {
@@ -137,12 +154,9 @@ const makeShortcut = (binding: ShortcutBinding = []): ShortcutListItem => {
     },
     preference: {
       binding,
-      enabled: binding.length > 0
+      enabled
     },
-    defaultPreference: {
-      binding: [],
-      enabled: false
-    }
+    defaultPreference
   }
 }
 
@@ -158,6 +172,8 @@ describe('ShortcutSettings shortcut recorder', () => {
     shortcutsMock.shortcuts = [makeShortcut()]
     shortcutsMock.updatePreference.mockReset()
     shortcutsMock.updatePreference.mockResolvedValue(undefined)
+    preferenceServiceSetMultipleMock.mockReset()
+    preferenceServiceSetMultipleMock.mockResolvedValue(undefined)
     setTimeoutTimerMock.mockClear()
     clearTimeoutTimerMock.mockClear()
     registrationConflictMock.mockClear()
@@ -207,5 +223,48 @@ describe('ShortcutSettings shortcut recorder', () => {
     fireEvent.keyDown(recorder, { key: 'Process', code: 'KeyK', ctrlKey: true, bubbles: true })
 
     expect(shortcutsMock.updatePreference).not.toHaveBeenCalled()
+  })
+
+  it('resets a shortcut to the platform-resolved default binding', async () => {
+    const defaultPreference: PreferenceShortcutType = { binding: ['Ctrl', 'Tab'], enabled: true }
+    shortcutsMock.shortcuts = [
+      makeShortcut({
+        command: 'tab.next',
+        binding: ['CommandOrControl', 'Alt', 'Tab'],
+        enabled: true,
+        defaultPreference
+      })
+    ]
+
+    const { container } = renderShortcutSettings()
+
+    const resetButton = container.querySelector('.shortcut-undo-icon')
+    expect(resetButton).not.toBeNull()
+    fireEvent.click(resetButton as Element)
+
+    await waitFor(() => {
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.tab.next', defaultPreference)
+    })
+  })
+
+  it('bulk toggles shortcuts using the platform-resolved binding', async () => {
+    shortcutsMock.shortcuts = [
+      makeShortcut({
+        command: 'tab.next',
+        binding: ['Ctrl', 'Tab'],
+        enabled: true,
+        defaultPreference: { binding: ['Ctrl', 'Tab'], enabled: true }
+      })
+    ]
+
+    renderShortcutSettings()
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.shortcuts.all_disable' }))
+
+    await waitFor(() => {
+      expect(preferenceServiceSetMultipleMock).toHaveBeenCalledWith({
+        'shortcut.tab.next': { binding: ['Ctrl', 'Tab'], enabled: false }
+      })
+    })
   })
 })

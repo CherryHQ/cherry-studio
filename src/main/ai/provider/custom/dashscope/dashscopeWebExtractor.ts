@@ -9,22 +9,34 @@
  *    serialized request body here instead (installed as a custom `fetch` in `config.ts`).
  *
  * Gate on `web_search` already being present in the body — the only signal available post-
- * serialization, and exactly the coupling the API requires. Also force `enable_thinking: true`, which
- * web_extractor requires but the Responses reasoning wire (which emits `reasoning.effort`) does not send.
+ * serialization, and exactly the coupling the API requires. Bailian serves `web_extractor` only in
+ * thinking mode: a request that disabled it (responses `reasoning.effort = "none"`, chat
+ * `enable_thinking = false`) is rejected, so keep `web_search` only. Otherwise append the extractor
+ * as-is — thinking on the Responses endpoint is governed by `reasoning.effort` alone (verified
+ * live: `enable_thinking` neither enables the extractor under `effort=none` nor is required when
+ * `effort` is present or absent).
  */
 export function appendDashScopeWebExtractor(body: BodyInit | null | undefined): BodyInit | null | undefined {
   if (typeof body !== 'string') return body
   try {
-    const json = JSON.parse(body)
+    const json = JSON.parse(body) as Record<string, unknown>
     if (!Array.isArray(json.tools)) return body
-    const hasTool = (type: string) => json.tools.some((tool: unknown) => (tool as { type?: string })?.type === type)
+    const tools = json.tools as Array<{ type?: string }>
+    const hasTool = (type: string) => tools.some((tool) => tool?.type === type)
     if (!hasTool('web_search') || hasTool('web_extractor')) return body
+    // web_extractor requires thinking; a request that disabled it must keep web_search only.
+    if (isThinkingDisabled(json)) return body
     return JSON.stringify({
       ...json,
-      tools: [...json.tools, { type: 'web_extractor' }],
-      enable_thinking: true
+      tools: [...tools, { type: 'web_extractor' }]
     })
   } catch {
     return body
   }
+}
+
+/** Whether the request explicitly turned thinking off (responses `reasoning.effort` / chat `enable_thinking`). */
+function isThinkingDisabled(body: Record<string, unknown>): boolean {
+  if (body.enable_thinking === false) return true
+  return (body.reasoning as { effort?: unknown } | undefined)?.effort === 'none'
 }
