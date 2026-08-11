@@ -5,7 +5,7 @@ import { createInterface } from 'node:readline'
 
 import { application } from '@application'
 import { modelService } from '@data/services/ModelService'
-import { type CreateFileTranslateHistoryInput, translateHistoryService } from '@data/services/TranslateHistoryService'
+import { translateHistoryService } from '@data/services/TranslateHistoryService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
@@ -269,7 +269,7 @@ export class PdfTranslationService extends BaseService {
       this.reportProgress(job, { stage: 'rendering', stageProgress: 100, overallProgress: 100 }, onProgress)
       // `await` (not a bare `return`) so the `finally` below cannot delete the temp dir
       // out from under the copy into FileManager.
-      return await this.persistResult(request, outputPath)
+      return await this.persistResult(request, outputPath, job)
     } catch (error) {
       // Surface the failure to the main-process log (the stderr tail rides along in the
       // reject message on the non-zero-exit path). Cancellation is expected; IpcErrors
@@ -310,7 +310,7 @@ export class PdfTranslationService extends BaseService {
    * file the user sees in the file manager until the cleanup grace window elapses, so it
    * is compensated away — the same shape as `withCreatedImageEntry`.
    */
-  private async persistResult(request: PdfTranslationRequest, outputPath: AbsoluteFilePath) {
+  private async persistResult(request: PdfTranslationRequest, outputPath: AbsoluteFilePath, job: ActivePdfTranslation) {
     const fileManager = application.get('FileManager')
     let translated: FileEntry | null = null
 
@@ -324,9 +324,8 @@ export class PdfTranslationService extends BaseService {
       const entry = await this.renameToDisplayName(created, request)
       const fileName = entry.ext ? `${entry.name}.${entry.ext}` : entry.name
 
-      const files: CreateFileTranslateHistoryInput['files'] = [{ fileEntryId: entry.id, role: 'target' }]
       const source = await this.registerSourceEntry(request.sourcePath, request.jobId)
-      if (source) files.push({ fileEntryId: source.id, role: 'source' })
+      this.throwIfCancelled(job)
 
       application.get('DbService').withWriteTx((tx) =>
         translateHistoryService.createFileTx(tx, {
@@ -334,19 +333,24 @@ export class PdfTranslationService extends BaseService {
           targetText: fileName,
           sourceLanguage: toPersistedLangCodeOrNull(request.sourceLangCode),
           targetLanguage: toPersistedLangCodeOrNull(request.targetLangCode),
-          files
+          targetFileEntryId: entry.id,
+          ...(source ? { sourceFileEntryId: source.id } : {})
         })
       )
 
       return { outputPath: fileManager.getPhysicalPath(entry.id), fileName }
     } catch (error) {
-      logger.error('Failed to persist translated PDF result', error as Error, { jobId: request.jobId })
+      const cancelled = job.cancelled
+      if (!cancelled) {
+        logger.error('Failed to persist translated PDF result', error as Error, { jobId: request.jobId })
+      }
       if (translated) {
         const translatedId = translated.id
         await fileManager.permanentDelete(translatedId).catch((cleanupError) => {
           logger.error(`Failed to delete orphaned translated PDF entry ${translatedId}`, cleanupError as Error)
         })
       }
+      if (cancelled) this.throwIfCancelled(job)
       throw new IpcError(
         translateErrorCodes.PDF_RESULT_PERSIST_FAILED,
         'The PDF was translated, but its result could not be saved'

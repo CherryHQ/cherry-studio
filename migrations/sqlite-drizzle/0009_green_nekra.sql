@@ -12,5 +12,5 @@ CREATE TABLE `translate_history_file_ref` (
 --> statement-breakpoint
 CREATE INDEX `thfr_entry_id_idx` ON `translate_history_file_ref` (`file_entry_id`);--> statement-breakpoint
 CREATE INDEX `thfr_source_id_idx` ON `translate_history_file_ref` (`source_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `thfr_unique_idx` ON `translate_history_file_ref` (`file_entry_id`,`source_id`,`role`);--> statement-breakpoint
+CREATE UNIQUE INDEX `thfr_unique_idx` ON `translate_history_file_ref` (`source_id`,`role`);--> statement-breakpoint
 ALTER TABLE `translate_history` ADD `kind` text DEFAULT 'text' NOT NULL;

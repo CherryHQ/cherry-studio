@@ -340,10 +340,8 @@ describe('PdfTranslationService', () => {
       targetText: 'research paper.zh-CN.pdf',
       sourceLanguage: 'en-us',
       targetLanguage: 'zh-cn',
-      files: [
-        { fileEntryId: TRANSLATED_ENTRY_ID, role: 'target' },
-        { fileEntryId: SOURCE_ENTRY_ID, role: 'source' }
-      ]
+      targetFileEntryId: TRANSLATED_ENTRY_ID,
+      sourceFileEntryId: SOURCE_ENTRY_ID
     })
     expect(fileManager.permanentDelete).not.toHaveBeenCalled()
     // The temp dir is gone even though the run succeeded — its content now lives in FileManager.
@@ -379,11 +377,44 @@ describe('PdfTranslationService', () => {
     expect(result.fileName).toBe('research paper.zh-CN.pdf')
     expect(mocks.createFileTx).toHaveBeenCalledWith(
       tx,
-      expect.objectContaining({ files: [{ fileEntryId: TRANSLATED_ENTRY_ID, role: 'target' }] })
+      expect.objectContaining({ targetFileEntryId: TRANSLATED_ENTRY_ID })
     )
+    expect(mocks.createFileTx.mock.calls[0][1]).not.toHaveProperty('sourceFileEntryId')
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
       'Failed to reference the source PDF; recording the translation without it',
       expect.objectContaining({ jobId: 'job-source-unreferenceable', sourcePath: SOURCE_PATH })
+    )
+  })
+
+  it('cancels before writing history when source registration is still pending', async () => {
+    let resolveSourceEntry!: (entry: { id: string; name: string; ext: string }) => void
+    fileManager.ensureExternalEntry.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSourceEntry = resolve
+        })
+    )
+    const service = new PdfTranslationService()
+
+    const translation = service.translate({
+      jobId: 'job-cancel-persistence',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+    await vi.waitFor(() => expect(fileManager.ensureExternalEntry).toHaveBeenCalledTimes(1))
+
+    service.cancel('job-cancel-persistence')
+    resolveSourceEntry({ id: SOURCE_ENTRY_ID, name: 'research paper', ext: 'pdf' })
+
+    await expect(translation).rejects.toThrow('PDF translation cancelled')
+    expect(mocks.createFileTx).not.toHaveBeenCalled()
+    expect(fileManager.permanentDelete).toHaveBeenCalledWith(TRANSLATED_ENTRY_ID)
+    expect(mockMainLoggerService.error).not.toHaveBeenCalledWith(
+      'Failed to persist translated PDF result',
+      expect.anything(),
+      expect.anything()
     )
   })
 

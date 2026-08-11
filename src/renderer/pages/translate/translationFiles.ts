@@ -28,8 +28,7 @@ export async function loadTranslationFiles(historyId: string): Promise<Translati
   const refs = await dataApiService.get('/files/refs', {
     query: { sourceType: translateHistorySourceType, sourceId: historyId }
   })
-  // Current producers write one entry per role; Map keeps the selection deterministic
-  // if older or future rows contain duplicates (the last ref for that role wins).
+  // The database enforces one entry per role; Map provides direct role lookup here.
   const byRole = new Map(
     refs.flatMap((ref) => (ref.sourceType === translateHistorySourceType ? [[ref.role, ref.fileEntryId] as const] : []))
   )

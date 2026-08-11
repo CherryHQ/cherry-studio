@@ -53,16 +53,14 @@ describe('TranslateHistoryService', () => {
     ])
   }
 
-  function createFileHistory() {
+  function createFileHistory(includeSource = true) {
     return translateHistoryService.createFileTx(dbh.db, {
       sourceText: 'paper.pdf',
       targetText: 'paper.zh-CN.pdf',
       sourceLanguage: null,
       targetLanguage: null,
-      files: [
-        { fileEntryId: TRANSLATED_ENTRY_ID, role: 'target' },
-        { fileEntryId: SOURCE_ENTRY_ID, role: 'source' }
-      ]
+      targetFileEntryId: TRANSLATED_ENTRY_ID,
+      ...(includeSource ? { sourceFileEntryId: SOURCE_ENTRY_ID } : {})
     })
   }
 
@@ -182,6 +180,28 @@ describe('TranslateHistoryService', () => {
         ['target', TRANSLATED_ENTRY_ID, created.id],
         ['source', SOURCE_ENTRY_ID, created.id]
       ])
+    })
+
+    it('should write the required target without an optional source', async () => {
+      await seedFileEntries()
+
+      const created = createFileHistory(false)
+
+      expect(await dbh.db.select().from(translateHistoryFileRefTable)).toEqual([
+        expect.objectContaining({ role: 'target', fileEntryId: TRANSLATED_ENTRY_ID, sourceId: created.id })
+      ])
+    })
+
+    it('should reject a second file for the same history role', async () => {
+      await seedFileEntries()
+      const created = createFileHistory()
+
+      expect(() =>
+        dbh.db
+          .insert(translateHistoryFileRefTable)
+          .values({ sourceId: created.id, fileEntryId: SOURCE_ENTRY_ID, role: 'target' })
+          .run()
+      ).toThrow(/UNIQUE constraint failed/)
     })
 
     it('should cascade its refs away when the history row is deleted', async () => {

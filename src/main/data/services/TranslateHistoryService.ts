@@ -15,7 +15,6 @@ import type {
   UpdateTranslateHistoryDto
 } from '@shared/data/api/schemas/translate'
 import { parsePersistedLangCode, type PersistedLangCode } from '@shared/data/preference/preferenceTypes'
-import type { TranslateHistoryFileRole } from '@shared/data/types/file'
 import { type TranslateHistory, TranslateHistoryKindSchema } from '@shared/data/types/translate'
 import type { SQL } from 'drizzle-orm'
 import { and, eq, or, sql } from 'drizzle-orm'
@@ -47,12 +46,10 @@ export interface CreateFileTranslateHistoryInput {
   targetText: string
   sourceLanguage: PersistedLangCode | null
   targetLanguage: PersistedLangCode | null
-  /**
-   * The file entries this translation owns. Always carries the `'target'` file;
-   * `'source'` is best-effort (registering the user's original can fail on a
-   * case-collision, which must not sink an otherwise finished translation).
-   */
-  files: { fileEntryId: string; role: TranslateHistoryFileRole }[]
+  /** The generated file; every file translation has exactly one. */
+  targetFileEntryId: string
+  /** Best-effort reference to the original; registration can fail on a case-collision. */
+  sourceFileEntryId?: string
 }
 
 export class TranslateHistoryService {
@@ -87,11 +84,12 @@ export class TranslateHistoryService {
       throw DataApiErrorFactory.database(new Error('Insert did not return a row'), 'create file translate history')
     }
 
-    const refs: InsertTranslateHistoryFileRefRow[] = input.files.map((file) => ({
-      sourceId: row.id,
-      fileEntryId: file.fileEntryId,
-      role: file.role
-    }))
+    const refs: InsertTranslateHistoryFileRefRow[] = [
+      { sourceId: row.id, fileEntryId: input.targetFileEntryId, role: 'target' }
+    ]
+    if (input.sourceFileEntryId !== undefined) {
+      refs.push({ sourceId: row.id, fileEntryId: input.sourceFileEntryId, role: 'source' })
+    }
     tx.insert(translateHistoryFileRefTable).values(refs).run()
 
     logger.info('Created file translate history', { id: row.id, refCount: refs.length })

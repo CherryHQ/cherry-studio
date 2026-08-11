@@ -154,12 +154,8 @@ export const jobFileRefTable = sqliteTable(
  * Deleting the history row — individually or via "clear all" — cascades its refs,
  * which is what makes the generated file reclaimable by the cleanup pass.
  *
- * The unique index stays on the `(fileEntryId, sourceId, role)` triple like the
- * other collection ref tables rather than tightening to `(sourceId, role)`:
- * BabelDOC — today's only producer — can emit a dual-layout PDF alongside the
- * mono one (this feature just passes `--no-dual`). The triple leaves that
- * extension available without changing the table or its indexes; a per-role
- * slot constraint would first have to be relaxed.
+ * Each history has exactly one target and at most one source. If multi-output
+ * translation is introduced, the role and presentation model must expand with it.
  */
 export const translateHistoryFileRefTable = sqliteTable(
   'translate_history_file_ref',
@@ -177,7 +173,7 @@ export const translateHistoryFileRefTable = sqliteTable(
   (t) => [
     index('thfr_entry_id_idx').on(t.fileEntryId),
     index('thfr_source_id_idx').on(t.sourceId),
-    uniqueIndex('thfr_unique_idx').on(t.fileEntryId, t.sourceId, t.role),
+    uniqueIndex('thfr_unique_idx').on(t.sourceId, t.role),
     check('thfr_role_check', roleCheck(t.role, translateHistoryRoles))
   ]
 )

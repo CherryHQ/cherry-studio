@@ -210,10 +210,8 @@ describe('FileRefService', () => {
         targetText: 'paper.zh-CN.pdf',
         sourceLanguage: null,
         targetLanguage: null,
-        files: [
-          { fileEntryId: sourceEntryId, role: 'source' },
-          { fileEntryId: targetEntryId, role: 'target' }
-        ]
+        targetFileEntryId: targetEntryId,
+        sourceFileEntryId: sourceEntryId
       })
 
       const translateRefs = fileRefService
