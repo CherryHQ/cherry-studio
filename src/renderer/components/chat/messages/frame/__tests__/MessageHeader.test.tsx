@@ -183,7 +183,7 @@ describe('MessageHeader', () => {
     expect(container.querySelector('[data-message-select-checkbox]')).not.toBeNull()
   })
 
-  it('shows durable sender attribution and delivery state on a received message', () => {
+  it('shows durable sender attribution without transport status on a received message', () => {
     const sender = { agentId: 'agent-a', sessionId: 'session-a' }
     const { getByText } = render(
       <MessageHeader
@@ -209,7 +209,7 @@ describe('MessageHeader', () => {
     )
 
     expect(getByText('From Agent A / Research')).toBeTruthy()
-    expect(getByText('agent.session_delivery.status.queued')).toBeTruthy()
+    expect(screen.queryByText('agent.session_delivery.status.queued')).toBeNull()
   })
 
   it('opens the sending session from durable attribution', async () => {

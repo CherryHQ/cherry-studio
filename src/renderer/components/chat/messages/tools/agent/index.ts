@@ -5,6 +5,7 @@ export { AskUserQuestionOptimisticInputProvider } from './AskUserQuestionOptimis
 export { MessageChannelConfigTool } from './MessageChannelConfigTool'
 export { isKnownNavigationPath, NavigateToolInline } from './NavigateTool'
 export { isReportArtifactsToolResponse, MessageReportArtifacts } from './ReportArtifacts'
+export { parseSessionCreateResult, parseSessionSendResult } from './sessionToolResult'
 export { getTaskActiveText, getTaskId, getTaskTitle, isTaskRecord, normalizeTaskStatus } from './taskData'
 export { isValidAgentToolsType, renderTool, toolRenderers } from './toolRendererRegistry'
 export { UnknownToolRenderer } from './UnknownToolRenderer'

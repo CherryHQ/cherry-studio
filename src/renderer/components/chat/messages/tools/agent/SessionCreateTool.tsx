@@ -10,51 +10,15 @@ import { useIsStreaming } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
 import { extractToolErrorText } from '../toolError'
 import { getSessionDeliveryStatus } from './sessionDeliveryStatus'
+import { parseSessionCreateResult } from './sessionToolResult'
 
 interface SessionCreateInput {
   message?: string
   title?: string
 }
 
-interface SessionCreateResult {
-  ok: true
-  sessionId: string
-  delivery?: {
-    status?: string
-  }
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function parseSessionCreateResult(value: unknown): SessionCreateResult | undefined {
-  let candidate = value
-  if (isRecord(value) && Array.isArray(value.content)) {
-    const text = value.content
-      .map((item) => (isRecord(item) && typeof item.text === 'string' ? item.text : ''))
-      .filter(Boolean)
-      .join('\n')
-    try {
-      candidate = JSON.parse(text)
-    } catch {
-      return undefined
-    }
-  } else if (typeof value === 'string') {
-    try {
-      candidate = JSON.parse(value)
-    } catch {
-      return undefined
-    }
-  }
-
-  if (!isRecord(candidate) || candidate.ok !== true || typeof candidate.sessionId !== 'string') return undefined
-  const delivery = isRecord(candidate.delivery) ? candidate.delivery : undefined
-  return {
-    ok: true,
-    sessionId: candidate.sessionId,
-    delivery: delivery && typeof delivery.status === 'string' ? { status: delivery.status } : undefined
-  }
 }
 
 function getInput(input: ToolInput | Record<string, unknown> | undefined): SessionCreateInput {

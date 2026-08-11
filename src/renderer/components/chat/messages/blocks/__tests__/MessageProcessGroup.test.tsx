@@ -1,8 +1,15 @@
-import { act, render, screen } from '@testing-library/react'
+import type { ToolRenderItem } from '@renderer/components/chat/messages/tools/toolResponse'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { MessageListItem } from '../../types'
 import MessageProcessGroup from '../MessageProcessGroup'
+
+const navigateToRoute = vi.hoisted(() => vi.fn())
+
+vi.mock('../../MessageListProvider', () => ({
+  useOptionalMessageListActions: () => ({ navigateToRoute })
+}))
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -15,9 +22,20 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('../ToolBlockGroup', () => ({
-  ToolBlockGroupHeaderContent: ({ elapsedText, summary }: { elapsedText?: string; summary?: string }) => (
-    <div data-testid="process-header">
+  ToolBlockGroupHeaderContent: ({
+    elapsedText,
+    items,
+    semanticToolTitle,
+    summary
+  }: {
+    elapsedText?: string
+    items: Array<{ toolResponse: { tool: { name: string }; arguments?: Record<string, unknown> } }>
+    semanticToolTitle?: boolean
+    summary?: string
+  }) => (
+    <div data-testid="process-header" data-semantic-tool-title={semanticToolTitle || undefined}>
       {summary} {elapsedText}
+      {items.map((item) => `${item.toolResponse.tool.name}:${String(item.toolResponse.arguments?.title ?? '')}`)}
     </div>
   )
 }))
@@ -26,6 +44,7 @@ describe('MessageProcessGroup', () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-01-01T00:00:00Z'))
+    navigateToRoute.mockReset()
   })
 
   afterEach(() => {
@@ -101,5 +120,45 @@ describe('MessageProcessGroup', () => {
     )
 
     expect(screen.getByTestId('process-header')).toHaveTextContent('4 seconds')
+  })
+
+  it('surfaces the latest session transfer in the collapsed completed header', () => {
+    const message = {
+      id: 'message-1',
+      role: 'assistant',
+      assistantId: 'assistant-1',
+      topicId: 'topic-1',
+      createdAt: '2026-01-01T00:00:00Z',
+      status: 'success'
+    } as MessageListItem
+    const toolItems = [
+      {
+        id: 'tool-1',
+        toolResponse: {
+          id: 'tool-1',
+          toolCallId: 'tool-1',
+          tool: { id: 'tool-1', name: 'session_create', type: 'builtin' },
+          arguments: { title: 'A very long session title' },
+          status: 'done',
+          response: { content: [{ type: 'text', text: '{"ok":true,"sessionId":"session-new"}' }] }
+        }
+      }
+    ] as ToolRenderItem[]
+
+    render(
+      <MessageProcessGroup phase="completed" outcome="success" message={message} toolItems={toolItems}>
+        {() => <div>Process history</div>}
+      </MessageProcessGroup>
+    )
+
+    expect(screen.getByTestId('process-header')).toHaveAttribute('data-semantic-tool-title', 'true')
+    expect(screen.getByTestId('process-header')).toHaveTextContent('session_create:A very long session title')
+    expect(screen.queryByTestId('tool-history-content')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'message.tools.sessionCreate.open: A very long session title' }))
+    expect(navigateToRoute).toHaveBeenCalledWith({
+      path: '/app/agents',
+      query: { sessionId: 'session-new' }
+    })
   })
 })

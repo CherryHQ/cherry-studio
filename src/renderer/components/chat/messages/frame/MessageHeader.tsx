@@ -33,14 +33,6 @@ interface Props {
   footerSlot?: ReactNode
 }
 
-const DELIVERY_STATUS_LABEL_KEYS = {
-  accepted: 'agent.session_delivery.status.accepted',
-  consumed: 'agent.session_delivery.status.consumed',
-  delivering: 'agent.session_delivery.status.delivering',
-  failed: 'agent.session_delivery.status.failed',
-  queued: 'agent.session_delivery.status.queued'
-} as const
-
 export const AgentSessionDeliveryBadge: FC<{
   delivery: NonNullable<MessageListItem['delivery']>
 }> = ({ delivery }) => {
@@ -48,16 +40,14 @@ export const AgentSessionDeliveryBadge: FC<{
   const actions = useOptionalMessageListActions()
   const senderSessionLabel = delivery.senderSnapshot?.sessionName.trim() || delivery.sender.sessionId
   const senderAgentLabel = delivery.senderSnapshot?.agentName.trim() || delivery.sender.agentId
+  const senderLabel = t('agent.session_delivery.from', {
+    agent: senderAgentLabel,
+    session: senderSessionLabel
+  })
   const content = (
     <>
-      <span className="truncate">
-        {t('agent.session_delivery.from', {
-          agent: senderAgentLabel,
-          session: senderSessionLabel
-        })}
-      </span>
-      <span aria-hidden="true">·</span>
-      <span className="shrink-0">{t(DELIVERY_STATUS_LABEL_KEYS[delivery.status])}</span>
+      <span className="min-w-0 truncate">{senderLabel}</span>
+      <ArrowUpRight aria-hidden="true" className="shrink-0" />
     </>
   )
 
@@ -67,22 +57,20 @@ export const AgentSessionDeliveryBadge: FC<{
   }
 
   return (
-    <Tooltip
-      content={`${delivery.sender.agentId}/${delivery.sender.sessionId} → ${delivery.receiver.agentId}/${delivery.receiver.sessionId}`}>
+    <Tooltip content={senderLabel}>
       {actions?.navigateToRoute ? (
         <Badge
           asChild
           variant="outline"
-          className="h-5 max-w-[min(28rem,50vw)] cursor-pointer gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs hover:bg-accent hover:text-accent-foreground">
-          <button type="button" onClick={openSenderSession}>
+          className="h-5 max-w-[min(18rem,45vw)] cursor-pointer gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs hover:bg-accent hover:text-accent-foreground">
+          <button type="button" aria-label={senderLabel} onClick={openSenderSession}>
             {content}
-            <ArrowUpRight aria-hidden="true" />
           </button>
         </Badge>
       ) : (
         <Badge
           variant="outline"
-          className="h-5 max-w-[min(28rem,50vw)] gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs">
+          className="h-5 max-w-[min(18rem,45vw)] gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs">
           {content}
         </Badge>
       )}
