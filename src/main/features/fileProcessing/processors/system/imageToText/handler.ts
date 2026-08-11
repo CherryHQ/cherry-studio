@@ -1,3 +1,5 @@
+import fs from 'node:fs/promises'
+
 import { loggerService } from '@logger'
 import { isLinux, isWin } from '@main/core/platform'
 import type * as SystemOcrModule from '@napi-rs/system-ocr'
@@ -42,8 +44,14 @@ export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to
 
         const { OcrAccuracy, recognize } = await loadSystemOcr()
 
+        // The binding's Windows path input is hardcoded to the PNG WIC decoder, so any JPEG path
+        // fails with 0x88982F07 (#18326); its buffer input sniffs the real format — pass bytes.
+        const image = isWin
+          ? await fs.readFile(context.file.path, { signal: executionContext.signal })
+          : context.file.path
+
         const result = await recognize(
-          context.file.path,
+          image,
           OcrAccuracy.Accurate,
           isWin ? context.langs : undefined,
           executionContext.signal
