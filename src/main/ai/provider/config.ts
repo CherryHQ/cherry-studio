@@ -27,7 +27,7 @@ import type { ProviderConfig } from '../types'
 import { type AppProviderId, appProviderIds, type AppProviderSettingsMap } from '../types'
 import { customFetch } from '../utils/customFetch'
 import { getBaseUrl, getExtraHeaders, routeToEndpoint } from '../utils/provider'
-import { stripArkUnsupportedIncludes } from './ark'
+import { createArkResponsesFetch } from './ark'
 import { generateSignature } from './cherryai'
 import { buildCodexRequestHeaders, coerceCodexRequestBody } from './codex'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
@@ -246,13 +246,14 @@ export async function resolveProviderAiSdkConfig(
     },
     // Doubao's built-in search rides the generic OpenAI Responses adapter, which auto-adds
     // `include: web_search_call.action.sources` alongside the web_search tool. Ark accepts the
-    // tool but 400s on that include, so strip it on the way out (arkResponses.ts).
+    // tool but 400s on that include. Ark also omits `annotations` in successful output_text and
+    // requires `status` on replayed assistant input, so the provider-specific fetch seam handles
+    // those differences while preserving Responses for built-in search and encrypted-CoT replay.
     {
       match: (p, id) => id === 'openai' && matchesPreset(p, SystemProviderIds.doubao),
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
-        config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
-          customFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
+        config.providerSettings.fetch = createArkResponsesFetch(customFetch)
         return config
       })
     },
