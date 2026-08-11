@@ -145,12 +145,17 @@ describe('PromptService', () => {
       await seedAssistant(ASSISTANT_ID, 'a0')
       await seedAssistant(OTHER_ASSISTANT_ID, 'a1')
       await seedAgent()
-      const assistantPrompt = await seedPrompt('Assistant', 'assistant only')
-      const agentPrompt = await seedPrompt('Agent', 'agent only')
+      const assistantPrompt = promptService.create({
+        title: 'Assistant',
+        content: 'assistant only',
+        bindingTarget: { type: 'assistant', id: ASSISTANT_ID }
+      })
+      const agentPrompt = promptService.create({
+        title: 'Agent',
+        content: 'agent only',
+        bindingTarget: { type: 'agent', id: AGENT_ID }
+      })
       const unboundPrompt = await seedPrompt('Global', 'unbound')
-
-      promptService.bindToTarget(assistantPrompt.id, { type: 'assistant', id: ASSISTANT_ID })
-      promptService.bindToTarget(agentPrompt.id, { type: 'agent', id: AGENT_ID })
 
       expect(promptService.list({ targetType: 'assistant', targetId: ASSISTANT_ID })).toEqual([assistantPrompt])
       expect(promptService.list({ targetType: 'assistant', targetId: OTHER_ASSISTANT_ID })).toEqual([])

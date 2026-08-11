@@ -735,7 +735,6 @@ describe('edit dialogs', () => {
       })
     )
     expect(unbindPromptMock).not.toHaveBeenCalled()
-    expect(boundPromptsRefetchMock).toHaveBeenCalledOnce()
   })
 
   it('unbinds a quick phrase from the agent being edited', async () => {
@@ -757,7 +756,6 @@ describe('edit dialogs', () => {
       })
     )
     expect(bindPromptMock).not.toHaveBeenCalled()
-    expect(boundPromptsRefetchMock).toHaveBeenCalledOnce()
   })
 
   it('submits assistant name, description, and model changes as a PATCH', async () => {

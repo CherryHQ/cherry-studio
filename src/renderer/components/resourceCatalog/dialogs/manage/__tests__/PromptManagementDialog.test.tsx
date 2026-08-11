@@ -25,11 +25,9 @@ const promptsFixture = [
 ]
 
 const mocks = vi.hoisted(() => ({
-  bindPrompt: vi.fn(),
   createPrompt: vi.fn(),
   deletePrompt: vi.fn(),
   refetch: vi.fn(),
-  unbindPrompt: vi.fn(),
   updatePrompt: vi.fn(),
   useMutation: vi.fn(),
   useQuery: vi.fn()
@@ -76,14 +74,12 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/edit', () => ({
 vi.mock('lucide-react', () => ({
   Bot: () => <span data-testid="bot-icon" />,
   FileText: () => <span data-testid="file-text-icon" />,
-  Link2: () => <span data-testid="link-icon" />,
   MessageCircle: () => <span data-testid="message-circle-icon" />,
   Pencil: () => <span data-testid="pencil-icon" />,
   Plus: () => <span data-testid="plus-icon" />,
   Search: () => <span data-testid="search-icon" />,
   ToolCase: () => <span data-testid="tool-case-icon" />,
   Trash2: () => <span data-testid="trash-icon" />,
-  Unlink: () => <span data-testid="unlink-icon" />,
   X: () => <span data-testid="x-icon" />
 }))
 
@@ -164,25 +160,19 @@ beforeEach(() => {
     isLoading: false,
     refetch: mocks.refetch
   }))
-  mocks.useMutation.mockImplementation((method: string, path: string) => {
+  mocks.useMutation.mockImplementation((method: string) => {
     if (method === 'POST') return { trigger: mocks.createPrompt, isLoading: false }
     if (method === 'PATCH') return { trigger: mocks.updatePrompt, isLoading: false }
-    if (method === 'PUT') return { trigger: mocks.bindPrompt, isLoading: false }
-    if (method === 'DELETE' && path.includes('/bindings/')) {
-      return { trigger: mocks.unbindPrompt, isLoading: false }
-    }
     return { trigger: mocks.deletePrompt, isLoading: false }
   })
-  mocks.bindPrompt.mockResolvedValue(undefined)
   mocks.createPrompt.mockResolvedValue(promptsFixture[0])
   mocks.updatePrompt.mockResolvedValue(promptsFixture[0])
   mocks.deletePrompt.mockResolvedValue(undefined)
   mocks.refetch.mockResolvedValue(undefined)
-  mocks.unbindPrompt.mockResolvedValue(undefined)
 })
 
-function renderDialog(bindingTarget?: { type: 'assistant'; id: string }) {
-  return render(<PromptManagementDialog open onOpenChange={vi.fn()} bindingTarget={bindingTarget} />)
+function renderDialog(assistantId?: string) {
+  return render(<PromptManagementDialog open onOpenChange={vi.fn()} assistantId={assistantId} />)
 }
 
 describe('PromptManagementDialog', () => {
@@ -238,36 +228,32 @@ describe('PromptManagementDialog', () => {
     await waitFor(() => expect(screen.queryByTestId('confirm-dialog')).not.toBeInTheDocument())
   })
 
-  it('filters by the current Assistant and binds or unbinds prompts without changing the Prompt', async () => {
+  it('scopes prompts and new prompt creation to the current Assistant', async () => {
     const user = userEvent.setup()
-    const bindingTarget = { type: 'assistant' as const, id: '550e8400-e29b-41d4-a716-446655440001' }
-    renderDialog(bindingTarget)
+    const assistantId = '550e8400-e29b-41d4-a716-446655440001'
+    renderDialog(assistantId)
 
-    expect(screen.getAllByRole('button', { name: 'settings.prompts.binding.unbindCurrent' })).toHaveLength(1)
-    expect(screen.getAllByRole('button', { name: 'settings.prompts.binding.bindCurrent' })).toHaveLength(1)
-
-    await user.click(screen.getByRole('button', { name: 'settings.prompts.binding.bindCurrent' }))
     await waitFor(() =>
-      expect(mocks.bindPrompt).toHaveBeenCalledWith({
-        params: {
-          id: promptsFixture[1].id,
+      expect(mocks.useQuery).toHaveBeenCalledWith('/prompts', {
+        enabled: true,
+        query: {
           targetType: 'assistant',
-          targetId: bindingTarget.id
+          targetId: assistantId
         }
       })
     )
-
-    await user.click(screen.getByRole('button', { name: 'settings.prompts.binding.currentAssistant' }))
     expect(screen.getByText('Plan route')).toBeInTheDocument()
     expect(screen.queryByText('Summarize')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'settings.prompts.binding.unbindCurrent' }))
+    await user.click(screen.getByRole('button', { name: 'settings.prompts.add' }))
+    await user.click(screen.getByRole('button', { name: 'save prompt' }))
+
     await waitFor(() =>
-      expect(mocks.unbindPrompt).toHaveBeenCalledWith({
-        params: {
-          id: promptsFixture[0].id,
-          targetType: 'assistant',
-          targetId: bindingTarget.id
+      expect(mocks.createPrompt).toHaveBeenCalledWith({
+        body: {
+          title: 'Saved title',
+          content: 'Saved content',
+          bindingTarget: { type: 'assistant', id: assistantId }
         }
       })
     )

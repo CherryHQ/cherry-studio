@@ -22,7 +22,7 @@ export const promptTable = sqliteTable(
 )
 
 /**
- * Prompt binding table - recommends global prompts within an Assistant or Agent context.
+ * Prompt binding table - associates global prompts with an Assistant or Agent.
  *
  * The polymorphic target has no FK. Target-owning services must call
  * `PromptService.purgeForTargetTx()` when deleting an Assistant or Agent.

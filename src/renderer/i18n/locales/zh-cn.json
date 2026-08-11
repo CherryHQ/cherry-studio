@@ -7643,16 +7643,11 @@
     },
     "prompts": {
       "add": "添加提示词",
-      "allPrompts": "全部提示词",
       "binding": {
-        "bindCurrent": "关联到当前上下文",
-        "createHint": "创建后将同时关联到{{target}}。",
         "currentAgent": "当前智能体",
         "currentAssistant": "当前助手",
-        "editDescription": "选择默认在{{target}}中可用的提示词。",
-        "noBoundDescription": "可从“全部提示词”中关联需要在此使用的提示词。",
-        "tabTitle": "快捷提示词",
-        "unbindCurrent": "取消当前关联"
+        "editDescription": "选择与{{target}}关联的提示词。",
+        "tabTitle": "快捷提示词"
       },
       "contentLabel": "内容",
       "contentPlaceholder": "请输入提示词内容，支持使用 ${变量}，按 Tab 可在变量间快速定位。例如：\n帮我规划从 ${出发地} 到 ${目的地} 的路线，然后发送到 ${邮箱}",
@@ -7669,7 +7664,6 @@
         "updateFailed": "更新提示词失败"
       },
       "manage": "管理提示词",
-      "noBoundPrompts": "暂无已关联提示词",
       "noPrompts": "暂无提示词",
       "title": "提示词管理",
       "titleLabel": "标题",

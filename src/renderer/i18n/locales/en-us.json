@@ -7643,16 +7643,11 @@
     },
     "prompts": {
       "add": "Add Prompt",
-      "allPrompts": "All prompts",
       "binding": {
-        "bindCurrent": "Link to current context",
-        "createHint": "This prompt will also be linked to {{target}}.",
         "currentAgent": "Current agent",
         "currentAssistant": "Current assistant",
-        "editDescription": "Choose which prompts are available by default for {{target}}.",
-        "noBoundDescription": "Link prompts from the All prompts view to make them available here.",
-        "tabTitle": "Quick Phrases",
-        "unbindCurrent": "Unlink from current context"
+        "editDescription": "Choose which prompts are linked to {{target}}.",
+        "tabTitle": "Quick Phrases"
       },
       "contentLabel": "Content",
       "contentPlaceholder": "Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
@@ -7669,7 +7664,6 @@
         "updateFailed": "Failed to update prompt"
       },
       "manage": "Manage Prompts",
-      "noBoundPrompts": "No linked prompts",
       "noPrompts": "No prompts",
       "title": "Prompt Management",
       "titleLabel": "Title",

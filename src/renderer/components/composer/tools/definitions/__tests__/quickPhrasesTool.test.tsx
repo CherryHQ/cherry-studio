@@ -1,30 +1,57 @@
-import { TopicType } from '@renderer/components/composer/tools/types'
-import { describe, expect, it } from 'vitest'
+import type { ReactElement } from 'react'
+import { describe, expect, it, vi } from 'vitest'
 
-import { resolvePromptBindingTarget } from '../quickPhrasesTool'
+import { TopicType } from '../../types'
+import quickPhrasesTool from '../quickPhrasesTool'
 
-describe('resolvePromptBindingTarget', () => {
-  it('maps chat and quick-assistant scopes to the current Assistant', () => {
-    expect(resolvePromptBindingTarget({ scope: TopicType.Chat, assistantId: 'assistant-id' })).toEqual({
-      type: 'assistant',
-      id: 'assistant-id'
+type RuntimeProps = {
+  assistantId?: string
+  agentId?: string
+}
+
+function getRuntimeProps(
+  scope: TopicType | 'quick-assistant' | 'painting',
+  context: { assistantId?: string; agentId?: string }
+): RuntimeProps {
+  const Runtime = quickPhrasesTool.composer?.runtime
+  if (!Runtime) throw new Error('Quick phrases runtime is not registered')
+
+  const element = (Runtime as (props: unknown) => ReactElement)({
+    context: {
+      scope,
+      actions: { onTextChange: vi.fn() },
+      assistant: context.assistantId ? { id: context.assistantId } : undefined,
+      session: context.agentId ? { agentId: context.agentId } : undefined,
+      launcher: { registerLaunchers: vi.fn() }
+    }
+  })
+
+  return element.props as RuntimeProps
+}
+
+describe('quickPhrasesTool runtime', () => {
+  it('passes the Assistant id in Chat and quick-assistant scopes', () => {
+    expect(getRuntimeProps(TopicType.Chat, { assistantId: 'assistant-id' })).toMatchObject({
+      assistantId: 'assistant-id',
+      agentId: undefined
     })
-    expect(resolvePromptBindingTarget({ scope: 'quick-assistant', assistantId: 'quick-assistant-id' })).toEqual({
-      type: 'assistant',
-      id: 'quick-assistant-id'
+    expect(getRuntimeProps('quick-assistant', { assistantId: 'quick-assistant-id' })).toMatchObject({
+      assistantId: 'quick-assistant-id',
+      agentId: undefined
     })
   })
 
-  it('maps Session scope to the current Agent', () => {
-    expect(resolvePromptBindingTarget({ scope: TopicType.Session, agentId: 'agent-id' })).toEqual({
-      type: 'agent',
-      id: 'agent-id'
+  it('passes only the Agent id in Session scope', () => {
+    expect(getRuntimeProps(TopicType.Session, { assistantId: 'assistant-id', agentId: 'agent-id' })).toMatchObject({
+      assistantId: undefined,
+      agentId: 'agent-id'
     })
   })
 
-  it('keeps painting and missing-context composers global', () => {
-    expect(resolvePromptBindingTarget({ scope: 'painting', assistantId: 'assistant-id' })).toBeUndefined()
-    expect(resolvePromptBindingTarget({ scope: TopicType.Chat })).toBeUndefined()
-    expect(resolvePromptBindingTarget({ scope: TopicType.Session })).toBeUndefined()
+  it('keeps painting scope global', () => {
+    expect(getRuntimeProps('painting', { assistantId: 'assistant-id', agentId: 'agent-id' })).toMatchObject({
+      assistantId: undefined,
+      agentId: undefined
+    })
   })
 })

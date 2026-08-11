@@ -7615,16 +7615,11 @@
     },
     "prompts": {
       "add": "Prompt hinzufügen",
-      "allPrompts": "[to be translated]:All prompts",
       "binding": {
-        "bindCurrent": "[to be translated]:Link to current context",
-        "createHint": "[to be translated]:This prompt will also be linked to {{target}}.",
         "currentAgent": "[to be translated]:Current agent",
         "currentAssistant": "[to be translated]:Current assistant",
-        "editDescription": "[to be translated]:Choose which prompts are available by default for {{target}}.",
-        "noBoundDescription": "[to be translated]:Link prompts from the All prompts view to make them available here.",
-        "tabTitle": "[to be translated]:Quick Phrases",
-        "unbindCurrent": "[to be translated]:Unlink from current context"
+        "editDescription": "[to be translated]:Choose which prompts are linked to {{target}}.",
+        "tabTitle": "[to be translated]:Quick Phrases"
       },
       "contentLabel": "Inhalt",
       "contentPlaceholder": "Geben Sie den Prompt-Inhalt ein. Unterstützt ${variables}; drücken Sie die Tabulatortaste, um zwischen Variablen zu wechseln. Beispiel:\nHelfen Sie mir, eine Route von ${from} nach ${to} zu planen und senden Sie sie an ${email}.",
@@ -7641,7 +7636,6 @@
         "updateFailed": "Fehler beim Aktualisieren der Eingabeaufforderung"
       },
       "manage": "Prompts verwalten",
-      "noBoundPrompts": "[to be translated]:No linked prompts",
       "noPrompts": "[to be translated]:No prompts",
       "title": "Prompt-Verwaltung",
       "titleLabel": "Titel",

@@ -11,7 +11,7 @@ import {
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import PromptEditorField, { type PromptEditorFieldHandles } from '@renderer/components/PromptEditorField'
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
-import type { Prompt, PromptBindingTarget } from '@shared/data/types/prompt'
+import type { Prompt } from '@shared/data/types/prompt'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -43,13 +43,12 @@ interface FormData {
 interface PromptEditDialogProps {
   open: boolean
   prompt?: Prompt | null
-  bindingTarget?: PromptBindingTarget
   saving?: boolean
   onSave: (data: { title: string; content: string }) => Promise<void>
   onCancel: () => void
 }
 
-const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, bindingTarget, saving, onSave, onCancel }) => {
+const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onSave, onCancel }) => {
   const { t } = useTranslation()
   const [formData, setFormData] = useState<FormData>({ title: '', content: '' })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -160,18 +159,6 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, bindingTarg
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
-          {!isEdit && bindingTarget ? (
-            <p className="m-0 text-muted-foreground text-xs">
-              {t('settings.prompts.binding.createHint', {
-                target: t(
-                  bindingTarget.type === 'assistant'
-                    ? 'settings.prompts.binding.currentAssistant'
-                    : 'settings.prompts.binding.currentAgent'
-                )
-              })}
-            </p>
-          ) : null}
-
           <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
             {t('settings.prompts.titleLabel')}
             <Input

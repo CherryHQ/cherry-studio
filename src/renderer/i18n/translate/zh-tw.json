@@ -7615,16 +7615,11 @@
     },
     "prompts": {
       "add": "新增提示詞",
-      "allPrompts": "[to be translated]:All prompts",
       "binding": {
-        "bindCurrent": "[to be translated]:Link to current context",
-        "createHint": "[to be translated]:This prompt will also be linked to {{target}}.",
         "currentAgent": "[to be translated]:Current agent",
         "currentAssistant": "[to be translated]:Current assistant",
-        "editDescription": "選擇預設在{{target}}中可用的提示詞。",
-        "noBoundDescription": "[to be translated]:Link prompts from the All prompts view to make them available here.",
-        "tabTitle": "快捷提示詞",
-        "unbindCurrent": "[to be translated]:Unlink from current context"
+        "editDescription": "選擇與{{target}}關聯的提示詞。",
+        "tabTitle": "快捷提示詞"
       },
       "contentLabel": "內容",
       "contentPlaceholder": "輸入提示詞內容。支援 ${variables}；按 Tab 可在變數間快速跳轉。例如：\n請幫我規劃從 ${from} 到 ${to} 的路線，並傳送至 ${email}。",
@@ -7641,7 +7636,6 @@
         "updateFailed": "更新提示詞失敗"
       },
       "manage": "管理提示詞",
-      "noBoundPrompts": "[to be translated]:No linked prompts",
       "noPrompts": "[to be translated]:No prompts",
       "title": "提示詞管理",
       "titleLabel": "標題",

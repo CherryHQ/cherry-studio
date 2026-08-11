@@ -293,6 +293,8 @@ export class PromptMigrator extends BaseMigrator {
         }
       })
 
+      this.assertOwnedForeignKeys(ctx.db, [promptBindingTable])
+
       logger.info('Prompt migration completed', {
         processedCount: rows.length,
         bindingCount: this.preparedBindings.length

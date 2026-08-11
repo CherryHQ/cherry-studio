@@ -1,6 +1,6 @@
 # PromptMigrator
 
-`PromptMigrator` migrates both v1 quick-phrase stores into the global v2 `prompt` table. Phrases stored on an assistant also create `prompt_binding` rows so the Composer can recommend them in that Assistant context without duplicating Prompt content.
+`PromptMigrator` migrates both v1 quick-phrase stores into the global v2 `prompt` table. Phrases stored on an assistant also create `prompt_binding` rows so their Assistant associations survive without duplicating Prompt content.
 
 ## Data Sources
 

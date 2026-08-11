@@ -5,7 +5,7 @@ import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { PromptBindingTarget } from '@shared/data/types/prompt'
 import { Search, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CatalogToggleGrid } from './CatalogPicker'
@@ -19,7 +19,8 @@ export type PromptBindingTabProps = {
 export function PromptBindingTab({ enabled, target, portalContainer }: PromptBindingTabProps) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
-  const [bindingPromptId, setBindingPromptId] = useState<string | null>(null)
+  const [isBinding, setIsBinding] = useState(false)
+  const isBindingRef = useRef(false)
   const {
     data: allPromptsData,
     error: allPromptsError,
@@ -42,7 +43,8 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
 
   useEffect(() => {
     setSearch('')
-    setBindingPromptId(null)
+    isBindingRef.current = false
+    setIsBinding(false)
   }, [target.id, target.type])
 
   const boundPromptIds = useMemo(() => new Set((boundPromptsData ?? []).map((prompt) => prompt.id)), [boundPromptsData])
@@ -64,14 +66,16 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
 
   const handleToggle = useCallback(
     async (promptId: string, shouldBind: boolean) => {
-      setBindingPromptId(promptId)
+      if (isBindingRef.current) return
+
+      isBindingRef.current = true
+      setIsBinding(true)
       try {
         if (shouldBind) {
           await bindPrompt(promptId, target)
         } else {
           await unbindPrompt(promptId, target)
         }
-        await refetchBoundPrompts()
       } catch (error) {
         toast.error(
           formatErrorMessageWithPrefix(
@@ -80,10 +84,11 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
           )
         )
       } finally {
-        setBindingPromptId(null)
+        isBindingRef.current = false
+        setIsBinding(false)
       }
     },
-    [bindPrompt, refetchBoundPrompts, t, target, unbindPrompt]
+    [bindPrompt, t, target, unbindPrompt]
   )
 
   const error = allPromptsError ?? boundPromptsError
@@ -140,7 +145,7 @@ export function PromptBindingTab({ enabled, target, portalContainer }: PromptBin
           enabledIds={boundPromptIds}
           onToggle={(promptId, shouldBind) => void handleToggle(promptId, shouldBind)}
           loading={isLoading}
-          disabled={bindingPromptId !== null}
+          disabled={isBinding}
           emptyLabel={search.trim() ? t('library.empty_state.no_match_title') : t('settings.prompts.noPrompts')}
           portalContainer={portalContainer}
           layout="list"
