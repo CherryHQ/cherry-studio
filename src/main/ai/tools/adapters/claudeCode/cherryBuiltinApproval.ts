@@ -49,13 +49,15 @@ export const toCherryBuiltinRuntimeName = (toolName: string): string => `mcp__${
  *   FileEntry into the user's library, so — unlike the read-only lookups — an autonomous agent
  *   (including headless / channel turns) must not run it unattended;
  * - cli_install persists a definition and mutates Cherry's shared isolated mise environment.
- * - session_send can make another Agent execute tools; requiring a live responder deliberately
- *   limits the MVP to one user-approved delegation hop and denies unattended recursion.
+ * - session_create and session_send can make another Agent Session execute tools; requiring a live
+ *   responder deliberately limits the MVP to one user-approved delegation hop and denies
+ *   unattended recursion.
  */
 export const CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES: readonly string[] = [
   KB_MANAGE_TOOL_NAME,
   GENERATE_IMAGE_TOOL_NAME,
   CLI_INSTALL_TOOL_NAME,
+  SESSION_CREATE_TOOL_NAME,
   SESSION_SEND_TOOL_NAME
 ]
 
@@ -78,7 +80,6 @@ export const CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES: readonly string[] = [
   NOTIFY_TOOL_NAME,
   CONFIG_TOOL_NAME,
   SESSION_LIST_TOOL_NAME,
-  SESSION_CREATE_TOOL_NAME,
   SESSION_SEARCH_TOOL_NAME,
   SESSION_DELIVERIES_TOOL_NAME,
   CLI_LIST_TOOL_NAME,

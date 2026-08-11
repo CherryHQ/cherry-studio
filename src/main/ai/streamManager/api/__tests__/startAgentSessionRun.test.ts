@@ -28,12 +28,15 @@ const prepareDispatchMock = vi.fn((primary: StreamListener, req: { topicId: stri
   })
 })
 
-const { listRecoverableDeliveries, sessionGetById, runtimeBusy, transitionDelivery } = vi.hoisted(() => ({
-  listRecoverableDeliveries: vi.fn<() => unknown[]>(() => []),
-  sessionGetById: vi.fn(),
-  runtimeBusy: vi.fn(() => false),
-  transitionDelivery: vi.fn()
-}))
+const { deliveryRows, getSessionMessage, listRecoverableDeliveries, sessionGetById, runtimeBusy, transitionDelivery } =
+  vi.hoisted(() => ({
+    deliveryRows: new Map<string, any>(),
+    getSessionMessage: vi.fn(),
+    listRecoverableDeliveries: vi.fn<() => unknown[]>(() => []),
+    sessionGetById: vi.fn(),
+    runtimeBusy: vi.fn(() => false),
+    transitionDelivery: vi.fn()
+  }))
 
 vi.mock('../../context/AgentChatContextProvider', () => ({
   agentChatContextProvider: { prepareDispatch: prepareDispatchMock }
@@ -45,6 +48,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
   agentSessionMessageService: {
+    getSessionMessage,
     listRecoverableSessionDeliveries: listRecoverableDeliveries,
     transitionSessionDelivery: transitionDelivery
   }
@@ -120,7 +124,33 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
     prepareDispatchMock.mockClear()
     sessionGetById.mockReset().mockReturnValue({ agentId: 'agent-1' })
     runtimeBusy.mockReset().mockReturnValue(false)
-    transitionDelivery.mockReset()
+    deliveryRows.clear()
+    getSessionMessage.mockReset().mockImplementation((sessionId: string, messageId: string) => {
+      return deliveryRows.get(messageId) ?? { ...deliveryMessage(), id: messageId, sessionId }
+    })
+    transitionDelivery
+      .mockReset()
+      .mockImplementation(
+        (
+          sessionId: string,
+          messageId: string,
+          status: string,
+          options: { expected?: string[]; turnRef?: string | null } = {}
+        ) => {
+          const current = deliveryRows.get(messageId) ?? { ...deliveryMessage(), id: messageId, sessionId }
+          if (options.expected && !options.expected.includes(current.delivery.status)) return null
+          const updated = {
+            ...current,
+            delivery: {
+              ...current.delivery,
+              status,
+              ...(options.turnRef !== undefined ? { turnRef: options.turnRef } : {})
+            }
+          }
+          deliveryRows.set(messageId, updated)
+          return updated
+        }
+      )
     listRecoverableDeliveries.mockReset().mockReturnValue([])
 
     const Ctor = AiStreamManager as unknown as new () => ManagerInstance
@@ -259,11 +289,20 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
     await expect(run).resolves.toEqual({ mode: 'started', disposition: 'delivering' })
     expect(prepareDispatchMock).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ agentDeliveryMessage: message }),
+      expect.objectContaining({
+        agentDeliveryMessage: expect.objectContaining({
+          id: message.id,
+          delivery: expect.objectContaining({ status: 'delivering' })
+        })
+      }),
       expect.anything()
     )
-    expect(transitionDelivery).toHaveBeenCalledWith(message.sessionId, message.id, 'delivering', {
-      expected: ['accepted', 'queued'],
+    expect(transitionDelivery).toHaveBeenNthCalledWith(1, message.sessionId, message.id, 'delivering', {
+      expected: ['accepted'],
+      turnRef: null
+    })
+    expect(transitionDelivery).toHaveBeenNthCalledWith(2, message.sessionId, message.id, 'delivering', {
+      expected: ['delivering'],
       turnRef: 'assistant-1'
     })
     expect(transitionDelivery.mock.invocationCallOrder[0]).toBeLessThan(sendSpy.mock.invocationCallOrder[0])
@@ -288,8 +327,12 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
       expect.objectContaining({ agentDeliveryQueueOnly: true }),
       expect.anything()
     )
-    expect(transitionDelivery).toHaveBeenCalledWith(message.sessionId, message.id, 'delivering', {
-      expected: ['accepted', 'queued'],
+    expect(transitionDelivery).toHaveBeenNthCalledWith(1, message.sessionId, message.id, 'delivering', {
+      expected: ['accepted'],
+      turnRef: null
+    })
+    expect(transitionDelivery).toHaveBeenNthCalledWith(2, message.sessionId, message.id, 'delivering', {
+      expected: ['delivering'],
       turnRef: 'assistant-queue'
     })
     expect(transitionDelivery.mock.invocationCallOrder[0]).toBeLessThan(sendSpy.mock.invocationCallOrder[0])
@@ -308,9 +351,40 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
     prepareResolvers[0]()
 
     await expect(run).resolves.toEqual({ mode: 'started', disposition: 'queued' })
-    expect(transitionDelivery).toHaveBeenCalledWith(message.sessionId, message.id, 'queued', {
-      expected: ['accepted', 'queued']
+    expect(transitionDelivery).toHaveBeenNthCalledWith(1, message.sessionId, message.id, 'delivering', {
+      expected: ['accepted'],
+      turnRef: null
     })
+    expect(transitionDelivery).toHaveBeenNthCalledWith(2, message.sessionId, message.id, 'queued', {
+      expected: ['delivering']
+    })
+  })
+
+  it('coalesces concurrent dispatch attempts for the same durable delivery before runtime mutation', async () => {
+    const message = deliveryMessage('queue')
+    const first = startAgentSessionRun({
+      sessionId: message.sessionId,
+      userParts: message.data.parts,
+      listeners: [listener('delivery-1')],
+      deliveryMessage: message,
+      queueOnly: true
+    })
+    const duplicate = startAgentSessionRun({
+      sessionId: message.sessionId,
+      userParts: message.data.parts,
+      listeners: [listener('delivery-2')],
+      deliveryMessage: message,
+      queueOnly: true
+    })
+    await flush()
+
+    expect(prepareDispatchMock).toHaveBeenCalledOnce()
+    prepareResolvers[0]()
+
+    await expect(first).resolves.toEqual({ mode: 'started', disposition: 'queued' })
+    await expect(duplicate).resolves.toEqual({ mode: 'started', disposition: 'queued', coalesced: true })
+    expect(prepareDispatchMock).toHaveBeenCalledOnce()
+    expect(sendSpy).toHaveBeenCalledOnce()
   })
 
   it('replays a recoverable delivery after restart through the same dispatch lock', async () => {
@@ -323,9 +397,38 @@ describe('startAgentSessionRun — per-topic dispatch serialization (B2 agent-se
 
     await recovery
     expect(sendSpy).toHaveBeenCalledOnce()
-    expect(transitionDelivery).toHaveBeenCalledWith(message.sessionId, message.id, 'delivering', {
-      expected: ['accepted', 'queued'],
+    expect(transitionDelivery).toHaveBeenNthCalledWith(1, message.sessionId, message.id, 'delivering', {
+      expected: ['accepted'],
+      turnRef: null
+    })
+    expect(transitionDelivery).toHaveBeenNthCalledWith(2, message.sessionId, message.id, 'delivering', {
+      expected: ['delivering'],
       turnRef: 'assistant-recovered'
+    })
+  })
+
+  it('reclaims a queued delivery only during startup recovery after its process-local FIFO is gone', async () => {
+    const accepted = deliveryMessage('queue')
+    const queued = { ...accepted, delivery: { ...accepted.delivery, status: 'queued' as const } }
+    deliveryRows.set(queued.id, queued)
+    listRecoverableDeliveries.mockReturnValue([queued])
+    const recovery = recoverAcceptedAgentSessionDeliveries()
+    await flush()
+    prepareResolvers[0]()
+
+    await recovery
+    expect(prepareDispatchMock).toHaveBeenCalledOnce()
+    expect(sendSpy).toHaveBeenCalledOnce()
+    expect(transitionDelivery).toHaveBeenNthCalledWith(1, queued.sessionId, queued.id, 'accepted', {
+      expected: ['queued'],
+      turnRef: null
+    })
+    expect(transitionDelivery).toHaveBeenNthCalledWith(2, queued.sessionId, queued.id, 'delivering', {
+      expected: ['accepted'],
+      turnRef: null
+    })
+    expect(transitionDelivery).toHaveBeenNthCalledWith(3, queued.sessionId, queued.id, 'queued', {
+      expected: ['delivering']
     })
   })
 })

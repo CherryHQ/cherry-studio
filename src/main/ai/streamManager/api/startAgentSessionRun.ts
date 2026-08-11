@@ -51,7 +51,7 @@ class AgentSessionDeliverySubscriber implements StreamListener {
  * graph would loop back through stream-manager/context.
  */
 export type StartAgentSessionRunResult =
-  | { mode: 'started'; disposition?: 'queued' | 'delivering' }
+  | { mode: 'started'; disposition?: 'queued' | 'delivering'; coalesced?: true }
   | { mode: 'not-started'; reason: 'busy' | 'session-invalid' }
 
 export async function startAgentSessionRun(input: {
@@ -114,6 +114,34 @@ export async function startAgentSessionRun(input: {
       }
     }
 
+    // Claim this durable message before prepareDispatch can write a placeholder or enqueue it in the
+    // runtime. The topic lock serializes target-session mutation, while this CAS prevents repeated
+    // callers holding the same accepted row from executing it sequentially.
+    let ownsDeliveryDispatch = false
+    let claimedDelivery = input.deliveryMessage
+    if (input.deliveryMessage?.delivery) {
+      const claimed = agentSessionMessageService.transitionSessionDelivery(
+        input.sessionId,
+        input.deliveryMessage.id,
+        'delivering',
+        { expected: ['accepted'], turnRef: null }
+      )
+      if (claimed) {
+        ownsDeliveryDispatch = true
+        claimedDelivery = claimed
+      }
+
+      if (!ownsDeliveryDispatch) {
+        const current = agentSessionMessageService.getSessionMessage(input.sessionId, input.deliveryMessage.id)
+        const status = current.delivery?.status
+        if (status === 'queued' || status === 'delivering') {
+          result = { mode: 'started', disposition: status, coalesced: true }
+          return
+        }
+        throw new Error(`Delivery ${input.deliveryMessage.id} is not dispatchable from status ${status ?? 'unknown'}`)
+      }
+    }
+
     let prepared
     try {
       prepared = await agentChatContextProvider.prepareDispatch(
@@ -123,7 +151,7 @@ export async function startAgentSessionRun(input: {
           topicId,
           userMessageParts: input.userParts,
           headless: input.headless === true,
-          agentDeliveryMessage: input.deliveryMessage,
+          agentDeliveryMessage: claimedDelivery,
           agentDeliveryQueueOnly: input.queueOnly === true
         },
         {
@@ -133,6 +161,12 @@ export async function startAgentSessionRun(input: {
         }
       )
     } catch (error) {
+      if (ownsDeliveryDispatch && input.deliveryMessage) {
+        agentSessionMessageService.transitionSessionDelivery(input.sessionId, input.deliveryMessage.id, 'accepted', {
+          expected: ['delivering'],
+          turnRef: null
+        })
+      }
       if (input.requireIdle && isDataApiError(error) && error.code === ErrorCode.RESOURCE_LOCKED) {
         result = { mode: 'not-started', reason: 'busy' }
         return
@@ -149,10 +183,18 @@ export async function startAgentSessionRun(input: {
     if (input.deliveryMessage?.delivery) {
       // Persist turn ownership before send can run model/tool side effects; crash recovery must
       // interrupt an ambiguous started turn instead of redispatching it.
-      agentSessionMessageService.transitionSessionDelivery(input.sessionId, input.deliveryMessage.id, disposition, {
-        expected: ['accepted', 'queued'],
-        ...(turnRef ? { turnRef } : {})
-      })
+      const advanced = agentSessionMessageService.transitionSessionDelivery(
+        input.sessionId,
+        input.deliveryMessage.id,
+        disposition,
+        {
+          expected: ['delivering'],
+          ...(turnRef ? { turnRef } : {})
+        }
+      )
+      if (!advanced) {
+        throw new Error(`Delivery ${input.deliveryMessage.id} lost dispatch ownership before send`)
+      }
     }
 
     manager.send({
@@ -184,7 +226,7 @@ export async function dispatchAcceptedAgentSessionDelivery(
       deliveryMessage: message,
       queueOnly: message.delivery.mode === 'queue' || message.delivery.replyPolicy === 'completion'
     })
-    if (result.mode !== 'started') {
+    if (result.mode === 'not-started') {
       if (result.reason === 'session-invalid') {
         throw new AgentSessionDeliveryRoutingError('TARGET_UNAVAILABLE', 'Target Session cannot start an Agent turn')
       }
@@ -256,6 +298,11 @@ export async function recoverAcceptedAgentSessionDeliveries(): Promise<void> {
             continue
           }
         }
+      } else if (message.delivery?.status === 'queued') {
+        agentSessionMessageService.transitionSessionDelivery(message.sessionId, message.id, 'accepted', {
+          expected: ['queued'],
+          turnRef: null
+        })
       }
       await dispatchAcceptedAgentSessionDelivery(message)
     } catch (error) {

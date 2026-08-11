@@ -142,19 +142,19 @@ model is not a tool argument because Sessions use their owning Agent's model.
 
 ### Deliberate security ceiling
 
-`session_send` always requires a live per-call user approval. A headless delivery, channel turn,
-scheduled turn, or other execution without an approval responder is denied before the tool runs.
-`session_create` remains auto-approved because it creates a same-Agent Session; runtime-generated
-completion results do not call a model tool and route only to the immutable sender Session stored on
-the accepted request.
+`session_send` and `session_create` always require a live per-call user approval because both start
+another Agent Session turn. A headless delivery, channel turn, scheduled turn, or other execution
+without an approval responder is denied before either tool runs. Runtime-generated completion
+results do not call a model tool and route only to the immutable sender Session stored on the
+accepted request.
 
 This deliberately limits the first version to one user-approved delegation hop. A Session started
-by a delivery cannot initiate another `session_send`; it can only finish its own request and let the
-runtime return the result. The limit prevents unattended A -> B -> A loops and a prompt-injected
-Agent from using a more privileged Agent as a confused deputy without introducing a speculative
-ACL subsystem. Upgrade only when the product requires unattended multi-hop collaboration; that
-upgrade must add an explicit Agent allowlist/delegation policy plus trusted trace ancestry,
-depth/cycle checks, and a total-call/rate budget before relaxing the headless denial.
+by a delivery cannot initiate another `session_send` or `session_create`; it can only finish its own
+request and let the runtime return the result. The limit prevents unattended A -> B -> A loops and a
+prompt-injected Agent from using a more privileged Agent as a confused deputy without introducing a
+speculative ACL subsystem. Upgrade only when the product requires unattended multi-hop
+collaboration; that upgrade must add an explicit Agent allowlist/delegation policy plus trusted trace
+ancestry, depth/cycle checks, and a total-call/rate budget before relaxing the headless denial.
 
 List, search, send, and delivery-query visibility must share one authorization boundary. Knowing a
 Session or message id never grants access by itself.
@@ -249,12 +249,13 @@ Terminal persistence must run before the finalizer. The finalizer treats a uniqu
 as already completed, so a crash after terminal persistence but before or during finalization can
 rerun it without creating a second result. Result dispatch remains outside the transaction.
 
-Every delivering row stores `turnRef`, the pending assistant placeholder message id, rather than
-the runtime's process-local UUID. Fresh turns atomically persist the request/user row and assistant
-placeholder, then promote the delivery to `delivering` with that `turnRef` before model execution
-starts. Only a delivery handed to the existing runtime FIFO without a new placeholder remains
-`queued`. A steer boundary that rolls assistant A1a into continuation A2 must update `turnRef` to A2
-before post-steer output can become the request's terminal result.
+Before mutating the runtime, dispatch claims one durable row with an `accepted -> delivering` CAS and
+an empty `turnRef`; callers that lose the claim coalesce onto its durable disposition. A fresh turn
+then atomically persists the request/user row and assistant placeholder before updating `turnRef` to
+that placeholder id, rather than the runtime's process-local UUID. Only after a delivery is handed to
+the existing runtime FIFO without a new placeholder does it move to `queued`. A steer boundary that
+rolls assistant A1a into continuation A2 must update `turnRef` to A2 before post-steer output can
+become the request's terminal result.
 
 When deleting a target Session, the delete transaction first creates failure results for its
 non-terminal completion requests, then allows the normal message cascade. A caller that has already
@@ -265,7 +266,9 @@ been deleted cannot receive a result; that terminal routing failure is recorded 
 Startup scans `accepted`, `queued`, and `delivering` rows in `(createdAt, id)` order and passes every
 schedulable row through the existing per-topic dispatch lock.
 
-For `accepted` and `queued`, dispatch again. For `delivering`, inspect `turnRef`:
+For `accepted`, dispatch again. A startup-only recovery step first resets `queued` to `accepted`
+because the process-local FIFO no longer exists; an ordinary duplicate caller must instead coalesce
+onto `queued` without enqueueing it again. For `delivering`, inspect `turnRef`:
 
 - placeholder absent — the turn can be proven not to have been created; reset to `accepted` and
   dispatch;
@@ -556,6 +559,8 @@ Cross-Session delivery acceptance tests additionally pin these crash and securit
 - deleting a target Session first creates failure results for pending completion requests;
 - deleting a queued request cannot leave an in-memory entry that executes without its durable row;
 - a steer continuation updates `turnRef` before recovery can finalize it;
-- interactive `session_send` requests approval, while headless `session_send` is denied and
-  runtime-generated completion delivery remains allowed;
+- interactive `session_send` and `session_create` request approval, while headless calls are denied
+  and runtime-generated completion delivery remains allowed;
+- concurrent dispatch attempts for one durable message acquire one pre-runtime CAS owner and produce
+  only one placeholder/FIFO entry and one send;
 - list, search, send, and deliveries queries enforce the same visibility rules.

@@ -256,15 +256,12 @@ describe('createClaudeAgentToolPolicySnapshot — production approval-gate wirin
     // only to auto-approved — nothing marks a tool as mutating — that is the human reviewer's job.)
     expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(KB_MANAGE_TOOL_NAME)
     expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(CLI_INSTALL_TOOL_NAME)
+    expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES).toContain(SESSION_CREATE_TOOL_NAME)
     expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).toEqual(
-      expect.arrayContaining([
-        CLI_LIST_TOOL_NAME,
-        CLI_SEARCH_TOOL_NAME,
-        TO_MARKDOWN_TOOL_NAME,
-        SESSION_CREATE_TOOL_NAME
-      ])
+      expect.arrayContaining([CLI_LIST_TOOL_NAME, CLI_SEARCH_TOOL_NAME, TO_MARKDOWN_TOOL_NAME])
     )
     expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).not.toContain(KB_MANAGE_TOOL_NAME)
+    expect(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES).not.toContain(SESSION_CREATE_TOOL_NAME)
     const autoApproved = new Set<string>(CHERRY_BUILTIN_AUTO_APPROVED_TOOL_NAMES)
     expect(CHERRY_BUILTIN_APPROVAL_REQUIRED_TOOL_NAMES.some((name) => autoApproved.has(name))).toBe(false)
     // The derived prefix matches the fully-qualified runtime name, pinning the two helpers in sync.
