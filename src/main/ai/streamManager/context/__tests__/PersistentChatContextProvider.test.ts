@@ -356,7 +356,8 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       {
         trigger: 'regenerate-message',
         topicId: 'topic-1',
-        parentAnchorId: userMessageId
+        parentAnchorId: userMessageId,
+        executionTargets: [{ modelId: MODEL_ID, turnOptions: {} }]
       },
       { hasLiveStream: false }
     )
@@ -506,15 +507,18 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       isHidden: false,
       orderKey: bModelKey
     })
-    vi.mocked(resolveModels).mockReturnValueOnce([
+    const resolvedModels = [
       { id: MODEL_A, name: 'GPT-4o', providerId: 'openai', apiModelId: 'gpt-4o' },
       { id: MODEL_B, name: 'Claude Sonnet 4.5', providerId: 'anthropic', apiModelId: 'claude-sonnet-4-5' }
-    ] as ReturnType<typeof resolveModels>)
-    vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(42)
+    ] as ReturnType<typeof resolveModels>
+    vi.mocked(resolveModels).mockReturnValueOnce(resolvedModels).mockReturnValueOnce(resolvedModels)
+    vi.mocked(resolvePersistentSiblingsGroupId).mockReturnValueOnce(42).mockReturnValueOnce(42)
     // Distinct span per call so index alignment is observable.
     const spanA = { end: vi.fn() }
     const spanB = { end: vi.fn() }
     vi.mocked(startAiChildTurnSpan)
+      .mockReturnValueOnce({ rootSpan: spanA } as unknown as ReturnType<typeof startAiChildTurnSpan>)
+      .mockReturnValueOnce({ rootSpan: spanB } as unknown as ReturnType<typeof startAiChildTurnSpan>)
       .mockReturnValueOnce({ rootSpan: spanA } as unknown as ReturnType<typeof startAiChildTurnSpan>)
       .mockReturnValueOnce({ rootSpan: spanB } as unknown as ReturnType<typeof startAiChildTurnSpan>)
 
@@ -570,6 +574,29 @@ describe('PersistentChatContextProvider — steer continuation history', () => {
       `persistence:sqlite:topic-1:${MODEL_A}`,
       `persistence:sqlite:topic-1:${MODEL_B}`
     ])
+
+    const regenerated = await provider.prepareDispatch(
+      makeSubscriber(),
+      {
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: prepared.userMessageId!,
+        executionTargets: [
+          { modelId: MODEL_A, turnOptions: { reasoningEffort: 'minimal' } },
+          { modelId: MODEL_B, turnOptions: { reasoningEffort: 'high', fastMode: true } }
+        ]
+      },
+      { hasLiveStream: false }
+    )
+    expect(regenerated.models[0].request).toEqual(
+      expect.objectContaining({ reasoningEffort: 'minimal', fastMode: false })
+    )
+    expect(regenerated.models[1].request).toEqual(expect.objectContaining({ reasoningEffort: 'high', fastMode: true }))
+    expect(
+      regenerated.reservedMessages
+        ?.filter((message) => message.role === 'assistant')
+        .map((message) => message.metadata?.turnOptions)
+    ).toEqual([{ reasoningEffort: 'minimal' }, { reasoningEffort: 'high', fastMode: true }])
 
     // One trace tree per topic: both models' `ai.turn` spans are parented under the
     // same container trace, and that id is the topic's persisted ensureTraceId.

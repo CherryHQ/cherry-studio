@@ -1493,8 +1493,7 @@ const ChatComposerInner = ({
         if (isAssistantReply || !resend) {
           await chatWrite.editMessage(editingMessageForCurrentTopic.message.id, savedParts)
         } else {
-          const editedTurnOptions = isMentionedModelSelectorLocked ? undefined : executionTargets[0]?.turnOptions
-          await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, editedTurnOptions)
+          await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, savedParts, executionTargets)
         }
         if (editingMessageForCurrentTopicRef.current?.editingSessionId === editingSessionId) {
           restoreSavedDraft()
@@ -1518,7 +1517,6 @@ const ChatComposerInner = ({
       editingMessageForCurrentTopic,
       editingMessageForCurrentTopicRef,
       executionTargets,
-      isMentionedModelSelectorLocked,
       restoreSavedDraft,
       stopEditing,
       t

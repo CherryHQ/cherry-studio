@@ -226,15 +226,13 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     }
 
     const executionTargets = req.executionTargets
-    if (req.trigger === 'submit-message' && !executionTargets?.length) {
-      throw new Error("Persistent 'submit-message' requires an execution target")
+    if (!executionTargets?.length) {
+      throw new Error(`Persistent '${req.trigger}' requires an execution target`)
     }
-
-    const selectedModelId = req.trigger === 'submit-message' ? executionTargets![0].modelId : req.mentionedModelIds?.[0]
-    const { assistantId, defaultModelId } =
-      !topic?.assistantId && selectedModelId
-        ? { assistantId: undefined, defaultModelId: selectedModelId }
-        : resolveAssistantModelId(topic?.assistantId)
+    const selectedModelId = executionTargets[0].modelId
+    const { assistantId, defaultModelId } = !topic?.assistantId
+      ? { assistantId: undefined, defaultModelId: selectedModelId }
+      : resolveAssistantModelId(topic?.assistantId)
     const hasExplicitReservedTarget = req.trigger === 'submit-message' && req.targetMode === 'reserved-branch'
     const reservedBranchId =
       req.trigger === 'submit-message' &&
@@ -259,7 +257,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       // Stamp the row with the model the user selected for this steer so the continuation answers
       // with it — `prepareSteerContinuation` reads `userMessage.modelId`. Steer is single-model: if
       // multiple targets were selected, only the first is used (multi-model steer is unsupported).
-      const steerTarget = executionTargets![0]
+      const steerTarget = executionTargets[0]
       const userMessage = messageService.create(req.topicId, {
         role: 'user',
         parentId: req.parentAnchorId,
@@ -284,14 +282,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
-    const requestedModelIds =
-      req.trigger === 'submit-message' ? executionTargets!.map((target) => target.modelId) : req.mentionedModelIds
+    const requestedModelIds = executionTargets.map((target) => target.modelId)
     const models = resolveModels(requestedModelIds, defaultModelId)
     const isMultiModel = models.length > 1
-    const turnOptionsByModel =
-      req.trigger === 'submit-message'
-        ? new Map(executionTargets!.map((target) => [target.modelId, target.turnOptions] as const))
-        : new Map(models.map((model) => [model.id, req.turnOptions ?? {}] as const))
+    const turnOptionsByModel = new Map(executionTargets.map((target) => [target.modelId, target.turnOptions] as const))
 
     if (isRegenerate && !req.parentAnchorId) {
       throw new Error(`'regenerate-message' requires parentAnchorId`)

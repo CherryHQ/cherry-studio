@@ -1,5 +1,5 @@
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
-import type { ComposerChatTarget } from '@shared/ai/transport'
+import type { ComposerChatTarget, ModelExecutionTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -7,6 +7,8 @@ import { act, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import ChatContent from '../ChatContent'
+
+const executionTargets: ModelExecutionTarget[] = [{ modelId: 'provider::model', turnOptions: {} }]
 
 // The send path calls ipcApi.request('ai.stream.open', …); route it to the per-test
 // `streamOpen` spy (a describe-level var asserted directly). `ipcMock.request` is
@@ -470,7 +472,11 @@ describe('ChatContent', () => {
     const historyUser = createUiMessage('history-user', 'user')
     const historyAssistant = {
       ...createUiMessage('history-assistant', 'assistant'),
-      metadata: { parentId: 'history-user', createdAt: '2026-01-01T00:00:01.000Z' }
+      metadata: {
+        parentId: 'history-user',
+        modelId: 'provider::model-a',
+        createdAt: '2026-01-01T00:00:01.000Z'
+      }
     } as CherryUIMessage
     const reservedAssistant = {
       id: 'reserved-assistant',
@@ -1012,7 +1018,7 @@ describe('ChatContent', () => {
     render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
 
     await act(async () => {
-      await mockChatWriteValue.current?.forkAndResend('history-user', editedParts)
+      await mockChatWriteValue.current?.forkAndResend('history-user', editedParts, executionTargets)
     })
 
     expect(createSiblingTrigger).toHaveBeenCalledWith({
@@ -1169,7 +1175,10 @@ describe('ChatContent', () => {
     render(<ChatContent topic={topic} />)
 
     await act(async () => {
-      await mockChatWriteValue.current?.forkAndResend('history-user', editedParts)
+      await mockChatWriteValue.current?.forkAndResend('history-user', editedParts, [
+        { modelId: 'provider-a::model-a', turnOptions: {} },
+        { modelId: 'provider-b::model-b', turnOptions: {} }
+      ])
     })
 
     expect(streamOpen).toHaveBeenCalledWith(
@@ -1177,7 +1186,10 @@ describe('ChatContent', () => {
         trigger: 'regenerate-message',
         topicId: 'topic-1',
         parentAnchorId: 'forked-user',
-        mentionedModelIds: ['provider-a::model-a', 'provider-b::model-b']
+        executionTargets: [
+          { modelId: 'provider-a::model-a', turnOptions: {} },
+          { modelId: 'provider-b::model-b', turnOptions: {} }
+        ]
       })
     )
   })
@@ -1244,7 +1256,9 @@ describe('ChatContent', () => {
     render(<ChatContent topic={unlinkedTopic} />)
 
     await act(async () => {
-      await mockChatWriteValue.current?.forkAndResend('history-user', editedParts)
+      await mockChatWriteValue.current?.forkAndResend('history-user', editedParts, [
+        { modelId: 'provider-a::model-a', turnOptions: {} }
+      ])
     })
 
     expect(streamOpen).toHaveBeenCalledWith(
@@ -1252,7 +1266,7 @@ describe('ChatContent', () => {
         trigger: 'regenerate-message',
         topicId: 'topic-1',
         parentAnchorId: 'forked-user',
-        mentionedModelIds: ['provider-a::model-a']
+        executionTargets: [{ modelId: 'provider-a::model-a', turnOptions: {} }]
       })
     )
   })
@@ -1351,7 +1365,7 @@ describe('ChatContent', () => {
     render(<ChatContent topic={topic} />)
 
     await act(async () => {
-      await mockChatWriteValue.current?.forkAndResend('root-user', editedParts)
+      await mockChatWriteValue.current?.forkAndResend('root-user', editedParts, executionTargets)
     })
 
     expect(createSiblingTrigger).toHaveBeenCalledWith({

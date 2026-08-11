@@ -52,7 +52,7 @@ const uiMsg = (
   id,
   role,
   parts: isContextBoundary ? [{ type: 'data-clear', data: {} }] : [],
-  metadata: { parentId, status }
+  metadata: { parentId, status, ...(role === 'assistant' ? { modelId: 'provider::model' } : {}) }
 })
 
 function renderActions(
@@ -457,7 +457,7 @@ describe('useChatWriteActions — regenerate', () => {
       messageId: 'a1',
       body: expect.objectContaining({
         parentAnchorId: 'u1',
-        turnOptions: { reasoningEffort: 'high', fastMode: true }
+        executionTargets: [{ modelId: 'provider::model', turnOptions: { reasoningEffort: 'high', fastMode: true } }]
       })
     })
   })
@@ -475,7 +475,7 @@ describe('useChatWriteActions — regenerate', () => {
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         parentAnchorId: 'u1',
-        turnOptions: { reasoningEffort: 'minimal', fastMode: false }
+        executionTargets: [{ modelId: 'provider::model', turnOptions: { reasoningEffort: 'minimal', fastMode: false } }]
       })
     )
   })
@@ -503,22 +503,21 @@ describe('useChatWriteActions — fork and resend', () => {
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
     const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
 
-    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any, {
-      reasoningEffort: 'high',
-      fastMode: true
-    })
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any, [
+      { modelId: 'provider::model', turnOptions: { reasoningEffort: 'high', fastMode: true } }
+    ])
 
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         trigger: 'regenerate-message',
         topicId: 't1',
         parentAnchorId: 'forked-user',
-        turnOptions: { reasoningEffort: 'high', fastMode: true }
+        executionTargets: [{ modelId: 'provider::model', turnOptions: { reasoningEffort: 'high', fastMode: true } }]
       })
     )
   })
 
-  it('inherits the source turn options when a historical multi-model user message is edited', async () => {
+  it('preserves per-model turn options when a historical multi-model user message is edited', async () => {
     const cache = makeCache()
     vi.mocked(cache.createSiblingTrigger).mockResolvedValueOnce(createForkedUser() as never)
     streamOpen.mockResolvedValueOnce({ mode: 'started', reservedMessages: [] })
@@ -527,15 +526,20 @@ describe('useChatWriteActions — fork and resend', () => {
     firstAssistant.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
     const secondAssistant = uiMsg('a2', 'assistant', 'u1')
     secondAssistant.metadata.modelId = 'provider::model-b'
-    secondAssistant.metadata.turnOptions = { reasoningEffort: 'high', fastMode: true }
+    secondAssistant.metadata.turnOptions = { reasoningEffort: 'low' }
     const { actions } = renderActions([uiMsg('u1', 'user', 'vroot'), firstAssistant, secondAssistant], cache)
 
-    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)
+    await actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any, [
+      { modelId: 'provider::model-a', turnOptions: { reasoningEffort: 'high', fastMode: true } },
+      { modelId: 'provider::model-b', turnOptions: { reasoningEffort: 'low' } }
+    ])
 
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
-        mentionedModelIds: ['provider::model-a', 'provider::model-b'],
-        turnOptions: { reasoningEffort: 'high', fastMode: true }
+        executionTargets: [
+          { modelId: 'provider::model-a', turnOptions: { reasoningEffort: 'high', fastMode: true } },
+          { modelId: 'provider::model-b', turnOptions: { reasoningEffort: 'low' } }
+        ]
       })
     )
   })
@@ -546,6 +550,10 @@ describe('useChatWriteActions — fork and resend', () => {
     streamOpen.mockResolvedValueOnce({ mode: 'blocked', message: 'blocked' })
     const { actions } = renderActions([uiMsg('u1', 'user', 'vroot')], cache)
 
-    await expect(actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any)).rejects.toThrow('blocked')
+    await expect(
+      actions.forkAndResend('u1', [{ type: 'text', text: 'edited' }] as any, [
+        { modelId: 'provider::model', turnOptions: {} }
+      ])
+    ).rejects.toThrow('blocked')
   })
 })
