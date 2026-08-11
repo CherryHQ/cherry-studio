@@ -1416,7 +1416,7 @@ async function invalidatePathPatterns(cache: Cache, globalMutate: ScopedMutator,
  * @internal
  * @throws Error if a placeholder has no corresponding value in `params`
  */
-function resolveTemplate(path: string, params?: Record<string, string | number>): string {
+export function resolveTemplate(path: string, params?: Record<string, string | number>): string {
   if (!params || !path.includes(':')) return path
   return path.replace(/(?<=\/):([a-zA-Z][a-zA-Z0-9]*)\*?/g, (_match, key) => {
     const value = params[key]

@@ -6,6 +6,7 @@ const prompt = {
   id: '550e8400-e29b-41d4-a716-446655440000',
   title: 'Greeting',
   content: 'Hello',
+  visibility: 'global',
   orderKey: 'a0',
   createdAt: new Date(1700000000000).toISOString(),
   updatedAt: new Date(1700000000000).toISOString()
@@ -24,6 +25,11 @@ describe('PromptSchema', () => {
   it('rejects missing title or content', () => {
     expect(() => PromptSchema.parse({ ...prompt, title: undefined })).toThrow()
     expect(() => PromptSchema.parse({ ...prompt, content: undefined })).toThrow()
+  })
+
+  it('requires a supported visibility', () => {
+    expect(() => PromptSchema.parse({ ...prompt, visibility: undefined })).toThrow()
+    expect(() => PromptSchema.parse({ ...prompt, visibility: 'assistant' })).toThrow()
   })
 })
 

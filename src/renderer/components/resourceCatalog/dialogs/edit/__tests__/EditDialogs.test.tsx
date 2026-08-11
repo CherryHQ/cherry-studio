@@ -11,6 +11,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 
 const {
   bindPromptMock,
+  applyReorderedListMock,
   boundPromptsRefetchMock,
   createGroupMock,
   fetchGenerateMock,
@@ -30,6 +31,7 @@ const {
   useQueryMock
 } = vi.hoisted(() => ({
   bindPromptMock: vi.fn(),
+  applyReorderedListMock: vi.fn(),
   boundPromptsRefetchMock: vi.fn(),
   createGroupMock: vi.fn(),
   fetchGenerateMock: vi.fn(),
@@ -66,6 +68,7 @@ const {
           id: '00000000-0000-4000-8000-000000000001',
           title: 'Reusable prompt',
           content: 'Reusable prompt content',
+          visibility: 'restricted' as const,
           orderKey: 'a0',
           createdAt: '2024-01-01T00:00:00.000Z',
           updatedAt: '2024-01-01T00:00:00.000Z'
@@ -75,6 +78,7 @@ const {
         id: string
         title: string
         content: string
+        visibility: 'global' | 'restricted'
         orderKey: string
         createdAt: string
         updatedAt: string
@@ -124,6 +128,10 @@ vi.mock('@renderer/components/ModelSelector', () => ({
       </button>
     </div>
   )
+}))
+
+vi.mock('@data/hooks/useReorder', () => ({
+  useReorder: () => ({ applyReorderedList: applyReorderedListMock, isPending: false })
 }))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
@@ -251,6 +259,7 @@ vi.mock('@renderer/hooks/useGroups', () => ({
 }))
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useDataChange: vi.fn(),
   useInfiniteFlatItems: (pages: Array<{ items: unknown[] }> = []) => pages.flatMap((page) => page.items),
   useInfiniteQuery: () => ({
     pages: [{ items: knowledgeBasesState.current, total: knowledgeBasesState.current.length }],
@@ -460,9 +469,14 @@ vi.mock('react-i18next', async (importOriginal) => {
           'settings.mcp.runtimeStatus.connected': 'Connected',
           'settings.mcp.runtimeStatus.connecting': 'Connecting',
           'settings.mcp.runtimeStatus.unavailable': 'Unavailable',
+          'settings.prompts.binding.add': 'Add quick phrase',
           'settings.prompts.binding.currentAgent': 'Current agent',
           'settings.prompts.binding.currentAssistant': 'Current assistant',
           'settings.prompts.binding.editDescription': 'Choose prompts for {{target}}.',
+          'settings.prompts.binding.noLinked': 'No quick phrases linked',
+          'settings.prompts.binding.noMore': 'No more prompts available',
+          'settings.prompts.binding.remove': 'Remove quick phrase',
+          'settings.prompts.binding.search': 'Search prompts',
           'settings.prompts.binding.tabTitle': 'Quick Phrases',
           'settings.prompts.errors.bindFailed': 'Failed to link prompt',
           'settings.prompts.errors.loadFailed': 'Failed to load prompts',
@@ -566,7 +580,7 @@ beforeEach(() => {
   boundPromptsRefetchMock.mockResolvedValue(undefined)
   bindPromptMock.mockResolvedValue(undefined)
   unbindPromptMock.mockResolvedValue(undefined)
-  useQueryMock.mockImplementation((path: string, options?: { query?: { targetType?: string } }) => {
+  useQueryMock.mockImplementation((path: string) => {
     if (path.startsWith('/models/')) {
       const id = path.slice('/models/'.length)
       return {
@@ -609,9 +623,16 @@ beforeEach(() => {
     }
     if (path === '/prompts') {
       return {
-        data: options?.query?.targetType ? promptCatalogState.current.bound : promptCatalogState.current.all,
+        data: promptCatalogState.current.all,
         isLoading: false,
-        refetch: options?.query?.targetType ? boundPromptsRefetchMock : vi.fn()
+        refetch: vi.fn()
+      }
+    }
+    if (path.startsWith('/prompt-bindings/')) {
+      return {
+        data: promptCatalogState.current.bound,
+        isLoading: false,
+        refetch: boundPromptsRefetchMock
       }
     }
     return { data: { items: [] }, isLoading: false }
@@ -721,9 +742,10 @@ describe('edit dialogs', () => {
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} />)
 
     selectTab('Quick Phrases')
-    const bindingSwitch = screen.getByRole('switch', { name: 'Reusable prompt' })
-    expect(bindingSwitch).toHaveAttribute('aria-checked', 'false')
-    fireEvent.click(bindingSwitch)
+    expect(useQueryMock).toHaveBeenCalledWith('/prompts', { enabled: true, query: { visibility: 'restricted' } })
+    expect(useQueryMock).toHaveBeenCalledWith(`/prompt-bindings/assistant/${ASSISTANT.id}`, { enabled: true })
+    fireEvent.click(screen.getByRole('button', { name: 'Add quick phrase' }))
+    fireEvent.click(await screen.findByText('Reusable prompt'))
 
     await waitFor(() =>
       expect(bindPromptMock).toHaveBeenCalledWith({
@@ -742,9 +764,8 @@ describe('edit dialogs', () => {
     render(<AgentEditDialog open resource={AGENT} onOpenChange={vi.fn()} />)
 
     selectTab('Quick Phrases')
-    const bindingSwitch = screen.getByRole('switch', { name: 'Reusable prompt' })
-    expect(bindingSwitch).toHaveAttribute('aria-checked', 'true')
-    fireEvent.click(bindingSwitch)
+    expect(screen.getByText('Reusable prompt')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove quick phrase' }))
 
     await waitFor(() =>
       expect(unbindPromptMock).toHaveBeenCalledWith({

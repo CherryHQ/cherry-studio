@@ -22,6 +22,7 @@ import {
   FileCode,
   HardDrive,
   Info,
+  MessageSquareText,
   Package,
   Palette,
   PictureInPicture2,
@@ -110,6 +111,14 @@ const SettingsPage: FC = () => {
                 label={t('settings.skills.title')}
                 active={isActive('/settings/skills')}
                 onClick={() => go('/settings/skills')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<MessageSquareText />}
+                label={t('settings.prompts.title')}
+                active={isActive('/settings/prompts')}
+                onClick={() => go('/settings/prompts')}
               />
               <MenuItem
                 className={settingsSubmenuItemClassName}

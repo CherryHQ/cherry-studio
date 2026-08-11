@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6285c43b-8021-4358-b206-33b493aefb91",
+  "id": "c3386de7-b3b9-43bd-8cd6-15d761748480",
   "prevId": "749b7a35-ec67-4508-bccf-495941a94a9d",
   "tables": {
     "agent": {
@@ -3896,6 +3896,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -3915,6 +3922,11 @@
         "prompt_binding_target_idx": {
           "name": "prompt_binding_target_idx",
           "columns": ["target_type", "target_id", "prompt_id"],
+          "isUnique": false
+        },
+        "prompt_binding_target_order_key_idx": {
+          "name": "prompt_binding_target_order_key_idx",
+          "columns": ["target_type", "target_id", "order_key"],
           "isUnique": false
         }
       },
@@ -3967,6 +3979,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "visibility": {
+          "name": "visibility",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "order_key": {
           "name": "order_key",
           "type": "text",
@@ -3999,7 +4018,12 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "prompt_visibility_check": {
+          "name": "prompt_visibility_check",
+          "value": "\"prompt\".\"visibility\" IN ('global', 'restricted')"
+        }
+      }
     },
     "entity_tag": {
       "name": "entity_tag",

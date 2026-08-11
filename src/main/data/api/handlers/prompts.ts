@@ -11,6 +11,7 @@ import {
   CreatePromptSchema,
   ListPromptsQuerySchema,
   PromptBindingParamsSchema,
+  PromptBindingTargetParamsSchema,
   PromptIdSchema,
   type PromptSchemas,
   UpdatePromptSchema
@@ -49,6 +50,13 @@ export const promptHandlers: HandlersFor<PromptSchemas> = {
     }
   },
 
+  '/prompts/:id/bindings': {
+    GET: async ({ params }) => {
+      const id = PromptIdSchema.parse(params.id)
+      return promptService.listBindings(id)
+    }
+  },
+
   '/prompts/:id/bindings/:targetType/:targetId': {
     PUT: async ({ params }) => {
       const parsed = PromptBindingParamsSchema.parse(params)
@@ -59,6 +67,31 @@ export const promptHandlers: HandlersFor<PromptSchemas> = {
     DELETE: async ({ params }) => {
       const parsed = PromptBindingParamsSchema.parse(params)
       promptService.unbindFromTarget(parsed.id, { type: parsed.targetType, id: parsed.targetId })
+      return undefined
+    }
+  },
+
+  '/prompt-bindings/:targetType/:targetId': {
+    GET: async ({ params }) => {
+      const parsed = PromptBindingTargetParamsSchema.parse(params)
+      return promptService.listBoundToTarget({ type: parsed.targetType, id: parsed.targetId })
+    }
+  },
+
+  '/prompt-bindings/:targetType/:targetId/:id/order': {
+    PATCH: async ({ params, body }) => {
+      const parsed = PromptBindingParamsSchema.parse(params)
+      const anchor = OrderRequestSchema.parse(body)
+      promptService.reorderBinding({ type: parsed.targetType, id: parsed.targetId }, parsed.id, anchor)
+      return undefined
+    }
+  },
+
+  '/prompt-bindings/:targetType/:targetId/order:batch': {
+    PATCH: async ({ params, body }) => {
+      const parsed = PromptBindingTargetParamsSchema.parse(params)
+      const order = OrderBatchRequestSchema.parse(body)
+      promptService.reorderBindings({ type: parsed.targetType, id: parsed.targetId }, order.moves)
       return undefined
     }
   },

@@ -1001,8 +1001,10 @@ describe('AgentService', () => {
     it('purges prompt bindings without deleting the global prompt', async () => {
       const { id } = await insertAgent({ id: 'agent_with_prompt_001' })
       const promptId = '550e8400-e29b-41d4-a716-446655440021'
-      await dbh.db.insert(promptTable).values({ id: promptId, title: 'Bound', content: 'Body', orderKey: 'a0' })
-      await dbh.db.insert(promptBindingTable).values({ promptId, targetType: 'agent', targetId: id })
+      await dbh.db
+        .insert(promptTable)
+        .values({ id: promptId, title: 'Bound', content: 'Body', visibility: 'restricted', orderKey: 'a0' })
+      await dbh.db.insert(promptBindingTable).values({ promptId, targetType: 'agent', targetId: id, orderKey: 'a0' })
 
       agentService.deleteAgent(id)
 

@@ -92,6 +92,12 @@ vi.mock('@renderer/components/resourceCatalog/dialogs/components/PromptPolishAct
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
+  Alert: ({ message, description }: { message: ReactNode; description?: ReactNode }) => (
+    <div role="alert">
+      {message}
+      {description}
+    </div>
+  ),
   Button: (props: ComponentProps<'button'> & { loading?: boolean; variant?: string; size?: string }) => {
     const { children, type = 'button', ...buttonProps } = props
     delete buttonProps.loading
@@ -147,7 +153,22 @@ vi.mock('@cherrystudio/ui', () => ({
   DialogFooter: ({ children }: { children: ReactNode }) => <footer>{children}</footer>,
   DialogHeader: ({ children }: { children: ReactNode }) => <header>{children}</header>,
   DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+  ConfirmDialog: ({ onConfirm, open }: { onConfirm: () => Promise<void>; open: boolean }) =>
+    open ? (
+      <button type="button" onClick={() => void onConfirm()}>
+        confirm visibility change
+      </button>
+    ) : null,
   Input: (props: ComponentProps<'input'>) => <input {...props} />,
+  RadioGroup: ({ children, onValueChange }: { children: ReactNode; onValueChange: (value: string) => void }) => (
+    <div>
+      {children}
+      <button type="button" onClick={() => onValueChange('global')}>
+        select global visibility
+      </button>
+    </div>
+  ),
+  RadioGroupItem: ({ value }: { value: string }) => <input type="radio" value={value} readOnly />,
   Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>
 }))
 
@@ -163,6 +184,7 @@ describe('PromptEditDialog', () => {
           id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
           title: 'Old title',
           content: 'Old content',
+          visibility: 'global',
           orderKey: 'a0',
           createdAt: '2026-05-01T00:00:00.000Z',
           updatedAt: '2026-05-01T00:00:00.000Z'
@@ -185,7 +207,8 @@ describe('PromptEditDialog', () => {
     await waitFor(() => {
       expect(onSave).toHaveBeenCalledWith({
         title: 'Old title',
-        content: 'Updated content'
+        content: 'Updated content',
+        visibility: 'global'
       })
     })
   })
@@ -201,6 +224,7 @@ describe('PromptEditDialog', () => {
           id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
           title: 'Old title',
           content: 'Old content',
+          visibility: 'global',
           orderKey: 'a0',
           createdAt: '2026-05-01T00:00:00.000Z',
           updatedAt: '2026-05-01T00:00:00.000Z'
@@ -221,7 +245,8 @@ describe('PromptEditDialog', () => {
     await waitFor(() => {
       expect(onSave).toHaveBeenCalledWith({
         title: 'Old title',
-        content: 'Polished library prompt'
+        content: 'Polished library prompt',
+        visibility: 'global'
       })
     })
   })
@@ -234,6 +259,7 @@ describe('PromptEditDialog', () => {
           id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
           title: 'Old title',
           content: '',
+          visibility: 'global',
           orderKey: 'a0',
           createdAt: '2026-05-01T00:00:00.000Z',
           updatedAt: '2026-05-01T00:00:00.000Z'
@@ -275,6 +301,7 @@ describe('PromptEditDialog', () => {
           id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
           title: 'Old title',
           content: 'Old content',
+          visibility: 'global',
           orderKey: 'a0',
           createdAt: '2026-05-01T00:00:00.000Z',
           updatedAt: '2026-05-01T00:00:00.000Z'
@@ -304,6 +331,7 @@ describe('PromptEditDialog', () => {
           id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
           title: 'Old title',
           content: 'Old content',
+          visibility: 'global',
           orderKey: 'a0',
           createdAt: '2026-05-01T00:00:00.000Z',
           updatedAt: '2026-05-01T00:00:00.000Z'
@@ -317,5 +345,42 @@ describe('PromptEditDialog', () => {
 
     expect(onCancel).not.toHaveBeenCalled()
     expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('confirms before making a shared restricted prompt global', async () => {
+    const user = userEvent.setup()
+    const onSave = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <PromptEditDialog
+        open
+        bindingCount={2}
+        prompt={{
+          id: '018f8f16-3540-7cc2-b3cc-11ef1e3f35ac',
+          title: 'Shared prompt',
+          content: 'Shared content',
+          visibility: 'restricted',
+          orderKey: 'a0',
+          createdAt: '2026-05-01T00:00:00.000Z',
+          updatedAt: '2026-05-01T00:00:00.000Z'
+        }}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent('settings.prompts.visibility.sharedEditWarning')
+    await user.click(screen.getByRole('button', { name: 'select global visibility' }))
+    await user.click(screen.getByRole('button', { name: 'common.confirm' }))
+
+    expect(onSave).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'confirm visibility change' }))
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith({
+        title: 'Shared prompt',
+        content: 'Shared content',
+        visibility: 'global'
+      })
+    )
   })
 })

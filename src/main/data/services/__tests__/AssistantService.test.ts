@@ -1245,8 +1245,12 @@ describe('AssistantDataService', () => {
     it('should remove prompt bindings for the deleted assistant', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'test' })
       const promptId = '550e8400-e29b-41d4-a716-446655440020'
-      await dbh.db.insert(promptTable).values({ id: promptId, title: 'Bound', content: 'Body', orderKey: 'a0' })
-      await dbh.db.insert(promptBindingTable).values({ promptId, targetType: 'assistant', targetId: 'ast-1' })
+      await dbh.db
+        .insert(promptTable)
+        .values({ id: promptId, title: 'Bound', content: 'Body', visibility: 'restricted', orderKey: 'a0' })
+      await dbh.db
+        .insert(promptBindingTable)
+        .values({ promptId, targetType: 'assistant', targetId: 'ast-1', orderKey: 'a0' })
 
       assistantDataService.delete('ast-1')
 

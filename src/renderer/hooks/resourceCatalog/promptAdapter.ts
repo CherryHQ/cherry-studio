@@ -1,4 +1,5 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { resolveTemplate, useMutation, useQuery } from '@data/hooks/useDataApi'
+import type { ConcreteApiPaths } from '@shared/data/api/paths'
 import type { CreatePromptDto, UpdatePromptDto } from '@shared/data/api/schemas/prompts'
 import type { Prompt, PromptBindingTarget } from '@shared/data/types/prompt'
 import { useCallback } from 'react'
@@ -61,23 +62,31 @@ export function usePromptMutationsById(id: string) {
   return { updatePrompt, deletePrompt }
 }
 
-export function usePromptBindingMutations() {
+function getPromptBindingCollectionPath(target: PromptBindingTarget) {
+  return resolveTemplate('/prompt-bindings/:targetType/:targetId', {
+    targetType: target.type,
+    targetId: target.id
+  }) as ConcreteApiPaths
+}
+
+export function usePromptBindingMutations(target: PromptBindingTarget) {
+  const collectionPath = getPromptBindingCollectionPath(target)
   const { trigger: bindTrigger } = useMutation('PUT', '/prompts/:id/bindings/:targetType/:targetId', {
-    refresh: ['/prompts']
+    refresh: ['/prompts', collectionPath]
   })
   const { trigger: unbindTrigger } = useMutation('DELETE', '/prompts/:id/bindings/:targetType/:targetId', {
-    refresh: ['/prompts']
+    refresh: ['/prompts', collectionPath]
   })
 
   const bindPrompt = useCallback(
-    (id: string, target: PromptBindingTarget): Promise<void> =>
+    (id: string): Promise<void> =>
       bindTrigger({ params: { id, targetType: target.type, targetId: target.id } }).then(() => undefined),
-    [bindTrigger]
+    [bindTrigger, target.id, target.type]
   )
   const unbindPrompt = useCallback(
-    (id: string, target: PromptBindingTarget): Promise<void> =>
+    (id: string): Promise<void> =>
       unbindTrigger({ params: { id, targetType: target.type, targetId: target.id } }).then(() => undefined),
-    [unbindTrigger]
+    [target.id, target.type, unbindTrigger]
   )
 
   return { bindPrompt, unbindPrompt }

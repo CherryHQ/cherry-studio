@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Introduza o seu Client Secret do QQ Bot",
         "description": "Receber e responder a mensagens através da API oficial do QQ Bot.",
+        "mentionOnlyHint": "[to be translated]:When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
+        "mentionOnlyLabel": "[to be translated]:@Mention only",
         "title": "QQ",
         "whoamiTip": "💡 Dica: Envie /whoami ao bot para obter o seu ID de chat no formato correto."
       },
@@ -496,10 +498,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "[to be translated]:{{count}} channel",
+          "channels_count_other": "[to be translated]:{{count}} channels",
+          "channels_empty": "[to be translated]:No channels will be changed.",
+          "channels_title": "[to be translated]:Channels changed to no work directory",
           "content": "Eliminar esta pasta de trabalho também eliminará todas as tarefas sob ele. Apenas os registos da base de dados são removidos; a pasta real no disco não será eliminada.",
+          "disk_preserved": "[to be translated]:The folder on disk and its files will not be deleted.",
           "error": {
             "failed": "Falha ao eliminar a pasta de trabalho"
           },
+          "more_count_one": "[to be translated]:…and {{count}} more item",
+          "more_count_other": "[to be translated]:…and {{count}} more items",
+          "preview": "[to be translated]:Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
+          "preview_failed": "[to be translated]:The deletion impact could not be loaded, so this work directory cannot be deleted yet",
+          "preview_loading": "[to be translated]:Loading deletion impact…",
+          "sessions_count_one": "[to be translated]:{{count}} session",
+          "sessions_count_other": "[to be translated]:{{count}} sessions",
+          "sessions_empty": "[to be translated]:No sessions will be deleted.",
+          "sessions_title": "[to be translated]:Sessions to be deleted",
+          "tasks_count_one": "[to be translated]:{{count}} scheduled task",
+          "tasks_count_other": "[to be translated]:{{count}} scheduled tasks",
+          "tasks_empty": "[to be translated]:No scheduled tasks will be changed.",
+          "tasks_title": "[to be translated]:Scheduled tasks changed to no work directory",
           "title": "Eliminar pasta de trabalho",
           "trigger": "Apagar pasta de trabalho"
         },
@@ -2548,6 +2568,7 @@
       "503": "Serviço indisponível, por favor tente novamente mais tarde",
       "504": "Tempo de espera do gateway excedido, por favor tente novamente mais tarde"
     },
+    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "Último erro",
     "maxEmbeddingsPerCall": "Máximo de embeddings por chamada",
     "message": "Mensagem de erro",
@@ -3196,7 +3217,6 @@
       "updated_at": "Atualizado {{time}}"
     },
     "name_required": "Nome da base de conhecimento é obrigatório",
-    "not_set": "Não Definido",
     "provider_not_found": "Fornecedor não encontrado",
     "rag": {
       "chunk_overlap": "Tamanho de Sobreposição",
@@ -3211,12 +3231,13 @@
       "chunking": "Fragmentação",
       "default_separator": "Automático (recomendado)",
       "document_count": "Contagem de Documentos",
-      "download_local_embedding": "Descarregar Modelo Local",
       "download_local_embedding_failed": "Não foi possível descarregar o modelo de embeddings local",
+      "download_local_model": "[to be translated]:Download Local Model",
       "embedding_model": "Modelo de embeddings",
       "embedding_model_select": "Seleção de Modelo",
       "file_processing": "Processamento de Ficheiros",
       "file_processing_hint": "O processamento de ficheiros é executado automaticamente durante a importação do documento. Escolher o fornecedor certo pode melhorar a qualidade da análise do documento.",
+      "file_processing_none": "[to be translated]:Don't use",
       "hints": {
         "chunk_overlap": "Número de tokens sobrepostos mantidos entre blocos adjacentes para reduzir quebras semânticas.",
         "chunk_separator": "Delimitador no qual o texto é dividido, em forma escapada. Com a divisão inteligente ativada, ele adiciona um ponto de interrupção; com ela desativada, o texto é dividido apenas por esse delimitador.",
@@ -3230,6 +3251,8 @@
       },
       "processor": "Processador de Fornecedor",
       "processor_not_configured": "Não configurado",
+      "processor_not_downloaded": "[to be translated]:Not downloaded",
+      "processor_unreachable": "[to be translated]:Service not running",
       "rerank_disabled": "Desativado",
       "rerank_model": "Modelo de Reorganização",
       "reset_action": "Restaurar Padrões",
@@ -4626,6 +4649,8 @@
         "font_size_medium": "Médio",
         "font_size_small": "Pequeno",
         "font_title": "Definições do tipo de letra",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "Tipo de letra serifado",
         "show_table_of_contents": "Mostrar índice",
         "show_table_of_contents_description": "Apresenta uma barra lateral com o índice para facilitar a navegação no documento",
@@ -5393,6 +5418,7 @@
         "insertRowBefore": "inserir acima"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "inserir fórmula matemática",
@@ -6976,6 +7002,7 @@
       },
       "command": "Comando",
       "config_description": "Configurar modelo de protocolo de contexto do servidor",
+      "copyLogs": "[to be translated]:Copy logs",
       "customRegistryPlaceholder": "Por favor, introduza o endereço do repositório privado, por exemplo: https://npm.company.com",
       "deleteError": "Falha ao eliminar servidor",
       "deleteServer": "Eliminar Servidor",
@@ -7029,6 +7056,7 @@
       },
       "logoUrl": "URL do Logotipo",
       "logs": "Registos",
+      "logsHint": "[to be translated]:Logs from the MCP server process",
       "longRunning": "Modo de execução prolongada",
       "longRunningTooltip": "Quando ativado, o servidor suporta tarefas de longa duração, redefinindo o temporizador de tempo limite ao receber notificações de progresso e estendendo o tempo máximo de tempo limite para 10 minutos.",
       "marketplaces": "Mercados",
@@ -7616,15 +7644,23 @@
     "prompts": {
       "add": "Adicionar Prompt",
       "binding": {
+        "add": "[to be translated]:Add quick phrase",
         "currentAgent": "[to be translated]:Current agent",
         "currentAssistant": "[to be translated]:Current assistant",
         "editDescription": "[to be translated]:Choose which prompts are linked to {{target}}.",
+        "noLinked": "[to be translated]:No quick phrases linked",
+        "noMore": "[to be translated]:No more prompts available",
+        "remove": "[to be translated]:Remove quick phrase",
+        "search": "[to be translated]:Search prompts",
         "tabTitle": "[to be translated]:Quick Phrases"
       },
       "contentLabel": "Conteúdo",
       "contentPlaceholder": "Introduza o conteúdo do prompt. Suporta ${variables}; prima Tab para saltar entre variáveis. Exemplo:\nAjude-me a planear uma rota de ${from} para ${to} e envie-a para ${email}.",
       "delete": "Eliminar Prompt",
       "deleteConfirm": "O prompt será eliminado permanentemente. Continuar?",
+      "deleteGlobalConfirm": "[to be translated]:This global prompt is available in every context. Deleting it removes it everywhere and cannot be undone. Continue?",
+      "deleteRestrictedConfirm": "[to be translated]:This restricted prompt may be shared by multiple contexts. Deleting it removes it from every linked context and cannot be undone. Continue?",
+      "deleteSharedConfirm": "[to be translated]:This prompt is shared by {{count}} contexts. Deleting it removes it from all of them and cannot be undone. Continue?",
       "edit": "Editar Prompt",
       "errors": {
         "bindFailed": "[to be translated]:Failed to link prompt",
@@ -7637,10 +7673,32 @@
       },
       "manage": "Gerir Prompts",
       "noPrompts": "[to be translated]:No prompts",
+      "reorder": "[to be translated]:Drag to reorder {{title}}",
+      "searchPlaceholder": "[to be translated]:Search prompt titles or content",
       "title": "Gestão de Prompts",
       "titleLabel": "Título",
       "titlePlaceholder": "Introduza o título do prompt",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "[to be translated]:Global",
+          "description": "[to be translated]:Available in every current and future context. Switching to global removes existing restricted links.",
+          "title": "[to be translated]:Every context"
+        },
+        "globalEditWarning": "[to be translated]:Changes apply to every context that uses this global prompt.",
+        "label": "[to be translated]:Availability",
+        "linkedCountDescription": "[to be translated]:Currently shared by {{count}} contexts.",
+        "makeGlobalConfirmDescription": "[to be translated]:Making this prompt global removes its {{count}} restricted links. Continue?",
+        "makeGlobalConfirmTitle": "[to be translated]:Make prompt global?",
+        "makeGlobalConfirmUnknownDescription": "[to be translated]:Making this prompt global removes all of its restricted links. Continue?",
+        "restricted": {
+          "badge": "[to be translated]:Restricted",
+          "description": "[to be translated]:Available only in explicitly linked contexts. With no links, it remains in the prompt library but does not appear in chat.",
+          "title": "[to be translated]:Selected contexts"
+        },
+        "sharedEditWarning": "[to be translated]:Changes apply everywhere this prompt is linked.",
+        "unassignedDescription": "[to be translated]:This prompt is not linked to any context and will not appear in chat."
+      }
     },
     "provider": {
       "add": {
@@ -8134,10 +8192,12 @@
       "label": "Tecla",
       "move_tab_to_first": "Mover Aba para o Primeiro",
       "new_topic": "Novo tópico",
+      "next_tab": "[to be translated]:Next Tab",
       "occupied_by_other_application": "Este atalho já está a ser utilizado pelo sistema ou por outra aplicação",
       "open_tab_in_new_window": "Abrir aba em nova janela",
       "pin_tab": "Alternar Fixação de Aba",
       "press_shortcut": "Premir atalho",
+      "prev_tab": "[to be translated]:Previous Tab",
       "print": "Imprimir",
       "quick_assistant": "Atalho de assistente",
       "rename_topic": "Renomear tópico",
@@ -8253,6 +8313,10 @@
           "doc2x": {
             "description": "Motor avançado de restauração de ficheiros.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "[to be translated]:Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
+            "name": "[to be translated]:Local Document"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) em execução em processo — totalmente offline, sem chave de API, com reconhecimento numa thread em segundo plano para manter a interface responsiva. Descarregue o modelo (~140MB) em Dependências de Ambiente antes do primeiro uso.",

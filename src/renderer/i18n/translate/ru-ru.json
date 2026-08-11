@@ -97,6 +97,8 @@
         "clientSecret": "Client Secret",
         "clientSecretPlaceholder": "Введите Client Secret вашего QQ бота",
         "description": "Получать и отвечать на сообщения через официальный API QQ Bot.",
+        "mentionOnlyHint": "[to be translated]:When on, the bot only replies to @mentions. Turn off to receive all group messages (requires \"receive all messages\" permission on QQ Open Platform).",
+        "mentionOnlyLabel": "[to be translated]:@Mention only",
         "title": "QQ",
         "whoamiTip": "💡 Совет: Отправьте /whoami боту, чтобы получить ваш ID чата в правильном формате."
       },
@@ -496,10 +498,28 @@
       },
       "workdir": {
         "delete": {
+          "channels_count_one": "[to be translated]:{{count}} channel",
+          "channels_count_other": "[to be translated]:{{count}} channels",
+          "channels_empty": "[to be translated]:No channels will be changed.",
+          "channels_title": "[to be translated]:Channels changed to no work directory",
           "content": "Удаление этой рабочей директории также приведёт к удалению всех задач в ней. Удаляются только записи в базе данных; фактическая папка на диске не будет удалена.",
+          "disk_preserved": "[to be translated]:The folder on disk and its files will not be deleted.",
           "error": {
             "failed": "Не удалось удалить рабочий каталог"
           },
+          "more_count_one": "[to be translated]:…and {{count}} more item",
+          "more_count_other": "[to be translated]:…and {{count}} more items",
+          "preview": "[to be translated]:Deleting “{{name}}” removes its sessions and changes related channels and scheduled tasks to no work directory. This action cannot be undone.",
+          "preview_failed": "[to be translated]:The deletion impact could not be loaded, so this work directory cannot be deleted yet",
+          "preview_loading": "[to be translated]:Loading deletion impact…",
+          "sessions_count_one": "[to be translated]:{{count}} session",
+          "sessions_count_other": "[to be translated]:{{count}} sessions",
+          "sessions_empty": "[to be translated]:No sessions will be deleted.",
+          "sessions_title": "[to be translated]:Sessions to be deleted",
+          "tasks_count_one": "[to be translated]:{{count}} scheduled task",
+          "tasks_count_other": "[to be translated]:{{count}} scheduled tasks",
+          "tasks_empty": "[to be translated]:No scheduled tasks will be changed.",
+          "tasks_title": "[to be translated]:Scheduled tasks changed to no work directory",
           "title": "Удалить рабочий каталог",
           "trigger": "Удалить рабочий каталог"
         },
@@ -2548,6 +2568,7 @@
       "503": "Серверная ошибка. Пожалуйста, попробуйте позже",
       "504": "Серверная ошибка. Пожалуйста, попробуйте позже"
     },
+    "image_unreadable_for_non_vision_model": "[to be translated]:The selected model doesn't support images, and Cherry Studio couldn't extract readable text from the attachment. Choose a vision-capable model or remove the image and try again.",
     "lastError": "Последняя ошибка",
     "maxEmbeddingsPerCall": "Максимум эмбеддингов за вызов",
     "message": "Сообщение об ошибке",
@@ -3196,7 +3217,6 @@
       "updated_at": "Обновлено {{time}}"
     },
     "name_required": "Требуется название базы знаний",
-    "not_set": "Не задано",
     "provider_not_found": "Провайдер не найден",
     "rag": {
       "chunk_overlap": "Размер перекрытия",
@@ -3211,12 +3231,13 @@
       "chunking": "Разбиение на блоки",
       "default_separator": "Авто (рекомендуется)",
       "document_count": "Количество документов",
-      "download_local_embedding": "Загрузить локальную модель",
       "download_local_embedding_failed": "Не удалось загрузить локальную модель эмбеддингов",
+      "download_local_model": "[to be translated]:Download Local Model",
       "embedding_model": "Модель эмбеддингов",
       "embedding_model_select": "Выбор модели",
       "file_processing": "Обработка файлов",
       "file_processing_hint": "Обработка файлов выполняется автоматически при импорте документа. Правильный выбор провайдера может повысить качество разбора документов.",
+      "file_processing_none": "[to be translated]:Don't use",
       "hints": {
         "chunk_overlap": "Количество перекрывающихся токенов, сохраняемых между соседними фрагментами для уменьшения семантических разрывов.",
         "chunk_separator": "Разделитель, по которому разбивается текст, в экранированной форме. При включённом интеллектуальном разбиении он добавляет точку разрыва; при выключенном текст разбивается только по этому разделителю.",
@@ -3230,6 +3251,8 @@
       },
       "processor": "Провайдер обработки",
       "processor_not_configured": "Не настроено",
+      "processor_not_downloaded": "[to be translated]:Not downloaded",
+      "processor_unreachable": "[to be translated]:Service not running",
       "rerank_disabled": "Отключено",
       "rerank_model": "Модель реранжирования",
       "reset_action": "Восстановить значения по умолчанию",
@@ -4626,6 +4649,8 @@
         "font_size_medium": "Средний",
         "font_size_small": "маленький",
         "font_title": "Настройки шрифта",
+        "line_breaks": "[to be translated]:Line Break Mode",
+        "line_breaks_description": "[to be translated]:Render a single line break as a new line (Obsidian-style). When disabled, line breaks are collapsed into spaces until a blank line separates paragraphs.",
         "serif_font": "Шрифт с засечками",
         "show_table_of_contents": "Показать оглавление",
         "show_table_of_contents_description": "Показать боковую панель оглавления для удобной навигации по документу",
@@ -5393,6 +5418,7 @@
         "insertRowBefore": "Вставьте выше"
       }
     },
+    "backToTop": "[to be translated]:Back to top",
     "commands": {
       "blockMath": {
         "description": "Вставьте математические формулы",
@@ -6976,6 +7002,7 @@
       },
       "command": "Команда",
       "config_description": "Настройка серверов протокола контекста модели",
+      "copyLogs": "[to be translated]:Copy logs",
       "customRegistryPlaceholder": "Введите адрес частного склада, например: https://npm.company.com",
       "deleteError": "Не удалось удалить сервер",
       "deleteServer": "Удалить сервер",
@@ -7029,6 +7056,7 @@
       },
       "logoUrl": "URL логотипа",
       "logs": "Журналы",
+      "logsHint": "[to be translated]:Logs from the MCP server process",
       "longRunning": "Длительный режим работы",
       "longRunningTooltip": "Включив эту опцию, сервер будет поддерживать длительные задачи. При получении уведомлений о ходе выполнения будет сброшен тайм-аут и максимальное время выполнения будет увеличено до 10 минут.",
       "marketplaces": "Торговые площадки",
@@ -7616,15 +7644,23 @@
     "prompts": {
       "add": "Добавить промпт",
       "binding": {
+        "add": "[to be translated]:Add quick phrase",
         "currentAgent": "[to be translated]:Current agent",
         "currentAssistant": "[to be translated]:Current assistant",
         "editDescription": "[to be translated]:Choose which prompts are linked to {{target}}.",
+        "noLinked": "[to be translated]:No quick phrases linked",
+        "noMore": "[to be translated]:No more prompts available",
+        "remove": "[to be translated]:Remove quick phrase",
+        "search": "[to be translated]:Search prompts",
         "tabTitle": "[to be translated]:Quick Phrases"
       },
       "contentLabel": "Содержание",
       "contentPlaceholder": "Введите содержимое запроса. Поддерживаются ${variables}; нажмите Tab для перехода между переменными. Пример:\nПомогите мне спланировать маршрут из ${from} в ${to} и отправьте его на ${email}.",
       "delete": "Удалить промпт",
       "deleteConfirm": "Промпт будет удален без возможности восстановления. Продолжить?",
+      "deleteGlobalConfirm": "[to be translated]:This global prompt is available in every context. Deleting it removes it everywhere and cannot be undone. Continue?",
+      "deleteRestrictedConfirm": "[to be translated]:This restricted prompt may be shared by multiple contexts. Deleting it removes it from every linked context and cannot be undone. Continue?",
+      "deleteSharedConfirm": "[to be translated]:This prompt is shared by {{count}} contexts. Deleting it removes it from all of them and cannot be undone. Continue?",
       "edit": "Редактировать промпт",
       "errors": {
         "bindFailed": "[to be translated]:Failed to link prompt",
@@ -7637,10 +7673,32 @@
       },
       "manage": "Управление промптами",
       "noPrompts": "[to be translated]:No prompts",
+      "reorder": "[to be translated]:Drag to reorder {{title}}",
+      "searchPlaceholder": "[to be translated]:Search prompt titles or content",
       "title": "Управление промптами",
       "titleLabel": "Заголовок",
       "titlePlaceholder": "Введите заголовок промпта",
-      "variablePlaceholder": "${variable}"
+      "variablePlaceholder": "${variable}",
+      "visibility": {
+        "global": {
+          "badge": "[to be translated]:Global",
+          "description": "[to be translated]:Available in every current and future context. Switching to global removes existing restricted links.",
+          "title": "[to be translated]:Every context"
+        },
+        "globalEditWarning": "[to be translated]:Changes apply to every context that uses this global prompt.",
+        "label": "[to be translated]:Availability",
+        "linkedCountDescription": "[to be translated]:Currently shared by {{count}} contexts.",
+        "makeGlobalConfirmDescription": "[to be translated]:Making this prompt global removes its {{count}} restricted links. Continue?",
+        "makeGlobalConfirmTitle": "[to be translated]:Make prompt global?",
+        "makeGlobalConfirmUnknownDescription": "[to be translated]:Making this prompt global removes all of its restricted links. Continue?",
+        "restricted": {
+          "badge": "[to be translated]:Restricted",
+          "description": "[to be translated]:Available only in explicitly linked contexts. With no links, it remains in the prompt library but does not appear in chat.",
+          "title": "[to be translated]:Selected contexts"
+        },
+        "sharedEditWarning": "[to be translated]:Changes apply everywhere this prompt is linked.",
+        "unassignedDescription": "[to be translated]:This prompt is not linked to any context and will not appear in chat."
+      }
     },
     "provider": {
       "add": {
@@ -8134,10 +8192,12 @@
       "label": "Клавиша",
       "move_tab_to_first": "Переместить вкладку в начало",
       "new_topic": "Новый топик",
+      "next_tab": "[to be translated]:Next Tab",
       "occupied_by_other_application": "Это сочетание клавиш уже используется системой или другим приложением",
       "open_tab_in_new_window": "Открыть вкладку в новом окне",
       "pin_tab": "Закрепить вкладку",
       "press_shortcut": "Нажмите сочетание клавиш",
+      "prev_tab": "[to be translated]:Previous Tab",
       "print": "Печать",
       "quick_assistant": "Быстрый помощник",
       "rename_topic": "Переименовать топик",
@@ -8253,6 +8313,10 @@
           "doc2x": {
             "description": "Продвинутый механизм восстановления файлов.",
             "name": "Doc2x"
+          },
+          "local_document": {
+            "description": "[to be translated]:Converts PDFs to Markdown entirely on this machine. Documents with a text layer are parsed directly; scans fall back to the local OCR model.",
+            "name": "[to be translated]:Local Document"
           },
           "local_paddleocr": {
             "description": "PaddleOCR (PP-OCRv6 medium) работает внутри процесса — полностью автономно и без API-ключа. Распознавание выполняется в фоновом потоке, поэтому интерфейс остаётся отзывчивым. Перед первым использованием загрузите модель (~140 МБ) в разделе «Зависимости среды».",

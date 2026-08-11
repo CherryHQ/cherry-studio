@@ -52,6 +52,7 @@ vi.mock('react-i18next', () => ({
         'settings.menuGroups.personal': '偏好',
         'settings.menuGroups.quickAccess': '快捷入口',
         'settings.model': '默认模型',
+        'settings.prompts.title': '提示词管理',
         'settings.quickAssistant.title': '快捷助手',
         'settings.scheduledTasks.title': '定时任务',
         'settings.shortcuts.title': '快捷键',
@@ -102,7 +103,7 @@ describe('SettingsPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/dependencies' })
   })
 
-  it('places Skills directly below MCP and opens the Skills settings page', () => {
+  it('places Skills below MCP and prompt management directly below Skills', () => {
     render(<SettingsPage />)
 
     const mcpItem = screen.getByText('MCP').closest('button')
@@ -112,6 +113,11 @@ describe('SettingsPage', () => {
     expect(mcpItem?.nextElementSibling).toBe(skillsItem)
     fireEvent.click(skillsItem)
     expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/skills' })
+
+    const promptsItem = screen.getByRole('button', { name: '提示词管理' })
+    expect(skillsItem.nextElementSibling).toBe(promptsItem)
+    fireEvent.click(promptsItem)
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/settings/prompts' })
   })
 
   it('merges quick access into efficiency and places both assistants last', () => {

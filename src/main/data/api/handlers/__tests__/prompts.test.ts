@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   listMock,
+  listBindingsMock,
+  listBoundToTargetMock,
   getByIdMock,
   createMock,
   updateMock,
@@ -9,9 +11,13 @@ const {
   bindToTargetMock,
   unbindFromTargetMock,
   reorderMock,
-  reorderBatchMock
+  reorderBatchMock,
+  reorderBindingMock,
+  reorderBindingsMock
 } = vi.hoisted(() => ({
   listMock: vi.fn(),
+  listBindingsMock: vi.fn(),
+  listBoundToTargetMock: vi.fn(),
   getByIdMock: vi.fn(),
   createMock: vi.fn(),
   updateMock: vi.fn(),
@@ -19,12 +25,16 @@ const {
   bindToTargetMock: vi.fn(),
   unbindFromTargetMock: vi.fn(),
   reorderMock: vi.fn(),
-  reorderBatchMock: vi.fn()
+  reorderBatchMock: vi.fn(),
+  reorderBindingMock: vi.fn(),
+  reorderBindingsMock: vi.fn()
 }))
 
 vi.mock('@data/services/PromptService', () => ({
   promptService: {
     list: listMock,
+    listBindings: listBindingsMock,
+    listBoundToTarget: listBoundToTargetMock,
     getById: getByIdMock,
     create: createMock,
     update: updateMock,
@@ -32,7 +42,9 @@ vi.mock('@data/services/PromptService', () => ({
     bindToTarget: bindToTargetMock,
     unbindFromTarget: unbindFromTargetMock,
     reorder: reorderMock,
-    reorderBatch: reorderBatchMock
+    reorderBatch: reorderBatchMock,
+    reorderBinding: reorderBindingMock,
+    reorderBindings: reorderBindingsMock
   }
 }))
 
@@ -73,11 +85,16 @@ describe('promptHandlers', () => {
 
       await expect(
         promptHandlers['/prompts'].GET({
-          query: { targetType: 'assistant', targetId: TARGET_ID, search: ' daily ' }
+          query: { targetType: 'assistant', targetId: TARGET_ID, includeGlobal: true, search: ' daily ' }
         } as never)
       ).resolves.toEqual([])
 
-      expect(listMock).toHaveBeenCalledWith({ targetType: 'assistant', targetId: TARGET_ID, search: 'daily' })
+      expect(listMock).toHaveBeenCalledWith({
+        targetType: 'assistant',
+        targetId: TARGET_ID,
+        includeGlobal: true,
+        search: 'daily'
+      })
     })
 
     it('should reject empty search query before calling the service', async () => {
@@ -88,14 +105,14 @@ describe('promptHandlers', () => {
       expect(listMock).not.toHaveBeenCalled()
     })
 
-    it('should delegate POST with title/content only', async () => {
+    it('should delegate POST with the selected visibility', async () => {
       createMock.mockResolvedValueOnce({ id: PROMPT_ID, title: 't', content: 'c' })
 
       const result = await promptHandlers['/prompts'].POST({
-        body: { title: 't', content: 'c' }
+        body: { title: 't', content: 'c', visibility: 'global' }
       } as never)
 
-      expect(createMock).toHaveBeenCalledWith({ title: 't', content: 'c' })
+      expect(createMock).toHaveBeenCalledWith({ title: 't', content: 'c', visibility: 'global' })
       expect(result).toMatchObject({ id: PROMPT_ID })
     })
 
@@ -106,6 +123,7 @@ describe('promptHandlers', () => {
         body: {
           title: 't',
           content: 'c',
+          visibility: 'restricted',
           bindingTarget: { type: 'agent', id: TARGET_ID }
         }
       } as never)
@@ -113,37 +131,37 @@ describe('promptHandlers', () => {
       expect(createMock).toHaveBeenCalledWith({
         title: 't',
         content: 'c',
+        visibility: 'restricted',
         bindingTarget: { type: 'agent', id: TARGET_ID }
       })
     })
 
     it('should reject POST with empty fields before calling the service', async () => {
       await expect(
-        promptHandlers['/prompts'].POST({ body: { title: '', content: 'c' } } as never)
+        promptHandlers['/prompts'].POST({ body: { title: '', content: 'c', visibility: 'global' } } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
       await expect(
-        promptHandlers['/prompts'].POST({ body: { title: 't', content: '' } } as never)
+        promptHandlers['/prompts'].POST({ body: { title: 't', content: '', visibility: 'global' } } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
       expect(createMock).not.toHaveBeenCalled()
     })
 
     it('should reject POST with a missing required field', async () => {
-      await expect(promptHandlers['/prompts'].POST({ body: { content: 'c' } } as never)).rejects.toHaveProperty(
-        'name',
-        'ZodError'
-      )
+      await expect(
+        promptHandlers['/prompts'].POST({ body: { content: 'c', visibility: 'global' } } as never)
+      ).rejects.toHaveProperty('name', 'ZodError')
       expect(createMock).not.toHaveBeenCalled()
     })
 
     it('should reject POST with removed fields', async () => {
       await expect(
         promptHandlers['/prompts'].POST({
-          body: { title: 't', content: 'c', variables: [] }
+          body: { title: 't', content: 'c', visibility: 'global', variables: [] }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
       await expect(
         promptHandlers['/prompts'].POST({
-          body: { title: 't', content: 'c', assistantId: OTHER_PROMPT_ID }
+          body: { title: 't', content: 'c', visibility: 'global', assistantId: OTHER_PROMPT_ID }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')
       expect(createMock).not.toHaveBeenCalled()
@@ -173,6 +191,50 @@ describe('promptHandlers', () => {
       ).rejects.toHaveProperty('name', 'ZodError')
 
       expect(bindToTargetMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('/prompts/:id/bindings', () => {
+    it('should list every binding for the prompt', async () => {
+      listBindingsMock.mockReturnValueOnce([{ type: 'assistant', id: TARGET_ID }])
+
+      await expect(
+        promptHandlers['/prompts/:id/bindings'].GET({ params: { id: PROMPT_ID } } as never)
+      ).resolves.toEqual([{ type: 'assistant', id: TARGET_ID }])
+      expect(listBindingsMock).toHaveBeenCalledWith(PROMPT_ID)
+    })
+  })
+
+  describe('/prompt-bindings/:targetType/:targetId', () => {
+    it('should list prompts in target-specific order', async () => {
+      listBoundToTargetMock.mockReturnValueOnce([{ id: PROMPT_ID }])
+
+      await expect(
+        promptHandlers['/prompt-bindings/:targetType/:targetId'].GET({
+          params: { targetType: 'assistant', targetId: TARGET_ID }
+        } as never)
+      ).resolves.toEqual([{ id: PROMPT_ID }])
+      expect(listBoundToTargetMock).toHaveBeenCalledWith({ type: 'assistant', id: TARGET_ID })
+    })
+
+    it('should delegate single and batch reorders within the target', async () => {
+      const target = { targetType: 'assistant' as const, targetId: TARGET_ID }
+
+      await promptHandlers['/prompt-bindings/:targetType/:targetId/:id/order'].PATCH({
+        params: { ...target, id: PROMPT_ID },
+        body: { before: OTHER_PROMPT_ID }
+      } as never)
+      await promptHandlers['/prompt-bindings/:targetType/:targetId/order:batch'].PATCH({
+        params: target,
+        body: { moves: [{ id: PROMPT_ID, anchor: { position: 'first' } }] }
+      } as never)
+
+      expect(reorderBindingMock).toHaveBeenCalledWith({ type: 'assistant', id: TARGET_ID }, PROMPT_ID, {
+        before: OTHER_PROMPT_ID
+      })
+      expect(reorderBindingsMock).toHaveBeenCalledWith({ type: 'assistant', id: TARGET_ID }, [
+        { id: PROMPT_ID, anchor: { position: 'first' } }
+      ])
     })
   })
 

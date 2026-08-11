@@ -99,7 +99,14 @@ function PinList() {
 
 // Non-`id` primary key (e.g. miniapp.appId):
 useReorder('/mini-apps', { idKey: 'appId' })
+
+// Parameterized collection — params resolve both cache and mutation paths:
+useReorder('/prompt-bindings/:targetType/:targetId', {
+  params: { targetType: 'assistant', targetId: assistantId }
+})
 ```
+
+`id` is reserved for the reordered item (`/:id/order`), so parameterized collection paths must use distinct parent parameter names such as `targetId` or `providerId`.
 
 Optimistic writes / server revalidation / failure rollback are all handled internally through the DataApi cache hooks (`useReadCache` / `useWriteCache` / `useInvalidateCache`) — the component never tracks the list in local state and never calls SWR directly. `useReorder` reads the items list from the cache by auto-detecting flat arrays and `{ items }`-shaped objects; see §4.3 for nested shapes.
 

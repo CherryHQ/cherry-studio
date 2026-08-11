@@ -7,15 +7,16 @@
 
 import * as z from 'zod'
 
+import type { Prompt, PromptBindingTarget } from '../../types/prompt'
 import {
-  type Prompt,
   PromptAgentBindingTargetSchema,
   PromptAssistantBindingTargetSchema,
   PromptBindingTargetSchema,
   PromptIdSchema as SharedPromptIdSchema,
-  PromptSchema
+  PromptSchema,
+  PromptVisibilitySchema
 } from '../../types/prompt'
-import type { OrderEndpoints } from './_endpointHelpers'
+import type { OrderBatchRequest, OrderEndpoints, OrderRequest } from './_endpointHelpers'
 
 export const PromptIdSchema = SharedPromptIdSchema
 
@@ -25,30 +26,42 @@ export const PromptIdSchema = SharedPromptIdSchema
 
 export const CreatePromptSchema = PromptSchema.pick({
   title: true,
-  content: true
-}).extend({
-  bindingTarget: PromptBindingTargetSchema.optional()
+  content: true,
+  visibility: true
 })
+  .extend({
+    bindingTarget: PromptBindingTargetSchema.optional()
+  })
+  .refine((dto) => dto.visibility === 'restricted' || dto.bindingTarget === undefined, {
+    message: 'Global prompts cannot have an initial binding target',
+    path: ['bindingTarget']
+  })
 export type CreatePromptDto = z.infer<typeof CreatePromptSchema>
 
-export const UpdatePromptSchema = PromptSchema.pick({ title: true, content: true })
+export const UpdatePromptSchema = PromptSchema.pick({ title: true, content: true, visibility: true })
   .partial()
-  .refine((dto) => dto.title !== undefined || dto.content !== undefined, { message: 'At least one field is required' })
+  .refine((dto) => dto.title !== undefined || dto.content !== undefined || dto.visibility !== undefined, {
+    message: 'At least one field is required'
+  })
 export type UpdatePromptDto = z.infer<typeof UpdatePromptSchema>
 
-const PromptSearchQuerySchema = z.strictObject({
+const PromptTextSearchQuerySchema = z.strictObject({
   /** Free-text match against title OR content. */
   search: z.string().trim().min(1).optional()
 })
 
+const PromptSearchQuerySchema = PromptTextSearchQuerySchema.extend({ visibility: PromptVisibilitySchema.optional() })
+
 const PromptTargetListQuerySchema = z.discriminatedUnion('targetType', [
-  PromptSearchQuerySchema.extend({
+  PromptTextSearchQuerySchema.extend({
     targetType: z.literal('assistant'),
-    targetId: PromptAssistantBindingTargetSchema.shape.id
+    targetId: PromptAssistantBindingTargetSchema.shape.id,
+    includeGlobal: z.boolean()
   }),
-  PromptSearchQuerySchema.extend({
+  PromptTextSearchQuerySchema.extend({
     targetType: z.literal('agent'),
-    targetId: PromptAgentBindingTargetSchema.shape.id
+    targetId: PromptAgentBindingTargetSchema.shape.id,
+    includeGlobal: z.boolean()
   })
 ])
 
@@ -69,6 +82,18 @@ export const PromptBindingParamsSchema = z.discriminatedUnion('targetType', [
   })
 ])
 export type PromptBindingParams = z.infer<typeof PromptBindingParamsSchema>
+
+export const PromptBindingTargetParamsSchema = z.discriminatedUnion('targetType', [
+  z.strictObject({
+    targetType: z.literal('assistant'),
+    targetId: PromptAssistantBindingTargetSchema.shape.id
+  }),
+  z.strictObject({
+    targetType: z.literal('agent'),
+    targetId: PromptAgentBindingTargetSchema.shape.id
+  })
+])
+export type PromptBindingTargetParams = z.infer<typeof PromptBindingTargetParamsSchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -107,6 +132,14 @@ export type PromptSchemas = {
     }
   }
 
+  '/prompts/:id/bindings': {
+    /** List the contexts currently sharing this prompt. */
+    GET: {
+      params: { id: string }
+      response: PromptBindingTarget[]
+    }
+  }
+
   '/prompts/:id/bindings/:targetType/:targetId': {
     /** Idempotently bind a prompt to an Assistant or Agent. */
     PUT: {
@@ -116,6 +149,30 @@ export type PromptSchemas = {
     /** Idempotently remove a prompt binding without deleting the prompt. */
     DELETE: {
       params: PromptBindingParams
+      response: void
+    }
+  }
+
+  '/prompt-bindings/:targetType/:targetId': {
+    /** List restricted prompts bound to one context, in context-specific order. */
+    GET: {
+      params: PromptBindingTargetParams
+      response: Prompt[]
+    }
+  }
+
+  '/prompt-bindings/:targetType/:targetId/:id/order': {
+    PATCH: {
+      params: PromptBindingParams
+      body: OrderRequest
+      response: void
+    }
+  }
+
+  '/prompt-bindings/:targetType/:targetId/order:batch': {
+    PATCH: {
+      params: PromptBindingTargetParams
+      body: OrderBatchRequest
       response: void
     }
   }

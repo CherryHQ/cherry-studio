@@ -19,6 +19,7 @@ export const PROMPT_TITLE_MAX = 256
 export const PROMPT_CONTENT_MAX = 100_000
 export const PromptTitleSchema = z.string().trim().min(1).max(PROMPT_TITLE_MAX)
 export const PromptContentSchema = z.string().min(1).max(PROMPT_CONTENT_MAX)
+export const PromptVisibilitySchema = z.enum(['global', 'restricted'])
 
 export const PromptBindingTargetTypeSchema = z.enum(['assistant', 'agent'])
 export const PromptAssistantBindingTargetSchema = z.strictObject({
@@ -39,6 +40,7 @@ export const PromptSchema = z.strictObject({
   id: PromptIdSchema,
   title: PromptTitleSchema,
   content: PromptContentSchema,
+  visibility: PromptVisibilitySchema,
   orderKey: z.string().min(1),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
@@ -49,5 +51,6 @@ export const PromptSchema = z.strictObject({
 // ============================================================================
 
 export type Prompt = z.infer<typeof PromptSchema>
+export type PromptVisibility = z.infer<typeof PromptVisibilitySchema>
 export type PromptBindingTargetType = z.infer<typeof PromptBindingTargetTypeSchema>
 export type PromptBindingTarget = z.infer<typeof PromptBindingTargetSchema>

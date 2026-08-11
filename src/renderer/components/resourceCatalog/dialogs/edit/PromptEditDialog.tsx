@@ -1,17 +1,21 @@
 import {
+  Alert,
   Button,
+  ConfirmDialog,
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
   Input,
+  RadioGroup,
+  RadioGroupItem,
   Tooltip
 } from '@cherrystudio/ui'
 import { BracesVariableIcon } from '@renderer/components/icons/BracesVariableIcon'
 import PromptEditorField, { type PromptEditorFieldHandles } from '@renderer/components/PromptEditorField'
 import { PromptPolishActions } from '@renderer/components/resourceCatalog/dialogs/components/PromptPolishActions'
-import type { Prompt } from '@shared/data/types/prompt'
+import type { Prompt, PromptVisibility } from '@shared/data/types/prompt'
 import { PROMPT_CONTENT_MAX, PROMPT_TITLE_MAX } from '@shared/data/types/prompt'
 import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,20 +42,32 @@ const QUICK_PHRASE_GENERATION_SYSTEM_PROMPT = [
 interface FormData {
   title: string
   content: string
+  visibility: PromptVisibility
 }
 
 interface PromptEditDialogProps {
   open: boolean
   prompt?: Prompt | null
+  defaultVisibility?: PromptVisibility
+  bindingCount?: number
   saving?: boolean
-  onSave: (data: { title: string; content: string }) => Promise<void>
+  onSave: (data: { title: string; content: string; visibility: PromptVisibility }) => Promise<void>
   onCancel: () => void
 }
 
-const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onSave, onCancel }) => {
+const PromptEditDialog: FC<PromptEditDialogProps> = ({
+  open,
+  prompt,
+  defaultVisibility = 'global',
+  bindingCount,
+  saving,
+  onSave,
+  onCancel
+}) => {
   const { t } = useTranslation()
-  const [formData, setFormData] = useState<FormData>({ title: '', content: '' })
+  const [formData, setFormData] = useState<FormData>({ title: '', content: '', visibility: defaultVisibility })
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isMakeGlobalConfirmOpen, setIsMakeGlobalConfirmOpen] = useState(false)
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
   const promptEditorRef = useRef<PromptEditorFieldHandles | null>(null)
   const variablePlaceholder = t('settings.prompts.variablePlaceholder')
@@ -69,30 +85,43 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
     if (open) {
       setFormData({
         title: prompt?.title ?? '',
-        content: prompt?.content ?? ''
+        content: prompt?.content ?? '',
+        visibility: prompt?.visibility ?? defaultVisibility
       })
     } else {
       setIsSubmitting(false)
+      setIsMakeGlobalConfirmOpen(false)
     }
-  }, [open, prompt])
+  }, [defaultVisibility, open, prompt])
 
-  const handleOk = useCallback(async () => {
-    if (!canSave) {
-      return
-    }
-
+  const submit = useCallback(async () => {
     try {
       setIsSubmitting(true)
       await onSave({
         title: formData.title,
-        content: formData.content
+        content: formData.content,
+        visibility: formData.visibility
       })
+      setIsMakeGlobalConfirmOpen(false)
     } catch {
       // Parent mutation handlers surface the error; keep the modal usable.
     } finally {
       setIsSubmitting(false)
     }
-  }, [canSave, formData, onSave])
+  }, [formData, onSave])
+
+  const handleOk = useCallback(async () => {
+    if (!canSave) return
+    if (
+      prompt?.visibility === 'restricted' &&
+      formData.visibility === 'global' &&
+      (bindingCount === undefined || bindingCount > 0)
+    ) {
+      setIsMakeGlobalConfirmOpen(true)
+      return
+    }
+    await submit()
+  }, [bindingCount, canSave, formData.visibility, prompt?.visibility, submit])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -152,44 +181,117 @@ const PromptEditDialog: FC<PromptEditDialogProps> = ({ open, prompt, saving, onS
   )
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle>{isEdit ? t('settings.prompts.edit') : t('settings.prompts.add')}</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent closeOnOverlayClick={false} className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>{isEdit ? t('settings.prompts.edit') : t('settings.prompts.add')}</DialogTitle>
+          </DialogHeader>
 
-        <div className="flex flex-col gap-4">
-          <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
-            {t('settings.prompts.titleLabel')}
-            <Input
-              autoFocus
-              placeholder={t('settings.prompts.titlePlaceholder')}
-              value={formData.title}
-              onChange={(event) => setFormData((current) => ({ ...current, title: event.target.value }))}
+          <div className="flex flex-col gap-4">
+            <label className="flex flex-col gap-1 font-medium text-foreground text-sm">
+              {t('settings.prompts.titleLabel')}
+              <Input
+                autoFocus
+                placeholder={t('settings.prompts.titlePlaceholder')}
+                value={formData.title}
+                onChange={(event) => setFormData((current) => ({ ...current, title: event.target.value }))}
+              />
+            </label>
+
+            <PromptEditorField
+              ref={promptEditorRef}
+              label={<span className="font-medium text-foreground text-sm">{t('settings.prompts.contentLabel')}</span>}
+              value={formData.content}
+              onChange={(content) => setFormData((current) => ({ ...current, content }))}
+              placeholder={t('settings.prompts.contentPlaceholder')}
+              actions={promptActions}
+              resetPreviewKey={resetPreviewKey}
             />
-          </label>
 
-          <PromptEditorField
-            ref={promptEditorRef}
-            label={<span className="font-medium text-foreground text-sm">{t('settings.prompts.contentLabel')}</span>}
-            value={formData.content}
-            onChange={(content) => setFormData((current) => ({ ...current, content }))}
-            placeholder={t('settings.prompts.contentPlaceholder')}
-            actions={promptActions}
-            resetPreviewKey={resetPreviewKey}
-          />
-        </div>
+            {isEdit ? (
+              <Alert
+                type="info"
+                showIcon
+                message={t(
+                  prompt.visibility === 'global'
+                    ? 'settings.prompts.visibility.globalEditWarning'
+                    : 'settings.prompts.visibility.sharedEditWarning'
+                )}
+                description={
+                  prompt.visibility === 'restricted'
+                    ? bindingCount === 0
+                      ? t('settings.prompts.visibility.unassignedDescription')
+                      : bindingCount === undefined
+                        ? undefined
+                        : t('settings.prompts.visibility.linkedCountDescription', { count: bindingCount })
+                    : undefined
+                }
+              />
+            ) : null}
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={isSaving}>
-            {t('common.cancel')}
-          </Button>
-          <Button onClick={() => void handleOk()} loading={isSaving} disabled={!canSave || isSaving}>
-            {t('common.confirm')}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-1 font-medium text-foreground text-sm">
+                {t('settings.prompts.visibility.label')}
+              </legend>
+              <RadioGroup
+                value={formData.visibility}
+                onValueChange={(visibility) =>
+                  setFormData((current) => ({ ...current, visibility: visibility as PromptVisibility }))
+                }
+                className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border-subtle p-3">
+                  <RadioGroupItem value="global" className="mt-0.5" />
+                  <span className="min-w-0">
+                    <span className="block font-medium text-foreground text-sm">
+                      {t('settings.prompts.visibility.global.title')}
+                    </span>
+                    <span className="mt-0.5 block text-muted-foreground text-xs">
+                      {t('settings.prompts.visibility.global.description')}
+                    </span>
+                  </span>
+                </label>
+                <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-border-subtle p-3">
+                  <RadioGroupItem value="restricted" className="mt-0.5" />
+                  <span className="min-w-0">
+                    <span className="block font-medium text-foreground text-sm">
+                      {t('settings.prompts.visibility.restricted.title')}
+                    </span>
+                    <span className="mt-0.5 block text-muted-foreground text-xs">
+                      {t('settings.prompts.visibility.restricted.description')}
+                    </span>
+                  </span>
+                </label>
+              </RadioGroup>
+            </fieldset>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={onCancel} disabled={isSaving}>
+              {t('common.cancel')}
+            </Button>
+            <Button onClick={() => void handleOk()} loading={isSaving} disabled={!canSave || isSaving}>
+              {t('common.confirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={isMakeGlobalConfirmOpen}
+        onOpenChange={setIsMakeGlobalConfirmOpen}
+        title={t('settings.prompts.visibility.makeGlobalConfirmTitle')}
+        description={
+          bindingCount === undefined
+            ? t('settings.prompts.visibility.makeGlobalConfirmUnknownDescription')
+            : t('settings.prompts.visibility.makeGlobalConfirmDescription', { count: bindingCount })
+        }
+        confirmText={t('common.confirm')}
+        cancelText={t('common.cancel')}
+        confirmLoading={isSaving}
+        onConfirm={submit}
+      />
+    </>
   )
 }
 

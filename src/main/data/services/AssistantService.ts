@@ -570,6 +570,7 @@ export class AssistantDataService {
     }
 
     logger.info('Soft-deleted assistant', { id, deleteTopics: options.deleteTopics === true })
+    promptService.notifyTargetBindingsChanged()
     return { deleted, deletedTopicIds }
   }
 

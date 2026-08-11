@@ -279,7 +279,7 @@ describe('PromptMigrator', () => {
 
       expect(prepareResult.itemCount).toBe(1)
       expect(executeResult.processedCount).toBe(1)
-      expect(batches[0][0]).toMatchObject({ title: 'Imported', content: 'Imported content' })
+      expect(batches[0][0]).toMatchObject({ title: 'Imported', content: 'Imported content', visibility: 'restricted' })
       expect(Number.isFinite(batches[0][0].createdAt)).toBe(true)
       expect(Number.isFinite(batches[0][0].updatedAt)).toBe(true)
     })
@@ -421,6 +421,7 @@ describe('PromptMigrator', () => {
         }
       })
       const batches = captureInsertedRows(ctx)
+      ctx.sharedData.set('assistantIds', new Set(['assistant-1']))
       const migrator = new PromptMigrator()
       await migrator.prepare(ctx)
 
@@ -432,6 +433,9 @@ describe('PromptMigrator', () => {
         'Assistant older',
         'Assistant newer'
       ])
+      expect(batches[0].map((row) => row.visibility)).toEqual(['global', 'global', 'restricted', 'restricted'])
+      expect(batches[1]).toHaveLength(2)
+      expect(String(batches[1][0].orderKey) < String(batches[1][1].orderKey)).toBe(true)
     })
 
     it('should regenerate invalid ids and normalize titles before insertion', async () => {
@@ -496,7 +500,7 @@ describe('PromptMigrator', () => {
       expect(batches.map((batch) => batch.length)).toEqual([100, 1])
     })
 
-    it('should collapse identical phrases that share an id', async () => {
+    it('should preserve global and Assistant-owned phrases that share an id and content', async () => {
       const phrase = makePhrase({
         id: '550e8400-e29b-41d4-a716-446655440030',
         title: 'Shared',
@@ -515,9 +519,69 @@ describe('PromptMigrator', () => {
       const prepareResult = await migrator.prepare(ctx)
       const executeResult = await migrator.execute(ctx)
 
+      expect(prepareResult.itemCount).toBe(2)
+      expect(executeResult.processedCount).toBe(2)
+      expect(batches[0]).toHaveLength(2)
+      expect(batches[0].map((row) => row.visibility)).toEqual(['global', 'restricted'])
+      expect(new Set(batches[0].map((row) => row.id))).toHaveProperty('size', 2)
+    })
+
+    it('should use the primary populated phrase slot for the same migrated Assistant', async () => {
+      const ctx = createMockContext({
+        tableExists: false,
+        assistantState: {
+          assistants: [
+            {
+              id: 'default',
+              regularPhrases: [
+                makePhrase({ id: makeUuid(80), title: 'Live phrase', content: 'live assistant content' })
+              ]
+            }
+          ],
+          presets: [],
+          defaultAssistant: {
+            id: 'default',
+            regularPhrases: [makePhrase({ id: makeUuid(81), title: 'Stale phrase', content: 'stale default content' })]
+          }
+        }
+      })
+      ctx.sharedData.set('assistantIds', new Set(['remapped-default']))
+      ctx.sharedData.set('legacyAssistantIdRemap', new Map([['default', 'remapped-default']]))
+      const batches = captureInsertedRows(ctx)
+      const migrator = new PromptMigrator()
+
+      const prepareResult = await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
       expect(prepareResult.itemCount).toBe(1)
-      expect(executeResult.processedCount).toBe(1)
-      expect(batches[0]).toHaveLength(1)
+      expect(batches[0]).toEqual([expect.objectContaining({ title: 'Live phrase', content: 'live assistant content' })])
+      expect(batches[1]).toEqual([expect.objectContaining({ targetType: 'assistant', targetId: 'remapped-default' })])
+    })
+
+    it('should let a secondary slot fill an empty primary phrase array', async () => {
+      const ctx = createMockContext({
+        tableExists: false,
+        assistantState: {
+          assistants: [{ id: 'default', regularPhrases: [] }],
+          presets: [],
+          defaultAssistant: {
+            id: 'default',
+            regularPhrases: [
+              makePhrase({ id: makeUuid(82), title: 'Fallback phrase', content: 'secondary slot content' })
+            ]
+          }
+        }
+      })
+      ctx.sharedData.set('assistantIds', new Set(['remapped-default']))
+      ctx.sharedData.set('legacyAssistantIdRemap', new Map([['default', 'remapped-default']]))
+      const batches = captureInsertedRows(ctx)
+      const migrator = new PromptMigrator()
+
+      const prepareResult = await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      expect(prepareResult.itemCount).toBe(1)
+      expect(batches[0]).toEqual([expect.objectContaining({ title: 'Fallback phrase' })])
     })
 
     it('should preserve conflicting phrases that share an id by assigning a new id', async () => {
@@ -532,8 +596,7 @@ describe('PromptMigrator', () => {
               regularPhrases: [assistantPhrase]
             }
           ],
-          presets: [],
-          defaultAssistant: { id: 'default', regularPhrases: [{ ...assistantPhrase }] }
+          presets: []
         }
       })
       const batches = captureInsertedRows(ctx)
@@ -545,6 +608,7 @@ describe('PromptMigrator', () => {
       expect(prepareResult.itemCount).toBe(2)
       expect(executeResult.processedCount).toBe(2)
       expect(batches[0].map((row) => row.content)).toEqual(['global content', 'assistant content'])
+      expect(batches[0].map((row) => row.visibility)).toEqual(['global', 'restricted'])
       expect(batches[0][0].id).toBe(legacyId)
       expect(batches[0][1].id).not.toBe(legacyId)
     })
@@ -711,6 +775,7 @@ describe('PromptMigrator', () => {
             id: 'not-a-uuid',
             title: 'Prompt',
             content: 'valid',
+            visibility: 'assistant',
             orderKey: 'a0',
             createdAt: 1700000000000,
             updatedAt: 1700000000000
@@ -813,10 +878,11 @@ describe('PromptMigrator SQLite integration', () => {
       '550e8400-e29b-41d4-a716-446655440000',
       '550e8400-e29b-41d4-a716-446655440001'
     ])
+    expect(rows.every((row) => row.visibility === 'global')).toBe(true)
     expect(rows[0].orderKey < rows[1].orderKey).toBe(true)
   })
 
-  it('deduplicates legacy prompts while preserving every valid Assistant binding', async () => {
+  it('preserves identical phrases from different Assistants as independent prompts and bindings', async () => {
     const assistantId = '550e8400-e29b-41d4-a716-446655440010'
     const secondAssistantId = '550e8400-e29b-41d4-a716-446655440011'
     await dbh.db.insert(assistantTable).values([
@@ -859,15 +925,20 @@ describe('PromptMigrator SQLite integration', () => {
     const prompts = await dbh.db.select().from(promptTable)
     const bindings = await dbh.db.select().from(promptBindingTable)
 
-    expect(prepareResult).toMatchObject({ success: true, itemCount: 1 })
-    expect(executeResult).toMatchObject({ success: true, processedCount: 1 })
+    expect(prepareResult).toMatchObject({ success: true, itemCount: 2 })
+    expect(executeResult).toMatchObject({ success: true, processedCount: 2 })
     expect(validateResult.success).toBe(true)
-    expect(prompts).toHaveLength(1)
+    expect(prompts).toHaveLength(2)
+    expect(prompts.every((prompt) => prompt.visibility === 'restricted')).toBe(true)
+    expect(new Set(prompts.map((prompt) => prompt.id)).size).toBe(2)
+    expect(bindings).toHaveLength(2)
+    expect(new Set(bindings.map((binding) => binding.promptId)).size).toBe(2)
     expect(bindings).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ promptId: prompts[0].id, targetType: 'assistant', targetId: assistantId }),
-        expect.objectContaining({ promptId: prompts[0].id, targetType: 'assistant', targetId: secondAssistantId })
+        expect.objectContaining({ targetType: 'assistant', targetId: assistantId }),
+        expect.objectContaining({ targetType: 'assistant', targetId: secondAssistantId })
       ])
     )
+    expect(bindings.every((binding) => binding.orderKey.length > 0)).toBe(true)
   })
 })

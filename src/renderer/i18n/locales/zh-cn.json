@@ -7644,15 +7644,23 @@
     "prompts": {
       "add": "添加提示词",
       "binding": {
+        "add": "添加快捷提示词",
         "currentAgent": "当前智能体",
         "currentAssistant": "当前助手",
-        "editDescription": "选择与{{target}}关联的提示词。",
+        "editDescription": "全局提示词会自动可用；在这里选择与{{target}}关联的受限提示词。",
+        "noLinked": "暂未关联快捷提示词",
+        "noMore": "没有更多可用的提示词",
+        "remove": "移除快捷提示词",
+        "search": "搜索提示词",
         "tabTitle": "快捷提示词"
       },
       "contentLabel": "内容",
       "contentPlaceholder": "请输入提示词内容，支持使用 ${变量}，按 Tab 可在变量间快速定位。例如：\n帮我规划从 ${出发地} 到 ${目的地} 的路线，然后发送到 ${邮箱}",
       "delete": "删除提示词",
       "deleteConfirm": "删除提示词后将无法恢复，是否继续？",
+      "deleteGlobalConfirm": "这个全局提示词对所有上下文可用。删除后会从所有上下文中移除且无法恢复，是否继续？",
+      "deleteRestrictedConfirm": "这个受限提示词可能由多个上下文共享。删除后会从所有已关联上下文中移除且无法恢复，是否继续？",
+      "deleteSharedConfirm": "这个提示词由 {{count}} 个上下文共享。删除后会从所有上下文中移除且无法恢复，是否继续？",
       "edit": "编辑提示词",
       "errors": {
         "bindFailed": "关联提示词失败",
@@ -7665,10 +7673,32 @@
       },
       "manage": "管理提示词",
       "noPrompts": "暂无提示词",
+      "reorder": "拖动以重新排序{{title}}",
+      "searchPlaceholder": "搜索提示词标题或内容",
       "title": "提示词管理",
       "titleLabel": "标题",
       "titlePlaceholder": "请输入提示词标题",
-      "variablePlaceholder": "${变量}"
+      "variablePlaceholder": "${变量}",
+      "visibility": {
+        "global": {
+          "badge": "全局",
+          "description": "自动对当前及以后创建的所有上下文可用；切换为全局时会删除已有的受限绑定。",
+          "title": "所有上下文"
+        },
+        "globalEditWarning": "修改会影响所有使用这个全局提示词的上下文。",
+        "label": "适用范围",
+        "linkedCountDescription": "当前由 {{count}} 个上下文共享。",
+        "makeGlobalConfirmDescription": "切换为全局提示词会删除现有的 {{count}} 个受限绑定，是否继续？",
+        "makeGlobalConfirmTitle": "切换为全局提示词？",
+        "makeGlobalConfirmUnknownDescription": "切换为全局提示词会删除全部现有受限绑定，是否继续？",
+        "restricted": {
+          "badge": "受限",
+          "description": "仅对显式绑定的上下文可用；没有绑定时仍保留在提示词库中，但不会出现在聊天中。",
+          "title": "指定上下文"
+        },
+        "sharedEditWarning": "修改会同步影响这个提示词绑定的所有上下文。",
+        "unassignedDescription": "这个提示词尚未绑定任何上下文，不会出现在聊天中。"
+      }
     },
     "provider": {
       "add": {
