@@ -1337,6 +1337,51 @@ describe('ArtifactPane', () => {
     )
   })
 
+  it('shows root-relative main search matches without leaking loaded files', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.listDirectoryEntries.mockResolvedValueOnce([
+      { path: '/tmp/workspace/docs', isDirectory: true },
+      { path: '/tmp/workspace/docs/readme.md', isDirectory: false }
+    ])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch fileTreeSearchKeyword="docs" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-docs/readme.md')).toBeInTheDocument())
+    expect(screen.getByTestId('tree-node-docs')).toBeInTheDocument()
+    expect(screen.queryByTestId('tree-node-README.md')).not.toBeInTheDocument()
+  })
+
+  it('shows main search matches that span multiple relative-path segments', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.listDirectoryEntries.mockResolvedValueOnce([
+      { path: '/tmp/workspace/src/feature/controller.ts', isDirectory: false }
+    ])
+
+    render(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch fileTreeSearchKeyword="sfc" />)
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-src/feature/controller.ts')).toBeInTheDocument())
+    expect(screen.queryByTestId('tree-node-README.md')).not.toBeInTheDocument()
+  })
+
+  it('restores the loaded tree after search is cleared', async () => {
+    mockWorkspaceTree('/tmp/workspace', ['README.md'])
+    mocks.listDirectoryEntries.mockResolvedValueOnce([
+      { path: '/tmp/workspace/docs', isDirectory: true },
+      { path: '/tmp/workspace/docs/readme.md', isDirectory: false }
+    ])
+    const { rerender } = render(
+      <ArtifactPane workspacePath="/tmp/workspace" enableFileSearch fileTreeSearchKeyword="docs" />
+    )
+
+    await waitFor(() => expect(screen.getByTestId('tree-node-docs')).toBeInTheDocument())
+    expect(screen.queryByTestId('tree-node-README.md')).not.toBeInTheDocument()
+
+    rerender(<ArtifactPane workspacePath="/tmp/workspace" enableFileSearch fileTreeSearchKeyword="" />)
+
+    expect(screen.getByTestId('tree-node-README.md')).toBeInTheDocument()
+    expect(screen.queryByTestId('tree-node-docs')).not.toBeInTheDocument()
+  })
+
   it('keeps a selected search-only deep file when search is cleared', async () => {
     mockWorkspaceTree('/tmp/workspace', ['README.md'])
     mocks.listDirectoryEntries.mockResolvedValueOnce([
