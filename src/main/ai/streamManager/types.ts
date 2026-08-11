@@ -109,7 +109,7 @@ export interface StreamExecution {
   /** Independent abort — multi-model executions don't share. */
   abortController: AbortController
   status: 'streaming' | 'done' | 'error' | 'aborted'
-  /** Per-execution chunk ring (cap = `maxBufferChunks`); overflow drops oldest and bumps `droppedChunks`. */
+  /** Per-execution history ring; delta entries are capped by `maxDeltaBytes`. Ordinary overflow drops oldest and bumps `droppedChunks`; eviction pauses while an approval is pending. */
   buffer: StreamChunkPayload[]
   droppedChunks: number
   /** Latest accumulated snapshot from `readUIMessageStream`. Undefined until the first snapshot lands. */
@@ -175,6 +175,12 @@ export interface AiStreamManagerConfig {
   readonly backgroundMode: 'continue' | 'abort'
   /** Per-execution buffer cap; exceeding stops buffering, not streaming. */
   readonly maxBufferChunks: number
+  /**
+   * Maximum UTF-8 bytes in one buffered or replayed delta entry. Oversized
+   * incoming deltas are split before ingestion, and attach-time compaction
+   * observes the same ceiling.
+   */
+  readonly maxDeltaBytes: number
   /** Cap on retained oversized tool outputs. Small because each entry is large. */
   readonly maxDeferredOutputs: number
   /**

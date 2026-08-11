@@ -2288,7 +2288,7 @@ describe('AgentComposer', () => {
       expect.objectContaining({
         recursive: true,
         includeDirectories: false,
-        maxDepth: 3,
+        maxDepth: 10,
         searchPattern: 'notes'
       })
     )
