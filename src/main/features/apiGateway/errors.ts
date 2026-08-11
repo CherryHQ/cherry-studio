@@ -32,6 +32,13 @@ const restEnvelope = (code: string, message: string, details?: Record<string, un
   error: { code, message, ...(details ? { details } : {}) }
 })
 
+/** JSON-RPC 2.0 error envelope, matching what `routes/mcp.ts` returns for 403/405. */
+const jsonRpcEnvelope = (code: number, message: string) => ({
+  jsonrpc: '2.0' as const,
+  error: { code, message },
+  id: null
+})
+
 /** Google (Gemini) dialect envelope: `{ error: { code, message, status } }`. */
 export const googleEnvelope = (httpStatus: number, message: string) => ({
   error: { code: httpStatus, message, status: googleStatusName(httpStatus) }
@@ -302,8 +309,35 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   )
 }
 
+/**
+ * MCP proxy dialect (`POST /v1/mcps/:id/mcp`). The peer is an MCP transport, not a REST
+ * client, so a framework-level failure it never reaches the route for — a body Elysia
+ * could not parse, an unknown server id — must still arrive as JSON-RPC. `-32000` mirrors
+ * the code the route's own 403/405 responders use.
+ */
+function mcpErrorHandler({ code, error, status }: GatewayErrorContext) {
+  if (code === 'PARSE') {
+    return status(400, jsonRpcEnvelope(-32700, 'Parse error'))
+  }
+  if (code === 'VALIDATION') {
+    return status(400, jsonRpcEnvelope(-32600, messageOf(error, 'Invalid Request')))
+  }
+  if (code === 'NOT_FOUND') {
+    return status(404, jsonRpcEnvelope(-32000, 'Not found'))
+  }
+  if (error instanceof DataApiError) {
+    return status(error.status, jsonRpcEnvelope(-32000, error.message))
+  }
+
+  logger.error('API gateway request error', { code, error })
+  return status(500, jsonRpcEnvelope(-32603, isDev ? messageOf(error, 'Internal error') : 'Internal error'))
+}
+
+/** Only the JSON-RPC proxy leaf speaks MCP; `/v1/mcps` and `/v1/mcps/:id` stay REST. */
+const MCP_PROXY_PATH = /^\/v1\/mcps\/[^/]+\/mcp$/
+
 /** Select the response dialect from the request path. */
-function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | 'rest' {
+function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | 'mcp' | 'rest' {
   let pathname = ''
   try {
     pathname = new URL(request.url).pathname
@@ -313,6 +347,7 @@ function dialectForPath(request: Request): 'anthropic' | 'openai' | 'google' | '
   if (pathname.startsWith('/v1/messages')) return 'anthropic'
   if (pathname.startsWith('/v1/chat') || pathname.startsWith('/v1/responses')) return 'openai'
   if (pathname.startsWith('/v1beta')) return 'google'
+  if (MCP_PROXY_PATH.test(pathname)) return 'mcp'
   return 'rest'
 }
 
@@ -330,6 +365,8 @@ export function gatewayErrorHandler(ctx: GatewayErrorContext) {
       return openaiErrorHandler(ctx)
     case 'google':
       return googleErrorHandler(ctx)
+    case 'mcp':
+      return mcpErrorHandler(ctx)
     default:
       return restErrorHandler(ctx)
   }

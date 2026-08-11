@@ -191,9 +191,20 @@ describe('/v1/mcps', () => {
     })
   })
 
-  it('POST /v1/mcps/:id/mcp → 404 for an unknown server', async () => {
+  // The peer is an MCP transport: a failure raised before the route runs must still be
+  // JSON-RPC, or the client sees a REST envelope where the protocol promises an error object.
+  it('POST /v1/mcps/:id/mcp → 404 for an unknown server, as JSON-RPC', async () => {
     const res = await rpc(app, '/v1/mcps/nope/mcp', INITIALIZE)
     expect(res.status).toBe(404)
+    expect(await res.json()).toMatchObject({ jsonrpc: '2.0', id: null, error: { code: -32000 } })
+  })
+
+  it('POST /v1/mcps/:id/mcp → -32700 for a body Elysia cannot parse', async () => {
+    const res = await app.handle(
+      new Request('http://localhost/v1/mcps/server-1/mcp', { method: 'POST', headers: MCP_HEADERS, body: '{oops' })
+    )
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } })
   })
 
   // `warmToolsCache` can block on an upstream connect whose timeout floor is 180s. Gating
