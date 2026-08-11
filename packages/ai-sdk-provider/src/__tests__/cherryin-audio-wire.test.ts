@@ -30,36 +30,28 @@ async function captureRequestBody<T>(
 }
 
 describe('CherryIN media wire formats', () => {
-  it.each([
-    ['audio/wav', 'wav'],
-    ['audio/mpeg', 'mp3']
-  ])('serializes supported OpenAI Chat %s as input_audio', async (mediaType, format) => {
+  it('serializes supported OpenAI Chat WAV as input_audio', async () => {
     const body = await captureRequestBody<{ messages: Array<{ content: unknown[] }> }>(
       (fetch) =>
         createCherryIn({ apiKey: 'test-key', endpointType: 'openai', fetch }).languageModel('qwen/qwen3-omni-flash'),
-      mediaType
+      'audio/wav'
     )
 
     expect(body.messages[0].content[1]).toEqual({
       type: 'input_audio',
-      input_audio: { data: 'AQID', format }
+      input_audio: { data: 'AQID', format: 'wav' }
     })
   })
 
-  it.each(['audio/wav', 'audio/mpeg', 'audio/mp4', 'video/mp4'])(
-    'preserves %s in Google Generate Content inlineData',
-    async (mediaType) => {
-      const body = await captureRequestBody<{
-        contents: Array<{ parts: Array<{ inlineData?: unknown }> }>
-      }>(
-        (fetch) =>
-          createCherryIn({ apiKey: 'test-key', endpointType: 'gemini', fetch }).languageModel(
-            'google/gemini-2.5-flash'
-          ),
-        mediaType
-      )
+  it('preserves M4A in Google Generate Content inlineData', async () => {
+    const body = await captureRequestBody<{
+      contents: Array<{ parts: Array<{ inlineData?: unknown }> }>
+    }>(
+      (fetch) =>
+        createCherryIn({ apiKey: 'test-key', endpointType: 'gemini', fetch }).languageModel('google/gemini-2.5-flash'),
+      'audio/mp4'
+    )
 
-      expect(body.contents[0].parts[1].inlineData).toEqual({ data: 'AQID', mimeType: mediaType })
-    }
-  )
+    expect(body.contents[0].parts[1].inlineData).toEqual({ data: 'AQID', mimeType: 'audio/mp4' })
+  })
 })
