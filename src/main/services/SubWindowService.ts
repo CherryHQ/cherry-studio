@@ -1,4 +1,6 @@
 import { application } from '@application'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { WebContentsListener } from '@main/ai/streamManager/listeners/WebContentsListener'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isLinux, isMac, isWin } from '@main/core/platform'
@@ -25,6 +27,29 @@ const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 /** Default content-size cache for SubWindow (must match windowRegistry width/height) */
 const SUB_WINDOW_DEFAULT_WIDTH = 800
 const SUB_WINDOW_DEFAULT_HEIGHT = 600
+
+/**
+ * Resolves a conversation topic id from a detached tab's URL, or null when the
+ * URL does not address a live conversation (settings, launchpad, mini-apps…).
+ * Mirrors the renderer's URL conventions (`/app/chat?topicId=…`,
+ * `/app/agents?sessionId=…`).
+ */
+function conversationTopicIdFromTabUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url, 'http://localhost')
+    if (parsed.pathname === '/app/chat') {
+      const topicId = parsed.searchParams.get('topicId')
+      return topicId && topicId.length > 0 ? topicId : null
+    }
+    if (parsed.pathname === '/app/agents') {
+      const sessionId = parsed.searchParams.get('sessionId')
+      return sessionId && sessionId.length > 0 ? buildAgentSessionTopicId(sessionId) : null
+    }
+  } catch {
+    // Malformed URL — nothing to attach.
+  }
+  return null
+}
 
 /**
  * After Tab_MoveWindow, ignore `resize` bursts briefly so DPI rounding noise is not written back
@@ -180,6 +205,14 @@ export class SubWindowService extends BaseService {
 
     this.tabIdToWindowId.set(tabId, windowId)
 
+    // Detached-stream handover: if the dragged tab's conversation has a live AI
+    // stream, register this sub-window as a stream listener immediately. The
+    // renderer's own `ai.stream.attach` is racy across window bootstrap (its
+    // first GET may land before its subscriptions register, and bootstrap
+    // notifications are dropped by the `isReady()` guard), so a fresh renderer
+    // can otherwise sit on a pending bubble while Main keeps generating.
+    this.attachActiveStreamListener(win, url)
+
     // showMode: 'manual' — WM does not auto-show. Callers that supply an initial position
     // will receive Tab_MoveWindow which shows the window after repositioning; otherwise we show
     // it here, unconditionally and immediately, mirroring SelectionService.showActionWindow.
@@ -214,6 +247,25 @@ export class SubWindowService extends BaseService {
   /** Whether the calling window resolves to a SubWindow (guards operations that must never act on the main window). */
   private isSubWindowSender(senderId: WindowId | null): senderId is WindowId {
     return senderId != null && application.get('WindowManager').getWindowType(senderId) === WindowType.SubWindow
+  }
+
+  /**
+   * Registers this sub-window's WebContents as a listener on a live conversation
+   * stream, so chunks keep flowing to the detached window while it boots.
+   * `AiStreamManager.addListener` also replays each execution's buffered chunks,
+   * so chunks emitted between window creation and renderer subscription are not
+   * lost. No-op when the tab URL does not address a conversation, or no stream
+   * is live for that topic. The listener is keyed by `wc:${wc.id}:${topicId}` —
+   * the same id the renderer's own attach would use, so a later explicit attach
+   * from the renderer simply replaces it (Map semantics), never duplicates it.
+   */
+  private attachActiveStreamListener(win: BrowserWindow, url: string): void {
+    if (!win || win.isDestroyed()) return
+    const topicId = conversationTopicIdFromTabUrl(url)
+    if (!topicId) return
+    const streamManager = application.get('AiStreamManager')
+    if (!streamManager.hasLiveStream(topicId)) return
+    streamManager.addListener(topicId, new WebContentsListener(win.webContents, topicId))
   }
 
   /**

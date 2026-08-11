@@ -12,11 +12,13 @@
 
 import { useSharedCacheSelector } from '@renderer/data/hooks/useCache'
 import { useDataChange, useInfiniteFlatItems, useInfiniteQuery, useMutation } from '@renderer/data/hooks/useDataApi'
+import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
+import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { AGENT_SESSION_FLOW_PARTS_CACHE_KEY } from '@shared/ai/agentSessionFlowParts'
 import type { CursorPaginationResponse } from '@shared/data/api/types'
 import type { AgentSessionMessageEntity } from '@shared/data/types/agent'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { useCallback, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 const PAGE_SIZE = 50
 
@@ -94,6 +96,23 @@ export function useAgentSessionParts(sessionId: string, options: { enabled?: boo
   useDataChange('/agent-sessions/:sessionId/messages', () => {
     if (enabled) void mutate()
   })
+
+  // Detached-window catch-up: a sub-window bootstrapping onto a live session may
+  // miss DataApi change notifications (first GET before subscription
+  // registration, bootstrap-notification drop). When a stream is live on this
+  // session, force one re-fetch on mount so the pending bubble converges to the
+  // latest persisted rows; live deltas keep flowing through the stream overlay.
+  const { isPending: isSessionStreamLive } = useTopicStreamStatus(
+    sessionId ? buildAgentSessionTopicId(sessionId) : ''
+  )
+  const caughtUpOnMountRef = useRef(false)
+  useEffect(() => {
+    if (!enabled || caughtUpOnMountRef.current || !isSessionStreamLive) return
+    caughtUpOnMountRef.current = true
+    void mutate().catch(() => {
+      // The periodic data-change listener + overlay handoff remain the fallback.
+    })
+  }, [enabled, isSessionStreamLive, mutate])
 
   // Server returns each page newest-first (DESC) and the cursor walks older.
   // MessageVirtualList expects chronological-asc (oldest first), so reverse both
