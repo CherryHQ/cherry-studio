@@ -11,7 +11,8 @@
 import { application } from '@application'
 import type { DataApiDataChangeEffect } from '@shared/data/api/types'
 import { IpcChannel } from '@shared/IpcChannel'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { notifyDataApiDataChange } from '../dataApiDataChange'
 
@@ -21,6 +22,7 @@ vi.mock('@application', async () => {
 })
 
 const windowManager = application.get('WindowManager') as unknown as { broadcast: ReturnType<typeof vi.fn> }
+const originalNodeEnv = process.env.NODE_ENV
 
 const effects: DataApiDataChangeEffect[] = [
   { endpoint: '/topics', kind: 'membership', entityIds: ['topic_1'] },
@@ -31,13 +33,42 @@ describe('notifyDataApiDataChange', () => {
   beforeEach(() => {
     vi.mocked(application.isReady).mockClear().mockReturnValue(true)
     vi.mocked(application.get).mockClear()
+    mockMainLoggerService.warn.mockClear()
     windowManager.broadcast.mockReset()
+  })
+
+  afterEach(() => {
+    if (originalNodeEnv === undefined) delete process.env.NODE_ENV
+    else process.env.NODE_ENV = originalNodeEnv
   })
 
   it('broadcasts the effects on the fixed data-changed channel', () => {
     notifyDataApiDataChange(effects)
 
     expect(windowManager.broadcast).toHaveBeenCalledExactlyOnceWith(IpcChannel.DataApi_DataChanged, effects)
+  })
+
+  it('rejects route parameters that are not declared by the endpoint outside production', () => {
+    const invalid: DataApiDataChangeEffect[] = [
+      { endpoint: '/topics/:id', routeParams: { topicId: 'topic_1' }, entityIds: ['topic_1'] }
+    ]
+
+    expect(() => notifyDataApiDataChange(invalid)).toThrow(/routeParams \[topicId\].*\/topics\/:id/)
+    expect(windowManager.broadcast).not.toHaveBeenCalled()
+  })
+
+  it('warns and continues delivery for invalid route parameters in production', () => {
+    process.env.NODE_ENV = 'production'
+    const invalid: DataApiDataChangeEffect[] = [
+      { endpoint: '/topics/:id', routeParams: { topicId: 'topic_1' }, entityIds: ['topic_1'] }
+    ]
+
+    notifyDataApiDataChange(invalid)
+
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      expect.stringMatching(/routeParams \[topicId\].*\/topics\/:id/)
+    )
+    expect(windowManager.broadcast).toHaveBeenCalledExactlyOnceWith(IpcChannel.DataApi_DataChanged, invalid)
   })
 
   it('returns silently on an empty effects array', () => {

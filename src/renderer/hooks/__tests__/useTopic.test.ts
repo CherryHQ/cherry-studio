@@ -187,12 +187,12 @@ describe('useTopics', () => {
     })
   })
 
-  it('converges topic metadata after a cross-window projection change', () => {
+  it('converges the topic list for every notification regardless of entity hints', () => {
     renderHook(() => useTopics())
     const mutate = mockUseInfiniteQuery.mock.results.at(-1)?.value.mutate
     const listener = mockUseDataChange.mock.calls.at(-1)?.[1]
 
-    listener?.([{ endpoint: '/topics', kind: 'projection', entityIds: ['topic-a'] }])
+    listener?.([{ endpoint: '/topics', kind: 'projection', entityIds: [] }])
 
     expect(mutate).toHaveBeenCalled()
   })

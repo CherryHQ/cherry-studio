@@ -271,10 +271,8 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
     }
   }, [loadAll, hasNext, isLoading, isRefreshing, loadNext])
 
-  useDataChange('/topics', (effects) => {
-    if (opts?.enabled !== false && effects.some((effect) => !effect.entityIds || effect.entityIds.length > 0)) {
-      void mutate()
-    }
+  useDataChange('/topics', () => {
+    if (opts?.enabled !== false) void mutate()
   })
 
   return {
