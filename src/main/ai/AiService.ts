@@ -561,17 +561,20 @@ export class AiService extends BaseService {
       attachments: fileAttachments,
       nativeSupport: nativeFileSupport,
       isToolCapable: isFunctionCallingModel(model),
-      budget: fileAttachments.length
-        ? ((await resolveAttachmentBudget({
-            provider,
-            model,
-            system,
-            tools,
-            maxOutputTokens: options.maxOutputTokens,
-            messages: request.messages ?? [],
-            mediaCapabilities
-          })) ?? undefined)
-        : undefined,
+      // A caller that owns its context (the gateway) manages its own window;
+      // reshaping its attachments against ours would be guesswork.
+      budget:
+        fileAttachments.length && request.contextOwner !== 'caller'
+          ? ((await resolveAttachmentBudget({
+              provider,
+              model,
+              system,
+              tools,
+              maxOutputTokens: options.maxOutputTokens,
+              messages: request.messages ?? [],
+              mediaCapabilities
+            })) ?? undefined)
+          : undefined,
       signal
     })
 
