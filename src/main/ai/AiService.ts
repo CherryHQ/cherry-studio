@@ -46,6 +46,7 @@ import {
 import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
+import { resolveAttachmentBudget } from './messages/attachmentBudget'
 import { prepareChatMessages } from './messages/attachmentRouting'
 import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { hasImageTransport } from './provider/custom/imageTransportRegistry'
@@ -551,16 +552,28 @@ export class AiService extends BaseService {
     const usagePlugin = createAiUsagePlugin(usageContext)
     repairUsagePlugins.current = [usagePlugin]
 
+    const mediaCapabilities = resolveMediaCapabilities(model)
+
     // Route attachments: native files stay inline, non-native become capped text
-    // (always visible — never gated on the model calling read_file).
+    // (always visible — never gated on the model calling read_file). The cap is
+    // one shared pool, priced against what the rest of the request already spends.
     const preparedMessages = await prepareChatMessages(request.messages ?? [], {
       attachments: fileAttachments,
       nativeSupport: nativeFileSupport,
       isToolCapable: isFunctionCallingModel(model),
+      budget: fileAttachments.length
+        ? ((await resolveAttachmentBudget({
+            provider,
+            model,
+            system,
+            tools,
+            maxOutputTokens: options.maxOutputTokens,
+            messages: request.messages ?? [],
+            mediaCapabilities
+          })) ?? undefined)
+        : undefined,
       signal
     })
-
-    const mediaCapabilities = resolveMediaCapabilities(model)
 
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.

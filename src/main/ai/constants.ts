@@ -49,6 +49,13 @@ export const APPROX_CHARS_PER_TOKEN = 3
  */
 export const MIN_IN_FLIGHT_TRUNCATE_THRESHOLD = 2000
 
+/**
+ * Share of the window the attachment budget may draw on after the output
+ * reservation. The headroom absorbs provider protocol framing and estimator
+ * error — the estimate is deliberately not a ledger.
+ */
+export const ATTACHMENT_INPUT_SAFETY_RATIO = 0.9
+
 /** Internal Claude Agent SDK → Cherry API Gateway bridge for Codex priority requests. */
 export const CHERRY_FAST_MODE_HEADER = 'X-Cherry-Fast-Mode'
 /** Process-local credential proving that a gateway request originated inside Cherry. */
