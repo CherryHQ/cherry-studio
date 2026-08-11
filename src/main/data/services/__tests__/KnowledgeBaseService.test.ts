@@ -7,6 +7,7 @@ import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api/errors'
 import { type CreateKnowledgeBaseDto, KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -121,7 +122,7 @@ describe('KnowledgeBaseService', () => {
       type: 'file',
       data: {
         source: '/docs/source-file.md',
-        relativePath: 'source-file.md'
+        relativePath: 'source-file.md' as PosixRelativeFilePath
       },
       status: 'completed',
       error: null,
@@ -392,7 +393,9 @@ describe('KnowledgeBaseService', () => {
       await seedKnowledgeBase({ name: 'General', createdAt: 3 })
       await seedKnowledgeBase({ id: BETA_KNOWLEDGE_BASE_ID, name: 'Operations', createdAt: 2 })
       await seedKnowledgeBase({ id: ALPHA_KNOWLEDGE_BASE_ID, name: 'Invoice Archive', createdAt: 1 })
-      await seedFileKnowledgeItem({ data: { source: '/docs/invoice.pdf', relativePath: 'invoice.pdf' } })
+      await seedFileKnowledgeItem({
+        data: { source: '/docs/invoice.pdf', relativePath: 'invoice.pdf' as PosixRelativeFilePath }
+      })
 
       const first = service.listForDiscovery({ limit: 1, query: 'invoice' })
       const second = service.listForDiscovery({ limit: 1, query: 'invoice', cursor: first.nextCursor })
