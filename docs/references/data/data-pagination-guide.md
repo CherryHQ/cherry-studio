@@ -28,8 +28,9 @@ offset path (the path generic is constrained via `OffsetPaginatedPath` /
 bound or is read newest-first while being written to (messages, sessions,
 translate/painting history) — offset's `page * limit` window silently skips or
 repeats rows when items are inserted between requests. Prefer **offset** when the
-UI shows discrete page controls or needs an exact total (knowledge bases,
-assistants, files, MCP servers).
+UI shows discrete page controls or needs an exact total (assistants and MCP
+servers). A cursor response may still carry `total` when the UI needs both
+progressive loading and an exact count (knowledge bases and files).
 
 ## 2. The Four Layers (Quickstart)
 
