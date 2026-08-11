@@ -39,7 +39,7 @@ const CLAUDE_PLUGINS_API = 'https://api.claude-plugins.dev'
 
 // ZIP extraction limits
 const MAX_EXTRACTED_SIZE = 100 * 1024 * 1024 // 100MB
-const MAX_FILES_COUNT = 1000
+const MAX_FILES_COUNT = 2000
 const MAX_FOLDER_NAME_LENGTH = 80
 const SKILLS_PLUGIN_MANIFEST = `${JSON.stringify({ name: 'cherry-studio-skills' }, null, 2)}\n`
 const BUILTIN_VERSION_FILE = '.version'

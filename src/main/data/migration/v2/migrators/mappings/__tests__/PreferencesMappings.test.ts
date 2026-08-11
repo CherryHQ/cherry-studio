@@ -1,14 +1,31 @@
+import { MIGRATION_LOCAL_STORAGE_KEYS } from '@shared/data/migration/v2/types'
 import { describe, expect, it } from 'vitest'
 
 import { getSimpleMappingTargetKeys } from '../../PreferencesMigrator'
+import { BOOT_CONFIG_LOCALSTORAGE_MAPPINGS } from '../BootConfigMappings'
 import {
   COMPLEX_PREFERENCE_MAPPINGS,
   getComplexMappingById,
   getComplexMappingTargetKeys
 } from '../ComplexPreferenceMappings'
-import { ELECTRON_STORE_MAPPINGS, REDUX_STORE_MAPPINGS } from '../PreferencesMappings'
+import { ELECTRON_STORE_MAPPINGS, LOCALSTORAGE_MAPPINGS, REDUX_STORE_MAPPINGS } from '../PreferencesMappings'
 
 describe('PreferencesMappings', () => {
+  it('exports exactly the localStorage keys consumed by all migration mappings', () => {
+    const complexLocalStorageKeys = COMPLEX_PREFERENCE_MAPPINGS.flatMap((mapping) =>
+      Object.values(mapping.sources)
+        .filter((source) => source.source === 'localStorage')
+        .map((source) => source.key)
+    )
+    const mappedLocalStorageKeys = [
+      ...LOCALSTORAGE_MAPPINGS.map((mapping) => mapping.originalKey),
+      ...BOOT_CONFIG_LOCALSTORAGE_MAPPINGS.map((mapping) => mapping.originalKey),
+      ...complexLocalStorageKeys
+    ]
+
+    expect([...new Set(mappedLocalStorageKeys)].sort()).toEqual([...MIGRATION_LOCAL_STORAGE_KEYS].sort())
+  })
+
   it('maps the v1 Electron Store clientId instead of the unrelated Redux userId', () => {
     expect(ELECTRON_STORE_MAPPINGS).toContainEqual({
       originalKey: 'clientId',

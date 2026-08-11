@@ -7,7 +7,7 @@ export default defineCreator({
   idPrefixes: ['minimax', 'abab'],
   reasoningFamilies: [{ pattern: 'minimax-m\\d' }],
   models: [
-    { id: 'minimax-m2-1', serverTools: ['web-search'] },
+    { id: 'minimax-m2-1' },
     {
       id: 'image-01',
       name: 'image-01',

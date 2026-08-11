@@ -22,6 +22,16 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
     expect(config).toEqual({ openai: {} })
   })
 
+  it('emits a bare openai config for DeepSeek Responses web search', () => {
+    const config = buildProviderBuiltinWebSearchConfig(
+      'openai',
+      webSearchConfig,
+      model({ id: 'deepseek::deepseek-v4-flash', providerId: 'deepseek', apiModelId: 'deepseek-v4-flash' }),
+      preset('deepseek')
+    )
+    expect(config).toEqual({ openai: {} })
+  })
+
   // Availability keys off the wire id with an `apiModelId ?? id` fallback, so a model
   // carrying the wire name in `id` alone still routes to the server side. Reading
   // `apiModelId` directly here made the config undefined for exactly those models:
@@ -44,6 +54,26 @@ describe('buildProviderBuiltinWebSearchConfig', () => {
       preset('dashscope')
     )
     expect(config).toEqual({ openai: {} })
+  })
+
+  it('emits the openrouter web_search server-tool args (camelCase, mapped to the wire tool)', () => {
+    const config = buildProviderBuiltinWebSearchConfig(
+      'openrouter',
+      webSearchConfig,
+      model({ id: 'openrouter::anthropic/claude-4', providerId: 'openrouter', apiModelId: 'anthropic/claude-4' }),
+      preset('openrouter')
+    )
+    expect(config).toEqual({ openrouter: { maxResults: 50 } })
+  })
+
+  it('forwards excluded domains to the openrouter web_search tool (→ excluded_domains)', () => {
+    const config = buildProviderBuiltinWebSearchConfig(
+      'openrouter',
+      { maxResults: 10, excludeDomains: ['example.com', 'https://foo.dev/bar'] },
+      model({ id: 'openrouter::x/y', providerId: 'openrouter', apiModelId: 'x/y' }),
+      preset('openrouter')
+    )
+    expect(config).toEqual({ openrouter: { maxResults: 10, excludedDomains: ['example.com', 'foo.dev'] } })
   })
 
   it('keeps searchContextSize for real openai models', () => {
@@ -99,6 +129,26 @@ describe('dashscope built-in web search: endpoint x model matrix', () => {
     expect(getWebSearchParams(dashscope('qwen3-max'), preset('dashscope'))).toEqual({
       enable_search: true,
       search_options: { forced_search: true, search_strategy: 'agent' }
+    })
+  })
+
+  // When the model also serves the web-extractor (url-context) tool, the strategy upgrades to
+  // `agent_max`, which fetches full page content (help.aliyun.com/zh/model-studio/web-extractor).
+  it('upgrades to agent_max for a model that serves the web-extractor tool', () => {
+    const dashscopeWithExtractor = {
+      id: 'dashscope',
+      presetProviderId: 'dashscope',
+      serverTools: [{ id: 'url-context', modelScope: 'model-dependent' }]
+    } as unknown as Provider
+    const extractorModel = model({
+      id: 'dashscope::qwen3-max',
+      providerId: 'dashscope',
+      apiModelId: 'qwen3-max',
+      capabilities: []
+    })
+    expect(getWebSearchParams(extractorModel, dashscopeWithExtractor)).toEqual({
+      enable_search: true,
+      search_options: { forced_search: true, search_strategy: 'agent_max' }
     })
   })
 })

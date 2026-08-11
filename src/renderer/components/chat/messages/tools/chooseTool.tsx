@@ -4,7 +4,9 @@ import {
   KB_LIST_TOOL_NAME,
   KB_MANAGE_TOOL_NAME,
   KB_READ_TOOL_NAME,
-  KB_SEARCH_TOOL_NAME
+  KB_SEARCH_TOOL_NAME,
+  PROVIDER_WEB_SEARCH_TOOL_NAME,
+  WEB_SEARCH_TOOL_NAME
 } from '@shared/ai/builtinTools'
 
 import { AgentExecutionTimeline } from './agent'
@@ -37,7 +39,6 @@ const isAgentTool = (toolName: string) => {
 
 export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | null {
   const toolName = toolResponse.tool.name
-  const toolType = toolResponse.tool.type
   if (isMetaToolName(toolName)) {
     return <MessageMetaTool toolResponse={toolResponse} />
   }
@@ -46,8 +47,8 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
   if (toolName === KB_SEARCH_TOOL_NAME) {
     return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
   }
-  if (toolName === 'web_search') {
-    return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
+  if (toolName === WEB_SEARCH_TOOL_NAME || toolName === PROVIDER_WEB_SEARCH_TOOL_NAME) {
+    return <MessageWebSearchToolTitle toolResponse={toolResponse} />
   }
   if (toolName === GENERATE_IMAGE_TOOL_NAME || toolName === agentGenerateImageToolName) {
     return <MessageGenerateImageToolTitle toolResponse={toolResponse} />
@@ -67,7 +68,7 @@ export function chooseTool(toolResponse: NormalToolResponse): React.ReactNode | 
     switch (suffix) {
       case 'web_search':
       case 'web_search_preview':
-        return toolType === 'provider' ? null : <MessageWebSearchToolTitle toolResponse={toolResponse} />
+        return <MessageWebSearchToolTitle toolResponse={toolResponse} />
       case 'knowledge_search':
         return <MessageKnowledgeSearchToolTitle toolResponse={toolResponse} />
       default:

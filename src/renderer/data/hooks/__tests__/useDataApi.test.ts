@@ -757,6 +757,43 @@ describe('useInfiniteQuery integration', () => {
     expect(result.current.pages[0]?.activeNodeId).toBe('overridden')
   })
 
+  it('bound mutate revalidates every loaded page without revalidateAll', async () => {
+    let olderPageText = 'stale approval'
+    const getSpy = spyGet()
+    getSpy.mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
+      const isOlderPage = opts.query?.cursor === 'older-page'
+      return {
+        items: [
+          {
+            message: { searchableText: isOlderPage ? olderPageText : 'newest message' },
+            siblingsGroup: []
+          }
+        ],
+        nextCursor: isOlderPage ? undefined : 'older-page',
+        activeNodeId: 'newest-message',
+        rootId: 'root',
+        assistantId: 'assistant'
+      }
+    }) as never)
+
+    const { Wrapper } = makeWrapper()
+    const { result } = renderHook(() => useInfiniteQuery('/topics/:topicId/messages', { params: { topicId: 't1' } }), {
+      wrapper: Wrapper
+    })
+
+    await waitFor(() => expect(result.current.pages).toHaveLength(1))
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+    expect(result.current.pages[1]?.items[0]?.message.searchableText).toBe('stale approval')
+
+    olderPageText = 'settled approval'
+    await act(async () => {
+      await result.current.mutate()
+    })
+
+    await waitFor(() => expect(result.current.pages[1]?.items[0]?.message.searchableText).toBe('settled approval'))
+  })
+
   it('pages reference is stable across rerenders when SWR data is unchanged', async () => {
     spyGet().mockResolvedValueOnce({ items: [], nextCursor: undefined, activeNodeId: null } as never)
 
@@ -772,12 +809,16 @@ describe('useInfiniteQuery integration', () => {
     expect(result.current.pages).toBe(firstRef)
   })
 
-  it('passes swrOptions through to useSWRInfinite', async () => {
-    // Sanity-check that `swrOptions` reach `useSWRInfinite` by setting
-    // `revalidateFirstPage: false` and verifying `refresh()` does NOT refetch
-    // page 1 when only one page is loaded.
+  it('does not revalidate the first page while pagination grows when explicitly disabled', async () => {
     const getSpy = spyGet()
-    getSpy.mockResolvedValueOnce({ items: [], nextCursor: undefined, activeNodeId: null } as never)
+    const cursors: Array<string | null> = []
+    getSpy.mockImplementation((async (_path: string, opts: { query?: { cursor?: string } } = {}) => {
+      const cursor = opts.query?.cursor ?? null
+      cursors.push(cursor)
+      if (cursor === null) return { items: [], nextCursor: 'c1', activeNodeId: null }
+      if (cursor === 'c1') return { items: [], nextCursor: 'c2', activeNodeId: null }
+      return { items: [], nextCursor: undefined, activeNodeId: null }
+    }) as never)
 
     const { Wrapper } = makeWrapper()
     const { result } = renderHook(
@@ -790,7 +831,12 @@ describe('useInfiniteQuery integration', () => {
     )
 
     await waitFor(() => expect(result.current.pages).toHaveLength(1))
-    expect(getSpy).toHaveBeenCalledTimes(1)
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(2))
+    await act(async () => result.current.loadNext())
+    await waitFor(() => expect(result.current.pages).toHaveLength(3))
+
+    expect(cursors).toEqual([null, 'c1', 'c2'])
   })
 })
 

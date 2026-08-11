@@ -15,6 +15,7 @@ import { userProviderTable } from '@data/db/schemas/userProvider'
 // data-service registry, which createAgent resolves lazily for skill validation/join.
 import { agentGlobalSkillService } from '@data/services/AgentGlobalSkillService'
 import { agentService } from '@data/services/AgentService'
+import { jobScheduleService } from '@data/services/JobScheduleService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { mcpServerService } from '@data/services/McpServerService'
 import { pinService } from '@data/services/PinService'
@@ -1038,6 +1039,40 @@ describe('AgentService', () => {
       expect(agentRows).toHaveLength(0)
       const sessionRows = await dbh.db.select().from(agentSessionTable)
       expect(sessionRows.map((row) => row.id)).toEqual(['session-keep-with-other-agent'])
+    })
+
+    it('clears a task binding before default agent deletion detaches its session', async () => {
+      const { id } = await insertAgent({ id: 'agent_default_detach_001' })
+      const task = jobScheduleService.create({
+        type: 'agent.task',
+        name: 'default-detach-task',
+        trigger: { kind: 'interval', ms: 60_000 },
+        jobInputTemplate: { agentId: id, prompt: 'test', timeoutMinutes: 0, workspace: { type: 'system' } },
+        catchUpPolicy: { kind: 'skip-missed' },
+        metadata: { reuse: { enabled: true, revision: 0 } }
+      })
+      await dbh.db.insert(agentWorkspaceTable).values({
+        id: 'workspace-default-detach',
+        name: 'Workspace',
+        path: '/tmp/default-detach',
+        orderKey: 'a0'
+      })
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-default-detach',
+        agentId: id,
+        name: '',
+        workspaceId: 'workspace-default-detach',
+        taskScheduleId: task.id,
+        orderKey: 'a0'
+      })
+
+      expect(agentService.deleteAgent(id)).toMatchObject({ deleted: true })
+
+      const [session] = await dbh.db
+        .select({ agentId: agentSessionTable.agentId, taskScheduleId: agentSessionTable.taskScheduleId })
+        .from(agentSessionTable)
+        .where(eq(agentSessionTable.id, 'session-default-detach'))
+      expect(session).toEqual({ agentId: null, taskScheduleId: null })
     })
 
     it('rolls back the already-deleted sessions when a later delete step fails', async () => {

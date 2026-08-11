@@ -256,7 +256,7 @@ function isAzureOpenAIProvider(legacy: LegacyProvider): boolean {
   return legacy.id === 'azure-openai' || legacy.type === 'azure-openai'
 }
 
-function buildProviderApiKeys(legacy: LegacyProvider, settings: OldLlmSettings): ApiKeyEntry[] {
+export function buildProviderApiKeys(legacy: LegacyProvider, settings: OldLlmSettings): ApiKeyEntry[] {
   if (isAwsBedrockProvider(legacy) && settings.awsBedrock?.authType === 'apiKey') {
     return buildApiKeys(settings.awsBedrock.apiKey ?? '')
   }

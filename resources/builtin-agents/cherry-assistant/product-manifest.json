@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "package": {
     "name": "CherryStudio",
-    "version": "2.0.0-rc.5",
+    "version": "2.0.3",
     "description": "A powerful AI assistant for producer.",
     "homepage": "https://github.com/CherryHQ/cherry-studio"
   },
@@ -177,6 +177,11 @@
           "="
         ],
         "additionalBindings": [
+          [
+            "CommandOrControl",
+            "Shift",
+            "="
+          ],
           [
             "CommandOrControl",
             "numadd"
@@ -364,10 +369,48 @@
           "]"
         ]
       }
+    },
+    {
+      "id": "tab.next",
+      "titleKey": "settings.shortcuts.next_tab",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "CommandOrControl",
+            "Tab"
+          ],
+          "darwin": [
+            "Ctrl",
+            "Tab"
+          ]
+        }
+      }
+    },
+    {
+      "id": "tab.prev",
+      "titleKey": "settings.shortcuts.prev_tab",
+      "categoryKey": "settings.shortcuts.general",
+      "scope": "renderer",
+      "keybinding": {
+        "defaultBinding": {
+          "default": [
+            "CommandOrControl",
+            "Shift",
+            "Tab"
+          ],
+          "darwin": [
+            "Ctrl",
+            "Shift",
+            "Tab"
+          ]
+        }
+      }
     }
   ],
   "providers": {
-    "version": "bba2c6cc60c9ccbf",
+    "version": "ba4bb4de74be847b",
     "count": 62,
     "entries": [
       {
@@ -707,7 +750,8 @@
         "qwen-code",
         "kimi-code",
         "qoder-cli",
-        "github-copilot-cli"
+        "github-copilot-cli",
+        "pi"
       ]
     }
   }

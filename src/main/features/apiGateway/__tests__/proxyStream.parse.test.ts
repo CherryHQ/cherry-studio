@@ -21,7 +21,11 @@ const {
   mockListModels: vi.fn(),
   mockExtractStreamOptions: vi.fn(),
   mockExtractProviderOptions: vi.fn(),
-  captured: { opts: undefined as { uniqueModelId?: string; listener?: StreamListener } | undefined }
+  captured: {
+    opts: undefined as
+      | { uniqueModelId?: string; listener?: StreamListener; contextOwner?: 'cherry' | 'caller' }
+      | undefined
+  }
 }))
 
 vi.mock('@application', () => ({
@@ -171,6 +175,12 @@ describe('processMessage model-id parsing', () => {
   it('splits on the first colon for a simple provider:model', async () => {
     mockAvailableModel('openai', 'gpt-4')
     expect(await resolveValid('openai:gpt-4')).toBe(createUniqueModelId('openai', 'gpt-4'))
+  })
+
+  it('marks non-streaming requests as caller-owned', async () => {
+    mockAvailableModel('openai', 'gpt-4')
+    await resolveValid('openai:gpt-4')
+    expect(captured.opts?.contextOwner).toBe('caller')
   })
 
   it('passes the normalized max output tokens to provider option extraction', async () => {

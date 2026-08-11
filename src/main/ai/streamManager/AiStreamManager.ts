@@ -8,6 +8,7 @@ import { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
@@ -16,18 +17,17 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
-import { shouldDeferToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
-import { type UIMessageChunk } from 'ai'
+import type { UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
-import type { AiStreamRequest, CallOverrides, InProcessUsageContext } from '../types'
-import { buildCompactReplay } from './buildCompactReplay'
+import type { AiStreamRequest, CallOverrides, ContextOwner, InProcessUsageContext } from '../types'
+import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
 import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
@@ -148,6 +148,7 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
   backgroundMode: 'continue',
   maxBufferChunks: 10_000,
   maxDeferredOutputs: 64,
+  maxDeltaBytes: 16_384,
   // Generous (2 h) but bounded: a human can deliberate, yet a renderer that never responds (window
   // closed/crashed) can't leave the stream + subprocess hanging until app quit.
   approvalIdleTimeoutMs: 2 * 60 * 60 * 1000
@@ -634,6 +635,8 @@ export class AiStreamManager extends BaseService {
     listener: StreamListener | StreamListener[]
     /** Per-request overrides (sampling/tools/providerOptions) for assistant-less callers (API gateway). */
     callOverrides?: CallOverrides
+    /** Which layer owns history shaping; omitted means Cherry-managed. */
+    contextOwner?: ContextOwner
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
     /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
@@ -646,12 +649,14 @@ export class AiStreamManager extends BaseService {
         ? input.messages
         : [{ id: 'prompt-user', role: 'user', parts: [{ type: 'text', text: input.prompt ?? '' }] }]
 
+    const chatId = input.usageContext ? input.usageContext.agentSessionId : input.streamId
     const request: ManagedAiStreamRequest = {
-      chatId: input.streamId,
+      chatId,
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
       messages,
       callOverrides: input.callOverrides,
+      contextOwner: input.contextOwner,
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
@@ -888,6 +893,10 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec || (expectedExecution && exec !== expectedExecution)) return
 
+    const sourceModelId = modelId
+    const anchorMessageId = exec.anchorMessageId
+    const payload: StreamChunkPayload = { topicId, executionId: sourceModelId, anchorMessageId, chunk }
+
     // Authoritative approval-lifecycle capture, keyed by toolCallId so a sibling tool's output never
     // clears another tool's still-pending approval; `resolveTerminalStatus` reads the set's size.
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
@@ -918,16 +927,30 @@ export class AiStreamManager extends BaseService {
       stream.lifecycle.onApprovalPendingChanged(stream)
     }
 
-    const sourceModelId = modelId
-
     // Per-execution ring buffer — a chatty model can't push a slower one's
-    // replay out. Overflow drops oldest and bumps `droppedChunks`.
-    if (exec.buffer.length >= this.config.maxBufferChunks) {
-      exec.buffer.shift()
-      exec.droppedChunks += 1
+    // replay out. Eviction pauses while an approval is pending because the
+    // approval's tool-input chunks are still-operable state a reconnect must
+    // replay for the user to decide.
+    //
+    // Contiguous deltas of one part collapse into the buffer tail on ingest,
+    // so the cap counts protocol units (parts, tool events) rather than raw
+    // deltas — a delta flood can no longer evict its own part's opening chunk
+    // and leave the replay unparseable for `readUIMessageStream`. Oversized
+    // incoming deltas split first; ingest and attach share `maxDeltaBytes`.
+    const bufferLimit = Math.max(1, this.config.maxBufferChunks)
+    for (const segment of splitDeltaPayload(payload, this.config.maxDeltaBytes)) {
+      const tail = exec.buffer.at(-1)
+      const merged = tail ? mergeDeltaPayload(tail, segment, this.config.maxDeltaBytes) : undefined
+      if (merged) {
+        exec.buffer[exec.buffer.length - 1] = merged
+      } else {
+        if (exec.buffer.length >= bufferLimit && !exec.pendingApprovalToolCallIds?.size) {
+          exec.buffer.shift()
+          exec.droppedChunks += 1
+        }
+        exec.buffer.push(segment)
+      }
     }
-    const anchorMessageId = exec.anchorMessageId
-    exec.buffer.push({ topicId, executionId: sourceModelId, anchorMessageId, chunk })
 
     // Keeps stripped outputs resolvable until the message lands in SQLite. Bounded; an evicted
     // entry just falls through to the persisted copy.
@@ -1364,7 +1387,9 @@ export class AiStreamManager extends BaseService {
 
     const bufferedChunks: StreamChunkPayload[] = []
     for (const exec of stream.executions.values()) {
-      bufferedChunks.push(...buildCompactReplay(exec.buffer).map(projectStreamChunkPayloadForRenderer))
+      bufferedChunks.push(
+        ...buildCompactReplay(exec.buffer, this.config.maxDeltaBytes).map(projectStreamChunkPayloadForRenderer)
+      )
     }
     return { status: 'attached', bufferedChunks }
   }

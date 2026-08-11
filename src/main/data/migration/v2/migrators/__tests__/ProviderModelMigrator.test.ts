@@ -16,6 +16,7 @@ import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID, CHERRYAI_PROVIDER_ID } from '@shared/data/presets/cherryai'
 import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { asc, eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1380,6 +1381,57 @@ describe('ProviderModelMigrator', () => {
   })
 
   describe('validate', () => {
+    it('allows migration when a legacy API key contains no usable entries', async () => {
+      const providerId = 'a8ffe6fa-c3f8-42f5-9b32-0baaf40676de'
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider(providerId),
+              apiKey: ' ,\n, '
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      await migrator.execute(migrationContext)
+      mockMainLoggerService.warn.mockClear()
+
+      const result = await migrator.validate(migrationContext)
+
+      expect(result.success).toBe(true)
+      expect(result.errors).toEqual([])
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        'Legacy provider API key contained no migratable entries; continuing without API keys',
+        { providerId }
+      )
+    })
+
+    it('still rejects migration when a usable API key is missing from the target row', async () => {
+      const providerId = 'custom-provider'
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              ...makeProvider(providerId),
+              apiKey: 'sk-valid'
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      await migrator.execute(migrationContext)
+      dbh.db.update(userProviderTable).set({ apiKeys: [] }).where(eq(userProviderTable.providerId, providerId)).run()
+
+      const result = await migrator.validate(migrationContext)
+
+      expect(result.success).toBe(false)
+      expect(result.errors).toContainEqual({
+        key: `missing_api_key_${providerId}`,
+        message: `Provider ${providerId} should include migrated API keys`
+      })
+    })
+
     it('returns an error ID when validation throws', async () => {
       const cause = new Error('count query failed')
       const migrationContext = createContext({

@@ -369,6 +369,11 @@ describe('resolveMigrationPaths — legacy custom userData recovery', () => {
     expect(result.paths.legacyClaudeProjectsDir).toBe(path.join(DEFAULT_USER_DATA, '.claude', 'projects'))
     expect(result.paths.claudeConfigDir).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'Agents', '.claude'))
     expect(result.paths.claudeProjectsDir).toBe(path.join(DEFAULT_USER_DATA, 'Data', 'Agents', '.claude', 'projects'))
+    expect(result.paths.migrationReduxExportDir).toBe(path.join(DEFAULT_USER_DATA, 'migration_temp', 'redux_export'))
+    expect(result.paths.migrationDexieExportDir).toBe(path.join(DEFAULT_USER_DATA, 'migration_temp', 'dexie_export'))
+    expect(result.paths.migrationLocalStorageExportFile).toBe(
+      path.join(DEFAULT_USER_DATA, 'migration_temp', 'localstorage_export', 'localStorage.json')
+    )
   })
 
   it('redirects to the matching entry when the current exe matches exactly (regression guard)', () => {

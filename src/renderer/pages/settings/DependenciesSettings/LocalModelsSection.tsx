@@ -9,6 +9,7 @@ import { useTranslation } from 'react-i18next'
 
 const CARD_NOTICE_KEYS = {
   downloadFailed: 'settings.dependencies.localModels.notice.downloadFailed',
+  incompleteCache: 'settings.dependencies.localModels.notice.incompleteCache',
   removeFailed: 'settings.dependencies.localModels.notice.removeFailed',
   inUse: 'settings.dependencies.localModels.notice.inUse'
 } as const
@@ -52,7 +53,12 @@ function useLocalModelCard(model: LocalModelKind) {
 
   return {
     ...localModel,
-    notice: localModel.status === 'error' ? 'downloadFailed' : notice,
+    notice:
+      localModel.status === 'error'
+        ? localModel.errorCode === 'incomplete_cache'
+          ? 'incompleteCache'
+          : 'downloadFailed'
+        : notice,
     download,
     remove
   }

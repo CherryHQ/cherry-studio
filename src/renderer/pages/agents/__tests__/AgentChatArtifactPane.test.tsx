@@ -632,17 +632,31 @@ vi.mock('@renderer/components/chat/citations/CitationsPanel', () => ({
 }))
 
 describe('AgentChat artifact pane', () => {
-  const activeSessionProps = () => ({
-    activeSession: activeSessionMocks.result.session as ComponentProps<typeof AgentChat>['activeSession'],
-    activeSessionLoading: activeSessionMocks.result.isLoading,
-    activeSessionSource:
-      activeSessionMocks.result.sessionSource ?? (activeSessionMocks.result.session ? 'query' : 'none')
+  const createConversationBootstrap = (
+    session: ComponentProps<typeof AgentChat>['conversationBootstrap']['session'] = activeSessionMocks.result
+      .session as ComponentProps<typeof AgentChat>['conversationBootstrap']['session'],
+    sessionLoading = activeSessionMocks.result.isLoading,
+    sessionSource: ComponentProps<typeof AgentChat>['conversationBootstrap']['sessionSource'] = activeSessionMocks
+      .result.sessionSource ?? (session ? 'query' : 'none')
+  ): ComponentProps<typeof AgentChat>['conversationBootstrap'] => ({
+    session,
+    sessionLoading,
+    sessionSource,
+    resources: {
+      agent: session?.agentId ? ({ id: session.agentId, model: 'provider:model-1' } as any) : undefined,
+      agentLoading: false,
+      model: session?.agentId ? ({ id: 'provider:model-1', name: 'Model 1' } as any) : undefined,
+      modelLoading: false
+    }
   })
-  const renderAgentChat = (props: ComponentProps<typeof AgentChat> = {}) =>
+  const activeSessionProps = (): Pick<ComponentProps<typeof AgentChat>, 'conversationBootstrap'> => ({
+    conversationBootstrap: createConversationBootstrap()
+  })
+  const renderAgentChat = (props: Partial<ComponentProps<typeof AgentChat>> = {}) =>
     render(<AgentChat {...activeSessionProps()} {...props} />)
   const rerenderAgentChat = (
     rerender: ReturnType<typeof render>['rerender'],
-    props: ComponentProps<typeof AgentChat> = {}
+    props: Partial<ComponentProps<typeof AgentChat>> = {}
   ) => rerender(<AgentChat {...activeSessionProps()} {...props} />)
   const openFilesPane = () => {
     fireEvent.click(screen.getByRole('button', { name: 'agent.right_pane.tabs.files' }))
@@ -911,7 +925,7 @@ describe('AgentChat artifact pane', () => {
       setActiveSessionId: vi.fn()
     }
 
-    renderAgentChat({ activeSession: null })
+    renderAgentChat()
 
     expect(screen.getByTestId('conversation-center-state')).toHaveAttribute('data-state', 'empty')
     expect(screen.queryByTestId('composer-dock-frame')).not.toBeInTheDocument()
@@ -957,7 +971,7 @@ describe('AgentChat artifact pane', () => {
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
       panePosition: 'left',
-      activeSession: null,
+      conversationBootstrap: createConversationBootstrap(null, false, 'none'),
       missingAgentSelection: true
     })
 
@@ -984,7 +998,7 @@ describe('AgentChat artifact pane', () => {
       pane: <aside data-testid="session-pane" />,
       paneOpen: true,
       panePosition: 'left',
-      activeSession: null,
+      conversationBootstrap: createConversationBootstrap(null, false, 'none'),
       missingAgentSelection: true
     })
 
@@ -1010,8 +1024,6 @@ describe('AgentChat artifact pane', () => {
     }
 
     const { rerender } = renderAgentChat({
-      activeSession: undefined,
-      activeSessionLoading: true,
       sessionPaneOpen: true
     })
 
@@ -1063,21 +1075,22 @@ describe('AgentChat artifact pane', () => {
     expect(screen.queryByText('Agent')).not.toBeInTheDocument()
   })
 
-  it('keeps a visited trace tab keyed on the session traceId when developer mode is on', () => {
+  // Unlike every other visited pane, the trace tab unmounts once inactive so its retained span tree
+  // can be collected — see AgentRightPane's `unmounts a visited trace capability while inactive`.
+  it('unmounts a visited trace tab keyed on the session traceId when developer mode is on', async () => {
     renderAgentChat({ pane: <aside data-testid="session-pane" />, paneOpen: true, panePosition: 'left' })
 
     fireEvent.click(screen.getByRole('button', { name: 'trace.label' }))
 
     expect(screen.getByTestId('artifact-right-pane')).toHaveAttribute('data-open', 'true')
-    const tracePane = screen.getByTestId('trace-pane')
+    const tracePane = await screen.findByTestId('trace-pane')
     expect(tracePane).toHaveAttribute('data-topic-id', 'agent-session:session-1')
     expect(tracePane).toHaveAttribute('data-trace-id', 'trace-a')
     expect(tracePane).toBeVisible()
 
     openFilesPane()
 
-    expect(screen.getByTestId('trace-pane')).toBe(tracePane)
-    expect(tracePane).not.toBeVisible()
+    expect(screen.queryByTestId('trace-pane')).toBeNull()
   })
 
   it('opens message file paths in the files tab overlay', async () => {

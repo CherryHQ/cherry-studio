@@ -8,8 +8,8 @@ date: 2026-08-04
 
 ## What changed
 
-The built-in default user avatar is no longer the green rounded square with a
-white person glyph. It is now a pink card with a smiling face.
+The built-in default user avatar is no longer the pink card with a smiling
+face. It is now a teal user silhouette.
 
 ## Why this matters to the user
 

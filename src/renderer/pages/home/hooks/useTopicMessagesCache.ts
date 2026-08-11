@@ -66,9 +66,14 @@ export interface UseTopicMessagesCacheParams {
   mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>
 }
 
-export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCacheParams) {
+export function getTopicBranchCachePaths(topicId: string) {
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
+  return [messagesCachePath, treeCachePath]
+}
+
+export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCacheParams) {
+  const [messagesCachePath, treeCachePath] = getTopicBranchCachePaths(topicId)
   const branchCachePaths = [messagesCachePath, treeCachePath]
 
   /**
@@ -166,6 +171,9 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/messages/:id', {
     refresh: branchCachePaths
   })
+  const { trigger: deleteMessageGroupTrigger } = useMutation('DELETE', '/messages/:id/reply-group', {
+    refresh: branchCachePaths
+  })
   const { trigger: patchMessageTrigger } = useMutation('PATCH', '/messages/:id', {
     refresh: branchCachePaths
   })
@@ -190,6 +198,7 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     rollbackBranch,
     clearBranchCache,
     deleteMessageTrigger,
+    deleteMessageGroupTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
     createMessageTrigger,

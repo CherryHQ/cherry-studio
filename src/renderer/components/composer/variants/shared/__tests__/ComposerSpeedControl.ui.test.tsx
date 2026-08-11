@@ -1,6 +1,7 @@
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { type ButtonHTMLAttributes, type MouseEvent, type ReactNode, useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -128,7 +129,7 @@ describe('ComposerSpeedControl UI', () => {
     ).toBe('default')
   })
 
-  it('uses only a slider for GPT-5.6, with Off first and Default filtered out', () => {
+  it('uses a slider for GPT-5.6, with Off first and Default as a separate choice', () => {
     const { container } = render(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
 
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
@@ -137,13 +138,19 @@ describe('ComposerSpeedControl UI', () => {
     const slider = screen.getByTestId('reasoning-slider')
     expect(slider).toHaveAttribute('data-max', '5')
     expect(slider).toHaveAttribute('data-value', '3')
+    expect(container.querySelectorAll('[data-slot="composer-effort-step"]')).toHaveLength(5)
     expect(container.querySelector('[data-slot="composer-effort-step"][data-index="3"]')).not.toBeInTheDocument()
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' })).toHaveAttribute(
+      'aria-pressed',
+      'false'
+    )
     fireEvent.click(screen.getByTestId('select-slider-min'))
+    expect(container.querySelectorAll('[data-slot="composer-effort-step"]')).toHaveLength(5)
+    expect(container.querySelector('[data-slot="composer-effort-step"][data-index="0"]')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.off'
     )
-    expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('select-slider-max'))
 
@@ -163,7 +170,10 @@ describe('ComposerSpeedControl UI', () => {
     )
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '5')
-    expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
     expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
       'assistants.settings.reasoning_effort.default'
     )
@@ -228,21 +238,90 @@ describe('ComposerSpeedControl UI', () => {
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-max', '2')
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '1')
     expect(screen.queryByTestId('reasoning-menu')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'common.reset' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
   })
 
-  it('changes a displayed stored Default after slider interaction', () => {
+  it('restores provider Default after selecting an explicit slider tier', async () => {
+    const user = userEvent.setup()
     render(<ControlledSpeedControl model={codexModel} initialEffort="default" />)
 
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.default'
     )
-    fireEvent.click(screen.getByTestId('select-slider-max'))
+    await user.click(screen.getByTestId('select-slider-max'))
 
     expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
       'assistants.settings.reasoning_effort.max'
     )
     expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '5')
+
+    await user.click(screen.getByRole('button', { name: 'assistants.settings.reasoning_effort.default' }))
+
+    expect(screen.getByRole('button', { name: 'agent.speed.title' })).toHaveTextContent(
+      'assistants.settings.reasoning_effort.default'
+    )
+    expect(screen.getByTestId('reasoning-slider')).toHaveAttribute('data-value', '5')
+    expect(screen.getByTestId('composer-effort-slider-label')).toHaveTextContent(
+      'assistants.settings.reasoning_effort.default'
+    )
+  })
+
+  it('changes one effort level per wheel step without scrolling the page', () => {
+    const outerWheel = vi.fn()
+    render(
+      <div onWheel={outerWheel}>
+        <ControlledSpeedControl model={codexModel} initialEffort="high" />
+      </div>
+    )
+
+    const slider = screen.getByRole('slider', { name: 'agent.speed.effort' })
+    const firstWheel = createEvent.wheel(slider, { deltaY: -15, cancelable: true })
+    fireEvent(slider, firstWheel)
+    expect(firstWheel.defaultPrevented).toBe(true)
+    fireEvent.wheel(slider, { deltaY: -15 })
+    expect(slider).toHaveAttribute('data-value', '3')
+
+    fireEvent.wheel(slider, { deltaY: -15 })
+    expect(slider).toHaveAttribute('data-value', '4')
+
+    fireEvent.wheel(slider, { deltaY: -100 })
+    expect(slider).toHaveAttribute('data-value', '5')
+
+    fireEvent.wheel(slider, { deltaY: -100 })
+    expect(slider).toHaveAttribute('data-value', '5')
+
+    fireEvent.wheel(slider, { deltaY: 100 })
+    expect(slider).toHaveAttribute('data-value', '4')
+    expect(outerWheel).toHaveBeenCalledTimes(1)
+  })
+
+  it('treats line and page wheel events as one effort step each', () => {
+    render(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
+
+    const slider = screen.getByRole('slider', { name: 'agent.speed.effort' })
+    fireEvent.wheel(slider, { deltaMode: WheelEvent.DOM_DELTA_LINE, deltaY: -1 })
+    expect(slider).toHaveAttribute('data-value', '4')
+
+    fireEvent.wheel(slider, { deltaMode: WheelEvent.DOM_DELTA_PAGE, deltaY: -1 })
+    expect(slider).toHaveAttribute('data-value', '5')
+  })
+
+  it('resets an incomplete wheel step when the wheel target ref is rebound', () => {
+    const { rerender } = render(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
+
+    let slider = screen.getByRole('slider', { name: 'agent.speed.effort' })
+    fireEvent.wheel(slider, { deltaY: -20 })
+
+    rerender(<ControlledSpeedControl model={codexModel} initialEffort="high" />)
+    slider = screen.getByRole('slider', { name: 'agent.speed.effort' })
+    fireEvent.wheel(slider, { deltaY: -20 })
+    expect(slider).toHaveAttribute('data-value', '3')
+
+    fireEvent.wheel(slider, { deltaY: -20 })
+    expect(slider).toHaveAttribute('data-value', '4')
   })
 
   it('toggles Fast only for a capable provider-model pair', () => {

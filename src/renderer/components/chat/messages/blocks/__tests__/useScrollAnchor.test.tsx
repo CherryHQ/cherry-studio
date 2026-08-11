@@ -3,7 +3,7 @@ import { act, renderHook } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { ScrollOwnershipProvider } from '../ScrollOwnershipContext'
+import { ScrollOwnershipProvider } from '../../list/ScrollOwnershipContext'
 import { useScrollAnchor } from '../useScrollAnchor'
 
 /**

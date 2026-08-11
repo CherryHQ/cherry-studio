@@ -126,13 +126,16 @@ const AgentSessionMessages = ({
     messageTail
   })
 
+  // Main owns the warm lease per (session × window) and debounces the real teardown, so the
+  // <Activity> hide/show of a tab switch costs two cheap IPC messages, not a connection cycle —
+  // and a lease held by another window keeps the shared connection alive.
   useEffect(() => {
     void ipcApi.request('ai.agent.session.prewarm', { sessionId }).catch((error) => {
-      logger.warn('Failed to prewarm agent session', error as Error)
+      logger.warn('Failed to acquire agent session warm lease', error as Error)
     })
     return () => {
       void ipcApi.request('ai.agent.session.close_warm', { sessionId }).catch((error) => {
-        logger.warn('Failed to close agent session warm query', error as Error)
+        logger.warn('Failed to release agent session warm lease', error as Error)
       })
     }
   }, [sessionId])
@@ -140,7 +143,7 @@ const AgentSessionMessages = ({
   return (
     <AskUserQuestionOptimisticInputProvider value={optimisticAskUserQuestionInputsByToolCallId}>
       <MessageListProvider value={messageList}>
-        <MessageList />
+        <MessageList enableSearch />
       </MessageListProvider>
     </AskUserQuestionOptimisticInputProvider>
   )

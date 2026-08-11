@@ -3,14 +3,14 @@
  * plugin chain. The role is "build / shape the context the model sees on
  * each call".
  *
- * Layers, all gated on `scope.contextSettings.enabled`:
+ * Layers, all gated on Cherry-owned context and `scope.contextSettings.enabled`:
  * - truncate: large tool results → durable FileManager blobs (anchored
  *   requests) replaced with a <persisted-output> marker (read back via
  *   fs_read), or plain inline head/tail truncation when the request has no
  *   message row to hang a ref on. Threshold is the resolved user setting.
  *   `truncatable: false` entries are exempt.
- * - compact: mechanical, zero-LLM pruning (drop reasoning before the last
- *   message; drop empty messages).
+ * - compact: mechanical, zero-LLM cleanup of truly empty messages. Reasoning
+ *   stays intact and provider adapters decide how to serialize it.
  * - onBeforeCompress: no-LLM sliding-window fallback (drop oldest) — the only
  *   remaining budget guard; active when compress is enabled but no compression
  *   model is configured. In-flight LLM compress was removed in P2-B stage 2:
@@ -75,7 +75,7 @@ export function resolveInFlightTruncateThreshold(configuredChars: number, contex
 /** Exported for direct middleware testing. Returns null when the layer is off. */
 export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptions | null {
   const settings = scope.contextSettings
-  if (!settings.enabled) return null
+  if (scope.request.contextOwner === 'caller' || !settings.enabled) return null
 
   // Optional on `Model` and optional here: a window-less model gets no
   // window-derived budget rather than a `NaN` one (see resolveContextWindow).
@@ -90,7 +90,7 @@ export function buildContextOptions(scope: RequestScope): ContextMiddlewareOptio
     contextWindow: contextWindow ?? undefined,
 
     compact: {
-      reasoning: 'before-last-message',
+      reasoning: 'none',
       emptyMessages: 'remove'
     },
 
@@ -224,6 +224,6 @@ function createContextBuildPlugin(scope: RequestScope) {
 
 export const contextBuildFeature: RequestFeature = {
   name: 'context-build',
-  applies: (scope) => scope.contextSettings.enabled,
+  applies: (scope) => scope.request.contextOwner !== 'caller' && scope.contextSettings.enabled,
   contributeModelAdapters: (scope) => [createContextBuildPlugin(scope)]
 }

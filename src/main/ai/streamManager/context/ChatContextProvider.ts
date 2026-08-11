@@ -50,6 +50,10 @@ export interface PreparedDispatch {
 export interface DispatchContext {
   /** True when `manager.send()` will take the inject branch. */
   hasLiveStream: boolean
+  /** Reject instead of enqueueing when the runtime becomes busy during preparation. */
+  requireIdle?: boolean
+  /** Internal callers may require the session's agent ownership at the message-write boundary. */
+  expectedAgentId?: string
 }
 
 export interface ChatContextProvider {

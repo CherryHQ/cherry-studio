@@ -17,6 +17,7 @@ import type {
 import type { AbsoluteFilePath } from '@shared/types/file'
 
 import { KnowledgeBaseAdminService } from './base/KnowledgeBaseAdminService'
+import type { OrphanBaseArtifactsInspection } from './base/orphanBaseArtifacts'
 import { KnowledgeIngestionService } from './ingestion/KnowledgeIngestionService'
 import type {
   KnowledgeConceptContent,
@@ -31,6 +32,7 @@ import { createDeleteSubtreeJobHandler } from './tasks/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './tasks/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './tasks/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './tasks/reindexSubtreeJobHandler'
+import type { KnowledgeBaseDiscoveryOptions, KnowledgeBaseDiscoveryPage } from './types'
 
 /**
  * Facade of the knowledge feature: registers the job handlers, runs boot-time
@@ -79,12 +81,20 @@ export class KnowledgeService extends BaseService {
     await this.baseAdmin.deleteBase(baseId)
   }
 
+  async removeOrphanBaseArtifacts(baseId: string): Promise<boolean> {
+    return await this.baseAdmin.removeOrphanBaseArtifacts(baseId)
+  }
+
+  inspectOrphanBaseArtifacts(): Promise<OrphanBaseArtifactsInspection> {
+    return this.baseAdmin.inspectOrphanBaseArtifacts()
+  }
+
   async restoreBase(dto: RestoreKnowledgeBaseDto): Promise<RestoreKnowledgeBaseResult> {
     return await this.baseAdmin.restoreBase(dto)
   }
 
-  listBases(): KnowledgeBase[] {
-    return this.baseAdmin.listBases()
+  listBasesForDiscovery(options: KnowledgeBaseDiscoveryOptions): KnowledgeBaseDiscoveryPage {
+    return this.queryService.listBasesForDiscovery(options)
   }
 
   /** Whether the user has any knowledge base at all — a cheap count (not a full list) for tool-availability gating. */

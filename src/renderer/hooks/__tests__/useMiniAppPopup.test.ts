@@ -38,9 +38,10 @@ vi.mock('@renderer/hooks/tab', () => ({
 }))
 
 // Import mocked modules
-import { clearWebviewState } from '@renderer/utils/webviewStateManager'
+import { clearWebviewState, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 
 const mockClearWebviewState = vi.mocked(clearWebviewState)
+const mockSetWebviewLoaded = vi.mocked(setWebviewLoaded)
 
 // Import hooks AFTER mocks
 import { useMiniAppPopup } from '../useMiniAppPopup'
@@ -80,6 +81,7 @@ describe('useMiniAppPopup', () => {
     MockUseDataApiUtils.resetMocks()
     MockUseDataApiUtils.mockQueryData('/mini-apps', miniAppList([]))
     mockClearWebviewState.mockClear()
+    mockSetWebviewLoaded.mockClear()
     mockTabs.tabs = []
     mockTabs.hasContext = true
     mockTabs.closeTab.mockClear()
@@ -170,6 +172,22 @@ describe('useMiniAppPopup', () => {
       // reference so downstream `useCache` subscribers don't see a change.
       const after = MockUseCacheUtils.getCacheValue(KEEP_ALIVE_KEY)
       expect(after).toBe(seeded)
+    })
+
+    it('should replace a changed app at the tail without recreating its keep-alive entry', async () => {
+      const stale = createMiniApp('openclaw-dashboard', { url: 'http://127.0.0.1:18790#token=stale' })
+      const fresh = { ...stale, url: 'http://127.0.0.1:18790#token=fresh' }
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [stale])
+
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openMiniApp(fresh, true)
+      })
+
+      expect(getKeepAlive()).toEqual([fresh])
+      expect(mockSetWebviewLoaded).toHaveBeenCalledWith('openclaw-dashboard', false)
+      expect(mockClearWebviewState).not.toHaveBeenCalled()
     })
 
     it('should reorder when the existing app is not at the tail (LRU touch still works for genuine switches)', async () => {
@@ -436,6 +454,57 @@ describe('useMiniAppPopup', () => {
       expect(mockCacheService.getShared('mini_app.transient_descriptor.openclaw-dashboard')).toMatchObject({
         url: 'http://127.0.0.1:18790#token=fresh'
       })
+    })
+
+    it('replaces a cached transient app in place when its URL changes', async () => {
+      const first = createMiniApp('first')
+      const cached = createMiniApp('openclaw-dashboard', {
+        name: 'OpenClaw',
+        url: 'http://127.0.0.1:18790#token=stale',
+        logo: 'openclaw'
+      })
+      const last = createMiniApp('last')
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, [first, cached, last])
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openSmartMiniApp({
+          appId: 'openclaw-dashboard',
+          name: 'OpenClaw',
+          url: 'http://127.0.0.1:18790?cherry_navigation_revision=1#token=fresh',
+          logo: 'openclaw'
+        })
+      })
+
+      const list = getKeepAlive()
+      expect(list).toHaveLength(3)
+      expect(list.map((app) => app.appId)).toEqual(['first', 'openclaw-dashboard', 'last'])
+      expect(list[1].url).toBe('http://127.0.0.1:18790?cherry_navigation_revision=1#token=fresh')
+      expect(mockSetWebviewLoaded).toHaveBeenCalledWith('openclaw-dashboard', false)
+      expect(mockClearWebviewState).not.toHaveBeenCalled()
+    })
+
+    it('does not rebuild a cached transient app when its descriptor is unchanged', async () => {
+      const cached = createMiniApp('openclaw-dashboard', {
+        name: 'OpenClaw',
+        url: 'http://127.0.0.1:18790?cherry_navigation_revision=1#token=fresh',
+        logo: 'openclaw'
+      })
+      const seeded = [cached]
+      MockUseCacheUtils.setCacheValue(KEEP_ALIVE_KEY, seeded)
+      const { result } = renderHook(() => useTestMiniAppPopup())
+
+      await act(async () => {
+        result.current.openSmartMiniApp({
+          appId: 'openclaw-dashboard',
+          name: 'OpenClaw',
+          url: 'http://127.0.0.1:18790?cherry_navigation_revision=1#token=fresh',
+          logo: 'openclaw'
+        })
+      })
+
+      expect(MockUseCacheUtils.getCacheValue(KEEP_ALIVE_KEY)).toBe(seeded)
+      expect(mockSetWebviewLoaded).not.toHaveBeenCalled()
     })
 
     it('should still activate the app tab when the keep-alive entry already exists', async () => {

@@ -37,6 +37,7 @@ describe('Cherry Assistant guide', () => {
   const guide = fs.readFileSync(TEMPLATE_PATH, 'utf-8')
 
   it('uses current-package lookups instead of versioned product prose', () => {
+    expect(guide).toContain('报告运行错误、连接失败、配置异常并需要诊断时触发')
     expect(guide).toContain('mcp__assistant__product_info({ source: "manifest" })')
     for (const section of ['routes', 'commands', 'providers', 'locales', 'agents']) {
       expect(guide).toContain(`source: "manifest", section: "${section}"`)
@@ -60,75 +61,78 @@ describe('Cherry Assistant guide', () => {
     }
     const instructions = Object.values(agent.instructions).join('\n')
 
-    expect(instructions).toContain('mcp__assistant__product_info')
-    expect(agent.instructions['zh-CN']).toContain('不能仅因问题与 Cherry Studio 无关而拒答')
+    expect(agent.instructions['en-US']).toContain('built-in general-purpose Agent and onboarding guide')
+    expect(agent.instructions['en-US']).toContain('complete any request using the available tools')
+    expect(agent.instructions['en-US']).toContain(
+      'taking particular ownership of helping them succeed with Cherry Studio'
+    )
+    expect(agent.instructions['en-US']).toContain(
+      'Use `cherry-studio-feedback` unless the user explicitly asks for a GitHub Issue'
+    )
+    expect(agent.instructions['zh-CN']).toContain('内置通用 Agent 和上手引导')
+    expect(agent.instructions['zh-CN']).toContain('帮助用户完成任何请求')
+    expect(agent.instructions['zh-CN']).toContain('帮助将其整理成清晰、可执行的反馈')
+    expect(guide).toContain('mcp__assistant__product_info')
     expect(guide).toContain('必须在同一轮调用 `mcp__assistant__navigate`')
     expect(guide).toContain('不得声称已经生成入口或已经打开页面')
     expect(instructions).not.toMatch(/\/(?:app|settings)\//)
     expect(agent.accessible_paths).toEqual(['#{PROJECT_ROOT}'])
   })
 
-  it('keeps the assistant lively and patient without forcing humor', () => {
+  it('keeps the onboarding persona concise instead of imposing a detailed behavior contract', () => {
     const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
       instructions: Record<'en-US' | 'zh-CN', string>
     }
     const soul = fs.readFileSync(SOUL_PATH, 'utf-8')
 
-    expect(agent.instructions['en-US']).toContain('warm, lively, and natural')
-    expect(agent.instructions['en-US']).toContain('rephrase instead of repeating')
-    expect(agent.instructions['en-US']).toContain('never force jokes')
-    expect(agent.instructions['zh-CN']).toContain('温暖、活泼、自然')
-    expect(agent.instructions['zh-CN']).toContain('换一种说法解释')
-    expect(agent.instructions['zh-CN']).toContain('不强行讲笑话')
-    expect(soul).toContain('Sound lively and natural')
-    expect(soul).toContain('rephrase instead of repeating yourself')
+    expect(agent.instructions['en-US']).toContain('getting started with Cherry Studio')
+    expect(agent.instructions['zh-CN']).toContain('帮助用户开始使用 Cherry Studio')
+    expect(soul).toContain('Warm, patient, and practical')
+    expect(soul).toContain("Mirror the user's terminology and level of formality")
+    expect(soul).not.toContain("Match the user's language")
+    expect(soul).not.toContain('Cherry Studio')
+    expect(soul).not.toContain('cherry-studio-feedback')
+    expect(soul).not.toContain('Working principles')
+    expect(soul).not.toContain('Hard safety constraints')
   })
 
-  it('keeps the Cherry Assistant identity distinct from its underlying runtime', () => {
+  it('identifies the preset without restricting the underlying runtime', () => {
     const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
       instructions: Record<'en-US' | 'zh-CN', string>
     }
     const soul = fs.readFileSync(SOUL_PATH, 'utf-8')
 
-    expect(agent.instructions['en-US']).toContain('Never identify yourself as Claude Code')
-    expect(agent.instructions['zh-CN']).toContain('不得自称 Claude Code')
-    expect(soul).toContain('Never introduce yourself as Claude Code')
+    expect(agent.instructions['en-US']).toContain('introduce yourself as Cherry Assistant')
+    expect(agent.instructions['zh-CN']).toContain('自我介绍为 Cherry Assistant')
+    expect(agent.instructions['en-US']).toContain('serve as Cherry Assistant')
+    expect(agent.instructions['en-US']).not.toContain("You are Cherry Studio's built-in onboarding Agent")
+    expect(soul).not.toContain('Cherry Assistant')
+    expect(soul).not.toContain('general-purpose Agent')
+    expect(soul).not.toContain('same tools and capabilities')
+    expect(soul).not.toContain('Claude Code')
   })
 
-  it('grounds conversational references and tool results to the correct data owner', () => {
+  it('keeps the user template neutral without duplicating a system-prompt contract', () => {
     const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
       instructions: Record<'en-US' | 'zh-CN', string>
     }
-    const soul = fs.readFileSync(SOUL_PATH, 'utf-8')
     const user = fs.readFileSync(USER_PATH, 'utf-8')
 
-    expect(agent.instructions['en-US']).toContain("In a user's message, first-person terms refer to the user")
-    expect(agent.instructions['en-US']).toContain('`mcp__cherry-tools__config` describes this Agent')
-    expect(agent.instructions['en-US']).toContain('Never transfer facts from one entity to another')
-    expect(agent.instructions['zh-CN']).toContain('用户消息中的“我/我的/我们”指用户')
-    expect(agent.instructions['zh-CN']).toContain('Agent 配置不能证明用户身份')
-    expect(agent.instructions['zh-CN']).toContain('不能把一个主体的事实转移给另一个主体')
-    expect(soul).toContain('Reference and ownership grounding')
+    expect(Object.values(agent.instructions).join('\n')).not.toContain('Speaker reference and data ownership')
     expect(user).toContain('Not provided')
     expect(user).toContain('not verified personal facts')
   })
 
-  it('refuses destructive abuse and routes ordinary deletion through the operating-system trash', () => {
+  it('keeps safety enforcement out of the onboarding prompt', () => {
     const agent = JSON.parse(fs.readFileSync(AGENT_TEMPLATE_PATH, 'utf-8')) as {
       instructions: Record<'en-US' | 'zh-CN', string>
     }
     const soul = fs.readFileSync(SOUL_PATH, 'utf-8')
 
-    expect(agent.instructions['en-US']).toContain('including a Windows system drive such as C:')
-    expect(agent.instructions['en-US']).toContain('mcp__assistant-files__move_to_trash')
-    expect(agent.instructions['en-US']).toContain('Never use permanent deletion')
-    expect(agent.instructions['en-US']).toContain('unauthorized access, malware, credential theft')
-    expect(agent.instructions['zh-CN']).toContain('C 盘等系统盘')
-    expect(agent.instructions['zh-CN']).toContain('取得第二次明确确认')
-    expect(agent.instructions['zh-CN']).toContain('绝不永久删除')
-    expect(agent.instructions['zh-CN']).toContain('安全、合法、防御性的替代方案')
-    expect(soul).toContain('Never permanently delete user files')
-    expect(soul).toContain('mcp__assistant-files__move_to_trash')
+    const prompt = `${Object.values(agent.instructions).join('\n')}\n${soul}`
+    expect(prompt).not.toContain('Security')
+    expect(prompt).not.toContain('安全边界')
+    expect(prompt).not.toContain('mcp__assistant-files__move_to_trash')
   })
 
   it('searches skills before declaring a capability unsupported and delegates creation to skill-creator', () => {
@@ -138,10 +142,7 @@ describe('Cherry Assistant guide', () => {
     const skillsManager = fs.readFileSync(SKILLS_MANAGER_PATH, 'utf-8')
     const marketplace = fs.readFileSync(MARKETPLACE_PATH, 'utf-8')
 
-    expect(agent.instructions['en-US']).toContain('invoke `find-skills` to search')
-    expect(agent.instructions['zh-CN']).toContain('不能停在“暂不支持”')
-    expect(agent.instructions['zh-CN']).toContain('`find-skills` 可用时先调用它搜索')
-    expect(agent.instructions['zh-CN']).toContain('`skill-creator` 可用就必须调用它')
+    expect(Object.values(agent.instructions).join('\n')).not.toContain('find-skills')
     expect(skillsManager).toContain('`find-skills` 可用时先调用它')
     expect(skillsManager).toContain('`skill-creator` 可用时必须调用它')
     expect(skillsManager).toContain('不要绕过它直接手写 `SKILL.md`')
@@ -161,12 +162,8 @@ describe('Cherry Assistant guide', () => {
     const issueReporter = fs.readFileSync(ISSUE_REPORTER_PATH, 'utf-8')
 
     expect(agent.skills).toContain('cherry-studio-feedback')
-    expect(agent.instructions['en-US']).toContain(
-      'Collect or submit Cherry Studio feedback -> `cherry-studio-feedback`'
-    )
-    expect(agent.instructions['en-US']).toContain('File a GitHub Issue -> `issue-reporter`')
-    expect(agent.instructions['zh-CN']).toContain('只收集用户同意的诊断信息')
-    expect(agent.instructions['zh-CN']).toContain('默认提交到飞书')
+    expect(agent.instructions['en-US']).toContain('Use `cherry-studio-feedback` unless the user explicitly asks')
+    expect(agent.instructions['zh-CN']).toContain('明确要求创建 GitHub Issue')
     expect(feedback).toContain('mcp__assistant__diagnose({ action: "info" })')
     expect(feedback).toContain('mcp__assistant__diagnose({ action: "errors", lines: 100 })')
     expect(feedback).toContain('mcp__assistant-files__save_attachment')

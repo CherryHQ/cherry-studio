@@ -54,12 +54,14 @@ export function toCreateModelDto(
 ): CreateModelDto {
   const modelId = getRawModelId(model)
   const resolvedEndpointTypes = endpointTypes?.length ? endpointTypes : model.endpointTypes
+  const capabilities = !model.presetModelId && model.capabilities?.length ? model.capabilities : undefined
 
   return {
     providerId,
     modelId,
     name: model.name,
     group: model.group,
+    ...(capabilities ? { capabilities: [...capabilities] } : {}),
     ...(resolvedEndpointTypes?.length ? { endpointTypes: [...resolvedEndpointTypes] } : {})
   }
 }
@@ -94,6 +96,7 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
 
   const REGISTRY_FIELDS = [
     'name',
+    'presetModelId',
     'description',
     'group',
     'capabilities',
@@ -112,21 +115,28 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
   return filteredModels.map((fetched) => {
     const base = fetched as Model
     const apiId = fetched.apiModelId ?? ''
-    const registry =
-      resolvedMap.get(apiId) ??
-      resolvedMap.get(apiId.includes('/') ? apiId.substring(apiId.lastIndexOf('/') + 1) : apiId) ??
-      resolvedMap.get((apiId.includes('/') ? apiId.substring(apiId.lastIndexOf('/') + 1) : apiId).replaceAll('.', '-'))
+    // `resolveModels` keys every result by the exact raw id it was sent, so an exact lookup always hits —
+    // no fuzzy fallback needed (a slash/dot-stripping fallback used to overlay siblings onto one canonical
+    // row, collapsing their distinct display names).
+    const registry = resolvedMap.get(apiId)
 
     if (!registry) {
       return base
     }
 
     const merged = { ...base }
+    // An unmatched (custom) resolved row only carries a prettified id as its name. If the provider's
+    // /models returned a real display name — one that differs from the raw id — keep it instead of
+    // overwriting with the prettified id. Matched rows (presetModelId set) own the curated name.
+    const keepFetchedName = !registry.presetModelId && !!base.name && base.name !== base.apiModelId
+
     for (const field of REGISTRY_FIELDS) {
       if (field === 'endpointTypes' && base.endpointTypes?.length) {
         continue
       }
-
+      if (field === 'name' && keepFetchedName) {
+        continue
+      }
       const value = registry[field]
       if (value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0)) {
         ;(merged as Record<string, unknown>)[field] = value
