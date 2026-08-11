@@ -13,6 +13,7 @@ import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpToo
 import { cn } from '@renderer/utils/style'
 import { ArrowRight } from 'lucide-react'
 import { useCallback, useState } from 'react'
+import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerOverride } from '../ComposerContext'
@@ -22,6 +23,10 @@ export type { PermissionRequestComposerRequest } from './permissionRequestCompos
 export { findLatestPendingPermissionRequest } from './permissionRequestComposerRequest'
 
 const logger = loggerService.withContext('PermissionRequestComposer')
+
+function isHandledElsewhere(event: KeyboardEvent) {
+  return event.defaultPrevented || event.isComposing
+}
 
 type PermissionRequestComposerProps = {
   request: PermissionRequestComposerRequest
@@ -247,6 +252,9 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
       'deny'
     )
   }, [isSubmitting, request.match, respond, t])
+
+  useHotkeys('enter', () => void approve(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [approve])
+  useHotkeys('esc', () => void deny(), { preventDefault: true, ignoreEventWhen: isHandledElsewhere }, [deny])
 
   return (
     <div

@@ -227,6 +227,48 @@ describe('PermissionRequestComposer', () => {
     expect(heading.parentElement?.children).toHaveLength(1)
   })
 
+  it('approves when Enter is pressed outside editable controls', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.keyDown(document, { key: 'Enter' })
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: makeRequest().match,
+      approved: true
+    })
+  })
+
+  it('denies when Escape is pressed outside editable controls', async () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    await waitFor(() => expect(onRespond).toHaveBeenCalledTimes(1))
+    expect(onRespond).toHaveBeenCalledWith({
+      match: makeRequest().match,
+      approved: false,
+      reason: 'User denied permission for this tool.'
+    })
+  })
+
+  it('ignores Enter and Escape typed into an editable control', () => {
+    const onRespond = vi.fn().mockResolvedValue(undefined)
+    render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
+
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    try {
+      fireEvent.keyDown(input, { key: 'Enter' })
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(onRespond).not.toHaveBeenCalled()
+    } finally {
+      input.remove()
+    }
+  })
+
   it('disables actions while a response is submitting', async () => {
     const onRespond = vi.fn(() => new Promise<void>(() => undefined))
     render(<PermissionRequestComposer request={makeRequest()} onRespond={onRespond} />)
