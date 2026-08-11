@@ -4,6 +4,7 @@ import type { Server } from 'elysia/universal/server'
 import type { Server as HttpServer } from 'http'
 
 import { type ApiGatewayApp, buildApp } from './app'
+import { McpSessionStore } from './McpSessionStore'
 
 const logger = loggerService.withContext('ApiGateway')
 
@@ -30,6 +31,12 @@ export class ApiGateway {
   private app: ApiGatewayApp | null = null
   private serverInfo: NodeServerInfo | null = null
   private running = false
+  /**
+   * Owned here so session lifetime is exactly server lifetime: once the socket closes every
+   * session is unreachable, so `stop()` must drop them rather than leak bridges into the next
+   * activation (a restart builds a fresh `ApiGateway`, and a port change is a stop→start).
+   */
+  private readonly mcpSessions = new McpSessionStore()
 
   async start(): Promise<void> {
     if (this.running) {
@@ -42,7 +49,7 @@ export class ApiGateway {
     const port = preferenceService.get('feature.api_gateway.port')
     const host = preferenceService.get('feature.api_gateway.host')
 
-    const app = buildApp({ host, port })
+    const app = buildApp({ host, port, mcpSessions: this.mcpSessions })
     this.app = app
 
     return new Promise((resolve, reject) => {
@@ -108,6 +115,12 @@ export class ApiGateway {
       // never assigns `app.server`, so Elysia core's web-standard `stop()` throws
       // "Elysia isn't running". An unhandled throw would skip the cleanup below and
       // leave the service stuck `_activated` with a stale `running` cache state.
+      // BEFORE awaiting the close, not after: a session's GET stream is an active response,
+      // and `server.close()` waits for those to finish, so stopping first would hang here
+      // until the client disconnected or the idle sweep fired half an hour later. Closing the
+      // sessions ends those streams, which is what lets the close below settle. `closeAll`
+      // also latches the store shut, so an initialize racing this shutdown is refused.
+      await this.mcpSessions.closeAll()
       await this.serverInfo?.stop?.()
     } finally {
       this.running = false

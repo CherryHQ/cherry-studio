@@ -97,12 +97,14 @@ export type ResourceEntityRailProps<T extends ResourceEntityRailItem, TActionCon
    * on top). Off → the flat "助手"/"智能体" section.
    */
   groupByGroup?: boolean
+  collapsedState?: readonly string[]
   emptyFallback?: ReactNode
   getContextMenuActions?: (item: T) => readonly ResolvedAction<TActionContext>[]
   headerActions?: ReactNode
   listRef?: RefObject<HTMLDivElement | null>
   onAdd: () => void | Promise<void>
   onContextMenuAction?: (item: T, action: ResolvedAction<TActionContext>) => void | Promise<void>
+  onCollapsedStateChange?: (collapsedIds: string[]) => void
   onReorder?: (payload: ResourceListReorderPayload) => void | Promise<void>
   /** Reorder canonical groups while `groupByGroup` is enabled. Pinned and ungrouped buckets stay fixed. */
   onGroupReorder?: (groupId: string, anchor: ResourceListOrderAnchor) => void | Promise<void>
@@ -131,11 +133,13 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
   ariaLabel,
   defaultGroupLabel,
   groupByGroup = false,
+  collapsedState,
   emptyFallback,
   getContextMenuActions,
   headerActions,
   listRef,
   onAdd,
+  onCollapsedStateChange,
   onContextMenuAction,
   onReorder,
   onGroupReorder,
@@ -331,6 +335,8 @@ export function ResourceEntityRail<T extends ResourceEntityRailItem, TActionCont
       status={status}
       groupBy={groupBy}
       sectionBy={sectionBy}
+      collapsedState={collapsedState}
+      onCollapsedStateChange={onCollapsedStateChange}
       defaultGroupVisibleCount={Number.POSITIVE_INFINITY}
       dragCapabilities={{
         groups: groupReorderEnabled,
