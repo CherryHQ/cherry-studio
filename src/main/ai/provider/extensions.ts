@@ -31,7 +31,7 @@ import { type AihubmixProviderSettings, createAihubmix } from './custom/aihubmix
 import { createDashScopeProvider, type DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
 import { createDmxapiProvider, type DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
 import { createGatewayWithImageModel } from './custom/gateway/gatewayProvider'
-import { createGoogleVertexAnthropic } from './custom/google-vertex-anthropic-provider'
+import { createGoogleVertexAnthropic } from './custom/googleVertexAnthropicProvider'
 import {
   createLocalEmbeddingProvider,
   type LocalEmbeddingProviderSettings
