@@ -1,3 +1,4 @@
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type { RegisteredKeybindingRule } from '@shared/types/command'
 import { describe, expect, it } from 'vitest'
 
@@ -160,11 +161,34 @@ describe('command shortcut preferences', () => {
     })
   })
 
+  it('applies the platform default to preferences hydrated from the schema default', () => {
+    // usePreference never yields undefined: unset keys arrive as the schema default.
+    expect(
+      resolveCommandShortcutPreference('tab.next', DefaultPreferences.default['shortcut.tab.next'], 'darwin')
+    ).toEqual({
+      binding: ['Ctrl', 'Tab'],
+      enabled: true
+    })
+    expect(
+      resolveCommandShortcutPreference('tab.prev', DefaultPreferences.default['shortcut.tab.prev'], 'darwin')
+    ).toEqual({
+      binding: ['Ctrl', 'Shift', 'Tab'],
+      enabled: true
+    })
+    expect(
+      resolveCommandShortcutPreference('tab.next', DefaultPreferences.default['shortcut.tab.next'], 'win32')
+    ).toEqual({
+      binding: ['CommandOrControl', 'Tab'],
+      enabled: true
+    })
+  })
+
   it('lets a user shortcut override the platform-specific default', () => {
     expect(resolveCommandShortcutPreference('tab.next', { binding: ['Alt', 'J'], enabled: true }, 'darwin')).toEqual({
       binding: ['Alt', 'J'],
       enabled: true
     })
+    expect(resolveCommandShortcutPreference('tab.next', { binding: [], enabled: true })?.binding).toEqual([])
   })
 })
 
@@ -288,6 +312,20 @@ describe('resolveCommandByKeybinding', () => {
     expect(
       resolveCommandByKeybinding({
         binding: ['Ctrl', 'Tab'],
+        context: {},
+        platform: 'darwin',
+        scope: 'renderer'
+      })
+    ).toBe('tab.next')
+
+    // CommandProvider dispatches with schema-hydrated preferences, never an empty map.
+    expect(
+      resolveCommandByKeybinding({
+        binding: ['Ctrl', 'Tab'],
+        preferences: {
+          'tab.next': DefaultPreferences.default['shortcut.tab.next'],
+          'tab.prev': DefaultPreferences.default['shortcut.tab.prev']
+        },
         context: {},
         platform: 'darwin',
         scope: 'renderer'
