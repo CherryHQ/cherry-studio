@@ -384,12 +384,14 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   )
 
   const handleResetClassification = useCallback(() => {
-    commitClassification({
+    const nextClassification = {
       ...savedClassification,
       capabilities: new Set(savedClassification.capabilities),
       inputModalities: new Set(savedClassification.inputModalities)
-    })
-  }, [commitClassification, savedClassification])
+    }
+    setClassification(nextClassification)
+    autoSave({ classification: nextClassification })
+  }, [autoSave, savedClassification])
 
   if (!provider || !model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />

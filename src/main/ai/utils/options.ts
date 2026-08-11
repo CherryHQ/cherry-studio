@@ -5,7 +5,6 @@ import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
-import type { Assistant } from '@shared/data/types/assistant'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import {
   type GroqServiceTier,
@@ -145,7 +144,6 @@ export function extractAiSdkStandardParams(customParams: Record<string, any>): {
 }
 
 export function buildCapabilityProviderOptions(
-  assistant: Assistant,
   model: Model,
   actualProvider: Provider,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
@@ -206,7 +204,7 @@ export function buildCapabilityProviderOptions(
       providerSpecificOptions = buildXAIProviderOptions(reasoningOptions.options)
       break
     case 'bedrock':
-      providerSpecificOptions = buildBedrockProviderOptions(assistant, model, reasoningOptions.options)
+      providerSpecificOptions = buildBedrockProviderOptions(model, reasoningOptions.options)
       break
     case SystemProviderIds.ollama:
       providerSpecificOptions = buildOllamaProviderOptions(model, reasoningOptions.options)
@@ -235,6 +233,7 @@ export function buildCapabilityProviderOptions(
       providerSpecificOptions = buildGenericProviderOptions(
         reasoningOptions.providerId,
         model,
+        actualProvider,
         capabilities,
         reasoningOptions.options
       )
@@ -456,12 +455,11 @@ function buildXAIProviderOptions(
 }
 
 function buildBedrockProviderOptions(
-  assistant: Assistant,
   model: Model,
   reasoningOptions: Record<string, unknown>
 ): Record<string, BedrockProviderOptions> {
   const providerOptions = { ...reasoningOptions } as BedrockProviderOptions
-  const betaHeaders = addAnthropicHeaders(assistant, model)
+  const betaHeaders = addAnthropicHeaders(model)
   if (betaHeaders.length > 0) {
     providerOptions.anthropicBeta = betaHeaders
   }
@@ -486,6 +484,7 @@ function buildOllamaProviderOptions(
 function buildGenericProviderOptions(
   providerId: string,
   model: Model,
+  provider: Provider,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>,
   reasoningOptions: Record<string, unknown>
 ): Record<string, any> {
@@ -495,7 +494,7 @@ function buildGenericProviderOptions(
   providerOptions = { ...providerOptions, ...reasoningOptions }
 
   if (enableWebSearch) {
-    providerOptions = merge({}, providerOptions, getWebSearchParams(model))
+    providerOptions = merge({}, providerOptions, getWebSearchParams(model, provider))
   }
 
   return { [providerId]: providerOptions }
@@ -525,7 +524,7 @@ function buildAIGatewayOptions(
       return buildOpenAIProviderOptions(model, capabilities, provider, serviceTier, textVerbosity, reasoning.options)
     case ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS:
     case ENDPOINT_TYPE.OPENAI_IMAGE_GENERATION:
-      return buildGenericProviderOptions(reasoning.providerId, model, capabilities, reasoning.options)
+      return buildGenericProviderOptions(reasoning.providerId, model, provider, capabilities, reasoning.options)
   }
   return { [reasoning.providerId]: reasoning.options }
 }

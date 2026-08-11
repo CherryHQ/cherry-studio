@@ -16,6 +16,7 @@ import {
 } from '@main/core/lifecycle'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
+import { shouldDeferToolOutput } from '@main/utils/messageOutputProjection'
 import { withIdleTimeout } from '@main/utils/withIdleTimeout'
 import { context as otelContext, type Span, SpanStatusCode, trace } from '@opentelemetry/api'
 import type {
@@ -24,17 +25,17 @@ import type {
   AiStreamDetachRequest,
   AiStreamOpenResponse
 } from '@shared/ai/transport'
-import { shouldDeferToolOutput } from '@shared/ai/transport'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { MessageRuntimeSpan, MessageRuntimeTiming } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { ReasoningEffortOption } from '@shared/types/aiSdk'
 import type { SerializedError } from '@shared/types/error'
-import { type UIMessageChunk } from 'ai'
+import type { UIMessageChunk } from 'ai'
 
 import { extractAgentSessionId, isAgentSessionTopic } from '../agentSession/topic'
 import { applyTurnOutputAttributes } from '../observability'
-import type { AiStreamRequest, CallOverrides, InProcessUsageContext } from '../types'
-import { buildCompactReplay } from './buildCompactReplay'
+import type { AiStreamRequest, CallOverrides, ContextOwner, InProcessUsageContext } from '../types'
+import { buildCompactReplay, mergeDeltaPayload, splitDeltaPayload } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context/dispatch'
 import { createChatStreamLifecycle } from './lifecycle/ChatStreamLifecycle'
 import { promptStreamLifecycle } from './lifecycle/PromptStreamLifecycle'
@@ -159,6 +160,7 @@ const DEFAULT_CONFIG: AiStreamManagerConfig = {
   backgroundMode: 'continue',
   maxBufferChunks: 10_000,
   maxDeferredOutputs: 64,
+  maxDeltaBytes: 16_384,
   // Generous (2 h) but bounded: a human can deliberate, yet a renderer that never responds (window
   // closed/crashed) can't leave the stream + subprocess hanging until app quit.
   approvalIdleTimeoutMs: 2 * 60 * 60 * 1000
@@ -173,8 +175,32 @@ function errorFromStreamChunk(errorText: string): SerializedError {
   return { name: 'StreamError', message: errorText, stack: null }
 }
 
+/**
+ * Append this turn's compaction anchors to an accumulated snapshot.
+ *
+ * The accumulator only sees provider chunks, and anchors are injected into the
+ * broadcast branch of the tee — so without this they render live and then
+ * disappear on reload. Matched by id so repeated snapshots (and a fold's
+ * `compacting` → `done` transition) update in place instead of duplicating.
+ * `data-*` parts never reach the model, so adding them cannot perturb the
+ * prompt bytes the provider caches.
+ */
+function withCompactionAnchors(message: CherryUIMessage, exec: StreamExecution): CherryUIMessage {
+  const anchors = exec.compactionAnchors
+  if (!anchors?.length) return message
+  const parts = [...message.parts]
+  for (const anchor of anchors) {
+    const part: CherryMessagePart = { type: 'data-compaction-anchor', id: anchor.id, data: anchor.data }
+    // Narrow on `type` before reading `id` — only data parts carry one.
+    const at = parts.findIndex((p) => p.type === 'data-compaction-anchor' && p.id === anchor.id)
+    if (at >= 0) parts[at] = part
+    else parts.push(part)
+  }
+  return { ...message, parts }
+}
+
 function ensureTerminalFinalMessage(exec: StreamExecution): CherryUIMessage {
-  if (exec.finalMessage) return exec.finalMessage
+  if (exec.finalMessage) return withCompactionAnchors(exec.finalMessage, exec)
 
   const finalMessage = {
     id: exec.anchorMessageId ?? randomUUID(),
@@ -630,6 +656,8 @@ export class AiStreamManager extends BaseService {
     listener: StreamListener | StreamListener[]
     /** Per-request overrides (sampling/tools/providerOptions) for assistant-less callers (API gateway). */
     callOverrides?: CallOverrides
+    /** Which layer owns history shaping; omitted means Cherry-managed. */
+    contextOwner?: ContextOwner
     /** Explicit reasoning selection; 'none' disables thinking when the model's wire profile supports off. */
     reasoningEffort?: ReasoningEffortOption
     /** Idle-chunk timeout (ms) for the upstream stream; resets per chunk. Defaults to `DEFAULT_TIMEOUT`. */
@@ -642,12 +670,14 @@ export class AiStreamManager extends BaseService {
         ? input.messages
         : [{ id: 'prompt-user', role: 'user', parts: [{ type: 'text', text: input.prompt ?? '' }] }]
 
+    const chatId = input.usageContext ? input.usageContext.agentSessionId : input.streamId
     const request: ManagedAiStreamRequest = {
-      chatId: input.streamId,
+      chatId,
       trigger: 'submit-message',
       uniqueModelId: input.uniqueModelId,
       messages,
       callOverrides: input.callOverrides,
+      contextOwner: input.contextOwner,
       reasoningEffort: input.reasoningEffort,
       ...(input.usageContext ? { usageContext: input.usageContext } : {}),
       ...(input.idleTimeoutMs !== undefined ? { requestOptions: { timeout: input.idleTimeoutMs } } : {})
@@ -885,6 +915,10 @@ export class AiStreamManager extends BaseService {
     const exec = stream.executions.get(modelId)
     if (!exec || (expectedExecution && exec !== expectedExecution)) return
 
+    const sourceModelId = modelId
+    const anchorMessageId = exec.anchorMessageId
+    const payload: StreamChunkPayload = { topicId, executionId: sourceModelId, anchorMessageId, chunk }
+
     // Authoritative approval-lifecycle capture, keyed by toolCallId so a sibling tool's output never
     // clears another tool's still-pending approval; `resolveTerminalStatus` reads the set's size.
     const hadPendingApprovals = (exec.pendingApprovalToolCallIds?.size ?? 0) > 0
@@ -915,16 +949,30 @@ export class AiStreamManager extends BaseService {
       stream.lifecycle.onApprovalPendingChanged(stream)
     }
 
-    const sourceModelId = modelId
-
     // Per-execution ring buffer — a chatty model can't push a slower one's
-    // replay out. Overflow drops oldest and bumps `droppedChunks`.
-    if (exec.buffer.length >= this.config.maxBufferChunks) {
-      exec.buffer.shift()
-      exec.droppedChunks += 1
+    // replay out. Eviction pauses while an approval is pending because the
+    // approval's tool-input chunks are still-operable state a reconnect must
+    // replay for the user to decide.
+    //
+    // Contiguous deltas of one part collapse into the buffer tail on ingest,
+    // so the cap counts protocol units (parts, tool events) rather than raw
+    // deltas — a delta flood can no longer evict its own part's opening chunk
+    // and leave the replay unparseable for `readUIMessageStream`. Oversized
+    // incoming deltas split first; ingest and attach share `maxDeltaBytes`.
+    const bufferLimit = Math.max(1, this.config.maxBufferChunks)
+    for (const segment of splitDeltaPayload(payload, this.config.maxDeltaBytes)) {
+      const tail = exec.buffer.at(-1)
+      const merged = tail ? mergeDeltaPayload(tail, segment, this.config.maxDeltaBytes) : undefined
+      if (merged) {
+        exec.buffer[exec.buffer.length - 1] = merged
+      } else {
+        if (exec.buffer.length >= bufferLimit && !exec.pendingApprovalToolCallIds?.size) {
+          exec.buffer.shift()
+          exec.droppedChunks += 1
+        }
+        exec.buffer.push(segment)
+      }
     }
-    const anchorMessageId = exec.anchorMessageId
-    exec.buffer.push({ topicId, executionId: sourceModelId, anchorMessageId, chunk })
 
     // Keeps stripped outputs resolvable until the message lands in SQLite. Bounded; an evicted
     // entry just falls through to the persisted copy.
@@ -1361,7 +1409,9 @@ export class AiStreamManager extends BaseService {
 
     const bufferedChunks: StreamChunkPayload[] = []
     for (const exec of stream.executions.values()) {
-      bufferedChunks.push(...buildCompactReplay(exec.buffer).map(projectStreamChunkPayloadForRenderer))
+      bufferedChunks.push(
+        ...buildCompactReplay(exec.buffer, this.config.maxDeltaBytes).map(projectStreamChunkPayloadForRenderer)
+      )
     }
     return { status: 'attached', bufferedChunks }
   }
@@ -1447,7 +1497,21 @@ export class AiStreamManager extends BaseService {
       rawStream = await aiService.streamText({
         ...request,
         requestOptions: { ...request.requestOptions, signal },
-        runtimeTimingSink: exec.runtimeTiming.sink
+        runtimeTimingSink: exec.runtimeTiming.sink,
+        // Compaction runs deep inside param-build / the tool loop, where the
+        // turn's chunk sink isn't reachable; hand it down as a closure (same
+        // shape as runtimeTimingSink) so the UI can show "compacting".
+        compactionSink: (anchorId, data) => {
+          // Broadcast for the live indicator…
+          this.onChunk(topicId, modelId, { type: 'data-compaction-anchor', id: anchorId, data } as UIMessageChunk, exec)
+          // …and record it, because the broadcast branch is NOT the accumulator
+          // branch (pipeStreamLoop tees the stream), so nothing here would
+          // otherwise reach the persisted message.
+          const anchors = (exec.compactionAnchors ??= [])
+          const at = anchors.findIndex((a) => a.id === anchorId)
+          if (at >= 0) anchors[at] = { id: anchorId, data }
+          else anchors.push({ id: anchorId, data })
+        }
       })
     } catch (err) {
       if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })
@@ -1483,7 +1547,7 @@ export class AiStreamManager extends BaseService {
       },
       accumulatorSeed,
       onAccumulatedSnapshot: (msg) => {
-        exec.finalMessage = msg
+        exec.finalMessage = withCompactionAnchors(msg, exec)
       }
     })
 

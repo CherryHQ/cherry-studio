@@ -1,3 +1,4 @@
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -5,6 +6,7 @@ import {
   type McpFormValues,
   resolveMcpConfigInstallSource,
   resolveMcpConfigTransportType,
+  toMcpFormDefaultValues,
   toMcpServerFields
 } from '../McpServerFields'
 
@@ -41,6 +43,47 @@ describe('toMcpServerFields', () => {
     })
 
     expect(toMcpServerFields(values).headers).toEqual({})
+  })
+})
+
+describe('toMcpFormDefaultValues', () => {
+  it('maps persisted server values into the initial form state', () => {
+    const server = {
+      id: '6559f6b3-0f0e-4dc7-aab8-8f0906a9eaa3',
+      name: 'Remote server',
+      type: 'streamableHttp',
+      baseUrl: 'https://example.com/mcp',
+      isActive: false
+    } satisfies McpServer
+
+    expect(toMcpFormDefaultValues(server)).toMatchObject({
+      name: 'Remote server',
+      serverType: 'streamableHttp',
+      baseUrl: 'https://example.com/mcp'
+    })
+  })
+
+  it('leaves a missing server type unset instead of guessing from the URL', () => {
+    const server = {
+      id: '756b5a35-63f0-43d5-ab5f-163619d8798b',
+      name: 'Legacy remote server',
+      baseUrl: 'https://example.com/sse',
+      isActive: false
+    } satisfies McpServer
+
+    expect(toMcpFormDefaultValues(server).serverType).toBeUndefined()
+  })
+
+  it('normalizes the legacy online-package built-in transport without guessing other missing types', () => {
+    const server = {
+      id: '7676dffa-53d7-4c35-abbb-e30cd9b27169',
+      name: '@cherry/mcp-auto-install',
+      type: 'inMemory',
+      command: 'npx',
+      isActive: false
+    } satisfies McpServer
+
+    expect(toMcpFormDefaultValues(server).serverType).toBe('stdio')
   })
 })
 

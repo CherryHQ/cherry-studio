@@ -148,7 +148,6 @@ interface MockBrowserWindow extends EventEmitter {
     reload: ReturnType<typeof vi.fn>
     on: ReturnType<typeof vi.fn>
     setWindowOpenHandler: ReturnType<typeof vi.fn>
-    session: { webRequest: { onHeadersReceived: ReturnType<typeof vi.fn> } }
   }
 }
 
@@ -170,8 +169,7 @@ function createMockWindow(): MockBrowserWindow {
     reload: vi.fn(),
     // capture render-process-gone listener for crash-recovery tests
     on: vi.fn(),
-    setWindowOpenHandler: vi.fn(),
-    session: { webRequest: { onHeadersReceived: vi.fn() } }
+    setWindowOpenHandler: vi.fn()
   }
   return win
 }

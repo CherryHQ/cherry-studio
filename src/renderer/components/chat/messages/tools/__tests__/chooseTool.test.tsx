@@ -47,8 +47,9 @@ describe('chooseTool', () => {
     expect(testIdOf(chooseTool(resp('web_search')))).toBe('web-card')
   })
 
-  it('renders no card for a provider-side web_search (the provider already shows results inline)', () => {
-    expect(chooseTool(resp('web_search', 'provider'))).toBeNull()
+  it('routes provider-executed web search wire names to the web card', () => {
+    expect(testIdOf(chooseTool(resp('web_search', 'provider')))).toBe('web-card')
+    expect(testIdOf(chooseTool(resp('webSearch', 'provider')))).toBe('web-card')
   })
 
   it('routes chat and agent generate_image responses to the image card', () => {

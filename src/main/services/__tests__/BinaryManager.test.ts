@@ -95,7 +95,8 @@ vi.mock('@main/utils/shellEnv', () => ({
 
 vi.mock('@main/utils/commandResolver', () => ({
   findCommandInShellEnv: vi.fn(async () => null),
-  findExecutable: vi.fn(() => null)
+  findExecutable: vi.fn(() => null),
+  findMiseExecutable: vi.fn(async () => null)
 }))
 
 vi.mock('node:util', async (importOriginal) => {
@@ -105,7 +106,7 @@ vi.mock('node:util', async (importOriginal) => {
 
 const { BinaryManager, validateBinaryToolDefinition } = await import('../BinaryManager')
 const { application } = await import('@application')
-const { findCommandInShellEnv } = await import('@main/utils/commandResolver')
+const { findCommandInShellEnv, findExecutable, findMiseExecutable } = await import('@main/utils/commandResolver')
 const { getRawShellEnv, refreshShellEnv } = await import('@main/utils/shellEnv')
 const { MockMainCacheServiceUtils } = await import('@test-mocks/main/CacheService')
 const { getBinaryExecutionEnv, getBinaryIsolatedHomeEnv } = await import('@main/utils/binaryEnv')
@@ -159,6 +160,8 @@ describe('BinaryManager', () => {
     mockFsp.access.mockReset().mockResolvedValue(undefined)
     mockFsp.realpath.mockReset().mockImplementation(async (candidate: string) => candidate)
     vi.mocked(findCommandInShellEnv).mockReset().mockResolvedValue(null)
+    vi.mocked(findExecutable).mockReset().mockReturnValue(null)
+    vi.mocked(findMiseExecutable).mockReset().mockResolvedValue(null)
     vi.mocked(getRawShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     vi.mocked(refreshShellEnv).mockReset().mockResolvedValue({ PATH: '/usr/local/bin:/usr/bin' })
     manifestRef.value = []
@@ -180,6 +183,18 @@ describe('BinaryManager', () => {
     it('is registered as Background phase', () => {
       expect(getPhase(BinaryManager)).toBe(Phase.Background)
     })
+  })
+
+  it('uses the bounded asynchronous Windows resolver to find a system mise executable', async () => {
+    platformMock.isWin = true
+    const misePath = 'D:\\开发工具\\mise\\mise.exe'
+    vi.mocked(findMiseExecutable).mockResolvedValue(misePath)
+
+    const service = new BinaryManager()
+
+    await expect((service as any).findMiseBin()).resolves.toBe(misePath)
+    expect(findMiseExecutable).toHaveBeenCalledOnce()
+    expect(findExecutable).not.toHaveBeenCalled()
   })
 
   it('starts the process-wide shell environment capture without awaiting it', async () => {
@@ -1761,7 +1776,9 @@ describe('BinaryManager', () => {
 
       await expect((service as any).applyDefinition({ name: 'fd', tool: 'fd' }, '10.0.0', [])).resolves.toBeUndefined()
 
-      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual(['use', '-g', 'fd@10.0.0'])
+      const miseArgs = mockExecFileAsync.mock.calls.map((call: any[]) => call[1])
+      expect(miseArgs).toContainEqual(['use', '-g', 'fd@10.0.0'])
+      expect(miseArgs).toContainEqual(['prune', 'fd'])
       expect(mockPreferenceService.set).not.toHaveBeenCalled()
     })
 
@@ -1778,6 +1795,22 @@ describe('BinaryManager', () => {
       await expect((service as any).applyDefinition({ name: 'fd', tool: 'fd' }, undefined, [])).rejects.toThrow(
         'not runnable'
       )
+    })
+
+    it('keeps a verified update successful when obsolete-version cleanup fails', async () => {
+      const service = new BinaryManager()
+      ;(service as any).miseBin = '/mock/mise'
+      ;(service as any).isolatedEnv = {}
+      mockExecFileAsync.mockImplementation(async (_bin: string, args: string[]) => {
+        if (args[0] === 'ls') return { stdout: JSON.stringify({ fd: [{ version: '10.0.0' }] }), stderr: '' }
+        if (args[0] === 'which') return { stdout: '/mock/mise/shims/fd\n', stderr: '' }
+        if (args[0] === 'prune') throw new Error('cleanup failed')
+        return { stdout: '', stderr: '' }
+      })
+
+      await expect((service as any).applyDefinition({ name: 'fd', tool: 'fd' }, '10.0.0', [])).resolves.toBeUndefined()
+
+      expect(mockExecFileAsync.mock.calls.map((call: any[]) => call[1])).toContainEqual(['prune', 'fd'])
     })
   })
 

@@ -425,7 +425,6 @@ describe('HistoryRecordsView agent mode', () => {
         joplin: true,
         markdown: true,
         markdown_reason: true,
-        notes: true,
         notion: true,
         obsidian: true,
         plain_text: true,

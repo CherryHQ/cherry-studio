@@ -9,7 +9,6 @@ import {
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { TabLruManager } from '@renderer/services/TabLruManager'
 import { getDefaultRouteTitle, isPageTitledRoute, isTopLevelRoute } from '@renderer/utils/routeTitle'
-import { resolveSidebarAppTabEntryUrl } from '@renderer/utils/sidebar'
 import type { Tab, TabSavedState } from '@shared/data/cache/cacheValueTypes'
 import type { ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -534,10 +533,7 @@ export function TabsProvider({
       if (!tab) return
 
       // Send IPC message to create new window
-      void ipcApi.request('tab.detach', {
-        ...tab,
-        url: resolveSidebarAppTabEntryUrl(tab)
-      })
+      void ipcApi.request('tab.detach', tab)
 
       // Remove tab from current window — closeTab handles both pinned and normal tabs
       closeTab(tabId)

@@ -1,21 +1,30 @@
 import { application } from '@application'
+import type { EmbeddingModelDir } from '@main/ai/inference/inferenceProtocol'
 import { LOCAL_MODELS } from '@main/ai/inference/localModelCatalog'
-import { defaultModelSourceId, getModelSource } from '@main/ai/inference/modelSource'
-import { regionService } from '@main/services/RegionService'
+import { localEmbeddingDownloadService } from '@main/services/localModel'
 
-/** Default download source, picked from the egress region (China → ModelScope) — same signal BinaryManager uses for its mirrors. */
-export async function currentModelSource() {
-  const inChina = await regionService.isInChina().catch(() => false)
-  return getModelSource(defaultModelSourceId(inChina))
+/**
+ * The cached model's directory, for loading it straight off disk. Resolving it here — from
+ * the download service's own on-disk probe — rather than handing the worker a list of mirror
+ * revisions to try means a missing cache fails in the main process with a clear message,
+ * instead of surfacing as a transformers.js resolution error per candidate.
+ */
+export function currentModelDir(): EmbeddingModelDir {
+  const modelDir = localEmbeddingDownloadService.completeCacheDir()
+  if (!modelDir) {
+    throw new Error('the local embedding model is not fully downloaded')
+  }
+  return modelDir
 }
 
 /**
  * Embed texts on the inference worker (off the main thread). Pooling and
  * normalization run inside the worker; this is a thin main-process entry point.
- * The first call downloads the model if it is not cached yet.
+ * Model files must already be downloaded; inference never fetches missing files.
  */
 export async function embedTexts(texts: string[], signal?: AbortSignal): Promise<number[][]> {
   if (texts.length === 0) return []
-  const { repo, dtype } = LOCAL_MODELS.embedding
-  return application.get('EmbeddingInferenceService').embed(texts, await currentModelSource(), repo, dtype, signal)
+  return application
+    .get('EmbeddingInferenceService')
+    .embed(texts, currentModelDir(), LOCAL_MODELS.embedding.dtype, signal)
 }

@@ -151,6 +151,31 @@ After all phases complete:
 | `onPause()`    | When the service is being paused (requires `Pausable`)   | Yes          |
 | `onResume()`   | When the service is being resumed (requires `Pausable`)  | Yes          |
 
+#### Teardown time contract
+
+| Path | Ceiling |
+| ---- | ------- |
+| Shutdown (`stopAll()` / `destroyAll()`) | `SERVICE_STOP_TIMEOUT_MS` (5s), per service, per pass |
+| Runtime (`stop()` / `restart()`) | none |
+
+**Expiry abandons the wait, it does not cancel the hook.** The framework logs, records the service in the pass summary, and moves on; the hook keeps running. What is true *at the deadline*:
+
+| Timed-out hook | State at the deadline | Not emitted | Then |
+| -------------- | --------------------- | ----------- | ---- |
+| `onStop()` | `Stopping`, set on entry; disposables not yet cleaned | `SERVICE_STOPPED` | `destroyAll()` skips a service whose stop is still in flight |
+| `onDestroy()` | **whatever it was before the call** — `_doDestroy` writes no state until it finishes. `Stopped` after a normal stop, `Stopping` after a failed one, `Ready` when `destroyAll()` runs without a preceding stop (bootstrap aborted before `stopAll` had anything to do) | `SERVICE_DESTROYED` | nothing further; the pass is over |
+
+An abandoned hook that settles later completes its own teardown, but how far depends on **how** it settles:
+
+| Settles | `_doStop()` | `_doDestroy()` |
+| ------- | ----------- | -------------- |
+| Fulfilled | disposes, then → `Stopped` | disposes, then → `Destroyed` |
+| Rejected | disposes (the call sits in a `finally`), state stays `Stopping` | neither — no disposal, state unchanged |
+
+In all four cases **the recorded outcome stands**: no event fires and the summary is not amended. Whether a late-settling `onStop()` still gets its `onDestroy()` is therefore a race against `destroyAll()` reaching that service, and must not be relied on.
+
+The ceiling only bounds *async waits*. A synchronously blocking hook — a sync `fs` call, a long loop — cannot be preempted by a timer and still hangs the process, as does the whole-shutdown fuse (`SHUTDOWN_TIMEOUT_MS`). Timing also starts at the hook's first `await`, so a long synchronous prefix pushes the real bound past 5s.
+
 ### Automatic Resource Cleanup
 
 BaseService uses a single unified Disposable tracking mechanism. All resources — IPC handlers, event subscriptions, recurring timers, signals, cleanup functions — are tracked as Disposables and cleaned up together during the stop lifecycle.
@@ -169,6 +194,13 @@ Cleanup flow:
 ```
 onStop() → all disposables disposed → state = Stopped
 ```
+
+Both arrows follow `onStop()` settling, whichever way it settles:
+
+- **`onStop()` throws** — disposal still runs (its call sits in a `finally`); only the `Stopped` transition is skipped, so the state is left at `Stopping`. `onDestroy()` still runs: nothing is executing underneath it.
+- **`onStop()` is abandoned at the ceiling** — neither arrow has run *yet*. `_doDestroy` skips a service whose stop is still in flight, rather than tearing down resources that stop may still be using. If the hook settles later, disposal runs then, and the `Stopped` transition too if it resolved rather than threw — see the teardown time contract above.
+
+Note the predicate: **stop still in flight**, not `state === Stopping`. Both cases land on `Stopping`, but only one of them still has something running.
 
 `_doDestroy` is idempotent — calling it on an already-destroyed service is a safe no-op.
 
@@ -194,7 +226,7 @@ class BackgroundReporterService extends BaseService {
 - `ALL_SERVICES_READY` is emitted **immediately after all hooks have been invoked**, not after they finish. Listeners MUST NOT assume `onAllReady` side effects have completed when this event fires.
 - Called at most once per service instance — `restart()` does **not** re-trigger it (guarded by `_allReadyCalled`).
 - Errors thrown synchronously or via the returned Promise are caught by an async `.catch` in the framework, logged, and emitted as `SERVICE_ERROR` (in a microtask) — they never propagate to bootstrap.
-- **Do not `await` long-running business work directly in `onAllReady`.** Because the framework no longer awaits the hook, in-hook `await`s become silent background work. If a service needs deferred business work (e.g. a quiet window then recovery), schedule it via `setTimeout`, track the resulting Promise on the instance, and join it from `onStop`. See [Lifecycle Usage — onAllReady patterns](./lifecycle-usage.md#onallready-business-work-pattern).
+- **Do not `await` long-running business work directly in `onAllReady`.** Because the framework no longer awaits the hook, in-hook `await`s become silent background work. If a service needs deferred business work (e.g. a quiet window then recovery), schedule it via `setTimeout`, track the resulting Promise on the instance, and join it from `onStop`. That join is bounded on the shutdown path — see [Lifecycle Usage — onAllReady patterns](./lifecycle-usage.md#onallready-business-work-pattern).
 
 ### `onAllReady` Hook vs `ALL_SERVICES_READY` Event
 

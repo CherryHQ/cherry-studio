@@ -133,7 +133,7 @@ const PopupContainer: React.FC<Props> = ({ open, resolve }) => {
                       ref={fileInputRef}
                       className="hidden"
                       type="file"
-                      accept="image/png, image/jpeg, image/gif"
+                      accept="image/png, image/jpeg, image/gif, image/webp"
                       onChange={(event) => {
                         const file = event.target.files?.[0]
                         event.target.value = ''

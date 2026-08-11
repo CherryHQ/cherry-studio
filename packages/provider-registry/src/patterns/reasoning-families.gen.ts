@@ -11,6 +11,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // alibaba
   { pattern: '^qwen3-(?=.*(?:coder|instruct))', toggle: false, template: true },
   { pattern: '^qwen3(?:-vl)?-.*thinking', toggle: false },
+  { pattern: '^qwen3[.-]8-max-preview', toggle: false },
   { pattern: '^qwq|^qvq', toggle: false },
   { pattern: '^qwen', toggle: true, template: true },
   { pattern: 'qwen3-235b-a22b-thinking-2507$', budget: { min: 0, max: 81920 }, template: true },
@@ -26,8 +27,8 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'qwen-flash.*$', budget: { min: 0, max: 81920 }, template: true },
   { pattern: 'qwen3-max(-.*)?$', budget: { min: 0, max: 81920 }, template: true },
   { pattern: 'qwen-max-latest$', budget: { min: 0, max: 81920 }, template: true },
-  { pattern: '^qwen3[.-][5-9](?!\\d)', budget: { min: 0, max: 81920 }, template: true },
-  { pattern: 'qwen3-(?!max).*$', budget: { min: 1024, max: 38912 }, template: true },
+  { pattern: '^qwen3[.-][5-7](?!\\d)', budget: { min: 0, max: 81920 }, template: true },
+  { pattern: 'qwen3-(?!max)(?!\\d+[.-]max).*$', budget: { min: 1024, max: 38912 }, template: true },
   { pattern: '^qwen3.*thinking' },
   { pattern: 'qwq|qvq' },
   { pattern: '^(?!.*(?:coder|asr|tts|reranker|embedding|instruct|thinking))qwen-?3[.-][5-9](?!\\d)' },
@@ -44,14 +45,20 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   // amazon
   { pattern: '^nova-2' },
   // anthropic
-  { pattern: '^(?:anthropic\\.)?claude-fable', effort: ['low', 'medium', 'high', 'max'], toggle: false },
+  {
+    pattern: '^(?:anthropic\\.)?claude-fable',
+    effort: ['low', 'medium', 'high', 'max'],
+    toggle: false,
+    wireDialect: 'effort'
+  },
   {
     pattern:
       '^(?:anthropic\\.)?claude-(?:(?:opus|sonnet|haiku)-(?:4[.-][6-9]|[5-9])(?!\\d)|(?:opus|sonnet|haiku)-latest)',
     effort: ['low', 'medium', 'high', 'max'],
-    toggle: true
+    toggle: true,
+    wireDialect: 'effort'
   },
-  { pattern: '^(?:anthropic\\.)?claude', toggle: true, template: true },
+  { pattern: '^(?:anthropic\\.)?claude', toggle: true, wireDialect: 'budget', template: true },
   {
     pattern: '(?:anthropic\\.)?claude-opus-4[.-]7(?:[@\\-:][\\w\\-:]+)?$',
     budget: { min: 1024, max: 128000 },
@@ -133,6 +140,10 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'deepseek-v(?:[4-9]\\d*|[1-9]\\d{1,})(?:\\.\\d+)?(?:-[\\w]+)*(?=$|[:/])' },
   { pattern: 'deepseek-v3\\.2-speciale' },
   // google
+  { pattern: '^gemini-2', wireDialect: 'budget', template: true },
+  { pattern: '^gemini-omni', wireDialect: 'budget', template: true },
+  { pattern: '^gemini-robotics', wireDialect: 'budget', template: true },
+  { pattern: '^gemini-(?:3|flash-latest|pro-latest|flash-lite-latest)', wireDialect: 'effort', template: true },
   { pattern: '^gemma-?4', toggle: true },
   {
     pattern: '^gemini-3(?:\\.\\d+)?-flash|^gemini-3\\.1-flash-lite|^gemini-flash-latest',
@@ -156,6 +167,7 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
       '^(?!.*tts).*gemini-(?:2[.-]5.*(?:-latest)?|3(?:[.-]\\d+)?-(?:flash|pro)(?:-preview)?|flash-latest|pro-latest|flash-lite-latest)(?:-[\\w-]+)*$'
   },
   { pattern: '^gemini-omni-flash' },
+  { pattern: '^gemini-robotics' },
   { pattern: 'gemma-?4' },
   // inception
   { pattern: '^mercury-2' },

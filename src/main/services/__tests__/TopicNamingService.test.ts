@@ -128,10 +128,13 @@ describe('TopicNamingService', () => {
 
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        assistantId: 'assistant-1',
         uniqueModelId: 'openai::gpt-4o-mini'
       })
     )
+    // A naming request must never carry the assistant id — buildAgentParams would
+    // otherwise attach the assistant's tool configuration (MCP / web search /
+    // knowledge bases) onto the throwaway title request.
+    expect(mocks.generateText.mock.calls[0][0]).not.toHaveProperty('assistantId')
     expect(mocks.updateTopic).toHaveBeenCalledWith('topic-1', {
       name: 'Generated Title',
       isNameManuallyEdited: false
@@ -164,10 +167,10 @@ describe('TopicNamingService', () => {
 
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        assistantId: undefined,
         uniqueModelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
       })
     )
+    expect(mocks.generateText.mock.calls[0][0]).not.toHaveProperty('assistantId')
   })
 
   it('falls back to the managed CherryAI default when topic naming model preference is invalid', async () => {
@@ -184,7 +187,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id is invalid; falling back to managed CherryAI default model',
+      'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
       { configured: 'bad-value' }
     )
   })
@@ -207,7 +210,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id points to a missing model; falling back to managed CherryAI default model',
+      'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
       { configured: 'ghost::missing' }
     )
   })
@@ -228,10 +231,10 @@ describe('TopicNamingService', () => {
 
     expect(mocks.generateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        assistantId: 'agent-1',
         uniqueModelId: 'openai::gpt-4o-mini'
       })
     )
+    expect(mocks.generateText.mock.calls[0][0]).not.toHaveProperty('assistantId')
     expect(mocks.updateSession).toHaveBeenCalledWith('session-1', {
       name: 'Generated Title',
       isNameManuallyEdited: false
@@ -597,7 +600,7 @@ describe('TopicNamingService', () => {
       })
     )
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
-      'topic.naming.model_id points to an external-CLI (agent-only) provider; falling back to managed CherryAI default model',
+      'topic.naming.model_id is not usable (invalid, missing, or agent-only provider); falling back to quick assistant model',
       { configured: 'claude-code::haiku' }
     )
   })

@@ -20,6 +20,7 @@ import { defaultMessageRenderConfig, type MessageListItem, type MessageUiState }
 import { getEffectiveMultiModelMessageStyle, isAssistantMultiModelGroup } from '../utils/messageGroupLayout'
 import { isMessageListItemProcessing } from '../utils/messageListItem'
 import MessageGroupMenuBar from './MessageGroupMenuBar'
+import { useScrollRuntimeNavigation } from './ScrollOwnershipContext'
 
 const logger = loggerService.withContext('MessageGroup')
 const EMPTY_MESSAGE_PARTS: CherryMessagePart[] = []
@@ -69,6 +70,7 @@ const MessageGroup = ({
   const multiModelMessageStyleSetting = renderConfig.multiModelMessageStyle
   const gridPopoverTrigger = renderConfig.multiModelGridPopoverTrigger
   const { setTimeoutTimer } = useTimer()
+  const navigateWithScrollRuntime = useScrollRuntimeNavigation()
   const isMultiSelectMode = selection?.isMultiSelectMode ?? false
   const getMessageUiState = useCallback(
     (messageId: string) => messageUi.getMessageUiState?.(messageId) ?? {},
@@ -161,13 +163,15 @@ const MessageGroup = ({
         () => {
           const messageElement = document.getElementById(`message-${message.id}`)
           if (messageElement) {
-            scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
+            if (!navigateWithScrollRuntime(messageElement)) {
+              scrollIntoView(messageElement, { behavior: 'smooth', block: 'start', container: 'nearest' })
+            }
           }
         },
         200
       )
     },
-    [actions, selectedMessageId, setTimeoutTimer, updateMessageUiState]
+    [actions, navigateWithScrollRuntime, selectedMessageId, setTimeoutTimer, updateMessageUiState]
   )
   // 添加对流程图节点点击事件的监听
   useEffect(() => {
@@ -221,11 +225,13 @@ const MessageGroup = ({
             return
           }
 
-          scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
+          if (!navigateWithScrollRuntime(element)) {
+            scrollIntoView(element, { behavior: 'smooth', block: 'start', container: 'nearest' })
+          }
         }
       }
     )
-  }, [actions, captureMode, messages, setSelectedMessage])
+  }, [actions, captureMode, messages, navigateWithScrollRuntime, setSelectedMessage])
 
   useEffect(() => {
     if (captureMode) return
@@ -300,7 +306,7 @@ const MessageGroup = ({
         isGrouped,
         isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         isLatestAssistantMessage: isLatestAssistantGroup && message.role === 'assistant',
-        showModelIdentity: isMultiModelGroup && multiModelMessageStyle !== 'fold',
+        showModelIdentity: !isMultiModelGroup || multiModelMessageStyle !== 'fold',
         lockedMentionedModels: directAssistantModelsByUserId?.get(message.id),
         messageTail: messageTail?.messageId === message.id ? messageTail.content : undefined,
         message,

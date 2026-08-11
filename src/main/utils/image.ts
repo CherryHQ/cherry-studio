@@ -1,5 +1,3 @@
-import sharp from 'sharp'
-
 /** Target square dimension for normalized entity images (avatar / logo). */
 const ENTITY_IMAGE_DIMENSION = 128
 /** Decode-work bound: a small file can still declare huge dimensions (bomb). */
@@ -13,6 +11,8 @@ const MAX_ENTITY_INPUT_PIXELS = 100_000_000
  * decides how to react).
  */
 export async function transcodeToEntityWebp(bytes: Uint8Array): Promise<Buffer> {
+  // Delayed loading: a static import would map sharp's multi-MB libvips native library at boot.
+  const sharp = (await import('sharp')).default
   // Only the first frame of an animated GIF is used — fine for a 128² entity image.
   return sharp(bytes, { limitInputPixels: MAX_ENTITY_INPUT_PIXELS })
     .resize(ENTITY_IMAGE_DIMENSION, ENTITY_IMAGE_DIMENSION, { fit: 'cover' })

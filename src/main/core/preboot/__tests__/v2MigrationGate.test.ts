@@ -222,7 +222,7 @@ describe('runV2MigrationGate', () => {
 
       expect(result).toBe('handled')
       expect(registerMigrationIpcHandlersMock).toHaveBeenCalledTimes(1)
-      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith('/mock/userData')
+      expect(registerMigrationIpcHandlersMock).toHaveBeenCalledWith(defaultMigrationPaths)
       expect(migrationWindowCreateMock).toHaveBeenCalledTimes(1)
       expect(migrationWindowWaitForReadyMock).toHaveBeenCalledTimes(1)
       // Success path should NOT unregister handlers — the migration window

@@ -80,12 +80,13 @@ async function getGatewayUsageNormalizeMiddleware(): Promise<LanguageModelMiddle
 describe('AiUsageRecordService', () => {
   const dbh = setupTestDatabase()
 
-  it('replaces projection fields while preserving legacy message timing', () => {
+  it('replaces projection fields while preserving message-owned stats', () => {
     expect(
       mergeMessageUsageProjection(
         {
           totalTokens: 999,
           requestCount: 9,
+          contextTokens: 11,
           timeCompletionMs: 750
         },
         {
@@ -96,6 +97,7 @@ describe('AiUsageRecordService', () => {
     ).toEqual({
       totalTokens: 12,
       requestCount: 1,
+      contextTokens: 11,
       timeCompletionMs: 750
     })
   })
@@ -640,6 +642,7 @@ describe('AiUsageRecordService', () => {
         }
       },
       {
+        contextTokens: 321,
         runtimeTiming: {
           startedAt: 1_000,
           completedAt: 4_000,
@@ -659,6 +662,7 @@ describe('AiUsageRecordService', () => {
     expect(merged).toMatchObject({
       outputTokens: 20,
       providerPerformance: { measuredOutputTokens: 20, generationDurationMs: 500 },
+      contextTokens: 321,
       runtimeTiming: {
         startedAt: 1_000,
         completedAt: 4_000,

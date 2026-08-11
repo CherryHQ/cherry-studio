@@ -17,16 +17,51 @@ function parseResultUrl(url: string): { hostname: string; domain: string } {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/** Display target emitted by provider-executed Responses web search tools. */
+function getProviderWebSearchTarget(response: unknown): string {
+  if (!isRecord(response) || !isRecord(response.action)) return ''
+
+  const action = response.action
+  switch (action.type) {
+    case 'search':
+      return typeof action.query === 'string' ? action.query : ''
+    case 'openPage':
+      return typeof action.url === 'string' ? action.url : ''
+    case 'findInPage':
+      if (typeof action.pattern === 'string' && action.pattern) return action.pattern
+      return typeof action.url === 'string' ? action.url : ''
+    default:
+      return ''
+  }
+}
+
 const MessageWebSearchToolLabel = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const { t } = useTranslation()
   const inputParse = webSearchInputSchema.safeParse(toolResponse.arguments)
   const outputParse = webSearchOutputSchema.safeParse(toolResponse.response)
-  const query = inputParse.success ? inputParse.data.query : ''
-  const resultCount = outputParse.success ? outputParse.data.length : 0
-  const resultText =
-    resultCount === 0
+  const query = inputParse.success ? inputParse.data.query : getProviderWebSearchTarget(toolResponse.response)
+  // A tool can share the `web_search` wire name without sharing our result shape: Kimi's official
+  // formula returns an opaque (encrypted) payload its own platform resolves. An unparseable output
+  // means we do not KNOW the count — reporting zero claimed the search found nothing when it had.
+  const resultText = !outputParse.success
+    ? t('message.websearch.fetch_opaque')
+    : outputParse.data.length === 0
       ? t('message.websearch.fetch_empty')
-      : t('message.websearch.fetch_complete', { count: resultCount })
+      : t('message.websearch.fetch_complete', { count: outputParse.data.length })
+
+  // Only in-flight states get the spinner; an errored call must not spin forever.
+  if (toolResponse.status === 'error') {
+    return (
+      <span className="flex min-w-0 flex-1 items-center justify-between gap-3 py-0.5 text-[13px] text-muted-foreground leading-5">
+        <span className="min-w-0 truncate">{query}</span>
+        <span className="shrink-0 text-danger">{t('message.tools.error')}</span>
+      </span>
+    )
+  }
 
   if (toolResponse.status !== 'done') {
     return (

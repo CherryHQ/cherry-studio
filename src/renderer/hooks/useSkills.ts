@@ -35,9 +35,10 @@ function reportSkillMutationError(action: string, error: unknown): string {
   return message
 }
 
-function reportAndRethrowSkillMutationError(action: string, error: unknown): never {
-  reportSkillMutationError(action, error)
-  throw error instanceof Error ? error : new Error(skillErrorMessage(error))
+function logAndRethrowSkillMutationError(action: string, error: unknown): never {
+  const message = skillErrorMessage(error)
+  logger.error(`Failed to ${action}`, { error: message })
+  throw error instanceof Error ? error : new Error(message)
 }
 
 async function refreshSkillsBestEffort(invalidate: ReturnType<typeof useInvalidateCache>): Promise<void> {
@@ -97,9 +98,6 @@ export function useReconcileSkillsOnOpen(enabled: boolean): void {
  */
 export function useInstalledSkills(agentId?: string, options: { enabled?: boolean } = {}) {
   const enabled = options.enabled !== false
-  // Reconcile on open here too, so a skill authored/installed by an agent is visible on the agent
-  // edit dialog's Skills tab — not only in the global resource library.
-  useReconcileSkillsOnOpen(enabled)
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
     enabled,
     ...(agentId ? { query: { agentId } } : {})
@@ -145,11 +143,13 @@ function buildAvailableSkills(globalSkills: readonly InstalledSkill[], localSkil
   return available
 }
 
-export function useAvailableSkills(agentId?: string, workdir?: string) {
-  const installed = useInstalledSkills(agentId)
+export function useAvailableSkills(agentId?: string, workdir?: string, options: { enabled?: boolean } = {}) {
+  const enabled = options.enabled ?? true
+  const installed = useInstalledSkills(agentId, { enabled })
   const [localSkills, setLocalSkills] = useState<LocalSkill[]>([])
   const [localLoading, setLocalLoading] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [loadedLocalSkillsWorkdir, setLoadedLocalSkillsWorkdir] = useState<string>()
   const localRequestIdRef = useRef(0)
   const nextLocalRequestId = useCallback(() => {
     localRequestIdRef.current += 1
@@ -165,6 +165,7 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
       setLocalSkills([])
       setLocalError(null)
       setLocalLoading(false)
+      setLoadedLocalSkillsWorkdir(undefined)
       return
     }
 
@@ -174,12 +175,16 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
     try {
       const result = await ipcApi.request('skill.list_local', { workdir })
       const data = unwrapSkillResult(result)
-      if (requestId === localRequestIdRef.current) setLocalSkills(data)
+      if (requestId === localRequestIdRef.current) {
+        setLocalSkills(data)
+        setLoadedLocalSkillsWorkdir(workdir)
+      }
     } catch (error) {
       if (requestId !== localRequestIdRef.current) return
       const message = skillErrorMessage(error)
       setLocalSkills([])
       setLocalError(message)
+      setLoadedLocalSkillsWorkdir(workdir)
       logger.warn('Failed to list local skills', { workdir, error: message })
     } finally {
       if (requestId === localRequestIdRef.current) setLocalLoading(false)
@@ -187,10 +192,19 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
   }, [nextLocalRequestId, workdir])
 
   useEffect(() => {
+    if (!enabled) {
+      invalidateLocalRequests()
+      setLocalSkills([])
+      setLocalError(null)
+      setLocalLoading(false)
+      setLoadedLocalSkillsWorkdir(undefined)
+      return
+    }
+
     void refreshLocalSkills()
 
     return invalidateLocalRequests
-  }, [invalidateLocalRequests, refreshLocalSkills])
+  }, [enabled, invalidateLocalRequests, refreshLocalSkills])
 
   const refreshInstalledSkills = installed.refresh
   const refresh = useCallback(async () => {
@@ -198,10 +212,11 @@ export function useAvailableSkills(agentId?: string, workdir?: string) {
   }, [refreshInstalledSkills, refreshLocalSkills])
 
   const skills = useMemo(() => buildAvailableSkills(installed.skills, localSkills), [installed.skills, localSkills])
+  const isInitialLocalLoad = enabled && Boolean(workdir) && loadedLocalSkillsWorkdir !== workdir
 
   return {
     skills,
-    loading: installed.loading || localLoading,
+    loading: installed.loading || localLoading || isInitialLocalLoad,
     error: installed.error ?? localError,
     refresh
   }
@@ -381,7 +396,7 @@ export function useSkillInstall() {
         await refreshSkillsBestEffort(invalidate)
         return skill
       } catch (error) {
-        reportAndRethrowSkillMutationError('install skill from zip', error)
+        logAndRethrowSkillMutationError('install skill from zip', error)
       } finally {
         finishInstalling('zip')
       }
@@ -397,7 +412,7 @@ export function useSkillInstall() {
         await refreshSkillsBestEffort(invalidate)
         return skill
       } catch (error) {
-        reportAndRethrowSkillMutationError('install skill from directory', error)
+        logAndRethrowSkillMutationError('install skill from directory', error)
       } finally {
         finishInstalling('directory')
       }

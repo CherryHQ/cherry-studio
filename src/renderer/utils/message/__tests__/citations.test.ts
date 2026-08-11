@@ -119,6 +119,48 @@ describe('resolveMessageCitations', () => {
     expect(mc.byId.get('t9k-2')).toMatchObject({ number: 2, url: 'https://b.com/y' })
   })
 
+  it('resolves citations from the skeleton of a bare entities envelope (cold load)', () => {
+    const mc = resolveMessageCitations([
+      webToolPart({
+        $persistedToolOutput: {
+          shape: 'entities',
+          skeleton: webResults('env'),
+          blobRefs: [
+            {
+              key: '/0/content',
+              fileEntryId: 'entry-1',
+              vfsFilename: 'vfs_1.txt',
+              head: 'h',
+              tail: 't',
+              totalChars: 100_000,
+              totalLines: 2_000
+            }
+          ]
+        }
+      })
+    ])
+    expect(mc.byId.get('env-1')).toMatchObject({ number: 1, url: 'https://a.com/x', type: 'websearch' })
+    expect(mc.byId.get('env-2')).toMatchObject({ number: 2, url: 'https://b.com/y' })
+  })
+
+  it('resolves citations from the skeleton riding a deferred reference (transport)', () => {
+    const mc = resolveMessageCitations([
+      webToolPart({
+        $deferredToolResult: { topicId: 'topic-1', messageId: 'm1', toolCallId: 'c1' },
+        excerpt: { head: 'h', tail: 't', totalChars: 100_000, totalLines: 2_000 },
+        skeleton: webResults('dfr')
+      })
+    ])
+    expect(mc.byId.get('dfr-1')).toMatchObject({ number: 1, url: 'https://a.com/x' })
+  })
+
+  it('yields nothing for a deferred reference without a skeleton (unchanged behavior)', () => {
+    const mc = resolveMessageCitations([
+      webToolPart({ $deferredToolResult: { topicId: 'topic-1', messageId: 'm1', toolCallId: 'c1' } })
+    ])
+    expect(mc.all).toHaveLength(0)
+  })
+
   it('collects provider-native source-url parts keyed by their marker numbers', () => {
     const mc = resolveMessageCitations([sourceUrlPart(0, 'https://s.com/1', 'S1'), sourceUrlPart(1, 'https://s.com/2')])
     expect(mc.byMarkerNumber.get(1)).toMatchObject({ url: 'https://s.com/1', title: 'S1' })

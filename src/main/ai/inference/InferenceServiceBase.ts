@@ -8,7 +8,7 @@ import { onnxRuntimeBinaryService } from '@main/services/localModel'
 import type { LocalModelKind } from '@shared/data/presets/localModel'
 import PQueue from 'p-queue'
 
-import type { InferenceRequest, InferenceResponse } from './inferenceProtocol'
+import type { InferenceInitMessage, InferenceRequest, InferenceResponse } from './inferenceProtocol'
 import { inferenceWorkerSource } from './inferenceWorkerSource'
 
 const INFERENCE_WORKER_IDLE_TIMEOUT_MS = 60 * 1000
@@ -70,6 +70,8 @@ interface Pending {
  */
 export abstract class InferenceServiceBase extends BaseService {
   private worker: Worker | null = null
+  private workerProxyVersion: number | null = null
+  private workerGeneration = 0
   private readonly pending = new Map<string, Pending>()
   private readonly queue = new PQueue({ concurrency: 1 })
   private idSeq = 0
@@ -85,11 +87,10 @@ export abstract class InferenceServiceBase extends BaseService {
     this.logger = loggerService.withContext(`InferenceService:${kind}`)
   }
 
-  private ensureWorker(): Worker {
+  private async ensureWorker(): Promise<Worker> {
     if (this.closing) {
       throw new Error('inference host is shutting down')
     }
-    if (this.worker) return this.worker
     // Last line of defense: the settings/KB cards already hide on Intel Mac (see
     // LocalModelDownloadService.getStatus), but this is the spawn point every
     // caller (embed/loadEmbedding/recognize, including the OCR agent tool)
@@ -99,6 +100,24 @@ export abstract class InferenceServiceBase extends BaseService {
       throw new Error(
         'Local model inference is not supported on Intel Mac (darwin x64) — onnxruntime-node ships no darwin-x64 binding.'
       )
+    }
+    const generation = this.workerGeneration
+    const proxyRouting = await application.get('ProxyService').getRoutingSnapshot()
+    if (generation !== this.workerGeneration) {
+      throw new Error('inference host terminated')
+    }
+    if (this.closing) {
+      throw new Error('inference host is shutting down')
+    }
+    if (this.worker && this.workerProxyVersion === proxyRouting.version) return this.worker
+    if (this.worker) {
+      await this.terminate()
+      if (this.workerGeneration !== generation + 1) {
+        throw new Error('inference host terminated')
+      }
+    }
+    if (this.closing) {
+      throw new Error('inference host is shutting down')
     }
     const worker = new Worker(inferenceWorkerSource, { eval: true })
     // Inference is opt-in; a loaded 600MB+ model must never keep the app alive on quit.
@@ -117,6 +136,7 @@ export abstract class InferenceServiceBase extends BaseService {
       // failed when it was torn down.
       if (this.worker !== worker) return
       this.worker = null
+      this.workerProxyVersion = null
       // A non-zero exit is an abnormal crash (native onnxruntime fault, OOM kill). Log it
       // unconditionally — failAll's no-op-when-idle guard below would otherwise swallow the
       // only crash breadcrumb when nothing is pending, leaving the auto-respawn invisible.
@@ -126,10 +146,11 @@ export abstract class InferenceServiceBase extends BaseService {
       // path), so this never double-reports.
       this.failAll(new Error(`inference worker exited unexpectedly (code ${code})`))
     })
-    const init: { type: 'init'; appPath: string; onnxRuntimeBindingPath: string; cacheDir?: string } = {
+    const init: InferenceInitMessage = {
       type: 'init',
       appPath: application.getPath('app.root'),
-      onnxRuntimeBindingPath: onnxRuntimeBinaryService.bindingPath()
+      onnxRuntimeBindingPath: onnxRuntimeBinaryService.bindingPath(),
+      proxyRouting
     }
     // Only the embedding worker reads cacheDir (transformers.js model cache); the OCR
     // worker uses explicit modelPaths and never reads it, so OCR omits the field.
@@ -137,6 +158,7 @@ export abstract class InferenceServiceBase extends BaseService {
     if (cacheDir !== undefined) init.cacheDir = cacheDir
     worker.postMessage(init)
     this.worker = worker
+    this.workerProxyVersion = proxyRouting.version
     return worker
   }
 
@@ -217,11 +239,14 @@ export abstract class InferenceServiceBase extends BaseService {
     }
   }
 
-  private sendNow(
+  private async sendNow(
     request: DistributiveOmit<InferenceRequest, 'id'>,
     opts: { onProgress?: (p: InferenceProgress) => void; signal?: AbortSignal }
   ): Promise<InferenceResult> {
-    const worker = this.ensureWorker()
+    if (opts.signal?.aborted) {
+      throw opts.signal.reason instanceof Error ? opts.signal.reason : new Error('aborted')
+    }
+    const worker = await this.ensureWorker()
     const id = String(++this.idSeq)
     return new Promise((resolve, reject) => {
       if (opts.signal?.aborted) {
@@ -249,9 +274,14 @@ export abstract class InferenceServiceBase extends BaseService {
    */
   async terminate(): Promise<void> {
     this.clearIdleReleaseTimer()
-    if (!this.worker) return
+    this.workerGeneration += 1
+    if (!this.worker) {
+      this.workerProxyVersion = null
+      return
+    }
     const worker = this.worker
     this.worker = null
+    this.workerProxyVersion = null
     this.failAll(new Error('inference host terminated'))
     await worker.terminate()
   }

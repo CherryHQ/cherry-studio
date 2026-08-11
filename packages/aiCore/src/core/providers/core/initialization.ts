@@ -21,11 +21,10 @@ import type { XaiProvider, XaiProviderSettings } from '@ai-sdk/xai'
 import { createXai } from '@ai-sdk/xai'
 import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
 import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
-import type { OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
+import type { OpenRouterProvider, OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { customProvider, type LanguageModel } from 'ai'
 
-import type { OpenRouterSearchConfig } from '../../plugins/built-in/webSearchPlugin'
 import { createOpenAICompatibleRerankingModel } from '../openaiCompatible/rerankingModel'
 import type {
   ExtensionConfigToIdResolutionMap,
@@ -219,11 +218,16 @@ const OpenRouterExtension = ProviderExtension.create({
   supportsImageGeneration: true,
   create: createOpenRouter,
   toolFactories: {
-    webSearch: () => (config: OpenRouterSearchConfig) => ({
-      providerOptions: { openrouter: config }
+    webSearch:
+      (provider: OpenRouterProvider) =>
+      (config: NonNullable<Parameters<OpenRouterProvider['tools']['webSearch']>[0]>) => ({
+        tools: { webSearch: provider.tools.webSearch(config) }
+      }),
+    urlContext: (provider: OpenRouterProvider) => () => ({
+      tools: { urlContext: provider.tools.webFetch({}) }
     })
   }
-} as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, ProviderV3, 'openrouter'>)
+} as const satisfies ProviderExtensionConfig<OpenRouterProviderSettings, OpenRouterProvider, 'openrouter'>)
 
 const XaiExtension = ProviderExtension.create({
   name: 'xai',

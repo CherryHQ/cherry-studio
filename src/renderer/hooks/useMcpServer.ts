@@ -9,8 +9,8 @@ import { useCallback, useMemo } from 'react'
 /**
  * MCP servers list hook — data fetching with optional filters and create mutation.
  */
-export const useMcpServers = (query?: ListMcpServersQuery) => {
-  const { data, isLoading, mutate } = useQuery('/mcp-servers', { query })
+export const useMcpServers = (query?: ListMcpServersQuery, options: { enabled?: boolean } = {}) => {
+  const { data, isLoading, mutate } = useQuery('/mcp-servers', { query, enabled: options.enabled })
 
   const mcpServers = useMemo(() => data?.items ?? [], [data])
 

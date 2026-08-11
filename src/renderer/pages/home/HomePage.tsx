@@ -22,23 +22,14 @@ import { ConversationResourceView } from '@renderer/components/resourceCatalog/c
 import { usePersistCache } from '@renderer/data/hooks/useCache'
 import { useCommandHandler } from '@renderer/hooks/command'
 import { useAssistantTopicsSource } from '@renderer/hooks/resourceViewSources'
-import { useCurrentTab, useCurrentTabId, useIsActiveTab, useTabSelfMetadata } from '@renderer/hooks/tab'
+import { useCurrentTabId, useIsActiveTab, useTabSelfVisuals } from '@renderer/hooks/tab'
 import { useAssistants } from '@renderer/hooks/useAssistant'
 import { toCreateAssistantDtoFromCatalogPreset } from '@renderer/hooks/useAssistantCatalogPresets'
 import { useClassicLayoutRightPaneOpen } from '@renderer/hooks/useClassicLayoutRightPaneOpen'
-import {
-  type ConversationCenterResourceDefinition,
-  useConversationCenterSurface
-} from '@renderer/hooks/useConversationCenterSurface'
+import { useConversationCenterSurface } from '@renderer/hooks/useConversationCenterSurface'
 import { useConversationShellPaneState } from '@renderer/hooks/useConversationShellPaneState'
-import {
-  mapApiTopicToRendererTopic,
-  useActiveTopic,
-  useLatestTopic,
-  useTopicById,
-  useTopicMutations
-} from '@renderer/hooks/useTopic'
-import { ipcApi } from '@renderer/ipc'
+import { useModelById } from '@renderer/hooks/useModel'
+import { mapApiTopicToRendererTopic, useActiveTopic, useTopicById, useTopicMutations } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { ResourceListRevealPayload } from '@renderer/services/resourceListRevealEvents'
 import { toast } from '@renderer/services/toast'
@@ -48,11 +39,9 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import { findLatestUpdated } from '@renderer/utils/resourceEntity'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import { cn } from '@renderer/utils/style'
-import { getTabInstanceKey } from '@renderer/utils/tabInstanceMetadata'
+import { isDataApiNotFoundError } from '@shared/data/api/errors'
 import type { Topic as ApiTopic } from '@shared/data/types/topic'
-import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/utils/window'
-import { useLocation, useSearch } from '@tanstack/react-router'
-import { MessageCircle } from 'lucide-react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import type { FC, HTMLAttributes } from 'react'
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -71,12 +60,12 @@ import type { AddNewTopicPayload, AddNewTopicWithReusePayload } from './types'
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
 type AssistantConversationResourceKind = 'assistant'
+const ASSISTANT_CONVERSATION_RESOURCE_KINDS = [
+  'assistant'
+] as const satisfies readonly AssistantConversationResourceKind[]
 
 type NewTopicAssistantSelectionSource = 'explicit' | 'last-used' | 'first-assistant' | 'runtime-fallback'
 type ResolvedNewTopicAssistantSelection = { assistantId?: string; source: NewTopicAssistantSelectionSource }
-type InitialTopicStartState = {
-  firstLaunchStarted: boolean
-}
 
 type NewTopicAssistantTargetOptions = {
   excludedAssistantIds?: readonly string[]
@@ -135,12 +124,11 @@ const HomePage: FC = () => {
   const { t } = useTranslation()
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
-  const initialTopicStartStateRef = useRef<InitialTopicStartState>({ firstLaunchStarted: false })
   // Guards the classic-layout topic-create paths against re-entry: a rapid double-click would
   // otherwise read the same pre-refresh topic list twice and stack duplicate blank topics.
   const isCreatingTopicRef = useRef(false)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
-  const [lastUsedTopicId, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
+  const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
   const [pendingLocateMessageId, setPendingLocateMessageId] = useState<string | undefined>()
   const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
@@ -149,13 +137,9 @@ const HomePage: FC = () => {
   const isClassicTopicLayout = topicDisplayMode === 'assistant'
   const [assistantPickerOpen, setAssistantPickerOpen] = useState(false)
 
-  const location = useLocation()
   const routeSearch = parseChatRouteSearch(useSearch({ strict: false }) as Record<string, unknown>)
-  const currentTab = useCurrentTab()
-  const state = location.state as { topic?: Topic } | undefined
+  const navigate = useNavigate()
   const routeTopicId = routeSearch.topicId
-  const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
-  const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
   const handleManualPaneOpen = useCallback(() => {
     requestAnimationFrame(() => {
@@ -186,12 +170,6 @@ const HomePage: FC = () => {
   // Modern layout also creates real empty topics now, so it needs the same candidates.
   const assistantTopicsSource = useAssistantTopicsSource()
   const { topics: allTopics } = assistantTopicsSource
-  // First-entry selection resumes the most-recently-updated topic. A dedicated `updatedAt DESC LIMIT 1`
-  // query proves the global latest, so it neither waits for the full topic history to paginate in nor
-  // depends on the pinned-first `/topics` list order (which would miss the latest unpinned topic when
-  // ≥200 pinned topics fill the first page).
-  const { latestTopic, isLoading: isLatestTopicLoading } = useLatestTopic({ enabled: !isMessageOnlyView })
-  const isLatestTopicReady = isMessageOnlyView || !isLatestTopicLoading
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -199,8 +177,6 @@ const HomePage: FC = () => {
     () => (routeApiTopic ? mapApiTopicToRendererTopic(routeApiTopic) : undefined),
     [routeApiTopic]
   )
-
-  const shouldAutoCreateTopic = !state?.topic && !isMessageOnlyView
 
   const { createTopic, refreshTopics } = useTopicMutations()
   const {
@@ -241,23 +217,24 @@ const HomePage: FC = () => {
     [assistantIdSet, assistants, validLastUsedAssistantId]
   )
 
-  const initialTopic = useMemo<Topic | undefined>(() => {
-    if (isMessageOnlyView) return undefined
-    return state?.topic
-  }, [isMessageOnlyView, state?.topic])
-
-  const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? tabMetadataTopicId ?? null)
-  const [activeTopicId, setActiveTopicId] = useState<string | null>(() => routeActiveTopicId)
-  // Resume target frozen at mount: `last_used_topic_id` is rewritten as soon as any topic
-  // activates, so a reactive read would chase this page's own writes. Route / tab-metadata
-  // targets and assistant deep links take precedence over resume.
-  const [resumeTopicId] = useState<string | null>(() =>
-    shouldAutoCreateTopic && !routeActiveTopicId && !routeAssistantId ? lastUsedTopicId : null
+  const routeActiveTopicId = isMessageOnlyView ? null : (routeTopicId ?? null)
+  const [activeTopicId, setActiveTopicIdState] = useState<string | null>(() => routeActiveTopicId)
+  // Page-initiated selection writes the tab URL — the conversation's sole identity channel —
+  // and mirrors into state immediately so the UI doesn't wait a router round trip. Route-driven
+  // changes (entry interceptor, recovery) flow back through the sync effect below. Clearing
+  // (`null`) never navigates: the next selection or the recovery path owns the URL then.
+  const setActiveTopicId = useCallback(
+    (id: string | null) => {
+      setActiveTopicIdState(id)
+      if (id && !isMessageOnlyView) {
+        void navigate({ to: '/app/chat', search: { topicId: id }, replace: true })
+      }
+    },
+    [isMessageOnlyView, navigate]
   )
-  const { topic: resumeApiTopic, isLoading: isResumeTopicLoading } = useTopicById(resumeTopicId ?? undefined)
 
   useEffect(() => {
-    setActiveTopicId(routeActiveTopicId)
+    setActiveTopicIdState(routeActiveTopicId)
   }, [routeActiveTopicId])
 
   const {
@@ -265,15 +242,37 @@ const HomePage: FC = () => {
     setActiveTopic,
     clearActiveTopic,
     isLoading: isActiveTopicLoading,
+    error: activeTopicError,
     topicSource: activeTopicSource
   } = useActiveTopic({
-    initialTopic,
     activeTopicId,
     setActiveTopicId,
     // Message-only view loads its target via useTopicById; the active hook
     // must not emit or expose a visible activeTopic.
     passive: isMessageOnlyView
   })
+  const reenterChatRoute = useCallback(() => {
+    clearActiveTopic()
+    void navigate({ to: '/app/chat', search: {}, replace: true })
+  }, [clearActiveTopic, navigate])
+  // The URL-bound topic no longer exists: its by-id query settled with NOT_FOUND (deleted while
+  // this tab was dormant, or a rotted deep link). Recovery is a plain replace-navigation back
+  // through the entry interceptor, which resolves the next target — no in-page state surgery.
+  useEffect(() => {
+    if (isMessageOnlyView) return
+    if (!routeTopicId || activeTopicId !== routeTopicId) return
+    if (activeTopic || isActiveTopicLoading) return
+    if (!isDataApiNotFoundError(activeTopicError)) return
+    reenterChatRoute()
+  }, [
+    activeTopic,
+    activeTopicError,
+    activeTopicId,
+    isActiveTopicLoading,
+    isMessageOnlyView,
+    reenterChatRoute,
+    routeTopicId
+  ])
   const lastVisibleTopicRef = useRef<Topic | undefined>(undefined)
   const visibleTopic = isMessageOnlyView
     ? routeTopic
@@ -286,30 +285,21 @@ const HomePage: FC = () => {
     if (visibleTopic?.id) return `topic:${visibleTopic.id}`
     return 'empty'
   }, [visibleTopic?.id])
-  const resourceViewDefinitions = useMemo<
-    readonly ConversationCenterResourceDefinition<AssistantConversationResourceKind>[]
-  >(
-    () => [
-      {
-        icon: <MessageCircle />,
-        id: 'assistant-resource-view',
-        kind: 'assistant',
-        label: t('chat.resource_view.menu.assistant')
-      }
-    ],
-    [t]
-  )
+  const conversationResourcesEnabled = !isMessageOnlyView && !isWindowFrame
   const {
     activeResourceKind,
     closeSurface,
     historyActive: historyRecordsActive,
-    resourceMenuItems,
-    toggleHistory: toggleHistoryRecords
+    toggleHistory: toggleHistoryRecords,
+    toggleResource
   } = useConversationCenterSurface<AssistantConversationResourceKind>({
     conversationKey: resourceConversationKey,
-    resourceDefinitions: resourceViewDefinitions,
-    disabled: isMessageOnlyView || isWindowFrame
+    disabled: !conversationResourcesEnabled,
+    resourceKinds: ASSISTANT_CONVERSATION_RESOURCE_KINDS
   })
+  const toggleAssistantResourceView = useCallback(() => toggleResource('assistant'), [toggleResource])
+  const manageAssistantsActive = activeResourceKind === 'assistant'
+  const onManageAssistants = conversationResourcesEnabled ? toggleAssistantResourceView : undefined
 
   useEffect(() => {
     if (!isAssistantListResolved || !lastUsedAssistantId || assistantIdSet.has(lastUsedAssistantId)) return
@@ -379,6 +369,8 @@ const HomePage: FC = () => {
   // are distinguishable in the tab bar (every tab labels itself — not gated on active).
   const visibleAssistantId = visibleTopic?.assistantId
   const visibleAssistant = assistants.find((assistant) => assistant.id === visibleAssistantId)
+  // Start the managed model query before assistant details resolve; Chat shares the same SWR request.
+  useModelById(visibleAssistant?.modelId)
   const topicResourcePaneCount = useMemo<ResourcePaneCountButtonProps | undefined>(() => {
     if (!isClassicTopicLayout || topicListPosition !== 'right' || !visibleAssistantId) return undefined
 
@@ -387,12 +379,15 @@ const HomePage: FC = () => {
       count: allTopics.filter((topic) => topic.assistantId === visibleAssistantId).length
     }
   }, [allTopics, isClassicTopicLayout, topicListPosition, t, visibleAssistantId])
-  const tabInstanceTopicId = !isMessageOnlyView ? (visibleTopic?.id ?? routeActiveTopicId ?? undefined) : undefined
-  useTabSelfMetadata({
+  // While the bound topic is still loading (or the visible entity intentionally lags behind a
+  // selection), keep the tab's stored title/icon instead of stamping a stale or generic one.
+  const targetTopicId = isMessageOnlyView ? routeTopicId : (activeTopicId ?? undefined)
+  const preserveTabVisuals = !!targetTopicId && visibleTopic?.id !== targetTopicId
+  useTabSelfVisuals({
     title: visibleTopic?.name?.trim() || visibleAssistant?.name?.trim() || getDefaultRouteTitle('/app/chat'),
     emoji: visibleAssistant?.emoji,
-    instanceAppId: 'assistants',
-    instanceKey: tabInstanceTopicId ?? null
+    appId: 'assistants',
+    preserveVisuals: preserveTabVisuals
   })
 
   useEffect(() => {
@@ -411,12 +406,6 @@ const HomePage: FC = () => {
 
   const [topicPaneUserOpenIntentSeq, setTopicPaneUserOpenIntentSeq] = useState(0)
   useCommandHandler('app.sidebar.toggle', toggleShellPane)
-
-  useEffect(() => {
-    if (isMessageOnlyView) return
-    if (!state?.topic) return
-    setActiveTopic(state.topic)
-  }, [isMessageOnlyView, setActiveTopic, state?.topic])
 
   const setActiveTopicAndCloseResourceView = useCallback(
     (topic: Topic) => {
@@ -556,13 +545,13 @@ const HomePage: FC = () => {
     async (payload?: AddNewTopicWithReusePayload) => {
       const created = await createAndActivateEmptyTopic(payload)
       // Post-delete replacement (delete flow passes `excludeReuseTopicId`): if the replacement create
-      // fails, the active topic still points at the just-deleted topic — clear it so the awaiting delete
-      // handler doesn't strand the view on a deleted conversation.
+      // fails, the active topic still points at the just-deleted topic — re-enter through the bare
+      // route so local state and the URL both stop identifying the deleted conversation.
       if (!created && payload?.excludeReuseTopicId) {
-        clearActiveTopic()
+        reenterChatRoute()
       }
     },
-    [clearActiveTopic, createAndActivateEmptyTopic]
+    [createAndActivateEmptyTopic, reenterChatRoute]
   )
 
   const handleCreateEmptyTopicForAssistant = useCallback(
@@ -572,57 +561,10 @@ const HomePage: FC = () => {
     [createAndActivateEmptyTopic]
   )
 
-  useEffect(() => {
-    if (!shouldAutoCreateTopic || initialTopicStartStateRef.current.firstLaunchStarted || state?.topic) return
-    if (activeTopic || isActiveTopicLoading) return
-
-    // Resume the last-focused topic before falling back to the most-recently-updated one —
-    // "last viewed" and "last edited" differ, and sidebar/restart re-entry should land on
-    // what the user was looking at. A deleted (or unfetchable) last-used topic falls through.
-    if (resumeTopicId) {
-      if (isResumeTopicLoading) return
-      if (resumeApiTopic) {
-        initialTopicStartStateRef.current.firstLaunchStarted = true
-        setActiveTopic(mapApiTopicToRendererTopic(resumeApiTopic))
-        return
-      }
-    }
-
-    if (!isLatestTopicReady) return
-
-    // Resume the globally most-recently-updated topic as soon as `/latest` resolves — the chat center
-    // fetches its own assistant by id, so it does not need the assistants list to paint (mirrors the agent
-    // page). A deep link that pins an assistant (`routeAssistantId`) skips resume and opens a fresh topic
-    // for that assistant instead.
-    if (!routeAssistantId && latestTopic) {
-      initialTopicStartStateRef.current.firstLaunchStarted = true
-      setActiveTopic(mapApiTopicToRendererTopic(latestTopic))
-      return
-    }
-
-    // Empty library / deep-link create: this path needs the assistants list resolved to pick the
-    // default (or pinned) assistant, so gate it here rather than blocking the resume above.
-    if (!isAssistantListResolved) return
-
-    initialTopicStartStateRef.current.firstLaunchStarted = true
-    void createAndActivateEmptyTopic(routeAssistantId ? { assistantId: routeAssistantId } : undefined).then((topic) => {
-      if (!topic) initialTopicStartStateRef.current.firstLaunchStarted = false
-    })
-  }, [
-    activeTopic,
-    createAndActivateEmptyTopic,
-    isActiveTopicLoading,
-    isAssistantListResolved,
-    isLatestTopicReady,
-    isResumeTopicLoading,
-    latestTopic,
-    resumeApiTopic,
-    resumeTopicId,
-    routeAssistantId,
-    setActiveTopic,
-    shouldAutoCreateTopic,
-    state?.topic
-  ])
+  // No first-entry auto-create here: `DefaultAssistantSeeder` seeds one topic into every fresh
+  // database and each delete path creates its replacement, so a bare entry that resolves to
+  // nothing means the user really has no topic — the page shows its empty state and they pick
+  // "new topic". (AgentPage keeps its create-on-entry because sessions have no seeder.)
 
   // Classic-layout reset after deleting the active assistant: select the latest
   // remaining topic (across other assistants). Filter by the deleted id so this
@@ -640,14 +582,14 @@ const HomePage: FC = () => {
       const created = await createAndActivateEmptyTopic(undefined, { excludedAssistantIds: [deletedAssistantId] })
       // Creation failed → don't leave the view on a topic that belonged to the deleted assistant.
       if (!created) {
-        clearActiveTopic()
+        reenterChatRoute()
       }
     },
     [
       allTopics,
-      clearActiveTopic,
       createAndActivateEmptyTopic,
       lastUsedAssistantId,
+      reenterChatRoute,
       setActiveTopicAndCloseResourceView,
       setLastUsedAssistantId
     ]
@@ -661,14 +603,6 @@ const HomePage: FC = () => {
     },
     [createAndActivateEmptyTopic]
   )
-
-  useEffect(() => {
-    void ipcApi.request('window.main.set_minimum_size', { width: SECOND_MIN_WINDOW_WIDTH, height: MIN_WINDOW_HEIGHT })
-
-    return () => {
-      void ipcApi.request('window.main.reset_minimum_size')
-    }
-  }, [])
 
   const handleHistoryTopicSelect = useCallback(
     (topic: Topic, messageId?: string) => {
@@ -821,11 +755,12 @@ const HomePage: FC = () => {
     )
   }
 
-  // Classic layout = entity rail + right topic panel; modern layout = the single sidebar (HomeTabs).
+  // Classic layout = entity rail + right topic panel; modern layout = one left navigation panel (HomeTabs).
   const pane =
     isClassicTopicLayout && topicListPosition === 'right' ? (
       <AssistantResourceList
         activeAssistantId={visibleAssistantId ?? null}
+        dataEnabled={shellPaneOpen}
         assistantTopicsSource={assistantTopicsSource}
         onAddAssistant={() => {
           setAssistantPickerOpen(true)
@@ -840,12 +775,14 @@ const HomePage: FC = () => {
           setTopicPaneOpen(!topicPaneOpen)
         }}
         onCreateTopic={handleCreateEmptyTopicForAssistant}
-        resourceMenuItems={resourceMenuItems}
+        manageAssistantsActive={manageAssistantsActive}
+        onManageAssistants={onManageAssistants}
         onActiveAssistantDeleted={handleActiveAssistantDeleted}
       />
     ) : (
       <HomeTabs
         activeTopic={visibleTopic}
+        dataEnabled={shellPaneOpen}
         assistantTopicsSource={assistantTopicsSource}
         onActiveAssistantDeleted={handleActiveAssistantDeleted}
         onAddAssistant={() => {
@@ -857,7 +794,8 @@ const HomePage: FC = () => {
         historyRecordsActive={historyRecordsActive}
         onOpenHistoryRecords={isWindowFrame ? undefined : openHistoryRecords}
         revealRequest={topicRevealRequest}
-        resourceMenuItems={resourceMenuItems}
+        manageAssistantsActive={manageAssistantsActive}
+        onManageAssistants={onManageAssistants}
         onSetPanePosition={isWindowFrame ? undefined : setTopicListPosition}
         panePosition="left"
       />
@@ -872,6 +810,7 @@ const HomePage: FC = () => {
           node: (
             <Topics
               assistantTopicsSource={assistantTopicsSource}
+              dataEnabled={topicPaneOpen}
               presentation="right-panel"
               activeTopic={visibleTopic}
               assistantIdFilter={visibleAssistantId ?? null}
@@ -915,6 +854,7 @@ const HomePage: FC = () => {
         <ContentContainer $detached={isWindowFrame}>
           <Chat
             activeTopic={visibleTopic}
+            topicPending={isActiveTopicLoading || isRouteTopicLoading}
             centerSurface={centerSurface}
             pane={pane}
             paneOpen={shellPaneOpen}

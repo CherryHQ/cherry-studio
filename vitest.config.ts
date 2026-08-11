@@ -75,6 +75,9 @@ export default defineConfig({
       // 脚本单元测试配置
       {
         extends: true,
+        resolve: {
+          alias: rendererConfig.resolve.alias
+        },
         test: {
           name: 'scripts',
           environment: 'node',

@@ -6,11 +6,7 @@ import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
-import type {
-  MessageListRuntime,
-  MessageStreamingLayers,
-  MessageToolApprovalInput
-} from '@renderer/components/chat/messages/types'
+import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
@@ -111,9 +107,6 @@ export interface AgentChatRuntimeState {
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
-  localSendGeneration: number
-  bindMessageListRuntime: (runtime: MessageListRuntime) => void | (() => void)
-  captureLocalSendScrollEligibility: () => void
   isPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<void>
@@ -136,18 +129,6 @@ export function useAgentChatRuntimeState({
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
   const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
-  const messageListRuntimeRef = useRef<MessageListRuntime | null>(null)
-  const bindMessageListRuntime = useCallback((runtime: MessageListRuntime) => {
-    messageListRuntimeRef.current = runtime
-    return () => {
-      if (messageListRuntimeRef.current === runtime) {
-        messageListRuntimeRef.current = null
-      }
-    }
-  }, [])
-  const captureLocalSendScrollEligibility = useCallback(() => {
-    messageListRuntimeRef.current?.captureLocalSendScrollEligibility()
-  }, [])
   const {
     messages: uiMessages,
     isLoading,
@@ -186,7 +167,7 @@ export function useAgentChatRuntimeState({
     }),
     []
   )
-  const { localSendGeneration, send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
+  const { send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
     scopeKey: sessionTopicId,
     historyAdapter,
     ensureConversation,
@@ -225,7 +206,13 @@ export function useAgentChatRuntimeState({
   // Deterministic overlay→DB handoff at terminal (see hook docs).
   useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay))
 
+  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
+  // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
+  // setState bail-out and force a re-render on every tab switch.
+  const optimisticInputsResetTopicIdRef = useRef(sessionTopicId)
   useEffect(() => {
+    if (optimisticInputsResetTopicIdRef.current === sessionTopicId) return
+    optimisticInputsResetTopicIdRef.current = sessionTopicId
     setOptimisticAskUserQuestionInputsByToolCallId({})
   }, [sessionTopicId])
 
@@ -316,9 +303,6 @@ export function useAgentChatRuntimeState({
     isLoading,
     hasOlder,
     loadOlder,
-    localSendGeneration,
-    bindMessageListRuntime,
-    captureLocalSendScrollEligibility,
     isPending,
     stop,
     sendMessage,

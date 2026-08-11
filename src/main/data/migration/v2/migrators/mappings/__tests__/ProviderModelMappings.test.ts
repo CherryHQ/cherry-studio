@@ -4,6 +4,44 @@ import { describe, expect, it } from 'vitest'
 import { transformModel, transformProvider } from '../ProviderModelMappings'
 
 describe('ProviderModelMappings', () => {
+  describe('transformModel', () => {
+    it('drops explicit v1 web-search selection from generic model capabilities', () => {
+      const enabled = transformModel(
+        {
+          id: 'private-model',
+          name: 'Private Model',
+          capabilities: [
+            { type: 'function_calling', isUserSelected: true },
+            { type: 'web_search', isUserSelected: true }
+          ]
+        } as never,
+        'custom-provider'
+      )
+      const disabled = transformModel(
+        {
+          id: 'private-model',
+          capabilities: [{ type: 'web_search', isUserSelected: false }]
+        } as never,
+        'custom-provider'
+      )
+
+      expect(enabled.capabilities).toEqual(['function-call'])
+      expect(disabled.capabilities).toEqual([])
+    })
+
+    it('leaves inferred v1 web-search entries to the v2 registry default', () => {
+      const result = transformModel(
+        {
+          id: 'claude-sonnet-4-6',
+          capabilities: [{ type: 'web_search' }]
+        } as never,
+        'anthropic'
+      )
+
+      expect(result.capabilities).toEqual([])
+    })
+  })
+
   describe('transformProvider', () => {
     it('maps custom-id Azure providers to azure-openai preset via type fallback', () => {
       const result = transformProvider(

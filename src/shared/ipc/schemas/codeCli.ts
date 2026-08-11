@@ -66,10 +66,16 @@ export const codeCliRequestSchemas = {
       cliTool: z.enum(FILE_CONFIGURED_CLI_TOOL_IDS),
       files: z
         .array(
-          z.object({
-            target: z.enum(CLI_CONFIG_TARGET_IDS),
-            content: z.string().max(1024 * 1024)
-          })
+          z.union([
+            z.object({
+              target: z.enum(CLI_CONFIG_TARGET_IDS),
+              content: z.string().max(1024 * 1024)
+            }),
+            z.object({
+              target: z.literal('codex-auth'),
+              delete: z.literal(true)
+            })
+          ])
         )
         .min(1)
     }),

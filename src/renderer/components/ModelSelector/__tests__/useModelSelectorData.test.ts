@@ -102,16 +102,26 @@ beforeEach(() => {
 })
 
 describe('useModelSelectorData', () => {
-  it('uses enabled model and provider queries without overriding focus revalidation', () => {
+  it('passes the selector activation state to every catalog query', () => {
     wireDeps({
       providers: [makeProvider('openai')],
       models: [makeModel('gpt-4', 'openai')]
     })
 
-    renderHook(() => useModelSelectorData({ searchText: '' }))
+    const { rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) => useModelSelectorData({ enabled, searchText: '' }),
+      { initialProps: { enabled: false } }
+    )
 
-    expect(mockUseProviders).toHaveBeenCalledWith({ enabled: true })
-    expect(mockUseModels).toHaveBeenCalledWith({ enabled: true })
+    expect(mockUseProviders).toHaveBeenLastCalledWith({ enabled: true }, { enabled: false })
+    expect(mockUseModels).toHaveBeenLastCalledWith({ enabled: true }, { fetchEnabled: false })
+    expect(mockUsePins).toHaveBeenLastCalledWith('model', { enabled: false })
+
+    rerender({ enabled: true })
+
+    expect(mockUseProviders).toHaveBeenLastCalledWith({ enabled: true }, { enabled: true })
+    expect(mockUseModels).toHaveBeenLastCalledWith({ enabled: true }, { fetchEnabled: true })
+    expect(mockUsePins).toHaveBeenLastCalledWith('model', { enabled: true })
   })
 
   it('groups models under known providers and drops orphan models', () => {

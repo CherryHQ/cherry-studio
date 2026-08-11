@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import { ipcApi, useIpcOn } from '@renderer/ipc'
 import { findConversationTab, getConversationSidebarApp } from '@renderer/utils/conversationNavigation'
-import { buildSidebarAppOpenMetadata } from '@renderer/utils/sidebar'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import type { ConversationNavigationTarget } from '@shared/types/navigation'
 import { useEffect, useRef } from 'react'
@@ -56,17 +55,16 @@ export function useConversationNavigationOwner({ tabs, openTab, setActiveTab }: 
     }
 
     const app = getConversationSidebarApp(target)
-    if (!app?.instanceKey) {
+    if (!app?.conversationRoute) {
       reportOwnership(requestId, false)
       return
     }
 
     pendingNavigationsRef.current.set(key, { requestIds: new Set([requestId]), target })
     try {
-      openTab(app.routePrefix, {
+      openTab(app.conversationRoute.urlForKey(target.conversationId), {
         forceNew: true,
-        title,
-        metadata: buildSidebarAppOpenMetadata(app, target.conversationId)
+        title
       })
     } catch (error) {
       pendingNavigationsRef.current.delete(key)

@@ -68,6 +68,36 @@ beforeEach(() => {
 })
 
 describe('ApiGatewayService reconcile', () => {
+  it('recognizes an internal agent request when the process-local token matches', () => {
+    const service = new ApiGatewayService()
+    const headers = new Headers(service.getAgentSessionUsageHeaders('session-1'))
+
+    expect(service.isInternalAgentRequest(headers)).toBe(true)
+  })
+
+  it('rejects an internal agent request when the process-local token is wrong or missing', () => {
+    const service = new ApiGatewayService()
+    const usageHeaders = service.getAgentSessionUsageHeaders('session-1')
+
+    expect(
+      service.isInternalAgentRequest(
+        new Headers({
+          ...usageHeaders,
+          'x-cherry-internal-usage-token': 'wrong-proof'
+        })
+      )
+    ).toBe(false)
+    expect(service.isInternalAgentRequest(new Headers())).toBe(false)
+  })
+
+  it('recognizes an internal agent request without a session id when the process-local token matches', () => {
+    const service = new ApiGatewayService()
+    const headers = new Headers(service.getAgentSessionUsageHeaders('session-1'))
+    headers.delete('x-cherry-agent-session-id')
+
+    expect(service.isInternalAgentRequest(headers)).toBe(true)
+  })
+
   it('accepts agent usage context only with its process-local proof', () => {
     const service = new ApiGatewayService()
     const usageHeaders = service.getAgentSessionUsageHeaders('session-1')

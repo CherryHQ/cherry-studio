@@ -133,7 +133,12 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
         type="single"
         collapsible
         value={isExpanded ? 'history' : ''}
-        onValueChange={(value) => withScrollAnchor(() => setIsExpanded(value === 'history'), { settleAfterMs: 220 })}>
+        onValueChange={(value) =>
+          withScrollAnchor(() => setIsExpanded(value === 'history'), {
+            enterReadingMode: value === 'history',
+            settleAfterMs: 220
+          })
+        }>
         <AccordionItem value="history" className="border-0 first:border-t-0">
           <AccordionTrigger
             data-testid="completed-process-trigger"

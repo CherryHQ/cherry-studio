@@ -1,6 +1,6 @@
-import type { MessageListRuntime } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
-import { act, renderHook } from '@testing-library/react'
+import { act, render, renderHook } from '@testing-library/react'
+import { Activity } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -44,7 +44,6 @@ vi.mock('@renderer/hooks/useExecutionOverlay', () => ({
 
 vi.mock('@renderer/hooks/useConversationTurnController', () => ({
   useConversationTurnController: () => ({
-    localSendGeneration: 7,
     send: mocks.sendTurn
   })
 }))
@@ -67,6 +66,32 @@ vi.mock('react-i18next', () => ({
 }))
 
 import { useAgentChatRuntimeState } from '../useAgentChatRuntimeState'
+
+// <Activity> harness: tab switches hide/show the session UI without unmounting
+// it, so hooks keep their state but effects are destroyed and re-created.
+let latestRuntime: ReturnType<typeof useAgentChatRuntimeState> | null = null
+
+function currentRuntime() {
+  if (!latestRuntime) throw new Error('RuntimeStateHost has not rendered yet')
+  return latestRuntime
+}
+
+function RuntimeStateHost({ sessionId }: { sessionId: string }) {
+  latestRuntime = useAgentChatRuntimeState({
+    sessionId,
+    sessionMessagesEnabled: true,
+    reservedMessages: []
+  })
+  return null
+}
+
+function ActivityHarness({ sessionId, mode }: { sessionId: string; mode: 'visible' | 'hidden' }) {
+  return (
+    <Activity mode={mode}>
+      <RuntimeStateHost sessionId={sessionId} />
+    </Activity>
+  )
+}
 
 const assistantMessage = {
   id: 'assistant-1',
@@ -171,7 +196,7 @@ describe('useAgentChatRuntimeState', () => {
   })
 
   it('does not wire per-overlay finish refresh for agent sessions', () => {
-    const { result } = renderHook(() =>
+    renderHook(() =>
       useAgentChatRuntimeState({
         sessionId: 'session-1',
         sessionMessagesEnabled: true,
@@ -180,37 +205,8 @@ describe('useAgentChatRuntimeState', () => {
     )
 
     expect(mocks.useExecutionOverlay.mock.calls[0]?.[3]).toBeUndefined()
-    expect(result.current.localSendGeneration).toBe(7)
     expect(mocks.refresh).not.toHaveBeenCalled()
     expect(mocks.disposeOverlay).not.toHaveBeenCalled()
-  })
-
-  it('forwards pre-send scroll sampling only while the current message list runtime is bound', () => {
-    const captureLocalSendScrollEligibility = vi.fn()
-    const runtime: MessageListRuntime = {
-      captureLocalSendScrollEligibility,
-      scrollToBottom: vi.fn(),
-      locateMessage: vi.fn(),
-      copyTopicImage: vi.fn(),
-      exportTopicImage: vi.fn()
-    }
-    const { result } = renderHook(() =>
-      useAgentChatRuntimeState({
-        sessionId: 'session-1',
-        sessionMessagesEnabled: true,
-        reservedMessages: []
-      })
-    )
-
-    const unbind = result.current.bindMessageListRuntime(runtime)
-    result.current.captureLocalSendScrollEligibility()
-
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
-
-    unbind?.()
-    result.current.captureLocalSendScrollEligibility()
-
-    expect(captureLocalSendScrollEligibility).toHaveBeenCalledOnce()
   })
 
   it('invalidates disclosure state after deleting a session message', async () => {
@@ -345,5 +341,30 @@ describe('useAgentChatRuntimeState', () => {
     })
 
     expect(result.current.optimisticAskUserQuestionInputsByToolCallId).toEqual({})
+  })
+
+  it('preserves optimistic AskUserQuestion inputs across an <Activity> hide/show and clears them on session change', async () => {
+    latestRuntime = null
+    const part = makeAskUserQuestionPart()
+    const view = render(<ActivityHarness mode="visible" sessionId="session-1" />)
+
+    await act(async () => {
+      await currentRuntime().respondToolApproval(makeAskUserQuestionApproval(part))
+    })
+    expect(currentRuntime().optimisticAskUserQuestionInputsByToolCallId).toEqual({
+      'call-ask': askUserQuestionUpdatedInput
+    })
+
+    // Same session hidden→visible: effects re-run with an unchanged topic id,
+    // and the submitted input must survive the tab switch.
+    view.rerender(<ActivityHarness mode="hidden" sessionId="session-1" />)
+    view.rerender(<ActivityHarness mode="visible" sessionId="session-1" />)
+    expect(currentRuntime().optimisticAskUserQuestionInputsByToolCallId).toEqual({
+      'call-ask': askUserQuestionUpdatedInput
+    })
+
+    // Actual session change: the stale input must be dropped.
+    view.rerender(<ActivityHarness mode="visible" sessionId="session-2" />)
+    expect(currentRuntime().optimisticAskUserQuestionInputsByToolCallId).toEqual({})
   })
 })

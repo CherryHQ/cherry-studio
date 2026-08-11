@@ -10,6 +10,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentChannelService } from '@data/services/AgentChannelService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { JobManager } from '@main/core/job/JobManager'
 import type { JobHandler } from '@main/core/job/types'
@@ -36,11 +37,14 @@ vi.mock('@application', async () => {
   return mod.mockApplicationFactory()
 })
 
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
+
 // The real handler pulls in the whole runAgentTask execution chain; the
 // service under test only needs SOME registered handler for 'agent.task'.
 vi.mock('../agentTaskJobHandler', () => ({
   agentTaskJobHandler: {
-    recovery: 'abandon',
+    recovery: 'retry',
     defaultConcurrency: 1,
     async execute() {
       return {}
@@ -139,6 +143,10 @@ describe('AgentJobsService', () => {
         return {}
       }
     })
+  })
+
+  beforeEach(() => {
+    notifyDataApiDataChangeMock.mockClear()
   })
 
   afterAll(async () => {
@@ -339,6 +347,177 @@ describe('AgentJobsService', () => {
 
       expect(service.updateTask(AGENT_ID, task.id, { name: 'hijack' })).toBeNull()
       expect(jobScheduleService.getById(task.id)?.name).toBe(form.name)
+    })
+  })
+
+  // ---------------------------------------------------------------- session reuse
+
+  describe('session reuse', () => {
+    /** Simulate a fire having bound its sticky session, plus an unrelated metadata key. */
+    function bindSession(taskId: string): string {
+      const session = agentSessionService.create({
+        agentId: AGENT_ID,
+        name: 'Scheduled task',
+        workspace: { type: 'system' }
+      })
+      dbh.db.transaction((tx) =>
+        agentSessionService.bindTaskScheduleTx(tx, {
+          sessionId: session.id,
+          taskScheduleId: taskId,
+          expectedAgentId: AGENT_ID
+        })
+      )
+      const current = jobScheduleService.getById(taskId)?.metadata ?? {}
+      jobScheduleService.update(taskId, { metadata: { ...current, unrelated: 'keep-me' } })
+      return session.id
+    }
+
+    function readReuse(taskId: string): unknown {
+      return jobScheduleService.getById(taskId)?.metadata?.reuse
+    }
+
+    it('defaults to reuse off with nothing bound', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      expect(task.reuseSession).toBe(false)
+      expect(task.reuseSessionId).toBeNull()
+      expect(readReuse(task.id)).toEqual({ enabled: false, revision: 0 })
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 0 })
+    })
+
+    it('enables reuse without binding a session up front', () => {
+      const task = service.createTask(AGENT_ID, form)
+
+      const updated = service.updateTask(AGENT_ID, task.id, { reuseSession: true })
+
+      expect(updated?.reuseSession).toBe(true)
+      expect(updated?.reuseSessionId).toBeNull()
+      expect(readReuse(task.id)).toEqual({ enabled: true, revision: 1 })
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 1 })
+    })
+
+    it('clears the bound session when reuse is turned off', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      const sessionId = bindSession(task.id)
+      expect(service.updateTask(AGENT_ID, task.id, {})?.reuseSessionId).toBe(sessionId)
+
+      const updated = service.updateTask(AGENT_ID, task.id, { reuseSession: false })
+
+      expect(updated?.reuseSession).toBe(false)
+      expect(updated?.reuseSessionId).toBeNull()
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledWith([
+        { endpoint: '/agent-tasks', kind: 'projection', entityIds: [task.id] },
+        { endpoint: '/agents/:agentId/tasks', kind: 'projection', entityIds: [task.id] },
+        { endpoint: '/agent-tasks/:taskId', entityIds: [task.id] },
+        { endpoint: '/agents/:agentId/tasks/:taskId', entityIds: [task.id] }
+      ])
+    })
+
+    // A bound session keeps its own workspace, so without this the user would
+    // repoint the task at workspace B and watch it keep working in A.
+    it('clears the bound session when the workspace changes, keeping reuse on', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      bindSession(task.id)
+
+      const updated = service.updateTask(AGENT_ID, task.id, {
+        workspace: { type: 'user', workspaceId: 'ws-9' }
+      })
+
+      expect(updated?.reuseSession).toBe(true)
+      expect(updated?.reuseSessionId).toBeNull()
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({
+        workspace: { type: 'user', workspaceId: 'ws-9' }
+      })
+    })
+
+    // The edit dialog submits full-field saves, so a no-op workspace resubmit
+    // must not silently reset the conversation.
+    it('keeps the bound session when the workspace is resubmitted unchanged', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      const sessionId = bindSession(task.id)
+
+      const updated = service.updateTask(AGENT_ID, task.id, { workspace: { type: 'system' } })
+
+      expect(updated?.reuseSessionId).toBe(sessionId)
+    })
+
+    // `updateTx` replaces the metadata column wholesale — the read-merge-write
+    // in updateTask is what keeps foreign keys alive.
+    it('preserves unrelated metadata keys when clearing the pointer', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      bindSession(task.id)
+
+      service.updateTask(AGENT_ID, task.id, { reuseSession: false })
+
+      expect(jobScheduleService.getById(task.id)?.metadata).toEqual({
+        reuse: { enabled: false, revision: 1 },
+        unrelated: 'keep-me'
+      })
+    })
+
+    it('bumps the reuse revision only for reuse or effective workspace changes', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+
+      service.updateTask(AGENT_ID, task.id, { name: 'renamed' })
+      expect(readReuse(task.id)).toMatchObject({ revision: 0 })
+
+      service.updateTask(AGENT_ID, task.id, { workspace: { type: 'user', workspaceId: 'ws-9' } })
+      expect(readReuse(task.id)).toMatchObject({ enabled: true, revision: 1 })
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 1 })
+
+      service.updateTask(AGENT_ID, task.id, { workspace: { type: 'user', workspaceId: 'ws-9' } })
+      expect(readReuse(task.id)).toMatchObject({ revision: 1 })
+
+      service.updateTask(AGENT_ID, task.id, { reuseSession: false })
+      expect(readReuse(task.id)).toMatchObject({ enabled: false, revision: 2 })
+      expect(jobScheduleService.getById(task.id)?.jobInputTemplate).toMatchObject({ reuseRevision: 2 })
+    })
+
+    it('binds only matching current reuse config and preserves unrelated metadata', () => {
+      const task = service.createTask(AGENT_ID, { ...form, reuseSession: true })
+      jobScheduleService.update(task.id, {
+        metadata: { reuse: { enabled: true, revision: 0 }, unrelated: 'keep-me' }
+      })
+
+      const session = agentSessionService.create({
+        agentId: AGENT_ID,
+        name: 'Scheduled task',
+        workspace: { type: 'system' }
+      })
+
+      expect(
+        service.bindTaskSessionReuse({
+          scheduleId: task.id,
+          sessionId: session.id,
+          agentId: AGENT_ID,
+          workspace: { type: 'user', workspaceId: 'wrong' },
+          reuseRevision: 0
+        })
+      ).toBe(false)
+      expect(
+        service.bindTaskSessionReuse({
+          scheduleId: task.id,
+          sessionId: session.id,
+          agentId: AGENT_ID,
+          workspace: { type: 'system' },
+          reuseRevision: 1
+        })
+      ).toBe(false)
+
+      expect(
+        service.bindTaskSessionReuse({
+          scheduleId: task.id,
+          sessionId: session.id,
+          agentId: AGENT_ID,
+          workspace: { type: 'system' },
+          reuseRevision: 0
+        })
+      ).toBe(true)
+      expect(jobScheduleService.getById(task.id)?.metadata).toEqual({
+        reuse: { enabled: true, revision: 0 },
+        unrelated: 'keep-me'
+      })
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledTimes(1)
     })
   })
 

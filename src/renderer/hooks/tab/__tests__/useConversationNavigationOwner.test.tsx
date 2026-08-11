@@ -48,9 +48,8 @@ describe('useConversationNavigationOwner', () => {
         {
           id: 'agent-tab',
           type: 'route' as const,
-          url: '/app/agents',
-          title: 'Refactor project',
-          metadata: { instanceAppId: 'agents', instanceKey: 'session-1' }
+          url: '/app/agents?sessionId=session-1',
+          title: 'Refactor project'
         }
       ]
     }
@@ -109,10 +108,9 @@ describe('useConversationNavigationOwner', () => {
       target,
       title: 'Refactor project'
     })
-    expect(owner.openTab).toHaveBeenCalledWith('/app/agents', {
+    expect(owner.openTab).toHaveBeenCalledWith('/app/agents?sessionId=session-1', {
       forceNew: true,
-      title: 'Refactor project',
-      metadata: { instanceAppId: 'agents', instanceKey: 'session-1' }
+      title: 'Refactor project'
     })
     expect(mocks.request).not.toHaveBeenCalledWith('navigation.report_conversation_ownership', {
       requestId: 'request-2',
@@ -126,9 +124,8 @@ describe('useConversationNavigationOwner', () => {
           {
             id: 'new-agent-tab',
             type: 'route',
-            url: '/app/agents',
-            title: 'Refactor project',
-            metadata: { instanceAppId: 'agents', instanceKey: 'session-1' }
+            url: '/app/agents?sessionId=session-1',
+            title: 'Refactor project'
           }
         ]
       }
@@ -172,9 +169,8 @@ describe('useConversationNavigationOwner', () => {
           {
             id: 'new-agent-tab',
             type: 'route',
-            url: '/app/agents',
-            title: 'Refactor project',
-            metadata: { instanceAppId: 'agents', instanceKey: 'session-1' }
+            url: '/app/agents?sessionId=session-1',
+            title: 'Refactor project'
           }
         ]
       }

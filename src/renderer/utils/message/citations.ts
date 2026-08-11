@@ -27,6 +27,7 @@ import { WEB_SEARCH_SOURCE } from '@renderer/types/webSearchProvider'
 import { mapCitationMarksToTags, mapMarkdownOutsideCode, normalizeCitationMarks } from '@renderer/utils/citation'
 import { cleanMarkdownContent } from '@renderer/utils/formats'
 import {
+  CITATION_SNIPPET_MAX_CHARS,
   KB_READ_TOOL_NAME,
   KB_SEARCH_TOOL_NAME,
   kbGrepOutputSchema,
@@ -37,6 +38,7 @@ import {
   webSearchOutputSchema
 } from '@shared/ai/builtinTools'
 import { parseFunctionCallToolName } from '@shared/ai/tools/mcpToolName'
+import { isDeferredToolOutput, isPersistedToolOutput } from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { readCherryMeta } from '@shared/data/types/uiParts'
 import type { DynamicToolUIPart, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
@@ -68,13 +70,6 @@ const CITABLE_TOOL_NAMES: ReadonlySet<string> = new Set([
 ])
 const CHERRY_TOOLS_MCP_SERVER = 'cherry-tools'
 const TOOL_INVOKE_TOOL_NAME = 'tool_invoke'
-
-/**
- * kb_read returns a whole document slice — orders of magnitude more text than a kb_search chunk —
- * but the tooltip only ever shows a snippet. Truncate here so the full slice is not carried
- * through the render path and re-serialized into every `<sup data-citation>` tag.
- */
-const KNOWLEDGE_SNIPPET_MAX_CHARS = 300
 
 type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 
@@ -134,10 +129,25 @@ function resolveCitableToolName(part: CherryMessagePart): string | null {
   return null
 }
 
+/**
+ * Citation fields survive persist-time entity trimming inside the envelope's
+ * skeleton (ids/urls/titles + inline snippets), so resolve from it without
+ * fetching any blob — for both the stored `'entities'` envelope (cold load)
+ * and its deferred projection carrying `skeleton` (transport).
+ */
+function unwrapCitableOutput(output: unknown): unknown {
+  if (isPersistedToolOutput(output)) {
+    const ref = output.$persistedToolOutput
+    return ref.shape === 'entities' ? ref.skeleton : output
+  }
+  if (isDeferredToolOutput(output) && output.skeleton !== undefined) return output.skeleton
+  return output
+}
+
 function toSnippet(content: string): string {
   const trimmed = content.trim()
-  if (trimmed.length <= KNOWLEDGE_SNIPPET_MAX_CHARS) return trimmed
-  return `${trimmed.slice(0, KNOWLEDGE_SNIPPET_MAX_CHARS)}…`
+  if (trimmed.length <= CITATION_SNIPPET_MAX_CHARS) return trimmed
+  return `${trimmed.slice(0, CITATION_SNIPPET_MAX_CHARS)}…`
 }
 
 /**
@@ -249,7 +259,7 @@ export function resolveMessageCitations(parts: readonly CherryMessagePart[]): Me
   for (const part of parts) {
     const toolName = resolveCitableToolName(part)
     if (!toolName) continue
-    const rawOutput = (part as { output?: unknown }).output
+    const rawOutput = unwrapCitableOutput((part as { output?: unknown }).output)
     const output = normalizeToolOutputResponse(rawOutput)
 
     if (toolName === KB_SEARCH_TOOL_NAME) {

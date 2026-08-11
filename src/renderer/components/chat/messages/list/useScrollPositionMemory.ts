@@ -39,8 +39,8 @@ export interface RestoreTarget {
 }
 
 interface ComputeScrollAnchorArgs {
-  /** Whether the list is currently pinned to the bottom. */
-  atBottom: boolean
+  /** Whether the list is currently following the live edge. */
+  following: boolean
   /** Current scrollTop of the scroller. */
   scrollOffset: number
   /** Wrapped index of the top-most visible item (`handle.findItemIndex`). */
@@ -53,17 +53,17 @@ interface ComputeScrollAnchorArgs {
 
 /**
  * Derive the anchor to persist from the current scroll state. Returns `null`
- * (= "follow the latest message") when at the bottom or when the top-most
+ * (= "follow the latest message") in following mode or when the top-most
  * visible item is not a real message.
  */
 export function computeScrollAnchor({
-  atBottom,
+  following,
   scrollOffset,
   topIndex,
   getKeyAtIndex,
   getOffsetAtIndex
 }: ComputeScrollAnchorArgs): ChatScrollAnchor | null {
-  if (atBottom) return null
+  if (following) return null
   const key = getKeyAtIndex(topIndex)
   if (!key) return null
   const offset = Math.max(0, scrollOffset - getOffsetAtIndex(topIndex))
@@ -102,9 +102,12 @@ export interface ScrollPositionMemoryInputs {
   getDataKeyAtIndex: (index: number) => string | null
   /** Data index for a group key, or `-1` when absent. */
   findDataIndexByKey: (key: string) => number
-  isAtBottom: () => boolean
-  /** Mark the at-bottom tracker as stuck after restoring to the bottom. */
-  notifyProgrammaticStick: () => void
+  /** Whether the mount-time restore still owns the viewport. */
+  shouldRestore: () => boolean
+  isFollowing: () => boolean
+  enterFollowingAfterRestore: () => void
+  enterReadingForRestore: () => void
+  settleReadingRestore: () => void
   /** Whether a smooth-scroll animation is in flight (don't save mid-animation). */
   isAnimating: () => boolean
 }
@@ -145,7 +148,7 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
     if (!immediate && now - lastSaveAtRef.current < SAVE_THROTTLE_MS) return
     lastSaveAtRef.current = now
     const anchor = computeScrollAnchor({
-      atBottom: i.isAtBottom(),
+      following: i.isFollowing(),
       scrollOffset: el.scrollTop,
       topIndex: handle.findItemIndex(el.scrollTop),
       getKeyAtIndex: i.getDataKeyAtIndex,
@@ -166,19 +169,23 @@ export function useScrollPositionMemory(inputs: ScrollPositionMemoryInputs): Scr
 
     let settleRaf = 0
     const raf = requestAnimationFrame(() => {
+      if (!i.shouldRestore()) {
+        suppressSaveRef.current = false
+        return
+      }
       const el = i.scrollerRef.current
       const handle = i.vlistHandleRef.current
+      if (target.align === 'end') i.enterFollowingAfterRestore()
+      else i.enterReadingForRestore()
       if (handle) {
         handle.scrollToIndex(target.index, { align: target.align, offset: target.offset })
-        // Following the newest message engages auto-stick so streaming keeps up.
-        if (target.align === 'end') i.notifyProgrammaticStick()
       } else if (el && target.align === 'end') {
         el.scrollTop = Math.max(0, el.scrollHeight - el.clientHeight)
-        i.notifyProgrammaticStick()
       }
       // Let the programmatic scroll flush (virtua's scrollToIndex measures then
       // re-positions) before re-enabling saves.
       settleRaf = requestAnimationFrame(() => {
+        if (target.align === 'start') i.settleReadingRestore()
         suppressSaveRef.current = false
       })
     })

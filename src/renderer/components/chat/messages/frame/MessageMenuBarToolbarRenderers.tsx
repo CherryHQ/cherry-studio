@@ -215,6 +215,7 @@ const TranslateMenuPopover = ({
               type: 'item' as const,
               id: item.key,
               label: item.label,
+              enabled: item.enabled,
               onSelect: () => {
                 void item.onSelect()
               }
@@ -326,12 +327,19 @@ export function renderTranslateToolbarAction({
 
   if (translationItems.length === 0) return null
 
+  const handleMenuOpenChange = (open: boolean) => {
+    if (open) {
+      actionContext.actions.requestTranslationLanguages?.()
+    }
+    onMenuOpenChange?.(open)
+  }
+
   return (
     <TranslateToolbarAction
       action={action}
       translationItems={translationItems}
       softHoverBg={softHoverBg}
-      onMenuOpenChange={onMenuOpenChange}
+      onMenuOpenChange={handleMenuOpenChange}
     />
   )
 }

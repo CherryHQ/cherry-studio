@@ -984,6 +984,9 @@ export function mergeMessageRuntimeStats(
     delete merged.timeCompletionMs
     delete merged.timeThinkingMs
   }
+  if (incoming?.contextTokens !== undefined) {
+    merged.contextTokens = incoming.contextTokens
+  }
 
   return Object.keys(merged).length > 0 ? merged : undefined
 }
@@ -999,7 +1002,10 @@ export function mergeMessageUsageProjection(
   for (const key of LEGACY_RECORD_OWNED_KEYS) delete messageOwned[key]
 
   const normalizedMessageOwned: MessageOwnedStats = messageOwned.runtimeTiming
-    ? { runtimeTiming: messageOwned.runtimeTiming }
+    ? {
+        runtimeTiming: messageOwned.runtimeTiming,
+        ...(messageOwned.contextTokens !== undefined ? { contextTokens: messageOwned.contextTokens } : {})
+      }
     : messageOwned
   return { ...normalizedMessageOwned, ...projection }
 }

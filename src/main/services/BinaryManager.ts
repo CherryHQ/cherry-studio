@@ -12,7 +12,7 @@ import { isWin } from '@main/core/platform'
 import { regionService } from '@main/services/RegionService'
 import { getBinaryIsolatedHomeEnv, getBinaryShimsDir, mergeBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryName } from '@main/utils/binaryResolver'
-import { findCommandInShellEnv, findExecutable } from '@main/utils/commandResolver'
+import { findCommandInShellEnv, findExecutable, findMiseExecutable } from '@main/utils/commandResolver'
 import { getRawShellEnv, refreshShellEnv } from '@main/utils/shellEnv'
 import type { CustomToolDefinition } from '@shared/data/preference/preferenceTypes'
 import {
@@ -259,7 +259,7 @@ export class BinaryManager extends BaseService {
     // bootstrapped (always true by the time any restart runs).
     if (this.hasReachedAllReady) this.registerPreferenceInvalidation()
     await this.extractBundledBinaries()
-    this.miseBin = this.findMiseBin()
+    this.miseBin = await this.findMiseBin()
     if (!this.miseBin) {
       logger.warn('mise binary not found, binary management disabled')
       return
@@ -725,7 +725,7 @@ export class BinaryManager extends BaseService {
     }
   }
 
-  private findMiseBin(): string | null {
+  private async findMiseBin(): Promise<string | null> {
     const binaryName = getBinaryName('mise')
 
     const cherryBin = path.join(application.getPath('cherry.bin'), binaryName)
@@ -733,9 +733,12 @@ export class BinaryManager extends BaseService {
       return cherryBin
     }
 
+    if (isWin) {
+      return findMiseExecutable()
+    }
+
     try {
-      const cmd = isWin ? 'where' : 'which'
-      const result = execFileSync(cmd, [binaryName], { encoding: 'utf-8', timeout: 5000 })
+      const result = execFileSync('which', [binaryName], { encoding: 'utf-8', timeout: 5000 })
       const systemPath = result.trim().split(/\r?\n/)[0]
       if (systemPath && fs.existsSync(systemPath)) {
         return systemPath
@@ -1136,6 +1139,23 @@ export class BinaryManager extends BaseService {
     await this.installWithMise(definition, targetVersion, definitions)
     if (!(await this.isManagedBinaryReady(definition.name))) {
       throw new Error(`Tool installed but not runnable: ${definition.name}`)
+    }
+
+    // Only explicit updates clean versions no longer referenced by mise.
+    if (targetVersion) {
+      try {
+        await this.runMise(['prune', definition.tool])
+      } catch (err) {
+        logger.warn('Failed to prune obsolete mise tool versions', {
+          name: definition.name,
+          error: this.errorMessage(err)
+        })
+        return
+      }
+      await this.runMise(['reshim'])
+      if (!(await this.isManagedBinaryReady(definition.name))) {
+        throw new Error(`Tool not runnable after pruning obsolete versions: ${definition.name}`)
+      }
     }
   }
 

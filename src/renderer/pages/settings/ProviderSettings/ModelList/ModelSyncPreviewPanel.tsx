@@ -5,6 +5,7 @@ import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { getModelLogoRef } from '@renderer/utils/model'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { ChevronRight, CircleHelp, Minus, Plus } from 'lucide-react'
 import { memo, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +16,7 @@ import { getModelGroupLabel } from './grouping'
 import type { ModelGroups } from './modelListDerivedState'
 
 interface ModelSyncPreviewPanelProps {
+  provider?: Provider
   modelGroups: ModelGroups
   localModelIds: Set<UniqueModelId>
   removableModelIds: Set<UniqueModelId>
@@ -65,6 +67,7 @@ const ModelGlyph = memo(function ModelGlyph({ model }: { model: Model }) {
 
 const ManageModelRow = memo(function ManageModelRow({
   model,
+  provider,
   isAdded,
   isRemovable,
   isDefaultModel,
@@ -74,6 +77,7 @@ const ManageModelRow = memo(function ManageModelRow({
   onRemoveModels
 }: {
   model: Model
+  provider?: Provider
   isAdded: boolean
   isRemovable: boolean
   isDefaultModel: boolean
@@ -83,6 +87,8 @@ const ManageModelRow = memo(function ManageModelRow({
   onRemoveModels: (modelIds: UniqueModelId[]) => void | Promise<void>
 }) {
   const { t } = useTranslation()
+  const apiModelId = modelIdLine(model)
+  const apiModelIdId = `${model.id}-api-model-id`
   const actionTooltip = isAdded
     ? isDefaultModel
       ? t('settings.models.manage.default_model_cannot_remove')
@@ -94,7 +100,16 @@ const ManageModelRow = memo(function ManageModelRow({
       <ModelGlyph model={model} />
       <div className="min-w-0 flex-1">
         <div className={modelSyncClasses.manageRowTitleLine}>
-          <p className={modelSyncClasses.manageRowTitle}>{modelIdLine(model)}</p>
+          {/* Friendly names can collide, so the raw id must stay reachable without a mouse: the title
+              is focusable (opening the tooltip on focus) and described by an off-screen copy of it. */}
+          <Tooltip content={apiModelId} placement="top">
+            <p tabIndex={0} aria-describedby={apiModelIdId} className={modelSyncClasses.manageRowTitle}>
+              {model.name || apiModelId}
+            </p>
+          </Tooltip>
+          <span id={apiModelIdId} className="sr-only">
+            {apiModelId}
+          </span>
           {model.description ? (
             <Tooltip content={model.description} placement="top">
               <span tabIndex={0} aria-label={model.description} className={modelSyncClasses.manageRowDescriptionHelp}>
@@ -110,7 +125,12 @@ const ManageModelRow = memo(function ManageModelRow({
         </div>
       </div>
       <div className={modelSyncClasses.fetchCapabilityStrip}>
-        <ModelTagsWithLabel model={model as ModelTagsWithLabelModel} size={12} style={{ flexWrap: 'nowrap' }} />
+        <ModelTagsWithLabel
+          model={model as ModelTagsWithLabelModel}
+          provider={provider}
+          size={12}
+          style={{ flexWrap: 'nowrap' }}
+        />
       </div>
       <Tooltip content={actionTooltip} placement="top">
         <Button
@@ -137,6 +157,7 @@ const ManageModelRow = memo(function ManageModelRow({
 })
 
 export default function ModelSyncPreviewPanel({
+  provider,
   modelGroups,
   localModelIds,
   removableModelIds,
@@ -289,6 +310,7 @@ export default function ModelSyncPreviewPanel({
         return (
           <div className={modelSyncClasses.manageVirtualModelRow}>
             <ManageModelRow
+              provider={provider}
               model={row.model}
               isAdded={localModelIds.has(row.model.id)}
               isRemovable={removableModelIds.has(row.model.id)}
