@@ -474,7 +474,7 @@ describe('useChatWriteActions — regenerate', () => {
     failedAssistant.parts = [{ type: 'data-error', data: { message: 'failed' } }]
     const activeExecution = {
       executionId: 'provider::model-a',
-      attemptId: 'attempt-2',
+      attemptId: 2,
       anchorMessageId: 'a1'
     }
     const reservedMessage = {
@@ -533,7 +533,7 @@ describe('useChatWriteActions — regenerate', () => {
     }
     const activeExecution = {
       executionId: 'provider::model-b',
-      attemptId: 'attempt-b',
+      attemptId: 2,
       anchorMessageId: 'a2'
     }
     streamOpen.mockResolvedValueOnce({

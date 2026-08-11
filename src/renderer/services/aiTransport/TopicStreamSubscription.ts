@@ -9,7 +9,7 @@ import type { UIMessageChunk } from 'ai'
 const logger = loggerService.withContext('TopicStreamSubscription')
 
 export interface ExecutionTerminal {
-  attemptId?: string
+  attemptId?: number
   anchorMessageId?: string
   isAbort: boolean
   isError: boolean
@@ -20,20 +20,20 @@ type TopicStateListener = () => void
 
 interface Branch {
   executionId: UniqueModelId
-  attemptId?: string
+  attemptId?: number
   anchorMessageId?: string
   stream: ReadableStream<UIMessageChunk>
   controller: ReadableStreamDefaultController<UIMessageChunk> | null
   closed: boolean
 }
 
-function branchKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: string): string {
+function branchKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): string {
   // One model execution can roll into another assistant row during steer continuation.
   // The branch identity must include the row anchor, not only the model id.
   return JSON.stringify([executionId, anchorMessageId ?? null, attemptId ?? null])
 }
 
-function createBranch(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: string): Branch {
+function createBranch(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): Branch {
   const branch: Branch = {
     executionId,
     attemptId,
@@ -74,7 +74,7 @@ export class TopicStreamSubscription {
     this.#setupIpcListeners()
   }
 
-  register(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: string): ReadableStream<UIMessageChunk> {
+  register(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): ReadableStream<UIMessageChunk> {
     // The branch controller is created synchronously inside `createBranch`,
     // so chunks arriving before this call are already queued — late readers
     // never lose replay/early chunks.
@@ -86,7 +86,7 @@ export class TopicStreamSubscription {
   /** True when the branch for this exact key exists and is still open —
    *  i.e. a stream (typically a new turn's auto-created branch) has produced
    *  chunks that no reader has claimed yet. */
-  hasOpenBranch(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: string): boolean {
+  hasOpenBranch(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): boolean {
     const branch = this.#branches.get(branchKey(executionId, anchorMessageId, attemptId))
     return branch !== undefined && !branch.closed
   }
@@ -107,7 +107,7 @@ export class TopicStreamSubscription {
     return this.#topicOpen
   }
 
-  unregister(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: string): void {
+  unregister(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): void {
     const key = branchKey(executionId, anchorMessageId, attemptId)
     const branch = this.#branches.get(key)
     if (!branch) return
@@ -157,7 +157,7 @@ export class TopicStreamSubscription {
 
   // ── internals ──────────────────────────────────────────────────────
 
-  #getOrCreateBranch(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: string): Branch {
+  #getOrCreateBranch(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): Branch {
     const key = branchKey(executionId, anchorMessageId, attemptId)
     let branch = this.#branches.get(key)
     if (!branch) {
@@ -171,7 +171,7 @@ export class TopicStreamSubscription {
   #terminalFor(
     executionId: UniqueModelId,
     anchorMessageId?: string,
-    attemptId?: string
+    attemptId?: number
   ): ExecutionTerminal | undefined {
     const exact = this.#terminalByBranchKey.get(branchKey(executionId, anchorMessageId, attemptId))?.terminal
     if (exact) return exact
@@ -213,7 +213,7 @@ export class TopicStreamSubscription {
     error: SerializedError,
     executionId?: UniqueModelId,
     anchorMessageId?: string,
-    attemptId?: string
+    attemptId?: number
   ): void {
     const chunk: CherryUIMessageChunk = { type: 'data-error', data: { ...error } }
 
@@ -238,7 +238,7 @@ export class TopicStreamSubscription {
     executionId: UniqueModelId,
     terminal: ExecutionTerminal,
     anchorMessageId?: string,
-    attemptId?: string
+    attemptId?: number
   ): void {
     const keys =
       anchorMessageId !== undefined || attemptId !== undefined

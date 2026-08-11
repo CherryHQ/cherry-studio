@@ -565,14 +565,12 @@ describe('AiStreamManager', () => {
         activeExecutions: [
           {
             executionId: 'provider-a::model-a',
-            attemptId: expect.any(String),
-            attemptVersion: expect.any(Number),
+            attemptId: expect.any(Number),
             anchorMessageId: undefined
           },
           {
             executionId: 'provider-b::model-b',
-            attemptId: expect.any(String),
-            attemptVersion: expect.any(Number),
+            attemptId: expect.any(Number),
             anchorMessageId: undefined
           }
         ]
@@ -637,7 +635,6 @@ describe('AiStreamManager', () => {
         {
           executionId: 'provider-a::model-a',
           attemptId: snapshot.executions[0].attemptId,
-          attemptVersion: snapshot.executions[0].attemptVersion,
           anchorMessageId: 'assistant-a',
           seedFromEmpty: true
         }
@@ -768,7 +765,6 @@ describe('AiStreamManager', () => {
         {
           executionId: 'provider-c::model-c',
           attemptId: snapshot.executions[2].attemptId,
-          attemptVersion: snapshot.executions[2].attemptVersion,
           anchorMessageId: 'assistant-c'
         }
       ])

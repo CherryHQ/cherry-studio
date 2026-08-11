@@ -30,7 +30,7 @@ function msg(overrides: Partial<MessageListItem> = {}): MessageListItem {
 }
 
 function execution(anchorMessageId: string): ActiveExecution {
-  return { executionId: 'p::m', attemptId: `attempt:${anchorMessageId}`, attemptVersion: 1, anchorMessageId }
+  return { executionId: 'p::m', attemptId: 1, anchorMessageId }
 }
 
 describe('useIsActiveTurnTarget', () => {

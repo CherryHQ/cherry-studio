@@ -235,8 +235,7 @@ describe('useChatRuntimeState', () => {
     const staleAttempt: ActiveExecution = {
       executionId: 'provider::model',
       anchorMessageId: 'reserved-1',
-      attemptId: 'attempt-1',
-      attemptVersion: 1
+      attemptId: 1
     }
     mocks.activeExecutions = [staleAttempt]
     const view = render(<RuntimeHost topicId="topic-1" />)
@@ -251,24 +250,20 @@ describe('useChatRuntimeState', () => {
       {
         executionId: 'provider::model',
         anchorMessageId: 'reserved-1',
-        attemptId: 'attempt-2',
-        attemptVersion: 2,
+        attemptId: 2,
         seedFromEmpty: true
       }
     ]
     view.rerender(<RuntimeHost topicId="topic-1" />)
 
-    expect(mocks.overlayExecutions).toEqual([
-      expect.objectContaining({ attemptId: 'attempt-2', attemptVersion: 2, seedFromEmpty: true })
-    ])
+    expect(mocks.overlayExecutions).toEqual([expect.objectContaining({ attemptId: 2, seedFromEmpty: true })])
   })
 
   it('does not restore a completed old attempt after its newer replacement settles', async () => {
     const staleAttempt: ActiveExecution = {
       executionId: 'provider::model',
       anchorMessageId: 'reserved-1',
-      attemptId: 'attempt-1',
-      attemptVersion: 1
+      attemptId: 1
     }
     const view = render(<RuntimeHost topicId="topic-1" />)
 
@@ -282,8 +277,7 @@ describe('useChatRuntimeState', () => {
       {
         executionId: 'provider::model',
         anchorMessageId: 'reserved-1',
-        attemptId: 'attempt-2',
-        attemptVersion: 2
+        attemptId: 2
       }
     ]
     view.rerender(<RuntimeHost topicId="topic-1" />)
@@ -294,7 +288,7 @@ describe('useChatRuntimeState', () => {
     } as CherryUIMessage
     await act(async () => {
       mocks.overlayOnFinish?.('provider::model', {
-        attemptId: 'attempt-1',
+        attemptId: 1,
         message: completedMessage,
         isAbort: false,
         isError: false

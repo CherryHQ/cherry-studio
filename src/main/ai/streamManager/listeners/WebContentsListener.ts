@@ -30,7 +30,7 @@ interface PendingDelta {
   identifier: string
   sourceModelId: UniqueModelId | undefined
   anchorMessageId: string | undefined
-  attemptId: string | undefined
+  attemptId: number | undefined
   text: string
 }
 
@@ -57,7 +57,7 @@ export class WebContentsListener implements StreamListener {
     this.wc.once('destroyed', () => this.discardPending())
   }
 
-  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: string): void {
+  onChunk(chunk: UIMessageChunk, sourceModelId?: UniqueModelId, anchorMessageId?: string, attemptId?: number): void {
     if (this.wc.isDestroyed()) {
       this.discardPending()
       return
@@ -172,7 +172,7 @@ export class WebContentsListener implements StreamListener {
     chunk: UIMessageChunk,
     sourceModelId?: UniqueModelId,
     anchorMessageId?: string,
-    attemptId?: string
+    attemptId?: number
   ): void {
     if (this.wc.isDestroyed()) return
     this.emit('ai.stream.chunk', {
@@ -210,7 +210,7 @@ function normalizePending(
   chunk: CoalescableChunk,
   sourceModelId: UniqueModelId | undefined,
   anchorMessageId: string | undefined,
-  attemptId: string | undefined
+  attemptId: number | undefined
 ): PendingDelta {
   if (chunk.type === 'tool-input-delta') {
     return {

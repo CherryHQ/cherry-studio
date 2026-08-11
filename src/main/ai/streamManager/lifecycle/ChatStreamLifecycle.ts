@@ -21,7 +21,6 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
         const entry: ActiveExecution = {
           executionId: modelId,
           attemptId: exec.attemptId,
-          attemptVersion: exec.attemptVersion,
           anchorMessageId: exec.anchorMessageId,
           ...(exec.seedFromEmpty ? { seedFromEmpty: true } : {})
         }

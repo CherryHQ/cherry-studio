@@ -119,8 +119,7 @@ const B = 'anthropic::claude' as UniqueModelId
 
 const exec = (executionId: UniqueModelId, anchorMessageId?: string): ActiveExecution => ({
   executionId,
-  attemptId: `${executionId}:${anchorMessageId ?? 'temporary'}`,
-  attemptVersion: 1,
+  attemptId: 1,
   anchorMessageId
 })
 const asst = (id: string, parts: CherryUIMessage['parts'] = []): CherryUIMessage =>

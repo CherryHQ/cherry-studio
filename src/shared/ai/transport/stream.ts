@@ -26,7 +26,7 @@ export interface StreamChunkPayload {
   /** Multi-model: source model that produced this chunk. Frontend demuxes by this plus anchorMessageId. */
   executionId?: UniqueModelId
   /** Unique runtime attempt. Distinguishes repeated runs of the same model against the same row. */
-  attemptId?: string
+  attemptId?: number
   /** Assistant row this execution writes to. Disambiguates same-model chained turns. */
   anchorMessageId?: string
   chunk: UIMessageChunk
@@ -57,10 +57,8 @@ export type TopicStreamStatus =
  */
 export interface ActiveExecution {
   executionId: UniqueModelId
-  /** Unique runtime attempt. */
-  attemptId: string
-  /** Main-process monotonic attempt order, used to resolve cross-window stale optimistic state. */
-  attemptVersion: number
+  /** Unique runtime attempt, monotonic within the Main-process lifetime; newer attempts have larger values. */
+  attemptId: number
   anchorMessageId?: string
   /** This attempt reset its persisted anchor row and must start from empty parts in every window. */
   seedFromEmpty?: boolean
@@ -133,7 +131,7 @@ type AiStreamRegenerateTarget =
 export interface StreamDonePayload {
   topicId: string
   executionId?: UniqueModelId
-  attemptId?: string
+  attemptId?: number
   anchorMessageId?: string
   status: 'success' | 'paused'
   isTopicDone?: boolean
@@ -144,7 +142,7 @@ export interface StreamErrorPayload {
   topicId: string
   /** Multi-model: which model's execution errored. */
   executionId?: UniqueModelId
-  attemptId?: string
+  attemptId?: number
   anchorMessageId?: string
   /** True when the topic has no remaining streaming executions. */
   isTopicDone?: boolean

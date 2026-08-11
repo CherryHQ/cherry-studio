@@ -7,11 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => {
   type TerminalCb = (
     id: string,
-    t: { attemptId?: string; anchorMessageId?: string; isAbort: boolean; isError: boolean }
+    t: { attemptId?: number; anchorMessageId?: string; isAbort: boolean; isError: boolean }
   ) => void
   type Branch = {
     executionId: string
-    attemptId?: string
+    attemptId?: number
     anchorMessageId?: string
     stream: ReadableStream<unknown>
     controller: ReadableStreamDefaultController<unknown>
@@ -31,11 +31,11 @@ const mocks = vi.hoisted(() => {
       subs.set(topicId, this)
     }
 
-    #key(executionId: string, anchorMessageId?: string, attemptId?: string) {
+    #key(executionId: string, anchorMessageId?: string, attemptId?: number) {
       return JSON.stringify([executionId, anchorMessageId ?? null, attemptId ?? null])
     }
 
-    #terminalFor(executionId: string, anchorMessageId?: string, attemptId?: string) {
+    #terminalFor(executionId: string, anchorMessageId?: string, attemptId?: number) {
       const exact = this.terminalByKey.get(this.#key(executionId, anchorMessageId, attemptId))
       if (exact) return exact
       if (attemptId) return undefined
@@ -47,7 +47,7 @@ const mocks = vi.hoisted(() => {
       this.listenCalls += 1
     }
 
-    #getOrCreate(executionId: string, anchorMessageId?: string, attemptId?: string) {
+    #getOrCreate(executionId: string, anchorMessageId?: string, attemptId?: number) {
       const key = this.#key(executionId, anchorMessageId, attemptId)
       let branch = this.branches.get(key)
       if (!branch) {
@@ -63,11 +63,11 @@ const mocks = vi.hoisted(() => {
       return branch
     }
 
-    register(executionId: string, anchorMessageId?: string, attemptId?: string) {
+    register(executionId: string, anchorMessageId?: string, attemptId?: number) {
       return this.#getOrCreate(executionId, anchorMessageId, attemptId).stream
     }
 
-    hasOpenBranch(executionId: string, anchorMessageId?: string, attemptId?: string) {
+    hasOpenBranch(executionId: string, anchorMessageId?: string, attemptId?: number) {
       const branch = this.branches.get(this.#key(executionId, anchorMessageId, attemptId))
       return branch !== undefined && !branch.closed
     }
@@ -83,11 +83,11 @@ const mocks = vi.hoisted(() => {
       return this.topicOpen
     }
 
-    #find(executionId: string, anchorMessageId?: string, attemptId?: string) {
+    #find(executionId: string, anchorMessageId?: string, attemptId?: number) {
       return this.branches.get(this.#key(executionId, anchorMessageId, attemptId))
     }
 
-    unregister(executionId: string, anchorMessageId?: string, attemptId?: string) {
+    unregister(executionId: string, anchorMessageId?: string, attemptId?: number) {
       const key = this.#key(executionId, anchorMessageId, attemptId)
       const branch = this.branches.get(key)
       if (branch) {
@@ -134,7 +134,7 @@ const mocks = vi.hoisted(() => {
       executionId: string,
       chunk: CherryUIMessageChunk,
       anchorMessageId?: string,
-      attemptId = anchorMessageId === undefined ? undefined : 'attempt-1'
+      attemptId = anchorMessageId === undefined ? undefined : 1
     ) {
       // Mirror production #routeChunk: a chunk with no branch auto-creates
       // one under the exact key and queues there until a reader registers.
@@ -149,7 +149,7 @@ const mocks = vi.hoisted(() => {
       executionId: string,
       t: { isAbort: boolean; isError: boolean; isTopicDone?: boolean },
       anchorMessageId?: string,
-      attemptId = anchorMessageId === undefined ? undefined : 'attempt-1'
+      attemptId = anchorMessageId === undefined ? undefined : 1
     ) {
       const topicOpen = t.isTopicDone === false
       if (t.isTopicDone !== undefined && this.topicOpen !== topicOpen) {
@@ -201,14 +201,12 @@ const A = 'openai::gpt-4o' as UniqueModelId
 const exec = (
   executionId: UniqueModelId,
   anchorMessageId?: string,
-  attemptId = 'attempt-1',
-  seedFromEmpty?: boolean,
-  attemptVersion = 1
+  attemptId = 1,
+  seedFromEmpty?: boolean
 ): ActiveExecution => ({
   executionId,
   anchorMessageId,
   attemptId,
-  attemptVersion,
   seedFromEmpty
 })
 const asst = (id: string, parts: CherryUIMessage['parts'] = []): CherryUIMessage =>
@@ -272,16 +270,11 @@ describe('ExecutionStreamOverlayService', () => {
       ] as CherryUIMessage[]
 
     service.acquire(TOPIC)
-    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 'attempt-2', true)], staleSeed)
+    service.syncExecutions(TOPIC, consumer, [exec(A, 'anchor-a', 2, true)], staleSeed)
     const sub = mocks.subs.get(TOPIC)!
 
-    sub.emit(A, { type: 'text-start', id: 'retry-text' } as CherryUIMessageChunk, 'anchor-a', 'attempt-2')
-    sub.emit(
-      A,
-      { type: 'text-delta', id: 'retry-text', delta: 'new response' } as CherryUIMessageChunk,
-      'anchor-a',
-      'attempt-2'
-    )
+    sub.emit(A, { type: 'text-start', id: 'retry-text' } as CherryUIMessageChunk, 'anchor-a', 2)
+    sub.emit(A, { type: 'text-delta', id: 'retry-text', delta: 'new response' } as CherryUIMessageChunk, 'anchor-a', 2)
     await nextFrame()
 
     const parts = service.getView(TOPIC).overlay['anchor-a']
@@ -402,7 +395,7 @@ describe('ExecutionStreamOverlayService', () => {
     await drainStreamMicrotasks()
 
     // A stays settled: no reader restart, retained final frame intact.
-    expect(sub.branches.has(JSON.stringify([A, 'anchor-a', 'attempt-1']))).toBe(false)
+    expect(sub.branches.has(JSON.stringify([A, 'anchor-a', 1]))).toBe(false)
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live')
   })
@@ -515,7 +508,7 @@ describe('ExecutionStreamOverlayService', () => {
     await drainStreamMicrotasks()
 
     // Tombstoned: no zombie reader, no new branch for A; B is untouched.
-    expect(sub.branches.has(JSON.stringify([A, 'anchor-a', 'attempt-1']))).toBe(false)
+    expect(sub.branches.has(JSON.stringify([A, 'anchor-a', 1]))).toBe(false)
     expect(sub.branches.size).toBe(1)
     sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b')
     await nextFrame()

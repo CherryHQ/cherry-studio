@@ -51,7 +51,7 @@ import { TopicStreamSubscription } from './TopicStreamSubscription'
 const logger = loggerService.withContext('ExecutionStreamOverlayService')
 
 export interface ExecutionFinishEvent {
-  attemptId: string
+  attemptId: number
   message: CherryUIMessage
   isAbort: boolean
   isError: boolean
@@ -69,7 +69,7 @@ type FinishListener = (executionId: string, event: ExecutionFinishEvent) => void
 
 interface ReaderHandle {
   executionId: UniqueModelId
-  attemptId: string
+  attemptId: number
   anchorMessageId?: string
   cancel: () => void
   unregister: () => void
@@ -128,7 +128,7 @@ const EMPTY_VIEW: ExecutionOverlayView = Object.freeze({
   liveAssistants: Object.freeze([]) as unknown as CherryUIMessage[]
 })
 
-function executionKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: string): string {
+function executionKey(executionId: UniqueModelId, anchorMessageId?: string, attemptId?: number): string {
   return JSON.stringify([executionId, anchorMessageId ?? null, attemptId ?? null])
 }
 
@@ -267,7 +267,7 @@ export class ExecutionStreamOverlayService {
       string,
       {
         executionId: UniqueModelId
-        attemptId: string
+        attemptId: number
         anchorMessageId?: string
         seedFromEmpty?: boolean
         seed: ConsumerContribution
@@ -501,7 +501,7 @@ export class ExecutionStreamOverlayService {
     entry: Entry,
     key: string,
     executionId: UniqueModelId,
-    attemptId: string,
+    attemptId: number,
     anchorMessageId: string | undefined,
     seedFromEmpty: boolean | undefined,
     getSeedMessages: () => CherryUIMessage[]

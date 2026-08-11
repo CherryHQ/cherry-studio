@@ -1011,8 +1011,7 @@ describe('ChatContent', () => {
       activeExecutions: [
         {
           executionId: 'forked-exec',
-          attemptId: 'forked-attempt',
-          attemptVersion: 1,
+          attemptId: 9,
           anchorMessageId: 'forked-assistant'
         }
       ] as never
@@ -1068,7 +1067,7 @@ describe('ChatContent', () => {
 
     act(() => {
       finish('forked-exec', {
-        attemptId: 'forked-attempt',
+        attemptId: 9,
         message: {
           id: 'forked-assistant',
           role: 'assistant',
@@ -1442,14 +1441,12 @@ describe('ChatContent', () => {
       activeExecutions: [
         {
           executionId: 'provider::model-a',
-          attemptId: 'attempt-a',
-          attemptVersion: 1,
+          attemptId: 1,
           anchorMessageId: 'reserved-assistant-a'
         },
         {
           executionId: 'provider::model-b',
-          attemptId: 'attempt-b',
-          attemptVersion: 2,
+          attemptId: 2,
           anchorMessageId: 'reserved-assistant-b'
         }
       ]
@@ -1480,14 +1477,12 @@ describe('ChatContent', () => {
         [
           {
             executionId: 'provider::model-a',
-            attemptId: 'attempt-a',
-            attemptVersion: 1,
+            attemptId: 1,
             anchorMessageId: 'reserved-assistant-a'
           },
           {
             executionId: 'provider::model-b',
-            attemptId: 'attempt-b',
-            attemptVersion: 2,
+            attemptId: 2,
             anchorMessageId: 'reserved-assistant-b'
           }
         ],
@@ -1504,7 +1499,7 @@ describe('ChatContent', () => {
 
     act(() => {
       finish('provider::model-a', {
-        attemptId: 'attempt-a',
+        attemptId: 1,
         message: { ...reservedAssistantA, parts: [{ type: 'text', text: 'model a final' }] as CherryMessagePart[] },
         isAbort: false,
         isError: false
@@ -1520,7 +1515,7 @@ describe('ChatContent', () => {
 
     act(() => {
       finish('provider::model-b', {
-        attemptId: 'attempt-b',
+        attemptId: 2,
         message: { ...reservedAssistantB, parts: [{ type: 'text', text: 'model b final' }] as CherryMessagePart[] },
         isAbort: false,
         isError: false

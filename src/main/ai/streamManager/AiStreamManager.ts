@@ -135,8 +135,7 @@ export interface StartRuntimeTurnInput {
 
 export interface ExecutionSnapshot {
   readonly modelId: UniqueModelId
-  readonly attemptId: string
-  readonly attemptVersion: number
+  readonly attemptId: number
   readonly anchorMessageId?: string
   readonly seedFromEmpty?: boolean
   readonly status: StreamExecution['status']
@@ -177,7 +176,6 @@ function toActiveExecution(exec: StreamExecution): ActiveExecution {
   return {
     executionId: exec.modelId,
     attemptId: exec.attemptId,
-    attemptVersion: exec.attemptVersion,
     anchorMessageId: exec.anchorMessageId,
     ...(exec.seedFromEmpty ? { seedFromEmpty: true } : {})
   }
@@ -1458,7 +1456,6 @@ export class AiStreamManager extends BaseService {
       executions.push({
         modelId: exec.modelId,
         attemptId: exec.attemptId,
-        attemptVersion: exec.attemptVersion,
         status: exec.status,
         anchorMessageId: exec.anchorMessageId,
         seedFromEmpty: exec.seedFromEmpty,
@@ -1586,8 +1583,7 @@ export class AiStreamManager extends BaseService {
     // so the `exec` object reference is stable inside the arrow function below.
     const exec: StreamExecution = {
       modelId,
-      attemptId: randomUUID(),
-      attemptVersion: ++this.nextExecutionAttemptSequence,
+      attemptId: ++this.nextExecutionAttemptSequence,
       anchorMessageId: request.messageId,
       seedFromEmpty,
       abortController: abortController ?? new AbortController(),

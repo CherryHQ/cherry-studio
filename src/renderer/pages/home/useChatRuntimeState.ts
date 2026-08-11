@@ -74,7 +74,7 @@ function mergeActiveExecutions(...sources: ReadonlyArray<readonly ActiveExecutio
       const slot = JSON.stringify([execution.executionId, execution.anchorMessageId ?? null])
       const existing = byId.get(slot)
       if (!existing) order.push(slot)
-      if (existing && existing.attemptVersion > execution.attemptVersion) continue
+      if (existing && existing.attemptId > execution.attemptId) continue
       byId.set(slot, {
         ...existing,
         ...execution,
@@ -89,7 +89,7 @@ function mergeActiveExecutions(...sources: ReadonlyArray<readonly ActiveExecutio
   })
 }
 
-function executionAttemptKey(execution: ActiveExecution): string {
+function executionAttemptKey(execution: ActiveExecution): number {
   return execution.attemptId
 }
 
@@ -139,7 +139,7 @@ export function useChatRuntimeState({
     previousActiveNodeId: string | null
     activeNodeId: string
   } | null>(null)
-  const finishedBranchExecutionKeysRef = useRef<Set<string>>(new Set())
+  const finishedBranchExecutionKeysRef = useRef<Set<number>>(new Set())
   const runtimeBranchLiveStatePublishedRef = useRef(false)
   // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
   // an unchanged topic.id, and the fresh [] literals would defeat React's

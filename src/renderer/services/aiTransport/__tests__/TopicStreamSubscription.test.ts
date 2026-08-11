@@ -31,7 +31,7 @@ function createMockAiApi() {
       (d: {
         topicId: string
         executionId?: UniqueModelId
-        attemptId?: string
+        attemptId?: number
         anchorMessageId?: string
         status: string
         isTopicDone?: boolean
@@ -41,7 +41,7 @@ function createMockAiApi() {
       (d: {
         topicId: string
         executionId?: UniqueModelId
-        attemptId?: string
+        attemptId?: number
         anchorMessageId?: string
         isTopicDone?: boolean
         error: SerializedError
@@ -101,7 +101,7 @@ function createMockAiApi() {
       executionId: UniqueModelId,
       chunk: UIMessageChunk,
       anchorMessageId?: string,
-      attemptId?: string
+      attemptId?: number
     ) => {
       for (const cb of [...listeners.chunk]) cb({ topicId, executionId, attemptId, anchorMessageId, chunk })
     },
@@ -111,7 +111,7 @@ function createMockAiApi() {
       status: 'success' | 'paused',
       isTopicDone?: boolean,
       anchorMessageId?: string,
-      attemptId?: string
+      attemptId?: number
     ) => {
       for (const cb of [...listeners.done]) {
         cb({ topicId, executionId, attemptId, status, isTopicDone, anchorMessageId })
@@ -122,7 +122,7 @@ function createMockAiApi() {
       executionId: UniqueModelId | undefined,
       isTopicDone?: boolean,
       anchorMessageId?: string,
-      attemptId?: string
+      attemptId?: number
     ) => {
       for (const cb of [...listeners.error]) {
         cb({ topicId, executionId, attemptId, isTopicDone, anchorMessageId, error: STREAM_ERROR })
@@ -233,14 +233,14 @@ describe('TopicStreamSubscription', () => {
 
   it('keeps repeated attempts on the same model and anchor isolated', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
-    const retry = sub.register(A, 'assistant-1', 'attempt-2')
+    const retry = sub.register(A, 'assistant-1', 2)
     await tick()
 
-    mock.emitChunk(TOPIC, A, textChunk('retry'), 'assistant-1', 'attempt-2')
+    mock.emitChunk(TOPIC, A, textChunk('retry'), 'assistant-1', 2)
     // A delayed terminal from the prior attempt must not close the retry branch.
-    mock.emitDone(TOPIC, A, 'success', true, 'assistant-1', 'attempt-1')
-    mock.emitChunk(TOPIC, A, textChunk('-continued'), 'assistant-1', 'attempt-2')
-    mock.emitDone(TOPIC, A, 'success', true, 'assistant-1', 'attempt-2')
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-1', 1)
+    mock.emitChunk(TOPIC, A, textChunk('-continued'), 'assistant-1', 2)
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-1', 2)
 
     expect(await readAll(retry)).toEqual([textChunk('retry'), textChunk('-continued')])
     sub.dispose()
