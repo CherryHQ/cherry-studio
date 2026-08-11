@@ -1,4 +1,5 @@
 import { getKnowledgeNoteFirstLine, getKnowledgePathBasename, type KnowledgeItemOf } from '@shared/data/types/knowledge'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 
 type KnowledgeItemLifecycle<TItem extends { error: unknown; status: string }> = TItem extends unknown
   ? Pick<TItem, 'error' | 'status'>
@@ -85,7 +86,7 @@ export const createFileItem = ({
   type: 'file',
   data: {
     source,
-    relativePath: getKnowledgePathBasename(source)
+    relativePath: getKnowledgePathBasename(source) as PosixRelativeFilePath
   }
 })
 
@@ -97,7 +98,7 @@ export const createUrlItem = ({
 }: {
   id: string
   source?: string
-  relativePath?: string
+  relativePath?: PosixRelativeFilePath
   status?: KnowledgeItemOf<'url'>['status']
 }): KnowledgeItemOf<'url'> => ({
   ...baseFields,

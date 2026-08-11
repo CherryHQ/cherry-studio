@@ -9,6 +9,7 @@ import type {
   KnowledgeItemOf,
   RestoreKnowledgeBaseResult
 } from '@shared/data/types/knowledge'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -578,7 +579,7 @@ const createKnowledgeDirectoryItem = ({ id }: { id: string }): KnowledgeItemOf<'
   type: 'directory',
   data: {
     source: `/knowledge/${id}`,
-    relativePath: id
+    relativePath: id as PosixRelativeFilePath
   },
   status: 'completed',
   error: null,
