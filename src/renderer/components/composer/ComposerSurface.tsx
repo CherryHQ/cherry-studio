@@ -26,7 +26,7 @@ import {
 } from '@renderer/utils/message/composerClipboard'
 import { createComposerSecureRandomId } from '@renderer/utils/message/composerFileTokenSource'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
-import type { JSONContent } from '@tiptap/core'
+import type { JSONContent, TiptapEditorHTMLElement } from '@tiptap/core'
 import type { EditorView } from '@tiptap/pm/view'
 import type { Editor } from '@tiptap/react'
 import { EditorContent, type NodeViewProps } from '@tiptap/react'
@@ -1659,10 +1659,10 @@ export default function ComposerSurface({
   )
 
   const memoizedHandlePaste = useCallback(
-    (_view: EditorView, event: ClipboardEvent) => {
+    (view: EditorView, event: ClipboardEvent) => {
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const pastedHtml = event.clipboardData?.getData('text/html') || ''
-      const editor = editorRef.current
+      const editor = (view.dom as TiptapEditorHTMLElement).editor
       const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
       if (editor && selectedPromptVariable && pastedText) {
         event.preventDefault()
@@ -1724,12 +1724,9 @@ export default function ComposerSurface({
         resolveKnowledgeBaseMarker
       })
 
-      if (plainTextOverride !== null) {
+      if (plainTextOverride !== null && editor) {
         event.preventDefault()
-        const currentEditor = editorRef.current
-        if (currentEditor) {
-          insertComposerPastedContent(currentEditor, plainTextOverride)
-        }
+        insertComposerPastedContent(editor, plainTextOverride)
         return true
       }
 
