@@ -40,11 +40,28 @@ const PdfAnchorSchema = z.object({
   charRange: CharRangeSchema.optional()
 })
 
-// pptx joins this union when its selection producer lands (slide + shape id).
+const PptxAnchorSchema = z.object({
+  format: z.literal('pptx'),
+  /** One-based slide number, matching the deck's own slide numbering. */
+  slide: z.number().int().positive(),
+  /** OOXML shape id (`p:cNvPr` id) as exposed by the renderer's model/text index. Absent = whole slide. */
+  nodeId: z.string().min(1).optional(),
+  /** Zero-based paragraph within the shape's text body. */
+  paragraph: z.number().int().nonnegative().optional(),
+  /** Zero-based table coordinates when the node is a table. */
+  tableCell: z
+    .object({
+      row: z.number().int().nonnegative(),
+      col: z.number().int().nonnegative()
+    })
+    .optional()
+})
+
 export const DocumentAnchorSchema = z.discriminatedUnion('format', [
   XlsxAnchorSchema,
   DocxAnchorSchema,
-  PdfAnchorSchema
+  PdfAnchorSchema,
+  PptxAnchorSchema
 ])
 
 export type DocumentAnchor = z.infer<typeof DocumentAnchorSchema>
