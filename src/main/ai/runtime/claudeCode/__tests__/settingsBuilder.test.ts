@@ -487,6 +487,42 @@ describe('buildClaudeCodeSessionSettings', () => {
     expect(budget + 64_000).toBeLessThanOrEqual(1_048_576)
   })
 
+  it('defaults the compaction trigger percentage and lets an agent env override win', async () => {
+    // No context window declared — the percentage still applies.
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      {}
+    )
+    expect(settings.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '80' })
+
+    mocks.getAgent.mockReturnValue({
+      id: 'agent-1',
+      type: 'claude-code',
+      instructions: 'Follow instructions.',
+      model: 'anthropic::claude-sonnet',
+      planModel: 'anthropic::claude-sonnet',
+      smallModel: 'anthropic::claude-haiku',
+      mcps: [],
+      allowedTools: [],
+      configuration: { env_vars: { CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60' } }
+    })
+    const overridden = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      {}
+    )
+    expect(overridden.env).toMatchObject({ CLAUDE_AUTOCOMPACT_PCT_OVERRIDE: '60' })
+  })
+
   it('floors the budget at the Claude Code minimum instead of dropping the setting', async () => {
     const settings = await buildClaudeCodeSessionSettings(
       {
