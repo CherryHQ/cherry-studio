@@ -206,9 +206,13 @@ export class OAuthRuntimeService extends BaseService {
     }
   }
 
-  public isSigningIn = (providerId: string): boolean => {
+  public joinActiveSignIn = async (
+    providerId: string
+  ): Promise<{ status: 'not-found' } | { status: 'completed'; account: OAuthAccount }> => {
     this.getDefinition(providerId)
-    return this.activeSignIns.has(providerId)
+    const activeSignIn = this.activeSignIns.get(providerId)
+    if (!activeSignIn) return { status: 'not-found' }
+    return { status: 'completed', account: await activeSignIn.promise }
   }
 
   public cancelSignIn = async (providerId: string): Promise<void> => {

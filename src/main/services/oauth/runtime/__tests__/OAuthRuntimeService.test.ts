@@ -359,7 +359,7 @@ describe('OAuthRuntimeService', () => {
     expect(h.transportMock.close).toHaveBeenCalled()
   })
 
-  it('exposes and reuses an active sign-in flow', async () => {
+  it('atomically attaches to an active sign-in without starting another flow', async () => {
     let resolveCode: (code: string) => void = () => {}
     h.transportMock.waitForAuthorizationCode.mockImplementationOnce(
       () =>
@@ -370,15 +370,19 @@ describe('OAuthRuntimeService', () => {
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
 
     const first = service.signIn('codex')
-    expect(service.isSigningIn('codex')).toBe(true)
-
-    const second = service.signIn('codex')
+    const attached = service.joinActiveSignIn('codex')
     expect(h.transportMock.tryAcquire).toHaveBeenCalledTimes(1)
     await vi.waitFor(() => expect(h.transportMock.waitForAuthorizationCode).toHaveBeenCalledTimes(1))
 
     resolveCode('auth-code')
-    await expect(Promise.all([first, second])).resolves.toEqual([{ accountId: null }, { accountId: null }])
-    expect(service.isSigningIn('codex')).toBe(false)
+    await expect(attached).resolves.toEqual({ status: 'completed', account: { accountId: null } })
+    await expect(first).resolves.toEqual({ accountId: null })
+  })
+
+  it('returns not-found when attaching without an active sign-in', async () => {
+    await expect(service.joinActiveSignIn('codex')).resolves.toEqual({ status: 'not-found' })
+    expect(h.transportMock.tryAcquire).not.toHaveBeenCalled()
+    expect(h.transportMock.waitForAuthorizationCode).not.toHaveBeenCalled()
   })
 
   it('cancels an active sign-in and allows an immediate retry', async () => {
@@ -390,13 +394,16 @@ describe('OAuthRuntimeService', () => {
 
     const first = service.signIn('codex')
     const second = service.signIn('codex')
+    const attached = service.joinActiveSignIn('codex')
     const firstOutcome = first.catch((error: unknown) => error)
     const secondOutcome = second.catch((error: unknown) => error)
+    const attachedOutcome = attached.catch((error: unknown) => error)
 
     await service.cancelSignIn('codex')
     expect(await firstOutcome).toBeInstanceOf(OAuthSignInCancelledError)
     expect(await secondOutcome).toBeInstanceOf(OAuthSignInCancelledError)
-    expect(service.isSigningIn('codex')).toBe(false)
+    expect(await attachedOutcome).toBeInstanceOf(OAuthSignInCancelledError)
+    await expect(service.joinActiveSignIn('codex')).resolves.toEqual({ status: 'not-found' })
 
     h.transportMock.waitForAuthorizationCode.mockResolvedValueOnce('auth-code')
     h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })

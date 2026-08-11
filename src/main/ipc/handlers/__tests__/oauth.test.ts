@@ -3,10 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const { appGetMock } = vi.hoisted(() => ({ appGetMock: vi.fn() }))
 vi.mock('@application', () => ({ application: { get: appGetMock } }))
 
+import { OAuthSignInCancelledError } from '@main/services/oauth/errors'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
+
 import { oauthHandlers } from '../oauth'
 
 const runtimeService = {
   signIn: vi.fn((providerId: string) => Promise.resolve({ accountId: `${providerId}-account` })),
+  joinActiveSignIn: vi.fn(() => Promise.resolve({ status: 'completed', account: { accountId: 'acc-1' } })),
+  cancelSignIn: vi.fn(() => Promise.resolve()),
   hasToken: vi.fn(() => Promise.resolve(true)),
   getAccount: vi.fn(() => Promise.resolve({ accountId: 'acc-1' })),
   logout: vi.fn(() => Promise.resolve()),
@@ -30,6 +36,32 @@ describe('oauthHandlers', () => {
     await expect(oauthHandlers['oauth.sign_in'](provider, ctx)).resolves.toEqual({ accountId: 'codex-account' })
     expect(appGetMock).toHaveBeenCalledWith('OAuthRuntimeService')
     expect(runtimeService.signIn).toHaveBeenCalledWith('codex')
+  })
+
+  it('maps sign_in cancellation to a stable IPC error', async () => {
+    runtimeService.signIn.mockRejectedValueOnce(new OAuthSignInCancelledError('codex'))
+
+    const error = await oauthHandlers['oauth.sign_in'](provider, ctx).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toHaveProperty('code', oauthErrorCodes.SIGN_IN_CANCELLED)
+  })
+
+  it('dispatches sign_in.attach to OAuthRuntimeService with the provider id', async () => {
+    await expect(oauthHandlers['oauth.sign_in.attach'](provider, ctx)).resolves.toEqual({
+      status: 'completed',
+      account: { accountId: 'acc-1' }
+    })
+    expect(runtimeService.joinActiveSignIn).toHaveBeenCalledWith('codex')
+  })
+
+  it('maps sign_in.attach cancellation to a stable IPC error', async () => {
+    runtimeService.joinActiveSignIn.mockRejectedValueOnce(new OAuthSignInCancelledError('codex'))
+
+    const error = await oauthHandlers['oauth.sign_in.attach'](provider, ctx).catch((caught: unknown) => caught)
+
+    expect(error).toBeInstanceOf(IpcError)
+    expect(error).toHaveProperty('code', oauthErrorCodes.SIGN_IN_CANCELLED)
   })
 
   it('dispatches has_token to OAuthRuntimeService', async () => {
