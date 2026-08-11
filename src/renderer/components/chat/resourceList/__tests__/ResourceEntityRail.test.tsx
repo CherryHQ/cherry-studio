@@ -589,6 +589,34 @@ describe('ResourceEntityRail', () => {
     expect(workHeader).toHaveAttribute('aria-expanded', 'false')
   })
 
+  it('forwards controlled grouped-assistant collapse state changes', () => {
+    const collapsedGroupId = 'resource-entity-rail:section:["group","group-work"]'
+    const onCollapsedStateChange = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        collapsedState={[collapsedGroupId]}
+        groupByGroup
+        items={[
+          { id: 'work-a', name: 'Work A', icon: <span />, groupId: 'group-work', groupName: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, groupId: 'group-home', groupName: 'home' }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onCollapsedStateChange={onCollapsedStateChange}
+        onSelect={vi.fn()}
+      />
+    )
+
+    const workHeader = screen.getByRole('button', { name: 'work' })
+    expect(workHeader).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(workHeader)
+    expect(onCollapsedStateChange).toHaveBeenCalledWith([])
+  })
+
   it('maps a grouped-header drop to canonical group ids and an order anchor', () => {
     const onGroupReorder = vi.fn()
     render(
