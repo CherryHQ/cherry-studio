@@ -6,44 +6,26 @@ import {
 } from '@main/ai/messages/messageCapabilities'
 import { toModelMessages } from '@main/ai/messages/messageRules'
 import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dialect'
-import { countToolTokens, estimateModelMessagesFootprint } from '@main/ai/tokens/footprint'
+import { countToolDefs, estimateModelMessagesFootprint } from '@main/ai/tokens/footprint'
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
-import { type TextTokenizer, tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
+import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
 
 import { type InputParamsMap, MessageConverterFactory } from '../adapters'
 import { type ResolvedGatewayModelAddress, resolveGatewayModelAddress } from '../utils/models'
 import { boundedBodyTokens } from './fallbackEstimate'
+import { toWireToolDefs } from './wireToolDefs'
 
 type GeminiGenerateContentRequest = InputParamsMap['gemini']
 
 const logger = loggerService.withContext('GatewayGeminiTokenEstimate')
 
-/** Tool framing overhead per function declaration (mirrors the shared `countToolDefs`). */
-const TOOL_OVERHEAD = 10
-
-/** Gemini tools are `[{ functionDeclarations: [{ name, description, parameters }] }]`. */
-function countGeminiToolDefs(tools: unknown, tokenizer: TextTokenizer): number {
-  if (!Array.isArray(tools)) return 0
-  let total = 0
-  for (const group of tools) {
-    const declarations = (group as { functionDeclarations?: unknown }).functionDeclarations
-    if (!Array.isArray(declarations)) continue
-    for (const declaration of declarations) {
-      if (!declaration || typeof declaration !== 'object') continue
-      const { name, description, parameters, parametersJsonSchema } = declaration as Record<string, unknown>
-      total +=
-        TOOL_OVERHEAD + countToolTokens({ name, description, schema: parametersJsonSchema ?? parameters }, tokenizer)
-    }
-  }
-  return total
-}
-
 /**
  * Estimate `totalTokens` for a Gemini `:countTokens` request against the representation the
  * downstream provider receives: the same Gemini→`ModelMessage[]` conversion the real request
  * uses, tokenized (text via the dialect tokenizer, images via the per-dialect pixel formula),
- * plus the function-declaration schemas. `systemInstruction` becomes a system message in the
- * conversion, so it is counted too.
+ * plus the wire tool definitions rebuilt from the converted `ToolSet` — declarations the
+ * converter drops (no `name`) are not counted, and schemas are the canonical form generation
+ * sends. `systemInstruction` becomes a system message in the conversion, so it is counted too.
  *
  * Local-only by design: unlike the Anthropic path, the Google SDK exposes no custom-`fetch`
  * hook, so a remote count could not honour the app proxy / relay signing — and a
@@ -75,6 +57,7 @@ async function estimateConvertedRequest(
   const converter = MessageConverterFactory.create('gemini')
   const uiMessages = converter.toUIMessages(body)
   const tools = converter.toAiSdkTools?.(body)
+  const wireTools = await toWireToolDefs(tools)
 
   let dialect: TokenDialect = 'google'
   let caps = ALL_MEDIA
@@ -91,5 +74,5 @@ async function estimateConvertedRequest(
   const modelMessages = await toModelMessages(uiMessages, caps, tools, toolResultCaps)
   const tokenizer = await getTextTokenizer(dialect)
   const messageTokens = await estimateModelMessagesFootprint(modelMessages, { dialect, tokenizer }, signal)
-  return messageTokens + countGeminiToolDefs(body.tools, tokenizer)
+  return messageTokens + countToolDefs(wireTools, tokenizer)
 }

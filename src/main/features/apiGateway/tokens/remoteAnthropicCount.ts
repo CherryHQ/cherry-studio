@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { MessageCountTokensParams, MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import type { MessageCountTokensParams } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
 import { providerToAiSdkConfig } from '@main/ai/provider/config'
 import type { Model } from '@shared/data/types/model'
@@ -18,14 +18,13 @@ const REMOTE_COUNT_TIMEOUT_MS = 5_000
  *
  * **Best-effort:** returns `undefined` (→ caller falls back to the local estimator) when
  * credentials can't be extracted, the endpoint is missing, or the call fails — the count
- * must never throw. Fed the client's raw messages/system with the model id rewritten to the
- * downstream `apiModelId`, but with `tools` replaced by the converter-normalized wire
- * definitions (sanitized names, `bash_20250124` dropped, canonical JSONSchema) so the remote
- * counts what generation actually sends, not the raw request's tools.
+ * must never throw. `request` is the caller's wire-converted view of the body (historical
+ * `tool_use.name`s rewritten with the converter's mapping, `tools` replaced by the
+ * normalized definitions) with the model id rewritten to the downstream `apiModelId` — the
+ * remote must count what generation actually sends, not the raw request.
  */
 export async function tryRemoteAnthropicCount(
-  body: MessageCreateParams,
-  tools: ReadonlyArray<unknown> | undefined,
+  request: Pick<MessageCountTokensParams, 'messages' | 'system' | 'tools'>,
   provider: Provider,
   model: Model,
   apiModelId: string,
@@ -56,12 +55,7 @@ export async function tryRemoteAnthropicCount(
       timeout: REMOTE_COUNT_TIMEOUT_MS,
       maxRetries: 0
     })
-    const params: MessageCountTokensParams = {
-      model: apiModelId,
-      messages: body.messages,
-      ...(body.system !== undefined ? { system: body.system } : {}),
-      ...(tools !== undefined ? { tools: tools as MessageCountTokensParams['tools'] } : {})
-    }
+    const params: MessageCountTokensParams = { model: apiModelId, ...request }
     const { input_tokens } = await client.messages.countTokens(params, { signal })
     return input_tokens
   } catch (error) {

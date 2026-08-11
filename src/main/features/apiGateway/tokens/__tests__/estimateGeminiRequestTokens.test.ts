@@ -72,6 +72,17 @@ describe('estimateGeminiRequestTokens', () => {
     expect(withTools).toBeGreaterThan(without + 50)
   })
 
+  it('counts the converted ToolSet, not raw declarations: a name-less huge declaration is dropped', async () => {
+    resolveTo(makeModel({ capabilities: [] }))
+    const contents = [{ role: 'user', parts: [{ text: 'hi' }] }]
+    // No `name` → the converter discards it, so it never reaches the provider and must not
+    // dominate totalTokens despite the huge description.
+    const junkTools = [{ functionDeclarations: [{ description: 'x'.repeat(50_000), parameters: { type: 'object' } }] }]
+    const withJunk = await estimateGeminiRequestTokens(body(contents, junkTools), 'p:m')
+    const without = await estimateGeminiRequestTokens(body(contents), 'p:m')
+    expect(withJunk).toBeLessThan(without + 100)
+  })
+
   it('degrades to a finite count on resolve failure', async () => {
     mocks.resolveGatewayModelAddress.mockImplementation(() => {
       throw new Error('unknown model')

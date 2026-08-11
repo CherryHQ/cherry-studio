@@ -1,4 +1,4 @@
-import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import type { MessageCountTokensParams, MessageCreateParams } from '@anthropic-ai/sdk/resources'
 import { loggerService } from '@logger'
 import {
   ALL_MEDIA,
@@ -10,12 +10,12 @@ import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dia
 import { countToolDefs, estimateModelMessagesFootprint } from '@main/ai/tokens/footprint'
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
-import { asSchema, type ToolSet } from 'ai'
 
 import { MessageConverterFactory } from '../adapters'
 import { type ResolvedGatewayModelAddress, resolveGatewayModelAddress } from '../utils/models'
 import { boundedBodyTokens } from './fallbackEstimate'
 import { tryRemoteAnthropicCount } from './remoteAnthropicCount'
+import { toWireToolDefs } from './wireToolDefs'
 
 const logger = loggerService.withContext('GatewayTokenEstimate')
 
@@ -49,12 +49,6 @@ async function estimateConvertedRequest(body: MessageCreateParams, signal?: Abor
   const converter = MessageConverterFactory.create('anthropic')
   const uiMessages = converter.toUIMessages(body)
   const tools = converter.toAiSdkTools?.(body)
-  // The tool definitions generation actually sends — rebuilt from the converter's ToolSet:
-  // its keys are the normalized (wire-safe) names, `bash_20250124` is already dropped, and
-  // each schema is the canonical JSONSchema serialized from the zod conversion. Counting and
-  // remote-counting these keeps the estimate wire-equivalent: an oversize invalid name or
-  // unsupported schema content in the raw body never reaches the wire, so it must not
-  // dominate the count.
   const wireTools = await toWireToolDefs(tools)
 
   let dialect: TokenDialect = 'anthropic'
@@ -69,10 +63,17 @@ async function estimateConvertedRequest(body: MessageCreateParams, signal?: Abor
   }
 
   // Anthropic: prefer the provider's authoritative count; fall through to local on failure.
+  // The remote request is the wire-converted one: historical `tool_use.name`s are rewritten
+  // with the converter's mapping so they match the normalized definitions — else the endpoint
+  // could reject the mismatch, or count an oversize raw name generation never transmits.
   if (dialect === 'anthropic' && resolved) {
+    const rename = converter.toProviderToolName?.bind(converter)
     const remote = await tryRemoteAnthropicCount(
-      body,
-      wireTools,
+      {
+        messages: rename ? renameToolUses(body.messages, rename) : body.messages,
+        ...(body.system !== undefined ? { system: body.system } : {}),
+        ...(wireTools !== undefined ? { tools: wireTools as MessageCountTokensParams['tools'] } : {})
+      },
       resolved.provider,
       resolved.model,
       resolved.apiModelId,
@@ -88,29 +89,21 @@ async function estimateConvertedRequest(body: MessageCreateParams, signal?: Abor
   return messageTokens + countToolDefs(wireTools, tokenizer)
 }
 
-/** One wire tool definition in Anthropic shape (what `countToolDefs` and remote count consume). */
-interface WireToolDef {
-  name: string
-  description?: string
-  input_schema: unknown
-}
-
-async function toWireToolDefs(tools: ToolSet | undefined): Promise<WireToolDef[] | undefined> {
-  if (!tools) return undefined
-  return Promise.all(
-    Object.entries(tools).map(async ([name, tool]) => ({
-      name,
-      description: tool.description,
-      input_schema: await canonicalSchema(tool.inputSchema)
-    }))
-  )
-}
-
-/** Canonical JSONSchema as the SDK serializes it; a minimal object schema on failure. */
-async function canonicalSchema(schema: unknown): Promise<unknown> {
-  try {
-    return (await asSchema(schema as Parameters<typeof asSchema>[0]).jsonSchema) ?? { type: 'object' }
-  } catch {
-    return { type: 'object' }
-  }
+/** Rewrite historical `tool_use.name`s to the same wire-safe names the tool definitions use. */
+function renameToolUses(
+  messages: MessageCreateParams['messages'],
+  rename: (toolName: string) => string
+): MessageCreateParams['messages'] {
+  return messages.map((msg) => {
+    if (!Array.isArray(msg.content)) return msg
+    let changed = false
+    const content = msg.content.map((block) => {
+      if (block.type !== 'tool_use' || typeof block.name !== 'string') return block
+      const name = rename(block.name)
+      if (name === block.name) return block
+      changed = true
+      return { ...block, name }
+    })
+    return changed ? { ...msg, content } : msg
+  })
 }

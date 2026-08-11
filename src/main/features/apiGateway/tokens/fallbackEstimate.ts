@@ -4,10 +4,8 @@ import type { TextTokenizer } from '@main/ai/tokens/textTokenizer'
 const MAX_DEPTH = 8
 /** Tokenize long strings from a sample this size and extrapolate — bounded work on multi-MB text. */
 const TEXT_SAMPLE_CHARS = 8_192
-/** Flat cost for one inline media payload (data URL / base64 under a `data` key) — never its length. */
+/** Flat cost for one inline media payload — never its base64 length. */
 const MEDIA_PAYLOAD_TOKENS = 1_500
-/** Base64 alphabet over the head of a long `data` string — how inline media payloads look. */
-const BASE64_HEAD = /^[A-Za-z0-9+/=\r\n]+$/
 
 /**
  * Last-resort token estimate over a raw, loosely-validated request body when the converter
@@ -20,17 +18,25 @@ const BASE64_HEAD = /^[A-Za-z0-9+/=\r\n]+$/
  * the downstream context limit.
  */
 export function boundedBodyTokens(body: unknown, tokenizer: TextTokenizer): number {
-  return walk(body, tokenizer, 0, undefined)
+  return walk(body, tokenizer, 0, undefined, undefined)
 }
 
 /**
- * A data URL, or a long base64 blob under the `data` key media blocks use
- * (anthropic `source.data`, gemini `inlineData.data`). Anything else — however long —
- * is ordinary text and must be estimated as text.
+ * A data URL, or the `data` field of a known inline-media carrier: anthropic
+ * `{type:'base64', media_type, data}`, gemini `inlineData` `{mimeType, data}`, AI SDK
+ * `{mediaType, data}` items. The key name alone is NOT a media signal — a plain field
+ * that happens to be called `data` (tool input, DNA text, encoded logs) is ordinary text
+ * and must be estimated as text.
  */
-function isMediaPayload(value: string, key: string | undefined): boolean {
+function isMediaPayload(value: string, key: string | undefined, parent: Record<string, unknown> | undefined): boolean {
   if (value.startsWith('data:') && value.includes(';base64,')) return true
-  return key === 'data' && value.length > TEXT_SAMPLE_CHARS && BASE64_HEAD.test(value.slice(0, 256))
+  if (key !== 'data' || !parent) return false
+  return (
+    parent.type === 'base64' ||
+    typeof parent.media_type === 'string' ||
+    typeof parent.mimeType === 'string' ||
+    typeof parent.mediaType === 'string'
+  )
 }
 
 function stringTokens(value: string, tokenizer: TextTokenizer): number {
@@ -38,19 +44,27 @@ function stringTokens(value: string, tokenizer: TextTokenizer): number {
   return Math.round((tokenizer.count(value.slice(0, TEXT_SAMPLE_CHARS)) * value.length) / TEXT_SAMPLE_CHARS)
 }
 
-function walk(value: unknown, tokenizer: TextTokenizer, depth: number, key: string | undefined): number {
+function walk(
+  value: unknown,
+  tokenizer: TextTokenizer,
+  depth: number,
+  key: string | undefined,
+  parent: Record<string, unknown> | undefined
+): number {
   if (depth > MAX_DEPTH) return 0
   if (typeof value === 'string') {
-    return isMediaPayload(value, key) ? MEDIA_PAYLOAD_TOKENS : stringTokens(value, tokenizer)
+    return isMediaPayload(value, key, parent) ? MEDIA_PAYLOAD_TOKENS : stringTokens(value, tokenizer)
   }
   if (Array.isArray(value)) {
     let total = 0
-    for (const item of value) total += walk(item, tokenizer, depth + 1, key)
+    // Array items lose the object context on purpose: `{data: ['…']}` is not a media carrier.
+    for (const item of value) total += walk(item, tokenizer, depth + 1, undefined, undefined)
     return total
   }
   if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>
     let total = 0
-    for (const [childKey, item] of Object.entries(value)) total += walk(item, tokenizer, depth + 1, childKey)
+    for (const [childKey, item] of Object.entries(record)) total += walk(item, tokenizer, depth + 1, childKey, record)
     return total
   }
   return 0

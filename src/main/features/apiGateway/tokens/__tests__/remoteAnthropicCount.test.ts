@@ -1,4 +1,3 @@
-import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -20,7 +19,9 @@ vi.mock('@logger', () => ({
 
 import { tryRemoteAnthropicCount } from '../remoteAnthropicCount'
 
-const body = { model: 'p:m', messages: [{ role: 'user', content: 'hi' }] } as unknown as MessageCreateParams
+const request = { messages: [{ role: 'user', content: 'hi' }] } as unknown as Parameters<
+  typeof tryRemoteAnthropicCount
+>[0]
 const provider = { id: 'p' } as Provider
 const model = {} as Model
 
@@ -36,8 +37,9 @@ describe('tryRemoteAnthropicCount', () => {
     mocks.countTokens.mockResolvedValue({ input_tokens: 999 })
     const controller = new AbortController()
     const wireTools = [{ name: 'shot', description: 'd', input_schema: { type: 'object' } }]
-    expect(await tryRemoteAnthropicCount(body, wireTools, provider, model, 'claude', controller.signal)).toBe(999)
-    // Abort signal reaches the SDK request options; the caller's wire tools (not body.tools) go up.
+    const withTools = { ...request, tools: wireTools } as typeof request
+    expect(await tryRemoteAnthropicCount(withTools, provider, model, 'claude', controller.signal)).toBe(999)
+    // Abort signal reaches the SDK request options; the caller's wire request goes up verbatim.
     expect(mocks.countTokens).toHaveBeenCalledWith(expect.objectContaining({ model: 'claude', tools: wireTools }), {
       signal: controller.signal
     })
@@ -55,13 +57,13 @@ describe('tryRemoteAnthropicCount', () => {
 
   it('returns undefined (→ local fallback) when creds are relay-shaped / missing', async () => {
     mocks.providerToAiSdkConfig.mockResolvedValue({ providerSettings: {} })
-    expect(await tryRemoteAnthropicCount(body, undefined, provider, model, 'claude')).toBeUndefined()
+    expect(await tryRemoteAnthropicCount(request, provider, model, 'claude')).toBeUndefined()
     expect(mocks.countTokens).not.toHaveBeenCalled()
   })
 
   it('returns undefined when the remote call throws', async () => {
     mocks.providerToAiSdkConfig.mockResolvedValue({ providerSettings: { baseURL: 'https://api.x/v1', apiKey: 'k' } })
     mocks.countTokens.mockRejectedValue(new Error('boom'))
-    expect(await tryRemoteAnthropicCount(body, undefined, provider, model, 'claude')).toBeUndefined()
+    expect(await tryRemoteAnthropicCount(request, provider, model, 'claude')).toBeUndefined()
   })
 })

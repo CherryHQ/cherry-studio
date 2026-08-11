@@ -2,7 +2,7 @@
 title: API gateway token counting is accurate and media-aware
 category: changed
 severity: notice
-introduced_in_pr: #17195
+introduced_in_pr: "#17195"
 date: 2026-07-20
 ---
 

@@ -10,10 +10,12 @@ describe('boundedBodyTokens', () => {
     expect(boundedBodyTokens({ a: 'hi', b: ['x', 'yz'] }, fake)).toBe('hi'.length + 'x'.length + 'yz'.length)
   })
 
-  it('prices base64 media under a `data` key and data URLs as a small constant, never their length', () => {
+  it('prices known media carriers (anthropic source, gemini inlineData, data URLs) as a small constant', () => {
     const big = 'A'.repeat(1_000_000)
-    const block = { source: { type: 'base64', media_type: 'image/png', data: big } }
-    expect(boundedBodyTokens(block, fake)).toBe(1_500 + 'base64'.length + 'image/png'.length)
+    const anthropic = { source: { type: 'base64', media_type: 'image/png', data: big } }
+    expect(boundedBodyTokens(anthropic, fake)).toBe(1_500 + 'base64'.length + 'image/png'.length)
+    const gemini = { inlineData: { mimeType: 'image/png', data: big } }
+    expect(boundedBodyTokens(gemini, fake)).toBe(1_500 + 'image/png'.length)
     expect(boundedBodyTokens({ url: `data:image/png;base64,${big}` }, fake)).toBe(1_500)
   })
 
@@ -23,6 +25,14 @@ describe('boundedBodyTokens', () => {
     const prompt = 'lorem ipsum dolor sit amet '.repeat(5_000)
     const count = boundedBodyTokens({ messages: [{ role: 'user', content: prompt }] }, fake)
     expect(count).toBe(prompt.length + 'user'.length)
+  })
+
+  it('a plain field named `data` beside a malformed sibling is text, not media (base64-alphabet or not)', () => {
+    // Regression: `key === 'data'` alone must not trigger the media constant — a base64-looking
+    // DNA/tool-input string in a `data` field is real context the model receives as text.
+    const dna = 'ACGT'.repeat(30_000)
+    const count = boundedBodyTokens({ messages: [null], input: { data: dna } }, fake)
+    expect(count).toBe(dna.length)
   })
 
   it('does not throw or overflow on a pathologically deep object', () => {

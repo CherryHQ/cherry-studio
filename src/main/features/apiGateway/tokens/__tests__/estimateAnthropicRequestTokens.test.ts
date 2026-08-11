@@ -4,9 +4,10 @@ import { makeProvider } from '@main/ai/__tests__/fixtures/provider'
 import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ resolveGatewayModelAddress: vi.fn() }))
+const mocks = vi.hoisted(() => ({ resolveGatewayModelAddress: vi.fn(), tryRemoteAnthropicCount: vi.fn() }))
 
 vi.mock('../../utils/models', () => ({ resolveGatewayModelAddress: mocks.resolveGatewayModelAddress }))
+vi.mock('../remoteAnthropicCount', () => ({ tryRemoteAnthropicCount: mocks.tryRemoteAnthropicCount }))
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }) }
 }))
@@ -44,7 +45,11 @@ const body = (messages: unknown, tools?: unknown) =>
 const visionModel = makeModel({ capabilities: [MODEL_CAPABILITY.IMAGE_RECOGNITION] })
 const textModel = makeModel({ capabilities: [] })
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  // Remote unavailable by default → every test exercises the local estimator.
+  mocks.tryRemoteAnthropicCount.mockResolvedValue(undefined)
+})
 
 describe('estimateAnthropicRequestTokens', () => {
   it('#17079: a base64 image nested in tool_result costs its image constant, not its base64 length', async () => {
@@ -132,6 +137,28 @@ describe('estimateAnthropicRequestTokens', () => {
       body(messages, [{ name: 'short_name', description: 'd', input_schema: { type: 'object' } }])
     )
     expect(withHugeName).toBeLessThan(withShortName + 100)
+  })
+
+  it('remote count gets ONE conversion: historical tool_use names match the normalized def names', async () => {
+    resolveTo(textModel) // anthropic dialect → the remote path runs first
+    const hugeName = 'bad name!'.repeat(2_000)
+    const messages = [
+      { role: 'assistant', content: [{ type: 'tool_use', id: 'tu1', name: hugeName, input: {} }] },
+      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'tu1', content: 'ok' }] }
+    ]
+    await estimateAnthropicRequestTokens(
+      body(messages, [{ name: hugeName, description: 'd', input_schema: { type: 'object' } }])
+    )
+    const request = mocks.tryRemoteAnthropicCount.mock.calls[0][0] as {
+      messages: Array<{ content: Array<{ type: string; name?: string }> }>
+      tools: Array<{ name: string }>
+    }
+    const defName = request.tools[0].name
+    const useName = request.messages[0].content.find((block) => block.type === 'tool_use')?.name
+    // A mismatch would make the endpoint reject the request, or count an oversize raw name
+    // generation never transmits.
+    expect(useName).toBe(defName)
+    expect(defName.length).toBeLessThanOrEqual(64)
   })
 
   it('degrades to a raw-size heuristic (no 500) when blocks are malformed', async () => {
