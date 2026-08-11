@@ -3,7 +3,10 @@ import { useModels } from '@renderer/hooks/useModel'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { type ApiKeyConnectivity, HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { checkApi as runCheckApi } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
+import {
+  checkApi as runCheckApi,
+  getModelHealthCheckSkipReason
+} from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { enableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/utils/providerEnablement'
 import { toast } from '@renderer/services/toast'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
@@ -37,7 +40,8 @@ export function useProviderConnectionCheck(providerId: string) {
     checking: false
   })
 
-  const checkableModels = models
+  const checkableModels = useMemo(() => models.filter((model) => !getModelHealthCheckSkipReason(model)), [models])
+  const skippedModels = useMemo(() => models.filter((model) => getModelHealthCheckSkipReason(model)), [models])
   const checkableApiKeys = useMemo(() => splitApiKeyString(formatApiKeys(inputApiKey)).filter(Boolean), [inputApiKey])
   // Keyless local servers (registry `authOptional`) can be connection-checked
   // without a key; the flag rides the merged Provider, so duplicates inherit it.
@@ -220,6 +224,7 @@ export function useProviderConnectionCheck(providerId: string) {
     apiKeyConnectivity,
     checkableApiKeys,
     checkableModels,
+    skippedModels,
     checkApi,
     connectionCheckOpen,
     openConnectionCheck,

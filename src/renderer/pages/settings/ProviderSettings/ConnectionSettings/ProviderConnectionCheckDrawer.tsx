@@ -1,4 +1,5 @@
 import {
+  Alert,
   Avatar,
   AvatarFallback,
   Button,
@@ -23,11 +24,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
-import { healthCheckErrorToDisplayString } from '../utils/healthCheck'
+import { getModelHealthCheckSkipReason, healthCheckErrorToDisplayString } from '../utils/healthCheck'
 
 interface ProviderConnectionCheckDrawerProps {
   open: boolean
   models: readonly Model[]
+  skippedModels?: readonly Model[]
   apiKeys: string[]
   connectionError?: SerializedError
   isSubmitting: boolean
@@ -69,6 +71,7 @@ function renderModelOptionContent(model: Model) {
 export default function ProviderConnectionCheckDrawer({
   open,
   models,
+  skippedModels = [],
   apiKeys,
   connectionError,
   isSubmitting,
@@ -107,6 +110,37 @@ export default function ProviderConnectionCheckDrawer({
   const selectedApiKey = apiKeys[selectedKeyIndex] ?? apiKeys[0] ?? ''
   const hasMultipleKeys = apiKeys.length > 1
   const connectionErrorText = healthCheckErrorToDisplayString(connectionError)
+  const skippedReasonTexts = useMemo(() => {
+    const getGenerationOutputText = (output: 'image' | 'video' | 'audio') => {
+      switch (output) {
+        case 'image':
+          return t('settings.models.check.generation_output_image')
+        case 'video':
+          return t('settings.models.check.generation_output_video')
+        case 'audio':
+          return t('settings.models.check.generation_output_audio')
+      }
+    }
+
+    return [
+      ...new Set(
+        skippedModels.flatMap((model) => {
+          const reason = getModelHealthCheckSkipReason(model)
+          if (!reason) return []
+
+          if (reason.kind === 'generation_cost') {
+            return [
+              t('settings.models.check.skip_reason_generation_cost', {
+                output: getGenerationOutputText(reason.output)
+              })
+            ]
+          }
+
+          return [t('settings.models.check.skip_reason_unsupported_probe')]
+        })
+      )
+    ]
+  }, [skippedModels, t])
   const handleShowConnectionErrorDetail = () => {
     showErrorDetailPopup({ error: connectionError })
   }
@@ -122,6 +156,15 @@ export default function ProviderConnectionCheckDrawer({
           <DialogTitle className="text-base leading-5">{t('message.api.check.model.title')}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
+          {skippedReasonTexts.length > 0 ? (
+            <Alert
+              type="info"
+              showIcon
+              message={t('settings.models.check.outcome_skipped_short', { count: skippedModels.length })}
+              description={skippedReasonTexts.join(' ')}
+              className="shadow-none"
+            />
+          ) : null}
           <div className="space-y-3">
             <div>
               <Label className="mb-2.5 block text-[13px] text-foreground">{t('button.select_model')}</Label>
