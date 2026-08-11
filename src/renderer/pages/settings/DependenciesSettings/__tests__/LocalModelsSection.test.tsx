@@ -1,4 +1,5 @@
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
+import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
@@ -100,6 +101,25 @@ describe('LocalModelsSection', () => {
     render(<LocalModelsSection />)
 
     await waitFor(() => expect(mockRequest).toHaveBeenCalledWith('local_model.get_acceleration_capability'))
+    expect(
+      screen.queryByRole('checkbox', { name: /settings\.dependencies\.localModels\.acceleration\.label/ })
+    ).not.toBeInTheDocument()
+  })
+
+  it('logs acceleration capability probe failures while keeping the switch hidden', async () => {
+    const error = new Error('capability probe failed')
+    const warnSpy = vi.spyOn(mockRendererLoggerService, 'warn').mockImplementation(() => {})
+    mockRequest.mockImplementation((route: string) => {
+      if (route === 'local_model.get_acceleration_capability') return Promise.reject(error)
+      if (route === 'local_model.get_status') return Promise.resolve({ status: 'not_downloaded' })
+      return Promise.resolve()
+    })
+
+    render(<LocalModelsSection />)
+
+    await waitFor(() =>
+      expect(warnSpy).toHaveBeenCalledWith('Failed to detect local inference hardware acceleration', error)
+    )
     expect(
       screen.queryByRole('checkbox', { name: /settings\.dependencies\.localModels\.acceleration\.label/ })
     ).not.toBeInTheDocument()

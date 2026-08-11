@@ -5,27 +5,12 @@ import { Worker } from 'node:worker_threads'
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import type { InferenceRequest, InferenceResponse, LocalInferenceRuntimeProfile } from '../inferenceProtocol'
+import { resolveLocalInferenceProfile } from '../inferenceAcceleration'
+import type { InferenceRequest, InferenceResponse } from '../inferenceProtocol'
 import { inferenceWorkerSource } from '../inferenceWorkerSource'
 
-const DIRECTML_PROFILE: LocalInferenceRuntimeProfile = {
-  id: 'directml',
-  transformersDevice: 'dml',
-  sessionOptions: {
-    executionProviders: ['dml', 'cpu'],
-    enableMemPattern: false,
-    executionMode: 'sequential'
-  }
-}
-
-const COREML_PROFILE: LocalInferenceRuntimeProfile = {
-  id: 'coreml',
-  transformersDevice: 'coreml',
-  sessionOptions: { executionProviders: ['coreml', 'cpu'] },
-  embeddingSessionOptions: {
-    executionProviders: [{ name: 'coreml', coreMlFlags: 8 }, 'cpu']
-  }
-}
+const DIRECTML_PROFILE = resolveLocalInferenceProfile(true, { platform: 'win32', arch: 'x64' })
+const COREML_PROFILE = resolveLocalInferenceProfile(true, { platform: 'darwin', arch: 'arm64' })
 
 const TRANSFORMERS_FAKE = String.raw`
 const env = {}
@@ -36,6 +21,7 @@ async function pipeline(_task, model, options = {}) {
     if (device !== 'cpu') throw new Error('downloads must stay on cpu')
     options.progress_callback?.({ status: 'ready', progress: 100 })
   }
+  if (model === 'download-fail') throw new Error('network download failed')
   if (device === 'dml') {
     const session = options.session_options || {}
     const providers = JSON.stringify(session.executionProviders)
@@ -55,7 +41,9 @@ async function pipeline(_task, model, options = {}) {
     return { dims: [1, 1, 2], tolist: () => [[[3, 4]]] }
   }
   extractor.tokenizer = { encode: (text) => Array.from(String(text)) }
-  extractor.dispose = async () => {}
+  extractor.dispose = async () => {
+    if (String(model).includes('dispose-fail')) throw new Error('embedding dispose failed')
+  }
   return extractor
 }
 
@@ -195,6 +183,28 @@ describe('inference worker hardware acceleration', () => {
     expect(workerLogs().some((message) => message.includes('falling back'))).toBe(false)
   })
 
+  it('does not treat embedding download failures as hardware failures', async () => {
+    const download = await request({
+      type: 'embedding.load',
+      id: 'download-fail',
+      modelRepo: 'download-fail',
+      dtype: 'q8',
+      source: { remoteHost: 'https://example.com', remotePathTemplate: '{model}', revision: 'main' }
+    })
+    const embed = await request({
+      type: 'embedding.embed',
+      id: 'embed-after-download-fail',
+      modelDir: '/hardware-ok',
+      dtype: 'q8',
+      texts: ['hello']
+    })
+
+    expect(download).toMatchObject({ type: 'error', message: 'network download failed' })
+    expect(embed).toMatchObject({ type: 'result', embeddings: [[0.6, 0.8]] })
+    expect(workerLogs()).toContain('hardware provider active provider=directml runtime=embedding')
+    expect(workerLogs().some((message) => message.includes('falling back'))).toBe(false)
+  })
+
   it('falls embedding back to CPU once and keeps CPU for the worker lifetime', async () => {
     const first = await request({
       type: 'embedding.embed',
@@ -206,7 +216,7 @@ describe('inference worker hardware acceleration', () => {
     const second = await request({
       type: 'embedding.embed',
       id: 'second',
-      modelDir: '/hardware-fail',
+      modelDir: '/hardware-fail-again',
       dtype: 'q8',
       texts: ['again']
     })
@@ -214,6 +224,23 @@ describe('inference worker hardware acceleration', () => {
     expect(first).toMatchObject({ type: 'result', embeddings: [[0.6, 0.8]] })
     expect(second).toMatchObject({ type: 'result', embeddings: [[0.6, 0.8]] })
     expect(workerLogs().filter((message) => message.includes('falling back'))).toHaveLength(1)
+  })
+
+  it('logs disposal failures without blocking CPU fallback', async () => {
+    const response = await request({
+      type: 'embedding.embed',
+      id: 'dispose-fail',
+      modelDir: '/hardware-fail-dispose-fail',
+      dtype: 'q8',
+      texts: ['hello']
+    })
+
+    expect(response).toMatchObject({ type: 'result', embeddings: [[0.6, 0.8]] })
+    expect(messages).toContainEqual({
+      type: 'log',
+      level: 'warn',
+      message: 'failed to dispose cached inference resource error=Error: embedding dispose failed'
+    })
   })
 
   it('uses DirectML for OCR and falls only that worker back to CPU on failure', async () => {
@@ -234,6 +261,27 @@ describe('inference worker hardware acceleration', () => {
     expect(fallback).toMatchObject({ type: 'result', text: 'cpu result' })
     expect(workerLogs()).toContain('hardware provider active provider=directml runtime=ocr')
     expect(workerLogs().filter((message) => message.includes('falling back'))).toHaveLength(1)
+  })
+
+  it('reports unreadable OCR images without disabling hardware acceleration', async () => {
+    const unreadable = await request({
+      type: 'ocr.recognize',
+      id: 'unreadable',
+      modelPaths: { detection: '/hardware-ok', recognition: '/rec', charactersDictionary: '/dict' },
+      imagePath: path.join(appPath, 'missing.png')
+    })
+    const next = await request({
+      type: 'ocr.recognize',
+      id: 'next',
+      modelPaths: { detection: '/hardware-ok', recognition: '/rec', charactersDictionary: '/dict' },
+      imagePath: import.meta.filename
+    })
+
+    expect(unreadable).toMatchObject({ type: 'error' })
+    expect(unreadable).toHaveProperty('message', expect.stringContaining('ENOENT'))
+    expect(unreadable).toHaveProperty('message', expect.not.stringContaining('hardware inference failed'))
+    expect(next).toMatchObject({ type: 'result', text: 'hardware result' })
+    expect(workerLogs().some((message) => message.includes('falling back'))).toBe(false)
   })
 
   it('reports both hardware and CPU errors when the fallback also fails', async () => {

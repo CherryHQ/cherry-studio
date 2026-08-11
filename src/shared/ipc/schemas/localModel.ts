@@ -12,17 +12,17 @@ import { defineRoute } from '../define'
 
 /**
  * Local downloadable model IPC — drives the model cards in the Environment
- * Dependencies settings (status / download / cancel / remove). One route family
- * parameterized by `model` (`embedding` | `ocr`); the main handler dispatches to
- * the owning download service. Progress is pushed back as a `download_progress`
- * event tagged with the same `model`.
+ * Dependencies settings. Model lifecycle routes are parameterized by `model`
+ * (`embedding` | `ocr`) and dispatch to the owning download service; the
+ * acceleration capability route reports platform support. Progress is pushed
+ * back as a `download_progress` event tagged with the same `model`.
  *
  * Two blocks per the framework's two-axis model:
  *   - Request schemas are zod *values* (renderer→main, untrusted → always parsed).
  *   - Event schemas are pure *types* (main→renderer, main is the TCB → not parsed).
  */
 
-/** Every route is addressed by which local model it targets. */
+/** Input shared by routes that target one local model. */
 const modelInput = z.object({ model: z.enum(LOCAL_MODEL_KINDS) })
 
 // ── Request: renderer→main calls (zod values, always parsed) ──

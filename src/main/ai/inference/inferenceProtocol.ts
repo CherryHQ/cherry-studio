@@ -31,12 +31,14 @@ export interface LocalInferenceSessionOptions {
   executionMode?: 'sequential'
 }
 
-/** Backend-neutral runtime options resolved in the main process and consumed by
- * both transformers.js and ppu-paddle-ocr inside the inference worker. */
+/** Runtime options resolved in the main process for the worker's two inference backends. */
 export interface LocalInferenceRuntimeProfile {
   id: LocalInferenceProfileId
+  /** transformers.js device selector. */
   transformersDevice: LocalInferenceDevice
+  /** ppu-paddle-ocr options and the default transformers.js session options. */
   sessionOptions: LocalInferenceSessionOptions
+  /** transformers.js override; defaults to {@link sessionOptions} when absent. */
   embeddingSessionOptions?: LocalInferenceSessionOptions
 }
 

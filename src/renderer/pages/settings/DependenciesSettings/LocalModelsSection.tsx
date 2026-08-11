@@ -1,5 +1,6 @@
 import { Badge, Button, DescriptionSwitch } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { useLocalModel } from '@renderer/hooks/useLocalModel'
 import { ipcApi } from '@renderer/ipc'
 import { cn } from '@renderer/utils/style'
@@ -8,6 +9,8 @@ import { Boxes, Download, RefreshCw, ScanText, Trash2, X } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('LocalModelsSection')
 
 const CARD_NOTICE_KEYS = {
   downloadFailed: 'settings.dependencies.localModels.notice.downloadFailed',
@@ -187,7 +190,7 @@ const LocalModelsSection: FC = () => {
       .then(({ supported }) => {
         if (mounted) setAccelerationSupported(supported)
       })
-      .catch(() => undefined)
+      .catch((error) => logger.warn('Failed to detect local inference hardware acceleration', error as Error))
     return () => {
       mounted = false
     }

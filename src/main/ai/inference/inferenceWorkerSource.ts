@@ -228,10 +228,8 @@ function getPaddleService(modelPaths) {
   return promise
 }
 
-async function handleOcr(msg) {
-  const fs = require('node:fs')
+async function handleOcr(msg, buffer) {
   const service = await getPaddleService(msg.modelPaths)
-  const buffer = fs.readFileSync(msg.imagePath)
   const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
   const result = await service.recognize(arrayBuffer)
   parentPort.postMessage({ type: 'result', id: msg.id, text: result.text })
@@ -241,19 +239,32 @@ async function disposeCachedInference() {
   const resources = [...pipelines.values(), ...paddleServices.values()]
   pipelines.clear()
   paddleServices.clear()
-  await Promise.allSettled(
+  const results = await Promise.allSettled(
     resources.map(async (resourcePromise) => {
       const resource = await resourcePromise
       const dispose = typeof resource.dispose === 'function' ? resource.dispose : resource.destroy
       if (typeof dispose === 'function') await dispose.call(resource)
     })
   )
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      postLog('warn', 'failed to dispose cached inference resource error=' + describeError(result.reason))
+    }
+  }
 }
 
 async function runWithHardwareFallback(msg, run) {
+  if (msg.type === 'ocr.recognize') {
+    // File access is request preparation, not a provider failure; keep it outside fallback.
+    const fs = require('node:fs')
+    const buffer = fs.readFileSync(msg.imagePath)
+    run = () => handleOcr(msg, buffer)
+  }
+
   try {
     await run(msg)
   } catch (hardwareError) {
+    // Downloads already run on CPU, so their failures cannot diagnose a hardware provider.
     if (msg.type === 'embedding.load' || runtimeProfile.id === 'cpu') throw hardwareError
 
     const provider = runtimeProfile.id
@@ -268,6 +279,7 @@ async function runWithHardwareFallback(msg, run) {
         '; falling back to cpu'
     )
     await disposeCachedInference()
+    // Keep CPU for this worker's lifetime so later cache misses do not retry a broken provider.
     runtimeProfile = CPU_RUNTIME_PROFILE
 
     try {

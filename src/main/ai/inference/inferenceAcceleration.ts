@@ -1,5 +1,7 @@
 import type { LocalInferenceRuntimeProfile } from './inferenceProtocol'
 
+const COREML_FLAG_ONLY_ALLOW_STATIC_INPUT_SHAPES = 8
+
 export interface LocalInferenceTarget {
   platform: NodeJS.Platform
   arch: string
@@ -26,7 +28,8 @@ const COREML_PROFILE: LocalInferenceRuntimeProfile = {
   transformersDevice: 'coreml',
   sessionOptions: { executionProviders: ['coreml', 'cpu'] },
   embeddingSessionOptions: {
-    executionProviders: [{ name: 'coreml', coreMlFlags: 8 }, 'cpu']
+    // Restrict CoreML to static-shape subgraphs; PaddleOCR must allow dynamic image inputs.
+    executionProviders: [{ name: 'coreml', coreMlFlags: COREML_FLAG_ONLY_ALLOW_STATIC_INPUT_SHAPES }, 'cpu']
   }
 }
 

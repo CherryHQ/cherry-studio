@@ -9,7 +9,12 @@ import type { LocalModelKind } from '@shared/data/presets/localModel'
 import PQueue from 'p-queue'
 
 import { resolveLocalInferenceProfile } from './inferenceAcceleration'
-import type { InferenceInitMessage, InferenceRequest, InferenceResponse } from './inferenceProtocol'
+import type {
+  InferenceInitMessage,
+  InferenceRequest,
+  InferenceResponse,
+  LocalInferenceProfileId
+} from './inferenceProtocol'
 import { inferenceWorkerSource } from './inferenceWorkerSource'
 
 const INFERENCE_WORKER_IDLE_TIMEOUT_MS = 60 * 1000
@@ -72,7 +77,8 @@ interface Pending {
 export abstract class InferenceServiceBase extends BaseService {
   private worker: Worker | null = null
   private workerProxyVersion: number | null = null
-  private workerProfileId: InferenceInitMessage['runtimeProfile']['id'] | null = null
+  // Tracks worker creation; worker-local CPU fallback deliberately does not update it.
+  private workerProfileId: LocalInferenceProfileId | null = null
   private workerGeneration = 0
   private readonly pending = new Map<string, Pending>()
   private readonly queue = new PQueue({ concurrency: 1 })
