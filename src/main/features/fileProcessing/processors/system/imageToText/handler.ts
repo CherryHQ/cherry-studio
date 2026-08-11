@@ -5,6 +5,7 @@ import { isLinux, isWin } from '@main/core/platform'
 import type * as SystemOcrModule from '@napi-rs/system-ocr'
 import type { FileProcessorMerged } from '@shared/data/presets/fileProcessing'
 import { FILE_TYPE, type FileInfo } from '@shared/types/file'
+import { fileTypeFromBuffer } from 'file-type'
 
 import type { FileProcessingCapabilityHandler } from '../../types'
 import type { PreparedSystemOcrContext } from '../types'
@@ -44,11 +45,7 @@ export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to
 
         const { OcrAccuracy, recognize } = await loadSystemOcr()
 
-        // The binding's Windows path input is hardcoded to the PNG WIC decoder, so any JPEG path
-        // fails with 0x88982F07 (#18326); its buffer input sniffs the real format — pass bytes.
-        const image = isWin
-          ? await fs.readFile(context.file.path, { signal: executionContext.signal })
-          : context.file.path
+        const image = isWin ? await loadWindowsImage(context.file.path, executionContext.signal) : context.file.path
 
         const result = await recognize(
           image,
@@ -64,6 +61,17 @@ export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to
       }
     }
   }
+}
+
+// TODO(#18326): @napi-rs/system-ocr on Windows decodes path input as PNG only and misdetects JPEG
+// buffers (JFIF sniffed as "jps"), so re-encode JPEG to PNG — remove once fixed upstream.
+async function loadWindowsImage(filePath: string, signal: AbortSignal): Promise<Uint8Array> {
+  const bytes = await fs.readFile(filePath, { signal })
+  if ((await fileTypeFromBuffer(bytes))?.mime !== 'image/jpeg') {
+    return bytes
+  }
+  const sharp = (await import('sharp')).default
+  return sharp(bytes).png().toBuffer()
 }
 
 function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal): PreparedSystemOcrContext {

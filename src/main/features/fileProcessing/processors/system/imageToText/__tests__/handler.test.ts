@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { FILE_TYPE, FileInfoSchema } from '@shared/types/file'
+import sharp from 'sharp'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../../tests/__mocks__/MainLoggerService'
@@ -73,20 +74,30 @@ describe('systemImageToTextHandler', () => {
     warnSpy.mockRestore()
   })
 
-  it('recognizes a JPEG on Windows by sending the image bytes instead of the path', async () => {
+  it('re-encodes a JPEG to PNG bytes on Windows before recognition', async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'system-ocr-test-'))
     try {
       const jpegPath = path.join(tempDir, 'scan.jpg')
-      const jpegBytes = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46])
+      const jpegBytes = await sharp({
+        create: { width: 8, height: 8, channels: 3, background: { r: 200, g: 100, b: 50 } }
+      })
+        .jpeg()
+        .toBuffer()
       await fs.writeFile(jpegPath, jpegBytes)
 
       // Model the @napi-rs/system-ocr@1.1.0 Windows binding: path input is decoded with a
-      // hardcoded PNG WIC decoder (any JPEG path fails), buffer input decodes by real format.
+      // hardcoded PNG WIC decoder and buffer sniffing only recognizes PNG — all else fails.
+      const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
       let receivedImage: string | Uint8Array | undefined
       vi.mocked(recognize).mockImplementation(async (image) => {
         receivedImage = image
         if (typeof image === 'string') {
           throw Object.assign(new Error('Windows error 图像格式未知。 (0x88982F07)'), { code: 'GenericFailure' })
+        }
+        if (!Buffer.from(image).subarray(0, 8).equals(pngSignature)) {
+          throw Object.assign(new Error('Windows error Could not recognize file (0x80070005)'), {
+            code: 'GenericFailure'
+          })
         }
         return { text: 'jpeg text', confidence: 1 }
       })
@@ -119,7 +130,8 @@ describe('systemImageToTextHandler', () => {
       const result = await prepared.execute({ signal: new AbortController().signal, reportProgress: () => {} })
 
       expect(result).toEqual({ kind: 'text', text: 'jpeg text' })
-      expect(Buffer.from(receivedImage as Uint8Array)).toEqual(jpegBytes)
+      const meta = await sharp(Buffer.from(receivedImage as Uint8Array)).metadata()
+      expect(meta.format).toBe('png')
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true })
     }
