@@ -199,14 +199,6 @@ export function useTopicMessages(
       })
     }
   })
-  useDataChange(
-    '/topics/:topicId/messages',
-    () => {
-      if (enabled) void mutate()
-    },
-    { routeParams: { topicId } }
-  )
-
   // Branch endpoint paginates newest-page-first; flipping page order gives a
   // chronological root → activeNode list. `activeNodeId` lives on each page
   // response — page 0 is the freshest fetch, so its value is authoritative.
@@ -246,6 +238,29 @@ export function useTopicMessages(
   const uiMessages = useMemo<CherryUIMessage[]>(
     () => projectBranchMessagesToUI(branchItems, projectionCacheRef.current),
     [branchItems]
+  )
+  const loadedMessageIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const item of branchItems) {
+      ids.add(item.message.id)
+      for (const sibling of item.siblingsGroup ?? []) ids.add(sibling.id)
+    }
+    return ids
+  }, [branchItems])
+
+  useDataChange(
+    '/topics/:topicId/messages',
+    (effects) => {
+      if (
+        enabled &&
+        effects.some(
+          (effect) => !effect.entityIds || effect.entityIds.some((messageId) => loadedMessageIds.has(messageId))
+        )
+      ) {
+        void mutate()
+      }
+    },
+    { routeParams: { topicId } }
   )
 
   const siblingsMap = useMemo<Record<string, SharedMessage[]>>(() => buildSiblingsMap(branchItems), [branchItems])

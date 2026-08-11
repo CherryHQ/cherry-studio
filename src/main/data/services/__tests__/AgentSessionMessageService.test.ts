@@ -71,8 +71,8 @@ describe('AgentSessionMessageService', () => {
     expect(agentSessionMessageService.hasSessionMessages('session-2')).toBe(false)
   })
 
-  describe('findPendingAssistantMessageIds + markMessagesError (boot reconcile)', () => {
-    it('finds only pending assistant rows and resolves them to error', async () => {
+  describe('findPendingAssistantMessages + resolveCrashOrphanedMessages (boot reconcile)', () => {
+    it('finds only pending assistant rows and resolves them to error with the given data', async () => {
       const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'
       const DONE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d011'
       const PENDING_USER = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d012'
@@ -89,12 +89,46 @@ describe('AgentSessionMessageService', () => {
         message: { id: PENDING_USER, role: 'user', status: 'pending', data: { parts: [{ type: 'text', text: 'q' }] } }
       })
 
-      expect(agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([PENDING])
+      expect(agentSessionMessageService.findPendingAssistantMessages()).toEqual([
+        { id: PENDING, sessionId: SESSION_ID, data: { parts: [] } }
+      ])
 
-      agentSessionMessageService.markMessagesError([PENDING])
-      expect(agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([])
+      const finalizedData = { parts: [{ type: 'text' as const, text: 'terminalized' }] }
+      agentSessionMessageService.resolveCrashOrphanedMessages([{ id: PENDING, data: finalizedData }], [SESSION_ID])
+      expect(agentSessionMessageService.findPendingAssistantMessages()).toEqual([])
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
       expect(row.status).toBe('error')
+      expect(row.data).toEqual(finalizedData)
+    })
+
+    it('discards resume tokens only for the affected sessions', async () => {
+      const OTHER_SESSION_ID = 'session-2'
+      await seedSession({ id: OTHER_SESSION_ID, name: 'Other', orderKey: 'a1' })
+      const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d020'
+      const EARLIER = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d021'
+      const OTHER = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d022'
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'token-earlier',
+        message: { id: EARLIER, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        runtimeResumeToken: 'token-crashed',
+        message: { id: PENDING, role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      agentSessionMessageService.saveMessage({
+        sessionId: OTHER_SESSION_ID,
+        runtimeResumeToken: 'token-other',
+        message: { id: OTHER, role: 'assistant', status: 'success', data: { parts: [] } }
+      })
+
+      agentSessionMessageService.resolveCrashOrphanedMessages([{ id: PENDING, data: { parts: [] } }], [SESSION_ID])
+
+      // The whole crashed session loses its tokens — the earlier turn's token would still resume
+      // the untrusted external CLI state, so the next connection must start without one.
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(SESSION_ID)).toBeNull()
+      expect(agentSessionMessageService.getLastRuntimeResumeToken(OTHER_SESSION_ID)).toBe('token-other')
     })
   })
 
