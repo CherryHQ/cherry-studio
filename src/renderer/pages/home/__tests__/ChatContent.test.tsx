@@ -1,4 +1,5 @@
 import type * as ToolApprovalOverridesModule from '@renderer/components/composer/useToolApprovalComposerOverrides'
+import type { ExecutionFinishEvent } from '@renderer/services/aiTransport'
 import type { ComposerChatTarget } from '@shared/ai/transport'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { mockUseInvalidateCache, mockUseMutation } from '@test-mocks/renderer/useDataApi'
@@ -1007,7 +1008,14 @@ describe('ChatContent', () => {
       error: null,
       status: 'ready',
       setMessages,
-      activeExecutions: [{ executionId: 'forked-exec', anchorMessageId: 'forked-assistant' }] as never
+      activeExecutions: [
+        {
+          executionId: 'forked-exec',
+          attemptId: 'forked-attempt',
+          attemptVersion: 1,
+          anchorMessageId: 'forked-assistant'
+        }
+      ] as never
     })
 
     render(<ChatContent topic={topic} onBranchLiveStateChange={onBranchLiveStateChange} />)
@@ -1056,13 +1064,11 @@ describe('ChatContent', () => {
 
     const overlayCall = mockUseExecutionOverlay.mock.calls.at(-1)
     expect(overlayCall).toBeDefined()
-    const finish = (overlayCall![3] as any).onFinish as (
-      executionId: string,
-      event: { message: CherryUIMessage; isAbort: boolean; isError: boolean }
-    ) => void
+    const finish = (overlayCall![3] as any).onFinish as (executionId: string, event: ExecutionFinishEvent) => void
 
     act(() => {
       finish('forked-exec', {
+        attemptId: 'forked-attempt',
         message: {
           id: 'forked-assistant',
           role: 'assistant',
@@ -1434,8 +1440,18 @@ describe('ChatContent', () => {
       mode: 'started',
       reservedMessages: [reservedUser, reservedAssistantA, reservedAssistantB],
       activeExecutions: [
-        { executionId: 'provider::model-a', anchorMessageId: 'reserved-assistant-a' },
-        { executionId: 'provider::model-b', anchorMessageId: 'reserved-assistant-b' }
+        {
+          executionId: 'provider::model-a',
+          attemptId: 'attempt-a',
+          attemptVersion: 1,
+          anchorMessageId: 'reserved-assistant-a'
+        },
+        {
+          executionId: 'provider::model-b',
+          attemptId: 'attempt-b',
+          attemptVersion: 2,
+          anchorMessageId: 'reserved-assistant-b'
+        }
       ]
     })
     const refresh = vi.fn().mockResolvedValue([])
@@ -1462,8 +1478,18 @@ describe('ChatContent', () => {
       expect(mockUseExecutionOverlay).toHaveBeenLastCalledWith(
         'topic-1',
         [
-          { executionId: 'provider::model-a', anchorMessageId: 'reserved-assistant-a' },
-          { executionId: 'provider::model-b', anchorMessageId: 'reserved-assistant-b' }
+          {
+            executionId: 'provider::model-a',
+            attemptId: 'attempt-a',
+            attemptVersion: 1,
+            anchorMessageId: 'reserved-assistant-a'
+          },
+          {
+            executionId: 'provider::model-b',
+            attemptId: 'attempt-b',
+            attemptVersion: 2,
+            anchorMessageId: 'reserved-assistant-b'
+          }
         ],
         expect.any(Array),
         expect.any(Object)
@@ -1472,15 +1498,13 @@ describe('ChatContent', () => {
 
     const overlayCall = mockUseExecutionOverlay.mock.calls.at(-1)
     expect(overlayCall).toBeDefined()
-    const finish = (overlayCall![3] as any).onFinish as (
-      executionId: string,
-      event: { message: CherryUIMessage; isAbort: boolean; isError: boolean }
-    ) => void
+    const finish = (overlayCall![3] as any).onFinish as (executionId: string, event: ExecutionFinishEvent) => void
     const disposeOverlay = mockExecutionOverlay.current.disposeOverlay
     refresh.mockClear()
 
     act(() => {
       finish('provider::model-a', {
+        attemptId: 'attempt-a',
         message: { ...reservedAssistantA, parts: [{ type: 'text', text: 'model a final' }] as CherryMessagePart[] },
         isAbort: false,
         isError: false
@@ -1496,6 +1520,7 @@ describe('ChatContent', () => {
 
     act(() => {
       finish('provider::model-b', {
+        attemptId: 'attempt-b',
         message: { ...reservedAssistantB, parts: [{ type: 'text', text: 'model b final' }] as CherryMessagePart[] },
         isAbort: false,
         isError: false

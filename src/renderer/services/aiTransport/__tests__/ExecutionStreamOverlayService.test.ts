@@ -130,7 +130,12 @@ const mocks = vi.hoisted(() => {
     }
 
     // test helpers
-    emit(executionId: string, chunk: CherryUIMessageChunk, anchorMessageId?: string, attemptId?: string) {
+    emit(
+      executionId: string,
+      chunk: CherryUIMessageChunk,
+      anchorMessageId?: string,
+      attemptId = anchorMessageId === undefined ? undefined : 'attempt-1'
+    ) {
       // Mirror production #routeChunk: a chunk with no branch auto-creates
       // one under the exact key and queues there until a reader registers.
       if (this.disposed) return
@@ -144,7 +149,7 @@ const mocks = vi.hoisted(() => {
       executionId: string,
       t: { isAbort: boolean; isError: boolean; isTopicDone?: boolean },
       anchorMessageId?: string,
-      attemptId?: string
+      attemptId = anchorMessageId === undefined ? undefined : 'attempt-1'
     ) {
       const topicOpen = t.isTopicDone === false
       if (t.isTopicDone !== undefined && this.topicOpen !== topicOpen) {
@@ -196,7 +201,7 @@ const A = 'openai::gpt-4o' as UniqueModelId
 const exec = (
   executionId: UniqueModelId,
   anchorMessageId?: string,
-  attemptId = `${executionId}:${anchorMessageId ?? 'temporary'}`,
+  attemptId = 'attempt-1',
   seedFromEmpty?: boolean,
   attemptVersion = 1
 ): ActiveExecution => ({
@@ -397,7 +402,7 @@ describe('ExecutionStreamOverlayService', () => {
     await drainStreamMicrotasks()
 
     // A stays settled: no reader restart, retained final frame intact.
-    expect(sub.branches.has(JSON.stringify([A, 'anchor-a', null]))).toBe(false)
+    expect(sub.branches.has(JSON.stringify([A, 'anchor-a', 'attempt-1']))).toBe(false)
     expect(textOf(service.getView(TOPIC).overlay['anchor-a'])).toBe('final')
     expect(textOf(service.getView(TOPIC).overlay['anchor-b'])).toBe('live')
   })
@@ -510,7 +515,7 @@ describe('ExecutionStreamOverlayService', () => {
     await drainStreamMicrotasks()
 
     // Tombstoned: no zombie reader, no new branch for A; B is untouched.
-    expect(sub.branches.has(JSON.stringify([A, 'anchor-a', null]))).toBe(false)
+    expect(sub.branches.has(JSON.stringify([A, 'anchor-a', 'attempt-1']))).toBe(false)
     expect(sub.branches.size).toBe(1)
     sub.emit(B, { type: 'text-delta', id: 't2', delta: '-more' } as CherryUIMessageChunk, 'anchor-b')
     await nextFrame()
