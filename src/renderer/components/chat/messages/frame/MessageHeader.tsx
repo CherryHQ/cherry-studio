@@ -6,7 +6,7 @@ import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import dayjs from 'dayjs'
-import { ArrowUpRight, MessagesSquare, Sparkle } from 'lucide-react'
+import { ArrowUpRight, MousePointerClick, Sparkle } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -46,7 +46,7 @@ export const AgentSessionDeliveryBadge: FC<{
   })
   const content = (
     <>
-      <MessagesSquare aria-hidden="true" className="size-3.5 shrink-0" />
+      <MousePointerClick aria-hidden="true" className="size-3.5 shrink-0" />
       <span className="min-w-0 truncate">{senderLabel}</span>
       {actions?.navigateToRoute ? <ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" /> : null}
     </>

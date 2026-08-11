@@ -185,7 +185,7 @@ describe('MessageHeader', () => {
 
   it('shows durable sender attribution without transport status on a received message', () => {
     const sender = { agentId: 'agent-a', sessionId: 'session-a' }
-    const { getByText } = render(
+    const { container, getByText } = render(
       <MessageHeader
         message={createMessage('user', {
           delivery: {
@@ -209,6 +209,7 @@ describe('MessageHeader', () => {
     )
 
     expect(getByText('From Agent A / Research')).toBeTruthy()
+    expect(container.querySelector('.lucide-mouse-pointer-click')).not.toBeNull()
     expect(screen.queryByText('agent.session_delivery.status.queued')).toBeNull()
   })
 

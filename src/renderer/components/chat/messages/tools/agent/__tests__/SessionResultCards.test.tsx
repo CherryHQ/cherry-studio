@@ -52,7 +52,11 @@ describe('SessionResultCards', () => {
     expect(screen.getByText('Sent to')).toBeInTheDocument()
     expect(screen.getAllByText('Builder / Build session')).not.toHaveLength(0)
 
-    await user.click(screen.getByRole('button', { name: 'Open session: Research session' }))
+    const openCreatedSession = screen.getByRole('button', { name: 'Open session: Research session' })
+    expect(openCreatedSession.querySelector('.lucide-arrow-up-right')).toBeNull()
+    expect(screen.getAllByTestId('session-result-cards')[0].querySelector('.lucide-mouse-pointer-click')).not.toBeNull()
+
+    await user.click(openCreatedSession)
     expect(navigateToRoute).toHaveBeenLastCalledWith({
       path: '/app/agents',
       query: { sessionId: 'session-created' }
