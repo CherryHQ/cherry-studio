@@ -1142,12 +1142,10 @@ function applySteerReminder(content: SDKUserMessage['message']['content']): SDKU
 }
 
 /**
- * Build SDK user content from a message entity. Non-image attachments are sent as
- * current local paths so the Agent decides how to inspect them with its tools. Images
- * keep the capability-aware path: supported formats become native Anthropic image
- * blocks, while first-party images use shared OCR/native-fallback routing when vision
- * is unavailable. Assistant attachment handles remain an additional compatibility
- * interface; external files and images that cannot be materialized fall back to paths.
+ * Build SDK user content from a message entity. Pasted text is fully inlined, while
+ * other non-image attachments are sent as current local paths for the Agent's tools.
+ * Images keep the capability-aware native/OCR path. Assistant attachment handles remain
+ * an additional compatibility interface; unavailable files fall back to visible notes.
  *
  * **Side effect**: performs file I/O via {@link materializeNativeFilePart}.
  */
@@ -1160,12 +1158,12 @@ async function materializeUserContent(
   const firstPartyFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId)
   )
-  const firstPartyImageParts = firstPartyFileParts.filter(isImageFilePart)
-  const firstPartyPathParts = firstPartyFileParts.filter((part) => !isImageFilePart(part))
+  const firstPartyRoutedParts = firstPartyFileParts.filter(
+    (part) => isImageFilePart(part) || isPastedTextFilePart(part)
+  )
+  const firstPartyPathParts = firstPartyFileParts.filter((part) => !firstPartyRoutedParts.includes(part))
   const routedParts = parts.filter(
-    (part) =>
-      part.type === 'text' ||
-      (part.type === 'file' && Boolean(readCherryMeta(part)?.fileEntryId) && isImageFilePart(part))
+    (part) => part.type === 'text' || (part.type === 'file' && firstPartyRoutedParts.includes(part))
   )
   const externalFileParts = parts.filter(
     (part): part is FileUIPart => part.type === 'file' && !readCherryMeta(part)?.fileEntryId
@@ -1180,10 +1178,14 @@ async function materializeUserContent(
   let turnAttachments: ReturnType<typeof collectAssistantFileAttachments> = []
   if (supportsAttachmentReads && firstPartyFileParts.length > 0) {
     turnAttachments = collectAssistantFileAttachments([
-      { id: message.id, role: 'user', parts: firstPartyFileParts } as CherryUIMessage
+      {
+        id: message.id,
+        role: 'user',
+        parts: firstPartyFileParts.filter((part) => !isPastedTextFilePart(part))
+      } as CherryUIMessage
     ])
   }
-  if (firstPartyImageParts.length > 0) {
+  if (firstPartyRoutedParts.length > 0) {
     const userMessage = { id: message.id, role: 'user', parts: routedParts } as CherryUIMessage
     const attachments = supportsAttachmentReads ? turnAttachments : collectFileAttachments([userMessage])
     const [prepared] = await prepareChatMessages([userMessage], {
@@ -1332,6 +1334,10 @@ function isImageFilePart(part: FileUIPart): boolean {
   const filename = part.filename?.toLowerCase()
   const url = part.url && !part.url.startsWith('data:') ? part.url.toLowerCase().split(/[?#]/, 1)[0] : undefined
   return imageExts.some((extension) => filename?.endsWith(extension) || url?.endsWith(extension))
+}
+
+function isPastedTextFilePart(part: FileUIPart): boolean {
+  return readCherryMeta(part)?.composerFileKind === 'pasted-text'
 }
 
 function canBeClaudeImage(part: FileUIPart): boolean {

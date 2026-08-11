@@ -662,6 +662,60 @@ describe('ClaudeCodeRuntimeDriver', () => {
     void connection.close()
   })
 
+  it('fully inlines pasted text for ordinary Agents instead of exposing a file path', async () => {
+    const pastedText = 'x'.repeat(10_000)
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
+      {
+        ...message,
+        parts: message.parts.map((part: any) =>
+          part.type === 'file' ? { type: 'text', text: `Attached file "pasted text.txt":\n${pastedText}` } : part
+        )
+      }
+    ])
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'summarize this' },
+            {
+              type: 'file',
+              url: 'file:///tmp/pasted.txt',
+              mediaType: 'text/plain',
+              filename: 'pasted text.txt',
+              providerMetadata: {
+                cherry: { fileEntryId: 'entry-pasted', composerFileKind: 'pasted-text' }
+              }
+            }
+          ]
+        }
+      }
+    })
+
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: `summarize this\nAttached file "pasted text.txt":\n${pastedText}`
+        }
+      },
+      done: false
+    })
+    expect(mocks.getPhysicalPath).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
   it('reuses first-party image data URLs prepared by shared attachment routing', async () => {
     const queryQueue = createAsyncQueue<any>()
     const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
@@ -1050,6 +1104,79 @@ describe('ClaudeCodeRuntimeDriver', () => {
       done: false
     })
     expect(mocks.prepareChatMessages).not.toHaveBeenCalled()
+    void connection.close()
+  })
+
+  it('fully inlines pasted text for Cherry Assistant while keeping ordinary attachment tools', async () => {
+    const pastedText = 'y'.repeat(10_000)
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    mocks.buildRequest.mockResolvedValueOnce({
+      connectionConfig: {
+        rebuildSignature: 'sig-1',
+        live: { toolPolicy: { permissionMode: null, disabledTools: [], mcps: [] } }
+      },
+      key: 'warm-key',
+      options: { model: 'sonnet' },
+      settings: { mcpServers: { 'assistant-files': { type: 'sdk' } } },
+      sdkModelId: 'sonnet-sdk',
+      initializeTimeoutMs: 100
+    })
+    mocks.prepareChatMessages.mockImplementationOnce(async ([message]) => [
+      {
+        ...message,
+        parts: message.parts.map((part: any) =>
+          part.type === 'file' ? { type: 'text', text: `Attached file "pasted text.txt":\n${pastedText}` } : part
+        )
+      }
+    ])
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const sdkInput = mocks.createClaudeQuery.mock.calls[0][0].prompt
+    const nextInput = sdkInput[Symbol.asyncIterator]().next()
+
+    await connection.send({
+      message: {
+        ...userMessage(),
+        data: {
+          parts: [
+            { type: 'text', text: 'summarize this' },
+            {
+              type: 'file',
+              url: 'file:///tmp/pasted.txt',
+              mediaType: 'text/plain',
+              filename: 'pasted text.txt',
+              providerMetadata: {
+                cherry: { fileEntryId: 'entry-pasted', composerFileKind: 'pasted-text' }
+              }
+            },
+            {
+              type: 'file',
+              url: 'file:///tmp/spec.pdf',
+              mediaType: 'application/pdf',
+              filename: 'spec.pdf',
+              providerMetadata: { cherry: { fileEntryId: 'entry-spec' } }
+            }
+          ]
+        }
+      }
+    })
+
+    const specHandle = createAssistantFileAttachmentHandle('entry-spec')
+    await expect(nextInput).resolves.toMatchObject({
+      value: {
+        message: {
+          role: 'user',
+          content: `summarize this\nAttached file "pasted text.txt":\n${pastedText}\n\nAttached files (read them with your tools using these absolute paths):\n- "spec.pdf": /managed/entry-spec\n\nAttachment manifest:\n- "spec.pdf" (handle: ${specHandle})`
+        }
+      },
+      done: false
+    })
+    expect(mocks.getPhysicalPath).toHaveBeenCalledWith('entry-spec')
     void connection.close()
   })
 

@@ -199,6 +199,25 @@ describe('prepareChatMessages — routing', () => {
     expect(text).toContain('read_file("a.txt", offset=5)')
   })
 
+  it('fully inlines pasted text without a read_file pointer', async () => {
+    const pastedText = '0123456789'.repeat(1_000)
+    getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
+    extractMock.mockResolvedValueOnce(pastedText)
+    const pastedPart = {
+      ...fileWithEntry('e1', 'pasted text.txt', 'text/plain'),
+      providerMetadata: {
+        cherry: { fileEntryId: 'e1', fileTokenSourceId: 'source-1', composerFileKind: 'pasted-text' }
+      }
+    } as CherryMessagePart
+
+    const [out] = await run([pastedPart], NONE, { isToolCapable: true, cap: 5 })
+    const text = textOf(out.parts)[0]
+
+    expect(text).toBe(`Attached file "pasted text.txt":\n${pastedText}`)
+    expect(text).not.toContain('[Truncated')
+    expect(text).not.toContain('read_file')
+  })
+
   it('caps long text without a read_file pointer for non-tool models', async () => {
     getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
     extractMock.mockResolvedValueOnce('0123456789')

@@ -233,9 +233,11 @@ async function prepareChatMessage<T extends UIMessage>(message: T, ctx: PrepareC
         continue
       }
 
-      // Non-native first-party attachment → inline its (capped) text.
+      // Pasted text stays complete; ordinary non-native attachments keep the inline cap.
+      const isPastedText = fileType === FILE_TYPE.TEXT && readCherryMeta(part)?.composerFileKind === 'pasted-text'
       const body = await extractNonNativeText(fileEntryId, bareExt, fileType, handle, ctx.signal)
-      const text = `Attached file "${handle}":\n${capInlineText(handle, body, ctx.isToolCapable, ctx.cap)}`
+      const visibleBody = isPastedText ? body : capInlineText(handle, body, ctx.isToolCapable, ctx.cap)
+      const text = `Attached file "${handle}":\n${visibleBody}`
       kept.push({ type: 'text', text } as UIMessage['parts'][number])
     } catch (error) {
       if (ctx.signal?.aborted || isAbortError(error)) throw error
