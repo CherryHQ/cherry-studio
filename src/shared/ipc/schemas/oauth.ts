@@ -33,6 +33,8 @@ const providerInput = z.object({ providerId: z.string() })
 
 export const oauthRequestSchemas = {
   'oauth.sign_in': defineRoute({ input: providerInput, output: oauthAccountSchema }),
+  'oauth.is_signing_in': defineRoute({ input: providerInput, output: z.boolean() }),
+  'oauth.cancel_sign_in': defineRoute({ input: providerInput, output: z.void() }),
   'oauth.has_token': defineRoute({ input: providerInput, output: z.boolean() }),
   'oauth.get_account': defineRoute({ input: providerInput, output: oauthAccountSchema }),
   'oauth.logout': defineRoute({ input: providerInput, output: z.void() }),

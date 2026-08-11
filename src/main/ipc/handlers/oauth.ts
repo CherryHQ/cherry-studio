@@ -1,12 +1,26 @@
 import { application } from '@application'
+import { OAuthSignInCancelledError } from '@main/services/oauth/errors'
 import { isClaudeCodeProviderId } from '@shared/data/presets/claudeCode'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 import type { oauthRequestSchemas } from '@shared/ipc/schemas/oauth'
 import type { IpcHandlersFor } from '@shared/ipc/types'
 
 const runtime = () => application.get('OAuthRuntimeService')
 
 export const oauthHandlers: IpcHandlersFor<typeof oauthRequestSchemas> = {
-  'oauth.sign_in': ({ providerId }) => runtime().signIn(providerId),
+  'oauth.sign_in': async ({ providerId }) => {
+    try {
+      return await runtime().signIn(providerId)
+    } catch (error) {
+      if (error instanceof OAuthSignInCancelledError) {
+        throw new IpcError(oauthErrorCodes.SIGN_IN_CANCELLED, error.message)
+      }
+      throw error
+    }
+  },
+  'oauth.is_signing_in': async ({ providerId }) => runtime().isSigningIn(providerId),
+  'oauth.cancel_sign_in': ({ providerId }) => runtime().cancelSignIn(providerId),
   'oauth.has_token': ({ providerId }) => runtime().hasToken(providerId),
   'oauth.get_account': ({ providerId }) => runtime().getAccount(providerId),
   'oauth.logout': ({ providerId }) => runtime().logout(providerId),

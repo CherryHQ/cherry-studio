@@ -4,9 +4,11 @@ import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
 import { CheckCircle2, CircleAlert, LogIn, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('LoginOauthPanel')
@@ -34,41 +36,82 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null)
   const [accountId, setAccountId] = useState<string | null>(null)
   const [signingIn, setSigningIn] = useState(false)
+  const [cancellingSignIn, setCancellingSignIn] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const mountedRef = useRef(false)
+  const signInRequestRef = useRef<Promise<void> | null>(null)
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const observeSignIn = useCallback((): Promise<void> => {
+    const existing = signInRequestRef.current
+    if (existing) return existing
+
+    setSigningIn(true)
+    const request = Promise.resolve().then(async () => {
+      try {
+        const account = await ipcApi.request('oauth.sign_in', { providerId })
+        if (!mountedRef.current) return
+        setLoggedIn(true)
+        setAccountId(account.accountId)
+        // The main process enabled the provider; mirror it into the renderer cache.
+        await updateProvider({ isEnabled: true })
+        if (mountedRef.current) toast.success(t(`${ns}.sign_in_success`))
+      } catch (error) {
+        if (error instanceof IpcError && error.code === oauthErrorCodes.SIGN_IN_CANCELLED) return
+        if (!mountedRef.current) return
+        logger.error(`${providerId} sign-in failed`, error as Error)
+        toast.error(t(`${ns}.sign_in_failed`))
+      } finally {
+        if (signInRequestRef.current === request) {
+          signInRequestRef.current = null
+          if (mountedRef.current) setSigningIn(false)
+        }
+      }
+    })
+    signInRequestRef.current = request
+    return request
+  }, [providerId, ns, t, updateProvider])
 
   const refreshStatus = useCallback(async () => {
     try {
       const hasToken = await ipcApi.request('oauth.has_token', { providerId })
       setLoggedIn(hasToken)
-      setAccountId(
-        hasToken && showAccountId ? (await ipcApi.request('oauth.get_account', { providerId })).accountId : null
-      )
+      if (hasToken) {
+        setAccountId(showAccountId ? (await ipcApi.request('oauth.get_account', { providerId })).accountId : null)
+        return
+      }
+
+      setAccountId(null)
+      if (await ipcApi.request('oauth.is_signing_in', { providerId })) {
+        void observeSignIn()
+      }
     } catch (error) {
       logger.error(`Failed to check ${providerId} login status`, error as Error)
       setLoggedIn(false)
     }
-  }, [providerId, showAccountId])
+  }, [observeSignIn, providerId, showAccountId])
 
   useEffect(() => {
     void refreshStatus()
   }, [refreshStatus])
 
-  const handleSignIn = useCallback(async () => {
-    setSigningIn(true)
+  const handleCancelSignIn = useCallback(async () => {
+    setCancellingSignIn(true)
     try {
-      const account = await ipcApi.request('oauth.sign_in', { providerId })
-      setLoggedIn(true)
-      setAccountId(account.accountId)
-      // The main process enabled the provider; mirror it into the renderer cache.
-      await updateProvider({ isEnabled: true })
-      toast.success(t(`${ns}.sign_in_success`))
+      await ipcApi.request('oauth.cancel_sign_in', { providerId })
     } catch (error) {
-      logger.error(`${providerId} sign-in failed`, error as Error)
+      logger.error(`Failed to cancel ${providerId} sign-in`, error as Error)
       toast.error(t(`${ns}.sign_in_failed`))
     } finally {
-      setSigningIn(false)
+      if (mountedRef.current) setCancellingSignIn(false)
     }
-  }, [providerId, ns, t, updateProvider])
+  }, [ns, providerId, t])
 
   const handleLogout = useCallback(async () => {
     const confirmed = await popup.confirm({
@@ -128,11 +171,16 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
               <div className="mt-1 text-xs">{t(`${ns}.description_detail`)}</div>
             </div>
           </div>
-          <div>
-            <Button disabled={signingIn} onClick={() => void handleSignIn()}>
+          <div className="flex items-center gap-2">
+            <Button disabled={signingIn} onClick={() => void observeSignIn()}>
               {signingIn ? <RefreshCw className="size-4 animate-spin" /> : <LogIn className="size-4" />}
               {signingIn ? t(`${ns}.signing_in`) : t(`${ns}.sign_in_button`)}
             </Button>
+            {signingIn ? (
+              <Button variant="outline" disabled={cancellingSignIn} onClick={() => void handleCancelSignIn()}>
+                {t('common.cancel')}
+              </Button>
+            ) : null}
           </div>
         </div>
       )}

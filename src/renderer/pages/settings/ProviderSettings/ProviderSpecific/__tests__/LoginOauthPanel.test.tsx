@@ -1,6 +1,9 @@
 import { popup } from '@renderer/services/popup'
 import { toast } from '@renderer/services/toast'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { IpcError } from '@shared/ipc/errors/IpcError'
+import { oauthErrorCodes } from '@shared/ipc/errors/oauth'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -37,17 +40,18 @@ beforeEach(() => {
 
 describe('LoginOauthPanel', () => {
   it('mirrors the main-process enable into the renderer cache after sign-in', async () => {
-    // has_token (initial refresh) → false, then oauth.sign_in resolves.
     requestMock.mockImplementation((channel: string) => {
       if (channel === 'oauth.has_token') return Promise.resolve(false)
+      if (channel === 'oauth.is_signing_in') return Promise.resolve(false)
       if (channel === 'oauth.sign_in') return Promise.resolve({ accountId: null })
       throw new Error(`unexpected channel: ${channel}`)
     })
+    const user = userEvent.setup()
 
     render(<LoginOauthPanel providerId="codex" i18nNs="codex" />)
 
     const signInButton = await screen.findByText('settings.provider.codex.sign_in_button')
-    fireEvent.click(signInButton)
+    await user.click(signInButton)
 
     await waitFor(() => expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true }))
     expect(requestMock).toHaveBeenCalledWith('oauth.sign_in', { providerId: 'codex' })
@@ -61,17 +65,70 @@ describe('LoginOauthPanel', () => {
       if (channel === 'oauth.logout') return Promise.resolve(undefined)
       throw new Error(`unexpected channel: ${channel}`)
     })
+    const user = userEvent.setup()
     // The global popup.confirm mock invokes onOk and resolves true (the confirmed path).
 
     render(<LoginOauthPanel providerId="codex" i18nNs="codex" showAccountId />)
 
     const logoutButton = await screen.findByText('settings.provider.oauth.logout')
-    fireEvent.click(logoutButton)
+    await user.click(logoutButton)
 
     await waitFor(() =>
       expect(updateProviderMock).toHaveBeenCalledWith({ authConfig: { type: 'api-key' }, isEnabled: false })
     )
     expect(popup.confirm).toHaveBeenCalled()
     expect(requestMock).toHaveBeenCalledWith('oauth.logout', { providerId: 'codex' })
+  })
+
+  it('restores the waiting state by observing an active main-process sign-in', async () => {
+    requestMock.mockImplementation((channel: string) => {
+      if (channel === 'oauth.has_token') return Promise.resolve(false)
+      if (channel === 'oauth.is_signing_in') return Promise.resolve(true)
+      if (channel === 'oauth.sign_in') return new Promise(() => {})
+      throw new Error(`unexpected channel: ${channel}`)
+    })
+
+    render(<LoginOauthPanel providerId="codex" i18nNs="codex" />)
+
+    expect(await screen.findByText('settings.provider.codex.signing_in')).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'common.cancel' })).toBeEnabled()
+    expect(requestMock).toHaveBeenCalledWith('oauth.sign_in', { providerId: 'codex' })
+  })
+
+  it('cancels without a failure toast and permits an immediate retry', async () => {
+    let rejectSignIn: (error: unknown) => void = () => {}
+    let signInAttempt = 0
+    requestMock.mockImplementation((channel: string) => {
+      if (channel === 'oauth.has_token') return Promise.resolve(false)
+      if (channel === 'oauth.is_signing_in') return Promise.resolve(false)
+      if (channel === 'oauth.sign_in') {
+        signInAttempt += 1
+        if (signInAttempt === 1) {
+          return new Promise((_resolve, reject) => {
+            rejectSignIn = reject
+          })
+        }
+        return Promise.resolve({ accountId: null })
+      }
+      if (channel === 'oauth.cancel_sign_in') {
+        rejectSignIn(new IpcError(oauthErrorCodes.SIGN_IN_CANCELLED))
+        return Promise.resolve(undefined)
+      }
+      throw new Error(`unexpected channel: ${channel}`)
+    })
+    const user = userEvent.setup()
+
+    render(<LoginOauthPanel providerId="codex" i18nNs="codex" />)
+
+    await user.click(await screen.findByRole('button', { name: 'settings.provider.codex.sign_in_button' }))
+    await user.click(await screen.findByRole('button', { name: 'common.cancel' }))
+
+    const retryButton = await screen.findByRole('button', { name: 'settings.provider.codex.sign_in_button' })
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(requestMock).toHaveBeenCalledWith('oauth.cancel_sign_in', { providerId: 'codex' })
+
+    await user.click(retryButton)
+    await waitFor(() => expect(toast.success).toHaveBeenCalledWith('settings.provider.codex.sign_in_success'))
+    expect(signInAttempt).toBe(2)
   })
 })

@@ -16,7 +16,9 @@ const h = vi.hoisted(() => {
     },
     transportMock: {
       tryAcquire: vi.fn(() => true),
-      waitForAuthorizationCode: vi.fn(async () => 'auth-code'),
+      waitForAuthorizationCode: vi
+        .fn<(state: string, signal: AbortSignal) => Promise<string>>()
+        .mockResolvedValue('auth-code'),
       close: vi.fn()
     },
     deepLinkTransportMock: {
@@ -75,7 +77,7 @@ vi.mock('../providerDefinitions', () => ({
   }
 }))
 
-import { OAuthTransientError } from '../../errors'
+import { OAuthSignInCancelledError, OAuthTransientError } from '../../errors'
 import { OAuthRuntimeService } from '../OAuthRuntimeService'
 import { OAuthHttpError } from '../PkceOAuthClient'
 
@@ -94,6 +96,9 @@ describe('OAuthRuntimeService', () => {
     vi.clearAllMocks()
     h.refreshMock.mockReset()
     h.afterPersistMock.mockReset()
+    h.transportMock.tryAcquire.mockReset().mockReturnValue(true)
+    h.transportMock.waitForAuthorizationCode.mockReset().mockResolvedValue('auth-code')
+    h.transportMock.close.mockReset()
     service = new OAuthRuntimeService()
   })
 
@@ -354,10 +359,50 @@ describe('OAuthRuntimeService', () => {
     expect(h.transportMock.close).toHaveBeenCalled()
   })
 
-  // W2: tryAcquire already reserved — a second concurrent sign-in is refused.
-  it('signIn rejects when a flow is already in progress', async () => {
-    h.transportMock.tryAcquire.mockReturnValueOnce(false)
-    await expect(service.signIn('codex')).rejects.toThrow(/already in progress/)
+  it('exposes and reuses an active sign-in flow', async () => {
+    let resolveCode: (code: string) => void = () => {}
+    h.transportMock.waitForAuthorizationCode.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveCode = resolve
+        })
+    )
+    h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
+
+    const first = service.signIn('codex')
+    expect(service.isSigningIn('codex')).toBe(true)
+
+    const second = service.signIn('codex')
+    expect(h.transportMock.tryAcquire).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(h.transportMock.waitForAuthorizationCode).toHaveBeenCalledTimes(1))
+
+    resolveCode('auth-code')
+    await expect(Promise.all([first, second])).resolves.toEqual([{ accountId: null }, { accountId: null }])
+    expect(service.isSigningIn('codex')).toBe(false)
+  })
+
+  it('cancels an active sign-in and allows an immediate retry', async () => {
+    h.transportMock.waitForAuthorizationCode.mockImplementation((_state: string, signal: AbortSignal) => {
+      return new Promise<string>((_resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+      })
+    })
+
+    const first = service.signIn('codex')
+    const second = service.signIn('codex')
+    const firstOutcome = first.catch((error: unknown) => error)
+    const secondOutcome = second.catch((error: unknown) => error)
+
+    await service.cancelSignIn('codex')
+    expect(await firstOutcome).toBeInstanceOf(OAuthSignInCancelledError)
+    expect(await secondOutcome).toBeInstanceOf(OAuthSignInCancelledError)
+    expect(service.isSigningIn('codex')).toBe(false)
+
+    h.transportMock.waitForAuthorizationCode.mockResolvedValueOnce('auth-code')
+    h.clientMock.exchangeCode.mockResolvedValue({ access_token: 'at', refresh_token: 'rt', expires_in: 3600 })
+    await expect(service.signIn('codex')).resolves.toEqual({ accountId: null })
+    expect(h.transportMock.tryAcquire).toHaveBeenCalledTimes(2)
+    expect(h.transportMock.close).toHaveBeenCalledTimes(2)
   })
 
   it('handleDeepLinkCallback exchanges, persists, and notifies the initiator', async () => {
