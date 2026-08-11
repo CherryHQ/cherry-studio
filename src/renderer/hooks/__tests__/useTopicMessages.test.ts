@@ -128,6 +128,68 @@ describe('useTopicMessages', () => {
     expect(mutate).toHaveBeenCalledWith()
   })
 
+  it('revalidates on a same-topic membership change whose entity ids are not loaded yet', () => {
+    const mutate = vi.fn().mockResolvedValue(undefined)
+    const loadedMessage = {
+      id: 'loaded-1',
+      topicId: 'topic-1',
+      parentId: null,
+      role: 'user',
+      data: { parts: [] },
+      searchableText: '',
+      status: 'success',
+      siblingsGroupId: 0,
+      modelId: null,
+      messageSnapshot: null,
+      stats: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }
+    mockUseInfiniteQuery.mockReturnValueOnce({
+      pages: [
+        {
+          items: [{ message: loadedMessage, siblingsGroup: [] }],
+          nextCursor: undefined,
+          activeNodeId: 'loaded-1'
+        }
+      ],
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate
+    } as never)
+
+    renderHook(() => useTopicMessages('topic-1'))
+
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'projection',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: ['new-user-1', 'new-placeholder-1']
+        }
+      ])
+    })
+    expect(mutate).not.toHaveBeenCalled()
+
+    act(() => {
+      MockUseDataApiUtils.emitDataChange([
+        {
+          endpoint: '/topics/:topicId/messages',
+          kind: 'membership',
+          routeParams: { topicId: 'topic-1' },
+          entityIds: ['new-user-1', 'new-placeholder-1']
+        }
+      ])
+    })
+    expect(mutate).toHaveBeenCalledWith()
+  })
+
   it('keeps repeated replies from the same model visible in a multi-model group', () => {
     const firstModelReply = createAssistantMessage('reply-a-1', 'provider-a::model-a', '2026-01-01T00:00:01.000Z')
     const otherModelReply = createAssistantMessage('reply-b-1', 'provider-b::model-b', '2026-01-01T00:00:02.000Z')

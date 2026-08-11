@@ -251,10 +251,15 @@ export function useTopicMessages(
   useDataChange(
     '/topics/:topicId/messages',
     (effects) => {
+      // Membership effects carry the NEW row ids — never in loadedMessageIds yet.
+      // Route scoping already limits them to this topic, so they must always refetch.
       if (
         enabled &&
         effects.some(
-          (effect) => !effect.entityIds || effect.entityIds.some((messageId) => loadedMessageIds.has(messageId))
+          (effect) =>
+            !effect.entityIds ||
+            effect.kind === 'membership' ||
+            effect.entityIds.some((messageId) => loadedMessageIds.has(messageId))
         )
       ) {
         void mutate()
