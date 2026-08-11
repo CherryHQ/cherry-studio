@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+const isLocalInferenceHardwareAccelerationSupported = vi.hoisted(() => vi.fn(() => true))
+
+vi.mock('@main/ai/inference/inferenceAcceleration', () => ({
+  isLocalInferenceHardwareAccelerationSupported
+}))
+
 vi.mock('@main/services/localModel/LocalEmbeddingDownloadService', () => ({
   localEmbeddingDownloadService: {
     getStatus: vi.fn(),
@@ -49,6 +55,14 @@ describe('localModelHandlers', () => {
     expect(localOcrDownloadService.download).toHaveBeenCalled()
     expect(result).toEqual({ result: 'ready' })
     expect(localEmbeddingDownloadService.cancel).toHaveBeenCalled()
+  })
+
+  it('reports the main-process hardware acceleration capability', async () => {
+    await expect(localModelHandlers['local_model.get_acceleration_capability'](undefined, ctx)).resolves.toEqual({
+      supported: true
+    })
+
+    expect(isLocalInferenceHardwareAccelerationSupported).toHaveBeenCalledOnce()
   })
 
   describe('download', () => {

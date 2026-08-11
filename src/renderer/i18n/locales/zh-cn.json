@@ -6693,6 +6693,10 @@
       "installingHint": "首次安装可能需要下载运行时，耗时数分钟",
       "invalidTool": "工具名称或标识无效",
       "localModels": {
+        "acceleration": {
+          "description": "使用 DirectML 或 CoreML 加速本地嵌入和 OCR 推理。",
+          "label": "硬件加速"
+        },
         "cancel": "取消",
         "description": "在本地运行的模型，下载后即可离线使用，无需 API Key。",
         "download": "下载",

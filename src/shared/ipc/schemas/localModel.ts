@@ -27,6 +27,10 @@ const modelInput = z.object({ model: z.enum(LOCAL_MODEL_KINDS) })
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const localModelRequestSchemas = {
+  'local_model.get_acceleration_capability': defineRoute({
+    input: z.void(),
+    output: z.object({ supported: z.boolean() })
+  }),
   // `errorCode` is present exactly when `status` is 'error' and says why (failed
   // download vs. incomplete files on disk), so the cards can word the notice.
   'local_model.get_status': defineRoute({

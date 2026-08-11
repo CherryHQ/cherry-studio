@@ -62,6 +62,13 @@
       "description": "Complex migration: merge redux/preprocess.providers and redux/ocr.providers into file processing overrides"
     },
     {
+      "targetKey": "feature.local_model.hardware_acceleration.enabled",
+      "type": "boolean",
+      "defaultValue": false,
+      "status": "classified",
+      "description": "Enable supported hardware acceleration for local embedding and OCR inference (v2 new feature, no v1 source)"
+    },
+    {
       "targetKey": "chat.web_search.default_search_keywords_provider",
       "type": "PreferenceTypes.WebSearchProviderId",
       "defaultValue": "exa-mcp",

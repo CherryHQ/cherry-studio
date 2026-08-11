@@ -6693,6 +6693,10 @@
       "installingHint": "The first install may download a runtime and take a few minutes",
       "invalidTool": "Invalid tool name or key",
       "localModels": {
+        "acceleration": {
+          "description": "Use DirectML or CoreML to accelerate local embedding and OCR inference.",
+          "label": "Hardware acceleration"
+        },
         "cancel": "Cancel",
         "description": "Models that run locally on your device — download once, then use offline with no API key.",
         "download": "Download",

@@ -1,6 +1,7 @@
 import { createProxyBypassMatcher } from '@main/services/proxy/bypassRules'
 import { configureWorkerProxy } from '@main/services/proxy/workerProxy'
 
+import { CPU_LOCAL_INFERENCE_PROFILE } from './inferenceAcceleration'
 import { l2normalize } from './pooling'
 
 /**
@@ -34,6 +35,8 @@ let appPath = null
 let transformers = null
 let ppu = null
 let proxyStatus = 'not-initialized'
+const CPU_RUNTIME_PROFILE = ${JSON.stringify(CPU_LOCAL_INFERENCE_PROFILE)}
+let runtimeProfile = CPU_RUNTIME_PROFILE
 const pipelines = new Map() // key: modelDir|dtype -> Promise<extractor>
 const paddleServices = new Map() // key: det|rec|dict -> Promise<PaddleOcrService>
 
@@ -124,7 +127,15 @@ function getLocalPipeline(modelDir, dtype) {
       // Leave env.remoteHost/remotePathTemplate untouched: an absolute model id never
       // consults them, and clearing them would race the download path sharing this env.
       if (cacheDir) env.cacheDir = cacheDir
-      return pipeline('feature-extraction', modelDir, { dtype, device: 'cpu' })
+      const extractor = await pipeline('feature-extraction', modelDir, {
+        dtype,
+        device: runtimeProfile.transformersDevice,
+        session_options: runtimeProfile.embeddingSessionOptions || runtimeProfile.sessionOptions
+      })
+      if (runtimeProfile.id !== 'cpu') {
+        postLog('info', 'hardware provider active provider=' + runtimeProfile.id + ' runtime=embedding')
+      }
+      return extractor
     })()
     pipelines.set(key, promise)
     // Drop the cached promise on failure so a later request can retry.
@@ -202,9 +213,12 @@ function getPaddleService(modelPaths) {
           recognition: modelPaths.recognition,
           charactersDictionary: modelPaths.charactersDictionary
         },
-        session: { executionProviders: ['cpu'] }
+        session: runtimeProfile.sessionOptions
       })
       await service.initialize()
+      if (runtimeProfile.id !== 'cpu') {
+        postLog('info', 'hardware provider active provider=' + runtimeProfile.id + ' runtime=ocr')
+      }
       return service
     })()
     paddleServices.set(key, promise)
@@ -223,11 +237,60 @@ async function handleOcr(msg) {
   parentPort.postMessage({ type: 'result', id: msg.id, text: result.text })
 }
 
+async function disposeCachedInference() {
+  const resources = [...pipelines.values(), ...paddleServices.values()]
+  pipelines.clear()
+  paddleServices.clear()
+  await Promise.allSettled(
+    resources.map(async (resourcePromise) => {
+      const resource = await resourcePromise
+      const dispose = typeof resource.dispose === 'function' ? resource.dispose : resource.destroy
+      if (typeof dispose === 'function') await dispose.call(resource)
+    })
+  )
+}
+
+async function runWithHardwareFallback(msg, run) {
+  try {
+    await run(msg)
+  } catch (hardwareError) {
+    if (msg.type === 'embedding.load' || runtimeProfile.id === 'cpu') throw hardwareError
+
+    const provider = runtimeProfile.id
+    postLog(
+      'warn',
+      'hardware inference failed provider=' +
+        provider +
+        ' ' +
+        requestLogContext(msg) +
+        ' error=' +
+        describeError(hardwareError) +
+        '; falling back to cpu'
+    )
+    await disposeCachedInference()
+    runtimeProfile = CPU_RUNTIME_PROFILE
+
+    try {
+      await run(msg)
+    } catch (cpuError) {
+      throw new Error(
+        'hardware inference failed provider=' +
+          provider +
+          ' error=' +
+          describeError(hardwareError) +
+          '; CPU fallback failed error=' +
+          describeError(cpuError)
+      )
+    }
+  }
+}
+
 parentPort.on('message', (msg) => {
   if (!msg || typeof msg !== 'object') return
   if (msg.type === 'init') {
     cacheDir = msg.cacheDir
     appPath = msg.appPath
+    runtimeProfile = msg.runtimeProfile
     const proxy = configureWorkerProxy(appPath, msg.proxyRouting, createProxyBypassMatcher)
     proxyStatus = proxy.status
     if (proxy.status === 'configured') {
@@ -260,7 +323,7 @@ parentPort.on('message', (msg) => {
     parentPort.postMessage({ type: 'error', id: msg.id, message: 'unknown message type: ' + msg.type })
     return
   }
-  run(msg).catch((err) => {
+  runWithHardwareFallback(msg, run).catch((err) => {
     postLog('error', 'request failed ' + requestLogContext(msg) + ' error=' + describeError(err))
     parentPort.postMessage({ type: 'error', id: msg.id, message: err && err.message ? err.message : String(err) })
   })
