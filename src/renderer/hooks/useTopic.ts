@@ -36,6 +36,7 @@ import type { CreateTopicDto, DeleteTopicsResult, UpdateTopicDto } from '@shared
 import { type BranchMessagesResponse, type Message as SharedMessage, toContentRole } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { hasClearContextPart, isBlankUserTurn } from '@shared/data/types/uiParts'
+import { isEqual } from 'es-toolkit/compat'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTopic')
@@ -45,6 +46,33 @@ const logger = loggerService.withContext('useTopic')
 const EMPTY_TOPICS: readonly Topic[] = Object.freeze([])
 const DEFAULT_TOPIC_PAGE_SIZE = 50
 const LOAD_ALL_TOPIC_PAGE_SIZE = 200
+
+/**
+ * Preserve entity identity across list refreshes when DataApi returns an
+ * equivalent object. Order changes still publish a new array, while unchanged
+ * rows retain their references for memoized consumers.
+ */
+function useStructurallySharedTopics(topics: Topic[]): Topic[] {
+  const previousTopicsRef = useRef<Topic[]>([])
+
+  return useMemo(() => {
+    const previousTopics = previousTopicsRef.current
+    const previousById = new Map(previousTopics.map((topic) => [topic.id, topic] as const))
+    let arrayChanged = previousTopics.length !== topics.length
+
+    const nextTopics = topics.map((topic, index) => {
+      const previous = previousById.get(topic.id)
+      const next = previous && isEqual(previous, topic) ? previous : topic
+      if (next !== previousTopics[index]) {
+        arrayChanged = true
+      }
+      return next
+    })
+    const sharedTopics = arrayChanged ? nextTopics : previousTopics
+    previousTopicsRef.current = sharedTopics
+    return sharedTopics
+  }, [topics])
+}
 
 /**
  * Map a DataApi topic entity into the renderer {@link RendererTopic} shape.
@@ -255,7 +283,8 @@ export function useTopics(opts?: { q?: string; loadAll?: boolean; pageSize?: num
     enabled: opts?.enabled,
     swrOptions: { revalidateAll: revalidateAllPages, revalidateFirstPage: !loadAll }
   })
-  const topics = useInfiniteFlatItems(pages)
+  const flatTopics = useInfiniteFlatItems(pages)
+  const topics = useStructurallySharedTopics(flatTopics)
   const isFullyLoaded = !loadAll || (!isLoading && !hasNext)
   const isLoadingAll = isLoading || (loadAll && hasNext)
 

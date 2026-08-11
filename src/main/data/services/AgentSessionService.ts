@@ -190,34 +190,6 @@ export class AgentSessionService {
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Session', sessionId)
   }
 
-  /** Restore the exact activity invariant after session-message deletion. */
-  recomputeLastActivityAtTx(tx: DbOrTx, sessionId: string): void {
-    const [session] = tx
-      .select({ createdAt: sessionsTable.createdAt })
-      .from(sessionsTable)
-      .where(eq(sessionsTable.id, sessionId))
-      .limit(1)
-      .all()
-    if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
-
-    const [activity] = tx
-      .select({
-        timestamp: sql<number | null>`max(case
-          when ${agentSessionMessageTable.role} = 'user' then ${agentSessionMessageTable.createdAt}
-          when ${agentSessionMessageTable.role} = 'assistant' then max(${agentSessionMessageTable.createdAt}, coalesce(${agentSessionMessageTable.terminalAt}, ${agentSessionMessageTable.createdAt}))
-          else null
-        end)`
-      })
-      .from(agentSessionMessageTable)
-      .where(eq(agentSessionMessageTable.sessionId, sessionId))
-      .all()
-
-    tx.update(sessionsTable)
-      .set({ lastActivityAt: activity?.timestamp ?? session.createdAt })
-      .where(eq(sessionsTable.id, sessionId))
-      .run()
-  }
-
   private assertAgentExistsTx(tx: DbOrTx, agentId: string): void {
     const [agent] = tx
       .select({ id: agentsTable.id })

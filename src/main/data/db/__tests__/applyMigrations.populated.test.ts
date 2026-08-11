@@ -341,6 +341,7 @@ describe('applyMigrations over a populated database', () => {
     for (const row of [
       ['asm-user', 'user', 'success', 250, 900],
       ['asm-assistant', 'assistant', 'success', 350, 650],
+      ['asm-pending', 'assistant', 'pending', 400, 1200],
       ['asm-system', 'system', 'success', 950, 950]
     ] as const) {
       sqlite
@@ -351,6 +352,12 @@ describe('applyMigrations over a populated database', () => {
         )
         .run(...row)
     }
+    sqlite
+      .prepare(
+        `INSERT INTO agent_session (id, name, workspace_id, order_key, created_at, updated_at)
+         VALUES ('session-empty-activity', 'Empty Session', 'workspace-activity', 'a1', 125, 1000)`
+      )
+      .run()
 
     sqlite
       .prepare(
@@ -362,6 +369,7 @@ describe('applyMigrations over a populated database', () => {
       ['message-root', null, 'root', 'success', 100, 100],
       ['message-user', 'message-root', 'user', 'success', 200, 800],
       ['message-assistant', 'message-user', 'assistant', 'success', 300, 700],
+      ['message-pending', 'message-assistant', 'assistant', 'pending', 400, 1200],
       ['message-system', 'message-assistant', 'system', 'success', 900, 900]
     ] as const) {
       sqlite
@@ -372,6 +380,19 @@ describe('applyMigrations over a populated database', () => {
         )
         .run(...row)
     }
+    sqlite
+      .prepare(
+        `INSERT INTO message
+          (id, parent_id, topic_id, role, data, searchable_text, status, siblings_group_id, created_at, updated_at, deleted_at)
+         VALUES ('message-deleted', 'message-assistant', 'topic-activity', 'assistant', '{"parts":[]}', '', 'success', 0, 500, 2000, 2000)`
+      )
+      .run()
+    sqlite
+      .prepare(
+        `INSERT INTO topic (id, name, order_key, created_at, updated_at)
+         VALUES ('topic-empty-activity', 'Empty Topic', 'a1', 125, 900)`
+      )
+      .run()
 
     applyMigrations(db, resolveMigrationsPath())
 
@@ -381,18 +402,18 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.prepare(`SELECT last_activity_at FROM agent_session WHERE id = 'session-activity'`).get()).toEqual({
       last_activity_at: 650
     })
-    expect(sqlite.prepare(`SELECT terminal_at FROM message WHERE id = 'message-assistant'`).get()).toEqual({
-      terminal_at: 700
-    })
-    expect(sqlite.prepare(`SELECT terminal_at FROM agent_session_message WHERE id = 'asm-assistant'`).get()).toEqual({
-      terminal_at: 650
+    expect(
+      sqlite.prepare(`SELECT last_activity_at FROM agent_session WHERE id = 'session-empty-activity'`).get()
+    ).toEqual({ last_activity_at: 125 })
+    expect(sqlite.prepare(`SELECT last_activity_at FROM topic WHERE id = 'topic-empty-activity'`).get()).toEqual({
+      last_activity_at: 125
     })
     expect(sqlite.prepare(`SELECT count(*) AS count FROM message WHERE topic_id = 'topic-activity'`).get()).toEqual({
-      count: 4
+      count: 6
     })
     expect(
       sqlite.prepare(`SELECT count(*) AS count FROM agent_session_message WHERE session_id = 'session-activity'`).get()
-    ).toEqual({ count: 3 })
+    ).toEqual({ count: 4 })
     expect(sqlite.pragma('foreign_key_check')).toEqual([])
     expect(String(sqlite.pragma('integrity_check', { simple: true }))).toBe('ok')
   })

@@ -293,6 +293,7 @@ export class AgentsMigrator extends BaseMigrator {
       //      of preserving legacy integer row ids, and writes final `data.parts`.
       backfillAgentOrderKeys(ctx.db)
       insertStagedLegacySessionMessages(ctx.db, stagedSessionMessageCount)
+      recomputeMigratedAgentSessionActivity(ctx.db)
       migrateAgentMcps(ctx.db, ctx.sharedData.get('mcpServerIdMapping') as Map<string, string> | undefined)
 
       ctx.db.run(sql.raw('COMMIT'))
@@ -1639,6 +1640,26 @@ function insertStagedLegacySessionMessages(db: DbType, stagedCount: number): num
     }
     throw error
   }
+}
+
+/** Initialize parent recency from imported conversation messages. */
+function recomputeMigratedAgentSessionActivity(db: DbType): void {
+  db.run(
+    sql.raw(`UPDATE agent_session
+      SET last_activity_at = max(
+        created_at,
+        coalesce((
+          SELECT max(CASE
+            WHEN agent_session_message.role = 'user' THEN agent_session_message.created_at
+            WHEN agent_session_message.role = 'assistant'
+              THEN max(agent_session_message.created_at, agent_session_message.updated_at)
+            ELSE NULL
+          END)
+          FROM agent_session_message
+          WHERE agent_session_message.session_id = agent_session.id
+        ), created_at)
+      )`)
+  )
 }
 
 export async function importLegacySessionMessages(

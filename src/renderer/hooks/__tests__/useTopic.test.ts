@@ -1,5 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import type { Topic } from '@renderer/types/topic'
+import type { Topic as ApiTopic } from '@shared/data/types/topic'
 import { MockDataApiUtils } from '@test-mocks/renderer/DataApiService'
 import {
   MockUseDataApiUtils,
@@ -39,6 +40,17 @@ const apiMessage = (id: string, isContextBoundary = false) => ({
   stats: null,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z'
+})
+
+const createApiTopic = (overrides: Partial<ApiTopic> = {}): ApiTopic => ({
+  id: 'topic-1',
+  name: 'Topic',
+  isNameManuallyEdited: false,
+  orderKey: 'a0',
+  lastActivityAt: '2026-01-01T00:00:00.000Z',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
+  ...overrides
 })
 
 describe('getTopicMessages', () => {
@@ -231,6 +243,43 @@ describe('useTopics', () => {
     // The final call — after the chain is fully loaded — flips revalidateAll on.
     const lastCall = mockUseInfiniteQuery.mock.calls[mockUseInfiniteQuery.mock.calls.length - 1]
     expect(lastCall[1]).toMatchObject({ swrOptions: { revalidateAll: true, revalidateFirstPage: false } })
+  })
+
+  it('reuses deeply equal topic entities by id while allowing their order to change', () => {
+    const topicA = createApiTopic({ id: 'topic-a', name: 'Topic A' })
+    const topicB = createApiTopic({ id: 'topic-b', name: 'Topic B' })
+    let pages = [{ items: [topicA, topicB] }]
+    mockUseInfiniteQuery.mockImplementation(
+      () =>
+        ({
+          pages,
+          isLoading: false,
+          isRefreshing: false,
+          error: undefined,
+          hasNext: false,
+          loadNext: vi.fn(),
+          refresh: vi.fn().mockResolvedValue(undefined),
+          reset: vi.fn(),
+          mutate: vi.fn().mockResolvedValue(undefined)
+        }) as never
+    )
+
+    const { result, rerender } = renderHook(() => useTopics())
+    const firstTopics = result.current.topics
+
+    pages = [{ items: [{ ...topicB }, { ...topicA }] }]
+    rerender()
+
+    expect(result.current.topics).not.toBe(firstTopics)
+    expect(result.current.topics[0]).toBe(firstTopics[1])
+    expect(result.current.topics[1]).toBe(firstTopics[0])
+
+    const reorderedTopics = result.current.topics
+    pages = [{ items: [{ ...topicB, lastActivityAt: '2026-01-02T00:00:00.000Z' }, { ...topicA }] }]
+    rerender()
+
+    expect(result.current.topics[0]).not.toBe(reorderedTopics[0])
+    expect(result.current.topics[1]).toBe(reorderedTopics[1])
   })
 })
 

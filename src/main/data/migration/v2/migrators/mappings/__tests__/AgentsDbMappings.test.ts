@@ -314,7 +314,7 @@ describe('AgentsDbMappings', () => {
     )
     expect(sessionInsert).not.toContain('accessible_paths')
     expect(sessionInsert).toContain("'' AS order_key")
-    expect(sessionInsert).toContain("CAST(strftime('%s', updated_at) AS INTEGER) * 1000 AS last_activity_at")
+    expect(sessionInsert).toContain("CAST(strftime('%s', created_at) AS INTEGER) * 1000 AS last_activity_at")
 
     const skillInsert = find('agent_global_skill')
     expect(skillInsert).toContain("COALESCE(tags, '[]') AS tags")

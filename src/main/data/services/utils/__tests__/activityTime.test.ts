@@ -1,22 +1,43 @@
 import { describe, expect, it } from 'vitest'
 
-import { getMessageActivityTimestamp, resolveResponseTerminalAt } from '../activityTime'
+import { isAssistantActivityTransition, isConversationActivityRole } from '../activityTime'
 
 describe('activityTime', () => {
-  it('counts user creation and assistant creation/completion, but ignores structural roles', () => {
-    expect(getMessageActivityTimestamp({ role: 'user', createdAt: 100 })).toBe(100)
-    expect(getMessageActivityTimestamp({ role: 'assistant', createdAt: 100 })).toBe(100)
-    expect(getMessageActivityTimestamp({ role: 'assistant', createdAt: 100, terminalAt: 250 })).toBe(250)
-    expect(getMessageActivityTimestamp({ role: 'system', createdAt: 300 })).toBeNull()
-    expect(getMessageActivityTimestamp({ role: 'root', createdAt: 400 })).toBeNull()
+  it('counts user and assistant rows but ignores structural roles', () => {
+    expect(isConversationActivityRole('user')).toBe(true)
+    expect(isConversationActivityRole('assistant')).toBe(true)
+    expect(isConversationActivityRole('system')).toBe(false)
+    expect(isConversationActivityRole('root')).toBe(false)
   })
 
-  it('records only the first terminal transition of an assistant response', () => {
-    expect(resolveResponseTerminalAt({ role: 'assistant', status: 'pending', timestamp: 100 })).toBeNull()
-    expect(resolveResponseTerminalAt({ role: 'assistant', status: 'success', timestamp: 200 })).toBe(200)
+  it('recognizes pending-to-terminal assistant response segments but ignores rewrites', () => {
     expect(
-      resolveResponseTerminalAt({ existingTerminalAt: 200, role: 'assistant', status: 'error', timestamp: 300 })
-    ).toBe(200)
-    expect(resolveResponseTerminalAt({ role: 'user', status: 'success', timestamp: 400 })).toBeNull()
+      isAssistantActivityTransition({
+        existingStatus: 'pending',
+        role: 'assistant',
+        status: 'success'
+      })
+    ).toBe(true)
+    expect(
+      isAssistantActivityTransition({
+        existingStatus: 'success',
+        role: 'assistant',
+        status: 'error'
+      })
+    ).toBe(false)
+    expect(
+      isAssistantActivityTransition({
+        existingStatus: 'pending',
+        role: 'assistant',
+        status: 'paused'
+      })
+    ).toBe(true)
+    expect(
+      isAssistantActivityTransition({
+        existingStatus: 'pending',
+        role: 'user',
+        status: 'success'
+      })
+    ).toBe(false)
   })
 })

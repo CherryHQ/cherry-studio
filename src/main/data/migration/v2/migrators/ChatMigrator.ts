@@ -1188,7 +1188,16 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     // Transform topic with correct activeNodeId
-    const newTopic = transformTopic(oldTopic, activeNodeId)
+    const lastActivityAt = newMessages.reduce((latest, message) => {
+      if (message.role === 'user') return Math.max(latest, message.createdAt)
+      if (message.role === 'assistant') return Math.max(latest, message.createdAt, message.updatedAt)
+      return latest
+    }, Number.NEGATIVE_INFINITY)
+    const newTopic = transformTopic(
+      oldTopic,
+      activeNodeId,
+      Number.isFinite(lastActivityAt) ? lastActivityAt : undefined
+    )
 
     return {
       topic: newTopic,

@@ -228,15 +228,24 @@ describe('MessageService', () => {
       })
       topicService.update('topic-activity', { name: 'Renamed' })
 
-      const [message] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, assistant.id))
       const renamed = topicService.getById('topic-activity')
-      expect(message.terminalAt).toBe(2_000)
       expect(renamed.lastActivityAt).toBe('1970-01-01T00:00:02.000Z')
       expect(renamed.updatedAt).toBe('1970-01-01T00:00:03.000Z')
 
       now.mockReturnValue(4_000)
+      messageService.update(assistant.id, { status: 'pending' })
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:02.000Z')
+
+      now.mockReturnValue(5_000)
+      messageService.finalizeAssistantMessage(assistant.id, {
+        data: mainText('continued'),
+        status: 'success'
+      })
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:05.000Z')
+
+      now.mockReturnValue(6_000)
       messageService.delete(assistant.id)
-      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:00.100Z')
+      expect(topicService.getById('topic-activity').lastActivityAt).toBe('1970-01-01T00:00:05.000Z')
     } finally {
       now.mockRestore()
     }
@@ -378,7 +387,14 @@ describe('MessageService', () => {
 
   describe('markMessagesError', () => {
     async function seedStatuses() {
-      await dbh.db.insert(topicTable).values({ id: 'topic-e', activeNodeId: 'm-a', orderKey: 'c0' })
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-e',
+        activeNodeId: 'm-a',
+        orderKey: 'c0',
+        lastActivityAt: 120,
+        createdAt: 100,
+        updatedAt: 120
+      })
       await dbh.db.insert(messageTable).values(
         withRoot('topic-e', [
           {
@@ -431,6 +447,7 @@ describe('MessageService', () => {
       expect(await statusOf('m-a')).toBe('error')
       expect(await statusOf('m-b')).toBe('error')
       expect(await statusOf('m-keep')).toBe('success')
+      expect(topicService.getById('topic-e').lastActivityAt).toBe('1970-01-01T00:00:00.120Z')
     })
 
     it('is a no-op for an empty id list', async () => {
@@ -2875,7 +2892,14 @@ describe('MessageService', () => {
     }
 
     async function seedAnchorWithTwoApprovals() {
-      await dbh.db.insert(topicTable).values({ id: 'topic-ap', activeNodeId: 'anchor', orderKey: 'a0' })
+      await dbh.db.insert(topicTable).values({
+        id: 'topic-ap',
+        activeNodeId: 'anchor',
+        orderKey: 'a0',
+        lastActivityAt: 100,
+        createdAt: 100,
+        updatedAt: 100
+      })
       await dbh.db.insert(messageTable).values(
         withRoot('topic-ap', [
           {
@@ -2959,6 +2983,16 @@ describe('MessageService', () => {
         expect.objectContaining({ approvalId: 'ap-a', completedAt: expect.any(Number) }),
         expect.not.objectContaining({ completedAt: expect.anything() })
       ])
+    })
+
+    it('records a persisted approval as conversation activity', async () => {
+      await seedAnchorWithTwoApprovals()
+      const now = vi.spyOn(Date, 'now').mockReturnValue(500)
+
+      messageService.applyToolApprovalDecisions('anchor', [{ approvalId: 'ap-a', approved: true }])
+
+      expect(topicService.getById('topic-ap').lastActivityAt).toBe('1970-01-01T00:00:00.500Z')
+      now.mockRestore()
     })
 
     it('returns null for a missing anchor (stale click on a deleted message)', async () => {

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "cfdb9e71-8b7b-4a33-a344-5d4f9f73560a",
+  "id": "0f5fea5a-c909-4d37-b8ba-6d1f61856523",
   "prevId": "749b7a35-ec67-4508-bccf-495941a94a9d",
   "tables": {
     "agent": {
@@ -664,13 +664,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "terminal_at": {
-          "name": "terminal_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "model_id": {
@@ -3373,13 +3366,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "terminal_at": {
-          "name": "terminal_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "siblings_group_id": {

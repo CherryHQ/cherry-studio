@@ -1,14 +1,4 @@
 PRAGMA foreign_keys=OFF;--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD `terminal_at` integer;--> statement-breakpoint
-UPDATE `agent_session_message`
-SET `terminal_at` = max(`created_at`, `updated_at`)
-WHERE `role` = 'assistant'
-  AND `status` IN ('success', 'error', 'paused');--> statement-breakpoint
-ALTER TABLE `message` ADD `terminal_at` integer;--> statement-breakpoint
-UPDATE `message`
-SET `terminal_at` = max(`created_at`, `updated_at`)
-WHERE `role` = 'assistant'
-  AND `status` IN ('success', 'error', 'paused');--> statement-breakpoint
 ALTER TABLE `agent_session` ADD `last_activity_at` integer;--> statement-breakpoint
 UPDATE `agent_session`
 SET `last_activity_at` = max(
@@ -17,10 +7,11 @@ SET `last_activity_at` = max(
     SELECT max(
       CASE
         WHEN `agent_session_message`.`role` = 'user' THEN `agent_session_message`.`created_at`
-        WHEN `agent_session_message`.`role` = 'assistant' THEN max(
-          `agent_session_message`.`created_at`,
-          coalesce(`agent_session_message`.`terminal_at`, `agent_session_message`.`created_at`)
-        )
+        WHEN `agent_session_message`.`role` = 'assistant'
+          AND `agent_session_message`.`status` IN ('success', 'error', 'paused')
+          THEN max(`agent_session_message`.`created_at`, `agent_session_message`.`updated_at`)
+        WHEN `agent_session_message`.`role` = 'assistant' THEN `agent_session_message`.`created_at`
+        ELSE NULL
       END
     )
     FROM `agent_session_message`
@@ -35,10 +26,11 @@ SET `last_activity_at` = max(
     SELECT max(
       CASE
         WHEN `message`.`role` = 'user' THEN `message`.`created_at`
-        WHEN `message`.`role` = 'assistant' THEN max(
-          `message`.`created_at`,
-          coalesce(`message`.`terminal_at`, `message`.`created_at`)
-        )
+        WHEN `message`.`role` = 'assistant'
+          AND `message`.`status` IN ('success', 'error', 'paused')
+          THEN max(`message`.`created_at`, `message`.`updated_at`)
+        WHEN `message`.`role` = 'assistant' THEN `message`.`created_at`
+        ELSE NULL
       END
     )
     FROM `message`

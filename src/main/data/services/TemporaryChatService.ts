@@ -26,7 +26,7 @@ import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { aiUsageRecordService, mergeMessageUsageProjection } from './AiUsageRecordService'
 import { messageService } from './MessageService'
-import { getMessageActivityTimestamp, resolveResponseTerminalAt } from './utils/activityTime'
+import { isConversationActivityRole } from './utils/activityTime'
 import { insertWithOrderKey } from './utils/orderKey'
 
 const logger = loggerService.withContext('DataApi:TemporaryChatService')
@@ -47,7 +47,6 @@ type TemporaryTopicRow = Omit<Topic, 'createdAt' | 'lastActivityAt' | 'updatedAt
 
 type TemporaryMessageRow = Omit<Message, 'createdAt' | 'updatedAt'> & {
   createdAt: number
-  terminalAt: number | null
   updatedAt: number
 }
 
@@ -61,10 +60,8 @@ function rowToTopic(row: TemporaryTopicRow): Topic {
 }
 
 function rowToMessage(row: TemporaryMessageRow): Message {
-  const { terminalAt: _terminalAt, ...message } = row
-  void _terminalAt
   return {
-    ...message,
+    ...row,
     createdAt: new Date(row.createdAt).toISOString(),
     updatedAt: new Date(row.updatedAt).toISOString()
   }
@@ -149,7 +146,6 @@ export class TemporaryChatService {
       messageSnapshot: dto.messageSnapshot ?? null,
       stats: stats ?? null,
       createdAt: now,
-      terminalAt: resolveResponseTerminalAt({ role: dto.role, status, timestamp: now }),
       updatedAt: now
     }
     // Race: deleteTopic between the topics.has check above and this line
@@ -161,9 +157,9 @@ export class TemporaryChatService {
     }
     list.push(row)
     const topic = this.topics.get(topicId)
-    const activityAt = getMessageActivityTimestamp(row)
-    if (topic && activityAt !== null) {
-      topic.lastActivityAt = Math.max(topic.lastActivityAt, activityAt)
+    if (topic && isConversationActivityRole(row.role)) {
+      topic.lastActivityAt = Math.max(topic.lastActivityAt, now)
+      topic.updatedAt = now
     }
     return rowToMessage(row)
   }
@@ -246,7 +242,6 @@ export class TemporaryChatService {
               role: m.role,
               data: m.data,
               status: m.status,
-              terminalAt: m.terminalAt,
               siblingsGroupId: 0,
               modelId: m.modelId ?? undefined,
               messageSnapshot: m.messageSnapshot ?? undefined,

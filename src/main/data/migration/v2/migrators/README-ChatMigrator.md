@@ -90,6 +90,7 @@ Topic data is merged from Dexie + Redux before transformation:
 | (none) | `pinnedOrder` | 0 (new field) |
 | `createdAt` | `createdAt` | ISO string → timestamp; if missing on both Dexie and Redux, derived from `min(message.createdAt)` |
 | `updatedAt` | `updatedAt` | ISO string → timestamp; if missing on both Dexie and Redux, derived from `max(message.createdAt)` |
+| (computed from imported messages) | `lastActivityAt` | Maximum user creation / assistant completion activity; falls back to topic `createdAt` |
 
 **Dropped fields**: `type` ('chat' | 'session')
 

@@ -166,34 +166,6 @@ export class TopicService {
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
   }
 
-  /** Restore the exact activity invariant after content deletion or copying. */
-  recomputeLastActivityAtTx(tx: DbOrTx, topicId: string): void {
-    const [topic] = tx
-      .select({ createdAt: topicTable.createdAt })
-      .from(topicTable)
-      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
-      .limit(1)
-      .all()
-    if (!topic) throw DataApiErrorFactory.notFound('Topic', topicId)
-
-    const [activity] = tx
-      .select({
-        timestamp: sql<number | null>`max(case
-          when ${messageTable.role} = 'user' then ${messageTable.createdAt}
-          when ${messageTable.role} = 'assistant' then max(${messageTable.createdAt}, coalesce(${messageTable.terminalAt}, ${messageTable.createdAt}))
-          else null
-        end)`
-      })
-      .from(messageTable)
-      .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
-      .all()
-
-    tx.update(topicTable)
-      .set({ lastActivityAt: activity?.timestamp ?? topic.createdAt })
-      .where(eq(topicTable.id, topicId))
-      .run()
-  }
-
   ensureTraceId(topicId: string): string {
     return application.get('DbService').withWriteTx((tx) => {
       const [row] = tx
@@ -293,7 +265,6 @@ export class TopicService {
       // Intentionally copies only topic metadata, root-to-node messages, and chat-message file refs.
       // Pins, tags, trace links, and pruned siblings/descendants stay with their original rows.
       copyChatMessageFileRefsBySourceIdMapTx(tx, copiedMessageIds)
-      this.recomputeLastActivityAtTx(tx, newTopicRow.id)
 
       const [updatedTopicRow] = tx
         .update(topicTable)

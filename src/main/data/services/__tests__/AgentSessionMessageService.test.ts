@@ -75,6 +75,7 @@ describe('AgentSessionMessageService', () => {
 
   describe('findPendingAssistantMessageIds + markMessagesError (boot reconcile)', () => {
     it('finds only pending assistant rows and resolves them to error', async () => {
+      const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
       const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'
       const DONE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d011'
       const PENDING_USER = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d012'
@@ -93,14 +94,19 @@ describe('AgentSessionMessageService', () => {
 
       expect(agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([PENDING])
 
+      now.mockReturnValue(5_000)
       agentSessionMessageService.markMessagesError([PENDING])
       expect(agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([])
       const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
+      const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
       expect(row.status).toBe('error')
+      expect(session.lastActivityAt).toBe(1_000)
+      now.mockRestore()
     })
   })
 
   it('atomically settles a persisted background tool approval with the user-updated input', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
       message: {
@@ -122,6 +128,7 @@ describe('AgentSessionMessageService', () => {
     })
     const updatedInput = { questions: [], answers: { Choice: 'SQLite' } }
 
+    now.mockReturnValue(2_000)
     expect(
       agentSessionMessageService.applyToolApprovalDecision(SESSION_ID, ASSISTANT_MESSAGE_ID, {
         approvalId: 'approval-1',
@@ -136,6 +143,9 @@ describe('AgentSessionMessageService', () => {
       input: updatedInput,
       approval: { id: 'approval-1', approved: true }
     })
+    const [session] = dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID)).all()
+    expect(session.lastActivityAt).toBe(2_000)
+    now.mockRestore()
   })
 
   it('keeps attachment refs in sync with agent-session message history', async () => {
@@ -261,7 +271,7 @@ describe('AgentSessionMessageService', () => {
     expect(updated.updatedAt).toBe('2023-11-14T22:13:20.500Z')
   })
 
-  it('advances activity on the first assistant terminal transition only', async () => {
+  it('advances each pending assistant response segment but not a terminal rewrite', async () => {
     const now = vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
     agentSessionMessageService.saveMessage({
       sessionId: SESSION_ID,
@@ -295,9 +305,48 @@ describe('AgentSessionMessageService', () => {
       .from(agentSessionMessageTable)
       .where(eq(agentSessionMessageTable.id, ASSISTANT_MESSAGE_ID))
     const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
-    expect(message.terminalAt).toBe(1_700_000_000_500)
     expect(session.lastActivityAt).toBe(1_700_000_000_500)
     expect(session.updatedAt).toBe(1_700_000_001_000)
+
+    now.mockReturnValue(1_700_000_001_500)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: message.data }
+    })
+    now.mockReturnValue(1_700_000_002_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: message.data }
+    })
+
+    const [continuedSession] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(continuedSession.lastActivityAt).toBe(1_700_000_002_000)
+  })
+
+  it('keeps session activity after messages are deleted', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: USER_MESSAGE_ID, role: 'user', status: 'success', data: { parts: [] } }
+    })
+    now.mockReturnValue(2_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'pending', data: { parts: [] } }
+    })
+    now.mockReturnValue(3_000)
+    agentSessionMessageService.saveMessage({
+      sessionId: SESSION_ID,
+      message: { id: ASSISTANT_MESSAGE_ID, role: 'assistant', status: 'success', data: { parts: [] } }
+    })
+
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, ASSISTANT_MESSAGE_ID)
+    const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(session.lastActivityAt).toBe(3_000)
+
+    agentSessionMessageService.deleteSessionMessage(SESSION_ID, USER_MESSAGE_ID)
+    const [emptySession] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, SESSION_ID))
+    expect(emptySession.lastActivityAt).toBe(3_000)
   })
 
   it('publishes the data change derived from an inserted or updated message', () => {
