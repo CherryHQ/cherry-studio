@@ -3,7 +3,7 @@ import path from 'node:path'
 
 import { nextFreeKnowledgeRelativePath } from '@main/utils/knowledge'
 import type { DirectoryItemData, FileItemData, KnowledgeItem } from '@shared/data/types/knowledge'
-import { knowledgeSupportedFileExts } from '@shared/utils/file'
+import { knowledgeSupportedFileExts, sanitizeFilename } from '@shared/utils/file'
 
 import { assertSafeKnowledgeRelativePath, copyFileIntoKnowledgeBaseAt } from '../../pathStorage'
 
@@ -89,7 +89,14 @@ async function expandDirectoryNode(
     // its subtree path (from `treePath`, already POSIX) so siblings sharing a
     // basename across subdirectories don't collide and the hierarchy survives.
     // The whole tree resolves under the base material root (raw/) via the helper.
-    const subtreePath = node.treePath.replace(/^\/+/, '')
+    // Sanitized per segment, not over the whole path: the separators are structure the
+    // scan produced, while each segment is a real on-disk name that may have no Windows
+    // spelling (see getKnowledgeSourceRelativePath for what that costs a backup).
+    const subtreePath = node.treePath
+      .replace(/^\/+/, '')
+      .split('/')
+      .map((segment) => sanitizeFilename(segment))
+      .join('/')
     // Both halves were guarded on their own (`pathPrefix` in expandDirectory,
     // `treePath` by the tree layer), but the join is a new path — assert it here,
     // which is also what brands it for `copyFileIntoKnowledgeBaseAt`.
@@ -154,7 +161,9 @@ export function chooseDirectoryPathPrefix(owner: KnowledgeItem, reservedTopLevel
   // was retired in favour of a `relativePath` written back from `pathPrefix`.
   const resolvedPath = path.resolve(owner.data.source)
   const rootName = path.parse(resolvedPath).root.replace(/[:\\/]+/g, '')
-  const sourceName = path.basename(resolvedPath) || rootName || 'root'
+  // Sanitized for the same reason the leaves are — the prefix is the first segment of
+  // every child's stored path, so one unportable folder name taints the whole subtree.
+  const sourceName = sanitizeFilename(path.basename(resolvedPath)) || rootName || 'root'
   const pathPrefix = nextFreeKnowledgeRelativePath(
     sourceName,
     (candidate) => !reservedTopLevelNames.has(candidate),

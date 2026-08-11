@@ -11,7 +11,8 @@ import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/fil
 import {
   knowledgeFileProcessingExts,
   type PosixRelativeFilePath,
-  resolvePosixRelativeSegments
+  resolvePosixRelativeSegments,
+  sanitizeFilename
 } from '@shared/utils/file'
 
 const logger = loggerService.withContext('Knowledge:PathStorage')
@@ -110,8 +111,18 @@ export async function probeKnowledgeSourcePath(absolutePath: string): Promise<Pa
   return probeReadable(AbsoluteFilePathSchema.parse(absolutePath))
 }
 
+/**
+ * The `raw/` slot name for an imported source file.
+ *
+ * Sanitized rather than stored verbatim: a name legal on POSIX but not on Windows
+ * (`CON.txt`, `a<b.txt`, `name.`) survives archiving intact and then makes the whole
+ * backup unrestorable on Windows, and `archiver` folds `\` into a path separator, so
+ * `a\b.txt` comes back as `a/b.txt` and the stored path stops resolving even on the
+ * platform it was created on. This is the same sanitizer the v1→v2 migrator and the
+ * URL/note snapshot paths already run, so all four producers now agree.
+ */
 export function getKnowledgeSourceRelativePath(sourcePath: string): PosixRelativeFilePath {
-  const fileName = path.basename(sourcePath)
+  const fileName = sanitizeFilename(path.basename(sourcePath))
   assertSafeKnowledgeRelativePath(fileName)
   return fileName
 }

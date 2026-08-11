@@ -106,16 +106,15 @@ describe('chooseDirectoryPathPrefix', () => {
     expect(chooseDirectoryPathPrefix(createDirectoryOwner('C:\\'), new Set())).toBe('C')
   })
 
-  it('keeps a Windows-illegal character the local filesystem accepts', () => {
-    // Native expansion reads a folder that exists here, so its name is legal here — no
-    // `sanitizeFilename`. Migration cannot make that assumption (a v1 row may carry a path from
-    // another OS) and does sanitize, so the same folder is `a_b` when migrated and `a<b` after a
-    // container reindex. Pinned on both sides: `KnowledgeMappings.test.ts` holds the counterpart.
+  it('sanitizes a Windows-illegal character the local filesystem accepts', () => {
+    // Legal here is not enough: the prefix is the first segment of every child's stored path,
+    // and a backup made here has to restore on Windows. Matches what migration produces for the
+    // same folder, so a container reindex no longer moves it (`KnowledgeMappings.test.ts`).
     vi.mocked(path.resolve).mockImplementation(realPath.posix.resolve)
     vi.mocked(path.basename).mockImplementation(realPath.posix.basename)
     vi.mocked(path.parse).mockImplementation(realPath.posix.parse)
 
-    expect(chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/a<b'), new Set())).toBe('a<b')
+    expect(chooseDirectoryPathPrefix(createDirectoryOwner('/some/path/a<b'), new Set())).toBe('a_b')
   })
 
   it('rejects the reserved .cherry prefix before it can be persisted', () => {
@@ -174,6 +173,38 @@ describe('expandDirectoryOwnerToTree', () => {
         ]
       }
     ])
+  })
+
+  it('sanitizes every stored segment while leaving the on-disk source untouched', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'a<b')
+    const nestedDir = path.join(rootDir, 'CON')
+    realFs.mkdirSync(nestedDir, { recursive: true })
+    const sourceFile = path.join(nestedDir, 'x|y.md')
+    realFs.writeFileSync(sourceFile, '# x')
+
+    const owner = createDirectoryOwner(rootDir)
+    const children = await expandDirectoryOwnerToTree(
+      owner,
+      'kb-1',
+      chooseDirectoryPathPrefix(owner, new Set()),
+      createSignal(),
+      ignoreCopyProgress
+    )
+
+    // `source` still points at the real file — only the `raw/` slot is renamed, so the
+    // original is still reachable for reindex.
+    expect(children).toContainEqual(
+      expect.objectContaining({
+        type: 'directory',
+        children: [
+          expect.objectContaining({
+            type: 'file',
+            data: { source: sourceFile, relativePath: 'a_b/_/x_y.md' }
+          })
+        ]
+      })
+    )
   })
 
   it('skips empty nested directories while preserving non-empty directory hierarchy', async () => {

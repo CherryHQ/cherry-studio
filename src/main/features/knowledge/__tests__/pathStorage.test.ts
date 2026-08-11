@@ -107,6 +107,23 @@ describe('pathStorage relative-path safety', () => {
     it('reduces a source path to its basename', () => {
       expect(getKnowledgeSourceRelativePath('/some/dir/report.pdf')).toBe('report.pdf')
     })
+
+    // Each of these is an ordinary POSIX filename, so nothing downstream rejects it — the
+    // damage only shows up on backup/restore, which is why it has to be caught at the
+    // point the slot name is chosen.
+    it.each([
+      ['a backslash archiver would fold into a separator', 'a\\b.txt', 'a_b.txt'],
+      ['a Windows-reserved device name', 'CON.txt', '_.txt'],
+      ['a Windows-illegal character', 'a<b.txt', 'a_b.txt'],
+      ['a trailing dot Windows silently strips', 'name.', 'name'],
+      ['a trailing space Windows silently strips', 'name ', 'name']
+    ])('sanitizes %s', (_label, fileName, expected) => {
+      expect(getKnowledgeSourceRelativePath(`/some/dir/${fileName}`)).toBe(expected)
+    })
+
+    it('truncates a name past the filesystem limit', () => {
+      expect(getKnowledgeSourceRelativePath(`/some/dir/${'x'.repeat(300)}.txt`)).toHaveLength(255)
+    })
   })
 
   describe('getProcessedMarkdownRelativePath', () => {
