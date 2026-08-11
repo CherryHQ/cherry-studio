@@ -145,10 +145,12 @@ describe('createMinimaxProvider', () => {
       voice: 'male-qn-qingse',
       outputFormat: 'wav',
       speed: 1.2,
-      language: 'English',
+      language: 'en',
       instructions: 'Speak clearly',
       providerOptions: {
         minimax: {
+          stream: true,
+          language_boost: 'English',
           voice_setting: { emotion: 'happy' },
           audio_setting: { sample_rate: 32000 },
           pronunciation_dict: { tone: ['Hello/(hello)'] },
@@ -174,6 +176,16 @@ describe('createMinimaxProvider', () => {
     })
     expect(Array.from(result.audio as Uint8Array)).toEqual([0, 1, 2, 255])
     expect(result.warnings).toEqual([
+      {
+        type: 'unsupported',
+        feature: 'providerOptions.minimax.stream',
+        details: 'MiniMax speech streaming is not supported by the SpeechModelV3 response contract.'
+      },
+      {
+        type: 'unsupported',
+        feature: 'language',
+        details: 'Use providerOptions.minimax.language_boost for MiniMax language selection.'
+      },
       {
         type: 'unsupported',
         feature: 'instructions',

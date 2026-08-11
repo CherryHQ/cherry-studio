@@ -70,11 +70,27 @@ export class MinimaxSpeechModel implements SpeechModelV3 {
     const body: Record<string, unknown> = {
       model: this.modelId,
       text,
-      stream: typeof bag.stream === 'boolean' ? bag.stream : false,
+      stream: false,
       output_format: 'hex'
     }
 
-    const languageBoost = language ?? bag.language_boost
+    if (bag.stream === true) {
+      warnings.push({
+        type: 'unsupported',
+        feature: 'providerOptions.minimax.stream',
+        details: 'MiniMax speech streaming is not supported by the SpeechModelV3 response contract.'
+      })
+    }
+
+    if (language !== undefined) {
+      warnings.push({
+        type: 'unsupported',
+        feature: 'language',
+        details: 'Use providerOptions.minimax.language_boost for MiniMax language selection.'
+      })
+    }
+
+    const languageBoost = bag.language_boost
     if (languageBoost !== undefined && languageBoost !== null) body.language_boost = languageBoost
 
     for (const key of ['pronunciation_dict', 'voice_modify', 'subtitle_enable'] as const) {
