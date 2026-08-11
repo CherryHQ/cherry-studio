@@ -47,7 +47,7 @@ import { isAgentSessionTopic } from './agentSession/topic'
 import { createAnalyticsHook } from './hooks/analyticsHook'
 import { createAiUsagePlugin } from './hooks/billingHook'
 import { prepareChatMessages } from './messages/attachmentRouting'
-import { resolveMediaCapabilities } from './messages/messageCapabilities'
+import { resolveMediaCapabilities, resolveToolResultMediaCapabilities } from './messages/messageCapabilities'
 import { hasImageTransport } from './provider/custom/imageTransportRegistry'
 import { deleteImageInputEntries, imageGenerationJobHandler } from './provider/custom/tasks/imageGenerationJobHandler'
 import type { ImageGenerationJobOutput, ImageGenerationJobPayload } from './provider/custom/tasks/jobTypes'
@@ -58,6 +58,7 @@ import type { AgentLoopHooks, NativeFileSupport, RequestFeature } from './runtim
 import { Agent, buildAgentParams, buildFallbackModels, createRetryableWrap, readRetryPolicy } from './runtime/aiSdk'
 import { skillService } from './skills/SkillService'
 import { type MessageRuntimeTimingSink, WebContentsListener } from './streamManager'
+import { resolveModelTokenDialect } from './tokens/dialect'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin/registerBuiltinTools'
 import type {
   AiBaseRequest,
@@ -559,6 +560,8 @@ export class AiService extends BaseService {
       signal
     })
 
+    const mediaCapabilities = resolveMediaCapabilities(model)
+
     // An explicit per-request `maxRetries: 0` means "no retries for this request"
     // — honor it (like embedding/rerank), overriding the global retry preference.
     const retryDisabledForRequest = request.requestOptions?.maxRetries === 0
@@ -608,7 +611,11 @@ export class AiService extends BaseService {
           : []),
         ...hookParts
       ],
-      mediaCapabilities: resolveMediaCapabilities(model)
+      mediaCapabilities,
+      toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
+        mediaCapabilities,
+        resolveModelTokenDialect(provider, model)
+      )
     })
     agentRef.current = agent
 
@@ -673,6 +680,10 @@ export class AiService extends BaseService {
       })
     }
 
+    // Same media gating as the streaming path — `agent.generate` hands `ModelMessage[]` to the
+    // SDK as-is, so without these the structured tool-result media the converter produces would
+    // be JSON/base64-encoded or rejected on OpenAI/Ollama, diverging from `stream`.
+    const mediaCapabilities = resolveMediaCapabilities(model)
     const agent = new Agent({
       providerId: sdkConfig.providerId,
       providerSettings: sdkConfig.providerSettings,
@@ -682,7 +693,12 @@ export class AiService extends BaseService {
       tools,
       system: request.system ?? system,
       options: wrapModel ? { ...options, maxRetries: 0 } : options,
-      hookParts: [this.analyticsHookPart(model), ...hookParts]
+      hookParts: [this.analyticsHookPart(model), ...hookParts],
+      mediaCapabilities,
+      toolResultMediaCapabilities: resolveToolResultMediaCapabilities(
+        mediaCapabilities,
+        resolveModelTokenDialect(provider, model)
+      )
     })
 
     // prompt and messages are mutually exclusive in AI SDK; preserve that.
