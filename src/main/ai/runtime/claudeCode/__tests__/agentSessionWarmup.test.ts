@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { REASONING_FORMAT_PROFILES } from '@cherrystudio/provider-registry'
 import { ENDPOINT_TYPE, type EndpointType, type Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -28,6 +30,26 @@ const mocks = vi.hoisted(() => ({
   getProxyEnvironment: vi.fn(),
   getClaudeCodeLoginShellEnvironment: vi.fn()
 }))
+
+const fsMocks = vi.hoisted(() => ({
+  access: vi.fn(),
+  copyFile: vi.fn(),
+  mkdir: vi.fn(),
+  readdir: vi.fn(),
+  realpath: vi.fn(),
+  // Names consumed by `agentsFilesystemMigration` (imported for
+  // `claudeProjectDirectoryName`) — provided so the module loads; none are
+  // exercised by these tests.
+  cp: vi.fn(),
+  link: vi.fn(),
+  lstat: vi.fn(),
+  readlink: vi.fn(),
+  rename: vi.fn(),
+  rmdir: vi.fn(),
+  unlink: vi.fn()
+}))
+
+vi.mock('node:fs/promises', () => fsMocks)
 
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { getById: mocks.getSessionById }
@@ -82,6 +104,10 @@ vi.mock('@application', () => ({
         return { get: mocks.preferenceGet }
       }
       throw new Error(`Unexpected application.get(${name})`)
+    }),
+    getPath: vi.fn((name: string) => {
+      if (name === 'feature.agents.claude.root') return '/mock/userData/Data/Agents/.claude'
+      throw new Error(`Unexpected application.getPath(${name})`)
     })
   }
 }))
@@ -106,7 +132,8 @@ vi.mock('../settingsBuilder', () => ({
   getClaudeCodeLoginShellEnvironment: mocks.getClaudeCodeLoginShellEnvironment
 }))
 
-const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig } = await import('../agentSessionWarmup')
+const { buildClaudeCodeQueryRequestForAgentSession, deriveConnectionConfig, ensureTranscriptAvailableForWorkspace } =
+  await import('../agentSessionWarmup')
 
 function resolveTestEffectiveEndpoint(provider: Provider, model: Model, preferredEndpointType?: EndpointType) {
   const preferred =
@@ -172,6 +199,13 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
       env: {},
       ...(options?.lastAgentSessionId ? { resume: options.lastAgentSessionId } : {})
     }))
+    // Transcript relocation defaults: transcript already present at the current
+    // workspace key, so the request builder's relocation hook is a no-op.
+    fsMocks.realpath.mockRejectedValue(new Error('ENOENT'))
+    fsMocks.access.mockRejectedValue(new Error('ENOENT'))
+    fsMocks.readdir.mockRejectedValue(new Error('ENOENT'))
+    fsMocks.mkdir.mockResolvedValue(undefined)
+    fsMocks.copyFile.mockResolvedValue(undefined)
   })
 
   it('uses the explicit effectiveResume token and ignores the persisted one', async () => {
@@ -1491,5 +1525,78 @@ describe('deriveConnectionConfig', () => {
       throw new Error('Provider not found')
     })
     expect(await deriveConnectionConfig('session-1')).toEqual({ ok: false, reason: 'unroutable' })
+  })
+})
+
+describe('ensureTranscriptAvailableForWorkspace', () => {
+  const PROJECTS_ROOT = path.join('/mock/userData/Data/Agents/.claude', 'projects')
+  const CWD = 'C:/work/project'
+  const EXPECTED_DIR = 'C--work-project'
+  const SESSION_ID = 'session-abc'
+
+  const expectedFile = () => path.join(PROJECTS_ROOT, EXPECTED_DIR, `${SESSION_ID}.jsonl`)
+  const candidateFile = (dir: string) => path.join(PROJECTS_ROOT, dir, `${SESSION_ID}.jsonl`)
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    fsMocks.realpath.mockResolvedValue(CWD)
+    fsMocks.access.mockRejectedValue(new Error('ENOENT'))
+    fsMocks.readdir.mockResolvedValue([])
+    fsMocks.mkdir.mockResolvedValue(undefined)
+    fsMocks.copyFile.mockResolvedValue(undefined)
+  })
+
+  it('does nothing when the transcript already exists under the current workspace key', async () => {
+    fsMocks.access.mockImplementation(async (filePath: string) => {
+      if (filePath === expectedFile()) return undefined
+      throw new Error('ENOENT')
+    })
+
+    await ensureTranscriptAvailableForWorkspace(CWD, SESSION_ID)
+
+    expect(fsMocks.readdir).not.toHaveBeenCalled()
+    expect(fsMocks.copyFile).not.toHaveBeenCalled()
+  })
+
+  it('relocates the transcript from an old cwd-encoded directory to the current workspace key', async () => {
+    fsMocks.readdir.mockResolvedValue(['old-encoded-dir', '-C--work-project'])
+    fsMocks.access.mockImplementation(async (filePath: string) => {
+      if (filePath === candidateFile('old-encoded-dir')) return undefined
+      throw new Error('ENOENT')
+    })
+
+    await ensureTranscriptAvailableForWorkspace(CWD, SESSION_ID)
+
+    expect(fsMocks.mkdir).toHaveBeenCalledWith(path.join(PROJECTS_ROOT, EXPECTED_DIR), { recursive: true })
+    expect(fsMocks.copyFile).toHaveBeenCalledWith(
+      candidateFile('old-encoded-dir'),
+      expectedFile()
+    )
+  })
+
+  it('leaves transcripts untouched when no project directory holds the session', async () => {
+    fsMocks.readdir.mockResolvedValue(['another-dir'])
+
+    await ensureTranscriptAvailableForWorkspace(CWD, SESSION_ID)
+
+    expect(fsMocks.copyFile).not.toHaveBeenCalled()
+  })
+
+  it('is a silent no-op when the projects directory does not exist', async () => {
+    fsMocks.readdir.mockRejectedValue(new Error('ENOENT'))
+
+    await expect(ensureTranscriptAvailableForWorkspace(CWD, SESSION_ID)).resolves.toBeUndefined()
+    expect(fsMocks.copyFile).not.toHaveBeenCalled()
+  })
+
+  it('surfaces no failure when the copy itself errors', async () => {
+    fsMocks.readdir.mockResolvedValue(['old-encoded-dir'])
+    fsMocks.access.mockImplementation(async (filePath: string) => {
+      if (filePath === candidateFile('old-encoded-dir')) return undefined
+      throw new Error('ENOENT')
+    })
+    fsMocks.copyFile.mockRejectedValue(new Error('EACCES'))
+
+    await expect(ensureTranscriptAvailableForWorkspace(CWD, SESSION_ID)).resolves.toBeUndefined()
   })
 })
