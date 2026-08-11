@@ -92,9 +92,9 @@ describe('AgentTaskJobHandler', () => {
   })
 
   describe('metadata', () => {
-    it('declares per-agent queue + concurrency 1 + retry-on-restart policy', () => {
+    it('allows three concurrent tasks per agent while keeping retry-on-restart policy', () => {
       expect(agentTaskJobHandler.recovery).toBe('retry')
-      expect(agentTaskJobHandler.defaultConcurrency).toBe(1)
+      expect(agentTaskJobHandler.defaultConcurrency).toBe(3)
       expect(agentTaskJobHandler.defaultRetryPolicy).toEqual({
         maxAttempts: 1,
         backoff: 'none',
