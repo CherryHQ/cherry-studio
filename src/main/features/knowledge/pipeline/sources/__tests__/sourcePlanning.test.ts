@@ -1,4 +1,5 @@
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { describe, expect, it } from 'vitest'
 
 import { planKnowledgeItemSource } from '../sourcePlanning'
@@ -30,7 +31,7 @@ function createFileItem(source: string): KnowledgeItemOf<'file'> {
     baseId: 'kb-1',
     groupId: null,
     type: 'file',
-    data: { source, relativePath: source.split('/').pop() ?? source },
+    data: { source, relativePath: (source.split('/').pop() ?? source) as PosixRelativeFilePath },
     status: 'processing',
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
@@ -62,7 +63,7 @@ describe('planKnowledgeItemSource', () => {
 
   it('indexes a file that already carries a processed artifact directly, skipping the processor', () => {
     const item = createFileItem('/docs/source.pdf')
-    item.data.indexedRelativePath = 'source.md'
+    item.data.indexedRelativePath = 'source.md' as PosixRelativeFilePath
     expect(planKnowledgeItemSource(createBase(), item)).toEqual({ kind: 'index-documents' })
   })
 })

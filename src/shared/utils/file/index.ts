@@ -15,6 +15,15 @@ export { sanitizeFilename, validateFileName, type ValidateFileNameResult } from 
 export { fileTypeMap, getFileTypeByExt } from './fileType'
 export { createFileEntryHandle, createFilePathHandle, isFileEntryHandle, isFilePathHandle } from './handle'
 export {
+  type PosixRelativeFilePath,
+  PosixRelativeFilePathSchema,
+  type RelativeFilePath,
+  resolvePosixRelativeSegments,
+  resolveWindowsRelativeSegments,
+  type WindowsRelativeFilePath,
+  WindowsRelativeFilePathSchema
+} from './relativeFilePath'
+export {
   type CreateTreeIpcResult,
   type DirectoryTreeOptions,
   DirectoryTreeOptionsSchema,
