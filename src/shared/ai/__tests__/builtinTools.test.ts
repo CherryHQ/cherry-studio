@@ -89,8 +89,17 @@ describe('builtin tool contracts', () => {
   // and the Claude Code / MCP bridge. Every field the chosen mode does not use must be omittable —
   // if any of these regress to required, the model has to invent a value for it.
   it('lets kb_list omit either filter', () => {
-    expect(kbListInputSchema.safeParse({}).success).toBe(true)
+    expect(kbListInputSchema.parse({})).toEqual({ limit: 20 })
     expect(kbListInputSchema.safeParse({ query: 'recipes' }).success).toBe(true)
+  })
+
+  it('bounds kb_list pages and accepts a continuation cursor', () => {
+    expect(kbListInputSchema.parse({ limit: 50, cursor: 'next-page' })).toEqual({
+      limit: 50,
+      cursor: 'next-page'
+    })
+    expect(kbListInputSchema.safeParse({ limit: 51 }).success).toBe(false)
+    expect(kbListInputSchema.safeParse({ limit: 0 }).success).toBe(false)
   })
 
   it('lets kb_manage omit the fields its action does not use', () => {
