@@ -54,11 +54,28 @@ function utf8ByteLength(value: string): number {
   return bytes
 }
 
-/** Split without breaking Unicode code points. A configured limit below four bytes cannot split a single emoji further. */
-function splitUtf8(value: string, maxBytes: number): string[] {
-  if (!value || !Number.isFinite(maxBytes) || maxBytes <= 0) return [value]
+/** Byte counts for immutable delta payloads; WeakMap metadata never crosses the renderer transport boundary. */
+const deltaUtf8ByteLengths = new WeakMap<StreamChunkPayload, number>()
 
-  const segments: string[] = []
+function cachedDeltaUtf8ByteLength(payload: StreamChunkPayload, value: string): number {
+  const cached = deltaUtf8ByteLengths.get(payload)
+  if (cached !== undefined) return cached
+  const bytes = utf8ByteLength(value)
+  deltaUtf8ByteLengths.set(payload, bytes)
+  return bytes
+}
+
+interface Utf8Segment {
+  value: string
+  byteLength: number
+}
+
+/** Split without breaking Unicode code points. A configured limit below four bytes cannot split a single emoji further. */
+function splitUtf8(value: string, maxBytes: number): Utf8Segment[] {
+  if (!value) return [{ value, byteLength: 0 }]
+  if (!Number.isFinite(maxBytes) || maxBytes <= 0) return [{ value, byteLength: utf8ByteLength(value) }]
+
+  const segments: Utf8Segment[] = []
   let segmentStart = 0
   let segmentBytes = 0
 
@@ -68,7 +85,7 @@ function splitUtf8(value: string, maxBytes: number): string[] {
     const codePointBytes = utf8CodePointBytes(codePoint)
 
     if (segmentBytes > 0 && segmentBytes + codePointBytes > maxBytes) {
-      segments.push(value.slice(segmentStart, index))
+      segments.push({ value: value.slice(segmentStart, index), byteLength: segmentBytes })
       segmentStart = index
       segmentBytes = 0
     }
@@ -77,28 +94,32 @@ function splitUtf8(value: string, maxBytes: number): string[] {
     index += codeUnits
   }
 
-  segments.push(value.slice(segmentStart))
+  segments.push({ value: value.slice(segmentStart), byteLength: segmentBytes })
   return segments
 }
 
 /** Split a single oversized incoming delta before it enters the replay ring. */
 export function splitDeltaPayload(payload: StreamChunkPayload, maxDeltaBytes: number): StreamChunkPayload[] {
   const chunk = payload.chunk
-  const value =
-    chunk.type === 'text-delta' || chunk.type === 'reasoning-delta'
-      ? chunk.delta
-      : chunk.type === 'tool-input-delta'
-        ? chunk.inputTextDelta
-        : undefined
-  if (value === undefined) return [payload]
+  if (chunk.type !== 'text-delta' && chunk.type !== 'reasoning-delta' && chunk.type !== 'tool-input-delta') {
+    return [payload]
+  }
+  const value = chunk.type === 'tool-input-delta' ? chunk.inputTextDelta : chunk.delta
 
   const segments = splitUtf8(value, maxDeltaBytes)
-  if (segments.length === 1) return [payload]
+  if (segments.length === 1) {
+    deltaUtf8ByteLengths.set(payload, segments[0].byteLength)
+    return [payload]
+  }
 
-  return segments.map((segment) => ({
-    ...payload,
-    chunk: chunk.type === 'tool-input-delta' ? { ...chunk, inputTextDelta: segment } : { ...chunk, delta: segment }
-  }))
+  return segments.map((segment) => {
+    const segmentPayload: StreamChunkPayload =
+      chunk.type === 'tool-input-delta'
+        ? { ...payload, chunk: { ...chunk, inputTextDelta: segment.value } }
+        : { ...payload, chunk: { ...chunk, delta: segment.value } }
+    deltaUtf8ByteLengths.set(segmentPayload, segment.byteLength)
+    return segmentPayload
+  })
 }
 
 /**
@@ -135,10 +156,12 @@ export function mergeDeltaPayload(
     (prev.type === 'text-delta' && next.type === 'text-delta' && prev.id === next.id) ||
     (prev.type === 'reasoning-delta' && next.type === 'reasoning-delta' && prev.id === next.id)
   ) {
-    if (maxDeltaBytes !== undefined && utf8ByteLength(prev.delta) + utf8ByteLength(next.delta) > maxDeltaBytes) {
-      return undefined
+    let mergedByteLength: number | undefined
+    if (maxDeltaBytes !== undefined) {
+      mergedByteLength = cachedDeltaUtf8ByteLength(tail, prev.delta) + cachedDeltaUtf8ByteLength(incoming, next.delta)
+      if (mergedByteLength > maxDeltaBytes) return undefined
     }
-    return {
+    const merged: StreamChunkPayload = {
       ...tail,
       chunk: {
         ...prev,
@@ -146,18 +169,22 @@ export function mergeDeltaPayload(
         providerMetadata: next.providerMetadata ?? prev.providerMetadata
       }
     }
+    if (mergedByteLength !== undefined) deltaUtf8ByteLengths.set(merged, mergedByteLength)
+    return merged
   }
   if (prev.type === 'tool-input-delta' && next.type === 'tool-input-delta' && prev.toolCallId === next.toolCallId) {
-    if (
-      maxDeltaBytes !== undefined &&
-      utf8ByteLength(prev.inputTextDelta) + utf8ByteLength(next.inputTextDelta) > maxDeltaBytes
-    ) {
-      return undefined
+    let mergedByteLength: number | undefined
+    if (maxDeltaBytes !== undefined) {
+      mergedByteLength =
+        cachedDeltaUtf8ByteLength(tail, prev.inputTextDelta) + cachedDeltaUtf8ByteLength(incoming, next.inputTextDelta)
+      if (mergedByteLength > maxDeltaBytes) return undefined
     }
-    return {
+    const merged: StreamChunkPayload = {
       ...tail,
       chunk: { ...prev, inputTextDelta: prev.inputTextDelta + next.inputTextDelta }
     }
+    if (mergedByteLength !== undefined) deltaUtf8ByteLengths.set(merged, mergedByteLength)
+    return merged
   }
   return undefined
 }
