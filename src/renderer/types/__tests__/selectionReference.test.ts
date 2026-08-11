@@ -31,6 +31,17 @@ describe('SelectionReferenceSchema', () => {
         anchor: { format: 'pdf', page: 3 }
       })
     ).not.toBeNull()
+    expect(
+      parseSelectionReference({
+        ...validReference,
+        path: '/workspace/deck.pptx',
+        anchor: { format: 'pptx', slide: 2, nodeId: '4', tableCell: { row: 1, col: 0 } }
+      })
+    ).not.toBeNull()
+  })
+
+  it('rejects a zero-based slide number that would address the wrong slide', () => {
+    expect(parseSelectionReference({ ...validReference, anchor: { format: 'pptx', slide: 0, nodeId: '4' } })).toBeNull()
   })
 
   it('rejects malformed A1 ranges before they can mis-address an extraction', () => {

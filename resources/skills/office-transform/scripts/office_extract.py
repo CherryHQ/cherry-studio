@@ -13,7 +13,8 @@ dependency matching the source format, e.g.:
         --anchor '{"format":"xlsx","sheet":"Sheet1","range":"A1:C10"}' \
         --out /abs/report-extract.csv
 
-Dependencies by source format: xlsx -> openpyxl, docx -> python-docx, pdf -> pypdf.
+Dependencies by source format: xlsx -> openpyxl, docx -> python-docx,
+pdf -> pypdf, pptx -> python-pptx.
 """
 
 import argparse
@@ -181,7 +182,76 @@ def extract_pdf(src: Path, anchor: dict, out_path: Path, out_format: str) -> Non
         fail(f"unsupported output format for pdf source: {out_format!r} (use pdf, txt, or md)")
 
 
-EXTRACTORS = {"xlsx": extract_xlsx, "docx": extract_docx, "pdf": extract_pdf}
+def iter_shapes_recursive(shapes):
+    for shape in shapes:
+        yield shape
+        if shape.shape_type == 6:  # MSO_SHAPE_TYPE.GROUP
+            yield from iter_shapes_recursive(shape.shapes)
+
+
+def shape_text_lines(shape) -> list[str]:
+    if shape.has_text_frame:
+        return [paragraph.text for paragraph in shape.text_frame.paragraphs]
+    if getattr(shape, "has_table", False) and shape.has_table:
+        return [" | ".join(cell.text for cell in row.cells) for row in shape.table.rows]
+    return []
+
+
+def extract_pptx(src: Path, anchor: dict, out_path: Path, out_format: str) -> None:
+    try:
+        from pptx import Presentation
+    except ImportError:
+        fail("python-pptx is required for pptx sources — rerun via `uv run --with python-pptx python ...`")
+
+    slide_number = anchor.get("slide")
+    if slide_number is None or int(slide_number) < 1:
+        fail("pptx anchor requires a one-based 'slide' number")
+    slide_index = int(slide_number) - 1
+
+    presentation = Presentation(str(src))
+    slides = list(presentation.slides)
+    if slide_index >= len(slides):
+        fail(f"slide {slide_number} out of range (deck has {len(slides)} slides)")
+    slide = slides[slide_index]
+
+    node_id = anchor.get("nodeId")
+    if node_id is None:
+        lines = [line for shape in iter_shapes_recursive(slide.shapes) for line in shape_text_lines(shape)]
+    else:
+        shape = next(
+            (candidate for candidate in iter_shapes_recursive(slide.shapes) if str(candidate.shape_id) == str(node_id)),
+            None,
+        )
+        if shape is None:
+            fail(f"shape with nodeId {node_id!r} not found on slide {slide_number}")
+
+        table_cell = anchor.get("tableCell")
+        paragraph_index = anchor.get("paragraph")
+        if table_cell is not None:
+            if not (getattr(shape, "has_table", False) and shape.has_table):
+                fail(f"shape {node_id!r} is not a table but anchor has 'tableCell'")
+            rows = list(shape.table.rows)
+            row, col = int(table_cell.get("row", -1)), int(table_cell.get("col", -1))
+            if row < 0 or row >= len(rows) or col < 0 or col >= len(list(rows[row].cells)):
+                fail(f"tableCell {table_cell!r} out of range for shape {node_id!r}")
+            lines = [list(rows[row].cells)[col].text]
+        elif paragraph_index is not None:
+            if not shape.has_text_frame:
+                fail(f"shape {node_id!r} has no text body but anchor has 'paragraph'")
+            paragraphs = shape.text_frame.paragraphs
+            if int(paragraph_index) >= len(paragraphs):
+                fail(f"paragraph {paragraph_index} out of range (shape has {len(paragraphs)} paragraphs)")
+            lines = [paragraphs[int(paragraph_index)].text]
+        else:
+            lines = shape_text_lines(shape)
+
+    if out_format in ("txt", "md"):
+        out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    else:
+        fail(f"unsupported output format for pptx source: {out_format!r} (use txt or md)")
+
+
+EXTRACTORS = {"xlsx": extract_xlsx, "docx": extract_docx, "pdf": extract_pdf, "pptx": extract_pptx}
 
 
 def main() -> None:
@@ -207,7 +277,7 @@ def main() -> None:
     anchor_format = anchor.get("format")
     extractor = EXTRACTORS.get(anchor_format)
     if extractor is None:
-        fail(f"unsupported anchor format: {anchor_format!r} (use xlsx, docx, or pdf)")
+        fail(f"unsupported anchor format: {anchor_format!r} (use xlsx, docx, pdf, or pptx)")
 
     out_format = out_path.suffix.lstrip(".").lower()
     if not out_format:

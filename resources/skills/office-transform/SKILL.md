@@ -47,6 +47,7 @@ Anchor shapes:
 | xlsx | `{"format":"xlsx","sheet":"Sheet1","range":"A1:C10"}` (range may be one cell) |
 | docx | `{"format":"docx","paragraph":3,"charRange":[0,12]}` (`charRange` optional; ordinal counts body-level paragraphs only, tables excluded) |
 | pdf | `{"format":"pdf","page":3,"charRange":[0,120]}` (`charRange` optional, applies to extracted text) |
+| pptx | `{"format":"pptx","slide":2,"nodeId":"4","paragraph":0,"tableCell":{"row":1,"col":0}}` (`slide` is one-based; `nodeId` is the OOXML shape id — omit for the whole slide; `paragraph` and `tableCell` optional) |
 
 ## Operations
 
@@ -70,6 +71,7 @@ The output format is inferred from `--out`'s extension:
 | xlsx | `openpyxl` | `xlsx`, `csv`, `md` |
 | docx | `python-docx` | `docx`, `txt`, `md` |
 | pdf | `pypdf` | `pdf` (page copy), `txt`, `md` |
+| pptx | `python-pptx` | `txt`, `md` (slide, shape, paragraph, or table-cell text) |
 
 xlsx extraction reads computed values (`data_only`), so formula cells yield their last
 saved result. docx extraction to `docx` carries text only, not run styling.
@@ -115,8 +117,8 @@ If verification fails, say so and show the error — do not present an unverifie
 
 ## Limits
 
-- pptx is not yet covered; for pptx content, extract via `to_markdown` and say that
-  targeted pptx transforms are not available yet.
+- pptx supports anchored text extraction only; patch-copy edits and slide-copy
+  outputs are not available yet — say so when asked for them.
 - Patched xlsx string cells become inline strings (valid OOXML; Excel reads them fine).
 - Edited XML parts lose insignificant whitespace formatting; semantics are preserved.
 - Scanned/image-only PDFs yield no text (no OCR here).
