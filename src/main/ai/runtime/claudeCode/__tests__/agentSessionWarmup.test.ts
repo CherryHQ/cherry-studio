@@ -626,32 +626,6 @@ describe('buildClaudeCodeQueryRequestForAgentSession resume-token precedence', (
     })
   })
 
-  // `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is one process-wide value, so a background haiku turn on the
-  // Small model would carry whatever the primary's larger cap pinned.
-  it('pins the smallest output cap across the runtime model slots', async () => {
-    mocks.getAgent.mockReturnValue({
-      id: 'agent-1',
-      model: 'provider-1::model-1',
-      planModel: 'provider-1::model-2',
-      smallModel: 'provider-1::model-3'
-    })
-    const caps: Record<string, number> = { 'model-1': 128_000, 'model-2': 128_000, 'model-3': 65_536 }
-    mocks.getModelByKey.mockImplementation((_providerId: string, modelId: string) => ({
-      id: modelId,
-      apiModelId: `${modelId}-api`,
-      contextWindow: 1_048_576,
-      maxOutputTokens: caps[modelId]
-    }))
-    mocks.getLastRuntimeResumeToken.mockReturnValue(null)
-
-    await buildClaudeCodeQueryRequestForAgentSession('session-1')
-
-    // 128,000 is the primary's own cap; the Small model's 65,536 has to win.
-    expect(mocks.buildSessionSettings.mock.lastCall).toEqual(
-      expect.arrayContaining([expect.objectContaining({ maxOutputTokens: 65_536 })])
-    )
-  })
-
   it('captures distinct same-provider models for direct-route usage attribution', async () => {
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
