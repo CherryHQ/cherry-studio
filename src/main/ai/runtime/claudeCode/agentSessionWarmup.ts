@@ -85,6 +85,11 @@ interface ClaudeCodeRouteFacts {
   }
   /** Configured model identities keyed by every SDK alias that can appear in `result.modelUsage`. */
   usageModels: Extract<AgentSessionUsageCapture, { owner: 'agent-sdk' }>['frozenModels']
+  /**
+   * Smallest declared output cap across the slots this route can serve. `CLAUDE_CODE_MAX_OUTPUT_TOKENS`
+   * is process-wide, so a background haiku turn would otherwise carry the primary's larger limit.
+   */
+  outputTokenCap?: number
 }
 
 interface ClaudeCodeRuntimeRoute extends ClaudeCodeRouteFacts {
@@ -162,6 +167,14 @@ function mergeAnthropicCustomHeaders(...sources: CustomHeaderSource[]): string |
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, { name, value }]) => `${name}: ${value}`)
     .join('\n')
+}
+
+// Undeclared caps are unknown rather than unlimited, so they leave the bound to the other slots.
+function resolveOutputTokenCap(refs: readonly RuntimeModelRef[]): number | undefined {
+  const caps = refs
+    .map((ref) => ref.model?.maxOutputTokens)
+    .filter((cap): cap is number => typeof cap === 'number' && Number.isInteger(cap) && cap > 0)
+  return caps.length > 0 ? Math.min(...caps) : undefined
 }
 
 function buildUsageModels(
@@ -505,7 +518,8 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
       provider,
       {
         contextWindow,
-        maxOutputTokens,
+        // Every slot's cap, not just the primary's — the pin it feeds is process-wide.
+        maxOutputTokens: route.outputTokenCap ?? maxOutputTokens,
         lastAgentSessionId: resumeSessionId,
         mcpServerSnapshots,
         linkedChannelSnapshot,
@@ -660,7 +674,8 @@ function deriveRouteFacts(
         { sdkModelId: modelIds.opus, ref: externalRefs.opus },
         { sdkModelId: modelIds.sonnet, ref: externalRefs.sonnet },
         { sdkModelId: modelIds.haiku, ref: externalRefs.haiku }
-      ])
+      ]),
+      outputTokenCap: resolveOutputTokenCap(Object.values(externalRefs))
     }
   }
 
@@ -686,7 +701,8 @@ function deriveRouteFacts(
         sonnet: toGatewayModelId(sonnetRef),
         haiku: toGatewayModelId(haikuRef)
       },
-      usageModels: []
+      usageModels: [],
+      outputTokenCap: resolveOutputTokenCap(modelRefs)
     }
   }
 
@@ -719,7 +735,8 @@ function deriveRouteFacts(
       { sdkModelId: modelIds.opus, ref: opusRef },
       { sdkModelId: modelIds.sonnet, ref: sonnetRef },
       { sdkModelId: modelIds.haiku, ref: haikuRef }
-    ])
+    ]),
+    outputTokenCap: resolveOutputTokenCap(modelRefs)
   }
 }
 

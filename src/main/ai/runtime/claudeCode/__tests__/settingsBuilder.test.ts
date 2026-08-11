@@ -534,8 +534,8 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 128_000, maxOutputTokens: 64_000 }
     )
 
-    // (128000 - 32000) * 0.98 = 94080, below the floor — clamped rather than omitted, because
-    // omitting it hands the SDK its own Claude-shaped default instead.
+    // The declared 64,000 plus a floored budget would outrun the window, so the request is held to
+    // the CLI default and the budget floors rather than being omitted.
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 100_000 })
     expect(settings.env).toMatchObject({
       CLAUDE_CODE_MAX_CONTEXT_TOKENS: '128000',
@@ -603,10 +603,10 @@ describe('buildClaudeCodeSessionSettings', () => {
     })
   })
 
-  // The variable is process-wide, but sonnet and haiku can resolve to smaller user-selected models,
-  // so a large primary cap must not reach a background turn on a smaller one.
-  it('never pins a request above the CLI default from primary model metadata', async () => {
-    for (const maxOutputTokens of [393_216, 1_048_600, 65_536]) {
+  // The CLI clamps `max_tokens` here, so pinning anything higher would reserve room no request can
+  // consume — which is how a catalog cap that restates the window used to reach the budget.
+  it('never pins a request above the CLI ceiling', async () => {
+    for (const maxOutputTokens of [393_216, 1_048_600, 131_072]) {
       const settings = await buildClaudeCodeSessionSettings(
         {
           id: 'session-1',
@@ -617,7 +617,7 @@ describe('buildClaudeCodeSessionSettings', () => {
         { contextWindow: 1_048_576, maxOutputTokens }
       )
 
-      expect(Number(settings.env?.CLAUDE_CODE_MAX_OUTPUT_TOKENS)).toBeLessThanOrEqual(32_000)
+      expect(Number(settings.env?.CLAUDE_CODE_MAX_OUTPUT_TOKENS)).toBe(128_000)
     }
   })
 
