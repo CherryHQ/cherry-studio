@@ -8077,68 +8077,6 @@
       }
     },
     {
-      "capabilities": [
-        "function-call",
-        "image-recognition",
-        "audio-recognition",
-        "video-recognition",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 1048576,
-      "family": "gemini-flash",
-      "id": "gemini-2-0-flash",
-      "inputModalities": ["text", "image", "audio", "video"],
-      "maxOutputTokens": 8192,
-      "metadata": {},
-      "name": "Gemini 2.0 Flash",
-      "outputModalities": ["text"],
-      "ownedBy": "google",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.025
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.1
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.4
-        }
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "image-recognition",
-        "audio-recognition",
-        "video-recognition",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 1048576,
-      "family": "gemini-flash-lite",
-      "id": "gemini-2-0-flash-lite",
-      "inputModalities": ["text", "image", "audio", "video"],
-      "maxOutputTokens": 8192,
-      "metadata": {},
-      "name": "Gemini 2.0 Flash-Lite",
-      "outputModalities": ["text"],
-      "ownedBy": "google",
-      "pricing": {
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 0.075
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 0.3
-        }
-      }
-    },
-    {
       "capabilities": ["function-call", "reasoning", "image-recognition", "file-input"],
       "contextWindow": 131072,
       "family": "gemini-pro",
@@ -9851,59 +9789,6 @@
         "output": {
           "currency": "USD",
           "perMillionTokens": 120
-        }
-      },
-      "reasoning": {
-        "controls": [
-          {
-            "kind": "effort",
-            "values": ["low", "high"]
-          },
-          {
-            "kind": "budget",
-            "max": 32768,
-            "min": 128
-          }
-        ],
-        "supportedEfforts": ["low", "high"],
-        "thinkingTokenLimits": {
-          "max": 32768,
-          "min": 128
-        },
-        "wireDialect": "effort"
-      }
-    },
-    {
-      "capabilities": [
-        "function-call",
-        "reasoning",
-        "image-recognition",
-        "audio-recognition",
-        "video-recognition",
-        "structured-output",
-        "file-input"
-      ],
-      "contextWindow": 1048576,
-      "family": "gemini-pro",
-      "id": "gemini-3-pro-preview",
-      "inputModalities": ["text", "image", "video", "audio"],
-      "maxOutputTokens": 65536,
-      "metadata": {},
-      "name": "Gemini 3 Pro Preview",
-      "outputModalities": ["text"],
-      "ownedBy": "google",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.2
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 2
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 12
         }
       },
       "reasoning": {
@@ -16921,32 +16806,6 @@
       "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
       "contextWindow": 128000,
       "family": "gpt",
-      "id": "gpt-5-3-chat",
-      "inputModalities": ["text", "image"],
-      "maxOutputTokens": 16384,
-      "metadata": {},
-      "name": "GPT-5.3 Chat",
-      "outputModalities": ["text"],
-      "ownedBy": "openai",
-      "pricing": {
-        "cacheRead": {
-          "currency": "USD",
-          "perMillionTokens": 0.175
-        },
-        "input": {
-          "currency": "USD",
-          "perMillionTokens": 1.75
-        },
-        "output": {
-          "currency": "USD",
-          "perMillionTokens": 14
-        }
-      }
-    },
-    {
-      "capabilities": ["function-call", "image-recognition", "structured-output", "file-input"],
-      "contextWindow": 128000,
-      "family": "gpt",
       "id": "gpt-5-3-chat-latest",
       "inputModalities": ["text", "image"],
       "maxOutputTokens": 16384,
@@ -17627,7 +17486,7 @@
         },
         "cacheWrite": {
           "currency": "USD",
-          "perMillionTokens": 6.88
+          "perMillionTokens": 6.875
         },
         "input": {
           "currency": "USD",
@@ -20621,6 +20480,42 @@
       }
     },
     {
+      "capabilities": ["function-call", "reasoning", "image-recognition", "structured-output", "file-input"],
+      "contextWindow": 131072,
+      "family": "muse",
+      "id": "muse-glimmer-30b",
+      "inputModalities": ["text", "image"],
+      "maxOutputTokens": 131072,
+      "metadata": {},
+      "name": "Muse Glimmer 30B",
+      "openWeights": true,
+      "outputModalities": ["text"],
+      "ownedBy": "vercel",
+      "pricing": {
+        "cacheRead": {
+          "currency": "USD",
+          "perMillionTokens": 0.04
+        },
+        "input": {
+          "currency": "USD",
+          "perMillionTokens": 0.35
+        },
+        "output": {
+          "currency": "USD",
+          "perMillionTokens": 1.5
+        }
+      },
+      "reasoning": {
+        "controls": [
+          {
+            "kind": "effort",
+            "values": ["low", "medium", "high", "xhigh"]
+          }
+        ],
+        "supportedEfforts": ["low", "medium", "high", "xhigh"]
+      }
+    },
+    {
       "capabilities": [
         "function-call",
         "reasoning",
@@ -23056,5 +22951,5 @@
       "ownedBy": "zhipu"
     }
   ],
-  "version": "e7d9550e80fd6f80"
+  "version": "f2212c9b607e5ecc"
 }

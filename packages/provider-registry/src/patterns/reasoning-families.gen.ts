@@ -219,9 +219,10 @@ export const REASONING_FAMILY_RULES: readonly ReasoningFamilyRule[] = [
   { pattern: 'hunyuan-a13b' },
   { pattern: '^hy3' },
   // upstage
-  { pattern: '^solar-pro-?[23]' },
+  { pattern: '^solar-pro-?[2-4]' },
   // vercel
   { pattern: '^muse-spark' },
+  { pattern: '^muse-glimmer' },
   { pattern: '^interfaze' },
   { pattern: '^laguna-s' },
   // xai
