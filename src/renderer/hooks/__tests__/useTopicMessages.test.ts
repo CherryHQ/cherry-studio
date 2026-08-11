@@ -46,31 +46,42 @@ describe('useTopicMessages', () => {
 
   it('revalidates when a loaded message read model changes', () => {
     const mutate = vi.fn().mockResolvedValue(undefined)
+    const anchorMessage = {
+      id: 'anchor-1',
+      topicId: 'topic-1',
+      parentId: null,
+      role: 'assistant',
+      data: { parts: [] },
+      searchableText: '',
+      status: 'success',
+      siblingsGroupId: 0,
+      modelId: null,
+      messageSnapshot: null,
+      stats: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    }
     mockUseInfiniteQuery.mockReturnValueOnce({
       pages: [
         {
           items: [
             {
-              message: {
-                id: 'anchor-1',
-                topicId: 'topic-1',
-                parentId: null,
-                role: 'assistant',
-                data: { parts: [] },
-                searchableText: '',
-                status: 'success',
-                siblingsGroupId: 0,
-                modelId: null,
-                messageSnapshot: null,
-                stats: null,
-                createdAt: '2026-01-01T00:00:00.000Z',
-                updatedAt: '2026-01-01T00:00:00.000Z'
-              },
+              message: { ...anchorMessage, id: 'recent-anchor' },
+              siblingsGroup: []
+            }
+          ],
+          nextCursor: 'older-page',
+          activeNodeId: 'recent-anchor'
+        },
+        {
+          items: [
+            {
+              message: anchorMessage,
               siblingsGroup: []
             }
           ],
           nextCursor: undefined,
-          activeNodeId: 'anchor-1'
+          activeNodeId: 'recent-anchor'
         }
       ],
       isLoading: false,
@@ -97,6 +108,6 @@ describe('useTopicMessages', () => {
         { endpoint: '/topics/:topicId/messages', kind: 'projection', entityIds: ['anchor-1'] }
       ])
     })
-    expect(mutate).toHaveBeenCalled()
+    expect(mutate).toHaveBeenCalledWith()
   })
 })
