@@ -102,6 +102,25 @@ const mockRipgrepResultOnce = ({
   })
 }
 
+const createMockRipgrepChild = (
+  exitCode: number,
+  { stdout = '', stderr = '' }: { stdout?: string; stderr?: string } = {}
+): NodeChildProcess.ChildProcessWithoutNullStreams => {
+  const child = Object.assign(new EventEmitter(), {
+    stdin: new PassThrough(),
+    stdout: new PassThrough(),
+    stderr: new PassThrough()
+  })
+
+  queueMicrotask(() => {
+    if (stdout) child.stdout.emit('data', Buffer.from(stdout))
+    if (stderr) child.stderr.emit('data', Buffer.from(stderr))
+    child.emit('close', exitCode, null)
+  })
+
+  return child as unknown as NodeChildProcess.ChildProcessWithoutNullStreams
+}
+
 const writeMany = async (root: string, count: number, prefix = 'file', ext = '.txt'): Promise<string[]> => {
   const created: string[] = []
   for (let i = 0; i < count; i++) {
@@ -265,59 +284,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     ])
   })
 
-  it('returns files whose root-relative paths match through an ancestor directory', async () => {
-    await mkdir(path.join(tmp, 'docs'))
-    await writeFile(path.join(tmp, 'docs', 'readme.md'), 'readme')
-
-    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
-      includeFiles: true,
-      includeDirectories: true,
-      searchPattern: 'docs'
-    })
-
-    expect(results).toHaveLength(2)
-    expect(results).toEqual(
-      expect.arrayContaining([
-        {
-          path: path.join(tmp, 'docs').replace(/\\/g, '/'),
-          isDirectory: true
-        },
-        {
-          path: path.join(tmp, 'docs', 'readme.md').replace(/\\/g, '/'),
-          isDirectory: false
-        }
-      ])
-    )
-  })
-
-  it('keeps ancestor-path matches when another file matches through its basename', async () => {
-    await mkdir(path.join(tmp, 'docs'))
-    await writeFile(path.join(tmp, 'docs', 'readme.md'), 'readme')
-    await mkdir(path.join(tmp, 'other'))
-    await writeFile(path.join(tmp, 'other', 'docs-note.md'), 'notes')
-
-    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
-      includeFiles: true,
-      includeDirectories: false,
-      searchPattern: 'docs'
-    })
-
-    expect(results).toHaveLength(2)
-    expect(results).toEqual(
-      expect.arrayContaining([
-        {
-          path: path.join(tmp, 'docs', 'readme.md').replace(/\\/g, '/'),
-          isDirectory: false
-        },
-        {
-          path: path.join(tmp, 'other', 'docs-note.md').replace(/\\/g, '/'),
-          isDirectory: false
-        }
-      ])
-    )
-  })
-
-  it('matches files across multiple root-relative path segments', async () => {
+  it('falls back to scanning all files when the ripgrep glob misses a cross-segment fuzzy match', async () => {
     await mkdir(path.join(tmp, 'alpha'))
     await writeFile(path.join(tmp, 'alpha', 'beta.md'), 'match across path segments')
 
@@ -333,6 +300,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
         isDirectory: false
       }
     ])
+    expect(mockSpawn).toHaveBeenCalledTimes(2)
   })
 
   it('returns empty directories from a directory-only fuzzy search', async () => {
@@ -530,9 +498,11 @@ describe('listDirectory (error paths)', () => {
     await expect(listDirectory(tmp as AbsoluteFilePath)).rejects.toThrow(/Ripgrep binary not available/)
   })
 
-  it('propagates a ripgrep fuzzy file scan failure without usable results', async () => {
+  it('propagates a ripgrep fallback failure after the glob returns no matches', async () => {
     mockExistsSync.mockReturnValue(true)
-    mockRipgrepResultOnce({ exitCode: 2, stderr: 'scan failed' })
+    mockSpawn
+      .mockImplementationOnce(() => createMockRipgrepChild(1))
+      .mockImplementationOnce(() => createMockRipgrepChild(2, { stderr: 'fallback failed' }))
 
     await expect(
       listDirectory(tmp as AbsoluteFilePath, {
@@ -540,7 +510,8 @@ describe('listDirectory (error paths)', () => {
         includeDirectories: false,
         searchPattern: 'ab'
       })
-    ).rejects.toThrow('Ripgrep failed with exit code 2: scan failed')
+    ).rejects.toThrow('Ripgrep failed with exit code 2: fallback failed')
+    expect(mockSpawn).toHaveBeenCalledTimes(2)
   })
 
   it('throws when the root path is not readable (EACCES from fs.promises.stat)', async () => {

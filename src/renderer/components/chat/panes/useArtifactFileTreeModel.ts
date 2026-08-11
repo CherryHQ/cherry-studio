@@ -687,13 +687,13 @@ export function useArtifactFileTreeModel({
     treeOpen && enableFileSearch ? validWorkspacePath : undefined,
     trimmedFileSearch
   )
-  const nodeStateTree = useMemo(() => {
+  const searchableTree = useMemo(() => {
     if (!trimmedFileSearch || !searchTree) return displayTree
     return mergeFileTreeNodeLists(displayTree, searchTree)
   }, [displayTree, searchTree, trimmedFileSearch])
 
   const displayNodeById = useMemo(() => indexFileTreeNodes(displayTree), [displayTree])
-  const nodeStateById = useMemo(() => indexFileTreeNodes(nodeStateTree), [nodeStateTree])
+  const searchableNodeById = useMemo(() => indexFileTreeNodes(searchableTree), [searchableTree])
   const preservedSelectedSearchNodeRef = useRef<FileTreeNode | null>(null)
 
   useEffect(() => {
@@ -708,7 +708,7 @@ export function useArtifactFileTreeModel({
       return
     }
 
-    const searchNode = nodeStateById.get(selectedFile)
+    const searchNode = searchableNodeById.get(selectedFile)
     if (trimmedFileSearch && searchNode?.kind === 'file') {
       preservedSelectedSearchNodeRef.current = searchNode
       return
@@ -717,16 +717,16 @@ export function useArtifactFileTreeModel({
     if (preservedSelectedSearchNodeRef.current?.id !== selectedFile) {
       preservedSelectedSearchNodeRef.current = null
     }
-  }, [displayNodeById, nodeStateById, selectedFile, trimmedFileSearch, validWorkspacePath])
+  }, [displayNodeById, searchableNodeById, selectedFile, trimmedFileSearch, validWorkspacePath])
 
   const nodeById = useMemo(() => {
-    const result = new Map(nodeStateById)
+    const result = new Map(searchableNodeById)
     const preservedSelectedSearchNode = preservedSelectedSearchNodeRef.current
     if (preservedSelectedSearchNode && !result.has(preservedSelectedSearchNode.id)) {
       result.set(preservedSelectedSearchNode.id, preservedSelectedSearchNode)
     }
     return result
-  }, [nodeStateById])
+  }, [searchableNodeById])
 
   const expandedIdsWithWorkspaceRoot = useMemo<ReadonlySet<string>>(() => {
     if (!validWorkspacePath) return expandedIds
@@ -737,8 +737,23 @@ export function useArtifactFileTreeModel({
 
   const filteredTree = useMemo<FileTreeNode[]>(() => {
     if (!trimmedFileSearch) return displayTree
-    return searchTree ?? []
-  }, [displayTree, searchTree, trimmedFileSearch])
+    const needle = trimmedFileSearch.toLowerCase()
+    const filterNodes = (nodes: readonly FileTreeNode[]): FileTreeNode[] => {
+      const out: FileTreeNode[] = []
+      for (const node of nodes) {
+        if (node.kind === 'folder') {
+          const filteredChildren = filterNodes(node.children ?? [])
+          if (filteredChildren.length > 0 || node.name.toLowerCase().includes(needle)) {
+            out.push({ ...node, children: filteredChildren })
+          }
+        } else if (node.name.toLowerCase().includes(needle)) {
+          out.push(node)
+        }
+      }
+      return out
+    }
+    return filterNodes(searchableTree)
+  }, [displayTree, searchableTree, trimmedFileSearch])
 
   // While searching, expand every visible folder so matches stay reachable —
   // user-toggled `expandedIds` resumes after the keyword clears.

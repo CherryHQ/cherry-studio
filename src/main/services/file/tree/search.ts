@@ -8,9 +8,10 @@
  *   - List mode (`searchPattern === '.'`, the default): enumerate the
  *     directory tree. No result cap by default — set `maxEntries` only when
  *     truncation is desired (e.g. autocomplete dropdowns).
- *   - Search mode (`searchPattern` is a user query): ripgrep enumerates the
- *     eligible files, then JS performs root-relative fuzzy matching and
- *     scoring. Caller controls `maxEntries` for the dropdown size.
+ *   - Search mode (`searchPattern` is a user query): ripgrep glob pre-filter
+ *     plus JS-side fuzzy scoring. Caller controls `maxEntries` for the
+ *     dropdown size; the fuzzy branch can scan all files before JS-side
+ *     fuzzy matching when the glob misses everything.
  */
 
 import { spawn } from 'node:child_process'
@@ -344,6 +345,12 @@ function getFuzzyMatchScore(filePath: string, query: string): number {
   return score
 }
 
+function queryToGlobPattern(query: string): string {
+  // Escape special glob chars (including ! for negation), then interleave with *.
+  const escaped = query.replace(/[[\]{}()*+?.,\\^$|#!]/g, '\\$&')
+  return '*' + escaped.split('').join('*') + '*'
+}
+
 interface ScoredSearchEntry {
   path: string
   isDirectory: boolean
@@ -381,8 +388,15 @@ function compareScoredSearchEntries(a: ScoredSearchEntry, b: ScoredSearchEntry):
 
 async function searchFuzzyFiles(resolvedPath: string, options: ResolvedOptions): Promise<ScoredSearchEntry[]> {
   if (!options.includeFiles) return []
-  const output = getUsableRipgrepOutput(await executeRipgrep(buildRipgrepBaseArgs(options, resolvedPath)))
-  return scoreFuzzyPaths(parseRipgrepPaths(output), resolvedPath, options.searchPattern, false)
+  const args = buildRipgrepBaseArgs(options, resolvedPath)
+  const globPattern = queryToGlobPattern(options.searchPattern)
+  args.splice(args.length - 1, 0, '--iglob', globPattern)
+  const firstOutput = getUsableRipgrepOutput(await executeRipgrep(args))
+  const firstCandidates = scoreFuzzyPaths(parseRipgrepPaths(firstOutput), resolvedPath, options.searchPattern, false)
+  if (firstCandidates.length > 0) return firstCandidates
+  logger.debug('Fuzzy glob returned no results, scanning all files before JS fuzzy matching')
+  const fallbackOutput = getUsableRipgrepOutput(await executeRipgrep(buildRipgrepBaseArgs(options, resolvedPath)))
+  return scoreFuzzyPaths(parseRipgrepPaths(fallbackOutput), resolvedPath, options.searchPattern, false)
 }
 
 async function searchFuzzyDirectories(resolvedPath: string, options: ResolvedOptions): Promise<ScoredSearchEntry[]> {

@@ -22,20 +22,22 @@ and result-limit options. Returned paths use forward slashes on every platform.
 
 ## Fuzzy Matching
 
-Ripgrep enumerates eligible files once with `--files`, using the requested
-recursion, depth, hidden-entry, and exclusion options. JavaScript then applies
-case-insensitive subsequence matching to each file's path relative to the
-requested root.
+For files, the query is first converted to a ripgrep glob that preserves
+subsequence order:
 
-Matching the full relative path lets a query match a filename, an ancestor
-directory segment, or characters spanning multiple path segments. For example,
-`docs/readme.md` is a file match for `docs` even though `readme.md` does not
-contain the query.
+```text
+Query: updater
+Glob:  *u*p*d*a*t*e*r*
+```
+
+Ripgrep provides a fast candidate set. JavaScript then applies the same
+case-insensitive subsequence rule used for directories. If the pre-filter
+produces no valid match, the implementation scans the remaining eligible files
+and applies that same rule; there is no separate greedy matcher.
 
 Directories are traversed directly, so a directory-only query does not depend
-on ripgrep. They use the same root-relative subsequence rule as files. File and
-directory candidates are merged before sorting and before `maxEntries` is
-applied.
+on ripgrep. File and directory candidates are merged before sorting and before
+`maxEntries` is applied.
 
 ## Ranking
 
@@ -95,7 +97,6 @@ Common generated or dependency directories such as `node_modules`, `.git`,
 `dist`, `build`, `.next`, `.nuxt`, `coverage`, and `.cache` are excluded.
 Hidden entries are excluded unless `includeHidden` is true.
 
-Ripgrep exit codes `0` and `1` are normal. When ripgrep exits with code `2` or
-higher but produced usable stdout, the search keeps those partial results and
-logs a warning with the traversal error. It throws when no usable stdout is
-available, the binary is missing, or the process is terminated by a signal.
+Ripgrep exit code `1` means no matches. Exit codes `2` and above, missing
+binaries, and signal termination are surfaced as errors so callers can decide
+whether to show partial results or an error state.
