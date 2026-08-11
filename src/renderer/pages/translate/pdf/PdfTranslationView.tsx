@@ -29,7 +29,7 @@ export interface PdfTranslationFile {
 }
 
 type PdfTranslationPhase = PdfTranslationStage | 'idle' | 'success' | 'error'
-type PdfTranslationUiStage = 'preparing' | 'analyzing' | 'translating' | 'generating'
+type PdfTranslationUiStage = 'preparing' | 'downloading_assets' | 'analyzing' | 'translating' | 'generating'
 
 export interface PdfTranslationStatus {
   phase: PdfTranslationPhase
@@ -41,7 +41,7 @@ export interface PdfTranslationHandle {
   cancel: () => void
 }
 
-export type BabelDocAvailability = 'checking' | 'available' | 'missing'
+export type BabelDocAvailability = 'checking' | 'available' | 'missing' | 'outdated'
 
 export interface PdfTextFallback {
   content: ReactNode
@@ -76,12 +76,12 @@ export interface PdfTranslationOutput {
 
 interface PdfTranslationUiProgress {
   stage: PdfTranslationUiStage
-  progress: number
+  stageProgress: number | null
+  overallProgress: number
 }
 
 type PdfTranslationResultState =
   | { type: 'output'; outputPath: AbsoluteFilePath; fileName: string }
-  | { type: 'downloading_assets' }
   | { type: 'progress'; progress: PdfTranslationUiProgress }
   | { type: 'preparing' }
   | { type: 'ocr_required' }
@@ -90,23 +90,20 @@ type PdfTranslationResultState =
   | { type: 'checking_dependency' }
   | { type: 'installing_dependency' }
   | { type: 'missing_dependency' }
+  | { type: 'outdated_dependency' }
   | { type: 'error' }
   | { type: 'ready' }
 
-const PDF_TRANSLATION_UI_STAGE_RANK: Record<PdfTranslationUiStage, number> = {
-  preparing: 0,
-  analyzing: 1,
-  translating: 2,
-  generating: 3
-}
-
 const getUiStage = (stage: PdfTranslationProgressStage): PdfTranslationUiStage => {
   switch (stage) {
+    case 'checking_assets':
+    case 'loading_model':
     case 'parsing':
       return 'preparing'
+    case 'downloading_assets':
+      return 'downloading_assets'
     case 'analyzing':
     case 'extracting_terms':
-    case 'processing':
       return 'analyzing'
     case 'translating':
       return 'translating'
@@ -120,6 +117,8 @@ const getProgressLabel = (t: TFunction, stage: PdfTranslationUiStage): string =>
   switch (stage) {
     case 'preparing':
       return t('translate.pdf.progress.preparing')
+    case 'downloading_assets':
+      return t('translate.pdf.progress.downloading_assets')
     case 'analyzing':
       return t('translate.pdf.progress.analyzing')
     case 'translating':
@@ -157,7 +156,6 @@ const getResultState = ({
 }): PdfTranslationResultState => {
   if (output) return { type: 'output', outputPath: output.outputPath, fileName: output.fileName }
   if (isRunningPhase(phase)) {
-    if (phase === 'downloading_assets') return { type: 'downloading_assets' }
     if (progress) return { type: 'progress', progress }
     return { type: 'preparing' }
   }
@@ -166,8 +164,12 @@ const getResultState = ({
   if (babelDocAvailability === 'checking') return { type: 'checking_dependency' }
 
   const dependencyMissing = error instanceof IpcError && error.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED
+  const dependencyOutdated = error instanceof IpcError && error.code === translateErrorCodes.PDF_DEPENDENCY_OUTDATED
   if (babelDocAvailability === 'missing' || dependencyMissing) {
     return { type: babelDocInstalling ? 'installing_dependency' : 'missing_dependency' }
+  }
+  if (babelDocAvailability === 'outdated' || dependencyOutdated) {
+    return { type: babelDocInstalling ? 'installing_dependency' : 'outdated_dependency' }
   }
   if (error instanceof IpcError && error.code === translateErrorCodes.PDF_OCR_REQUIRED) {
     return { type: 'ocr_required' }
@@ -252,7 +254,11 @@ const PdfTranslationView = ({
           if (activeJobIdRef.current !== jobId) return
           activeJobIdRef.current = null
           const normalized = cause instanceof Error ? cause : new Error(String(cause))
-          if (normalized instanceof IpcError && normalized.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED) {
+          if (
+            normalized instanceof IpcError &&
+            (normalized.code === translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED ||
+              normalized.code === translateErrorCodes.PDF_DEPENDENCY_OUTDATED)
+          ) {
             onBabelDocUnavailable()
           }
           setError(normalized)
@@ -266,17 +272,12 @@ const PdfTranslationView = ({
   useIpcOn('translate.pdf.stage', ({ jobId, stage }) => {
     if (activeJobIdRef.current === jobId) setPhase(stage)
   })
-  useIpcOn('translate.pdf.progress', ({ jobId, stage, progress: nextProgress }) => {
+  useIpcOn('translate.pdf.progress', ({ jobId, stage, stageProgress, overallProgress }) => {
     if (activeJobIdRef.current !== jobId) return
     setPhase('translating')
     setProgress((current) => {
-      if (current && nextProgress < current.progress) return current
-      const nextStage = getUiStage(stage)
-      const stableStage =
-        current && PDF_TRANSLATION_UI_STAGE_RANK[nextStage] < PDF_TRANSLATION_UI_STAGE_RANK[current.stage]
-          ? current.stage
-          : nextStage
-      return { stage: stableStage, progress: nextProgress }
+      if (current && overallProgress < current.overallProgress) return current
+      return { stage: getUiStage(stage), stageProgress, overallProgress }
     })
   })
 
@@ -396,18 +397,27 @@ const PdfTranslationResult = ({
   switch (state.type) {
     case 'output':
       return <FilePreview filePath={state.outputPath} refreshKey={0} />
-    case 'downloading_assets':
-      return <CenteredLoading label={t('translate.pdf.progress.downloading_assets')} />
     case 'progress': {
       const progressLabel = getProgressLabel(t, state.progress.stage)
-      const roundedProgress = Math.round(state.progress.progress)
+      if (state.progress.stageProgress === null) return <CenteredLoading label={progressLabel} />
+
+      const roundedOverallProgress = Math.round(state.progress.overallProgress)
+      const roundedStageProgress = Math.round(state.progress.stageProgress)
       return (
         <div className="flex h-full items-center justify-center">
           <PdfProgress
-            progress={state.progress.progress}
+            progress={state.progress.overallProgress}
             label={progressLabel}
-            percentLabel={t('translate.pdf.progress.percent', { progress: roundedProgress })}
-            valueText={t('translate.pdf.progress.value', { stage: progressLabel, progress: roundedProgress })}
+            percentLabel={t('translate.pdf.progress.percent', { progress: roundedOverallProgress })}
+            detailsLabel={t('translate.pdf.progress.details', {
+              overallProgress: roundedOverallProgress,
+              stageProgress: roundedStageProgress
+            })}
+            valueText={t('translate.pdf.progress.value', {
+              stage: progressLabel,
+              overallProgress: roundedOverallProgress,
+              stageProgress: roundedStageProgress
+            })}
           />
         </div>
       )
@@ -446,6 +456,16 @@ const PdfTranslationResult = ({
           onAction={onInstallBabelDoc}
         />
       )
+    case 'outdated_dependency':
+      return (
+        <EmptyState
+          icon={Languages}
+          title={t('translate.pdf.dependency.outdated_title')}
+          description={t('translate.pdf.dependency.outdated_description')}
+          actionLabel={t('translate.pdf.action.update_babeldoc')}
+          onAction={onInstallBabelDoc}
+        />
+      )
     case 'ready':
       return (
         <EmptyState
@@ -467,11 +487,13 @@ const PdfProgress = ({
   progress,
   label,
   percentLabel,
+  detailsLabel,
   valueText
 }: {
   progress: number
   label: string
   percentLabel: string
+  detailsLabel: string
   valueText: string
 }) => {
   const roundedProgress = Math.round(progress)
@@ -493,7 +515,10 @@ const PdfProgress = ({
           labelClassName="font-medium text-foreground text-xs"
         />
       </div>
-      <span className="max-w-56 text-muted-foreground text-sm">{label}</span>
+      <div className="flex max-w-64 flex-col gap-1 text-sm">
+        <span className="text-foreground">{label}</span>
+        <span className="text-muted-foreground text-xs">{detailsLabel}</span>
+      </div>
     </div>
   )
 }

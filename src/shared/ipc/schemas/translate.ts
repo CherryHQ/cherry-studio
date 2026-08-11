@@ -44,19 +44,26 @@ export const translateRequestSchemas = {
   'translate.pdf.cancel': defineRoute({ input: pdfJobInputSchema, output: z.void() })
 }
 
-export type PdfTranslationProgressStage =
-  | 'parsing'
-  | 'analyzing'
-  | 'extracting_terms'
-  | 'translating'
-  | 'typesetting'
-  | 'rendering'
-  | 'processing'
+export const PDF_TRANSLATION_PROGRESS_STAGES = [
+  'checking_assets',
+  'downloading_assets',
+  'loading_model',
+  'parsing',
+  'analyzing',
+  'extracting_terms',
+  'translating',
+  'typesetting',
+  'rendering'
+] as const
+
+export type PdfTranslationProgressStage = (typeof PDF_TRANSLATION_PROGRESS_STAGES)[number]
 
 export interface PdfTranslationProgress {
   stage: PdfTranslationProgressStage
-  /** Overall completion, 0–100. */
-  progress: number
+  /** Completion within the current stage, or null when BabelDOC cannot measure it. */
+  stageProgress: number | null
+  /** Monotonic completion across initialization and translation, 0–100. */
+  overallProgress: number
 }
 
 /** Coarse pipeline stage reported via `onStage`, distinct from the fine-grained `PdfTranslationProgressStage`. */

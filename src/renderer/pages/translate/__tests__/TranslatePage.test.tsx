@@ -31,14 +31,14 @@ const ipcEventHandlers = vi.hoisted(() => new Map<string, (payload: unknown) => 
 const babeldocInstalledSnapshot: BinaryToolSnapshot = {
   name: 'babeldoc-stream',
   availability: { source: 'mise', path: '/shims/babeldoc-stream' },
-  application: { status: 'applied' }
+  application: { status: 'applied', version: '0.6.4.post2' }
 }
 const binaryMock = vi.hoisted(() => ({
   snapshots: {
     'babeldoc-stream': {
       name: 'babeldoc-stream',
       availability: { source: 'mise', path: '/shims/babeldoc-stream' },
-      application: { status: 'applied' }
+      application: { status: 'applied', version: '0.6.4.post2' }
     }
   } as Record<string, BinaryToolSnapshot>
 }))
@@ -384,7 +384,7 @@ vi.mock('../pdf/PdfTranslationView', () => {
     file: { name: string; path: string }
     modelId?: string
     sourceLangCode: string
-    babelDocAvailability: 'checking' | 'available' | 'missing'
+    babelDocAvailability: 'checking' | 'available' | 'missing' | 'outdated'
     babelDocInstalling: boolean
     textFallback?: { content: React.ReactNode; ocrRequired: boolean }
     restoredOutput?: { outputPath: string; fileName: string } | null
@@ -408,9 +408,18 @@ vi.mock('../pdf/PdfTranslationView', () => {
         data-state-file-path={stateFilePath}
         data-restored-output={props.restoredOutput?.outputPath}>
         <span data-testid="babeldoc-availability">{props.babelDocAvailability}</span>
-        {props.babelDocAvailability === 'missing' && !props.textFallback && (
-          <button type="button" aria-label="translate.pdf.action.install_babeldoc" onClick={props.onInstallBabelDoc} />
-        )}
+        {(props.babelDocAvailability === 'missing' || props.babelDocAvailability === 'outdated') &&
+          !props.textFallback && (
+            <button
+              type="button"
+              aria-label={
+                props.babelDocAvailability === 'outdated'
+                  ? 'translate.pdf.action.update_babeldoc'
+                  : 'translate.pdf.action.install_babeldoc'
+              }
+              onClick={props.onInstallBabelDoc}
+            />
+          )}
         {props.textFallback?.content}
         <button type="button" aria-label="translate.pdf.action.close" onClick={props.onClose} />
       </div>
@@ -862,6 +871,32 @@ describe('TranslatePage', () => {
     await waitFor(() => expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', { name: 'babeldoc-stream' }))
     await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('available'))
     expect(pdfHandleMock.start).not.toHaveBeenCalled()
+  })
+
+  it('updates an outdated BabelDOC before layout-preserving translation', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('feature.translate.model_id', 'openai::gpt-4.1')
+    binaryMock.snapshots = {
+      'babeldoc-stream': {
+        name: 'babeldoc-stream',
+        availability: { source: 'mise', path: '/shims/babeldoc-stream' },
+        application: { status: 'applied', version: '0.6.4.post1' }
+      }
+    }
+    fileMock.getFileExtension.mockReturnValue('.pdf')
+    fileMock.onSelectFile.mockResolvedValue([{ name: 'input.pdf', path: '/tmp/input.pdf', size: 10, type: 'document' }])
+
+    render(<TranslatePage />)
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(screen.getByTestId('babeldoc-availability')).toHaveTextContent('outdated'))
+    fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.update_babeldoc' }))
+
+    await waitFor(() =>
+      expect(ipcRequestMock).toHaveBeenCalledWith('binary.install_tool', {
+        name: 'babeldoc-stream',
+        targetVersion: '0.6.4.post2'
+      })
+    )
   })
 
   it('keeps text fallback available when inline BabelDOC installation fails', async () => {

@@ -48,7 +48,7 @@ describe('translateHandlers', () => {
     translatePdfMock.mockImplementation(async (_request, onStage, onProgress) => {
       onStage('preparing')
       onStage('translating')
-      onProgress({ stage: 'translating', progress: 42 })
+      onProgress({ stage: 'translating', stageProgress: 18, overallProgress: 42 })
       return { fileName: 'paper.zh-CN.mono.pdf', outputPath: '/tmp/job/paper.zh-CN.mono.pdf' }
     })
     const request = {
@@ -74,7 +74,8 @@ describe('translateHandlers', () => {
     expect(ipcSendMock).toHaveBeenNthCalledWith(3, 'w1', 'translate.pdf.progress', {
       jobId: request.jobId,
       stage: 'translating',
-      progress: 42
+      stageProgress: 18,
+      overallProgress: 42
     })
   })
 

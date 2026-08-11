@@ -19,15 +19,16 @@ import {
   type TranslateLangCode,
   type TranslateSourceLanguage
 } from '@shared/data/preference/preferenceTypes'
-import { BABELDOC_TOOL_NAME, isBabelDocInstalled } from '@shared/data/presets/binaryTools'
+import { BABELDOC_TOOL_NAME, getBabelDocInstallationStatus } from '@shared/data/presets/binaryTools'
 import { type FileEntry, SafeNameSchema } from '@shared/data/types/file'
 import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import { IpcError } from '@shared/ipc/errors/IpcError'
 import { translateErrorCodes } from '@shared/ipc/errors/translate'
-import type {
-  PdfTranslationProgress,
-  PdfTranslationProgressStage,
-  PdfTranslationStage
+import {
+  PDF_TRANSLATION_PROGRESS_STAGES,
+  type PdfTranslationProgress,
+  type PdfTranslationProgressStage,
+  type PdfTranslationStage
 } from '@shared/ipc/schemas/translate'
 import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
 import { formatGatewayModelId } from '@shared/utils/apiGateway'
@@ -35,16 +36,13 @@ import { stringify as stringifyToml } from 'smol-toml'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('PdfTranslationService')
-const BABELDOC_STREAM_SCHEMA = 'babeldoc-stream/v1'
-const BABELDOC_ASSET_DOWNLOAD_PATTERNS = [
-  /not found or corrupted, downloading/i,
-  /downloading (?:all assets|fonts|cmaps)(?: from)?/i
-]
+const BABELDOC_STREAM_SCHEMA = 'babeldoc-stream/v2'
 const babeldocStreamProgressSchema = z.strictObject({
   schema: z.literal(BABELDOC_STREAM_SCHEMA),
   type: z.literal('progress'),
-  stage: z.string().min(1),
-  progress: z.number().finite().min(0).max(100)
+  stage: z.enum(PDF_TRANSLATION_PROGRESS_STAGES),
+  stage_progress: z.number().finite().min(0).max(100).nullable(),
+  overall_progress: z.number().finite().min(0).max(100)
 })
 const babeldocStreamErrorSchema = z.strictObject({
   schema: z.literal(BABELDOC_STREAM_SCHEMA),
@@ -115,8 +113,9 @@ interface PdfTranslationResult {
 interface ActivePdfTranslation {
   cancelled: boolean
   child: ChildProcess | null
-  progress: number
+  overallProgress: number
   progressStage: PdfTranslationProgressStage | null
+  stageProgress: number | null
 }
 
 const normalizeLanguageCode = (code: TranslateSourceLanguage): string => {
@@ -215,7 +214,13 @@ export class PdfTranslationService extends BaseService {
       throw new Error(`PDF translation job already exists: ${request.jobId}`)
     }
 
-    const job: ActivePdfTranslation = { cancelled: false, child: null, progress: 0, progressStage: null }
+    const job: ActivePdfTranslation = {
+      cancelled: false,
+      child: null,
+      overallProgress: 0,
+      progressStage: null,
+      stageProgress: null
+    }
     const outputDir = application.getPath('feature.pdf_translation.temp', request.jobId)
     const gateway = application.get('ApiGatewayService')
     let gatewayLeaseAcquired = false
@@ -252,7 +257,7 @@ export class PdfTranslationService extends BaseService {
       await fs.promises.mkdir(outputDir, { recursive: true })
       onStage?.('translating')
 
-      await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey, onStage, onProgress)
+      await this.runSidecar(job, executable, request, outputDir, gatewayModelId, baseUrl, apiKey, onProgress)
       this.throwIfCancelled(job)
 
       // BabelDOC Stream 0.6.4.post1 inserts a `.no_watermark` segment into the mono filename whenever the
@@ -261,7 +266,7 @@ export class PdfTranslationService extends BaseService {
       const fileName = `${path.parse(request.sourcePath).name}.no_watermark.${normalizeLanguageCode(request.targetLangCode)}.mono.pdf`
       const outputPath = AbsoluteFilePathSchema.parse(path.join(outputDir, fileName))
       await fs.promises.access(outputPath, fs.constants.R_OK)
-      this.reportProgress(job, { stage: 'rendering', progress: 100 }, onProgress)
+      this.reportProgress(job, { stage: 'rendering', stageProgress: 100, overallProgress: 100 }, onProgress)
       // `await` (not a bare `return`) so the `finally` below cannot delete the temp dir
       // out from under the copy into FileManager.
       return await this.persistResult(request, outputPath)
@@ -405,8 +410,12 @@ export class PdfTranslationService extends BaseService {
   private async resolveSidecar(): Promise<string> {
     const binaryManager = application.get('BinaryManager')
     const snapshot = (await binaryManager.getToolSnapshots([BABELDOC_TOOL_NAME]))[BABELDOC_TOOL_NAME]
-    if (!isBabelDocInstalled(snapshot)) {
+    const status = getBabelDocInstallationStatus(snapshot)
+    if (status === 'missing') {
       throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_NOT_INSTALLED, 'BabelDOC is not installed')
+    }
+    if (status === 'outdated') {
+      throw new IpcError(translateErrorCodes.PDF_DEPENDENCY_OUTDATED, 'BabelDOC must be updated')
     }
 
     const installedPath = await getBinaryPath(BABELDOC_TOOL_NAME)
@@ -429,7 +438,6 @@ export class PdfTranslationService extends BaseService {
     gatewayModelId: string,
     baseUrl: string,
     apiKey: string,
-    onStage?: (stage: PdfTranslationStage) => void,
     onProgress?: (progress: PdfTranslationProgress) => void
   ): Promise<void> {
     const configPath = path.join(outputDir, 'babeldoc.toml')
@@ -453,6 +461,8 @@ export class PdfTranslationService extends BaseService {
       '--report-interval',
       '0.2',
       '--progress-json',
+      '--progress-json-version',
+      '2',
       '--watermark-output-mode',
       'no_watermark',
       '--no-dual'
@@ -473,8 +483,6 @@ export class PdfTranslationService extends BaseService {
         if (job.cancelled) killProcessTree(child)
         let stderr = ''
         let sidecarError: Error | null = null
-        let downloadingAssets = false
-        let assetDownloadObserved = false
         let finishReceived = false
         const progressLines = child.stdout ? createInterface({ input: child.stdout }) : null
 
@@ -502,26 +510,18 @@ export class PdfTranslationService extends BaseService {
             finishReceived = true
             return
           }
-          if (downloadingAssets) {
-            downloadingAssets = false
-            onStage?.('translating')
-          }
           this.reportProgress(
             job,
             {
-              stage: this.normalizeProgressStage(parsed.data.stage),
-              progress: Math.round(parsed.data.progress)
+              stage: parsed.data.stage,
+              stageProgress: parsed.data.stage_progress,
+              overallProgress: parsed.data.overall_progress
             },
             onProgress
           )
         })
         child.stderr?.on('data', (chunk) => {
           stderr = `${stderr}${String(chunk)}`.slice(-8000)
-          if (!assetDownloadObserved && BABELDOC_ASSET_DOWNLOAD_PATTERNS.some((pattern) => pattern.test(stderr))) {
-            assetDownloadObserved = true
-            downloadingAssets = true
-            onStage?.('downloading_assets')
-          }
         })
         child.once('error', (error) => {
           progressLines?.close()
@@ -534,9 +534,6 @@ export class PdfTranslationService extends BaseService {
             reject(new Error('PDF translation cancelled'))
           } else if (sidecarError) {
             reject(sidecarError)
-          } else if (/ScannedPDFError|Scanned PDF detected/i.test(stderr)) {
-            // Keep a narrow stderr fallback in case BabelDOC Stream fails before its JSON writer starts.
-            reject(createOcrRequiredError())
           } else if (code === 0 && finishReceived) {
             resolve()
           } else if (code === 0) {
@@ -557,42 +554,22 @@ export class PdfTranslationService extends BaseService {
     }
   }
 
-  private normalizeProgressStage(stage: string): PdfTranslationProgressStage {
-    const normalized = stage.toLowerCase()
-    if (normalized.includes('translate')) return 'translating'
-    if (normalized.includes('term')) return 'extracting_terms'
-    if (normalized.includes('typeset')) return 'typesetting'
-    if (normalized.includes('parse pdf') || normalized.includes('intermediate representation')) return 'parsing'
-    if (
-      normalized.includes('detect') ||
-      normalized.includes('layout') ||
-      normalized.includes('paragraph') ||
-      normalized.includes('formula') ||
-      normalized.includes('style') ||
-      normalized.includes('table')
-    ) {
-      return 'analyzing'
-    }
-    if (
-      normalized.includes('font') ||
-      normalized.includes('drawing') ||
-      normalized.includes('save pdf') ||
-      normalized.includes('generate pdf')
-    ) {
-      return 'rendering'
-    }
-    return 'processing'
-  }
-
   private reportProgress(
     job: ActivePdfTranslation,
     progress: PdfTranslationProgress,
     onProgress?: (progress: PdfTranslationProgress) => void
   ): void {
-    if (progress.progress < job.progress) return
-    if (job.progressStage === progress.stage && job.progress === progress.progress) return
-    job.progress = progress.progress
+    if (progress.overallProgress < job.overallProgress) return
+    if (
+      job.progressStage === progress.stage &&
+      job.stageProgress === progress.stageProgress &&
+      job.overallProgress === progress.overallProgress
+    ) {
+      return
+    }
+    job.overallProgress = progress.overallProgress
     job.progressStage = progress.stage
+    job.stageProgress = progress.stageProgress
     onProgress?.(progress)
   }
 

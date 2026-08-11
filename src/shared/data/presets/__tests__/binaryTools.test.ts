@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import enUs from '../../../../renderer/i18n/locales/en-us.json'
-import { BABELDOC_TOOL_NAME, isRuntimeDependency, PRESETS_BINARY_TOOLS, RUNTIME_INTERPRETERS } from '../binaryTools'
+import {
+  BABELDOC_MINIMUM_VERSION,
+  BABELDOC_TOOL_NAME,
+  getBabelDocInstallationStatus,
+  isRuntimeDependency,
+  PRESETS_BINARY_TOOLS,
+  RUNTIME_INTERPRETERS
+} from '../binaryTools'
 
 describe('isRuntimeDependency', () => {
   it('recognizes every registered interpreter, bare or with core:/@version', () => {
@@ -36,5 +43,19 @@ describe('BabelDOC Stream preset', () => {
       tool: 'pipx:babeldoc-stream',
       repoUrl: 'https://github.com/eeee0717/BabelDOC'
     })
+  })
+
+  it.each([
+    [undefined, 'missing'],
+    [{ status: 'absent' } as const, 'missing'],
+    [{ status: 'applied' } as const, 'outdated'],
+    [{ status: 'applied', version: '0.6.4.post1' } as const, 'outdated'],
+    [{ status: 'applied', version: BABELDOC_MINIMUM_VERSION } as const, 'available'],
+    [{ status: 'applied', version: '0.6.5' } as const, 'available']
+  ])('classifies application %j as %s', (application, expected) => {
+    const snapshot = application
+      ? { name: BABELDOC_TOOL_NAME, availability: { source: 'mise' as const, path: '/babeldoc' }, application }
+      : undefined
+    expect(getBabelDocInstallationStatus(snapshot)).toBe(expected)
   })
 })

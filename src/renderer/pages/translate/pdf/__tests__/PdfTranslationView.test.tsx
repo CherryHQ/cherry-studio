@@ -125,27 +125,48 @@ describe('PdfTranslationView', () => {
     await waitFor(() => expect(mocks.progressHandler).not.toBeNull())
 
     act(() => {
-      mocks.progressHandler?.({ jobId: 'another-job', stage: 'translating', progress: 80 })
+      mocks.progressHandler?.({
+        jobId: 'another-job',
+        stage: 'translating',
+        stageProgress: 80,
+        overallProgress: 80
+      })
     })
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
 
     act(() => {
       mocks.progressHandler?.({
         jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
+        stage: 'downloading_assets',
+        stageProgress: 42.3,
+        overallProgress: 2.1
+      })
+    })
+    expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.downloading_assets' })).toHaveAttribute(
+      'aria-valuenow',
+      '2'
+    )
+
+    act(() => {
+      mocks.progressHandler?.({
+        jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
         stage: 'parsing',
-        progress: 10
+        stageProgress: 50,
+        overallProgress: 10
       })
     })
     expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.preparing' })).toHaveAttribute(
       'aria-valuenow',
       '10'
     )
+    expect(screen.getByText('translate.pdf.progress.details')).toBeInTheDocument()
 
     act(() => {
       mocks.progressHandler?.({
         jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
-        stage: 'processing',
-        progress: 30
+        stage: 'analyzing',
+        stageProgress: 25,
+        overallProgress: 30
       })
     })
     expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.analyzing' })).toHaveAttribute(
@@ -157,7 +178,8 @@ describe('PdfTranslationView', () => {
       mocks.progressHandler?.({
         jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
         stage: 'translating',
-        progress: 42
+        stageProgress: 18,
+        overallProgress: 42
       })
     })
     expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.translating' })).toHaveAttribute(
@@ -169,25 +191,27 @@ describe('PdfTranslationView', () => {
       mocks.progressHandler?.({
         jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
         stage: 'typesetting',
-        progress: 70
+        stageProgress: 40,
+        overallProgress: 70
       })
       mocks.progressHandler?.({
         jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
         stage: 'parsing',
-        progress: 80
+        stageProgress: 90,
+        overallProgress: 60
       })
     })
     expect(screen.getByRole('progressbar', { name: 'translate.pdf.progress.generating' })).toHaveAttribute(
       'aria-valuenow',
-      '80'
+      '70'
     )
-    expect(screen.getByTestId('circular-progress')).toHaveAttribute('data-value', '80')
+    expect(screen.getByTestId('circular-progress')).toHaveAttribute('data-value', '70')
 
     resolveStart({ fileName: 'paper.zh-CN.mono.pdf', outputPath: '/tmp/job/paper.zh-CN.mono.pdf' })
     await waitFor(() => expect(screen.queryByRole('progressbar')).not.toBeInTheDocument())
   })
 
-  it('shows PDF resource downloads without a misleading percentage', async () => {
+  it('shows indeterminate PDF stages without a misleading percentage', async () => {
     mocks.ipcRequest.mockImplementation((route: string) => {
       if (route === 'translate.pdf.start') return new Promise(() => {})
       return Promise.resolve(undefined)
@@ -212,16 +236,18 @@ describe('PdfTranslationView', () => {
     )
     await waitFor(() => expect(handle).not.toBeNull())
     act(() => handle!.start('zh-cn'))
-    await waitFor(() => expect(mocks.stageHandler).not.toBeNull())
+    await waitFor(() => expect(mocks.progressHandler).not.toBeNull())
 
     act(() => {
-      mocks.stageHandler?.({
+      mocks.progressHandler?.({
         jobId: 'b289bad7-a813-4cf7-91c0-2a9dc82235b2',
-        stage: 'downloading_assets'
+        stage: 'loading_model',
+        stageProgress: null,
+        overallProgress: 4.5
       })
     })
 
-    expect(screen.getByText('translate.pdf.progress.downloading_assets')).toBeInTheDocument()
+    expect(screen.getByText('translate.pdf.progress.preparing')).toBeInTheDocument()
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   })
 
@@ -471,6 +497,30 @@ describe('PdfTranslationView', () => {
 
     expect(screen.getByText('translate.pdf.dependency.installing')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'translate.pdf.action.install_babeldoc' })).not.toBeInTheDocument()
+  })
+
+  it('offers an update when the installed BabelDOC is outdated', () => {
+    const onInstallBabelDoc = vi.fn()
+
+    render(
+      <PdfTranslationView
+        file={{ name: 'paper.pdf', path: PAPER_PATH }}
+        modelId="openai::gpt-4.1"
+        sourceLangCode="en-us"
+        babelDocAvailability="outdated"
+        babelDocInstalling={false}
+        onClose={vi.fn()}
+        onHandleChange={vi.fn()}
+        onStatusChange={vi.fn()}
+        onInstallBabelDoc={onInstallBabelDoc}
+        onBabelDocUnavailable={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('translate.pdf.dependency.outdated_title')).toBeInTheDocument()
+    expect(screen.getByText('translate.pdf.dependency.outdated_description')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'translate.pdf.action.update_babeldoc' }))
+    expect(onInstallBabelDoc).toHaveBeenCalledOnce()
   })
 
   it('renders streamed text fallback content under a text translation header', () => {

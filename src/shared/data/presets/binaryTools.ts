@@ -62,14 +62,31 @@ export interface BinaryToolPreset {
 
 /** The BinaryManager tool name for the BabelDOC PDF layout-preserving engine. */
 export const BABELDOC_TOOL_NAME = 'babeldoc-stream'
+export const BABELDOC_MINIMUM_VERSION = '0.6.4.post2'
+
+export type BabelDocInstallationStatus = 'missing' | 'outdated' | 'available'
+
+const parseBabelDocVersion = (version: string): readonly number[] | null => {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:\.post(\d+))?$/.exec(version)
+  return match ? match.slice(1).map((part) => Number(part ?? 0)) : null
+}
 
 /**
- * Whether the pinned BabelDOC version is installed. Shared by the renderer (to gate the
- * layout-preserving PDF workflow) and the main service (to resolve the sidecar) so the
- * pin-version predicate lives in one place instead of being duplicated per process.
+ * Whether the managed BabelDOC recipe can provide the progress protocol Cherry requires.
+ * An applied tool with an absent or unrecognized version is treated conservatively as outdated.
  */
-export function isBabelDocInstalled(snapshot: BinaryToolSnapshot | undefined): boolean {
-  return snapshot?.application?.status === 'applied'
+export function getBabelDocInstallationStatus(snapshot: BinaryToolSnapshot | undefined): BabelDocInstallationStatus {
+  if (snapshot?.application?.status !== 'applied') return 'missing'
+
+  const installed = snapshot.application.version ? parseBabelDocVersion(snapshot.application.version) : null
+  const minimum = parseBabelDocVersion(BABELDOC_MINIMUM_VERSION)
+  if (!installed || !minimum) return 'outdated'
+
+  for (let index = 0; index < Math.max(installed.length, minimum.length); index += 1) {
+    const difference = (installed[index] ?? 0) - (minimum[index] ?? 0)
+    if (difference !== 0) return difference > 0 ? 'available' : 'outdated'
+  }
+  return 'available'
 }
 
 export const PRESETS_BINARY_TOOLS: BinaryToolPreset[] = [

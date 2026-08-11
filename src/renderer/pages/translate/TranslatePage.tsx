@@ -35,7 +35,11 @@ import {
   UNKNOWN_LANG_CODE
 } from '@renderer/utils/translate'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
-import { BABELDOC_TOOL_NAME, isBabelDocInstalled } from '@shared/data/presets/binaryTools'
+import {
+  BABELDOC_MINIMUM_VERSION,
+  BABELDOC_TOOL_NAME,
+  getBabelDocInstallationStatus
+} from '@shared/data/presets/binaryTools'
 import { BUILTIN_LANGUAGE } from '@shared/data/presets/translateLanguages'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 import { isUniqueModelId, type Model as SelectorModel, type UniqueModelId } from '@shared/data/types/model'
@@ -85,7 +89,7 @@ const useBabelDoc = (enabled: boolean) => {
     void ipcApi
       .request('binary.get_tool_snapshots', [BABELDOC_TOOL_NAME])
       .then((snapshots) => {
-        if (!cancelled) setAvailability(isBabelDocInstalled(snapshots[BABELDOC_TOOL_NAME]) ? 'available' : 'missing')
+        if (!cancelled) setAvailability(getBabelDocInstallationStatus(snapshots[BABELDOC_TOOL_NAME]))
       })
       .catch((error) => {
         if (cancelled) return
@@ -106,20 +110,23 @@ const useBabelDoc = (enabled: boolean) => {
     if (installing) return
     setInstalling(true)
     try {
-      await ipcApi.request('binary.install_tool', { name: BABELDOC_TOOL_NAME })
+      await ipcApi.request('binary.install_tool', {
+        name: BABELDOC_TOOL_NAME,
+        ...(availability === 'outdated' ? { targetVersion: BABELDOC_MINIMUM_VERSION } : {})
+      })
       setAvailability('available')
     } catch (error) {
       logger.error('Failed to install BabelDOC', error as Error)
-      setAvailability('missing')
+      setAvailability((current) => (current === 'checking' ? 'missing' : current))
       toast.error(formatErrorMessageWithPrefix(error, t('settings.dependencies.installError')))
     } finally {
       setInstalling(false)
     }
-  }, [installing, t])
+  }, [availability, installing, t])
 
-  const markUnavailable = useCallback(() => setAvailability('missing'), [])
+  const refresh = useCallback(() => setAvailabilityRevision((revision) => revision + 1), [])
 
-  return { availability, installing, install, markUnavailable }
+  return { availability, installing, install, refresh }
 }
 const getModelInitial = (model: SelectorModel) => model.name.trim().charAt(0) || 'M'
 
@@ -1048,7 +1055,7 @@ const TranslatePage: FC = () => {
               onHandleChange={handlePdfHandleChange}
               onStatusChange={handlePdfStatusChange}
               onInstallBabelDoc={() => void babelDoc.install()}
-              onBabelDocUnavailable={babelDoc.markUnavailable}
+              onBabelDocUnavailable={babelDoc.refresh}
             />
           </Suspense>
         ) : (

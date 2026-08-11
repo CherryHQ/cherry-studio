@@ -7275,12 +7275,15 @@
       "action": {
         "close": "关闭 PDF 翻译",
         "export": "导出译文 PDF",
-        "install_babeldoc": "安装 BabelDOC"
+        "install_babeldoc": "安装 BabelDOC",
+        "update_babeldoc": "更新 BabelDOC"
       },
       "dependency": {
         "checking": "正在检测 BabelDOC...",
         "description": "安装 BabelDOC 插件即可在翻译 PDF 时保留原始版式。",
         "installing": "正在安装 BabelDOC...",
+        "outdated_description": "更新 BabelDOC 后即可继续保留原始版式翻译 PDF。",
+        "outdated_title": "需要更新 BabelDOC",
         "title": "检测到 PDF"
       },
       "error": {
@@ -7296,12 +7299,13 @@
       },
       "progress": {
         "analyzing": "正在分析文档版式",
+        "details": "阶段 {{stageProgress}}% · 总体 {{overallProgress}}%",
         "downloading_assets": "正在下载 PDF 处理资源...",
         "generating": "正在生成译文 PDF",
         "percent": "{{progress}}%",
         "preparing": "正在准备文档",
         "translating": "正在翻译内容",
-        "value": "{{stage}}，{{progress}}%"
+        "value": "{{stage}}，阶段 {{stageProgress}}%，总体 {{overallProgress}}%"
       },
       "ready": {
         "description": "选择目标语言并开始翻译。",

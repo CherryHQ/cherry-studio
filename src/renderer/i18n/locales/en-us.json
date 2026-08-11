@@ -7275,12 +7275,15 @@
       "action": {
         "close": "Close PDF translation",
         "export": "Export translated PDF",
-        "install_babeldoc": "Install BabelDOC"
+        "install_babeldoc": "Install BabelDOC",
+        "update_babeldoc": "Update BabelDOC"
       },
       "dependency": {
         "checking": "Checking BabelDOC...",
         "description": "Install the BabelDOC plugin to translate PDFs while preserving their original layout.",
         "installing": "Installing BabelDOC...",
+        "outdated_description": "Update BabelDOC to continue translating PDFs with layout preservation.",
+        "outdated_title": "BabelDOC update required",
         "title": "PDF detected"
       },
       "error": {
@@ -7296,12 +7299,13 @@
       },
       "progress": {
         "analyzing": "Analyzing document layout",
+        "details": "Stage {{stageProgress}}% · Overall {{overallProgress}}%",
         "downloading_assets": "Downloading PDF processing resources...",
         "generating": "Generating translated PDF",
         "percent": "{{progress}}%",
         "preparing": "Preparing document",
         "translating": "Translating content",
-        "value": "{{stage}}, {{progress}}%"
+        "value": "{{stage}}, stage {{stageProgress}}%, overall {{overallProgress}}%"
       },
       "ready": {
         "description": "Select a target language and start translation.",

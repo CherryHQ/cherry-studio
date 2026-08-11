@@ -78,7 +78,7 @@ const fileManager = {
 const tx = Symbol('tx')
 const dbService = { withWriteTx: vi.fn() }
 const streamEvent = (event: Record<string, unknown>) =>
-  `${JSON.stringify({ schema: 'babeldoc-stream/v1', ...event })}\n`
+  `${JSON.stringify({ schema: 'babeldoc-stream/v2', ...event })}\n`
 const finishEvent = () =>
   streamEvent({
     type: 'finish',
@@ -134,7 +134,7 @@ describe('PdfTranslationService', () => {
       'babeldoc-stream': {
         name: 'babeldoc-stream',
         availability: { source: 'mise', path: MANAGED_BINARY },
-        application: { status: 'applied' }
+        application: { status: 'applied', version: '0.6.4.post2' }
       }
     })
     apiGateway.acquireLease.mockResolvedValue(undefined)
@@ -198,6 +198,8 @@ describe('PdfTranslationService', () => {
         '--lang-out',
         'zh-CN',
         '--progress-json',
+        '--progress-json-version',
+        '2',
         '--watermark-output-mode',
         'no_watermark',
         '--no-dual'
@@ -240,11 +242,27 @@ describe('PdfTranslationService', () => {
       const outputDir = args[args.indexOf('--output') + 1]
       fs.writeFileSync(path.join(outputDir, 'research paper.no_watermark.zh-CN.mono.pdf'), '%PDF-mono')
       queueMicrotask(() => {
-        child.stderr.write('doclayout onnx model not found or corrupted, downloading...\n')
-        child.stdout.write(streamEvent({ type: 'progress', stage: 'Parse PDF', progress: 12.4 }))
+        child.stdout.write(
+          streamEvent({ type: 'progress', stage: 'checking_assets', stage_progress: null, overall_progress: 0 })
+        )
+        child.stdout.write(
+          streamEvent({ type: 'progress', stage: 'downloading_assets', stage_progress: 42.3, overall_progress: 2.1 })
+        )
         child.stdout.write('not-json\n')
-        child.stdout.write(streamEvent({ type: 'progress', stage: 'Translate Paragraphs', progress: 55.4 }))
-        child.stdout.write(streamEvent({ type: 'progress', stage: 'Parse PDF', progress: 40 }))
+        child.stdout.write(
+          `${JSON.stringify({
+            schema: 'babeldoc-stream/v1',
+            type: 'progress',
+            stage: 'Translate Paragraphs',
+            progress: 50
+          })}\n`
+        )
+        child.stdout.write(
+          streamEvent({ type: 'progress', stage: 'translating', stage_progress: 55.4, overall_progress: 58.2 })
+        )
+        child.stdout.write(
+          streamEvent({ type: 'progress', stage: 'parsing', stage_progress: 90, overall_progress: 40 })
+        )
         child.stdout.write(finishEvent())
         child.stdout.end()
         child.emit('close', 0, null)
@@ -267,18 +285,15 @@ describe('PdfTranslationService', () => {
       onProgress
     )
 
-    expect(onStage.mock.calls.map(([stage]) => stage)).toEqual([
-      'preparing',
-      'translating',
-      'downloading_assets',
-      'translating'
-    ])
+    expect(onStage.mock.calls.map(([stage]) => stage)).toEqual(['preparing', 'translating'])
     expect(onProgress.mock.calls.map(([progress]) => progress)).toEqual([
-      { stage: 'parsing', progress: 12 },
-      { stage: 'translating', progress: 55 },
-      { stage: 'rendering', progress: 100 }
+      { stage: 'checking_assets', stageProgress: null, overallProgress: 0 },
+      { stage: 'downloading_assets', stageProgress: 42.3, overallProgress: 2.1 },
+      { stage: 'translating', stageProgress: 55.4, overallProgress: 58.2 },
+      { stage: 'rendering', stageProgress: 100, overallProgress: 100 }
     ])
     expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Ignored malformed BabelDOC Stream event')
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith('Ignored invalid BabelDOC Stream event')
   })
 
   it('uses BabelDOC language aliases for simplified and traditional Chinese', async () => {
@@ -507,6 +522,28 @@ describe('PdfTranslationService', () => {
     expect(mocks.spawn).not.toHaveBeenCalled()
   })
 
+  it('requires an update when the installed BabelDOC cannot provide v2 progress', async () => {
+    binaryManager.getToolSnapshots.mockResolvedValueOnce({
+      'babeldoc-stream': {
+        name: 'babeldoc-stream',
+        availability: { source: 'mise', path: MANAGED_BINARY },
+        application: { status: 'applied', version: '0.6.4.post1' }
+      }
+    })
+    const service = new PdfTranslationService()
+
+    const translation = service.translate({
+      jobId: 'job-outdated',
+      modelId: 'openai::gpt-4.1-internal',
+      sourcePath: SOURCE_PATH,
+      sourceLangCode: 'en-us',
+      targetLangCode: 'zh-cn'
+    })
+
+    await expect(translation).rejects.toMatchObject({ code: translateErrorCodes.PDF_DEPENDENCY_OUTDATED })
+    expect(mocks.spawn).not.toHaveBeenCalled()
+  })
+
   it('requires OCR when BabelDOC detects a scanned PDF', async () => {
     mocks.spawn.mockImplementationOnce(() => {
       const child = new EventEmitter() as EventEmitter & {
@@ -720,70 +757,6 @@ describe('PdfTranslationService', () => {
     )
     expect(apiGateway.releaseLease).toHaveBeenCalledTimes(1)
     expect(fs.existsSync(path.join(TEST_ROOT, 'job-nonzero-exit'))).toBe(false)
-  })
-
-  it('surfaces the OCR message from stderr when the JSON writer fails before emitting an event', async () => {
-    mocks.spawn.mockImplementationOnce(() => {
-      const child = new EventEmitter() as EventEmitter & {
-        stderr: PassThrough
-        stdout: PassThrough
-        kill: ReturnType<typeof vi.fn>
-      }
-      child.stderr = new PassThrough()
-      child.stdout = new PassThrough()
-      child.kill = vi.fn()
-      queueMicrotask(() => {
-        child.stderr.write('babeldoc.exceptions.ScannedPDFError: Scanned PDF detected.\n')
-        child.stderr.end()
-        child.emit('close', 1, null)
-      })
-      return child
-    })
-    const service = new PdfTranslationService()
-
-    const translation = service.translate({
-      jobId: 'job-early-scanned',
-      modelId: 'openai::gpt-4.1-internal',
-      sourcePath: SOURCE_PATH,
-      sourceLangCode: 'en-us',
-      targetLangCode: 'zh-cn'
-    })
-
-    await expect(translation).rejects.toMatchObject({ code: translateErrorCodes.PDF_OCR_REQUIRED })
-    // OCR-required is an expected user condition (IpcError) → logged at warn, never error.
-    expect(mockMainLoggerService.error).not.toHaveBeenCalled()
-    expect(fs.existsSync(path.join(TEST_ROOT, 'job-early-scanned'))).toBe(false)
-  })
-
-  it('reports OCR-required for a scanned PDF that exits 0 before its JSON writer starts', async () => {
-    mocks.spawn.mockImplementationOnce(() => {
-      const child = new EventEmitter() as EventEmitter & {
-        stderr: PassThrough
-        stdout: PassThrough
-        kill: ReturnType<typeof vi.fn>
-      }
-      child.stderr = new PassThrough()
-      child.stdout = new PassThrough()
-      child.kill = vi.fn()
-      queueMicrotask(() => {
-        child.stderr.write('babeldoc.exceptions.ScannedPDFError: Scanned PDF detected.\n')
-        child.stderr.end()
-        child.emit('close', 0, null)
-      })
-      return child
-    })
-    const service = new PdfTranslationService()
-
-    const translation = service.translate({
-      jobId: 'job-scanned-exit-zero',
-      modelId: 'openai::gpt-4.1-internal',
-      sourcePath: SOURCE_PATH,
-      sourceLangCode: 'en-us',
-      targetLangCode: 'zh-cn'
-    })
-
-    await expect(translation).rejects.toMatchObject({ code: translateErrorCodes.PDF_OCR_REQUIRED })
-    expect(fs.existsSync(path.join(TEST_ROOT, 'job-scanned-exit-zero'))).toBe(false)
   })
 
   it('rejects an exit-zero sidecar that omits the terminal finish event', async () => {
