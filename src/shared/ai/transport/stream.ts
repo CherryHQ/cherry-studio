@@ -2,20 +2,31 @@ import type { UIMessageChunk } from 'ai'
 
 import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '../../data/types/message'
 import type { UniqueModelId } from '../../data/types/model'
-import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
 
-export interface AiChatRequestBody extends AssistantTurnOptions {
+export type ComposerToolStateSnapshot = Record<string, unknown>
+
+export interface AiChatRequestBody {
   /** Topic ID for message routing and persistence. */
   topicId: string
   /** Explicit chat target — active branch tip, or the blank user row for a reserved-branch submit. */
   parentAnchorId?: string
-  /** Composer-selected request models; one id overrides the fallback, while supported flows may fan out several. */
+  /** Explicit model ids for regenerate/resend paths that do not carry a composer execution plan. */
   mentionedModels?: UniqueModelId[]
+  /** Immutable per-model execution plan resolved by the composer. */
+  executionTargets?: ModelExecutionTarget[]
+  /** Single-target options used by regenerate and non-persistent runtimes. */
+  turnOptions?: AssistantTurnOptions
   /** User message parts to persist/display for submit-message turns. */
   userMessageParts?: CherryMessagePart[]
   /** Uploaded file metadata. */
   files?: Array<{ id: string; name: string; type: string; size: number; url: string }>
+}
+
+/** Model and request controls captured together at the composer boundary. */
+export interface ModelExecutionTarget {
+  modelId: UniqueModelId
+  turnOptions: AssistantTurnOptions
 }
 
 // ── Push payloads (Main → Renderer) ─────────────────────────────────
@@ -76,10 +87,10 @@ export interface ComposerQueuedMessagePayload {
   attachments?: Array<Record<string, unknown>>
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
-  /** Canonical reasoning selection captured with this queued draft. */
-  reasoningEffort?: ReasoningEffortOption
-  /** Whether this queued draft requests Fast processing. */
-  fastMode?: boolean
+  /** Restorable editor state owned by participating composer tools. */
+  toolStates: ComposerToolStateSnapshot
+  /** Immutable send payload, kept separate from restorable editor state. */
+  executionTargets: ModelExecutionTarget[]
   /** Chat-only target snapshot. Agent-session queues leave this unset. */
   chatTarget?: ComposerChatTarget
 }
@@ -145,8 +156,10 @@ export interface StreamErrorPayload {
  */
 export type AiStreamOpenRequest = {
   topicId: string
-  /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
+  /** Explicit model ids for regenerate/resend paths that do not carry a composer execution plan. */
   mentionedModelIds?: UniqueModelId[]
+  /** Immutable per-model execution plan for persistent Chat fan-out. */
+  executionTargets?: ModelExecutionTarget[]
 } & (
   | {
       /** Brand-new user turn: create the user msg + N assistant placeholders. */
@@ -161,10 +174,8 @@ export type AiStreamOpenRequest = {
       userMessageParts: CherryMessagePart[]
       /** Target intent captured by the chat composer; reserved intent must never degrade into a live steer. */
       targetMode?: ComposerChatTarget['mode']
-      /** Canonical reasoning selection captured when the composer submitted. */
-      reasoningEffort?: ReasoningEffortOption
-      /** Whether to request Fast processing for this turn. */
-      fastMode?: boolean
+      /** Single-target options for Agent, temporary Chat, and live steer. */
+      turnOptions?: AssistantTurnOptions
     }
   | {
       /** Re-run the assistant under an existing user msg. */
@@ -172,10 +183,8 @@ export type AiStreamOpenRequest = {
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
       userMessageParts?: never
-      /** Canonical reasoning selection captured for this regenerated turn. */
-      reasoningEffort?: ReasoningEffortOption
-      /** Whether to request Fast processing for this regenerated turn. */
-      fastMode?: boolean
+      /** Immutable options inherited from or explicitly replacing the source turn. */
+      turnOptions?: AssistantTurnOptions
     }
 )
 

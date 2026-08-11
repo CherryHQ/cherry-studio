@@ -10,6 +10,7 @@ import {
 } from '@renderer/components/composer/tools/ComposerToolProvider'
 import type {
   ComposerToolScope,
+  ComposerToolStateLifecycle,
   ToolActionKey,
   ToolActionMap,
   ToolContext,
@@ -25,7 +26,7 @@ import type { ComposerAttachment } from '@renderer/utils/message/composerAttachm
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import { Plus } from 'lucide-react'
-import React, { createContext, use, useCallback, useEffect, useMemo, useRef } from 'react'
+import React, { createContext, use, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ComposerUnifiedPanelControl } from './quickPanel'
@@ -188,6 +189,26 @@ export const ComposerToolRuntimeHost = ({ scope, assistant, model, session }: Co
 export const useComposerToolState = useComposerToolProviderState
 export const useComposerToolDispatch = useComposerToolProviderDispatch
 export { ComposerToolDerivedStateProvider }
+
+export function useComposerToolStateLifecycle(toolKey: string, lifecycle: ComposerToolStateLifecycle) {
+  const { stateLifecycle } = useComposerToolProviderDispatch()
+  const lifecycleRef = useRef(lifecycle)
+  lifecycleRef.current = lifecycle
+
+  useLayoutEffect(
+    () =>
+      stateLifecycle.register(toolKey, {
+        capture: () => lifecycleRef.current.capture(),
+        restore: (snapshot) => lifecycleRef.current.restore(snapshot),
+        clear: () => lifecycleRef.current.clear()
+      }),
+    [stateLifecycle, toolKey]
+  )
+}
+
+export function useComposerToolStateLifecycleController() {
+  return useComposerToolProviderDispatch().stateLifecycle
+}
 
 const NOOP_LAUNCHER: ToolRenderContext<any, any>['launcher'] = { registerLaunchers: () => () => undefined }
 

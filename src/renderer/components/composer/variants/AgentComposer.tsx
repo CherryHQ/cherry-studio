@@ -17,7 +17,9 @@ import {
   useComposerToolDispatch,
   useComposerToolLauncherActions,
   useComposerToolLauncherVersion,
-  useComposerToolState
+  useComposerToolState,
+  useComposerToolStateLifecycle,
+  useComposerToolStateLifecycleController
 } from '@renderer/components/composer/ComposerToolRuntime'
 import { ComposerPanelSymbol, getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
 import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
@@ -54,7 +56,7 @@ import { buildFilePartsForAttachments, withComposerFilePartMeta } from '@rendere
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { resolveReasoningEffortForModel } from '@renderer/utils/model'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import type { ComposerQueuedMessagePayload, ModelExecutionTarget } from '@shared/ai/transport'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { FileUIPart } from '@shared/data/types/message'
@@ -108,7 +110,12 @@ import {
 import { emptyActions, type ProviderActionHandlers } from './shared/composerProviderActions'
 import { buildComposerQueuedPayload, getComposerHistoryText } from './shared/composerQueuedPayload'
 import { useComposerQuoteInsertion } from './shared/composerQuote'
-import { ComposerSpeedControl, resolveComposerReasoningEffort } from './shared/ComposerSpeedControl'
+import {
+  COMPOSER_SPEED_CONTROL_TOOL_KEY,
+  ComposerSpeedControl,
+  type ComposerSpeedControlState,
+  readComposerSpeedControlState
+} from './shared/ComposerSpeedControl'
 import { type ComposerToolbarCustomTool, ComposerToolbarShortcuts } from './shared/ComposerToolbarShortcuts'
 import { useComposerFileCapabilities } from './shared/useComposerFileCapabilities'
 import { useComposerKnowledgeBaseScope } from './shared/useComposerKnowledgeBaseScope'
@@ -261,8 +268,7 @@ export interface AgentComposerSendBody {
   agentId: string
   sessionId: string
   userMessageParts: ComposerQueuedMessagePayload['userMessageParts']
-  reasoningEffort?: ThinkingOption
-  fastMode?: boolean
+  executionTarget: ModelExecutionTarget
 }
 
 export type AgentComposerSendOptions = { body?: AgentComposerSendBody }
@@ -370,6 +376,7 @@ const AgentComposerRoot = ({
         tokens: [...seed.tokens],
         files: [],
         knowledgeBaseIds: [],
+        toolStates: {},
         workspaceKey,
         agentId,
         shouldValidateSkills: false
@@ -465,6 +472,7 @@ const AgentComposerRoot = ({
 interface InputHistoryToolSnapshot {
   files: ComposerAttachment[]
   selectedKnowledgeBases: KnowledgeBase[]
+  toolStates: Record<string, unknown>
 }
 
 interface InnerProps {
@@ -733,7 +741,7 @@ const AgentComposerInner = ({
   deferQuickPanel = false,
   resolvedWorkspaceWarning
 }: InnerProps) => {
-  const { updateAgent, updateModel } = useUpdateAgent()
+  const { updateModel } = useUpdateAgent()
   const { updateSession } = useUpdateSession()
   const scope = TopicType.Session
   const config = getComposerToolConfig(scope)
@@ -770,38 +778,33 @@ const AgentComposerInner = ({
   const canonicalReasoningEffort = model
     ? (resolveReasoningEffortForModel(model, configuredReasoningEffort) ?? 'default')
     : configuredReasoningEffort
-  const [reasoningOverride, setReasoningOverride] = useState<{
-    agentId: string
-    value: ThinkingOption
-    version: number
-    canonicalAtMutationStart?: ThinkingOption
-  } | null>(null)
-  const reasoningMutationVersionRef = useRef(0)
-  const pendingReasoningEditRef = useRef<{
-    agentId: string
-    version: number
-    effort: ThinkingOption
-  } | null>(null)
-  const activeReasoningOverride =
-    reasoningOverride &&
-    reasoningOverride.agentId === agent?.id &&
-    (reasoningOverride.canonicalAtMutationStart === undefined ||
-      reasoningOverride.canonicalAtMutationStart === canonicalReasoningEffort)
-      ? reasoningOverride
-      : null
-  useEffect(() => {
-    if (
-      !reasoningOverride ||
-      reasoningOverride.agentId !== agent?.id ||
-      reasoningOverride.canonicalAtMutationStart === undefined ||
-      reasoningOverride.canonicalAtMutationStart === canonicalReasoningEffort
-    ) {
-      return
-    }
-    setReasoningOverride((current) => (current === reasoningOverride ? null : current))
-  }, [agent?.id, canonicalReasoningEffort, reasoningOverride])
-  const reasoningEffort = activeReasoningOverride?.value ?? canonicalReasoningEffort
-  const [fastMode, setFastMode] = useState(false)
+  const [speedControlState, setSpeedControlState] = useState<ComposerSpeedControlState>(() =>
+    readComposerSpeedControlState(initialDraft.toolStates[COMPOSER_SPEED_CONTROL_TOOL_KEY])
+  )
+  const speedControlStateRef = useLatest(speedControlState)
+  useComposerToolStateLifecycle(COMPOSER_SPEED_CONTROL_TOOL_KEY, {
+    capture: () => speedControlStateRef.current,
+    restore: (snapshot) => setSpeedControlState(readComposerSpeedControlState(snapshot)),
+    clear: () => setSpeedControlState({})
+  })
+  const stateLifecycle = useComposerToolStateLifecycleController()
+  const reasoningEffort = speedControlState.reasoningEffort ?? canonicalReasoningEffort
+  const fastMode = model?.supportsFastMode === true && speedControlState.fastMode?.[model.id] === true
+  const executionTargets = useMemo<ModelExecutionTarget[]>(
+    () =>
+      model
+        ? [
+            {
+              modelId: model.id,
+              turnOptions: {
+                ...(resolveReasoningEffortForModel(model, reasoningEffort) && { reasoningEffort }),
+                ...(fastMode && { fastMode: true })
+              }
+            }
+          ]
+        : [],
+    [fastMode, model, reasoningEffort]
+  )
   const [selectedSkills, setSelectedSkills] = useState<LocalSkill[]>(() =>
     getCachedSkillTokens(initialDraft.tokens).map(getSkillFromCachedToken)
   )
@@ -853,10 +856,6 @@ const AgentComposerInner = ({
 
   const { canAddImageFile, supportedExts } = useComposerFileCapabilities(model)
 
-  useEffect(() => {
-    if (model?.supportsFastMode !== true) setFastMode(false)
-  }, [model?.supportsFastMode])
-
   const setText = useCallback(
     (nextText: string) => {
       clearTimeoutTimer('agentComposerSendMessage')
@@ -887,6 +886,7 @@ const AgentComposerInner = ({
     )
     setShouldValidateSkills(false)
   }, [
+    actionsRef,
     availableSkillsError,
     draftTokens,
     isAvailableSkillsLoading,
@@ -913,10 +913,12 @@ const AgentComposerInner = ({
         // sentence the entry already carries, sending the same attachment claim twice.
         inputHistoryToolsRef.current ??= {
           files: filesRef.current,
-          selectedKnowledgeBases: selectedKnowledgeBasesRef.current
+          selectedKnowledgeBases: selectedKnowledgeBasesRef.current,
+          toolStates: stateLifecycle.capture()
         }
         setFiles([])
         setSelectedKnowledgeBases([])
+        stateLifecycle.clear()
         return
       }
 
@@ -925,8 +927,9 @@ const AgentComposerInner = ({
       if (!savedTools) return
       setFiles(savedTools.files)
       setSelectedKnowledgeBases(savedTools.selectedKnowledgeBases)
+      stateLifecycle.restore(savedTools.toolStates)
     },
-    [actionsRef, filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases, setText]
+    [actionsRef, filesRef, selectedKnowledgeBasesRef, setFiles, setSelectedKnowledgeBases, setText, stateLifecycle]
   )
   const { isInputHistoryActive, navigateHistory, resetHistoryIndex, saveHistory } = useInputHistory({
     applyDraft: applyHistoryDraft
@@ -1007,6 +1010,7 @@ const AgentComposerInner = ({
       tokens: draft.tokens,
       files,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
+      toolStates: stateLifecycle.capture(),
       workspaceKey,
       agentId,
       shouldValidateSkills
@@ -1022,6 +1026,8 @@ const AgentComposerInner = ({
     isKnowledgeBaseDraftHydrated,
     selectableKnowledgeBases,
     selectedKnowledgeBasesInScope,
+    speedControlState,
+    stateLifecycle,
     text,
     workspaceKey,
     shouldValidateSkills
@@ -1034,6 +1040,7 @@ const AgentComposerInner = ({
       tokens: draftTokensRef.current,
       files: filesRef.current,
       knowledgeBaseIds: knowledgeBaseIdsRef.current,
+      toolStates: stateLifecycle.capture(),
       workspaceKey,
       agentId,
       shouldValidateSkills
@@ -1191,47 +1198,9 @@ const AgentComposerInner = ({
   const handleModelSelect = useCallback(
     async (nextModel?: Model) => {
       if (!agent || !canChangeModel || !nextModel || nextModel.id === model?.id) return
-
-      const nextReasoningEffort = resolveReasoningEffortForModel(nextModel, reasoningEffort) ?? 'default'
-      const pendingReasoningEdit =
-        pendingReasoningEditRef.current?.agentId === agent.id ? pendingReasoningEditRef.current : null
-      const pendingReasoningEffort = pendingReasoningEdit ? { reasoningEffort: pendingReasoningEdit.effort } : {}
-      const previousReasoningOverride = activeReasoningOverride
-      const version = ++reasoningMutationVersionRef.current
-      setReasoningOverride({
-        agentId: agent.id,
-        value: nextReasoningEffort,
-        version
-      })
-
-      const updatedAgent = await updateModel(
-        { agentId: agent.id, modelId: nextModel.id, ...pendingReasoningEffort },
-        { showSuccessToast: false }
-      )
-      if (!updatedAgent) {
-        setReasoningOverride((current) => {
-          if (current?.agentId !== agent.id || current.version !== version) return current
-          if (!previousReasoningOverride) return null
-
-          const previousEditStillPending =
-            pendingReasoningEditRef.current?.agentId === previousReasoningOverride.agentId &&
-            pendingReasoningEditRef.current.version === previousReasoningOverride.version
-          return previousEditStillPending || previousReasoningOverride.canonicalAtMutationStart !== undefined
-            ? previousReasoningOverride
-            : { ...previousReasoningOverride, canonicalAtMutationStart: canonicalReasoningEffort }
-        })
-        return
-      }
-      if (
-        pendingReasoningEdit &&
-        pendingReasoningEditRef.current?.agentId === pendingReasoningEdit.agentId &&
-        pendingReasoningEditRef.current?.version === pendingReasoningEdit.version
-      ) {
-        pendingReasoningEditRef.current = null
-      }
-      setReasoningOverride((current) => (current?.agentId === agent.id && current.version === version ? null : current))
+      await updateModel({ agentId: agent.id, modelId: nextModel.id }, { showSuccessToast: false })
     },
-    [activeReasoningOverride, agent, canChangeModel, canonicalReasoningEffort, model?.id, reasoningEffort, updateModel]
+    [agent, canChangeModel, model?.id, updateModel]
   )
 
   const handleCreateEmptySession = useCallback(() => {
@@ -1259,47 +1228,15 @@ const AgentComposerInner = ({
   }, [handleCreateEmptySession, hasNewSessionAction, t])
 
   const toolsSession = sessionData
-  const handleReasoningEffortChange = useCallback(
-    (option: ThinkingOption) => {
-      if (!agent) return
-
-      const canonicalAtMutationStart = canonicalReasoningEffort
-      const version = ++reasoningMutationVersionRef.current
-      pendingReasoningEditRef.current = { agentId: agent.id, version, effort: option }
-      setReasoningOverride({
-        agentId: agent.id,
-        value: option,
-        version
-      })
-
-      void updateAgent(
-        {
-          id: agent.id,
-          configuration: { reasoning_effort: option }
-        },
-        { showSuccessToast: false }
-      ).then((updatedAgent) => {
-        if (!updatedAgent) return
-
-        if (
-          pendingReasoningEditRef.current?.agentId === agent.id &&
-          pendingReasoningEditRef.current.version === version
-        ) {
-          pendingReasoningEditRef.current = null
-        }
-        setReasoningOverride((current) =>
-          current?.agentId === agent.id && current.version === version
-            ? {
-                ...current,
-                value: updatedAgent.configuration?.reasoning_effort ?? 'default',
-                canonicalAtMutationStart
-              }
-            : current
-        )
-      })
-    },
-    [agent, canonicalReasoningEffort, updateAgent]
-  )
+  const handleReasoningEffortChange = (option: ThinkingOption) => {
+    setSpeedControlState((current) => ({ ...current, reasoningEffort: option }))
+  }
+  const handleFastModeChange = (modelId: Model['id'], enabled: boolean) => {
+    setSpeedControlState((current) => ({
+      ...current,
+      fastMode: { ...current.fastMode, [modelId]: enabled }
+    }))
+  }
 
   // File reconcile (prune + dedup) is owned by attachmentTool via the tools DI seam. Skill
   // reconcile stays here (agent-only, no shared duplication) alongside the editor draft-token
@@ -1349,10 +1286,8 @@ const AgentComposerInner = ({
       const payload = buildComposerQueuedPayload(draft, {
         files,
         fileTokenId: agentComposerTokenId.file,
-        extra: () => ({
-          reasoningEffort: model ? resolveComposerReasoningEffort(model, reasoningEffort) : reasoningEffort,
-          ...(fastMode && model?.supportsFastMode === true ? { fastMode: true } : {})
-        })
+        toolStates: stateLifecycle.capture(),
+        executionTargets
       })
       if (!payload) return null
 
@@ -1365,12 +1300,14 @@ const AgentComposerInner = ({
         userMessageParts: withKnowledgeScopePart(payload.userMessageParts, knowledgeBaseIds)
       }
     },
-    [fastMode, files, model, reasoningEffort, selectedKnowledgeBasesInScope]
+    [executionTargets, files, selectedKnowledgeBasesInScope, stateLifecycle]
   )
 
   const sendQueuedPayload = useCallback(
     async (payload: ComposerQueuedMessagePayload) => {
       try {
+        const executionTarget = payload.executionTargets[0]
+        if (!executionTarget) throw new Error('Agent queued payload has no execution target')
         const attachments = (payload.attachments as ComposerAttachment[] | undefined) ?? []
         const fileParts = await buildAgentFilePartsForAttachments(attachments, accessiblePaths)
         await chatSendMessage(
@@ -1380,8 +1317,7 @@ const AgentComposerInner = ({
               agentId,
               sessionId,
               userMessageParts: [...payload.userMessageParts, ...fileParts],
-              reasoningEffort: payload.reasoningEffort,
-              ...(payload.fastMode ? { fastMode: true } : {})
+              executionTarget
             }
           }
         )
@@ -1410,6 +1346,7 @@ const AgentComposerInner = ({
         tokens: [],
         files: [],
         knowledgeBaseIds: knowledgeBaseIdsRef.current,
+        toolStates: stateLifecycle.capture(),
         workspaceKey,
         agentId
       })
@@ -1429,6 +1366,7 @@ const AgentComposerInner = ({
     setFiles,
     setText,
     setTimeoutTimer,
+    stateLifecycle,
     workspaceKey
   ])
 
@@ -1463,10 +1401,9 @@ const AgentComposerInner = ({
       setFiles((item.payload.attachments as ComposerAttachment[] | undefined) ?? [])
       setSelectedSkills(getCachedSkillTokens(nextDraftTokens).map(getSkillFromCachedToken))
       restoreKnowledgeBaseSelection(getKnowledgeBaseIdsFromParts(item.payload.userMessageParts) ?? [])
-      handleReasoningEffortChange(item.payload.reasoningEffort ?? 'default')
-      setFastMode(item.payload.fastMode === true)
+      stateLifecycle.restore(item.payload.toolStates)
     },
-    [actionsRef, handleReasoningEffortChange, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText]
+    [actionsRef, resetHistoryIndex, restoreKnowledgeBaseSelection, setFiles, setText, stateLifecycle]
   )
 
   const handleSendDraft = useCallback(
@@ -1513,6 +1450,7 @@ const AgentComposerInner = ({
             tokens: previousDraftTokens,
             files: previousFiles,
             knowledgeBaseIds: knowledgeBaseIdsRef.current,
+            toolStates: stateLifecycle.capture(),
             workspaceKey,
             agentId,
             shouldValidateSkills: previousShouldValidateSkills
@@ -1537,6 +1475,7 @@ const AgentComposerInner = ({
       setFiles,
       setText,
       selectedSkills,
+      stateLifecycle,
       shouldValidateSkills,
       t,
       workspaceKey,
@@ -1657,11 +1596,10 @@ const AgentComposerInner = ({
     <>
       {model ? (
         <ComposerSpeedControl
-          model={model}
-          reasoningEffort={reasoningEffort}
-          fastMode={fastMode}
+          targets={[{ model, fastMode }]}
+          reasoningEffort={resolveReasoningEffortForModel(model, reasoningEffort) ?? 'default'}
           onReasoningEffortChange={handleReasoningEffortChange}
-          onFastModeChange={setFastMode}
+          onFastModeChange={handleFastModeChange}
         />
       ) : null}
       <AgentComposerContextUsage model={model} sessionId={sessionId} />

@@ -214,6 +214,7 @@ export const DefaultUseCache: UseCacheSchema = {
     tokens: [],
     files: [],
     knowledgeBaseIds: [],
+    toolStates: {},
     mentionedModelIds: [],
     modelMultiSelectMode: false
   },
@@ -239,6 +240,7 @@ export const DefaultUseCache: UseCacheSchema = {
     tokens: [],
     files: [],
     knowledgeBaseIds: [],
+    toolStates: {},
     workspaceKey: '',
     agentId: ''
   },

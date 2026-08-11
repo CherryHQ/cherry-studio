@@ -25,7 +25,6 @@ import { compactionAnchorChunkId, type CompactionAnchorData, type CompactionSink
 import { applyApprovalDecisions } from '@shared/ai/transport'
 import type { ContextSettingsOverride } from '@shared/data/types/contextSettings'
 import {
-  type AssistantTurnOptions,
   type Message as SharedMessage,
   type MessageRole,
   type MessageSnapshot,
@@ -226,7 +225,12 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       return this.prepareSteerContinuation(subscriber, req, topic?.assistantId ?? undefined)
     }
 
-    const selectedModelId = req.mentionedModelIds?.[0]
+    const executionTargets = req.executionTargets
+    if (req.trigger === 'submit-message' && !executionTargets?.length) {
+      throw new Error("Persistent 'submit-message' requires an execution target")
+    }
+
+    const selectedModelId = req.trigger === 'submit-message' ? executionTargets![0].modelId : req.mentionedModelIds?.[0]
     const { assistantId, defaultModelId } =
       !topic?.assistantId && selectedModelId
         ? { assistantId: undefined, defaultModelId: selectedModelId }
@@ -254,8 +258,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
       // Stamp the row with the model the user selected for this steer so the continuation answers
       // with it — `prepareSteerContinuation` reads `userMessage.modelId`. Steer is single-model: if
-      // multiple models were @-mentioned, only the first is used (multi-model steer is unsupported).
-      const steerModelId = req.mentionedModelIds?.[0] ?? defaultModelId
+      // multiple targets were selected, only the first is used (multi-model steer is unsupported).
+      const steerTarget = executionTargets![0]
       const userMessage = messageService.create(req.topicId, {
         role: 'user',
         parentId: req.parentAnchorId,
@@ -263,7 +267,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         status: 'success',
         // User rows carry only `modelId` (read by steer-continuation); the author snapshot
         // lives on the assistant reply, which is what the header renders.
-        modelId: steerModelId
+        modelId: steerTarget.modelId
       })
 
       return {
@@ -272,8 +276,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         listeners: [subscriber],
         userMessageId: userMessage.id,
         pendingSteerUserMessageId: userMessage.id,
-        pendingSteerReasoningEffort: req.reasoningEffort,
-        pendingSteerFastMode: req.fastMode === true,
+        pendingSteerTurnOptions: steerTarget.turnOptions,
         reservedMessages: [toReservedUIMessage(userMessage)],
         isMultiModel: false
       }
@@ -281,12 +284,14 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
     // 3. Models (single or multi)
     const isRegenerate = req.trigger === 'regenerate-message'
-    const models = resolveModels(req.mentionedModelIds, defaultModelId)
+    const requestedModelIds =
+      req.trigger === 'submit-message' ? executionTargets!.map((target) => target.modelId) : req.mentionedModelIds
+    const models = resolveModels(requestedModelIds, defaultModelId)
     const isMultiModel = models.length > 1
-    const turnOptions: AssistantTurnOptions = {
-      reasoningEffort: req.reasoningEffort,
-      fastMode: req.fastMode === true
-    }
+    const turnOptionsByModel =
+      req.trigger === 'submit-message'
+        ? new Map(executionTargets!.map((target) => [target.modelId, target.turnOptions] as const))
+        : new Map(models.map((model) => [model.id, req.turnOptions ?? {}] as const))
 
     if (isRegenerate && !req.parentAnchorId) {
       throw new Error(`'regenerate-message' requires parentAnchorId`)
@@ -332,11 +337,16 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const containerTraceId = topicService.ensureTraceId(req.topicId)
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models, containerTraceId)
     try {
+      const preparedTurns = turnRootSpans.map((turn) => {
+        const turnOptions = turnOptionsByModel.get(turn.model.id)
+        if (!turnOptions) throw new Error(`Missing turn options for model ${turn.model.id}`)
+        return { ...turn, turnOptions }
+      })
       const { userMessage, placeholders } = messageService.createUserMessageWithPlaceholders({
         topicId: req.topicId,
         userMessage: userMessageInput,
         siblingsGroupId,
-        placeholders: turnRootSpans.map(({ model }) => ({
+        placeholders: preparedTurns.map(({ model, turnOptions }) => ({
           role: 'assistant',
           data: { parts: [], turnOptions },
           status: 'pending',
@@ -350,9 +360,10 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         topicNamingService.maybeRenameFromFirstUserMessage(req.topicId, userMessage.id)
       }
 
-      const assistantPlaceholders = turnRootSpans.map(({ model, span }, i) => ({
+      const assistantPlaceholders = preparedTurns.map(({ model, span, turnOptions }, i) => ({
         model,
         placeholder: placeholders[i],
+        turnOptions,
         rootSpan: span
       }))
 
@@ -361,7 +372,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       const contextSettingsOverride = resolveAssistantContextOverride(assistantId)
       const listeners: StreamListener[] = [subscriber]
       for (let i = 0; i < assistantPlaceholders.length; i++) {
-        const { model, placeholder } = assistantPlaceholders[i]
+        const { model, placeholder, turnOptions } = assistantPlaceholders[i]
         const attachAutoRename = shouldAutoNameInitialTurn && i === 0
         listeners.push(
           new PersistenceListener({
@@ -398,7 +409,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
         toCompactionSink(subscriber)
       )
       const knowledgeBaseIds = getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? [])
-      const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
+      const models_ = assistantPlaceholders.map(({ model, placeholder, turnOptions, rootSpan }) => ({
         modelId: model.id,
         request: this.buildStreamRequest(
           req.topicId,
@@ -555,10 +566,7 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const steerModelId = (userMessage.modelId ?? resolveAssistantModelId(assistantId).defaultModelId) as UniqueModelId
     const [model] = resolveModels([steerModelId], steerModelId)
     const messageSnapshot = buildAssistantMessageSnapshot(model, resolveAssistantIdentity(assistantId))
-    const turnOptions: AssistantTurnOptions = {
-      reasoningEffort: req.reasoningEffort,
-      fastMode: req.fastMode
-    }
+    const turnOptions = req.turnOptions
 
     const containerTraceId = topicService.ensureTraceId(req.topicId)
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model], containerTraceId)
@@ -616,8 +624,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
               history,
               placeholder.id,
               getKnowledgeBaseIdsFromParts(userMessage.data.parts ?? []),
-              req.reasoningEffort,
-              req.fastMode,
+              turnOptions.reasoningEffort,
+              turnOptions.fastMode === true,
               retainedContext
             ),
             rootSpan

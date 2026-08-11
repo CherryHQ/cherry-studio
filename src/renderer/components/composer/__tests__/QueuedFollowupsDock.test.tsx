@@ -150,7 +150,7 @@ describe('QueuedFollowupsDock', () => {
                 }
               ]
             },
-            payload: { text: url, userMessageParts: [] }
+            payload: { text: url, userMessageParts: [], toolStates: {}, executionTargets: [] }
           }
         ]}
         paused={false}
@@ -188,7 +188,7 @@ describe('QueuedFollowupsDock', () => {
                 }
               ]
             },
-            payload: { text, userMessageParts: [] }
+            payload: { text, userMessageParts: [], toolStates: {}, executionTargets: [] }
           }
         ]}
         paused={false}

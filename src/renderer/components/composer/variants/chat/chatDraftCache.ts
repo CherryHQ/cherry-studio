@@ -13,6 +13,7 @@ const EMPTY_DRAFT_CACHE: ChatComposerDraftCache = {
   tokens: [],
   files: [],
   knowledgeBaseIds: [],
+  toolStates: {},
   mentionedModelIds: [],
   modelMultiSelectMode: false
 }
@@ -32,6 +33,7 @@ export function readChatDraftCache(topicId: string): ChatComposerDraftCache {
     knowledgeBaseIds: Array.isArray(cached.knowledgeBaseIds)
       ? cached.knowledgeBaseIds.filter((id): id is string => typeof id === 'string')
       : [],
+    toolStates: isRecord(cached.toolStates) ? cached.toolStates : {},
     mentionedModelIds: Array.isArray(cached.mentionedModelIds) ? cached.mentionedModelIds.filter(isUniqueModelId) : [],
     modelMultiSelectMode: cached.modelMultiSelectMode === true
   }
@@ -63,6 +65,7 @@ export function writeChatDraftCache(topicId: string, draft: ChatComposerDraftCac
       tokens: [...draft.tokens],
       files: [...draft.files],
       knowledgeBaseIds: [...draft.knowledgeBaseIds],
+      toolStates: { ...draft.toolStates },
       mentionedModelIds: [...draft.mentionedModelIds],
       modelMultiSelectMode: draft.modelMultiSelectMode
     },

@@ -162,8 +162,7 @@ export function useAgentChatRuntimeState({
       trigger: 'submit-message',
       topicId: conversation.topicId,
       userMessageParts: getAgentTurnParts(input),
-      reasoningEffort: input.options?.body?.reasoningEffort,
-      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
+      executionTargets: input.options?.body ? [input.options.body.executionTarget] : undefined
     }),
     []
   )

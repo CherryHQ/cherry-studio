@@ -46,7 +46,6 @@ const mocks = vi.hoisted(() => ({
   timeoutCallbacks: new Map<string, () => void>(),
   setTimeoutTimer: vi.fn(),
   clearTimeoutTimer: vi.fn(),
-  updateAgent: vi.fn(),
   updateModel: vi.fn(),
   updateSession: vi.fn(),
   setFiles: vi.fn(),
@@ -90,18 +89,21 @@ const mocks = vi.hoisted(() => ({
     | undefined,
   speedControlProps: undefined as
     | {
-        model: Model
+        targets: Array<{ model: Model; fastMode: boolean }>
         reasoningEffort: string
-        fastMode: boolean
         onReasoningEffortChange: (effort: string) => void
-        onFastModeChange: (enabled: boolean) => void
+        onFastModeChange: (modelId: Model['id'], enabled: boolean) => void
       }
     | undefined,
   sessionWorkspaceId: 'workspace-1',
   sessionWorkspaceName: 'Workspace 1',
   sessionWorkspacePath: '/workspace',
   runtimeProviderMounts: 0,
-  runtimeProviderUnmounts: 0
+  runtimeProviderUnmounts: 0,
+  toolStateLifecycles: new Map<
+    string,
+    { capture: () => unknown; restore: (snapshot: unknown) => void; clear: () => void }
+  >()
 }))
 
 const originalResizeObserver = globalThis.ResizeObserver
@@ -109,14 +111,6 @@ let restoreRequestAnimationFrame: (() => void) | undefined
 
 const seedInputHistory = (items: string[]) => {
   MockUseCacheUtils.setPersistCacheValue('ui.composer.input_history', items)
-}
-
-function createDeferred<T>() {
-  let resolve!: (value: T) => void
-  const promise = new Promise<T>((resolvePromise) => {
-    resolve = resolvePromise
-  })
-  return { promise, resolve }
 }
 
 interface ResizeObserverMockInstance {
@@ -431,7 +425,17 @@ vi.mock('@renderer/components/composer/ComposerToolRuntime', () => ({
     dispatchLauncher: vi.fn()
   }),
   useComposerToolLauncherVersion: () => mocks.toolLaunchersVersion,
-  useComposerTokenReconcile: () => mocks.reconcileTokens
+  useComposerTokenReconcile: () => mocks.reconcileTokens,
+  useComposerToolStateLifecycle: (toolKey: string, lifecycle: any) => {
+    mocks.toolStateLifecycles.set(toolKey, lifecycle)
+  },
+  useComposerToolStateLifecycleController: () => ({
+    capture: () =>
+      Object.fromEntries(Array.from(mocks.toolStateLifecycles, ([key, lifecycle]) => [key, lifecycle.capture()])),
+    restore: (snapshot: Record<string, unknown>) =>
+      mocks.toolStateLifecycles.forEach((lifecycle, key) => lifecycle.restore(snapshot[key])),
+    clear: () => mocks.toolStateLifecycles.forEach((lifecycle) => lifecycle.clear())
+  })
 }))
 
 vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', async (importOriginal) => {
@@ -439,11 +443,10 @@ vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', as
   return {
     ...actual,
     ComposerSpeedControl: (props: {
-      model: Model
+      targets: Array<{ model: Model; fastMode: boolean }>
       reasoningEffort: string
-      fastMode: boolean
       onReasoningEffortChange: (effort: string) => void
-      onFastModeChange: (enabled: boolean) => void
+      onFastModeChange: (modelId: Model['id'], enabled: boolean) => void
     }) => {
       mocks.speedControlProps = props
       return <div data-testid="agent-speed-control" />
@@ -452,7 +455,7 @@ vi.mock('@renderer/components/composer/variants/shared/ComposerSpeedControl', as
 })
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
-  useUpdateAgent: () => ({ updateAgent: mocks.updateAgent, updateModel: mocks.updateModel })
+  useUpdateAgent: () => ({ updateModel: mocks.updateModel })
 }))
 
 vi.mock('@renderer/hooks/agent/useAgentModelFilter', () => ({
@@ -697,6 +700,7 @@ describe('AgentComposer', () => {
     }) as never)
     mocks.openResourceEditDialog.mockReset()
     mocks.registeredLaunchers.clear()
+    mocks.toolStateLifecycles.clear()
     mocks.optionalQuickPanel = null
     resizeObserverMockInstances.length = 0
     globalThis.ResizeObserver = vi.fn((callback: ResizeObserverCallback) => {
@@ -795,11 +799,6 @@ describe('AgentComposer', () => {
     }
     mocks.updateModel.mockReset()
     mocks.updateModel.mockResolvedValue({})
-    mocks.updateAgent.mockReset()
-    mocks.updateAgent.mockImplementation(async (form) => {
-      mocks.agentConfiguration = { ...mocks.agentConfiguration, ...form.configuration }
-      return { configuration: mocks.agentConfiguration }
-    })
     mocks.updateSession.mockReset()
     mocks.setFiles.mockReset()
     mocks.setSelectedKnowledgeBases.mockReset()
@@ -1030,7 +1029,7 @@ describe('AgentComposer', () => {
       />
     )
 
-    act(() => mocks.speedControlProps?.onFastModeChange(true))
+    act(() => mocks.speedControlProps?.onFastModeChange(model.id, true))
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'Use Fast', tokens: [] })
     })
@@ -1041,7 +1040,10 @@ describe('AgentComposer', () => {
         body: expect.objectContaining({
           agentId: 'agent-1',
           sessionId: 'session-1',
-          fastMode: true
+          executionTarget: {
+            modelId: model.id,
+            turnOptions: { fastMode: true }
+          }
         })
       }
     )
@@ -1069,7 +1071,7 @@ describe('AgentComposer', () => {
 
     act(() => {
       mocks.speedControlProps?.onReasoningEffortChange('high')
-      mocks.speedControlProps?.onFastModeChange(true)
+      mocks.speedControlProps?.onFastModeChange(model.id, true)
     })
     await act(async () => {
       await mocks.surfaceProps?.onSendDraft({ text: 'queued controls', tokens: [] })
@@ -1077,7 +1079,7 @@ describe('AgentComposer', () => {
 
     act(() => {
       mocks.speedControlProps?.onReasoningEffortChange('low')
-      mocks.speedControlProps?.onFastModeChange(false)
+      mocks.speedControlProps?.onFastModeChange(model.id, false)
     })
     const dock = getQueueDock()
     await act(async () => {
@@ -1085,7 +1087,7 @@ describe('AgentComposer', () => {
     })
 
     expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
-    expect(mocks.speedControlProps?.fastMode).toBe(true)
+    expect(mocks.speedControlProps?.targets[0].fastMode).toBe(true)
   })
 
   it('preserves Default when a multi-tier model has no declared default effort', async () => {
@@ -1113,7 +1115,11 @@ describe('AgentComposer', () => {
 
     expect(mocks.sendMessage).toHaveBeenCalledWith(
       { text: 'match the UI' },
-      { body: expect.objectContaining({ reasoningEffort: 'default' }) }
+      {
+        body: expect.objectContaining({
+          executionTarget: { modelId: model.id, turnOptions: { reasoningEffort: 'default' } }
+        })
+      }
     )
   })
 
@@ -1129,8 +1135,8 @@ describe('AgentComposer', () => {
       />
     )
 
-    act(() => mocks.speedControlProps?.onFastModeChange(true))
-    expect(mocks.speedControlProps?.fastMode).toBe(true)
+    act(() => mocks.speedControlProps?.onFastModeChange(model.id, true))
+    expect(mocks.speedControlProps?.targets[0].fastMode).toBe(true)
 
     mocks.modelResult = { ...model, supportsFastMode: false }
     view.rerender(
@@ -1143,7 +1149,7 @@ describe('AgentComposer', () => {
       />
     )
 
-    await waitFor(() => expect(mocks.speedControlProps?.fastMode).toBe(false))
+    await waitFor(() => expect(mocks.speedControlProps?.targets[0].fastMode).toBe(false))
   })
 
   it('blocks the send button with a model-required prompt when the agent has no configured model', async () => {
@@ -1198,7 +1204,7 @@ describe('AgentComposer', () => {
     expect(mocks.runtimeHostProps?.session?.agentId).toBe('agent-1')
   })
 
-  it('loads and persists the agent reasoning effort without replacing other configuration', () => {
+  it('uses the agent reasoning effort as the session default without mutating the agent', () => {
     mocks.agentConfiguration = { permission_mode: 'plan', reasoning_effort: 'high' }
     mocks.modelResult = {
       ...model,
@@ -1222,13 +1228,7 @@ describe('AgentComposer', () => {
 
     act(() => mocks.speedControlProps?.onReasoningEffortChange('low'))
 
-    expect(mocks.updateAgent).toHaveBeenCalledWith(
-      {
-        id: 'agent-1',
-        configuration: { reasoning_effort: 'low' }
-      },
-      { showSuccessToast: false }
-    )
+    expect(mocks.updateModel).not.toHaveBeenCalled()
     expect(mocks.speedControlProps?.reasoningEffort).toBe('low')
   })
 
@@ -1255,183 +1255,6 @@ describe('AgentComposer', () => {
       },
       { showSuccessToast: false }
     )
-  })
-
-  it('carries a local reasoning edit into a model update only while that edit is pending', () => {
-    mocks.updateAgent.mockImplementationOnce(() => new Promise(() => undefined))
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        canChangeModel
-        isStreaming={false}
-      />
-    )
-
-    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
-    fireEvent.click(screen.getByText('select model 2'))
-
-    expect(mocks.updateModel).toHaveBeenCalledWith(
-      {
-        agentId: 'agent-1',
-        modelId: 'anthropic::claude-opus-4',
-        reasoningEffort: 'high'
-      },
-      { showSuccessToast: false }
-    )
-  })
-
-  it('does not mistake an in-flight model update for a pending reasoning edit', () => {
-    mocks.updateModel.mockImplementation(() => new Promise(() => undefined))
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        canChangeModel
-        isStreaming={false}
-      />
-    )
-
-    fireEvent.click(screen.getByText('select model 2'))
-    fireEvent.click(screen.getByText('select reasoning model'))
-
-    expect(mocks.updateModel).toHaveBeenLastCalledWith(
-      {
-        agentId: 'agent-1',
-        modelId: 'anthropic::claude-reasoning'
-      },
-      { showSuccessToast: false }
-    )
-  })
-
-  it('reconciles the session reasoning selection after the model update succeeds', async () => {
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        canChangeModel
-        isStreaming={false}
-      />
-    )
-
-    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
-    expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
-
-    fireEvent.click(screen.getByText('select model 2'))
-
-    await waitFor(() => expect(mocks.speedControlProps?.reasoningEffort).toBe('default'))
-  })
-
-  it('keeps the session reasoning selection when the model update fails', async () => {
-    mocks.modelResult = {
-      ...model,
-      reasoning: {
-        controls: [{ kind: 'effort', values: ['low', 'high'] }],
-        selectableEfforts: ['low', 'high']
-      }
-    }
-    mocks.updateModel.mockResolvedValueOnce(undefined)
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        canChangeModel
-        isStreaming={false}
-      />
-    )
-
-    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
-
-    await act(async () => {
-      fireEvent.click(screen.getByText('select model 2'))
-      await Promise.resolve()
-    })
-
-    expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
-  })
-
-  it('reconciles from the latest reasoning selection when it changes while the model update is pending', async () => {
-    mocks.modelResult = {
-      ...model,
-      reasoning: {
-        controls: [{ kind: 'effort', values: ['low', 'high'] }],
-        selectableEfforts: ['low', 'high']
-      }
-    }
-    let finishModelUpdate!: (value: object) => void
-    mocks.updateModel.mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          finishModelUpdate = resolve
-        })
-    )
-
-    render(
-      <AgentComposer
-        agentId="agent-1"
-        sessionId="session-1"
-        sendMessage={mocks.sendMessage}
-        stop={mocks.stop}
-        canChangeModel
-        isStreaming={false}
-      />
-    )
-
-    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
-    fireEvent.click(screen.getByText('select reasoning model'))
-    act(() => mocks.speedControlProps?.onReasoningEffortChange('low'))
-
-    await act(async () => finishModelUpdate({}))
-
-    expect(mocks.speedControlProps?.reasoningEffort).toBe('low')
-  })
-
-  it('reveals an external canonical reasoning update after the pending mutation settles', async () => {
-    const reasoningUpdate = createDeferred<{ configuration: AgentConfiguration }>()
-    mocks.agentConfiguration = { reasoning_effort: 'low' }
-    mocks.modelResult = {
-      ...model,
-      reasoning: {
-        controls: [{ kind: 'effort', values: ['low', 'medium', 'high'] }],
-        selectableEfforts: ['low', 'medium', 'high']
-      }
-    }
-    mocks.updateAgent.mockReturnValueOnce(reasoningUpdate.promise)
-    const props = {
-      agentId: 'agent-1',
-      sessionId: 'session-1',
-      sendMessage: mocks.sendMessage,
-      stop: mocks.stop,
-      isStreaming: false
-    }
-
-    const { rerender } = render(<AgentComposer {...props} />)
-
-    act(() => mocks.speedControlProps?.onReasoningEffortChange('high'))
-    expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
-
-    mocks.agentConfiguration = { reasoning_effort: 'medium' }
-    rerender(<AgentComposer {...props} />)
-
-    expect(mocks.speedControlProps?.reasoningEffort).toBe('high')
-
-    await act(async () => {
-      reasoningUpdate.resolve({ configuration: { reasoning_effort: 'high' } })
-      await reasoningUpdate.promise
-    })
-
-    expect(mocks.speedControlProps?.reasoningEffort).toBe('medium')
   })
 
   it('keeps the inline model selector read-only when model changes are locked', () => {
@@ -3395,6 +3218,7 @@ describe('AgentComposer', () => {
           tokens: [cachedToken],
           files: [],
           knowledgeBaseIds: [knowledgeBaseOne.id],
+          toolStates: { 'speed-control': {} },
           workspaceKey: 'workspace-1\0/workspace',
           agentId: 'agent-1'
         },
@@ -3478,6 +3302,7 @@ describe('AgentComposer', () => {
         tokens: [knowledgeBaseToken(knowledgeBaseOne), cachedFileToken, pdfSkillToken],
         files: [file],
         knowledgeBaseIds: [knowledgeBaseOne.id],
+        toolStates: { 'speed-control': {} },
         workspaceKey: 'workspace-1\0/workspace',
         agentId: 'agent-1'
       },
@@ -3680,7 +3505,7 @@ describe('AgentComposer', () => {
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
-          reasoningEffort: 'default',
+          executionTarget: { modelId: model.id, turnOptions: {} },
           userMessageParts: [
             expect.objectContaining({
               type: 'text',
@@ -3754,7 +3579,7 @@ describe('AgentComposer', () => {
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
-          reasoningEffort: 'default',
+          executionTarget: { modelId: model.id, turnOptions: {} },
           userMessageParts: expect.arrayContaining([
             expect.objectContaining({
               type: 'text',
@@ -3898,7 +3723,7 @@ describe('AgentComposer', () => {
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
-          reasoningEffort: 'default',
+          executionTarget: { modelId: model.id, turnOptions: {} },
           userMessageParts: expect.arrayContaining([
             expect.objectContaining({
               type: 'text',
@@ -3986,7 +3811,7 @@ describe('AgentComposer', () => {
         body: {
           agentId: 'agent-1',
           sessionId: 'session-1',
-          reasoningEffort: 'default',
+          executionTarget: { modelId: model.id, turnOptions: {} },
           userMessageParts: [
             {
               type: 'text',
@@ -4252,6 +4077,7 @@ describe('AgentComposer', () => {
         ],
         files: [file],
         knowledgeBaseIds: [],
+        toolStates: { 'speed-control': {} },
         workspaceKey: 'workspace-1\0/workspace',
         agentId: 'agent-1'
       },
@@ -4394,6 +4220,7 @@ describe('AgentComposer', () => {
         tokens: [skillToken, fileToken],
         files: [file],
         knowledgeBaseIds: [],
+        toolStates: { 'speed-control': {} },
         workspaceKey: 'workspace-1\0/workspace',
         agentId: 'agent-1'
       },

@@ -27,6 +27,7 @@ const EMPTY_DRAFT_CACHE: AgentComposerDraftCache = {
   tokens: [],
   files: [],
   knowledgeBaseIds: [],
+  toolStates: {},
   workspaceKey: '',
   agentId: ''
 }
@@ -112,6 +113,7 @@ export function readAgentDraftCache(
     knowledgeBaseIds: Array.isArray(cached.knowledgeBaseIds)
       ? cached.knowledgeBaseIds.filter((id): id is string => typeof id === 'string')
       : [],
+    toolStates: isRecord(cached.toolStates) ? cached.toolStates : {},
     workspaceKey: scope.workspaceKey,
     agentId: scope.agentId,
     shouldValidateSkills
@@ -126,6 +128,7 @@ export function writeAgentDraftCache(cacheKey: AgentComposerDraftCacheKey, draft
       ...cacheableDraft,
       files: [...draft.files],
       knowledgeBaseIds: [...draft.knowledgeBaseIds],
+      toolStates: { ...draft.toolStates },
       workspaceKey: draft.workspaceKey,
       agentId: draft.agentId,
       ...(draft.shouldValidateSkills && { shouldValidateSkills: true })

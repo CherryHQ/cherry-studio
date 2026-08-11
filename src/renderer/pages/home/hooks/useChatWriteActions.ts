@@ -69,13 +69,6 @@ function getInheritedTurnOptions(
   return source?.metadata?.turnOptions
 }
 
-function turnOptionsRequestFields(turnOptions: AssistantTurnOptions | undefined): AssistantTurnOptions {
-  return {
-    ...(turnOptions?.reasoningEffort !== undefined && { reasoningEffort: turnOptions.reasoningEffort }),
-    ...(turnOptions?.fastMode !== undefined && { fastMode: turnOptions.fastMode })
-  }
-}
-
 interface Params {
   topic: Topic
   uiMessages: CherryUIMessage[]
@@ -335,7 +328,7 @@ export function useChatWriteActions(params: Params): Result {
           ...capabilityBody,
           ...(parentAnchorId && { parentAnchorId }),
           ...(regenModelId && { mentionedModels: [regenModelId] }),
-          ...turnOptionsRequestFields(turnOptions)
+          ...(turnOptions && { turnOptions })
         }
       })
       await regeneratePromise
@@ -383,7 +376,7 @@ export function useChatWriteActions(params: Params): Result {
         topicId: topic.id,
         parentAnchorId: newMessage.id,
         ...(shouldPreserveInheritedModelIds && { mentionedModelIds: inheritedModelIds }),
-        ...turnOptionsRequestFields(effectiveTurnOptions)
+        ...(effectiveTurnOptions && { turnOptions: effectiveTurnOptions })
       })
 
       if (ack.mode === 'blocked') {
@@ -416,7 +409,7 @@ export function useChatWriteActions(params: Params): Result {
         topicId: topic.id,
         parentAnchorId,
         ...(modelId && { mentionedModelIds: [modelId] }),
-        ...turnOptionsRequestFields(turnOptions)
+        ...(turnOptions && { turnOptions })
       })
 
       if (ack.mode === 'blocked') {

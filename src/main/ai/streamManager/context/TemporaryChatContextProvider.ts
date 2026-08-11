@@ -9,7 +9,7 @@ import { loggerService } from '@logger'
 import { isAgentSessionTopic } from '@main/ai/agentSession/topic'
 import { temporaryChatService } from '@main/data/services/TemporaryChatService'
 import { toContentRole } from '@shared/data/types/message'
-import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { parseUniqueModelId } from '@shared/data/types/model'
 import { getKnowledgeBaseIdsFromParts } from '@shared/data/types/uiParts'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -54,27 +54,27 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
     if (ctx.hasLiveStream) {
       throw new Error('Cannot submit to a temporary chat while a turn is in flight')
     }
+    if (!req.executionTargets?.length) {
+      throw new Error("Temporary 'submit-message' requires an execution target")
+    }
 
     const topic = temporaryChatService.getTopic(req.topicId)
     if (!topic) throw new Error(`Temporary topic not found: ${req.topicId}`)
 
-    const selectedModelId = req.mentionedModelIds?.[0]
+    const [executionTarget] = req.executionTargets
+    const selectedModelId = executionTarget.modelId
     const { assistantId, defaultModelId } =
       !topic.assistantId && selectedModelId
         ? { assistantId: undefined, defaultModelId: selectedModelId }
         : resolveAssistantModelId(topic.assistantId)
 
-    let resolveWith: UniqueModelId[] | undefined
-    if (req.mentionedModelIds?.length) {
-      if (req.mentionedModelIds.length > 1) {
-        logger.warn('Temporary chat received multiple mentionedModelIds — only the first is used', {
-          topicId: req.topicId,
-          mentioned: req.mentionedModelIds
-        })
-      }
-      resolveWith = [req.mentionedModelIds[0]]
+    if (req.executionTargets.length > 1) {
+      logger.warn('Temporary chat received multiple execution targets — only the first is used', {
+        topicId: req.topicId,
+        modelIds: req.executionTargets.map((target) => target.modelId)
+      })
     }
-    const models = resolveModels(resolveWith, defaultModelId)
+    const models = resolveModels([selectedModelId], defaultModelId)
     const model = models[0]
     const { modelId: rawModelId, providerId } = parseUniqueModelId(model.id)
     const modelSnap = { id: model.apiModelId ?? rawModelId, name: model.name, provider: providerId }
@@ -119,8 +119,8 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       messageId,
       messages: history,
       knowledgeBaseIds: getKnowledgeBaseIdsFromParts(req.userMessageParts),
-      reasoningEffort: req.trigger === 'submit-message' ? req.reasoningEffort : undefined,
-      ...(req.trigger === 'submit-message' && req.fastMode ? { fastMode: true } : {})
+      reasoningEffort: executionTarget.turnOptions.reasoningEffort,
+      ...(executionTarget.turnOptions.fastMode ? { fastMode: true } : {})
     }
 
     return {

@@ -1,8 +1,23 @@
-import { Button, Popover, PopoverContent, PopoverTrigger, RadioGroup, RadioGroupItem, Slider } from '@cherrystudio/ui'
+import {
+  Button,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RadioGroup,
+  RadioGroupItem,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Slider
+} from '@cherrystudio/ui'
 import type { ThinkingOption } from '@renderer/types/reasoning'
 import { cn } from '@renderer/utils/style'
-import { deriveThinkingOptions } from '@shared/ai/reasoning'
+import { deriveThinkingOptions, resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import type { Model } from '@shared/data/types/model'
+import { isUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import { ReasoningEffortOptionSchema } from '@shared/types/aiSdk'
 import { ChevronDown, Gauge, Zap } from 'lucide-react'
 import { type ReactNode, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,11 +48,49 @@ const EFFORT_LABEL_KEYS: Record<ThinkingOption, string> = {
 
 const WHEEL_STEP_THRESHOLD = 40
 const WHEEL_IDLE_RESET_MS = 120
+export const COMPOSER_SPEED_CONTROL_TOOL_KEY = 'speed-control'
+
+export interface ComposerSpeedControlState {
+  reasoningEffort?: ThinkingOption
+  fastMode?: Partial<Record<UniqueModelId, boolean>>
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+export function readComposerSpeedControlState(value: unknown): ComposerSpeedControlState {
+  if (!isRecord(value)) return {}
+
+  const reasoningEffort = ReasoningEffortOptionSchema.safeParse(value.reasoningEffort)
+  const fastMode = isRecord(value.fastMode)
+    ? Object.fromEntries(
+        Object.entries(value.fastMode).filter(
+          (entry): entry is [UniqueModelId, boolean] => isUniqueModelId(entry[0]) && typeof entry[1] === 'boolean'
+        )
+      )
+    : undefined
+
+  return {
+    ...(reasoningEffort.success && { reasoningEffort: reasoningEffort.data }),
+    ...(fastMode && { fastMode })
+  }
+}
+
+export interface ComposerSpeedControlTarget {
+  model: Model
+  fastMode: boolean
+}
 
 interface ComposerSpeedControlProps {
-  model: Model
+  targets: ComposerSpeedControlTarget[]
   reasoningEffort: ThinkingOption
-  fastMode: boolean
+  onReasoningEffortChange: (effort: ThinkingOption) => void
+  onFastModeChange: (modelId: Model['id'], enabled: boolean) => void
+}
+
+interface SingleComposerSpeedControlProps extends ComposerSpeedControlTarget {
+  reasoningEffort: ThinkingOption
   onReasoningEffortChange: (effort: ThinkingOption) => void
   onFastModeChange: (enabled: boolean) => void
 }
@@ -114,20 +167,13 @@ function WheelStepControl({ children, className, min, max, value, onValueChange 
   )
 }
 
-/** Keep the submitted selection valid without changing the provider's Default semantics. */
-export function resolveComposerReasoningEffort(model: Model, effort: ThinkingOption): ThinkingOption {
-  const reasoningOptions = deriveThinkingOptions(model) ?? []
-
-  return reasoningOptions.includes(effort) ? effort : 'default'
-}
-
-export function ComposerSpeedControl({
+function SingleComposerSpeedControl({
   model,
   reasoningEffort,
   fastMode,
   onReasoningEffortChange,
   onFastModeChange
-}: ComposerSpeedControlProps) {
+}: SingleComposerSpeedControlProps) {
   const { t } = useTranslation()
   const reasoningOptions = useMemo(() => {
     const declaredEfforts = new Set(deriveThinkingOptions(model) ?? [])
@@ -143,7 +189,7 @@ export function ComposerSpeedControl({
 
   // Model changes reconcile in an effect owned by the composer. During that one render, preserve
   // provider Default rather than displaying or submitting an invalid explicit tier.
-  const effectiveReasoningEffort = resolveComposerReasoningEffort(model, reasoningEffort)
+  const effectiveReasoningEffort = resolveReasoningEffortForModel(model, reasoningEffort) ?? 'default'
   const selectedOption = supportsReasoning ? effectiveReasoningEffort : undefined
   const defaultSliderEffort = model.reasoning?.defaultEffort
   const sliderSelection =
@@ -291,5 +337,115 @@ export function ComposerSpeedControl({
         ) : null}
       </PopoverContent>
     </Popover>
+  )
+}
+
+function MultiComposerSpeedControl({
+  targets,
+  reasoningEffort,
+  onReasoningEffortChange,
+  onFastModeChange
+}: ComposerSpeedControlProps) {
+  const { t } = useTranslation()
+  const reasoningOptions = SLIDER_EFFORT_ORDER.filter((effort) =>
+    targets.some(({ model }) => deriveThinkingOptions(model)?.includes(effort))
+  )
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1 rounded-md px-2.5 text-muted-foreground text-xs hover:text-foreground"
+          aria-label={t('agent.speed.title')}>
+          <Gauge size={14} className="shrink-0" />
+          <span>{t('agent.speed.title')}</span>
+          <ChevronDown size={13} className="shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="end"
+        sideOffset={8}
+        className="w-72 overflow-hidden rounded-md border-frame-border p-1.5 text-xs shadow-xl">
+        {reasoningOptions.length > 1 ? (
+          <div className="flex items-center gap-2 px-2 py-2">
+            <span className="min-w-0 flex-1 truncate text-muted-foreground">{t('agent.speed.effort')}</span>
+            <Select
+              value={reasoningEffort}
+              onValueChange={(effort) => onReasoningEffortChange(effort as ThinkingOption)}>
+              <SelectTrigger size="sm" className="w-28" aria-label={t('agent.speed.effort')}>
+                <SelectValue>{t(EFFORT_LABEL_KEYS[reasoningEffort])}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {reasoningOptions.map((effort) => (
+                  <SelectItem key={effort} value={effort} className="text-xs">
+                    {t(EFFORT_LABEL_KEYS[effort])}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        ) : null}
+        {targets.map(({ model, fastMode }) => {
+          const mappedEffort = resolveReasoningEffortForModel(model, reasoningEffort)
+
+          return (
+            <div key={model.id} className="flex items-center gap-2 border-border border-t px-2 py-2">
+              <span className="min-w-0 flex-1 truncate font-medium text-foreground">{model.name}</span>
+              <span className="text-muted-foreground">{t(EFFORT_LABEL_KEYS[mappedEffort ?? 'default'])}</span>
+              {model.supportsFastMode === true ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className={cn('shrink-0 rounded-full', fastMode && 'text-primary hover:text-primary')}
+                  aria-label={`${model.name}: ${t('agent.speed.fast')}`}
+                  aria-pressed={fastMode}
+                  onClick={() => onFastModeChange(model.id, !fastMode)}>
+                  <Zap size={14} fill={fastMode ? 'currentColor' : 'none'} />
+                </Button>
+              ) : null}
+            </div>
+          )
+        })}
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+export function ComposerSpeedControl({
+  targets,
+  reasoningEffort,
+  onReasoningEffortChange,
+  onFastModeChange
+}: ComposerSpeedControlProps) {
+  const hasControls = targets.some((target) => {
+    const reasoningOptions = deriveThinkingOptions(target.model) ?? []
+    return reasoningOptions.length > 1 || target.model.supportsFastMode === true
+  })
+
+  if (!hasControls) return null
+  if (targets.length > 1) {
+    return (
+      <MultiComposerSpeedControl
+        targets={targets}
+        reasoningEffort={reasoningEffort}
+        onReasoningEffortChange={onReasoningEffortChange}
+        onFastModeChange={onFastModeChange}
+      />
+    )
+  }
+
+  const target = targets[0]
+  return (
+    <SingleComposerSpeedControl
+      {...target}
+      reasoningEffort={reasoningEffort}
+      onReasoningEffortChange={onReasoningEffortChange}
+      onFastModeChange={(enabled) => onFastModeChange(target.model.id, enabled)}
+    />
   )
 }

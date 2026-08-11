@@ -457,8 +457,7 @@ describe('useChatWriteActions — regenerate', () => {
       messageId: 'a1',
       body: expect.objectContaining({
         parentAnchorId: 'u1',
-        reasoningEffort: 'high',
-        fastMode: true
+        turnOptions: { reasoningEffort: 'high', fastMode: true }
       })
     })
   })
@@ -476,8 +475,7 @@ describe('useChatWriteActions — regenerate', () => {
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         parentAnchorId: 'u1',
-        reasoningEffort: 'minimal',
-        fastMode: false
+        turnOptions: { reasoningEffort: 'minimal', fastMode: false }
       })
     )
   })
@@ -515,8 +513,7 @@ describe('useChatWriteActions — fork and resend', () => {
         trigger: 'regenerate-message',
         topicId: 't1',
         parentAnchorId: 'forked-user',
-        reasoningEffort: 'high',
-        fastMode: true
+        turnOptions: { reasoningEffort: 'high', fastMode: true }
       })
     )
   })
@@ -538,8 +535,7 @@ describe('useChatWriteActions — fork and resend', () => {
     expect(streamOpen).toHaveBeenCalledWith(
       expect.objectContaining({
         mentionedModelIds: ['provider::model-a', 'provider::model-b'],
-        reasoningEffort: 'high',
-        fastMode: true
+        turnOptions: { reasoningEffort: 'high', fastMode: true }
       })
     )
   })

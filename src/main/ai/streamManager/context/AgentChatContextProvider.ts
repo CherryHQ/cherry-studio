@@ -66,7 +66,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
     const agent = agentService.getAgent(agentId)
     if (!agent) throw new Error(`Agent not found for session ${sessionId}: ${agentId}`)
     if (!agent.model) throw new Error(`Agent ${agent.id} has no model configured`)
-    const reasoningEffort = req.reasoningEffort ?? agent.configuration?.reasoning_effort ?? 'default'
+    const executionTarget = req.executionTargets?.[0]
+    const turnOptions = executionTarget?.turnOptions ?? {
+      reasoningEffort: agent.configuration?.reasoning_effort ?? 'default'
+    }
+    const reasoningEffort = turnOptions.reasoningEffort ?? 'default'
 
     const driver = runtimeDriverRegistry.getAgentSessionDriver(agent.type)
     if (!driver) {
@@ -74,7 +78,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
     }
     await driver.validateSession(session)
 
-    const uniqueModelId = agent.model
+    const uniqueModelId = executionTarget?.modelId ?? agent.model
     const { providerId, modelId: rawModelId } = parseUniqueModelId(uniqueModelId)
     // The agent owns the model it ran — snapshot the agent (with the model nested) so the
     // header shows the agent first, even after the agent is deleted.
@@ -84,7 +88,11 @@ export class AgentChatContextProvider implements ChatContextProvider {
       // Normalized effective avatar (mirrors renderer `getAgentAvatar`): blank/whitespace → the default,
       // so we never freeze a truthy-but-broken source. `🤖` is `DEFAULT_AGENT_AVATAR`.
       emoji: agent.configuration?.avatar?.trim() || '🤖',
-      model: { id: rawModelId, name: agent.modelName ?? rawModelId, provider: providerId }
+      model: {
+        id: rawModelId,
+        name: uniqueModelId === agent.model ? (agent.modelName ?? rawModelId) : rawModelId,
+        provider: providerId
+      }
     }
 
     const userMessageId = uuidv7()
@@ -131,7 +139,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
         headless: req.headless === true,
         messageSnapshot,
         reasoningEffort,
-        fastMode: req.fastMode
+        fastMode: turnOptions.fastMode
       })
 
       return {
@@ -219,7 +227,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
       agentType: agent.type,
       modelId: uniqueModelId,
       reasoningEffort,
-      fastMode: req.fastMode,
+      fastMode: turnOptions.fastMode,
       assistantMessageId,
       userMessage,
       headless: req.headless === true,
@@ -244,7 +252,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
             ],
             messageId: assistantMessageId,
             reasoningEffort,
-            fastMode: req.fastMode,
+            fastMode: turnOptions.fastMode,
             runtime: { kind: 'agent-session', sessionId, turnId: runtime.turnId }
           },
           rootSpan: turnTrace.rootSpan,

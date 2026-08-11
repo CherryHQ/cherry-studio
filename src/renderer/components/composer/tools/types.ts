@@ -2,6 +2,7 @@ import type { ComposerToolLauncher, ComposerToolLauncherKind } from '@renderer/c
 import type { Assistant } from '@renderer/types/assistant'
 import { TopicType } from '@renderer/types/topic'
 import type { SlashCommand } from '@shared/ai/slashCommands'
+import type { ComposerToolStateSnapshot } from '@shared/ai/transport'
 import type { Model } from '@shared/data/types/model'
 import type { TFunction } from 'i18next'
 import React from 'react'
@@ -27,7 +28,7 @@ type ActionKeys<T> = {
 }[keyof T]
 
 // 工具按钮不应该访问这些内部 API
-type ExcludedStateKeys = 'isExpanded'
+type ExcludedStateKeys = 'isExpanded' | 'stateLifecycle'
 type ExcludedActionKeys = 'setIsExpanded' | 'toolsRegistry' | 'triggers' // 这些 API 由工具系统内部管理
 
 type ToolStateKeys = Exclude<ReadableKeys<ComposerToolContextValue>, ExcludedStateKeys>
@@ -70,6 +71,19 @@ export interface ToolContext {
 
 export interface ToolLauncherApi {
   registerLaunchers: (entries: ComposerToolLauncher[]) => () => void
+}
+
+export interface ComposerToolStateLifecycle {
+  capture: () => unknown
+  restore: (snapshot: unknown) => void
+  clear: () => void
+}
+
+export interface ComposerToolStateLifecycleApi {
+  register: (toolKey: string, lifecycle: ComposerToolStateLifecycle) => () => void
+  capture: () => ComposerToolStateSnapshot
+  restore: (snapshot: ComposerToolStateSnapshot) => void
+  clear: () => void
 }
 
 /**

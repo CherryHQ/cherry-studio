@@ -1,6 +1,10 @@
 import type { ComposerAttachment } from '@renderer/utils/message/composerAttachment'
 import { getComposerTextFromParts } from '@renderer/utils/message/composerTokens'
-import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
+import type {
+  ComposerQueuedMessagePayload,
+  ComposerToolStateSnapshot,
+  ModelExecutionTarget
+} from '@shared/ai/transport'
 import type { CherryMessagePart } from '@shared/data/types/message'
 
 import { createComposerUserMessageParts, trimComposerDraftBoundaryBlankLines } from '../../composerDraft'
@@ -17,8 +21,15 @@ interface BuildComposerQueuedPayloadOptions {
    * When false, a file-only draft is allowed.
    */
   requireText?: boolean
-  /** Variant-specific extra payload fields (chat: `mentionedModels` + `reasoningEffort`). */
-  extra?: (tokenIds: Set<string>, attachedFiles: ComposerAttachment[]) => Partial<ComposerQueuedMessagePayload>
+  toolStates: ComposerToolStateSnapshot
+  executionTargets: ModelExecutionTarget[]
+  /** Variant-specific extra payload fields such as Chat's model selection and branch target. */
+  extra?: (
+    tokenIds: Set<string>,
+    attachedFiles: ComposerAttachment[]
+  ) => Partial<
+    Omit<ComposerQueuedMessagePayload, 'text' | 'userMessageParts' | 'attachments' | 'toolStates' | 'executionTargets'>
+  >
 }
 
 /**
@@ -30,7 +41,7 @@ interface BuildComposerQueuedPayloadOptions {
  */
 export function buildComposerQueuedPayload(
   draft: ComposerSerializedDraft,
-  { files, fileTokenId, requireText = false, extra }: BuildComposerQueuedPayloadOptions
+  { files, fileTokenId, requireText = false, toolStates, executionTargets, extra }: BuildComposerQueuedPayloadOptions
 ): ComposerQueuedMessagePayload | null {
   const normalizedDraft = trimComposerDraftBoundaryBlankLines(draft)
   const hasText = normalizedDraft.text.trim().length > 0
@@ -46,6 +57,8 @@ export function buildComposerQueuedPayload(
     text,
     attachments: attachedFiles.length ? (attachedFiles as unknown as Array<Record<string, unknown>>) : undefined,
     userMessageParts,
+    toolStates,
+    executionTargets,
     ...extra?.(tokenIds, attachedFiles)
   }
 }

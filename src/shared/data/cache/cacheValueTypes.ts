@@ -8,6 +8,7 @@ import type { AgentSessionCompactionState } from '../../ai/agentSessionCompactio
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
 import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
+import type { ComposerToolStateSnapshot } from '../../ai/transport'
 import type { ExternalAppId } from '../../types/externalApp'
 import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
@@ -159,6 +160,8 @@ export interface CacheComposerDraftBase {
   tokens: CacheComposerSerializedToken[]
   files: CacheComposerAttachment[]
   knowledgeBaseIds: string[]
+  /** Opaque editor state captured by opt-in composer tools. */
+  toolStates: ComposerToolStateSnapshot
 }
 
 export interface CacheChatComposerDraft extends CacheComposerDraftBase {

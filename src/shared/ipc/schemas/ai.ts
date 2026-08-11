@@ -27,6 +27,11 @@ import * as z from 'zod'
 
 import { defineRoute } from '../define'
 
+const assistantTurnOptionsSchema = z.strictObject({
+  reasoningEffort: ReasoningEffortOptionSchema.optional(),
+  fastMode: z.boolean().optional()
+})
+
 /**
  * AI IPC schemas — `AiService`'s non-streaming model operations (text/embedding/image
  * generation, model probe, model listing) plus the `AiStreamManager` streaming-chat
@@ -190,7 +195,15 @@ export const aiRequestSchemas = {
     input: z.intersection(
       z.object({
         topicId: z.string().min(1),
-        mentionedModelIds: z.array(UniqueModelIdSchema).optional()
+        mentionedModelIds: z.array(UniqueModelIdSchema).optional(),
+        executionTargets: z
+          .array(
+            z.strictObject({
+              modelId: UniqueModelIdSchema,
+              turnOptions: assistantTurnOptionsSchema
+            })
+          )
+          .optional()
       }),
       z.discriminatedUnion('trigger', [
         z.object({
@@ -198,14 +211,12 @@ export const aiRequestSchemas = {
           parentAnchorId: z.string().optional(),
           userMessageParts: z.array(z.custom<CherryMessagePart>()),
           targetMode: z.enum(['active-path', 'reserved-branch']).optional(),
-          reasoningEffort: ReasoningEffortOptionSchema.optional(),
-          fastMode: z.boolean().optional()
+          turnOptions: assistantTurnOptionsSchema.optional()
         }),
         z.object({
           trigger: z.literal('regenerate-message'),
           parentAnchorId: z.string().min(1),
-          reasoningEffort: ReasoningEffortOptionSchema.optional(),
-          fastMode: z.boolean().optional()
+          turnOptions: assistantTurnOptionsSchema.optional()
         })
       ])
     ),

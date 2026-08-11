@@ -301,7 +301,7 @@ describe('AgentChatContextProvider', () => {
     expect(prepared.models[0].request.reasoningEffort).toBe('high')
   })
 
-  it('prefers an explicit request reasoning effort over the persisted agent default', async () => {
+  it('prefers the composer execution target over the persisted agent default', async () => {
     mocks.runtimeIsSessionBusy.mockReturnValue(true)
     mocks.getAgent.mockReturnValue({
       id: 'agent-1',
@@ -312,7 +312,12 @@ describe('AgentChatContextProvider', () => {
       configuration: { reasoning_effort: 'high' }
     })
 
-    await provider.prepareDispatch(makeSubscriber(), openReq({ reasoningEffort: 'low' }))
+    await provider.prepareDispatch(
+      makeSubscriber(),
+      openReq({
+        executionTargets: [{ modelId: 'anthropic::claude-sonnet', turnOptions: { reasoningEffort: 'low' } }]
+      })
+    )
 
     expect(mocks.runtimeEnqueueUserMessage).toHaveBeenCalledWith(
       'session-1',

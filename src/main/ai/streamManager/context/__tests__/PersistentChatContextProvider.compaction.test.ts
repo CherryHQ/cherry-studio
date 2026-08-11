@@ -234,7 +234,13 @@ async function makeHistory(
   const provider = new PersistentChatContextProvider()
   const prepared = await provider.prepareDispatch(
     makeSubscriber(),
-    { trigger: 'submit-message', topicId: 'topic-1', parentAnchorId: anchorId, userMessageParts: [] } as any,
+    {
+      trigger: 'submit-message',
+      topicId: 'topic-1',
+      parentAnchorId: anchorId,
+      executionTargets: models.map((modelId) => ({ modelId, turnOptions: {} })),
+      userMessageParts: []
+    } as any,
     { hasLiveStream: false }
   )
   return { messages: prepared.models[0].request.messages ?? [], prepared }
@@ -522,12 +528,19 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
   it("2e. threads the assistant's context-settings override into the request-settings resolver (P2-D)", async () => {
     const OVERRIDE = { truncateThreshold: 4000, compress: { enabled: false } }
     const { resolveAssistantModelId } = await import('../modelResolution')
+    const { topicService } = await import('@data/services/TopicService')
     // Once: prepareDispatch calls it a single time; reverts to the undefined-assistant
     // factory default so later tests are unaffected.
     vi.mocked(resolveAssistantModelId).mockReturnValueOnce({
       assistantId: 'asst-1',
       defaultModelId: 'openai::gpt-4o' as UniqueModelId
     })
+    vi.mocked(topicService.getById).mockReturnValueOnce({
+      id: 'topic-1',
+      assistantId: 'asst-1',
+      activeNodeId: 'u1',
+      orderKey: 'a0'
+    } as never)
     mockGetAssistantById.mockReturnValue({
       id: 'asst-1',
       name: 'A',
@@ -708,7 +721,13 @@ describe('PersistentChatContextProvider — durable compaction integration', () 
     const provider = new PersistentChatContextProvider()
     await provider.prepareDispatch(
       makeSubscriber(),
-      { trigger: 'submit-message', topicId: 'topic-1', parentAnchorId: 'u3', userMessageParts: [] } as any,
+      {
+        trigger: 'submit-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'u3',
+        executionTargets: [{ modelId: MODEL_ID_10K, turnOptions: {} }],
+        userMessageParts: []
+      } as any,
       { hasLiveStream: false }
     )
 

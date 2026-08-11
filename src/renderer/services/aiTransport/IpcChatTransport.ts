@@ -43,8 +43,8 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             topicId,
             parentAnchorId: mergedBody.parentAnchorId ?? '',
             mentionedModelIds: mergedBody.mentionedModels,
-            reasoningEffort: mergedBody.reasoningEffort,
-            ...(mergedBody.fastMode ? { fastMode: true } : {})
+            executionTargets: mergedBody.executionTargets,
+            turnOptions: mergedBody.turnOptions
           }
         : {
             trigger: 'submit-message',
@@ -52,8 +52,8 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
             parentAnchorId: mergedBody.parentAnchorId,
             userMessageParts: mergedBody.userMessageParts ?? lastMessage?.parts ?? [],
             mentionedModelIds: mergedBody.mentionedModels,
-            reasoningEffort: mergedBody.reasoningEffort,
-            ...(mergedBody.fastMode ? { fastMode: true } : {})
+            executionTargets: mergedBody.executionTargets,
+            turnOptions: mergedBody.turnOptions
           }
 
     streamDispatchService.dispatch(topicId, ipcRequest)
