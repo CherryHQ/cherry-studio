@@ -15,12 +15,13 @@ const ripgrepAvailable = tryTestRipgrepPath() !== null
 
 // Hoisted mocks for the two `node:fs` surfaces `search.ts` consults:
 //   - `existsSync` drives ripgrep binary discovery
-//   - `promises.stat` drives the EACCES root-path branch
+//   - `promises.stat` and `promises.readdir` drive root-path error branches
 // Every other export passes through to the real implementation via the
 // `vi.mock` factory below, so the happy-path tests below keep exercising
 // real fs / real ripgrep without per-test setup.
 const mockExistsSync = vi.hoisted(() => vi.fn())
 const mockPromisesStat = vi.hoisted(() => vi.fn())
+const mockPromisesReaddir = vi.hoisted(() => vi.fn())
 const mockSpawn = vi.hoisted(() => vi.fn())
 
 vi.mock('node:child_process', async (importOriginal) => {
@@ -38,7 +39,8 @@ vi.mock('node:fs', async (importOriginal) => {
     existsSync: mockExistsSync,
     promises: {
       ...actual.promises,
-      stat: mockPromisesStat
+      stat: mockPromisesStat,
+      readdir: mockPromisesReaddir
     }
   }
 })
@@ -72,9 +74,11 @@ beforeEach(async () => {
   const actualChildProcess = await vi.importActual<typeof NodeChildProcess>('node:child_process')
   mockExistsSync.mockReset()
   mockPromisesStat.mockReset()
+  mockPromisesReaddir.mockReset()
   mockSpawn.mockReset()
   mockExistsSync.mockImplementation((p: NodeFs.PathLike) => actual.existsSync(p))
   mockPromisesStat.mockImplementation((p: string) => actual.promises.stat(p))
+  mockPromisesReaddir.mockImplementation(actual.promises.readdir)
   mockSpawn.mockImplementation(actualChildProcess.spawn)
 })
 
@@ -522,5 +526,19 @@ describe('listDirectory (error paths)', () => {
     mockPromisesStat.mockRejectedValueOnce(eaccesErr)
 
     await expect(listDirectory('/some/locked/path' as AbsoluteFilePath)).rejects.toBe(eaccesErr)
+  })
+
+  it('propagates EACCES when the root directory cannot be enumerated', async () => {
+    const eaccesErr = Object.assign(new Error('permission denied'), {
+      code: 'EACCES'
+    }) as NodeJS.ErrnoException
+    mockPromisesReaddir.mockRejectedValueOnce(eaccesErr)
+
+    await expect(
+      listDirectory(tmp as AbsoluteFilePath, {
+        includeFiles: false,
+        includeDirectories: true
+      })
+    ).rejects.toBe(eaccesErr)
   })
 })

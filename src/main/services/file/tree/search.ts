@@ -215,6 +215,7 @@ async function searchDirectories(
     }
   } catch (error) {
     logger.warn(`Failed to search directories in: ${resolvedPath}`, error as Error)
+    if (currentDepth === 0) throw error
   }
 
   return directories

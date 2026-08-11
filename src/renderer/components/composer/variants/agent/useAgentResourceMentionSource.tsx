@@ -12,7 +12,7 @@ import { serializeComposerDocument } from '../../composerDraft'
 import { createComposerFolderToken } from '../../folderToken'
 import type { ComposerSuggestionItem, ComposerSuggestionSource } from '../../quickPanel'
 import { agentComposerTokenId, agentFileToComposerToken } from '../agentComposerTokens'
-import { getAccessiblePathRelativePath } from './accessiblePath'
+import { getAccessiblePathRelativePath, getPathComparisonKey } from './accessiblePath'
 
 const normalizePathSeparators = (filePath: string) => filePath.replace(/\\/g, '/')
 
@@ -232,27 +232,28 @@ export function useAgentResourceMentionSource({
               command: () => undefined
             })
           } else {
-            const mentionedFolderPaths = new Set(
+            const mentionedFolderPathKeys = new Set(
               serializeComposerDocument(editor).tokens.flatMap((token) =>
-                token.kind === 'folder' && token.promptText ? [normalizePathSeparators(token.promptText)] : []
+                token.kind === 'folder' && token.promptText ? [getPathComparisonKey(token.promptText)] : []
               )
             )
 
             for (const [entryPath, entry] of collectedResources) {
               const relativePath = getAccessiblePathRelativePath(entryPath, accessiblePaths)
               if (entry.isDirectory) {
+                const entryPathKey = getPathComparisonKey(entryPath)
                 resourceItems.push({
                   id: createAgentResourceItemId(entryPath),
                   label: relativePath,
                   description: entryPath,
                   icon: <Folder size={16} />,
                   filterText: `${relativePath} ${entryPath}`,
-                  disabled: mentionedFolderPaths.has(entryPath),
+                  disabled: mentionedFolderPathKeys.has(entryPathKey),
                   command: ({ editor }) => {
                     const exists = serializeComposerDocument(editor).tokens.some(
                       (currentToken) =>
                         currentToken.kind === 'folder' &&
-                        normalizePathSeparators(currentToken.promptText ?? '') === entryPath
+                        getPathComparisonKey(currentToken.promptText ?? '') === entryPathKey
                     )
                     if (!exists) {
                       editor

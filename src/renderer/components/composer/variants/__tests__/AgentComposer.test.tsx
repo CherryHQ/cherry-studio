@@ -2550,12 +2550,12 @@ describe('AgentComposer', () => {
     ])
   })
 
-  it('marks a Windows folder with different separators disabled after serializing the editor once', async () => {
+  it('marks a lexically equivalent Windows folder disabled after serializing the editor once', async () => {
     const folderPath = 'C:/workspace/docs'
     mocks.listDirectoryEntries.mockResolvedValue([{ path: folderPath, isDirectory: true }])
     vi.mocked(ComposerDraftModule.serializeComposerDocument).mockReturnValue({
       text: '',
-      tokens: [createSerializedFolderToken('C:\\workspace\\docs')]
+      tokens: [createSerializedFolderToken('C:\\workspace\\docs\\.\\')]
     })
     const { result } = renderAgentResourceMentionSource(['C:/workspace'])
     const source = requireFirstResourceMentionSource(result.current)
@@ -2566,7 +2566,7 @@ describe('AgentComposer', () => {
     expect(items).toEqual([expect.objectContaining({ label: 'docs', disabled: true })])
   })
 
-  it('rechecks Windows folder separators before inserting from a stale enabled item', async () => {
+  it('rechecks a lexically equivalent Windows folder before inserting from a stale enabled item', async () => {
     const folderPath = 'C:/workspace/docs'
     mocks.listDirectoryEntries.mockResolvedValue([{ path: folderPath, isDirectory: true }])
     const { result } = renderAgentResourceMentionSource(['C:/workspace'])
@@ -2578,7 +2578,7 @@ describe('AgentComposer', () => {
 
     vi.mocked(ComposerDraftModule.serializeComposerDocument).mockReturnValue({
       text: '',
-      tokens: [createSerializedFolderToken('C:\\workspace\\docs')]
+      tokens: [createSerializedFolderToken('C:\\workspace\\docs\\.\\')]
     })
     folderItem?.command?.({ editor, range: { from: 0, to: 0 }, item: folderItem, query: '' })
 

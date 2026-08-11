@@ -92,6 +92,7 @@ function createSuggestionRender(
   let lastNotifiedItemsGeneration = 0
 
   const notifyActiveChange = (props: SuggestionProps<ComposerSuggestionItem, ComposerSuggestionItem>) => {
+    if (props.editor.isDestroyed) return
     const itemsGeneration = suggestionItemsGeneration.get(props.items)
     if (itemsGeneration !== getLatestItemsGeneration() || itemsGeneration === lastNotifiedItemsGeneration) return
     if (!isCurrentActiveSuggestion(props, pluginKey)) return

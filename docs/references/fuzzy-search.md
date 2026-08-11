@@ -97,6 +97,7 @@ Common generated or dependency directories such as `node_modules`, `.git`,
 `dist`, `build`, `.next`, `.nuxt`, `coverage`, and `.cache` are excluded.
 Hidden entries are excluded unless `includeHidden` is true.
 
-Ripgrep exit code `1` means no matches. Exit codes `2` and above, missing
-binaries, and signal termination are surfaced as errors so callers can decide
-whether to show partial results or an error state.
+Ripgrep exit codes `0` and `1` are normal. For exit codes `2` and above, usable
+stdout is kept as partial results and the traversal error is logged; the search
+throws when no usable stdout is available. Missing binaries and signal
+termination are also surfaced as errors.

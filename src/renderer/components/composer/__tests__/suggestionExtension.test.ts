@@ -117,4 +117,35 @@ describe('createComposerSuggestionExtension', () => {
 
     expect(onActiveChange.mock.calls.map(([options]) => options.query)).toEqual(['ab'])
   })
+
+  it('does not notify after pending suggestion items outlive the editor', async () => {
+    const pendingItems = createDeferred<never[]>()
+    const onActiveChange = vi.fn()
+    const items = vi.fn(() => pendingItems.promise)
+
+    editor = new Editor({
+      extensions: [
+        StarterKit,
+        createComposerSuggestionExtension([
+          {
+            pluginKey: 'test-resource-suggestion',
+            char: '@',
+            allowedPrefixes: [' ', '\n'],
+            onActiveChange,
+            items
+          }
+        ])
+      ],
+      content: '<p></p>'
+    })
+
+    editor.chain().insertContent('@notes').run()
+    await vi.waitFor(() => expect(items).toHaveBeenCalledWith(expect.objectContaining({ query: 'notes' })))
+
+    editor.destroy()
+    pendingItems.resolve([])
+    await waitForSuggestionUpdate()
+
+    expect(onActiveChange).not.toHaveBeenCalled()
+  })
 })
