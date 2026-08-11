@@ -10,6 +10,7 @@ import { resolveModelTokenDialect, type TokenDialect } from '@main/ai/tokens/dia
 import { countToolDefs, estimateModelMessagesFootprint } from '@main/ai/tokens/footprint'
 import { getTextTokenizer } from '@main/ai/tokens/profiles'
 import { tokenxTokenizer } from '@main/ai/tokens/textTokenizer'
+import { asSchema, type ToolSet } from 'ai'
 
 import { MessageConverterFactory } from '../adapters'
 import { type ResolvedGatewayModelAddress, resolveGatewayModelAddress } from '../utils/models'
@@ -48,6 +49,13 @@ async function estimateConvertedRequest(body: MessageCreateParams, signal?: Abor
   const converter = MessageConverterFactory.create('anthropic')
   const uiMessages = converter.toUIMessages(body)
   const tools = converter.toAiSdkTools?.(body)
+  // The tool definitions generation actually sends — rebuilt from the converter's ToolSet:
+  // its keys are the normalized (wire-safe) names, `bash_20250124` is already dropped, and
+  // each schema is the canonical JSONSchema serialized from the zod conversion. Counting and
+  // remote-counting these keeps the estimate wire-equivalent: an oversize invalid name or
+  // unsupported schema content in the raw body never reaches the wire, so it must not
+  // dominate the count.
+  const wireTools = await toWireToolDefs(tools)
 
   let dialect: TokenDialect = 'anthropic'
   let caps = ALL_MEDIA
@@ -62,7 +70,14 @@ async function estimateConvertedRequest(body: MessageCreateParams, signal?: Abor
 
   // Anthropic: prefer the provider's authoritative count; fall through to local on failure.
   if (dialect === 'anthropic' && resolved) {
-    const remote = await tryRemoteAnthropicCount(body, resolved.provider, resolved.model, resolved.apiModelId, signal)
+    const remote = await tryRemoteAnthropicCount(
+      body,
+      wireTools,
+      resolved.provider,
+      resolved.model,
+      resolved.apiModelId,
+      signal
+    )
     if (remote !== undefined) return remote
   }
 
@@ -70,11 +85,32 @@ async function estimateConvertedRequest(body: MessageCreateParams, signal?: Abor
   const modelMessages = await toModelMessages(uiMessages, caps, tools, toolResultCaps)
   const tokenizer = await getTextTokenizer(dialect)
   const messageTokens = await estimateModelMessagesFootprint(modelMessages, { dialect, tokenizer }, signal)
-  // Count the tools that actually reach the wire: `toAiSdkTools` drops `bash_20250124`, so
-  // exclude it here too. The raw `input_schema` is counted (not the zod-normalized shape) — a
-  // safe overestimate, since normalization only ever drops unsupported fields.
-  const wireTools = Array.isArray(body.tools)
-    ? body.tools.filter((tool) => (tool as { type?: string }).type !== 'bash_20250124')
-    : body.tools
   return messageTokens + countToolDefs(wireTools, tokenizer)
+}
+
+/** One wire tool definition in Anthropic shape (what `countToolDefs` and remote count consume). */
+interface WireToolDef {
+  name: string
+  description?: string
+  input_schema: unknown
+}
+
+async function toWireToolDefs(tools: ToolSet | undefined): Promise<WireToolDef[] | undefined> {
+  if (!tools) return undefined
+  return Promise.all(
+    Object.entries(tools).map(async ([name, tool]) => ({
+      name,
+      description: tool.description,
+      input_schema: await canonicalSchema(tool.inputSchema)
+    }))
+  )
+}
+
+/** Canonical JSONSchema as the SDK serializes it; a minimal object schema on failure. */
+async function canonicalSchema(schema: unknown): Promise<unknown> {
+  try {
+    return (await asSchema(schema as Parameters<typeof asSchema>[0]).jsonSchema) ?? { type: 'object' }
+  } catch {
+    return { type: 'object' }
+  }
 }

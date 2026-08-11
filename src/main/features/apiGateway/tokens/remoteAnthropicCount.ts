@@ -18,13 +18,14 @@ const REMOTE_COUNT_TIMEOUT_MS = 5_000
  *
  * **Best-effort:** returns `undefined` (→ caller falls back to the local estimator) when
  * credentials can't be extracted, the endpoint is missing, or the call fails — the count
- * must never throw. Fed the client's raw Anthropic body with the model id rewritten to the
- * downstream `apiModelId`; post the tool-result-image conversion fix this matches what we
- * actually send to a vision model (for a non-vision model we strip the image while remote
- * still counts it → a safe overcount, earlier compaction).
+ * must never throw. Fed the client's raw messages/system with the model id rewritten to the
+ * downstream `apiModelId`, but with `tools` replaced by the converter-normalized wire
+ * definitions (sanitized names, `bash_20250124` dropped, canonical JSONSchema) so the remote
+ * counts what generation actually sends, not the raw request's tools.
  */
 export async function tryRemoteAnthropicCount(
   body: MessageCreateParams,
+  tools: ReadonlyArray<unknown> | undefined,
   provider: Provider,
   model: Model,
   apiModelId: string,
@@ -59,7 +60,7 @@ export async function tryRemoteAnthropicCount(
       model: apiModelId,
       messages: body.messages,
       ...(body.system !== undefined ? { system: body.system } : {}),
-      ...(body.tools !== undefined ? { tools: body.tools as MessageCountTokensParams['tools'] } : {})
+      ...(tools !== undefined ? { tools: tools as MessageCountTokensParams['tools'] } : {})
     }
     const { input_tokens } = await client.messages.countTokens(params, { signal })
     return input_tokens

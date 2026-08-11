@@ -10,11 +10,19 @@ describe('boundedBodyTokens', () => {
     expect(boundedBodyTokens({ a: 'hi', b: ['x', 'yz'] }, fake)).toBe('hi'.length + 'x'.length + 'yz'.length)
   })
 
-  it('prices an oversize (media base64) string as a small constant, never its full length', () => {
+  it('prices base64 media under a `data` key and data URLs as a small constant, never their length', () => {
     const big = 'A'.repeat(1_000_000)
-    const count = boundedBodyTokens({ image: big }, fake)
-    expect(count).toBe(1500)
-    expect(count).toBeLessThan(big.length / 100)
+    const block = { source: { type: 'base64', media_type: 'image/png', data: big } }
+    expect(boundedBodyTokens(block, fake)).toBe(1_500 + 'base64'.length + 'image/png'.length)
+    expect(boundedBodyTokens({ url: `data:image/png;base64,${big}` }, fake)).toBe(1_500)
+  })
+
+  it('estimates a long ordinary text prompt as text via sample extrapolation, not one media constant', () => {
+    // A 100k+ char prompt through the fallback must not report ~1500 tokens — that would
+    // defer client compaction until the downstream context limit is hit.
+    const prompt = 'lorem ipsum dolor sit amet '.repeat(5_000)
+    const count = boundedBodyTokens({ messages: [{ role: 'user', content: prompt }] }, fake)
+    expect(count).toBe(prompt.length + 'user'.length)
   })
 
   it('does not throw or overflow on a pathologically deep object', () => {

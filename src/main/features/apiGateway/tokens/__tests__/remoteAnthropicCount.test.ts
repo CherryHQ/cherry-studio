@@ -35,9 +35,10 @@ describe('tryRemoteAnthropicCount', () => {
     })
     mocks.countTokens.mockResolvedValue({ input_tokens: 999 })
     const controller = new AbortController()
-    expect(await tryRemoteAnthropicCount(body, provider, model, 'claude', controller.signal)).toBe(999)
-    // Abort signal reaches the SDK request options.
-    expect(mocks.countTokens).toHaveBeenCalledWith(expect.objectContaining({ model: 'claude' }), {
+    const wireTools = [{ name: 'shot', description: 'd', input_schema: { type: 'object' } }]
+    expect(await tryRemoteAnthropicCount(body, wireTools, provider, model, 'claude', controller.signal)).toBe(999)
+    // Abort signal reaches the SDK request options; the caller's wire tools (not body.tools) go up.
+    expect(mocks.countTokens).toHaveBeenCalledWith(expect.objectContaining({ model: 'claude', tools: wireTools }), {
       signal: controller.signal
     })
     // Proxy/signing transport + relay headers are reused, not bypassed; fail-fast on the hot path.
@@ -54,13 +55,13 @@ describe('tryRemoteAnthropicCount', () => {
 
   it('returns undefined (→ local fallback) when creds are relay-shaped / missing', async () => {
     mocks.providerToAiSdkConfig.mockResolvedValue({ providerSettings: {} })
-    expect(await tryRemoteAnthropicCount(body, provider, model, 'claude')).toBeUndefined()
+    expect(await tryRemoteAnthropicCount(body, undefined, provider, model, 'claude')).toBeUndefined()
     expect(mocks.countTokens).not.toHaveBeenCalled()
   })
 
   it('returns undefined when the remote call throws', async () => {
     mocks.providerToAiSdkConfig.mockResolvedValue({ providerSettings: { baseURL: 'https://api.x/v1', apiKey: 'k' } })
     mocks.countTokens.mockRejectedValue(new Error('boom'))
-    expect(await tryRemoteAnthropicCount(body, provider, model, 'claude')).toBeUndefined()
+    expect(await tryRemoteAnthropicCount(body, undefined, provider, model, 'claude')).toBeUndefined()
   })
 })

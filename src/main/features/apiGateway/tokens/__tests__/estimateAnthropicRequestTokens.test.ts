@@ -119,6 +119,21 @@ describe('estimateAnthropicRequestTokens', () => {
     expect(count).toBeLessThan(2000)
   })
 
+  it('counts the normalized wire tool name, not an oversize raw name', async () => {
+    resolveTo(textModel)
+    const messages = [{ role: 'user', content: 'hi' }]
+    // Invalid for the wire (spaces, 18K chars) — the converter renames it to a ≤64-char
+    // sanitized+hashed name, and only that normalized definition reaches generation.
+    const hugeName = 'bad name!'.repeat(2_000)
+    const withHugeName = await estimateAnthropicRequestTokens(
+      body(messages, [{ name: hugeName, description: 'd', input_schema: { type: 'object' } }])
+    )
+    const withShortName = await estimateAnthropicRequestTokens(
+      body(messages, [{ name: 'short_name', description: 'd', input_schema: { type: 'object' } }])
+    )
+    expect(withHugeName).toBeLessThan(withShortName + 100)
+  })
+
   it('degrades to a raw-size heuristic (no 500) when blocks are malformed', async () => {
     resolveTo(textModel)
     // `content: z.unknown()` lets null blocks through — conversion throws, the wrapper catches.
