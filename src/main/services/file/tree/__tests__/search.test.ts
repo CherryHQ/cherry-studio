@@ -15,12 +15,13 @@ const ripgrepAvailable = tryTestRipgrepPath() !== null
 
 // Hoisted mocks for the two `node:fs` surfaces `search.ts` consults:
 //   - `existsSync` drives ripgrep binary discovery
-//   - `promises.stat` drives the EACCES root-path branch
+//   - `promises.stat` and `promises.readdir` drive root-path error branches
 // Every other export passes through to the real implementation via the
 // `vi.mock` factory below, so the happy-path tests below keep exercising
 // real fs / real ripgrep without per-test setup.
 const mockExistsSync = vi.hoisted(() => vi.fn())
 const mockPromisesStat = vi.hoisted(() => vi.fn())
+const mockPromisesReaddir = vi.hoisted(() => vi.fn())
 const mockSpawn = vi.hoisted(() => vi.fn())
 
 vi.mock('node:child_process', async (importOriginal) => {
@@ -38,7 +39,8 @@ vi.mock('node:fs', async (importOriginal) => {
     existsSync: mockExistsSync,
     promises: {
       ...actual.promises,
-      stat: mockPromisesStat
+      stat: mockPromisesStat,
+      readdir: mockPromisesReaddir
     }
   }
 })
@@ -62,19 +64,21 @@ vi.mock('@main/utils/binaryEnv', () => ({
   getBinaryExecutionEnv: () => ({})
 }))
 
-const { listDirectory } = await import('../search')
+const { listDirectory, listDirectoryEntries } = await import('../search')
 
 beforeEach(async () => {
-  // Default both spies to real-fs passthrough so the existing happy-path
+  // Default the spies to real-process / real-fs passthrough so the happy-path
   // suites below keep operating on actual tmp directories + the vendored
   // ripgrep binary. Individual error-path tests override per-call.
   const actual = await vi.importActual<typeof NodeFs>('node:fs')
+  const actualChildProcess = await vi.importActual<typeof NodeChildProcess>('node:child_process')
   mockExistsSync.mockReset()
   mockPromisesStat.mockReset()
+  mockPromisesReaddir.mockReset()
   mockSpawn.mockReset()
   mockExistsSync.mockImplementation((p: NodeFs.PathLike) => actual.existsSync(p))
   mockPromisesStat.mockImplementation((p: string) => actual.promises.stat(p))
-  const actualChildProcess = await vi.importActual<typeof NodeChildProcess>('node:child_process')
+  mockPromisesReaddir.mockImplementation(actual.promises.readdir)
   mockSpawn.mockImplementation(actualChildProcess.spawn)
 })
 
@@ -100,6 +104,25 @@ const mockRipgrepResultOnce = ({
     })
     return child
   })
+}
+
+const createMockRipgrepChild = (
+  exitCode: number,
+  { stdout = '', stderr = '' }: { stdout?: string; stderr?: string } = {}
+): NodeChildProcess.ChildProcessWithoutNullStreams => {
+  const child = Object.assign(new EventEmitter(), {
+    stdin: new PassThrough(),
+    stdout: new PassThrough(),
+    stderr: new PassThrough()
+  })
+
+  queueMicrotask(() => {
+    if (stdout) child.stdout.emit('data', Buffer.from(stdout))
+    if (stderr) child.stderr.emit('data', Buffer.from(stderr))
+    child.emit('close', exitCode, null)
+  })
+
+  return child as unknown as NodeChildProcess.ChildProcessWithoutNullStreams
 }
 
 const writeMany = async (root: string, count: number, prefix = 'file', ext = '.txt'): Promise<string[]> => {
@@ -244,6 +267,205 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
       })
     ).rejects.toThrow(/Ripgrep failed with exit code 2:.*Access is denied/)
   })
+
+  it('does not fuzzy-match candidates through the absolute search-root prefix', async () => {
+    const searchRoot = path.join(tmp, 'target-root')
+    await mkdir(path.join(searchRoot, 'unrelated-dir'), { recursive: true })
+    await mkdir(path.join(searchRoot, 'target-dir'))
+    await writeFile(path.join(searchRoot, 'unrelated-file.md'), 'unrelated')
+
+    const results = await listDirectoryEntries(searchRoot as AbsoluteFilePath, {
+      includeFiles: true,
+      includeDirectories: true,
+      searchPattern: 'target'
+    })
+
+    expect(results).toEqual([
+      {
+        path: path.join(searchRoot, 'target-dir').replace(/\\/g, '/'),
+        isDirectory: true
+      }
+    ])
+  })
+
+  it('falls back to scanning all files when the ripgrep glob misses a cross-segment fuzzy match', async () => {
+    await mkdir(path.join(tmp, 'alpha'))
+    await writeFile(path.join(tmp, 'alpha', 'beta.md'), 'match across path segments')
+
+    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
+      includeFiles: true,
+      includeDirectories: false,
+      searchPattern: 'ab'
+    })
+
+    expect(results).toEqual([
+      {
+        path: path.join(tmp, 'alpha', 'beta.md').replace(/\\/g, '/'),
+        isDirectory: false
+      }
+    ])
+  })
+
+  it('returns empty directories from a directory-only fuzzy search', async () => {
+    await mkdir(path.join(tmp, 'documentation'))
+    await mkdir(path.join(tmp, 'other'))
+    await writeFile(path.join(tmp, 'documentation-file.md'), 'docs')
+
+    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
+      recursive: true,
+      includeFiles: false,
+      includeDirectories: true,
+      searchPattern: 'dcmnttn'
+    })
+
+    expect(results).toEqual([
+      {
+        path: path.join(tmp, 'documentation').replace(/\\/g, '/'),
+        isDirectory: true
+      }
+    ])
+  })
+
+  it('excludes matching directories from a file-only fuzzy search', async () => {
+    await mkdir(path.join(tmp, 'notes-folder'))
+    await writeFile(path.join(tmp, 'notes-file.md'), 'notes')
+
+    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
+      includeFiles: true,
+      includeDirectories: false,
+      searchPattern: 'notes'
+    })
+
+    expect(results).toEqual([
+      {
+        path: path.join(tmp, 'notes-file.md').replace(/\\/g, '/'),
+        isDirectory: false
+      }
+    ])
+  })
+
+  it('merges files and directories before maxEntries and ranks directories first on score ties', async () => {
+    await mkdir(path.join(tmp, 'a', 'q'), { recursive: true })
+    await mkdir(path.join(tmp, 'b'))
+    await writeFile(path.join(tmp, 'b', 'q'), 'q')
+    await mkdir(path.join(tmp, 'c'))
+    await writeFile(path.join(tmp, 'c', 'q'), 'q')
+
+    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
+      searchPattern: 'q',
+      maxEntries: 2
+    })
+
+    expect(results).toHaveLength(2)
+    expect(results.map((entry) => entry.isDirectory)).toEqual([true, false])
+    expect(results.map((entry) => entry.path)).toEqual([
+      path.join(tmp, 'a', 'q').replace(/\\/g, '/'),
+      path.join(tmp, 'b', 'q').replace(/\\/g, '/')
+    ])
+  })
+
+  it('honors depth, hidden, and excluded-directory constraints for fuzzy directory candidates', async () => {
+    await mkdir(path.join(tmp, 'visible', 'target'), { recursive: true })
+    await mkdir(path.join(tmp, '.hidden', 'target'), { recursive: true })
+    await mkdir(path.join(tmp, 'node_modules', 'target'), { recursive: true })
+    await mkdir(path.join(tmp, 'deep', 'one', 'target'), { recursive: true })
+
+    const results = await listDirectory(tmp as AbsoluteFilePath, {
+      recursive: true,
+      maxDepth: 2,
+      includeHidden: false,
+      includeFiles: false,
+      includeDirectories: true,
+      searchPattern: 'target'
+    })
+
+    expect(results).toEqual([path.join(tmp, 'visible', 'target').replace(/\\/g, '/')])
+  })
+
+  it('treats maxDepth=0 as unlimited for fuzzy directory candidates', async () => {
+    await mkdir(path.join(tmp, 'deep', 'one', 'target-empty'), { recursive: true })
+
+    const results = await listDirectory(tmp as AbsoluteFilePath, {
+      recursive: true,
+      maxDepth: 0,
+      includeFiles: false,
+      includeDirectories: true,
+      searchPattern: 'target'
+    })
+
+    expect(results).toEqual([path.join(tmp, 'deep', 'one', 'target-empty').replace(/\\/g, '/')])
+  })
+})
+
+describe('listDirectory (directory-only fuzzy options)', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-search-directory-options-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('does not return nested matches when recursive=false', async () => {
+    await mkdir(path.join(tmp, 'target-root'))
+    await mkdir(path.join(tmp, 'container', 'target-nested'), { recursive: true })
+
+    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
+      recursive: false,
+      includeFiles: false,
+      includeDirectories: true,
+      searchPattern: 'target'
+    })
+
+    expect(results).toEqual([
+      {
+        path: path.join(tmp, 'target-root').replace(/\\/g, '/'),
+        isDirectory: true
+      }
+    ])
+  })
+
+  it('returns matching hidden directories when includeHidden=true', async () => {
+    await mkdir(path.join(tmp, '.target-hidden'))
+    await mkdir(path.join(tmp, 'other'))
+
+    const results = await listDirectoryEntries(tmp as AbsoluteFilePath, {
+      includeHidden: true,
+      includeFiles: false,
+      includeDirectories: true,
+      searchPattern: 'target'
+    })
+
+    expect(results).toEqual([
+      {
+        path: path.join(tmp, '.target-hidden').replace(/\\/g, '/'),
+        isDirectory: true
+      }
+    ])
+  })
+
+  it('ranks candidates by their root-relative paths', async () => {
+    const searchRoot = path.join(tmp, 'abc-root')
+    await mkdir(path.join(searchRoot, 'a-long-bc'), { recursive: true })
+    await mkdir(path.join(searchRoot, 'a-b-c'))
+
+    // Relative scoring rewards the consecutive "bc" in a-long-bc. Scoring
+    // the absolute paths would instead satisfy "abc" in the shared root and
+    // let the path-length penalty incorrectly prefer the shorter a-b-c.
+    const results = await listDirectoryEntries(searchRoot as AbsoluteFilePath, {
+      includeFiles: false,
+      includeDirectories: true,
+      searchPattern: 'abc',
+      maxEntries: 1
+    })
+
+    expect(results).toEqual([
+      {
+        path: path.join(searchRoot, 'a-long-bc').replace(/\\/g, '/'),
+        isDirectory: true
+      }
+    ])
+  })
 })
 
 describe('listDirectory (error paths)', () => {
@@ -253,6 +475,19 @@ describe('listDirectory (error paths)', () => {
   })
   afterEach(async () => {
     await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('returns directory-only fuzzy results when ripgrep is unavailable', async () => {
+    await mkdir(path.join(tmp, 'docs-empty'))
+    mockExistsSync.mockReturnValue(false)
+
+    const results = await listDirectory(tmp as AbsoluteFilePath, {
+      includeFiles: false,
+      includeDirectories: true,
+      searchPattern: 'docs'
+    })
+
+    expect(results).toEqual([path.join(tmp, 'docs-empty').replace(/\\/g, '/')])
   })
 
   it('throws "Ripgrep binary not available" when the test ripgrep binary cannot be located', async () => {
@@ -266,8 +501,23 @@ describe('listDirectory (error paths)', () => {
     await expect(listDirectory(tmp as AbsoluteFilePath)).rejects.toThrow(/Ripgrep binary not available/)
   })
 
+  it('propagates a ripgrep fallback failure after the glob returns no matches', async () => {
+    mockExistsSync.mockReturnValue(true)
+    mockSpawn
+      .mockImplementationOnce(() => createMockRipgrepChild(1))
+      .mockImplementationOnce(() => createMockRipgrepChild(2, { stderr: 'fallback failed' }))
+
+    await expect(
+      listDirectory(tmp as AbsoluteFilePath, {
+        includeFiles: true,
+        includeDirectories: false,
+        searchPattern: 'ab'
+      })
+    ).rejects.toThrow('Ripgrep failed with exit code 2: fallback failed')
+  })
+
   it('throws when the root path is not readable (EACCES from fs.promises.stat)', async () => {
-    // The stat call (search.ts:532) catch-logs + rethrows the original
+    // The stat call catch-logs + rethrows the original
     // error verbatim, so callers see the underlying EACCES — not a
     // synthesized "Path is not a directory" or "Ripgrep binary" message.
     const eaccesErr = Object.assign(new Error('permission denied'), {
@@ -276,5 +526,19 @@ describe('listDirectory (error paths)', () => {
     mockPromisesStat.mockRejectedValueOnce(eaccesErr)
 
     await expect(listDirectory('/some/locked/path' as AbsoluteFilePath)).rejects.toBe(eaccesErr)
+  })
+
+  it('propagates EACCES when the root directory cannot be enumerated', async () => {
+    const eaccesErr = Object.assign(new Error('permission denied'), {
+      code: 'EACCES'
+    }) as NodeJS.ErrnoException
+    mockPromisesReaddir.mockRejectedValueOnce(eaccesErr)
+
+    await expect(
+      listDirectory(tmp as AbsoluteFilePath, {
+        includeFiles: false,
+        includeDirectories: true
+      })
+    ).rejects.toBe(eaccesErr)
   })
 })
