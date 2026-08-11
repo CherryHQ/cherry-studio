@@ -568,6 +568,33 @@ describe('app Sidebar', () => {
     expect(mocks.openTab).not.toHaveBeenCalled()
   })
 
+  it('switches to an existing mini app tab without replacing the active tab', async () => {
+    const user = userEvent.setup()
+    configureMiniApps(['calculator'])
+    mocks.activeTab = {
+      id: 'chat',
+      type: 'route',
+      url: '/app/chat?topicId=t-1',
+      title: 'Topic'
+    }
+    mocks.tabs = [
+      mocks.activeTab,
+      {
+        id: 'calculator-tab',
+        type: 'route',
+        url: '/app/mini-app/calculator',
+        title: 'Calculator'
+      }
+    ]
+
+    render(<Sidebar />)
+    await user.click(screen.getByRole('button', { name: 'Calculator' }))
+
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('calculator-tab')
+    expect(mocks.updateTab).not.toHaveBeenCalled()
+    expect(mocks.openTab).not.toHaveBeenCalled()
+  })
+
   it('does nothing when the active tab is already on the target mini app route', () => {
     configureMiniApps(['calculator'])
     mocks.activeTab = {
