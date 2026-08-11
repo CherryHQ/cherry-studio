@@ -556,7 +556,6 @@ export class AiService extends BaseService {
       attachments: fileAttachments,
       nativeSupport: nativeFileSupport,
       isToolCapable: isFunctionCallingModel(model),
-      contextWindow: model.contextWindow,
       signal
     })
 

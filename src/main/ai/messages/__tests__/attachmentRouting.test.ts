@@ -1,5 +1,4 @@
 import type { NativeFileSupport } from '@main/ai/runtime/aiSdk/params/nativeFileSupport'
-import { READ_FILE_PAGE_SIZE } from '@shared/ai/builtinTools'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UIMessage } from 'ai'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -27,7 +26,7 @@ vi.mock('../attachmentTextExtraction', () => ({
   noExtractableTextNote: (name: string) => `No text in ${name}`
 }))
 
-import { collectFileAttachments, prepareChatMessages, resolveAttachmentInlineCap } from '../attachmentRouting'
+import { collectFileAttachments, prepareChatMessages } from '../attachmentRouting'
 
 const NONE: NativeFileSupport = { image: false, pdf: false, audio: false, video: false }
 const ALL: NativeFileSupport = { image: true, pdf: true, audio: true, video: true }
@@ -47,15 +46,14 @@ const fileWithEntry = (id: string, filename: string, mediaType: string): CherryM
 const run = (
   parts: CherryMessagePart[],
   ns: NativeFileSupport,
-  opts: { isToolCapable?: boolean; cap?: number; contextWindow?: number } = {}
+  opts: { isToolCapable?: boolean; cap?: number } = {}
 ) => {
   const messages = [userMessage(parts)] as UIMessage[]
   return prepareChatMessages(messages, {
     attachments: collectFileAttachments(messages),
     nativeSupport: ns,
     isToolCapable: opts.isToolCapable ?? true,
-    cap: opts.cap,
-    contextWindow: opts.contextWindow
+    cap: opts.cap
   })
 }
 
@@ -210,16 +208,6 @@ describe('prepareChatMessages — routing', () => {
     expect(text).not.toContain('read_file')
   })
 
-  it('inlines a long document in full when the window affords it', async () => {
-    const doc = '一'.repeat(40_000)
-    getByIdMock.mockResolvedValueOnce({ ext: 'txt' })
-    extractMock.mockResolvedValueOnce(doc)
-    const [out] = await run([fileWithEntry('e1', 'a.txt', 'text/plain')], NONE, { contextWindow: 400_000 })
-    const text = textOf(out.parts)[0]
-    expect(text).not.toContain('Truncated')
-    expect(text).toContain(doc)
-  })
-
   it('rethrows on abort instead of degrading', async () => {
     const controller = new AbortController()
     controller.abort()
@@ -320,25 +308,5 @@ describe('collectFileAttachments', () => {
   it('ignores file parts without a fileEntryId', () => {
     const legacy = { type: 'file', url: 'file:///x/legacy.pdf', mediaType: 'application/pdf' } as CherryMessagePart
     expect(collectFileAttachments([userMessage([legacy])] as UIMessage[])).toEqual([])
-  })
-})
-
-describe('resolveAttachmentInlineCap', () => {
-  it('falls back to the flat page size when no window is known', () => {
-    expect(resolveAttachmentInlineCap(undefined, 1)).toBe(READ_FILE_PAGE_SIZE)
-    expect(resolveAttachmentInlineCap(0, 1)).toBe(READ_FILE_PAGE_SIZE)
-  })
-
-  // Without the split, four attachments would each inline a whole window share
-  // and together blow past the window they were sized against.
-  it('splits one window share across the attachments of a turn', () => {
-    const whole = resolveAttachmentInlineCap(400_000, 1)
-    expect(whole).toBeLessThan(400_000)
-    expect(resolveAttachmentInlineCap(400_000, 4) * 4).toBe(whole)
-  })
-
-  it('never drops below the flat page size on a tiny window', () => {
-    expect(resolveAttachmentInlineCap(8_000, 1)).toBe(READ_FILE_PAGE_SIZE)
-    expect(resolveAttachmentInlineCap(400_000, 1_000)).toBe(READ_FILE_PAGE_SIZE)
   })
 })
