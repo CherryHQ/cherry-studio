@@ -1,4 +1,3 @@
-import type { FetchFunction } from '@ai-sdk/provider-utils'
 import {
   CHERRYAI_API_BASE_URL,
   CHERRYAI_DEFAULT_MODEL_ID,
@@ -856,35 +855,6 @@ describe('providerToAiSdkConfig — builder dispatch matrix', () => {
       // A builder that installs no fetch of its own must default to the proxy-aware customFetch
       // (the `settings.fetch ??= customFetch` in providerToAiSdkConfig — the point of this path).
       expect(settings.fetch).toBe(customFetch)
-    })
-
-    it('applies the DashScope web_extractor body rewrite ABOVE the injected base fetch', async () => {
-      // The HTTP trace rides in as `baseFetch`, so anything a provider wrapper does to the
-      // body must already be applied by the time the base fetch is called — otherwise the
-      // trace records a request that was never sent.
-      const baseFetch = vi.fn<FetchFunction>(async () => new Response('{}'))
-      const provider = makeProvider({
-        id: 'dashscope',
-        presetProviderId: 'dashscope',
-        defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_RESPONSES,
-        endpointConfigs: {
-          [ENDPOINT_TYPE.OPENAI_RESPONSES]: {
-            baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-            adapterFamily: 'openai'
-          }
-        }
-      })
-      const model = makeModel({ providerId: 'dashscope', endpointTypes: [ENDPOINT_TYPE.OPENAI_RESPONSES] })
-
-      const config = await providerToAiSdkConfig(provider, model, { baseFetch })
-      const settings = config.providerSettings as { fetch: FetchFunction }
-      await settings.fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/responses', {
-        method: 'POST',
-        body: JSON.stringify({ tools: [{ type: 'web_search' }] })
-      })
-
-      const sentBody = JSON.parse(baseFetch.mock.calls[0][1]?.body as string)
-      expect(sentBody.tools).toContainEqual(expect.objectContaining({ type: 'web_extractor' }))
     })
 
     it('routes ModelScope IMAGE models through ModelScope config (so the async submit/poll transport is used)', async () => {

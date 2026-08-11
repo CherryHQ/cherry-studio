@@ -4,7 +4,6 @@
  * can attribute the request without consulting mutable rotation state later.
  */
 
-import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import { formatPrivateKey, hasProviderConfig, type StringKeys } from '@cherrystudio/ai-core/provider'
 import type { CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
@@ -54,8 +53,6 @@ interface BuilderContext {
   endpointType?: EndpointType
   endpoint?: string
   aiSdkProviderId: StringKeys<AppProviderSettingsMap>
-  /** The fetch every provider wrapper delegates to; see {@link ProviderToAiSdkConfigOptions.baseFetch}. */
-  baseFetch: FetchFunction
 }
 
 type ApiKeyBuilderContext = BuilderContext & {
@@ -66,14 +63,6 @@ interface ProviderToAiSdkConfigOptions {
   apiKeyOverride?: string
   resolvedEndpoint?: ResolvedEndpoint
   sessionId?: string
-  /**
-   * Innermost fetch every provider wrapper here delegates to; defaults to
-   * {@link customFetch}. Wrapping it (rather than the resolved
-   * `providerSettings.fetch`) puts the caller's layer *below* the provider
-   * body/header rewrites, so it observes the request as it goes on the wire —
-   * that is what the dev-mode HTTP trace needs.
-   */
-  baseFetch?: FetchFunction
 }
 
 export interface ResolvedProviderAiSdkConfig {
@@ -196,8 +185,7 @@ export async function resolveProviderAiSdkConfig(
     sessionId: options?.sessionId,
     endpointType,
     endpoint,
-    aiSdkProviderId,
-    baseFetch: options?.baseFetch ?? customFetch
+    aiSdkProviderId
   }
 
   const builders: ConfigBuilderEntry[] = [
@@ -264,7 +252,7 @@ export async function resolveProviderAiSdkConfig(
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
         config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
-          ctx.baseFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
+          customFetch(input, { ...init, body: stripArkUnsupportedIncludes(init?.body) })
         return config
       })
     },
@@ -276,7 +264,7 @@ export async function resolveProviderAiSdkConfig(
       build: withSelectedApiKey((ctx) => {
         const config = buildGenericProviderConfig(ctx)
         config.providerSettings.fetch = (input: RequestInfo | URL, init?: RequestInit) =>
-          ctx.baseFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
+          customFetch(input, { ...init, body: appendDashScopeWebExtractor(init?.body) })
         return config
       })
     },
@@ -351,8 +339,8 @@ export async function resolveProviderAiSdkConfig(
   // Default every provider to the proxy-aware net.fetch base so the app proxy
   // (ProxyService → session.setProxy) applies to provider HTTP traffic. Builders
   // that install their own fetch wrapper (e.g. CherryAI request signing) compose
-  // on top of it; `??=` preserves them rather than clobbering them.
-  config.providerSettings.fetch ??= ctx.baseFetch
+  // on top of customFetch; `??=` preserves them rather than clobbering them.
+  config.providerSettings.fetch ??= customFetch
 
   return {
     config,
@@ -419,12 +407,12 @@ function buildCodexConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
       // request in the custom fetch below, overriding this placeholder.
       apiKey: 'codex-oauth',
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
-      fetch: buildCodexFetch(ctx.baseFetch)
+      fetch: buildCodexFetch()
     }
   }
 }
 
-function buildCodexFetch(baseFetch: FetchFunction) {
+function buildCodexFetch() {
   // Token fetch + not-signed-in guard + 401 force-refresh retry live in
   // OAuthRuntimeService.authenticatedFetch; this wrapper only shapes the codex
   // request (headers + body coercion), re-applied with the fresh token on retry.
@@ -442,7 +430,7 @@ function buildCodexFetch(baseFetch: FetchFunction) {
           body: coerceCodexRequestBody(init?.body)
         }
       }),
-      baseFetch,
+      customFetch,
       { notSignedInMessage: 'Not signed in to OpenAI Codex. Open the provider settings and sign in again.' }
     )
 }
@@ -472,12 +460,12 @@ function buildGrokCliConfig(ctx: BuilderContext): ProviderConfig<'openai'> {
       // request in the custom fetch below, overriding this placeholder.
       apiKey: 'grok-cli-oauth',
       headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
-      fetch: buildGrokCliFetch(ctx.baseFetch)
+      fetch: buildGrokCliFetch()
     }
   }
 }
 
-function buildGrokCliFetch(baseFetch: FetchFunction) {
+function buildGrokCliFetch() {
   // See buildCodexFetch: shared token/refresh/401-retry lives in
   // OAuthRuntimeService.authenticatedFetch; this only shapes the Grok request.
   return (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -503,7 +491,7 @@ function buildGrokCliFetch(baseFetch: FetchFunction) {
           body
         }
       }),
-      baseFetch,
+      customFetch,
       { notSignedInMessage: 'Not signed in to Grok CLI. Open the provider settings and sign in again.' }
     )
   }
@@ -525,7 +513,7 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
           query: '',
           body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
         })
-        return ctx.baseFetch(input, { ...init, headers: { ...init?.headers, ...signature } })
+        return customFetch(input, { ...init, headers: { ...init?.headers, ...signature } })
       }
     }
   }
