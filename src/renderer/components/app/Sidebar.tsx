@@ -47,7 +47,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const { favorites, miniAppFavoriteIds, setAppPinned, removeMiniApp, reorderFavorites } = useSidebarFavorites()
-  const { activeTab, updateTab, openTab } = useTabs()
+  const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
   const { miniApps, pinned } = useMiniApps({ enabled: miniAppFavoriteIds.length > 0 })
   const [defaultPaintingProvider] = usePreference('feature.paintings.default_provider')
 
@@ -182,6 +182,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const path = `${MINI_APP_ROUTE_PREFIX}${app.appId}`
       if (activeTab?.url === path) return
 
+      const existingTab = tabs.find((tab) => tab.type === 'route' && tab.url === path)
+      if (existingTab) {
+        setActiveTab(existingTab.id)
+        return
+      }
+
       const title = app.nameKey ? t(app.nameKey) : app.name
       // Uploaded logo → main-resolved `logoSrc`; preset key → `logo`.
       const icon = app.logoSrc ?? app.logo
@@ -207,7 +213,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         icon
       })
     },
-    [activeTab, openableMiniAppById, openTab, t, updateTab]
+    [activeTab, openableMiniAppById, openTab, setActiveTab, t, tabs, updateTab]
   )
 
   // All per-type sidebar knowledge (icon, label, route, active-match, open, remove)

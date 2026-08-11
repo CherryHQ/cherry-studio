@@ -1053,7 +1053,8 @@ function AgentStatusRightPanel({ active }: RightPanelComponentProps<AgentRightPa
   )
 }
 
-function AgentTraceRightPanel({ scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+function AgentTraceRightPanel({ active, scope }: RightPanelComponentProps<AgentRightPanelScope>) {
+  if (!active) return null
   const traceTopicId = scope.meta.sessionId ? buildAgentSessionTopicId(scope.meta.sessionId) : ''
   return <TracePane payload={{ topicId: traceTopicId, traceId: scope.meta.traceId ?? '' }} />
 }

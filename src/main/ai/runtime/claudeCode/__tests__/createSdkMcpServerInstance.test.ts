@@ -10,7 +10,8 @@ const mocks = vi.hoisted(() => ({
   onToolsCacheUpdated: vi.fn(),
   onToolsCacheUpdatedDispose: vi.fn(),
   listPrompts: vi.fn(),
-  getPrompt: vi.fn()
+  getPrompt: vi.fn(),
+  callTool: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -85,7 +86,7 @@ describe('createSdkMcpServerInstance', () => {
           onToolsCacheUpdated: mocks.onToolsCacheUpdated,
           listPrompts: mocks.listPrompts
         }
-      if (name === 'McpRuntimeService') return { getPrompt: mocks.getPrompt }
+      if (name === 'McpRuntimeService') return { getPrompt: mocks.getPrompt, callTool: mocks.callTool }
       throw new Error(`Unexpected application.get(${name})`)
     })
   })
@@ -96,6 +97,28 @@ describe('createSdkMcpServerInstance', () => {
     createSdkMcpServerInstance('server-1', capturedServer as never)
 
     expect(mocks.findByIdOrName).not.toHaveBeenCalled()
+  })
+
+  it('forwards the request cancellation signal to McpRuntimeService.callTool', async () => {
+    mocks.callTool.mockResolvedValue({ content: [] })
+    const sdkServer = createSdkMcpServerInstance('server-1')
+    const handlers = (sdkServer.server as unknown as { _requestHandlers: Map<string, RequestHandler> })._requestHandlers
+    const handler = handlers.get('tools/call')
+
+    expect(handler).toBeDefined()
+
+    const controller = new AbortController()
+    await handler!(
+      { method: 'tools/call', params: { name: 'search', arguments: { q: 'x' } } },
+      { signal: controller.signal }
+    )
+
+    expect(mocks.callTool).toHaveBeenCalledWith({
+      serverId: 'server-1',
+      name: 'search',
+      args: { q: 'x' },
+      signal: controller.signal
+    })
   })
 
   it('proxies prompts/get through McpRuntimeService when prompts are advertised', async () => {

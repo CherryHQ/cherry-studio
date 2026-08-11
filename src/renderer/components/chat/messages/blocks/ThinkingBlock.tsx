@@ -72,7 +72,7 @@ ThinkingBlockContent.displayName = 'ThinkingBlockContent'
 
 const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePreview = false }) => {
   const { thoughtAutoCollapse } = useMessageRenderConfig()
-  const [isExpanded, setIsExpanded] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(!thoughtAutoCollapse)
   const contentId = useId()
   const thinkingPreviewScanStateRef = useRef<ThinkingPreviewScanState | undefined>(undefined)
   const { anchorRef, withScrollAnchor } = useScrollAnchor<HTMLDivElement>()
@@ -99,9 +99,7 @@ const ThinkingBlock: React.FC<Props> = ({ id, content, isStreaming, showTitlePre
   }, [thinkingPreviewScanResult])
 
   useEffect(() => {
-    if (thoughtAutoCollapse) {
-      setIsExpanded(false)
-    }
+    setIsExpanded(!thoughtAutoCollapse)
   }, [thoughtAutoCollapse])
 
   if (!content) {
