@@ -45,7 +45,7 @@ import {
 } from './McpServerFields'
 import McpToolsSection from './McpTool'
 import { useMcpServerTrust } from './useMcpServerTrust'
-import { toUpdateMcpServerDto } from './utils'
+import { formatMcpLogData, formatMcpLogs, toUpdateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpSettings')
 
@@ -101,19 +101,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
   const fetchServerLogsRequestRef = useRef(0)
   const handledAutoEnableServerIdRef = useRef<string | null>(null)
 
-  const logsText = useMemo(
-    () =>
-      logs
-        .map((log) => {
-          const time = new Date(log.timestamp).toLocaleTimeString()
-          const data = log.data
-            ? `\n${typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}`
-            : ''
-          return `[${time}] [${log.level.toUpperCase()}] ${log.message}${data}`
-        })
-        .join('\n'),
-    [logs]
-  )
+  const logsText = useMemo(() => formatMcpLogs(logs), [logs])
 
   const { theme } = useTheme()
 
@@ -560,9 +548,7 @@ const McpSettingsContent: React.FC<McpSettingsContentProps> = ({ server, updateM
                 </Badge>
                 <LogMessage>{log.message}</LogMessage>
               </LogHeader>
-              {log.data && (
-                <PreBlock>{typeof log.data === 'string' ? log.data : JSON.stringify(log.data, null, 2)}</PreBlock>
-              )}
+              {log.data && <PreBlock>{formatMcpLogData(log.data)}</PreBlock>}
             </LogItem>
           ))}
         </LogList>
