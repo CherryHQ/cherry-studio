@@ -1,4 +1,5 @@
 import type { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -70,11 +71,11 @@ export function useMutationFeedback<Args extends unknown[], Result>(
         // Optional chain in case the host window has no toast shim — failing
         // here would mask the success path; failing in catch would mask the
         // original mutation error.
-        if (showSuccessToast) window.toast?.success(t(contextRef.current.successToastKey))
+        if (showSuccessToast) toast.success(t(contextRef.current.successToastKey))
         return result
       } catch (e) {
         contextRef.current.logger.error(contextRef.current.errorLogMessage, e as Error)
-        if (showErrorToast) window.toast?.error(t(contextRef.current.errorToastKey))
+        if (showErrorToast) toast.error(t(contextRef.current.errorToastKey))
         if (rethrowError) throw e
         return undefined
       }

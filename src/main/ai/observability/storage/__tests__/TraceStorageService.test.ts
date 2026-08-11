@@ -7,7 +7,7 @@ import { BaseService } from '@main/core/lifecycle'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
 import type { SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
-import type { ReadableSpan } from '@opentelemetry/sdk-trace-base'
+import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -34,7 +34,12 @@ function span(overrides: Partial<SpanEntity>): SpanEntity {
 }
 
 // Minimal ReadableSpan shaped for the fields convertSpanToSpanEntity / createSpan / endSpan read.
-function readableSpan(overrides: { spanId: string; traceId: string; ended: boolean }): ReadableSpan {
+function readableSpan(overrides: {
+  spanId: string
+  traceId: string
+  ended: boolean
+  events?: TimedEvent[]
+}): ReadableSpan {
   return {
     name: 'otel-span',
     kind: 0,
@@ -45,9 +50,21 @@ function readableSpan(overrides: { spanId: string; traceId: string; ended: boole
     ended: overrides.ended,
     status: { code: SpanStatusCode.OK },
     attributes: {},
-    events: [],
+    events: overrides.events ?? [],
     links: []
   } as unknown as ReadableSpan
+}
+
+// Reading history is the expensive path (whole trace parsed into the heap + IPC payload), so the
+// hot-path tests below assert on it directly rather than on whichever fs call implements it.
+type HistoryReader = { getHistoryData: (topicId: string, traceId: string) => Promise<SpanEntity[]> }
+
+function spyOnHistoryReads(service: TraceStorageService) {
+  return vi.spyOn(service as unknown as HistoryReader, 'getHistoryData')
+}
+
+function timedEvent(name: string): TimedEvent {
+  return { name, time: [0, 0], attributes: {} } as TimedEvent
 }
 
 describe('TraceStorageService', () => {
@@ -116,6 +133,51 @@ describe('TraceStorageService', () => {
       { id: 'history', name: 'live-wins' },
       { id: 'live', name: 'from-live' }
     ])
+  })
+
+  it('returns one full snapshot followed by live deltas without rereading unchanged history', async () => {
+    await service._doInit()
+
+    service.saveEntity(span({ id: 'history', traceId: 'trace-a', topicId: 'topic-a' }))
+    await service.saveSpans('topic-a')
+    service.saveEntity(span({ id: 'live', traceId: 'trace-a', topicId: 'topic-a', name: 'live-v1' }))
+
+    const initial = await service.getTraceData('topic-a', 'trace-a')
+    expect(initial.reset).toBe(true)
+    expect(initial.spans.map((item) => item.id).sort()).toEqual(['history', 'live'])
+
+    const historySpy = spyOnHistoryReads(service)
+    try {
+      const unchanged = await service.getTraceData('topic-a', 'trace-a', initial.cursor)
+      expect(unchanged).toMatchObject({ reset: false, spans: [] })
+      expect(historySpy).not.toHaveBeenCalled()
+
+      service.saveEntity(span({ id: 'live', traceId: 'trace-a', topicId: 'topic-a', name: 'live-v2' }))
+      const changed = await service.getTraceData('topic-a', 'trace-a', unchanged.cursor)
+      expect(changed.reset).toBe(false)
+      expect(changed.spans).toMatchObject([{ id: 'live', name: 'live-v2' }])
+      expect(historySpy).not.toHaveBeenCalled()
+    } finally {
+      historySpy.mockRestore()
+    }
+  })
+
+  it('accumulates trace files without reading the complete history during each flush', async () => {
+    await service._doInit()
+
+    service.saveEntity(span({ id: 'first', traceId: 'trace-a', topicId: 'topic-a' }))
+    await service.saveSpans('topic-a')
+
+    const historySpy = spyOnHistoryReads(service)
+    try {
+      service.saveEntity(span({ id: 'second', traceId: 'trace-a', topicId: 'topic-a' }))
+      await service.saveSpans('topic-a')
+      expect(historySpy).not.toHaveBeenCalled()
+    } finally {
+      historySpy.mockRestore()
+    }
+
+    expect((await service.getSpans('topic-a', 'trace-a')).map((item) => item.id).sort()).toEqual(['first', 'second'])
   })
 
   // The OTel createSpan/endSpan path is the live source of cached spans. If endSpan does not
@@ -192,5 +254,211 @@ describe('TraceStorageService', () => {
     await service.saveSpans('topic')
     const flushed = await service.getSpans('topic', 'trace')
     expect(flushed.map((s) => s.id).sort()).toEqual(['s1', 's2'])
+  })
+
+  // Claude Code's OTLP log events stream in DURING a turn but the span they reference is exported on
+  // its END, so events routinely precede their span. Pre-fix they were dropped ("span not found in
+  // store") and the rich per-span detail (raw API bodies, tool I/O) was silently lost.
+  it('buffers an orphan span event and drains it once the span arrives via saveEntity', async () => {
+    await service._doInit()
+
+    // Event arrives before its span — must be buffered, not dropped.
+    service.addSpanEvent('trace', 'cc-span', timedEvent('llm_request'))
+    expect(service['store'].getSpan('cc-span')).toBeUndefined()
+
+    // The span lands via /v1/traces (saveEntity); the buffered event is attached to it.
+    service.saveEntity(span({ id: 'cc-span', traceId: 'trace', topicId: 'topic' }))
+
+    expect(service['store'].getSpan('cc-span')?.events?.map((e) => e.name)).toEqual(['llm_request'])
+    expect(service['pendingEvents'].size).toBe(0)
+  })
+
+  it('drains buffered events when the span arrives via the createSpan path', async () => {
+    await service._doInit()
+
+    service.addSpanEvent('trace-live', 'live', timedEvent('e'))
+    service.createSpan(readableSpan({ spanId: 'live', traceId: 'trace-live', ended: false }))
+
+    expect(service['store'].getSpan('live')?.events?.map((e) => e.name)).toEqual(['e'])
+    expect(service['pendingEvents'].size).toBe(0)
+  })
+
+  it('appends a span event directly when the span is already stored', async () => {
+    await service._doInit()
+    service.saveEntity(span({ id: 's', traceId: 'trace', topicId: 'topic', events: [timedEvent('first')] }))
+
+    service.addSpanEvent('trace', 's', timedEvent('second'))
+
+    expect(service['store'].getSpan('s')?.events?.map((e) => e.name)).toEqual(['first', 'second'])
+    expect(service['pendingEvents'].size).toBe(0)
+  })
+
+  // A single OTLP request can be ~10 MiB of decompressed plaintext (raw bodies, tool I/O). Buffering
+  // orphan events must be bounded by bytes, not just count, or spans that never arrive pin megabytes.
+  it('evicts oldest buffered spans once retained bytes exceed the budget', async () => {
+    await service._doInit()
+
+    const bigEvent = (): TimedEvent =>
+      ({ name: 'llm_request', time: [0, 0], attributes: { body: 'x'.repeat(2 * 1024 * 1024) } }) as TimedEvent
+
+    // 10 spans × ~2 MiB each ≈ 20 MiB > 16 MiB budget → oldest-first eviction, most recent kept.
+    for (let i = 0; i < 10; i++) {
+      service.addSpanEvent('trace', `span-${i}`, bigEvent())
+    }
+
+    expect(service['pendingEventBytes']).toBeLessThanOrEqual(16 * 1024 * 1024)
+    expect(service['pendingEvents'].has('span-0')).toBe(false)
+    expect(service['pendingEvents'].has('span-9')).toBe(true)
+  })
+
+  it('drops a single orphan event that exceeds the pending byte budget', async () => {
+    await service._doInit()
+    const oversized = {
+      name: 'llm_request',
+      time: [0, 0],
+      attributes: { body: 'x'.repeat(17 * 1024 * 1024) }
+    } as TimedEvent
+
+    service.addSpanEvent('trace', 'oversized', oversized)
+
+    expect(service['pendingEventBytes']).toBe(0)
+    expect(service['pendingEvents']).toEqual(new Map())
+  })
+
+  // The MAX_PENDING_* caps guard only the orphan buffer; once the span is stored, addSpanEvent
+  // appended to it without limit. Claude Code streams events for a whole turn, and a measured span
+  // reached ~1.5k events / ~20 MiB that then crossed IPC and sat in the renderer heap whole.
+  it('caps the events a stored span retains, keeping the most recent', async () => {
+    await service._doInit()
+    service.saveEntity(span({ id: 'cc', traceId: 'trace', topicId: 'topic' }))
+
+    for (let i = 0; i < 250; i++) {
+      service.addSpanEvent('trace', 'cc', timedEvent(`event-${i}`))
+    }
+
+    const names = service['store'].getSpan('cc')?.events?.map((e) => e.name) ?? []
+    expect(names).toHaveLength(200)
+    expect(names.at(0)).toBe('event-50')
+    expect(names.at(-1)).toBe('event-249')
+  })
+
+  it('caps events when a complete span first arrives through saveEntity', async () => {
+    await service._doInit()
+    const events = Array.from({ length: 250 }, (_, index) => timedEvent(`event-${index}`))
+
+    service.saveEntity(span({ id: 'complete', traceId: 'trace', topicId: 'topic', events }))
+
+    const names = service['store'].getSpan('complete')?.events?.map((event) => event.name) ?? []
+    expect(names).toHaveLength(200)
+    expect(names.at(0)).toBe('event-50')
+    expect(names.at(-1)).toBe('event-249')
+  })
+
+  it('caps events when endSpan replaces the event array', async () => {
+    await service._doInit()
+    const events = Array.from({ length: 250 }, (_, index) => timedEvent(`event-${index}`))
+
+    service.createSpan(readableSpan({ spanId: 'live', traceId: 'trace', ended: false }))
+    service.endSpan(readableSpan({ spanId: 'live', traceId: 'trace', ended: true, events }))
+
+    const names = service['store'].getSpan('live')?.events?.map((event) => event.name) ?? []
+    expect(names).toHaveLength(200)
+    expect(names.at(0)).toBe('event-50')
+    expect(names.at(-1)).toBe('event-249')
+  })
+
+  // ClaudeCodeTraceBridgeService delivers one OTLP batch as a separate addSpanEvent call per event,
+  // so the retained window must be measured incrementally: rescanning it on every append is
+  // quadratic in the events a span receives, and a measured span received 4,427 of them.
+  it('measures each appended event once instead of rescanning the retained window', async () => {
+    await service._doInit()
+    service.saveEntity(span({ id: 'cc', traceId: 'trace', topicId: 'topic' }))
+
+    const stringify = vi.spyOn(JSON, 'stringify')
+    for (let i = 0; i < 300; i++) {
+      service.addSpanEvent('trace', 'cc', timedEvent(`event-${i}`))
+    }
+    const measurements = stringify.mock.calls.length
+    stringify.mockRestore()
+
+    // One measure per appended event plus one per event the trim drops. A rescan of the retained
+    // window would be ~200x higher, since the count cap keeps up to 200 events in play.
+    expect(measurements).toBeLessThan(1_000)
+    expect(service['store'].getSpan('cc')?.events).toHaveLength(200)
+  })
+
+  // Raw API bodies make the count cap alone useless — a single event can carry tens of MiB. It must
+  // be dropped when it exceeds the byte budget, or the supposed cap would not protect the process.
+  it('drops a stored span event that alone exceeds the byte budget', async () => {
+    await service._doInit()
+    service.saveEntity(
+      span({ id: 'big', traceId: 'trace', topicId: 'topic', events: [timedEvent('retained-before-oversized')] })
+    )
+
+    const bigEvent = (name: string): TimedEvent =>
+      ({ name, time: [0, 0], attributes: { body: 'x'.repeat(3 * 1024 * 1024) } }) as TimedEvent
+    for (const name of ['body-0', 'body-1', 'body-2']) {
+      service.addSpanEvent('trace', 'big', bigEvent(name))
+    }
+
+    expect(service['store'].getSpan('big')?.events?.map((event) => event.name)).toEqual(['retained-before-oversized'])
+  })
+
+  // A container trace file accumulates every turn of a session, and each viewer resync parses the
+  // WHOLE file into the main heap, the IPC payload and the renderer's node map. Without retention
+  // that grows without bound, so the oldest spans must age out of the file.
+  it('drops the oldest history spans once a trace file exceeds the retention budget', async () => {
+    await service._doInit()
+
+    // 4 spans x ~3 MiB > the 8 MiB budget. The cap is soft (the flush in progress is never trimmed),
+    // so trimming lands on the flush AFTER the file first goes over.
+    const body = 'x'.repeat(3 * 1024 * 1024)
+    for (const id of ['oldest', 'second', 'third', 'newest']) {
+      service.saveEntity(span({ id, traceId: 'trace-big', topicId: 'topic-big', attributes: { body } }))
+      await service.saveSpans('topic-big')
+    }
+
+    const retained = (await service.getSpans('topic-big', 'trace-big')).map((item) => item.id)
+    expect(retained).not.toContain('oldest')
+    expect(retained).toEqual(['second', 'third', 'newest'])
+  })
+
+  // A warm-query span can be stored before the live connection registers the trace's topic; it must
+  // still become visible + flushable once setTopicId backfills the topic (REGRESSION warm-trace-orphan).
+  it('backfills topicId onto spans stored before trace metadata so they become visible and flushable', async () => {
+    await service._doInit()
+
+    // Span arrives before any topic metadata (e.g. a prewarmed warm subprocess emitting init spans).
+    service.saveEntity(span({ id: 'warm', traceId: 'trace-x' }))
+    expect(await service.getSpans('topic-x', 'trace-x')).toEqual([])
+
+    service.setTopicId('trace-x', 'topic-x')
+
+    // Now visible …
+    expect((await service.getSpans('topic-x', 'trace-x')).map((s) => s.id)).toEqual(['warm'])
+    // … and flushed to the topic trace file (survives the memory clear on flush).
+    await service.saveSpans('topic-x')
+    expect((await service.getSpans('topic-x', 'trace-x')).map((s) => s.id)).toEqual(['warm'])
+  })
+
+  // A second /v1/traces export of the same span must not drop log events already drained onto it.
+  it('preserves drained log events when a later span update arrives with empty or extra events', async () => {
+    await service._doInit()
+    service.addSpanEvent('trace', 'cc-span', timedEvent('llm_request'))
+    service.saveEntity(span({ id: 'cc-span', traceId: 'trace', topicId: 'topic' }))
+    expect(service['store'].getSpan('cc-span')?.events?.map((e) => e.name)).toEqual(['llm_request'])
+
+    // Re-export with no events: the drained log event survives (not wiped).
+    service.saveEntity(span({ id: 'cc-span', traceId: 'trace', topicId: 'topic', events: [] }))
+    expect(service['store'].getSpan('cc-span')?.events?.map((e) => e.name)).toEqual(['llm_request'])
+
+    // Re-export carrying its own event: unions with the drained one (no loss, no dupes).
+    service.saveEntity(span({ id: 'cc-span', traceId: 'trace', topicId: 'topic', events: [timedEvent('tool')] }))
+    expect(
+      service['store']
+        .getSpan('cc-span')
+        ?.events?.map((e) => e.name)
+        .sort()
+    ).toEqual(['llm_request', 'tool'])
   })
 })

@@ -11,26 +11,41 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 // All mock fns live in vi.hoisted so the (hoisted) vi.mock factories can close
 // over them without a TDZ error.
-const { mockPreferenceGet, mockProcessMessage, mockGetModels } = vi.hoisted(() => ({
+const { mockPreferenceGet, mockProcessMessage, mockGetModels, mockIsInternalRequestToken } = vi.hoisted(() => ({
   mockPreferenceGet: vi.fn<(key: string) => unknown>(() => 'test-key'),
-  mockProcessMessage: vi.fn(
+  mockProcessMessage: vi.fn<(config: unknown) => Promise<Response>>(
     async () =>
       new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'content-type': 'application/json' } })
   ),
-  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] }))
+  mockGetModels: vi.fn(async () => ({ object: 'list', data: [{ id: 'openai:gpt-4' }] })),
+  mockIsInternalRequestToken: vi.fn((candidate: string | undefined) => candidate === 'internal-request-token')
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    PreferenceService: { get: mockPreferenceGet }
-  })
+  const overrides = {
+    PreferenceService: { get: mockPreferenceGet },
+    ApiGatewayService: { isInternalRequestToken: mockIsInternalRequestToken }
+  }
+  return mockApplicationFactory(overrides)
 })
 
 vi.mock('@logger', () => ({
   loggerService: {
     withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }))
   }
+}))
+
+// Route `detail.description` fields hold i18n *keys*; openapiDocs.ts resolves them
+// per request via `t()`. Stub `t` as `key::lang` (rather than a pure passthrough) so
+// the docs tests below can assert the requested language actually reached translation
+// — and so a key that never went through `t()` is visibly missing its `::lang` suffix
+// — without needing the real catalog. `getAppLanguage`/`SUPPORTED_LANGUAGES` back the
+// docs' default language + language-switcher list.
+vi.mock('@main/i18n', () => ({
+  t: (key: string, _params?: unknown, lang?: string) => (lang ? `${key}::${lang}` : key),
+  getAppLanguage: () => 'en-US',
+  SUPPORTED_LANGUAGES: ['en-US', 'zh-CN']
 }))
 
 // Heavy services are stubbed so building the app + exercising handlers never
@@ -85,6 +100,117 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(200)
       expect(body.name).toBe('Cherry Studio API')
       expect(body.endpoints).toBeDefined()
+    })
+
+    it('OpenAPI spec advertises an absolute server URL from host/port', async () => {
+      // Scalar renders curl examples against `servers[0].url`; an absolute URL
+      // keeps the health-check example copyable (`curl http://.../health`)
+      // instead of a bare relative path (`curl /health`).
+      const { body } = await read(await get(app, '/openapi/json', {}))
+      expect(body.servers).toEqual([{ url: 'http://127.0.0.1:23333' }])
+
+      const custom = await read(await get(buildApp({ host: '0.0.0.0', port: 8080 }), '/openapi/json', {}))
+      expect(custom.body.servers).toEqual([{ url: 'http://0.0.0.0:8080' }])
+    })
+  })
+
+  describe('OpenAPI docs — per-language translation + switcher', () => {
+    it('GET /openapi/json (no ?lang=) translates against the app language', async () => {
+      const { status, body } = await read(await get(app, '/openapi/json', {}))
+      expect(status).toBe(200)
+      expect(body.info.description).toBe('apiGateway.docs.description::en-US')
+      const health = body.paths['/health'].get
+      expect(health.tags).toEqual(['Cherry Studio'])
+      expect(health.summary).toBe('Health')
+      expect(health.description).toBe('apiGateway.docs.operations.health::en-US')
+    })
+
+    it('groups endpoints by the upstream API they are compatible with, keeping canonical names', async () => {
+      const { body } = await read(await get(app, '/openapi/json', {}))
+      expect(body.tags.map((tag: { name: string }) => tag.name)).toEqual([
+        'OpenAI API',
+        'Anthropic API',
+        'Gemini API',
+        'Cherry Studio'
+      ])
+      // Tag names and operation summaries are upstream identifiers: never translated,
+      // so generated clients keep stable module/method names. Only prose is localized.
+      expect(body.tags[0].description).toBe('apiGateway.docs.tags.openai::en-US')
+      expect(body.paths['/v1/chat/completions'].post.tags).toEqual(['OpenAI API'])
+      expect(body.paths['/v1/chat/completions'].post.summary).toBe('Chat Completions')
+      expect(body.paths['/v1/messages/'].post.tags).toEqual(['Anthropic API'])
+      expect(body.paths['/v1/messages/'].post.summary).toBe('Messages')
+    })
+
+    it('routes every documented operation through translation (no raw i18n key survives)', async () => {
+      const { body } = await read(await get(app, '/openapi/json?lang=zh-CN', {}))
+      const operations = Object.values<any>(body.paths).flatMap((pathItem) => Object.values<any>(pathItem))
+      expect(operations.length).toBeGreaterThan(0)
+      for (const operation of operations) {
+        // The stubbed `t()` appends `::lang`; a description a route declared but
+        // openapiDocs.ts never resolved would show up here as a bare key.
+        expect(operation.description).toMatch(/^apiGateway\.docs\.operations\.[a-z_]+::zh-CN$/)
+      }
+    })
+
+    it('keeps the docs routes themselves out of the spec', async () => {
+      const { body } = await read(await get(app, '/openapi/json', {}))
+      expect(Object.keys(body.paths)).not.toContain('/openapi')
+      expect(Object.keys(body.paths)).not.toContain('/openapi/json')
+    })
+
+    it('GET /openapi/json?lang=zh-CN translates against the requested language', async () => {
+      const { body } = await read(await get(app, '/openapi/json?lang=zh-CN', {}))
+      expect(body.info.description).toBe('apiGateway.docs.description::zh-CN')
+      expect(body.paths['/health'].get.description).toBe('apiGateway.docs.operations.health::zh-CN')
+    })
+
+    it('GET /openapi/json?lang=not-a-real-language falls back to the app language', async () => {
+      const { body } = await read(await get(app, '/openapi/json?lang=not-a-real-language', {}))
+      expect(body.info.description).toBe('apiGateway.docs.description::en-US')
+    })
+
+    it('GET /openapi renders the description through t() (not a raw key) and points Scalar at the translated spec', async () => {
+      const res = await get(app, '/openapi', {})
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toContain('text/html')
+      const html = await res.text()
+      // The mocked `t()` embeds `::lang` on every call — the plain (untranslated) key never
+      // appears without it, so this proves the <meta description> went through translation.
+      expect(html).toContain('apiGateway.docs.description::en-US')
+      expect(html).not.toContain('apiGateway.docs.description"')
+
+      const configMatch = html.match(/data-configuration='(.+?)'/)
+      expect(configMatch).toBeTruthy()
+      const config = JSON.parse(configMatch![1])
+      expect(config.url).toBe('http://localhost/openapi/json?lang=en-US')
+      expect(config.localization).toEqual({ locale: 'en' })
+    })
+
+    it('pins the Scalar bundle and turns off its third-party "Ask AI" agent', async () => {
+      const html = await (await get(app, '/openapi', {})).text()
+      const config = JSON.parse(html.match(/data-configuration='(.+?)'/)![1])
+      // Unpinned, an upstream release can change defaults (1.63.0 enabled Ask AI on
+      // localhost) or break the toolbar the language switcher is inserted into.
+      expect(config.cdn).toMatch(/@scalar\/api-reference@\d+\.\d+\.\d+\//)
+      expect(config.version).toMatch(/^\d+\.\d+\.\d+$/)
+      // Ask AI uploads the OpenAPI document to api.scalar.com — off unless a user
+      // has been asked to accept that.
+      expect(config.agent).toEqual({ disabled: true })
+    })
+
+    it('GET /openapi renders a language dropdown offering every supported language, defaulting to the app language', async () => {
+      const html = await (await get(app, '/openapi', {})).text()
+      expect(html).toContain(`<option value="en-US" selected>English</option>`)
+      expect(html).toContain(`<option value="zh-CN">中文</option>`)
+    })
+
+    it('GET /openapi?lang=zh-CN renders Scalar chrome + the dropdown in the requested language', async () => {
+      const html = await (await get(app, '/openapi?lang=zh-CN', {})).text()
+      const config = JSON.parse(html.match(/data-configuration='(.+?)'/)![1])
+      expect(config.url).toBe('http://localhost/openapi/json?lang=zh-CN')
+      expect(config.localization).toEqual({ locale: 'zh-CN' })
+      expect(html).toContain(`<option value="zh-CN" selected>中文</option>`)
     })
   })
 
@@ -164,6 +290,36 @@ describe('API gateway routes (integration)', () => {
       expect(mockProcessMessage).toHaveBeenCalledOnce()
     })
 
+    it('ignores the internal Fast header from a public API-key client', async () => {
+      await read(
+        await post(
+          app,
+          '/v1/messages',
+          { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
+          { ...AUTH, 'x-cherry-fast-mode': 'true' }
+        )
+      )
+
+      expect(mockProcessMessage).toHaveBeenLastCalledWith(expect.objectContaining({ fastMode: false }))
+    })
+
+    it('accepts Fast only with the process-local internal request token', async () => {
+      await read(
+        await post(
+          app,
+          '/v1/messages',
+          { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] },
+          {
+            ...AUTH,
+            'x-cherry-fast-mode': 'true',
+            'x-cherry-internal-request-token': 'internal-request-token'
+          }
+        )
+      )
+
+      expect(mockProcessMessage).toHaveBeenLastCalledWith(expect.objectContaining({ fastMode: true }))
+    })
+
     it('GET /v1/models returns the model list', async () => {
       const { status, body } = await read(await get(app, '/v1/models'))
       expect(status).toBe(200)
@@ -214,6 +370,23 @@ describe('API gateway routes (integration)', () => {
       expect(body.error.message).toBe('bad key')
     })
 
+    it('messages: a non-retryable provider 400 → Anthropic 400 invalid-request envelope', async () => {
+      mockProcessMessage.mockRejectedValueOnce({
+        name: 'AI_APICallError',
+        message: 'Maximum context length exceeded',
+        stack: null,
+        statusCode: 400,
+        isRetryable: false
+      })
+      const { status, body } = await read(
+        await post(app, '/v1/messages', { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] })
+      )
+      expect(status).toBe(400)
+      expect(body.type).toBe('error')
+      expect(body.error.type).toBe('invalid_request_error')
+      expect(body.error.message).toBe('Maximum context length exceeded')
+    })
+
     it('responses: an internal error with no status → 500 with the message gated out', async () => {
       mockProcessMessage.mockRejectedValueOnce(new Error('internal detail leak'))
       const { status, body } = await read(await post(app, '/v1/responses', { model: 'openai:gpt-4', input: 'hi' }))
@@ -221,6 +394,161 @@ describe('API gateway routes (integration)', () => {
       expect(body.error.type).toBe('server_error')
       // NODE_ENV !== 'development' under test → internal messages are not leaked.
       expect(body.error.message).toBe('Internal server error')
+    })
+  })
+
+  describe('Gemini (/v1beta) routes', () => {
+    const geminiBody = { contents: [{ role: 'user', parts: [{ text: 'hi' }] }] }
+    const GOOG_AUTH = { 'content-type': 'application/json', 'x-goog-api-key': 'test-key' }
+
+    it('generateContent: model + non-streaming derived from the URL, routed with gemini formats', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', geminiBody)
+      )
+      expect(status).toBe(200)
+      expect(body.ok).toBe(true)
+      expect(mockProcessMessage).toHaveBeenCalledOnce()
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: 'deepseek:deepseek-chat',
+        streaming: false,
+        inputFormat: 'gemini',
+        outputFormat: 'gemini'
+      })
+    })
+
+    it('streamGenerateContent: preserves a slashed apiModelId and sets streaming=true', async () => {
+      // The gateway model addressing "providerId:apiModelId" can contain both a
+      // colon and a slash (aggregator ids like `agent/deepseek-v4-flash`); the
+      // wildcard route must keep the whole model intact and split off only the method.
+      await read(await post(app, '/v1beta/models/618d8838:agent/deepseek-v4-flash:streamGenerateContent', geminiBody))
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: '618d8838:agent/deepseek-v4-flash',
+        streaming: true,
+        inputFormat: 'gemini'
+      })
+    })
+
+    it('strips the gemini-cli sentinel suffix off the model before routing', async () => {
+      // Cherry hands gemini-cli the address with an `@cherry` suffix so its model
+      // normalization can't rewrite names ending in "flash"; the route must strip it.
+      await read(
+        await post(app, '/v1beta/models/618d8838:agent/deepseek-v4-flash@cherry:streamGenerateContent', geminiBody)
+      )
+      expect(mockProcessMessage.mock.calls[0][0]).toMatchObject({
+        modelString: '618d8838:agent/deepseek-v4-flash',
+        streaming: true
+      })
+    })
+
+    it('rejects a model still ending in the reserved @cherry suffix after one strip → 400', async () => {
+      // The sentinel is reserved: the route strips exactly one trailing `@cherry`, so a model that
+      // STILL ends in it (a real id ending in the reserved marker, or a doubled sentinel) is
+      // ambiguous and never advertised by GET /models — reject rather than route to the wrong id.
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/weird:model@cherry@cherry:generateContent', geminiBody)
+      )
+      expect(status).toBe(400)
+      expect(body.error.status).toBe('INVALID_ARGUMENT')
+      expect(mockProcessMessage).not.toHaveBeenCalled()
+    })
+
+    it('countTokens: returns a local estimate without calling processMessage', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:countTokens', geminiBody)
+      )
+      expect(status).toBe(200)
+      expect(typeof body.totalTokens).toBe('number')
+      expect(body.totalTokens).toBeGreaterThan(0)
+      expect(mockProcessMessage).not.toHaveBeenCalled()
+    })
+
+    // The text-only estimator would return a bogus ~3 with HTTP 200, suppressing gemini-cli's
+    // media fallback (it only falls back on a non-2xx) and badly undercounting context usage.
+    // Both media shapes matter: large uploads reach the CLI as fileData/fileUri via the Files API.
+    it.each([
+      ['inlineData', { inlineData: { mimeType: 'image/png', data: 'AAAA' } }],
+      ['fileData', { fileData: { mimeType: 'application/pdf', fileUri: 'gs://bucket/f.pdf' } }]
+    ])('countTokens with %s media → 400 so the CLI falls back to its own media count', async (_kind, mediaPart) => {
+      const mediaBody = { contents: [{ role: 'user', parts: [mediaPart] }] }
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:countTokens', mediaBody)
+      )
+      expect(status).toBe(400)
+      expect(body.error.status).toBe('INVALID_ARGUMENT')
+      expect(mockProcessMessage).not.toHaveBeenCalled()
+    })
+
+    it('unsupported method → 400 Google INVALID_ARGUMENT envelope', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:embedContent', geminiBody)
+      )
+      expect(status).toBe(400)
+      expect(body.error.status).toBe('INVALID_ARGUMENT')
+      expect(mockProcessMessage).not.toHaveBeenCalled()
+    })
+
+    it('rejects unauthenticated /v1beta requests with a 401 Google UNAUTHENTICATED envelope', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', geminiBody, {
+          'content-type': 'application/json'
+        })
+      )
+      expect(status).toBe(401)
+      // Auth short-circuits before the handler, but must still speak the Google dialect.
+      expect(body.error.code).toBe(401)
+      expect(body.error.status).toBe('UNAUTHENTICATED')
+      expect(typeof body.error.message).toBe('string')
+      // Not the OpenAI/Anthropic shapes.
+      expect(body.type).toBeUndefined()
+      expect(body.error.type).toBeUndefined()
+    })
+
+    it('rejects an invalid /v1beta key with a 403 Google PERMISSION_DENIED envelope', async () => {
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', geminiBody, {
+          'content-type': 'application/json',
+          'x-goog-api-key': 'wrong-key'
+        })
+      )
+      expect(status).toBe(403)
+      expect(body.error.code).toBe(403)
+      expect(body.error.status).toBe('PERMISSION_DENIED')
+    })
+
+    it('authenticates via the x-goog-api-key header', async () => {
+      const { status } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', geminiBody, GOOG_AUTH)
+      )
+      expect(status).toBe(200)
+    })
+
+    it('authenticates via the ?key= query param', async () => {
+      const { status } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent?key=test-key', geminiBody, {
+          'content-type': 'application/json'
+        })
+      )
+      expect(status).toBe(200)
+    })
+
+    it('missing `contents` → 400 Google envelope (not OpenAI/Anthropic dialect)', async () => {
+      const { status, body } = await read(await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', {}))
+      expect(status).toBe(400)
+      expect(body.error.status).toBe('INVALID_ARGUMENT')
+      expect(body.error.code).toBe(400)
+      // Not the OpenAI/Anthropic shapes.
+      expect(body.type).toBeUndefined()
+      expect(body.error.type).toBeUndefined()
+    })
+
+    it('a thrown 429 provider error → Google RESOURCE_EXHAUSTED envelope', async () => {
+      mockProcessMessage.mockRejectedValueOnce({ name: 'Error', message: 'rate limited', stack: null, statusCode: 429 })
+      const { status, body } = await read(
+        await post(app, '/v1beta/models/deepseek:deepseek-chat:generateContent', geminiBody)
+      )
+      expect(status).toBe(429)
+      expect(body.error.status).toBe('RESOURCE_EXHAUSTED')
+      expect(body.error.message).toBe('rate limited')
     })
   })
 })

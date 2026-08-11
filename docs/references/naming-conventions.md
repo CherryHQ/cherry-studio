@@ -17,7 +17,8 @@ This document defines naming rules for files, directories, and identifiers acros
 5. [Identifier Naming](#5-identifier-naming)
 6. [Edge Cases](#6-edge-cases)
 7. [Decision Tree](#7-decision-tree)
-8. [Appendix: References](#appendix-references)
+8. [Lint Enforcement](#8-lint-enforcement)
+9. [Appendix: References](#appendix-references)
 
 ---
 
@@ -39,7 +40,7 @@ The 90% case. See later sections for full rules and edge cases.
 | Regular doc | `kebab-case.md` | `database-testing.md` |
 | npm package directory (`packages/*`) | `kebab-case` | `ai-sdk-provider/` |
 | Business React component directory | `PascalCase` | `CodeEditor/` |
-| Bucket directory (categorical container) | lowercase **plural** noun | `services/`, `utils/`, `hooks/` |
+| Bucket directory (categorical container) | camelCase, **plural** noun | `services/`, `utils/`, `hooks/` |
 | Business / domain module directory | `camelCase` | `apiServer/`, `fileProcessing/` |
 | Feature module directory (large, multi-file domain) | `features/<camelCase>/` | `features/apiGateway/` |
 | `packages/ui/` directory | `kebab-case` | `primitives/`, `button-group/` |
@@ -144,6 +145,8 @@ A `*Utils` suffix is used only when the file lives outside any `utils/` director
 
 Directory naming splits into category rules (§4.1–§4.3, §4.5–§4.7, §4.10) and cross-cutting rules: §4.4 (file vs subdirectory), §4.8 (top-level closed), §4.9 (singular vs plural).
 
+> **Out of scope — assets.** Directories and files under `assets/**` (fonts, images, CSS, media) follow path/URL convention (`kebab-case`), not the code-module rules in this section. Their names bind to URLs and filesystem paths, not to code identifiers, so §2 principle 2 (cross-platform case safety) governs them instead — vendor-supplied font files may also keep their original names.
+
 ### 4.1 npm Package Directories — `kebab-case`
 
 `packages/*` directory names must be `kebab-case`. The directory name must equal the `name` field in `package.json` (minus the scope prefix).
@@ -166,7 +169,7 @@ src/renderer/components/CodeEditor/      ✅
 src/renderer/components/MarkdownEditor/  ✅
 ```
 
-### 4.3 Bucket Directories — `lowercase plural noun`
+### 4.3 Bucket Directories — `camelCase, plural noun`
 
 "Bucket" = a categorical container holding many unrelated items of the same kind.
 
@@ -174,7 +177,7 @@ src/renderer/components/MarkdownEditor/  ✅
 services/   utils/   hooks/   components/   pages/   types/
 ```
 
-Bucket names are **plural** (see §4.9 for singular-vs-plural rules across all directory kinds). Do **not** invent variants like `Services/` or `helpers-and-utils/`.
+Bucket names are **plural** (see §4.9 for singular-vs-plural rules across all directory kinds). Casing follows the same camelCase family as domain-module directories (§4.5); the all-lowercase look of `services/`, `utils/`, etc. is incidental — they happen to be single words. A multi-word bucket is camelCase-plural: `chatModels/`, never `chatmodels/` or `chat-models/`. Do **not** invent variants like `Services/` (PascalCase) or `helpers-and-utils/` (kebab).
 
 ### 4.4 File-Level vs Subdirectory Organization Inside a Bucket
 
@@ -251,12 +254,12 @@ Choose number based on what the directory **conceptually contains**, not on whic
 
 Decision rule: ask "does this directory hold **many of X**?" — yes → plural; no → singular. When two readings both make sense, pick the one that matches the directory's **default import name** (e.g. `import { ... } from './config'` reads naturally with `config/` singular).
 
-**Same stem, different number — decide by role, not by the word.** A name like `agent` is not inherently singular or plural; its number follows the role the directory plays. The `agents/` listed above is the **collection-bucket** reading — e.g. `src/main/ai/agents/`, which holds many agent implementations (`builtin/`, `cherryclaw/`, …). The same stem is **singular** when the directory is a feature **namespace** that groups one feature's code rather than many agents — `src/renderer/hooks/agent/` (holds the agent feature's hooks, not agents) and `src/renderer/components/chat/agent/` are singular, matching their sibling namespaces (`hooks/chat/`, `hooks/tab/`, `hooks/translate/`). Reading the `agents/` entry as "the word *agent* is always plural" is the trap: apply the decision rule to the directory's actual contents.
+**Same stem, different number — decide by role, not by the word.** A name like `agent` is not inherently singular or plural; its number follows the role the directory plays. The `agents/` listed above is the **collection-bucket** reading — e.g. `src/main/ai/agents/`, which holds many agent implementations (`builtin/`, …). The same stem is **singular** when the directory is a feature **namespace** that groups one feature's code rather than many agents — `src/renderer/hooks/agent/` (holds the agent feature's hooks, not agents) and `src/renderer/components/chat/agent/` are singular, matching their sibling namespaces (`hooks/chat/`, `hooks/tab/`, `hooks/translate/`). Reading the `agents/` entry as "the word *agent* is always plural" is the trap: apply the decision rule to the directory's actual contents.
 
 ### 4.10 Feature Modules — `features/` vs Type Buckets
 
 A **feature module** is a self-contained domain directory under a process root's `features/` bucket — `src/main/features/` and `src/renderer/features/` — that co-locates *everything* one domain owns: its services or components, domain-local utils and hooks, and any adapters, routes, or other domain-specific helpers, in one tree.
-`features/` is itself a bucket (lowercase plural, §4.3); each module inside is a `camelCase` domain directory (§4.5).
+`features/` is itself a bucket (camelCase, plural, §4.3); each module inside is a `camelCase` domain directory (§4.5).
 
 **A domain earns a `features/<domain>/` home only when it is large, complex, and multi-file** — cohesion alone is not enough.
 
@@ -427,7 +430,7 @@ In `packages/*`, the directory name and `package.json#name` (after stripping sco
 
 ### 6.6 TanStack Router File-Based Routes
 
-Files under `src/renderer/routes/` are **kebab-case** — TanStack Router maps filename directly to URL.
+Files **and directory segments** under `src/renderer/routes/` are **kebab-case** — TanStack Router maps each path segment directly to a URL segment.
 
 Reserved tokens (TanStack-defined):
 
@@ -473,11 +476,43 @@ Naming a new DIRECTORY
 ├─ npm package (packages/*)?      → kebab-case      (ai-sdk-provider)
 ├─ Under packages/ui/?            → kebab-case      (primitives, button-group)
 ├─ Is itself a React component?   → PascalCase      (CodeEditor)
-├─ Bucket / categorical container? → lowercase plural noun  (services, utils)
+├─ Bucket / categorical container? → camelCase, plural noun  (services, utils)
 ├─ Large/complex multi-file domain? → features/<camelCase>/  (apiGateway, §4.10)
 ├─ Business domain module?        → camelCase       (apiServer, fileProcessing)
 └─ Unsure singular vs plural?     → see §4.9
 ```
+
+---
+
+## 8. Lint Enforcement
+
+The `naming/path-case` rule (inline plugin in `eslint.config.mjs`, modeled on the barrel rules of §6.4) enforces the **casing** of directory segments and file stems, per zone, at `error` in `pnpm lint` / `test:lint` / `ci:basic-check`. It scopes to `src/**` and `packages/ui/**`.
+
+### 8.1 Enforced
+
+Casing is checked per zone; first matching zone wins. `packages/*` other than `packages/ui/` is not linted — pnpm workspaces already tie a package directory to its `name` (§6.5).
+
+| Zone | Directory segments | File stems |
+|---|---|---|
+| `packages/ui/**` | kebab-case | kebab-case |
+| `src/renderer/routes/**` | kebab-case (or a `$`/`_` TanStack token) | kebab-case (or a `$`/`_` token) |
+| `src/main/**`, `src/shared/**`, `src/preload/**` | camelCase | camelCase or PascalCase |
+| `src/renderer/**` (else) | camelCase or PascalCase | camelCase or PascalCase |
+
+**Exempt** (checked in neither axis): dot-directories (`.storybook`, `.github`), the convention-mandated `__tests__` / `__mocks__` / `__snapshots__` (§4.7), `*.d.ts` files (§3.5 governs them), `index.ts(x)` (owned by the barrel rules, §6.4), and the unmanaged `src/renderer/assets/**` (§4 out-of-scope note).
+
+### 8.2 Left to review
+
+The rule fires only where path → role is deterministic. It deliberately does **not** decide:
+
+| Not enforced | Why | Authority |
+|---|---|---|
+| Bucket **plural** vs namespace/module **singular** | plurality is semantic — a path can't reveal "holds many of X" | §4.9 |
+| A `src/main`/`shared`/`preload` file being **PascalCase** (class/enum) vs **camelCase** (function) | depends on the file's primary export, not its path | §3.2 |
+| Acronym-internal casing (`McpService`, not `MCPService`) | the rule accepts any all-letter run | §6.1 |
+| Hook `use` prefix, `Service` / `Manager` suffix | export-role semantics, not path casing | §3.2, §5.2 |
+
+A name that passes the lint can still violate these — they remain review judgments.
 
 ---
 

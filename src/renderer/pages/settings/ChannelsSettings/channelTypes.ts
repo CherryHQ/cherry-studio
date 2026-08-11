@@ -13,8 +13,8 @@ export const AVAILABLE_CHANNELS: AvailableChannel[] = [
   {
     type: 'feishu',
     name: 'Feishu',
-    titleKey: 'agent.cherryClaw.channels.feishu.title',
-    description: 'agent.cherryClaw.channels.feishu.description',
+    titleKey: 'agent.channels.feishu.title',
+    description: 'agent.channels.feishu.description',
     available: true,
     defaultConfig: {
       app_id: '',
@@ -28,40 +28,40 @@ export const AVAILABLE_CHANNELS: AvailableChannel[] = [
   {
     type: 'telegram',
     name: 'Telegram',
-    titleKey: 'agent.cherryClaw.channels.telegram.title',
-    description: 'agent.cherryClaw.channels.telegram.description',
+    titleKey: 'agent.channels.telegram.title',
+    description: 'agent.channels.telegram.description',
     available: true,
     defaultConfig: { bot_token: '', allowed_chat_ids: [] }
   },
   {
     type: 'qq',
     name: 'QQ',
-    titleKey: 'agent.cherryClaw.channels.qq.title',
-    description: 'agent.cherryClaw.channels.qq.description',
+    titleKey: 'agent.channels.qq.title',
+    description: 'agent.channels.qq.description',
     available: true,
     defaultConfig: { app_id: '', client_secret: '', allowed_chat_ids: [] }
   },
   {
     type: 'wechat',
     name: 'WeChat',
-    titleKey: 'agent.cherryClaw.channels.wechat.title',
-    description: 'agent.cherryClaw.channels.wechat.description',
+    titleKey: 'agent.channels.wechat.title',
+    description: 'agent.channels.wechat.description',
     available: true,
     defaultConfig: { token_path: '', allowed_chat_ids: [] }
   },
   {
     type: 'discord',
     name: 'Discord',
-    titleKey: 'agent.cherryClaw.channels.discord.title',
-    description: 'agent.cherryClaw.channels.discord.description',
+    titleKey: 'agent.channels.discord.title',
+    description: 'agent.channels.discord.description',
     available: true,
     defaultConfig: { bot_token: '', allowed_channel_ids: [] }
   },
   {
     type: 'slack',
     name: 'Slack',
-    titleKey: 'agent.cherryClaw.channels.slack.title',
-    description: 'agent.cherryClaw.channels.slack.description',
+    titleKey: 'agent.channels.slack.title',
+    description: 'agent.channels.slack.description',
     available: true,
     defaultConfig: { bot_token: '', app_token: '', allowed_channel_ids: [] }
   }

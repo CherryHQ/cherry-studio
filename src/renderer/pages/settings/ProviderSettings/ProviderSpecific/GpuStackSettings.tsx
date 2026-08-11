@@ -1,6 +1,7 @@
 import { EditableNumber } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
+import { toast } from '@renderer/services/toast'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,7 +35,7 @@ const GpuStackSettings: FC<Props> = ({ providerId }) => {
       await updateProvider({ providerSettings: { ...provider?.settings, keepAliveTime: keepAliveMinutes } })
     } catch (error) {
       logger.error('Failed to save GPUStack keep alive time', { providerId, error })
-      window.toast.error(t('settings.provider.save_failed'))
+      toast.error(t('settings.provider.save_failed'))
       setKeepAliveMinutes(keepAliveTime)
     }
   }

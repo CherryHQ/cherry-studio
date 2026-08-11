@@ -40,6 +40,12 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     }
   },
 
+  '/topics/latest': {
+    GET: async () => {
+      return { topic: topicService.getLatestUpdated() }
+    }
+  },
+
   '/topics/:id': {
     GET: async ({ params }) => {
       return topicService.getById(params.id)

@@ -1,6 +1,6 @@
 # Handler Authoring
 
-Phase 1 ship guarantees this doc has five sections. Further worked examples (retry / singleton recovery, failure-rate breaker, business-level mutex) are backported during Phase 2-4 business migrations to avoid speculative code that bit-rots before a real consumer appears.
+Further worked examples (retry / singleton recovery, failure-rate breaker, business-level mutex) are added as real consumers migrate — speculative examples bit-rot before anyone uses them.
 
 ## Registration timing
 
@@ -80,6 +80,12 @@ async execute(ctx: JobContext<RemotePollInput>): Promise<RemoteResult> {
 
 Anti-pattern: `while (true)` (cannot be cancelled), `await sleep(N)` without signal (delays cancellation by up to N ms).
 
+### Job metadata vs schedule metadata
+
+`ctx.metadata` / `ctx.patchMetadata` are scoped to **one job row** and die with it (terminal jobs are GC'd). Schedule-owned state that must survive across fires belongs on the **schedule** row's own `metadata` column instead — ask the schedule's command owner to write it with a read-merge-write inside `withWriteTx` (`updateJobScheduleTx` replaces the column wholesale, and a concurrent user edit can race). `agent.task`'s `metadata.reuse.revision` is one example: it is a configuration epoch used to fence jobs queued under older settings. Keep runtime-produced state out of `jobInputTemplate`: that is command-owned input; only the owner may update its configuration snapshots.
+
+Generic metadata is not a substitute for a domain relationship. A stable reference to an entity owned by another domain must be maintained through lifecycle APIs owned by that entity's service, with database constraints when the relationship topology permits. When constraints would create circular foreign keys, follow the application-level [soft-reference pattern](../data/database-patterns.md#circular-foreign-key-references) instead. For example, the non-circular `agent.task` sticky-session relationship uses the constrained `agent_session.taskScheduleId` relation maintained by `AgentSessionService`, not a session id in schedule metadata.
+
 ## Settled event (`onSettled`)
 
 `onSettled?(event: JobSettledEvent<TPayload>)` fires once when a job reaches a terminal state (errors are caught + logged, never propagated). The event is a projection of the persisted terminal snapshot — no `jobService.getById` reverse lookup needed:
@@ -146,11 +152,11 @@ A few invariants govern recovery decisions; the matrix above abstracts over them
 - **`isScheduleOverdue` has three branches** (relevant when picking `catchUpPolicy: 'after-startup'`):
   - **`cron`** triggers compare `nextRun ≤ now()` from the persisted column.
   - **`interval`** triggers compare `lastRun + intervalMs ≤ now()` (SchedulerService does not maintain `nextRun` for interval schedules — `lastRun` is the canonical anchor).
-  - **`once`** triggers are never considered overdue: the timer is either still pending (it will fire) or has already fired and the schedule has self-cleaned. Make-up enqueues for `once` would double-fire, so the branch returns `false` unconditionally.
+  - **`once`** triggers are never considered overdue: the timer is either still pending (it will fire) or has already fired and the schedule has self-cleaned. Make-up enqueues for `once` would double-fire, so the branch returns `false` unconditionally. Startup recovery enforces the complementary invariant: natural `once` fires persist `lastRun` clamped to no earlier than `trigger.at` (the once timer elapses on the monotonic clock, so an unclamped wall-clock read can land at `at - 1`), and `armSchedule` skips rows with `lastRun >= trigger.at` instead of re-arming them, while a never-fired past-due `once` still re-arms and fires immediately. This is a recovery-side guard, not strict exactly-once delivery — a crash between a fire's enqueue and its `markFired` write can still replay the one-shot on the next startup.
 
 ## 5. Error codes (renderer maps via i18next)
 
-Constants live at `src/main/core/job/errorCodes.ts` and are thrown by `JobManager` / `JobScheduleService`. Renderer reads the `code` string off `JobSnapshot.error`.
+Constants live in `JOB_ERROR_CODES` at `src/shared/data/api/schemas/jobs.ts` and are thrown by `JobManager` / `JobScheduleService`. Renderer reads the `code` string off `JobSnapshot.error`.
 
 | Code | Origin | Retryable | Meaning |
 |---|---|---|---|
@@ -162,6 +168,7 @@ Constants live at `src/main/core/job/errorCodes.ts` and are thrown by `JobManage
 | `JOB_SCHEDULE_NAME_INVALID` | schedule create/update | no | Name violates `JobScheduleNameAtomSchema` (empty / `__` prefix / control char / not trimmed / >200 chars) |
 | `JOB_SCHEDULE_NAME_CONFLICT` | schedule create/update | no | (type, name) already exists |
 | `JOB_SCHEDULE_SINGLETON_EXISTS` | schedule create | no | Unnamed schedule attempted on a type that already has a singleton |
+| `JOB_SCHEDULE_TRIGGER_INVALID` | schedule create/update (`*Tx`) | no | Trigger fails scheduling semantics (cron/timezone parse, delay over the timer limit) |
 | `JOB_HANDLER_TIMEOUT` | runtime | yes | Handler exceeded `timeoutMs` |
 | `JOB_HANDLER_THREW` | runtime | yes | Handler threw a non-abort error |
 | `JOB_CANCELLED` | recovery / cancel | no | Job cancelled by user, recovery, or shutdown |
@@ -201,4 +208,3 @@ src/main/services/knowledge/tasks/IndexLeafJobHandler.ts
 | All new handlers added later | ✅ Yes |
 | Experimental handlers (not in `JobRegistry`) | ⚠ Recommended, not blocking |
 | Pre-existing handlers, if any | Migrate opportunistically when touching nearby code |
-

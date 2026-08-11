@@ -1,5 +1,4 @@
 import { useProviderAuthConfig } from '@renderer/hooks/useProvider'
-import { PROVIDER_URLS } from '@renderer/pages/settings/ProviderSettings/providerUrls'
 import type { Provider } from '@shared/data/types/provider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useMemo } from 'react'
@@ -11,8 +10,10 @@ export function useProviderHostPreview(params: {
   provider: Provider | undefined
   apiHost: string
   anthropicApiHost: string
+  /** Registry factory-default host for the primary endpoint; '' when none. */
+  defaultApiHost: string
 }) {
-  const { provider, apiHost, anthropicApiHost } = params
+  const { provider, apiHost, anthropicApiHost, defaultApiHost } = params
   // Vertex preview reads project/location from authConfig; safe to fetch
   // unconditionally — SWR dedupes and other providers ignore the result.
   const { data: authConfig } = useProviderAuthConfig(provider?.id ?? '')
@@ -35,11 +36,9 @@ export function useProviderHostPreview(params: {
       anthropicApiHost,
       providerAnthropicHost: topology.anthropicBaseUrl
     })
-    const configuredApiHost = provider ? PROVIDER_URLS[provider.id as keyof typeof PROVIDER_URLS]?.api?.url : undefined
-
     return {
       ...previews,
-      isApiHostResettable: Boolean(configuredApiHost && apiHost !== configuredApiHost)
+      isApiHostResettable: Boolean(defaultApiHost && apiHost !== defaultApiHost)
     }
-  }, [anthropicApiHost, apiHost, authConfig, provider])
+  }, [anthropicApiHost, apiHost, authConfig, defaultApiHost, provider])
 }

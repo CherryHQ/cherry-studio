@@ -5,6 +5,13 @@ import { Cron } from 'croner'
 
 const logger = loggerService.withContext('SchedulerService')
 
+/**
+ * setTimeout clamps delays above 2^31-1 ms to fire (near-)immediately, which
+ * would turn a chained interval into a hot loop and a far-future once into an
+ * early fire. `validateTrigger` rejects intervals beyond this bound.
+ */
+const MAX_TIMER_DELAY_MS = 2 ** 31 - 1
+
 export type ScheduleCallback = () => void | Promise<void>
 
 interface IntervalEntry {
@@ -52,6 +59,37 @@ export class SchedulerService extends BaseService {
   }
 
   /**
+   * Parse-only validation of a trigger's scheduling semantics — nothing is
+   * registered and no timer is created. Cron expressions and IANA timezones go
+   * through the same Croner construction path as `scheduleCron` (constructed
+   * without a callback, so nothing is scheduled; `nextRun()` forces the
+   * timezone conversion Croner otherwise defers; `.stop()` is defensive),
+   * surfacing the parser's original error. Delays beyond the setTimeout limit
+   * are rejected — Node would fire the timer immediately, turning a chained
+   * interval into a hot loop and a far-future once into an early fire. The
+   * once bound only needs to hold at validation time: the remaining delay
+   * shrinks monotonically, so every later re-arm stays under the limit too.
+   *
+   * @param trigger - Trigger config to validate
+   * @throws The raw Croner / Intl parse error for an invalid cron expression
+   *   or unknown timezone; `RangeError` for an out-of-range interval / once
+   */
+  validateTrigger(trigger: Trigger): void {
+    if (trigger.kind === 'cron') {
+      const probe = new Cron(trigger.expr, { timezone: trigger.timezone, maxRuns: trigger.limit })
+      probe.nextRun()
+      probe.stop()
+      return
+    }
+    if (trigger.kind === 'interval' && trigger.ms > MAX_TIMER_DELAY_MS) {
+      throw new RangeError(`interval of ${trigger.ms} ms exceeds the maximum timer delay (${MAX_TIMER_DELAY_MS} ms)`)
+    }
+    if (trigger.kind === 'once' && trigger.at - Date.now() > MAX_TIMER_DELAY_MS) {
+      throw new RangeError(`once trigger is more than ${MAX_TIMER_DELAY_MS} ms in the future`)
+    }
+  }
+
+  /**
    * Register a callback to fire on schedule. Calling `registerSchedule` twice
    * with the same `id` replaces the previous registration (the old timer is
    * stopped first).
@@ -73,7 +111,7 @@ export class SchedulerService extends BaseService {
     }
 
     logger.debug('Scheduled', { id, kind: trigger.kind })
-    return this.registerDisposable(() => this.unregister(id))
+    return { dispose: () => this.unregister(id) }
   }
 
   /**

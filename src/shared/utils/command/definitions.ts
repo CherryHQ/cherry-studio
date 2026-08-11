@@ -75,7 +75,10 @@ export const COMMAND_DEFINITIONS = [
     scope: 'main',
     keybinding: {
       defaultBinding: ['CommandOrControl', '='],
-      additionalBindings: [['CommandOrControl', 'numadd']],
+      additionalBindings: [
+        ['CommandOrControl', 'Shift', '='],
+        ['CommandOrControl', 'numadd']
+      ],
       editable: false
     }
   }),
@@ -98,6 +101,15 @@ export const COMMAND_DEFINITIONS = [
     keybinding: {
       defaultBinding: ['CommandOrControl', '0'],
       editable: false
+    }
+  }),
+  defineCommand({
+    id: 'chat.context.toggle_new',
+    titleKey: 'settings.shortcuts.toggle_new_context',
+    categoryKey: 'settings.shortcuts.chat',
+    scope: 'renderer',
+    keybinding: {
+      defaultBinding: ['CommandOrControl', 'K']
     }
   }),
   defineCommand({
@@ -199,42 +211,6 @@ export const COMMAND_DEFINITIONS = [
     scope: 'renderer',
     keybinding: {
       defaultBinding: ['CommandOrControl', ']']
-    }
-  }),
-  defineCommand({
-    id: 'tab.close',
-    titleKey: 'settings.shortcuts.close_tab',
-    categoryKey: 'settings.shortcuts.general',
-    scope: 'renderer',
-    keybinding: {
-      defaultBinding: []
-    }
-  }),
-  defineCommand({
-    id: 'tab.pin',
-    titleKey: 'settings.shortcuts.pin_tab',
-    categoryKey: 'settings.shortcuts.general',
-    scope: 'renderer',
-    keybinding: {
-      defaultBinding: []
-    }
-  }),
-  defineCommand({
-    id: 'tab.move-to-first',
-    titleKey: 'settings.shortcuts.move_tab_to_first',
-    categoryKey: 'settings.shortcuts.general',
-    scope: 'renderer',
-    keybinding: {
-      defaultBinding: []
-    }
-  }),
-  defineCommand({
-    id: 'tab.open-in-new-window',
-    titleKey: 'settings.shortcuts.open_tab_in_new_window',
-    categoryKey: 'settings.shortcuts.general',
-    scope: 'renderer',
-    keybinding: {
-      defaultBinding: []
     }
   }),
   defineCommand({

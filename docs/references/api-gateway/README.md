@@ -106,7 +106,13 @@ All three streaming endpoints are thin route wrappers that call
 1. **Resolve model.** Read `params.model`, split on the first `:` into
    `providerId` / `modelId`, build a `uniqueModelId` via `createUniqueModelId`.
    `params.stream === true` selects streaming vs. JSON.
-2. **Convert input.** `MessageConverterFactory.create(inputFormat, …)` returns
+2. **Validate trusted Agent history.** After the request proves it is an
+   internal Agent request, Anthropic-format history is checked before conversion.
+   Deeply identical duplicate `tool_use` / `tool_result` blocks are
+   losslessly folded; conflicting reuse of an ID returns HTTP 400. This condition
+   depends only on the internal proof and Anthropic input format, not the target
+   provider.
+3. **Convert input.** `MessageConverterFactory.create(inputFormat, …)` returns
    the dialect's `IMessageConverter`, which yields:
    - `toUIMessages(params)` → AI SDK `UIMessage[]` (a system/instructions
      prompt becomes a leading `role: 'system'` message).
@@ -116,32 +122,38 @@ All three streaming endpoints are thin route wrappers that call
      `topK`, `maxOutputTokens`, `stopSequences`).
    - `extractProviderOptions(provider, params)` → reasoning/thinking options
      (the `Provider` is loaded best-effort from `ProviderService`).
-3. **Assemble overrides.** Sampling + tools + provider options are merged into a
+4. **Assemble overrides.** Sampling + tools + provider options are merged into a
    single `CallOverrides` object — the gateway is **assistant-agnostic**, so
    everything is passed per-request (merged at highest precedence inside
    `buildAgentParams`).
-4. **Pick the output adapter.** `StreamAdapterFactory.createAdapter(outputFormat)`
+5. **Pick the output adapter.** `StreamAdapterFactory.createAdapter(outputFormat)`
    + `.getFormatter(outputFormat)` give the `IStreamAdapter` (state machine that
    turns `UIMessageChunk`s into dialect events) and the `ISseFormatter` (event →
    SSE string).
-5. **Drive the stream.** With `streamId = "gateway-<uuid>"`, call
+6. **Drive the stream.** With `streamId = "gateway-<uuid>"`, call
    `AiStreamManager.streamPrompt({ streamId, uniqueModelId, messages, listener,
-   callOverrides, idleTimeoutMs })`. This uses the **`promptStreamLifecycle`** —
-   no status broadcast, no attach/reconnect, no persistence; the stream evicts
-   immediately at terminal.
+   callOverrides, contextOwner: 'caller', idleTimeoutMs })`. Caller ownership
+   keeps externally managed history out of Cherry's context-build and in-loop
+   compaction middleware. This uses the **`promptStreamLifecycle`** — no status
+   broadcast, no attach/reconnect, no persistence; the stream evicts immediately
+   at terminal.
    - **Streaming**: an `SseListener` with a push-API `formatChunk` /
      `formatDone` / `formatPaused` / `formatError` pipes the adapter's events
-     through the formatter into a `text/event-stream` `ReadableStream`.
+     through the formatter into a `text/event-stream` `ReadableStream`. The
+     response is withheld behind a startup-commit barrier until the first
+     provider-semantic chunk or clean completion; protocol scaffolding such as
+     `start` is buffered but does not commit HTTP 200.
    - **Non-streaming**: a plain `StreamListener` feeds every chunk into the
      adapter to accumulate state, then `adapter.buildNonStreamingResponse()` is
      returned as a JSON `Response`.
-6. **Abort & timeout.** The route's `request.signal` (client disconnect) calls
+7. **Abort & timeout.** The route's `request.signal` (client disconnect) calls
    `aiStreamManager.abort(streamId, …)`. An idle (no-chunk) timeout —
    **20 minutes** (`GATEWAY_STREAM_IDLE_TIMEOUT_MS`) — and any mid-stream abort
-   surface as a **failure**, not a truncated success: streaming emits a
-   per-dialect error frame (`buildStreamErrorFrame`), non-streaming returns a
-   **504**. The server's per-request timeout is **5 minutes** (`server.ts`), with
-   `setTimeout(0)` so live SSE connections are not socket-timed-out.
+   surface as a **failure**, not a truncated success. Before streaming response
+   commitment, an upstream pause rejects with **504**; after commitment it emits
+   a per-dialect error frame (`buildStreamErrorFrame`). Non-streaming requests
+   return **504**. The server's per-request timeout is **5 minutes** (`server.ts`),
+   with `setTimeout(0)` so live SSE connections are not socket-timed-out.
 
 ```
 client  ──HTTP──▶  route  ──▶  processMessage
@@ -154,6 +166,26 @@ client  ──HTTP──▶  route  ──▶  processMessage
                                   ▼
                           SSE ReadableStream  /  JSON Response   ──▶  client
 ```
+
+### Streaming response commitment
+
+A streaming request has two error regimes:
+
+- **Before commitment:** `processMessage` has not returned its `Response` yet.
+  Adapter-generated startup frames remain buffered. A provider error rejects
+  with the original serialized error, so the route returns its real HTTP status
+  and dialect envelope (for example, HTTP 400 or 503). An idle-timeout pause
+  rejects as HTTP 504. AI SDK `start`, step, metadata, partial tool-input, and
+  tool-output chunks do not commit the response.
+- **After commitment:** once text/reasoning output, an available tool call, a
+  finish chunk, or clean completion commits HTTP 200, headers can no longer
+  change. A later error or pause therefore emits the dialect's terminal SSE
+  error frame and closes the stream.
+
+Client disconnect before commitment abandons the pending response, clears its
+startup buffer, aborts the manager execution, and does not surface a gateway
+error. The gateway never transparently retries after commitment because doing
+so could duplicate model output or tool side effects.
 
 ## Adapter system
 
@@ -289,7 +321,11 @@ streaming `buildStreamErrorFrame`.
 - **Equal, non-persisting subscriber.** The gateway uses
   `promptStreamLifecycle` — its turns are not persisted, not broadcast as topic
   status, and not attachable. It shares the exact same `AiStreamManager` engine
-  as the renderer and IM channels; nothing special-cases it upstream.
+  as the renderer and IM channels.
+- **Caller-owned history.** Gateway clients own their context. The gateway sets
+  `contextOwner: 'caller'`, so Cherry does not truncate tool results, prune or
+  window messages, or run summary compaction. Protocol conversion and provider
+  serialization still run normally.
 - **Assistant-agnostic.** No assistant/topic context. Sampling, client tools,
   and provider options ride as per-request `CallOverrides`.
 - **Main owns running state.** `feature.api_gateway.running` in the Shared Cache is

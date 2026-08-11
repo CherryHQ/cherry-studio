@@ -1,5 +1,6 @@
 import type { StreamChunkPayload } from '@shared/ai/transport'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { SerializedError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -20,6 +21,8 @@ vi.mock('@renderer/ipc', () => ({
   }
 }))
 
+const STREAM_ERROR: SerializedError = { name: 'Error', message: 'boom', stack: null }
+
 // Reuse the established AI-stream mock shape (see IpcChatTransport.test.ts).
 function createMockAiApi() {
   const listeners = {
@@ -39,7 +42,7 @@ function createMockAiApi() {
         executionId?: UniqueModelId
         anchorMessageId?: string
         isTopicDone?: boolean
-        error: unknown
+        error: SerializedError
       }) => void
     >
   }
@@ -63,13 +66,13 @@ function createMockAiApi() {
   }
   const request = (route: string, input: unknown): unknown => {
     switch (route) {
-      case 'ai.stream_open':
+      case 'ai.stream.open':
         return mockApi.streamOpen(input)
-      case 'ai.stream_attach':
+      case 'ai.stream.attach':
         return mockApi.streamAttach(input)
-      case 'ai.stream_detach':
+      case 'ai.stream.detach':
         return mockApi.streamDetach(input)
-      case 'ai.stream_abort':
+      case 'ai.stream.abort':
         return mockApi.streamAbort(input)
       default:
         return Promise.resolve(undefined)
@@ -77,11 +80,11 @@ function createMockAiApi() {
   }
   const on = (event: string, cb: (p: unknown) => void): (() => void) => {
     switch (event) {
-      case 'ai.stream_chunk':
+      case 'ai.stream.chunk':
         return mockApi.onStreamChunk(cb)
-      case 'ai.stream_done':
+      case 'ai.stream.done':
         return mockApi.onStreamDone(cb)
-      case 'ai.stream_error':
+      case 'ai.stream.error':
         return mockApi.onStreamError(cb)
       default:
         return () => {}
@@ -110,7 +113,7 @@ function createMockAiApi() {
       anchorMessageId?: string
     ) => {
       for (const cb of [...listeners.error]) {
-        cb({ topicId, executionId, isTopicDone, anchorMessageId, error: new Error('boom') })
+        cb({ topicId, executionId, isTopicDone, anchorMessageId, error: STREAM_ERROR })
       }
     }
   }
@@ -216,15 +219,41 @@ describe('TopicStreamSubscription', () => {
     sub.dispose()
   })
 
-  it('replays terminal status that arrives before an execution branch registers', async () => {
+  it('keeps the topic attached across the done(false) gap before continuation chunks arrive', async () => {
+    const sub = new TopicStreamSubscription(TOPIC)
+    const first = sub.register(A, 'assistant-1')
+    await tick()
+
+    mock.emitDone(TOPIC, A, 'success', false, 'assistant-1')
+    expect(await readAll(first)).toEqual([])
+    sub.unregister(A, 'assistant-1')
+    await tick()
+
+    expect(sub.isTopicOpen()).toBe(true)
+    expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
+
+    mock.emitChunk(TOPIC, A, textChunk('continued'), 'assistant-2')
+    const second = sub.register(A, 'assistant-2')
+    mock.emitDone(TOPIC, A, 'success', true, 'assistant-2')
+    expect(await readAll(second)).toEqual([textChunk('continued')])
+    sub.unregister(A, 'assistant-2')
+    await tick()
+
+    expect(sub.isTopicOpen()).toBe(false)
+    expect(mock.mockApi.streamDetach).toHaveBeenCalledTimes(1)
+    sub.dispose()
+  })
+
+  it('replays the error part and terminal status when failure arrives before the branch registers', async () => {
     const sub = new TopicStreamSubscription(TOPIC)
     const terminals: Array<{ id: string; isAbort: boolean; isError: boolean }> = []
     sub.listen()
 
     mock.emitError(TOPIC, A)
-    sub.register(A)
+    const stream = sub.register(A)
     sub.onExecutionTerminal((id, terminal) => terminals.push({ id, ...terminal }))
 
+    expect(await readAll(stream)).toEqual([{ type: 'data-error', data: STREAM_ERROR }])
     expect(terminals).toEqual([{ id: A, isAbort: false, isError: true }])
     sub.dispose()
   })
@@ -357,6 +386,18 @@ describe('TopicStreamSubscription', () => {
     const sa = sub.register(A)
     await tick()
     expect(await readAll(sa)).toEqual([])
+    sub.dispose()
+  })
+
+  it('attach failure closes branches with an error terminal instead of hanging readers', async () => {
+    mock.mockApi.streamAttach.mockRejectedValueOnce(new Error('ipc down'))
+    const sub = new TopicStreamSubscription(TOPIC)
+    const terminals: Array<{ isAbort: boolean; isError: boolean }> = []
+    sub.onExecutionTerminal((_id, terminal) => terminals.push(terminal))
+    const sa = sub.register(A)
+    await tick()
+    expect(await readAll(sa)).toEqual([])
+    expect(terminals).toEqual([expect.objectContaining({ isAbort: false, isError: true })])
     sub.dispose()
   })
 })

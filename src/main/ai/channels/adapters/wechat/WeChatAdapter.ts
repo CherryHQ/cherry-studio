@@ -1,7 +1,6 @@
 import { application } from '@application'
 import { WindowType } from '@main/core/window/types'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
-import { IpcChannel } from '@shared/IpcChannel'
 import { parseDataUrl } from '@shared/utils/dataUrl'
 
 import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } from '../../ChannelAdapter'
@@ -49,7 +48,15 @@ class WeChatAdapter extends ChannelAdapter {
     // Abort guard — if disconnect() was called before login completes
     if (signal.aborted) return
 
-    const credentials = await bot.login({ signal })
+    const credentials = await bot.login({ signal }).catch((error) => {
+      if (!signal.aborted) {
+        const isExpired =
+          error instanceof Error &&
+          error.message === 'QR login failed after 3 expired QR codes. Use config tool to reconnect.'
+        this.sendQrToRenderer('', isExpired ? 'expired' : 'error')
+      }
+      throw error
+    })
     if (signal.aborted) return
 
     this.sendQrToRenderer('', 'confirmed', credentials.userId)
@@ -123,10 +130,10 @@ class WeChatAdapter extends ChannelAdapter {
 
   private sendQrToRenderer(
     url: string,
-    status: 'pending' | 'confirmed' | 'expired' | 'disconnected',
+    status: 'pending' | 'confirmed' | 'expired' | 'disconnected' | 'error',
     userId?: string
   ): void {
-    application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.WeChat_QrLogin, {
+    application.get('IpcApiService').broadcastToType(WindowType.Main, 'channel.wechat.qr_login', {
       channelId: this.channelId,
       url,
       status,

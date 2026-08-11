@@ -1,5 +1,3 @@
-export type { GenerateImageParams } from '@shared/types/image'
-
 /**
  * Image edit parameters.
  * Used to generate an edited image from an input image plus a text prompt.
@@ -14,7 +12,7 @@ export type EditImageParams = {
   /** Optional mask image for inpainting (marks the region to edit) */
   mask?: Buffer | Uint8Array | string
   /** Output image size */
-  imageSize?: string
+  size?: string
   /** OpenAI image-body quality (e.g. 'high'/'auto'); forwarded via providerOptions */
   quality?: string
   /** OpenAI image-body field (e.g. 'transparent'/'opaque'/'auto') */
@@ -23,7 +21,7 @@ export type EditImageParams = {
   moderation?: string
   /**
    * Extra AI SDK `providerOptions` merged into the built map, keyed by the
-   * resolved provider id. See {@link GenerateImageParams.providerOptions}.
+   * resolved provider id.
    */
   providerOptions?: Record<string, Record<string, unknown>>
   /** Abort signal */

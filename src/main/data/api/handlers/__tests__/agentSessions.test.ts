@@ -4,26 +4,24 @@ const {
   listByCursorMock,
   createSessionMock,
   getByIdMock,
+  getLatestUpdatedMock,
   updateMock,
   setWorkspaceMock,
   deleteMock,
   deleteByAgentIdMock,
   deleteByIdsMock,
-  listSessionMessagesMock,
-  deleteSessionMessageMock,
   reorderMock,
   reorderBatchMock
 } = vi.hoisted(() => ({
   listByCursorMock: vi.fn(),
   createSessionMock: vi.fn(),
   getByIdMock: vi.fn(),
+  getLatestUpdatedMock: vi.fn(),
   updateMock: vi.fn(),
   setWorkspaceMock: vi.fn(),
   deleteMock: vi.fn(),
   deleteByAgentIdMock: vi.fn(),
   deleteByIdsMock: vi.fn(),
-  listSessionMessagesMock: vi.fn(),
-  deleteSessionMessageMock: vi.fn(),
   reorderMock: vi.fn(),
   reorderBatchMock: vi.fn()
 }))
@@ -33,6 +31,7 @@ vi.mock('@data/services/AgentSessionService', () => ({
     listByCursor: listByCursorMock,
     create: createSessionMock,
     getById: getByIdMock,
+    getLatestUpdated: getLatestUpdatedMock,
     update: updateMock,
     setWorkspace: setWorkspaceMock,
     delete: deleteMock,
@@ -40,13 +39,6 @@ vi.mock('@data/services/AgentSessionService', () => ({
     deleteByIds: deleteByIdsMock,
     reorder: reorderMock,
     reorderBatch: reorderBatchMock
-  }
-}))
-
-vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: {
-    listSessionMessages: listSessionMessagesMock,
-    deleteSessionMessage: deleteSessionMessageMock
   }
 }))
 
@@ -76,6 +68,21 @@ describe('agentSessionHandlers', () => {
         limit: 10
       })
       expect(result).toBe(response)
+    })
+  })
+
+  describe('/agent-sessions/latest', () => {
+    it('wraps the latest session from AgentSessionService', async () => {
+      const session = { id: 'session-latest' }
+      getLatestUpdatedMock.mockReturnValueOnce(session)
+
+      await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session })
+    })
+
+    it('returns { session: null } when there are no sessions', async () => {
+      getLatestUpdatedMock.mockReturnValueOnce(null)
+
+      await expect(agentSessionHandlers['/agent-sessions/latest'].GET({} as never)).resolves.toEqual({ session: null })
     })
   })
 
@@ -205,27 +212,6 @@ describe('agentSessionHandlers', () => {
       ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
 
       expect(deleteByIdsMock).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('/agent-sessions/:sessionId/messages', () => {
-    it('forwards messageId query to agentSessionMessageService.listSessionMessages', async () => {
-      const response = { items: [], nextCursor: undefined }
-      listSessionMessagesMock.mockResolvedValueOnce(response)
-
-      const result = await agentSessionHandlers['/agent-sessions/:sessionId/messages'].GET({
-        params: { sessionId: 'session-1' },
-        query: {
-          messageId: 'message-1',
-          limit: '25'
-        }
-      } as never)
-
-      expect(listSessionMessagesMock).toHaveBeenCalledWith('session-1', {
-        messageId: 'message-1',
-        limit: 25
-      })
-      expect(result).toBe(response)
     })
   })
 })

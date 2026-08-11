@@ -1,6 +1,7 @@
 import { Button, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import Selector from '@renderer/components/Selector'
+import { toast } from '@renderer/services/toast'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
 import { Undo2 } from 'lucide-react'
 import type { FC } from 'react'
@@ -30,7 +31,7 @@ const MiniAppDisplaySettings: FC = () => {
 
   const handleResetCacheLimit = useCallback(() => {
     void setMaxKeepAlive(DEFAULT_MAX_KEEPALIVE)
-    window.toast.info(t('settings.miniApps.cache_change_notice'))
+    toast.info(t('settings.miniApps.cache_change_notice'))
   }, [t, setMaxKeepAlive])
 
   const handleCacheChange = useCallback(
@@ -38,7 +39,7 @@ const MiniAppDisplaySettings: FC = () => {
       void setMaxKeepAlive(value)
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
       debounceTimerRef.current = setTimeout(() => {
-        window.toast.info(t('settings.miniApps.cache_change_notice'))
+        toast.info(t('settings.miniApps.cache_change_notice'))
         debounceTimerRef.current = null
       }, 500)
     },

@@ -1,7 +1,10 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import { application } from '@application'
+import { CHERRY_FAST_MODE_HEADER, CHERRY_INTERNAL_REQUEST_TOKEN_HEADER } from '@main/ai/constants'
 import { Elysia } from 'elysia'
 import { approximateTokenSize } from 'tokenx'
 
+import { DOC_DESCRIPTIONS, DOC_TAGS } from '../openapiDocs'
 import { processMessage } from '../proxyStream'
 import { CountTokensBodySchema, MessagesBodySchema } from './schemas'
 
@@ -9,6 +12,18 @@ import { CountTokensBodySchema, MessagesBodySchema } from './schemas'
 export interface CountTokensInput {
   messages: MessageCreateParams['messages']
   system?: MessageCreateParams['system']
+}
+
+/**
+ * Rough token estimate for an image block. Anthropic bills images by decoded
+ * size, so we approximate from the base64 payload length; URL / unknown sources
+ * get a flat fallback. Shared by top-level and tool_result image blocks.
+ */
+function estimateImageTokens(source: { type?: unknown; data?: unknown } | null | undefined): number {
+  if (source?.type === 'base64' && typeof source.data === 'string') {
+    return Math.floor((source.data.length * 0.75) / 100)
+  }
+  return 1000
 }
 
 // TODO: unified token estimator
@@ -40,11 +55,7 @@ export function estimateTokenCount(input: CountTokensInput): number {
         if (block.type === 'text' && typeof block.text === 'string') {
           totalTokens += approximateTokenSize(block.text)
         } else if (block.type === 'image') {
-          if (block.source?.type === 'base64' && typeof block.source.data === 'string') {
-            totalTokens += Math.floor((block.source.data.length * 0.75) / 100)
-          } else {
-            totalTokens += 1000
-          }
+          totalTokens += estimateImageTokens(block.source)
         } else if (block.type === 'tool_use') {
           if (typeof block.name === 'string') totalTokens += approximateTokenSize(block.name)
           if (block.input !== undefined) totalTokens += approximateTokenSize(JSON.stringify(block.input))
@@ -58,6 +69,8 @@ export function estimateTokenCount(input: CountTokensInput): number {
                 totalTokens += approximateTokenSize(item)
               } else if (item && typeof item === 'object' && item.type === 'text' && typeof item.text === 'string') {
                 totalTokens += approximateTokenSize(item.text)
+              } else if (item && typeof item === 'object' && item.type === 'image') {
+                totalTokens += estimateImageTokens(item.source)
               }
             }
           }
@@ -82,21 +95,29 @@ const invalidRequest = (message: string) => ({
  * by `MessagesBodySchema`; validation and provider errors are shaped into the
  * Anthropic error envelope by the app's single root `onError` (`gatewayErrorHandler`),
  * which dispatches by request path to `anthropicErrorHandler` (see ../errors.ts).
+ *
+ * `detail.tags`/`summary` stay in English; only `description` is localized — see chat.ts.
  */
 export const messagesRoutes = new Elysia({ prefix: '/messages' })
   .post(
     '/',
-    // `model` is "providerId:modelId"; ProxyStreamService resolves it.
-    ({ body, request }) =>
-      processMessage({
+    // `model` is "providerId:apiModelId"; ProxyStreamService resolves it.
+    ({ body, request, headers }) => {
+      const isInternalRequest = application
+        .get('ApiGatewayService')
+        .isInternalRequestToken(headers[CHERRY_INTERNAL_REQUEST_TOKEN_HEADER.toLowerCase()])
+      return processMessage({
         params: body,
         inputFormat: 'anthropic',
         outputFormat: 'anthropic',
-        signal: request.signal
-      }),
+        fastMode: isInternalRequest && headers[CHERRY_FAST_MODE_HEADER.toLowerCase()] === 'true',
+        signal: request.signal,
+        requestHeaders: request.headers
+      })
+    },
     {
       body: MessagesBodySchema,
-      detail: { tags: ['Messages'], summary: 'Create message' }
+      detail: { tags: [DOC_TAGS.anthropic], summary: 'Messages', description: DOC_DESCRIPTIONS.messages }
     }
   )
   .post(
@@ -112,6 +133,6 @@ export const messagesRoutes = new Elysia({ prefix: '/messages' })
     },
     {
       body: CountTokensBodySchema,
-      detail: { tags: ['Messages'], summary: 'Count tokens for messages' }
+      detail: { tags: [DOC_TAGS.anthropic], summary: 'Count Tokens', description: DOC_DESCRIPTIONS.count_tokens }
     }
   )

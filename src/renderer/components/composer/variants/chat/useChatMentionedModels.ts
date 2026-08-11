@@ -10,6 +10,7 @@ interface UseMentionedModelSelectorParams {
   topicId: string
   mentionedModels: Model[]
   setMentionedModels: (models: Model[]) => void
+  preserveExplicitSelectionOnRuntimeChange?: boolean
   /** Applies a single model to the assistant (the composer's `handleModelSelect`). */
   onModelSelect: (model: Model | undefined) => void
 }
@@ -20,6 +21,7 @@ interface UseMentionedModelSelectorResult {
   handleMentionedModelsSelect: (models: Model[]) => void
   handleMentionedModelMultiSelectModeChange: (enabled: boolean) => void
   handleMentionedModelSelectorRestore: () => void
+  restoreMentionedModelDraft: (models: Model[], multiSelectMode: boolean) => void
 }
 
 /**
@@ -35,35 +37,43 @@ export function useChatMentionedModels({
   topicId,
   mentionedModels,
   setMentionedModels,
+  preserveExplicitSelectionOnRuntimeChange,
   onModelSelect
 }: UseMentionedModelSelectorParams): UseMentionedModelSelectorResult {
   const [mentionedModelMultiSelectMode, setMentionedModelMultiSelectMode] = useState(false)
   const [mentionedModelSelectorValue, setMentionedModelSelectorValue] = useState<Model[]>([])
   const mentionedModelSelectorInitKeyRef = useRef<string | null>(null)
   const mentionedModelMultiSelectModeRef = useRef(mentionedModelMultiSelectMode)
+  const mentionedModelSelectorValueRef = useRef(mentionedModelSelectorValue)
   const mentionedModelsRef = useRef(mentionedModels)
+  const selectorScopeKeyRef = useRef<string | null>(null)
   mentionedModelMultiSelectModeRef.current = mentionedModelMultiSelectMode
+  mentionedModelSelectorValueRef.current = mentionedModelSelectorValue
   mentionedModelsRef.current = mentionedModels
 
-  const initializeMentionedModelSelector = useEffectEvent((isInitialSelection: boolean, selectedModel?: Model) => {
-    const currentMentionedModels = mentionedModelsRef.current
-    setMentionedModelSelectorValue(
-      isInitialSelection && currentMentionedModels.length > 1
-        ? currentMentionedModels
-        : selectedModel
-          ? [selectedModel]
-          : []
-    )
-    setMentionedModelMultiSelectMode(false)
+  const initializeMentionedModelSelector = useEffectEvent(
+    (isInitialSelection: boolean, preserveExplicitSelection: boolean, selectedModel?: Model) => {
+      const currentMentionedModels = mentionedModelsRef.current
+      const keepCurrentSelection = preserveExplicitSelection && currentMentionedModels.length > 0
+      setMentionedModelSelectorValue(
+        keepCurrentSelection || (isInitialSelection && currentMentionedModels.length > 1)
+          ? currentMentionedModels
+          : selectedModel
+            ? [selectedModel]
+            : []
+      )
+      setMentionedModelMultiSelectMode(false)
 
-    if (!isInitialSelection && currentMentionedModels.length > 0) {
-      setMentionedModels([])
+      if (!isInitialSelection && currentMentionedModels.length > 0 && !keepCurrentSelection) {
+        setMentionedModels([])
+      }
     }
-  })
+  )
 
   useEffect(() => {
     if (!enabled) {
       mentionedModelSelectorInitKeyRef.current = null
+      selectorScopeKeyRef.current = null
       setMentionedModelSelectorValue((currentModels) => (currentModels.length === 0 ? currentModels : []))
       setMentionedModelMultiSelectMode((currentEnabled) => (currentEnabled ? false : currentEnabled))
       return
@@ -73,14 +83,28 @@ export function useChatMentionedModels({
       return
     }
 
-    const initializationKey = `${topicId}:${selectedAssistantId ?? 'no-assistant'}:${runtimeModel?.id ?? 'no-model'}`
+    const selectorScopeKey = `${topicId}:${selectedAssistantId ?? 'no-assistant'}`
+    const initializationKey = `${selectorScopeKey}:${runtimeModel?.id ?? 'no-model'}`
     if (mentionedModelSelectorInitKeyRef.current === initializationKey) return
 
     const isInitialSelection = mentionedModelSelectorInitKeyRef.current === null
+    const isSameSelectorScope = selectorScopeKeyRef.current === selectorScopeKey
     mentionedModelSelectorInitKeyRef.current = initializationKey
-    initializeMentionedModelSelector(isInitialSelection, runtimeModel)
+    selectorScopeKeyRef.current = selectorScopeKey
+    initializeMentionedModelSelector(
+      isInitialSelection,
+      Boolean(preserveExplicitSelectionOnRuntimeChange && isSameSelectorScope),
+      runtimeModel
+    )
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads latest mentioned models; this effect is keyed by topic/assistant/model.
-  }, [runtimeModel, runtimeModelPending, selectedAssistantId, topicId, enabled])
+  }, [
+    runtimeModel,
+    runtimeModelPending,
+    selectedAssistantId,
+    topicId,
+    enabled,
+    preserveExplicitSelectionOnRuntimeChange
+  ])
 
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
@@ -90,7 +114,7 @@ export function useChatMentionedModels({
         return
       }
 
-      setMentionedModels([])
+      setMentionedModels(nextModels)
       const [nextModel] = nextModels
       if (nextModel) onModelSelect(nextModel)
     },
@@ -106,8 +130,9 @@ export function useChatMentionedModels({
         return
       }
 
-      setMentionedModelSelectorValue((currentModels) => currentModels.slice(0, 1))
-      setMentionedModels([])
+      const collapsedModels = mentionedModelSelectorValueRef.current.slice(0, 1)
+      setMentionedModelSelectorValue(collapsedModels)
+      setMentionedModels(collapsedModels)
     },
     [setMentionedModels]
   )
@@ -119,11 +144,24 @@ export function useChatMentionedModels({
     setMentionedModels([])
   }, [runtimeModel, setMentionedModels])
 
+  const restoreMentionedModelDraft = useCallback(
+    (models: Model[], multiSelectMode: boolean) => {
+      mentionedModelsRef.current = models
+      mentionedModelSelectorValueRef.current = models
+      mentionedModelMultiSelectModeRef.current = multiSelectMode
+      setMentionedModels(models)
+      setMentionedModelSelectorValue(models)
+      setMentionedModelMultiSelectMode(multiSelectMode)
+    },
+    [setMentionedModels]
+  )
+
   return {
     mentionedModelSelectorValue,
     mentionedModelMultiSelectMode,
     handleMentionedModelsSelect,
     handleMentionedModelMultiSelectModeChange,
-    handleMentionedModelSelectorRestore
+    handleMentionedModelSelectorRestore,
+    restoreMentionedModelDraft
   }
 }

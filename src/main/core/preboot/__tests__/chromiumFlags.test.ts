@@ -179,7 +179,7 @@ describe('configureChromiumFlags', () => {
 
   describe('unconditional feature flags', () => {
     const UNCONDITIONAL_FEATURES =
-      'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync'
+      'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,PageAllocatorRetryOnCommitFailure'
 
     it('always appends the unconditional enable-features flag on macOS', async () => {
       stubConstants({ isLinux: false, isWin: false })
@@ -230,7 +230,7 @@ describe('configureChromiumFlags', () => {
       expect(appendSwitchMock).toHaveBeenCalledTimes(1)
       expect(appendSwitchMock).toHaveBeenCalledWith(
         'enable-features',
-        'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync'
+        'DocumentPolicyIncludeJSCallStacksInCrashReports,EarlyEstablishGpuChannel,EstablishGpuChannelAsync,PageAllocatorRetryOnCommitFailure'
       )
     })
   })

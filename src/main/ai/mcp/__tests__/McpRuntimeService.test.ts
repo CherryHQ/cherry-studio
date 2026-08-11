@@ -1,6 +1,7 @@
 import { BaseService } from '@main/core/lifecycle'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mcpCatalogMock = vi.hoisted(() => ({
@@ -18,6 +19,118 @@ vi.mock('@data/services/McpServerService', () => ({
   mcpServerService: {
     getById: (id: string) => getByIdMock(id)
   }
+}))
+
+const shellEnvMock = vi.hoisted(() => ({
+  getShellEnv: vi.fn().mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
+}))
+vi.mock('@main/utils/shellEnv', () => ({
+  getShellEnv: shellEnvMock.getShellEnv
+}))
+
+const commandResolverMock = vi.hoisted(() => ({
+  findCommandInShellEnv: vi.fn().mockResolvedValue('C:\\Tools\\npx.exe')
+}))
+vi.mock('@main/utils/commandResolver', () => ({
+  findCommandInShellEnv: commandResolverMock.findCommandInShellEnv
+}))
+
+// Mock the MCP SDK transports + Client so we can drive the transport-fallback path without
+// a real network server. SSE connect throws a 405 (mirrors the issue); streamableHttp succeeds.
+const mcpSdkMock = vi.hoisted(() => {
+  class SseError extends Error {
+    code: number
+    constructor(code: number, message: string) {
+      super(`SSE error: ${message}`)
+      this.code = code
+    }
+  }
+  class SSEClientTransport {
+    kind = 'sse' as const
+    close = vi.fn().mockResolvedValue(undefined)
+    constructor(url: unknown, opts?: unknown) {
+      void url
+      void opts
+    }
+  }
+  class StreamableHTTPClientTransport {
+    kind = 'streamableHttp' as const
+    close = vi.fn().mockResolvedValue(undefined)
+    constructor(url: unknown, opts?: unknown) {
+      void url
+      void opts
+    }
+  }
+  const clients: Array<{ connectCalls: Array<{ kind: string }>; close: ReturnType<typeof vi.fn> }> = []
+  class Client {
+    setNotificationHandler = vi.fn()
+    _transport: { kind: string } | undefined = undefined
+    close = vi.fn().mockImplementation(async () => {
+      this._transport = undefined
+    })
+    ping = vi.fn().mockResolvedValue(true)
+    connectCalls: Array<{ kind: string }> = []
+    constructor() {
+      clients.push(this)
+    }
+    async connect(transport: { kind: string }) {
+      // Mirror MCP SDK Protocol.connect: _transport is set before start() runs, and a failed
+      // start() leaves it set. This is what makes the fallback retry fail unless client.close()
+      // resets it — the test would not catch that regression otherwise.
+      if (this._transport) {
+        throw new Error('Already connected to a transport. Call close() before connecting to a new transport')
+      }
+      this._transport = transport
+      this.connectCalls.push({ kind: transport.kind })
+      if (transport.kind === 'sse') {
+        throw new SseError(405, 'Non-200 status code (405)')
+      }
+      if (mcpSdkMock.state.failStreamable) {
+        throw new StreamableHTTPError(mcpSdkMock.state.failStreamableCode ?? 503, 'boom')
+      }
+    }
+  }
+  class StreamableHTTPError extends Error {
+    code: number
+    constructor(code: number, message?: string) {
+      super(message ?? 'boom')
+      this.code = code
+    }
+  }
+  const stdioTransports: Array<{ env?: Record<string, string> }> = []
+  class StdioClientTransport {
+    kind = 'stdio' as const
+    stderr = null
+    constructor(params: { env?: Record<string, string> }) {
+      stdioTransports.push(params)
+    }
+  }
+  return {
+    SseError,
+    SSEClientTransport,
+    StreamableHTTPClientTransport,
+    Client,
+    StreamableHTTPError,
+    StdioClientTransport,
+    stdioTransports,
+    clients,
+    state: { failStreamable: false, failStreamableCode: 503 }
+  }
+})
+
+vi.mock('@modelcontextprotocol/sdk/client/sse.js', () => ({
+  SseError: mcpSdkMock.SseError,
+  SSEClientTransport: mcpSdkMock.SSEClientTransport
+}))
+vi.mock('@modelcontextprotocol/sdk/client/streamableHttp.js', () => ({
+  StreamableHTTPClientTransport: mcpSdkMock.StreamableHTTPClientTransport,
+  StreamableHTTPError: mcpSdkMock.StreamableHTTPError
+}))
+vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
+  Client: mcpSdkMock.Client
+}))
+vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
+  StdioClientTransport: mcpSdkMock.StdioClientTransport
 }))
 
 const { McpRuntimeService, redactSensitive, McpCallToolPayloadSchema, McpGetResourcePayloadSchema } = await import(
@@ -45,6 +158,57 @@ function createDeferred<T>(): { promise: Promise<T>; resolve: (value: T) => void
   })
   return { promise, resolve }
 }
+
+describe('McpRuntimeService stdio environment', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpSdkMock.stdioTransports.length = 0
+    shellEnvMock.getShellEnv.mockResolvedValue({ Path: 'C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows' })
+  })
+
+  it('canonicalizes a mixed-case Windows Path key to PATH before crossing the MCP SDK boundary', async () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('win32')
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+
+    const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
+    expect(Object.keys(transportEnv ?? {}).filter((key) => key.toLowerCase() === 'path')).toEqual(['PATH'])
+    expect(transportEnv?.PATH).toBe('C:\\Users\\me\\.cherrystudio\\bin;C:\\Windows')
+    platformSpy.mockRestore()
+  })
+
+  it('preserves distinct PATH key casing on POSIX', async () => {
+    const platformSpy = vi.spyOn(process, 'platform', 'get').mockReturnValue('linux')
+    shellEnvMock.getShellEnv.mockResolvedValue({ PATH: '/shell/bin', Path: 'shell-metadata' })
+    const service = new McpRuntimeService()
+    const server = {
+      id: 'stdio-server',
+      name: 'stdio-server',
+      command: 'npx',
+      args: ['-y', 'example-mcp'],
+      env: { Path: 'server-metadata' },
+      isActive: true
+    } as McpServer
+    getByIdMock.mockReturnValue(server)
+
+    await service.withClient(server.id, async () => undefined)
+
+    const transportEnv = mcpSdkMock.stdioTransports.at(-1)?.env
+    expect(transportEnv?.PATH).toBe('/shell/bin')
+    expect(transportEnv?.Path).toBe('server-metadata')
+    platformSpy.mockRestore()
+  })
+})
 
 describe('McpRuntimeService.setServerStatus', () => {
   beforeEach(() => {
@@ -160,6 +324,317 @@ describe('McpRuntimeService.closeClientsForServer', () => {
   })
 })
 
+describe('McpRuntimeService stale client cleanup (issue #18144)', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+  })
+
+  const server = {
+    id: 'server-1',
+    name: 'srv',
+    command: 'python',
+    args: ['server.py'],
+    isActive: true
+  } as McpServer
+
+  it.each([
+    ['ping resolves falsy', vi.fn().mockResolvedValue(false)],
+    ['ping throws', vi.fn().mockRejectedValue(new Error('timeout'))]
+  ])('closes the dead client instead of orphaning its process when %s', async (_label, ping) => {
+    const service = new McpRuntimeService()
+    const close = vi.fn().mockResolvedValue(undefined)
+    ;(service as any).clients.set(service.getServerKey(server), { close, ping })
+
+    await (service as any).getOrCreateClient(server)
+
+    expect(close).toHaveBeenCalledTimes(1)
+  })
+
+  it('still reconnects when closing the dead client throws', async () => {
+    const service = new McpRuntimeService()
+    const close = vi.fn().mockRejectedValue(new Error('transport already gone'))
+    const ping = vi.fn().mockResolvedValue(false)
+    const key = service.getServerKey(server)
+    ;(service as any).clients.set(key, { close, ping })
+
+    await expect((service as any).getOrCreateClient(server)).resolves.toBeDefined()
+    expect((service as any).clients.get(key)?.ping).not.toBe(ping)
+  })
+})
+
+describe('McpRuntimeService.callTool cancellation', () => {
+  const server = { id: 'server-1', name: 'srv', isActive: true } as McpServer
+
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    getByIdMock.mockReset()
+    getByIdMock.mockReturnValue(server)
+    mockMainLoggerService.debug.mockClear()
+    mockMainLoggerService.error.mockClear()
+  })
+
+  function createAbortableCallTool(abortError: Error) {
+    return vi.fn((_request: unknown, _resultSchema: unknown, options: { signal: AbortSignal }) => {
+      return new Promise((_resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('MCP call did not abort')), 50)
+        options.signal.addEventListener(
+          'abort',
+          () => {
+            clearTimeout(timeout)
+            reject(abortError)
+          },
+          { once: true }
+        )
+      })
+    })
+  }
+
+  it('aborts the client call and clears the active call when the external signal aborts', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const clientCallTool = createAbortableCallTool(abortError)
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+    const controller = new AbortController()
+
+    const call = service.callTool({
+      serverId: server.id,
+      name: 'tool',
+      args: {},
+      callId: 'external-call',
+      signal: controller.signal
+    })
+
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledOnce(), { interval: 1 })
+    expect((service as any).activeToolCalls.has('external-call')).toBe(true)
+    const clientSignal = clientCallTool.mock.calls[0][2].signal
+
+    controller.abort()
+
+    await expect(call).rejects.toBe(abortError)
+    expect(clientSignal.aborted).toBe(true)
+    expect((service as any).activeToolCalls.has('external-call')).toBe(false)
+  })
+
+  it('keeps abortTool cancellation working by call id', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const clientCallTool = createAbortableCallTool(abortError)
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const call = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'internal-call' })
+
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledOnce(), { interval: 1 })
+    expect((service as any).activeToolCalls.has('internal-call')).toBe(true)
+    const clientSignal = clientCallTool.mock.calls[0][2].signal
+
+    await expect(service.abortTool('internal-call')).resolves.toBe(true)
+
+    await expect(call).rejects.toBe(abortError)
+    expect(clientSignal.aborted).toBe(true)
+    expect((service as any).activeToolCalls.has('internal-call')).toBe(false)
+  })
+
+  it('rejects promptly and clears the active call when aborted while waiting for the client', async () => {
+    const service = new McpRuntimeService()
+    // Client init that never settles — the cold-start / hung-connection window.
+    vi.spyOn(service as any, 'getOrCreateClient').mockReturnValue(new Promise(() => {}))
+    const controller = new AbortController()
+    const reason = new Error('stopped during connect')
+
+    const call = service.callTool({
+      serverId: server.id,
+      name: 'tool',
+      args: {},
+      callId: 'connecting-call',
+      signal: controller.signal
+    })
+    expect((service as any).activeToolCalls.has('connecting-call')).toBe(true)
+
+    controller.abort(reason)
+
+    await expect(call).rejects.toBe(reason)
+    expect((service as any).activeToolCalls.has('connecting-call')).toBe(false)
+  })
+
+  it('does not start client init and clears the active call when the signal is already aborted', async () => {
+    const service = new McpRuntimeService()
+    const getOrCreateClientSpy = vi.spyOn(service as any, 'getOrCreateClient')
+    const reason = new Error('aborted before start')
+    const controller = new AbortController()
+    controller.abort(reason)
+
+    await expect(
+      service.callTool({
+        serverId: server.id,
+        name: 'tool',
+        args: {},
+        callId: 'pre-aborted-call',
+        signal: controller.signal
+      })
+    ).rejects.toBe(reason)
+
+    expect(getOrCreateClientSpy).not.toHaveBeenCalled()
+    expect((service as any).activeToolCalls.has('pre-aborted-call')).toBe(false)
+  })
+
+  // Call ids are caller-supplied and not process-wide unique: a duplicate must neither be
+  // deregistered by the other call's cleanup nor able to abort only one of the two.
+  it('keeps a duplicate call id abortable after the first call with that id settles', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const first = createDeferred<unknown>()
+    const clientCallTool = vi
+      .fn()
+      .mockImplementationOnce(() => first.promise)
+      .mockImplementationOnce(
+        (_request: unknown, _resultSchema: unknown, options: { signal: AbortSignal }) =>
+          new Promise((_resolve, reject) => {
+            options.signal.addEventListener('abort', () => reject(abortError), { once: true })
+          })
+      )
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const firstCall = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'dup-call' })
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledTimes(1), { interval: 1 })
+    const secondCall = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'dup-call' })
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledTimes(2), { interval: 1 })
+
+    first.resolve({ content: [] })
+    await expect(firstCall).resolves.toEqual({ content: [] })
+    // The settled call's cleanup must not deregister the still-running duplicate.
+    expect((service as any).activeToolCalls.has('dup-call')).toBe(true)
+
+    await expect(service.abortTool('dup-call')).resolves.toBe(true)
+    await expect(secondCall).rejects.toBe(abortError)
+    expect((service as any).activeToolCalls.has('dup-call')).toBe(false)
+  })
+
+  it('aborts every in-flight call registered under a duplicated call id', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const clientCallTool = createAbortableCallTool(abortError)
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const firstCall = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'dup-call' })
+    const secondCall = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'dup-call' })
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledTimes(2), { interval: 1 })
+
+    await expect(service.abortTool('dup-call')).resolves.toBe(true)
+
+    await expect(firstCall).rejects.toBe(abortError)
+    await expect(secondCall).rejects.toBe(abortError)
+    expect((service as any).activeToolCalls.has('dup-call')).toBe(false)
+  })
+
+  // The abort-wait racer must not leave its listener behind when client init wins: the
+  // composed signal is retained by the long-lived stream signal, so a lingering closure
+  // would accumulate once per tool call for the stream's whole lifetime.
+  it('removes every abort listener it added once the call settles without aborting', async () => {
+    const service = new McpRuntimeService()
+    const clientCallTool = vi.fn().mockResolvedValue({ content: [] })
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+    const controller = new AbortController()
+
+    const added: Array<{ target: AbortSignal; listener: unknown }> = []
+    const removed: Array<{ target: AbortSignal; listener: unknown }> = []
+    const originalAdd = AbortSignal.prototype.addEventListener
+    const originalRemove = AbortSignal.prototype.removeEventListener
+    const addSpy = vi.spyOn(AbortSignal.prototype, 'addEventListener').mockImplementation(function (
+      this: AbortSignal,
+      ...args: Parameters<typeof originalAdd>
+    ) {
+      if (args[0] === 'abort') added.push({ target: this, listener: args[1] })
+      return originalAdd.apply(this, args)
+    })
+    const removeSpy = vi.spyOn(AbortSignal.prototype, 'removeEventListener').mockImplementation(function (
+      this: AbortSignal,
+      ...args: Parameters<typeof originalRemove>
+    ) {
+      if (args[0] === 'abort') removed.push({ target: this, listener: args[1] })
+      return originalRemove.apply(this, args)
+    })
+
+    try {
+      await service.callTool({
+        serverId: server.id,
+        name: 'tool',
+        args: {},
+        callId: 'settled-call',
+        signal: controller.signal
+      })
+    } finally {
+      addSpy.mockRestore()
+      removeSpy.mockRestore()
+    }
+
+    expect(added.length).toBeGreaterThan(0)
+    for (const { target, listener } of added) {
+      expect(removed.some((entry) => entry.target === target && entry.listener === listener)).toBe(true)
+    }
+  })
+
+  // Provider call ids can collide across topics; an abort scoped to one topic must never
+  // cancel the identically-named in-flight call registered under another topic's scope.
+  it('scopes abortTool so a colliding call id in another scope is untouched', async () => {
+    const service = new McpRuntimeService()
+    const abortError = new Error('MCP call aborted')
+    const clientCallTool = vi.fn(
+      (_request: unknown, _resultSchema: unknown, options: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          options.signal.addEventListener('abort', () => reject(abortError), { once: true })
+        })
+    )
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const callA = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'call_0', scope: 'topic-a' })
+    const callB = service.callTool({ serverId: server.id, name: 'tool', args: {}, callId: 'call_0', scope: 'topic-b' })
+    await vi.waitFor(() => expect(clientCallTool).toHaveBeenCalledTimes(2), { interval: 1 })
+
+    // An unscoped abort must not reach into scoped registrations either.
+    await expect(service.abortTool('call_0')).resolves.toBe(false)
+
+    await expect(service.abortTool('call_0', 'topic-a')).resolves.toBe(true)
+    await expect(callA).rejects.toBe(abortError)
+
+    // The other topic's identically-named call is still running and still abortable.
+    expect(clientCallTool.mock.calls[1][2].signal.aborted).toBe(false)
+    await expect(service.abortTool('call_0', 'topic-b')).resolves.toBe(true)
+    await expect(callB).rejects.toBe(abortError)
+  })
+
+  // A genuine transport/server failure whose catch continuation runs after the external
+  // abort landed must NOT be downgraded to the debug "Tool call aborted" path.
+  it('keeps error-level logging for a genuine failure that races cancellation', async () => {
+    const service = new McpRuntimeService()
+    const transportError = new Error('connection reset')
+    const controller = new AbortController()
+    const clientCallTool = vi.fn(
+      () =>
+        new Promise((_resolve, reject) => {
+          // Real failure settles the call first; the abort lands before the catch runs.
+          reject(transportError)
+          controller.abort(new Error('user stopped'))
+        })
+    )
+    vi.spyOn(service as any, 'getOrCreateClient').mockResolvedValue({ callTool: clientCallTool })
+
+    const call = service.callTool({
+      serverId: server.id,
+      name: 'tool',
+      args: {},
+      callId: 'racing-call',
+      signal: controller.signal
+    })
+
+    await expect(call).rejects.toBe(transportError)
+    expect(mockMainLoggerService.error).toHaveBeenCalledWith('Error calling tool', transportError)
+    expect(mockMainLoggerService.debug).not.toHaveBeenCalledWith('Tool call aborted')
+  })
+})
+
 describe('MCP IPC payload validation (mcp-services-5)', () => {
   it('rejects a malformed callTool payload (missing serverId/name)', () => {
     expect(McpCallToolPayloadSchema.safeParse({}).success).toBe(false)
@@ -263,5 +738,63 @@ describe('McpRuntimeService.restartServer (issue #16242)', () => {
 
     expect(mcpCatalogMock.clearSharedToolsCache).toHaveBeenCalledWith('server-1')
     expect(mcpCatalogMock.refreshTools).toHaveBeenCalledWith('server-1')
+  })
+})
+
+describe('McpRuntimeService transport fallback (issue #16891)', () => {
+  beforeEach(() => {
+    BaseService.resetInstances()
+    MockMainCacheServiceUtils.resetMocks()
+    mcpSdkMock.state.failStreamable = false
+    mcpSdkMock.state.failStreamableCode = 503
+  })
+
+  function urlServer(type: 'sse' | 'streamableHttp'): McpServer {
+    return {
+      id: 'sse-server',
+      name: 'actuarymcp',
+      type,
+      baseUrl: 'https://mcp.actuary.meridianbridgegroup.com/mcp',
+      isActive: true
+    } as unknown as McpServer
+  }
+
+  type MockClient = InstanceType<typeof mcpSdkMock.Client>
+
+  it('falls back to Streamable HTTP when an sse-typed server rejects the SSE GET with 405', async () => {
+    const service = new McpRuntimeService()
+    const client = (await (service as any).getOrCreateClient(urlServer('sse'))) as unknown as MockClient
+
+    // SSE attempt (405) then Streamable HTTP attempt (success) — exactly two connect calls.
+    expect(client.connectCalls.map((c) => c.kind)).toEqual(['sse', 'streamableHttp'])
+  })
+
+  it('connects on the first try for a correctly configured streamableHttp server (no fallback)', async () => {
+    const service = new McpRuntimeService()
+    const client = (await (service as any).getOrCreateClient(urlServer('streamableHttp'))) as unknown as MockClient
+
+    expect(client.connectCalls.map((c) => c.kind)).toEqual(['streamableHttp'])
+  })
+
+  it('propagates the error when both transports fail', async () => {
+    // Force the Streamable HTTP attempt to also fail (5xx) so the fallback exhausts both candidates.
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableCode = 503
+
+    const service = new McpRuntimeService()
+    await expect((service as any).getOrCreateClient(urlServer('sse'))).rejects.toThrow()
+  })
+
+  it('does NOT fall back when a streamableHttp server returns 401 (auth must surface, not SSE)', async () => {
+    // A 401 from the Streamable HTTP transport is an auth/permission error, not a transport
+    // mismatch — it must not be masked by falling back to the SSE transport.
+    mcpSdkMock.state.failStreamable = true
+    mcpSdkMock.state.failStreamableCode = 401
+
+    const service = new McpRuntimeService()
+    await expect((service as any).getOrCreateClient(urlServer('streamableHttp'))).rejects.toThrow()
+
+    // The only connect attempt is the configured streamableHttp one — no SSE fallback happened.
+    expect(mcpSdkMock.clients.at(-1)?.connectCalls).toEqual([{ kind: 'streamableHttp' }])
   })
 })

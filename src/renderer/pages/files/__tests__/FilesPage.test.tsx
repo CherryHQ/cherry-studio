@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest'
 
+import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import type { FileEntryStats } from '@shared/data/api/schemas/files'
 import type { FileEntry } from '@shared/data/types/file'
-import { fileErrorCodes } from '@shared/ipc/errors/file'
-import { IpcError } from '@shared/ipc/errors/IpcError'
 import { mockUseInfiniteQuery, mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { act, cleanup, createEvent, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const platformState = vi.hoisted(() => ({
@@ -15,6 +16,50 @@ const platformState = vi.hoisted(() => ({
 
 const ipcMocks = vi.hoisted(() => ({
   request: vi.fn()
+}))
+
+const filePreviewMocks = vi.hoisted(() => ({
+  render: vi.fn()
+}))
+
+const imagePreviewMocks = vi.hoisted(() => ({
+  show: vi.fn().mockResolvedValue(undefined)
+}))
+
+vi.mock('@renderer/components/FilePreview', () => ({
+  FilePreview: ({ header, ...props }: { filePath: string; header?: ReactNode; refreshKey?: number }) => {
+    filePreviewMocks.render(props)
+    return <div>{header}</div>
+  }
+}))
+
+vi.mock('@renderer/services/ImagePreviewService', () => ({
+  ImagePreviewService: {
+    show: imagePreviewMocks.show
+  }
+}))
+
+const virtualizerMocks = vi.hoisted(() => ({
+  measureElement: vi.fn(),
+  scrollToIndex: vi.fn(),
+  useVirtualizer: vi.fn(
+    (options: { count: number; estimateSize: () => number; getItemKey?: (index: number) => string | number }) => ({
+      getTotalSize: () => options.count * options.estimateSize(),
+      getVirtualItems: () =>
+        Array.from({ length: Math.min(options.count, 20) }, (_, index) => ({
+          index,
+          key: options.getItemKey?.(index) ?? index,
+          size: options.estimateSize(),
+          start: index * options.estimateSize()
+        })),
+      measureElement: virtualizerMocks.measureElement,
+      scrollToIndex: virtualizerMocks.scrollToIndex
+    })
+  )
+}))
+
+vi.mock('@tanstack/react-virtual', () => ({
+  useVirtualizer: virtualizerMocks.useVirtualizer
 }))
 
 vi.mock('@renderer/utils/platform', () => ({
@@ -153,7 +198,6 @@ beforeEach(() => {
   platformState.isMac = true
   ipcMocks.request.mockReturnValue(new Promise(() => {}))
   mockFiles([entry])
-  window.toast = { error: vi.fn() } as unknown as typeof window.toast
 })
 
 afterEach(() => {
@@ -277,43 +321,57 @@ describe('FilesPage keyboard rename', () => {
     })
   })
 
-  it('uses server totals for all/trash counts', () => {
-    mockFileStats({ activeTotal: 123, trashTotal: 4, extCounts: [] })
-    mockUseInfiniteQuery.mockImplementation((_path, options) => {
-      const query = options?.query as { inTrash?: boolean } | undefined
-      return {
-        pages: query?.inTrash ? [{ items: [], total: 4 }] : [{ items: [entry], total: 123 }],
-        isLoading: false,
-        isRefreshing: false,
-        error: undefined,
-        hasNext: false,
-        loadNext: vi.fn(),
-        refresh: vi.fn().mockResolvedValue(undefined),
-        reset: vi.fn(),
-        mutate: vi.fn().mockResolvedValue(undefined)
-      }
-    })
-    render(<FilesPage />)
-
-    expect(screen.getAllByText('123').length).toBeGreaterThan(0)
-    fireEvent.click(screen.getByText('files.trash'))
-    expect(screen.getAllByText('4').length).toBeGreaterThan(0)
-  })
-
-  it('disables selection controls when the current view has no files', () => {
+  it('hides the contextual selection toolbar when nothing is selected', () => {
     mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
     mockFiles([])
     render(<FilesPage />)
 
-    expect(screen.getByRole('checkbox', { name: 'files.select_all_short' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'files.select_all_short' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'files.actions' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'files.actions' })).not.toBeInTheDocument()
   })
 
-  it('uses stats for type counts before all active pages are loaded', () => {
+  it('shows the unified empty state once the file list loads empty', () => {
+    mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
+    mockFiles([])
+    render(<FilesPage />)
+
+    expect(screen.getByText('files.empty.title')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
+  })
+
+  it('shows a single message when the current file filter has no matches', () => {
+    mockFiles([entry])
+    render(<FilesPage />)
+
+    fireEvent.click(screen.getByText('files.image'))
+
+    expect(screen.getByText('files.empty.no_match_title')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.no_match_description')).not.toBeInTheDocument()
+  })
+
+  it('shows loading feedback instead of an empty state while the file list is loading', () => {
+    mockFileStats({ activeTotal: 0, trashTotal: 0, extCounts: [] })
+    mockUseInfiniteQuery.mockImplementation(() => ({
+      pages: [],
+      isLoading: true,
+      isRefreshing: false,
+      error: undefined,
+      hasNext: false,
+      loadNext: vi.fn(),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined)
+    }))
+    render(<FilesPage />)
+
+    expect(screen.getByText('common.loading')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.title')).toBeNull()
+    expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
+  })
+
+  it('uses stats for library and type counts before all active pages are loaded', () => {
     mockFileStats({
       activeTotal: 170,
-      trashTotal: 0,
+      trashTotal: 4,
       extCounts: [
         { ext: 'blobx', count: 95 },
         { ext: 'md', count: 75 }
@@ -338,6 +396,8 @@ describe('FilesPage keyboard rename', () => {
     expect(screen.getAllByText('170').length).toBeGreaterThan(0)
     expect(screen.getByText('95')).toBeInTheDocument()
     expect(screen.getByText('75')).toBeInTheDocument()
+    fireEvent.click(screen.getByText('files.trash'))
+    expect(screen.getAllByText('4').length).toBeGreaterThan(0)
   })
 
   it('keeps current rows visible while the sorted query is loading', () => {
@@ -409,6 +469,126 @@ describe('FilesPage file operations', () => {
     })
   })
 
+  it('embeds the file preview across the Files page after resolving the physical path', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [entry.id]: '/tmp/report.md' })
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'files.open' }))
+
+    await waitFor(() => {
+      expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_get_physical_paths', { ids: [entry.id] })
+      expect(filePreviewMocks.render).toHaveBeenCalledWith({ filePath: '/tmp/report.md', refreshKey: 0 })
+    })
+    expect(screen.getByRole('region', { name: 'report.md' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'common.back' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'common.back' }))
+
+    expect(screen.queryByRole('region', { name: 'report.md' })).not.toBeInTheDocument()
+    expect(screen.getByText('report.md')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'files.open' })).toBeInTheDocument()
+  })
+
+  it('reports a file preview path resolution failure', async () => {
+    const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    renderFilesPage()
+
+    fireEvent.click(screen.getByRole('button', { name: 'files.open' }))
+
+    await waitFor(() => {
+      expect(errorSpy).toHaveBeenCalledWith('Failed to open file preview', expect.any(Error))
+      expect(toast.error).toHaveBeenCalledWith('files.preview.error')
+    })
+    expect(filePreviewMocks.render).not.toHaveBeenCalled()
+  })
+
+  // Delays a settled value by several microtask hops so the earlier open request lands
+  // AFTER the later one. Both requests still settle within a few ticks — no long-pending
+  // promise (which would spin the mocked useDeferredValue render loop under act).
+  const afterMicrotasks = <T,>(produce: () => T): Promise<T> =>
+    Promise.resolve()
+      .then()
+      .then()
+      .then()
+      .then(() => produce())
+  // Drains pending microtasks so the stale request provably finishes before we assert,
+  // without waiting for React to go idle (the mock's unstable query refs never let it).
+  const drainMicrotasks = async () => {
+    for (let i = 0; i < 20; i++) await Promise.resolve()
+  }
+
+  it('keeps the most recently opened file when an older open request resolves last', async () => {
+    const fileA = { ...entry, id: 'file-a', name: 'alpha', ext: 'md' } as unknown as FileEntry
+    const fileB = { ...entry, id: 'file-b', name: 'bravo', ext: 'md' } as unknown as FileEntry
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_physical_paths') {
+        const id = (input as { ids: string[] }).ids[0]
+        // A (clicked first) settles several ticks later than B (clicked last).
+        if (id === 'file-a') return afterMicrotasks(() => ({ 'file-a': '/tmp/alpha.md' }))
+        return Promise.resolve({ [id]: '/tmp/bravo.md' })
+      }
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([fileA, fileB])
+
+    const openButtons = screen.getAllByRole('button', { name: 'files.open' })
+    fireEvent.click(openButtons[0]) // A — the stale, slower request
+    fireEvent.click(openButtons[1]) // B — the latest selection
+
+    // B (latest) resolves first and is shown.
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'bravo.md' })).toBeInTheDocument()
+    })
+
+    // A (stale) resolves last and must NOT overwrite B.
+    await drainMicrotasks()
+    expect(filePreviewMocks.render).not.toHaveBeenCalledWith(expect.objectContaining({ filePath: '/tmp/alpha.md' }))
+    expect(screen.getByRole('region', { name: 'bravo.md' })).toBeInTheDocument()
+  })
+
+  it('suppresses a stale open error after a newer open has already succeeded', async () => {
+    const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    const fileA = { ...entry, id: 'file-a', name: 'alpha', ext: 'md' } as unknown as FileEntry
+    const fileB = { ...entry, id: 'file-b', name: 'bravo', ext: 'md' } as unknown as FileEntry
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_physical_paths') {
+        const id = (input as { ids: string[] }).ids[0]
+        // A (clicked first) rejects several ticks later than B (clicked last) succeeds.
+        if (id === 'file-a')
+          return afterMicrotasks(() => {
+            throw new Error('resolution failed')
+          })
+        return Promise.resolve({ [id]: '/tmp/bravo.md' })
+      }
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([fileA, fileB])
+
+    const openButtons = screen.getAllByRole('button', { name: 'files.open' })
+    fireEvent.click(openButtons[0]) // A — the stale, slower request
+    fireEvent.click(openButtons[1]) // B — the latest selection
+
+    // B (latest) succeeds first.
+    await waitFor(() => {
+      expect(screen.getByRole('region', { name: 'bravo.md' })).toBeInTheDocument()
+    })
+
+    // A (stale) rejects last — its error must not surface over the new preview.
+    await drainMicrotasks()
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(errorSpy).not.toHaveBeenCalledWith('Failed to open file preview', expect.any(Error))
+    expect(screen.getByRole('region', { name: 'bravo.md' })).toBeInTheDocument()
+  })
+
   it('routes mixed active delete to trash internal files and remove external entries', async () => {
     const refetchStats = vi.fn().mockResolvedValue(undefined)
     mockFiles([entry, externalEntry])
@@ -442,7 +622,7 @@ describe('FilesPage file operations', () => {
         filters: [{ name: 'files.all', extensions: ['*'] }]
       })
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_create_internal_entries', {
-        items: [{ source: 'path', path: '/tmp/import-from-button.md' }]
+        items: [{ source: 'path', path: '/tmp/import-from-button.md', cleanupPolicy: 'manual' }]
       })
       expect(refetchStats).toHaveBeenCalled()
     })
@@ -475,18 +655,6 @@ describe('FilesPage file operations', () => {
     })
   })
 
-  it('only shows upload in the all files tab', () => {
-    mockFiles([entry])
-    mockFileStats(statsForEntries([entry]))
-    render(<FilesPage />)
-
-    expect(screen.getByText('files.upload')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByText('files.image'))
-
-    expect(screen.queryByText('files.upload')).not.toBeInTheDocument()
-  })
-
   it('selects all visible files from the header checkbox and exposes batch delete', async () => {
     const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
     renderFilesPage([entry, secondEntry])
@@ -511,13 +679,14 @@ describe('FilesPage file operations', () => {
     expect(checkboxes[1]).not.toBeChecked()
   })
 
-  it('shows batch actions in the toolbar during multi-select', () => {
-    const secondEntry = { ...entry, id: 'file-2', name: 'notes' } as unknown as FileEntry
-    renderFilesPage([entry, secondEntry])
+  it('shows contextual actions for a single selected file', () => {
+    renderFilesPage()
 
     selectFileAt(0)
-    selectFileAt(1)
 
+    const actionsButton = screen.getByRole('button', { name: 'files.actions' })
+
+    expect(actionsButton).toBeInTheDocument()
     expect(screen.getByText(/files.delete.label/)).toBeInTheDocument()
   })
 
@@ -575,7 +744,7 @@ describe('FilesPage file operations', () => {
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
     })
   })
 
@@ -598,8 +767,8 @@ describe('FilesPage file operations', () => {
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledTimes(1)
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
+      expect(toast.error).toHaveBeenCalledTimes(1)
+      expect(toast.error).toHaveBeenCalledWith('files.error.delete_partial_failed')
     })
   })
 
@@ -616,7 +785,7 @@ describe('FilesPage file operations', () => {
     fireEvent.keyDown(document, { key: 'Delete' })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.delete_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.delete_failed')
     })
   })
 
@@ -696,7 +865,7 @@ describe('FilesPage file operations', () => {
     fireEvent.click(screen.getByText('files.restore'))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.restore_partial_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.restore_partial_failed')
     })
   })
 
@@ -725,7 +894,7 @@ describe('FilesPage file operations', () => {
     fireEvent.click(screen.getByText('files.restore'))
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.restore_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.restore_failed')
     })
   })
 
@@ -771,24 +940,7 @@ describe('FilesPage file operations', () => {
     fireEvent.blur(input)
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.rename_failed')
-    })
-  })
-
-  it('falls back to show in folder when default-open is blocked as unsafe', async () => {
-    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
-      if (route === 'file.batch_get_metadata') return Promise.resolve({})
-      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
-      if (route === 'file.open') return Promise.reject(new IpcError(fileErrorCodes.OPEN_BLOCKED_UNSAFE_TYPE))
-      if (route === 'file.show_in_folder') return Promise.resolve(undefined)
-      return Promise.resolve(input)
-    })
-    renderFilesPage()
-
-    fireEvent.doubleClick(screen.getByText('report.md'))
-
-    await waitFor(() => {
-      expect(ipcMocks.request).toHaveBeenCalledWith('file.show_in_folder', { kind: 'entry', entryId: entry.id })
+      expect(toast.error).toHaveBeenCalledWith('files.error.rename_failed')
     })
   })
 
@@ -806,7 +958,7 @@ describe('FilesPage file operations', () => {
 
     await waitFor(() => {
       expect(ipcMocks.request).toHaveBeenCalledWith('file.batch_create_internal_entries', {
-        items: [{ source: 'path', path: '/tmp/import.md' }]
+        items: [{ source: 'path', path: '/tmp/import.md', cleanupPolicy: 'manual' }]
       })
       expect(refetchStats).toHaveBeenCalled()
     })
@@ -884,7 +1036,7 @@ describe('FilesPage file operations', () => {
     })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.import_partial_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.import_partial_failed')
     })
   })
 
@@ -904,7 +1056,7 @@ describe('FilesPage file operations', () => {
     })
 
     await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('files.error.import_failed')
+      expect(toast.error).toHaveBeenCalledWith('files.error.import_failed')
     })
   })
 
@@ -934,6 +1086,42 @@ describe('FilesPage file operations', () => {
     })
   })
 
+  it('keeps image files visible while preview path enrichment is pending', () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return new Promise(() => {})
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([imageEntry])
+
+    fireEvent.click(screen.getByText('files.image'))
+
+    expect(screen.getByText('photo.png')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.title')).toBeNull()
+    expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
+  })
+
+  it('keeps image files visible when preview path enrichment fails', async () => {
+    const errorSpy = vi.spyOn(loggerService, 'error').mockImplementation(() => undefined)
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.reject(new Error('preview path failed'))
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([imageEntry])
+
+    fireEvent.click(screen.getByText('files.image'))
+
+    await waitFor(() => {
+      expect(errorSpy).toHaveBeenCalledWith('Failed to load file IPC metadata', expect.any(Error))
+    })
+    expect(screen.getByText('photo.png')).toBeInTheDocument()
+    expect(screen.queryByText('files.empty.title')).toBeNull()
+    expect(screen.queryByText('files.empty.no_match_title')).toBeNull()
+  })
+
   it('shows image files in the image grid without view switch or selection controls', async () => {
     ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
       if (route === 'file.batch_get_metadata') return Promise.resolve({})
@@ -956,5 +1144,24 @@ describe('FilesPage file operations', () => {
     fireEvent.contextMenu(screen.getByAltText('photo.png'))
     fireEvent.click(screen.getByText('files.rename'))
     expect(screen.getByDisplayValue('photo.png')).toBeInTheDocument()
+  })
+
+  it('opens the shared image preview when clicking an image in the image grid', async () => {
+    ipcMocks.request.mockImplementation((route: string, input?: unknown) => {
+      if (route === 'file.batch_get_metadata') return Promise.resolve({})
+      if (route === 'file.batch_get_physical_paths') return Promise.resolve({ [imageEntry.id]: '/tmp/photo.png' })
+      if (route === 'file.batch_get_dangling_states') return Promise.resolve({})
+      return Promise.resolve(input)
+    })
+    renderFilesPage([imageEntry])
+
+    fireEvent.click(screen.getByText('files.image'))
+    fireEvent.click(await screen.findByAltText('photo.png'))
+
+    await waitFor(() => {
+      expect(imagePreviewMocks.show).toHaveBeenCalledWith('file:///tmp/photo.png')
+    })
+    expect(filePreviewMocks.render).not.toHaveBeenCalled()
+    expect(screen.queryByRole('region', { name: 'photo.png' })).not.toBeInTheDocument()
   })
 })

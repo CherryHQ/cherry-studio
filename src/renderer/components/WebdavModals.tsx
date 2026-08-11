@@ -1,4 +1,5 @@
 import { Button, Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, Input } from '@cherrystudio/ui'
+import { ipcApi } from '@renderer/ipc'
 import { backupToWebdav } from '@renderer/services/BackupService'
 import dayjs from 'dayjs'
 import { useCallback, useState } from 'react'
@@ -25,7 +26,7 @@ export function useWebdavBackupModal({ backupMethod }: { backupMethod?: typeof b
   const handleBackup = async () => {
     setBackuping(true)
     try {
-      await (backupMethod ?? backupToWebdav)({ showMessage: true, customFileName })
+      await (backupMethod ?? backupToWebdav)({ customFileName })
     } finally {
       setBackuping(false)
       setIsModalVisible(false)
@@ -38,7 +39,7 @@ export function useWebdavBackupModal({ backupMethod }: { backupMethod?: typeof b
 
   const showBackupModal = useCallback(async () => {
     // 获取默认文件名
-    const deviceType = await window.api.system.getDeviceType()
+    const deviceType = await ipcApi.request('system.get_device_type')
     const hostname = await window.api.system.getHostname()
     const timestamp = dayjs().format('YYYYMMDDHHmmss')
     const defaultFileName = `cherry-studio.${timestamp}.${hostname}.${deviceType}.zip`
@@ -75,6 +76,7 @@ export function WebdavBackupModal({
           <DialogTitle>{customLabels?.modalTitle || t('settings.data.webdav.backup.modal.title')}</DialogTitle>
         </DialogHeader>
         <Input
+          autoFocus
           value={customFileName}
           onChange={(e) => setCustomFileName(e.target.value)}
           placeholder={customLabels?.filenamePlaceholder || t('settings.data.webdav.backup.modal.filename.placeholder')}

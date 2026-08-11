@@ -1,34 +1,53 @@
 import { loggerService } from '@logger'
 import { CommandContextMenu, type CommandContextMenuExtraItem } from '@renderer/components/command'
+import { toast } from '@renderer/services/toast'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('SelectionContextMenu')
+
+const TEXT_BLOCK_TAGS = new Set(['BLOCKQUOTE', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'P', 'PRE', 'TR'])
 
 interface SelectionContextMenuProps {
   children: React.ReactNode
 }
 
 /**
- * Extract text content from a Selection, filtering out line numbers in code viewers.
- * Preserves all content including plain text and code blocks, only removing line numbers.
- * This ensures right-click copy in code blocks doesn't include line numbers while preserving indentation.
+ * Extract text content from a Selection, restoring KaTeX formulas to their TeX source and
+ * filtering out line numbers in code viewers.
  */
 function extractSelectedText(selection: Selection): string {
   if (selection.rangeCount === 0 || selection.isCollapsed) {
     return ''
   }
 
-  const range = selection.getRangeAt(0)
+  const range = selection.getRangeAt(0).cloneRange()
+  const startElement =
+    range.startContainer instanceof Element ? range.startContainer : range.startContainer.parentElement
+  const endElement = range.endContainer instanceof Element ? range.endContainer : range.endContainer.parentElement
+  const startKatex = startElement?.closest('.katex')
+  const endKatex = endElement?.closest('.katex')
+
+  if (startKatex) range.setStartBefore(startKatex)
+  if (endKatex) range.setEndAfter(endKatex)
+
   const fragment = range.cloneContents()
-
   const hasLineNumbers = fragment.querySelectorAll('.line-number').length > 0
+  const katexMathMlElements = fragment.querySelectorAll('.katex-mathml')
+  const hasKatex = katexMathMlElements.length > 0
 
-  if (!hasLineNumbers) {
+  if (!hasLineNumbers && !hasKatex) {
     return selection.toString()
   }
 
   fragment.querySelectorAll('.line-number').forEach((el) => el.remove())
+  fragment.querySelectorAll('.katex-mathml + .katex-html').forEach((el) => el.remove())
+  katexMathMlElements.forEach((element) => {
+    const texSource = element.querySelector('annotation')?.textContent
+    if (texSource !== null && texSource !== undefined) {
+      element.replaceWith(document.createTextNode(texSource))
+    }
+  })
 
   const walker = document.createTreeWalker(fragment, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, null)
 
@@ -40,9 +59,13 @@ function extractSelectedText(selection: Selection): string {
       result += node.textContent
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const element = node as Element
-      if (['H1', 'H2', 'H3', 'H4', 'H5', 'H6'].includes(element.tagName)) {
+      if (element.tagName === 'BR') {
         result += '\n'
-      } else if (element.classList.contains('line')) {
+      } else if (
+        result.length > 0 &&
+        !result.endsWith('\n') &&
+        (TEXT_BLOCK_TAGS.has(element.tagName) || element.classList.contains('line'))
+      ) {
         result += '\n'
       }
     }
@@ -50,14 +73,12 @@ function extractSelectedText(selection: Selection): string {
     node = walker.nextNode()
   }
 
-  return result.trim()
+  return result
 }
 
 /**
- * Right-click menu for any text region: copy the current selection or quote it
- * back to the main window. Items are disabled when there is no live selection
- * so a non-text right-click still surfaces the menu (discoverability) but the
- * actions remain inert until the user selects something.
+ * Right-click menu for selected text regions: copy the current selection or quote it
+ * back to the main window. No selection means no selection-specific actions.
  */
 const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children }) => {
   const { t } = useTranslation()
@@ -83,10 +104,10 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children })
     (text: string) => {
       navigator.clipboard
         .writeText(text)
-        .then(() => window.toast.success(t('message.copied')))
+        .then(() => toast.success(t('message.copied')))
         .catch((error) => {
           logger.error('clipboard write failed', error as Error)
-          window.toast.error(t('message.copy.failed'))
+          toast.error(t('message.copy.failed'))
         })
     },
     [t]
@@ -98,20 +119,19 @@ const SelectionContextMenu: React.FC<SelectionContextMenuProps> = ({ children })
 
   const getMenuItems = useCallback(
     (text: string): CommandContextMenuExtraItem[] => {
-      const hasSelection = text.length > 0
+      if (text.length === 0) return []
+
       return [
         {
           type: 'item',
           id: 'selection.copy',
           label: t('common.copy'),
-          enabled: hasSelection,
           onSelect: () => handleCopy(text)
         },
         {
           type: 'item',
           id: 'selection.quote',
           label: t('chat.message.quote'),
-          enabled: hasSelection,
           onSelect: () => handleQuote(text)
         }
       ]

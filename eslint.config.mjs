@@ -14,65 +14,6 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import simpleImportSort from 'eslint-plugin-simple-import-sort'
 import unusedImports from 'eslint-plugin-unused-imports'
 
-const LEGACY_RENDERER_CSS_VARS = [
-  '--color-text-1',
-  '--color-text-2',
-  '--color-text-3',
-  '--color-text',
-  '--color-text-secondary',
-  '--color-text-soft',
-  '--color-text-light',
-  '--color-background-soft',
-  '--color-background-mute',
-  '--color-background-opacity',
-  '--color-border-soft',
-  '--color-border-mute',
-  '--color-error',
-  '--color-link',
-  '--color-primary-bg',
-  '--color-fill-secondary',
-  '--color-fill-2',
-  '--color-bg-base',
-  '--color-bg-1',
-  '--color-code-background',
-  '--color-inline-code-background',
-  '--color-inline-code-text',
-  '--color-hover',
-  '--color-active',
-  '--color-frame-border',
-  '--color-group-background',
-  '--color-reference',
-  '--color-reference-text',
-  '--color-reference-background',
-  '--color-list-item',
-  '--color-list-item-hover',
-  '--color-highlight',
-  '--color-background-highlight',
-  '--color-background-highlight-accent',
-  '--navbar-background-mac',
-  '--navbar-background',
-  '--modal-background',
-  '--chat-background',
-  '--chat-background-user',
-  '--chat-background-assistant',
-  '--chat-text-user',
-  '--list-item-border-radius',
-  '--color-gray-1',
-  '--color-gray-2',
-  '--color-gray-3',
-  '--color-icon-white',
-  '--color-primary-1',
-  '--color-primary-6',
-  '--color-status-success',
-  '--color-status-error',
-  '--color-status-warning'
-]
-
-const LEGACY_RENDERER_CSS_VAR_REGEX = new RegExp(
-  `(${LEGACY_RENDERER_CSS_VARS.map((value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})(?![\\w-])`,
-  'g'
-)
-
 // --- renderer dependency-direction boundary gate (import-x/no-restricted-paths) ---
 const RENDERER_DIRNAME = path.dirname(fileURLToPath(import.meta.url))
 const PAGE_DOMAINS = fs
@@ -106,8 +47,10 @@ const serviceBarrelZones = serviceTopics.map((topic) => ({
     `src/renderer/services/!(${topic})/**/*`, // sibling topic dirs
     `src/renderer/services/*` // flat files at the services/ root
   ],
-  from: `src/renderer/services/${topic}/**/*`,
-  except: ['**/index.ts'], // the barrel itself stays importable
+  from: [
+    `src/renderer/services/${topic}/!(index).{ts,tsx,js,jsx}`,
+    `src/renderer/services/${topic}/!(index)/**/*`
+  ],
   message: `services/${topic}/ is a topic barrel — import @renderer/services/${topic} (its index.ts), not its internals. renderer-architecture.md §3.1/§5.`
 }))
 
@@ -129,6 +72,26 @@ const boundarySettings = {
 // Two independent gates: block1 (layer edges) is enforced as error — Stage 1 cleared it; block2 (sibling pages) stays warn until features-ization.
 const RENDERER_BOUNDARY = 'error'
 const PAGE_SIBLING = process.env.RENDERER_PAGE_SIBLING_ERROR ? 'error' : 'warn'
+
+// --- import bans (@typescript-eslint/no-restricted-imports) ---
+// Flat config replaces a rule wholesale rather than merging it, so every ban that
+// applies to the same files must live in ONE `patterns` array under ONE rule name.
+// To add a ban: define it here and list it in the scope block(s) below — never reach
+// for a second rule name (e.g. the base `no-restricted-imports`) to dodge the override.
+// To exempt a single sanctioned call site, put an eslint-disable comment on its import.
+const BAN_RENDERER_FROM_MAIN = {
+  group: ['@renderer', '@renderer/**', '**/renderer/**'],
+  message:
+    'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
+}
+// Only reaches src/main + src/preload (below). `tests/**` is globally ignored by this
+// config, so the out-of-src harness is not covered — it goes through applyMigrations by
+// convention, not by enforcement.
+const BAN_DRIZZLE_MIGRATOR = {
+  group: ['drizzle-orm/*/migrator'],
+  message:
+    "Do not call drizzle's migrate() directly — its transaction makes drizzle-kit's `PRAGMA foreign_keys=OFF` a no-op, so any table-recreate migration silently cascades child rows away. Use applyMigrations() from @data/db/applyMigrations."
+}
 
 // --- barrel / module-boundary rules (naming-conventions.md §6.4) ---
 // An inline custom plugin (like the `lifecycle` plugin below), not no-restricted-paths:
@@ -353,6 +316,67 @@ const barrelPlugin = {
   }
 }
 
+// --- directory & file naming rules (naming-conventions.md §3–§4, §6.6) ---
+// Inline custom plugin (like `barrel` above). ESLint is per-file, so a directory name is checked by
+// deriving each ancestor segment from the linted file's path (a dir with no linted file is thus
+// invisible — acceptable: every code dir has a .ts/.tsx). Only zones where path → role is
+// deterministic are enforced; the semantic splits left to review are bucket-vs-domain plural/singular
+// (§4.9) and class-file PascalCase vs function-file camelCase (§3.2). Acronym-internal casing (§6.1)
+// is also out of scope here.
+const isKebabName = (s) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(s)
+const isCamelName = (s) => /^[a-z][a-zA-Z0-9]*$/.test(s)
+const isPascalName = (s) => /^[A-Z][a-zA-Z0-9]*$/.test(s)
+const isRouteToken = (s) => s.startsWith('$') || s.startsWith('_') // $appId, $, __root, _pathless
+const isModuleFileStem = (s) => {
+  const b = s.replace(/^_+/, '') // _columnHelpers.ts: leading-underscore shared construct (§3.2)
+  return isCamelName(b) || isPascalName(b)
+}
+const NAMING_EXEMPT_DIRS = new Set(['__tests__', '__mocks__', '__snapshots__'])
+// First matching prefix wins; unmanaged zones bail before the generic renderer/src zones.
+const NAMING_ZONES = [
+  { prefix: 'packages/ui/', root: 2, label: 'packages/ui', dir: isKebabName, dirExpect: 'kebab-case', file: isKebabName, fileExpect: 'kebab-case' },
+  { prefix: 'src/renderer/routes/', root: 3, label: 'routes', dir: (s) => isKebabName(s) || isRouteToken(s), dirExpect: 'kebab-case', file: (s) => isKebabName(s) || isRouteToken(s), fileExpect: 'kebab-case' },
+  { prefix: 'src/renderer/assets/', unmanaged: true },
+  { prefix: 'src/renderer/', root: 2, label: 'src/renderer', dir: (s) => isCamelName(s) || isPascalName(s), dirExpect: 'camelCase (module) or PascalCase (component)', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' },
+  { prefix: 'src/main/', root: 2, label: 'src/main', dir: isCamelName, dirExpect: 'camelCase', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' },
+  { prefix: 'src/shared/', root: 2, label: 'src/shared', dir: isCamelName, dirExpect: 'camelCase', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' },
+  { prefix: 'src/preload/', root: 2, label: 'src/preload', dir: isCamelName, dirExpect: 'camelCase', file: isModuleFileStem, fileExpect: 'camelCase or PascalCase' }
+]
+const namingReportedDirs = new Set()
+
+const namingPlugin = {
+  rules: {
+    'path-case': {
+      meta: { type: 'problem', schema: [] },
+      create(ctx) {
+        const abs = ctx.filename ?? ctx.getFilename()
+        const rel = path.relative(RENDERER_DIRNAME, abs).split(path.sep).join('/')
+        const zone = NAMING_ZONES.find((z) => rel.startsWith(z.prefix))
+        if (!zone || zone.unmanaged) return {}
+        return {
+          Program(node) {
+            const parts = rel.split('/')
+            const fileName = parts[parts.length - 1]
+            const dirSegs = parts.slice(zone.root, parts.length - 1)
+            for (let i = 0; i < dirSegs.length; i++) {
+              const seg = dirSegs[i]
+              if (seg.startsWith('.') || NAMING_EXEMPT_DIRS.has(seg) || zone.dir(seg)) continue // dotdirs (.storybook, .github) are tool conventions
+              const dirRel = parts.slice(0, zone.root + i + 1).join('/')
+              if (namingReportedDirs.has(dirRel)) continue
+              namingReportedDirs.add(dirRel)
+              ctx.report({ node, message: `Directory \`${dirRel}\`: segment \`${seg}\` must be ${zone.dirExpect} under ${zone.label} (naming-conventions.md §4).` })
+            }
+            if (/^index\.tsx?$/.test(fileName) || /\.d\.ts$/.test(fileName)) return // index.* owned by barrel/*; *.d.ts by §3.5
+            const stem = fileName.split('.')[0]
+            if (!stem || zone.file(stem)) return
+            ctx.report({ node, message: `File \`${fileName}\`: name \`${stem}\` must be ${zone.fileExpect} under ${zone.label} (naming-conventions.md §3).` })
+          }
+        }
+      }
+    }
+  }
+}
+
 export default defineConfig([
   eslint.configs.recommended,
   tseslint.configs.recommended,
@@ -412,6 +436,7 @@ export default defineConfig([
       'src/renderer/ui/**',
       'src/renderer/routeTree.gen.ts',
       'packages/**/dist',
+      'packages/**/storybook-static/**',
       'v2-refactor-temp/**'
     ]
   },
@@ -430,9 +455,73 @@ export default defineConfig([
         {
           selector: 'CallExpression[callee.object.name="console"]',
           message:
-            '❗CherryStudio uses unified LoggerService: 📖 docs/en/guides/logging.md\n❗CherryStudio 使用统一的日志服务：📖 docs/zh/guides/logging.md\n\n'
+            '❗CherryStudio uses unified LoggerService: 📖 docs/en/guides/logging.md\n\n'
         }
       ]
+    }
+  },
+  // Path brand integrity — `as AbsoluteFilePath` / `as CanonicalFilePath` forge the
+  // brands, skipping the validation each asserts. `AbsoluteFilePath` asserts shape
+  // validation (build via AbsoluteFilePathSchema.parse); `CanonicalFilePath` asserts
+  // the byte-faithful lexical form that backs the external-path dedup key
+  // (build via the canonicalizeFilePath() factory). A forged
+  // `as CanonicalFilePath` silently bypasses canonicalization and can write a
+  // ghost-duplicate key, so the stronger brand is guarded too.
+  // Exemptions: test fixtures; and one deliberate raw-OS-path regime — the
+  // tree builder (tree/**) holds raw chokidar/OS event paths that are compared
+  // byte-for-byte against event paths and are trusted as-is, so they `as AbsoluteFilePath`
+  // rather than routing through validation.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/main/services/file/tree/**',
+      'src/**/__tests__/**',
+      'src/**/__mocks__/**',
+      'src/**/*.test.*'
+    ],
+    plugins: {
+      'filepath-brand': {
+        rules: {
+          'no-as-filepath': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description:
+                  'Disallow `as AbsoluteFilePath` / `as CanonicalFilePath` casts. Both are Zod-derived brands: AbsoluteFilePath asserts shape validation (absolute path, no null bytes), CanonicalFilePath additionally asserts the byte-faithful lexical form backing the dedup key. Forging either bypasses its validation. Construct via AbsoluteFilePathSchema.parse() / canonicalizeFilePath().',
+                recommended: true
+              },
+              messages: {
+                noAsFilePath:
+                  '`as AbsoluteFilePath` forges the brand, skipping AbsoluteFilePathSchema\'s absolute-path validation. Build it with AbsoluteFilePathSchema.parse(value) instead. If this is a deliberate raw-path regime, move it under an exempted path or justify with an eslint-disable + reason.',
+                noAsCanonicalFilePath:
+                  '`as CanonicalFilePath` forges the brand, skipping canonicalization — a non-canonical value silently becomes a ghost-duplicate dedup key. Build it with canonicalizeFilePath(value) instead, or justify the sanctioned producer with an eslint-disable + reason.'
+              }
+            },
+            create(context) {
+              // Matches both `x as T` (TSAsExpression) and `<T>x` (TSTypeAssertion).
+              // Limitation: name-based, so an aliased import (`import { AbsoluteFilePath as AFP }`
+              // then `x as AFP`) is not caught — aliasing a brand solely to forge it is not a
+              // real-world pattern, and resolving aliases would require full scope analysis.
+              function checkAssertion(node) {
+                const ann = node.typeAnnotation
+                if (ann?.type !== 'TSTypeReference' || ann.typeName?.type !== 'Identifier') return
+                if (ann.typeName.name === 'AbsoluteFilePath') {
+                  context.report({ node, messageId: 'noAsFilePath' })
+                } else if (ann.typeName.name === 'CanonicalFilePath') {
+                  context.report({ node, messageId: 'noAsCanonicalFilePath' })
+                }
+              }
+              return {
+                TSAsExpression: checkAssertion,
+                TSTypeAssertion: checkAssertion
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'filepath-brand/no-as-filepath': process.env.CI ? 'error' : 'warn'
     }
   },
   // Application lifecycle - all quit-related APIs and events are managed by Application.ts
@@ -531,11 +620,11 @@ export default defineConfig([
             meta: {
               type: 'problem',
               docs: {
-                description: '⚠️不建议在 t() 函数中使用模板字符串，这样会导致渲染结果不可预料',
+                description: '⚠️ Avoid template literals in t() — they make rendering output unpredictable',
                 recommended: true
               },
               messages: {
-                noTemplateInT: '⚠️不建议在 t() 函数中使用模板字符串，这样会导致渲染结果不可预料'
+                noTemplateInT: '⚠️ Avoid template literals in t() — they make rendering output unpredictable'
               }
             },
             create(context) {
@@ -587,6 +676,8 @@ export default defineConfig([
     }
   },
   {
+    // Import bans for main/preload — see the BAN_* definitions above for each one's rationale.
+    //
     // Boundary guard: the main process and preload must not import renderer code.
     // Cross-process symbols belong in `@shared`; main-only symbols in `src/main`.
     // Both the `@renderer` alias and relative `**/renderer/**` paths are banned; the
@@ -594,18 +685,7 @@ export default defineConfig([
     // catalog data read it from disk (fs) rather than importing it.
     files: ['src/main/**/*.{ts,tsx,js,jsx}', 'src/preload/**/*.{ts,tsx,js,jsx}'],
     rules: {
-      '@typescript-eslint/no-restricted-imports': [
-        'error',
-        {
-          patterns: [
-            {
-              group: ['@renderer', '@renderer/**', '**/renderer/**'],
-              message:
-                'Main/preload must not import renderer code. Use `@shared` for cross-process types, or `src/main` for main-only types. See docs/references/shared-layer-architecture.md.'
-            }
-          ]
-        }
-      ]
+      '@typescript-eslint/no-restricted-imports': ['error', { patterns: [BAN_RENDERER_FROM_MAIN, BAN_DRIZZLE_MIGRATOR] }]
     }
   },
   // Renderer boundary block L: layer edges into shared buckets — Zone A (shared→pages/windows) + Zone C (utils impurity).
@@ -636,11 +716,13 @@ export default defineConfig([
               from: ['src/renderer/components', 'src/renderer/hooks'],
               message: 'utils/ is stateless and may call downward infra (data/ipc) but must not import components/hooks or any higher app layer. renderer-architecture.md §3.'
             },
-            // @logger is a §2 primitive that physically lives under services/. `from` uses a glob, so `except` must also glob.
+            // @logger is a §2 primitive that physically lives under services/; keep it out of the restricted glob.
             {
               target: 'src/renderer/utils',
-              from: ['src/renderer/services/**/*'],
-              except: ['**/LoggerService.ts'],
+              from: [
+                'src/renderer/services/!(LoggerService).{ts,tsx,js,jsx}',
+                'src/renderer/services/!(LoggerService)/**/*'
+              ],
               message: 'utils/ must not import renderer services (except @logger). renderer-architecture.md §3.'
             },
             ...serviceBarrelZones
@@ -709,63 +791,14 @@ export default defineConfig([
       'barrel/no-bucket-root': 'error'
     }
   },
-  // renderer legacy css var migration warnings
+  // Directory & file naming rules (naming-conventions.md §3–§4, §6.6) — inline custom plugin.
+  // Not tests-exempt (test file names follow the convention too); the __tests__/__mocks__/__snapshots__
+  // directory segments are allow-listed inside the rule.
   {
-    files: ['src/renderer/**/*.{ts,tsx,js,jsx}'],
-    ignores: [
-      'src/renderer/**/*.test.*',
-      'src/renderer/**/__tests__/**',
-      'src/renderer/**/__mocks__/**'
-    ],
-    plugins: {
-      'renderer-styles': {
-        rules: {
-          'no-legacy-css-vars': {
-            meta: {
-              type: 'suggestion',
-              docs: {
-                description:
-                  'Warn when renderer code references legacy CSS compatibility variables instead of the shared theme contract.',
-                recommended: true
-              },
-              messages: {
-                legacyVar:
-                  'Legacy renderer CSS variable "{{variable}}" is deprecated. Prefer @cherrystudio/ui theme contract variables or Tailwind semantic utilities instead.'
-              }
-            },
-            create(context) {
-              function reportIfLegacyCssVar(node, text) {
-                const matches = text.matchAll(LEGACY_RENDERER_CSS_VAR_REGEX)
-                for (const match of matches) {
-                  const variable = match[1]
-                  if (!variable) continue
-                  context.report({
-                    node,
-                    messageId: 'legacyVar',
-                    data: { variable }
-                  })
-                }
-              }
-
-              return {
-                Literal(node) {
-                  if (typeof node.value !== 'string') return
-                  reportIfLegacyCssVar(node, node.value)
-                },
-                TemplateElement(node) {
-                  reportIfLegacyCssVar(node, node.value.raw)
-                },
-                JSXText(node) {
-                  reportIfLegacyCssVar(node, node.value)
-                }
-              }
-            }
-          }
-        }
-      }
-    },
+    files: ['src/**/*.{ts,tsx}', 'packages/ui/**/*.{ts,tsx}'],
+    plugins: { naming: namingPlugin },
     rules: {
-      'renderer-styles/no-legacy-css-vars': process.env.NO_LEGACY_CSS_WARN ? 'off' : 'warn'
+      'naming/path-case': 'error'
     }
   },
   // Schema key naming convention (cache, preferences, paths & IPC route/event keys)

@@ -1,25 +1,28 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
-import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
-import { agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { agentKnowledgeBaseTable, agentMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
 import { pinTable } from '@data/db/schemas/pin'
-import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentTaskService } from '@data/services/AgentTaskService'
 import { getDataService } from '@data/services/dataServiceRegistry'
+import { modelService } from '@data/services/ModelService'
 import { pinService } from '@data/services/PinService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { Emitter, type Event } from '@main/core/lifecycle'
+import { t } from '@main/i18n'
+import { resolveReasoningEffortForModel } from '@shared/ai/reasoning'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AGENT_MUTABLE_FIELDS,
+  type AgentBase,
   type AgentConfiguration,
   type AgentEntity,
-  type CreateAgentDto,
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
@@ -27,6 +30,7 @@ import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { ListOptions } from '@shared/data/api/types'
 import type { AgentType } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { isGatewayRoutableModel } from '@shared/utils/model'
 import { and, asc, count, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -48,6 +52,83 @@ export interface AgentDeletedEvent {
 }
 
 type AgentEntitySearchItem = Extract<EntitySearchItem, { type: 'agent' }>
+type AgentRelationField = 'mcps' | 'knowledgeBaseIds'
+type AgentCreateInput = AgentBase & {
+  type: AgentType
+  skillIds?: string[]
+}
+
+interface EnsureBuiltinAgentInput {
+  builtinRole: string
+  configuration: AgentConfiguration
+  name: string
+  preferredModelId: UniqueModelId | null
+  type: AgentType
+}
+
+export interface EnsureBuiltinAgentResult {
+  agent: AgentEntity
+  created: boolean
+}
+
+function getAgentDescription(description: string, configuration: unknown): string {
+  if (description) return description
+  if (typeof configuration === 'object' && configuration !== null) {
+    if ((configuration as { builtin_role?: unknown }).builtin_role === 'assistant') {
+      return t('agent.builtin.cherry_assistant.description')
+    }
+  }
+  return ''
+}
+
+function buildAgentSearchPredicate(search: string): SQL {
+  const pattern = `%${search.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
+  const descriptionMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
+  // The builtin description is an i18n-owned fallback when the database value is blank, so include
+  // its localized main-process fallback in SQL rather than limiting search to a renderer page.
+  const builtinDescriptionMatch = sql`${agentsTable.description} = '' AND json_extract(${agentsTable.configuration}, '$.builtin_role') = 'assistant' AND ${t('agent.builtin.cherry_assistant.description')} LIKE ${pattern} ESCAPE '\\'`
+  return or(nameMatch, descriptionMatch, builtinDescriptionMatch)!
+}
+
+/**
+ * `builtin_role` is a capability identity, not user data: it drives the system prompt, bundle
+ * provisioning, settings-source isolation, Assistant MCP injection, and tool auto-approval. It is
+ * server-owned — only internal seeding (`createAgentTx`) may write it; the public DataApi surface
+ * must not let an ordinary agent forge, change, or drop it.
+ */
+function getBuiltinRole(configuration: unknown): unknown {
+  if (!configuration || typeof configuration !== 'object') return undefined
+  return (configuration as { builtin_role?: unknown }).builtin_role
+}
+
+/**
+ * Apply the public first-level configuration PATCH to the persisted JSON.
+ *
+ * Object-valued keys (for example `env_vars`) remain whole-value replacements.
+ * `builtin_role` is deliberately skipped because it is owned by Main; callers
+ * are validated separately before this helper runs.
+ */
+function applyAgentConfigurationPatch(
+  persisted: unknown,
+  patch: AgentConfiguration | undefined
+): Record<string, unknown> {
+  const next =
+    persisted && typeof persisted === 'object' && !Array.isArray(persisted)
+      ? { ...(persisted as Record<string, unknown>) }
+      : {}
+
+  for (const [key, value] of Object.entries(patch ?? {})) {
+    if (key === 'builtin_role') continue
+    if (value === undefined) {
+      delete next[key]
+    } else {
+      next[key] = value
+    }
+  }
+
+  return next
+}
 
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
@@ -63,11 +144,17 @@ function getAgentAvatar(configuration: unknown): string | undefined {
   return typeof avatar === 'string' ? avatar : undefined
 }
 
-function rowToAgent(row: AgentRow, modelName: string | null = null, mcps: string[]): AgentEntity {
+function rowToAgent(
+  row: AgentRow,
+  modelName: string | null = null,
+  mcps: string[],
+  knowledgeBaseIds: string[]
+): AgentEntity {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
     mcps,
+    knowledgeBaseIds,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     model: (clean.model ?? null) as UniqueModelId | null,
     planModel: clean.planModel as UniqueModelId | undefined,
@@ -104,6 +191,35 @@ function fetchMcpsForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[
   return map
 }
 
+/**
+ * Fetch knowledgeBaseIds for a set of agent IDs from the junction table.
+ * Returns a Map<agentId, string[]> with deterministic reads; callers treat the IDs as a set.
+ * Accepts both a database instance and a transaction (DbOrTx).
+ */
+function fetchKnowledgeBasesForAgents(tx: DbOrTx, agentIds: string[]): Map<string, string[]> {
+  if (agentIds.length === 0) return new Map()
+  const rows = tx
+    .select({ agentId: agentKnowledgeBaseTable.agentId, knowledgeBaseId: agentKnowledgeBaseTable.knowledgeBaseId })
+    .from(agentKnowledgeBaseTable)
+    .where(inArray(agentKnowledgeBaseTable.agentId, agentIds))
+    .orderBy(
+      asc(agentKnowledgeBaseTable.agentId),
+      asc(agentKnowledgeBaseTable.createdAt),
+      asc(agentKnowledgeBaseTable.knowledgeBaseId)
+    )
+    .all()
+  const map = new Map<string, string[]>()
+  for (const row of rows) {
+    const list = map.get(row.agentId)
+    if (list) {
+      list.push(row.knowledgeBaseId)
+    } else {
+      map.set(row.agentId, [row.knowledgeBaseId])
+    }
+  }
+  return map
+}
+
 export class AgentService {
   private readonly _onAgentCreated = new Emitter<AgentCreatedEvent>()
   readonly onAgentCreated: Event<AgentCreatedEvent> = this._onAgentCreated.event
@@ -114,9 +230,23 @@ export class AgentService {
   private readonly _onAgentDeleted = new Emitter<AgentDeletedEvent>()
   readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
 
-  createAgent(req: CreateAgentDto): AgentEntity {
-    const id = uuidv4()
+  /**
+   * DB-only create primitive for main-process command orchestration.
+   *
+   * The caller owns non-database side effects (for example provisioning the
+   * agent data directory) and supplies the already-reserved id.
+   */
+  createAgentWithId(id: string, req: AgentCreateInput): AgentEntity {
+    // Reserved capability identity — see getBuiltinRole. Seeding writes via createAgentTx.
+    if (getBuiltinRole(req.configuration) !== undefined) {
+      throw DataApiErrorFactory.invalidOperation(
+        'create agent',
+        'configuration.builtin_role is reserved for system agents'
+      )
+    }
     const mcps = req.mcps ?? []
+    const knowledgeBaseIds = req.knowledgeBaseIds ?? []
+    const globalSkillService = getDataService('AgentGlobalSkillService')
     const skillIds = Array.from(new Set(req.skillIds ?? []))
 
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
@@ -143,24 +273,17 @@ export class AgentService {
     // to keep this service↔service edge out of the static import graph — see
     // dataServiceRegistry.
     for (const skillId of skillIds) {
-      if (!getDataService('AgentGlobalSkillService').getById(skillId)) {
+      if (!globalSkillService.getById(skillId)) {
         throw DataApiErrorFactory.notFound('Skill', skillId)
       }
     }
+    this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), knowledgeBaseIds)
 
     const row = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
-          if (skillIds.length > 0) {
-            const rows = tx
-              .select({ id: agentGlobalSkillTable.id })
-              .from(agentGlobalSkillTable)
-              .where(inArray(agentGlobalSkillTable.id, skillIds))
-              .all()
-            if (rows.length !== skillIds.length) {
-              throw DataApiErrorFactory.invalidOperation('create agent', 'a selected skill no longer exists')
-            }
-          }
+          getDataService('AgentGlobalSkillService').assertSkillsExistTx(tx, skillIds, 'create agent')
+          this.assertKnowledgeBasesExistTx(tx, knowledgeBaseIds)
           const result = this.createAgentTx(tx, id, insertData)
           // Insert junction rows for MCP associations
           if (mcps.length > 0) {
@@ -168,11 +291,17 @@ export class AgentService {
               .values(mcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
               .run()
           }
+          // Insert junction rows for knowledge base associations
+          if (knowledgeBaseIds.length > 0) {
+            tx.insert(agentKnowledgeBaseTable)
+              .values(knowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
+              .run()
+          }
           // Enable the selected global skills for the new agent. DB-only: workspace
           // symlinks don't exist yet (no session/workspace at create time) and get
           // reconciled later by SkillService when a workspace appears.
           for (const skillId of skillIds) {
-            getDataService('AgentGlobalSkillService').upsertJoinTx(tx, id, skillId, true)
+            globalSkillService.upsertJoinTx(tx, id, skillId, true)
           }
           return result
         }),
@@ -182,7 +311,7 @@ export class AgentService {
       throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
     }
 
-    const agent = rowToAgent(row.agent, row.modelName || null, mcps)
+    const agent = rowToAgent(row.agent, row.modelName || null, mcps, knowledgeBaseIds)
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
   }
@@ -193,14 +322,100 @@ export class AgentService {
     insertData: Omit<InsertAgentRow, 'orderKey'>
   ): { agent: AgentRow; modelName: string | null } | null {
     insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id })
-    const [joined] = tx
-      .select({ agent: agentsTable, modelName: userModelTable.name })
+    const [agent] = tx.select().from(agentsTable).where(eq(agentsTable.id, id)).limit(1).all()
+    if (!agent) return null
+    const modelName = agent.model
+      ? (modelService.getNamesByUniqueIdsTx(tx, [agent.model]).get(agent.model) ?? null)
+      : null
+    return { agent, modelName }
+  }
+
+  /**
+   * Find a built-in Agent by its server-owned capability role.
+   *
+   * Seeders use `includeDeleted` so a prior user deletion remains durable, while
+   * runtime restore flows look only for an active row.
+   */
+  findBuiltinAgentByRoleTx(
+    tx: DbOrTx,
+    builtinRole: string,
+    options: { includeDeleted?: boolean } = {}
+  ): AgentRow | null {
+    const roleCondition = sql`json_extract(${agentsTable.configuration}, '$.builtin_role') = ${builtinRole}`
+    const [agent] = tx
+      .select()
       .from(agentsTable)
-      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
-      .where(eq(agentsTable.id, id))
+      .where(options.includeDeleted ? roleCondition : and(isNull(agentsTable.deletedAt), roleCondition))
       .limit(1)
       .all()
-    return joined ?? null
+    return agent ?? null
+  }
+
+  /**
+   * Return the active built-in Agent or restore one inside the caller's transaction.
+   *
+   * The reserved role is injected here, inside the table-owning service, so no
+   * renderer or generic Agent create path can forge the built-in identity. The
+   * read-before-write transaction makes repeated or concurrent ensure commands
+   * converge on one active system Agent.
+   */
+  ensureBuiltinAgentTx(tx: DbOrTx, input: EnsureBuiltinAgentInput): EnsureBuiltinAgentResult {
+    const existing = this.findBuiltinAgentByRoleTx(tx, input.builtinRole)
+
+    if (existing) {
+      const mcps = fetchMcpsForAgents(tx, [existing.id]).get(existing.id) ?? []
+      const knowledgeBaseIds = fetchKnowledgeBasesForAgents(tx, [existing.id]).get(existing.id) ?? []
+      const modelName = existing.model
+        ? (modelService.getNamesByUniqueIdsTx(tx, [existing.model]).get(existing.model) ?? null)
+        : null
+      return {
+        agent: rowToAgent(existing, modelName, mcps, knowledgeBaseIds),
+        created: false
+      }
+    }
+
+    const preferredModel = input.preferredModelId ? modelService.findByIdTx(tx, input.preferredModelId) : null
+    const model = preferredModel && isGatewayRoutableModel(preferredModel) ? input.preferredModelId : null
+    const agentId = uuidv4()
+    const created = this.createAgentTx(tx, agentId, {
+      id: agentId,
+      type: input.type,
+      name: input.name.trim() || 'Built-in Agent',
+      description: '',
+      instructions: '',
+      model,
+      configuration: {
+        ...input.configuration,
+        builtin_role: input.builtinRole
+      }
+    })
+
+    if (!created) {
+      throw DataApiErrorFactory.invalidOperation(
+        'restore built-in Agent',
+        'insert succeeded but select returned no row'
+      )
+    }
+
+    return {
+      agent: rowToAgent(created.agent, created.modelName, [], []),
+      created: true
+    }
+  }
+
+  /** Publish an Agent creation only after the caller-owned transaction commits. */
+  emitAgentCreated(agent: AgentEntity): void {
+    this._onAgentCreated.fire({ agentId: agent.id, agent })
+  }
+
+  /** Return the active built-in Agent or restore one from trusted package defaults. */
+  ensureBuiltinAgent(input: EnsureBuiltinAgentInput): AgentEntity {
+    const result = application.get('DbService').withWriteTx((tx) => this.ensureBuiltinAgentTx(tx, input))
+
+    if (result.created) {
+      this.emitAgentCreated(result.agent)
+    }
+    return result.agent
   }
 
   private findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): AgentRow | undefined {
@@ -216,30 +431,29 @@ export class AgentService {
 
   getAgent(id: string): AgentEntity | null {
     const database = application.get('DbService').getDb()
-    const [row] = database
-      .select({ agent: agentsTable, modelName: userModelTable.name })
+    const [agent] = database
+      .select()
       .from(agentsTable)
-      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
       .limit(1)
       .all()
-    if (!row) return null
+    if (!agent) return null
     const mcpsMap = fetchMcpsForAgents(database, [id])
-    return rowToAgent(row.agent, row.modelName || null, mcpsMap.get(id) ?? [])
+    const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, [id])
+    const modelName = agent.model
+      ? (modelService.getNamesByUniqueIdsTx(database, [agent.model]).get(agent.model) ?? null)
+      : null
+    return rowToAgent(agent, modelName, mcpsMap.get(id) ?? [], knowledgeBasesMap.get(id) ?? [])
   }
 
   listAgents(options: ListOptions = {}): { agents: AgentEntity[]; total: number } {
     const database = application.get('DbService').getDb()
 
-    // AND-compose deletedAt-null + optional search. Search runs LIKE against
-    // name OR description with user-typed wildcards escaped.
+    // AND-compose deletedAt-null + optional server-side search. The localized builtin
+    // fallback is part of the predicate, so pagination and full-library search stay authoritative.
     const conditions: SQL[] = [isNull(agentsTable.deletedAt)]
     if (options.search) {
-      const pattern = `%${options.search.replace(/[\\%_]/g, '\\$&')}%`
-      const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
-      const descMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
-      const searchClause = or(nameMatch, descMatch)
-      if (searchClause) conditions.push(searchClause)
+      conditions.push(buildAgentSearchPredicate(options.search))
     }
     const whereClause = and(...conditions)
 
@@ -278,9 +492,8 @@ export class AgentService {
     // ordering follows agent.orderKey so resource-list group reorders persist
     // across reloads.
     const baseQuery = database
-      .select({ agent: agentsTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
+      .select({ agent: agentsTable, pinOrderKey: pinTable.orderKey })
       .from(agentsTable)
-      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .leftJoin(pinTable, and(eq(pinTable.entityType, 'agent'), eq(pinTable.entityId, agentsTable.id)))
       .where(whereClause)
       .orderBy(...orderByClauses)
@@ -292,23 +505,30 @@ export class AgentService {
           : baseQuery.limit(options.limit).all()
         : baseQuery.all()
 
-    // Batch-fetch mcps for all returned agents
+    // Batch-fetch mcps + knowledge bases for all returned agents
     const agentIds = result.map((row) => row.agent.id)
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
+    const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, agentIds)
+    const modelNames = modelService.getNamesByUniqueIdsTx(
+      database,
+      result.map((row) => row.agent.model)
+    )
 
-    const agents = result.map((row) => rowToAgent(row.agent, row.modelName || null, mcpsMap.get(row.agent.id) ?? []))
+    const agents = result.map((row) =>
+      rowToAgent(
+        row.agent,
+        row.agent.model ? (modelNames.get(row.agent.model) ?? null) : null,
+        mcpsMap.get(row.agent.id) ?? [],
+        knowledgeBasesMap.get(row.agent.id) ?? []
+      )
+    )
 
     return { agents, total: totalResult[0].count }
   }
 
   search(options: { q: string; limit: number; updatedAtFrom?: number }): AgentEntitySearchItem[] {
     const database = application.get('DbService').getDb()
-    const pattern = `%${options.q.replace(/[\\%_]/g, '\\$&')}%`
-    const nameMatch = sql`${agentsTable.name} LIKE ${pattern} ESCAPE '\\'`
-    const descMatch = sql`${agentsTable.description} LIKE ${pattern} ESCAPE '\\'`
-    const searchClause = or(nameMatch, descMatch)
-    const conditions: SQL[] = [isNull(agentsTable.deletedAt)]
-    if (searchClause) conditions.push(searchClause)
+    const conditions: SQL[] = [isNull(agentsTable.deletedAt), buildAgentSearchPredicate(options.q)]
     if (options.updatedAtFrom !== undefined) {
       conditions.push(gte(agentsTable.updatedAt, options.updatedAtFrom))
     }
@@ -331,7 +551,7 @@ export class AgentService {
       type: 'agent',
       id: row.id,
       title: row.name,
-      subtitle: row.description || undefined,
+      subtitle: getAgentDescription(row.description, row.configuration) || undefined,
       emoji: getAgentAvatar(row.configuration),
       updatedAt: timestampToISO(row.updatedAt),
       target: { agentId: row.id }
@@ -339,31 +559,91 @@ export class AgentService {
   }
 
   updateAgent(id: string, updates: UpdateAgentDto): AgentEntity | null {
-    const existing = this.getAgent(id)
-    if (!existing) return null
+    // Preserve the existing not-found precedence before validating related IDs.
+    // The authoritative configuration read still happens inside the write tx.
+    if (!this.findAgentRow(id)) return null
 
-    const updateData: Partial<AgentRow> = {
-      updatedAt: Date.now()
-    }
-
-    // Handle mcps separately — it lives in the junction table, not the agent row.
+    // Handle mcps + knowledgeBaseIds separately — they live in junction tables, not the agent row.
     const newMcps = updates.mcps
+    const newKnowledgeBaseIds = updates.knowledgeBaseIds
+    const newSkillUpdates = updates.skillUpdates
 
-    // Several mutable fields map to NOT NULL columns with DB defaults
-    // (description, instructions, disabledTools, configuration). Writing
-    // literal NULL when the DTO omits a field would violate the constraint.
-    // Skip undefined values so Drizzle preserves the column's current value.
-    for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
-      if (field === 'mcps') continue // handled via junction table
-      if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
-      const value = updates[field as keyof typeof updates]
-      if (value === undefined) continue
-      ;(updateData as Record<string, unknown>)[field] = value
+    // Same two-step validation as createAgent: pre-check each id outside the write
+    // tx so a missing skill surfaces as `Skill` not-found (not the Agent FK
+    // fallback). The in-tx recheck that closes the delete-after-prevalidation race
+    // lives inside AgentGlobalSkillService.applyJoinUpdatesByAgentTx. Resolved via the
+    // registry to keep the service↔service edge out of the static import graph.
+    if (newSkillUpdates !== undefined) {
+      for (const update of newSkillUpdates) {
+        if (!getDataService('AgentGlobalSkillService').getById(update.skillId)) {
+          throw DataApiErrorFactory.notFound('Skill', update.skillId)
+        }
+      }
+    }
+    if (newKnowledgeBaseIds !== undefined) {
+      this.assertKnowledgeBasesExistTx(application.get('DbService').getDb(), newKnowledgeBaseIds)
     }
 
     withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
+          const [current] = tx
+            .select()
+            .from(agentsTable)
+            .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+            .limit(1)
+            .all()
+          if (!current) throw DataApiErrorFactory.notFound('Agent', id)
+
+          const updateData: Partial<AgentRow> = {
+            updatedAt: Date.now()
+          }
+
+          // Several mutable fields map to NOT NULL columns with DB defaults
+          // (description, instructions, disabledTools, configuration). Writing
+          // literal NULL when the DTO omits a field would violate the constraint.
+          // Configuration is handled separately as a first-level JSON PATCH.
+          for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
+            if (field === 'mcps' || field === 'knowledgeBaseIds' || field === 'configuration') continue
+            if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
+            const value = updates[field as keyof typeof updates]
+            if (value === undefined) continue
+            ;(updateData as Record<string, unknown>)[field] = value
+          }
+
+          const configurationPatch = updates.configuration
+          const modelChanged = updates.model !== undefined && updates.model !== current.model
+          const reasoningEffortPatched =
+            configurationPatch !== undefined &&
+            Object.prototype.hasOwnProperty.call(configurationPatch, 'reasoning_effort')
+          const reasoningEffortRemoved = reasoningEffortPatched && configurationPatch?.reasoning_effort === undefined
+
+          if (configurationPatch !== undefined || modelChanged) {
+            const existingRole = getBuiltinRole(current.configuration)
+            const incomingRole = getBuiltinRole(configurationPatch)
+            if (incomingRole !== undefined && incomingRole !== existingRole) {
+              throw DataApiErrorFactory.invalidOperation(
+                'update agent',
+                'configuration.builtin_role is reserved for system agents'
+              )
+            }
+
+            const nextConfiguration = applyAgentConfigurationPatch(current.configuration, configurationPatch)
+            const effectiveModelId = updates.model !== undefined ? updates.model : current.model
+            if (!reasoningEffortRemoved && effectiveModelId && (modelChanged || reasoningEffortPatched)) {
+              const nextModel = modelService.findByIdTx(tx, effectiveModelId)
+              if (nextModel) {
+                const currentEffort = parseConfiguration(nextConfiguration)?.reasoning_effort ?? 'default'
+                nextConfiguration.reasoning_effort =
+                  resolveReasoningEffortForModel(nextModel, currentEffort) ?? 'default'
+              }
+            }
+            updateData.configuration = nextConfiguration
+          }
+
+          if (newKnowledgeBaseIds !== undefined) {
+            this.assertKnowledgeBasesExistTx(tx, newKnowledgeBaseIds)
+          }
           this.updateAgentTx(tx, id, updateData)
           // Replace MCP associations if provided
           if (newMcps !== undefined) {
@@ -373,6 +653,18 @@ export class AgentService {
                 .values(newMcps.map((mcpId) => ({ agentId: id, mcpServerId: mcpId })))
                 .run()
             }
+          }
+          // Replace knowledge base associations if provided
+          if (newKnowledgeBaseIds !== undefined) {
+            tx.delete(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.agentId, id)).run()
+            if (newKnowledgeBaseIds.length > 0) {
+              tx.insert(agentKnowledgeBaseTable)
+                .values(newKnowledgeBaseIds.map((knowledgeBaseId) => ({ agentId: id, knowledgeBaseId })))
+                .run()
+            }
+          }
+          if (newSkillUpdates !== undefined) {
+            getDataService('AgentGlobalSkillService').applyJoinUpdatesByAgentTx(tx, id, newSkillUpdates)
           }
         }),
       defaultHandlersFor('Agent', id)
@@ -389,11 +681,16 @@ export class AgentService {
     tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)).run()
   }
 
-  deleteAgent(id: string, options: { deleteSessions?: boolean } = {}): boolean {
+  deleteAgent(
+    id: string,
+    options: { deleteSessions?: boolean } = {}
+  ): { deleted: boolean; deletedSessionIds?: string[] } {
     // By default sessions detach (agentId → NULL) via FK ON DELETE SET NULL; callers
     // can opt into deleting them in this same transaction. `pin` has no FK back
     // to agent, so purge it alongside the agent row. Junction table rows are
     // cascade-deleted by FK.
+    let deletedSessionIds: string[] | undefined
+    let affectedTaskScheduleIds: string[] = []
     const result = withSqliteErrors(
       () =>
         application.get('DbService').withWriteTx((tx) => {
@@ -406,7 +703,12 @@ export class AgentService {
           if (!agent) return { rowsAffected: 0 }
 
           if (options.deleteSessions === true) {
-            agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
+            affectedTaskScheduleIds = agentSessionService.getTaskScheduleIdsForAgentTx(tx, id)
+            deletedSessionIds = agentSessionService.deleteByAgentIdTx(tx, id, { validateAgent: false })
+          } else {
+            // Agent FK deletion would otherwise leave a task bound to an orphan
+            // session. Clear the relation before that implicit detach.
+            affectedTaskScheduleIds = agentSessionService.clearTaskSchedulesForAgentTx(tx, id)
           }
 
           return this.deleteAgentTx(tx, id)
@@ -416,9 +718,10 @@ export class AgentService {
 
     const deleted = result.rowsAffected > 0
     if (deleted) {
+      agentTaskService.notifyReadModelChange(affectedTaskScheduleIds)
       this._onAgentDeleted.fire({ agentId: id })
     }
-    return deleted
+    return { deleted, deletedSessionIds }
   }
 
   deleteAgentTx(tx: DbOrTx, id: string): { rowsAffected: number } {
@@ -475,23 +778,48 @@ export class AgentService {
   }
 
   /**
-   * Fire onAgentUpdated for each agent ID, re-fetching the agent from DB
-   * so subscribers get the current entity state (including mcps from junction table).
+   * Fire onAgentUpdated for each agent ID, re-fetching the agent from DB so subscribers get the
+   * current entity state and an update payload naming the relation that changed.
    */
-  emitAgentUpdatedForIds(agentIds: string[]): void {
+  emitAgentUpdatedForIds(agentIds: string[], relation: AgentRelationField): void {
     if (agentIds.length === 0) return
     const database = application.get('DbService').getDb()
     const rows = database
-      .select({ agent: agentsTable, modelName: userModelTable.name })
+      .select()
       .from(agentsTable)
-      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .where(and(inArray(agentsTable.id, agentIds), isNull(agentsTable.deletedAt)))
       .all()
     const mcpsMap = fetchMcpsForAgents(database, agentIds)
+    const knowledgeBasesMap = fetchKnowledgeBasesForAgents(database, agentIds)
+    const modelNames = modelService.getNamesByUniqueIdsTx(
+      database,
+      rows.map((row) => row.model)
+    )
     for (const row of rows) {
-      const agent = rowToAgent(row.agent, row.modelName || null, mcpsMap.get(row.agent.id) ?? [])
-      this._onAgentUpdated.fire({ agentId: agent.id, updates: { mcps: agent.mcps }, agent })
+      const agent = rowToAgent(
+        row,
+        row.model ? (modelNames.get(row.model) ?? null) : null,
+        mcpsMap.get(row.id) ?? [],
+        knowledgeBasesMap.get(row.id) ?? []
+      )
+      const updates: UpdateAgentDto =
+        relation === 'mcps' ? { mcps: agent.mcps } : { knowledgeBaseIds: agent.knowledgeBaseIds ?? [] }
+      this._onAgentUpdated.fire({ agentId: agent.id, updates, agent })
     }
+  }
+
+  private assertKnowledgeBasesExistTx(tx: DbOrTx, knowledgeBaseIds: readonly string[]): void {
+    const uniqueIds = [...new Set(knowledgeBaseIds)]
+    if (uniqueIds.length === 0) return
+
+    const existing = tx
+      .select({ id: knowledgeBaseTable.id })
+      .from(knowledgeBaseTable)
+      .where(inArray(knowledgeBaseTable.id, uniqueIds))
+      .all()
+    const existingIds = new Set(existing.map((row) => row.id))
+    const missingId = uniqueIds.find((id) => !existingIds.has(id))
+    if (missingId) throw DataApiErrorFactory.notFound('KnowledgeBase', missingId)
   }
 
   /**
@@ -513,6 +841,20 @@ export class AgentService {
     // Delete junction rows explicitly so we can identify affected agent IDs
     // before the cascade from MCP server DELETE removes them.
     tx.delete(agentMcpServerTable).where(eq(agentMcpServerTable.mcpServerId, mcpServerId)).run()
+
+    return affectedIds
+  }
+
+  /** Remove one knowledge base binding from every agent and return the affected agent IDs. */
+  removeKnowledgeBaseFromAllAgentsTx(tx: DbOrTx, knowledgeBaseId: string): string[] {
+    const referenced = tx
+      .select({ agentId: agentKnowledgeBaseTable.agentId })
+      .from(agentKnowledgeBaseTable)
+      .where(eq(agentKnowledgeBaseTable.knowledgeBaseId, knowledgeBaseId))
+      .all()
+    const affectedIds = [...new Set(referenced.map((row) => row.agentId))]
+
+    tx.delete(agentKnowledgeBaseTable).where(eq(agentKnowledgeBaseTable.knowledgeBaseId, knowledgeBaseId)).run()
 
     return affectedIds
   }

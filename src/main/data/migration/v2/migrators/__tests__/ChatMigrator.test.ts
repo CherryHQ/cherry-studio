@@ -14,6 +14,7 @@ import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
+import { topicTable } from '@data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
 
@@ -75,7 +76,7 @@ async function prepareTopic(oldTopic: OldTopic, blocks: OldBlock[]): Promise<Pre
   m['topicMetaLookup'] = new Map()
   m['topicAssistantLookup'] = new Map()
   m['skippedMessages'] = 0
-  m['seenMessageIds'] = new Set()
+  m['reservedMessageIds'] = new Set()
   m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
 
   // No FileManager — tests don't touch images with base64; deps stays undefined so
@@ -118,6 +119,84 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('a1')?.parentId).toBe('u1')
   })
 
+  it('normalizes duplicate IDs before computing parent and active-node references', async () => {
+    const b1 = block('b1', 'duplicate')
+    const b2 = block('b2', 'duplicate')
+    const messages = [msg('duplicate', 'user', ['b1']), msg('duplicate', 'assistant', ['b2'])]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b2])
+
+    expect(result).not.toBeNull()
+    expect(result?.messages).toHaveLength(2)
+    const [first, second] = result!.messages
+    expect(first.id).toBe('duplicate')
+    expect(second.id).not.toBe('duplicate')
+    expect(second.parentId).toBe(first.id)
+    expect(result?.topic.activeNodeId).toBe(second.id)
+  })
+
+  it('normalizes cross-topic ID collisions before computing each topic active node', async () => {
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    const blocks = ['b1', 'b2', 'b3'].map((id) => block(id, 'duplicate'))
+    m['blockLookup'] = new Map(blocks.map((item) => [item.id, item]))
+
+    const fn = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const results: PreparedTopicData[] = []
+    for (const [index, topicId] of ['t1', 't2', 't3'].entries()) {
+      const prepared = await fn.call(
+        migrator,
+        topic(topicId, [msg('duplicate', 'user', [`b${index + 1}`], { topicId })])
+      )
+      expect(prepared).not.toBeNull()
+      results.push(prepared!)
+    }
+
+    const ids = results.map((result) => result.messages[0].id)
+    expect(ids[0]).toBe('duplicate')
+    expect(new Set(ids).size).toBe(3)
+    results.forEach((result) => {
+      expect(result.topic.activeNodeId).toBe(result.messages[0].id)
+    })
+  })
+
+  it('snapshots the resolved assistant onto assistant-role messages, leaving user rows null', async () => {
+    // Exercises the full lookup wiring (topic→assistant, legacy remap, validAssistantIds,
+    // assistantLookup) that the other prepareTopicData tests leave empty, so a regression in
+    // any of them that dropped the v1 assistant snapshot would be caught here.
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    m['blockLookup'] = new Map([b1, b2].map((b) => [b.id, b]))
+    m['assistantLookup'] = new Map([['ast-1', { id: 'ast-1', name: 'My Assistant', emoji: '🎯', type: 'assistant' }]])
+    m['topicMetaLookup'] = new Map()
+    m['topicAssistantLookup'] = new Map()
+    m['legacyAssistantIdRemap'] = new Map()
+    m['validAssistantIds'] = new Set(['ast-1'])
+    m['skippedMessages'] = 0
+    m['reservedMessageIds'] = new Set()
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+
+    const model = { id: 'qwen', name: 'Qwen', provider: 'cherryai', group: '' }
+    const messages = [msg('u1', 'user', ['b1'], { model }), msg('a1', 'assistant', ['b2'], { model })]
+
+    const fn = m['prepareTopicData'] as (t: OldTopic, deps?: undefined) => Promise<PreparedTopicData | null>
+    const result = await fn.call(migrator, topic('t1', messages), undefined)
+
+    expect(result).not.toBeNull()
+    const msgMap = toMsgMap(result?.messages ?? [])
+    // Assistant row: frozen author identity with the model nested inside.
+    expect(msgMap.get('a1')?.messageSnapshot).toEqual({
+      id: 'ast-1',
+      name: 'My Assistant',
+      emoji: '🎯',
+      model: { id: 'qwen', name: 'Qwen', provider: 'cherryai', group: '' }
+    })
+    // User row: never snapshotted, even though the source message carried a model.
+    expect(msgMap.get('u1')?.messageSnapshot).toBeNull()
+  })
+
   it('resolves parentId through first-pass skipped messages (no blocks)', async () => {
     // u1 → a1 (no blocks, skipped) → u2
     // u2's parentId should resolve through a1 to u1
@@ -137,6 +216,28 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.has('a1')).toBe(false)
     // u2's parentId should resolve through skipped a1 to u1
     expect(msgMap.get('u2')?.parentId).toBe('u1')
+  })
+
+  it('preserves a block-less clear marker as the parent of following messages', async () => {
+    const b1 = block('b1', 'u1')
+    const b3 = block('b3', 'u2')
+    const messages = [
+      msg('u1', 'user', ['b1']),
+      msg('clear-1', 'user', [], { type: 'clear' }),
+      msg('u2', 'user', ['b3'])
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b3])
+
+    expect(result).not.toBeNull()
+    const msgMap = toMsgMap(result?.messages ?? [])
+    expect(msgMap.get('clear-1')).toEqual(
+      expect.objectContaining({
+        parentId: 'u1',
+        data: { parts: [{ type: 'data-clear', data: {} }] }
+      })
+    )
+    expect(msgMap.get('u2')?.parentId).toBe('clear-1')
   })
 
   it('resolves parentId through second-pass skipped messages (transform failure)', async () => {
@@ -430,7 +531,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     m['topicAssistantLookup'] = new Map()
     m['skippedMessages'] = 0
     m['orphanedAssistantTopics'] = 0
-    m['seenMessageIds'] = new Set()
+    m['reservedMessageIds'] = new Set()
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
     // FK validation set with at least one valid id — proves the orphan branch
     // (not "no validAssistantIds at all") is what falls 'orphaned-id' to NULL.
@@ -464,7 +565,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     m['topicAssistantLookup'] = new Map()
     m['skippedMessages'] = 0
     m['orphanedAssistantTopics'] = 0
-    m['seenMessageIds'] = new Set()
+    m['reservedMessageIds'] = new Set()
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
     m['validAssistantIds'] = new Set([remappedDefaultId])
     m['legacyAssistantIdRemap'] = new Map([['default', remappedDefaultId]])
@@ -513,6 +614,9 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
       sharedData: new Map([['legacyAssistantIdRemap', new Map([['default', remappedDefaultId]])]])
     }
     await migrator.prepare(ctx as any)
+    expect(ctx.sources.dexieExport.readTable).not.toHaveBeenCalled()
+    expect(ctx.sources.dexieExport.createStreamReader).toHaveBeenCalledWith('topics')
+    expect(ctx.sources.dexieExport.createStreamReader).not.toHaveBeenCalledWith('message_blocks')
 
     const internal = migrator as unknown as {
       topicMetaLookup: Map<string, { name?: string; pinned?: boolean }>
@@ -529,12 +633,65 @@ describe('ChatMigrator.prepare with state.defaultAssistant.topics', () => {
   })
 })
 
+describe('ChatMigrator message block index', () => {
+  const dbh = setupTestDatabase()
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('indexes one decoded block at a time before resolving it from temporary SQLite', async () => {
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'u1')
+    const sourceBlocks = [b2, b1]
+    const decodedBatchSizes: number[] = []
+    const readInBatches = vi.fn(async (batchSize: number, onBatch: (items: OldBlock[]) => Promise<void>) => {
+      for (let index = 0; index < sourceBlocks.length; index += batchSize) {
+        const batch = sourceBlocks.slice(index, index + batchSize)
+        decodedBatchSizes.push(batch.length)
+        await onBatch(batch)
+      }
+      return sourceBlocks.length
+    })
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['blocksExist'] = true
+    m['assistantLookup'] = new Map()
+    m['topicMetaLookup'] = new Map()
+    m['topicAssistantLookup'] = new Map()
+    m['skippedMessages'] = 0
+    m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
+
+    const ctx = {
+      db: dbh.db,
+      sources: {
+        dexieExport: {
+          createStreamReader: vi.fn().mockReturnValue({ readInBatches })
+        }
+      }
+    } as unknown as MigrationContext
+
+    const prepareBlockIndex = m['prepareBlockIndex'] as (ctx: MigrationContext) => Promise<void>
+    await prepareBlockIndex.call(migrator, ctx)
+
+    const prepareTopicData = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const result = await prepareTopicData.call(migrator, topic('t1', [msg('u1', 'user', ['b1', 'b2'])]))
+
+    expect(result).not.toBeNull()
+    expect(result?.messages).toHaveLength(1)
+    expect(result?.messages[0]?.searchableText).toContain('Content of b1')
+    expect(result?.messages[0]?.searchableText).toContain('Content of b2')
+    expect(readInBatches).toHaveBeenCalledWith(1, expect.any(Function))
+    expect(decodedBatchSizes).toEqual([1, 1])
+  })
+})
+
 describe('ChatMigrator validate orphan-ratio diagnostic', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  function makeStubDb(targetTopicCount: number) {
+  function makeStubDb(targetTopicCount: number, unreachableMessageCount = 0) {
     // All count queries → constant; all sample queries → []. Tracks call order
     // so the first count query (topicTable) returns the desired target topic count.
     const select = vi.fn()
@@ -561,8 +718,26 @@ describe('ChatMigrator validate orphan-ratio diagnostic', () => {
         })
       }
     })
-    return { select }
+    return {
+      select,
+      all: vi.fn().mockReturnValue([{ count: unreachableMessageCount }])
+    }
   }
+
+  it('fails validation when messages are not reachable from a topic root', async () => {
+    const migrator = new ChatMigrator()
+    const m = migrator as unknown as Record<string, unknown>
+    m['topicCount'] = 0
+    m['skippedTopics'] = 0
+
+    const result = await migrator.validate({ db: makeStubDb(0, 2) } as unknown as MigrationContext)
+
+    expect(result.success).toBe(false)
+    expect(result.errors).toContainEqual({
+      key: 'unreachable_messages',
+      message: 'Found 2 messages not reachable from a topic root'
+    })
+  })
 
   it('warns when orphanedAssistantTopics / topicCount > 0.5', async () => {
     const migrator = new ChatMigrator()
@@ -674,8 +849,8 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
 
   /**
    * Build a minimal NewTopic for staging directly into stagedTopics. The
-   * migrator's insert path only reads {id, name, assistantId, groupId,
-   * orderKey, createdAt, updatedAt} so the activeNodeId/isNameManuallyEdited
+   * migrator's insert path only reads {id, name, assistantId, orderKey,
+   * createdAt, updatedAt} so the activeNodeId/isNameManuallyEdited
    * defaults are fine.
    */
   function newTopic(id: string, updatedAt: number): NewTopic {
@@ -685,7 +860,6 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
       isNameManuallyEdited: false,
       assistantId: null,
       activeNodeId: null,
-      groupId: null,
       orderKey: '', // Stamped by phase 1 of insertStagedTopics
       createdAt: updatedAt,
       updatedAt
@@ -695,6 +869,7 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
   function stage(migrator: ChatMigrator, items: PreparedTopicData[]): void {
     const m = migrator as unknown as Record<string, unknown>
     m['stagedTopics'] = items
+    m['reservedMessageIds'] = new Set(items.flatMap((item) => item.messages.map((message) => message.id)))
     m['validAssistantIds'] = new Set<string>()
     m['validModelIds'] = null
   }
@@ -705,7 +880,7 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
     return { db: dbh.db } as unknown as MigrationContext
   }
 
-  it('emits one pin row per pinned topic ordered by topic.updatedAt DESC', async () => {
+  it('stamps one global topic order and emits pinned topics by updatedAt DESC', async () => {
     const migrator = new ChatMigrator()
     stage(migrator, [
       { topic: newTopic('t-old-pin', 100), messages: [], pinned: true },
@@ -719,6 +894,13 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
     const result = await fn.call(migrator, ctxOf())
 
     expect(result.pinsInserted).toBe(2)
+
+    const topics = await dbh.db
+      .select({ id: topicTable.id, orderKey: topicTable.orderKey })
+      .from(topicTable)
+      .orderBy(asc(topicTable.orderKey))
+    expect(topics.map((topic) => topic.id)).toEqual(['t-new-pin', 't-mid', 't-old-pin'])
+    expect(new Set(topics.map((topic) => topic.orderKey)).size).toBe(topics.length)
 
     const pins = await dbh.db
       .select({ entityId: pinTable.entityId, orderKey: pinTable.orderKey })
@@ -792,7 +974,7 @@ describe('ChatMigrator model reference sanitization', () => {
         status: 'success',
         siblingsGroupId: 0,
         modelId: 'cherryai::qwen',
-        modelSnapshot: null,
+        messageSnapshot: null,
         stats: null,
         createdAt: 1,
         updatedAt: 1
@@ -814,16 +996,30 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
 
   /** Seed a minimal file_entry row so FK-constrained chat_message_file_ref inserts succeed. */
   async function seedFileEntry(id: string): Promise<void> {
+    await seedFileEntries([id])
+  }
+
+  /**
+   * Seed many file_entry rows in a few batched multi-row inserts. One insert per id means one autocommit
+   * transaction (and fsync) each — 600 of those is what timed the >500-chunk test out on CI. Chunked well
+   * under SQLite's bound-parameter limit.
+   */
+  async function seedFileEntries(ids: string[]): Promise<void> {
     const now = Date.now()
-    await dbh.db.insert(fileEntryTable).values({
-      id,
-      origin: 'internal',
-      name: `test-${id}`,
-      ext: 'png',
-      size: 1024,
-      createdAt: now,
-      updatedAt: now
-    })
+    const BATCH = 200
+    for (let i = 0; i < ids.length; i += BATCH) {
+      await dbh.db.insert(fileEntryTable).values(
+        ids.slice(i, i + BATCH).map((id) => ({
+          id,
+          origin: 'internal',
+          name: `test-${id}`,
+          ext: 'png',
+          size: 1024,
+          createdAt: now,
+          updatedAt: now
+        }))
+      )
+    }
   }
 
   function newTopic(id: string, updatedAt: number): NewTopic {
@@ -833,7 +1029,6 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       isNameManuallyEdited: false,
       assistantId: null,
       activeNodeId: null,
-      groupId: null,
       orderKey: '',
       createdAt: updatedAt,
       updatedAt
@@ -868,7 +1063,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
       status: 'success',
       siblingsGroupId: 0,
       modelId: null,
-      modelSnapshot: null,
+      messageSnapshot: null,
       stats: null,
       createdAt: 1,
       updatedAt: 1
@@ -878,6 +1073,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
   function stage(migrator: ChatMigrator, items: PreparedTopicData[], fileEntryIds: string[]): void {
     const m = migrator as unknown as Record<string, unknown>
     m['stagedTopics'] = items
+    m['reservedMessageIds'] = new Set(items.flatMap((item) => item.messages.map((message) => message.id)))
     m['validAssistantIds'] = new Set<string>()
     m['validModelIds'] = null
     m['migratedFileEntryIds'] = new Set(fileEntryIds)
@@ -938,6 +1134,33 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     const m1 = rows.find((r) => r.id === 'm1')
     expect(m1?.parentId).toBe(roots[0].id)
     expect(rows.filter((r) => r.role !== 'root').some((r) => r.parentId === null)).toBe(false)
+    expect((migrator as unknown as Record<string, Set<string>>)['reservedMessageIds'].size).toBe(0)
+  })
+
+  it('rejects duplicate message IDs that bypass prepare-time normalization', () => {
+    const migrator = new ChatMigrator()
+    stage(
+      migrator,
+      [
+        {
+          topic: { ...newTopic('t1', 100), activeNodeId: 'dup' },
+          messages: [newMessage('dup', 't1', [{ type: 'main_text', content: 'a' }])],
+          pinned: false
+        },
+        {
+          topic: { ...newTopic('t2', 100), activeNodeId: 'dup' },
+          messages: [newMessage('dup', 't2', [{ type: 'main_text', content: 'b' }])],
+          pinned: false
+        }
+      ],
+      []
+    )
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => unknown
+    expect(() => fn.call(migrator, ctxOf())).toThrow('Duplicate message ID remained after normalization: dup')
+    expect((migrator as unknown as Record<string, Set<string>>)['reservedMessageIds'].size).toBe(0)
   })
 
   it('skips chat_message_file_ref for dangling fileId and records warning', async () => {
@@ -1025,44 +1248,6 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     expect(warnings.get('chat_message_dangling_file_entry')!.count).toBe(1)
   })
 
-  it('uses remapped message ID as chat_message_file_ref.sourceId when dedup renames a collided ID', async () => {
-    await seedFileEntry('fe-a')
-    await seedFileEntry('fe-b')
-
-    const migrator = new ChatMigrator()
-    const m = migrator as unknown as Record<string, unknown>
-    m['migratedFileEntryIds'] = new Set(['fe-a', 'fe-b'])
-
-    const collisionId = 'collision-id'
-    // A distinct text root keeps both colliding messages as non-root children
-    // (message_topic_root_uniq: one root per topic) without a self-referencing
-    // parentId — chaining the 2nd collision id onto the 1st would self-ref after
-    // dedup renames it.
-    const messages = [
-      newMessage('t1-root', 't1', [{ type: 'text', content: 'root' }]),
-      newMessage(collisionId, 't1', [{ type: 'image', fileId: 'fe-a' }], 't1-root'),
-      newMessage(collisionId, 't1', [{ type: 'file', fileId: 'fe-b' }], 't1-root')
-    ]
-
-    stage(migrator, [{ topic: newTopic('t1', 100), messages, pinned: false }], ['fe-a', 'fe-b'])
-
-    const fn = m['insertStagedTopics'] as (ctx: MigrationContext) => Promise<any>
-    await fn.call(migrator, ctxOf())
-
-    const refs = await dbh.db.select().from(chatMessageFileRefTable)
-    expect(refs).toHaveLength(2)
-
-    const sourceIds = refs.map((r) => r.sourceId).sort()
-    expect(sourceIds).toHaveLength(2)
-    expect(sourceIds[0]).not.toBe(sourceIds[1])
-    // One keeps the original, one gets remapped — but neither dangles
-    const hasOriginal = sourceIds.includes(collisionId)
-    expect(hasOriginal).toBe(true)
-    const remappedId = sourceIds.find((id) => id !== collisionId)!
-    expect(remappedId).not.toBe(collisionId)
-    expect(remappedId).toMatch(/^[0-9a-f]{8}-/)
-  })
-
   it('accumulates chat_message_file_ref rows across multiple topic batches (>TOPIC_BATCH_SIZE)', async () => {
     const topicCount = 52
     const feIds = Array.from({ length: topicCount }, (_, i) => `fe-batch-${i}`)
@@ -1112,6 +1297,29 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     expect(new Set(refs.map((r) => r.sourceId)).size).toBe(2)
   })
 
+  it('flips cleanup_policy to delete_when_unreferenced for referenced files and leaves unreferenced files as manual', async () => {
+    await seedFileEntry('fe-referenced')
+    await seedFileEntry('fe-unreferenced')
+
+    const migrator = new ChatMigrator()
+    const messages = [newMessage('m-ref', 't-cleanup', [{ type: 'image', fileId: 'fe-referenced' }])]
+    stage(
+      migrator,
+      [{ topic: newTopic('t-cleanup', 100), messages, pinned: false }],
+      ['fe-referenced', 'fe-unreferenced']
+    )
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<{ pinsInserted: number }>
+    await fn.call(migrator, ctxOf())
+
+    const entries = await dbh.db.select().from(fileEntryTable)
+    const byId = new Map(entries.map((e) => [e.id, e.cleanupPolicy]))
+    expect(byId.get('fe-referenced')).toBe('delete_when_unreferenced')
+    expect(byId.get('fe-unreferenced')).toBe('manual')
+  })
+
   describe('loadMigratedFileEntryIds', () => {
     it('returns only file_entry IDs referenced by image/file blocks that exist in DB', async () => {
       await seedFileEntry('fe-exists')
@@ -1142,10 +1350,7 @@ describe('ChatMigrator.insertStagedTopics chat_message_file_ref backfill', () =>
     it('chunks queries when >500 distinct fileIds are referenced', async () => {
       const count = 600
       const feIds = Array.from({ length: count }, (_, i) => `fe-chunk-${String(i).padStart(4, '0')}`)
-      const SEED_CHUNK = 100
-      for (let i = 0; i < feIds.length; i += SEED_CHUNK) {
-        for (const id of feIds.slice(i, i + SEED_CHUNK)) await seedFileEntry(id)
-      }
+      await seedFileEntries(feIds)
 
       const migrator = new ChatMigrator()
       const m = migrator as unknown as Record<string, unknown>

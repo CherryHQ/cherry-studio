@@ -1,4 +1,5 @@
-import { MODEL_CAPABILITY } from '@shared/data/types/model'
+import { MODALITY, MODEL_CAPABILITY } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -25,6 +26,7 @@ describe('ProviderSettings ModelTagsWithLabel', () => {
             providerId: 'cherryin',
             name: 'BGE M3',
             capabilities: [MODEL_CAPABILITY.EMBEDDING, MODEL_CAPABILITY.RERANK],
+            inputModalities: [],
             endpointTypes: []
           } satisfies ModelTagsWithLabelModel
         }
@@ -36,5 +38,50 @@ describe('ProviderSettings ModelTagsWithLabel', () => {
     expect(screen.queryByText('models.type.rerank')).not.toBeInTheDocument()
     expect(screen.queryByText('models.type.free')).not.toBeInTheDocument()
     expect(container.querySelectorAll('svg')).toHaveLength(3)
+  })
+
+  it('renders image, audio, and video input-modality tags', () => {
+    const { container } = render(
+      <ModelTagsWithLabel
+        model={
+          {
+            id: 'openai::omni',
+            providerId: 'openai',
+            name: 'Omni',
+            capabilities: [],
+            inputModalities: [MODALITY.IMAGE, MODALITY.AUDIO, MODALITY.VIDEO],
+            endpointTypes: []
+          } satisfies ModelTagsWithLabelModel
+        }
+        showTooltip={false}
+      />
+    )
+
+    // vision + audio + video input tags → three icons.
+    expect(container.querySelectorAll('svg')).toHaveLength(3)
+  })
+
+  it('renders web search for an untagged model on a provider-wide host', () => {
+    const { container } = render(
+      <ModelTagsWithLabel
+        model={
+          {
+            id: 'openrouter::meta-llama/llama-3',
+            providerId: 'openrouter',
+            name: 'Llama 3',
+            capabilities: [],
+            endpointTypes: []
+          } satisfies ModelTagsWithLabelModel
+        }
+        provider={
+          {
+            serverTools: [{ id: 'web-search', modelScope: 'all-chat-models' }]
+          } as Provider
+        }
+        showTooltip={false}
+      />
+    )
+
+    expect(container.querySelectorAll('svg')).toHaveLength(1)
   })
 })

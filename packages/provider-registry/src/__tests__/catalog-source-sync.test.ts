@@ -18,13 +18,24 @@ import { fileURLToPath } from 'node:url'
 
 import { describe, expect, it } from 'vitest'
 
-import { canonOf } from '../../scripts/canonicalize'
+import { canonOf, prefixHit, splitOverrideWireId } from '../../scripts/canonicalize'
 import { CREATORS } from '../creators'
+import { REASONING_FAMILY_RULES } from '../patterns/reasoning-families.gen'
+import {
+  SERVER_TOOL_FUNCTION_MIXING_MODEL_IDS,
+  WEB_SEARCH_UNSUPPORTED_EFFORTS
+} from '../patterns/server-tool-constraints.gen'
+import { PROVIDER_SERVER_TOOL_MODEL_IDS } from '../patterns/server-tool-models.gen'
 import { PROVIDERS } from '../providers'
+import { ReasoningFamilyRuleSchema } from '../schemas/model'
 
 const dataDir = join(fileURLToPath(import.meta.url), '..', '..', '..', 'data')
 const read = (f: string) => JSON.parse(readFileSync(join(dataDir, f), 'utf8'))
-const models = read('models.json').models as Array<{ id: string; name?: string; ownedBy: string }>
+const models = read('models.json').models as Array<{
+  id: string
+  name?: string
+  ownedBy: string
+}>
 const providers = read('providers.json').providers as Array<Record<string, unknown> & { id: string }>
 const overrides = read('provider-models.json').overrides as Array<
   Record<string, unknown> & { providerId: string; modelId: string; apiModelId?: string; modelVariants?: string[] }
@@ -47,6 +58,15 @@ const GEN_ONLY_PROVIDER_FIELDS = ['modelsDevProvider', 'fetchModels', 'overrides
 const expectedProviderPayload = (p: Record<string, unknown>) => {
   const conn = { ...p }
   for (const k of GEN_ONLY_PROVIDER_FIELDS) delete conn[k]
+  if (Array.isArray(conn.serverTools)) {
+    conn.serverTools = conn.serverTools.map((tool) => {
+      const config = { ...(tool as Record<string, unknown>) }
+      delete config.modelIdPrefixes
+      delete config.modelIds
+      delete config.imageModelIds
+      return config
+    })
+  }
   return { ...conn, description: `${String(p.name)} - AI model provider` }
 }
 
@@ -95,13 +115,92 @@ describe('catalog ↔ source sync (regenerate guard)', () => {
     const rowByIdentity = new Map(overrides.map((o) => [overrideIdentity(o), o]))
     const problems: string[] = []
     for (const p of PROVIDERS)
-      for (const ov of p.overrides ?? []) {
-        if (!ov.modelId) continue
+      for (const raw of p.overrides ?? []) {
+        if (!raw.modelId) continue
+        // Generation splits an authored served-id into canonical key + apiModelId; mirror it here.
+        const ov = splitOverrideWireId(raw)
+        if (p.modelsDevProvider && !ov.apiModelId && ov.reasoningContracts) {
+          const rows = overrides.filter((row) => row.providerId === p.id && row.modelId === ov.modelId)
+          if (rows.length === 0) problems.push(`missing ${p.id}/${ov.modelId}/reasoning-template`)
+          else if (rows.some((row) => stable(row.reasoningContracts) !== stable(ov.reasoningContracts))) {
+            problems.push(`stale ${p.id}/${ov.modelId}/reasoning-template`)
+          }
+          continue
+        }
         const expected = { providerId: p.id, ...ov }
         const row = rowByIdentity.get(overrideIdentity(expected as Parameters<typeof overrideIdentity>[0]))
         if (!row) problems.push(`missing ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
         else if (stable(row) !== stable(expected)) problems.push(`stale ${p.id}/${ov.modelId}/${ov.apiModelId ?? ''}`)
       }
+    expect(problems).toEqual([])
+  })
+
+  it('reasoning-families.gen.ts mirrors the creator reasoningFamilies declarations exactly', () => {
+    // The runtime artifact is 100% source-derived (no upstream), so a full
+    // ordered deep-compare is deterministic: a creator edit without
+    // `pnpm generate` — or a hand edit of the .gen file — both fail here.
+    const expected = CREATORS.flatMap((c) => c.reasoningFamilies ?? [])
+    expect(REASONING_FAMILY_RULES.map(stable)).toEqual(expected.map(stable))
+  })
+
+  it('server-tool-models.gen.ts reflects the provider model selectors', () => {
+    const problems: string[] = []
+    const declaredKeys = new Set<string>()
+
+    for (const provider of PROVIDERS) {
+      for (const tool of provider.serverTools ?? []) {
+        if (tool.modelScope !== 'model-dependent') continue
+        const key = `${provider.id}/${tool.id}`
+        declaredKeys.add(key)
+        const generated = PROVIDER_SERVER_TOOL_MODEL_IDS[provider.id]?.[tool.id] ?? []
+        const exactIds = new Set(tool.modelIds ?? [])
+        const prefixes = tool.modelIdPrefixes ?? []
+
+        if (generated.length === 0) problems.push(`${key}: no generated models`)
+        for (const id of exactIds) {
+          if (!generated.includes(id)) problems.push(`${key}: exact model ${id} was not generated`)
+        }
+        for (const id of generated) {
+          if (!exactIds.has(id) && !prefixes.some((prefix) => prefixHit(id, prefix))) {
+            problems.push(`${key}: stale generated model ${id}`)
+          }
+        }
+      }
+    }
+
+    for (const [providerId, tools] of Object.entries(PROVIDER_SERVER_TOOL_MODEL_IDS)) {
+      for (const toolId of Object.keys(tools)) {
+        const key = `${providerId}/${toolId}`
+        if (!declaredKeys.has(key)) problems.push(`${key}: generated without a provider declaration`)
+      }
+    }
+
+    expect(problems).toEqual([])
+  })
+
+  it('server-tool-constraints.gen.ts reflects the creator constraint declarations', () => {
+    // The gen file stores ids expanded against the upstream model universe, so a
+    // full mirror compare would be flaky (unlike reasoning-families). This checks
+    // the deterministic half: a declaration must produce entries, and every
+    // declared pattern/prefix must have hit at least one committed id.
+    const declaresMixing = CREATORS.some((c) => (c.serverToolFunctionMixing ?? []).length > 0)
+    expect(SERVER_TOOL_FUNCTION_MIXING_MODEL_IDS.length > 0).toBe(declaresMixing)
+
+    const declaredEfforts = new Set(
+      CREATORS.flatMap((c) => c.webSearchUnsupportedEfforts ?? []).flatMap((r) => r.efforts)
+    )
+    const generatedEfforts = new Set(Object.values(WEB_SEARCH_UNSUPPORTED_EFFORTS).flat())
+    expect([...generatedEfforts].sort()).toEqual([...declaredEfforts].sort())
+  })
+
+  it('every creator reasoningFamilies rule is schema-valid', () => {
+    const problems: string[] = []
+    for (const creator of CREATORS) {
+      for (const rule of creator.reasoningFamilies ?? []) {
+        const parsed = ReasoningFamilyRuleSchema.safeParse(rule)
+        if (!parsed.success) problems.push(`${creator.id}: ${rule.pattern}`)
+      }
+    }
     expect(problems).toEqual([])
   })
 })

@@ -130,6 +130,43 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
+  // Hidden CDP browser surface for the built-in @cherry/browser MCP server.
+  // CdpBrowserController owns content (tab BrowserViews + tab bar), show timing,
+  // and close; the per-mode session partition (persist:default / private) is
+  // injected per open via wm.open({ options: { webPreferences } }).
+  [WindowType.McpBrowser]: {
+    type: WindowType.McpBrowser,
+    lifecycle: 'default',
+    htmlPath: '',
+    preload: '',
+    showMode: 'manual',
+    windowOptions: {
+      width: 1200,
+      height: 800,
+      webPreferences: {
+        contextIsolation: true,
+        sandbox: true,
+        nodeIntegration: false,
+        devTools: true
+      },
+      platformOverrides: {
+        // macOS keeps the native frame with window-controls overlay; Windows and
+        // Linux are frameless (the in-window tab bar renders its own controls).
+        mac: {
+          titleBarStyle: 'hidden',
+          titleBarOverlay: { height: 42 }, // WCO height (macOS)
+          trafficLightPosition: { x: 13, y: 13 }
+        },
+        win: { frame: false },
+        linux: { frame: false }
+      }
+    },
+    behavior: {
+      // Hidden-by-default helper window: do not bring the macOS Dock icon back in tray mode.
+      macShowInDock: false
+    }
+  },
+
   // Detached tab window — multi-instance, one per user-detached Tab.
   // Placed adjacent to Main because a SubWindow is logically a Main spin-off
   // (a Tab dragged out of Main becomes its own BrowserWindow here; drag back
@@ -274,7 +311,11 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // across show cycles by the macReapplyAlwaysOnTop quirk below.
       alwaysOnTop: { level: 'floating' },
       // Quick window is visible across all workspaces and over fullscreen apps.
-      visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true },
+      // `skipTransformProcessType: true` prevents TransformProcessType(UIElement)
+      // during window creation on macOS (app deactivation + Dock icon loss);
+      // MainWindowService's boot-time `app.dock?.show()` hack only masks that
+      // transform on the startup path, not on runtime re-creates.
+      visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true, skipTransformProcessType: true },
       // Quick window is a floating helper, not a primary surface — never touch the Dock.
       macShowInDock: false
     },
@@ -310,7 +351,15 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       movable: true,
       hasShadow: false,
       thickFrame: false,
-      roundedCorners: true,
+      // The toolbar is a transparent, frameless pill that draws its own rounded
+      // background in CSS. Newer macOS enlarged
+      // the system window-corner radius, so with the OS rounding on, the window mask
+      // overrides the pill's own corners — the top (only 2px from the window edge)
+      // takes the larger OS radius while the bottom keeps the CSS radius, producing a
+      // visible top/bottom mismatch. Disable OS rounding and let the pill define its
+      // own shape. NOTE: Electron defaults roundedCorners to true, so this must be an
+      // explicit false — omitting it would fall back to the OS rounding.
+      roundedCorners: false,
 
       // Platform specific settings
       //   [macOS] DO NOT set focusable to false — it causes other windows to bring to front together.
@@ -356,12 +405,16 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // included) triggers the cleanup.
       hideOnBlur: true,
       alwaysOnTop: { level: 'screen-saver' },
-      // Baseline declaration only. SelectionService.showToolbarAtPosition has a
-      // per-show `!isSelf` branch that additionally sets
-      // `skipTransformProcessType: true`; it MUST stay there, because one-shot
-      // sinking that flag here would break the self / non-self distinction
-      // (Cherry Studio as the frontmost app needs the flag off, others need it on).
-      visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true },
+      // Baseline declaration, re-applied on every (re-)create. `skipTransformProcessType`
+      // MUST be true: without it, Electron runs TransformProcessType(UIElement) inside
+      // this call on macOS, which deactivates the whole app (every window drops behind
+      // the frontmost app) and removes the Dock icon — user-visible each time the
+      // selection assistant is toggled on (the toolbar is destroyed on disable and
+      // re-created on enable). SelectionService.showToolbarAtPosition still has its
+      // per-show `!isSelf` branch re-applying the same flags; it MUST stay there,
+      // because self-app shows must skip that call entirely or the active text
+      // selection gets canceled.
+      visibleOnAllWorkspaces: { enabled: true, visibleOnFullScreen: true, skipTransformProcessType: true },
       macShowInDock: false
     },
     // Declarative OS-specific workarounds — WindowManager monkey-patches instance methods
@@ -396,7 +449,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden', // [macOS]
-          trafficLightPosition: { x: 12, y: 9 } // [macOS]
+          trafficLightPosition: { x: 12, y: 11 } // [macOS]
         }
       },
       webPreferences: {

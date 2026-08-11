@@ -1,4 +1,4 @@
-appId: com.cherryai.cherrystudio
+appId: com.kangfenmao.CherryStudio
 productName: Cherry Studio
 electronLanguages:
   - zh-CN
@@ -30,7 +30,6 @@ files:
   - "!src"
   - "!config"
   - "!patches"
-  - "!app-upgrade-config.json"
   - "!**/node_modules/**/*.cpp"
   - "!**/node_modules/node-addon-api/**"
   - "!**/node_modules/prebuild-install/**"
@@ -67,6 +66,9 @@ files:
   - "!node_modules/tesseract.js-core/{tesseract-core.js,tesseract-core.wasm,tesseract-core.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-lstm.js,tesseract-core-lstm.wasm,tesseract-core-lstm.wasm.js}" # we don't need source files
   - "!node_modules/tesseract.js-core/{tesseract-core-simd-lstm.js,tesseract-core-simd-lstm.wasm,tesseract-core-simd-lstm.wasm.js}" # we don't need source files
+  - "!node_modules/onnxruntime-web/**" # transformers.js's browser/WASM backend; local inference always runs onnxruntime-node instead
+  - "!node_modules/@huggingface/transformers/node_modules/onnxruntime-web/**" # same package, nested copy
+  - "!node_modules/onnxruntime-node/bin/**" # native binary is downloaded on first use (Toolchain/onnxruntime), never bundled — see OnnxRuntimeBinaryService
   - "!**/*.{h,iobj,ipdb,tlog,recipe,vcxproj,vcxproj.filters,Makefile,*.Makefile}" # filter .node build files
   - "resources/**/*" # include all files in resources, and unpack them from asar for runtime access
   - "!resources/devtools/**" # dev-only extensions are loaded from source in development
@@ -77,14 +79,19 @@ asarUnpack:
   - "node_modules/@img/sharp-*/**"
   - "node_modules/@anthropic-ai/claude-agent-sdk-*/**" # native CLI binary must live on disk to be spawned
   - "node_modules/@aiany/sqlite-vec-*/**" # sqlite-vec extension (.dylib/.so/.dll) is dlopen'd at runtime — must live on disk
+  - "node_modules/@node-rs/xxhash-*/**" # native N-API binary must be unpacked for runtime loading
+  - "node_modules/@firecrawl/anydoc-*/**" # native N-API binary must be unpacked for runtime loading
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
   - from: "packages/provider-registry/data"
     to: "provider-registry"
 win:
-  executableName: CherryStudio
+  executableName: Cherry Studio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
+  extraResources:
+    - from: "node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
+      to: "app.asar.unpacked/node_modules/@aiany/sqlite-vec-windows-${arch}/vec0.dll"
   target:
     - target: nsis
     - target: portable
@@ -149,40 +156,94 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.7 - Model Support & Bug Fixes
+    Cherry Studio 2.0.3 - New Features, Fixes, and Performance
 
     ✨ New Features
-    - [Models] Added support for grok-build-0.1 capabilities (reasoning, tool use, vision)
-    - [Providers] StepFun now supports Claude Code / Anthropic-compatible mode with auto-filled endpoint
-    - [Agents] DeepSeek V4 Flash and MiMo V2.5+ now properly support 1M context window in Claude Code
+    - [Composer] Add smooth mouse-wheel and trackpad switching to the reasoning effort control
+    - [Chat] Show the current assistant conversation's context-window usage next to the chat composer
+    - [Web Search] Add Firecrawl as a URL fetch provider (works without an API key on the free keyless quota)
+    - [Knowledge Base] Write a new note straight into a knowledge base
+    - [Chat] Editing a past user message now offers a Save option that keeps the existing reply instead of regenerating
+    - [Workspace] Add Windows Terminal as an external app that opens a terminal in the target directory
+    - [Agent] Agent workspaces now honor scoped AGENTS.md instructions alongside CLAUDE.md
+    - [Code Tools] Add the Pi coding agent to Code Tools
 
     🐛 Bug Fixes
-    - [Web Search] Fixed ExaMCP web search not returning result content correctly
-    - [Code Viewer] Fixed code syntax highlighting issues where tokens could disappear in light theme
-    - [OpenCode] Fixed launch failures after CLI updates by using package-local executable
-    - [Agents] Fixed Agent mode not forwarding custom provider headers to Claude Code
-    - [Models] Fixed Grok 4.3 reasoning effort support in xAI responses
-    - [OpenClaw] Improved migration message clarity when external PATH installation is detected
-    - [Models] Fixed Gemini 3.x models using wrong UI and sending deprecated sampling parameters
-    - [Models] Fixed Qwen max series models incorrectly showing vision capability
-    - [Providers] Fixed AIHubMix reasoning effort configuration not working properly
+    - [Sidebar] Add a Manage Sidebar action that opens Launchpad so hidden sidebar entries can be restored, and fix context-menu dismissal from blank sidebar space on Windows
+    - [Agent] Fix raw internal citation markers appearing in IM channel replies
+    - [Agent] Prevent agent conversations from being automatically renamed after their initial turn
+    - [Agent] Fix the configured Agent system prompt being overridden by workspace or persona instructions
+    - [Agent] Agent attachments now remain available in session history and are provided as managed file paths
+    - [Coding Partner] Respect the configured default terminal when launching Coding Partner tools on Linux
+    - [Composer] Keep the chat composer compact while a conversation right panel is maximized
+    - [Linux] Fix Linux startup failures on older distributions by shipping a GLIBC 2.28-compatible better-sqlite3
+    - [Providers] Fix "reasoning_content in thinking mode must be passed back to the API" errors on multi-turn conversations with thinking models (DeepSeek, GLM, Kimi, MiniMax) over OpenAI-compatible providers
+    - [Mini App] Fix ChatGPT MiniApps remaining blocked by the loading overlay after the page becomes ready
+    - [Agent] Fix Agent sessions that could fail with tool_use ID uniqueness errors until the conversation was cleared
+    - [MCP] Fix stdio MCP servers (globally installed npm packages, standalone binaries) failing to load tools in Agent sessions on Windows
+    - [Notes] Update note rows in the sidebar to use an icon consistent with the rest of the interface
+    - [MCP] Fix MCP stdio servers leaving orphaned child processes behind after a failed liveness ping or reconnect
+    - [App] Quitting no longer force-kills the app when one background service is slow to stop; each service gets its own shutdown window
+    - [MCP] Fix MCP tool routing when distinct servers or tools normalize to the same identifier, including non-ASCII names
+    - [Knowledge Base] Fix Knowledge Base assistants failing on Anthropic models with "Schema is too complex for compilation"
+    - [Backup] Fix automatic backups failing on Windows when Chromium holds a LevelDB lock file
+    - [UI] Improve assistant and agent conversation lists with consistent row colors, focus feedback, action spacing, and status indicators
+    - [Agent] Fix IM channel bots (QQ/WeChat/Feishu/Telegram/etc.) being denied MCP tool access with "Approval requested outside a live interactive turn"
+    - [Composer] Unsent chat and agent-session drafts now stay with their conversation, including attachments, knowledge bases, and mentioned models
+    - [Providers] OpenCode Go/Zen conversations now preserve session affinity, improving provider-side prompt-cache reuse
+    - [Models] Ollama models that report native thinking support now expose the appropriate reasoning controls
+    - [Selection Assistant] Fix the Selection Assistant carrying the previous selection and answer into the next action
+    - [Coding Partner] Fix OpenCode auto-compaction configuration and keep CLI config Editor previews synchronized
+    - [Agent] Fix Agent responses showing raw citation markers when large web or knowledge lookup results are deferred
+    - [Coding Partner] Fix Code Mate's OpenAI Codex authentication switching so standalone Codex and Conductor retain a valid mode
+
+    ⚡ Performance
+    - [Chat] Smoother tab switching in chat and agent pages: switching tabs no longer re-issues IPC calls or forces full re-renders, and the agent right-panel expansion state is no longer reset
+    - [Startup] Reduce main-process startup memory by lazy-loading heavy dependencies (jsdom, sharp, officeparser, tesseract.js, Claude agent SDK); each now loads on first use
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.7 - 模型支持与错误修复
+    Cherry Studio 2.0.3 - 新功能、修复与性能优化
 
     ✨ 新功能
-    - [模型] 支持 grok-build-0.1 模型能力（推理、工具调用、视觉）
-    - [提供商] StepFun 现在支持 Claude Code / Anthropic 兼容模式，并自动填充端点
-    - [智能体] DeepSeek V4 Flash 和 MiMo V2.5+ 现在在 Claude Code 中正确支持 1M 上下文窗口
+    - [输入框] 深度思考强度的滑块支持鼠标滚轮和触控板顺滑切换
+    - [对话] 在输入框旁显示当前助手对话的上下文窗口占用
+    - [联网搜索] 新增 Firecrawl 作为 URL 抓取 provider（在免费额度下可无需 API Key 使用）
+    - [知识库] 支持直接向知识库中新建笔记
+    - [对话] 编辑历史用户消息时新增"保存"选项，可保留原有回复而无需重新生成
+    - [工作区] 新增 Windows Terminal 作为外部应用，可在目标目录打开终端
+    - [Agent] Agent 工作区现在会读取作用域内的 AGENTS.md 指令，与 CLAUDE.md 并存
+    - [代码工具] 代码工具新增 Pi 编码 Agent
 
     🐛 问题修复
-    - [网络搜索] 修复 ExaMCP 网络搜索无法正确返回结果内容的问题
-    - [代码查看器] 修复浅色主题下代码语法高亮标记可能消失的问题
-    - [OpenCode] 修复 CLI 更新后启动失败的问题，现在使用包本地可执行文件
-    - [智能体] 修复智能体模式未将自定义提供商标头转发给 Claude Code 的问题
-    - [模型] 修复 xAI 响应中 Grok 4.3 推理强度支持问题
-    - [OpenClaw] 改进检测到外部 PATH 安装时的迁移消息清晰度
-    - [模型] 修复 Gemini 3.x 模型使用错误 UI 并发送已弃用采样参数的问题
-    - [模型] 修复 Qwen max 系列模型错误显示视觉能力的问题
-    - [提供商] 修复 AIHubMix 推理强度配置无法正常工作的问题
+    - [侧边栏] 新增"管理侧边栏"入口可打开启动台恢复隐藏项，并修复 Windows 上空白处右键菜单无法关闭的问题
+    - [Agent] 修复 IM 渠道回复中出现原始内部引用标记的问题
+    - [Agent] 修复 Agent 对话在首轮之后被自动重命名的问题
+    - [Agent] 修复 Agent 配置的系统提示词被工作区或 persona 指令覆盖的问题
+    - [Agent] Agent 附件现在可在会话历史中保留，并以受管文件路径方式提供给 Agent
+    - [代码工具] 修复 Linux 上启动代码工具时未使用系统默认终端的问题
+    - [输入框] 修复对话右侧面板最大化时输入框被撑开的问题
+    - [Linux] 修复较旧的 Linux 发行版上因 better-sqlite3 不兼容而无法启动的问题，打包 GLIBC 2.28 兼容版本
+    - [模型服务商] 修复 DeepSeek、GLM、Kimi、MiniMax 等思考模型多轮对话时"reasoning_content must be passed back"的报错
+    - [小程序] 修复 ChatGPT 小程序在页面就绪后仍被加载遮罩挡住的问题
+    - [Agent] 修复 Agent 会话因 tool_use ID 重复而失败，必须清空对话才能恢复的问题
+    - [MCP] 修复 Windows 上 stdio 类型 MCP 服务器（全局 npm 包、独立二进制）在 Agent 会话中无法加载工具的问题
+    - [笔记] 笔记侧边栏的图标样式与界面其他部分保持一致
+    - [MCP] 修复 stdio MCP 服务器在 ping 失败或重连后残留子进程的问题
+    - [应用] 退出应用时不再因单个后台服务停止缓慢而强制结束，每个服务拥有独立的关闭窗口
+    - [MCP] 修复不同 MCP 服务器或工具在归一化后标识符相同（含非 ASCII 名称）导致的工具路由错误
+    - [知识库] 修复知识库助手在 Anthropic 模型上报"Schema is too complex for compilation"的问题
+    - [备份] 修复 Windows 上自动备份因 Chromium 占用 LevelDB 锁文件而失败的问题
+    - [UI] 改进助手与 Agent 对话列表的行配色、聚焦反馈、操作间距和状态指示
+    - [Agent] 修复 IM 渠道机器人（QQ/微信/飞书/Telegram 等）被拒绝访问 MCP 工具的问题
+    - [输入框] 未发送的对话和 Agent 会话草稿现在会跟随对应会话保留，包含附件、知识库和 @模型 选择
+    - [模型服务商] OpenCode Go/Zen 对话现在会保持会话亲和性，提升服务商侧 prompt 缓存复用
+    - [模型] Ollama 上报原生思考能力的模型现在会显示对应的推理控制项
+    - [划词助手] 修复划词助手将上一次选中内容与回答带入下一次操作的问题
+    - [代码工具] 修复 OpenCode 自动压缩配置无效的问题，并保持 CLI 配置编辑器预览同步
+    - [Agent] 修复大体积网页或知识库查找结果被延迟时，Agent 回复出现原始引用标记的问题
+    - [代码工具] 修复 Code Mate 切换 OpenAI Codex 认证模式后无效的问题，独立 Codex 和 Conductor 现可保留有效认证
+
+    ⚡ 性能优化
+    - [对话] 对话和 Agent 页面切换标签更顺滑：不再重复发起 IPC 调用或整体重渲染，Agent 右侧面板的展开状态也不再被重置
+    - [启动] 降低主进程启动内存占用：jsdom、sharp、officeparser、tesseract.js、Claude agent SDK 等重组件改为首次使用时加载
     <!--LANG:END-->

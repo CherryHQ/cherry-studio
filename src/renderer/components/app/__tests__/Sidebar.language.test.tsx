@@ -75,7 +75,7 @@ vi.mock('@renderer/hooks/tab', () => ({
   useOptionalTabsContext: () => null
 }))
 
-vi.mock('../../Popups/UserPopup', () => ({
+vi.mock('../../UserPopup', () => ({
   default: {
     show: vi.fn()
   }

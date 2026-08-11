@@ -18,10 +18,11 @@ const createFinish = (finishReason: FinishReason | undefined = 'stop', usage?: G
   const messageMetadata =
     usage !== undefined
       ? {
-          totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
-          promptTokens: usage.inputTokens ?? 0,
-          completionTokens: usage.outputTokens ?? 0,
-          thoughtsTokens: undefined
+          stats: {
+            totalTokens: (usage.inputTokens ?? 0) + (usage.outputTokens ?? 0),
+            inputTokens: usage.inputTokens ?? 0,
+            outputTokens: usage.outputTokens ?? 0
+          }
         }
       : undefined
   return { type: 'finish', finishReason: finishReason || 'stop', ...(messageMetadata ? { messageMetadata } : {}) }
@@ -107,7 +108,9 @@ describe('AiSdkToOpenAiResponsesSse', () => {
         | { delta: string; item_id: string; output_index: number }
         | undefined
       expect(argsDelta?.delta).toBe(JSON.stringify({ city: 'SF' }))
-      expect(argsDelta?.output_index).toBe(1) // message item is output_index 0
+      // Output indices are allocated in emission order; this turn produced no text, so the
+      // message item is only opened at finalize and lands after the call.
+      expect(argsDelta?.output_index).toBe(0)
 
       const argsDone = events.find((e) => e.type === 'response.function_call_arguments.done') as
         | { arguments: string; name: string }
@@ -144,6 +147,86 @@ describe('AiSdkToOpenAiResponsesSse', () => {
     })
   })
 
+  describe('Reasoning Processing', () => {
+    const createReasoningDelta = (text: string): UIMessageChunk => ({ type: 'reasoning-delta', id: 'r_0', delta: text })
+
+    it('emits a reasoning output item ahead of the message and carries it in response.completed', async () => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:deepseek-v4-pro' })
+      const stream = createMockStream([
+        createReasoningDelta('let me '),
+        createReasoningDelta('think'),
+        { type: 'reasoning-end', id: 'r_0' },
+        createTextDelta('Hello'),
+        createFinish('stop')
+      ])
+      const events = await collectEvents(adapter.transform(stream))
+
+      expect(typesOf(events)).toEqual(
+        expect.arrayContaining([
+          'response.reasoning_summary_part.added',
+          'response.reasoning_summary_text.delta',
+          'response.reasoning_summary_text.done',
+          'response.reasoning_summary_part.done'
+        ])
+      )
+
+      const deltas = events.filter((e) => e.type === 'response.reasoning_summary_text.delta')
+      expect(deltas.map((e) => (e as { delta: string }).delta)).toEqual(['let me ', 'think'])
+
+      const summaryDone = events.find((e) => e.type === 'response.reasoning_summary_text.done') as
+        | { text: string; output_index: number }
+        | undefined
+      expect(summaryDone?.text).toBe('let me think')
+      expect(summaryDone?.output_index).toBe(0)
+
+      // The reasoning item must precede the message it belongs to — clients rebuild
+      // history from `output[]` order and echo it back on the next turn.
+      const completed = events.find((e) => e.type === 'response.completed') as
+        | { response: { output: Array<{ type: string; summary?: Array<{ text: string }> }> } }
+        | undefined
+      expect(completed?.response.output.map((o) => o.type)).toEqual(['reasoning', 'message'])
+      expect(completed?.response.output[0].summary?.[0].text).toBe('let me think')
+    })
+
+    it('emits no reasoning item when the turn produced none', async () => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
+      const events = await collectEvents(adapter.transform(createMockStream([createTextDelta('hi'), createFinish()])))
+
+      expect(typesOf(events).some((t) => t.startsWith('response.reasoning'))).toBe(false)
+      const completed = events.find((e) => e.type === 'response.completed') as
+        | { response: { output: Array<{ type: string }> } }
+        | undefined
+      expect(completed?.response.output.map((o) => o.type)).toEqual(['message'])
+    })
+
+    it('closes a reasoning item left open when the stream ends without reasoning-end', async () => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:deepseek-v4-pro' })
+      const stream = createMockStream([createTextDelta('partial'), createReasoningDelta('second step'), createFinish()])
+      const events = await collectEvents(adapter.transform(stream))
+
+      const completed = events.find((e) => e.type === 'response.completed') as
+        | { response: { output: Array<{ type: string; summary?: Array<{ text: string }> }> } }
+        | undefined
+      const reasoning = completed?.response.output.find((o) => o.type === 'reasoning')
+      expect(reasoning?.summary?.[0].text).toBe('second step')
+    })
+
+    it('closes the reasoning item before a function_call so it keeps the earlier index', async () => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:deepseek-v4-pro' })
+      const stream = createMockStream([
+        createReasoningDelta('need the weather'),
+        { type: 'tool-input-available', toolCallId: 'call_1', toolName: 'get_weather', input: { city: 'SF' } },
+        createFinish('tool-calls')
+      ])
+      const events = await collectEvents(adapter.transform(stream))
+
+      const completed = events.find((e) => e.type === 'response.completed') as
+        | { response: { output: Array<{ type: string }> } }
+        | undefined
+      expect(completed?.response.output.map((o) => o.type)).toEqual(['reasoning', 'function_call', 'message'])
+    })
+  })
+
   describe('Non-Streaming Response', () => {
     it('assembles text plus function_call items into output[]', async () => {
       const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
@@ -170,6 +253,28 @@ describe('AiSdkToOpenAiResponsesSse', () => {
       expect(message).toBeDefined()
       expect(functionCall).toMatchObject({ call_id: 'call_1', arguments: JSON.stringify({ a: 1 }) })
       expect(response.usage).toMatchObject({ input_tokens: 5, output_tokens: 9, total_tokens: 14 })
+    })
+
+    it('carries the reasoning item in output[] too', async () => {
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:deepseek-v4-pro' })
+      const stream = createMockStream([
+        { type: 'reasoning-delta', id: 'r_0', delta: 'thinking' },
+        { type: 'reasoning-end', id: 'r_0' },
+        createTextDelta('Hi'),
+        createFinish()
+      ])
+      const reader = adapter.transform(stream).getReader()
+      while (!(await reader.read()).done) {
+        /* drain */
+      }
+      reader.releaseLock()
+
+      const response = adapter.buildNonStreamingResponse() as unknown as {
+        output: Array<{ type: string; summary?: Array<{ text: string }>; content?: Array<{ text: string }> }>
+      }
+      expect(response.output.map((o) => o.type)).toEqual(['reasoning', 'message'])
+      expect(response.output[0].summary?.[0].text).toBe('thinking')
+      expect(response.output[0].content?.[0].text).toBe('thinking')
     })
   })
 

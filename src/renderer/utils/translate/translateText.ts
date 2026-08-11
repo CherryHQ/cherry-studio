@@ -8,9 +8,9 @@ import { v4 as uuid } from 'uuid'
 const TRANSLATE_STREAM_PREFIX = 'translate:'
 
 /**
- * Translate `text` to `targetLanguage` via main's `Ai_Translate_Open` IPC.
+ * Translate `text` to `targetLanguage` via main's `translate.open` IPC.
  * Per-chunk `onResponse(accumulated, isComplete)` lets the caller pace the
- * display (see `useSmoothStream`). `signal` aborts via the `ai.stream_abort` route.
+ * display (see `useSmoothStream`). `signal` aborts via the `ai.stream.abort` route.
  */
 export const translateText = async (
   text: string,
@@ -49,7 +49,7 @@ export const translateText = async (
 
   if (signal) {
     abortListener = () => {
-      void ipcApi.request('ai.stream_abort', { topicId: streamId }).catch(() => {
+      void ipcApi.request('ai.stream.abort', { topicId: streamId }).catch(() => {
         // Already aborted / stream gone — main drives the final reject via the stream error event.
       })
     }
@@ -61,7 +61,7 @@ export const translateText = async (
     // inside `translate.open`, so the first chunk can land between `open()`'s
     // resolve and any post-await subscriber registration.
     unsubscribers.push(
-      ipcApi.on('ai.stream_chunk', ({ topicId, chunk }) => {
+      ipcApi.on('ai.stream.chunk', ({ topicId, chunk }) => {
         if (topicId !== streamId) return
         if (
           chunk &&
@@ -75,7 +75,7 @@ export const translateText = async (
     )
 
     unsubscribers.push(
-      ipcApi.on('ai.stream_done', ({ topicId }) => {
+      ipcApi.on('ai.stream.done', ({ topicId }) => {
         if (topicId !== streamId) return
         const trimmed = accumulated.trim()
         cleanup()
@@ -89,7 +89,7 @@ export const translateText = async (
     )
 
     unsubscribers.push(
-      ipcApi.on('ai.stream_error', ({ topicId, error }) => {
+      ipcApi.on('ai.stream.error', ({ topicId, error }) => {
         if (topicId !== streamId) return
         cleanup()
         // Preserve error.name (e.g. 'AbortError') so downstream
@@ -100,7 +100,7 @@ export const translateText = async (
       })
     )
 
-    window.api.translate.open({ streamId, text, targetLangCode }).catch((openError: unknown) => {
+    ipcApi.request('translate.open', { streamId, text, targetLangCode }).catch((openError: unknown) => {
       cleanup()
       reject(openError instanceof Error ? openError : new Error(String(openError)))
     })

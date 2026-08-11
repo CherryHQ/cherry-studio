@@ -1,31 +1,34 @@
-import { act, renderHook } from '@testing-library/react'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { useQuery } from '@data/hooks/useDataApi'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const invalidateMock = vi.hoisted(() => vi.fn())
-const uninstallSkillMock = vi.hoisted(() => vi.fn())
+const skillMocks = vi.hoisted(() => ({ request: vi.fn() }))
 
 vi.mock('@data/hooks/useDataApi', () => ({
   useInvalidateCache: () => invalidateMock,
   useQuery: vi.fn()
 }))
 
-import { useSkillMutationsById } from '../skillAdapter'
+vi.mock('@renderer/ipc', () => ({ ipcApi: { request: skillMocks.request } }))
+
+import { skillAdapter, useSkillMutationsById } from '../skillAdapter'
+
+function mockSkillQuery() {
+  vi.mocked(useQuery).mockReturnValue({
+    data: [],
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined,
+    refetch: vi.fn()
+  } as unknown as ReturnType<typeof useQuery>)
+}
 
 describe('skillAdapter mutations', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     invalidateMock.mockResolvedValue(undefined)
-    uninstallSkillMock.mockResolvedValue({ success: true, data: undefined })
-
-    vi.stubGlobal('api', {
-      skill: {
-        uninstall: uninstallSkillMock
-      }
-    })
-  })
-
-  afterEach(() => {
-    vi.unstubAllGlobals()
+    skillMocks.request.mockResolvedValue({ success: true, data: undefined })
   })
 
   it('uninstalls skills through IPC and invalidates DataApi cache', async () => {
@@ -35,7 +38,7 @@ describe('skillAdapter mutations', () => {
       await result.current.uninstallSkill()
     })
 
-    expect(uninstallSkillMock).toHaveBeenCalledWith('skill-1')
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
   })
 
@@ -47,7 +50,41 @@ describe('skillAdapter mutations', () => {
       await result.current.uninstallSkill()
     })
 
-    expect(uninstallSkillMock).toHaveBeenCalledWith('skill-1')
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.uninstall', { skillId: 'skill-1' })
     expect(invalidateMock).toHaveBeenCalledWith('/skills')
+  })
+
+  it('rejects an unsuccessful IPC envelope without invalidating the cache', async () => {
+    skillMocks.request.mockResolvedValueOnce({ success: false, error: 'permission denied' })
+    const { result } = renderHook(() => useSkillMutationsById('skill-1'))
+
+    await act(async () => {
+      await expect(result.current.uninstallSkill()).rejects.toThrow('permission denied')
+    })
+
+    expect(invalidateMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('skillAdapter reconcile-on-open', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    invalidateMock.mockResolvedValue(undefined)
+    skillMocks.request.mockResolvedValue(undefined)
+    mockSkillQuery()
+  })
+
+  it('reconciles the on-disk library and refreshes when the skill view opens', async () => {
+    renderHook(() => skillAdapter.useList({ enabled: true }))
+
+    expect(skillMocks.request).toHaveBeenCalledWith('skill.reconcile', {})
+    await waitFor(() => expect(invalidateMock).toHaveBeenCalledWith('/skills'))
+  })
+
+  it('does not reconcile while the skill view is disabled', async () => {
+    renderHook(() => skillAdapter.useList({ enabled: false }))
+
+    expect(skillMocks.request).not.toHaveBeenCalled()
+    expect(invalidateMock).not.toHaveBeenCalled()
   })
 })

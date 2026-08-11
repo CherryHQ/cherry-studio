@@ -9,32 +9,37 @@
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type { CherryUIMessage } from '@shared/data/types/message'
+import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ToolSet, UIMessageChunk } from 'ai'
 
 /**
- * Token usage projection carried on `message-metadata` UIMessageChunks emitted
- * by main's `AiService.streamText`. Mirrors the Cherry `MessageStats` projection
- * (`promptTokens` = input, `completionTokens` = output, `thoughtsTokens` =
- * reasoning). There is no raw input/output token field and no cache-token
- * breakdown on this channel.
+ * Token usage carried on `message-metadata` UIMessageChunks emitted by main's
+ * `AiService.streamText`: the nested `stats` snapshot (Cherry `MessageStats`,
+ * AI SDK v6 names) is the single carrier — the gateway SSE adapters read the
+ * input/output totals from it, plus the reasoning breakdown for dialects that
+ * expose one (Gemini's `usageMetadata.thoughtsTokenCount`).
  */
 export interface GatewayUsageMetadata {
-  totalTokens?: number
-  promptTokens?: number
-  completionTokens?: number
-  thoughtsTokens?: number
+  stats?: {
+    totalTokens?: number
+    inputTokens?: number
+    outputTokens?: number
+    outputTokenDetails?: {
+      reasoningTokens?: number
+    }
+  }
 }
 
 /**
  * Supported output formats for stream adapters
  */
-export type OutputFormat = 'anthropic' | 'openai' | 'openai-responses'
+export type OutputFormat = 'anthropic' | 'openai' | 'openai-responses' | 'gemini'
 
 /**
  * Supported input formats for message converters
  */
-export type InputFormat = 'anthropic' | 'openai' | 'openai-responses'
+export type InputFormat = 'anthropic' | 'openai' | 'openai-responses' | 'gemini'
 
 /**
  * Stream text options extracted from input params
@@ -107,6 +112,8 @@ export interface StreamAdapterOptions {
   messageId?: string
   /** Initial input token count */
   inputTokens?: number
+  /** Restore a provider-safe tool name to the identity expected by the API client. */
+  toClientToolName?: (toolName: string) => string
 }
 
 /**
@@ -129,6 +136,9 @@ export interface IMessageConverter<TInputParams = unknown> {
    */
   toAiSdkTools?(params: TInputParams): ToolSet | undefined
 
+  /** Restore a provider-safe tool name before returning a tool call to the API client. */
+  toClientToolName?(toolName: string): string
+
   /**
    * Extract stream/generation options from input params
    * Maps format-specific parameters to AI SDK common options
@@ -139,7 +149,12 @@ export interface IMessageConverter<TInputParams = unknown> {
    * Extract provider-specific options from input params
    * Handles thinking/reasoning configuration based on provider type
    */
-  extractProviderOptions(provider: Provider, params: TInputParams): ProviderOptions | undefined
+  extractProviderOptions(
+    provider: Provider,
+    model: Model,
+    params: TInputParams,
+    maxOutputTokens?: number
+  ): ProviderOptions | undefined
 }
 
 /**

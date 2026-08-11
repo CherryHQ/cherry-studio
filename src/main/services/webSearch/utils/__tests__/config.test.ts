@@ -98,9 +98,11 @@ describe('webSearch config utils', () => {
   })
 
   it('throws a clear error for unknown provider ids', async () => {
-    await expect(getProviderById('unknown' as any, mockPreferenceReader)).rejects.toThrow(
-      'Unknown web search provider: unknown'
-    )
+    await expect(getProviderById('unknown' as any, mockPreferenceReader)).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'provider_unknown',
+      message: 'Unknown web search provider: unknown'
+    })
   })
 
   it('trims basic auth password whitespace when resolving providers', async () => {
@@ -153,6 +155,64 @@ describe('webSearch config utils', () => {
     })
   })
 
+  it('shares the exa provider api keys with exa-mcp when exa-mcp has no keys', async () => {
+    const provider = await getProviderById('exa-mcp', {
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.provider_overrides') {
+          return {
+            exa: { apiKeys: ['shared-exa-key'] }
+          } as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(provider.id).toBe('exa-mcp')
+    expect(provider.apiKeys).toEqual(['shared-exa-key'])
+  })
+
+  it('keeps exa-mcp own api keys over shared exa keys', async () => {
+    const provider = await getProviderById('exa-mcp', {
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.provider_overrides') {
+          return {
+            exa: { apiKeys: ['shared-exa-key'] },
+            'exa-mcp': { apiKeys: ['own-mcp-key'] }
+          } as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    expect(provider.apiKeys).toEqual(['own-mcp-key'])
+  })
+
+  it('does not inherit exa keys when exa has no keys configured', async () => {
+    const provider = await getProviderById('exa-mcp', mockPreferenceReader)
+
+    expect(provider.id).toBe('exa-mcp')
+    expect(provider.apiKeys).toEqual([])
+  })
+
+  it('shares exa api keys to exa-mcp in the resolved provider list', async () => {
+    const resolved = await getResolvedConfig({
+      async get<K extends PreferenceKeyType>(key: K): Promise<PreferenceDefaultScopeType[K]> {
+        if (key === 'chat.web_search.provider_overrides') {
+          return {
+            exa: { apiKeys: ['shared-exa-key'] }
+          } as PreferenceDefaultScopeType[K]
+        }
+
+        return preferenceValues[key] as PreferenceDefaultScopeType[K]
+      }
+    })
+
+    const exaMcp = resolved.providers.find((provider) => provider.id === 'exa-mcp')
+    expect(exaMcp?.apiKeys).toEqual(['shared-exa-key'])
+  })
+
   it('resolves default providers by capability', async () => {
     await expect(getProviderForCapability(undefined, 'searchKeywords', mockPreferenceReader)).resolves.toMatchObject({
       id: 'tavily'
@@ -173,7 +233,11 @@ describe('webSearch config utils', () => {
           return preferenceValues[key] as PreferenceDefaultScopeType[K]
         }
       })
-    ).rejects.toThrow('Default web search provider is not configured for capability searchKeywords')
+    ).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'provider_not_configured',
+      message: 'Default web search provider is not configured for capability searchKeywords'
+    })
   })
 
   it('throws when a configured default provider does not support the requested capability', async () => {
@@ -187,18 +251,28 @@ describe('webSearch config utils', () => {
           return preferenceValues[key] as PreferenceDefaultScopeType[K]
         }
       })
-    ).rejects.toThrow('Web search provider tavily does not support capability fetchUrls')
+    ).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'capability_unsupported',
+      message: 'Web search provider tavily does not support capability fetchUrls'
+    })
   })
 
   it('throws when an explicit provider does not support the requested capability', async () => {
-    await expect(getProviderForCapability('fetch', 'searchKeywords', mockPreferenceReader)).rejects.toThrow(
-      'Web search provider fetch does not support capability searchKeywords'
-    )
+    await expect(getProviderForCapability('fetch', 'searchKeywords', mockPreferenceReader)).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'capability_unsupported',
+      message: 'Web search provider fetch does not support capability searchKeywords'
+    })
   })
 
   it('throws a clear error when an explicit provider id is unknown', async () => {
-    await expect(getProviderForCapability('unknown' as any, 'searchKeywords', mockPreferenceReader)).rejects.toThrow(
-      'Unknown web search provider: unknown'
-    )
+    await expect(
+      getProviderForCapability('unknown' as any, 'searchKeywords', mockPreferenceReader)
+    ).rejects.toMatchObject({
+      name: 'WebSearchConfigError',
+      code: 'provider_unknown',
+      message: 'Unknown web search provider: unknown'
+    })
   })
 })

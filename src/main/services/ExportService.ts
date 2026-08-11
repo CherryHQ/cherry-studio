@@ -20,9 +20,8 @@ import {
   WidthType
 } from 'docx'
 import { dialog } from 'electron'
+import fs from 'fs'
 import MarkdownIt from 'markdown-it'
-
-import { fileStorage } from './FileStorage'
 
 const logger = loggerService.withContext('ExportService')
 export class ExportService {
@@ -364,7 +363,7 @@ export class ExportService {
     return elements
   }
 
-  public exportToWord = async (_: Electron.IpcMainInvokeEvent, markdown: string, fileName: string): Promise<void> => {
+  public exportToWord = async (markdown: string, fileName: string): Promise<void> => {
     try {
       const elements = this.convertMarkdownToDocxElements(markdown)
 
@@ -398,7 +397,7 @@ export class ExportService {
       })
 
       if (filePath) {
-        await fileStorage.writeFile(_, filePath, buffer)
+        await fs.promises.writeFile(filePath, buffer)
         logger.debug('Document exported successfully')
       }
     } catch (error) {

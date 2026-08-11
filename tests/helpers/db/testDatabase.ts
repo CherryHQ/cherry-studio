@@ -2,14 +2,12 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { CUSTOM_SQL_STATEMENTS } from '@data/db/customSqls'
+import { applyMigrations } from '@data/db/applyMigrations'
 import { SeedRunner } from '@data/db/seeding/SeedRunner'
 import type { DbType, ISeeder } from '@data/db/types'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import Database from 'better-sqlite3'
-import { sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/better-sqlite3'
-import { migrate } from 'drizzle-orm/better-sqlite3/migrator'
 import { afterAll, beforeAll, beforeEach } from 'vitest'
 
 import { resolveMigrationsPath } from './internal/migrationsPath'
@@ -88,11 +86,8 @@ export function setupTestDatabase(options: TestDatabaseOptions = {}): TestDataba
     sqlite.pragma('foreign_keys = ON')
     sqlite.pragma('synchronous = NORMAL')
 
-    // Mirror DbService.onInit(): migrations first, then custom SQL.
-    migrate(db, { migrationsFolder: resolveMigrationsPath() })
-    for (const stmt of CUSTOM_SQL_STATEMENTS) {
-      db.run(sql.raw(stmt))
-    }
+    // Same migration path as DbService.onInit(): migrations first, then custom SQL.
+    applyMigrations(db, resolveMigrationsPath())
 
     if (options.seeders?.length) {
       new SeedRunner(db).runAll(options.seeders)

@@ -1,6 +1,13 @@
+import { existsSync, mkdtempSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { fileEntryTable } from '@data/db/schemas/file'
 import { preferenceTable } from '@data/db/schemas/preference'
+import { V1_CUSTOM_CSS_MARKER } from '@shared/utils/customCssMigration'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, sql } from 'drizzle-orm'
+import { v7 as uuidv7 } from 'uuid'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import type { MigrationContext } from '../../core/MigrationContext'
@@ -8,6 +15,10 @@ import { DexieSettingsReader, type DexieSettingsRecord } from '../../utils/Dexie
 import { LocalStorageReader } from '../../utils/LocalStorageReader'
 import { ReduxStateReader } from '../../utils/ReduxStateReader'
 import { PreferencesMigrator } from '../PreferencesMigrator'
+
+/** A valid 1×1 PNG so `sharp` can transcode the avatar to WebP during migration. */
+const PNG_1X1 =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
 
 interface SeedSources {
   redux?: Record<string, unknown>
@@ -23,7 +34,7 @@ interface SeedSources {
  * accepts. ElectronStore is stubbed to match the read-only contract on
  * `MigrationContext.sources.electronStore`.
  */
-function createTestContext(sources: SeedSources, db: unknown): MigrationContext {
+function createTestContext(sources: SeedSources, db: unknown, filesDataDir?: string): MigrationContext {
   return {
     sources: {
       electronStore: {
@@ -48,7 +59,7 @@ function createTestContext(sources: SeedSources, db: unknown): MigrationContext 
       error: () => {},
       debug: () => {}
     },
-    paths: {}
+    paths: { filesDataDir }
   } as unknown as MigrationContext
 }
 
@@ -87,6 +98,18 @@ describe('PreferencesMigrator', () => {
       expect(rows[0].value).toBe('zh-CN')
     })
 
+    it('migrates v1 custom CSS to the current preference behind the v1 marker', async () => {
+      const legacyCustomCss = 'body { color: tomato; }'
+      const ctx = createTestContext({ redux: { settings: { customCss: legacyCustomCss } } }, dbh.db)
+      const result = await migrator.prepare(ctx)
+      expect(result.success).toBe(true)
+
+      await migrator.execute(ctx)
+      const rows = await selectByKey(dbh.db, 'ui.custom_css')
+      expect(rows).toHaveLength(1)
+      expect(rows[0].value).toBe(`${V1_CUSTOM_CSS_MARKER}\n${legacyCustomCss}`)
+    })
+
     it('reads ElectronStore mappings (ZoomFactor → app.zoom_factor)', async () => {
       const ctx = createTestContext({ electronStore: { ZoomFactor: 1.25 } }, dbh.db)
       await migrator.prepare(ctx)
@@ -95,6 +118,23 @@ describe('PreferencesMigrator', () => {
       const rows = await selectByKey(dbh.db, 'app.zoom_factor')
       expect(rows).toHaveLength(1)
       expect(rows[0].value).toBe(1.25)
+    })
+
+    it('migrates the v1 clientId from userData/config.json', async () => {
+      const legacyClientId = uuidv7()
+      const ctx = createTestContext(
+        {
+          electronStore: { clientId: legacyClientId },
+          redux: { settings: { userId: uuidv7() } }
+        },
+        dbh.db
+      )
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const rows = await selectByKey(dbh.db, 'app.user.id')
+      expect(rows).toHaveLength(1)
+      expect(rows[0].value).toBe(legacyClientId)
     })
 
     it('reads Dexie-settings mappings (translate:scroll:sync → feature.translate.page.scroll_sync)', async () => {
@@ -112,13 +152,52 @@ describe('PreferencesMigrator', () => {
       await migrator.prepare(ctx)
       await migrator.execute(ctx)
 
-      // ui.theme_mode default is 'system'; app.zoom_factor default is 1
+      // Representative scalar defaults, including the new privacy defaults.
       const theme = await selectByKey(dbh.db, 'ui.theme_mode')
       expect(theme).toHaveLength(1)
       expect(theme[0].value).toBe('system')
       const zoom = await selectByKey(dbh.db, 'app.zoom_factor')
       expect(zoom).toHaveLength(1)
       expect(zoom[0].value).toBe(1)
+      const policyVersion = await selectByKey(dbh.db, 'app.privacy.policy_version')
+      expect(policyVersion[0]?.value).toBe('')
+      const dataCollection = await selectByKey(dbh.db, 'app.privacy.data_collection.enabled')
+      expect(dataCollection[0]?.value).toBe(true)
+      const clientId = await selectByKey(dbh.db, 'app.user.id')
+      expect(clientId[0]?.value).toBe('')
+    })
+
+    it.each(['20260531', '20240101'])(
+      'migrates v1 privacy policy version %s and data collection choice',
+      async (version) => {
+        const ctx = createTestContext(
+          {
+            redux: {
+              settings: {
+                privacyPolicyVersion: version,
+                enableDataCollection: false
+              }
+            }
+          },
+          dbh.db
+        )
+        await migrator.prepare(ctx)
+        await migrator.execute(ctx)
+
+        const policyVersion = await selectByKey(dbh.db, 'app.privacy.policy_version')
+        expect(policyVersion[0]?.value).toBe(version)
+        const dataCollection = await selectByKey(dbh.db, 'app.privacy.data_collection.enabled')
+        expect(dataCollection[0]?.value).toBe(false)
+      }
+    )
+
+    it('does not treat the legacy popup flag as privacy policy acknowledgement', async () => {
+      const ctx = createTestContext({ localStorage: [{ key: 'privacy-popup-accepted', value: 'true' }] }, dbh.db)
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const policyVersion = await selectByKey(dbh.db, 'app.privacy.policy_version')
+      expect(policyVersion[0]?.value).toBe('')
     })
 
     it('skips items whose source is empty AND default is null', async () => {
@@ -180,6 +259,17 @@ describe('PreferencesMigrator', () => {
       expect(method[0]?.value).toBe('cutoff')
       expect(limit[0]?.value).toBe(2000)
       expect(await selectByKey(dbh.db, 'chat.web_search.compression.cutoff_unit')).toHaveLength(0)
+    })
+
+    it('migrates legacy localStorage onboarding-completed to app.onboarding.provider_setup.status', async () => {
+      const ctx = createTestContext({ localStorage: [{ key: 'onboarding-completed', value: 'true' }] }, dbh.db)
+
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const rows = await selectByKey(dbh.db, 'app.onboarding.provider_setup.status')
+      expect(rows).toHaveLength(1)
+      expect(rows[0].value).toBe('completed')
     })
 
     it('merges preprocess + ocr providers through complex mapping (N → 1 merge)', async () => {
@@ -308,6 +398,38 @@ describe('PreferencesMigrator', () => {
       expect(await countDefaultRows(dbh.db)).toBe(1)
       const [lang] = await selectByKey(dbh.db, 'app.language')
       expect(lang.value).toBe('pre-existing')
+    })
+  })
+
+  describe('avatar promotion', () => {
+    it('promotes a v1 base64 avatar to a file:<id> ref + file_entry (no ref row — preference-only)', async () => {
+      const filesDataDir = mkdtempSync(path.join(os.tmpdir(), 'pref-avatar-mig-'))
+      const ctx = createTestContext({ dexieSettings: [{ id: 'image://avatar', value: PNG_1X1 }] }, dbh.db, filesDataDir)
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const [avatarRow] = await selectByKey(dbh.db, 'app.user.avatar')
+      expect(typeof avatarRow.value).toBe('string')
+      expect(avatarRow.value).toMatch(/^file:/)
+
+      const fileId = (avatarRow.value as string).slice('file:'.length)
+      expect(existsSync(path.join(filesDataDir, `${fileId}.webp`))).toBe(true)
+
+      const [entry] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, fileId))
+      expect(entry?.origin).toBe('internal')
+      expect(entry?.ext).toBe('webp')
+      // The mirror of the logo case: no ref table backs the avatar, so it must stay
+      // `manual` or the anti-join reclaims it on the very first cleanup pass.
+      expect(entry?.cleanupPolicy).toBe('manual')
+    })
+
+    it('passes a non-image avatar (emoji) through unchanged', async () => {
+      const ctx = createTestContext({ dexieSettings: [{ id: 'image://avatar', value: '😀' }] }, dbh.db)
+      await migrator.prepare(ctx)
+      await migrator.execute(ctx)
+
+      const [avatarRow] = await selectByKey(dbh.db, 'app.user.avatar')
+      expect(avatarRow.value).toBe('😀')
     })
   })
 

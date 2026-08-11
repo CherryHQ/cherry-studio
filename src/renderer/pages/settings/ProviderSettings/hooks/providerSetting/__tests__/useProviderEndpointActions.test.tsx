@@ -1,3 +1,4 @@
+import { toast } from '@renderer/services/toast'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import { act, renderHook } from '@testing-library/react'
@@ -6,7 +7,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useProviderEndpointActions } from '../useProviderEndpointActions'
 
 const patchProviderMock = vi.fn().mockResolvedValue(undefined)
-const syncProviderModelsMock = vi.fn().mockResolvedValue([])
 const setApiHostMock = vi.fn()
 const setAnthropicApiHostMock = vi.fn()
 
@@ -41,9 +41,6 @@ describe('useProviderEndpointActions', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.useFakeTimers()
-    window.toast = {
-      error: vi.fn()
-    } as any
   })
 
   afterEach(() => {
@@ -60,9 +57,9 @@ describe('useProviderEndpointActions', () => {
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
         apiVersion: '',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
+        patchProvider: patchProviderMock
       })
     )
 
@@ -83,10 +80,9 @@ describe('useProviderEndpointActions', () => {
         }
       }
     })
-    expect(syncProviderModelsMock).not.toHaveBeenCalled()
   })
 
-  it('flushes host persistence on blur and silently syncs models with the latest endpoint config', async () => {
+  it('flushes host persistence on blur without syncing models', async () => {
     const { result } = renderHook(() =>
       useProviderEndpointActions({
         provider,
@@ -96,9 +92,9 @@ describe('useProviderEndpointActions', () => {
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
         apiVersion: '',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
+        patchProvider: patchProviderMock
       })
     )
 
@@ -108,38 +104,6 @@ describe('useProviderEndpointActions', () => {
     })
 
     expect(patchProviderMock).toHaveBeenCalledTimes(1)
-    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
-    expect(syncProviderModelsMock).toHaveBeenCalledWith()
-  })
-
-  it('returns success when the background model sync fails after saving the host', async () => {
-    syncProviderModelsMock.mockRejectedValueOnce(new Error('Invalid JSON response'))
-
-    const { result } = renderHook(() =>
-      useProviderEndpointActions({
-        provider,
-        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-        apiHost: 'https://proxy.example.com',
-        setApiHost: setApiHostMock,
-        providerApiHost: 'https://api.openai.com',
-        anthropicApiHost: '',
-        setAnthropicApiHost: setAnthropicApiHostMock,
-        apiVersion: '',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
-      })
-    )
-
-    let saved = false
-    await act(async () => {
-      saved = await result.current.commitApiHost()
-      await flushEndpointAction()
-    })
-
-    expect(saved).toBe(true)
-    expect(patchProviderMock).toHaveBeenCalledTimes(1)
-    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
-    expect(window.toast.error).not.toHaveBeenCalled()
   })
 
   it('does not patch the same host twice when blur happens after the debounced save', async () => {
@@ -152,9 +116,9 @@ describe('useProviderEndpointActions', () => {
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
         apiVersion: '',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
+        patchProvider: patchProviderMock
       })
     )
 
@@ -183,9 +147,9 @@ describe('useProviderEndpointActions', () => {
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
         apiVersion: '',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
+        patchProvider: patchProviderMock
       })
     )
 
@@ -196,7 +160,7 @@ describe('useProviderEndpointActions', () => {
 
     expect(setApiHostMock).toHaveBeenCalledWith('https://api.openai.com')
 
-    expect(window.toast.error).toHaveBeenCalledWith('settings.provider.api_host_no_valid')
+    expect(toast.error).toHaveBeenCalledWith('settings.provider.api_host_no_valid')
     expect(patchProviderMock).not.toHaveBeenCalled()
   })
 
@@ -222,9 +186,9 @@ describe('useProviderEndpointActions', () => {
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: 'https://anthropic.example.com',
         setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
         apiVersion: '',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
+        patchProvider: patchProviderMock
       })
     )
 
@@ -248,6 +212,42 @@ describe('useProviderEndpointActions', () => {
     expect(setAnthropicApiHostMock).not.toHaveBeenCalled()
   })
 
+  it('resets the primary host to the registry default and persists it', async () => {
+    const editedProvider = {
+      ...provider,
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://proxy.example.com' }
+      }
+    }
+
+    const { result } = renderHook(() =>
+      useProviderEndpointActions({
+        provider: editedProvider,
+        primaryEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+        apiHost: 'https://proxy.example.com',
+        setApiHost: setApiHostMock,
+        providerApiHost: 'https://proxy.example.com',
+        anthropicApiHost: '',
+        setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
+        apiVersion: '',
+        patchProvider: patchProviderMock
+      })
+    )
+
+    await act(async () => {
+      await result.current.resetApiHost()
+      await flushEndpointAction()
+    })
+
+    expect(setApiHostMock).toHaveBeenCalledWith('https://api.openai.com')
+    expect(patchProviderMock).toHaveBeenCalledWith({
+      endpointConfigs: {
+        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: { baseUrl: 'https://api.openai.com' }
+      }
+    })
+  })
+
   it('shows specific Data API error messages instead of the generic save failure toast', async () => {
     patchProviderMock.mockRejectedValueOnce(
       DataApiErrorFactory.validation({ apiVersion: ['Unsupported version'] }, 'Unsupported API version')
@@ -262,9 +262,9 @@ describe('useProviderEndpointActions', () => {
         providerApiHost: 'https://api.openai.com',
         anthropicApiHost: '',
         setAnthropicApiHost: setAnthropicApiHostMock,
+        defaultApiHost: 'https://api.openai.com',
         apiVersion: 'bad-version',
-        patchProvider: patchProviderMock,
-        syncProviderModels: syncProviderModelsMock
+        patchProvider: patchProviderMock
       })
     )
 
@@ -273,6 +273,6 @@ describe('useProviderEndpointActions', () => {
       await flushEndpointAction()
     })
 
-    expect(window.toast.error).toHaveBeenCalledWith('Unsupported API version')
+    expect(toast.error).toHaveBeenCalledWith('Unsupported API version')
   })
 })

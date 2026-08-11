@@ -7,33 +7,37 @@ import {
   FormLabel,
   FormMessage,
   Input,
+  SegmentedControl,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-  Separator,
   Slider,
   Switch,
   TabsContent,
   Textarea
 } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { CreateGroupDialog } from '@renderer/components/CreateGroupDialog'
 import PromptEditorField from '@renderer/components/PromptEditorField'
-import { useToasts } from '@renderer/components/TopView/toast'
 import { useAssistantMutationsById } from '@renderer/hooks/resourceCatalog'
+import { useCloseBeforeAction } from '@renderer/hooks/useCloseBeforeAction'
+import { useGroupMutations, useGroups } from '@renderer/hooks/useGroups'
 import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
-import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
-import { fetchGenerate } from '@renderer/utils/aiGeneration'
-import { getRandomTagColor, MCP_MODE_OPTIONS } from '@renderer/utils/resourceCatalog'
+import { toast } from '@renderer/services/toast'
+import { MCP_MODE_OPTIONS, RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT } from '@renderer/utils/resourceCatalog'
 import {
   type AssistantFormState,
   diffAssistantSaveIntent,
   initialAssistantFormState
 } from '@renderer/utils/resourceCatalog'
 import { AGENT_PROMPT } from '@shared/ai/prompts'
+import { DEFAULT_ASSISTANT_SETTINGS, MAX_TOOL_CALLS, MIN_TOOL_CALLS } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
-import { Loader2, Sparkles, Trash2, Undo2 } from 'lucide-react'
+import { isNonChatModel } from '@shared/utils/model'
+import { Sparkles, Trash2 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm, type UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -44,6 +48,8 @@ import {
   EDIT_DIALOG_PROMPT_MAX_HEIGHT,
   EDIT_DIALOG_PROMPT_MIN_HEIGHT,
   type EditDialogBaseProps,
+  editDialogFormRowClassName,
+  editDialogFormRowLabelClassName,
   EditDialogShell,
   type EditDialogTab,
   FieldLabelWithHelp,
@@ -51,14 +57,16 @@ import {
   type ModelLabels,
   PromptVariablesPopover,
   setFormValues,
-  TextInputField
+  TextInputField,
+  useDebouncedAutoSave
 } from '../components/EditDialogShared'
+import { GroupSelector } from '../components/GroupSelector'
 import { McpServerCatalogGrid } from '../components/McpServerCatalogGrid'
-import { TagSelector } from '../components/TagSelector'
+import { PromptPolishActions } from '../components/PromptPolishActions'
 
 export type AssistantEditDialogResource = Parameters<typeof initialAssistantFormState>[0]
 
-export type AssistantEditDialogProps = EditDialogBaseProps<AssistantEditDialogResource> & {
+export type AssistantEditDialogProps = EditDialogBaseProps & {
   resource: AssistantEditDialogResource | null
 }
 
@@ -67,7 +75,7 @@ type AssistantEditFormValues = {
   name: string
   description: string
   modelId: UniqueModelId | null
-  tagName: string | null
+  groupId: string | null
   prompt: string
   temperature: number
   enableTemperature: boolean
@@ -80,6 +88,10 @@ type AssistantEditFormValues = {
   enableMaxToolCalls: boolean
   customParameters: AssistantFormState['customParameters']
   mcpMode: AssistantFormState['mcpMode']
+  contextOverrideEnabled: boolean
+  contextCompressEnabled: boolean
+  contextTruncateThreshold: number
+  contextCompressModelId: string | null
   knowledgeBaseIds: string[]
   mcpServerIds: string[]
 }
@@ -90,7 +102,6 @@ type AssistantToolTab = 'tools.mcp' | 'tools.knowledge'
 
 const logger = loggerService.withContext('AssistantEditDialog')
 const UI_DEFAULT_MAX_TOKENS = 4096
-const UI_DEFAULT_MAX_TOOL_CALLS = 20
 
 function isAssistantToolTab(value: string): value is AssistantToolTab {
   return value === 'tools.mcp' || value === 'tools.knowledge'
@@ -103,7 +114,7 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     name: form.name,
     description: form.description,
     modelId: form.modelId ?? null,
-    tagName: form.tagName,
+    groupId: form.groupId,
     prompt: form.prompt,
     temperature: form.temperature,
     enableTemperature: form.enableTemperature,
@@ -116,6 +127,10 @@ function defaultValuesForAssistant(resource: AssistantEditDialogResource): Assis
     enableMaxToolCalls: form.enableMaxToolCalls,
     customParameters: form.customParameters.map((parameter) => ({ ...parameter })),
     mcpMode: form.mcpMode,
+    contextOverrideEnabled: form.contextOverrideEnabled,
+    contextCompressEnabled: form.contextCompressEnabled,
+    contextTruncateThreshold: form.contextTruncateThreshold,
+    contextCompressModelId: form.contextCompressModelId,
     knowledgeBaseIds: [...form.knowledgeBaseIds],
     mcpServerIds: [...form.mcpServerIds]
   }
@@ -125,7 +140,8 @@ function modelLabelsForAssistant(resource: AssistantEditDialogResource): ModelLa
   return {
     modelId: resource.modelName ?? null,
     planModelId: null,
-    smallModelId: null
+    smallModelId: null,
+    contextCompressModelId: null
   }
 }
 
@@ -136,7 +152,7 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     name: values.name,
     description: values.description,
     modelId: values.modelId,
-    tagName: values.tagName,
+    groupId: values.groupId,
     prompt: values.prompt,
     temperature: values.temperature,
     enableTemperature: values.enableTemperature,
@@ -149,12 +165,22 @@ function buildAssistantFormState(baseline: AssistantFormState, values: Assistant
     enableMaxToolCalls: values.enableMaxToolCalls,
     customParameters: values.customParameters,
     mcpMode: values.mcpMode,
+    contextOverrideEnabled: values.contextOverrideEnabled,
+    contextCompressEnabled: values.contextCompressEnabled,
+    contextTruncateThreshold: values.contextTruncateThreshold,
+    contextCompressModelId: values.contextCompressModelId,
     knowledgeBaseIds: values.knowledgeBaseIds,
     mcpServerIds: values.mcpServerIds
   }
 }
 
-export function AssistantEditDialog({ resource, open, onOpenChange, onSaved, modelFilter }: AssistantEditDialogProps) {
+export function AssistantEditDialog({
+  resource,
+  open,
+  onOpenChange,
+  modelFilter,
+  initialTab
+}: AssistantEditDialogProps) {
   if (!resource) return null
 
   return (
@@ -162,8 +188,8 @@ export function AssistantEditDialog({ resource, open, onOpenChange, onSaved, mod
       resource={resource}
       open={open}
       onOpenChange={onOpenChange}
-      onSaved={onSaved}
       modelFilter={modelFilter}
+      initialTab={initialTab}
     />
   )
 }
@@ -172,20 +198,20 @@ function AssistantEditDialogContent({
   resource,
   open,
   onOpenChange,
-  onSaved,
-  modelFilter
-}: EditDialogBaseProps<AssistantEditDialogResource> & { resource: AssistantEditDialogResource }) {
+  modelFilter,
+  initialTab
+}: EditDialogBaseProps & { resource: AssistantEditDialogResource }) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState('basic')
+  const [activeTab, setActiveTab] = useState(initialTab ?? 'basic')
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false)
+  const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false)
   const [dialogContentElement, setDialogContentElement] = useState<HTMLDivElement | null>(null)
   const [modelLabels, setModelLabels] = useState<ModelLabels>(() => modelLabelsForAssistant(resource))
   const defaultValues = useMemo(() => defaultValuesForAssistant(resource), [resource])
   const form = useForm<AssistantEditFormValues>({ defaultValues })
   const values = form.watch()
-  const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
-  const tagList = useTagList()
-  const allTagNames = useMemo(() => tagList.tags.map((tag) => tag.name), [tagList.tags])
+  const { groups, isLoading: isGroupsLoading, error: groupsError } = useGroups('assistant')
+  const { createGroup } = useGroupMutations('assistant')
   const { updateAssistant } = useAssistantMutationsById(resource.id)
   const saveIntent = useMemo(() => {
     const baseline = initialAssistantFormState(resource)
@@ -208,95 +234,175 @@ function AssistantEditDialogContent({
     [t]
   )
 
+  // Tracks the exact form snapshot that failed so it cannot be retried until
+  // the user changes the form, while a later close can explicitly discard it.
+  const failedSaveKeyRef = useRef<string | null>(null)
+
+  const wasOpenRef = useRef(false)
   useEffect(() => {
-    if (!open) return
+    const justOpened = open && !wasOpenRef.current
+    wasOpenRef.current = open
+    if (!open) {
+      setCreateGroupDialogOpen(false)
+      return
+    }
+    if (!justOpened) return
 
     form.reset(defaultValues)
     form.clearErrors()
-    setActiveTab('basic')
+    setActiveTab(initialTab ?? 'basic')
     setEmojiPickerOpen(false)
+    setCreateGroupDialogOpen(false)
     setModelLabels(modelLabelsForAssistant(resource))
-  }, [defaultValues, form, open, resource])
+    // A fresh open is a fresh editing session — a stale failure from a prior
+    // session (this instance can outlive one close, see the exit-animation
+    // hold in useResourceCatalogController) must not silently discard a new,
+    // coincidentally-identical edit as if it were a repeated close.
+    failedSaveKeyRef.current = null
+  }, [defaultValues, form, initialTab, open, resource])
 
-  const isSubmitting = form.formState.isSubmitting
-  const canSave = Boolean(saveIntent) && !isSubmitting
   const rootError = form.formState.errors.root?.message
+  const canPersist = Boolean(saveIntent) && values.name.trim().length > 0
+  const changeKey = canPersist ? JSON.stringify(values) : null
+  const saveFailedMessage = t('library.config.dialogs.edit.save_failed')
 
-  const handleSubmit = form.handleSubmit(async () => {
+  const persist = async () => {
     const pending = saveIntent
-    if (!pending) return
+    if (!pending || !changeKey) return
+    const attemptedKey = changeKey
+
+    // A close-triggered flush does not cancel the already scheduled debounce.
+    // Keep both paths from resending an unchanged payload that already failed.
+    if (failedSaveKeyRef.current === attemptedKey) return
 
     form.clearErrors('root')
+    failedSaveKeyRef.current = null
 
-    let updated: Awaited<ReturnType<typeof updateAssistant>>
     try {
-      updated = await updateAssistant({
-        ...pending.payload,
-        ...(pending.tagsChanged ? { tagIds: (await ensureTags(pending.tagNames)).map((tag) => tag.id) } : {})
-      })
+      await updateAssistant(pending.payload)
     } catch (error) {
-      logger.error('Failed to save assistant edit dialog', error as Error, { assistantId: resource.id })
-      form.setError('root', { message: t('library.config.dialogs.edit.save_failed') })
+      logger.error('Failed to auto-save assistant edit dialog', error as Error, { assistantId: resource.id })
+      failedSaveKeyRef.current = attemptedKey
+      form.setError('root', { message: saveFailedMessage })
+      toast.error(saveFailedMessage)
+    }
+  }
+
+  // Key the debounce on the form values (user input), not on saveIntent: the
+  // update mutation refreshes /assistants/* → resource refetches → saveIntent's
+  // baseline moves, but the values are unchanged, so this never re-fires from our
+  // own save (prevents a save→refetch→save loop).
+  const flush = useDebouncedAutoSave({
+    enabled: open,
+    changeKey,
+    onSave: persist
+  })
+
+  // On close with a pending edit, flush through the same serialized save queue and
+  // only close once it settles — so a failed final save stays visible instead of
+  // being silently dropped, and we never race a second concurrent save.
+  const handleOpenChange = (next: boolean) => {
+    if (next || !canPersist) {
+      onOpenChange(next)
       return
     }
-
-    onOpenChange(false)
-    try {
-      await onSaved(updated)
-    } catch (error) {
-      logger.warn('Failed to run assistant edit dialog post-save callback', { error, assistantId: resource.id })
+    if (failedSaveKeyRef.current === changeKey) {
+      toast.error(saveFailedMessage)
+      onOpenChange(false)
+      return
     }
-  })
+    void (async () => {
+      await flush()
+      if (failedSaveKeyRef.current !== null) return
+      onOpenChange(false)
+    })()
+  }
+  // Route the settings-navigate close through handleOpenChange so it flushes too.
+  const closeBeforeAction = useCloseBeforeAction(handleOpenChange)
+
+  const handleCreateGroup = async (name: string) => {
+    try {
+      const group = await createGroup(name)
+      form.setValue('groupId', group.id, { shouldDirty: true, shouldTouch: true })
+    } catch (error) {
+      logger.error(
+        'Failed to create assistant group from edit dialog',
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          assistantId: resource.id,
+          name
+        }
+      )
+      throw error
+    }
+  }
 
   return (
     <EditDialogShell
       activeTab={activeTab}
-      canSave={canSave}
       form={form}
       groupPresentation="inline"
-      isSubmitting={isSubmitting}
       onActiveTabChange={setActiveTab}
-      onOpenChange={onOpenChange}
-      onSubmit={handleSubmit}
+      onOpenChange={handleOpenChange}
       open={open}
       rootError={rootError}
       setDialogContentElement={setDialogContentElement}
       tabs={tabs}
       title={t('library.config.dialogs.edit.assistant_title')}>
-      <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
-        <AssistantBasicFields
-          form={form}
-          modelFilter={modelFilter}
-          portalContainer={dialogContentElement}
-          modelLabels={modelLabels}
-          setModelLabels={setModelLabels}
-          allTagNames={allTagNames}
-          emojiPickerOpen={emojiPickerOpen}
-          setEmojiPickerOpen={setEmojiPickerOpen}
-        />
-      </TabsContent>
-      <TabsContent value="prompt" forceMount hidden={activeTab !== 'prompt'} className="m-0">
-        <AssistantPromptField
-          form={form}
-          resource={resource}
-          modelName={modelLabels.modelId}
-          portalContainer={dialogContentElement}
-        />
-      </TabsContent>
-      {isAssistantToolTab(activeTab) ? (
-        <TabsContent value={activeTab} forceMount className="m-0">
-          {activeTab === 'tools.mcp' ? (
-            <AssistantToolsFields form={form} portalContainer={dialogContentElement} />
-          ) : (
-            <div className="grid gap-4">
-              <KnowledgeBaseField form={form} portalContainer={dialogContentElement} />
-            </div>
-          )}
+      <>
+        <TabsContent value="basic" forceMount hidden={activeTab !== 'basic'} className="m-0">
+          <AssistantBasicFields
+            form={form}
+            modelFilter={modelFilter}
+            portalContainer={dialogContentElement}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            groups={groups}
+            groupsLoading={isGroupsLoading}
+            groupsError={groupsError}
+            emojiPickerOpen={emojiPickerOpen}
+            setEmojiPickerOpen={setEmojiPickerOpen}
+            onCreateGroup={() => setCreateGroupDialogOpen(true)}
+            onSettingsNavigate={closeBeforeAction}
+          />
         </TabsContent>
-      ) : null}
-      <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
-        <AssistantAdvancedFields form={form} portalContainer={dialogContentElement} />
-      </TabsContent>
+        <TabsContent
+          value="prompt"
+          forceMount
+          hidden={activeTab !== 'prompt'}
+          className="m-0 flex h-full min-h-0 flex-col">
+          <AssistantPromptField
+            form={form}
+            resource={resource}
+            modelName={modelLabels.modelId}
+            portalContainer={dialogContentElement}
+          />
+        </TabsContent>
+        {isAssistantToolTab(activeTab) ? (
+          <TabsContent value={activeTab} forceMount className="m-0">
+            {activeTab === 'tools.mcp' ? (
+              <AssistantToolsFields form={form} portalContainer={dialogContentElement} />
+            ) : (
+              <div className="grid gap-4">
+                <KnowledgeBaseField form={form} portalContainer={dialogContentElement} />
+              </div>
+            )}
+          </TabsContent>
+        ) : null}
+        <TabsContent value="advanced" forceMount hidden={activeTab !== 'advanced'} className="m-0">
+          <AssistantAdvancedFields
+            form={form}
+            portalContainer={dialogContentElement}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+          />
+        </TabsContent>
+        <CreateGroupDialog
+          open={createGroupDialogOpen}
+          onCreate={handleCreateGroup}
+          onOpenChange={setCreateGroupDialogOpen}
+        />
+      </>
     </EditDialogShell>
   )
 }
@@ -307,18 +413,26 @@ function AssistantBasicFields({
   portalContainer,
   modelLabels,
   setModelLabels,
-  allTagNames,
+  groups,
+  groupsLoading,
+  groupsError,
   emojiPickerOpen,
-  setEmojiPickerOpen
+  setEmojiPickerOpen,
+  onCreateGroup,
+  onSettingsNavigate
 }: {
   form: UseFormReturn<AssistantEditFormValues>
   modelFilter?: (model: Model) => boolean
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
-  allTagNames: string[]
+  groups: ReturnType<typeof useGroups>['groups']
+  groupsLoading: ReturnType<typeof useGroups>['isLoading']
+  groupsError: ReturnType<typeof useGroups>['error']
   emojiPickerOpen: boolean
   setEmojiPickerOpen: (open: boolean) => void
+  onCreateGroup: () => void
+  onSettingsNavigate?: (navigate: () => void) => void
 }) {
   const { t } = useTranslation()
   const handleAssistantModelChange = (modelId: UniqueModelId | null, model?: Model) => {
@@ -333,59 +447,64 @@ function AssistantBasicFields({
   }
 
   return (
-    <div className="grid gap-4">
-      <div className="grid grid-cols-[auto_1fr] gap-4">
-        <AvatarField
-          form={form}
-          emojiPickerOpen={emojiPickerOpen}
-          setEmojiPickerOpen={setEmojiPickerOpen}
-          fallback="💬"
-          portalContainer={portalContainer}
-        />
-        <TextInputField
-          form={form}
-          name="name"
-          label={t('common.name')}
-          placeholder={t('library.config.basic.field.name.placeholder')}
-          required
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div className="min-w-0">
-          <CompactModelField
-            form={form}
-            name="modelId"
-            label={t('common.model')}
-            allowClear
-            filter={modelFilter}
-            portalContainer={portalContainer}
-            modelLabels={modelLabels}
-            setModelLabels={setModelLabels}
-            onModelChange={handleAssistantModelChange}
-          />
-        </div>
-        <FormField
-          control={form.control}
-          name="tagName"
-          render={({ field }) => (
-            <FormItem className="min-w-0">
-              <FormLabel>{t('library.config.basic.tags')}</FormLabel>
-              <TagSelector
-                value={field.value}
-                onChange={field.onChange}
-                allTagNames={allTagNames}
-                portalContainer={portalContainer}
-              />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
+    <div className="divide-y divide-border-subtle border-border-subtle border-b [&>*:first-child]:pt-0">
+      <AvatarField
+        form={form}
+        emojiPickerOpen={emojiPickerOpen}
+        setEmojiPickerOpen={setEmojiPickerOpen}
+        fallback="💬"
+        portalContainer={portalContainer}
+        size="sm"
+        layout="row"
+      />
+      <TextInputField
+        form={form}
+        name="name"
+        label={t('common.name')}
+        placeholder={t('library.config.basic.field.name.placeholder')}
+        required
+        layout="row"
+      />
       <TextInputField
         form={form}
         name="description"
         label={t('common.description')}
         placeholder={t('library.config.basic.field.description.placeholder')}
+        layout="row"
+      />
+      <CompactModelField
+        form={form}
+        name="modelId"
+        label={t('common.model')}
+        allowClear
+        filter={modelFilter}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        onModelChange={handleAssistantModelChange}
+        onSettingsNavigate={onSettingsNavigate}
+        layout="row"
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50"
+      />
+      <FormField
+        control={form.control}
+        name="groupId"
+        render={({ field }) => (
+          <FormItem className={editDialogFormRowClassName}>
+            <FormLabel className={editDialogFormRowLabelClassName}>{t('library.config.basic.group')}</FormLabel>
+            <GroupSelector
+              value={field.value}
+              onChange={field.onChange}
+              groups={groups}
+              isLoading={groupsLoading}
+              error={groupsError}
+              portalContainer={portalContainer}
+              onCreateGroup={onCreateGroup}
+              triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 shadow-none hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring/40"
+            />
+            <FormMessage className="col-start-2" />
+          </FormItem>
+        )}
       />
     </div>
   )
@@ -403,100 +522,31 @@ function AssistantPromptField({
   portalContainer: HTMLElement | null
 }) {
   const { t } = useTranslation()
-  const toast = useToasts()
-  const [generating, setGenerating] = useState(false)
-  const [showUndoButton, setShowUndoButton] = useState(false)
-  const [originalPrompt, setOriginalPrompt] = useState('')
   const [resetPreviewKey, setResetPreviewKey] = useState(0)
-  const generateRequestIdRef = useRef(0)
   const prompt = form.watch('prompt')
   const name = form.watch('name')
-  const generateSource = prompt.trim() || name.trim()
   const processedPrompt = usePromptProcessor({
     prompt,
     modelName: modelName ?? resource.modelName ?? undefined
   })
-  const promptGenerationFailedToast = {
-    title: t('library.config.prompt.generate_failed_title'),
-    description: t('library.config.prompt.generate_failed_description')
-  }
 
   const handlePromptChange = (nextPrompt: string) => {
-    setShowUndoButton(false)
     form.setValue('prompt', nextPrompt, { shouldDirty: true, shouldTouch: true })
   }
 
-  useEffect(() => {
-    return () => {
-      generateRequestIdRef.current += 1
-    }
-  }, [])
-
-  const handleGeneratePrompt = async () => {
-    if (!generateSource || generating) return
-
-    const requestId = generateRequestIdRef.current + 1
-    generateRequestIdRef.current = requestId
-    setGenerating(true)
-    setShowUndoButton(false)
-
-    try {
-      const generatedPrompt = await fetchGenerate({
-        prompt: AGENT_PROMPT,
-        content: generateSource,
-        throwOnError: true
-      })
-
-      if (generateRequestIdRef.current !== requestId) return
-      if (!generatedPrompt) {
-        toast.error(promptGenerationFailedToast)
-        return
-      }
-
-      setOriginalPrompt(prompt)
-      form.setValue('prompt', generatedPrompt, { shouldDirty: true, shouldTouch: true })
-      setShowUndoButton(true)
-      setResetPreviewKey((key) => key + 1)
-    } catch (error) {
-      logger.error('Failed to generate assistant prompt from edit dialog', error as Error, {
-        assistantId: resource.id
-      })
-      toast.error(promptGenerationFailedToast)
-    } finally {
-      if (generateRequestIdRef.current === requestId) {
-        setGenerating(false)
-      }
-    }
-  }
-
-  const handleUndoGeneratedPrompt = () => {
-    form.setValue('prompt', originalPrompt, { shouldDirty: true, shouldTouch: true })
-    setShowUndoButton(false)
+  const handlePromptActionChange = (nextPrompt: string) => {
+    handlePromptChange(nextPrompt)
     setResetPreviewKey((key) => key + 1)
   }
 
   const promptActions = (
-    <>
-      {showUndoButton ? (
-        <Button
-          type="button"
-          variant="ghost"
-          aria-label={t('common.undo')}
-          onClick={handleUndoGeneratedPrompt}
-          className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0">
-          <Undo2 size={10} />
-        </Button>
-      ) : null}
-      <Button
-        type="button"
-        variant="ghost"
-        aria-label={t('library.config.prompt.generate')}
-        onClick={handleGeneratePrompt}
-        disabled={!generateSource || generating}
-        className="flex h-6 min-h-0 w-6 items-center justify-center rounded-2xs border border-border/20 p-0 text-muted-foreground/80 shadow-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-0 disabled:cursor-not-allowed disabled:opacity-40">
-        {generating ? <Loader2 size={10} className="animate-spin" /> : <Sparkles size={10} />}
-      </Button>
-    </>
+    <PromptPolishActions
+      value={prompt}
+      fallbackSource={name}
+      emptyValueSystemPrompt={AGENT_PROMPT}
+      existingValueSystemPrompt={RESOURCE_PROMPT_POLISH_SYSTEM_PROMPT}
+      onChange={handlePromptActionChange}
+    />
   )
 
   return (
@@ -518,6 +568,7 @@ function AssistantPromptField({
           previewValue={processedPrompt || prompt}
           resetPreviewKey={resetPreviewKey}
           actions={promptActions}
+          fill
           minHeight={EDIT_DIALOG_PROMPT_MIN_HEIGHT}
           maxHeight={EDIT_DIALOG_PROMPT_MAX_HEIGHT}
         />
@@ -536,9 +587,7 @@ function AssistantToolsFields({
   const { t } = useTranslation()
   const mcpMode = form.watch('mcpMode')
   const mcpServerIds = form.watch('mcpServerIds')
-  const mcpEnabled = mcpMode !== 'disabled'
   const mcpModeLabel = t('library.config.basic.mcp_mode')
-  const selectableMcpModes = useMemo(() => MCP_MODE_OPTIONS.filter((mode) => mode.id !== 'disabled'), [])
 
   const enabledIds = useMemo(() => new Set(mcpServerIds), [mcpServerIds])
   const toggleMcpServer = (id: string, enabled: boolean) =>
@@ -554,45 +603,23 @@ function AssistantToolsFields({
         control={form.control}
         name="mcpMode"
         render={() => (
-          <FormItem className="grid gap-3">
+          <FormItem>
             <div className="flex items-center justify-between gap-3">
-              <FormLabel>{`${t('library.action.enable')} MCP`}</FormLabel>
+              <FormLabel className="font-normal text-[13px]">{mcpModeLabel}</FormLabel>
               <FormControl>
-                <Switch
+                <SegmentedControl<AssistantFormState['mcpMode']>
                   size="sm"
-                  checked={mcpEnabled}
-                  onCheckedChange={(checked) =>
-                    form.setValue('mcpMode', checked ? 'auto' : 'disabled', { shouldDirty: true })
-                  }
-                  aria-label={`${t('library.action.enable')} MCP`}
+                  className="shrink-0"
+                  aria-label={mcpModeLabel}
+                  value={mcpMode}
+                  onValueChange={(value) => form.setValue('mcpMode', value, { shouldDirty: true })}
+                  options={MCP_MODE_OPTIONS.map((mode) => ({
+                    value: mode.id,
+                    label: t(mode.labelKey)
+                  }))}
                 />
               </FormControl>
             </div>
-            {mcpEnabled ? (
-              <div className="flex items-start justify-between gap-3">
-                <FormLabel className="pt-2">{mcpModeLabel}</FormLabel>
-                <div className="w-36 shrink-0">
-                  <Select
-                    value={mcpMode === 'manual' ? 'manual' : 'auto'}
-                    onValueChange={(value) =>
-                      form.setValue('mcpMode', value as AssistantFormState['mcpMode'], { shouldDirty: true })
-                    }>
-                    <FormControl>
-                      <SelectTrigger className="w-full" aria-label={mcpModeLabel}>
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent portalContainer={portalContainer}>
-                      {selectableMcpModes.map((mode) => (
-                        <SelectItem key={mode.id} value={mode.id}>
-                          {t(mode.labelKey)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            ) : null}
             <FormMessage />
           </FormItem>
         )}
@@ -622,13 +649,22 @@ function AssistantToolsFields({
 
 function AssistantAdvancedFields({
   form,
-  portalContainer
+  portalContainer,
+  modelLabels,
+  setModelLabels
 }: {
   form: UseFormReturn<AssistantEditFormValues>
   portalContainer: HTMLElement | null
+  modelLabels: ModelLabels
+  setModelLabels: (labels: ModelLabels) => void
 }) {
   const { t } = useTranslation()
   const values = form.watch()
+  // Global defaults, shown as the seed when the user turns the override on for
+  // an assistant that has none stored yet.
+  const [globalCompressEnabled] = usePreference('chat.context_settings.compress.enabled')
+  const [globalTruncateThreshold] = usePreference('chat.context_settings.truncate_threshold')
+  const [globalCompressModelId] = usePreference('chat.context_settings.compress.model_id')
   const temperatureMarks = [
     { value: 0, label: t('library.config.basic.precise') },
     { value: 1, label: '1' },
@@ -641,7 +677,7 @@ function AssistantAdvancedFields({
   ]
 
   return (
-    <div className="grid gap-4">
+    <div className="divide-y divide-border-subtle [&>*:first-child]:pt-0 [&>*:last-child]:pb-0 [&>*]:py-4">
       <ToggleFieldGroup
         label={t('library.config.basic.temperature')}
         valueLabel={values.enableTemperature ? values.temperature.toFixed(1) : t('library.config.basic.default_value')}
@@ -652,7 +688,7 @@ function AssistantAdvancedFields({
           control={form.control}
           name="temperature"
           render={({ field }) => (
-            <div className="-mb-2 mt-3 w-full max-w-xl">
+            <div className="-mb-2 mt-3 w-full">
               <Slider
                 min={0}
                 max={2}
@@ -677,7 +713,7 @@ function AssistantAdvancedFields({
           control={form.control}
           name="topP"
           render={({ field }) => (
-            <div className="-mb-2 mt-3 w-full max-w-xl">
+            <div className="-mb-2 mt-3 w-full">
               <Slider
                 min={0}
                 max={1}
@@ -694,31 +730,32 @@ function AssistantAdvancedFields({
 
       <ToggleFieldGroup
         label={t('library.config.basic.max_tokens')}
-        valueLabel={
-          values.enableMaxTokens ? values.maxTokens.toLocaleString() : t('library.config.basic.default_value')
-        }
+        valueLabel={values.enableMaxTokens ? undefined : t('library.config.basic.default_value')}
         description={t('library.config.basic.field.max_tokens.hint')}
         enabled={values.enableMaxTokens}
-        onEnabledChange={(checked) => form.setValue('enableMaxTokens', checked, { shouldDirty: true })}>
-        <FormField
-          control={form.control}
-          name="maxTokens"
-          render={({ field }) => (
-            <EditableNumber
-              block
-              min={1}
-              step={1}
-              precision={0}
-              align="start"
-              changeOnBlur
-              value={field.value}
-              onChange={(value) =>
-                field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
-              }
-            />
-          )}
-        />
-      </ToggleFieldGroup>
+        onEnabledChange={(checked) => form.setValue('enableMaxTokens', checked, { shouldDirty: true })}
+        control={
+          <FormField
+            control={form.control}
+            name="maxTokens"
+            render={({ field }) => (
+              <EditableNumber
+                block
+                min={1}
+                step={1}
+                precision={0}
+                align="start"
+                changeOnBlur
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                value={field.value}
+                onChange={(value) =>
+                  field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOKENS)
+                }
+              />
+            )}
+          />
+        }
+      />
 
       <FormField
         control={form.control}
@@ -748,31 +785,56 @@ function AssistantAdvancedFields({
 
       <ToggleFieldGroup
         label={t('library.config.basic.max_tool_calls')}
-        valueLabel={values.enableMaxToolCalls ? values.maxToolCalls.toString() : t('library.config.basic.unlimited')}
-        description={t('library.config.basic.field.max_tool_calls.hint')}
+        valueLabel={
+          values.enableMaxToolCalls
+            ? undefined
+            : t('library.config.basic.max_tool_calls_default', {
+                count: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+              })
+        }
+        description={t('library.config.basic.field.max_tool_calls.hint', {
+          count: DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+        })}
         enabled={values.enableMaxToolCalls}
-        onEnabledChange={(checked) => form.setValue('enableMaxToolCalls', checked, { shouldDirty: true })}>
-        <FormField
-          control={form.control}
-          name="maxToolCalls"
-          render={({ field }) => (
-            <EditableNumber
-              block
-              min={1}
-              step={1}
-              precision={0}
-              align="start"
-              changeOnBlur
-              value={field.value}
-              onChange={(value) =>
-                field.onChange(typeof value === 'number' && value > 0 ? value : UI_DEFAULT_MAX_TOOL_CALLS)
-              }
-            />
-          )}
-        />
-      </ToggleFieldGroup>
+        onEnabledChange={(checked) => form.setValue('enableMaxToolCalls', checked, { shouldDirty: true })}
+        control={
+          <FormField
+            control={form.control}
+            name="maxToolCalls"
+            render={({ field }) => (
+              <EditableNumber
+                block
+                min={MIN_TOOL_CALLS}
+                max={MAX_TOOL_CALLS}
+                step={1}
+                precision={0}
+                align="start"
+                changeOnBlur
+                className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                value={field.value}
+                onChange={(value) =>
+                  field.onChange(
+                    typeof value === 'number' && value > 0 ? value : DEFAULT_ASSISTANT_SETTINGS.maxToolCalls
+                  )
+                }
+              />
+            )}
+          />
+        }
+      />
 
-      <Separator className="bg-border/30" />
+      <ContextManagementFields
+        form={form}
+        portalContainer={portalContainer}
+        modelLabels={modelLabels}
+        setModelLabels={setModelLabels}
+        globalDefaults={{
+          compressEnabled: globalCompressEnabled,
+          truncateThreshold: globalTruncateThreshold,
+          compressModelId: globalCompressModelId || null
+        }}
+      />
+
       <FormField
         control={form.control}
         name="customParameters"
@@ -788,33 +850,150 @@ function AssistantAdvancedFields({
   )
 }
 
+function ContextManagementFields({
+  form,
+  portalContainer,
+  modelLabels,
+  setModelLabels,
+  globalDefaults
+}: {
+  form: UseFormReturn<AssistantEditFormValues>
+  portalContainer: HTMLElement | null
+  modelLabels: ModelLabels
+  setModelLabels: (labels: ModelLabels) => void
+  globalDefaults: { compressEnabled: boolean; truncateThreshold: number; compressModelId: string | null }
+}) {
+  const { t } = useTranslation()
+  const values = form.watch()
+  // Only re-seed from globals the first time an assistant WITHOUT a stored
+  // override is customized — an ON→OFF→ON round trip on a stored override must
+  // preserve the saved values.
+  const hadStoredOverride = useRef(values.contextOverrideEnabled)
+
+  const onOverrideToggle = (checked: boolean) => {
+    if (checked && !hadStoredOverride.current) {
+      form.setValue('contextCompressEnabled', globalDefaults.compressEnabled, { shouldDirty: true })
+      form.setValue('contextTruncateThreshold', globalDefaults.truncateThreshold, { shouldDirty: true })
+      form.setValue('contextCompressModelId', globalDefaults.compressModelId, { shouldDirty: true })
+    }
+    form.setValue('contextOverrideEnabled', checked, { shouldDirty: true })
+  }
+
+  return (
+    <>
+      <ToggleFieldGroup
+        label={t('library.config.basic.context_management')}
+        description={t('library.config.basic.field.context_management.hint')}
+        enabled={values.contextOverrideEnabled}
+        onEnabledChange={onOverrideToggle}
+      />
+      {values.contextOverrideEnabled ? (
+        <div className="grid gap-4 border-border/60 border-l pl-4">
+          <FormField
+            control={form.control}
+            name="contextCompressEnabled"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <FieldLabelWithHelp
+                      label={t('library.config.basic.context_compress_enabled')}
+                      help={t('library.config.basic.field.context_compress_enabled.hint')}
+                    />
+                  </div>
+                  <FormControl>
+                    <Switch
+                      size="sm"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      aria-label={t('library.config.basic.context_compress_enabled')}
+                    />
+                  </FormControl>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name="contextTruncateThreshold"
+            render={({ field }) => (
+              <FormItem>
+                <FieldLabelWithHelp
+                  label={t('library.config.basic.context_truncate_threshold')}
+                  help={t('library.config.basic.field.context_truncate_threshold.hint')}
+                />
+                <FormControl>
+                  <EditableNumber
+                    block
+                    min={1}
+                    step={1000}
+                    precision={0}
+                    align="start"
+                    changeOnBlur
+                    className="h-8 rounded-lg border-border bg-transparent px-2.5 shadow-none focus-visible:border-primary"
+                    value={field.value}
+                    onChange={(value) =>
+                      field.onChange(typeof value === 'number' && value > 0 ? value : globalDefaults.truncateThreshold)
+                    }
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <CompactModelField
+            form={form}
+            name="contextCompressModelId"
+            label={t('library.config.basic.context_compress_model')}
+            allowClear
+            emptyLabel={t('library.config.basic.context_compress_model_follow')}
+            // A compression model summarizes history — only chat-capable models qualify.
+            filter={(model) => !isNonChatModel(model)}
+            portalContainer={portalContainer}
+            modelLabels={modelLabels}
+            setModelLabels={setModelLabels}
+            onModelChange={(modelId) => form.setValue('contextCompressModelId', modelId, { shouldDirty: true })}
+          />
+        </div>
+      ) : null}
+    </>
+  )
+}
+
 function ToggleFieldGroup({
   label,
   valueLabel,
   description,
   enabled,
   onEnabledChange,
+  control,
   children
 }: {
   label: string
-  valueLabel: string
+  valueLabel?: string
   description: string
   enabled: boolean
   onEnabledChange: (checked: boolean) => void
-  children: ReactNode
+  /** Compact control rendered beside the switch when enabled (title-left / control-right row). */
+  control?: ReactNode
+  children?: ReactNode
 }) {
   return (
     <div>
-      <div className="mb-1.5 flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-1.5">
-            <FieldLabelWithHelp label={label} help={description} formLabel={false} />
-            <span className="text-muted-foreground/80 text-sm">{valueLabel}</span>
-          </div>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <FieldLabelWithHelp label={label} help={description} formLabel={false} />
+          {valueLabel ? <span className="text-muted-foreground text-xs">{valueLabel}</span> : null}
         </div>
-        <Switch size="sm" checked={enabled} onCheckedChange={onEnabledChange} aria-label={label} />
+        <div className="flex shrink-0 items-center gap-3">
+          {enabled && control ? <div className="w-36">{control}</div> : null}
+          <Switch size="sm" checked={enabled} onCheckedChange={onEnabledChange} aria-label={label} />
+        </div>
       </div>
-      {enabled ? <div className="mt-2">{children}</div> : null}
+      {enabled && children ? <div className="mt-2">{children}</div> : null}
     </div>
   )
 }
@@ -927,7 +1106,7 @@ function CustomParameterRow({
   })()
 
   return (
-    <div className="rounded-xs border border-border/20 bg-accent/15 p-2">
+    <div className="rounded-xs border border-border-subtle bg-accent/15 p-2">
       <div className="flex items-stretch gap-2">
         <Input
           placeholder={t('library.config.basic.custom_params_name')}
@@ -994,9 +1173,7 @@ function CustomParameterRow({
             placeholder='{"key": "value"}'
             hasError={jsonInvalid}
           />
-          {jsonInvalid ? (
-            <p className="mt-1 text-destructive/80 text-xs">{t('library.config.basic.json_invalid')}</p>
-          ) : null}
+          {jsonInvalid ? <p className="mt-1 text-error text-xs">{t('library.config.basic.json_invalid')}</p> : null}
         </div>
       ) : null}
     </div>

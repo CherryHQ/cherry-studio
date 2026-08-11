@@ -2,6 +2,7 @@ import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@ch
 import { useProvider } from '@renderer/hooks/useProvider'
 import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { Check, ChevronDown } from 'lucide-react'
 import type { FC } from 'react'
@@ -51,7 +52,7 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
       try {
         await updateProvider({ endpointConfigs: newEndpointConfigs })
       } catch {
-        window.toast.error(t('settings.provider.save_failed'))
+        toast.error(t('settings.provider.save_failed'))
       }
     },
     [provider?.endpointConfigs, t, updateProvider]
@@ -70,7 +71,7 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
         </span>
         <ChevronDown
           size={12}
-          className="ml-2 shrink-0 text-muted-foreground/55 transition-transform group-data-[state=open]:rotate-180"
+          className="ml-2 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180"
           aria-hidden
         />
       </PopoverTrigger>
@@ -87,9 +88,9 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
                 label={t(option.labelKey)}
                 description={option.description}
                 active={isSelected}
-                suffix={isSelected ? <Check size={14} className="text-foreground/70" aria-hidden /> : null}
+                suffix={isSelected ? <Check size={14} className="text-foreground" aria-hidden /> : null}
                 className="rounded-lg px-2.5 text-sm"
-                descriptionClassName="font-mono text-muted-foreground/70 text-xs tabular-nums"
+                descriptionClassName="font-mono text-foreground-tertiary text-xs tabular-nums"
                 onClick={() => void handleHostChange(option.value)}
               />
             )

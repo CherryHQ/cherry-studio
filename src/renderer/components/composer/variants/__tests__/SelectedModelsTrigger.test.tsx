@@ -152,7 +152,6 @@ describe('SelectedModelsTrigger', () => {
     const iconRail = screen.getByTestId('selected-models-trigger-icons')
     expect(within(iconRail).getByTestId('model-avatar-provider-a::model-a')).toBeInTheDocument()
     expect(within(iconRail).getByTestId('model-avatar-provider-b::model-b')).toBeInTheDocument()
-    expect(iconRail.className).not.toContain('overflow-x-auto')
   })
 
   it('shows model names, providers, capability tags, and context windows in the popover content', () => {
@@ -174,19 +173,9 @@ describe('SelectedModelsTrigger', () => {
     expect(screen.getByTestId('selected-models-popover')).toHaveTextContent('Provider A')
     const firstRow = screen.getByTestId('selected-model-row-provider-a::model-a')
     const tag = screen.getByTestId(`model-tag-${MODEL_CAPABILITY.IMAGE_RECOGNITION}`)
-    expect(firstRow.className).toContain('h-10.5')
-    expect(within(firstRow).getByTestId('model-avatar-provider-a::model-a')).toHaveAttribute('data-size', '16')
-    expect(tag).toHaveAttribute('data-size', '8')
-    expect(tag).toHaveClass('h-3.5', 'min-w-3.5', 'px-1', 'py-px')
     expect(tag).toHaveTextContent(MODEL_CAPABILITY.IMAGE_RECOGNITION)
-    expect(within(firstRow).getByTestId('model-avatar-provider-a::model-a').parentElement?.className).toContain('h-8')
-    expect(within(firstRow).getByTestId('model-avatar-provider-a::model-a').parentElement?.className).toContain(
-      'items-center'
-    )
-    const contextWindow = within(firstRow).getByText('Context 128000')
-    expect(contextWindow.parentElement?.className).toContain('justify-items-end')
-    expect(within(firstRow).getByLabelText('Remove Model A').parentElement?.className).toContain('w-0')
-    expect(within(firstRow).getByLabelText('Remove Model A').parentElement?.className).toContain('group-hover:w-4')
+    expect(within(firstRow).getByText('Context 128000')).toBeInTheDocument()
+    expect(within(firstRow).getByLabelText('Remove Model A')).toBeInTheDocument()
   })
 
   it('returns the filtered model list when removing one selected model', () => {
@@ -224,6 +213,8 @@ describe('SelectedModelsTrigger', () => {
     )
 
     expect(screen.queryByLabelText('Remove Model A')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Selected models' })).toHaveTextContent('Model A')
+    expect(screen.getByRole('button', { name: 'Selected models' })).not.toHaveTextContent('Provider A')
     expect(onModelsChange).not.toHaveBeenCalled()
     expect(onRestore).not.toHaveBeenCalled()
   })
@@ -258,8 +249,7 @@ describe('SelectedModelsTrigger', () => {
 
     const fallbackLabel = screen.getByText('Select model')
     expect(screen.queryByTestId('model-avatar-empty')).not.toBeInTheDocument()
-    expect(fallbackLabel).not.toHaveClass('sr-only')
-    expect(screen.getByRole('button', { name: 'Selected models' })).not.toHaveClass('w-8')
+    expect(fallbackLabel).toBeVisible()
   })
 
   it('does not render popover content for an empty model selection', () => {

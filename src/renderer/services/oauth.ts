@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import i18n, { getLanguageCode } from '@renderer/i18n/resolver'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 
 const logger = loggerService.withContext('oauth')
@@ -57,7 +58,7 @@ export const oauthWithAihubmix = async (setKey) => {
       } catch (error) {
         logger.error('[oauthWithAihubmix] error', error as Error)
         popup?.close()
-        window.toast.error(i18n.t('settings.provider.oauth.error'))
+        toast.error(i18n.t('settings.provider.oauth.error'))
       }
     }
   }
@@ -84,7 +85,7 @@ export const oauthWithPPIO = async (setKey) => {
   logger.debug('[PPIO OAuth] Setting up protocol listener')
 
   return new Promise<string>((resolve, reject) => {
-    const removeListener = window.api.protocol.onReceiveData(async (data) => {
+    const removeListener = ipcApi.on('navigation.protocol_data', async (data) => {
       try {
         const url = new URL(data.url)
         const params = new URLSearchParams(url.search)

@@ -1,5 +1,7 @@
 import { useInvalidateCache, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { useReconcileSkillsOnOpen } from '@renderer/hooks/useSkills'
+import { ipcApi } from '@renderer/ipc'
 import type { InstalledSkill } from '@shared/data/types/agent'
 import { useCallback } from 'react'
 
@@ -9,7 +11,7 @@ const logger = loggerService.withContext('SkillAdapter')
 
 /**
  * List hook for skill resources. `GET /skills` is read-only — install / uninstall
- * still ride the IPC channels (`window.api.skill.*`) because they touch the
+ * still ride the IpcApi routes (`skill.*`) because they touch the
  * filesystem (clone repos, extract ZIPs, manage symlinks under each agent's
  * `.claude/skills/`) and aren't a good fit for the DataApi contract.
  *
@@ -20,12 +22,17 @@ const logger = loggerService.withContext('SkillAdapter')
  * `search` is forwarded to `GET /skills` and evaluated server-side.
  */
 function useSkillList(query?: ResourceListQuery): ResourceListResult<InstalledSkill> {
+  const enabled = query?.enabled !== false
   const { data, isLoading, isRefreshing, error, refetch } = useQuery('/skills', {
-    enabled: query?.enabled !== false,
+    enabled,
     query: {
       ...(query?.search ? { search: query.search } : {})
     }
   })
+
+  // Surface agent-authored skills without an app restart (see the hook's docs). Shared with the
+  // agent edit dialog's Skills tab so both entry points reconcile.
+  useReconcileSkillsOnOpen(enabled)
 
   const items = Array.isArray(data) ? data : []
   const stableRefetch = useCallback(() => refetch(), [refetch])
@@ -45,8 +52,8 @@ export const skillAdapter: ResourceAdapter<InstalledSkill> = {
 }
 
 /**
- * Unwrap the `SkillResult<T>` envelope returned by every `window.api.skill.*`
- * IPC. Throws on failure so callers can use try/catch instead of branching on
+ * Unwrap the `SkillResult<T>` envelope returned by every `skill.*` IpcApi
+ * route. Throws on failure so callers can use try/catch instead of branching on
  * `result.success` themselves — mirrors how DataApi mutations bubble errors.
  */
 function unwrapSkillResult<T>(
@@ -59,15 +66,14 @@ function unwrapSkillResult<T>(
 }
 
 /**
- * Per-skill mutation hook. Only uninstall lives here today — toggle is
- * agent-scoped and stays with `useInstalledSkills(agentId)` in the agent
- * dialog, since the library list view has no agent context.
+ * Per-skill mutation hook. Only uninstall lives here today; agent-scoped
+ * enablement is edited through the agent form and saved via PATCH /agents.
  */
 export function useSkillMutationsById(id: string) {
   const invalidate = useInvalidateCache()
 
   const uninstallSkill = useCallback(async (): Promise<void> => {
-    const result = await window.api.skill.uninstall(id)
+    const result = await ipcApi.request('skill.uninstall', { skillId: id })
     unwrapSkillResult(result, 'Failed to uninstall skill')
     try {
       await invalidate('/skills')

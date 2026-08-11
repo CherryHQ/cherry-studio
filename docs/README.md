@@ -5,6 +5,7 @@
 | Document | Description |
 |----------|-------------|
 | [Development Setup](./guides/development.md) | Development environment setup |
+| [Linux Packaging](./guides/linux-packaging.md) | Linux package builds and native dependency prebuilds |
 | [Contributing](./guides/contributing.md) | How to contribute code |
 | [Branching Strategy](./guides/branching-strategy.md) | Git branching workflow |
 | [Test Plan](./guides/test-plan.md) | Test plan and release channels |
@@ -81,15 +82,6 @@
 | [KnowledgeService](./references/knowledge/knowledge-service.md) | Concurrency control and workload management |
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard, enqueue failure, and recovery semantics for add/delete/reindex |
 
-### CherryClaw (Autonomous Agent)
-
-| Document | Description |
-|----------|-------------|
-| [CherryClaw Overview](./references/cherryclaw/overview.md) | Architecture, memory system, API |
-| [Channel System](./references/cherryclaw/channels.md) | IM integration (Telegram, etc.) |
-| [Claw MCP Server](./references/cherryclaw/mcp-claw.md) | Built-in MCP tools (cron, notify, skills, memory) |
-| [Scheduler](./references/cherryclaw/scheduler.md) | Task-based polling scheduler |
-
 ### Components
 
 | Document | Description |
@@ -97,12 +89,15 @@
 | [CodeBlockView](./references/components/code-block-view.md) | Code block view component |
 | [Image Preview](./references/components/image-preview.md) | Image preview components |
 | [Code Execution](./references/components/code-execution.md) | Python code execution via Pyodide |
+| [UI Semantic Contract](./references/ui-semantic-contract.md) | `data-ui` token protocol, stability tiers, and maintained selectors for themes, tests, and AI tooling |
 
 ### Other
 
 | Document | Description |
 |----------|-------------|
+| [Frontend Testing Guidelines](./references/testing/frontend-testing.md) | Frontend test design and review |
 | [App Upgrade Config](./references/app-upgrade.md) | Application upgrade configuration |
 | [Feishu Notify](./references/feishu-notify.md) | Feishu notification integration |
 | [Fuzzy Search](./references/fuzzy-search.md) | Fuzzy search implementation |
 | [LAN Transfer Protocol](./references/lan-transfer-protocol.md) | LAN file transfer protocol spec |
+| [Remote Fetch Safety](./references/security/remote-fetch.md) | Main-process direct URL fetch SSRF guardrails |

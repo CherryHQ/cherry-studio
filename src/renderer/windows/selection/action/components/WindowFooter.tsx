@@ -1,12 +1,14 @@
 import RefreshIcon from '@renderer/components/icons/RefreshIcon'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { CircleX, Copy, Loader2, Pause } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
+
 interface FooterProps {
   content?: string
   loading?: boolean
@@ -133,7 +135,7 @@ const WindowFooter: FC<FooterProps> = ({
     navigator.clipboard
       .writeText(content)
       .then(() => {
-        window.toast.success(t('message.copy.success'))
+        toast.success(t('message.copy.success'))
         setIsCopyHovered(true)
         setTimeoutTimer(
           'handleCopy',
@@ -144,7 +146,7 @@ const WindowFooter: FC<FooterProps> = ({
         )
       })
       .catch(() => {
-        window.toast.error(t('message.copy.failed'))
+        toast.error(t('message.copy.failed'))
       })
   }
 
@@ -156,12 +158,14 @@ const WindowFooter: FC<FooterProps> = ({
     setIsWindowFocus(false)
   }
 
-  const footerButtonClassName = (enabled: boolean, hovered: boolean) =>
+  const footerButtonClassName = (enabled: boolean, hovered: boolean, danger = false) =>
     cn(
-      'flex h-[22px] cursor-pointer select-none flex-row items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap rounded bg-muted px-2 text-foreground-secondary text-xs transition-colors',
+      'flex h-[22px] cursor-pointer select-none flex-row items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap rounded bg-muted px-2 text-muted-foreground text-xs transition-colors',
       enabled ? 'opacity-100' : 'opacity-20',
-      hovered && 'text-primary [&_.btn-icon]:text-primary',
-      'hover:text-primary hover:[&_.btn-icon]:text-primary'
+      danger
+        ? 'hover:text-error hover:[&_.btn-icon]:text-error'
+        : 'hover:text-foreground hover:[&_.btn-icon]:text-foreground',
+      hovered && (danger ? 'text-error [&_.btn-icon]:text-error' : 'text-foreground [&_.btn-icon]:text-foreground')
     )
 
   return (
@@ -172,13 +176,16 @@ const WindowFooter: FC<FooterProps> = ({
         '-translate-x-1/2 absolute bottom-0 left-1/2 flex h-8 w-[calc(100%-16px)] min-w-min max-w-[480px] flex-row items-center justify-center rounded-lg px-2 py-1.5 backdrop-blur-sm transition-all duration-300',
         isShowMe || isContainerHovered ? 'opacity-100' : 'opacity-0'
       )}>
-      <div className="flex flex-row items-center justify-center gap-1.5 text-foreground-secondary text-xs">
-        <button type="button" onClick={handleEsc} className={footerButtonClassName(isWindowFocus, isEscHovered)}>
+      <div className="flex flex-row items-center justify-center gap-1.5 text-muted-foreground text-xs">
+        <button
+          type="button"
+          onClick={handleEsc}
+          className={footerButtonClassName(isWindowFocus, isEscHovered, loading)}>
           {loading ? (
             <>
               <span className="relative size-4">
-                <Pause size={14} className="btn-icon absolute top-px left-px text-error-base" />
-                <Loader2 className="btn-icon absolute top-0 left-0 size-4 animate-spin text-error-base" />
+                <Pause size={14} className="btn-icon absolute top-px left-px text-error" />
+                <Loader2 className="btn-icon absolute top-0 left-0 size-4 animate-spin text-error" />
               </span>
               {t('selection.action.window.esc_stop')}
             </>

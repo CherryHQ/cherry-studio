@@ -2,6 +2,8 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { ipcApi } from '@renderer/ipc'
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { CheckCircle2, CircleAlert, LogIn, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
@@ -59,43 +61,43 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
       setAccountId(account.accountId)
       // The main process enabled the provider; mirror it into the renderer cache.
       await updateProvider({ isEnabled: true })
-      window.toast.success(t(`${ns}.sign_in_success`))
+      toast.success(t(`${ns}.sign_in_success`))
     } catch (error) {
       logger.error(`${providerId} sign-in failed`, error as Error)
-      window.toast.error(t(`${ns}.sign_in_failed`))
+      toast.error(t(`${ns}.sign_in_failed`))
     } finally {
       setSigningIn(false)
     }
   }, [providerId, ns, t, updateProvider])
 
-  const handleLogout = useCallback(() => {
-    window.modal.confirm({
+  const handleLogout = useCallback(async () => {
+    const confirmed = await popup.confirm({
       title: t('settings.provider.oauth.logout'),
       content: t('settings.provider.oauth.logout_confirm'),
-      centered: true,
-      onOk: async () => {
-        setLoggingOut(true)
-        try {
-          await ipcApi.request('oauth.logout', { providerId })
-          // The main process reset auth to api-key and disabled the provider;
-          // mirror it into the renderer cache (DataApi does not auto-sync).
-          await updateProvider({ authConfig: { type: 'api-key' }, isEnabled: false })
-          setLoggedIn(false)
-          setAccountId(null)
-          window.toast.success(t('settings.provider.oauth.logout_success'))
-        } catch (error) {
-          logger.error(`${providerId} logout failed`, error as Error)
-          window.toast.warning(t('settings.provider.oauth.logout_warning'))
-        } finally {
-          setLoggingOut(false)
-        }
-      }
+      centered: true
     })
+    if (!confirmed) return
+
+    setLoggingOut(true)
+    try {
+      await ipcApi.request('oauth.logout', { providerId })
+      // The main process reset auth to api-key and disabled the provider;
+      // mirror it into the renderer cache (DataApi does not auto-sync).
+      await updateProvider({ authConfig: { type: 'api-key' }, isEnabled: false })
+      setLoggedIn(false)
+      setAccountId(null)
+      toast.success(t('settings.provider.oauth.logout_success'))
+    } catch (error) {
+      logger.error(`${providerId} logout failed`, error as Error)
+      toast.warning(t('settings.provider.oauth.logout_warning'))
+    } finally {
+      setLoggingOut(false)
+    }
   }, [providerId, t, updateProvider])
 
   if (loggedIn === null) {
     return (
-      <div className="flex items-center gap-2 pt-3.75 text-foreground-muted text-xs">
+      <div className="flex items-center gap-2 pt-3.75 text-foreground-tertiary text-xs">
         <RefreshCw className="size-4 animate-spin" aria-hidden />
         {t('common.loading')}
       </div>
@@ -103,14 +105,14 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
   }
 
   return (
-    <div className="flex flex-col gap-3 pt-3.75">
+    <div className="flex flex-col gap-3">
       {loggedIn ? (
-        <div className="flex items-center gap-3 rounded-lg border border-success/30 bg-success/10 p-3">
+        <div className="flex items-center gap-3 rounded-lg border border-success-border bg-success-subtle p-3 text-success-subtle-foreground">
           <CheckCircle2 className="size-5 shrink-0 text-success" aria-hidden />
           <div className="min-w-0 flex-1">
-            <div className="font-medium text-foreground text-sm">{t(`${ns}.logged_in`)}</div>
+            <div className="text-sm">{t(`${ns}.logged_in`)}</div>
             {showAccountId && accountId ? (
-              <div className="mt-1 truncate text-foreground-muted text-xs">{t(`${ns}.account`, { accountId })}</div>
+              <div className="mt-1 truncate text-xs">{t(`${ns}.account`, { accountId })}</div>
             ) : null}
           </div>
           <Button variant="ghost" size="sm" disabled={loggingOut} onClick={handleLogout}>
@@ -118,12 +120,12 @@ const LoginOauthPanel: FC<LoginOauthPanelProps> = ({ providerId, i18nNs, showAcc
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col gap-3 rounded-lg border border-info/40 bg-info/10 p-3">
+        <div className="flex flex-col gap-3 rounded-lg border border-info-border bg-info-subtle p-3 text-info-subtle-foreground">
           <div className="flex gap-3">
             <CircleAlert className="mt-0.5 size-5 shrink-0 text-info" aria-hidden />
             <div className="min-w-0 flex-1">
-              <div className="font-medium text-foreground text-sm">{t(`${ns}.description`)}</div>
-              <div className="mt-1 text-foreground-muted text-xs">{t(`${ns}.description_detail`)}</div>
+              <div className="text-sm">{t(`${ns}.description`)}</div>
+              <div className="mt-1 text-xs">{t(`${ns}.description_detail`)}</div>
             </div>
           </div>
           <div>

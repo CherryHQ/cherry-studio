@@ -235,11 +235,7 @@ function ComposerTokenNodeView(props: NodeViewProps & { renderToken?: ComposerTo
     ))
 
   return (
-    <NodeViewWrapper
-      as="span"
-      className="inline-flex align-baseline"
-      contentEditable={false}
-      data-composer-token-node="">
+    <NodeViewWrapper as="span" className="inline align-baseline" contentEditable={false} data-composer-token-node="">
       {rendered}
     </NodeViewWrapper>
   )

@@ -23,9 +23,11 @@
 
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
+import { clampSurrogateBoundary } from '@shared/utils/text'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 const logger = loggerService.withContext('useTemporaryTopic')
+const TEMPORARY_TOPIC_NAME_MAX_LENGTH = 30
 
 export interface UseTemporaryTopicOptions {
   /**
@@ -122,7 +124,10 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
     if (trimmed) {
       try {
         await dataApiService.patch(`/topics/${id}`, {
-          body: { name: trimmed.slice(0, 30), isNameManuallyEdited: false }
+          body: {
+            name: trimmed.slice(0, clampSurrogateBoundary(trimmed, TEMPORARY_TOPIC_NAME_MAX_LENGTH)),
+            isNameManuallyEdited: false
+          }
         })
       } catch (err) {
         logger.warn('Failed to seed placeholder topic name', err as Error)

@@ -1,10 +1,9 @@
 import { Button, RowFlex } from '@cherrystudio/ui'
-import { resolveProviderIcon } from '@cherrystudio/ui/icons'
+import { resolveProviderIconRef, useIcon } from '@cherrystudio/ui/icons'
 import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabelKey } from '@renderer/i18n/label'
 import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { PROVIDER_URLS } from '@renderer/pages/settings/ProviderSettings/providerUrls'
 import { providerBills, providerCharge } from '@renderer/services/oauth'
 import { hasApiKeys } from '@shared/utils/provider'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
@@ -18,6 +17,8 @@ interface Props {
 const ProviderOauth: FC<Props> = ({ providerId }) => {
   const { t } = useTranslation()
   const { provider, updateProvider, addApiKey } = useProvider(providerId)
+  // Resolved before the early return below — hooks must run unconditionally.
+  const Icon = useIcon(resolveProviderIconRef(providerId))
 
   const setApiKey = async (newKey: string) => {
     await addApiKey(newKey, 'OAuth')
@@ -26,22 +27,14 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
 
   if (!provider) return null
 
-  let providerWebsite =
-    PROVIDER_URLS[provider.id]?.api?.url.replace('https://', '').replace('api.', '') || provider.name
-  if (provider.id === 'ppio') {
-    providerWebsite = 'ppio.com'
-  }
   const officialWebsite = provider.websites?.official
-
-  const Icon = resolveProviderIcon(provider.id)
+  const providerWebsite = officialWebsite?.replace(/^https?:\/\//, '').replace(/\/.*$/, '') || provider.name
 
   const serviceDescription = (
     <Trans
       i18nKey="settings.provider.oauth.description"
       components={{
-        website: (
-          <a className="text-inherit hover:underline" href={officialWebsite ?? ''} rel="noreferrer" target="_blank" />
-        )
+        website: <a className="text-inherit" href={officialWebsite ?? ''} rel="noreferrer" target="_blank" />
       }}
       values={{ provider: providerWebsite }}
     />
@@ -87,15 +80,15 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
       )}
       <RowFlex className="gap-2.5">
         <Button className="rounded-lg px-3 py-1.5 text-[13px] shadow-none" onClick={() => providerCharge(provider.id)}>
-          <CircleDollarSign aria-hidden className="size-4 shrink-0 text-white" />
+          <CircleDollarSign aria-hidden className="size-4 shrink-0 text-primary-foreground" />
           {t('settings.provider.charge')}
         </Button>
         <Button className="rounded-lg px-3 py-1.5 text-[13px] shadow-none" onClick={() => providerBills(provider.id)}>
-          <ReceiptText aria-hidden className="size-4 shrink-0 text-white" />
+          <ReceiptText aria-hidden className="size-4 shrink-0 text-primary-foreground" />
           {t('settings.provider.bills')}
         </Button>
       </RowFlex>
-      <div className="flex items-center gap-1.5 text-[13px] text-foreground-secondary leading-[1.35]">
+      <div className="flex items-center gap-1.5 text-[13px] text-muted-foreground leading-[1.35]">
         {serviceDescription}
       </div>
     </div>

@@ -11,27 +11,34 @@ const DangbeiLight: IconComponent = (props: SVGProps<SVGSVGElement>) => {
       width="1em"
       height="1em"
       fill="none"
-      viewBox="9 9 102 102"
+      viewBox="0 0 120 120"
       {...props}>
-      <g clipPath={`url(#${iconId}-dangbeilight__a)`}>
+      <mask
+        id={`${iconId}-dangbeilight__a`}
+        width={65}
+        height={65}
+        x={28}
+        y={27}
+        maskUnits="userSpaceOnUse"
+        style={{ maskType: 'luminance' }}>
+        <path fill="#fff" d="M93 27H28V92H93V27Z" />
+      </mask>
+      <g mask={`url(#${iconId}-dangbeilight__a)`}>
         <mask
           id={`${iconId}-dangbeilight__b`}
-          width={83}
-          height={83}
-          x={19}
-          y={18}
+          width={65}
+          height={65}
+          x={28}
+          y={27}
           maskUnits="userSpaceOnUse"
           style={{ maskType: 'luminance' }}>
-          <path fill="#fff" d="M102 18H19V101H102V18Z" />
+          <path fill="#fff" d="M93 27H28V92H93V27Z" />
         </mask>
         <g mask={`url(#${iconId}-dangbeilight__b)`}>
-          <path fill={`url(#${iconId}-dangbeilight__c)`} d="M101.027 23.998H19.9727V96.5258H101.027V23.998Z" />
+          <path fill={`url(#${iconId}-dangbeilight__c)`} d="M92.238 31.6972H28.7617V88.4961H92.238V31.6972Z" />
         </g>
       </g>
       <defs>
-        <clipPath id={`${iconId}-dangbeilight__a`}>
-          <path fill="#fff" d="M0 0H83V83H0z" transform="translate(19 18)" />
-        </clipPath>
         <pattern id={`${iconId}-dangbeilight__c`} width={1} height={1} patternContentUnits="objectBoundingBox">
           <use xlinkHref={`#${iconId}-dangbeilight__d`} transform="scale(.0012 .00135)" />
         </pattern>

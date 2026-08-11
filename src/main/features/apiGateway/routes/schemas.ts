@@ -56,3 +56,12 @@ export const CountTokensBodySchema = z.looseObject({
   model: z.string().optional(),
   system: z.unknown().optional()
 })
+
+/**
+ * `POST /v1beta/models/{model}:{generateContent|streamGenerateContent|countTokens}`
+ * body (Gemini). The model + method live in the URL, not the body. Loose by
+ * design — `GeminiMessageConverter` parses the full `contents` payload.
+ */
+export const GeminiGenerateContentBodySchema = z.looseObject({
+  contents: z.array(z.looseObject({})).min(1, 'contents are required')
+})

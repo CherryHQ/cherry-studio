@@ -103,7 +103,7 @@ const message = {
   status: 'success',
   siblingsGroupId: 0,
   modelId: 'openai:gpt-5-codex',
-  modelSnapshot: null,
+  messageSnapshot: null,
   traceId: null,
   stats: null,
   createdAt: '2026-01-01T00:01:00.000Z',
@@ -145,13 +145,32 @@ describe('TopicMessageFlowNode', () => {
   })
 
   it.each([
-    ['user', 'user-message', 'User preview', 'border-success/35', 'bg-success-bg'],
-    ['assistant', 'assistant-message', 'Assistant preview', 'border-info/35', 'bg-info-bg'],
+    ['user', 'user-message', 'User preview', 'border-success-border', 'bg-success-subtle'],
+    ['assistant', 'assistant-message', 'Assistant preview', 'border-info-border', 'bg-info-subtle'],
     ['system', 'system-message', 'System preview', 'border-border', 'bg-muted/45']
   ] as const)('keeps the %s role background color on canvas nodes', (role, messageId, preview, border, background) => {
     renderNode({ messageId, preview, role })
 
     expect(screen.getByText(preview).closest(`[data-message-id="${messageId}"]`)).toHaveClass(border, background)
+  })
+
+  it('does not add a container border when a nested control receives focus', () => {
+    renderNode()
+
+    expect(getNodeElement()).not.toHaveClass('has-[:focus-visible]:border-primary')
+    expect(getNodeElement()).not.toHaveClass('focus-within:border-primary')
+  })
+
+  it('renders a clear marker as a neutral non-preview node', async () => {
+    renderNode({ isContextBoundary: true, role: 'user', preview: '' })
+
+    const labels = screen.getAllByText('chat.message.new.context')
+    const node = labels[0].closest('[data-message-id="message-1"]')!
+    expect(node).toHaveClass('border-border', 'bg-muted/45')
+
+    fireEvent.mouseEnter(node)
+    await advancePreviewDelay()
+    expect(mocks.useQuery).not.toHaveBeenCalled()
   })
 
   it('fetches the message preview only after hovering the node for 300ms', async () => {
@@ -172,12 +191,13 @@ describe('TopicMessageFlowNode', () => {
     })
   })
 
-  it('shows input draft status without fetching a real message preview', async () => {
+  it('shows awaiting-input status without fetching an empty message preview', async () => {
     renderNode({
-      isInputDraft: true,
-      preview: 'chat.message.flow.status.awaiting_input',
+      isActive: true,
+      isAwaitingInput: true,
+      preview: '',
       role: 'user',
-      status: 'paused'
+      status: 'success'
     })
 
     const node = screen
@@ -185,6 +205,9 @@ describe('TopicMessageFlowNode', () => {
       .closest('[data-message-id="message-1"]')!
 
     expect(node).toHaveTextContent('chat.message.flow.status.awaiting_input')
+    // Awaiting input owns the warning visual contract even while it is the active node.
+    expect(node).toHaveClass('border-warning-border', 'bg-warning-subtle', 'ring-warning/25')
+    expect(node).not.toHaveClass('border-primary', 'ring-primary/20')
 
     fireEvent.mouseEnter(node)
     await advancePreviewDelay()

@@ -28,9 +28,8 @@ The Redux store has been fully removed: every slice migrated to Cache / Preferen
 
 ### Dexie (~50 files)
 
-- Entry points (delete last): `src/renderer/databases/index.ts`, `src/renderer/databases/upgrades.ts`.
-- Messages / files / knowledge / translate are mostly migrated to SQLite; remaining Dexie reads are mostly fallbacks, and `src/renderer/services/db/DexieMessageDataSource.ts` is a fallback pending removal.
-- Migration-only readers (`DexieFileReader` / `DexieSettingsReader`) are used by the v1→v2 migration flow; keep them until the migration window closes, then delete (see §6).
+- The renderer schema and upgrade entry points under `src/renderer/databases/` have been removed.
+- Migration-only access (`DexieExporter`, `DexieFileReader`, and `DexieSettingsReader`) remains for the v1→v2 migration flow; keep it until the migration window closes, then delete it (see §6).
 
 ### ElectronStore (~10 files)
 

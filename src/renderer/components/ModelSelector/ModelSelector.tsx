@@ -1,28 +1,32 @@
 import { Avatar, AvatarFallback, Button, Checkbox, Tooltip } from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
+import { useIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { getModelDisplayTags, ModelTag } from '@renderer/components/tags/Model'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { useCommandHandler } from '@renderer/hooks/command'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
+import { toast } from '@renderer/services/toast'
+import { getModelLogoRef } from '@renderer/utils/model'
 import { isDev } from '@renderer/utils/platform'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
-import { useNavigate } from '@tanstack/react-router'
+import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { first } from 'es-toolkit/compat'
-import { Pin, Settings2 } from 'lucide-react'
+import { CircleSlash, Pin, Settings2 } from 'lucide-react'
 import {
   type KeyboardEvent,
   startTransition,
   useCallback,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import type { SelectorShellLayout } from '../SelectorShell'
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT, SelectorShell } from '../SelectorShell'
+import type { SelectorShellBottomAction, SelectorShellLayout } from '../SelectorShell'
+import { SelectorShell } from '../SelectorShell'
 import { ModelSelectorDetailCard } from './ModelSelectorDetailCard'
 import { ModelSelectorRow, ModelSelectorRowActionButton } from './ModelSelectorRow'
 import { computeCollapsedSelection, computeToggledSelection } from './selection'
@@ -35,11 +39,13 @@ const logger = loggerService.withContext('ModelSelector')
 
 const ITEM_HEIGHT = 36
 const MODEL_SELECTOR_LIST_VERTICAL_PADDING = 8
-const ROW_TAG_SIZE = 8
+const ROW_TAG_SIZE = 9
 const FILTER_TAG_SIZE = 10
-const DEFAULT_PRIORITIZED_PROVIDER_IDS: string[] = []
+const MODEL_SELECTOR_CONTENT_HEIGHT = 440
+const MODEL_SELECTOR_WIDTH = 400
+const DEFAULT_PRIORITIZED_PROVIDER_IDS: readonly string[] = []
 const MODEL_SELECTOR_NAVIGATION_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Enter'])
-const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(DEFAULT_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
+const DEFAULT_MODEL_SELECTOR_KEYBOARD_PAGE_SIZE = Math.max(1, Math.floor(MODEL_SELECTOR_CONTENT_HEIGHT / ITEM_HEIGHT))
 
 const estimateModelSelectorItemSize = () => ITEM_HEIGHT
 type ModelSelectorScrollAlign = NonNullable<Parameters<DynamicVirtualListRef['scrollToIndex']>[1]>['align']
@@ -167,14 +173,14 @@ function ModelRow({
   detailPortalContainer?: SelectorShellLayout['portalContainer']
   t: (key: string) => string
 }) {
-  const icon = resolveIcon(item.modelIdentifier, item.provider.id)
-  const rowTags = useMemo(() => getModelDisplayTags(item.model), [item.model])
+  const icon = useIcon(getModelLogoRef(item.model, item.provider.id))
+  const rowTags = useMemo(() => getModelDisplayTags(item.model, undefined, item.provider), [item.model, item.provider])
   const providerName = getProviderDisplayName(item.provider)
 
   const leading = icon ? (
-    <icon.Avatar size={20} />
+    <icon.Avatar size={24} className="border border-border" />
   ) : (
-    <Avatar size="sm">
+    <Avatar size="sm" className="border border-border">
       <AvatarFallback>{first(item.model.name) || 'M'}</AvatarFallback>
     </Avatar>
   )
@@ -185,13 +191,14 @@ function ModelRow({
       size="sm"
       tabIndex={-1}
       aria-hidden="true"
+      className="ml-1"
       data-testid={`model-selector-checkbox-${item.modelId}`}
     />
   ) : null
 
   const trailing =
     rowTags.length > 0 ? (
-      <div className="ml-2 flex h-4 max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
+      <div className="ml-2 flex h-[18px] max-w-[65%] shrink-0 items-center justify-end gap-1 overflow-hidden">
         {rowTags.map((tag) => (
           <ModelTag
             key={`${item.key}-${tag}`}
@@ -205,6 +212,18 @@ function ModelRow({
       </div>
     ) : null
 
+  const pinAction = showPinActions ? (
+    <ModelSelectorRowActionButton
+      disabled={isPinActionDisabled}
+      aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
+      className="size-4 rounded-sm hover:bg-transparent"
+      pinned={item.isPinned}
+      selected={isSelected}
+      onClick={() => onPin(item.modelId)}>
+      <Pin className="size-3" />
+    </ModelSelectorRowActionButton>
+  ) : null
+
   return (
     <ModelSelectorDetailCard item={item} provider={item.provider} portalContainer={detailPortalContainer}>
       <ModelSelectorRow
@@ -214,19 +233,7 @@ function ModelRow({
         checkbox={checkbox}
         leading={leading}
         trailing={trailing}
-        actions={
-          showPinActions ? (
-            <ModelSelectorRowActionButton
-              disabled={isPinActionDisabled}
-              aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
-              className="size-4 rounded-sm hover:bg-transparent"
-              pinned={item.isPinned}
-              selected={isSelected}
-              onClick={() => onPin(item.modelId)}>
-              <Pin className="size-3" />
-            </ModelSelectorRowActionButton>
-          ) : undefined
-        }
+        actions={pinAction}
         onSelect={() => onSelect(item)}
         rootProps={{ className: 'pr-0.5' }}
         optionProps={{ 'data-testid': `model-selector-item-${item.modelId}` }}>
@@ -262,22 +269,25 @@ export function ModelSelector(props: ModelSelectorProps) {
     multiSelectMode: multiSelectModeProp,
     defaultMultiSelectMode = false,
     onMultiSelectModeChange,
+    onSettingsNavigate,
     shortcut
   } = props
   const { t } = useTranslation()
-  const navigate = useNavigate()
   // `multiple` is required-literal on the union, so reading it directly gives
   // a proper boolean for conditional UI branches. Narrowing to the specific
   // variant happens at the `onSelect` / `value` touchpoints below (see
   // `emitSelection` / `normalizeSelectedIdsFromValue`).
   const multiple = props.multiple
+  const noneOptionLabel = props.multiple ? undefined : props.noneOptionLabel
   const selectionType = props.selectionType
   const selectedValue = props.value
   const [internalOpen, setInternalOpen] = useState(false)
   const [internalMultiSelectMode, setInternalMultiSelectMode] = useState(defaultMultiSelectMode)
+  const [shellKey, setShellKey] = useState(0)
   const [searchText, setSearchText] = useState('')
   const deferredSearchText = useDeferredValue(searchText)
   const [focusedItemKey, _setFocusedItemKey] = useState('')
+  const [hasActivatedLazyData, setHasActivatedLazyData] = useState(openProp === true && mountStrategy === 'lazy-keep')
   // 用 startTransition 包裹：滚动时虚拟列表内部可能已进入 layout lifecycle（flushSync），
   // 此时 onMouseEnter 同步 setState 会与之冲突，转为 transition 避免竞争。
   const setFocusedItemKey = useCallback((key: string) => {
@@ -290,6 +300,8 @@ export function ModelSelector(props: ModelSelectorProps) {
   const ignoreNextMultiSelectCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const focusScrollFrameRef = useRef<number | null>(null)
   const malformedSelectionWarningKeyRef = useRef<string | null>(null)
+  const hasActiveTagFilterRef = useRef(false)
+  const [renderedOpen, setRenderedOpen] = useState(false)
   // 标记列表是否正在滚动：滚动期间 onMouseEnter 跳过 setFocusedItemKey，
   // 避免与 virtualizer measureElement 的 flushSync 在同一 commit phase 冲突。
   const isScrollingRef = useRef(false)
@@ -314,8 +326,21 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [])
 
   const open = openProp ?? internalOpen
+  const dataEnabled = open || (mountStrategy === 'lazy-keep' && hasActivatedLazyData)
+
+  // A lazy-kept filtered list still owns Radix hover-card anchors. Adjusting the key while
+  // rendering the open->closed transition unmounts it in that same commit, so the closed-state
+  // effect below can never reset the tags on the stale rows.
+  if (renderedOpen !== open) {
+    setRenderedOpen(open)
+    if (!open && mountStrategy === 'lazy-keep' && hasActiveTagFilterRef.current) {
+      setShellKey((key) => key + 1)
+    }
+  }
+
   const multiSelectMode = multiple ? (multiSelectModeProp ?? internalMultiSelectMode) : false
   const multiSelectModeRef = useRef(multiSelectMode)
+  const wasDataEnabledRef = useRef(false)
   multiSelectModeRef.current = multiSelectMode
 
   const setOpen = useCallback(
@@ -377,6 +402,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     toggleTag,
     visibleSelectedModelIdSet
   } = useModelSelectorData({
+    enabled: dataEnabled,
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
     searchText: deferredSearchText,
@@ -391,6 +417,7 @@ export function ModelSelector(props: ModelSelectorProps) {
   listItemsRef.current = listItems
   modelItemsRef.current = modelItems
   visibleSelectedModelIdSetRef.current = visibleSelectedModelIdSet
+  hasActiveTagFilterRef.current = selectedTags.length > 0
 
   const listHeight = useMemo(
     () => MODEL_SELECTOR_LIST_VERTICAL_PADDING + Math.max(1, listItems.length) * ITEM_HEIGHT,
@@ -446,6 +473,21 @@ export function ModelSelector(props: ModelSelectorProps) {
     [setFocusedItemKey]
   )
 
+  const focusItemBeforePaint = useCallback(
+    (key: string, align: ModelSelectorScrollAlign = 'auto') => {
+      setFocusedItemKey(key)
+      const index = listItemsRef.current.findIndex((item) => item.key === key)
+      if (index < 0) return
+
+      if (focusScrollFrameRef.current !== null) {
+        window.cancelAnimationFrame(focusScrollFrameRef.current)
+        focusScrollFrameRef.current = null
+      }
+      listRef.current?.scrollToIndex(index, { align })
+    },
+    [setFocusedItemKey]
+  )
+
   const handleSelectItem = useCallback(
     (item: ModelSelectorModelItem) => {
       skipNextFocusScroll.current = true
@@ -473,15 +515,61 @@ export function ModelSelector(props: ModelSelectorProps) {
     setOpen(false)
   }, [setOpen])
 
-  const handleNavigateToProviderSettings = useCallback(
-    (providerId: string) => {
+  const pendingCloseActionRef = useRef<(() => void) | null>(null)
+  const runPendingCloseAction = useCallback(() => {
+    const action = pendingCloseActionRef.current
+    if (!action) return
+
+    pendingCloseActionRef.current = null
+    action()
+  }, [])
+  const closeBeforeAction = useCallback(
+    (action: () => void) => {
+      pendingCloseActionRef.current = action
+      if (!open) {
+        setShellKey((key) => key + 1)
+        runPendingCloseAction()
+        return
+      }
+
+      if (mountStrategy !== 'lazy-keep' || !hasActiveTagFilterRef.current) {
+        setShellKey((key) => key + 1)
+      }
       setOpen(false)
-      navigate({ to: '/settings/provider', search: { id: providerId } }).catch((error) => {
-        logger.error('Failed to navigate to provider settings', error as Error, { providerId })
+    },
+    [mountStrategy, open, runPendingCloseAction, setOpen]
+  )
+
+  const closeBeforeSettingsNavigation = useCallback(
+    (path: SettingsPath) => {
+      closeBeforeAction(() => {
+        const navigate = () => openSettingsTab(path)
+        if (onSettingsNavigate) {
+          onSettingsNavigate(navigate)
+          return
+        }
+
+        navigate()
       })
     },
-    [navigate, setOpen]
+    [closeBeforeAction, onSettingsNavigate]
   )
+
+  const handleNavigateToProviderSettings = useCallback(
+    (providerId: string) => {
+      closeBeforeSettingsNavigation(`/settings/provider?id=${encodeURIComponent(providerId)}`)
+    },
+    [closeBeforeSettingsNavigation]
+  )
+
+  const handleNavigateToCustomModelSettings = useCallback(() => {
+    closeBeforeSettingsNavigation('/settings/provider')
+  }, [closeBeforeSettingsNavigation])
+
+  const handleSelectNone = useCallback(() => {
+    emitSelection([])
+    setOpen(false)
+  }, [emitSelection, setOpen])
 
   const handleTogglePin = useCallback(
     (modelId: UniqueModelId) => {
@@ -492,7 +580,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       skipNextFocusScroll.current = true
       togglePin(modelId).catch((error) => {
         logger.error('Failed to toggle model pin', error as Error, { modelId })
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       })
     },
     [isPinActionDisabled, t, togglePin]
@@ -559,7 +647,18 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [open])
 
   useEffect(() => {
-    if (!open) {
+    if (open && mountStrategy === 'lazy-keep') {
+      setHasActivatedLazyData(true)
+    }
+  }, [mountStrategy, open])
+
+  useEffect(() => {
+    const wasDataEnabled = wasDataEnabledRef.current
+    wasDataEnabledRef.current = dataEnabled
+
+    // Enabling a deferred query already triggers SWR's initial fetch. Only
+    // refresh when lazy-kept data stayed active between two openings.
+    if (!open || !wasDataEnabled) {
       return
     }
 
@@ -569,7 +668,7 @@ export function ModelSelector(props: ModelSelectorProps) {
     if (showPinnedModels) {
       void refetchPinnedModels()
     }
-  }, [open, refetchModels, refetchPinnedModels, refetchProviders, showPinnedModels])
+  }, [dataEnabled, open, refetchModels, refetchPinnedModels, refetchProviders, showPinnedModels])
 
   useEffect(() => {
     if (!open) {
@@ -581,6 +680,15 @@ export function ModelSelector(props: ModelSelectorProps) {
   }, [open, resetTags, setFocusedItemKey])
 
   useEffect(() => {
+    if (open) {
+      return undefined
+    }
+
+    const frameId = window.requestAnimationFrame(runPendingCloseAction)
+    return () => window.cancelAnimationFrame(frameId)
+  }, [open, runPendingCloseAction])
+
+  useLayoutEffect(() => {
     const currentModelItems = modelItemsRef.current
     if (!open || isLoading || currentModelItems.length === 0) {
       return
@@ -598,9 +706,11 @@ export function ModelSelector(props: ModelSelectorProps) {
           currentModelItems[0]?.key)
 
     if (targetKey) {
-      focusItem(targetKey, 'start')
+      // Position the virtual list before paint so opening does not briefly show
+      // the first rows before jumping to the selected model on the next frame.
+      focusItemBeforePaint(targetKey, 'start')
     }
-  }, [deferredSearchText, focusItem, isLoading, open, selectedTagsKey])
+  }, [deferredSearchText, focusItemBeforePaint, isLoading, open, selectedTagsKey])
 
   const rowRenderer = useCallback(
     (item: FlatListItem, detailPortalContainer?: SelectorShellLayout['portalContainer']) => {
@@ -610,7 +720,7 @@ export function ModelSelector(props: ModelSelectorProps) {
 
         return (
           <div className="group flex h-7 items-center gap-1 bg-popover px-4 text-[11px] text-muted-foreground">
-            <span className="truncate">{groupTitle}</span>
+            <span className="flex h-4 items-center truncate leading-4">{groupTitle}</span>
             {item.provider && item.canNavigateToSettings && (
               <Tooltip content={t('navigate.provider_settings')} delay={500}>
                 <Button
@@ -618,12 +728,12 @@ export function ModelSelector(props: ModelSelectorProps) {
                   variant="ghost"
                   size="icon-sm"
                   aria-label={t('navigate.provider_settings')}
-                  className="size-4 shrink-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
+                  className="size-4 shrink-0 translate-y-[2px] p-0 text-muted-foreground opacity-0 transition hover:opacity-100! group-hover:opacity-60"
                   onClick={(event) => {
                     event.stopPropagation()
-                    handleNavigateToProviderSettings(item.settingsProviderId ?? item.provider!.id)
+                    handleNavigateToProviderSettings(item.provider!.id)
                   }}>
-                  <Settings2 className="size-3" />
+                  <Settings2 className="block size-3" />
                 </Button>
               </Tooltip>
             )}
@@ -694,29 +804,33 @@ export function ModelSelector(props: ModelSelectorProps) {
     }
 
     return (
-      <>
-        <span className="mr-1 text-[10px] text-muted-foreground">{t('models.filter.by_tag')}</span>
+      <div
+        className="flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        data-testid="model-selector-filter-tags">
         {availableTags.map((tag) => (
           <ModelTag
             key={`filter-${tag}`}
             tag={tag}
             size={FILTER_TAG_SIZE}
-            showTooltip
+            showLabel
             inactive={!tagSelection[tag]}
             onClick={() => toggleTag(tag)}
-            className="transition-colors"
+            className="h-5 shrink-0 items-center transition-colors"
           />
         ))}
-      </>
+      </div>
     )
-  }, [availableTags, showTagFilter, t, tagSelection, toggleTag])
+  }, [availableTags, showTagFilter, tagSelection, toggleTag])
 
   const multiSelectConfig = useMemo(
     () =>
       multiple
         ? {
             label: t('models.multi_select.label'),
+            ariaLabel: t('models.multi_select.label'),
+            tooltip: t('models.multi_select.tooltip'),
             checked: multiSelectMode,
+            placement: 'search-badge' as const,
             onCheckedChange: handleMultiSelectModeChange,
             dataTestId: 'model-selector-multi-select-switch',
             rowTestId: 'model-selector-multi-select-row'
@@ -725,25 +839,50 @@ export function ModelSelector(props: ModelSelectorProps) {
     [handleMultiSelectModeChange, multiSelectMode, multiple, t]
   )
 
-  const initialListHeight = Math.min(listHeight, DEFAULT_SELECTOR_CONTENT_HEIGHT)
+  const bottomActions = useMemo<SelectorShellBottomAction[]>(() => {
+    const actions: SelectorShellBottomAction[] = [
+      {
+        icon: <Settings2 className="size-3.5" />,
+        label: t('models.action.configure_custom'),
+        onClick: handleNavigateToCustomModelSettings
+      }
+    ]
+
+    if (noneOptionLabel) {
+      actions.push({
+        type: 'selectable',
+        icon: <CircleSlash className="size-3.5" />,
+        label: noneOptionLabel,
+        selected: rawSelectedModelIds.length === 0,
+        onClick: handleSelectNone
+      })
+    }
+
+    return actions
+  }, [handleNavigateToCustomModelSettings, handleSelectNone, noneOptionLabel, rawSelectedModelIds.length, t])
+
+  const initialListHeight = Math.min(listHeight, MODEL_SELECTOR_CONTENT_HEIGHT)
 
   return (
     <>
       {shortcut ? <ShortcutBinding shortcut={shortcut} onTrigger={handleShortcut} /> : null}
       <SelectorShell
+        key={shellKey}
         trigger={trigger}
         open={open}
         onOpenChange={setOpen}
         search={searchConfig}
         filterContent={filterContent}
         multiSelect={multiSelectConfig}
+        width={MODEL_SELECTOR_WIDTH}
         side={side}
         align={align}
         sideOffset={sideOffset}
         portalContainer={portalContainer}
         contentClassName={contentClassName}
         mountStrategy={mountStrategy}
-        contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
+        contentHeight={MODEL_SELECTOR_CONTENT_HEIGHT}
+        bottomAction={bottomActions}
         data-testid="model-selector-content">
         {({ availableListHeight, portalContainer: detailPortalContainer }) => {
           const visibleListHeight = availableListHeight === undefined ? initialListHeight : availableListHeight

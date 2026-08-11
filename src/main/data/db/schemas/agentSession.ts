@@ -1,8 +1,9 @@
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 import { agentWorkspaceTable } from './agentWorkspace'
+import { jobScheduleTable } from './job'
 
 export const agentSessionTable = sqliteTable(
   'agent_session',
@@ -16,11 +17,16 @@ export const agentSessionTable = sqliteTable(
     workspaceId: text()
       .notNull()
       .references(() => agentWorkspaceTable.id, { onDelete: 'cascade' }),
+    // Internal one-to-one sticky-session relation for agent.task schedules.
+    // It stays out of AgentSessionEntity; task reads project it separately.
+    taskScheduleId: text()
+      .unique()
+      .references(() => jobScheduleTable.id, { onDelete: 'set null' }),
     traceId: text(),
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },
-  (t) => [orderKeyIndex('agent_session')(t)]
+  (t) => [orderKeyIndex('agent_session')(t), index('agent_session_updated_at_idx').on(t.updatedAt)]
 )
 
 export type AgentSessionRow = typeof agentSessionTable.$inferSelect

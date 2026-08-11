@@ -1,4 +1,5 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { toast } from '@renderer/services/toast'
 import { getOrderedLaunchpadApps, reorderLaunchpadApps } from '@renderer/utils/sidebar'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,7 +22,7 @@ export function useLaunchpadAppOrder() {
   const reorderApps = useCallback(
     (orderedIds: readonly string[]) => {
       void setAppOrder(reorderLaunchpadApps(appOrder, orderedIds)).catch(() => {
-        window.toast?.error(t('common.error'))
+        toast.error(t('common.error'))
       })
     },
     [appOrder, setAppOrder, t]

@@ -7,6 +7,8 @@ import {
   Button,
   Scrollbar
 } from '@cherrystudio/ui'
+import { useEnableKnowledgeBaseEmbedding } from '@renderer/hooks/useKnowledgeBase'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { RotateCcw } from 'lucide-react'
@@ -18,6 +20,7 @@ import KnowledgePanelShell from '../../components/KnowledgePanelShell'
 import { useEmbeddingDimensions } from '../../hooks/useEmbeddingDimensions'
 import { useKnowledgeRagConfig } from '../../hooks/useKnowledgeRagConfig'
 import { getKnowledgeBaseFailureReason } from '../../utils/error'
+import { buildKnowledgeRagConfigPatch } from '../../utils/rag'
 import { getKnowledgeRagConfigFormState } from '../../utils/validate'
 import ChunkingSection from './ChunkingSection'
 import EmbeddingSection from './EmbeddingSection'
@@ -35,6 +38,29 @@ interface RagConfigPanelProps {
   // "not empty" so the safer restore flow is offered until it is confirmed 0.
   itemCount?: number
   onRestoreBase: (base: KnowledgeBase, initialValues?: KnowledgeRestoreBaseInitialValues) => void
+}
+
+type EmbeddingModelChangeRoute = 'save-directly' | 'enable-in-place' | 'restore'
+
+// Shared by the Save button's gating and the submit executor so they can never
+// disagree on which route a given (itemCount, previous model) pair takes.
+// - A base with no items has nothing to re-embed, so the change saves in place.
+// - A BM25-only base (no prior model) gaining a model has no vectors to invalidate
+//   either, so it can be backfilled in place instead of restored into a new base.
+// - Anything else (switching an already-configured model) invalidates existing
+//   vectors and must go through restore. itemCount undefined (unknown/loading)
+//   is treated as "not empty", keeping restore as the safe default.
+const resolveEmbeddingModelChangeRoute = (
+  itemCount: number | undefined,
+  previousEmbeddingModelId: string | null
+): EmbeddingModelChangeRoute => {
+  if (itemCount === 0) {
+    return 'save-directly'
+  }
+  if (previousEmbeddingModelId === null && typeof itemCount === 'number' && itemCount > 0) {
+    return 'enable-in-place'
+  }
+  return 'restore'
 }
 
 const FailedRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
@@ -64,6 +90,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
   const { t } = useTranslation()
   const { initialValues, fileProcessorOptions, save, isLoading } = useKnowledgeRagConfig(base)
   const { fetchDimensions, isFetchingDimensions } = useEmbeddingDimensions()
+  const { enableEmbedding, isEnabling } = useEnableKnowledgeBaseEmbedding()
   const [values, setValues] = useState(initialValues)
 
   useEffect(() => {
@@ -73,60 +100,68 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
   const formState = useMemo(() => getKnowledgeRagConfigFormState(initialValues, values), [initialValues, values])
   const { validationErrorCodes, isDirty, canSave } = formState
   const embeddingModelChanged = values.embeddingModelId !== initialValues.embeddingModelId
-  // Changing the embedding model re-embeds existing content, so it normally routes
-  // through the restore flow (which auto-detects the new model's dimensions) instead
-  // of a plain save. A base with no items yet has nothing to re-embed, so the change
-  // can be saved in place — itemCount is undefined while unknown/loading, which is
-  // treated as "not empty" so the safer restore flow stays the default.
-  const canSaveEmbeddingModelDirectly = embeddingModelChanged && itemCount === 0
-  const requiresRestore = embeddingModelChanged && !canSaveEmbeddingModelDirectly
+  const embeddingModelChangeRoute = embeddingModelChanged
+    ? resolveEmbeddingModelChangeRoute(itemCount, initialValues.embeddingModelId)
+    : null
+  const canEnableEmbeddingInPlace = embeddingModelChangeRoute === 'enable-in-place'
+  const requiresRestore = embeddingModelChangeRoute === 'restore'
   // Restore only ever reads embeddingModelId (it ignores the rest of the dirty
-  // draft), so it can bypass canSave the way it always could. A direct save
-  // re-submits the whole dirty form, including chunk fields, so it must respect
+  // draft), so it can bypass canSave the way it always could. The other two routes
+  // re-submit the whole dirty form, including chunk fields, so they must respect
   // the same chunk validation as a plain save.
-  const canSubmit = canSave || requiresRestore
+  const canSubmit = canSave || requiresRestore || canEnableEmbeddingInPlace
 
   const handleSave = async () => {
     if (!canSubmit) {
       return
     }
 
-    if (requiresRestore) {
+    const modelChanged = values.embeddingModelId !== initialValues.embeddingModelId
+
+    if (!modelChanged) {
+      try {
+        await save(values)
+        toast.success(t('knowledge.rag.saved'))
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+      }
+      return
+    }
+
+    const route = resolveEmbeddingModelChangeRoute(itemCount, initialValues.embeddingModelId)
+
+    if (route === 'restore') {
       onRestoreBase(base, { embeddingModelId: values.embeddingModelId })
       return
     }
 
-    if (canSaveEmbeddingModelDirectly) {
-      let dimensions: number | null = null
-
-      if (values.embeddingModelId) {
-        try {
-          dimensions = await fetchDimensions(values.embeddingModelId)
-        } catch (error) {
-          window.toast.error(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
-          return
-        }
-      }
-
+    let dimensions: number | null = null
+    if (values.embeddingModelId) {
       try {
-        await save(values, { embeddingModelId: values.embeddingModelId, dimensions })
-        window.toast.success(t('knowledge.rag.saved'))
+        dimensions = await fetchDimensions(values.embeddingModelId)
       } catch (error) {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+        toast.error(formatErrorMessageWithPrefix(error, t('message.error.get_embedding_dimensions')))
+        return
+      }
+    }
+
+    if (route === 'enable-in-place') {
+      try {
+        const patch = buildKnowledgeRagConfigPatch(initialValues, values)
+        await enableEmbedding(base.id, { ...patch, embeddingModelId: values.embeddingModelId, dimensions })
+        toast.success(t('knowledge.rag.saved'))
+      } catch (error) {
+        toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
       }
       return
     }
 
     try {
-      await save(values)
-      window.toast.success(t('knowledge.rag.saved'))
+      await save(values, { embeddingModelId: values.embeddingModelId, dimensions })
+      toast.success(t('knowledge.rag.saved'))
     } catch (error) {
-      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
+      toast.error(formatErrorMessageWithPrefix(error, t('knowledge.error.failed_to_edit')))
     }
-  }
-
-  const handleEmbeddingModelChange = (embeddingModelId: string | null) => {
-    setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
   }
 
   return (
@@ -135,6 +170,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
         <div className="flex flex-col gap-4">
           <FileProcessingSection
             fileProcessorId={values.fileProcessorId}
+            initialFileProcessorId={initialValues.fileProcessorId}
             fileProcessorOptions={fileProcessorOptions}
             onFileProcessorChange={(fileProcessorId) =>
               setValues((currentValues) => ({ ...currentValues, fileProcessorId }))
@@ -143,7 +179,9 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
 
           <EmbeddingSection
             embeddingModelId={values.embeddingModelId}
-            onEmbeddingModelChange={handleEmbeddingModelChange}
+            onEmbeddingModelChange={(embeddingModelId) =>
+              setValues((currentValues) => ({ ...currentValues, embeddingModelId }))
+            }
           />
 
           <RerankSection
@@ -200,7 +238,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
           variant="ghost"
           size="sm"
           disabled={!isDirty || isLoading}
-          className="mr-auto text-foreground-muted hover:text-foreground"
+          className="mr-auto text-muted-foreground hover:text-foreground"
           onClick={() => setValues(initialValues)}>
           <RotateCcw />
           {t('knowledge.rag.reset_action')}
@@ -208,7 +246,7 @@ const ActiveRagConfigPanel = ({ base, itemCount, onRestoreBase }: RagConfigPanel
         <Button
           type="button"
           variant="emphasis"
-          loading={isLoading || isFetchingDimensions}
+          loading={isLoading || isFetchingDimensions || isEnabling}
           disabled={!canSubmit}
           onClick={handleSave}>
           {requiresRestore ? t('knowledge.restore.submit') : t('knowledge.rag.save_action')}

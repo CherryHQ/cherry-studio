@@ -2,7 +2,7 @@
 
 This document records the current v2 knowledge backend shape in the main process.
 
-It covers the `src/main/services/knowledge` workflow path and the SQLite-backed data services. It does not describe the legacy `src/main/knowledge` service or the old `knowledge-base:*` IPC channels.
+It covers the `src/main/features/knowledge` workflow path and the SQLite-backed data services. It does not describe the legacy `src/main/knowledge` service or the old `knowledge-base:*` IPC channels.
 
 For workflow guard details, see [Knowledge Operation Guards](./operation-guards.md). For the workflow architecture overview, see [Knowledge Workflow Architecture](./workflow-architecture.md).
 
@@ -21,15 +21,14 @@ The current implementation is split into four responsibility areas:
    - Expose database-backed list/get operations and base metadata/config patch.
    - Do not perform vector-store mutations.
 3. `KnowledgeService`
-   - Owns caller-facing runtime IPC workflow.
-   - Creates/deletes/restores bases through data services and vector store services.
-   - Registers Knowledge JobManager handlers.
-   - Holds the `KnowledgeWorkflowService` and `KnowledgeLockManager`.
-   - Collapses delete/reindex item inputs to top-level roots and enforces runtime guards.
+   - Thin lifecycle facade: registers Knowledge JobManager handlers, runs boot recovery, and delegates every public method to `base/`, `ingestion/`, and `query/`.
+   - `base/` (`KnowledgeBaseAdminService`) creates/deletes/restores bases through data services and vector store services. The per-base mutation lock (a core `KeyedMutex`) is created by the `KnowledgeService` facade and shared with `base/`, `ingestion/`, and the job handlers.
+   - `ingestion/` (`KnowledgeIngestionService`) collapses delete/reindex item inputs to top-level roots, enforces runtime guards, and schedules the next workflow step.
+   - `query/` (`KnowledgeQueryService` / `KnowledgeConceptService`) serves search and the Concept ID tool surface.
 4. Knowledge job handlers
    - Execute durable workflow stages through JobManager.
-   - Use `KnowledgeWorkflowService` for next-step scheduling.
-   - Use `KnowledgeLockManager` for same-base mutations and vector cleanup.
+   - Use `KnowledgeIngestionService` for next-step scheduling.
+   - Use the per-base mutation lock (`KeyedMutex.runExclusive`) for same-base mutations and vector cleanup.
 
 ```text
 caller
@@ -39,13 +38,13 @@ caller
 caller
   -> preload knowledge IPC
      -> KnowledgeService
-        -> KnowledgeWorkflowService
+        -> KnowledgeIngestionService
         -> JobManager
            -> knowledge.prepare-root / knowledge.index-documents
            -> knowledge.delete-subtree / knowledge.reindex-subtree
-              -> KnowledgeLockManager
+              -> KeyedMutex.runExclusive
                  -> KnowledgeBaseService / KnowledgeItemService
-                 -> KnowledgeVectorStoreService / FileManager
+                 -> KnowledgeVectorStoreService
 ```
 
 There is no current `KnowledgeRuntimeService` and no in-memory Knowledge queue. Durable work is owned by `JobManager`.
@@ -104,20 +103,18 @@ reindex-items(baseId, itemIds)
 
 ## IPC Surface
 
-`KnowledgeService` currently owns these public IPC entrypoints:
+`KnowledgeService` currently owns these public IpcApi routes, defined in `src/shared/ipc/schemas/knowledge.ts` and handled in `src/main/ipc/handlers/knowledge.ts`:
 
-- `knowledge:create-base`
-- `knowledge:restore-base`
-- `knowledge:delete-base`
-- `knowledge:add-items`
-- `knowledge:delete-items`
-- `knowledge:reindex-items`
-- `knowledge:search`
-- `knowledge:list-item-chunks`
+- `knowledge.create_base`
+- `knowledge.restore_base`
+- `knowledge.delete_base`
+- `knowledge.add_items`
+- `knowledge.delete_items`
+- `knowledge.reindex_items`
+- `knowledge.search`
+- `knowledge.list_item_chunks`
 
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and enqueue or execute runtime work internally. (The former `knowledge:delete-item-chunk` entrypoint was removed with the per-base index store cutover — chunks are derived index rows, replaced wholesale by reindexing.)
-
-`KnowledgeService` also owns one orphaned v1 bridge entrypoint, `knowledge-base:delete`. Its only caller was the legacy Redux `store/knowledge` slice, which has now been removed, so this entrypoint is dead and pending cleanup. It routes to the same `delete-base` path.
 
 The chunk IPC entrypoint is a runtime inspection helper:
 
@@ -134,7 +131,7 @@ Knowledge runtime work is persisted in JobManager. `KnowledgeService.onInit` reg
 - `knowledge.delete-subtree`
 - `knowledge.reindex-subtree`
 
-Each base uses queue `base.${baseId}`. JobManager owns queue persistence, dispatch, retry, cancellation, timeout, and startup recovery. Knowledge code uses `KnowledgeLockManager` to serialize same-base vector and item mutations inside the current process.
+Each base uses queue `base.${baseId}`. JobManager owns queue persistence, dispatch, retry, cancellation, timeout, and startup recovery. Knowledge code uses the per-base mutation lock (`KeyedMutex.runExclusive`) to serialize same-base vector and item mutations inside the current process.
 
 Current item statuses are:
 
@@ -174,14 +171,13 @@ Current persisted `knowledge_base` columns include:
 `delete-items` currently runs:
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
-2. Workflow service marks selected root subtrees `deleting` under the base mutation lock.
-3. Workflow service enqueues `knowledge.delete-subtree`.
-4. The delete job cancels active jobs touching the subtree.
-5. Under the base mutation lock, the delete job deletes leaf vectors, deletes Knowledge-owned raw files, and hard-deletes item rows.
+2. Under the base mutation lock, one DB transaction marks selected root subtrees `deleting` and enqueues `knowledge.delete-subtree`.
+3. The delete job cancels active jobs touching the subtree.
+4. Under the base mutation lock, the delete job deletes leaf vectors, deletes Knowledge-owned raw files, and hard-deletes item rows.
 
 Knowledge files are managed by the Knowledge workflow under the base `raw/` directory. The create/index path does not register FileManager refs, so delete has no separate FileManager ref cleanup step.
 
-If enqueueing `knowledge.delete-subtree` fails after rows are marked `deleting`, rows remain `deleting`. Startup recovery scans deleting roots and re-enqueues cleanup jobs best-effort.
+If enqueueing `knowledge.delete-subtree` fails, the shared transaction rolls back the `deleting` status write and the items retain their previous visible state. Startup recovery still scans committed `deleting` roots and re-enqueues cleanup jobs best-effort when already-durable cleanup was interrupted or failed.
 
 `reindex-items` currently runs:
 

@@ -1,10 +1,40 @@
 {
   "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Consilier integrat Cherry Studio. Diagnostichează probleme, oferă îndrumări, colectează întrebări frecvente, trimite rapoarte de erori și solicitări de funcții și caută sau creează abilități"
+      }
+    },
     "session": {
       "workspace_status": {
         "inaccessible": "Calea către spațiul de lucru nu este accesibilă: {{path}}",
         "missing": "Calea către spațiul de lucru nu există: {{path}}",
         "not_directory": "Calea spațiului de lucru nu este un director: {{path}}"
+      }
+    }
+  },
+  "apiGateway": {
+    "docs": {
+      "description": "API HTTP Cherry Studio compatibil cu OpenAI, Anthropic și Gemini, plus endpoint-urile proprii Cherry (modele, baze de cunoștințe)",
+      "language_switcher_label": "Limba documentației",
+      "operations": {
+        "chat_completions": "Creează o completare de conversație. Corpurile cererii și răspunsului respectă formatul OpenAI Chat Completions; cu `stream: true` rezultatul este transmis incremental.",
+        "count_tokens": "Estimează câte tokenuri de intrare consumă un set de mesaje în format Anthropic.",
+        "generate_content": "Generează conținut prin metoda `generateContent` a Gemini. Corpurile cererii și răspunsului respectă formatul API-ului Gemini; `streamGenerateContent` este servit pe aceeași cale.",
+        "get_knowledge_base": "Obține o bază de cunoștințe după ID.",
+        "health": "Starea serviciului, ora curentă și versiunea. Nu necesită autentificare.",
+        "info": "Numele și versiunea API-ului, precum și principalele endpoint-uri. Nu necesită autentificare.",
+        "list_knowledge_bases": "Listează bazele de cunoștințe disponibile în această instanță Cherry Studio.",
+        "list_models": "Listează modelele disponibile prin acest gateway, în formatul models al OpenAI.",
+        "messages": "Creează un mesaj. Corpurile cererii și răspunsului respectă formatul Anthropic Messages; cu `stream: true` rezultatul este transmis incremental.",
+        "responses": "Creează un răspuns. Corpurile cererii și răspunsului respectă formatul OpenAI Responses.",
+        "search_knowledge_bases": "Caută în una sau mai multe baze de cunoștințe și returnează fragmentele de document potrivite."
+      },
+      "tags": {
+        "anthropic": "Endpoint-uri compatibile cu Anthropic. Îndreaptă URL-ul de bază al unui SDK Anthropic către acest gateway pentru a le folosi.",
+        "cherry": "Endpoint-urile proprii Cherry Studio: baze de cunoștințe, informații despre serviciu și verificare de stare.",
+        "gemini": "Endpoint-uri compatibile cu Gemini, servite sub `/v1beta`, ca în API-ul original.",
+        "openai": "Endpoint-uri compatibile cu OpenAI. Îndreaptă URL-ul de bază al unui SDK OpenAI către acest gateway pentru a le folosi."
       }
     }
   },
@@ -51,6 +81,16 @@
   },
   "dialog": {
     "all_files": "Toate fișierele",
+    "data_reset": {
+      "cancel": "Anulează",
+      "confirm": "Resetează și repornește",
+      "message": "Această acțiune va șterge conversațiile, asistenții, bazele de cunoștințe, fișierele și setările, apoi va reporni aplicația. Acțiunea nu poate fi anulată. Continui?",
+      "title": "Resetarea datelor aplicației"
+    },
+    "diagnostic_bundle": {
+      "title": "Salvează pachetul de diagnosticare",
+      "zip_filter": "Arhivă ZIP"
+    },
     "html_files": "Fișiere HTML",
     "open_file": "Deschide fișier",
     "pdf_files": "Fișiere PDF",
@@ -58,8 +98,16 @@
     "save_as_html": "Salvează ca HTML",
     "save_as_pdf": "Salvează ca PDF",
     "save_file": "Salvează fișier",
-    "select_folder": "Selectează folderul",
+    "select_folder": "Selectează directorul",
     "word_document": "Document Word"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Fișierul binar OpenClaw utilizat de Cherry Studio este incompatibil cu configurația generată. Actualizează OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw a respins o configurație din afara secțiunii de furnizori gestionate de Cherry Studio. Corectează configurația respectivă sau actualizează OpenClaw.{{details}}",
+      "more_issues": "și alte {{count}} probleme",
+      "preflight_failed": "Cherry Studio nu a putut valida configurația OpenClaw."
+    }
   },
   "paintings": {
     "generate_failed": "Nu s-a putut genera imaginea",

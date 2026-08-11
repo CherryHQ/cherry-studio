@@ -1,7 +1,8 @@
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
-import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
-import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
+import ObsidianExportPopup from '@renderer/components/ObsidianExportPopup'
+import SaveToKnowledgePopup from '@renderer/components/SaveToKnowledgePopup'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { ipcApi } from '@renderer/ipc'
 import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
@@ -46,7 +47,7 @@ export function useMessageExportActions({ topicName }: MessageExportActionParams
   }, [])
 
   const exportToWord = useCallback((markdown: string, title: string) => {
-    return window.api.export.toWord(markdown, title)
+    return ipcApi.request('export.word.from_markdown', { markdown, fileName: title })
   }, [])
 
   const saveToKnowledge = useCallback((message: MessageExportView) => {

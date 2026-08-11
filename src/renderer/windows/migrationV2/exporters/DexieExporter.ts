@@ -10,10 +10,14 @@
  * at its last version, so no Dexie upgrade hooks need to run before export.
  */
 
-import { Dexie } from 'dexie'
+import { type MigrationExportFileWriteMode, MigrationIpcChannels } from '@shared/data/migration/v2/types'
+import { clampSurrogateBoundary } from '@shared/utils/text'
+import { Dexie, type IndexableType } from 'dexie'
 
 /** Legacy v1 IndexedDB database name. */
 const DEXIE_DB_NAME = 'CherryStudio'
+const DEXIE_EXPORT_PAGE_SIZE = 100
+const DEXIE_EXPORT_CHUNK_CHAR_LIMIT = 1024 * 1024
 
 // Required tables that must exist
 const REQUIRED_TABLES = [
@@ -26,6 +30,139 @@ const REQUIRED_TABLES = [
 // Optional tables that may not exist in older versions
 const OPTIONAL_TABLES = ['settings', 'translate_history', 'quick_phrases', 'translate_languages']
 
+class JsonExportWriter {
+  private pending = ''
+  private writeMode: MigrationExportFileWriteMode = 'overwrite'
+  private readonly activeObjects = new WeakSet<object>()
+
+  constructor(
+    private readonly exportPath: string,
+    private readonly tableName: string
+  ) {}
+
+  private async flush(): Promise<void> {
+    if (!this.pending) return
+    await window.electron.ipcRenderer.invoke(
+      MigrationIpcChannels.WriteExportFile,
+      this.exportPath,
+      this.tableName,
+      this.pending,
+      this.writeMode
+    )
+    this.pending = ''
+    this.writeMode = 'append'
+  }
+
+  async append(text: string): Promise<void> {
+    let offset = 0
+    while (offset < text.length) {
+      const available = DEXIE_EXPORT_CHUNK_CHAR_LIMIT - this.pending.length
+      const requestedEnd = Math.min(offset + available, text.length)
+      const end = clampSurrogateBoundary(text, requestedEnd)
+      if (end === offset) {
+        await this.flush()
+        continue
+      }
+      this.pending += text.slice(offset, end)
+      offset = end
+      if (this.pending.length >= DEXIE_EXPORT_CHUNK_CHAR_LIMIT) await this.flush()
+    }
+  }
+
+  private prepareValue(value: unknown): unknown {
+    if (value && typeof value === 'object') {
+      const toJSON = (value as { toJSON?: unknown }).toJSON
+      if (typeof toJSON === 'function') return toJSON.call(value)
+      if (value instanceof Number || value instanceof String || value instanceof Boolean) return value.valueOf()
+    }
+    return value
+  }
+
+  private isOmitted(value: unknown): boolean {
+    return value === undefined || typeof value === 'function' || typeof value === 'symbol'
+  }
+
+  private async appendString(value: string): Promise<void> {
+    await this.append('"')
+    let offset = 0
+    while (offset < value.length) {
+      const requestedEnd = Math.min(offset + DEXIE_EXPORT_CHUNK_CHAR_LIMIT / 4, value.length)
+      const end = clampSurrogateBoundary(value, requestedEnd)
+      const encoded = JSON.stringify(value.slice(offset, end))
+      await this.append(encoded.slice(1, -1))
+      offset = end
+    }
+    await this.append('"')
+  }
+
+  private async appendPreparedValue(value: unknown, arrayElement: boolean): Promise<boolean> {
+    if (this.isOmitted(value)) {
+      if (arrayElement) await this.append('null')
+      return arrayElement
+    }
+    if (value === null) {
+      await this.append('null')
+      return true
+    }
+
+    switch (typeof value) {
+      case 'string':
+        await this.appendString(value)
+        return true
+      case 'number':
+        await this.append(Number.isFinite(value) ? String(value === 0 ? 0 : value) : 'null')
+        return true
+      case 'boolean':
+        await this.append(value ? 'true' : 'false')
+        return true
+      case 'bigint':
+        throw new TypeError('Do not know how to serialize a BigInt')
+      case 'object': {
+        const object = value
+        if (this.activeObjects.has(object)) throw new TypeError('Converting circular structure to JSON')
+        this.activeObjects.add(object)
+        try {
+          if (Array.isArray(value)) {
+            await this.append('[')
+            for (let index = 0; index < value.length; index++) {
+              if (index > 0) await this.append(',')
+              await this.appendValue(value[index], true)
+            }
+            await this.append(']')
+            return true
+          }
+
+          await this.append('{')
+          let emitted = 0
+          for (const key of Object.keys(value as Record<string, unknown>)) {
+            const propertyValue = this.prepareValue((value as Record<string, unknown>)[key])
+            if (this.isOmitted(propertyValue)) continue
+            if (emitted > 0) await this.append(',')
+            await this.appendString(key)
+            await this.append(':')
+            await this.appendPreparedValue(propertyValue, false)
+            emitted++
+          }
+          await this.append('}')
+          return true
+        } finally {
+          this.activeObjects.delete(object)
+        }
+      }
+      default:
+        return false
+    }
+  }
+
+  async appendValue(value: unknown, arrayElement = false): Promise<boolean> {
+    return this.appendPreparedValue(this.prepareValue(value), arrayElement)
+  }
+
+  async close(): Promise<void> {
+    await this.flush()
+  }
+}
+
 export interface ExportProgress {
   table: string
   progress: number
@@ -37,6 +174,58 @@ export class DexieExporter {
 
   constructor(exportPath: string) {
     this.exportPath = exportPath
+  }
+
+  private createRecordExportError(tableName: string, primaryKey: IndexableType, cause: unknown): Error {
+    const causeMessage = cause instanceof Error ? cause.message : String(cause)
+    return new Error(
+      `Failed to export Dexie table "${tableName}" at primary key "${String(primaryKey)}": ${causeMessage}`,
+      { cause }
+    )
+  }
+
+  private async exportTable(db: Dexie, tableName: string): Promise<void> {
+    const table = db.table<Record<string, unknown>, IndexableType>(tableName)
+    let lastPrimaryKey: IndexableType | undefined
+    let hasRecords = false
+    const writer = new JsonExportWriter(this.exportPath, tableName)
+
+    await writer.append('[')
+
+    while (true) {
+      const collection = lastPrimaryKey === undefined ? table.orderBy(':id') : table.where(':id').above(lastPrimaryKey)
+      const primaryKeys = await collection.limit(DEXIE_EXPORT_PAGE_SIZE).primaryKeys()
+
+      if (primaryKeys.length === 0) {
+        break
+      }
+
+      for (let index = 0; index < primaryKeys.length; index++) {
+        const primaryKey = primaryKeys[index]
+        // Keep only one complete record in the renderer heap. A page of topics
+        // can contain enough embedded messages to exhaust it when bulk-loaded.
+        const record = await table.get(primaryKey)
+
+        if (record === undefined) {
+          throw this.createRecordExportError(tableName, primaryKey, new Error('Record missing from IndexedDB page'))
+        }
+
+        try {
+          if (hasRecords) await writer.append(',')
+          if (!(await writer.appendValue(record))) {
+            throw new Error('Record is not JSON serializable')
+          }
+        } catch (error) {
+          throw this.createRecordExportError(tableName, primaryKey, error)
+        }
+        hasRecords = true
+      }
+
+      lastPrimaryKey = primaryKeys[primaryKeys.length - 1]
+    }
+
+    await writer.append(']')
+    await writer.close()
   }
 
   /**
@@ -58,7 +247,7 @@ export class DexieExporter {
    * @param onProgress - Progress callback
    * @returns Export path
    */
-  async exportAll(onProgress?: (progress: ExportProgress) => void): Promise<string> {
+  async exportAll(onProgress?: (progress: ExportProgress) => void | Promise<void>): Promise<string> {
     const db = await this.openLegacyDb()
     if (!db) {
       // No Dexie database at all — fresh install, nothing to export
@@ -75,24 +264,15 @@ export class DexieExporter {
       for (let i = 0; i < tablesToExport.length; i++) {
         const tableName = tablesToExport[i]
 
-        onProgress?.({
+        await onProgress?.({
           table: tableName,
           progress: 0,
           total: tablesToExport.length
         })
 
-        const data = await db.table(tableName).toArray()
+        await this.exportTable(db, tableName)
 
-        // Send data to Main process for writing
-        // Uses IPC invoke with migration channel
-        await window.electron.ipcRenderer.invoke(
-          'migration:write-export-file',
-          this.exportPath,
-          tableName,
-          JSON.stringify(data)
-        )
-
-        onProgress?.({
+        await onProgress?.({
           table: tableName,
           progress: i + 1,
           total: tablesToExport.length

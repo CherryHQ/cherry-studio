@@ -1,3 +1,5 @@
+import { popup } from '@renderer/services/popup'
+import { toast } from '@renderer/services/toast'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -48,14 +50,6 @@ vi.mock('@cherrystudio/ui/icons', () => ({
 describe('CherryInOauth', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ;(window as any).toast = {
-      success: vi.fn(),
-      warning: vi.fn(),
-      error: vi.fn()
-    }
-    ;(window as any).modal = {
-      confirm: vi.fn()
-    }
     ipcApiRequestMock.mockImplementation((route: string) => {
       if (route === 'cherryin.get_balance') return Promise.resolve(DEFAULT_BALANCE)
       if (route === 'oauth.has_token') return Promise.resolve(true)
@@ -114,7 +108,7 @@ describe('CherryInOauth', () => {
     await waitFor(() => {
       expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.get_balance', { apiHost: 'https://open.cherryin.ai' })
     })
-    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
     expect(screen.getByText('-')).toBeInTheDocument()
   })
 
@@ -165,11 +159,15 @@ describe('CherryInOauth', () => {
 
     render(<CherryInOauth providerId="cherryin" />)
 
-    fireEvent.click(await screen.findByRole('button', { name: /退出登录|Logout/i }))
-
-    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    const logoutButton = await screen.findByRole('button', { name: /退出登录|Logout/i })
+    // The global popup.confirm mock auto-invokes onOk (the "confirmed" path) and resolves true.
     await act(async () => {
-      await options.onOk()
+      fireEvent.click(logoutButton)
+    })
+
+    expect(popup.confirm).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(toast.success).toHaveBeenCalled()
     })
 
     expect(ipcApiRequestMock).toHaveBeenCalledWith('cherryin.logout', { apiHost: 'https://open.cherryin.ai' })
@@ -177,8 +175,7 @@ describe('CherryInOauth', () => {
     expect(deleteApiKey).toHaveBeenCalledTimes(2)
     expect(deleteApiKey).toHaveBeenNthCalledWith(1, 'oauth-1')
     expect(deleteApiKey).toHaveBeenNthCalledWith(2, 'oauth-2')
-    expect(window.toast.success).toHaveBeenCalled()
-    expect(window.toast.warning).not.toHaveBeenCalled()
+    expect(toast.warning).not.toHaveBeenCalled()
   })
 
   it('shows a warning instead of success when OAuth key cleanup partially fails', async () => {
@@ -201,15 +198,16 @@ describe('CherryInOauth', () => {
 
     render(<CherryInOauth providerId="cherryin" />)
 
-    fireEvent.click(await screen.findByRole('button', { name: /退出登录|Logout/i }))
-
-    const options = (window.modal.confirm as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    const logoutButton = await screen.findByRole('button', { name: /退出登录|Logout/i })
+    // The global popup.confirm mock auto-invokes onOk (the "confirmed" path) and resolves true.
     await act(async () => {
-      await options.onOk()
+      fireEvent.click(logoutButton)
     })
 
+    await waitFor(() => {
+      expect(toast.warning).toHaveBeenCalled()
+    })
     expect(deleteApiKey).toHaveBeenCalledTimes(2)
-    expect(window.toast.warning).toHaveBeenCalled()
-    expect(window.toast.success).not.toHaveBeenCalled()
+    expect(toast.success).not.toHaveBeenCalled()
   })
 })

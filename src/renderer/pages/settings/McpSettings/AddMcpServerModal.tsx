@@ -21,13 +21,15 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
 import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { safeValidateMcpConfig } from '@renderer/types/mcp'
 import { formatZodError } from '@renderer/utils/error'
 import { parseJSON } from '@renderer/utils/json'
 import { objectKeys } from '@renderer/utils/object'
 import type { CreateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { McpServer } from '@shared/data/types/mcpServer'
-import { UploadIcon } from 'lucide-react'
+import { ImportIcon } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
@@ -42,7 +44,7 @@ const logger = loggerService.withContext('AddMcpServerModal')
 interface AddMcpServerModalProps {
   visible: boolean
   onClose: () => void
-  onSuccess: (server: CreateMcpServerDto) => Promise<McpServer>
+  onSuccess: (servers: CreateMcpServerDto[]) => Promise<McpServer[]>
   existingServers: McpServer[]
   initialImportMethod?: 'json' | 'dxt' | 'mcpb'
 }
@@ -124,44 +126,36 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
   /**
    * 从JSON字符串中解析MCP服务器配置
    * @param inputValue - JSON格式的服务器配置字符串
-   * @returns 包含解析后的服务器配置和可能的错误信息的对象
-   * - serverToAdd: 解析成功时返回服务器配置对象，失败时返回null
+   * @returns 包含解析后的服务器配置列表和可能的错误信息的对象
+   * - serversToAdd: 解析成功时返回服务器配置列表，失败时返回null
    * - error: 解析失败时返回错误信息，成功时返回null
    */
-  const getServerFromJson = (
+  const getServersFromJson = (
     inputValue: string
-  ): { serverToAdd: Partial<ParsedServerData>; error: null } | { serverToAdd: null; error: string } => {
+  ): { serversToAdd: Partial<ParsedServerData>[]; error: null } | { serversToAdd: null; error: string } => {
     const trimmedInput = inputValue.trim()
     const parsedJson = parseJSON(trimmedInput)
     if (parsedJson === null) {
       logger.error('Failed to parse json.', { input: trimmedInput })
-      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
+      return { serversToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
 
     const { data: validConfig, error } = safeValidateMcpConfig(parsedJson)
     if (error) {
       logger.error('Failed to validate json.', { parsedJson, error })
-      return { serverToAdd: null, error: formatZodError(error, t('settings.mcp.addServer.importFrom.invalid')) }
+      return { serversToAdd: null, error: formatZodError(error, t('settings.mcp.addServer.importFrom.invalid')) }
     }
 
-    let serverToAdd: Partial<ParsedServerData> | null = null
+    const serversToAdd = objectKeys(validConfig.mcpServers).map((key) => {
+      const server = validConfig.mcpServers[key]
+      return server.name ? server : { ...server, name: key }
+    })
 
-    if (objectKeys(validConfig.mcpServers).length > 1) {
-      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.error.multipleServers') }
+    if (serversToAdd.length === 0) {
+      return { serversToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
     }
 
-    if (objectKeys(validConfig.mcpServers).length > 0) {
-      const key = objectKeys(validConfig.mcpServers)[0]
-      serverToAdd = validConfig.mcpServers[key]
-      if (!serverToAdd.name) {
-        serverToAdd.name = key
-      }
-    } else {
-      return { serverToAdd: null, error: t('settings.mcp.addServer.importFrom.invalid') }
-    }
-
-    // zod 太好用了你们知道吗
-    return { serverToAdd, error: null }
+    return { serversToAdd, error: null }
   }
 
   const handleOk = async (jsonValues?: JsonFieldType) => {
@@ -172,7 +166,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         const isMcpbImport = importMethod === 'mcpb'
 
         if (!packageFile) {
-          window.toast.error(
+          toast.error(
             t(
               isMcpbImport
                 ? 'settings.mcp.addServer.importFrom.noMcpbFile'
@@ -186,12 +180,13 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         // Process package file
         try {
           const installTimestamp = Date.now()
+          const packageBuffer = await packageFile.arrayBuffer()
           const result = isMcpbImport
-            ? await window.api.mcp.uploadMcpb(packageFile)
-            : await window.api.mcp.uploadDxt(packageFile)
+            ? await ipcApi.request('mcp.package.upload_mcpb', { buffer: packageBuffer, fileName: packageFile.name })
+            : await ipcApi.request('mcp.package.upload_dxt', { buffer: packageBuffer, fileName: packageFile.name })
 
           if (!result.success) {
-            window.toast.error(
+            toast.error(
               result.error ||
                 t(
                   isMcpbImport
@@ -207,7 +202,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
           // Check for duplicate names
           if (existingServers && existingServers.some((server) => server.name === manifest.name)) {
-            window.toast.error(t('settings.mcp.addServer.importFrom.nameExists', { name: manifest.name }))
+            toast.error(t('settings.mcp.addServer.importFrom.nameExists', { name: manifest.name }))
             setLoading(false)
             return
           }
@@ -251,7 +246,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             trustedAt: installTimestamp
           })
 
-          const createdServer = await onSuccess(serverDto)
+          const [createdServer] = await onSuccess([serverDto])
           form.reset({ serverConfig: '' })
           setPackageFile(null)
           onClose()
@@ -260,8 +255,8 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           setTimeoutTimer(
             'handleOk',
             () => {
-              window.api.mcp
-                .checkMcpConnectivity(createdServer.id)
+              ipcApi
+                .request('mcp.server.check_connectivity', { serverId: createdServer.id })
                 .then((isConnected) => {
                   logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
                   void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
@@ -280,7 +275,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           ) // Delay to ensure server is properly added to store
         } catch (error) {
           logger.error(`${isMcpbImport ? 'MCPB' : 'DXT'} processing error:`, error as Error)
-          window.toast.error(
+          toast.error(
             t(
               isMcpbImport
                 ? 'settings.mcp.addServer.importFrom.mcpbProcessFailed'
@@ -294,7 +289,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
         // Original JSON import logic
         const inputValue = (jsonValues?.serverConfig ?? form.getValues('serverConfig')).trim()
 
-        const { serverToAdd, error } = getServerFromJson(inputValue)
+        const { serversToAdd, error } = getServersFromJson(inputValue)
 
         if (error !== null) {
           form.setError('serverConfig', { type: 'manual', message: error })
@@ -302,11 +297,17 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
           return
         }
 
-        // 檢查重複名稱
-        if (existingServers && existingServers.some((server) => server.name === serverToAdd.name)) {
+        const seenNames = new Set(existingServers.map((server) => server.name))
+        const duplicateServer = serversToAdd.find((server) => {
+          if (!server.name) return false
+          if (seenNames.has(server.name)) return true
+          seenNames.add(server.name)
+          return false
+        })
+        if (duplicateServer) {
           form.setError('serverConfig', {
             type: 'manual',
-            message: t('settings.mcp.addServer.importFrom.nameExists', { name: serverToAdd.name })
+            message: t('settings.mcp.addServer.importFrom.nameExists', { name: duplicateServer.name })
           })
           setLoading(false)
           return
@@ -314,34 +315,38 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
         // 如果成功解析並通過所有檢查，立即加入伺服器（非啟用狀態）並關閉對話框
         const installTimestamp = Date.now()
-        const serverDto = toCreateMcpServerDto({
-          ...serverToAdd,
-          name: serverToAdd.name || t('settings.mcp.newServer'),
-          baseUrl: serverToAdd.baseUrl ?? serverToAdd.url ?? '',
-          isActive: false, // 初始狀態為非啟用
-          installSource: 'manual' as const,
-          isTrusted: true,
-          installedAt: installTimestamp,
-          trustedAt: installTimestamp
-        })
+        const serverDtos = serversToAdd.map((serverToAdd) =>
+          toCreateMcpServerDto({
+            ...serverToAdd,
+            name: serverToAdd.name || t('settings.mcp.newServer'),
+            baseUrl: serverToAdd.baseUrl ?? serverToAdd.url ?? '',
+            isActive: false, // 初始狀態為非啟用
+            installSource: 'manual' as const,
+            isTrusted: true,
+            installedAt: installTimestamp,
+            trustedAt: installTimestamp
+          })
+        )
 
-        const createdServer = await onSuccess(serverDto)
+        const createdServers = await onSuccess(serverDtos)
         form.reset({ serverConfig: '' })
         onClose()
 
         // 在背景非同步檢查伺服器可用性並更新狀態
-        window.api.mcp
-          .checkMcpConnectivity(createdServer.id)
-          .then((isConnected) => {
-            logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
-            void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
-              body: { isActive: isConnected }
+        for (const createdServer of createdServers) {
+          ipcApi
+            .request('mcp.server.check_connectivity', { serverId: createdServer.id })
+            .then((isConnected) => {
+              logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
+              void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
+                body: { isActive: isConnected }
+              })
             })
-          })
-          .catch((connError: any) => {
-            logger.error(`Connectivity check failed for ${createdServer.name}:`, connError)
-            window.toast.error(createdServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
-          })
+            .catch((connError: any) => {
+              logger.error(`Connectivity check failed for ${createdServer.name}:`, connError)
+              toast.error(createdServer.name + t('settings.mcp.addServer.importFrom.connectionFailed'))
+            })
+        }
       }
     } finally {
       setLoading(false)
@@ -420,7 +425,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
               src={packageFile ? [packageFile] : undefined}
               onDrop={(files) => setPackageFile(files[0] ?? null)}>
               <div className="flex flex-col items-center gap-1 text-sm">
-                <UploadIcon className="size-5 text-muted-foreground" />
+                <ImportIcon className="size-5 text-muted-foreground" />
                 <span>
                   {packageFile?.name ??
                     t(

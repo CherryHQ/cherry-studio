@@ -6,14 +6,21 @@ import { CodeEditor, type CodeEditorHandles } from '@renderer/components/CodeEdi
 import RichEditor from '@renderer/components/RichEditor/RichEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import Selector from '@renderer/components/Selector'
+import { useCodeStyle } from '@renderer/hooks/useCodeStyle'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import type { EditorView } from '@renderer/types/app'
 import { SpellCheck } from 'lucide-react'
 import type { FC, RefObject } from 'react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('NotesEditor')
+// Hides the toolbar button and the slash-menu entry only. Image *paste* stays enabled: notes have
+// persisted pasted images into the user's notes folder since the module shipped, and
+// `handleImagePaste` pins those entries with `cleanupPolicy: 'manual'` for exactly this path.
+const DISABLED_RICH_EDITOR_COMMANDS = ['image', 'inlineMath'] as const
 
 interface NotesEditorProps {
   activeNodeId?: string
@@ -29,6 +36,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
   ({ activeNodeId, currentContent, contentLoadError, tokenCount, onMarkdownChange, editorRef, codeEditorRef }) => {
     const { t } = useTranslation()
     const { settings } = useNotesSettings()
+    const { activeCmTheme } = useCodeStyle()
     const [enableSpellCheck, setEnableSpellCheck] = usePreference('app.spell_check.enabled')
     const currentViewMode = useMemo(() => {
       if (settings.defaultViewMode === 'edit') {
@@ -53,29 +61,21 @@ const NotesEditor: FC<NotesEditorProps> = memo(
       setTmpViewMode(currentViewModeRef.current)
     }, [activeNodeId])
 
-    const handleCommandsReady = useCallback((commandAPI: Pick<RichEditorRef, 'unregisterCommand'>) => {
-      const disabledCommands = ['image', 'inlineMath']
-      disabledCommands.forEach((commandId) => {
-        commandAPI.unregisterCommand(commandId)
-      })
-    }, [])
-
     if (!activeNodeId) {
       return (
-        <div className="flex h-full w-full flex-1 items-center justify-center">
-          <EmptyState preset="no-note" title={t('notes.empty')} compact />
+        <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
+          <EmptyState preset="no-note" title={t('notes.empty')} />
         </div>
       )
     }
 
     if (contentLoadError) {
       return (
-        <div className="flex h-full w-full flex-1 items-center justify-center">
+        <div data-ui="notes.editor" className="flex h-full w-full flex-1 items-center justify-center">
           <EmptyState
             preset="no-note"
             title={t('notes.load_failed')}
             description={t('notes.load_failed_description')}
-            compact
           />
         </div>
       )
@@ -83,7 +83,9 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     return (
       <>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
+        <div
+          data-ui="notes.editor"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
           {tmpViewMode === 'source' ? (
             <div className={`h-full ${settings.isFullWidth ? 'w-full' : 'mx-auto w-[60%]'}`}>
               <CodeEditor
@@ -93,6 +95,8 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                 onChange={onMarkdownChange}
                 className="h-full"
                 expanded={false}
+                height="100%"
+                theme={activeCmTheme}
                 fontSize={settings.fontSize}
                 style={{
                   height: '100%'
@@ -105,10 +109,11 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               ref={editorRef}
               initialContent={currentContent}
               onMarkdownChange={tmpViewMode === 'preview' ? onMarkdownChange : undefined}
-              onCommandsReady={handleCommandsReady}
               showToolbar={tmpViewMode === 'preview'}
               editable={tmpViewMode === 'preview'}
+              autoFocus={currentContent.trim().length === 0}
               showTableOfContents={settings.showTableOfContents}
+              lineBreaks={settings.lineBreaks}
               enableContentSearch
               className="notes-rich-editor rounded-none! [&_.ToolbarWrapper]:rounded-none!"
               wrapperStyle={{ border: 'none', borderRadius: 0, background: 'transparent' }}
@@ -116,6 +121,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               fontFamily={settings.fontFamily}
               fontSize={settings.fontSize}
               enableSpellCheck={enableSpellCheck}
+              disabledCommands={DISABLED_RICH_EDITOR_COMMANDS}
             />
           )}
         </div>
@@ -133,11 +139,11 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                       const newValue = !enableSpellCheck
                       void setEnableSpellCheck(newValue).catch((error) => {
                         logger.error('Failed to update spell check preference', error as Error)
-                        window.toast.error(t('notes.settings.save_failed'))
+                        toast.error(t('notes.settings.save_failed'))
                       })
-                      void window.api.setEnableSpellCheck(newValue).catch((error) => {
+                      void ipcApi.request('app.set_spell_check_enabled', newValue).catch((error) => {
                         logger.error('Failed to update spell check runtime state', error as Error)
-                        window.toast.error(t('notes.settings.save_failed'))
+                        toast.error(t('notes.settings.save_failed'))
                       })
                     }}
                     icon={<SpellCheck size={18} />}

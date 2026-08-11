@@ -6,6 +6,10 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { ResourceEntityRail, type ResourceEntityRailItem } from '../ResourceEntityRail'
 
+const virtualListMocks = vi.hoisted(() => ({
+  onDragEnd: undefined as ((payload: unknown) => void) | undefined
+}))
+
 vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof ReactI18next>()),
   useTranslation: () => ({ t: (key: string) => key })
@@ -76,8 +80,10 @@ vi.mock('@renderer/components/VirtualList', () => {
     role,
     scrollerProps,
     scrollElementRef,
-    dragCapabilities
+    dragCapabilities,
+    onDragEnd
   }) => {
+    virtualListMocks.onDragEnd = onDragEnd
     const rows = buildGroupedVirtualRows(groups, Boolean(renderGroupHeader), Boolean(renderGroupFooter))
 
     return (
@@ -145,71 +151,6 @@ const EDIT_ACTION: ResolvedAction<unknown> = {
 }
 
 describe('ResourceEntityRail', () => {
-  it('renders a history button next to add that fires onOpenHistoryRecords', () => {
-    const onOpenHistoryRecords = vi.fn()
-
-    render(
-      <ResourceEntityRail
-        addLabel="New"
-        ariaLabel="Assistants"
-        items={ITEMS}
-        variant="assistant"
-        onAdd={vi.fn()}
-        onOpenHistoryRecords={onOpenHistoryRecords}
-        onSelect={vi.fn()}
-      />
-    )
-
-    fireEvent.click(screen.getByRole('button', { name: 'history.records.shortTitle' }))
-    expect(onOpenHistoryRecords).toHaveBeenCalledTimes(1)
-  })
-
-  it('omits the history button when onOpenHistoryRecords is not provided', () => {
-    render(
-      <ResourceEntityRail
-        addLabel="New"
-        ariaLabel="Assistants"
-        items={ITEMS}
-        variant="assistant"
-        onAdd={vi.fn()}
-        onSelect={vi.fn()}
-      />
-    )
-
-    expect(screen.queryByRole('button', { name: 'history.records.shortTitle' })).not.toBeInTheDocument()
-  })
-
-  it('renders active resource menu items without also selecting entity rows', () => {
-    const onSelectResourceView = vi.fn()
-
-    render(
-      <ResourceEntityRail
-        addLabel="New"
-        ariaLabel="Assistants"
-        items={ITEMS}
-        selectedId="assistant-a"
-        resourceMenuItems={[
-          {
-            active: true,
-            id: 'assistant-view',
-            label: 'Assistants',
-            onSelect: onSelectResourceView
-          }
-        ]}
-        variant="assistant"
-        onAdd={vi.fn()}
-        onSelect={vi.fn()}
-      />
-    )
-
-    const item = screen.getByRole('button', { name: 'Assistants' })
-
-    expect(item).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByText('Assistant A').closest('[role="option"]')).not.toHaveAttribute('data-selected', 'true')
-    fireEvent.click(item)
-    expect(onSelectResourceView).toHaveBeenCalledTimes(1)
-  })
-
   it('marks the selected entity and wires context-menu actions', () => {
     const onContextMenuAction = vi.fn()
     const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
@@ -240,6 +181,48 @@ describe('ResourceEntityRail', () => {
     expect(onContextMenuAction).toHaveBeenCalledWith(ITEMS[0], EDIT_ACTION)
 
     requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('renders row trailing actions next to the more menu without selecting the entity', () => {
+    const onContextMenuAction = vi.fn()
+    const onSelect = vi.fn()
+    const onTrailingAction = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        getContextMenuActions={() => [EDIT_ACTION]}
+        items={[
+          {
+            ...ITEMS[0],
+            trailingAction: (
+              <button type="button" aria-label="Create" onClick={onTrailingAction}>
+                Create
+              </button>
+            )
+          },
+          ITEMS[1]
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onContextMenuAction={onContextMenuAction}
+        onSelect={onSelect}
+      />
+    )
+
+    const createButton = screen.getByRole('button', { name: 'Create' })
+    const moreButton = screen.getAllByRole('button', { name: 'common.more' })[0]
+
+    expect(createButton).toBeInTheDocument()
+    expect(moreButton).toBeInTheDocument()
+    expect(moreButton.compareDocumentPosition(createButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+    fireEvent.click(createButton)
+
+    expect(onTrailingAction).toHaveBeenCalledTimes(1)
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onContextMenuAction).not.toHaveBeenCalled()
   })
 
   it('toggles the selected entity instead of selecting it again', () => {
@@ -324,7 +307,7 @@ describe('ResourceEntityRail', () => {
     expect(onSelect).not.toHaveBeenCalled()
   })
 
-  it('selects the entity instead of toggling it while a resource menu item is active', () => {
+  it('keeps repeat-click toggles available while history records clear the visual selection', () => {
     const onSelect = vi.fn()
     const onSelectedClick = vi.fn()
 
@@ -334,14 +317,35 @@ describe('ResourceEntityRail', () => {
         ariaLabel="Assistants"
         items={ITEMS}
         selectedId="assistant-a"
-        resourceMenuItems={[
-          {
-            active: true,
-            id: 'assistant-view',
-            label: 'Assistants',
-            onSelect: vi.fn()
-          }
-        ]}
+        selectionSuppressed
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={onSelect}
+        onSelectedClick={onSelectedClick}
+      />
+    )
+
+    const row = screen.getByText('Assistant A').closest('[role="option"]') as HTMLElement
+    expect(row).not.toHaveAttribute('data-selected', 'true')
+
+    fireEvent.click(row)
+
+    expect(onSelectedClick).toHaveBeenCalledWith(ITEMS[0])
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('selects the entity instead of toggling it when repeat-click activation is explicitly disabled', () => {
+    const onSelect = vi.fn()
+    const onSelectedClick = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants"
+        items={ITEMS}
+        selectedId="assistant-a"
+        selectedClickId={null}
+        selectionSuppressed
         variant="assistant"
         onAdd={vi.fn()}
         onSelect={onSelect}
@@ -405,6 +409,53 @@ describe('ResourceEntityRail', () => {
     ).toBeNull()
   })
 
+  it('uses the shared tooltip component for an entity explanation', () => {
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        items={[{ id: 'assistant-a', name: 'Assistant A', tooltip: 'Placeholder explanation' }]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onSelect={vi.fn()}
+      />
+    )
+
+    expect(screen.getByText('Assistant A').closest('[data-slot="tooltip-trigger"]')).toBeInTheDocument()
+    expect(screen.getByText('Assistant A')).not.toHaveAttribute('title')
+  })
+
+  it('keeps the sortable listbox mounted while reorder is temporarily disabled', () => {
+    const onReorder = vi.fn()
+    const props = {
+      addLabel: 'New',
+      ariaLabel: 'Assistants list',
+      items: ITEMS,
+      onAdd: vi.fn(),
+      onReorder,
+      onSelect: vi.fn(),
+      variant: 'assistant' as const
+    }
+    const { rerender } = render(<ResourceEntityRail {...props} />)
+    const listbox = screen.getByRole('listbox', { name: 'Assistants list' })
+
+    expect(listbox).toHaveAttribute('data-draggable', 'true')
+    expect(JSON.parse(listbox.getAttribute('data-drag-capabilities') ?? '{}')).toMatchObject({
+      items: true,
+      itemSameGroup: true
+    })
+
+    rerender(<ResourceEntityRail {...props} reorderEnabled={false} />)
+
+    const disabledListbox = screen.getByRole('listbox', { name: 'Assistants list' })
+    expect(disabledListbox).toBe(listbox)
+    expect(disabledListbox).toHaveAttribute('data-draggable', 'true')
+    expect(JSON.parse(disabledListbox.getAttribute('data-drag-capabilities') ?? '{}')).toMatchObject({
+      items: false,
+      itemSameGroup: false
+    })
+  })
+
   it('splits pinned and non-pinned entities into two flush section headers while keeping avatars', () => {
     render(
       <ResourceEntityRail
@@ -433,62 +484,98 @@ describe('ResourceEntityRail', () => {
     expect(screen.getByTestId('assistant-a-icon')).toBeInTheDocument()
   })
 
-  it('groups non-pinned entities into per-tag sections while keeping pinned on top', () => {
+  it('groups non-pinned entities into sortable sections while keeping pinned on top', () => {
     render(
       <ResourceEntityRail
         addLabel="New"
         ariaLabel="Assistants list"
         defaultGroupLabel="Assistants"
-        groupByTag
+        groupByGroup
         items={[
-          { id: 'pinned-tagged', name: 'Pinned Tagged', icon: <span />, pinned: true, tag: 'work' },
-          { id: 'work-a', name: 'Work A', icon: <span data-testid="work-a-icon" />, tag: 'work' },
-          { id: 'home-a', name: 'Home A', icon: <span />, tag: 'home' },
-          { id: 'loose', name: 'Loose', icon: <span />, tag: undefined }
+          {
+            id: 'pinned-home',
+            name: 'Pinned Home',
+            icon: <span />,
+            pinned: true,
+            groupId: 'group-home',
+            groupName: 'home',
+            groupOrderKey: 'aZ'
+          },
+          {
+            id: 'pinned-grouped',
+            name: 'Pinned Grouped',
+            icon: <span />,
+            pinned: true,
+            groupId: 'group-work',
+            groupName: 'work',
+            groupOrderKey: 'aa'
+          },
+          {
+            id: 'work-a',
+            name: 'Work A',
+            icon: <span data-testid="work-a-icon" />,
+            groupId: 'group-work',
+            groupName: 'work',
+            groupOrderKey: 'aa'
+          },
+          {
+            id: 'home-a',
+            name: 'Home A',
+            icon: <span />,
+            groupId: 'group-home',
+            groupName: 'home',
+            groupOrderKey: 'aZ'
+          },
+          { id: 'loose', name: 'Loose', icon: <span /> }
         ]}
         variant="assistant"
         onAdd={vi.fn()}
-        onReorder={vi.fn()}
+        onGroupReorder={vi.fn()}
         onSelect={vi.fn()}
       />
     )
 
-    // Pinned section stays on top; non-pinned entities split into tag sections + an untagged section.
+    // Pinned stays on top; non-pinned entities split into canonical groups + a fixed ungrouped bucket.
     expect(screen.getByText('selector.common.pinned_title')).toBeInTheDocument()
     expect(screen.getByText('work')).toBeInTheDocument()
     expect(screen.getByText('home')).toBeInTheDocument()
-    expect(screen.getByText('assistants.tags.untagged')).toBeInTheDocument()
+    expect(screen.getByText('assistants.groups.ungrouped')).toBeInTheDocument()
     expect(
       Array.from(
         screen.getByRole('listbox', { name: 'Assistants list' }).querySelectorAll('button[aria-expanded]')
       ).map((header) => header.textContent)
-    ).toEqual(['selector.common.pinned_title', 'assistants.tags.untagged', 'work', 'home'])
-    // A pinned entity stays under the pinned section even though it carries a tag — its tag must not
+    ).toEqual(['selector.common.pinned_title', 'assistants.groups.ungrouped', 'home', 'work'])
+    // A pinned entity stays under the pinned section even though it carries a group — its group must not
     // spawn a second "work" header.
     expect(screen.getAllByText('work')).toHaveLength(1)
-    // The flat default "Assistants" header never appears while grouping by tag.
+    expect(
+      Array.from(screen.getByRole('listbox', { name: 'Assistants list' }).querySelectorAll('[role="option"]'))
+        .slice(0, 2)
+        .map((row) => row.textContent?.trim())
+    ).toEqual(['Pinned Home', 'Pinned Grouped'])
+    // The flat default "Assistants" header never appears while grouping by group.
     expect(screen.queryByText('Assistants')).not.toBeInTheDocument()
     expect(screen.getByTestId('work-a-icon')).toBeInTheDocument()
     const listbox = screen.getByRole('listbox', { name: 'Assistants list' })
     expect(listbox).toHaveAttribute('data-draggable', 'true')
     expect(JSON.parse(listbox.getAttribute('data-drag-capabilities') ?? '{}')).toMatchObject({
-      groups: false,
-      items: true,
-      itemSameGroup: true,
+      groups: true,
+      items: false,
+      itemSameGroup: false,
       itemCrossGroup: false
     })
   })
 
-  it('renders tag section headers with the shared hover and collapse affordance', () => {
+  it('collapses grouped assistants from their accessible header', () => {
     render(
       <ResourceEntityRail
         addLabel="New"
         ariaLabel="Assistants list"
         defaultGroupLabel="Assistants"
-        groupByTag
+        groupByGroup
         items={[
-          { id: 'work-a', name: 'Work A', icon: <span />, tag: 'work' },
-          { id: 'home-a', name: 'Home A', icon: <span />, tag: 'home' }
+          { id: 'work-a', name: 'Work A', icon: <span />, groupId: 'group-work', groupName: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, groupId: 'group-home', groupName: 'home' }
         ]}
         variant="assistant"
         onAdd={vi.fn()}
@@ -497,25 +584,99 @@ describe('ResourceEntityRail', () => {
     )
 
     const workHeader = screen.getByRole('button', { name: 'work' })
-    const visualRow = workHeader.closest('div')
-
-    expect(visualRow).toHaveClass('hover:bg-sidebar-accent', 'rounded-lg')
-    expect(workHeader.querySelector('svg')).not.toBeNull()
 
     fireEvent.click(workHeader)
     expect(workHeader).toHaveAttribute('aria-expanded', 'false')
   })
 
-  it('keeps a real tag named like the untagged sentinel separate from untagged entities', () => {
+  it('forwards controlled grouped-assistant collapse state changes', () => {
+    const collapsedGroupId = 'resource-entity-rail:section:["group","group-work"]'
+    const onCollapsedStateChange = vi.fn()
+
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        collapsedState={[collapsedGroupId]}
+        groupByGroup
+        items={[
+          { id: 'work-a', name: 'Work A', icon: <span />, groupId: 'group-work', groupName: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, groupId: 'group-home', groupName: 'home' }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onCollapsedStateChange={onCollapsedStateChange}
+        onSelect={vi.fn()}
+      />
+    )
+
+    const workHeader = screen.getByRole('button', { name: 'work' })
+    expect(workHeader).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(workHeader)
+    expect(onCollapsedStateChange).toHaveBeenCalledWith([])
+  })
+
+  it('maps a grouped-header drop to canonical group ids and an order anchor', () => {
+    const onGroupReorder = vi.fn()
+    render(
+      <ResourceEntityRail
+        addLabel="New"
+        ariaLabel="Assistants list"
+        groupByGroup
+        items={[
+          {
+            id: 'home-a',
+            name: 'Home A',
+            icon: <span />,
+            groupId: 'group-home',
+            groupName: 'home',
+            groupOrderKey: 'aZ'
+          },
+          {
+            id: 'work-a',
+            name: 'Work A',
+            icon: <span />,
+            groupId: 'group-work',
+            groupName: 'work',
+            groupOrderKey: 'aa'
+          }
+        ]}
+        variant="assistant"
+        onAdd={vi.fn()}
+        onGroupReorder={onGroupReorder}
+        onSelect={vi.fn()}
+      />
+    )
+
+    virtualListMocks.onDragEnd?.({
+      type: 'group',
+      activeGroupId: 'resource-entity-rail:section:["group","group-work"]',
+      overGroupId: 'resource-entity-rail:section:["group","group-home"]',
+      overType: 'group',
+      sourceIndex: 1,
+      targetIndex: 0
+    })
+
+    expect(onGroupReorder).toHaveBeenCalledWith('group-work', { before: 'group-home' })
+  })
+
+  it('keeps a real group named like the ungrouped sentinel separate from ungrouped entities', () => {
     render(
       <ResourceEntityRail
         addLabel="New"
         ariaLabel="Assistants list"
         defaultGroupLabel="Assistants"
-        groupByTag
+        groupByGroup
         items={[
-          { id: 'sentinel-tagged', name: 'Sentinel Tagged', icon: <span />, tag: '__untagged__' },
-          { id: 'loose', name: 'Loose', icon: <span />, tag: undefined }
+          {
+            id: 'sentinel-grouped',
+            name: 'Sentinel Grouped',
+            icon: <span />,
+            groupId: 'group-sentinel',
+            groupName: '__untagged__'
+          },
+          { id: 'loose', name: 'Loose', icon: <span /> }
         ]}
         variant="assistant"
         onAdd={vi.fn()}
@@ -524,18 +685,18 @@ describe('ResourceEntityRail', () => {
     )
 
     expect(screen.getByText('__untagged__')).toBeInTheDocument()
-    expect(screen.getByText('assistants.tags.untagged')).toBeInTheDocument()
+    expect(screen.getByText('assistants.groups.ungrouped')).toBeInTheDocument()
   })
 
-  it('ignores entity tags when groupByTag is off', () => {
+  it('ignores entity groups when groupByGroup is off', () => {
     render(
       <ResourceEntityRail
         addLabel="New"
         ariaLabel="Assistants list"
         defaultGroupLabel="Assistants"
         items={[
-          { id: 'work-a', name: 'Work A', icon: <span />, tag: 'work' },
-          { id: 'home-a', name: 'Home A', icon: <span />, tag: 'home' }
+          { id: 'work-a', name: 'Work A', icon: <span />, groupId: 'group-work', groupName: 'work' },
+          { id: 'home-a', name: 'Home A', icon: <span />, groupId: 'group-home', groupName: 'home' }
         ]}
         variant="assistant"
         onAdd={vi.fn()}
@@ -546,7 +707,7 @@ describe('ResourceEntityRail', () => {
 
     expect(screen.queryByText('work')).not.toBeInTheDocument()
     expect(screen.queryByText('home')).not.toBeInTheDocument()
-    expect(screen.queryByText('assistants.tags.untagged')).not.toBeInTheDocument()
+    expect(screen.queryByText('assistants.groups.ungrouped')).not.toBeInTheDocument()
   })
 
   it('renders a flat list with no section header when nothing is pinned', () => {

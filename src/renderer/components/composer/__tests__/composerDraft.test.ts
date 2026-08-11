@@ -5,7 +5,9 @@ import {
   createComposerDocumentContent,
   createComposerMessageSnapshot,
   createComposerUserMessageParts,
-  serializeComposerDocument
+  excludeComposerDraftTokens,
+  serializeComposerDocument,
+  trimComposerDraftBoundaryBlankLines
 } from '../composerDraft'
 import { COMPOSER_TOKEN_NODE_NAME } from '../ComposerTokenNode'
 
@@ -16,7 +18,182 @@ function tokenNode(attrs: Record<string, unknown>): JSONContent {
   }
 }
 
+describe('excludeComposerDraftTokens', () => {
+  it('removes an excluded token together with its prompt text and rebases later offsets', () => {
+    const draft = excludeComposerDraftTokens(
+      {
+        text: 'before ATTACHED between QUOTED after',
+        tokens: [
+          { id: 'kb', kind: 'knowledge', label: 'Base', promptText: 'ATTACHED', index: 0, textOffset: 7 },
+          { id: 'q', kind: 'quote', label: 'Quote', promptText: 'QUOTED', index: 1, textOffset: 24 }
+        ]
+      },
+      (token) => token.kind === 'knowledge'
+    )
+
+    // 'ATTACHED' plus the separator space the editor inserts after a chip.
+    expect(draft.text).toBe('before between QUOTED after')
+    expect(draft.tokens).toEqual([
+      { id: 'q', kind: 'quote', label: 'Quote', promptText: 'QUOTED', index: 0, textOffset: 15 }
+    ])
+    expect(draft.text.slice(15, 21)).toBe('QUOTED')
+  })
+
+  it('leaves the text alone when the prompt text no longer sits at the recorded offset', () => {
+    const draft = excludeComposerDraftTokens(
+      {
+        text: 'user edited the sentence away',
+        tokens: [{ id: 'kb', kind: 'knowledge', label: 'Base', promptText: 'ATTACHED', index: 0, textOffset: 5 }]
+      },
+      (token) => token.kind === 'knowledge'
+    )
+
+    expect(draft).toEqual({ text: 'user edited the sentence away', tokens: [] })
+  })
+
+  it('rebases a surviving token across several removed spans', () => {
+    const draft = excludeComposerDraftTokens(
+      {
+        text: 'AAA keep BBB tail',
+        tokens: [
+          { id: 'kb-1', kind: 'knowledge', label: 'One', promptText: 'AAA', index: 0, textOffset: 0 },
+          { id: 'q', kind: 'quote', label: 'Quote', promptText: 'keep', index: 1, textOffset: 4 },
+          { id: 'kb-2', kind: 'knowledge', label: 'Two', promptText: 'BBB', index: 2, textOffset: 9 }
+        ]
+      },
+      (token) => token.kind === 'knowledge'
+    )
+
+    expect(draft.text).toBe('keep tail')
+    expect(draft.tokens).toEqual([
+      { id: 'q', kind: 'quote', label: 'Quote', promptText: 'keep', index: 0, textOffset: 0 }
+    ])
+    expect(draft.text.slice(0, 4)).toBe('keep')
+  })
+
+  it('collapses a surviving token that sat inside a removed span to where that span started', () => {
+    // Reachable when the user deletes the separator space between two chips, leaving the second one
+    // parked at the first one's end. Its offset must still land inside the spliced text.
+    const draft = excludeComposerDraftTokens(
+      {
+        text: 'ATTACHED tail',
+        tokens: [
+          { id: 'kb', kind: 'knowledge', label: 'Base', promptText: 'ATTACHED', index: 0, textOffset: 0 },
+          { id: 'f', kind: 'file', label: 'a.md', index: 1, textOffset: 8 }
+        ]
+      },
+      (token) => token.kind === 'knowledge'
+    )
+
+    expect(draft.text).toBe('tail')
+    expect(draft.tokens).toEqual([{ id: 'f', kind: 'file', label: 'a.md', index: 0, textOffset: 0 }])
+  })
+
+  it('returns the same draft when nothing matches', () => {
+    const draft = {
+      text: 'hello',
+      tokens: [{ id: 'f', kind: 'file' as const, label: 'a.md', index: 0, textOffset: 0 }]
+    }
+
+    expect(excludeComposerDraftTokens(draft, (token) => token.kind === 'knowledge')).toBe(draft)
+  })
+})
+
 describe('composer draft serialization', () => {
+  it('trims only boundary blank lines while preserving meaningful-line whitespace and internal blank lines', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: ' \t\n  first line  \n\nlast line \t\n \t\n',
+      tokens: []
+    })
+
+    expect(draft).toEqual({
+      text: '  first line  \n\nlast line \t',
+      tokens: []
+    })
+  })
+
+  it('keeps token-only boundary lines and shifts token offsets past removed blank lines', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: '\n\nbody\n\n',
+      tokens: [
+        { id: 'leading-skill', kind: 'skill', label: 'Browser', index: 0, textOffset: 1 },
+        { id: 'trailing-file', kind: 'file', label: 'notes.md', index: 1, textOffset: 8 }
+      ]
+    })
+
+    expect(draft).toEqual({
+      text: '\nbody\n\n',
+      tokens: [
+        { id: 'leading-skill', kind: 'skill', label: 'Browser', index: 0, textOffset: 0 },
+        { id: 'trailing-file', kind: 'file', label: 'notes.md', index: 1, textOffset: 7 }
+      ]
+    })
+  })
+
+  it('preserves trailing blank lines owned by multiline token prompt text', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: '\nvalue\n\n',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 1,
+          promptText: 'value\n\n'
+        }
+      ]
+    })
+
+    expect(draft).toEqual({
+      text: 'value\n\n',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 0,
+          promptText: 'value\n\n'
+        }
+      ]
+    })
+  })
+
+  it('still trims trailing blank lines outside token prompt text', () => {
+    const draft = trimComposerDraftBoundaryBlankLines({
+      text: '\nvalue\n\n',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 1,
+          promptText: 'value'
+        }
+      ]
+    })
+
+    expect(draft).toEqual({
+      text: 'value',
+      tokens: [
+        {
+          id: 'prompt-variable:0:value',
+          kind: 'promptVariable',
+          label: 'value',
+          index: 0,
+          textOffset: 0,
+          promptText: 'value'
+        }
+      ]
+    })
+  })
+
+  it('collapses a draft containing only token-free blank lines to empty text', () => {
+    expect(trimComposerDraftBoundaryBlankLines({ text: ' \t\n\n ', tokens: [] })).toEqual({ text: '', tokens: [] })
+  })
+
   it('serializes tokens before, between, and after text in document order', () => {
     const draft = serializeComposerDocument({
       type: 'doc',
@@ -172,6 +349,103 @@ describe('composer draft serialization', () => {
     })
   })
 
+  it('serializes and restores folder tokens with path prompt text', () => {
+    const folderPath = '/Users/jd/Notes/Project Notes'
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Open ' },
+            tokenNode({
+              id: 'folder-1',
+              kind: 'folder',
+              label: 'Project Notes',
+              description: folderPath,
+              promptText: folderPath
+            }),
+            { type: 'text', text: ' today' }
+          ]
+        }
+      ]
+    })
+
+    expect(draft.text).toBe(`Open ${folderPath} today`)
+    expect(createComposerMessageSnapshot(draft)).toEqual({
+      version: 1,
+      tokens: [
+        {
+          id: 'folder-1',
+          kind: 'folder',
+          label: 'Project Notes',
+          description: folderPath,
+          index: 0,
+          textOffset: 5,
+          promptText: folderPath
+        }
+      ]
+    })
+
+    expect(createComposerDocumentContent(`Open ${folderPath} today`, createComposerMessageSnapshot(draft))).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Open ' },
+            tokenNode({
+              id: 'folder-1',
+              kind: 'folder',
+              label: 'Project Notes',
+              description: folderPath,
+              promptText: folderPath
+            }),
+            { type: 'text', text: ' today' }
+          ]
+        }
+      ]
+    })
+  })
+
+  it('serializes and restores link tokens with the original URL', () => {
+    const url = 'https://www.example.com/docs'
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            tokenNode({
+              id: 'link-token-1',
+              kind: 'link',
+              label: 'example.com/docs',
+              promptText: url
+            })
+          ]
+        }
+      ]
+    })
+
+    expect(draft.text).toBe(url)
+    expect(createComposerDocumentContent(url, createComposerMessageSnapshot(draft))).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            tokenNode({
+              id: 'link-token-1',
+              kind: 'link',
+              label: 'example.com/docs',
+              promptText: url
+            })
+          ]
+        }
+      ]
+    })
+  })
+
   it('does not persist non-file composer token payload objects', () => {
     const draft = serializeComposerDocument({
       type: 'doc',
@@ -191,6 +465,65 @@ describe('composer draft serialization', () => {
       { id: 'skill-1', kind: 'skill', label: 'Browser', index: 0, textOffset: 0 },
       { id: 'kb-1', kind: 'knowledge', label: 'Docs', index: 1, textOffset: 5 }
     ])
+  })
+
+  it('serializes reference tokens with inlined context prompt text and persists them without payload', () => {
+    const promptText = '<referenced-conversation type="topic" name="Docs">\n[user]\nhi\n</referenced-conversation>'
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'See ' },
+            tokenNode({
+              id: 'reference:topic:t1',
+              kind: 'reference',
+              label: 'Docs',
+              description: 'Docs · Assistant',
+              promptText,
+              payload: { entityType: 'topic', id: 't1', name: 'Docs' }
+            })
+          ]
+        }
+      ]
+    })
+
+    expect(draft.text).toBe(`See ${promptText}`)
+    const snapshot = createComposerMessageSnapshot(draft)
+    expect(snapshot).toEqual({
+      version: 1,
+      tokens: [
+        {
+          id: 'reference:topic:t1',
+          kind: 'reference',
+          label: 'Docs',
+          description: 'Docs · Assistant',
+          index: 0,
+          textOffset: 4,
+          promptText
+        }
+      ]
+    })
+
+    expect(createComposerDocumentContent(draft.text, snapshot)).toEqual({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'See ' },
+            tokenNode({
+              id: 'reference:topic:t1',
+              kind: 'reference',
+              label: 'Docs',
+              description: 'Docs · Assistant',
+              promptText
+            })
+          ]
+        }
+      ]
+    })
   })
 
   it('serializes quote tokens as blockquote prompt text and persists quote metadata', () => {
@@ -377,6 +710,51 @@ describe('composer draft serialization', () => {
             composer: {
               version: 1,
               tokens: [{ id: 'kb-1', kind: 'knowledge', label: 'Docs', index: 0, textOffset: 5 }]
+            }
+          }
+        }
+      }
+    ])
+  })
+
+  it('builds only a text part for folder tokens', () => {
+    const folderPath = '/Users/jd/Notes/Project Notes'
+    const draft = serializeComposerDocument({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Read ' },
+            tokenNode({
+              id: 'folder-1',
+              kind: 'folder',
+              label: 'Project Notes',
+              promptText: folderPath
+            })
+          ]
+        }
+      ]
+    })
+
+    expect(createComposerUserMessageParts(draft)).toEqual([
+      {
+        type: 'text',
+        text: `Read ${folderPath}`,
+        providerMetadata: {
+          cherry: {
+            composer: {
+              version: 1,
+              tokens: [
+                {
+                  id: 'folder-1',
+                  kind: 'folder',
+                  label: 'Project Notes',
+                  index: 0,
+                  textOffset: 5,
+                  promptText: folderPath
+                }
+              ]
             }
           }
         }

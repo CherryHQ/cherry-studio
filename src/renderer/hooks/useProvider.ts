@@ -6,6 +6,7 @@ import { isSystemProviderId } from '@renderer/types/provider'
 import type {
   CreateProviderDto,
   ListProvidersQuery,
+  ProviderPresetField,
   UpdateApiKeyDto,
   UpdateProviderDto
 } from '@shared/data/api/schemas/providers'
@@ -36,13 +37,17 @@ function providerRefreshPaths(providerId: string): ConcreteApiPaths[] {
 }
 
 // ─── Layer 1: List + Create ────────────────────────────────────────────
-export function useProviders(query?: ListProvidersQuery, options?: { swrOptions?: SWRConfiguration }) {
+export function useProviders(
+  query?: ListProvidersQuery,
+  options?: { enabled?: boolean; swrOptions?: SWRConfiguration }
+) {
   const filtered = query ? (omitBy(query, isUndefined) as ListProvidersQuery) : undefined
   const hasQuery = filtered && Object.keys(filtered).length > 0
   const queryOptions =
-    hasQuery || options?.swrOptions
+    hasQuery || options?.enabled === false || options?.swrOptions
       ? {
           ...(hasQuery && { query: filtered }),
+          ...(options?.enabled === false && { enabled: false }),
           ...(options?.swrOptions && { swrOptions: options.swrOptions })
         }
       : undefined
@@ -82,18 +87,23 @@ export function useProviders(query?: ListProvidersQuery, options?: { swrOptions?
 }
 
 // ─── Layer 2: Single read + write + delete ────────────────────────────
-export function useProvider(providerId: string | null | undefined) {
+export function useProviderById(providerId: string | null | undefined) {
   const resolvedProviderId = providerId ?? ''
   const { data, isLoading, error, refetch } = useQuery('/providers/:providerId', {
     params: { providerId: resolvedProviderId },
     enabled: !!providerId,
     swrOptions: { keepPreviousData: false }
   })
-  const provider = data
+  return { provider: data, isLoading, error, refetch }
+}
+
+export function useProvider(providerId: string | null | undefined) {
+  const resolvedProviderId = providerId ?? ''
+  const query = useProviderById(providerId)
 
   const mutations = useProviderMutations(resolvedProviderId)
 
-  return { provider, isLoading, error, refetch, ...mutations }
+  return { ...query, ...mutations }
 }
 
 // ─── Layer 3: Pure mutations ──────────────────────────────────────────
@@ -154,6 +164,8 @@ export function useProviderMutations(providerId: string) {
       throw error
     }
   }, [deleteTrigger, providerId])
+
+  const enableProvider = useCallback(() => updateProvider({ isEnabled: true }), [updateProvider])
 
   const updateAuthConfig = useCallback(
     async (authConfig: AuthConfig) => {
@@ -222,6 +234,7 @@ export function useProviderMutations(providerId: string) {
     deleteProvider,
     isDeleting,
     deleteError,
+    enableProvider,
     updateAuthConfig,
     addApiKey,
     isAddingApiKey,
@@ -248,6 +261,15 @@ export function useProviderAuthConfig(providerId: string) {
 
 export function useProviderApiKeys(providerId: string) {
   return useQuery('/providers/:providerId/api-keys', { params: { providerId } })
+}
+
+/** Read a sparse projection of the provider's effective registry preset. */
+export function useProviderPreset(providerId: string | null | undefined, fields: readonly ProviderPresetField[]) {
+  return useQuery('/providers/:providerId/preset', {
+    params: { providerId: providerId ?? '' },
+    query: { fields: [...fields] },
+    enabled: !!providerId
+  })
 }
 
 /**

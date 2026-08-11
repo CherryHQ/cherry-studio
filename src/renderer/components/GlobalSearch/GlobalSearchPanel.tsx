@@ -28,6 +28,8 @@ import { useTabs } from '@renderer/hooks/tab'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { mapApiTopicToRendererTopic } from '@renderer/hooks/useTopic'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
+import { emitResourceListReveal } from '@renderer/services/resourceListRevealEvents'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { EntitySearchItem } from '@shared/data/api/schemas/search'
 import type { GlobalSearchRecentEntry } from '@shared/data/cache/cacheValueTypes'
@@ -481,6 +483,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         onClose()
         return
       }
+      emitResourceListReveal({ source: 'assistants', tabId: targetTabId })
       window.requestAnimationFrame(() => {
         emitGlobalSearchSelection(
           EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC,
@@ -508,6 +511,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         onClose()
         return
       }
+      emitResourceListReveal({ source: 'agents', tabId: targetTabId })
       window.requestAnimationFrame(() => {
         emitGlobalSearchSelection(
           EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION,
@@ -529,11 +533,11 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
   const openTopicMessageById = useCallback(
     async (topicId: string, messageId: string) => {
-      const apiTopic = await dataApiService.get(`/topics/${topicId}`)
       const messagePathEndpoint = `/topics/${topicId}/path` as const
-      const messagePath = await dataApiService.get(messagePathEndpoint, {
-        query: { nodeId: messageId }
-      })
+      const [apiTopic, messagePath] = await Promise.all([
+        dataApiService.get(`/topics/${topicId}`),
+        dataApiService.get(messagePathEndpoint, { query: { nodeId: messageId } })
+      ])
       const activeNodeId = Array.isArray(messagePath)
         ? (messagePath[messagePath.length - 1]?.id ?? messageId)
         : messageId
@@ -550,6 +554,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         onClose()
         return
       }
+      emitResourceListReveal({ source: 'assistants', tabId: targetTabId })
       window.requestAnimationFrame(() => {
         emitGlobalSearchSelection(
           EVENT_NAMES.GLOBAL_SEARCH_SELECT_TOPIC_MESSAGE,
@@ -569,7 +574,6 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
 
   const openSessionMessageById = useCallback(
     async (sessionId: string, messageId: string) => {
-      await dataApiService.get(`/agent-sessions/${sessionId}`)
       await invalidateCache([
         '/agent-sessions',
         `/agent-sessions/${sessionId}`,
@@ -585,6 +589,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         onClose()
         return
       }
+      emitResourceListReveal({ source: 'agents', tabId: targetTabId })
       window.requestAnimationFrame(() => {
         emitGlobalSearchSelection(
           EVENT_NAMES.GLOBAL_SEARCH_SELECT_AGENT_SESSION_MESSAGE,
@@ -621,14 +626,14 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
       if (target.sourceType === 'topic') {
         void openTopicMessageById(target.topicId, target.messageId).catch((error) => {
           logOpenFailure(error, target)
-          window.toast?.error(t('globalSearch.open_failed'))
+          toast.error(t('globalSearch.open_failed'))
         })
         return
       }
 
       void openSessionMessageById(target.sessionId, target.messageId).catch((error) => {
         logOpenFailure(error, target)
-        window.toast?.error(t('globalSearch.open_failed'))
+        toast.error(t('globalSearch.open_failed'))
       })
     },
     [openSessionMessageById, openTopicMessageById, t]
@@ -776,7 +781,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
         }
       } catch (error) {
         logOpenFailure(error, getOpenItemLogContext(item))
-        window.toast?.error(t('globalSearch.open_failed'))
+        toast.error(t('globalSearch.open_failed'))
       }
     },
     [onClose, openGlobalSearchFooter, openKnowledgeBase, openMessagePanelItem, openSession, openTab, openTopic, t]
@@ -983,7 +988,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
               isListboxVisible && activeItemId ? getGlobalSearchOptionDomId(activeItemId) : undefined
             }
             spellCheck={false}
-            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-12 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground focus-visible:ring-1"
+            className="h-11 rounded-[22px] border-border-subtle bg-muted/20 pr-12 pl-12 text-[15px] shadow-none placeholder:text-muted-foreground"
           />
           {query && (
             <button
@@ -993,6 +998,7 @@ export function GlobalSearchPanel({ onClose }: GlobalSearchPanelProps) {
                 setQuery('')
                 setPanelMode('search')
                 setMessagePreviewTarget(null)
+                inputRef.current?.focus({ preventScroll: true })
               }}
               className="-translate-y-1/2 absolute top-1/2 right-3 flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
               <X className="size-4" />

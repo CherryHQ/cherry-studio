@@ -1,5 +1,6 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { getToolGroupIcon, getToolGroupSemanticTitle } from '@renderer/components/chat/messages/blocks/ToolBlockGroup'
 import { isValidAgentToolsType, renderTool, UnknownToolRenderer } from '@renderer/components/chat/messages/tools/agent'
 import { AgentToolsType } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
 import { ToolArgsTable } from '@renderer/components/chat/messages/tools/shared/ArgsTable'
@@ -7,9 +8,10 @@ import { ToolDisclosure, type ToolDisclosureItem } from '@renderer/components/ch
 import type { ToolResponseLike } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
+import { toast } from '@renderer/services/toast'
 import type { McpToolResponse, NormalToolResponse } from '@renderer/types/mcpTool'
 import { cn } from '@renderer/utils/style'
-import { ArrowRight, Wrench } from 'lucide-react'
+import { ArrowRight } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -179,7 +181,7 @@ function PermissionOption({
       <span
         className={cn(
           'flex size-8 shrink-0 items-center justify-center rounded-full font-semibold text-sm transition-colors',
-          'bg-muted text-muted-foreground group-hover:bg-neutral-950 group-hover:text-white dark:group-hover:bg-neutral-50 dark:group-hover:text-neutral-950'
+          'bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background'
         )}>
         {index}
       </span>
@@ -203,6 +205,8 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   const { t } = useTranslation()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const subtitle = getPermissionRequestSubtitle(request)
+  const ToolIcon = getToolGroupIcon(request.toolResponse.tool, request.toolResponse.arguments)
+  const toolTitle = getToolGroupSemanticTitle(request.toolResponse, 'waiting', t)
 
   const respond = useCallback(
     async (input: MessageToolApprovalInput, action: 'approve' | 'deny') => {
@@ -214,7 +218,7 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
           action,
           approvalId: request.approvalId
         })
-        window.toast.error(t('agent.toolPermission.error.sendFailed'))
+        toast.error(t('agent.toolPermission.error.sendFailed'))
         setIsSubmitting(false)
       }
     },
@@ -247,19 +251,25 @@ export default function PermissionRequestComposer({ request, onRespond, classNam
   return (
     <div
       data-composer-viewport-inset-target=""
-      className={cn('relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
-      <div className="rounded-[17px] border-[0.5px] border-border bg-(--color-background-opacity) p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]">
+      // pointer-events-auto: the composer dock stack is click-through; override
+      // composers re-enable interaction on their own root.
+      className={cn('pointer-events-auto relative z-2 flex flex-col px-4.5 pt-0 pb-4.5', className)}>
+      <div
+        className="rounded-[17px] border-[0.5px] border-border p-2.5 shadow-[0_1px_5px_rgba(15,23,42,0.05)] backdrop-blur dark:shadow-[0_1px_5px_rgba(0,0,0,0.14)]"
+        style={{ backgroundColor: 'color-mix(in srgb, var(--background) 88%, transparent)' }}>
         <div className="flex items-center justify-between gap-3 px-1">
           <div className="min-w-0 flex-1">
             <h2 className="line-clamp-1 flex min-w-0 items-center gap-2 font-semibold text-foreground text-sm leading-5">
-              <Wrench className="size-4 shrink-0 text-muted-foreground" />
-              <span className="truncate">{t('agent.toolPermission.confirmation')}</span>
+              <span className="inline-flex shrink-0 text-muted-foreground">
+                <ToolIcon aria-hidden="true" className="size-4" />
+              </span>
+              <span className="truncate">{toolTitle}</span>
             </h2>
             {subtitle ? (
               <div className="mt-0.5 line-clamp-1 text-muted-foreground text-xs leading-4">{subtitle}</div>
             ) : null}
           </div>
-          <div className="rounded-full bg-warning/10 px-2 py-1 font-medium text-[11px] text-warning">
+          <div className="rounded-full border border-warning-border bg-warning-subtle px-2 py-1 font-medium text-[11px] text-warning-subtle-foreground">
             {t('agent.toolPermission.pending')}
           </div>
         </div>

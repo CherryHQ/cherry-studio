@@ -4,6 +4,7 @@ import { execFileSync, spawn } from 'child_process'
 import fs from 'fs'
 import path from 'path'
 
+import { getBundledGitPath } from './bundledGit'
 import { getShellEnv } from './shellEnv'
 
 /**
@@ -76,13 +77,18 @@ export async function findCommandInShellEnv(
 
         if (code === 0 && output.trim()) {
           const paths = output.trim().split(/\r?\n/)
-          // Only accept .exe files on Windows - .cmd/.bat files cannot be executed
-          // with spawn({ shell: false }) which is used by MCP SDK's StdioClientTransport
+          // Prefer native executables, but accept .cmd launchers such as the npx shim
+          // installed by Node.js. StdioClientTransport uses cross-spawn, which resolves
+          // Windows command shims while keeping shell execution disabled.
           const exePath = paths.find((p) => p.toLowerCase().endsWith('.exe'))
-          if (exePath) {
-            safeResolve(exePath)
+          const cmdPath = paths.find((p) => p.toLowerCase().endsWith('.cmd'))
+          const commandPath = exePath ?? cmdPath
+          if (commandPath) {
+            safeResolve(commandPath)
           } else {
-            logger.debug(`Command '${command}' found but not as .exe (${paths[0]}), treating as not found`)
+            logger.debug(
+              `Command '${command}' found without a supported extension (${paths[0]}), treating as not found`
+            )
             safeResolve(null)
           }
         } else {
@@ -245,9 +251,9 @@ const MISE_TIMEOUT_MS = 5000
 /**
  * Find an executable via `mise which <name>` on Windows.
  *
- * When Node.js is installed through mise, the shims are `.cmd` files that
- * `findCommandInShellEnv` rejects (it only accepts `.exe`), and `mise activate`
- * may not be visible in the registry-based PATH used by `getWindowsEnvironment`.
+ * When Node.js is installed through mise, resolving the real binary avoids
+ * depending on a shim that may not be visible in the registry-based PATH used
+ * by `getWindowsEnvironment`.
  *
  * This function locates `mise.exe` via `where.exe` and asks it directly for
  * the real binary path, bypassing shim/PATH issues entirely.
@@ -328,26 +334,40 @@ function findMiseExecutable(env: Record<string, string>): string | null {
  * refreshShellEnv() explicitly before calling this function.
  *
  * Cross-platform: uses findCommandInShellEnv first, falls back to findExecutable on Windows,
- * and finally tries mise as a last resort on Windows.
+ * then mise, and finally (for `git` only) the bundled MinGit as the last resort.
  */
 export async function findExecutableInEnv(name: string): Promise<string | null> {
   const env = await getShellEnv()
 
+  // The bundled MinGit dir sits on the PATH tail (see shellEnv), so the PATH
+  // lookups below can surface it — e.g. `where git` skips mise's `.cmd` shim
+  // and hits the bundled `.exe`. Treat such hits as provisional: keep searching
+  // and only return the bundle after every system/mise lookup misses.
+  const bundledGit = name === 'git' ? getBundledGitPath() : null
+  const isBundledGit = (p: string) => bundledGit !== null && p.toLowerCase() === bundledGit.toLowerCase()
+
   // Cross-platform: try shell environment lookup first
   const found = await findCommandInShellEnv(name, env)
-  if (found) {
+  if (found && !isBundledGit(found)) {
     return found
   }
 
   // Windows fallback: findExecutable handles .cmd/.exe filtering and security checks
   if (isWin) {
     const winFound = findExecutable(name, { env })
-    if (winFound) {
+    if (winFound && !isBundledGit(winFound)) {
       return winFound
     }
 
-    // Last resort on Windows: ask mise for the real binary path
-    return findViaMise(name, env)
+    // Ask mise for the real binary path
+    const viaMise = findViaMise(name, env)
+    if (viaMise) {
+      return viaMise
+    }
+
+    // Last resort: the bundled MinGit shipped with the app, so git works even
+    // when the user has no system git installed. System/mise git always win above.
+    return bundledGit
   }
 
   return null

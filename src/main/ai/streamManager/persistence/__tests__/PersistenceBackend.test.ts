@@ -1,8 +1,8 @@
 /**
- * Unit tests for `finalizeInterruptedParts` — the helper every persistence
- * backend (MessageService / TemporaryChat / AgentSessionMessage) runs over
- * `finalMessage.parts` before writing, so an interrupted or errored turn does
- * not leave a tool part stuck in a non-terminal (in-progress) state.
+ * Unit tests for `finalizeInterruptedParts` — the listener runs this helper
+ * over `finalMessage.parts` before composing stats and calling a backend, so
+ * an interrupted or errored turn does not leave a part stuck in a non-terminal
+ * (in-progress) state.
  *
  * The function is pure, so it is tested directly with no mocks.
  */
@@ -10,7 +10,7 @@
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { dropEmptyContentParts, finalizeInterruptedParts } from '../PersistenceBackend'
+import { dropEmptyContentParts, finalizeInterruptedParts, stripTransientStatusParts } from '../PersistenceBackend'
 
 // AI SDK tool-call UIMessagePart shapes. The non-terminal states the helper
 // targets are anything NOT in {output-available, output-error, output-denied}.
@@ -172,6 +172,47 @@ describe('finalizeInterruptedParts', () => {
     expect(result[2]).toMatchObject({ state: 'output-error', errorText: 'Stream errored before tool completed' })
   })
 
+  it('terminalizes an in-progress Agent task event when the stream errors', () => {
+    const taskEvent = {
+      type: 'data-agent-task-event',
+      data: {
+        event: 'progress',
+        taskId: 'task-7',
+        status: 'in_progress',
+        title: 'Implementing TTS adapters'
+      }
+    } as unknown as CherryMessagePart
+
+    const result = finalizeInterruptedParts([taskEvent], 'error')
+
+    expect(result[0]).toMatchObject({
+      type: 'data-agent-task-event',
+      data: {
+        event: 'progress',
+        taskId: 'task-7',
+        status: 'error',
+        error: 'Stream errored before task completed'
+      }
+    })
+    expect(result[0]).not.toBe(taskEvent)
+  })
+
+  it('keeps completed and pending Agent task events unchanged', () => {
+    const completed = {
+      type: 'data-agent-task-event',
+      data: { event: 'notification', taskId: 'task-1', status: 'completed' }
+    } as unknown as CherryMessagePart
+    const pending = {
+      type: 'data-agent-task-event',
+      data: { event: 'started', taskId: 'task-2', status: 'pending' }
+    } as unknown as CherryMessagePart
+
+    const result = finalizeInterruptedParts([completed, pending], 'error')
+
+    expect(result[0]).toBe(completed)
+    expect(result[1]).toBe(pending)
+  })
+
   it('rewrites a streaming reasoning part to done and calculates thinkingMs if startedAt is provided', () => {
     const baseTime = 1780913860106
     vi.spyOn(Date, 'now').mockReturnValue(baseTime)
@@ -212,6 +253,28 @@ describe('finalizeInterruptedParts', () => {
     })
     const cherryMeta = (result[0] as any).providerMetadata?.cherry
     expect(cherryMeta?.thinkingMs).toBeUndefined()
+  })
+})
+
+describe('stripTransientStatusParts', () => {
+  const retryPart = (): CherryMessagePart =>
+    ({
+      type: 'data-retry',
+      id: 'retry',
+      data: { state: 'retrying', modelId: 'gpt-4', attempt: 2, reason: 'http 429' }
+    }) as unknown as CherryMessagePart
+
+  it('removes data-retry parts, preserving order of the rest', () => {
+    const text = textPart('answer')
+    const result = stripTransientStatusParts([retryPart(), text])
+
+    expect(result).toEqual([text])
+  })
+
+  it('returns the same array reference when there is nothing to strip', () => {
+    const parts: CherryMessagePart[] = [textPart('hi')]
+
+    expect(stripTransientStatusParts(parts)).toBe(parts)
   })
 })
 

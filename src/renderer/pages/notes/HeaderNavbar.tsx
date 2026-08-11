@@ -17,7 +17,7 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/Navbar'
 import BaseNavbarIcon from '@renderer/components/NavbarIcon'
-import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
+import ContentPopup from '@renderer/components/popups/ContentPopup'
 import { useCommandHandler, useResolvedCommand } from '@renderer/hooks/command'
 import { useIsActiveTab } from '@renderer/hooks/tab'
 import { useActiveNode } from '@renderer/hooks/useNotesQuery'
@@ -25,6 +25,7 @@ import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { ipcApi } from '@renderer/ipc'
 import { findNode } from '@renderer/services/NotesTreeService'
+import { toast } from '@renderer/services/toast'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { t } from 'i18next'
 import { Check, ChevronRight, MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
@@ -81,13 +82,13 @@ const HeaderNavbar = ({
       const content = getCurrentNoteContent?.()
       if (content) {
         await navigator.clipboard.writeText(content)
-        window.toast.success(t('common.copied'))
+        toast.success(t('common.copied'))
       } else {
-        window.toast.warning(t('notes.no_content_to_copy'))
+        toast.warning(t('notes.no_content_to_copy'))
       }
     } catch (error) {
       logger.error('Failed to copy content:', error as Error)
-      window.toast.error(t('common.copy_failed'))
+      toast.error(t('common.copy_failed'))
     }
   }, [getCurrentNoteContent])
 
@@ -95,29 +96,29 @@ const HeaderNavbar = ({
     try {
       const content = getCurrentNoteContent?.()
       if (!content) {
-        window.toast.warning(t('notes.no_content_to_export'))
+        toast.warning(t('notes.no_content_to_export'))
         return
       }
       if (!activeNode) {
-        window.toast.warning(t('notes.no_note_selected'))
+        toast.warning(t('notes.no_note_selected'))
         return
       }
       const fileName = activeNode.name.replace('.md', '')
-      await window.api.export.toWord(content, fileName)
+      await ipcApi.request('export.word.from_markdown', { markdown: content, fileName })
     } catch (error) {
       logger.error('Failed to export to Word:', error as Error)
-      window.toast.error(t('notes.export_to_word_failed'))
+      toast.error(t('notes.export_to_word_failed'))
     }
   }, [getCurrentNoteContent, activeNode])
 
   const getPrintableDocumentPayload = useCallback(() => {
     const content = getCurrentNoteContent?.()
     if (!content) {
-      window.toast.warning(t('notes.no_content_to_export'))
+      toast.warning(t('notes.no_content_to_export'))
       return null
     }
     if (!activeNode) {
-      window.toast.warning(t('notes.no_note_selected'))
+      toast.warning(t('notes.no_note_selected'))
       return null
     }
     return {
@@ -134,11 +135,11 @@ const HeaderNavbar = ({
     try {
       const saved = await ipcApi.request('print.export_pdf', payload)
       if (saved) {
-        window.toast.success(t('notes.export_to_pdf_success'))
+        toast.success(t('notes.export_to_pdf_success'))
       }
     } catch (error) {
       logger.error('Failed to export note to PDF:', error as Error)
-      window.toast.error(t('notes.export_to_pdf_failed'))
+      toast.error(t('notes.export_to_pdf_failed'))
     }
   }, [getPrintableDocumentPayload])
 
@@ -150,17 +151,16 @@ const HeaderNavbar = ({
       await ipcApi.request('print.print', payload)
     } catch (error) {
       logger.error('Failed to print note:', error as Error)
-      window.toast.error(t('notes.print_failed'))
+      toast.error(t('notes.print_failed'))
     }
   }, [getPrintableDocumentPayload])
 
   useCommandHandler('app.print', handlePrint, { enabled: isActiveTab && activeNode?.type === 'file' })
 
   const handleShowSettings = useCallback(() => {
-    void GeneralPopup.show({
+    void ContentPopup.show({
       title: t('notes.settings.title'),
       content: <NotesSettings />,
-      footer: null,
       width: 600,
       styles: { body: { padding: 0, maxHeight: 'calc(100vh - 8rem)', display: 'flex', flexDirection: 'column' } }
     })
@@ -294,18 +294,22 @@ const HeaderNavbar = ({
   }, [activeNode, notesTree])
 
   return (
-    <NavbarHeader className="home-navbar shrink-0 justify-start [border-bottom:1px_solid_var(--color-border)]">
+    <NavbarHeader className="home-navbar shrink-0 justify-start [border-bottom:1px_solid_var(--border)]">
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
           <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
-            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
+            <BaseNavbarIcon
+              className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
+              onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
             </BaseNavbarIcon>
           </Tooltip>
         )}
         {!showWorkspace && (
           <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
-            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
+            <BaseNavbarIcon
+              className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground"
+              onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
             </BaseNavbarIcon>
           </Tooltip>
@@ -337,7 +341,7 @@ const HeaderNavbar = ({
                         <span
                           className={cn(
                             'inline-block min-w-0 max-w-37.5 shrink overflow-hidden text-ellipsis whitespace-nowrap',
-                            item.isFolder && !isLastItem && 'cursor-pointer hover:text-primary hover:underline'
+                            item.isFolder && !isLastItem && 'cursor-pointer text-link hover:underline'
                           )}
                           onClick={() => handleBreadcrumbClick(item)}>
                           {item.title}
@@ -360,13 +364,9 @@ const HeaderNavbar = ({
         {canShowStarButton && (
           <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
             <div
-              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-icon"
+              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-muted-foreground"
               onClick={handleToggleStarred}>
-              {activeNode.isStarred ? (
-                <Star size={18} fill="var(--color-warning-base)" stroke="var(--color-warning-base)" />
-              ) : (
-                <Star size={18} />
-              )}
+              {activeNode.isStarred ? <Star size={18} className="fill-amber-400 text-amber-400" /> : <Star size={18} />}
             </div>
           </Tooltip>
         )}
@@ -374,7 +374,7 @@ const HeaderNavbar = ({
           <PopoverTrigger asChild>
             <div>
               <Tooltip title={t('notes.settings.title')} delay={800}>
-                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon">
+                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-muted-foreground">
                   <MoreHorizontal size={18} />
                 </BaseNavbarIcon>
               </Tooltip>

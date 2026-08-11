@@ -11,7 +11,8 @@ export enum WindowType {
   QuickAssistant = 'quickAssistant',
   SubWindow = 'subWindow',
   SelectionToolbar = 'selectionToolbar',
-  SelectionAction = 'selectionAction'
+  SelectionAction = 'selectionAction',
+  McpBrowser = 'mcpBrowser'
 }
 
 /** Valid WindowType values for runtime validation */

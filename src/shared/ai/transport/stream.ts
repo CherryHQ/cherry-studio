@@ -1,15 +1,16 @@
 import type { UIMessageChunk } from 'ai'
 
-import type { CherryMessagePart, CherryUIMessage } from '../../data/types/message'
+import type { AssistantTurnOptions, CherryMessagePart, CherryUIMessage } from '../../data/types/message'
 import type { UniqueModelId } from '../../data/types/model'
+import type { ReasoningEffortOption } from '../../types/aiSdk'
 import type { SerializedError } from '../../types/error'
 
-export interface AiChatRequestBody {
+export interface AiChatRequestBody extends AssistantTurnOptions {
   /** Topic ID for message routing and persistence. */
   topicId: string
-  /** Explicit parent node — message id at the current branch tip, or null for first message. */
+  /** Explicit chat target — active branch tip, or the blank user row for a reserved-branch submit. */
   parentAnchorId?: string
-  /** Models selected by the composer model selector (multi-model fan-out). */
+  /** Composer-selected request models; one id overrides the fallback, while supported flows may fan out several. */
   mentionedModels?: UniqueModelId[]
   /** User message parts to persist/display for submit-message turns. */
   userMessageParts?: CherryMessagePart[]
@@ -57,6 +58,13 @@ export interface ActiveExecution {
   anchorMessageId?: string
 }
 
+/** Chat-tree target captured when a queued draft is created. */
+export interface ComposerChatTarget {
+  parentAnchorId: string | null
+  /** Reserved branches wait for topic idle and must not be injected into the running turn. */
+  mode: 'active-path' | 'reserved-branch'
+}
+
 export interface ComposerQueuedMessagePayload {
   text: string
   userMessageParts: CherryMessagePart[]
@@ -68,7 +76,12 @@ export interface ComposerQueuedMessagePayload {
   attachments?: Array<Record<string, unknown>>
   /** Models selected by the composer model selector for this queued draft. */
   mentionedModels?: UniqueModelId[]
-  knowledgeBaseIds?: string[]
+  /** Canonical reasoning selection captured with this queued draft. */
+  reasoningEffort?: ReasoningEffortOption
+  /** Whether this queued draft requests Fast processing. */
+  fastMode?: boolean
+  /** Chat-only target snapshot. Agent-session queues leave this unset. */
+  chatTarget?: ComposerChatTarget
 }
 
 /**
@@ -132,27 +145,26 @@ export interface StreamErrorPayload {
  */
 export type AiStreamOpenRequest = {
   topicId: string
-  /** UniqueModelIds selected by the composer model selector — Main dispatches one execution per model. */
+  /** Composer-selected request models; one id overrides the fallback, while persistent non-live sends may fan out. */
   mentionedModelIds?: UniqueModelId[]
-  /**
-   * Knowledge bases selected via the composer `/` picker for this turn. Scope is resolved by
-   * `resolveKnowledgeBaseIds`: the assistant's own bound bases take precedence when non-empty
-   * (these ids are then ignored); only when the assistant has none does this selection define
-   * the scope.
-   */
-  knowledgeBaseIds?: string[]
 } & (
   | {
       /** Brand-new user turn: create the user msg + N assistant placeholders. */
       trigger: 'submit-message'
       /**
-       * Parent of the new user msg. Pass the active branch tip. Omit ONLY for the first
-       * message of an empty topic (creates the topic root) — main does not auto-resolve to
-       * the tip, and omitting it on a non-empty topic is rejected as a duplicate root.
+       * Active-path mode: parent of the new user message. Reserved-branch mode: the existing
+       * blank user row to fill. Omit only for the first message of an empty topic — main does
+       * not auto-resolve to the active tip.
        */
       parentAnchorId?: string
       /** Content of the new user msg. */
       userMessageParts: CherryMessagePart[]
+      /** Target intent captured by the chat composer; reserved intent must never degrade into a live steer. */
+      targetMode?: ComposerChatTarget['mode']
+      /** Canonical reasoning selection captured when the composer submitted. */
+      reasoningEffort?: ReasoningEffortOption
+      /** Whether to request Fast processing for this turn. */
+      fastMode?: boolean
     }
   | {
       /** Re-run the assistant under an existing user msg. */
@@ -160,6 +172,10 @@ export type AiStreamOpenRequest = {
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
       userMessageParts?: never
+      /** Canonical reasoning selection captured for this regenerated turn. */
+      reasoningEffort?: ReasoningEffortOption
+      /** Whether to request Fast processing for this regenerated turn. */
+      fastMode?: boolean
     }
 )
 
@@ -199,6 +215,15 @@ export interface AiStreamDetachRequest {
 export interface AiStreamAbortRequest {
   topicId: string
 }
+
+/** Resolve a tool output that was deferred at the boundary. See `transport/deferredToolResult`. */
+export interface AiToolResultRequest {
+  topicId: string
+  messageId: string
+  toolCallId: string
+}
+
+export type AiToolResultResponse = { found: true; output: unknown } | { found: false }
 
 /** Prewarm the next Claude Agent SDK query for an agent session. */
 export interface AiAgentSessionWarmRequest {
@@ -268,4 +293,9 @@ export type AiStreamOpenResponse =
       mode: 'blocked'
       reason: 'agent-session-workspace'
       message: string
+    }
+  | {
+      mode: 'blocked'
+      /** Main-side write quiesce (backup restore in progress). Renderer maps this reason to i18n. */
+      reason: 'paused'
     }

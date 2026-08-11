@@ -1,10 +1,40 @@
 {
   "agent": {
+    "builtin": {
+      "cherry_assistant": {
+        "description": "Cố vấn tích hợp của Cherry Studio. Chẩn đoán sự cố, hướng dẫn thao tác, thu thập câu hỏi thường gặp, gửi báo cáo lỗi/yêu cầu tính năng, đồng thời tìm kiếm hoặc tạo Kỹ năng"
+      }
+    },
     "session": {
       "workspace_status": {
         "inaccessible": "Đường dẫn không gian làm việc không thể truy cập: {{path}}",
         "missing": "Đường dẫn không gian làm việc không tồn tại: {{path}}",
         "not_directory": "Đường dẫn không gian làm việc không phải là thư mục: {{path}}"
+      }
+    }
+  },
+  "apiGateway": {
+    "docs": {
+      "description": "HTTP API của Cherry Studio tương thích với OpenAI, Anthropic và Gemini, cùng các endpoint riêng của Cherry (mô hình, cơ sở tri thức)",
+      "language_switcher_label": "Ngôn ngữ tài liệu",
+      "operations": {
+        "chat_completions": "Tạo một chat completion. Định dạng yêu cầu và phản hồi giống OpenAI Chat Completions; đặt `stream: true` để nhận kết quả theo luồng.",
+        "count_tokens": "Ước tính số token đầu vào mà một tập tin nhắn theo định dạng Anthropic sử dụng.",
+        "generate_content": "Sinh nội dung qua phương thức `generateContent` của Gemini. Định dạng yêu cầu và phản hồi giống Gemini API; `streamGenerateContent` dùng chung đường dẫn này.",
+        "get_knowledge_base": "Lấy một cơ sở tri thức theo ID.",
+        "health": "Trạng thái dịch vụ, thời gian hiện tại và phiên bản. Không cần xác thực.",
+        "info": "Tên, phiên bản API và các endpoint chính. Không cần xác thực.",
+        "list_knowledge_bases": "Liệt kê các cơ sở tri thức có trong phiên bản Cherry Studio này.",
+        "list_models": "Liệt kê các mô hình khả dụng qua gateway này, theo định dạng models của OpenAI.",
+        "messages": "Tạo một tin nhắn. Định dạng yêu cầu và phản hồi giống Anthropic Messages; đặt `stream: true` để nhận kết quả theo luồng.",
+        "responses": "Tạo một response. Định dạng yêu cầu và phản hồi giống OpenAI Responses.",
+        "search_knowledge_bases": "Tìm kiếm trong một hoặc nhiều cơ sở tri thức và trả về các đoạn tài liệu phù hợp."
+      },
+      "tags": {
+        "anthropic": "Các endpoint tương thích Anthropic. Trỏ base URL của Anthropic SDK tới gateway này để sử dụng.",
+        "cherry": "Các endpoint riêng của Cherry Studio: cơ sở tri thức, thông tin dịch vụ và kiểm tra tình trạng.",
+        "gemini": "Các endpoint tương thích Gemini, phục vụ dưới `/v1beta` giống API gốc.",
+        "openai": "Các endpoint tương thích OpenAI. Trỏ base URL của OpenAI SDK tới gateway này để sử dụng."
       }
     }
   },
@@ -17,15 +47,15 @@
     "documentation": "Tài liệu",
     "edit": "Chỉnh sửa",
     "feedback": "Phản hồi",
-    "file": "Tập tin",
+    "file": "Tệp",
     "forceReload": "Tải lại bắt buộc",
     "front": "Đưa Tất cả Ra Phía Trước",
-    "help": "Giúp",
+    "help": "Trợ giúp",
     "hide": "Ẩn",
     "hideOthers": "Ẩn những cái khác",
-    "minimize": "Giảm thiểu",
+    "minimize": "Thu nhỏ",
     "paste": "Dán",
-    "quit": "Thôi",
+    "quit": "Thoát",
     "redo": "Làm lại",
     "releases": "Bản phát hành",
     "reload": "Tải lại",
@@ -39,27 +69,45 @@
     "view": "Xem",
     "website": "Trang web",
     "window": "Cửa sổ",
-    "zoom": "Zoom",
-    "zoomIn": "Thu phóng",
-    "zoomOut": "Alejarse"
+    "zoom": "Thu phóng",
+    "zoomIn": "Phóng to",
+    "zoomOut": "Thu nhỏ"
   },
   "common": {
     "copy": "Sao chép",
     "cut": "Cắt",
     "inspect": "Kiểm tra",
-    "paste": "Pasta"
+    "paste": "Dán"
   },
   "dialog": {
     "all_files": "Tất cả các tệp",
-    "html_files": "Tập tin HTML",
-    "open_file": "Mở Tệp",
+    "data_reset": {
+      "cancel": "Hủy",
+      "confirm": "Đặt lại và khởi động lại",
+      "message": "Thao tác này sẽ xóa các cuộc trò chuyện, trợ lý, cơ sở tri thức, tệp và cài đặt, sau đó khởi động lại ứng dụng. Không thể hoàn tác. Tiếp tục?",
+      "title": "Đặt lại dữ liệu ứng dụng"
+    },
+    "diagnostic_bundle": {
+      "title": "Lưu gói chẩn đoán",
+      "zip_filter": "Tệp nén ZIP"
+    },
+    "html_files": "Tệp HTML",
+    "open_file": "Mở tệp",
     "pdf_files": "Tệp PDF",
     "png_image": "Hình ảnh PNG",
     "save_as_html": "Lưu dưới dạng HTML",
     "save_as_pdf": "Lưu dưới dạng PDF",
-    "save_file": "Lưu Tệp",
+    "save_file": "Lưu tệp",
     "select_folder": "Chọn thư mục",
     "word_document": "Tài liệu Word"
+  },
+  "openclaw": {
+    "errors": {
+      "binary_incompatible": "Tệp nhị phân OpenClaw mà Cherry Studio đang sử dụng không tương thích với cấu hình đã tạo. Hãy nâng cấp OpenClaw.{{details}}",
+      "external_config_invalid": "OpenClaw đã từ chối cấu hình nằm ngoài phần nhà cung cấp do Cherry Studio quản lý. Hãy sửa cấu hình đó hoặc nâng cấp OpenClaw.{{details}}",
+      "more_issues": "và {{count}} vấn đề khác",
+      "preflight_failed": "Cherry Studio không thể xác thực cấu hình OpenClaw."
+    }
   },
   "paintings": {
     "generate_failed": "Không thể tạo hình ảnh",
@@ -73,15 +121,15 @@
       "oauth": {
         "callback": {
           "message": "Bạn có thể đóng trang này và quay lại Cherry Studio",
-          "title": "Autenticación exitosa"
+          "title": "Xác thực thành công"
         }
       }
     },
     "title": "Cài đặt"
   },
   "tray": {
-    "quit": "Thôi",
-    "show_quick_assistant": "Trợ lý Nhanh",
+    "quit": "Thoát",
+    "show_quick_assistant": "Trợ lý nhanh",
     "show_window": "Hiển thị cửa sổ"
   }
 }

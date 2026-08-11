@@ -1,10 +1,16 @@
 import {
+  createOverlayRefreshHandoff,
+  useMessageStreamingLayers
+} from '@renderer/components/chat/messages/stream/useMessageStreamingLayers'
+import {
   isAskUserQuestionToolName,
   parseAskUserQuestionToolInput
 } from '@renderer/components/chat/messages/tools/shared/agentToolTypes'
-import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ComposerContextValue } from '@renderer/components/composer/ComposerContext'
 import { useToolApprovalComposerOverrides } from '@renderer/components/composer/useToolApprovalComposerOverrides'
+import type { AgentComposerSendOptions } from '@renderer/components/composer/variants/AgentComposer'
 import { useAgentSessionParts } from '@renderer/hooks/useAgentSessionParts'
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
@@ -14,15 +20,12 @@ import {
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTopicOverlayHandoffOnTerminal, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import { ipcApi } from '@renderer/ipc'
-import type { GetAgentResponse } from '@renderer/types/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
 import { mergeMessagesById } from '@renderer/utils/message/mergeMessagesById'
-import type { AiToolApprovalRespondResponse } from '@shared/ai/transport'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
-import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
+import type { AiStreamOpenRequest, AiToolApprovalRespondResponse } from '@shared/ai/transport'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import { isToolUIPart } from 'ai'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 
 type AskUserQuestionApprovalPart = CherryMessagePart & {
   type?: string
@@ -32,7 +35,7 @@ type AskUserQuestionApprovalPart = CherryMessagePart & {
   output?: unknown
 }
 
-export type AgentSendOptions = { body?: Record<string, unknown> }
+export type AgentSendOptions = AgentComposerSendOptions
 
 export interface AgentTurnInput {
   text: string
@@ -40,7 +43,7 @@ export interface AgentTurnInput {
 }
 
 export function getAgentTurnParts(input: AgentTurnInput): CherryMessagePart[] {
-  const parts = input.options?.body?.userMessageParts as CherryMessagePart[] | undefined
+  const parts = input.options?.body?.userMessageParts
   return parts ?? (input.text ? [{ type: 'text', text: input.text }] : [])
 }
 
@@ -99,11 +102,11 @@ export interface AgentChatRuntimeState {
   sessionId: string
   uiMessages: CherryUIMessage[]
   partsByMessageId: Record<string, CherryMessagePart[]>
+  streamingLayers: MessageStreamingLayers
   optimisticAskUserQuestionInputsByToolCallId: Record<string, unknown>
   isLoading: boolean
   hasOlder?: boolean
   loadOlder?: () => void
-  fallbackSnapshot?: ModelSnapshot
   isPending: boolean
   stop: () => Promise<void>
   sendMessage: (message?: { text: string }, options?: AgentSendOptions) => Promise<void>
@@ -113,22 +116,19 @@ export interface AgentChatRuntimeState {
 }
 
 interface UseAgentChatRuntimeStateParams {
-  session: AgentSessionEntity
-  activeAgent: GetAgentResponse | undefined
+  sessionId: string
   sessionMessagesEnabled: boolean
   sessionHistoryFetchOnMount?: boolean
   reservedMessages: CherryUIMessage[]
 }
 
 export function useAgentChatRuntimeState({
-  session,
-  activeAgent,
+  sessionId,
   sessionMessagesEnabled,
   sessionHistoryFetchOnMount,
   reservedMessages
 }: UseAgentChatRuntimeStateParams): AgentChatRuntimeState {
-  const sessionId = session.id
-  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
+  const sessionTopicId = useMemo(() => (sessionId ? buildAgentSessionTopicId(sessionId) : ''), [sessionId])
   const {
     messages: uiMessages,
     isLoading,
@@ -147,7 +147,7 @@ export function useAgentChatRuntimeState({
     void seedReservedMessages(reservedMessages)
   }, [reservedMessages, seedReservedMessages, sessionMessagesEnabled])
 
-  const chat = useChatWithHistory(sessionTopicId, uiMessages, refresh)
+  const { activeExecutions, setMessages, stop } = useChatWithHistory(sessionTopicId, uiMessages, refresh)
   const historyAdapter = useMemo<ConversationHistoryAdapter>(
     () => ({
       seedReservedMessages,
@@ -156,79 +156,65 @@ export function useAgentChatRuntimeState({
     }),
     [refresh, seedReservedMessages]
   )
-  const turnController = useConversationTurnController<AgentTurnInput, { topicId: string }>({
-    scopeKey: sessionTopicId,
-    historyAdapter,
-    ensureConversation: () => ({ topicId: sessionTopicId }),
-    buildStreamRequest: (input, conversation) => ({
+  const ensureConversation = useCallback(() => ({ topicId: sessionTopicId }), [sessionTopicId])
+  const buildStreamRequest = useCallback(
+    (input: AgentTurnInput, conversation: { topicId: string }): AiStreamOpenRequest => ({
       trigger: 'submit-message',
       topicId: conversation.topicId,
-      userMessageParts: getAgentTurnParts(input)
-    })
+      userMessageParts: getAgentTurnParts(input),
+      reasoningEffort: input.options?.body?.reasoningEffort,
+      ...(input.options?.body?.fastMode === true ? { fastMode: true } : {})
+    }),
+    []
+  )
+  const { send } = useConversationTurnController<AgentTurnInput, { topicId: string }>({
+    scopeKey: sessionTopicId,
+    historyAdapter,
+    ensureConversation,
+    buildStreamRequest
   })
   const sendMessage = useCallback(
     async (message?: { text: string }, options?: AgentSendOptions) => {
-      await turnController.send({ text: message?.text ?? '', options })
+      await send({ text: message?.text ?? '', options })
     },
-    [turnController]
+    [send]
   )
   const deleteMessage = useCallback(
     async (messageId: string) => {
       await deleteSessionMessage(messageId)
-      chat.setMessages((current) => current.filter((message) => message.id !== messageId))
+      invalidateCachedMessageUiStates([messageId])
+      setMessages((current) => current.filter((message) => message.id !== messageId))
     },
-    [chat, deleteSessionMessage]
+    [deleteSessionMessage, setMessages]
   )
-
-  const fallbackSnapshot = useMemo<ModelSnapshot | undefined>(() => {
-    const modelString = activeAgent?.model
-    if (!isUniqueModelId(modelString)) return undefined
-    const { providerId, modelId } = parseUniqueModelId(modelString)
-    if (!providerId || !modelId) return undefined
-    return { id: modelId, name: activeAgent?.modelName ?? modelId, provider: providerId }
-  }, [activeAgent?.model, activeAgent?.modelName])
-
-  const basePartsMap = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const next: Record<string, CherryMessagePart[]> = {}
-    for (const message of uiMessages) {
-      next[message.id] = (message.parts ?? []) as CherryMessagePart[]
-    }
-    return next
-  }, [uiMessages])
 
   const {
     overlay,
     liveAssistants,
     reset: resetOverlay
-  } = useExecutionOverlay(sessionTopicId, chat.activeExecutions, uiMessages)
+  } = useExecutionOverlay(sessionTopicId, activeExecutions, uiMessages)
+  const { partsByMessageId, streamingLayers } = useMessageStreamingLayers({
+    messages: uiMessages,
+    overlay,
+    executions: activeExecutions,
+    liveAssistants
+  })
   const [optimisticAskUserQuestionInputsByToolCallId, setOptimisticAskUserQuestionInputsByToolCallId] = useState<
     Record<string, unknown>
   >({})
 
-  // Deterministic overlay→DB handoff: the overlay's `onFinish` is suppressed when
-  // the execution leaves `activeExecutions` at terminal, so a torn-down turn's
-  // live card would otherwise override the finalized DB row. Refresh then drop the
-  // overlay off the terminal status edge (excludes awaiting-approval, which keeps
-  // its card). `refresh()` before `reset()` avoids flashing the stale base parts.
-  useTopicOverlayHandoffOnTerminal(sessionTopicId, async () => {
-    try {
-      await refresh()
-    } finally {
-      resetOverlay()
-    }
-  })
+  // Deterministic overlay→DB handoff at terminal (see hook docs).
+  useTopicOverlayHandoffOnTerminal(sessionTopicId, createOverlayRefreshHandoff(refresh, resetOverlay))
 
+  // Ref-guarded against <Activity> re-show: hide/show re-runs this effect with
+  // an unchanged sessionTopicId, and the fresh {} literal would defeat React's
+  // setState bail-out and force a re-render on every tab switch.
+  const optimisticInputsResetTopicIdRef = useRef(sessionTopicId)
   useEffect(() => {
+    if (optimisticInputsResetTopicIdRef.current === sessionTopicId) return
+    optimisticInputsResetTopicIdRef.current = sessionTopicId
     setOptimisticAskUserQuestionInputsByToolCallId({})
   }, [sessionTopicId])
-
-  const partsByMessageId = useMemo<Record<string, CherryMessagePart[]>>(() => {
-    const next = { ...basePartsMap }
-    for (const [messageId, parts] of Object.entries(overlay)) {
-      if (parts.length) next[messageId] = parts
-    }
-    return next
-  }, [basePartsMap, overlay])
 
   useEffect(() => {
     setOptimisticAskUserQuestionInputsByToolCallId((current) => {
@@ -273,7 +259,7 @@ export function useAgentChatRuntimeState({
 
       let result: AiToolApprovalRespondResponse
       try {
-        result = await ipcApi.request('ai.respond_tool_approval', {
+        result = await ipcApi.request('ai.tool.respond_approval', {
           approvalId,
           approved,
           reason,
@@ -296,6 +282,7 @@ export function useAgentChatRuntimeState({
   )
   const toolApprovalComposerOverrides = useToolApprovalComposerOverrides({
     partsByMessageId,
+    streamingLayers,
     onRespond: respondToolApproval
   })
   const { isPending } = useTopicStreamStatus(sessionTopicId)
@@ -311,13 +298,13 @@ export function useAgentChatRuntimeState({
     sessionId,
     uiMessages: displayMessages,
     partsByMessageId,
+    streamingLayers,
     optimisticAskUserQuestionInputsByToolCallId,
     isLoading,
     hasOlder,
     loadOlder,
-    fallbackSnapshot,
     isPending,
-    stop: chat.stop,
+    stop,
     sendMessage,
     deleteMessage,
     respondToolApproval,

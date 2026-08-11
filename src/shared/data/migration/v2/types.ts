@@ -44,6 +44,13 @@ export interface MigrationProgress {
   warnings?: string[]
   /** Completion-screen summary stats; written only on successful completion */
   summary?: MigrationSummary
+  /**
+   * Resolved v1 data directory to surface on the introduction screen, seeded
+   * only when the migration gate auto-recovered a non-default custom userData
+   * location (fuzzy fallback). Absent otherwise. Its presence is what tells
+   * the renderer to render the "data migration directory" notice.
+   */
+  dataLocation?: string
 }
 
 // Prepare phase result
@@ -122,10 +129,30 @@ export interface LocalStorageRecord {
 }
 
 export interface StartMigrationPayload {
-  reduxData: Record<string, unknown>
+  reduxExportPath: string
   dexieExportPath: string
-  localStorageExportPath?: string
+  localStorageExportPath: string
 }
+
+export interface PreparedMigrationExportPaths extends StartMigrationPayload {
+  localStorageExportDirectory: string
+}
+
+/** localStorage keys that are still consumed by the v1 -> v2 migration. */
+export const MIGRATION_LOCAL_STORAGE_KEYS = ['onboarding-completed'] as const
+
+export type MigrationDiagnosticSaveResult =
+  | { status: 'saved'; logs: 'included' | 'not_included' }
+  | { status: 'canceled' }
+  | { status: 'failed' }
+
+export interface MigrationDiagnosticSavePayload {
+  dialogTitle: string
+  logDate: string
+}
+
+export type MigrationExportFileWriteMode = 'overwrite' | 'append'
+export type MigrationExportStage = { source: 'redux' } | { source: 'dexie'; table: string } | { source: 'localStorage' }
 
 // IPC channels for migration communication
 export const MigrationIpcChannels = {
@@ -133,11 +160,13 @@ export const MigrationIpcChannels = {
   CheckNeeded: 'migration:check-needed',
   GetProgress: 'migration:get-progress',
   GetLastError: 'migration:get-last-error',
-  GetUserDataPath: 'migration:get-user-data-path',
 
   // Flow control
   Start: 'migration:start',
+  PrepareExport: 'migration:prepare-export',
   StartMigration: 'migration:start-migration',
+  // Main-process breadcrumb for renderer export OOM diagnostics.
+  ReportExportStage: 'migration:report-export-stage',
   // Renderer-local failure mirrored to main's terminal error stage.
   ReportError: 'migration:report-error',
   Retry: 'migration:retry',
@@ -146,6 +175,12 @@ export const MigrationIpcChannels = {
 
   // File transfer (Renderer -> Main)
   WriteExportFile: 'migration:write-export-file',
+  SaveDiagnosticBundle: 'migration:save-diagnostic-bundle',
+  ShowDiagnosticBundleInFolder: 'migration:show-diagnostic-bundle-in-folder',
+
+  // Open the region-appropriate v1 download page in the system browser
+  // (the preboot window has no shell access; main picks the site by egress IP)
+  OpenDownloadPage: 'migration:open-download-page',
 
   // Skip migration (version incompatible — user chose to use defaults)
   SkipMigration: 'migration:skip-migration',

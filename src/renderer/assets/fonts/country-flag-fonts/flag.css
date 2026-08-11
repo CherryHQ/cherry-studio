@@ -1,3 +1,5 @@
+/* Consumed via the Windows global font stack in font.css — Windows has no
+ * native flag emoji, so flag sequences in any text render through this face. */
 @font-face {
   font-family: 'Twemoji Country Flags';
   unicode-range:
@@ -5,9 +7,4 @@
   /*https://github.com/beyondkmp/country-flag-emoji-polyfill/blob/master/font/TwemojiCountryFlags.woff2 */
   src: url('TwemojiCountryFlags.woff2') format('woff2');
   font-display: swap;
-}
-
-/* 国旗字体样式类 */
-.country-flag-font {
-  font-family: 'Twemoji Country Flags', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
 }

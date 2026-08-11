@@ -1,30 +1,25 @@
+import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import type { AiStreamOpenRequest, AiStreamOpenResponse } from '@shared/ai/transport'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { streamDispatchService } from '../StreamDispatchService'
 
 const TOPIC = 'topic-1'
 const req: AiStreamOpenRequest = { trigger: 'submit-message', topicId: TOPIC, userMessageParts: [] }
 
-// `streamOpen` backs the `ai.stream_open` route on the mocked ipcApi (hoisted so the
+// `streamOpen` backs the `ai.stream.open` route on the mocked ipcApi (hoisted so the
 // vi.mock factory can reference it).
 const { streamOpen } = vi.hoisted(() => ({ streamOpen: vi.fn() }))
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
     request: (route: string, input: unknown) =>
-      route === 'ai.stream_open' ? streamOpen(input) : Promise.resolve(undefined),
+      route === 'ai.stream.open' ? streamOpen(input) : Promise.resolve(undefined),
     on: () => () => {}
   }
 }))
 
-let originalToast: unknown
-
-beforeEach(() => {
-  originalToast = (window as unknown as { toast: unknown }).toast
-  ;(window as unknown as { toast: unknown }).toast = { error: vi.fn() }
-})
 afterEach(() => {
-  ;(window as unknown as { toast: unknown }).toast = originalToast
   vi.clearAllMocks()
 })
 
@@ -34,37 +29,7 @@ describe('StreamDispatchService', () => {
   it('routes a resolved ack to subscribers', async () => {
     const ack: AiStreamOpenResponse = {
       mode: 'started',
-      userMessageId: 'u-1',
-      reservedMessages: [
-        {
-          id: 'u-1',
-          role: 'user',
-          parts: [{ type: 'text', text: 'hello' }],
-          metadata: { status: 'success', createdAt: '2026-05-23T00:00:00.000Z' }
-        },
-        {
-          id: 'a-1',
-          role: 'assistant',
-          parts: [],
-          metadata: {
-            status: 'pending',
-            createdAt: '2026-05-23T00:00:00.001Z',
-            modelId: 'openai:gpt-4o',
-            modelSnapshot: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' }
-          }
-        },
-        {
-          id: 'a-2',
-          role: 'assistant',
-          parts: [],
-          metadata: {
-            status: 'pending',
-            createdAt: '2026-05-23T00:00:00.002Z',
-            modelId: 'anthropic:claude-3-5-sonnet',
-            modelSnapshot: { id: 'claude-3-5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'anthropic' }
-          }
-        }
-      ]
+      userMessageId: 'u-1'
     }
     streamOpen.mockResolvedValue(ack)
     const seen: unknown[] = []
@@ -88,7 +53,7 @@ describe('StreamDispatchService', () => {
 
     expect(seen).toHaveLength(1)
     expect(seen[0]).toMatchObject({ ok: false, topicId: TOPIC })
-    expect(window.toast.error).not.toHaveBeenCalled()
+    expect(toast.error).not.toHaveBeenCalled()
     off()
   })
 
@@ -102,7 +67,19 @@ describe('StreamDispatchService', () => {
     streamDispatchService.dispatch(TOPIC, req)
     await flush()
 
-    expect(window.toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
+    expect(toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
+  })
+
+  it('localizes paused dispatch failures from their reason', async () => {
+    streamOpen.mockResolvedValue({
+      mode: 'blocked',
+      reason: 'paused'
+    } satisfies AiStreamOpenResponse)
+
+    streamDispatchService.dispatch(TOPIC, req)
+    await flush()
+
+    expect(toast.error).toHaveBeenCalledWith(i18n.t('restore.messages_paused'))
   })
 
   it('unsubscribe stops further delivery', async () => {

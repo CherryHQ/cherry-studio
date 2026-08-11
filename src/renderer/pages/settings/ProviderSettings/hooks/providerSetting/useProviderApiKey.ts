@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import { useProvider, useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProvider'
 import i18n from '@renderer/i18n/resolver'
+import { toast } from '@renderer/services/toast'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { debounce } from 'es-toolkit/compat'
@@ -134,6 +135,9 @@ export function useProviderApiKey(providerId: string) {
       if (!provider) {
         return
       }
+      if ([...value].some((character) => character.charCodeAt(0) > 0xff)) {
+        throw new Error('API key contains characters unsupported by HTTP headers')
+      }
 
       await updateApiKeys(toApiKeyEntries(value, apiKeysData))
     },
@@ -153,7 +157,7 @@ export function useProviderApiKey(providerId: string) {
       debounce((nextValue: string) => {
         void saveApiKeyRef.current(nextValue).catch((error) => {
           logger.error('Failed to save API keys', error as Error)
-          window.toast.error(i18n.t('settings.provider.api_key.save_failed'))
+          toast.error(i18n.t('settings.provider.api_key.save_failed'))
           setValue((current) => ({ ...current, hasPendingSync: true }))
         })
       }, 150),
@@ -211,7 +215,14 @@ export function useProviderApiKey(providerId: string) {
       return
     }
 
-    await saveApiKeyRef.current(normalizedInputApiKey)
+    try {
+      await saveApiKeyRef.current(normalizedInputApiKey)
+    } catch (error) {
+      logger.error('Failed to save API keys', error as Error)
+      toast.error(i18n.t('settings.provider.api_key.save_failed'))
+      setValue((current) => ({ ...current, hasPendingSync: true }))
+      throw error
+    }
   }, [saveLater])
 
   return useMemo(

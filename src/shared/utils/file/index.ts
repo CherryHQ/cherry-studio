@@ -1,5 +1,6 @@
-export { canonicalizeAbsolutePath } from './canonicalize'
+export { type CanonicalFilePath, CanonicalFilePathSchema, canonicalizeFilePath } from './canonicalize'
 export {
+  archiveExts,
   audioExts,
   codeLangExts,
   customTextExts,

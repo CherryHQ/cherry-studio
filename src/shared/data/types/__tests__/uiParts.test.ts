@@ -3,13 +3,36 @@ import { describe, expect, it } from 'vitest'
 
 import type { CherryMessagePart } from '../message'
 import {
+  CherryErrorMetaSchema,
   CherryFileMetaSchema,
   CherryReasoningMetaSchema,
   CherryTextMetaSchema,
   CherryToolMetaSchema,
+  createClearContextPart,
+  type DiagnosisResult,
+  getKnowledgeBaseIdsFromParts,
+  hasClearContextPart,
+  isBlankUserTurn,
+  KnowledgeScopePartDataSchema,
   readCherryMeta,
-  withCherryMeta
+  withCherryMeta,
+  withKnowledgeScopePart
 } from '../uiParts'
+
+const diagnosis: DiagnosisResult = {
+  summary: 'OpenAI API key is invalid',
+  category: 'auth',
+  explanation: 'The server rejected the request because the key is invalid.',
+  steps: [{ text: 'Open provider settings and check the key' }]
+}
+
+function dataErrorPart(cherry?: Record<string, unknown>): Extract<CherryMessagePart, { type: 'data-error' }> {
+  return {
+    type: 'data-error',
+    data: { name: 'AuthError', message: 'Unauthorized' },
+    ...(cherry ? { providerMetadata: { cherry } } : {})
+  } as unknown as Extract<CherryMessagePart, { type: 'data-error' }>
+}
 
 // ============================================================================
 // Schema sanity — declared shape matches expectation
@@ -53,10 +76,11 @@ describe('CherryToolMetaSchema', () => {
 })
 
 describe('CherryFileMetaSchema', () => {
-  it('accepts fileEntryId and fileTokenSourceId', () => {
+  it('accepts fileEntryId, fileTokenSourceId, and the safe composer file kind', () => {
     const ok = CherryFileMetaSchema.safeParse({
       fileEntryId: 'entry-1',
-      fileTokenSourceId: 'source-1'
+      fileTokenSourceId: 'source-1',
+      composerFileKind: 'pasted-text'
     })
 
     expect(ok.success).toBe(true)
@@ -66,6 +90,87 @@ describe('CherryFileMetaSchema', () => {
     const bad = CherryFileMetaSchema.safeParse({ fileTokenSourceId: 1 })
 
     expect(bad.success).toBe(false)
+  })
+
+  it('rejects unsupported composer file kinds', () => {
+    const bad = CherryFileMetaSchema.safeParse({ composerFileKind: 'local-path' })
+
+    expect(bad.success).toBe(false)
+  })
+})
+
+describe('CherryErrorMetaSchema', () => {
+  it('accepts a fully-formed diagnosis and an empty object', () => {
+    expect(CherryErrorMetaSchema.safeParse({ diagnosis }).success).toBe(true)
+    expect(CherryErrorMetaSchema.safeParse({}).success).toBe(true)
+  })
+
+  it('rejects a diagnosis with a non-string summary', () => {
+    expect(CherryErrorMetaSchema.safeParse({ diagnosis: { ...diagnosis, summary: 42 } }).success).toBe(false)
+  })
+
+  it('rejects a diagnosis whose steps are not step objects', () => {
+    expect(CherryErrorMetaSchema.safeParse({ diagnosis: { ...diagnosis, steps: ['plain'] } }).success).toBe(false)
+  })
+})
+
+describe('knowledge scope parts', () => {
+  it('validates, deduplicates, and replaces the aggregate scope part', () => {
+    const parts = withKnowledgeScopePart(
+      [
+        { type: 'text', text: 'hello' },
+        { type: 'data-knowledge-scope', data: { baseIds: ['old'] } }
+      ] as CherryMessagePart[],
+      ['kb-1', 'kb-2', 'kb-1']
+    )
+
+    expect(parts).toEqual([
+      { type: 'text', text: 'hello' },
+      { type: 'data-knowledge-scope', data: { baseIds: ['kb-1', 'kb-2'] } }
+    ])
+    expect(getKnowledgeBaseIdsFromParts(parts)).toEqual(['kb-1', 'kb-2'])
+  })
+
+  it('removes the scope part when the selection is empty', () => {
+    const parts = withKnowledgeScopePart(
+      [
+        { type: 'text', text: 'hello' },
+        { type: 'data-knowledge-scope', data: { baseIds: ['kb-1'] } }
+      ] as CherryMessagePart[],
+      []
+    )
+
+    expect(parts).toEqual([{ type: 'text', text: 'hello' }])
+    expect(getKnowledgeBaseIdsFromParts(parts)).toBeUndefined()
+  })
+
+  it('rejects malformed scope data at the read boundary', () => {
+    expect(KnowledgeScopePartDataSchema.safeParse({ baseIds: [''] }).success).toBe(false)
+    expect(
+      getKnowledgeBaseIdsFromParts([
+        { type: 'data-knowledge-scope', data: { baseIds: [42] } } as unknown as CherryMessagePart
+      ])
+    ).toBeUndefined()
+  })
+})
+
+describe('clear context parts', () => {
+  it('creates and detects a hidden data UI part', () => {
+    const part = createClearContextPart()
+
+    expect(part).toEqual({ type: 'data-clear', data: {} })
+    expect(hasClearContextPart([{ type: 'text', text: 'before' }, part])).toBe(true)
+    expect(hasClearContextPart([{ type: 'text', text: 'before' }])).toBe(false)
+    expect(hasClearContextPart(undefined)).toBe(false)
+  })
+})
+
+describe('blank user turns', () => {
+  it('requires a successful user role with no parts', () => {
+    expect(isBlankUserTurn({ role: 'user', status: 'success', parts: [] })).toBe(true)
+    expect(isBlankUserTurn({ role: 'assistant', status: 'success', parts: [] })).toBe(false)
+    expect(isBlankUserTurn({ role: 'user', status: 'pending', parts: [] })).toBe(false)
+    expect(isBlankUserTurn({ role: 'user', status: 'success', parts: [{ type: 'text' }] })).toBe(false)
   })
 })
 
@@ -126,10 +231,24 @@ describe('readCherryMeta', () => {
       mediaType: 'application/pdf',
       url: 'file:///tmp/report.pdf',
       filename: 'report.pdf',
-      providerMetadata: { cherry: { fileEntryId: 'entry-1', fileTokenSourceId: 'source-1' } }
+      providerMetadata: {
+        cherry: { fileEntryId: 'entry-1', fileTokenSourceId: 'source-1', composerFileKind: 'pasted-text' }
+      }
     } as unknown as Extract<CherryMessagePart, { type: 'file' }>
 
-    expect(readCherryMeta(part)).toEqual({ fileEntryId: 'entry-1', fileTokenSourceId: 'source-1' })
+    expect(readCherryMeta(part)).toEqual({
+      fileEntryId: 'entry-1',
+      fileTokenSourceId: 'source-1',
+      composerFileKind: 'pasted-text'
+    })
+  })
+
+  it('reads CherryErrorMeta diagnosis from a data-error part', () => {
+    expect(readCherryMeta(dataErrorPart({ diagnosis }))?.diagnosis).toEqual(diagnosis)
+  })
+
+  it('returns undefined for a data-error part with a malformed diagnosis', () => {
+    expect(readCherryMeta(dataErrorPart({ diagnosis: { summary: 42 } }))).toBeUndefined()
   })
 
   it('returns undefined when providerMetadata is missing', () => {
@@ -217,6 +336,11 @@ describe('withCherryMeta', () => {
     const next = withCherryMeta(part, { fileTokenSourceId: 'source-1' })
 
     expect(next.providerMetadata?.cherry).toEqual({ fileTokenSourceId: 'source-1' })
+  })
+
+  it('round-trips a diagnosis onto a data-error part', () => {
+    const next = withCherryMeta(dataErrorPart(), { diagnosis })
+    expect(readCherryMeta(next)?.diagnosis).toEqual(diagnosis)
   })
 
   // ── Compile-time negatives — `tsc --noEmit` enforces these. ──────────

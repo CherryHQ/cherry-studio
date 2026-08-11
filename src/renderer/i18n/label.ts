@@ -69,6 +69,7 @@ const providerKeyMap = {
   ppio: 'provider.ppio',
   qiniu: 'provider.qiniu',
   qwenlm: 'provider.qwenlm',
+  'radeon-cloud': 'provider.radeon-cloud',
   silicon: 'provider.silicon',
   stepfun: 'provider.stepfun',
   'tencent-cloud-ti': 'provider.tencent-cloud-ti',
@@ -90,6 +91,7 @@ const providerKeyMap = {
   mimo: 'provider.mimo',
   'minimax-global': 'provider.minimax-global',
   zai: 'provider.zai',
+  'local-embedding': 'provider.local-embedding',
   opencode: 'provider.opencode'
 } as const
 
@@ -106,11 +108,16 @@ export const getProviderLabelKey = (id: string): string => {
   return getLabelKey(providerKeyMap, id)
 }
 
+// Must cover every FILE_PROCESSOR_IDS entry: getLabelKey falls back to the raw
+// id (and logs an error) for anything missing, so a gap here surfaces as
+// "local-document" sitting in a dropdown among properly named siblings.
 const fileProcessorKeyMap = {
   doc2x: 'provider.doc2x',
   mineru: 'provider.mineru',
   ovocr: 'provider.ovocr',
   paddleocr: 'provider.paddleocr',
+  'local-paddleocr': 'settings.tool.file_processing.processors.local_paddleocr.name',
+  'local-document': 'settings.tool.file_processing.processors.local_document.name',
   system: 'provider.system',
   tesseract: 'provider.tesseract',
   mistral: 'provider.mistral',
@@ -166,7 +173,6 @@ const titleKeyMap = {
   paintings: 'title.paintings',
   settings: 'title.settings',
   translate: 'title.translate',
-  openclaw: 'openclaw.title',
   agents: 'agent.sidebar_title'
 } as const
 
@@ -193,12 +199,30 @@ const sidebarIconKeyMap = {
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
-  notes: 'notes.title',
-  openclaw: 'openclaw.title'
+  notes: 'notes.title'
 } as const
 
 export const getSidebarIconLabelKey = (key: string): string => {
   return getLabelKey(sidebarIconKeyMap, key)
+}
+
+// Transitional: feat renamed this to `getSidebarIconLabelKey` (above) and deleted
+// the old one, but main's `components/app/Sidebar` still calls it. Kept until the
+// chat carve brings feat's Sidebar; remove together with that.
+const sidebarFavoriteKeyMap = {
+  assistants: 'assistants.title',
+  agents: 'title.work',
+  store: 'assistants.presets.title',
+  paintings: 'title.paintings',
+  translate: 'translate.title',
+  mini_app: 'miniApp.title',
+  knowledge: 'knowledge.title',
+  files: 'files.title',
+  code_tools: 'code.title',
+  notes: 'notes.title'
+} as const
+export const getSidebarFavoriteLabelKey = (key: string): string => {
+  return getLabelKey(sidebarFavoriteKeyMap, key)
 }
 
 const selectionDescriptionKeyMap = {
@@ -272,6 +296,7 @@ export const getMiniAppsStatusLabelKey = (key: string): string => {
 const httpMessageKeyMap = {
   '400': 'error.http.400',
   '401': 'error.http.401',
+  '402': 'error.http.402',
   '403': 'error.http.403',
   '404': 'error.http.404',
   '429': 'error.http.429',

@@ -1,3 +1,4 @@
+import { type LocalModelKind } from '@shared/data/presets/localModel'
 import { FILE_TYPE, FileTypeSchema } from '@shared/types/file'
 import * as z from 'zod'
 
@@ -205,6 +206,14 @@ export const FILE_PROCESSOR_PRESET_MAP = {
       }
     ]
   },
+  'local-paddleocr': {
+    type: 'builtin',
+    capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
+  },
+  'local-document': {
+    type: 'builtin',
+    capabilities: [{ feature: 'document_to_markdown', inputs: ['document'], output: 'markdown' }]
+  },
   ovocr: {
     type: 'builtin',
     capabilities: [{ feature: 'image_to_text', inputs: ['image'], output: 'text' }]
@@ -270,3 +279,17 @@ export const PRESETS_FILE_PROCESSORS: readonly FileProcessorPreset[] = FILE_PROC
   id,
   ...FILE_PROCESSOR_PRESET_MAP[id]
 }))
+
+/**
+ * Processors that additionally need a downloadable local model before they can
+ * run. Absent from this map means "nothing to download" — not "unavailable".
+ *
+ * A missing model is a state the user can fix in one click, unlike a platform
+ * that can never run the processor, so both processes read this map to tell the
+ * two apart: main refuses the job with a message that says which one it is, and
+ * the renderer keeps the processor selectable and offers the download.
+ */
+export const FILE_PROCESSOR_LOCAL_MODEL: Partial<Record<FileProcessorId, LocalModelKind>> = {
+  'local-paddleocr': 'ocr',
+  'local-document': 'ocr'
+}

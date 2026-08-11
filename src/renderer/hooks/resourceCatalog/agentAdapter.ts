@@ -1,7 +1,9 @@
-import { useMutation, useQuery } from '@data/hooks/useDataApi'
+import { useInvalidateCache, useMutation, useQuery } from '@data/hooks/useDataApi'
+import { createAgentAndRefresh } from '@renderer/services/createAgent'
 import type { AgentDetail } from '@renderer/types/resourceCatalog'
-import { AGENTS_MAX_LIMIT, type CreateAgentDto, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
-import { useCallback } from 'react'
+import { AGENTS_MAX_LIMIT, type UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
+import { useCallback, useState } from 'react'
 
 import type { ResourceAdapter, ResourceListQuery, ResourceListResult } from './types'
 
@@ -40,16 +42,22 @@ export const agentAdapter: ResourceAdapter<AgentDetail> = {
 
 /** List-level write hook — create only. */
 export function useAgentMutations() {
-  const { trigger: createTrigger } = useMutation('POST', '/agents', {
-    refresh: ['/agents']
-  })
+  const invalidate = useInvalidateCache()
+  const [isCreatingAgent, setIsCreatingAgent] = useState(false)
 
   const createAgent = useCallback(
-    (dto: CreateAgentDto): Promise<AgentDetail> => createTrigger({ body: dto }),
-    [createTrigger]
+    async (dto: CreateAgentCommand): Promise<AgentDetail> => {
+      setIsCreatingAgent(true)
+      try {
+        return await createAgentAndRefresh(dto, () => invalidate('/agents'))
+      } finally {
+        setIsCreatingAgent(false)
+      }
+    },
+    [invalidate]
   )
 
-  return { createAgent }
+  return { createAgent, isCreatingAgent }
 }
 
 /**
@@ -61,7 +69,10 @@ export function useAgentMutationsById(id: string) {
   const path = `/agents/${id}` as const
 
   const { trigger: updateTrigger } = useMutation('PATCH', path, {
-    refresh: ['/agents', '/agents/*']
+    // skillUpdates writes the agent_skill join table, which backs `GET /skills?agentId=…`
+    // (per-agent isEnabled projection) — refresh it so those lists don't go stale.
+    refresh: ({ args }) =>
+      args?.body?.skillUpdates !== undefined ? ['/agents', '/agents/*', '/skills'] : ['/agents', '/agents/*']
   })
   const { trigger: deleteTrigger } = useMutation('DELETE', path, {
     refresh: ['/agents', '/agents/*', '/pins']

@@ -1,17 +1,34 @@
 import type * as CherryStudioUi from '@cherrystudio/ui'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type * as ReactI18next from 'react-i18next'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { createWorkspaceMock, refetchWorkspacesMock, selectFolderMock, useMutationMock, useQueryMock } = vi.hoisted(
-  () => ({
-    createWorkspaceMock: vi.fn(),
-    refetchWorkspacesMock: vi.fn(),
-    selectFolderMock: vi.fn(),
-    useMutationMock: vi.fn(),
-    useQueryMock: vi.fn()
-  })
-)
+const {
+  closeConversationTabsMock,
+  createWorkspaceMock,
+  deleteWorkspaceMock,
+  invalidateCacheMock,
+  refetchReferencesMock,
+  refetchWorkspacesMock,
+  selectFolderMock,
+  toastErrorMock,
+  toastSuccessMock,
+  useMutationMock,
+  useQueryMock
+} = vi.hoisted(() => ({
+  closeConversationTabsMock: vi.fn(),
+  createWorkspaceMock: vi.fn(),
+  deleteWorkspaceMock: vi.fn(),
+  invalidateCacheMock: vi.fn(),
+  refetchReferencesMock: vi.fn(),
+  refetchWorkspacesMock: vi.fn(),
+  selectFolderMock: vi.fn(),
+  toastErrorMock: vi.fn(),
+  toastSuccessMock: vi.fn(),
+  useMutationMock: vi.fn(),
+  useQueryMock: vi.fn()
+}))
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<typeof CherryStudioUi>()
@@ -19,8 +36,20 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 vi.mock('@renderer/data/hooks/useDataApi', () => ({
+  useInvalidateCache: () => invalidateCacheMock,
   useMutation: useMutationMock,
   useQuery: useQueryMock
+}))
+
+vi.mock('@renderer/hooks/tab', () => ({
+  useCloseConversationTabs: () => closeConversationTabsMock
+}))
+
+vi.mock('@renderer/services/toast', () => ({
+  toast: {
+    error: toastErrorMock,
+    success: toastSuccessMock
+  }
 }))
 
 vi.mock('react-i18next', async (importOriginal) => {
@@ -28,20 +57,42 @@ vi.mock('react-i18next', async (importOriginal) => {
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string) =>
-        ({
+      t: (key: string, options?: { count?: number; name?: string }) => {
+        const translations: Record<string, string> = {
+          'agent.session.new': 'New task',
+          'agent.session.workdir.delete.channels_count': `${options?.count} channels`,
+          'agent.session.workdir.delete.channels_empty': 'No channels will be changed.',
+          'agent.session.workdir.delete.channels_title': 'Channels changed to no work directory',
+          'agent.session.workdir.delete.disk_preserved': 'The folder on disk and its files will not be deleted.',
+          'agent.session.workdir.delete.more_count': `…and ${options?.count} more items`,
+          'agent.session.workdir.delete.preview': `Deleting “${options?.name}” shows every impact.`,
+          'agent.session.workdir.delete.preview_failed': 'The deletion impact could not be loaded',
+          'agent.session.workdir.delete.preview_loading': 'Loading deletion impact…',
+          'agent.session.workdir.delete.sessions_count': `${options?.count} sessions`,
+          'agent.session.workdir.delete.sessions_empty': 'No sessions will be deleted.',
+          'agent.session.workdir.delete.sessions_title': 'Sessions to be deleted',
+          'agent.session.workdir.delete.tasks_count': `${options?.count} scheduled tasks`,
+          'agent.session.workdir.delete.tasks_empty': 'No scheduled tasks will be changed.',
+          'agent.session.workdir.delete.tasks_title': 'Scheduled tasks changed to no work directory',
+          'agent.session.workdir.delete.title': 'Delete work directory',
+          'agent.session.workdir.delete.trigger': 'Delete work directory',
           'agent.session.workspace_selector.create_failed': 'Failed to add work directory',
           'agent.session.workspace_selector.create_new': 'Add new work directory',
           'agent.session.workspace_selector.empty_text': 'No work directories',
           'agent.session.workspace_selector.no_project': 'No work directory',
           'agent.session.workspace_selector.search_placeholder': 'Search work directories',
-          'agent.session.workspace_selector.select_failed': 'Failed to select folder'
-        })[key] ?? key
+          'agent.session.workspace_selector.select_failed': 'Failed to select folder',
+          'common.cancel': 'Cancel',
+          'common.delete': 'Delete',
+          'common.delete_success': 'Deleted',
+          'common.retry': 'Retry',
+          'common.unnamed': 'Unnamed'
+        }
+        return translations[key] ?? key
+      }
     })
   }
 })
-
-import { DEFAULT_SELECTOR_CONTENT_HEIGHT } from '@renderer/components/SelectorShell'
 
 import { WorkspaceSelector } from '../WorkspaceSelector'
 
@@ -76,7 +127,65 @@ const CREATED_WORKSPACE = {
   updatedAt: '2026-01-03T00:00:00.000Z'
 }
 
-const toastErrorMock = vi.fn()
+const SESSIONS = [
+  {
+    id: 'session-alpha-recent',
+    agentId: 'agent-1',
+    name: 'Fix workspace selector',
+    isNameManuallyEdited: false,
+    workspaceId: 'workspace-alpha',
+    workspace: WORKSPACES[0],
+    orderKey: 'a0',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-04T00:00:00.000Z'
+  },
+  {
+    id: 'session-alpha-older',
+    agentId: 'agent-1',
+    name: 'Review delete dialog',
+    isNameManuallyEdited: true,
+    workspaceId: 'workspace-alpha',
+    workspace: WORKSPACES[0],
+    orderKey: 'a1',
+    createdAt: '2026-01-02T00:00:00.000Z',
+    updatedAt: '2026-01-03T00:00:00.000Z'
+  },
+  {
+    id: 'session-beta',
+    agentId: 'agent-1',
+    name: 'Unrelated session',
+    isNameManuallyEdited: false,
+    workspaceId: 'workspace-beta',
+    workspace: WORKSPACES[1],
+    orderKey: 'a2',
+    createdAt: '2026-01-03T00:00:00.000Z',
+    updatedAt: '2026-01-05T00:00:00.000Z'
+  }
+]
+
+const REFERENCES = {
+  sessions: {
+    items: SESSIONS.slice(0, 2).map(({ id, name }) => ({ id, name })),
+    total: 5
+  },
+  channels: {
+    items: [{ id: 'channel-alpha', name: 'Release bot' }],
+    total: 1
+  },
+  tasks: {
+    items: [{ id: 'task-alpha', name: 'Nightly review' }],
+    total: 1
+  }
+}
+
+let referencesQueryResult: {
+  data: typeof REFERENCES | undefined
+  isLoading: boolean
+  isRefreshing: boolean
+  error: Error | undefined
+  refetch: typeof refetchReferencesMock
+  mutate: ReturnType<typeof vi.fn>
+}
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -97,20 +206,44 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
-  useQueryMock.mockReturnValue({
-    data: WORKSPACES,
+  referencesQueryResult = {
+    data: REFERENCES,
     isLoading: false,
     isRefreshing: false,
     error: undefined,
-    refetch: refetchWorkspacesMock,
+    refetch: refetchReferencesMock,
     mutate: vi.fn()
+  }
+  useQueryMock.mockImplementation((path: string) => {
+    if (path === '/agent-workspaces/:workspaceId/references') return referencesQueryResult
+    return {
+      data: WORKSPACES,
+      isLoading: false,
+      isRefreshing: false,
+      error: undefined,
+      refetch: refetchWorkspacesMock,
+      mutate: vi.fn()
+    }
   })
-  useMutationMock.mockReturnValue({
-    trigger: createWorkspaceMock,
-    isLoading: false,
-    error: undefined
+  useMutationMock.mockImplementation((method: string, path: string) => {
+    if (method === 'DELETE' && path === '/agent-workspaces/:workspaceId') {
+      return {
+        trigger: deleteWorkspaceMock,
+        isLoading: false,
+        error: undefined
+      }
+    }
+
+    return {
+      trigger: createWorkspaceMock,
+      isLoading: false,
+      error: undefined
+    }
   })
   createWorkspaceMock.mockResolvedValue(CREATED_WORKSPACE)
+  deleteWorkspaceMock.mockResolvedValue({ deletedIds: ['session-alpha-recent', 'session-alpha-older'] })
+  invalidateCacheMock.mockResolvedValue(undefined)
+  refetchReferencesMock.mockResolvedValue(undefined)
   refetchWorkspacesMock.mockResolvedValue(undefined)
   selectFolderMock.mockResolvedValue(null)
 
@@ -122,7 +255,6 @@ beforeEach(() => {
       }
     }
   })
-  window.toast = { error: toastErrorMock } as unknown as typeof window.toast
 })
 
 afterEach(() => {
@@ -149,15 +281,6 @@ describe('WorkspaceSelector', () => {
     expect(options[0]).toHaveTextContent('cherry-studio')
     expect(options[1]).toHaveTextContent('cherry-studio-1')
     expect(screen.queryByText('/Users/jd/cherry-studio')).not.toBeInTheDocument()
-  })
-
-  it('sets the default popover target height', () => {
-    renderSelector()
-    openPopover()
-
-    expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({
-      height: `${DEFAULT_SELECTOR_CONTENT_HEIGHT}px`
-    })
   })
 
   it('renders and selects the no-project option', async () => {
@@ -240,5 +363,78 @@ describe('WorkspaceSelector', () => {
     )
     expect(refetchWorkspacesMock).toHaveBeenCalled()
     expect(onChange).toHaveBeenCalledWith('workspace-created')
+  })
+
+  it('previews capped affected resource summaries before deleting a workspace', async () => {
+    const user = userEvent.setup()
+    renderSelector()
+    openPopover()
+
+    await user.click(screen.getAllByRole('button', { name: 'Delete work directory' })[0])
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('cherry-studio')
+    expect(dialog).toHaveTextContent('5 sessions')
+    expect(dialog).toHaveTextContent('Fix workspace selector')
+    expect(dialog).toHaveTextContent('Review delete dialog')
+    expect(dialog).not.toHaveTextContent('Unrelated session')
+    expect(dialog).toHaveTextContent('…and 3 more items')
+    expect(dialog).toHaveTextContent('1 channels')
+    expect(dialog).toHaveTextContent('Release bot')
+    expect(dialog).toHaveTextContent('1 scheduled tasks')
+    expect(dialog).toHaveTextContent('Nightly review')
+    expect(dialog).toHaveTextContent('/Users/jd/cherry-studio')
+    expect(screen.getByRole('list', { name: 'Sessions to be deleted' })).toHaveAttribute('tabindex', '0')
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }))
+
+    await waitFor(() =>
+      expect(deleteWorkspaceMock).toHaveBeenCalledWith({ params: { workspaceId: 'workspace-alpha' } })
+    )
+    expect(closeConversationTabsMock).toHaveBeenCalledWith('agents', ['session-alpha-recent', 'session-alpha-older'])
+    expect(invalidateCacheMock).toHaveBeenCalledWith([
+      '/agent-sessions/session-alpha-recent',
+      '/agent-sessions/session-alpha-older'
+    ])
+    expect(toastSuccessMock).toHaveBeenCalledWith('Deleted')
+  })
+
+  it('resets the parent when the deleted workspace is selected', async () => {
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(
+      <WorkspaceSelector trigger={<button type="button">Open</button>} value="workspace-alpha" onChange={onChange} />
+    )
+    openPopover()
+
+    await user.click(screen.getAllByRole('button', { name: 'Delete work directory' })[0])
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith(null))
+  })
+
+  it('does not allow confirmation while a cached impact is refreshing', async () => {
+    referencesQueryResult = { ...referencesQueryResult, isRefreshing: true }
+    const user = userEvent.setup()
+    renderSelector()
+    openPopover()
+
+    await user.click(screen.getAllByRole('button', { name: 'Delete work directory' })[0])
+
+    expect(await screen.findByRole('button', { name: 'Delete' })).toBeDisabled()
+    expect(screen.getByText('Loading deletion impact…')).toBeInTheDocument()
+  })
+
+  it('keeps the dialog open and reports a failed deletion', async () => {
+    const user = userEvent.setup()
+    deleteWorkspaceMock.mockRejectedValueOnce(new Error('delete failed'))
+    renderSelector()
+    openPopover()
+
+    await user.click(screen.getAllByRole('button', { name: 'Delete work directory' })[0])
+    await user.click(await screen.findByRole('button', { name: 'Delete' }))
+
+    await waitFor(() => expect(toastErrorMock).toHaveBeenCalledOnce())
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 })

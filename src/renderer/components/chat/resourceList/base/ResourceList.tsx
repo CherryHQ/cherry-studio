@@ -4,7 +4,7 @@ import { cn } from '@renderer/utils/style'
 import type { CommandId } from '@shared/utils/command'
 import { SearchIcon, SquareMinus } from 'lucide-react'
 import type { ComponentProps, ReactNode, Ref } from 'react'
-import { useCallback, useEffect, useRef } from 'react'
+import { createContext, use, useCallback, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -22,10 +22,17 @@ import {
 } from './ResourceListContext'
 import { GroupHeader, GroupShowMore } from './ResourceListGroups'
 import {
+  RESOURCE_LIST_ACTIVE_ROW_CLASS,
+  RESOURCE_LIST_DEFAULT_ROW_LAYOUT,
+  RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
   RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
-  RESOURCE_LIST_ROW_HEIGHT_CLASS,
+  RESOURCE_LIST_LABEL_CLASS,
+  RESOURCE_LIST_PRESENTATION_CLASS_NAMES,
+  RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS,
   RESOURCE_LIST_SELECTED_ROW_CLASS,
-  RESOURCE_LIST_VISUAL_ROW_CLASS
+  RESOURCE_LIST_TITLE_FADE_CLASS,
+  RESOURCE_LIST_VISUAL_ROW_CLASS,
+  type ResourceListPresentation
 } from './resourceListLayout'
 import { ResourceListLeadingSlot, type ResourceListLeadingSlotProps } from './ResourceListLeadingSlot'
 import { ResourceListProvider } from './ResourceListProvider'
@@ -38,6 +45,7 @@ export type {
   ResourceListFilterOption,
   ResourceListGroup,
   ResourceListGroupHeaderClickBehavior,
+  ResourceListGroupHeaderKind,
   ResourceListGroupSeed,
   ResourceListItemAccessors,
   ResourceListItemBase,
@@ -54,23 +62,37 @@ export type {
   ResourceListViewSection
 } from './ResourceListContext'
 export type { ResourceListGroupReorderPayload, ResourceListItemReorderPayload } from './ResourceListContext'
+export type { ResourceListPresentation } from './resourceListLayout'
 
 type FrameProps = ComponentProps<'div'> & {
+  presentation?: ResourceListPresentation
   ref?: Ref<HTMLDivElement>
 }
 
-function Frame({ className, ref, ...props }: FrameProps) {
+const ResourceListPresentationContext = createContext<ResourceListPresentation>('left-panel')
+
+function useResourceListPresentation() {
+  return use(ResourceListPresentationContext)
+}
+
+function Frame({ className, presentation = 'left-panel', ref, ...props }: FrameProps) {
   const meta = useResourceListMeta()
+  const presentationClassNames = RESOURCE_LIST_PRESENTATION_CLASS_NAMES[presentation]
+
   return (
-    <div
-      ref={ref}
-      data-resource-list-variant={meta.variant}
-      className={cn(
-        'flex min-h-0 flex-1 flex-col overflow-hidden border-border border-r-[0.5px] p-1.5 text-sidebar-foreground',
-        className
-      )}
-      {...props}
-    />
+    <ResourceListPresentationContext value={presentation}>
+      <div
+        ref={ref}
+        data-resource-list-presentation={presentation}
+        data-resource-list-variant={meta.variant}
+        className={cn(
+          'flex min-h-0 flex-1 flex-col overflow-hidden bg-background p-1.5 text-foreground',
+          presentationClassNames.frame,
+          className
+        )}
+        {...props}
+      />
+    </ResourceListPresentationContext>
   )
 }
 
@@ -83,12 +105,15 @@ type SearchProps = Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> & {
 function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProps) {
   const actions = useResourceListActions()
   const state = useResourceListControlsState()
+  const presentation = useResourceListPresentation()
+  const presentationClassNames = RESOURCE_LIST_PRESENTATION_CLASS_NAMES[presentation]
   const searchIcon = icon === undefined ? <SearchIcon size={12} /> : icon
+
   return (
-    <div className={wrapperClassName}>
+    <div className={cn(presentationClassNames.searchWrapper, wrapperClassName)}>
       <div className="relative">
         {searchIcon && (
-          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 flex text-foreground-muted">
+          <span className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-2 flex text-foreground-tertiary">
             {searchIcon}
           </span>
         )}
@@ -97,9 +122,9 @@ function Search({ className, icon, wrapperClassName, ref, ...props }: SearchProp
           value={state.query}
           onChange={(event) => actions.setQuery(event.target.value)}
           className={cn(
-            'h-7 rounded-full border border-sidebar-border bg-sidebar pr-2 text-[10px] text-sidebar-foreground shadow-none transition-colors md:text-[10px]',
-            'placeholder:text-[10px] placeholder:text-foreground-muted focus-visible:border-sidebar-ring focus-visible:ring-0',
-            searchIcon ? 'pl-6' : 'pl-2',
+            'border border-border-subtle bg-background-subtle pr-2 text-foreground shadow-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:bg-background focus-visible:ring-0',
+            presentationClassNames.searchInput,
+            searchIcon ? presentationClassNames.searchIconPadding : 'pl-2',
             className
           )}
           {...props}
@@ -118,24 +143,25 @@ type HeaderProps = ComponentProps<'div'> & {
 }
 
 function Header({ actions, children, className, count, icon, ref, title, ...props }: HeaderProps) {
+  const presentation = useResourceListPresentation()
+  const presentationClassNames = RESOURCE_LIST_PRESENTATION_CLASS_NAMES[presentation]
+
   return (
-    <div ref={ref} className={cn('flex shrink-0 flex-col gap-2.5', className)} {...props}>
+    <div ref={ref} className={cn('flex shrink-0 flex-col gap-1', presentationClassNames.header, className)} {...props}>
       {(title || actions) && (
         <div className="flex h-5 items-center gap-1.5">
           {icon && (
-            <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground/50">{icon}</span>
+            <span className="flex size-3.5 shrink-0 items-center justify-center text-foreground-tertiary">{icon}</span>
           )}
           <div className="flex min-w-0 flex-1 items-baseline gap-1">
-            {title && (
-              <span className="truncate font-medium text-[12px] text-muted-foreground/60 leading-4">{title}</span>
-            )}
+            {title && <span className="truncate font-medium text-[12px] text-muted-foreground leading-4">{title}</span>}
             {count !== undefined && (
-              <span className="shrink-0 font-medium text-[12px] text-muted-foreground/40 tabular-nums leading-4">
+              <span className="shrink-0 font-medium text-[12px] text-foreground-tertiary tabular-nums leading-4">
                 {count}
               </span>
             )}
           </div>
-          {actions && <div className="flex shrink-0 items-center gap-1.5 text-muted-foreground/55">{actions}</div>}
+          {actions && <div className="flex shrink-0 items-center gap-1.5 text-muted-foreground">{actions}</div>}
         </div>
       )}
       {children}
@@ -163,19 +189,19 @@ function HeaderItem({ actions, className, command, icon, label, ref, variant = '
         ref={ref}
         variant={variant}
         className={cn(
-          'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 focus-visible:ring-1 focus-visible:ring-sidebar-ring [&_svg]:size-4 [&_svg]:shrink-0',
+          'group min-h-8 min-w-0 justify-start gap-1.5 rounded-lg py-1 text-sm shadow-none outline-none transition-all duration-150 hover:bg-accent/60 focus-visible:bg-accent/60 [&_svg]:size-4 [&_svg]:shrink-0',
           icon ? 'px-1.5' : 'px-2.5',
           command ? 'w-full shrink' : 'flex-1',
           className
         )}
         {...props}>
         {icon && <ItemLeadingSlot>{icon}</ItemLeadingSlot>}
-        <span className="min-w-0 flex-1 truncate text-left font-medium text-[13px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground">
+        <span className={cn('min-w-0 flex-1 truncate text-left text-foreground', RESOURCE_LIST_LABEL_CLASS)}>
           {label}
         </span>
-        {command && <CommandHint command={command} />}
+        {command && <CommandHint command={command} className="font-normal text-muted-foreground text-xs" />}
       </Button>
-      {actions && <div className="flex shrink-0 items-center gap-1 text-foreground/70">{actions}</div>}
+      {actions && <div className="flex shrink-0 items-center gap-1 text-muted-foreground">{actions}</div>}
     </div>
   )
 }
@@ -193,7 +219,7 @@ function HeaderActionButton({
       size={size}
       variant={variant}
       className={cn(
-        'text-foreground/70! leading-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-4!',
+        'text-muted-foreground! leading-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-4!',
         className
       )}
       {...props}
@@ -214,7 +240,7 @@ function GroupHeaderActionButton({
       size={size}
       variant={variant}
       className={cn(
-        'inline-flex size-6 min-h-6 min-w-6 shrink-0 items-center justify-center gap-0 rounded-md p-0 text-foreground/70! leading-none shadow-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-3! [&_svg]:shrink-0',
+        'inline-flex size-6 min-h-6 min-w-6 shrink-0 items-center justify-center gap-0 rounded-md p-0 text-muted-foreground! leading-none shadow-none hover:bg-muted hover:text-foreground! data-[state=open]:bg-muted data-[state=open]:text-foreground! [&_.lucide:not(.lucide-custom)]:text-current! [&_svg]:block [&_svg]:size-3.5! [&_svg]:shrink-0',
         className
       )}
       {...props}
@@ -227,7 +253,7 @@ type SectionToggleMenuItemProps = Omit<ComponentProps<typeof MenuItem>, 'label' 
   collapseLabel: string
   expandIcon?: ReactNode
   expandLabel: string
-  sectionId: string
+  sectionIds: readonly string[]
 }
 
 function SectionToggleMenuItem({
@@ -237,15 +263,17 @@ function SectionToggleMenuItem({
   expandIcon,
   expandLabel,
   onClick,
-  sectionId,
+  sectionIds,
   ...props
 }: SectionToggleMenuItemProps) {
   const actions = useResourceListActions()
   const view = useResourceListView()
-  const section = view.sections.find((candidate) => candidate.section.id === sectionId)
-  const groupIds = section?.groups.map((group) => group.group.id) ?? []
-  const expandGroupIds = section ? [section.section.id, ...groupIds] : groupIds
-  const expandedGroupIds = section?.groups.filter((group) => !group.collapsed).map((group) => group.group.id) ?? []
+  const sectionIdSet = new Set(sectionIds)
+  const sections = view.sections.filter((candidate) => sectionIdSet.has(candidate.section.id))
+  const groups = sections.flatMap((section) => section.groups)
+  const groupIds = groups.map((group) => group.group.id)
+  const expandGroupIds = [...sections.map((section) => section.section.id), ...groupIds]
+  const expandedGroupIds = groups.filter((group) => !group.collapsed).map((group) => group.group.id)
   const hasExpandedGroup = expandedGroupIds.length > 0
   const isDisabled = disabled || groupIds.length === 0
 
@@ -360,10 +388,12 @@ function FilterBar({ className, ref, ...props }: FilterBarProps) {
 type ItemProps<T extends ResourceListItemBase> = ComponentProps<'div'> & {
   item: T
   ref?: Ref<HTMLDivElement>
+  tooltip?: ReactNode
 }
 
 function Item<T extends ResourceListItemBase>({
   item,
+  children,
   className,
   ref,
   id: elementId,
@@ -372,29 +402,31 @@ function Item<T extends ResourceListItemBase>({
   onMouseEnter,
   onMouseLeave,
   tabIndex,
+  tooltip,
   ...props
 }: ItemProps<T>) {
   const actions = useResourceListActions()
   const { getItemId } = useResourceListItemAccessors<T>()
   const id = getItemId(item)
   const rowState = useResourceListRowState(id)
-
-  return (
+  const content = (
     <div
       ref={ref}
       id={elementId ?? getResourceListOptionDomId(id)}
       role="option"
       aria-selected={rowState.selected}
-      data-active-descendant={rowState.active || undefined}
+      data-active-descendant={rowState.active && !rowState.selected ? true : undefined}
       data-selected={rowState.selected || undefined}
       data-reveal-focus={rowState.revealFocused || undefined}
       data-dragging={rowState.dragging || undefined}
       tabIndex={tabIndex ?? -1}
       className={cn(
-        'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-[13px] text-sidebar-foreground/80 outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
+        'group relative flex w-full cursor-pointer items-center gap-1.5 px-2.5 text-foreground outline-none transition-all duration-150 has-[[data-resource-list-leading-slot=true]]:px-1.5',
+        RESOURCE_LIST_LABEL_CLASS,
         RESOURCE_LIST_VISUAL_ROW_CLASS,
         RESOURCE_LIST_INTERACTIVE_ROW_CLASS,
-        rowState.active && !rowState.selected && 'bg-sidebar-accent text-sidebar-foreground',
+        !rowState.active && !rowState.selected && RESOURCE_LIST_DESCENDANT_FOCUS_ROW_CLASS,
+        rowState.active && !rowState.selected && RESOURCE_LIST_ACTIVE_ROW_CLASS,
         rowState.selected && RESOURCE_LIST_SELECTED_ROW_CLASS,
         rowState.revealFocused && 'animation-resource-list-reveal-focus',
         className
@@ -418,8 +450,17 @@ function Item<T extends ResourceListItemBase>({
       onMouseLeave={(event) => {
         onMouseLeave?.(event)
       }}
-      {...props}
-    />
+      {...props}>
+      {children}
+    </div>
+  )
+
+  if (!tooltip) return content
+
+  return (
+    <Tooltip content={tooltip} placement="right" sideOffset={4} delay={500} fullWidthTrigger>
+      {content}
+    </Tooltip>
   )
 }
 
@@ -473,7 +514,13 @@ function RenameField<T extends ResourceListItemBase>({
       ref={setInputRef}
       defaultValue={getItemLabel(item)}
       className={cn(
-        'h-6 flex-1 border-none bg-transparent px-0 text-[13px] text-sidebar-foreground/70 shadow-none focus-visible:ring-0',
+        // The input inherits the row's semantic foreground: callers may start renaming without first
+        // selecting the row, while selected rows still carry the paired product foreground.
+        // `md:text-sm` on the shared Input wins over a plain `text-[13px]`, so the responsive variant
+        // has to be restated — otherwise the title grows a size the moment editing starts.
+        'h-6 flex-1 border-none bg-transparent px-0 text-inherit shadow-none focus-visible:ring-0 md:text-[13px]',
+        RESOURCE_LIST_LABEL_CLASS,
+        'font-medium',
         className
       )}
       onBlur={(event) => commitRename(event.currentTarget.value)}
@@ -503,15 +550,19 @@ function RenameField<T extends ResourceListItemBase>({
 }
 
 type ItemTitleProps = ComponentProps<'span'> & {
+  fade?: boolean
   ref?: Ref<HTMLSpanElement>
 }
 
-function ItemTitle({ className, ref, ...props }: ItemTitleProps) {
+function ItemTitle({ className, fade = false, ref, ...props }: ItemTitleProps) {
   return (
     <span
       ref={ref}
       className={cn(
-        'min-w-0 flex-1 truncate text-left font-normal text-[13px] text-sidebar-foreground/70 leading-5 group-hover:text-foreground group-focus-visible:text-foreground group-data-[selected=true]:font-medium group-data-[selected=true]:text-foreground',
+        'min-w-0 flex-1 truncate text-left text-foreground group-data-[selected=true]:font-medium',
+        RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS,
+        RESOURCE_LIST_LABEL_CLASS,
+        fade && RESOURCE_LIST_TITLE_FADE_CLASS,
         className
       )}
       {...props}
@@ -535,9 +586,10 @@ function ItemAction({ className, ref, type = 'button', ...props }: ItemActionPro
       ref={ref}
       type={type}
       className={cn(
-        'pointer-events-none flex size-5 shrink-0 items-center justify-center rounded-lg text-foreground/70 opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
-        'hover:bg-accent hover:text-foreground',
-        'focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-sidebar-ring',
+        'pointer-events-none flex size-5 shrink-0 items-center justify-center rounded-lg text-muted-foreground opacity-0 transition-all duration-150 [&_svg]:size-3.5 [&_svg]:shrink-0',
+        'hover:bg-accent hover:text-accent-foreground!',
+        'focus-visible:pointer-events-auto focus-visible:bg-accent focus-visible:text-accent-foreground! focus-visible:opacity-100 focus-visible:outline-none',
+        RESOURCE_LIST_ROW_STATE_FOREGROUND_CLASS,
         'group-hover:pointer-events-auto group-hover:opacity-100 data-[deleting=true]:pointer-events-auto data-[deleting=true]:opacity-100',
         className
       )}
@@ -551,19 +603,20 @@ type ItemActionsProps = ComponentProps<'div'> & {
   ref?: Ref<HTMLDivElement>
 }
 
-function ItemActions({ active, className, ref, ...props }: ItemActionsProps) {
+function ItemActions({ active, children, className, ref, ...props }: ItemActionsProps) {
   return (
     <div
       ref={ref}
       data-active={active || undefined}
       data-resource-list-item-actions="true"
       className={cn(
-        '-translate-y-1/2 pointer-events-none absolute top-1/2 right-1.5 flex items-center gap-0 opacity-0 transition-opacity duration-150',
-        'focus-within:pointer-events-auto focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:opacity-100',
+        '-ml-1.5 -mr-1 pointer-events-none grid shrink-0 grid-cols-[0fr] opacity-0 transition-[grid-template-columns,opacity] duration-150 group-has-[[data-resource-list-leading-slot=true]]:mr-0 motion-reduce:transition-none',
+        'focus-within:pointer-events-auto focus-within:grid-cols-[1fr] focus-within:opacity-100 group-hover:pointer-events-auto group-hover:grid-cols-[1fr] group-hover:opacity-100 data-[active=true]:pointer-events-auto data-[active=true]:grid-cols-[1fr] data-[active=true]:opacity-100',
         className
       )}
-      {...props}
-    />
+      {...props}>
+      <div className="flex min-w-0 items-center overflow-hidden">{children}</div>
+    </div>
   )
 }
 
@@ -589,6 +642,8 @@ function Body<T extends ResourceListItemBase>({
 }: BodyProps<T>) {
   const state = useResourceListControlsState()
   const view = useResourceListView<T>()
+  const presentation = useResourceListPresentation()
+  const resolvedVirtualClassName = cn(RESOURCE_LIST_PRESENTATION_CLASS_NAMES[presentation].body, virtualClassName)
 
   if (state.status === 'loading') {
     return <LoadingState />
@@ -604,11 +659,18 @@ function Body<T extends ResourceListItemBase>({
 
   if (draggable) {
     return (
-      <VirtualDraggableItems ref={listRef} className={virtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
+      <VirtualDraggableItems
+        ref={listRef}
+        className={resolvedVirtualClassName}
+        ariaLabel={ariaLabel}
+        renderItem={renderItem}
+      />
     )
   }
 
-  return <VirtualItems ref={listRef} className={virtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
+  return (
+    <VirtualItems ref={listRef} className={resolvedVirtualClassName} ariaLabel={ariaLabel} renderItem={renderItem} />
+  )
 }
 
 type EmptyStateProps = ComponentProps<typeof UiEmptyState>
@@ -633,7 +695,7 @@ function LoadingState({ className, ref, ...props }: LoadingStateProps) {
         <div key={group.id} data-resource-list-loading-group="true" className="flex flex-col pb-1">
           <div
             data-resource-list-loading-group-header="true"
-            className={cn('flex items-center gap-1.5 px-1.5 pt-2 pb-1', RESOURCE_LIST_ROW_HEIGHT_CLASS)}>
+            className={cn('flex items-center gap-1.5 px-1.5 pt-2 pb-1', RESOURCE_LIST_DEFAULT_ROW_LAYOUT.className)}>
             <ResourceListLeadingSlot variant="loading">
               <Skeleton data-slot="skeleton" className="size-5 shrink-0 rounded-md" />
             </ResourceListLeadingSlot>
@@ -672,7 +734,10 @@ function ErrorState({ className, message, ref, children, ...props }: ErrorStateP
     <div
       ref={ref}
       role="alert"
-      className={cn('m-2 rounded-md border border-destructive/40 p-3 text-sm', className)}
+      className={cn(
+        'm-2 rounded-md border border-error-border bg-error-subtle p-3 text-error-subtle-foreground text-sm',
+        className
+      )}
       {...props}>
       {message ?? children ?? t('error.boundary.default.message')}
     </div>

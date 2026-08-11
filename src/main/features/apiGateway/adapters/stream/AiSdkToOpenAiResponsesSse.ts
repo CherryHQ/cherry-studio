@@ -6,10 +6,15 @@
  * - response.created
  * - response.in_progress
  * - response.output_item.added
+ * - response.reasoning_summary_text.delta
  * - response.content_part.added
  * - response.output_text.delta
  * - response.output_text.done
  * - response.completed
+ *
+ * Output items are indexed in emission order rather than at fixed positions: a `reasoning`
+ * item has to precede the `message` it belongs to, so the message item's own index is only
+ * allocated once its first text delta arrives (or at finalize, for a text-less turn).
  *
  * @see https://platform.openai.com/docs/api-reference/responses-streaming
  */
@@ -32,6 +37,8 @@ type ResponseUsage = OpenAI.Responses.ResponseUsage
 type ResponseOutputMessage = OpenAI.Responses.ResponseOutputMessage
 type ResponseOutputText = OpenAI.Responses.ResponseOutputText
 type ResponseFunctionToolCall = OpenAI.Responses.ResponseFunctionToolCall
+type ResponseOutputItem = OpenAI.Responses.ResponseOutputItem
+type ResponseReasoningItem = OpenAI.Responses.ResponseReasoningItem
 
 /**
  * Minimal response fields required for streaming.
@@ -63,14 +70,20 @@ type ResponsesFinishReason = 'stop' | 'max_output_tokens' | 'content_filter' | '
  * Tool call state for tracking
  */
 interface ToolCallState {
-  index: number
-  /** Position in the response `output[]` (the message item occupies index 0). */
+  /** Position in the response `output[]`, allocated when the call is emitted. */
   outputIndex: number
   /** The function_call output item's id (`fc_<callId>`). */
   itemId: string
   callId: string
   name: string
   arguments: string
+}
+
+/** An open `reasoning` output item, accumulating its summary text. */
+interface ReasoningState {
+  itemId: string
+  outputIndex: number
+  text: string
 }
 
 /**
@@ -80,11 +93,18 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private createdAt: number
   private sequenceNumber = 0
   private toolCalls: Map<string, ToolCallState> = new Map()
-  private currentToolCallIndex = 0
   private finishReason: ResponsesFinishReason = null
   private textContent = ''
   private outputItemId: string
   private contentPartIndex = 0
+  /** Next free `output[]` position; items claim one as they start. */
+  private nextOutputIndex = 0
+  /** Completed output items keyed by their `output_index`. */
+  private outputItems: Map<number, ResponseOutputItem> = new Map()
+  /** Allocated on the message item's first text delta, or at finalize. */
+  private messageOutputIndex: number | null = null
+  private reasoning: ReasoningState | null = null
+  private reasoningCount = 0
 
   constructor(options: StreamAdapterOptions) {
     super(options)
@@ -97,6 +117,11 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
    */
   private nextSequence(): number {
     return this.sequenceNumber++
+  }
+
+  /** Completed output items in `output[]` order. */
+  private buildOutputItems(): ResponseOutputItem[] {
+    return [...this.outputItems.entries()].sort(([a], [b]) => a - b).map(([, item]) => item)
   }
 
   /**
@@ -161,21 +186,29 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       sequence_number: this.nextSequence()
     }
     this.emit(inProgressEvent)
+  }
 
-    // Emit output_item.added for the message
-    const outputItemAddedEvent: ResponseStreamEvent = {
+  /**
+   * Open the assistant `message` output item, closing any reasoning that preceded it.
+   * Deferred until the first text delta so a `reasoning` item can take an earlier
+   * `output_index` — clients rebuild history from that order.
+   */
+  private ensureMessageItem(): void {
+    if (this.messageOutputIndex !== null) return
+    this.closeReasoningItem()
+    this.messageOutputIndex = this.nextOutputIndex++
+
+    this.emit({
       type: 'response.output_item.added',
-      output_index: 0,
+      output_index: this.messageOutputIndex,
       item: this.buildOutputMessage(),
       sequence_number: this.nextSequence()
-    }
-    this.emit(outputItemAddedEvent)
+    })
 
-    // Emit content_part.added for text
-    const contentPartAddedEvent: ResponseStreamEvent = {
+    this.emit({
       type: 'response.content_part.added',
       item_id: this.outputItemId,
-      output_index: 0,
+      output_index: this.messageOutputIndex,
       content_index: this.contentPartIndex,
       part: {
         type: 'output_text',
@@ -183,8 +216,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         annotations: []
       },
       sequence_number: this.nextSequence()
-    }
-    this.emit(contentPartAddedEvent)
+    })
   }
 
   /**
@@ -212,6 +244,16 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         this.emitTextDelta(chunk.delta || '')
         break
 
+      // Reasoning rides in its own `reasoning` output item. `reasoning-start` is ignored:
+      // the item opens on the first non-empty delta, so a reasoning-less turn emits none.
+      case 'reasoning-delta':
+        this.emitReasoningDelta(chunk.delta || '')
+        break
+
+      case 'reasoning-end':
+        this.closeReasoningItem()
+        break
+
       case 'tool-input-available':
         this.handleToolCall({
           toolCallId: chunk.toolCallId,
@@ -232,7 +274,9 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         throw new Error(chunk.errorText)
 
       default:
-        // Other chunk types have no Responses-API semantic event here.
+        // start / start-step / finish-step / text-start|end / reasoning-start /
+        // tool-input-start|delta / tool-output-available / source-url / file / abort —
+        // no Responses-API semantic event here.
         break
     }
   }
@@ -240,8 +284,8 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   /** Track cumulative usage from the `message-metadata` projection. */
   private applyUsageMetadata(metadata: GatewayUsageMetadata | undefined): void {
     if (!metadata) return
-    if (metadata.promptTokens !== undefined) this.state.inputTokens = metadata.promptTokens
-    if (metadata.completionTokens !== undefined) this.state.outputTokens = metadata.completionTokens
+    if (metadata.stats?.inputTokens !== undefined) this.state.inputTokens = metadata.stats.inputTokens
+    if (metadata.stats?.outputTokens !== undefined) this.state.outputTokens = metadata.stats.outputTokens
   }
 
   /**
@@ -250,18 +294,99 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
   private emitTextDelta(delta: string): void {
     if (!delta) return
 
+    this.ensureMessageItem()
     this.textContent += delta
 
     const event: ResponseStreamEvent = {
       type: 'response.output_text.delta',
       item_id: this.outputItemId,
-      output_index: 0,
+      output_index: this.messageOutputIndex ?? 0,
       content_index: this.contentPartIndex,
       delta,
       logprobs: [],
       sequence_number: this.nextSequence()
     }
     this.emit(event)
+  }
+
+  /**
+   * Append to the open `reasoning` item, opening one on the first delta.
+   *
+   * The chain rides in `summary` (what clients render and echo back) and is mirrored into
+   * `content` as `reasoning_text` — the model gives us raw reasoning, not a summary, but
+   * `summary` is the field every Responses client reads.
+   */
+  private emitReasoningDelta(delta: string): void {
+    if (!delta) return
+
+    if (!this.reasoning) {
+      const outputIndex = this.nextOutputIndex++
+      this.reasoning = { itemId: `rs_${this.state.messageId}_${this.reasoningCount++}`, outputIndex, text: '' }
+
+      this.emit({
+        type: 'response.output_item.added',
+        output_index: outputIndex,
+        item: { type: 'reasoning', id: this.reasoning.itemId, summary: [], status: 'in_progress' },
+        sequence_number: this.nextSequence()
+      })
+      this.emit({
+        type: 'response.reasoning_summary_part.added',
+        item_id: this.reasoning.itemId,
+        output_index: outputIndex,
+        summary_index: 0,
+        part: { type: 'summary_text', text: '' },
+        sequence_number: this.nextSequence()
+      })
+    }
+
+    this.reasoning.text += delta
+    this.emit({
+      type: 'response.reasoning_summary_text.delta',
+      item_id: this.reasoning.itemId,
+      output_index: this.reasoning.outputIndex,
+      summary_index: 0,
+      delta,
+      sequence_number: this.nextSequence()
+    })
+  }
+
+  /** Close the open reasoning item, if any. Idempotent — several paths may reach it. */
+  private closeReasoningItem(): void {
+    if (!this.reasoning) return
+    const { itemId, outputIndex, text } = this.reasoning
+    this.reasoning = null
+
+    this.emit({
+      type: 'response.reasoning_summary_text.done',
+      item_id: itemId,
+      output_index: outputIndex,
+      summary_index: 0,
+      text,
+      sequence_number: this.nextSequence()
+    })
+    this.emit({
+      type: 'response.reasoning_summary_part.done',
+      item_id: itemId,
+      output_index: outputIndex,
+      summary_index: 0,
+      part: { type: 'summary_text', text },
+      sequence_number: this.nextSequence()
+    })
+
+    const item: ResponseReasoningItem = {
+      type: 'reasoning',
+      id: itemId,
+      summary: [{ type: 'summary_text', text }],
+      content: [{ type: 'reasoning_text', text }],
+      status: 'completed'
+    }
+    this.outputItems.set(outputIndex, item)
+    this.emit({
+      type: 'response.output_item.done',
+      output_index: outputIndex,
+      item,
+      sequence_number: this.nextSequence()
+    })
   }
 
   /**
@@ -279,16 +404,15 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       return
     }
 
-    const index = this.currentToolCallIndex++
-    // The message item occupies output_index 0; function calls follow it.
-    const outputIndex = index + 1
+    // The reasoning that led to this call belongs before it in `output[]`.
+    this.closeReasoningItem()
+    const outputIndex = this.nextOutputIndex++
     const itemId = `fc_${toolCallId}`
     // Default arg-less calls to `{}` — `JSON.stringify(undefined)` is `undefined`,
     // which would emit an invalid (empty) arguments string.
     const argsString = JSON.stringify(args ?? {})
 
     this.toolCalls.set(toolCallId, {
-      index,
       outputIndex,
       itemId,
       callId: toolCallId,
@@ -329,26 +453,16 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
       sequence_number: this.nextSequence()
     })
 
+    const completedItem: ResponseFunctionToolCall = { ...inProgressItem, arguments: argsString, status: 'completed' }
+    this.outputItems.set(outputIndex, completedItem)
     this.emit({
       type: 'response.output_item.done',
       output_index: outputIndex,
-      item: { ...inProgressItem, arguments: argsString, status: 'completed' },
+      item: completedItem,
       sequence_number: this.nextSequence()
     })
 
     this.finishReason = 'tool_calls'
-  }
-
-  /** The accumulated function_call output items (completed), in call order. */
-  private buildFunctionCallItems(): ResponseFunctionToolCall[] {
-    return Array.from(this.toolCalls.values()).map((tc) => ({
-      type: 'function_call',
-      id: tc.itemId,
-      call_id: tc.callId,
-      name: tc.name,
-      arguments: tc.arguments,
-      status: 'completed'
-    }))
   }
 
   /**
@@ -383,11 +497,20 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
    * Finalize the stream and emit closing events
    */
   protected finalize(): void {
+    // Explicit, not via `ensureMessageItem`: reasoning that opened AFTER the message item
+    // (a later step, or a stream that ended before `reasoning-end`) would otherwise stay
+    // open and never reach `output[]`.
+    this.closeReasoningItem()
+    // A turn that never produced text still closes out a (empty) message item, so the
+    // response shape is unchanged for clients that expect one.
+    this.ensureMessageItem()
+    const outputIndex = this.messageOutputIndex ?? 0
+
     // Emit output_text.done
     const textDoneEvent: ResponseStreamEvent = {
       type: 'response.output_text.done',
       item_id: this.outputItemId,
-      output_index: 0,
+      output_index: outputIndex,
       content_index: this.contentPartIndex,
       text: this.textContent,
       logprobs: [],
@@ -399,7 +522,7 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     const contentPartDoneEvent: ResponseStreamEvent = {
       type: 'response.content_part.done',
       item_id: this.outputItemId,
-      output_index: 0,
+      output_index: outputIndex,
       content_index: this.contentPartIndex,
       part: {
         type: 'output_text',
@@ -410,28 +533,6 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
     }
     this.emit(contentPartDoneEvent)
 
-    // Emit output_item.done
-    const outputItemDoneEvent: ResponseStreamEvent = {
-      type: 'response.output_item.done',
-      output_index: 0,
-      item: {
-        type: 'message',
-        id: this.outputItemId,
-        status: 'completed',
-        role: 'assistant',
-        content: [
-          {
-            type: 'output_text',
-            text: this.textContent,
-            annotations: []
-          } as ResponseOutputText
-        ]
-      },
-      sequence_number: this.nextSequence()
-    }
-    this.emit(outputItemDoneEvent)
-
-    // Emit response.completed
     const completedMessage: ResponseOutputMessage = {
       type: 'message',
       id: this.outputItemId,
@@ -445,11 +546,23 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
         } as ResponseOutputText
       ]
     }
+    this.outputItems.set(outputIndex, completedMessage)
+
+    // Emit output_item.done
+    const outputItemDoneEvent: ResponseStreamEvent = {
+      type: 'response.output_item.done',
+      output_index: outputIndex,
+      item: completedMessage,
+      sequence_number: this.nextSequence()
+    }
+    this.emit(outputItemDoneEvent)
+
+    // Emit response.completed
     const completedEvent: ResponseStreamEvent = {
       type: 'response.completed',
       response: {
         ...this.buildResponseForEvent('completed'),
-        output: [completedMessage, ...this.buildFunctionCallItems()]
+        output: this.buildOutputItems()
       },
       sequence_number: this.nextSequence()
     }
@@ -461,27 +574,15 @@ export class AiSdkToOpenAiResponsesSse extends BaseStreamAdapter<ResponseStreamE
    * Returns a partial response cast to Response type.
    */
   buildNonStreamingResponse(): Response {
-    const outputText: ResponseOutputText = {
-      type: 'output_text',
-      text: this.textContent,
-      annotations: []
-    }
-
-    const outputMessage: ResponseOutputMessage = {
-      type: 'message',
-      id: this.outputItemId,
-      status: 'completed',
-      role: 'assistant',
-      content: [outputText]
-    }
-
     const partialResponse: PartialStreamingResponse = {
       id: `resp_${this.state.messageId}`,
       object: 'response',
       created_at: this.createdAt,
       status: 'completed',
       model: this.state.model,
-      output: [outputMessage, ...this.buildFunctionCallItems()],
+      // `finalizeEvents()` runs before this on the non-streaming path, so every item
+      // (reasoning, function calls, message) has already landed in `outputItems`.
+      output: this.buildOutputItems(),
       usage: this.buildUsage()
     }
 

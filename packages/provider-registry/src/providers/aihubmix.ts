@@ -1,5 +1,22 @@
 import { defineProvider } from './types'
 
+const claudeWebToolModels = [
+  'claude-opus-4',
+  'claude-sonnet-4',
+  'claude-haiku-4',
+  'claude-3-5-haiku',
+  'claude-3-5-sonnet',
+  'claude-3-7-sonnet'
+]
+const geminiWebToolModels = [
+  'gemini-2',
+  'gemini-3',
+  'gemini-flash-latest',
+  'gemini-pro-latest',
+  'gemini-flash-lite-latest'
+]
+const openAIWebSearchModels = ['gpt-4o', 'gpt-4-1', 'gpt-5', 'o3', 'o4']
+
 export default defineProvider({
   id: 'aihubmix',
   name: 'AiHubMix',
@@ -12,8 +29,35 @@ export default defineProvider({
     'openai-chat-completions': {
       adapterFamily: 'aihubmix',
       baseUrl: 'https://aihubmix.com/v1'
+    },
+    'openai-responses': {
+      adapterFamily: 'aihubmix',
+      baseUrl: 'https://aihubmix.com/v1'
+    },
+    'google-generate-content': {
+      adapterFamily: 'aihubmix',
+      baseUrl: 'https://aihubmix.com/gemini/v1beta'
     }
   },
+  // AiHubMix serves the vendors' native endpoints, so its language models carry
+  // `aihubmix.<vendor>` provider strings and resolveToolCapability's aggregator fallback finds the
+  // real vendor factory. `vendors` keeps the openai-compatible passthrough line (grok, deepseek,
+  // qwen …) out — those resolve to `aihubmix.chat`, which owns no tool factory.
+  serverTools: [
+    {
+      id: 'web-search',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: [...claudeWebToolModels, ...geminiWebToolModels, ...openAIWebSearchModels],
+      imageModelIds: ['gemini-3-pro-image', 'gemini-3-pro-image-preview'],
+      vendors: ['anthropic', 'gemini', 'openai']
+    },
+    {
+      id: 'url-context',
+      modelScope: 'model-dependent',
+      modelIdPrefixes: [...claudeWebToolModels, ...geminiWebToolModels],
+      vendors: ['anthropic', 'gemini']
+    }
+  ],
   metadata: {
     website: {
       apiKey: 'https://aihubmix.com',
@@ -107,7 +151,11 @@ export default defineProvider({
           generate: {
             supports: {
               size: { options: ['1K', '2K', '4K'], default: '2K', render: 'chips', type: 'enum' },
-              sequentialImageGeneration: { type: 'switch' },
+              // The catalog types this key as a string (matching dmxapi's own doubao
+              // model) and the Doubao submit path only accepts 'auto'/'disabled' — a
+              // `switch` here renders a boolean control that gets coerced away before
+              // the request, so the feature silently no-ops.
+              sequentialImageGeneration: { default: 'disabled', options: ['auto', 'disabled'], type: 'enum' },
               addWatermark: { type: 'switch' },
               seed: { type: 'text' }
             },
@@ -124,7 +172,11 @@ export default defineProvider({
           generate: {
             supports: {
               size: { options: ['1K', '2K', '4K'], default: '2K', render: 'chips', type: 'enum' },
-              sequentialImageGeneration: { type: 'switch' },
+              // The catalog types this key as a string (matching dmxapi's own doubao
+              // model) and the Doubao submit path only accepts 'auto'/'disabled' — a
+              // `switch` here renders a boolean control that gets coerced away before
+              // the request, so the feature silently no-ops.
+              sequentialImageGeneration: { default: 'disabled', options: ['auto', 'disabled'], type: 'enum' },
               addWatermark: { type: 'switch' },
               seed: { type: 'text' }
             },

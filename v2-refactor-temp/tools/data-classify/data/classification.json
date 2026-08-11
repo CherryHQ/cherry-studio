@@ -908,10 +908,10 @@
         {
           "originalKey": "userId",
           "type": "string",
-          "defaultValue": "uuid()",
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "app.user.id"
+          "defaultValue": "",
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "showPrompt",
@@ -1022,7 +1022,7 @@
         {
           "originalKey": "windowStyle",
           "type": "PreferenceTypes.WindowStyle",
-          "defaultValue": "opaque",
+          "defaultValue": "transparent",
           "status": "classified",
           "category": "preferences",
           "targetKey": "ui.window_style"
@@ -1422,7 +1422,7 @@
         {
           "originalKey": "messageNavigation",
           "type": "PreferenceTypes.ChatMessageNavigationMode",
-          "defaultValue": "none",
+          "defaultValue": "anchor",
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.message.navigation_mode"
@@ -1545,7 +1545,8 @@
           "defaultValue": "",
           "status": "classified",
           "category": "preferences",
-          "targetKey": "ui.custom_css"
+          "targetKey": null,
+          "note": "Migrated via complex mapping: custom_css_v1_marker"
         },
         {
           "originalKey": "topicNamingPrompt",
@@ -1900,10 +1901,18 @@
         {
           "originalKey": "enableDataCollection",
           "type": "boolean",
-          "defaultValue": false,
+          "defaultValue": true,
           "status": "classified",
           "category": "preferences",
           "targetKey": "app.privacy.data_collection.enabled"
+        },
+        {
+          "originalKey": "privacyPolicyVersion",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.privacy.policy_version"
         },
         {
           "originalKey": "enableSpellCheck",
@@ -1948,7 +1957,7 @@
         {
           "originalKey": "exportMenuOptions",
           "type": "unknown",
-          "defaultValue": "{ image: true, markdown: true, markdown_reason: true, notion: true, yuque: true, joplin: true, obsidian: true, siyuan: true, docx: true, plain_text: true, notes: true }",
+          "defaultValue": "{ image: true, markdown: true, markdown_reason: true, notion: true, yuque: true, joplin: true, obsidian: true, siyuan: true, docx: true, plain_text: true }",
           "status": "pending",
           "category": null,
           "targetKey": null,
@@ -2032,14 +2041,6 @@
               "status": "classified",
               "targetKey": "data.export.menus.plain_text",
               "type": "boolean"
-            },
-            {
-              "category": "preferences",
-              "defaultValue": true,
-              "originalKey": "notes",
-              "status": "classified",
-              "targetKey": "data.export.menus.notes",
-              "type": "boolean"
             }
           ]
         },
@@ -2122,14 +2123,6 @@
           "status": "classified",
           "category": "preferences",
           "targetKey": "data.export.menus.plain_text"
-        },
-        {
-          "originalKey": "notes",
-          "type": "boolean",
-          "defaultValue": true,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "data.export.menus.notes"
         },
         {
           "originalKey": "openAI",
@@ -2710,7 +2703,7 @@
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": null,
+              "category": "preferences",
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2719,8 +2712,8 @@
                 "enabled": true
               },
               "originalKey": "toggle_new_context",
-              "status": "deleted",
-              "targetKey": null,
+              "status": "classified",
+              "targetKey": "shortcut.chat.context.toggle_new",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -3391,12 +3384,12 @@
       ],
       "ClientId": [
         {
-          "originalKey": "ClientId",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "originalKey": "clientId",
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.user.id"
         }
       ],
       "GitBashPath": [
@@ -3436,8 +3429,8 @@
           "originalKey": "onboarding-completed",
           "type": "string",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null
         }
       ],
@@ -3472,11 +3465,11 @@
         },
         {
           "originalKey": "image://avatar",
-          "type": "unknown",
-          "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "type": "string",
+          "defaultValue": "",
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "app.user.avatar"
         },
         {
           "originalKey": "translate:markdown:enabled",

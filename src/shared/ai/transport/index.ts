@@ -1,4 +1,21 @@
 export { applyApprovalDecisions } from './applyApprovalDecisions'
+export {
+  type DeferredToolOutput,
+  type DeferredToolResultRef,
+  isDeferredToolOutput
+} from './deferredToolResult'
+export {
+  blobRefsOf,
+  envelopeDisplayExcerpt,
+  isPersistedToolOutput,
+  PERSIST_HEAD_CHARS,
+  PERSIST_TAIL_CHARS,
+  type PersistedToolOutput,
+  type PersistedToolOutputBlobRef,
+  type PersistedToolOutputEntitiesRef,
+  type PersistedToolOutputRef,
+  type PersistedToolOutputSingleRef
+} from './persistedToolOutput'
 export type {
   ActiveExecution,
   AiAgentSessionWarmCloseRequest,
@@ -12,7 +29,10 @@ export type {
   AiStreamOpenResponse,
   AiToolApprovalRespondRequest,
   AiToolApprovalRespondResponse,
+  AiToolResultRequest,
+  AiToolResultResponse,
   ApprovalDecision,
+  ComposerChatTarget,
   ComposerQueuedMessagePayload,
   StreamChunkPayload,
   StreamDonePayload,

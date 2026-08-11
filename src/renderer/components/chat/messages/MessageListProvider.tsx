@@ -21,12 +21,12 @@ import type {
  *   subscribers that only care about, say, `estimateSize`.
  * - `MessageListMessagesContext` — the messages array itself. Streaming chunks
  *   land here.
- * - `MessageListUiStaticContext` — preference-driven static config (readonly,
- *   menuConfig, translationLanguages, externalCodeEditors). Changes when the
- *   user flips a setting.
+ * - `MessageListUiStaticContext` — preference-driven static config (menuConfig,
+ *   translationLanguages, externalCodeEditors). Changes when the user flips a
+ *   setting.
  * - `MessageListUiSelectorsContext` — per-message getter functions
  *   (getMessageUiState, getMessageSiblings, getMessageActivityState,
- *   getFileView, isToolAutoApproved, getTranslationLanguageLabel). Reference
+ *   isMessageTranslating, getFileView, isToolAutoApproved, getTranslationLanguageLabel). Reference
  *   changes when the underlying selectors are rebuilt (rare in practice).
  *
  * Existing consumers continue to use the merged `useMessageListUi()` /
@@ -39,6 +39,8 @@ type MessageListDataValue = Pick<
   MessageListState,
   | 'topic'
   | 'beforeList'
+  | 'messageTail'
+  | 'activeTurnStatus'
   | 'isInitialLoading'
   | 'isMessagesStale'
   | 'hasOlder'
@@ -48,13 +50,14 @@ type MessageListDataValue = Pick<
   | 'loadOlderDelayMs'
   | 'loadingResetDelayMs'
   | 'listKey'
+  | 'streamingLayers'
 >
 
 type MessageListMessagesValue = MessageListItem[]
 
 type MessageListUiStaticValue = Pick<
   MessageListState,
-  'readonly' | 'menuConfig' | 'translationLanguages' | 'externalCodeEditors'
+  'menuConfig' | 'translationLanguages' | 'translationLanguagesStatus' | 'externalCodeEditors'
 >
 
 type MessageListUiSelectorsValue = Pick<
@@ -62,6 +65,7 @@ type MessageListUiSelectorsValue = Pick<
   | 'getMessageUiState'
   | 'getMessageSiblings'
   | 'getMessageActivityState'
+  | 'isMessageTranslating'
   | 'getFileView'
   | 'isToolAutoApproved'
   | 'getTranslationLanguageLabel'
@@ -87,6 +91,8 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
     () => ({
       topic: state.topic,
       beforeList: state.beforeList,
+      messageTail: state.messageTail,
+      activeTurnStatus: state.activeTurnStatus,
       isInitialLoading: state.isInitialLoading,
       isMessagesStale: state.isMessagesStale,
       hasOlder: state.hasOlder,
@@ -95,11 +101,14 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       overscan: state.overscan,
       loadOlderDelayMs: state.loadOlderDelayMs,
       loadingResetDelayMs: state.loadingResetDelayMs,
-      listKey: state.listKey
+      listKey: state.listKey,
+      streamingLayers: state.streamingLayers
     }),
     [
       state.topic,
       state.beforeList,
+      state.messageTail,
+      state.activeTurnStatus,
       state.isInitialLoading,
       state.isMessagesStale,
       state.hasOlder,
@@ -108,18 +117,19 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.overscan,
       state.loadOlderDelayMs,
       state.loadingResetDelayMs,
-      state.listKey
+      state.listKey,
+      state.streamingLayers
     ]
   )
 
   const uiStatic = useMemo<MessageListUiStaticValue>(
     () => ({
-      readonly: state.readonly,
       menuConfig: state.menuConfig,
       translationLanguages: state.translationLanguages,
+      translationLanguagesStatus: state.translationLanguagesStatus,
       externalCodeEditors: state.externalCodeEditors
     }),
-    [state.readonly, state.menuConfig, state.translationLanguages, state.externalCodeEditors]
+    [state.menuConfig, state.translationLanguages, state.translationLanguagesStatus, state.externalCodeEditors]
   )
 
   const uiSelectors = useMemo<MessageListUiSelectorsValue>(
@@ -127,6 +137,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       getMessageUiState: state.getMessageUiState,
       getMessageSiblings: state.getMessageSiblings,
       getMessageActivityState: state.getMessageActivityState,
+      isMessageTranslating: state.isMessageTranslating,
       getFileView: state.getFileView,
       isToolAutoApproved: state.isToolAutoApproved,
       getTranslationLanguageLabel: state.getTranslationLanguageLabel
@@ -135,6 +146,7 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.getMessageUiState,
       state.getMessageSiblings,
       state.getMessageActivityState,
+      state.isMessageTranslating,
       state.getFileView,
       state.isToolAutoApproved,
       state.getTranslationLanguageLabel
@@ -178,6 +190,11 @@ export const useOptionalMessageListActions = (): MessageListActions | undefined 
   return use(MessageListActionsContext) ?? undefined
 }
 
+/** Topic id of the surrounding message list; undefined in embeds without one. */
+export const useOptionalMessageListTopicId = (): string | undefined => {
+  return use(MessageListDataContext)?.topic.id
+}
+
 /**
  * Back-compat hook: returns the merged static + selectors UI value. Subscribes
  * to BOTH underlying contexts, so it re-renders on either update — fine for
@@ -216,6 +233,15 @@ export const useMessageListData = (): MessageListDataLegacyValue => {
 
 export const useMessageListMessages = (): MessageListItem[] => {
   return useRequiredContext(MessageListMessagesContext, 'useMessageListMessages')
+}
+
+/**
+ * Optional renderer for the active turn's processing status (e.g. agent api-retry). Reads the Data
+ * context narrowly, so it only re-renders when list metadata changes — not on every stream chunk.
+ * Returns null when unset (regular chat) or when used outside a provider.
+ */
+export const useMessageListActiveTurnStatus = (): ((placeholder: ReactNode) => ReactNode) | null => {
+  return use(MessageListDataContext)?.activeTurnStatus ?? null
 }
 
 export const useMessageListActions = (): MessageListActions => {

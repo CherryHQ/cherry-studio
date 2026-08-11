@@ -1,10 +1,12 @@
 import type { JobContext } from '@main/core/job/types'
+import type * as FsUtils from '@main/utils/file'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
-import { beforeEach, vi } from 'vitest'
+import { beforeEach, type Mocked, vi } from 'vitest'
 
-import type * as PathStorage from '../../utils/storage/pathStorage'
+import type { KnowledgeItemScheduler } from '../../ingestion/KnowledgeIngestionService'
+import type * as PathStorage from '../../pathStorage'
 
 const mocks = vi.hoisted(() => ({
   cancelMock: vi.fn(),
@@ -35,8 +37,10 @@ const mocks = vi.hoisted(() => ({
   reclaimSpaceMock: vi.fn(),
   listExistingEmbeddingHashesMock: vi.fn(),
   embedKnowledgeTextsMock: vi.fn(),
+  refineLocalEmbeddingChunksMock: vi.fn(),
   loggerWarnMock: vi.fn(),
-  scheduleItemMock: vi.fn()
+  scheduleItemMock: vi.fn(),
+  removeDirMock: vi.fn()
 }))
 
 export const {
@@ -68,8 +72,10 @@ export const {
   reclaimSpaceMock,
   listExistingEmbeddingHashesMock,
   embedKnowledgeTextsMock,
+  refineLocalEmbeddingChunksMock,
   loggerWarnMock,
-  scheduleItemMock
+  scheduleItemMock,
+  removeDirMock
 } = mocks
 
 /**
@@ -131,28 +137,28 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   }
 }))
 
-vi.mock('../../readers/KnowledgeReader', () => ({
+vi.mock('../../pipeline/readers/KnowledgeReader', () => ({
   loadKnowledgeItemDocuments: loadKnowledgeItemDocumentsMock
 }))
 
-vi.mock('../../utils/sources/prepare', () => ({
+vi.mock('../prepareItem', () => ({
   prepareKnowledgeItem: prepareKnowledgeItemMock
 }))
 
-vi.mock('../../utils/sources/url', () => ({
+vi.mock('../../pipeline/sources/url', () => ({
   fetchKnowledgeWebPage: fetchKnowledgeWebPageMock
 }))
 
-vi.mock('../../utils/sources/urlSnapshot', () => ({
+vi.mock('../../pipeline/sources/urlSnapshot', () => ({
   captureUrlSnapshotFile: captureUrlSnapshotFileMock
 }))
 
-vi.mock('../../utils/sources/noteSnapshot', () => ({
+vi.mock('../../pipeline/sources/noteSnapshot', () => ({
   captureNoteSnapshotFile: captureNoteSnapshotFileMock
 }))
 
-vi.mock('../../utils/storage/pathStorage', async () => {
-  const actual = await vi.importActual<typeof PathStorage>('../../utils/storage/pathStorage')
+vi.mock('../../pathStorage', async () => {
+  const actual = await vi.importActual<typeof PathStorage>('../../pathStorage')
   return {
     ...actual,
     // Stub the best-effort cleanup the handlers call. Its swallow-on-failure
@@ -167,8 +173,22 @@ vi.mock('../../utils/storage/pathStorage', async () => {
   }
 })
 
-vi.mock('../../utils/indexing/embed', () => ({
+// prepare-root reclaims the container's own `raw/<prefix>` shell via removeDir on retry;
+// spy on it while keeping every other fs helper real. Default no-op resolve in beforeEach.
+vi.mock('@main/utils/file', async () => {
+  const actual = await vi.importActual<typeof FsUtils>('@main/utils/file')
+  return {
+    ...actual,
+    removeDir: removeDirMock
+  }
+})
+
+vi.mock('../../pipeline/indexing/embed', () => ({
   embedKnowledgeTexts: embedKnowledgeTextsMock
+}))
+
+vi.mock('../../pipeline/indexing/localEmbeddingTokenLimit', () => ({
+  refineLocalEmbeddingChunks: refineLocalEmbeddingChunksMock
 }))
 
 export const { createDeleteSubtreeJobHandler } = await import('../deleteSubtreeJobHandler')
@@ -183,7 +203,7 @@ export const FILE_RELATIVE_PATH = 'source.pdf'
 export const PROCESSED_RELATIVE_PATH = 'source.md'
 type KnowledgeJobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'> & Partial<JobSnapshot>
 
-export function createBase(): KnowledgeBase {
+export function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
     id: 'kb-1',
     name: 'KB',
@@ -200,7 +220,8 @@ export function createBase(): KnowledgeBase {
     chunkSeparator: '\\n\\n',
     documentCount: 10,
     createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
+    updatedAt: '2026-04-08T00:00:00.000Z',
+    ...overrides
   }
 }
 
@@ -278,12 +299,12 @@ export function createDirectoryItem(
   }
 }
 
-export function createCtx<TInput>(input: TInput, jobId = 'job-1'): JobContext<TInput> {
+export function createCtx<TInput>(input: TInput, jobId = 'job-1', parentId: string | null = null): JobContext<TInput> {
   return {
     jobId,
     input,
     attempt: 1,
-    parentId: null,
+    parentId,
     signal: new AbortController().signal,
     metadata: {},
     patchMetadata: vi.fn().mockResolvedValue(undefined),
@@ -332,10 +353,10 @@ export function createJobSnapshot(overrides: KnowledgeJobSnapshotInput): JobSnap
 }
 
 export const knowledgeLockManager = {
-  withBaseMutationLock: vi.fn(async (_baseId: string, task: () => Promise<unknown>) => await task())
+  runExclusive: vi.fn(async (_key: string, task: () => Promise<unknown>) => await task())
 }
 
-export const workflowService = {
+export const ingestionService: Mocked<KnowledgeItemScheduler> = {
   scheduleFileProcessingCheck: vi.fn(),
   scheduleIndexing: vi.fn(),
   scheduleItem: scheduleItemMock
@@ -344,8 +365,8 @@ export const workflowService = {
 beforeEach(() => {
   vi.clearAllMocks()
   MockMainCacheServiceUtils.resetMocks()
-  knowledgeLockManager.withBaseMutationLock.mockImplementation(
-    async (_baseId: string, task: () => Promise<unknown>) => await task()
+  knowledgeLockManager.runExclusive.mockImplementation(
+    async (_key: string, task: () => Promise<unknown>) => await task()
   )
   knowledgeBaseGetByIdMock.mockReturnValue(createBase())
   knowledgeItemGetByIdMock.mockReturnValue(createNoteItem())
@@ -353,7 +374,10 @@ beforeEach(() => {
   knowledgeItemGetItemsByBaseIdMock.mockReturnValue([])
   knowledgeItemSetSubtreeStatusMock.mockReturnValue([])
   knowledgeItemUpdateStatusMock.mockReturnValue(createNoteItem())
-  fetchKnowledgeWebPageMock.mockResolvedValue('# Example page\n\nbody text')
+  fetchKnowledgeWebPageMock.mockResolvedValue({
+    title: 'Example Page',
+    markdown: '# Example page\n\nbody text'
+  })
   captureUrlSnapshotFileMock.mockResolvedValue('example-page.md')
   captureNoteSnapshotFileMock.mockResolvedValue('note-snapshot.md')
   knowledgeItemUpdateSnapshotRelativePathMock.mockImplementation(
@@ -373,26 +397,28 @@ beforeEach(() => {
     reclaimSpace: reclaimSpaceMock,
     listExistingEmbeddingHashes: listExistingEmbeddingHashesMock
   }
-  getIndexStoreMock.mockResolvedValue(indexStore)
-  getIndexStoreIfExistsMock.mockResolvedValue(indexStore)
-  rebuildMaterialMock.mockResolvedValue(undefined)
+  getIndexStoreMock.mockReturnValue(indexStore)
+  getIndexStoreIfExistsMock.mockReturnValue(indexStore)
+  rebuildMaterialMock.mockReturnValue(undefined)
   deleteMaterialsMock.mockResolvedValue(undefined)
-  reclaimSpaceMock.mockResolvedValue({ vacuumed: false, reclaimedBytes: 0 })
+  reclaimSpaceMock.mockReturnValue({ vacuumed: false, reclaimedBytes: 0 })
   // No vectors stored yet by default → every chunk is embedded (prior behavior).
-  listExistingEmbeddingHashesMock.mockResolvedValue(new Set<string>())
+  listExistingEmbeddingHashesMock.mockReturnValue(new Set<string>())
   embedKnowledgeTextsMock.mockImplementation(async (_base: KnowledgeBase, values: string[]) =>
     values.map(fakeEmbedVector)
   )
+  refineLocalEmbeddingChunksMock.mockImplementation(async (_base: KnowledgeBase, chunked) => chunked)
   listMock.mockResolvedValue([])
   getJobMock.mockResolvedValue(null)
   enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
   knowledgeItemUpdateIndexedRelativePathMock.mockReturnValue(createFileItem())
   deleteItemsByIdsMock.mockReturnValue(undefined)
   deleteKnowledgeItemFilesBestEffortMock.mockResolvedValue(undefined)
+  removeDirMock.mockResolvedValue(undefined)
   probeKnowledgeFileMock.mockResolvedValue('readable')
   probeKnowledgeSourcePathMock.mockResolvedValue('readable')
   cancelMock.mockResolvedValue({ outcome: 'cancelled' })
-  workflowService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
-  workflowService.scheduleIndexing.mockResolvedValue(undefined)
+  ingestionService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
+  ingestionService.scheduleIndexing.mockResolvedValue(undefined)
   scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })
 })

@@ -169,6 +169,16 @@ AppShell
 - Uses React 19 `<Activity>` component to control visibility
 - Components are not unmounted on Tab switch, state is fully preserved (KeepAlive)
 
+## Error Handling
+
+| Layer | Mechanism | Scope |
+|---|---|---|
+| Route render error | `defaultErrorComponent: RouteErrorFallback` on every per-tab router (`TabRouter.tsx`) | Contained to the throwing tab; themed error card with retry/reload |
+| Provider render error | Window-level `<ErrorBoundary fallbackComponent={WindowFatalFallback}>` in each window App | Whole window falls back to a context-free fatal page instead of a white screen |
+
+- A specific route can override the default with its own `errorComponent` route option
+- Without `defaultErrorComponent`, TanStack wraps matches in a pass-through fragment: a route render error would bubble to the window-level boundary and tear down the whole window
+
 ## File Structure
 
 ```text

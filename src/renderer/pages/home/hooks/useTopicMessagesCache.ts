@@ -45,13 +45,15 @@ function reservedUIMessageToBranchMessage(topicId: string, message: CherryUIMess
       topicId,
       parentId: metadata.parentId ?? null,
       role: message.role,
-      data: { parts: (message.parts ?? []) as CherryMessagePart[] },
+      data: {
+        parts: (message.parts ?? []) as CherryMessagePart[]
+      },
       searchableText: '',
       status:
         metadata.status ?? (message.role === 'assistant' && (message.parts?.length ?? 0) === 0 ? 'pending' : 'success'),
       siblingsGroupId: metadata.siblingsGroupId ?? 0,
       modelId: metadata.modelId ?? null,
-      modelSnapshot: metadata.modelSnapshot ?? null,
+      messageSnapshot: metadata.messageSnapshot ?? null,
       stats: metadata.stats ?? null,
       createdAt,
       updatedAt: createdAt
@@ -64,9 +66,14 @@ export interface UseTopicMessagesCacheParams {
   mutate: SWRInfiniteKeyedMutator<BranchMessagesResponse[]>
 }
 
-export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCacheParams) {
+export function getTopicBranchCachePaths(topicId: string) {
   const messagesCachePath = `/topics/${topicId}/messages` as const
   const treeCachePath = `/topics/${topicId}/tree` as const
+  return [messagesCachePath, treeCachePath]
+}
+
+export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCacheParams) {
+  const [messagesCachePath, treeCachePath] = getTopicBranchCachePaths(topicId)
   const branchCachePaths = [messagesCachePath, treeCachePath]
 
   /**
@@ -164,10 +171,16 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
   const { trigger: deleteMessageTrigger } = useMutation('DELETE', '/messages/:id', {
     refresh: branchCachePaths
   })
+  const { trigger: deleteMessageGroupTrigger } = useMutation('DELETE', '/messages/:id/reply-group', {
+    refresh: branchCachePaths
+  })
   const { trigger: patchMessageTrigger } = useMutation('PATCH', '/messages/:id', {
     refresh: branchCachePaths
   })
   const { trigger: createSiblingTrigger } = useMutation('POST', '/messages/:id/siblings', {
+    refresh: branchCachePaths
+  })
+  const { trigger: createMessageTrigger } = useMutation('POST', '/topics/:topicId/messages', {
     refresh: branchCachePaths
   })
   const { trigger: setActiveNodeTrigger } = useMutation('PUT', '/topics/:id/active-node', {
@@ -185,8 +198,10 @@ export function useTopicMessagesCache({ topicId, mutate }: UseTopicMessagesCache
     rollbackBranch,
     clearBranchCache,
     deleteMessageTrigger,
+    deleteMessageGroupTrigger,
     patchMessageTrigger,
     createSiblingTrigger,
+    createMessageTrigger,
     setActiveNodeTrigger,
     clearTopicMessagesTrigger
   }

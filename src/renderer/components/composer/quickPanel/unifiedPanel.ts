@@ -20,9 +20,11 @@ interface ComposerUnifiedPanelSortMetadata {
 }
 
 const ComposerUnifiedPanelSortMetadataSymbol = Symbol('ComposerUnifiedPanelSortMetadata')
+const ComposerUnifiedPanelRootSearchItemSymbol = Symbol('ComposerUnifiedPanelRootSearchItem')
 
 type ComposerUnifiedPanelSortedItem = QuickPanelListItem & {
   [ComposerUnifiedPanelSortMetadataSymbol]?: ComposerUnifiedPanelSortMetadata
+  [ComposerUnifiedPanelRootSearchItemSymbol]?: boolean
 }
 
 export interface ComposerUnifiedPanelResourceContext {
@@ -41,7 +43,7 @@ export type ComposerUnifiedPanelResourceProvider = (
 
 export interface ComposerUnifiedPanelControl {
   available: boolean
-  open: () => void
+  open: (options?: { launcherId?: string; searchText?: string }) => void
 }
 
 export type ComposerUnifiedPanelSelectHandler = (
@@ -103,6 +105,17 @@ function withUnifiedPanelSortMetadata(
 
 function getUnifiedPanelSortMetadata(item: QuickPanelListItem) {
   return (item as ComposerUnifiedPanelSortedItem)[ComposerUnifiedPanelSortMetadataSymbol]
+}
+
+function isUnifiedPanelRootSearchItem(item: QuickPanelListItem) {
+  return Boolean((item as ComposerUnifiedPanelSortedItem)[ComposerUnifiedPanelRootSearchItemSymbol])
+}
+
+function asUnifiedPanelRootSearchItem(item: QuickPanelListItem): QuickPanelListItem {
+  return {
+    ...item,
+    [ComposerUnifiedPanelRootSearchItemSymbol]: true
+  } as ComposerUnifiedPanelSortedItem
 }
 
 function tagUnifiedPanelSectionItems(
@@ -167,7 +180,7 @@ function getPinyinSearchText(matchText: string) {
  * so unrelated rows (e.g. Quick Phrases) don't surface for another item's query.
  */
 const filterUnifiedQuickPanelItems: QuickPanelFilterFn = (item, searchText, _fuzzyRegex, pinyinCache) => {
-  if (!searchText) return true
+  if (!searchText) return !isUnifiedPanelRootSearchItem(item)
 
   const matchText = getUnifiedQuickPanelMatchText(item).toLowerCase()
   if (!matchText) return false
@@ -208,18 +221,6 @@ function getSectionChildren(launcher: ComposerToolLauncher, source: ComposerTool
   return (launcher.submenu ?? []).filter((item) => !item.hidden && launcherSupportsSource(item, source))
 }
 
-function getLauncherTreeSearchText(launcher: ComposerToolLauncher, seenLauncherIds = new Set<string>()): string {
-  if (seenLauncherIds.has(launcher.id)) return ''
-
-  const nextSeenLauncherIds = new Set(seenLauncherIds)
-  nextSeenLauncherIds.add(launcher.id)
-
-  const childText = getUnifiedChildren(launcher, nextSeenLauncherIds).map((child) =>
-    getLauncherTreeSearchText(child, nextSeenLauncherIds)
-  )
-  return [getLauncherSearchText(launcher), ...childText].filter(Boolean).join(' ')
-}
-
 function createUnifiedPanelActionOptions(options: {
   source: ComposerToolLauncherSource
   inputAdapter?: QuickPanelInputAdapter
@@ -256,6 +257,7 @@ function createUnifiedPanelListItem(
   const children = getUnifiedChildren(launcher, nextAncestorLauncherIds)
 
   return {
+    id: launcher.id,
     label: launcher.label,
     description: getLauncherDescription(launcher),
     icon: launcher.icon,
@@ -264,7 +266,7 @@ function createUnifiedPanelListItem(
     isSelected: launcher.active,
     isMenu: launcher.kind === 'panel' || launcher.kind === 'group' || children.length > 0,
     disabled: launcher.disabled,
-    filterText: getLauncherTreeSearchText(launcher, new Set(options.ancestorLauncherIds)),
+    filterText: getLauncherSearchText(launcher),
     action: ({ context, parentPanel: actionParentPanel, queryAnchor, searchText }) => {
       const parentPanel = actionParentPanel ?? options.getRootPanelOptions?.()
       const triggerInfo = context.triggerInfo ?? options.quickPanel.triggerInfo
@@ -293,6 +295,49 @@ function createUnifiedPanelListItem(
       )
     }
   }
+}
+
+function createUnifiedPanelRootSearchItems(
+  launcher: ComposerToolLauncher,
+  options: {
+    inputAdapter?: QuickPanelInputAdapter
+    quickPanel: QuickPanelContextType
+    onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
+    getRootPanelOptions?: () => QuickPanelOpenOptions
+    ancestorLauncherIds?: ReadonlySet<string>
+  }
+): QuickPanelListItem[] {
+  const ancestorLauncherIds = new Set(options.ancestorLauncherIds)
+  if (ancestorLauncherIds.has(launcher.id)) return []
+  ancestorLauncherIds.add(launcher.id)
+
+  const customPanelItems = (launcher.rootSearchItems ?? [])
+    .filter((item) => !item.hidden && !item.disabled && !item.isMenu && !item.fixedToBottom && Boolean(item.action))
+    .map(asUnifiedPanelRootSearchItem)
+  const submenuItems = getUnifiedChildren(launcher, ancestorLauncherIds).flatMap((child) => {
+    const childAncestorLauncherIds = new Set(ancestorLauncherIds)
+    childAncestorLauncherIds.add(child.id)
+    const isSelectableLeaf =
+      (child.kind === 'command' || child.kind === 'dialog') &&
+      !child.disabled &&
+      Boolean(child.action) &&
+      getUnifiedChildren(child, childAncestorLauncherIds).length === 0
+    const childItems = isSelectableLeaf
+      ? [
+          asUnifiedPanelRootSearchItem(
+            createUnifiedPanelListItem(child, {
+              ...options,
+              ancestorLauncherIds,
+              source: getLauncherPreferredSource(child)
+            })
+          )
+        ]
+      : []
+
+    return childItems
+  })
+
+  return [...customPanelItems, ...submenuItems]
 }
 
 function openUnifiedPanelSubmenu(
@@ -334,6 +379,7 @@ function createUnifiedSectionItems(
   options: {
     source: ComposerToolLauncherSource
     seenLauncherIds: Set<string>
+    excludedLauncherIds?: ReadonlySet<string>
     inputAdapter?: QuickPanelInputAdapter
     quickPanel: QuickPanelContextType
     onToolLauncherSelect?: ComposerUnifiedPanelSelectHandler
@@ -341,7 +387,9 @@ function createUnifiedSectionItems(
   }
 ) {
   return launchers.flatMap((launcher) => {
-    if (launcher.hidden || options.seenLauncherIds.has(launcher.id)) return []
+    if (launcher.hidden || options.seenLauncherIds.has(launcher.id) || options.excludedLauncherIds?.has(launcher.id)) {
+      return []
+    }
 
     const children = getSectionChildren(launcher, options.source)
     const supportsSource = launcherSupportsSource(launcher, options.source)
@@ -349,16 +397,20 @@ function createUnifiedSectionItems(
     if (!supportsSource && children.length === 0) return []
 
     options.seenLauncherIds.add(launcher.id)
-    return [
-      createUnifiedPanelListItem(
-        { ...launcher, submenu: getUnifiedChildren(launcher) },
-        {
-          ...options,
-          ancestorLauncherIds: new Set(),
-          source: options.source
-        }
-      )
-    ]
+    const rootItem = createUnifiedPanelListItem(
+      { ...launcher, submenu: getUnifiedChildren(launcher) },
+      {
+        ...options,
+        ancestorLauncherIds: new Set(),
+        source: options.source
+      }
+    )
+    const rootSearchItems = createUnifiedPanelRootSearchItems(launcher, {
+      ...options,
+      ancestorLauncherIds: new Set()
+    })
+
+    return [rootItem, ...rootSearchItems]
   })
 }
 
@@ -411,6 +463,8 @@ export function createUnifiedQuickPanelOpenOptions(
     resourceItems?: readonly QuickPanelListItem[]
     queryAnchor?: number
     triggerInfo?: QuickPanelTriggerInfo
+    initialSearchText?: string
+    excludedLauncherIds?: ReadonlySet<string>
   }
 ): QuickPanelOpenOptions {
   const getRootPanelOptions = () =>
@@ -425,8 +479,8 @@ export function createUnifiedQuickPanelOpenOptions(
     seenLauncherIds,
     getRootPanelOptions
   })
-  // Trailing launchers (e.g. slash commands) render after caller additional items
-  // (e.g. agent skills); the rest of the root-panel command items stay above them.
+  // Trailing launchers (e.g. slash commands) render after regular root-panel launchers
+  // and caller additional items.
   const commandItems = createUnifiedSectionItems(
     launchers.filter((launcher) => launcher.rootPanelPlacement !== 'trailing'),
     {
@@ -445,12 +499,24 @@ export function createUnifiedQuickPanelOpenOptions(
       getRootPanelOptions
     }
   )
+  // Bottom-pinned chrome (e.g. the "customize toolbar" action) belongs to the bare root panel. When
+  // the panel is opened as a category view — seeded with a search text by a toolbar shortcut — those
+  // fixedToBottom items would bypass the category filter and still render, so drop them here.
+  const isCategoryView = (options.initialSearchText ?? '').length > 0
+  const additionalItems = isCategoryView
+    ? options.additionalItems?.filter((item) => !item.fixedToBottom)
+    : options.additionalItems
+  // Leading items (e.g. Chat's new-conversation / Agent's new-task shortcuts) go through the same
+  // exclusion filter as launchers, so pinning one to the toolbar removes it here too.
+  const leadingItems = options.excludedLauncherIds
+    ? options.leadingItems?.filter((item) => !item.id || !options.excludedLauncherIds?.has(item.id))
+    : options.leadingItems
   const nextSortOrder = { value: 0 }
   const list = [
-    ...tagUnifiedPanelSectionItems(options.leadingItems, 'primary-tools', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(leadingItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(primaryItems, 'primary-tools', nextSortOrder),
     ...tagUnifiedPanelSectionItems(commandItems, 'commands', nextSortOrder),
-    ...tagUnifiedPanelSectionItems(options.additionalItems, 'commands', nextSortOrder),
+    ...tagUnifiedPanelSectionItems(additionalItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(trailingCommandItems, 'commands', nextSortOrder),
     ...tagUnifiedPanelSectionItems(options.resourceItems, 'resources', nextSortOrder)
   ]
@@ -462,6 +528,7 @@ export function createUnifiedQuickPanelOpenOptions(
     queryAnchor: options.queryAnchor,
     triggerInfo: options.triggerInfo ?? { type: 'button' },
     trackInputQuery: true,
+    initialSearchText: options.initialSearchText,
     filterFn: filterUnifiedQuickPanelItems,
     sortFn: sortUnifiedQuickPanelItems
   }

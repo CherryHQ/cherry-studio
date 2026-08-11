@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { toast } from '@renderer/services/toast'
 import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -78,7 +79,7 @@ export function useInPlaceEdit(options: UseInPlaceEditOptions): UseInPlaceEditRe
       if (onError) {
         onError(error)
       } else {
-        window.toast.error(t('common.save_failed') || 'Failed to save')
+        toast.error(t('common.save_failed') || 'Failed to save')
       }
     } finally {
       setIsSaving(false)

@@ -1,7 +1,7 @@
 import IndicatorLight from '@renderer/components/IndicatorLight'
 import CustomTag from '@renderer/components/tags/CustomTag'
 import { getProviderLabelKey } from '@renderer/i18n/label'
-import { navigationService } from '@renderer/services/NavigationService'
+import { openSettingsTab } from '@renderer/services/mainWindowNavigation'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -25,21 +25,21 @@ export const FreeTrialModelTag: FC<Props> = ({ modelId, providerId, showLabel = 
   if (!linkedProviderId) return null
 
   const onSelectProvider = () => {
-    void navigationService.navigate?.({ to: '/settings/provider', search: { id: linkedProviderId } })
+    openSettingsTab(`/settings/provider?id=${linkedProviderId}`)
   }
 
   const onNavigateProvider = (e: MouseEvent) => {
     e.stopPropagation()
     // v1 SelectModelPopup was removed in the v2 ModelSelector migration; the
     // inline v2 selector unmounts on route change, so no explicit hide needed.
-    void navigationService.navigate?.({ to: '/settings/provider', search: { id: linkedProviderId } })
+    openSettingsTab(`/settings/provider?id=${linkedProviderId}`)
   }
 
   if (!showLabel) {
     return (
       <div className="flex flex-row items-center gap-1">
         <CustomTag
-          color="var(--color-primary)"
+          color="var(--primary)"
           size={11}
           onClick={onNavigateProvider}
           style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -52,9 +52,9 @@ export const FreeTrialModelTag: FC<Props> = ({ modelId, providerId, showLabel = 
 
   return (
     <div className="flex flex-row items-center gap-1">
-      <IndicatorLight size={6} color="var(--color-primary)" animation={false} shadow={false} />
-      <span className="text-foreground-muted text-xs">{t('common.powered_by')}</span>
-      <button type="button" className="text-primary text-xs hover:underline" onClick={onSelectProvider}>
+      <IndicatorLight size={6} color="var(--primary)" animation={false} shadow={false} />
+      <span className="text-foreground-tertiary text-xs">{t('common.powered_by')}</span>
+      <button type="button" className="text-link text-xs hover:underline" onClick={onSelectProvider}>
         {t(getProviderLabelKey(linkedProviderId))}
       </button>
     </div>

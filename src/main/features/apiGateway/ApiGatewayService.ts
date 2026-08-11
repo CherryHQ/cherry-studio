@@ -1,20 +1,28 @@
+import { timingSafeEqual } from 'node:crypto'
+
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
+import type { InProcessUsageContext } from '@main/ai/types'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { ApiGatewayConfig, ApiGatewayStatusResult } from '@shared/types/apiGateway'
+import type { ApiGatewayConfig } from '@shared/types/apiGateway'
 import { v4 as uuidv4 } from 'uuid'
 
 import { ApiGateway } from './server'
 
 const logger = loggerService.withContext('ApiGatewayService')
+const AGENT_SESSION_ID_HEADER = 'x-cherry-agent-session-id'
+const INTERNAL_USAGE_TOKEN_HEADER = 'x-cherry-internal-usage-token'
 
 @Injectable('ApiGatewayService')
 @ServicePhase(Phase.WhenReady)
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
+  /** Process-local proof that a gateway request originated from Cherry's agent runtime. */
+  private readonly internalUsageToken = uuidv4()
+  /** Never persisted or exposed through the public API; authenticates Cherry-internal gateway metadata. */
+  private readonly internalRequestToken = uuidv4()
   /** Latest desired running state — the `enabled` preference, or the boot auto-start decision. */
   private desiredEnabled = false
   /**
@@ -42,7 +50,6 @@ export class ApiGatewayService extends BaseService implements Activatable {
   })
 
   protected async onInit(): Promise<void> {
-    this.registerIpcHandlers()
     // The reconciler holds no OS resources (only closures + flags), so it is not disposed on stop:
     // it is a construct-once field that is NOT recreated on restart (`start()` re-runs `onInit`), and
     // disposing it would permanently no-op `request()` after a stop→restart. After stop, the pref
@@ -145,6 +152,17 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return this.apiGateway?.isRunning() ?? false
   }
 
+  getInternalRequestToken(): string {
+    return this.internalRequestToken
+  }
+
+  isInternalRequestToken(candidate: string | undefined): boolean {
+    if (!candidate) return false
+    const expected = Buffer.from(this.internalRequestToken)
+    const received = Buffer.from(candidate)
+    return expected.length === received.length && timingSafeEqual(expected, received)
+  }
+
   getCurrentConfig(): ApiGatewayConfig {
     const config = application.get('PreferenceService').getMultiple({
       enabled: 'feature.api_gateway.enabled',
@@ -167,38 +185,29 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return apiKey
   }
 
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.ApiGateway_Start, async (): Promise<ApiGatewayStatusResult> => {
-      try {
-        await this.start()
-        return { success: true }
-      } catch (error: any) {
-        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-      }
-    })
+  /**
+   * Headers injected only into the Claude Agent SDK subprocess that Cherry
+   * launches for this session. They let the HTTP gateway retain per-provider
+   * request records while attaching them to the owning agent.
+   */
+  getAgentSessionUsageHeaders(sessionId: string): Record<string, string> {
+    return {
+      [AGENT_SESSION_ID_HEADER]: sessionId,
+      [INTERNAL_USAGE_TOKEN_HEADER]: this.internalUsageToken
+    }
+  }
 
-    this.ipcHandle(IpcChannel.ApiGateway_Stop, async (): Promise<ApiGatewayStatusResult> => {
-      try {
-        await this.stop()
-        return { success: true }
-      } catch (error: any) {
-        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-      }
-    })
+  /** Process-local proof that the request came from a Cherry-launched SDK subprocess. */
+  isInternalAgentRequest(headers: Headers): boolean {
+    return headers.get(INTERNAL_USAGE_TOKEN_HEADER) === this.internalUsageToken
+  }
 
-    this.ipcHandle(IpcChannel.ApiGateway_Restart, async (): Promise<ApiGatewayStatusResult> => {
-      try {
-        await this.restart()
-        return { success: true }
-      } catch (error: any) {
-        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-      }
-    })
-
-    // NOTE: No status/config pull handlers. Running state is published to the
-    // shared cache (Main authoritative; read via useSharedCache) and config
-    // lives in the DataApi preference layer (feature.api_gateway.*) — pulling either
-    // over IPC would be an anti-pattern.
+  /** Validate the process-local proof, then capture the reserved continuation or active turn. */
+  resolveAgentSessionUsage(headers: Headers): InProcessUsageContext | undefined {
+    if (!this.isInternalAgentRequest(headers)) return undefined
+    const sessionId = headers.get(AGENT_SESSION_ID_HEADER)?.trim()
+    if (!sessionId) return undefined
+    return application.get('AgentSessionRuntimeService').getActiveUsageContext(sessionId)
   }
 
   private shouldAutoStart(): boolean {

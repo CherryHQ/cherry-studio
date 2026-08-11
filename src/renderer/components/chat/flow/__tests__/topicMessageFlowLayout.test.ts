@@ -175,8 +175,8 @@ describe('topicMessageFlowLayout', () => {
     expect(siblingEdge.style?.strokeDasharray).toBe('4 4')
 
     expect(inactiveEdge.data?.state).toBe('inactive')
-    expect(activeEdge.style?.stroke).toBe('var(--color-success)')
-    expect(inactiveEdge.style?.stroke).toBe('var(--color-gray-400)')
+    expect(activeEdge.style?.stroke).toBe('var(--success)')
+    expect(inactiveEdge.style?.stroke).toBe('oklch(0.71 0.02 261)')
     expect(inactiveEdge.style?.opacity).toBe(1)
   })
 
@@ -312,66 +312,5 @@ describe('topicMessageFlowLayout', () => {
     for (const node of activeScenesLayout.nodes) {
       expect(node.position).toEqual(positions.get(node.id))
     }
-  })
-
-  it('keeps existing node positions stable when appending an input draft node', () => {
-    const nodes = [
-      createNode('root', null, {
-        createdAt: '2026-05-22T14:16:00.000Z',
-        role: 'user',
-        isInactiveBranch: false
-      }),
-      createNode('assistant-root', 'root', {
-        createdAt: '2026-05-22T14:16:01.000Z',
-        isActive: true,
-        isInactiveBranch: false,
-        isOnActivePath: true
-      }),
-      createNode('user-existing', 'assistant-root', {
-        createdAt: '2026-05-22T14:17:00.000Z',
-        role: 'user',
-        isInactiveBranch: false
-      }),
-      createNode('assistant-existing', 'user-existing', {
-        createdAt: '2026-05-22T14:17:01.000Z',
-        isInactiveBranch: false
-      })
-    ]
-    const edges = [
-      createEdge('root', 'assistant-root', { isActivePath: true }),
-      createEdge('assistant-root', 'user-existing'),
-      createEdge('user-existing', 'assistant-existing')
-    ]
-    const baseLayout = layoutTopicMessageFlowGraph(
-      createGraph({
-        nodes,
-        edges,
-        activeNodeId: 'assistant-root'
-      })
-    )
-    const draftLayout = layoutTopicMessageFlowGraph(
-      createGraph({
-        nodes: [
-          ...nodes,
-          createNode('branch-draft:assistant-root', 'assistant-root', {
-            createdAt: '2026-05-22T14:18:00.000Z',
-            isInputDraft: true,
-            role: 'user',
-            status: 'paused'
-          })
-        ],
-        edges: [...edges, createEdge('assistant-root', 'branch-draft:assistant-root')],
-        activeNodeId: 'assistant-root'
-      })
-    )
-
-    const basePositions = new Map(baseLayout.nodes.map((node) => [node.id, node.position]))
-    for (const node of draftLayout.nodes.filter((node) => !node.data.isInputDraft)) {
-      expect(node.position).toEqual(basePositions.get(node.id))
-    }
-    expect(getNode(draftLayout.nodes, 'branch-draft:assistant-root').position.x).toBeGreaterThan(
-      getNode(draftLayout.nodes, 'user-existing').position.x
-    )
-    expect(getEdge(draftLayout.edges, 'assistant-root', 'branch-draft:assistant-root').data?.state).toBe('default')
   })
 })

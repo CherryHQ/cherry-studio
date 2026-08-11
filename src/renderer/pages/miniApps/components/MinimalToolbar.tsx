@@ -3,11 +3,13 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
+import { ipcApi } from '@renderer/ipc'
+import { toast } from '@renderer/services/toast'
 import { isDev } from '@renderer/utils/platform'
 import { isDataApiError, toDataApiError } from '@shared/data/api/errors'
 import type { MiniApp } from '@shared/data/types/miniApp'
 import type { WebviewTag } from 'electron'
-import { ArrowLeft, ArrowRight, Code, ExternalLink, Link, Pin, RotateCw } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Code, ExternalLink, LayoutGrid, Link, RotateCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -207,10 +209,10 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
       const e = toDataApiError(err)
       if (isDataApiError(e)) {
         logger.error('togglePin failed', { code: e.code, message: e.message })
-        window.toast?.error?.(e.message || t(fallbackKey))
+        toast.error(e.message || t(fallbackKey))
       } else {
         logger.error('togglePin failed', err as Error)
-        window.toast?.error?.(t(fallbackKey))
+        toast.error(t(fallbackKey))
       }
     })
   }, [app.appId, isPinned, updateAppStatus, t])
@@ -221,7 +223,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
 
   const handleOpenLink = useCallback(() => {
     const urlToOpen = currentUrl || app.url
-    void window.api.openWebsite(urlToOpen)
+    void ipcApi.request('system.shell.open_website', urlToOpen)
   }, [currentUrl, app.url])
 
   return (
@@ -296,7 +298,7 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
                 className={toolbarButtonClassName({ active: isPinned })}
                 aria-label={isPinned ? t('miniApp.remove_from_launchpad') : t('miniApp.add_to_launchpad')}
                 aria-pressed={isPinned}>
-                <Pin size={14} />
+                <LayoutGrid size={14} />
               </Button>
             </Tooltip>
           )}
@@ -343,10 +345,10 @@ const toolbarButtonClassName = ({ disabled = false, active = false }: { disabled
   cn(
     'rounded shadow-none active:scale-95',
     disabled
-      ? 'cursor-default text-foreground-muted hover:bg-transparent hover:text-foreground-muted active:scale-100'
+      ? 'cursor-default text-foreground-disabled hover:bg-transparent hover:text-foreground-disabled active:scale-100'
       : active
         ? 'text-primary hover:text-primary'
-        : 'text-foreground-secondary hover:text-foreground'
+        : 'text-muted-foreground hover:text-foreground'
   )
 
 export default MinimalToolbar

@@ -116,7 +116,72 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-import { GlobalSearchMessagePreviewPanel } from '../GlobalSearchMessagePreviewPanel'
+import {
+  GlobalSearchMessagePreviewPanel,
+  type GlobalSearchMessagePreviewTarget
+} from '../GlobalSearchMessagePreviewPanel'
+
+const TOPIC_TARGET = {
+  sourceType: 'topic',
+  topicId: 'topic-1',
+  title: 'Topic A',
+  messageId: 'topic-message-2'
+} satisfies GlobalSearchMessagePreviewTarget
+
+const SESSION_TARGET = {
+  sourceType: 'session',
+  sessionId: 'session-1',
+  title: 'Session A',
+  messageId: 'session-message-1'
+} satisfies GlobalSearchMessagePreviewTarget
+
+function createTopicMessage(overrides: Record<string, unknown> = {}) {
+  return {
+    message: {
+      id: 'topic-message-1',
+      topicId: 'topic-1',
+      parentId: null,
+      role: 'user',
+      data: { parts: [{ type: 'text', text: 'hello' }] },
+      status: 'success',
+      siblingsGroupId: 0,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      ...overrides
+    }
+  }
+}
+
+function createSessionMessage() {
+  return {
+    id: 'session-message-1',
+    sessionId: 'session-1',
+    role: 'assistant',
+    data: { parts: [{ type: 'text', text: 'session reply' }] },
+    status: 'success',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    modelId: null,
+    messageSnapshot: null,
+    traceId: null,
+    stats: null,
+    runtimeResumeToken: null,
+    searchableText: 'session reply'
+  }
+}
+
+function createPreviewProps(target: GlobalSearchMessagePreviewTarget = TOPIC_TARGET) {
+  return {
+    searchQuery: 'needle',
+    target,
+    onClose: mocks.onClose,
+    onOpenMessage: mocks.onOpenMessage
+  }
+}
+
+function renderPreview(target: GlobalSearchMessagePreviewTarget = TOPIC_TARGET) {
+  return render(<GlobalSearchMessagePreviewPanel {...createPreviewProps(target)} />)
+}
 
 // jsdom does not lay out, so scroll geometry has to be stubbed for the scroll-to-load-older handler.
 function setScrollGeometry(scroller: HTMLElement, geometry: { scrollTop: number; scrollHeight: number }) {
@@ -136,32 +201,15 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     mocks.topicPages = [
       {
         items: [
-          {
-            message: {
-              id: 'topic-message-1',
-              topicId: 'topic-1',
-              parentId: null,
-              role: 'user',
-              data: { parts: [{ type: 'text', text: 'hello' }] },
-              status: 'success',
-              siblingsGroupId: 0,
-              createdAt: '2026-01-01T00:00:00.000Z',
-              updatedAt: '2026-01-01T00:00:00.000Z'
-            }
-          },
-          {
-            message: {
-              id: 'topic-message-2',
-              topicId: 'topic-1',
-              parentId: 'topic-message-1',
-              role: 'assistant',
-              data: { parts: [{ type: 'text', text: 'reply' }] },
-              status: 'success',
-              siblingsGroupId: 0,
-              createdAt: '2026-01-01T00:00:01.000Z',
-              updatedAt: '2026-01-01T00:00:01.000Z'
-            }
-          }
+          createTopicMessage(),
+          createTopicMessage({
+            id: 'topic-message-2',
+            parentId: 'topic-message-1',
+            role: 'assistant',
+            data: { parts: [{ type: 'text', text: 'reply' }] },
+            createdAt: '2026-01-01T00:00:01.000Z',
+            updatedAt: '2026-01-01T00:00:01.000Z'
+          })
         ]
       }
     ]
@@ -187,19 +235,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
   it('renders topic preview messages and opens the clicked message', async () => {
     const user = userEvent.setup()
 
-    render(
-      <GlobalSearchMessagePreviewPanel
-        searchQuery="needle"
-        target={{
-          sourceType: 'topic',
-          topicId: 'topic-1',
-          title: 'Topic A',
-          messageId: 'topic-message-2'
-        }}
-        onClose={mocks.onClose}
-        onOpenMessage={mocks.onOpenMessage}
-      />
-    )
+    renderPreview()
 
     expect(screen.getByText('Topic A')).toBeInTheDocument()
     expect(screen.getByText('Conversation messages')).toBeInTheDocument()
@@ -231,40 +267,12 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     mocks.sessionHasNext = true
     mocks.sessionPages = [
       {
-        items: [
-          {
-            id: 'session-message-1',
-            sessionId: 'session-1',
-            role: 'assistant',
-            data: { parts: [{ type: 'text', text: 'session reply' }] },
-            status: 'success',
-            createdAt: '2026-01-01T00:00:00.000Z',
-            updatedAt: '2026-01-01T00:00:00.000Z',
-            modelId: null,
-            modelSnapshot: null,
-            traceId: null,
-            stats: null,
-            runtimeResumeToken: null,
-            searchableText: 'session reply'
-          }
-        ],
+        items: [createSessionMessage()],
         nextCursor: 'cursor-1'
       }
     ]
 
-    render(
-      <GlobalSearchMessagePreviewPanel
-        searchQuery="needle"
-        target={{
-          sourceType: 'session',
-          sessionId: 'session-1',
-          title: 'Session A',
-          messageId: 'session-message-1'
-        }}
-        onClose={mocks.onClose}
-        onOpenMessage={mocks.onOpenMessage}
-      />
-    )
+    renderPreview(SESSION_TARGET)
 
     expect(await screen.findByText('message-content:session-message-1')).toBeInTheDocument()
     expect(screen.getByText('Session A')).toBeInTheDocument()
@@ -292,40 +300,12 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     mocks.sessionHasNext = true
     mocks.sessionPages = [
       {
-        items: [
-          {
-            id: 'session-message-1',
-            sessionId: 'session-1',
-            role: 'assistant',
-            data: { parts: [{ type: 'text', text: 'session reply' }] },
-            status: 'success',
-            createdAt: '2026-01-01T00:00:00.000Z',
-            updatedAt: '2026-01-01T00:00:00.000Z',
-            modelId: null,
-            modelSnapshot: null,
-            traceId: null,
-            stats: null,
-            runtimeResumeToken: null,
-            searchableText: 'session reply'
-          }
-        ],
+        items: [createSessionMessage()],
         nextCursor: 'cursor-1'
       }
     ]
 
-    const { container } = render(
-      <GlobalSearchMessagePreviewPanel
-        searchQuery="needle"
-        target={{
-          sourceType: 'session',
-          sessionId: 'session-1',
-          title: 'Session A',
-          messageId: 'session-message-1'
-        }}
-        onClose={mocks.onClose}
-        onOpenMessage={mocks.onOpenMessage}
-      />
-    )
+    const { container } = renderPreview(SESSION_TARGET)
 
     await screen.findByText('message-content:session-message-1')
     const scroller = container.querySelector('.overflow-y-auto') as HTMLElement
@@ -342,19 +322,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
   it('loads an older topic page when the user scrolls near the top', async () => {
     mocks.topicHasNext = true
 
-    const { container } = render(
-      <GlobalSearchMessagePreviewPanel
-        searchQuery="needle"
-        target={{
-          sourceType: 'topic',
-          topicId: 'topic-1',
-          title: 'Topic A',
-          messageId: 'topic-message-2'
-        }}
-        onClose={mocks.onClose}
-        onOpenMessage={mocks.onOpenMessage}
-      />
-    )
+    const { container } = renderPreview()
 
     await screen.findByText('message-content:topic-message-2')
     const scroller = container.querySelector('.overflow-y-auto') as HTMLElement
@@ -367,17 +335,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
   it('keeps the older-page scroll anchor while the loading spinner is visible', async () => {
     mocks.topicHasNext = true
 
-    const props = {
-      searchQuery: 'needle',
-      target: {
-        sourceType: 'topic' as const,
-        topicId: 'topic-1',
-        title: 'Topic A',
-        messageId: 'topic-message-2'
-      },
-      onClose: mocks.onClose,
-      onOpenMessage: mocks.onOpenMessage
-    }
+    const props = createPreviewProps()
     const { container, rerender } = render(<GlobalSearchMessagePreviewPanel {...props} />)
 
     await screen.findByText('message-content:topic-message-2')
@@ -397,19 +355,12 @@ describe('GlobalSearchMessagePreviewPanel', () => {
       ...mocks.topicPages,
       {
         items: [
-          {
-            message: {
-              id: 'topic-message-older',
-              topicId: 'topic-1',
-              parentId: null,
-              role: 'user',
-              data: { parts: [{ type: 'text', text: 'older' }] },
-              status: 'success',
-              siblingsGroupId: 0,
-              createdAt: '2025-12-31T23:59:59.000Z',
-              updatedAt: '2025-12-31T23:59:59.000Z'
-            }
-          }
+          createTopicMessage({
+            id: 'topic-message-older',
+            data: { parts: [{ type: 'text', text: 'older' }] },
+            createdAt: '2025-12-31T23:59:59.000Z',
+            updatedAt: '2025-12-31T23:59:59.000Z'
+          })
         ]
       }
     ]
@@ -421,17 +372,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
   it('keeps loaded preview messages visible and allows retry when loading older messages fails', async () => {
     mocks.topicHasNext = true
 
-    const props = {
-      searchQuery: 'needle',
-      target: {
-        sourceType: 'topic' as const,
-        topicId: 'topic-1',
-        title: 'Topic A',
-        messageId: 'topic-message-2'
-      },
-      onClose: mocks.onClose,
-      onOpenMessage: mocks.onOpenMessage
-    }
+    const props = createPreviewProps()
     const { container, rerender } = render(<GlobalSearchMessagePreviewPanel {...props} />)
 
     expect(await screen.findByText('message-content:topic-message-1')).toBeInTheDocument()
@@ -463,19 +404,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     const cancelFrame = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => undefined)
 
     try {
-      const { unmount } = render(
-        <GlobalSearchMessagePreviewPanel
-          searchQuery="needle"
-          target={{
-            sourceType: 'topic',
-            topicId: 'topic-1',
-            title: 'Topic A',
-            messageId: 'topic-message-2'
-          }}
-          onClose={mocks.onClose}
-          onOpenMessage={mocks.onOpenMessage}
-        />
-      )
+      const { unmount } = renderPreview()
 
       await screen.findByText('message-content:topic-message-2')
       unmount()
@@ -491,19 +420,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
   it('does not load older pages on scroll when there are none left', async () => {
     mocks.topicHasNext = false
 
-    const { container } = render(
-      <GlobalSearchMessagePreviewPanel
-        searchQuery="needle"
-        target={{
-          sourceType: 'topic',
-          topicId: 'topic-1',
-          title: 'Topic A',
-          messageId: 'topic-message-2'
-        }}
-        onClose={mocks.onClose}
-        onOpenMessage={mocks.onOpenMessage}
-      />
-    )
+    const { container } = renderPreview()
 
     await screen.findByText('message-content:topic-message-2')
     const scroller = container.querySelector('.overflow-y-auto') as HTMLElement
@@ -517,36 +434,16 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     mocks.topicPages = [
       {
         items: [
-          {
-            message: {
-              id: 'topic-message-system',
-              topicId: 'topic-1',
-              parentId: null,
-              role: 'system',
-              data: { parts: [{ type: 'text', text: 'system prompt' }] },
-              status: 'success',
-              siblingsGroupId: 0,
-              createdAt: '2026-01-01T00:00:00.000Z',
-              updatedAt: '2026-01-01T00:00:00.000Z'
-            }
-          }
+          createTopicMessage({
+            id: 'topic-message-system',
+            role: 'system',
+            data: { parts: [{ type: 'text', text: 'system prompt' }] }
+          })
         ]
       }
     ]
 
-    render(
-      <GlobalSearchMessagePreviewPanel
-        searchQuery="needle"
-        target={{
-          sourceType: 'topic',
-          topicId: 'topic-1',
-          title: 'Topic A',
-          messageId: 'topic-message-system'
-        }}
-        onClose={mocks.onClose}
-        onOpenMessage={mocks.onOpenMessage}
-      />
-    )
+    renderPreview({ ...TOPIC_TARGET, messageId: 'topic-message-system' })
 
     expect(await screen.findByText('System')).toBeInTheDocument()
     expect(screen.queryByText('User')).not.toBeInTheDocument()
@@ -556,36 +453,16 @@ describe('GlobalSearchMessagePreviewPanel', () => {
     mocks.topicPages = [
       {
         items: [
-          {
-            message: {
-              id: 'topic-message-tool',
-              topicId: 'topic-1',
-              parentId: null,
-              role: 'tool',
-              data: { parts: [{ type: 'text', text: 'tool output' }] },
-              status: 'success',
-              siblingsGroupId: 0,
-              createdAt: '2026-01-01T00:00:00.000Z',
-              updatedAt: '2026-01-01T00:00:00.000Z'
-            }
-          }
+          createTopicMessage({
+            id: 'topic-message-tool',
+            role: 'tool',
+            data: { parts: [{ type: 'text', text: 'tool output' }] }
+          })
         ]
       }
     ]
 
-    render(
-      <GlobalSearchMessagePreviewPanel
-        searchQuery="needle"
-        target={{
-          sourceType: 'topic',
-          topicId: 'topic-1',
-          title: 'Topic A',
-          messageId: 'topic-message-tool'
-        }}
-        onClose={mocks.onClose}
-        onOpenMessage={mocks.onOpenMessage}
-      />
-    )
+    renderPreview({ ...TOPIC_TARGET, messageId: 'topic-message-tool' })
 
     expect(await screen.findByText('Tool')).toBeInTheDocument()
     expect(screen.queryByText('User')).not.toBeInTheDocument()

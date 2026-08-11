@@ -69,7 +69,10 @@ describe('command definitions', () => {
     expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'app.zoom.in')).toMatchObject({
       command: 'app.zoom.in',
       defaultBinding: ['CommandOrControl', '='],
-      additionalBindings: [['CommandOrControl', 'numadd']]
+      additionalBindings: [
+        ['CommandOrControl', 'Shift', '='],
+        ['CommandOrControl', 'numadd']
+      ]
     })
     expect(REGISTERED_KEYBINDINGS.find((rule) => rule.command === 'app.zoom.out')).toMatchObject({
       command: 'app.zoom.out',
@@ -262,6 +265,15 @@ describe('resolveCommandByKeybinding', () => {
   })
 
   it('resolves additional bindings without changing the primary display binding', () => {
+    expect(
+      resolveCommandByKeybinding({
+        binding: ['CommandOrControl', 'Shift', '='],
+        context: {},
+        platform: 'win32',
+        scope: 'main'
+      })
+    ).toBe('app.zoom.in')
+
     expect(
       resolveCommandByKeybinding({
         binding: ['CommandOrControl', 'numadd'],

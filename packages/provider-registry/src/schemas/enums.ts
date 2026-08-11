@@ -49,12 +49,35 @@ export const MODEL_CAPABILITY = {
   VIDEO_GENERATION: 'video-generation',
   STRUCTURED_OUTPUT: 'structured-output',
   FILE_INPUT: 'file-input',
-  WEB_SEARCH: 'web-search',
   CODE_EXECUTION: 'code-execution',
   FILE_SEARCH: 'file-search',
   COMPUTER_USE: 'computer-use'
 } as const
 export type ModelCapability = (typeof MODEL_CAPABILITY)[keyof typeof MODEL_CAPABILITY]
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ServerTool
+//
+// Provider-native (server-executed) built-in tools a host runs itself — the app
+// only flips them on, the provider does the work. A provider declares which it
+// serves via `ProviderConfig.serverTools`; each entry declares whether support
+// is provider-wide or still model-dependent. Distinct from the app's own
+// agentic tools (e.g. external web search via Tavily/Exa).
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const SERVER_TOOL = {
+  WEB_SEARCH: 'web-search',
+  URL_CONTEXT: 'url-context'
+} as const
+export type ServerTool = (typeof SERVER_TOOL)[keyof typeof SERVER_TOOL]
+
+export const SERVER_TOOL_MODEL_SCOPE = {
+  /** The provider supplies the tool for every chat model it serves. */
+  ALL_CHAT_MODELS: 'all-chat-models',
+  /** Tool-specific model eligibility must also pass. */
+  MODEL_DEPENDENT: 'model-dependent'
+} as const
+export type ServerToolModelScope = (typeof SERVER_TOOL_MODEL_SCOPE)[keyof typeof SERVER_TOOL_MODEL_SCOPE]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CanonicalParamKey
@@ -97,10 +120,12 @@ export const CANONICAL_PARAM_KEY = {
   NUM_IMAGES: 'numImages',
   NUM_INFERENCE_STEPS: 'numInferenceSteps',
   OUTPUT_FORMAT: 'outputFormat',
+  OUTPUT_COMPRESSION: 'outputCompression',
   PERSON_GENERATION: 'personGeneration',
   PROMPT_ENHANCEMENT: 'promptEnhancement',
   PROMPT_EXTEND: 'promptExtend',
   QUALITY: 'quality',
+  RESOLUTION: 'resolution',
   REF_MODE: 'refMode',
   REF_STRENGTH: 'refStrength',
   RENDERING_SPEED: 'renderingSpeed',
@@ -155,38 +180,27 @@ export const REASONING_EFFORT = {
   LOW: 'low',
   MEDIUM: 'medium',
   HIGH: 'high',
+  XHIGH: 'xhigh',
   MAX: 'max',
   AUTO: 'auto'
 } as const
 export type ReasoningEffort = (typeof REASONING_EFFORT)[keyof typeof REASONING_EFFORT]
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Provider-specific reasoning effort enums
-// ─────────────────────────────────────────────────────────────────────────────
-
-export const OPENAI_REASONING_EFFORT = {
-  LOW: 'low',
-  MEDIUM: 'medium',
-  HIGH: 'high',
-  XHIGH: 'xhigh'
-} as const
-export type OpenAIReasoningEffort = (typeof OPENAI_REASONING_EFFORT)[keyof typeof OPENAI_REASONING_EFFORT]
-
-export const ANTHROPIC_REASONING_EFFORT = {
-  LOW: 'low',
-  MEDIUM: 'medium',
-  HIGH: 'high',
-  MAX: 'max'
-} as const
-export type AnthropicReasoningEffort = (typeof ANTHROPIC_REASONING_EFFORT)[keyof typeof ANTHROPIC_REASONING_EFFORT]
-
-export const GEMINI_THINKING_LEVEL = {
-  MINIMAL: 'minimal',
-  LOW: 'low',
-  MEDIUM: 'medium',
-  HIGH: 'high'
-} as const
-export type GeminiThinkingLevel = (typeof GEMINI_THINKING_LEVEL)[keyof typeof GEMINI_THINKING_LEVEL]
+/**
+ * Intensity ladder for nearest-match fallback when a persisted effort is not
+ * in a model's vocabulary (model switch / vocabulary shrink). `auto` is
+ * deliberately last — it is a mode, not an intensity.
+ */
+export const REASONING_EFFORT_ORDER: readonly ReasoningEffort[] = [
+  'none',
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+  'max',
+  'auto'
+]
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Utility

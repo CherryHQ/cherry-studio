@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { ComposerPanelSymbol } from '@renderer/components/composer/quickPanel'
 import { getQuickPanelSearchAliases } from '@renderer/components/composer/quickPanel'
+import { QUICK_PHRASES_TOOLBAR_MANIFEST } from '@renderer/components/composer/tools/toolbarManifests'
 import type { ToolLauncherApi } from '@renderer/components/composer/tools/types'
 import {
   type QuickPanelCallBackOptions,
@@ -12,6 +13,7 @@ import { useQuickPanel } from '@renderer/components/QuickPanel'
 import { PromptEditDialog } from '@renderer/components/resourceCatalog/dialogs/edit'
 import { PromptManagementDialog } from '@renderer/components/resourceCatalog/dialogs/manage'
 import { useTimer } from '@renderer/hooks/useTimer'
+import { toast } from '@renderer/services/toast'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Prompt } from '@shared/data/types/prompt'
 import { Pencil, Plus, Zap } from 'lucide-react'
@@ -29,6 +31,7 @@ const logger = loggerService.withContext('QuickPhrasesButton')
 const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [isManageModalOpen, setIsManageModalOpen] = useState(false)
+  const [promptsEnabled, setPromptsEnabled] = useState(false)
   const restoreInputFocusRef = useRef<(() => void) | null>(null)
   const { t } = useTranslation()
   const {
@@ -39,13 +42,17 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   } = useQuickPanel()
   const { setTimeoutTimer } = useTimer()
 
-  const { data: promptsRaw, isLoading: isPromptsLoading, error: promptsError } = useQuery('/prompts')
+  const {
+    data: promptsRaw,
+    isLoading: isPromptsLoading,
+    error: promptsError
+  } = useQuery('/prompts', { enabled: promptsEnabled })
 
   const { trigger: createPrompt, isLoading: isCreatingPrompt } = useMutation('POST', '/prompts', {
     refresh: ['/prompts'],
     onError: (error) => {
       logger.error('Failed to create prompt', error)
-      window.toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.createFailed')))
+      toast.error(formatErrorMessageWithPrefix(error, t('settings.prompts.errors.createFailed')))
     }
   })
 
@@ -131,7 +138,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   const phraseItems = useMemo(() => {
     const newList: QuickPanelListItem[] = []
 
-    if (isPromptsLoading && promptItems.length === 0) {
+    if ((!promptsEnabled || isPromptsLoading) && promptItems.length === 0) {
       newList.push({
         label: t('common.loading'),
         icon: <Zap />,
@@ -167,7 +174,7 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
     })
 
     return newList
-  }, [handleItemSelect, isPromptsLoading, openAddModal, openManageModal, promptItems, promptsError, t])
+  }, [handleItemSelect, isPromptsLoading, openAddModal, openManageModal, promptItems, promptsEnabled, promptsError, t])
 
   const quickPanelOpenOptions = useMemo<QuickPanelOpenOptions>(
     () => ({
@@ -205,15 +212,13 @@ const useQuickPhrasesToolController = ({ launcher, setInputValue }: Props) => {
   useEffect(() => {
     const disposeLauncher = launcher.registerLaunchers([
       {
-        id: 'quick-phrases',
-        kind: 'panel',
-        sources: ['root-panel'],
-        order: 70,
+        ...QUICK_PHRASES_TOOLBAR_MANIFEST.toolbar,
+        sources: ['popover', 'root-panel'],
         label: t('settings.prompts.title'),
         description: '',
         searchAliases: getQuickPanelSearchAliases(t, 'settings.prompts.title'),
-        icon: <Zap />,
         action: ({ parentPanel, queryAnchor, triggerInfo }) => {
+          setPromptsEnabled(true)
           openQuickPanel(parentPanel, queryAnchor, triggerInfo)
         }
       }

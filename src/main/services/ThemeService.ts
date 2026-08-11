@@ -1,8 +1,7 @@
 import { application } from '@application'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { ThemeMode } from '@shared/data/preference/preferenceTypes'
-import { IpcChannel } from '@shared/IpcChannel'
-import { BrowserWindow, nativeTheme } from 'electron'
+import { nativeTheme } from 'electron'
 
 @Injectable('ThemeService')
 @ServicePhase(Phase.WhenReady)
@@ -33,11 +32,7 @@ export class ThemeService extends BaseService {
   }
 
   private themeUpdatedHandler() {
-    BrowserWindow.getAllWindows().forEach((win) => {
-      win.webContents.send(
-        IpcChannel.NativeThemeUpdated,
-        nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light
-      )
-    })
+    const theme = nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light
+    application.get('IpcApiService').broadcast('system.native_theme_updated', theme)
   }
 }

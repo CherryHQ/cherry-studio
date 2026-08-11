@@ -12,7 +12,7 @@ IPC / RPC / REST are layered, not rival:
 | Dimension | DataApi | IpcApi |
 |---|---|---|
 | Paradigm | REST / resource | RPC / capability |
-| Addressing | `path` + HTTP method | `namespace.action` dot snake |
+| Addressing | `path` + HTTP method | `namespace[.subdomain].action` dot snake |
 | Side effects | forbidden (pure data) | the point (window/system/shell/external/file) |
 | Future | may become a remote server | always local, bound to main |
 | Retry | idempotent reads may retry | commands default to no retry |
@@ -54,7 +54,7 @@ The trade is deliberate: give up the freedom to add arbitrary channels, gain ful
 
 - **schema layer** (`src/shared/ipc/schemas/`): per-domain files, each split into a Request block (zod values, single source of truth) and an Event block (pure types).
 - **transport**: two channels — `IpcApi_Request` (R→M) and `IpcApi_Event` (M→R).
-- **main**: `IpcApiService` = `IpcRouter` (request dispatch) + `broadcast`/`send` (events) + per-domain handlers. Send and receive are unified in one service.
+- **main**: `IpcApiService` = `IpcRouter` (request dispatch) + `broadcast`/`broadcastToType`/`send` (events) + per-domain handlers. Send and receive are unified in one service.
 - **preload**: one generic forwarder (collapses the hand-written object).
 - **renderer**: key-style typed facade `ipcApi.request` (like `useQuery`) + `ipcApi.on` / `useIpcOn`.
 
@@ -156,3 +156,5 @@ Two orthogonal, both-required gates at the single request entry:
 2. **Input validation** (zod `parse`): always on for every request route — input is parsed before the handler runs.
 
 `input` being valid ≠ `sender` being trusted; both gates are necessary. Events (built by the TCB) are pure types, not validated.
+
+The source-trust gate is not exclusive to IpcApi: the same `validateSender` (`src/main/core/security/validateSender.ts`, defaulting to `app.root` as the trusted root) is wired into the DataApi transport (`IpcAdapter`) and the Preference/Cache subsystem handlers, so every data-subsystem funnel rejects untrusted frames. The deprecated `BaseService.ipcHandle`/`ipcOn` sugar does not gate — legacy channels still on it gain the gate as they migrate into IpcApi.

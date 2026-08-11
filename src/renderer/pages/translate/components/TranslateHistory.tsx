@@ -2,6 +2,7 @@ import { ConfirmDialog, EmptyState, PageSidePanel } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { DynamicVirtualList } from '@renderer/components/VirtualList'
 import { useLanguages, useTranslateHistories, useTranslateHistory } from '@renderer/hooks/translate'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateHistory, TranslateLanguage } from '@shared/data/types/translate'
@@ -100,10 +101,10 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
     async (value: string) => {
       try {
         await navigator.clipboard.writeText(value)
-        window.toast.success(t('translate.copied'))
+        toast.success(t('translate.copied'))
       } catch (error) {
         logger.error('Failed to copy translate history text', error as Error)
-        window.toast.error(t('common.copy_failed'))
+        toast.error(t('common.copy_failed'))
       }
     },
     [t]
@@ -283,7 +284,7 @@ const HistoryRow: FC<{
           onSelect(item.id)
         }
       }}
-      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+      className="group relative flex w-full cursor-pointer flex-col gap-1.5 rounded-md p-2.5 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none">
       <IconButton
         size="sm"
         tone="star"
@@ -292,7 +293,7 @@ const HistoryRow: FC<{
           e.stopPropagation()
           void handleStar()
         }}
-        aria-label={t('translate.history.filter.starred')}
+        aria-label={t('translate.history.star')}
         aria-pressed={!!item.star}
         className={cn(
           'absolute top-2 right-2',
@@ -304,11 +305,11 @@ const HistoryRow: FC<{
         <span className="rounded bg-muted px-1 py-px text-muted-foreground text-sm">
           {item._sourceEmoji} {item._sourceLabel}
         </span>
-        <ArrowRight size={8} className="text-foreground-muted" />
+        <ArrowRight size={8} className="text-foreground-tertiary" />
         <span className="rounded bg-primary/10 px-1 py-px text-primary text-sm">
           {item._targetEmoji} {item._targetLabel}
         </span>
-        <span className="ml-auto text-foreground-muted text-sm">{item._createdAtLabel}</span>
+        <span className="ml-auto text-foreground-tertiary text-sm">{item._createdAtLabel}</span>
       </div>
       <p className="line-clamp-1 text-muted-foreground text-sm">{item.sourceText}</p>
       <p className="line-clamp-1 text-foreground text-sm">{item.targetText}</p>
@@ -349,7 +350,7 @@ const HistoryDetail: FC<{
       <button
         type="button"
         onClick={onBack}
-        className="mb-3 flex items-center gap-1 rounded-md text-foreground-secondary text-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+        className="mb-3 flex items-center gap-1 rounded-md text-muted-foreground text-sm transition-colors hover:text-foreground focus-visible:text-foreground focus-visible:underline focus-visible:outline-none">
         <ChevronRight size={11} className="rotate-180" />
         <span>{t('translate.history.back')}</span>
       </button>
@@ -358,7 +359,7 @@ const HistoryDetail: FC<{
           <span className="rounded-sm bg-muted px-1.5 py-0.5 text-muted-foreground text-sm">
             {item._sourceEmoji} {item._sourceLabel}
           </span>
-          <ArrowRight size={10} className="text-foreground-muted" />
+          <ArrowRight size={10} className="text-foreground-tertiary" />
           <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 text-primary text-sm">
             {item._targetEmoji} {item._targetLabel}
           </span>
@@ -375,15 +376,15 @@ const HistoryDetail: FC<{
             tone="star"
             active={!!item.star}
             onClick={() => void handleStar()}
-            aria-label={t('translate.history.filter.starred')}
+            aria-label={t('translate.history.star')}
             aria-pressed={!!item.star}>
             <Star size={11} className={cn(item.star && 'fill-amber-500')} />
           </IconButton>
-          <span className="text-foreground-muted text-sm">{item._createdAtLabel}</span>
+          <span className="text-foreground-tertiary text-sm">{item._createdAtLabel}</span>
         </div>
         <div className="rounded-md bg-muted/40 p-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-foreground-muted text-sm">{t('translate.history.source')}</span>
+            <span className="text-foreground-tertiary text-sm">{t('translate.history.source')}</span>
             <IconButton size="sm" onClick={() => void onCopy(item.sourceText)} aria-label={t('common.copy')}>
               <Copy size={10} />
             </IconButton>
@@ -394,7 +395,7 @@ const HistoryDetail: FC<{
         </div>
         <div className="rounded-md border border-border bg-accent/40 p-3">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-foreground-secondary text-sm">{t('translate.history.target')}</span>
+            <span className="text-muted-foreground text-sm">{t('translate.history.target')}</span>
             <IconButton size="sm" onClick={() => void onCopy(item.targetText)} aria-label={t('common.copy')}>
               <Copy size={10} />
             </IconButton>
@@ -407,14 +408,14 @@ const HistoryDetail: FC<{
           <button
             type="button"
             onClick={() => onReuse(item)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-muted-foreground text-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:text-foreground focus-visible:outline-none">
             <Repeat size={11} />
             <span>{t('translate.history.reuse')}</span>
           </button>
           <button
             type="button"
             onClick={() => void onCopy(item.targetText)}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary py-1.5 text-primary-foreground text-sm transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-md bg-primary py-1.5 text-primary-foreground text-sm transition-colors hover:opacity-90 focus-visible:opacity-90 focus-visible:outline-none">
             <Copy size={11} />
             <span>{t('translate.history.copy_target')}</span>
           </button>

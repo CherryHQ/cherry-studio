@@ -1,8 +1,7 @@
-import { Avatar, AvatarFallback, Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
-import { resolveIcon } from '@cherrystudio/ui/icons'
+import { Button, InfoTooltip, Input, PageSidePanel, Switch, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { getProviderDisplayName, ModelSelector } from '@renderer/components/ModelSelector'
+import { ModelSelector } from '@renderer/components/ModelSelector'
 import {
   SettingContainer,
   SettingDescription,
@@ -17,24 +16,40 @@ import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { useTheme } from '@renderer/hooks/useTheme'
 import { TranslateSettingsPanelContent } from '@renderer/pages/translate/TranslateSettings'
+import { toast } from '@renderer/services/toast'
 import { cn } from '@renderer/utils/style'
 import { TRANSLATE_PROMPT } from '@shared/ai/prompts'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
-import { isNonChatModel } from '@shared/utils/model'
-import { ChevronDown, Languages, MessageSquareMore, Rocket, RotateCcw, Settings2 } from 'lucide-react'
+import type { Model } from '@shared/data/types/model'
+import { isGenerateImageModel, isNonChatModel } from '@shared/utils/model'
+import {
+  ChevronDown,
+  Languages,
+  MessageSquareMore,
+  Palette,
+  RefreshCcw,
+  Rocket,
+  RotateCcw,
+  Settings2
+} from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { TopicNamingSettings } from './QuickModelPopup'
+import { DefaultModelSelector } from './DefaultModelSelector'
+import { TopicNamingSettings } from './TopicNamingSettings'
 
 const logger = loggerService.withContext('ModelSettings')
 
 interface ModelSettingsProps {
   showSettingsButton?: boolean
   showDescription?: boolean
+  showDividers?: boolean
+  showPaintingModel?: boolean
+  modelFilter?: (model: Model) => boolean
+  autoFillEmptyModels?: boolean
+  onDefaultModelSelected?: (model: Model) => void | Promise<void>
   compact?: boolean
+  className?: string
 }
 
 interface ModelSettingRowProps {
@@ -48,7 +63,7 @@ interface ModelSettingRowProps {
 const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, compact, children }) => (
   <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3 py-1' : 'items-start gap-6 py-1.5')}>
     <div className="min-w-0 flex-1">
-      <SettingRowTitle className="gap-2 font-semibold">
+      <SettingRowTitle className="gap-2">
         {icon}
         {title}
       </SettingRowTitle>
@@ -60,18 +75,6 @@ const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, c
   </SettingRow>
 )
 
-interface ModelSelectorTriggerProps {
-  model?: Model
-  providers: Provider[]
-  placeholder: string
-  compact?: boolean
-}
-
-interface DefaultModelSelectorProps extends ModelSelectorTriggerProps {
-  filter: (model: Model) => boolean
-  onSelect: (model: Model | undefined) => void
-}
-
 type ModelSettingsPanel = 'quick-model' | 'translate' | null
 
 const MODEL_SETTINGS_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
@@ -80,79 +83,63 @@ const SETTINGS_DRAWER_BODY_CLASS = 'space-y-0 px-6 py-5'
 
 const drawerTitleClassName = 'truncate font-semibold text-foreground text-sm leading-4'
 
-const getModelIdentifier = (model: Model) => model.apiModelId ?? parseUniqueModelId(model.id).modelId
-
-const getModelInitial = (model: Model) => model.name.trim().charAt(0) || 'M'
-
-const renderModelSelectorTrigger = ({ model, providers, placeholder, compact }: ModelSelectorTriggerProps) => {
-  const provider = model ? providers.find((item) => item.id === model.providerId) : undefined
-  const providerName = provider ? getProviderDisplayName(provider) : undefined
-  const icon = model ? resolveIcon(getModelIdentifier(model), model.providerId) : undefined
-
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size={compact ? 'lg' : 'default'}
-      className={cn('min-w-0 flex-1 justify-between px-2.5 text-left font-normal', compact ? 'h-9' : 'h-7.5')}>
-      <span className="flex min-w-0 flex-1 items-center gap-2">
-        {model && icon ? (
-          <icon.Avatar size={20} />
-        ) : model ? (
-          <Avatar size="sm">
-            <AvatarFallback>{getModelInitial(model)}</AvatarFallback>
-          </Avatar>
-        ) : null}
-        <span className="min-w-0 flex-1 truncate">{model?.name ?? placeholder}</span>
-        {providerName && <span className="max-w-[32%] truncate text-muted-foreground text-xs">{providerName}</span>}
-      </span>
-      <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
-    </Button>
-  )
-}
-
-const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
-  model,
-  providers,
-  placeholder,
-  compact,
-  filter,
-  onSelect
-}) => (
-  <ModelSelector
-    multiple={false}
-    value={model}
-    onSelect={onSelect}
-    filter={filter}
-    trigger={renderModelSelectorTrigger({ model, providers, placeholder, compact })}
-  />
-)
-
 const ModelSettings: FC<ModelSettingsProps> = ({
   showSettingsButton = true,
   showDescription = true,
-  compact = false
+  showDividers = true,
+  showPaintingModel = true,
+  modelFilter,
+  autoFillEmptyModels = false,
+  onDefaultModelSelected,
+  compact = false,
+  className
 }) => {
-  const { defaultModel, quickModel, translateModel, setDefaultModel, setQuickModel, setTranslateModel } =
-    useDefaultModel()
+  const {
+    defaultModel,
+    quickModel,
+    translateModel,
+    paintingModel,
+    setDefaultModel,
+    setQuickModel,
+    setTranslateModel,
+    setPaintingModel
+  } = useDefaultModel()
   const { providers } = useProviders({ enabled: true })
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
   const { theme } = useTheme()
   const { t } = useTranslation()
 
   const [translateModelPrompt, setTranslateModelPrompt] = usePreference('feature.translate.model_prompt')
+  const [retryEnabled, setRetryEnabled] = usePreference('chat.retry.enabled')
+  const [retryMaxAttempts, setRetryMaxAttempts] = usePreference('chat.retry.max_attempts')
+  const [retryBackoffEnabled, setRetryBackoffEnabled] = usePreference('chat.retry.backoff_enabled')
+  const [retryFallbackModelIds, setRetryFallbackModelIds] = usePreference('chat.retry.fallback_model_ids')
 
-  const modelFilter = useCallback((model: Model) => !isNonChatModel(model), [])
+  const chatModelFilter = useCallback(
+    (model: Model) => !isNonChatModel(model) && (modelFilter?.(model) ?? true),
+    [modelFilter]
+  )
+  const selectableDefaultModel = defaultModel && chatModelFilter(defaultModel) ? defaultModel : undefined
+  const selectableQuickModel = quickModel && chatModelFilter(quickModel) ? quickModel : undefined
+  const selectableTranslateModel = translateModel && chatModelFilter(translateModel) ? translateModel : undefined
+  const shouldAutoFillEmptyModels =
+    autoFillEmptyModels && !selectableDefaultModel && !selectableQuickModel && !selectableTranslateModel
 
   const onSelectDefault = useCallback(
     (selected: Model | undefined) => {
       if (!selected) return
-      void setDefaultModel(selected).catch((error) => {
-        logger.error('Failed to set default model', { modelId: selected.id, error })
-        window.toast.error(t('settings.models.manage.operation_failed'))
-      })
+
+      const updatePromise = shouldAutoFillEmptyModels
+        ? setDefaultModel(selected, { forceCascade: true })
+        : setDefaultModel(selected)
+      void updatePromise
+        .then(() => onDefaultModelSelected?.(selected))
+        .catch((error) => {
+          logger.error('Failed to handle default model selection', { modelId: selected.id, error })
+          toast.error(t('settings.models.manage.operation_failed'))
+        })
     },
-    [setDefaultModel, t]
+    [onDefaultModelSelected, setDefaultModel, shouldAutoFillEmptyModels, t]
   )
 
   const onSelectQuick = useCallback(
@@ -171,6 +158,14 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     [setTranslateModel]
   )
 
+  const onSelectPainting = useCallback(
+    (selected: Model | undefined) => {
+      if (!selected) return
+      void setPaintingModel(selected)
+    },
+    [setPaintingModel]
+  )
+
   const onResetTranslatePrompt = () => {
     void setTranslateModelPrompt(TRANSLATE_PROMPT)
   }
@@ -185,9 +180,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
   const containerProps = compact ? { style: { padding: 0, background: 'transparent' } } : {}
 
   return (
-    <div className="relative flex min-h-0 flex-1">
+    <div className={cn('relative flex min-h-0 flex-1', className)}>
       <ContainerComponent theme={theme} {...containerProps}>
-        <SettingGroup theme={theme} style={groupStyle}>
+        <SettingGroup theme={theme} style={groupStyle} className={compact ? 'space-y-3' : undefined}>
           {!compact && (
             <>
               <SettingTitle>{t('settings.model')}</SettingTitle>
@@ -200,15 +195,15 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             title={t('settings.models.default_assistant_model')}
             description={showDescription ? t('settings.models.default_assistant_model_description') : undefined}>
             <DefaultModelSelector
-              model={defaultModel}
+              model={selectableDefaultModel}
               providers={providers}
-              filter={modelFilter}
+              filter={chatModelFilter}
               compact={compact}
               onSelect={onSelectDefault}
               placeholder={t('settings.models.empty')}
             />
           </ModelSettingRow>
-          <SettingDivider />
+          {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
             icon={<Rocket size={16} className="lucide-custom shrink-0 text-foreground" />}
@@ -220,9 +215,9 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             }
             description={showDescription ? t('settings.models.quick_model.description') : undefined}>
             <DefaultModelSelector
-              model={quickModel}
+              model={selectableQuickModel}
               providers={providers}
-              filter={modelFilter}
+              filter={chatModelFilter}
               compact={compact}
               onSelect={onSelectQuick}
               placeholder={t('settings.models.empty')}
@@ -238,16 +233,16 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               </Button>
             )}
           </ModelSettingRow>
-          <SettingDivider />
+          {showDividers && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
             icon={<Languages size={16} className="lucide-custom shrink-0 text-foreground" />}
             title={t('settings.models.translate_model')}
             description={showDescription ? t('settings.models.translate_model_description') : undefined}>
             <DefaultModelSelector
-              model={translateModel}
+              model={selectableTranslateModel}
               providers={providers}
-              filter={modelFilter}
+              filter={chatModelFilter}
               compact={compact}
               onSelect={onSelectTranslate}
               placeholder={t('settings.models.empty')}
@@ -272,6 +267,101 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               </>
             )}
           </ModelSettingRow>
+          {showPaintingModel && (
+            <>
+              <SettingDivider />
+              <ModelSettingRow
+                compact={compact}
+                icon={<Palette size={16} className="lucide-custom shrink-0 text-foreground" />}
+                title={t('settings.models.painting_model')}
+                description={showDescription ? t('settings.models.painting_model_description') : undefined}>
+                <DefaultModelSelector
+                  model={paintingModel}
+                  providers={providers}
+                  filter={isGenerateImageModel}
+                  compact={compact}
+                  onSelect={onSelectPainting}
+                  placeholder={t('settings.models.empty')}
+                />
+              </ModelSettingRow>
+            </>
+          )}
+          <SettingDivider />
+          <ModelSettingRow
+            compact={compact}
+            icon={<RefreshCcw size={16} className="lucide-custom shrink-0 text-foreground" />}
+            title={
+              <>
+                {t('settings.models.retry.label')}
+                <InfoTooltip content={t('settings.models.retry.tooltip')} />
+              </>
+            }
+            description={showDescription ? t('settings.models.retry.description') : undefined}>
+            <Switch
+              checked={retryEnabled}
+              onCheckedChange={(checked) => void setRetryEnabled(checked)}
+              aria-label={t('settings.models.retry.label')}
+            />
+          </ModelSettingRow>
+          {retryEnabled && (
+            <>
+              <SettingDivider />
+              <ModelSettingRow compact={compact} icon={null} title={t('settings.models.retry.max_attempts')}>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10}
+                  className="w-24"
+                  aria-label={t('settings.models.retry.max_attempts')}
+                  value={retryMaxAttempts}
+                  // Clamp on change: an empty field gives Number('') === 0, which a
+                  // range guard would reject — trapping the edit. Clamp instead.
+                  onChange={(e) =>
+                    void setRetryMaxAttempts(Math.min(10, Math.max(1, Math.trunc(Number(e.target.value)) || 1)))
+                  }
+                />
+              </ModelSettingRow>
+              <SettingDivider />
+              <ModelSettingRow compact={compact} icon={null} title={t('settings.models.retry.backoff')}>
+                <Switch
+                  checked={retryBackoffEnabled}
+                  onCheckedChange={(checked) => void setRetryBackoffEnabled(checked)}
+                  aria-label={t('settings.models.retry.backoff')}
+                />
+              </ModelSettingRow>
+              <SettingDivider />
+              <ModelSettingRow
+                compact={compact}
+                icon={null}
+                title={t('settings.models.retry.fallback_models')}
+                description={showDescription ? t('settings.models.retry.fallback_models_description') : undefined}>
+                <ModelSelector
+                  multiple={true}
+                  selectionType="id"
+                  value={retryFallbackModelIds}
+                  onSelect={(modelIds) => void setRetryFallbackModelIds(modelIds)}
+                  filter={chatModelFilter}
+                  trigger={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size={compact ? 'lg' : 'default'}
+                      className={cn(
+                        'min-w-0 flex-1 justify-between px-2.5 text-left font-normal',
+                        compact ? 'h-9' : 'h-7.5'
+                      )}>
+                      <span className="min-w-0 flex-1 truncate">
+                        {retryFallbackModelIds.length > 0
+                          ? t('settings.models.retry.fallback_models_count', { count: retryFallbackModelIds.length })
+                          : t('settings.models.empty')}
+                      </span>
+                      <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+                    </Button>
+                  }
+                />
+              </ModelSettingRow>
+            </>
+          )}
         </SettingGroup>
       </ContainerComponent>
       {showSettingsButton && (

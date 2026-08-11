@@ -5,10 +5,16 @@ import {
   type AmazonBedrockProviderSettings,
   createAmazonBedrock
 } from '@ai-sdk/amazon-bedrock'
+import { type ByteDanceProviderSettings, createByteDance } from '@ai-sdk/bytedance'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
 import type { GatewayProviderSettings } from '@ai-sdk/gateway'
 import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
 import { createVertex, type GoogleVertexProvider, type GoogleVertexProviderSettings } from '@ai-sdk/google-vertex/edge'
+import {
+  createVertexMaas,
+  type GoogleVertexMaasProvider,
+  type GoogleVertexMaasProviderSettings
+} from '@ai-sdk/google-vertex/maas/edge'
 import { createGroq, type GroqProviderSettings } from '@ai-sdk/groq'
 import { createHuggingFace, type HuggingFaceProviderSettings } from '@ai-sdk/huggingface'
 import { createMistral, type MistralProviderSettings } from '@ai-sdk/mistral'
@@ -20,17 +26,31 @@ import {
   createGitHubCopilotOpenAICompatible,
   type GitHubCopilotProviderSettings
 } from '@opeoginni/github-copilot-openai-compatible'
+import { LOCAL_EMBEDDING_PROVIDER_ID } from '@shared/data/presets/localEmbedding'
 import { SystemProviderIds } from '@shared/utils/systemProviderId'
 import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
-import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from './custom/aihubmix/aihubmixProvider'
 import { createDashScopeProvider, type DashScopeProviderSettings } from './custom/dashscope/dashscopeProvider'
 import { createDmxapiProvider, type DmxapiProviderSettings } from './custom/dmxapi/dmxapiProvider'
 import { createGatewayWithImageModel } from './custom/gateway/gatewayProvider'
+import {
+  createLocalEmbeddingProvider,
+  type LocalEmbeddingProviderSettings
+} from './custom/localEmbedding/localEmbeddingProvider'
+import { createMinimaxProvider, type MinimaxProviderSettings } from './custom/minimax/minimaxProvider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from './custom/modelscope/modelscopeProvider'
+import {
+  createKimiWebSearchToolFor,
+  createMoonshotProvider,
+  KIMI_WEB_SEARCH_TOOL_NAME,
+  type KimiFormulaCredentials,
+  type MoonshotProvider,
+  type MoonshotProviderSettings
+} from './custom/moonshotProvider'
 import { createNewApi, type NewApiProviderSettings } from './custom/newapiProvider'
+import { createOllamaWithImageModel } from './custom/ollama/ollamaProvider'
 import { createOvmsProvider, type OvmsProviderSettings } from './custom/ovms/ovmsProvider'
 import { createPpioProvider, type PpioProviderSettings } from './custom/ppio/ppioProvider'
 import { createSiliconProvider, type SiliconProviderSettings } from './custom/silicon/siliconProvider'
@@ -71,6 +91,24 @@ export const GoogleVertexAnthropicExtension = ProviderExtension.create({
   GoogleVertexProviderSettings,
   GoogleVertexAnthropicProvider,
   'google-vertex-anthropic'
+>)
+
+/**
+ * Vertex MaaS — open/partner models (Llama, DeepSeek, Qwen, GLM, Kimi, gpt-oss)
+ * served over Vertex's OpenAI-compatible Chat Completions endpoint. Distinct from
+ * `google-vertex` (Gemini generateContent) and `google-vertex-anthropic` (Claude
+ * messages); the adapter mints the GCP bearer token itself from the same iam-gcp
+ * service-account credentials.
+ */
+export const GoogleVertexMaaSExtension = ProviderExtension.create({
+  name: 'google-vertex-maas',
+  aliases: ['vertexai-maas'] as const,
+  supportsImageGeneration: false,
+  create: createVertexMaas
+} as const satisfies ProviderExtensionConfig<
+  GoogleVertexMaasProviderSettings,
+  GoogleVertexMaasProvider,
+  'google-vertex-maas'
 >)
 
 export const GitHubCopilotExtension = ProviderExtension.create({
@@ -147,9 +185,38 @@ export const GroqExtension = ProviderExtension.create({
 
 export const OllamaExtension = ProviderExtension.create({
   name: 'ollama',
-  supportsImageGeneration: false,
-  create: (options?: OllamaProviderSettings) => createOllama(options)
+  supportsImageGeneration: true,
+  create: (options?: OllamaProviderSettings) => createOllamaWithImageModel(options)
 } as const satisfies ProviderExtensionConfig<OllamaProviderSettings, ProviderV3, 'ollama'>)
+
+export const MinimaxExtension = ProviderExtension.create({
+  name: 'minimax',
+  aliases: ['minimax-global'] as const,
+  supportsImageGeneration: true,
+  create: createMinimaxProvider
+} as const satisfies ProviderExtensionConfig<MinimaxProviderSettings, ProviderV3, 'minimax'>)
+
+/**
+ * Moonshot (Kimi) — OpenAI-compatible chat. Built-in search rides Kimi's official *formula* channel:
+ * a normal function tool whose `execute` POSTs the model's arguments to the formula's fiber endpoint
+ * and returns the fiber output (see moonshotProvider.ts). One path for both the K2 and K3 lines.
+ */
+export const MoonshotExtension = ProviderExtension.create({
+  name: 'moonshot',
+  supportsImageGeneration: false,
+  create: createMoonshotProvider,
+  toolFactories: {
+    // Unlike the descriptor-only factories, this one EXECUTES, so it needs a credential. It cannot
+    // come from the provider argument: `getToolProvider` re-creates the instance with no settings
+    // whenever one is cached, so that provider has no api key. The serving credential is passed
+    // through the plugin config instead (buildProviderBuiltinWebSearchConfig).
+    webSearch:
+      () =>
+      (credentials: KimiFormulaCredentials = {}) => ({
+        tools: { [KIMI_WEB_SEARCH_TOOL_NAME]: createKimiWebSearchToolFor(credentials) }
+      })
+  }
+} as const satisfies ProviderExtensionConfig<MoonshotProviderSettings, MoonshotProvider, 'moonshot'>)
 
 /** AiHubMix — multi-backend gateway (claude→anthropic, gemini→google, gpt→openai-responses). */
 export const AiHubMixExtension = ProviderExtension.create({
@@ -210,6 +277,27 @@ export const ZhipuExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<ZhipuProviderSettings, ProviderV3, 'zhipu'>)
 
 /**
+ * Doubao (Volcengine Ark) Extension — the official `@ai-sdk/bytedance` provider, for
+ * Ark's own image protocol: one `POST /images/generations` for both text-to-image and
+ * reference-image edits (the generic OpenAI-compatible model would switch to a multipart
+ * `/images/edits`, which Ark does not serve) plus the nested
+ * `sequential_image_generation_options.max_images` group-image shape.
+ *
+ * Only IMAGE models are routed here by `providerToAiSdkConfig` — chat/embedding stay on
+ * the generic openai-compatible provider, and this provider throws `NoSuchModelError`
+ * for them by design. Params ride under `providerOptions.bytedance`, which is why the
+ * wire registration re-keys the body (see `WIRE_REGISTRY.doubao`).
+ *
+ * Pinned to 1.x: 2.x moves to the `ProviderV4` / `ImageModelV4` specs, which the rest of
+ * the app is not on yet. It also ships Seedance video models we don't wire up yet.
+ */
+export const DoubaoExtension = ProviderExtension.create({
+  name: 'doubao',
+  supportsImageGeneration: true,
+  create: createByteDance
+} as const satisfies ProviderExtensionConfig<ByteDanceProviderSettings, ProviderV3, 'doubao'>)
+
+/**
  * OVMS Extension - unified chat + embedding + image (local OpenVINO Model Server, no auth)
  */
 export const OvmsExtension = ProviderExtension.create({
@@ -252,9 +340,24 @@ export const VoyageExtension = ProviderExtension.create({
   create: createVoyage
 } as const satisfies ProviderExtensionConfig<VoyageProviderSettings, ProviderV3, 'voyage'>)
 
+/**
+ * Local Embedding Extension - optional in-process text embeddings via
+ * transformers.js + onnxruntime-node (no auth, no network). Embedding-only.
+ */
+export const LocalEmbeddingExtension = ProviderExtension.create({
+  name: LOCAL_EMBEDDING_PROVIDER_ID,
+  supportsImageGeneration: false,
+  create: createLocalEmbeddingProvider
+} as const satisfies ProviderExtensionConfig<
+  LocalEmbeddingProviderSettings,
+  ProviderV3,
+  typeof LOCAL_EMBEDDING_PROVIDER_ID
+>)
+
 export const extensions = [
   GoogleVertexExtension,
   GoogleVertexAnthropicExtension,
+  GoogleVertexMaaSExtension,
   GitHubCopilotExtension,
   BedrockExtension,
   PerplexityExtension,
@@ -263,16 +366,20 @@ export const extensions = [
   GatewayExtension,
   CerebrasExtension,
   OllamaExtension,
+  MinimaxExtension,
+  MoonshotExtension,
   AiHubMixExtension,
   NewApiExtension,
   PpioExtension,
   DmxapiExtension,
   SiliconExtension,
   ZhipuExtension,
+  DoubaoExtension,
   OvmsExtension,
   ModelscopeExtension,
   DashScopeExtension,
   VoyageExtension,
   TogetherAIExtension,
-  GroqExtension
+  GroqExtension,
+  LocalEmbeddingExtension
 ] as const

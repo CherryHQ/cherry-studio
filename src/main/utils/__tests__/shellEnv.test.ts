@@ -1,4 +1,4 @@
-import { execFileSync, spawn } from 'child_process'
+import { execFile, spawn } from 'child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Force Windows code path regardless of the host platform.
@@ -13,9 +13,10 @@ vi.mock('@main/core/platform', () => ({
 vi.mock('@application', () => ({
   application: {
     getPath: (key: string) => {
-      const base = 'C:\\Users\\test\\.cherrystudio'
-      if (key === 'cherry.bin') return `${base}\\bin`
-      if (key === 'feature.binary.data') return `${base}\\binary-manager`
+      if (key === 'cherry.bin') return 'C:\\Users\\test\\.cherrystudio\\bin'
+      if (key === 'feature.binary.data') {
+        return 'C:\\Users\\test\\AppData\\Roaming\\CherryStudio\\Toolchain\\mise'
+      }
       if (key === 'sys.home') return 'C:\\Users\\test'
       return `/mock/${key}`
     }
@@ -24,8 +25,16 @@ vi.mock('@application', () => ({
 
 vi.mock('child_process')
 
+// Control the bundled-git resolution; default null so most tests see no bundled
+// git appended (matching a build/host without the Windows MinGit bundle).
+vi.mock('../bundledGit', () => ({
+  getBundledGitPath: vi.fn(() => null),
+  getBundledGitDir: vi.fn(() => null)
+}))
+
 // Import AFTER mocks are registered so the module binds to mocked values.
-import { getShellEnv, refreshShellEnv } from '../shellEnv'
+import { getBundledGitDir } from '../bundledGit'
+import { getRawShellEnv, getShellEnv, refreshShellEnv } from '../shellEnv'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -39,6 +48,19 @@ const regSzOutput = (keyPath: string, value: string) => `\r\n${keyPath}\r\n    P
 
 const HKLM_KEY = 'HKLM\\SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment'
 const HKCU_KEY = 'HKCU\\Environment'
+type RegistryCallback = (error: Error | null, stdout: string, stderr: string) => void
+
+function mockRegistryQuery(resolveOutput: (args: readonly string[]) => string): void {
+  const implementation = (_command: string, args: readonly string[], _options: unknown, callback: RegistryCallback) => {
+    try {
+      callback(null, resolveOutput(args), '')
+    } catch (error) {
+      callback(error as Error, '', '')
+    }
+    return {}
+  }
+  vi.mocked(execFile).mockImplementation(implementation as never)
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -65,8 +87,8 @@ describe('shellEnv – Windows registry PATH', () => {
   // -- registry reads -------------------------------------------------------
 
   it('should replace stale PATH with fresh system registry value', async () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const keyPath = (args as string[])[1]
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
       if (keyPath === HKLM_KEY) {
         return regOutput(keyPath, 'C:\\Windows\\system32;C:\\Windows;C:\\NodeJS')
       }
@@ -80,8 +102,8 @@ describe('shellEnv – Windows registry PATH', () => {
   })
 
   it('should combine system and user PATH with semicolon', async () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const keyPath = (args as string[])[1]
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
       if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\System')
       if (keyPath === HKCU_KEY) return regOutput(keyPath, 'C:\\User')
       throw new Error('not found')
@@ -96,9 +118,32 @@ describe('shellEnv – Windows registry PATH', () => {
     expect(pathValue).toContain('C:\\System;C:\\User')
   })
 
+  it('starts both registry reads without blocking on either result', async () => {
+    const callbacks = new Map<string, RegistryCallback>()
+    const implementation = (
+      _command: string,
+      args: readonly string[],
+      _options: unknown,
+      callback: RegistryCallback
+    ) => {
+      callbacks.set(args[1], callback)
+      return {}
+    }
+    vi.mocked(execFile).mockImplementation(implementation as never)
+
+    const envPromise = refreshShellEnv()
+
+    expect(callbacks.size).toBe(2)
+    callbacks.get(HKCU_KEY)?.(null, regOutput(HKCU_KEY, 'C:\\User'), '')
+    callbacks.get(HKLM_KEY)?.(null, regOutput(HKLM_KEY, 'C:\\System'), '')
+
+    const env = await envPromise
+    expect(env.Path).toContain('C:\\System;C:\\User')
+  })
+
   it('should use only user PATH when system PATH is unavailable', async () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const keyPath = (args as string[])[1]
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
       if (keyPath === HKCU_KEY) return regOutput(keyPath, 'C:\\UserOnly')
       throw new Error('not found')
     })
@@ -109,7 +154,7 @@ describe('shellEnv – Windows registry PATH', () => {
   })
 
   it('should fall back to process.env PATH when both registry reads fail', async () => {
-    vi.mocked(execFileSync).mockImplementation(() => {
+    mockRegistryQuery(() => {
       throw new Error('registry unavailable')
     })
 
@@ -121,8 +166,8 @@ describe('shellEnv – Windows registry PATH', () => {
   // -- %VAR% expansion ------------------------------------------------------
 
   it('should expand %SystemRoot% in registry PATH', async () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const keyPath = (args as string[])[1]
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
       if (keyPath === HKLM_KEY) return regOutput(keyPath, '%SystemRoot%\\system32')
       throw new Error('not found')
     })
@@ -134,8 +179,8 @@ describe('shellEnv – Windows registry PATH', () => {
   })
 
   it('should preserve unknown %VAR% references unexpanded', async () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const keyPath = (args as string[])[1]
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
       if (keyPath === HKLM_KEY) return regOutput(keyPath, '%UNKNOWN_VAR%\\bin')
       throw new Error('not found')
     })
@@ -146,8 +191,8 @@ describe('shellEnv – Windows registry PATH', () => {
   })
 
   it('should expand variables case-insensitively', async () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const keyPath = (args as string[])[1]
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
       if (keyPath === HKLM_KEY) return regOutput(keyPath, '%systemroot%\\system32')
       throw new Error('not found')
     })
@@ -160,8 +205,8 @@ describe('shellEnv – Windows registry PATH', () => {
   // -- REG_SZ (no expand) ---------------------------------------------------
 
   it('should handle REG_SZ values without %VAR% expansion needed', async () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const keyPath = (args as string[])[1]
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
       if (keyPath === HKLM_KEY) return regSzOutput(keyPath, 'C:\\PlainPath')
       throw new Error('not found')
     })
@@ -173,9 +218,25 @@ describe('shellEnv – Windows registry PATH', () => {
 
   // -- Cherry Studio tool directories appended ------------------------------
 
+  it('should preserve the unmodified user environment for system tools', async () => {
+    process.env.MISE_DATA_DIR = 'C:\\Users\\TestUser\\mise-data'
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows;C:\\UserNode')
+      throw new Error('not found')
+    })
+
+    await refreshShellEnv()
+    const env = await getRawShellEnv()
+
+    expect(env.MISE_DATA_DIR).toBe('C:\\Users\\TestUser\\mise-data')
+    expect(env.Path).toBe('C:\\Windows;C:\\UserNode')
+    expect(env.Path).not.toContain('.cherrystudio')
+  })
+
   it('should append Cherry Studio tool directories to PATH', async () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const keyPath = (args as string[])[1]
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
       if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
       throw new Error('not found')
     })
@@ -183,7 +244,7 @@ describe('shellEnv – Windows registry PATH', () => {
     const env = await refreshShellEnv()
 
     expect(env.Path).toContain('.cherrystudio')
-    expect(env.Path).toContain('binary-manager')
+    expect(env.Path).toContain('Toolchain\\mise')
     expect(env.Path).toContain('shims')
     expect(env.Path).toContain('bin')
   })
@@ -191,8 +252,8 @@ describe('shellEnv – Windows registry PATH', () => {
   it('lists the mise shims dir only once despite appending and prepending it', async () => {
     // appendCherryToolDirsToPath() adds the shims dir, then mergeBinaryExecutionEnv()
     // prepends it again — the merge step must dedup so it does not appear twice.
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const keyPath = (args as string[])[1]
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
       if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
       throw new Error('not found')
     })
@@ -203,11 +264,28 @@ describe('shellEnv – Windows registry PATH', () => {
     expect(shimsCount).toBe(1)
   })
 
+  it('appends the bundled MinGit dir to the PATH tail as a last-resort git', async () => {
+    const bundledGitDir = 'C:\\Cherry\\resources\\binaries\\win32-x64\\git\\cmd'
+    vi.mocked(getBundledGitDir).mockReturnValue(bundledGitDir)
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
+      if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Git\\cmd;C:\\Windows')
+      throw new Error('not found')
+    })
+
+    const env = await refreshShellEnv()
+
+    const segments = env.Path.split(';')
+    // Present, and dead last so system git (C:\Git\cmd) and the managed tool dirs win ahead of it.
+    expect(segments[segments.length - 1]).toBe(bundledGitDir)
+    expect(segments.indexOf('C:\\Git\\cmd')).toBeLessThan(segments.length - 1)
+  })
+
   // -- does not spawn cmd.exe -----------------------------------------------
 
   it('should not spawn cmd.exe or any shell process', async () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const keyPath = (args as string[])[1]
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
       if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
       throw new Error('not found')
     })
@@ -220,24 +298,24 @@ describe('shellEnv – Windows registry PATH', () => {
   // -- concurrent dedup -----------------------------------------------------
 
   it('should collapse overlapping fetches onto a single env resolution', async () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const keyPath = (args as string[])[1]
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
       if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
       throw new Error('not found')
     })
 
-    // getWindowsEnvironment() reads HKLM + HKCU, i.e. two execFileSync calls
+    // getWindowsEnvironment() reads HKLM + HKCU, i.e. two execFile calls
     // per resolution. Overlapping callers must share one resolution → 2 calls.
     await Promise.all([refreshShellEnv(), refreshShellEnv(), getShellEnv()])
 
-    expect(execFileSync).toHaveBeenCalledTimes(2)
+    expect(execFile).toHaveBeenCalledTimes(2)
   })
 
   // -- cache isolation ------------------------------------------------------
 
   it('returns a copy so a caller mutating the result cannot poison the cache', async () => {
-    vi.mocked(execFileSync).mockImplementation((_cmd, args) => {
-      const keyPath = (args as string[])[1]
+    mockRegistryQuery((args) => {
+      const keyPath = args[1]
       if (keyPath === HKLM_KEY) return regOutput(keyPath, 'C:\\Windows')
       throw new Error('not found')
     })

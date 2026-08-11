@@ -1,9 +1,5 @@
 import { codeLanguages as languages } from '@shared/utils/codeLanguages'
-import * as cmThemes from '@uiw/codemirror-themes-all'
-import type { Extension } from '@uiw/react-codemirror'
 import diff from 'fast-diff'
-
-import type { CodeMirrorTheme } from './types'
 
 /**
  * Computes code changes using fast-diff and converts them to CodeMirror changes.
@@ -118,45 +114,4 @@ export function getExtensionByLanguage(language: string): string {
 
   // Fallback to language name
   return `.${language}`
-}
-
-/**
- * Get the list of CodeMirror theme names
- * - Include auto, light, dark
- * - Include all themes in @uiw/codemirror-themes-all
- *
- * A more robust approach might be to hardcode the theme list
- * @returns theme name list
- */
-export function getCmThemeNames(): string[] {
-  return ['auto', 'light', 'dark']
-    .concat(Object.keys(cmThemes))
-    .filter((item) => typeof cmThemes[item as keyof typeof cmThemes] !== 'function')
-    .filter((item) => !/^(defaultSettings)/.test(item) && !/(Style)$/.test(item))
-}
-
-/**
- * Get the CodeMirror theme object by theme name
- * @param name theme name
- * @returns theme object
- */
-export function getCmThemeByName(name: string): CodeMirrorTheme {
-  // 1. Search for the extension of the corresponding theme in @uiw/codemirror-themes-all
-  const candidate = (cmThemes as Record<string, unknown>)[name]
-  if (
-    Object.prototype.hasOwnProperty.call(cmThemes, name) &&
-    typeof candidate !== 'function' &&
-    !/^defaultSettings/i.test(name) &&
-    !/(Style)$/.test(name)
-  ) {
-    return candidate as Extension
-  }
-
-  // 2. Basic string theme
-  if (name === 'light' || name === 'dark' || name === 'none') {
-    return name
-  }
-
-  // 3. If not found, fallback to light
-  return 'light'
 }

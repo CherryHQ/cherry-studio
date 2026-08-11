@@ -5,7 +5,6 @@ import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
-import { groupTable } from '@data/db/schemas/group'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { entityTagTable, tagTable } from '@data/db/schemas/tagging'
@@ -151,6 +150,47 @@ describe('TopicService', () => {
     })
   })
 
+  it('validates topic assistant updates against active assistants', async () => {
+    await dbh.db.insert(assistantTable).values([
+      {
+        id: 'assistant-active',
+        name: 'Active Assistant',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a0'
+      },
+      {
+        id: 'assistant-deleted',
+        name: 'Deleted Assistant',
+        emoji: '🌟',
+        settings: DEFAULT_ASSISTANT_SETTINGS,
+        orderKey: 'a1',
+        deletedAt: 100
+      }
+    ])
+    await dbh.db.insert(topicTable).values({
+      id: 'topic-assistant-update',
+      name: 'Before assistant update',
+      orderKey: 'a0'
+    })
+
+    const moved = topicService.update('topic-assistant-update', { assistantId: 'assistant-active' })
+
+    expect(moved.assistantId).toBe('assistant-active')
+
+    let err: unknown
+    try {
+      topicService.update('topic-assistant-update', { assistantId: 'assistant-deleted' })
+    } catch (e) {
+      err = e
+    }
+    expect(err).toMatchObject({ code: ErrorCode.NOT_FOUND })
+    expect(topicService.getById('topic-assistant-update').assistantId).toBe('assistant-active')
+
+    const unlinked = topicService.update('topic-assistant-update', { assistantId: null })
+    expect(unlinked.assistantId).toBeUndefined()
+  })
+
   describe('listByCursor', () => {
     it('returns all non-deleted topics across assistants ordered by orderKey', async () => {
       const service = new TopicService()
@@ -208,26 +248,25 @@ describe('TopicService', () => {
       expect(result.nextCursor).toBeUndefined()
     })
 
-    it('orders unpinned topics by updatedAt DESC with id tiebreaker', async () => {
-      // Default list-time sort is recency ("most recent activity first") —
-      // topic.orderKey is maintained on the row but not consulted here.
-      // Without the id tiebreaker, two topics tied on updatedAt would have
-      // an undefined relative order and could swap on revalidate.
+    it('orders unpinned topics by orderKey ASC with id tiebreaker', async () => {
+      // Default list order is the manual/creation `orderKey` (drag order), not
+      // recency. orderKey here disagrees with updatedAt so the assertion pins the
+      // key; the id tiebreak keeps rows tied on orderKey stable across revalidates.
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
-        { id: 'older', name: 'older', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 'first', name: 'first', orderKey: 'a0', createdAt: 1, updatedAt: 300 },
         { id: 'tied-b', name: 'tied-b', orderKey: 'a1', createdAt: 1, updatedAt: 200 },
-        { id: 'tied-a', name: 'tied-a', orderKey: 'a2', createdAt: 1, updatedAt: 200 },
-        { id: 'newest', name: 'newest', orderKey: 'a3', createdAt: 1, updatedAt: 300 }
+        { id: 'tied-a', name: 'tied-a', orderKey: 'a1', createdAt: 1, updatedAt: 100 },
+        { id: 'last', name: 'last', orderKey: 'a2', createdAt: 1, updatedAt: 250 }
       ])
 
       const result = service.listByCursor()
-      expect(result.items.map((t) => t.id)).toEqual(['newest', 'tied-a', 'tied-b', 'older'])
+      expect(result.items.map((t) => t.id)).toEqual(['first', 'tied-a', 'tied-b', 'last'])
     })
 
-    it('returns pinned topics first, ordered by pin.orderKey, then unpinned by updatedAt DESC', async () => {
+    it('returns pinned topics first, ordered by pin.orderKey, then unpinned by orderKey ASC', async () => {
       // Two pinned topics + two unpinned. Pin order follows pin.orderKey
-      // (user-controlled drag); unpinned section follows updatedAt DESC.
+      // (user-controlled drag); unpinned section follows topic.orderKey ASC.
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
         { id: 't-pinned-1', name: 'P1', orderKey: 'a3', createdAt: 1, updatedAt: 1 },
@@ -274,6 +313,24 @@ describe('TopicService', () => {
       const page3 = service.listByCursor({ limit: 2, cursor: page2.nextCursor })
       expect(page3.items.map((t) => t.id)).toEqual(['u2'])
       expect(page3.nextCursor).toBeUndefined()
+    })
+
+    it('does not skip pinned topics with the same orderKey across pages', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 'p1', name: 'P1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'p2', name: 'P2', orderKey: 'a1', createdAt: 1, updatedAt: 1 }
+      ])
+      await dbh.db.insert(pinTable).values([
+        { id: 'pin-1', entityType: 'topic', entityId: 'p1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'pin-2', entityType: 'topic', entityId: 'p2', orderKey: 'a0', createdAt: 1, updatedAt: 1 }
+      ])
+
+      const page1 = service.listByCursor({ limit: 1 })
+      const page2 = service.listByCursor({ limit: 1, cursor: page1.nextCursor })
+
+      expect(page1.items.map((topic) => topic.id)).toEqual(['p1'])
+      expect(page2.items.map((topic) => topic.id)).toEqual(['p2'])
     })
 
     it('spills partially-filled pin section into unpinned in the same page', async () => {
@@ -348,14 +405,15 @@ describe('TopicService', () => {
 
     it.each([
       'gibberish',
-      'topic:not-a-number:id',
-      'topic:NaN:id',
+      'topic:123:legacy-id', // legacy pre-rename cursor → unknown section, safe fallback
+      'pin:a0', // legacy orderKey-only pin cursor → missing stable id, safe fallback
+      'entity:orphan-no-id', // malformed: entity section missing id separator
       'unknown-section:foo',
       'pin' // missing colon
     ])('falls back to first page when cursor is malformed (%s)', async (badCursor) => {
       // A renderer holding a stale cursor from a previous app version should
-      // not be locked out — the warn+fallback in decodeCursor returns the
-      // first page instead of throwing VALIDATION_ERROR.
+      // not be locked out — the warn+fallback in decodePinnedListCursor returns
+      // the first page instead of throwing VALIDATION_ERROR.
       const service = new TopicService()
       await dbh.db.insert(topicTable).values([
         { id: 't1', name: 'T1', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
@@ -365,7 +423,7 @@ describe('TopicService', () => {
       expect(result.items.map((t) => t.id).sort()).toEqual(['t1', 't2'])
     })
 
-    it('stale pin cursor (anchor pin row deleted) advances to topic section, no duplicates', async () => {
+    it('stale pin cursor (anchor pin row deleted) advances to unpinned section, no duplicates', async () => {
       // Renderer paged into the pin section, the anchor pin was unpinned
       // before the next page. Without the empty-result guard, the unpinned
       // section would restart from the top and the renderer would see
@@ -375,13 +433,13 @@ describe('TopicService', () => {
         { id: 'u1', name: 'U1', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
         { id: 'u2', name: 'U2', orderKey: 'a1', createdAt: 1, updatedAt: 200 }
       ])
-      // Cursor points at a pin orderKey for a row that no longer exists.
-      const result = service.listByCursor({ cursor: 'pin:a99' })
+      // Cursor points at a pin tuple for a row that no longer exists.
+      const result = service.listByCursor({ cursor: 'pin:a99:missing-topic-id' })
       expect(result.items).toHaveLength(0)
-      expect(result.nextCursor).toBe('topic:')
+      expect(result.nextCursor).toBe('entity:')
 
       const next = service.listByCursor({ cursor: result.nextCursor })
-      expect(next.items.map((t) => t.id)).toEqual(['u2', 'u1'])
+      expect(next.items.map((t) => t.id)).toEqual(['u1', 'u2'])
     })
   })
 
@@ -670,14 +728,14 @@ describe('TopicService', () => {
 
   describe('reorder', () => {
     /**
-     * Seed three topics inside the same group with monotonically increasing
-     * orderKeys ('a0' < 'a1' < 'a2'). Tests anchor against this baseline.
+     * Seed three topics with monotonically increasing global orderKeys
+     * ('a0' < 'a1' < 'a2'). Tests anchor against this baseline.
      */
-    async function seedThree(groupId: string | null = null) {
+    async function seedThree() {
       await dbh.db.insert(topicTable).values([
-        { id: 't1', name: 'A', groupId, orderKey: 'a0', createdAt: 1, updatedAt: 100 },
-        { id: 't2', name: 'B', groupId, orderKey: 'a1', createdAt: 2, updatedAt: 200 },
-        { id: 't3', name: 'C', groupId, orderKey: 'a2', createdAt: 3, updatedAt: 300 }
+        { id: 't1', name: 'A', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 't2', name: 'B', orderKey: 'a1', createdAt: 2, updatedAt: 200 },
+        { id: 't3', name: 'C', orderKey: 'a2', createdAt: 3, updatedAt: 300 }
       ])
     }
 
@@ -751,49 +809,49 @@ describe('TopicService', () => {
       })
     })
 
-    it('treats groupId=null and groupId=g1 as independent partitions', async () => {
-      await dbh.db.insert(assistantTable).values({
-        id: 'asst',
-        name: 'A',
-        emoji: '🌟',
-        settings: DEFAULT_ASSISTANT_SETTINGS,
-        orderKey: 'a0',
-        createdAt: 1,
-        updatedAt: 1
-      })
-      await dbh.db
-        .insert(groupTable)
-        .values({ id: 'grp', entityType: 'topic', name: 'grp', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
-      await dbh.db.insert(topicTable).values([
-        { id: 'n1', name: 'N1', groupId: null, orderKey: 'a0', createdAt: 1, updatedAt: 1 },
-        { id: 'n2', name: 'N2', groupId: null, orderKey: 'a1', createdAt: 2, updatedAt: 2 },
-        { id: 'g1', name: 'G1', groupId: 'grp', orderKey: 'a0', createdAt: 3, updatedAt: 3 },
-        { id: 'g2', name: 'G2', groupId: 'grp', orderKey: 'a1', createdAt: 4, updatedAt: 4 }
+    it('reorders topics globally across assistants', async () => {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'assistant-a',
+          name: 'Assistant A',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'assistant-b',
+          name: 'Assistant B',
+          emoji: '🌙',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          createdAt: 2,
+          updatedAt: 2
+        }
       ])
-      // Reorder within the null partition; anchoring against the grp partition must fail with NOT_FOUND.
-      let err: unknown
-      try {
-        topicService.reorder('n1', { after: 'g1' })
-      } catch (e) {
-        err = e
-      }
-      expect(err).toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
-      // Same-scope reorder works.
-      topicService.reorder('n1', { after: 'n2' })
-      const nullRows = await dbh.db
-        .select({ id: topicTable.id })
-        .from(topicTable)
-        .where(eq(topicTable.groupId, '__never__'))
-      expect(nullRows).toHaveLength(0)
-      // Verify n1 now sorts after n2 within the null partition.
-      const allRows = await dbh.db
-        .select({ id: topicTable.id, groupId: topicTable.groupId, orderKey: topicTable.orderKey })
-        .from(topicTable)
-        .orderBy(asc(topicTable.orderKey))
-      const nullPartition = allRows.filter((r) => r.groupId === null).map((r) => r.id)
-      expect(nullPartition).toEqual(['n2', 'n1'])
+      await dbh.db.insert(topicTable).values([
+        {
+          id: 'assistant-a-topic',
+          name: 'A topic',
+          assistantId: 'assistant-a',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'assistant-b-topic',
+          name: 'B topic',
+          assistantId: 'assistant-b',
+          orderKey: 'a1',
+          createdAt: 2,
+          updatedAt: 2
+        }
+      ])
+
+      topicService.reorder('assistant-a-topic', { after: 'assistant-b-topic' })
+
+      expect(await getOrderedIds()).toEqual(['assistant-b-topic', 'assistant-a-topic'])
     })
 
     it('excludes soft-deleted topics from reorder lookups', async () => {
@@ -1074,7 +1132,7 @@ describe('TopicService', () => {
       expect(copiedRows[0].status).toBe('error')
     })
 
-    it('copies group and assistant and inserts first in the source group partition', async () => {
+    it('copies the assistant and inserts first in the global topic order', async () => {
       await dbh.db.insert(assistantTable).values({
         id: 'asst',
         name: 'A',
@@ -1084,16 +1142,12 @@ describe('TopicService', () => {
         createdAt: 1,
         updatedAt: 1
       })
-      await dbh.db
-        .insert(groupTable)
-        .values({ id: 'grp', entityType: 'topic', name: 'grp', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
       await dbh.db.insert(topicTable).values([
-        { id: 'sibling-t', name: 'Sibling', groupId: 'grp', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
+        { id: 'sibling-t', name: 'Sibling', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
         {
           id: 'src-t',
           name: 'Source',
           assistantId: 'asst',
-          groupId: 'grp',
           orderKey: 'a1',
           createdAt: 2,
           updatedAt: 2
@@ -1117,16 +1171,14 @@ describe('TopicService', () => {
 
       const result = topicService.duplicate('src-t', { nodeId: 'selected' })
 
-      expect(result.groupId).toBe('grp')
       expect(result.assistantId).toBe('asst')
 
-      const groupRows = await dbh.db
+      const rows = await dbh.db
         .select({ id: topicTable.id, orderKey: topicTable.orderKey })
         .from(topicTable)
-        .where(eq(topicTable.groupId, 'grp'))
         .orderBy(asc(topicTable.orderKey))
-      expect(groupRows.map((row) => row.id)).toEqual([result.id, 'sibling-t', 'src-t'])
-      expect(groupRows[0]?.orderKey < groupRows[1].orderKey).toBe(true)
+      expect(rows.map((row) => row.id)).toEqual([result.id, 'sibling-t', 'src-t'])
+      expect(rows[0]?.orderKey < rows[1].orderKey).toBe(true)
     })
 
     it('rejects a missing source topic', async () => {
@@ -1293,12 +1345,12 @@ describe('TopicService', () => {
   })
 
   describe('reorderBatch', () => {
-    async function seedFour(groupId: string | null = null) {
+    async function seedFour() {
       await dbh.db.insert(topicTable).values([
-        { id: 't1', name: 'A', groupId, orderKey: 'a0', createdAt: 1, updatedAt: 100 },
-        { id: 't2', name: 'B', groupId, orderKey: 'a1', createdAt: 2, updatedAt: 200 },
-        { id: 't3', name: 'C', groupId, orderKey: 'a2', createdAt: 3, updatedAt: 300 },
-        { id: 't4', name: 'D', groupId, orderKey: 'a3', createdAt: 4, updatedAt: 400 }
+        { id: 't1', name: 'A', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        { id: 't2', name: 'B', orderKey: 'a1', createdAt: 2, updatedAt: 200 },
+        { id: 't3', name: 'C', orderKey: 'a2', createdAt: 3, updatedAt: 300 },
+        { id: 't4', name: 'D', orderKey: 'a3', createdAt: 4, updatedAt: 400 }
       ])
     }
 
@@ -1324,49 +1376,69 @@ describe('TopicService', () => {
       expect(ids.map((r) => r.id)).toEqual(['t4', 't2', 't3', 't1'])
     })
 
-    it('rejects cross-scope batch (mixed groupId) with VALIDATION_ERROR', async () => {
-      await dbh.db.insert(groupTable).values([
-        { id: 'g1', entityType: 'topic', name: 'g1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
-        { id: 'g2', entityType: 'topic', name: 'g2', orderKey: 'a1', createdAt: 2, updatedAt: 2 }
+    it('applies one global batch across assistants', async () => {
+      await dbh.db.insert(assistantTable).values([
+        {
+          id: 'assistant-a',
+          name: 'Assistant A',
+          emoji: '🌟',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'assistant-b',
+          name: 'Assistant B',
+          emoji: '🌙',
+          settings: DEFAULT_ASSISTANT_SETTINGS,
+          orderKey: 'a1',
+          createdAt: 2,
+          updatedAt: 2
+        }
       ])
       await dbh.db.insert(topicTable).values([
-        { id: 'a1', name: 'a1', groupId: 'g1', orderKey: 'a0', createdAt: 1, updatedAt: 1 },
-        { id: 'b1', name: 'b1', groupId: 'g2', orderKey: 'a0', createdAt: 2, updatedAt: 2 }
+        {
+          id: 'a1',
+          name: 'A1',
+          assistantId: 'assistant-a',
+          orderKey: 'a0',
+          createdAt: 1,
+          updatedAt: 1
+        },
+        {
+          id: 'a2',
+          name: 'A2',
+          assistantId: 'assistant-a',
+          orderKey: 'a1',
+          createdAt: 2,
+          updatedAt: 2
+        },
+        {
+          id: 'b1',
+          name: 'B1',
+          assistantId: 'assistant-b',
+          orderKey: 'a2',
+          createdAt: 3,
+          updatedAt: 3
+        },
+        {
+          id: 'b2',
+          name: 'B2',
+          assistantId: 'assistant-b',
+          orderKey: 'a3',
+          createdAt: 4,
+          updatedAt: 4
+        }
       ])
-      let err: unknown
-      try {
-        topicService.reorderBatch([
-          { id: 'a1', anchor: { position: 'first' } },
-          { id: 'b1', anchor: { position: 'first' } }
-        ])
-      } catch (e) {
-        err = e
-      }
-      expect(err).toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR
-      })
-    })
 
-    it('rejects null↔non-null groupId mix with VALIDATION_ERROR', async () => {
-      await dbh.db
-        .insert(groupTable)
-        .values({ id: 'grp', entityType: 'topic', name: 'grp', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
-      await dbh.db.insert(topicTable).values([
-        { id: 'n1', name: 'n1', groupId: null, orderKey: 'a0', createdAt: 1, updatedAt: 1 },
-        { id: 'g1', name: 'g1', groupId: 'grp', orderKey: 'a0', createdAt: 2, updatedAt: 2 }
+      topicService.reorderBatch([
+        { id: 'b2', anchor: { position: 'first' } },
+        { id: 'a1', anchor: { position: 'last' } }
       ])
-      let err: unknown
-      try {
-        topicService.reorderBatch([
-          { id: 'n1', anchor: { position: 'first' } },
-          { id: 'g1', anchor: { position: 'first' } }
-        ])
-      } catch (e) {
-        err = e
-      }
-      expect(err).toMatchObject({
-        code: ErrorCode.VALIDATION_ERROR
-      })
+
+      const rows = await dbh.db.select({ id: topicTable.id }).from(topicTable).orderBy(asc(topicTable.orderKey))
+      expect(rows.map((row) => row.id)).toEqual(['b2', 'a2', 'b1', 'a1'])
     })
 
     it('throws NOT_FOUND when any target id is missing', async () => {
@@ -1552,6 +1624,25 @@ describe('TopicService', () => {
       expect(err).toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
+    })
+  })
+
+  describe('getLatestUpdated', () => {
+    it('returns the globally most-recently-updated non-deleted topic, independent of pin/order', async () => {
+      const service = new TopicService()
+      await dbh.db.insert(topicTable).values([
+        { id: 'old', name: 'old', orderKey: 'a0', createdAt: 1, updatedAt: 100 },
+        // Highest updatedAt but soft-deleted → must be excluded.
+        { id: 'deleted-newest', name: 'deleted', orderKey: 'a1', deletedAt: 999, createdAt: 2, updatedAt: 900 },
+        { id: 'latest', name: 'latest', orderKey: 'a2', createdAt: 3, updatedAt: 300 },
+        { id: 'mid', name: 'mid', orderKey: 'a3', createdAt: 4, updatedAt: 200 }
+      ])
+
+      expect(service.getLatestUpdated()?.id).toBe('latest')
+    })
+
+    it('returns null when there are no topics', () => {
+      expect(new TopicService().getLatestUpdated()).toBeNull()
     })
   })
 })

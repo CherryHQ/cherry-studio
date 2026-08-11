@@ -1,7 +1,7 @@
 /**
  * Version upgrade policy for the v1→v2 migration gate.
  *
- * Enforces a linear upgrade path: v1.old → v1.last → v2.0.0 → v2.x.
+ * Enforces a linear upgrade path: v1.old → v1.last → v2.0.x → v2.1+.
  * Called by `v2MigrationGate.ts` after `needsMigration()` returns true
  * and before the migration window is created. If the check fails, the
  * gate shows an error dialog and quits — the user never sees the
@@ -19,6 +19,7 @@
  */
 
 import fs from 'node:fs'
+import path from 'node:path'
 
 import { loggerService } from '@logger'
 import semver from 'semver'
@@ -33,10 +34,16 @@ const logger = loggerService.withContext('VersionPolicy')
  * supports upgrading from the final v1 release.
  * TODO: Update this value once the final v1 version is determined (expected ~1.9.x).
  */
-export const V1_REQUIRED_VERSION = '1.9.0'
+export const V1_REQUIRED_VERSION = '1.9.12'
 
-/** v2 migration gateway version — must not be skipped. */
+/** First version in the v2.0.x migration gateway line. */
 export const V2_GATEWAY_VERSION = '2.0.0'
+
+/** User-facing label for the accepted migration gateway line. */
+const V2_GATEWAY_SERIES = '2.0.x'
+
+/** First release line that cannot be a direct v1→v2 migration target. */
+const V2_DIRECT_MIGRATION_CEILING = '2.1.0'
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -92,17 +99,19 @@ export function checkUpgradePathCompatibility(input: VersionCheckInput): Version
     }
   }
 
-  // ❸ Previous version is v1.x and current version jumped past the
-  //    v2.0.0 gateway (e.g. v1.9.0 → v2.1.0, or v2.0.0-beta → v2.1.0).
+  // ❸ Previous version is v1.x and current version jumped past the v2.0.x
+  //    migration line (e.g. v1.9.12 → v2.1.0, or v2.0.0-beta → v2.1.0).
+  //    Every v2.0.x patch retains the complete one-shot migration and may
+  //    include fixes required by some v1 profiles.
   if (
     previousVersion &&
     semver.lt(previousVersion, V2_GATEWAY_VERSION) &&
-    semver.gt(coercedCurrent, V2_GATEWAY_VERSION)
+    semver.gte(coercedCurrent, V2_DIRECT_MIGRATION_CEILING)
   ) {
     return {
       outcome: 'block',
       reason: 'v2_gateway_skipped',
-      details: { previousVersion, currentVersion: currentAppVersion, gatewayVersion: V2_GATEWAY_VERSION }
+      details: { previousVersion, currentVersion: currentAppVersion, gatewayVersion: V2_GATEWAY_SERIES }
     }
   }
 
@@ -114,6 +123,43 @@ export function checkUpgradePathCompatibility(input: VersionCheckInput): Version
 
   // ❺ All other cases pass.
   return { outcome: 'pass' }
+}
+
+// ── Directory-level version eligibility ─────────────────────────────
+
+/**
+ * A candidate directory's version-eligibility verdict plus the raw inputs
+ * that produced it. `check` drives the decision; `previousVersion` and
+ * `versionLogExists` are surfaced so the migration gate can log them without
+ * re-reading version.log at the call site.
+ */
+export interface CandidateVersionEvaluation {
+  check: VersionCheckResult
+  previousVersion: string | null
+  versionLogExists: boolean
+}
+
+/**
+ * Evaluate whether a candidate v1 data directory is version-eligible for
+ * migration, reading its `version.log` from disk.
+ *
+ * The SINGLE assembler of the three-step check — existence probe →
+ * previous-version read → compatibility judgement — for both callers:
+ *   - the candidate selector (`selectLegacyUserData`) reads only `.check`;
+ *   - the migration gate (`v2MigrationGate`) reads `.check` for the decision
+ *     and `previousVersion` / `versionLogExists` for its diagnostic log.
+ * Keeping the assembly here is what makes "is this directory eligible?" live
+ * in one place and stops the two callers from drifting apart.
+ *
+ * @param dir The candidate userData directory (its `version.log` is read).
+ * @param currentAppVersion `app.getVersion()` — passed in to keep this pure of Electron.
+ */
+export function evaluateCandidateVersion(dir: string, currentAppVersion: string): CandidateVersionEvaluation {
+  const versionLogPath = path.join(dir, 'version.log')
+  const versionLogExists = fs.existsSync(versionLogPath)
+  const previousVersion = versionLogExists ? readPreviousVersion(versionLogPath, currentAppVersion) : null
+  const check = checkUpgradePathCompatibility({ currentAppVersion, previousVersion, versionLogExists })
+  return { check, previousVersion, versionLogExists }
 }
 
 // ── version.log reader ──────────────────────────────────────────────

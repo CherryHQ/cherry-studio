@@ -1,40 +1,25 @@
-import { usePreference } from '@data/hooks/usePreference'
 import { CodeStyleProvider } from '@renderer/components/CodeStyleProvider'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { PopupHost } from '@renderer/components/PopupHost'
 import { ThemeProvider } from '@renderer/components/ThemeProvider'
-import { getToastUtilities, useToasts } from '@renderer/components/TopView/toast'
-import { useEffect } from 'react'
+import ToastHost from '@renderer/components/ToastHost'
+import { WindowFatalFallback } from '@renderer/components/WindowFatalFallback'
+import { useCustomCss } from '@renderer/hooks/useCustomCss'
+import { useLanguageSync } from '@renderer/hooks/useLanguageSync'
 
 import HomeWindow from './home/HomeWindow'
 
-// Initialise toast utilities once at module import (advanced-init-once). The
-// selection-toolbar window follows the same pattern — consistent across
-// detached windows that don't have a dedicated entry-point bootstrap line.
-window.toast = getToastUtilities()
+// Headless runtime leaf inside the providers: this window's language + custom-CSS
+// owners (moved out of HomeWindow's business logic). No dayjs sync — this light window
+// has no localized-date consumer (dayjs lives in useWindowRuntime, main/sub only). It
+// renders nothing; HomeWindow and the popup/toast hosts are explicit siblings in the
+// App JSX below. The <ToastHost/> there renders the toast viewport this window
+// previously lacked (the toast black hole), so translate/copy toasts are visible.
+function QuickAssistantRuntime(): null {
+  useLanguageSync()
+  useCustomCss()
 
-function QuickAssistantContent(): React.ReactElement {
-  const [customCss] = usePreference('ui.custom_css')
-  const toast = useToasts()
-
-  useEffect(() => {
-    window.toast = toast
-  }, [toast])
-
-  useEffect(() => {
-    let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
-    if (customCssElement) {
-      customCssElement.remove()
-    }
-
-    if (customCss) {
-      customCssElement = document.createElement('style')
-      customCssElement.id = 'user-defined-custom-css'
-      customCssElement.textContent = customCss
-      document.head.appendChild(customCssElement)
-    }
-  }, [customCss])
-
-  return <HomeWindow />
+  return null
 }
 
 /**
@@ -49,13 +34,25 @@ function QuickAssistantContent(): React.ReactElement {
  */
 function QuickAssistantApp(): React.ReactElement {
   return (
-    <ThemeProvider>
-      <CodeStyleProvider>
-        <ErrorBoundary>
-          <QuickAssistantContent />
-        </ErrorBoundary>
-      </CodeStyleProvider>
-    </ThemeProvider>
+    // Outer boundary: ancestor of the providers, so a provider throwing during render
+    // falls back to the context-free fatal fallback instead of white-screening.
+    <ErrorBoundary fallbackComponent={WindowFatalFallback}>
+      <ThemeProvider>
+        <CodeStyleProvider>
+          <QuickAssistantRuntime />
+          {/* Inner boundary wraps ONLY the L3 content: this window renders AI output
+              (which can be malformed), so a content render crash shows a themed error
+              card while the window runtime and popup/toast hosts (siblings, outside this
+              boundary) keep running. This window has no TabRouter, so unlike
+              main/subWindow it can't rely on the per-tab RouteErrorFallback here. */}
+          <ErrorBoundary>
+            <HomeWindow />
+          </ErrorBoundary>
+          <PopupHost />
+          <ToastHost />
+        </CodeStyleProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   )
 }
 

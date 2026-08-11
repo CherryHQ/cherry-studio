@@ -10,13 +10,16 @@ Classify each reviewed module before looking for issues:
 
 | Area | Common files | Review focus |
 | --- | --- | --- |
-| Data system | `src/main/data/`, `packages/shared/data/`, `docs/references/data/` | Correct system choice, DataApi scope, migrations, row/entity boundaries |
+| Data system | `src/main/data/`, `src/shared/data/`, `src/renderer/data/`, `docs/references/data/` | Correct system choice, DataApi scope, migrations, row/entity boundaries |
 | Service boundary | `src/main/data/services/`, `src/main/services/` | Owning service, cross-service calls, transactions, side effects |
-| IPC / preload | `src/preload/`, `packages/shared/IpcChannel.ts`, handlers | Input validation, renderer exposure, contract compatibility |
+| IPC / preload | `src/shared/ipc/`, `src/main/ipc/`, `src/preload/`, `src/renderer/ipc/`, legacy `src/shared/IpcChannel.ts` | IpcApi routing, input validation, exposure, compatibility, migration completeness |
 | Lifecycle / windows / paths | `src/main/core/`, window services, path access | Lifecycle ownership, cleanup, `application.getPath`, WindowManager |
-| Renderer data hooks | `src/renderer/src/data/`, hooks using `useQuery`, `useMutation`, cache/preference hooks | SWR keys, invalidation, optimistic updates, external store snapshots |
-| React UI | `src/renderer/src/`, `packages/ui/` | `@cherrystudio/ui`, i18n, a11y, hooks correctness, design-system fit |
-| Shared types / API contracts | `packages/shared/`, DataApi schemas, DTOs | Type/runtime schema alignment, DTO boundaries, discriminated states |
+| Main architecture | `src/main/` moves, additions, imports, services, features | Closed top level, placement, dependency direction, public boundaries |
+| Renderer architecture | `src/renderer/` moves, additions, imports | Type/domain placement, downward dependencies, feature isolation, public boundaries |
+| Shared layer | `src/shared/` | Actual cross-process demand, immutable/stateless surface, closed top level, API contracts |
+| Renderer data hooks | `src/renderer/data/`, hooks using `useQuery`, `useMutation`, cache/preference hooks | SWR keys, invalidation, optimistic updates, external store snapshots |
+| React UI | `src/renderer/`, `packages/ui/` | `@cherrystudio/ui`, i18n, a11y, hooks correctness, design-system fit |
+| Naming / module shape | Added, renamed, or moved files/directories; new classes and barrels | Path casing, export-role naming, Service/Manager roles, promotion, barrel boundaries |
 
 ## Anti-Fragmentation Review Principles
 
@@ -68,13 +71,35 @@ conflict.
 
 | Changed area | Consult |
 | --- | --- |
-| Data system, DataApi, Cache, Preference, BootConfig | `docs/references/data/README.md`, `docs/references/data/api-design-guidelines.md`, `docs/references/data/data-api-in-main.md`, `docs/references/data/data-api-in-renderer.md`, `docs/references/data/v2-migration-guide.md` |
+| Added, renamed, or moved files/directories; new classes, services, managers, features, or barrels | `docs/references/naming-conventions.md` |
+| `src/main/` placement, imports, top-level structure, features, services, or utils | `docs/references/main-process-architecture.md`, plus the subsystem reference it routes to |
+| `src/renderer/` placement, imports, top-level structure, pages, features, shared buckets, or public APIs | `docs/references/renderer-architecture.md` |
+| `src/shared/` placement, exports, runtime state, top-level structure, or cross-process contracts | `docs/references/shared-layer-architecture.md` |
+| Choosing among DataApi, Cache, Preference, BootConfig, and `app_state` | `docs/references/data/README.md`; stop there unless the diff enters one of the subsystem rows below |
+| DataApi contracts, schemas, types, or errors | `docs/references/data/data-api-overview.md`, `api-design-guidelines.md`, `api-types.md` |
+| DataApi handlers, services, or renderer hooks | Add `docs/references/data/data-api-in-main.md` for main handlers/services and `data-api-in-renderer.md` for renderer consumers |
+| Cache storage, hooks, service calls, or keys | `docs/references/data/cache-overview.md`; add `cache-usage.md` for consumers and `cache-schema-guide.md` only when keys/schemas change |
+| Preference storage, hooks, service calls, or keys | `docs/references/data/preference-overview.md`; add `preference-usage.md` for consumers and `preference-schema-guide.md` only when keys/schemas change |
+| BootConfig behavior, access, or keys | `docs/references/data/boot-config-overview.md`; add `boot-config-schema-guide.md` only when keys/schemas/mappings change |
+| Internal startup continuity markers | `docs/references/data/app-state-overview.md` |
+| v1-to-v2 migrators or migration mappings | `docs/references/data/v2-migration-guide.md` plus the affected target subsystem guide |
+| SQLite schemas, transactions, migrations, defaults, or nullability | `docs/references/data/database-patterns.md`; add `database-construction.md` for migration/custom-SQL/FTS build changes and `best-practice-default-values-and-nullability.md` for default/nullability changes |
+| Sortable resources or order keys | `docs/references/data/data-ordering-guide.md` |
+| Offset/cursor pagination or paginated hooks | `docs/references/data/data-pagination-guide.md` |
+| Database seeders or seeding policies | `docs/references/data/database-seeding-guide.md` |
+| Static presets with user overrides | `docs/references/data/best-practice-layered-preset-pattern.md` |
 | Main-process services and long-lived resources | `docs/references/lifecycle/README.md`, `docs/references/lifecycle/lifecycle-usage.md`, `docs/references/lifecycle/lifecycle-decision-guide.md` |
+| IpcApi routes/events, preload exposure, main handlers, renderer calls, or legacy IPC migration | `docs/references/ipc/README.md`; then `ipc-usage.md` for implementation, `ipc-schema-guide.md` for contracts/naming, and `ipc-migration-guide.md` when legacy IPC is touched |
 | Windows | `docs/references/window-manager/README.md` |
 | Main-process filesystem paths | `src/main/core/paths/README.md` |
 | SQLite services, handlers, seeders, migrations | `docs/references/testing/database-testing.md`, `tests/__mocks__/README.md` |
 | UI and shared components | `DESIGN.md`, `packages/ui/`, component usage near the diff |
 | Repository skills | `.agents/skills/README.md`, `.agents/skills/create-skill/SKILL.md`, `.agents/skills/gh-pr-review/SKILL.md` |
+
+Treat the listed architecture documents as the authority for their scopes.
+Read the relevant sections before judging placement or dependency direction;
+nearby code can reflect a documented current deviation and is not a stronger
+precedent than the target architecture. Do not load unrelated subsystem guides.
 
 ### Internal Skills
 
@@ -108,6 +133,101 @@ source prefers a different style.
 | React Hooks semantics | https://react.dev/reference/react/useEffect, https://react.dev/reference/react/useEffectEvent, https://react.dev/reference/react/useMemo, https://react.dev/reference/react/useCallback, https://react.dev/reference/react/useSyncExternalStore, https://react.dev/learn/you-might-not-need-an-effect |
 | SWR cache, mutation, revalidation, and optimistic update semantics | https://swr.vercel.app/docs/getting-started, https://swr.vercel.app/docs/mutation, https://swr.vercel.app/docs/revalidation |
 | Tailwind CSS utility semantics | https://tailwindcss.com/docs |
+
+## Naming And Module Shape
+
+Use `docs/references/naming-conventions.md` as the authority when the diff adds,
+renames, or moves a path, changes a primary export's role, or creates a module
+boundary. Do not infer the rule from whichever nearby legacy file is easiest to
+copy.
+
+Review for:
+
+- File casing matching the primary export and its zone: renderer business
+  components use `PascalCase.tsx`; hooks/functions use `camelCase.ts`; class
+  files use `PascalCase.ts`; `packages/ui` and renderer route paths use their
+  documented `kebab-case` conventions.
+- Tests using `*.test.ts(x)`, never `.spec.*`, and case-only renames being safe
+  on macOS, Windows, and Linux.
+- Stateful singleton capabilities using a class with the correct `Service`
+  (default) or `Manager` (homogeneous instance pool) role. Multi-instance
+  helper classes and stateless modules must not acquire those suffixes merely
+  because they contain methods.
+- Single files growing into topic directories only when multiple artifacts
+  exist, and domains moving to `features/<domain>/` only when they are large,
+  complex, and span concerns.
+- `index.ts` being a real, lint-enforced encapsulation boundary: explicit named
+  re-exports only, no logic, no `export *`, no nesting, and no `index.tsx`.
+- New top-level directories being rejected unless the governing process
+  architecture explicitly permits them.
+
+## Main, Renderer, And Shared Architecture
+
+Apply the process-specific architecture document whenever the diff changes
+placement, imports, public entry points, or ownership. A documented target/current
+deviation is context, not permission to introduce more of the deviation.
+
+For `src/main/`, review for:
+
+- New code routed into the closed top-level set by responsibility; business
+  code must not leak into `core/`, and a new capability must not create a new
+  top-level directory.
+- Dependencies flowing toward the foundation: features stay mutually isolated,
+  `ai/` does not import features, and main/preload never import renderer code.
+- IPC handlers acting as boundary adapters and resolving owning services through
+  `application.get` rather than importing domain implementation directly.
+- Topic directories and feature public APIs having one curated entry point,
+  while bucket roots such as `services/` and `utils/` have no aggregate barrel.
+
+For `src/renderer/`, review for:
+
+- Dependencies flowing down app/composition -> domain feature -> shared
+  renderer layer -> primitives. Shared components/hooks/services must not
+  import pages, windows, or features.
+- Sibling features not importing one another and pages not importing other
+  pages. Cross-domain composition belongs above the features; reusable pieces
+  move down to the shared renderer layer.
+- External feature consumers entering through the feature's curated `index.ts`;
+  no deep imports across the boundary.
+- A domain earning `features/<domain>/` only at the documented promotion
+  threshold; small pieces remain in the appropriate type bucket.
+
+For `src/shared/`, review for:
+
+- Actual use by both main and renderer before placement in `@shared` (except
+  the documented Cache schema-registry carve-out). Prospective reuse is not
+  sufficient.
+- No exported mutable runtime state or live singleton instances. Shared may
+  expose types, pure functions, immutable data, and class blueprints only.
+- New code fitting the closed `ai`, `data`, `ipc`, `types`, or `utils` top-level
+  set. Single-process code stays in its owning process.
+- Topic barrels being curated and bucket roots remaining barrel-free.
+
+## IpcApi Boundary
+
+IpcApi is the default command/RPC boundary for non-data main-process
+capabilities. Legacy `IpcChannel` entries describe migration residue, not the
+pattern for new work.
+
+Review for:
+
+- SQLite-backed business data using DataApi; user settings using Preference;
+  disposable/shared state using Cache; pre-lifecycle flags using BootConfig;
+  every other renderer-to-main command using `ipcApi.request` unless it meets a
+  documented escape hatch.
+- A complete typed route: shared zod schema, main handler, generic preload
+  bridge, renderer facade call, and typed errors/events where applicable.
+- Handlers remaining thin: validate at the boundary, use `IpcContext` where
+  caller identity matters, and delegate stateful business/resource ownership
+  to the lifecycle or owning service.
+- Route and event names following dot `snake_case`, payload fields remaining
+  camelCase, and types being derived from schemas instead of duplicated.
+- Main-to-renderer pushes using typed `broadcast`/`send` plus `useIpcOn`;
+  high-frequency topic streams use directed send and batching rather than an
+  untyped channel.
+- Legacy domain migration landing atomically across schema, handler, preload,
+  renderer, and obsolete channel deletion. Native exceptions must be explicitly
+  sender-validated and documented by the IPC migration guide.
 
 ## Data System And DataApi Boundaries
 

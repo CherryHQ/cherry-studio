@@ -50,12 +50,17 @@ describe('buildInitialAgentFormState', () => {
     })
   })
 
+  it('uses the provided enabled skill ids as form state', () => {
+    const state = buildInitialAgentFormState(createAgent(), ['skill-1', 'skill-2'])
+
+    expect(state.skillIds).toEqual(['skill-1', 'skill-2'])
+  })
+
   it('lifts configuration sub-keys onto the flat form object', () => {
     const agent = createAgent({
       configuration: {
         avatar: '🚀',
         permission_mode: 'bypassPermissions',
-        soul_enabled: true,
         heartbeat_enabled: true,
         heartbeat_interval: 15,
         env_vars: {
@@ -67,7 +72,6 @@ describe('buildInitialAgentFormState', () => {
     const state = buildInitialAgentFormState(agent)
     expect(state.avatar).toBe('🚀')
     expect(state.permissionMode).toBe('bypassPermissions')
-    expect(state.soulEnabled).toBe(true)
     expect(state.heartbeatEnabled).toBe(true)
     expect(state.heartbeatInterval).toBe(15)
     expect(state.envVarsText).toBe('DEBUG=1\nNODE_ENV=production')
@@ -82,40 +86,21 @@ describe('buildInitialAgentFormState', () => {
 })
 
 describe('applyAgentFormPatch', () => {
-  it('switching permission mode does not enable soul mode', () => {
+  it('normalizes the patched permission mode', () => {
     const draft = buildInitialAgentFormState()
     const next = applyAgentFormPatch(draft, { permissionMode: 'acceptEdits' })
 
     expect(next.permissionMode).toBe('acceptEdits')
-    expect(next.soulEnabled).toBe(false)
   })
 
-  it('switching to bypass permissions does not enable soul mode', () => {
-    const draft = buildInitialAgentFormState()
-    const next = applyAgentFormPatch(draft, { permissionMode: 'bypassPermissions' })
-
-    expect(next.permissionMode).toBe('bypassPermissions')
-    expect(next.soulEnabled).toBe(false)
-  })
-
-  it('enabling soul mode switches to bypass permissions', () => {
-    const draft = buildInitialAgentFormState()
-    const next = applyAgentFormPatch(draft, { soulEnabled: true })
-
-    expect(next.soulEnabled).toBe(true)
-    expect(next.permissionMode).toBe('bypassPermissions')
-  })
-
-  it('leaving bypass permissions disables soul mode to match the legacy settings popup', () => {
+  it('keeps other fields untouched when patching permission mode', () => {
     const draft = buildInitialAgentFormState(
-      createAgent({
-        configuration: { soul_enabled: true, permission_mode: 'bypassPermissions' }
-      })
+      createAgent({ configuration: { permission_mode: 'bypassPermissions', avatar: '🚀' } })
     )
     const next = applyAgentFormPatch(draft, { permissionMode: 'default' })
 
     expect(next.permissionMode).toBe('default')
-    expect(next.soulEnabled).toBe(false)
+    expect(next.avatar).toBe('🚀')
   })
 })
 
@@ -125,7 +110,7 @@ describe('diffAgentSaveIntent', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, name: 'Renamed' }
 
-    expect(diffAgentSaveIntent(next, baseline, agent)).toEqual({
+    expect(diffAgentSaveIntent(next, baseline)).toEqual({
       kind: 'update',
       payload: { name: 'Renamed' }
     })
@@ -136,7 +121,7 @@ describe('diffAgentUpdate', () => {
   it('returns null when nothing changed', () => {
     const agent = createAgent()
     const baseline = buildInitialAgentFormState(agent)
-    expect(diffAgentUpdate(baseline, baseline, agent)).toBeNull()
+    expect(diffAgentUpdate(baseline, baseline)).toBeNull()
   })
 
   it('includes only changed top-level keys in the PATCH payload', () => {
@@ -144,11 +129,52 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, name: 'Renamed', instructions: 'new prompt' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
     expect(result?.dto).toEqual({
       name: 'Renamed',
       instructions: 'new prompt'
     })
+  })
+
+  it('emits knowledgeBaseIds when the bound knowledge bases change', () => {
+    const agent = createAgent({ knowledgeBaseIds: ['kb-1'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, knowledgeBaseIds: ['kb-2'] }
+
+    const result = diffAgentUpdate(baseline, next)
+
+    expect(result?.dto).toEqual({ knowledgeBaseIds: ['kb-2'] })
+  })
+
+  it('does not emit knowledgeBaseIds when the bound knowledge base set is only reordered', () => {
+    const agent = createAgent({ knowledgeBaseIds: ['kb-1', 'kb-2'] })
+    const baseline = buildInitialAgentFormState(agent)
+    const next = { ...baseline, knowledgeBaseIds: ['kb-2', 'kb-1'] }
+
+    expect(diffAgentUpdate(baseline, next)).toBeNull()
+  })
+
+  it('includes skillUpdates when the enabled skill set changes', () => {
+    const agent = createAgent()
+    const baseline = buildInitialAgentFormState(agent, ['skill-1'])
+    const next = { ...baseline, skillIds: ['skill-2'] }
+
+    const result = diffAgentUpdate(baseline, next)
+
+    expect(result?.dto).toEqual({
+      skillUpdates: [
+        { skillId: 'skill-1', isEnabled: false },
+        { skillId: 'skill-2', isEnabled: true }
+      ]
+    })
+  })
+
+  it('does not emit skillUpdates when the enabled skill set is only reordered', () => {
+    const agent = createAgent()
+    const baseline = buildInitialAgentFormState(agent, ['skill-1', 'skill-2'])
+    const next = { ...baseline, skillIds: ['skill-2', 'skill-1'] }
+
+    expect(diffAgentUpdate(baseline, next)).toBeNull()
   })
 
   it('preserves UniqueModelIds in the PATCH payload without legacy conversion', () => {
@@ -165,7 +191,7 @@ describe('diffAgentUpdate', () => {
       smallModel: ''
     }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
 
     expect(result?.dto).toMatchObject({
       model: 'anthropic::claude-sonnet-4-6',
@@ -174,19 +200,18 @@ describe('diffAgentUpdate', () => {
     })
   })
 
-  it('merges configuration-subkey patches on top of the existing configuration without sending max_turns', () => {
+  it('emits only edited configuration keys and explicitly removes max_turns', () => {
     const agent = createAgent({
       configuration: { avatar: '🤖', plugin_state: 'keep-me', max_turns: 10 }
     })
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, avatar: '🚀' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
-    // plugin_state must be preserved — the library form does not edit it, so
-    // it MUST NOT be stripped from the PATCH payload.
+    const result = diffAgentUpdate(baseline, next)
+    // Main preserves plugin_state by merging this intent into the latest row.
     expect(result?.dto.configuration).toEqual({
       avatar: '🚀',
-      plugin_state: 'keep-me'
+      max_turns: undefined
     })
   })
 
@@ -196,7 +221,7 @@ describe('diffAgentUpdate', () => {
     // User appends a line via the textarea control.
     const next = { ...baseline, envVarsText: 'A=1\nB=2' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
     expect(result?.dto.configuration).toMatchObject({
       env_vars: {
         A: '1',
@@ -210,7 +235,7 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, envVarsText: 'TOKEN= abc \nEMPTY=  \nSPACED_KEY =value=with=equals' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
     expect(result?.dto.configuration).toMatchObject({
       env_vars: {
         TOKEN: ' abc ',
@@ -225,7 +250,7 @@ describe('diffAgentUpdate', () => {
     const baseline = buildInitialAgentFormState(agent)
     const next = { ...baseline, permissionMode: 'default' }
 
-    const result = diffAgentUpdate(baseline, next, agent)
+    const result = diffAgentUpdate(baseline, next)
     expect(result?.dto.configuration).toMatchObject({
       permission_mode: 'default'
     })

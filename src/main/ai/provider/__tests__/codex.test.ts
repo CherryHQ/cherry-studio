@@ -10,6 +10,12 @@ describe('coerceCodexRequestBody', () => {
     expect(json.include).toEqual(['reasoning.encrypted_content'])
   })
 
+  it('drops max_output_tokens because the codex backend rejects it', () => {
+    const out = coerceCodexRequestBody(JSON.stringify({ model: 'gpt-5.5', max_output_tokens: 32000 }))
+    const json = JSON.parse(out as string)
+    expect(json).not.toHaveProperty('max_output_tokens')
+  })
+
   it('preserves existing include entries without duplicating', () => {
     const out = coerceCodexRequestBody(
       JSON.stringify({ include: ['file_search_call.results', 'reasoning.encrypted_content'] })

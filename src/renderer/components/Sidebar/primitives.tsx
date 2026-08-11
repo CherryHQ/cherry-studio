@@ -9,11 +9,13 @@ type MiniAppIconSize = 'sm' | 'md' | 'lg'
 export function ActiveIndicator({ className, glow = false }: { className?: string; glow?: boolean }) {
   return (
     <>
-      <div className={`pointer-events-none absolute inset-0 border border-sidebar-active-border ${className ?? ''}`} />
+      <div
+        className={`pointer-events-none absolute inset-0 border border-[var(--sidebar-active-border)] ${className ?? ''}`}
+      />
       {glow && (
         <div className="-translate-y-1/2 pointer-events-none absolute top-1/2 right-0 flex items-center">
-          <div className="h-[24px] w-[10px] rounded-tl-[8px] rounded-bl-[8px] bg-sidebar-glow-bg blur-[6px]" />
-          <div className="absolute right-0 h-[10px] w-[3px] rounded-[100px] bg-sidebar-glow-line blur-[2px]" />
+          <div className="h-[24px] w-[10px] rounded-tl-[8px] rounded-bl-[8px] bg-[var(--sidebar-glow-bg)] blur-[6px]" />
+          <div className="absolute right-0 h-[10px] w-[3px] rounded-[100px] bg-[var(--sidebar-glow-line)] blur-[2px]" />
         </div>
       )}
     </>
@@ -29,20 +31,19 @@ export function DefaultLogo({ title }: { title: string }) {
 }
 
 export function MiniAppIcon({ tab, size = 'sm' }: { tab: SidebarMiniAppTab; size?: MiniAppIconSize }) {
-  const pixelSize = size === 'sm' ? 14 : size === 'md' ? 16 : 22
+  const pixelSize = size === 'sm' ? 16 : size === 'md' ? 18 : 24
   const { miniApp } = tab
 
   if (miniApp.logo) {
-    return <MiniAppLogo app={{ logo: miniApp.logo, name: tab.title }} appearance="bare" size={pixelSize} />
+    return <MiniAppLogo app={{ logo: miniApp.logo, name: tab.title }} appearance="sidebar" size={pixelSize} />
   }
 
-  const iconSize = size === 'sm' ? 'h-3.5 w-3.5' : size === 'md' ? 'h-4 w-4' : 'h-[22px] w-[22px]'
-  const fontSize = size === 'sm' ? 'text-[6px]' : size === 'md' ? 'text-[8px]' : 'text-[11px]'
+  const fontSize = size === 'sm' ? 'text-[8px]' : size === 'md' ? 'text-[9px]' : 'text-xs'
 
   return (
     <div
-      className={`${iconSize} ${fontSize} flex flex-shrink-0 items-center justify-center rounded-[3px] text-white`}
-      style={{ background: miniApp.color ?? 'transparent' }}>
+      className={`${fontSize} flex flex-shrink-0 items-center justify-center rounded-full bg-muted text-white`}
+      style={{ width: pixelSize, height: pixelSize, background: miniApp.color }}>
       {tab.title?.[0] ?? ''}
     </div>
   )

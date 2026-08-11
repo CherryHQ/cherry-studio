@@ -4,7 +4,7 @@ import {
   DEFAULT_HEARTBEAT_INTERVAL,
   normalizePermissionMode
 } from '@renderer/utils/agent/permissionMode'
-import type { UpdateAgentDto } from '@shared/data/api/schemas/agents'
+import type { AgentSkillUpdateDto, UpdateAgentDto } from '@shared/data/api/schemas/agents'
 import type { AgentConfiguration } from '@shared/data/types/agent'
 import type { UniqueModelId } from '@shared/data/types/model'
 
@@ -29,6 +29,9 @@ export interface AgentFormState {
   smallModel: UniqueModelId | ''
   instructions: string
   mcps: string[]
+  /** Knowledge bases bound to the agent (empty = kb_* tools not exposed). */
+  knowledgeBaseIds: string[]
+  skillIds: string[]
   /** Opt-out list of disabled tool names (empty = all enabled). */
   disabledTools: string[]
 
@@ -37,7 +40,6 @@ export interface AgentFormState {
   permissionMode: string
   /** Raw multi-line `KEY=VALUE` text; parsed at save time. */
   envVarsText: string
-  soulEnabled: boolean
   heartbeatEnabled: boolean
   heartbeatInterval: number
 }
@@ -48,10 +50,6 @@ function asString(value: unknown): string {
 
 function asNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
-}
-
-function asBoolean(value: unknown): boolean {
-  return value === true
 }
 
 /**
@@ -94,7 +92,7 @@ function envVarsFromText(text: string): Record<string, string> {
   return Object.fromEntries(entries)
 }
 
-export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFormState {
+export function buildInitialAgentFormState(agent?: AgentDetail | null, skillIds: string[] = []): AgentFormState {
   const cfg: AgentConfiguration = agent?.configuration ?? {}
   return {
     name: agent?.name ?? '',
@@ -104,11 +102,12 @@ export function buildInitialAgentFormState(agent?: AgentDetail | null): AgentFor
     smallModel: agent?.smallModel ?? '',
     instructions: agent?.instructions ?? '',
     mcps: [...(agent?.mcps ?? [])],
+    knowledgeBaseIds: [...(agent?.knowledgeBaseIds ?? [])],
+    skillIds: [...skillIds],
     disabledTools: [...(agent?.disabledTools ?? [])],
     avatar: asString(cfg.avatar),
     permissionMode: asString(cfg.permission_mode),
     envVarsText: envVarsToText(cfg.env_vars),
-    soulEnabled: asBoolean(cfg.soul_enabled),
     heartbeatEnabled: cfg.heartbeat_enabled ?? DEFAULT_HEARTBEAT_ENABLED,
     heartbeatInterval: asNumber(cfg.heartbeat_interval) || DEFAULT_HEARTBEAT_INTERVAL
   }
@@ -118,19 +117,7 @@ export function applyAgentFormPatch(current: AgentFormState, patch: Partial<Agen
   const next: AgentFormState = { ...current, ...patch }
 
   if (Object.prototype.hasOwnProperty.call(patch, 'permissionMode')) {
-    const nextMode = normalizePermissionMode(patch.permissionMode)
-    next.permissionMode = nextMode
-    if (
-      nextMode !== 'bypassPermissions' &&
-      current.soulEnabled &&
-      !Object.prototype.hasOwnProperty.call(patch, 'soulEnabled')
-    ) {
-      next.soulEnabled = false
-    }
-  }
-
-  if (patch.soulEnabled === true && !current.soulEnabled) {
-    next.permissionMode = 'bypassPermissions'
+    next.permissionMode = normalizePermissionMode(patch.permissionMode)
   }
 
   return next
@@ -145,16 +132,12 @@ export interface AgentDiffResult {
  * Compute a minimal `UpdateAgentDto` by comparing `next` to `baseline`. Returns
  * `null` when no editable agent field changed.
  *
- * `configuration` is merged onto the existing `agent.configuration` so unrelated
- * keys that we don't surface in the form (plugin-specific settings, etc.) are
- * preserved. Only the configuration keys we actually edit participate in the
- * diff.
+ * `configuration` contains only the keys edited by this form. Main merges those
+ * keys into the latest persisted configuration inside the write transaction.
+ * `max_turns` is explicitly removed whenever this form changes configuration,
+ * because that retired field is intentionally not surfaced by the dialog.
  */
-export function diffAgentUpdate(
-  baseline: AgentFormState,
-  next: AgentFormState,
-  agent: AgentDetail
-): AgentDiffResult | null {
+export function diffAgentUpdate(baseline: AgentFormState, next: AgentFormState): AgentDiffResult | null {
   const dto: UpdateAgentDto = {}
   let dirty = false
 
@@ -186,12 +169,21 @@ export function diffAgentUpdate(
     dto.mcps = next.mcps
     dirty = true
   }
+  if (!stringSetsEqual(baseline.knowledgeBaseIds, next.knowledgeBaseIds)) {
+    dto.knowledgeBaseIds = next.knowledgeBaseIds
+    dirty = true
+  }
+  const skillUpdates = diffSkillUpdates(baseline.skillIds, next.skillIds)
+  if (skillUpdates.length > 0) {
+    dto.skillUpdates = skillUpdates
+    dirty = true
+  }
   if (!arraysEqual(baseline.disabledTools, next.disabledTools)) {
     dto.disabledTools = next.disabledTools
     dirty = true
   }
 
-  const cfgPatch: Record<string, unknown> = {}
+  const cfgPatch: AgentConfiguration = {}
   let cfgDirty = false
 
   if (baseline.avatar !== next.avatar) {
@@ -199,15 +191,11 @@ export function diffAgentUpdate(
     cfgDirty = true
   }
   if (baseline.permissionMode !== next.permissionMode) {
-    cfgPatch.permission_mode = next.permissionMode || 'default'
+    cfgPatch.permission_mode = normalizePermissionMode(next.permissionMode)
     cfgDirty = true
   }
   if (baseline.envVarsText !== next.envVarsText) {
     cfgPatch.env_vars = envVarsFromText(next.envVarsText)
-    cfgDirty = true
-  }
-  if (baseline.soulEnabled !== next.soulEnabled) {
-    cfgPatch.soul_enabled = next.soulEnabled
     cfgDirty = true
   }
   if (baseline.heartbeatEnabled !== next.heartbeatEnabled) {
@@ -223,7 +211,7 @@ export function diffAgentUpdate(
   }
 
   if (cfgDirty) {
-    dto.configuration = { ...configurationWithoutMaxTurns(agent.configuration), ...cfgPatch }
+    dto.configuration = { ...cfgPatch, max_turns: undefined }
     dirty = true
   }
 
@@ -232,16 +220,31 @@ export function diffAgentUpdate(
   return { dto }
 }
 
-function configurationWithoutMaxTurns(configuration: AgentDetail['configuration']): Record<string, unknown> {
-  const rest: Record<string, unknown> = { ...configuration }
-  delete rest.max_turns
-  return rest
-}
-
 function arraysEqual(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false
   return true
+}
+
+function stringSetsEqual(a: readonly string[], b: readonly string[]): boolean {
+  const aSet = new Set(a)
+  const bSet = new Set(b)
+  return aSet.size === bSet.size && [...aSet].every((value) => bSet.has(value))
+}
+
+function diffSkillUpdates(baselineSkillIds: readonly string[], nextSkillIds: readonly string[]): AgentSkillUpdateDto[] {
+  const baselineSet = new Set(baselineSkillIds)
+  const nextSet = new Set(nextSkillIds)
+  const updates: AgentSkillUpdateDto[] = []
+
+  for (const skillId of baselineSkillIds) {
+    if (!nextSet.has(skillId)) updates.push({ skillId, isEnabled: false })
+  }
+  for (const skillId of nextSkillIds) {
+    if (!baselineSet.has(skillId)) updates.push({ skillId, isEnabled: true })
+  }
+
+  return updates
 }
 
 // ---------------------------------------------------------------------------
@@ -258,12 +261,8 @@ export type AgentSaveIntent = { kind: 'update'; payload: UpdateAgentDto }
  * Resolve the current form into a save intent. Returns `null` when
  * there's nothing to do.
  */
-export function diffAgentSaveIntent(
-  form: AgentFormState,
-  baseline: AgentFormState,
-  agent: AgentDetail
-): AgentSaveIntent | null {
-  const result = diffAgentUpdate(baseline, form, agent)
+export function diffAgentSaveIntent(form: AgentFormState, baseline: AgentFormState): AgentSaveIntent | null {
+  const result = diffAgentUpdate(baseline, form)
   if (!result) return null
   return {
     kind: 'update',

@@ -1,22 +1,19 @@
 import { normalizeQuoteTokenPromptText } from '@renderer/components/composer/quoteToken'
+import {
+  COMPOSER_INPUT_TOKEN_KINDS,
+  COMPOSER_TOKEN_KINDS,
+  type ComposerInputTokenKind,
+  type ComposerTokenKind,
+  isComposerTokenKind
+} from '@renderer/utils/composerTokenPolicy'
 
-import { CHAT_INPUT_TOKEN_KINDS, type ChatInputTokenKind } from './chatTokenView'
+export const COMPOSER_DRAFT_TOKEN_KINDS = COMPOSER_TOKEN_KINDS
 
-export const COMPOSER_DRAFT_TOKEN_KINDS = [
-  'skill',
-  'file',
-  'command',
-  'knowledge',
-  'reference',
-  'quote',
-  'promptVariable'
-] as const
+export type ComposerDraftTokenKind = ComposerTokenKind
 
-export type ComposerDraftTokenKind = (typeof COMPOSER_DRAFT_TOKEN_KINDS)[number]
+export const ACTIVE_COMPOSER_INPUT_TOKEN_KINDS = COMPOSER_INPUT_TOKEN_KINDS
 
-export const ACTIVE_COMPOSER_INPUT_TOKEN_KINDS = CHAT_INPUT_TOKEN_KINDS
-
-export type ActiveComposerInputTokenKind = ChatInputTokenKind
+export type ActiveComposerInputTokenKind = ComposerInputTokenKind
 
 export interface ComposerDraftToken {
   id: string
@@ -42,7 +39,7 @@ export interface ComposerSerializedDraft {
 }
 
 export function isComposerDraftTokenKind(value: unknown): value is ComposerDraftTokenKind {
-  return typeof value === 'string' && COMPOSER_DRAFT_TOKEN_KINDS.includes(value as ComposerDraftTokenKind)
+  return isComposerTokenKind(value)
 }
 
 function readString(value: unknown): string | undefined {

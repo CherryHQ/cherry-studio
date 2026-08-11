@@ -5,7 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MessageListActions, MessageListItem } from '../../types'
 
 const mocks = vi.hoisted(() => ({
-  actions: {} as MessageListActions
+  actions: {} as MessageListActions,
+  i18nKeys: new Set<string>(),
+  language: 'en'
 }))
 
 vi.mock('@cherrystudio/ui', () => ({
@@ -38,8 +40,8 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
     i18n: {
-      language: 'en',
-      exists: () => false
+      language: mocks.language,
+      exists: (key: string) => mocks.i18nKeys.has(key)
     }
   })
 }))
@@ -56,7 +58,7 @@ const message: MessageListItem = {
   topicId: 'topic-1',
   createdAt: '2026-01-01T00:00:00.000Z',
   status: 'success',
-  modelSnapshot: {
+  model: {
     id: 'gpt-test',
     name: 'GPT Test',
     provider: 'openai'
@@ -66,7 +68,32 @@ const message: MessageListItem = {
 describe('ErrorBlock', () => {
   beforeEach(() => {
     mocks.actions = {}
+    mocks.i18nKeys.clear()
+    mocks.language = 'en'
     vi.clearAllMocks()
+  })
+
+  it('renders a known app-owned i18nKey without AI diagnosis', () => {
+    const i18nKey = 'tool_call_limit_reached'
+    const diagnoseMessageError = vi.fn().mockResolvedValue('AI summary')
+    mocks.actions = { diagnoseMessageError }
+    mocks.i18nKeys.add(`error.${i18nKey}`)
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'ToolLoopTerminalError',
+          message: 'fallback message',
+          stack: null,
+          i18nKey
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText(`error.${i18nKey}`)).toBeInTheDocument()
+    expect(diagnoseMessageError).not.toHaveBeenCalled()
   })
 
   it('hides mutation and detail affordances when capabilities are unavailable', () => {
@@ -76,6 +103,46 @@ describe('ErrorBlock', () => {
 
     expect(screen.queryByLabelText('close')).toBeNull()
     expect(screen.queryByText('common.detail')).toBeNull()
+  })
+
+  it('uses structured provider data when classifying an error', () => {
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'APICallError',
+          message: 'Rate limit exceeded',
+          stack: null,
+          statusCode: 429,
+          responseBody: '{"error":{"type":"insufficient_quota"}}'
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.quota')).toBeInTheDocument()
+    expect(screen.queryByText('error.diagnosis.rate_limit')).toBeNull()
+  })
+
+  it('ignores non-serializable provider data when classifying an error', () => {
+    const circularData: Record<string, unknown> = {}
+    circularData.self = circularData
+
+    render(
+      <ErrorBlock
+        partId="message-1-part-0"
+        error={{
+          name: 'APICallError',
+          message: 'Rate limit exceeded',
+          stack: null,
+          statusCode: 429,
+          data: circularData as never
+        }}
+        message={message}
+      />
+    )
+
+    expect(screen.getByText('error.diagnosis.rate_limit')).toBeInTheDocument()
   })
 
   it('routes error actions through provider capabilities', async () => {
@@ -126,7 +193,12 @@ describe('ErrorBlock', () => {
     render(
       <ErrorBlock
         partId="message-1-part-0"
-        error={{ name: 'UnknownError', message: 'unmapped provider failure', stack: null }}
+        error={{
+          name: 'UnknownError',
+          message: 'unmapped provider failure',
+          stack: null,
+          i18nKey: 'missing_app_error'
+        }}
         message={message}
       />
     )
@@ -139,5 +211,25 @@ describe('ErrorBlock', () => {
         language: 'en'
       })
     )
+  })
+
+  it('refreshes an AI summary when the app language changes', async () => {
+    const diagnoseMessageError = vi.fn().mockResolvedValueOnce('English summary').mockResolvedValueOnce('中文摘要')
+    mocks.actions = { diagnoseMessageError }
+    const error = {
+      name: 'UnknownError',
+      message: 'unmapped provider failure',
+      stack: null,
+      i18nKey: 'missing_app_error'
+    }
+
+    const { rerender } = render(<ErrorBlock partId="message-1-part-0" error={error} message={message} />)
+    expect(await screen.findByText('English summary')).toBeInTheDocument()
+
+    mocks.language = 'zh-CN'
+    rerender(<ErrorBlock partId="message-1-part-0" error={{ ...error }} message={message} />)
+
+    expect(await screen.findByText('中文摘要')).toBeInTheDocument()
+    expect(diagnoseMessageError).toHaveBeenLastCalledWith(expect.objectContaining({ language: 'zh-CN' }))
   })
 })

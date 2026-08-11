@@ -1,11 +1,18 @@
+import type { AbsoluteFilePath, FileType } from '@shared/types/file'
 import type { McpTool } from '@shared/types/mcp'
 import type { UpdateInfo } from 'builder-util-runtime'
 
+import type { AgentSessionApiRetryState } from '../../ai/agentSessionApiRetry'
+import type { AgentSessionBackgroundTasks, AgentSessionTaskEvents } from '../../ai/agentSessionBackgroundTasks'
 import type { AgentSessionCompactionState } from '../../ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '../../ai/agentSessionContextUsage'
+import type { AgentSessionFlowParts } from '../../ai/agentSessionFlowParts'
 import type { AgentSessionSlashCommand } from '../../ai/agentSessionSlashCommands'
 import type { ExternalAppId } from '../../types/externalApp'
+import type { McpServer } from '../types/mcpServer'
 import type { MiniApp } from '../types/miniApp'
+import type { UniqueModelId } from '../types/model'
+import type { ComposerMessageTokenKind } from '../types/uiParts'
 import type { WebSearchStatus } from '../types/webSearch'
 
 export type CacheAppUpdateState = {
@@ -32,6 +39,13 @@ export type McpRuntimeStatus = {
   lastCheckedAt: number
   lastError?: string
 }
+
+/**
+ * MCP registry "available servers" fetched per marketplace provider, keyed by
+ * provider key. Re-fetchable network data, so it lives in persist cache rather
+ * than Preference/DataApi.
+ */
+export type McpAvailableServers = Record<string, McpServer[]>
 
 /**
  * Tab type for browser-like tabs
@@ -117,6 +131,49 @@ export interface ChatScrollAnchor {
   offset: number
 }
 
+export interface CacheComposerSerializedToken {
+  id: string
+  kind: ComposerMessageTokenKind | 'promptVariable'
+  label: string
+  icon?: string
+  description?: string
+  promptText?: string
+  payload?: unknown
+  index: number
+  textOffset: number
+}
+
+export interface CacheComposerAttachment {
+  fileTokenSourceId: string
+  path?: AbsoluteFilePath
+  name: string
+  origin_name: string
+  ext: string
+  size: number
+  type: FileType
+  composerFileKind?: 'pasted-text'
+}
+
+export interface CacheComposerDraftBase {
+  text: string
+  tokens: CacheComposerSerializedToken[]
+  files: CacheComposerAttachment[]
+  knowledgeBaseIds: string[]
+}
+
+export interface CacheChatComposerDraft extends CacheComposerDraftBase {
+  /** Explicit per-topic model selection; runtime model records are resolved when restoring. */
+  mentionedModelIds: UniqueModelId[]
+  /** Selection behavior cannot be inferred when zero or one models remain selected. */
+  modelMultiSelectMode: boolean
+}
+
+export interface CacheAgentComposerDraft extends CacheComposerDraftBase {
+  workspaceKey: string
+  agentId: string
+  shouldValidateSkills?: boolean
+}
+
 export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null
 
 export type CachePaintingGenerationState = {
@@ -128,7 +185,11 @@ export type CachePaintingGenerationState = {
 
 export type CacheAgentSessionContextUsage = AgentSessionContextUsage | null
 export type CacheAgentSessionCompactionState = AgentSessionCompactionState | null
+export type CacheAgentSessionApiRetryState = AgentSessionApiRetryState | null
 export type CacheAgentSessionSlashCommands = AgentSessionSlashCommand[] | null
+export type CacheAgentSessionBackgroundTasks = AgentSessionBackgroundTasks
+export type CacheAgentSessionTaskEvents = AgentSessionTaskEvents
+export type CacheAgentSessionFlowParts = AgentSessionFlowParts
 
 /**
  * Persisted window geometry for the WindowManager "remember bounds" capability.

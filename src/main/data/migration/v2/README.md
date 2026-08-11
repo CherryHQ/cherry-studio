@@ -13,6 +13,7 @@ src/main/data/migration/v2/
 ├── core/              # MigrationEngine, MigrationContext, MigrationPaths
 ├── migrators/         # Domain-specific migrators
 │   └── mappings/      # Mapping definitions
+├── migrationDiagnosticBundle.ts # Migration diagnostic ZIP builder
 ├── utils/             # ReduxStateReader, DexieFileReader, JSONStreamReader, LegacyHomeConfigReader
 ├── window/            # IPC handlers, window manager
 └── index.ts           # Public exports
@@ -36,7 +37,11 @@ paths with `path.join()` from scratch inside migration code.
 | Correct ✅ | Wrong ❌ |
 |-----------|---------|
 | `ctx.paths.userData` | `app.getPath('userData')` |
-| `ctx.paths.databaseFile` | `path.join(app.getPath('userData'), 'cherrystudio.sqlite')` |
+| `ctx.paths.databaseFile` | `path.join(app.getPath('userData'), 'Data', 'cherrystudio.sqlite')` |
+| `ctx.paths.legacyClaudeConfigDir` | `path.join(ctx.paths.userData, '.claude')` |
+| `ctx.paths.legacyClaudeProjectsDir` | `path.join(ctx.paths.userData, '.claude', 'projects')` |
+| `ctx.paths.claudeConfigDir` | `path.join(ctx.paths.userData, 'Data', 'Agents', '.claude')` |
+| `ctx.paths.claudeProjectsDir` | `path.join(ctx.paths.userData, 'Data', 'Agents', '.claude', 'projects')` |
 | `ctx.paths.knowledgeBaseDir` | `path.join(app.getPath('userData'), 'Data', 'KnowledgeBase')` |
 | `ctx.paths.legacyConfigFile` | `path.join(os.homedir(), '.cherrystudio', 'config', 'config.json')` |
 | `new Store({ cwd: ctx.paths.userData })` | `new Store()` |
@@ -47,13 +52,39 @@ then passed through `MigrationContext.paths` to all migrators. If you
 need a new path, add it to the `MigrationPaths` interface — do not
 construct it inline.
 
+### Narrow exception: application logger output
+
+Migration diagnostics read the application's own logger output, not v1/v2 migration source data. This change
+records one narrow exception to the rule above: logs **MUST** resolve through `application.getPath('app.logs')`
+and **MUST NOT** be added to `MigrationPaths`. No broader migration filesystem access rule is relaxed.
+
+## Migration Diagnostic Bundle
+
+Only Renderer error/version-incompatible pages can request a bundle; there is no native preboot entry. A bundle
+contains minimal system information plus a stable snapshot for one log date: prefer the failure panel's
+mount-time local date, otherwise choose the latest eligible date, and never mix dates. If a complete snapshot
+cannot be formed, publish metadata only and disclose that result in the UI only when the destination can still be
+proven safe. If destination or source identity cannot be established, saving fails without replacing the existing
+file. Metadata excludes failure stacks, paths, and run/process fields. Logs may be sensitive and must not be shared
+publicly or outside Cherry Studio support.
+
+## Renderer Export Memory
+
+The migration renderer writes selected Redux Persist slices and Dexie records through bounded IPC chunks. Redux
+is handed to main as a directory of category files, and localStorage export is restricted to keys actually owned
+by migration mappings. Do not restore whole-state parsing or include `persist:cherry-studio` in the generic
+localStorage export: either change retains duplicate copies of the same legacy state before migration begins.
+Main owns the exact export paths: `migration:prepare-export` clears the registered staging directories before each
+attempt and returns those paths to renderer. File-write, migration-start, and cleanup code must never accept an
+unvalidated renderer-selected path.
+
 ## Version Compatibility Gate
 
 Before the migration window is created, the gate validates the upgrade
 path using `core/versionPolicy.ts`. This catches manual installs that
 bypass the auto-updater's version filtering.
 
-**Required upgrade path**: `v1.old → v1.last (≥1.9.0) → v2.0.0 → v2.x`
+**Required upgrade path**: `v1.old → v1.last (≥1.9.12) → v2.0.x → v2.1+`
 
 ### Blocking rules
 
@@ -61,18 +92,18 @@ bypass the auto-updater's version filtering.
 |------|-----------|--------|
 | no_version_log | Legacy data exists but `version.log` is missing | User never ran a v1 version with VersionService (embedded since v1.7) |
 | v1_too_old | `previousVersion < V1_REQUIRED_VERSION` | Data not in final v1 form |
-| v2_gateway_skipped | `previousVersion < 2.0.0 && coerce(currentVersion) > 2.0.0` | Skipped the v2.0.0 migration gateway |
+| v2_gateway_skipped | `previousVersion < 2.0.0 && coerce(currentVersion) >= 2.1.0` | Skipped the v2.0.x migration line |
 
 ### Pre-release versions
 
 v2.0.0 pre-releases (alpha/beta/rc) are treated as **before v2.0.0**
 in semver ordering. This means:
 - v1.last → v2.0.0-alpha is allowed (the gateway check uses coerced
-  currentVersion, so `gt('2.0.0', '2.0.0')` is false)
+  currentVersion, so `gte('2.0.0', '2.1.0')` is false)
 - Pre-release → pre-release upgrades work because migration status is
   already `completed` after the first successful run
-- v2.0.0 is strictly required as the gateway — v2.0.x patches are
-  blocked until the policy is updated in a future release
+- The complete v2.0.x line is a verified direct migration target; v2.1.0 and
+  later remain blocked until their migration compatibility is explicitly verified
 
 ### Path safety for version.log
 
@@ -86,7 +117,7 @@ Path Safety section above.
 ### Creating a New Migrator
 
 1. Extend `BaseMigrator` in `migrators/`
-2. Implement `prepare`, `execute`, `validate` methods
+2. Implement `prepare`, `execute`, and `validate`
 3. Add it to the `getAllMigrators()` list in `migrators/migratorRegistry.ts`
 4. Use `ctx.paths` for all filesystem paths — **NEVER** call `app.getPath()` directly
 
@@ -95,6 +126,8 @@ Path Safety section above.
 - `prepare(ctx)`: Dry-run checks, return counts
 - `execute(ctx)`: Perform inserts, report progress
 - `validate(ctx)`: Verify counts and integrity
+
+`AssistantMigrator` also owns v1 assistant tag-group migration: it inserts `group(entityType='assistant')` rows and assigns their IDs to `assistant.groupId` in the same transaction.
 
 ### Foreign Keys Caveat
 
