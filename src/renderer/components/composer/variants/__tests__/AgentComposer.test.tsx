@@ -2531,14 +2531,14 @@ describe('AgentComposer', () => {
     ])
   })
 
-  it('marks an already mentioned folder disabled after serializing the editor once', async () => {
-    const folderPath = '/workspace/docs'
+  it('marks a Windows folder with different separators disabled after serializing the editor once', async () => {
+    const folderPath = 'C:/workspace/docs'
     mocks.listDirectoryEntries.mockResolvedValue([{ path: folderPath, isDirectory: true }])
     vi.mocked(ComposerDraftModule.serializeComposerDocument).mockReturnValue({
       text: '',
-      tokens: [createSerializedFolderToken(folderPath)]
+      tokens: [createSerializedFolderToken('C:\\workspace\\docs')]
     })
-    const { result } = renderAgentResourceMentionSource()
+    const { result } = renderAgentResourceMentionSource(['C:/workspace'])
     const source = requireFirstResourceMentionSource(result.current)
     const { editor } = buildComposerEditorMock()
 
@@ -2549,10 +2549,10 @@ describe('AgentComposer', () => {
     expect(ComposerDraftModule.serializeComposerDocument).toHaveBeenCalledWith(editor)
   })
 
-  it('rechecks the live editor before inserting a folder from a stale enabled item', async () => {
-    const folderPath = '/workspace/docs'
+  it('rechecks Windows folder separators before inserting from a stale enabled item', async () => {
+    const folderPath = 'C:/workspace/docs'
     mocks.listDirectoryEntries.mockResolvedValue([{ path: folderPath, isDirectory: true }])
-    const { result } = renderAgentResourceMentionSource()
+    const { result } = renderAgentResourceMentionSource(['C:/workspace'])
     const source = requireFirstResourceMentionSource(result.current)
     const { editor, chain } = buildComposerEditorMock()
     const items = await source.items({ query: '', editor })
@@ -2561,7 +2561,7 @@ describe('AgentComposer', () => {
 
     vi.mocked(ComposerDraftModule.serializeComposerDocument).mockReturnValue({
       text: '',
-      tokens: [createSerializedFolderToken(folderPath)]
+      tokens: [createSerializedFolderToken('C:\\workspace\\docs')]
     })
     folderItem?.command?.({ editor, range: { from: 0, to: 0 }, item: folderItem, query: '' })
 

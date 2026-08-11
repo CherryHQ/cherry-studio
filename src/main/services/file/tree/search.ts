@@ -392,12 +392,7 @@ async function searchFuzzyFiles(resolvedPath: string, options: ResolvedOptions):
   const globPattern = queryToGlobPattern(options.searchPattern)
   args.splice(args.length - 1, 0, '--iglob', globPattern)
   const firstOutput = getUsableRipgrepOutput(await executeRipgrep(args))
-  const firstCandidates = scoreFuzzyPaths(
-    parseRipgrepPaths(firstOutput),
-    resolvedPath,
-    options.searchPattern,
-    false
-  )
+  const firstCandidates = scoreFuzzyPaths(parseRipgrepPaths(firstOutput), resolvedPath, options.searchPattern, false)
   if (firstCandidates.length > 0) return firstCandidates
   logger.debug('Fuzzy glob returned no results, scanning all files before JS fuzzy matching')
   const fallbackOutput = getUsableRipgrepOutput(await executeRipgrep(buildRipgrepBaseArgs(options, resolvedPath)))

@@ -14,8 +14,10 @@ import type { ComposerSuggestionItem, ComposerSuggestionSource } from '../../qui
 import { agentComposerTokenId, agentFileToComposerToken } from '../agentComposerTokens'
 import { getAccessiblePathRelativePath } from './accessiblePath'
 
+const normalizePathSeparators = (filePath: string) => filePath.replace(/\\/g, '/')
+
 const getBaseName = (filePath: string) => {
-  const normalized = filePath.replace(/\\/g, '/')
+  const normalized = normalizePathSeparators(filePath)
   return normalized.split('/').pop() || normalized
 }
 
@@ -214,7 +216,7 @@ export function useAgentResourceMentionSource({
             for (const entry of result.value) {
               // `entry.path` is already an `AbsoluteFilePath`; separator normalization drops
               // the brand, so parse it again while preserving main/root order and first-wins dedupe.
-              const entryPath = AbsoluteFilePathSchema.parse(entry.path.replace(/\\/g, '/'))
+              const entryPath = AbsoluteFilePathSchema.parse(normalizePathSeparators(entry.path))
               if (!collectedResources.has(entryPath)) collectedResources.set(entryPath, { ...entry, path: entryPath })
             }
           }
@@ -232,7 +234,7 @@ export function useAgentResourceMentionSource({
           } else {
             const mentionedFolderPaths = new Set(
               serializeComposerDocument(editor).tokens.flatMap((token) =>
-                token.kind === 'folder' && token.promptText ? [token.promptText] : []
+                token.kind === 'folder' && token.promptText ? [normalizePathSeparators(token.promptText)] : []
               )
             )
 
@@ -248,7 +250,9 @@ export function useAgentResourceMentionSource({
                   disabled: mentionedFolderPaths.has(entryPath),
                   command: ({ editor }) => {
                     const exists = serializeComposerDocument(editor).tokens.some(
-                      (currentToken) => currentToken.kind === 'folder' && currentToken.promptText === entryPath
+                      (currentToken) =>
+                        currentToken.kind === 'folder' &&
+                        normalizePathSeparators(currentToken.promptText ?? '') === entryPath
                     )
                     if (!exists) {
                       editor

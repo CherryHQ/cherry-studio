@@ -1,129 +1,102 @@
-# Fuzzy Search for File List
+# Fuzzy Search for Directory Listings
 
-This document describes the fuzzy search implementation for file listing in Cherry Studio.
+Cherry Studio exposes directory listing and fuzzy search through
+`listDirectory()` and `listDirectoryEntries()` in
+`src/main/services/file/tree/search.ts`. Both functions run in the main process;
+renderers receive bounded results instead of building their own filesystem
+indexes.
 
-## Overview
+## Modes
 
-The fuzzy search feature allows users to find files by typing partial or approximate file names/paths. It uses a two-tier file filtering strategy (ripgrep glob pre-filtering with greedy substring fallback) combined with subsequence-based scoring for optimal performance and flexibility.
+The value of `searchPattern` selects one of two modes:
 
-## Features
+- **List mode** (`searchPattern: '.'`, the default) enumerates the requested
+  files and directories. Results are not capped unless the caller supplies
+  `maxEntries`.
+- **Fuzzy search mode** (any other non-empty pattern) matches and scores files
+  and directories together. Callers that render a bounded surface should
+  always supply `maxEntries`.
 
-- **Ripgrep Glob Pre-filtering**: Primary filtering using glob patterns for fast native-level filtering
-- **Greedy Substring Matching**: Fallback file filtering strategy when ripgrep glob pre-filtering returns no results
-- **Subsequence-based Segment Scoring**: During scoring, path segments gain additional weight when query characters appear in order
-- **Relevance Scoring**: Results are sorted by a relevance score derived from multiple factors
+Both modes respect recursion, depth, hidden-entry, file/directory, exclusion,
+and result-limit options. Returned paths use forward slashes on every platform.
 
-## Matching Strategies
+## Fuzzy Matching
 
-### 1. Ripgrep Glob Pre-filtering (Primary)
+For files, the query is first converted to a ripgrep glob that preserves
+subsequence order:
 
-The query is converted to a glob pattern for ripgrep to do initial filtering:
-
-```
-Query: "updater"
-Glob:  "*u*p*d*a*t*e*r*"
-```
-
-This leverages ripgrep's native performance for the initial file filtering.
-
-### 2. Greedy Substring Matching (Fallback)
-
-When the glob pre-filter returns no results, the system falls back to greedy substring matching. This allows more flexible matching:
-
-```
-Query: "updatercontroller"
-File:  "packages/update/src/node/updateController.ts"
-
-Matching process:
-1. Find "update" (longest match from start)
-2. Remaining "rcontroller" → find "r" then "controller"
-3. All parts matched → Success
+```text
+Query: updater
+Glob:  *u*p*d*a*t*e*r*
 ```
 
-## Scoring Algorithm
+Ripgrep provides a fast candidate set. JavaScript then applies the same
+case-insensitive subsequence rule used for directories. If the pre-filter
+produces no valid match, the implementation scans the remaining eligible files
+and applies that same rule; there is no separate greedy matcher.
 
-Results are ranked by a relevance score based on named constants defined in `FileStorage.ts`:
+Directories are traversed directly, so a directory-only query does not depend
+on ripgrep. File and directory candidates are merged before sorting and before
+`maxEntries` is applied.
 
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `SCORE_FILENAME_STARTS` | 100 | Filename starts with query (highest priority) |
-| `SCORE_FILENAME_CONTAINS` | 80 | Filename contains exact query substring |
-| `SCORE_SEGMENT_MATCH` | 60 | Per path segment that matches query |
-| `SCORE_WORD_BOUNDARY` | 20 | Query matches start of a word |
-| `SCORE_CONSECUTIVE_CHAR` | 15 | Per consecutive character match |
-| `PATH_LENGTH_PENALTY_FACTOR` | 4 | Logarithmic penalty for longer paths |
+## Ranking
 
-### Scoring Strategy
+Candidates are scored using their path relative to the requested root. This
+prevents characters in a workspace's parent path from affecting either
+matching or ranking.
 
-The scoring prioritizes:
-1. **Filename matches** (highest): Files where the query appears in the filename are most relevant
-2. **Path segment matches**: Multiple matching segments indicate stronger relevance
-3. **Word boundaries**: Matching at word starts (e.g., "upd" matching "update") is preferred
-4. **Consecutive matches**: Longer consecutive character sequences score higher
-5. **Path length**: Shorter paths are preferred (logarithmic penalty prevents long paths from dominating)
+The score rewards, in order of influence:
 
-### Example Scoring
+1. A filename that starts with or contains the query.
+2. Path segments that contain the query as a subsequence.
+3. Consecutive matching characters and word-boundary matches.
+4. Shorter paths through a logarithmic length penalty.
 
-For query `updater`:
+Directories win ties against files; remaining ties use path order.
 
-| File | Score Factors |
-|------|---------------|
-| `RCUpdater.js` | Short path + filename contains "updater" |
-| `updateController.ts` | Multiple segment matches |
-| `UpdaterHelper.plist` | Long path penalty |
+## Options
 
-## Configuration
-
-### DirectoryListOptions
+The public `DirectoryListOptions` contract is defined in
+`src/shared/types/file/common.ts`:
 
 ```typescript
 interface DirectoryListOptions {
-  recursive?: boolean      // Default: true
-  maxDepth?: number        // Default: 10
-  includeHidden?: boolean  // Default: false
-  includeFiles?: boolean   // Default: true
-  includeDirectories?: boolean // Default: true
-  maxEntries?: number      // Default: 20
-  searchPattern?: string   // Default: '.'
-  fuzzy?: boolean          // Default: true
+  recursive?: boolean // default: true
+  maxDepth?: number // default: 10; 0 means unlimited
+  includeHidden?: boolean // default: false
+  includeFiles?: boolean // default: true
+  includeDirectories?: boolean // default: true
+  maxEntries?: number // default: unlimited
+  searchPattern?: string // default: '.'
 }
 ```
+
+Fuzzy matching is the main-process behavior for a non-default search pattern;
+it is not a renderer-configurable option.
 
 ## Usage
 
 ```typescript
-// Basic fuzzy search
-const files = await window.api.file.listDirectory(dirPath, {
+const entries = await window.api.file.listDirectoryEntries(rootPath, {
+  recursive: true,
+  maxDepth: 3,
+  includeFiles: true,
+  includeDirectories: true,
   searchPattern: 'updater',
-  fuzzy: true,
-  maxEntries: 20
-})
-
-// Disable fuzzy search (exact glob matching)
-const files = await window.api.file.listDirectory(dirPath, {
-  searchPattern: 'update',
-  fuzzy: false
+  maxEntries: 40
 })
 ```
 
-## Performance Considerations
+Use `listDirectoryEntries()` when the caller needs to distinguish files from
+directories without additional IPC calls. Use `listDirectory()` when paths
+alone are sufficient.
 
-1. **Ripgrep Pre-filtering**: Most queries are handled by ripgrep's native glob matching, which is extremely fast
-2. **Fallback Only When Needed**: Greedy substring matching (which loads all files) only runs when glob matching returns empty results
-3. **Result Limiting**: Only top 20 results are returned by default
-4. **Excluded Directories**: Common large directories are automatically excluded:
-   - `node_modules`
-   - `.git`
-   - `dist`, `build`
-   - `.next`, `.nuxt`
-   - `coverage`, `.cache`
+## Exclusions and Errors
 
-## Implementation Details
+Common generated or dependency directories such as `node_modules`, `.git`,
+`dist`, `build`, `.next`, `.nuxt`, `coverage`, and `.cache` are excluded.
+Hidden entries are excluded unless `includeHidden` is true.
 
-The implementation is located in `src/main/services/FileStorage.ts`:
-
-- `queryToGlobPattern()`: Converts query to ripgrep glob pattern
-- `isFuzzyMatch()`: Subsequence matching algorithm
-- `isGreedySubstringMatch()`: Greedy substring matching fallback
-- `getFuzzyMatchScore()`: Calculates relevance score
-- `listDirectoryWithRipgrep()`: Main search orchestration
+Ripgrep exit code `1` means no matches. Exit codes `2` and above, missing
+binaries, and signal termination are surfaced as errors so callers can decide
+whether to show partial results or an error state.
