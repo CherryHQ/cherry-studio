@@ -1,5 +1,6 @@
 import type { KnowledgeAddItemInput, KnowledgeItem } from '@shared/data/types/knowledge'
 import type { AbsoluteFilePath } from '@shared/types/file'
+import type { PosixRelativeFilePath } from '@shared/utils/file'
 import { describe, expect, it } from 'vitest'
 
 import { resolveKnowledgeAddConflicts } from '../addConflicts'
@@ -30,7 +31,10 @@ describe('resolveKnowledgeAddConflicts', () => {
   it('reports no conflicts and keeps all inputs when nothing collides', () => {
     const inputs = [fileInput('/a/report.pdf'), urlInput('https://x.com')]
     const existing = [
-      existingItem('e1', { type: 'file', data: { source: '/old/other.pdf', relativePath: 'other.pdf' } })
+      existingItem('e1', {
+        type: 'file',
+        data: { source: '/old/other.pdf', relativePath: 'other.pdf' as PosixRelativeFilePath }
+      })
     ]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
@@ -43,7 +47,10 @@ describe('resolveKnowledgeAddConflicts', () => {
   it('detects a collision against an existing root and reports the existing display title', () => {
     const inputs = [fileInput('/folderA/report.pdf')]
     const existing = [
-      existingItem('e1', { type: 'file', data: { source: '/old/report.pdf', relativePath: 'report.pdf' } })
+      existingItem('e1', {
+        type: 'file',
+        data: { source: '/old/report.pdf', relativePath: 'report.pdf' as PosixRelativeFilePath }
+      })
     ]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
@@ -68,7 +75,11 @@ describe('resolveKnowledgeAddConflicts', () => {
     const existing = [
       existingItem('e1', {
         type: 'url',
-        data: { source: 'https://x.com', url: 'https://x.com', relativePath: 'Captured Title.md' }
+        data: {
+          source: 'https://x.com',
+          url: 'https://x.com',
+          relativePath: 'Captured Title.md' as PosixRelativeFilePath
+        }
       })
     ]
 
@@ -95,7 +106,10 @@ describe('resolveKnowledgeAddConflicts', () => {
   it('dedupes the reported conflicts by type and key', () => {
     const inputs = [fileInput('/folderA/report.pdf'), fileInput('/folderB/report.pdf')]
     const existing = [
-      existingItem('e1', { type: 'file', data: { source: '/old/report.pdf', relativePath: 'report.pdf' } })
+      existingItem('e1', {
+        type: 'file',
+        data: { source: '/old/report.pdf', relativePath: 'report.pdf' as PosixRelativeFilePath }
+      })
     ]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
@@ -110,9 +124,18 @@ describe('resolveKnowledgeAddConflicts', () => {
     // leaving test_2.md / test_3.md intact — they are distinct, deliberately-kept copies.
     const inputs = [fileInput('/incoming/test.md')]
     const existing = [
-      existingItem('e1', { type: 'file', data: { source: '/a/test.md', relativePath: 'test.md' } }),
-      existingItem('e2', { type: 'file', data: { source: '/b/test.md', relativePath: 'test_2.md' } }),
-      existingItem('e3', { type: 'file', data: { source: '/c/test.md', relativePath: 'test_3.md' } })
+      existingItem('e1', {
+        type: 'file',
+        data: { source: '/a/test.md', relativePath: 'test.md' as PosixRelativeFilePath }
+      }),
+      existingItem('e2', {
+        type: 'file',
+        data: { source: '/b/test.md', relativePath: 'test_2.md' as PosixRelativeFilePath }
+      }),
+      existingItem('e3', {
+        type: 'file',
+        data: { source: '/c/test.md', relativePath: 'test_3.md' as PosixRelativeFilePath }
+      })
     ]
 
     const result = resolveKnowledgeAddConflicts(inputs, existing)
@@ -128,7 +151,7 @@ describe('resolveKnowledgeAddConflicts', () => {
     const existing = [
       existingItem('e1', {
         type: 'note',
-        data: { source: 'Q4: plan', content: 'old body', relativePath: 'Q4_ plan.md' }
+        data: { source: 'Q4: plan', content: 'old body', relativePath: 'Q4_ plan.md' as PosixRelativeFilePath }
       })
     ]
 
