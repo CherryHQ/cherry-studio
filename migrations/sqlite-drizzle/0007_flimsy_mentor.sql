@@ -27,6 +27,7 @@ SET `last_activity_at` = max(
       CASE
         WHEN `message`.`role` = 'user' THEN `message`.`created_at`
         WHEN `message`.`role` = 'assistant'
+          AND `message`.`deleted_at` IS NULL
           AND `message`.`status` IN ('success', 'error', 'paused')
           THEN max(`message`.`created_at`, `message`.`updated_at`)
         WHEN `message`.`role` = 'assistant' THEN `message`.`created_at`
@@ -35,7 +36,6 @@ SET `last_activity_at` = max(
     )
     FROM `message`
     WHERE `message`.`topic_id` = `topic`.`id`
-      AND `message`.`deleted_at` IS NULL
   ), `created_at`)
 );--> statement-breakpoint
 CREATE TABLE `__new_agent_session` (

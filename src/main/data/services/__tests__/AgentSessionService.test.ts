@@ -268,6 +268,7 @@ describe('AgentSessionService', () => {
 
   it('binds a session to an explicit workspace', async () => {
     const workspace = await createWorkspace('explicit')
+    notifyDataApiDataChangeMock.mockClear()
 
     const session = agentSessionService.create({
       agentId: 'agent-session-test',
@@ -275,6 +276,12 @@ describe('AgentSessionService', () => {
       workspace: { type: 'user', workspaceId: workspace.id }
     })
 
+    expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+      { endpoint: '/agent-sessions', kind: 'membership', entityIds: [session.id] },
+      { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/:sessionId', entityIds: [session.id] },
+      { endpoint: '/agent-sessions/latest' }
+    ])
     expect(session.workspaceId).toBe(workspace.id)
     expect(session.workspace.path).toBe(workspace.path)
     expect(session.isNameManuallyEdited).toBe(false)
@@ -724,6 +731,7 @@ describe('AgentSessionService', () => {
     const task = createTaskSchedule()
     const session = await createSession('Bound reassigned task')
     bindTaskSession(session.id, task.id)
+    notifyDataApiDataChangeMock.mockClear()
 
     agentSessionService.update(session.id, { agentId: 'agent-session-reassigned' })
 
@@ -735,6 +743,7 @@ describe('AgentSessionService', () => {
     const task = createTaskSchedule()
     const session = await createSession('Rollback bound task')
     bindTaskSession(session.id, task.id)
+    notifyDataApiDataChangeMock.mockClear()
 
     expect(() =>
       dbh.db.transaction((tx) => {

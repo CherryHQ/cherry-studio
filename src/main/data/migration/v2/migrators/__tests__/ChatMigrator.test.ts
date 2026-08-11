@@ -139,6 +139,25 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(result?.topic.lastActivityAt).toBe(Date.parse('2025-01-01T00:03:00.000Z'))
   })
 
+  it('uses creation time for a transient v1 assistant message', async () => {
+    const b1 = block('b1', 'u1')
+    const b2 = block('b2', 'a1')
+    const messages = [
+      msg('u1', 'user', ['b1'], {
+        createdAt: '2025-01-01T00:01:00.000Z'
+      }),
+      msg('a1', 'assistant', ['b2'], {
+        status: 'pending',
+        createdAt: '2025-01-01T00:02:00.000Z',
+        updatedAt: '2025-01-01T00:10:00.000Z'
+      })
+    ]
+
+    const result = await prepareTopic(topic('t1', messages), [b1, b2])
+
+    expect(result?.topic.lastActivityAt).toBe(Date.parse('2025-01-01T00:02:00.000Z'))
+  })
+
   it('normalizes duplicate IDs before computing parent and active-node references', async () => {
     const b1 = block('b1', 'duplicate')
     const b2 = block('b2', 'duplicate')

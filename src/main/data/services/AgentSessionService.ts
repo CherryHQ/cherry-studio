@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
@@ -47,6 +48,16 @@ function publishTaskReadModelChanges(taskIds: readonly string[]): void {
   if (taskIds.length === 0) return
   // Resolve lazily because AgentTaskService reads the Session-owned relation.
   getDataService('AgentTaskService').notifyReadModelChange(taskIds)
+}
+
+function notifyAgentSessionCreation(sessionId: string): void {
+  const entityIds = [sessionId]
+  notifyDataApiDataChange([
+    { endpoint: '/agent-sessions', kind: 'membership', entityIds },
+    { endpoint: '/agent-sessions', kind: 'order', dimension: 'lastActivityAt', entityIds },
+    { endpoint: '/agent-sessions/:sessionId', entityIds },
+    { endpoint: '/agent-sessions/latest' }
+  ])
 }
 
 type JoinedSessionRow = {
@@ -126,6 +137,7 @@ export class AgentSessionService {
       ...defaultHandlersFor('Session', id),
       foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
     })
+    notifyAgentSessionCreation(id)
     return this.getById(id)
   }
 

@@ -3,6 +3,7 @@
 import { randomBytes } from 'node:crypto'
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { chatMessageFileRefTable } from '@data/db/schemas/fileRelations'
 import { messageTable } from '@data/db/schemas/message'
@@ -47,6 +48,16 @@ const SQLITE_INSERT_CHUNK = 100
 
 type TopicRow = typeof topicTable.$inferSelect
 type TopicEntitySearchItem = Extract<EntitySearchItem, { type: 'topic' }>
+
+function notifyTopicCreation(topicId: string): void {
+  const entityIds = [topicId]
+  notifyDataApiDataChange([
+    { endpoint: '/topics', kind: 'membership', entityIds },
+    { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
+    { endpoint: '/topics/:id', entityIds },
+    { endpoint: '/topics/latest' }
+  ])
+}
 
 function rowToTopic(row: TopicRow): Topic {
   // DB NULL ↔ domain `undefined` boundary — all of Topic's nullable columns are
@@ -216,6 +227,7 @@ export class TopicService {
       messageService.createRootMessageTx(tx, topicRow.id)
       return initializedTopicRow
     })
+    notifyTopicCreation(row.id)
 
     logger.info('Created empty topic', { id: row.id })
 
@@ -275,6 +287,7 @@ export class TopicService {
 
       return rowToTopic(updatedTopicRow)
     })
+    notifyTopicCreation(copiedTopic.id)
 
     logger.info('Duplicated topic path into new topic', {
       sourceTopicId,

@@ -15,7 +15,10 @@ import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase, withRoot } from '@test-helpers/db'
 import { and, asc, eq, isNotNull, isNull } from 'drizzle-orm'
-import { describe, expect, it, type Mock } from 'vitest'
+import { describe, expect, it, type Mock, vi } from 'vitest'
+
+const { notifyDataApiDataChangeMock } = vi.hoisted(() => ({ notifyDataApiDataChangeMock: vi.fn() }))
+vi.mock('@data/dataApiDataChange', () => ({ notifyDataApiDataChange: notifyDataApiDataChangeMock }))
 
 describe('TopicService', () => {
   const dbh = setupTestDatabase()
@@ -877,7 +880,15 @@ describe('TopicService', () => {
 
   describe('create', () => {
     it('inserts topic with activeNodeId=null and a fresh orderKey', async () => {
+      notifyDataApiDataChangeMock.mockClear()
       const result = topicService.create({ name: 'fresh' })
+
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/topics', kind: 'membership', entityIds: [result.id] },
+        { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [result.id] },
+        { endpoint: '/topics/:id', entityIds: [result.id] },
+        { endpoint: '/topics/latest' }
+      ])
       expect(result.activeNodeId).toBeUndefined()
       expect(result.name).toBe('fresh')
       const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
@@ -1011,8 +1022,15 @@ describe('TopicService', () => {
         }
       ])
 
+      notifyDataApiDataChangeMock.mockClear()
       const result = topicService.duplicate('src-t', { nodeId: 'selected' })
 
+      expect(notifyDataApiDataChangeMock).toHaveBeenCalledExactlyOnceWith([
+        { endpoint: '/topics', kind: 'membership', entityIds: [result.id] },
+        { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds: [result.id] },
+        { endpoint: '/topics/:id', entityIds: [result.id] },
+        { endpoint: '/topics/latest' }
+      ])
       expect(result.id).not.toBe('src-t')
       expect(result.name).toBe('Source')
       expect(result.isNameManuallyEdited).toBe(true)

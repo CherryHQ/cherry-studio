@@ -393,6 +393,22 @@ describe('applyMigrations over a populated database', () => {
          VALUES ('topic-empty-activity', 'Empty Topic', 'a1', 125, 900)`
       )
       .run()
+    sqlite
+      .prepare(
+        `INSERT INTO topic (id, name, order_key, created_at, updated_at)
+         VALUES ('topic-deleted-only-activity', 'Deleted History Topic', 'a2', 150, 900)`
+      )
+      .run()
+    sqlite
+      .prepare(
+        `INSERT INTO message
+          (id, parent_id, topic_id, role, data, searchable_text, status, siblings_group_id, created_at, updated_at, deleted_at)
+         VALUES
+          ('deleted-only-root', NULL, 'topic-deleted-only-activity', 'root', '{"parts":[]}', '', 'success', 0, 150, 150, NULL),
+          ('deleted-only-user', 'deleted-only-root', 'topic-deleted-only-activity', 'user', '{"parts":[]}', '', 'success', 0, 550, 3000, 3000),
+          ('deleted-only-assistant', 'deleted-only-user', 'topic-deleted-only-activity', 'assistant', '{"parts":[]}', '', 'success', 0, 600, 4000, 4000)`
+      )
+      .run()
 
     applyMigrations(db, resolveMigrationsPath())
 
@@ -408,6 +424,9 @@ describe('applyMigrations over a populated database', () => {
     expect(sqlite.prepare(`SELECT last_activity_at FROM topic WHERE id = 'topic-empty-activity'`).get()).toEqual({
       last_activity_at: 125
     })
+    expect(sqlite.prepare(`SELECT last_activity_at FROM topic WHERE id = 'topic-deleted-only-activity'`).get()).toEqual(
+      { last_activity_at: 600 }
+    )
     expect(sqlite.prepare(`SELECT count(*) AS count FROM message WHERE topic_id = 'topic-activity'`).get()).toEqual({
       count: 6
     })

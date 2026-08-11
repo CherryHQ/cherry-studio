@@ -13,6 +13,7 @@
  */
 
 import { application } from '@application'
+import { notifyDataApiDataChange } from '@data/dataApiDataChange'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
@@ -269,6 +270,14 @@ export class TemporaryChatService {
       this.messages.set(topicId, msgs)
       throw err
     }
+
+    const entityIds = [topicId]
+    notifyDataApiDataChange([
+      { endpoint: '/topics', kind: 'membership', entityIds },
+      { endpoint: '/topics', kind: 'order', dimension: 'lastActivityAt', entityIds },
+      { endpoint: '/topics/:id', entityIds },
+      { endpoint: '/topics/latest' }
+    ])
 
     // Promotion never creates or repairs facts. Rebuild the materialized
     // projection from the records that were captured while the chat was
