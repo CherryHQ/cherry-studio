@@ -572,6 +572,71 @@ describe('createUnifiedQuickPanelOpenOptions', () => {
     )
   })
 
+  it('clears the residual input query when entering a submenu so child items are not filtered out', () => {
+    // Regression (#17926 review): `/permission` -> Permission Mode used to inherit the parent's
+    // residual query "permission" as the submenu's search term, filtering out every child and
+    // showing "No results". Entering an input-triggered submenu must clear the leftover query and
+    // open the submenu fresh (button-triggered, no inherited query anchor) — mirroring KnowledgeBase/MCP.
+    const onToolLauncherSelect = vi.fn()
+    const inputAdapter = {
+      getText: vi.fn(() => '/permission'),
+      getCursorOffset: vi.fn(() => 11),
+      insertText: vi.fn(),
+      deleteTriggerRange: vi.fn(),
+      focus: vi.fn()
+    }
+    const options = createUnifiedQuickPanelOpenOptions(
+      [
+        {
+          id: 'permission-mode',
+          kind: 'group',
+          label: 'Permission Mode',
+          icon: 'shield',
+          sources: ['root-panel'],
+          submenu: [
+            {
+              id: 'plan-only',
+              kind: 'command',
+              label: 'Plan Only',
+              icon: 'plan',
+              sources: ['root-panel']
+            }
+          ]
+        }
+      ],
+      {
+        quickPanel,
+        inputAdapter,
+        onToolLauncherSelect,
+        queryAnchor: 0,
+        triggerInfo: { type: 'input', position: 0, originalText: '/permission' }
+      }
+    )
+    const permissionMode = options.list[0]
+    const actionContext = { ...quickPanel, triggerInfo: options.triggerInfo } satisfies QuickPanelContextType
+
+    permissionMode.action?.({
+      action: 'enter',
+      context: actionContext,
+      item: permissionMode,
+      parentPanel: options,
+      queryAnchor: 0,
+      searchText: 'permission'
+    })
+
+    // the leftover "/permission" text is removed from the composer
+    expect(inputAdapter.deleteTriggerRange).toHaveBeenCalledWith({ from: 0, to: 11 })
+    // the submenu opens fresh: button-triggered (does not track the input query) and keeps its child
+    expect(quickPanel.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Permission Mode',
+        triggerInfo: { type: 'button' },
+        list: [expect.objectContaining({ label: 'Plan Only' })]
+      })
+    )
+    expect(vi.mocked(quickPanel.open).mock.calls[0][0].queryAnchor).toBeUndefined()
+  })
+
   it('ignores submenu cycles while building and opening launcher items', () => {
     const cyclicParent: ComposerToolLauncher = {
       id: 'cyclic-parent',
