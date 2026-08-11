@@ -57,10 +57,10 @@ export type TopicStreamStatus =
  */
 export interface ActiveExecution {
   executionId: UniqueModelId
-  /** Unique runtime attempt. Optional for backward-compatible persisted/test snapshots. */
-  attemptId?: string
+  /** Unique runtime attempt. */
+  attemptId: string
   /** Main-process monotonic attempt order, used to resolve cross-window stale optimistic state. */
-  attemptVersion?: number
+  attemptVersion: number
   anchorMessageId?: string
   /** This attempt reset its persisted anchor row and must start from empty parts in every window. */
   seedFromEmpty?: boolean
@@ -121,6 +121,14 @@ export interface TopicStatusSnapshotEntry {
   lastCompletedAt?: number
 }
 
+type AiStreamRegenerateTarget =
+  /** Reset and retry one failed assistant row in place. */
+  | { retryMessageId: string; appendToLiveGroupMessageId?: never }
+  /** Append one model response to the selected live reply group. */
+  | { retryMessageId?: never; appendToLiveGroupMessageId: string }
+  /** Ordinary regeneration creates a sibling response. */
+  | { retryMessageId?: never; appendToLiveGroupMessageId?: never }
+
 /** Stream ended. */
 export interface StreamDonePayload {
   topicId: string
@@ -171,29 +179,25 @@ export type AiStreamOpenRequest = {
       userMessageParts: CherryMessagePart[]
       /** Target intent captured by the chat composer; reserved intent must never degrade into a live steer. */
       targetMode?: ComposerChatTarget['mode']
+      retryMessageId?: never
+      appendToLiveGroupMessageId?: never
       /** Canonical reasoning selection captured when the composer submitted. */
       reasoningEffort?: ReasoningEffortOption
       /** Whether to request Fast processing for this turn. */
       fastMode?: boolean
     }
-  | {
+  | ({
       /** Re-run the assistant under an existing user msg. */
       trigger: 'regenerate-message'
       /** Id of the existing user msg whose assistant child(ren) we're regenerating. */
       parentAnchorId: string
-      /** Failed assistant row to reset and retry in place instead of creating a sibling. */
-      retryMessageId?: string
-      /**
-       * Assistant row whose currently running reply group should receive one new model response.
-       * When the referenced group is no longer live, this degrades to an ordinary regeneration.
-       */
-      appendToLiveGroupMessageId?: string
       userMessageParts?: never
+      targetMode?: never
       /** Canonical reasoning selection captured for this regenerated turn. */
       reasoningEffort?: ReasoningEffortOption
       /** Whether to request Fast processing for this regenerated turn. */
       fastMode?: boolean
-    }
+    } & AiStreamRegenerateTarget)
 )
 
 /**

@@ -15,7 +15,7 @@ import type { StreamLifecycle } from '../lifecycle/StreamLifecycle'
 import type { StreamListener } from '../types'
 import type { MainDispatchRequest } from './dispatch'
 
-export type PreparedLiveExecutionChange =
+type PreparedLiveExecutionChange =
   | { mode: 'replace' }
   | {
       mode: 'append'

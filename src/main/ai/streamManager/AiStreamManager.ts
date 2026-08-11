@@ -93,8 +93,8 @@ export interface SendModelSpec {
   abortController?: AbortController
 }
 
-export type LiveExecutionChange = { mode: 'replace' } | { mode: 'append'; groupAnchorMessageId: string }
-export type ExecutionRetryAdmission =
+type LiveExecutionChange = { mode: 'replace' } | { mode: 'append'; groupAnchorMessageId: string }
+type ExecutionRetryAdmission =
   | { mode: 'replace-live' }
   | { mode: 'append-live'; groupAnchorMessageId: string }
   | { mode: 'start-new' }

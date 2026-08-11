@@ -499,7 +499,10 @@ describe('useChatWriteActions — regenerate', () => {
       retryMessageId: 'a1',
       mentionedModelIds: ['provider::model-a']
     })
-    expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], [activeExecution], undefined)
+    expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
+      activeExecutions: [activeExecution],
+      preserveActiveNode: undefined
+    })
   })
 
   it('keeps successful non-text assistants on the ordinary regenerate path', async () => {
@@ -554,7 +557,10 @@ describe('useChatWriteActions — regenerate', () => {
       appendToLiveGroupMessageId: 'a1',
       mentionedModelIds: ['provider::model-b']
     })
-    expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], [activeExecution], true)
+    expect(seedReservedMessages).toHaveBeenCalledWith([reservedMessage], {
+      activeExecutions: [activeExecution],
+      preserveActiveNode: true
+    })
   })
 
   it('inherits the active assistant turn options when resending its user message', async () => {

@@ -1,3 +1,4 @@
+import type { AiStreamOpenRequest } from '@shared/ai/transport'
 import { describe, expect, it } from 'vitest'
 
 import { aiRequestSchemas } from '../ai'
@@ -82,6 +83,21 @@ describe('ai.stream.open IPC schema', () => {
         mentionedModelIds: ['anthropic::claude-sonnet']
       })
     ).toMatchObject({ appendToLiveGroupMessageId: 'assistant-source' })
+  })
+
+  it('rejects combining in-place retry with live reply-group append', () => {
+    const combined = {
+      trigger: 'regenerate-message',
+      topicId: 'topic-1',
+      parentAnchorId: 'user-1',
+      retryMessageId: 'assistant-failed',
+      appendToLiveGroupMessageId: 'assistant-source'
+    } as const
+
+    // @ts-expect-error retry and append are mutually exclusive in the shared request contract
+    const invalidRequest: AiStreamOpenRequest = combined
+
+    expect(openStream.safeParse(invalidRequest).success).toBe(false)
   })
 })
 

@@ -51,7 +51,7 @@ import { TopicStreamSubscription } from './TopicStreamSubscription'
 const logger = loggerService.withContext('ExecutionStreamOverlayService')
 
 export interface ExecutionFinishEvent {
-  attemptId?: string
+  attemptId: string
   message: CherryUIMessage
   isAbort: boolean
   isError: boolean
@@ -69,7 +69,7 @@ type FinishListener = (executionId: string, event: ExecutionFinishEvent) => void
 
 interface ReaderHandle {
   executionId: UniqueModelId
-  attemptId?: string
+  attemptId: string
   anchorMessageId?: string
   cancel: () => void
   unregister: () => void
@@ -267,7 +267,7 @@ export class ExecutionStreamOverlayService {
       string,
       {
         executionId: UniqueModelId
-        attemptId?: string
+        attemptId: string
         anchorMessageId?: string
         seedFromEmpty?: boolean
         seed: ConsumerContribution
@@ -501,7 +501,7 @@ export class ExecutionStreamOverlayService {
     entry: Entry,
     key: string,
     executionId: UniqueModelId,
-    attemptId: string | undefined,
+    attemptId: string,
     anchorMessageId: string | undefined,
     seedFromEmpty: boolean | undefined,
     getSeedMessages: () => CherryUIMessage[]

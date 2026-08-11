@@ -218,9 +218,6 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     // A failed assistant retry is identity-preserving: reset and rerun the exact row so its
     // sibling position, descendants, and the topic's active branch remain untouched.
     if (req.trigger === 'regenerate-message' && req.retryMessageId) {
-      if (req.appendToLiveGroupMessageId) {
-        throw new Error("'retryMessageId' and 'appendToLiveGroupMessageId' cannot be combined")
-      }
       return this.prepareAssistantRetry(subscriber, req, topic?.assistantId ?? undefined)
     }
 

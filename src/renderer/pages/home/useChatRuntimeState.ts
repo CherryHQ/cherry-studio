@@ -16,6 +16,7 @@ import { useToolApprovalComposerOverrides } from '@renderer/components/composer/
 import { useChatWithHistory } from '@renderer/hooks/useChatWithHistory'
 import {
   type ConversationHistoryAdapter,
+  type ReservedMessageSeedOptions,
   useConversationTurnController
 } from '@renderer/hooks/useConversationTurnController'
 import { type ExecutionFinishEvent, useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
@@ -64,7 +65,7 @@ interface UseChatRuntimeStateParams {
   onBranchLiveStateChange?: (state: TopicMessageFlowLiveState | null) => void
 }
 
-function mergeActiveExecutions(...sources: ActiveExecution[][]): ActiveExecution[] {
+function mergeActiveExecutions(...sources: ReadonlyArray<readonly ActiveExecution[]>): ActiveExecution[] {
   const order: string[] = []
   const byId = new Map<string, ActiveExecution>()
 
@@ -73,18 +74,10 @@ function mergeActiveExecutions(...sources: ActiveExecution[][]): ActiveExecution
       const slot = JSON.stringify([execution.executionId, execution.anchorMessageId ?? null])
       const existing = byId.get(slot)
       if (!existing) order.push(slot)
-      if (
-        existing?.attemptVersion !== undefined &&
-        execution.attemptVersion !== undefined &&
-        existing.attemptVersion > execution.attemptVersion
-      ) {
-        continue
-      }
+      if (existing && existing.attemptVersion > execution.attemptVersion) continue
       byId.set(slot, {
         ...existing,
         ...execution,
-        attemptId: execution.attemptId ?? existing?.attemptId,
-        attemptVersion: execution.attemptVersion ?? existing?.attemptVersion,
         anchorMessageId: execution.anchorMessageId ?? existing?.anchorMessageId
       })
     }
@@ -97,7 +90,7 @@ function mergeActiveExecutions(...sources: ActiveExecution[][]): ActiveExecution
 }
 
 function executionAttemptKey(execution: ActiveExecution): string {
-  return execution.attemptId ?? JSON.stringify([execution.executionId, execution.anchorMessageId ?? null])
+  return execution.attemptId
 }
 
 export function useChatRuntimeState({
@@ -268,7 +261,8 @@ export function useChatRuntimeState({
   const cache = useTopicMessagesCache({ topicId: topic.id, mutate: messagesCacheMutate })
   const seedMessagesCache = cache.seedReservedMessages
   const seedReservedMessages = useCallback(
-    async (reservedMessages: CherryUIMessage[], openedExecutions?: ActiveExecution[], preserveActiveNode?: boolean) => {
+    async (reservedMessages: CherryUIMessage[], options: ReservedMessageSeedOptions = {}) => {
+      const { activeExecutions: openedExecutions, preserveActiveNode } = options
       if (reservedMessages.length > 0) {
         const reservedExecutions = openedExecutions ?? []
         if (reservedExecutions.length > 0) {
@@ -388,12 +382,7 @@ export function useChatRuntimeState({
 
   const handleExecutionFinish = useCallback(
     (executionId: string, { attemptId, message, isError }: ExecutionFinishEvent) => {
-      const finishedExecution: ActiveExecution = {
-        executionId: executionId as UniqueModelId,
-        attemptId,
-        anchorMessageId: message.id
-      }
-      const finishedKey = executionAttemptKey(finishedExecution)
+      const finishedKey = attemptId
       const treeCachePath = `/topics/${topic.id}/tree`
       void (async () => {
         try {

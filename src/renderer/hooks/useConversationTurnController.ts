@@ -10,12 +10,13 @@ const logger = loggerService.withContext('useConversationTurnController')
 
 export type ConversationTurnPhase = 'draft' | 'persisting' | 'opening' | 'streaming' | 'ready'
 
+export interface ReservedMessageSeedOptions {
+  activeExecutions?: readonly ActiveExecution[]
+  preserveActiveNode?: boolean
+}
+
 export interface ConversationHistoryAdapter {
-  seedReservedMessages: (
-    messages: CherryUIMessage[],
-    executions?: ActiveExecution[],
-    preserveActiveNode?: boolean
-  ) => Promise<void> | void
+  seedReservedMessages: (messages: CherryUIMessage[], options?: ReservedMessageSeedOptions) => Promise<void> | void
   refresh: () => Promise<unknown> | unknown
   rollback: () => Promise<unknown> | unknown
 }
@@ -77,7 +78,10 @@ export function useConversationTurnController<TInput, TConversation>({
 
         const reservedMessages = ack.reservedMessages ?? []
         if (reservedMessages.length > 0) {
-          await historyAdapter.seedReservedMessages(reservedMessages, ack.activeExecutions, ack.preserveActiveNode)
+          await historyAdapter.seedReservedMessages(reservedMessages, {
+            activeExecutions: ack.activeExecutions,
+            preserveActiveNode: ack.preserveActiveNode
+          })
         }
 
         if (isCurrentScope()) setPhase('streaming')

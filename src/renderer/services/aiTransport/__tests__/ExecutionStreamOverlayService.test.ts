@@ -196,12 +196,14 @@ const A = 'openai::gpt-4o' as UniqueModelId
 const exec = (
   executionId: UniqueModelId,
   anchorMessageId?: string,
-  attemptId?: string,
-  seedFromEmpty?: boolean
+  attemptId = `${executionId}:${anchorMessageId ?? 'temporary'}`,
+  seedFromEmpty?: boolean,
+  attemptVersion = 1
 ): ActiveExecution => ({
   executionId,
   anchorMessageId,
   attemptId,
+  attemptVersion,
   seedFromEmpty
 })
 const asst = (id: string, parts: CherryUIMessage['parts'] = []): CherryUIMessage =>

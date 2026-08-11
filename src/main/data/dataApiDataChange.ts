@@ -5,21 +5,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 
 const logger = loggerService.withContext('DataApiDataChange')
 
-function validateRouteParams(effects: DataApiDataChangeEffect[]): void {
-  for (const effect of effects) {
-    if (!effect.routeParams) continue
-    const invalidKeys = Object.keys(effect.routeParams).filter(
-      (key) => !effect.endpoint.split('/').some((segment) => segment === `:${key}` || segment === `:${key}*`)
-    )
-    if (invalidKeys.length === 0) continue
-
-    const message =
-      `DataApi data change routeParams [${invalidKeys.join(', ')}] ` + `do not match endpoint "${effect.endpoint}"`
-    if (process.env.NODE_ENV !== 'production') throw new Error(message)
-    logger.warn(message)
-  }
-}
-
 /**
  * Broadcast a DataApi data change notification to all windows.
  *
@@ -39,10 +24,9 @@ function validateRouteParams(effects: DataApiDataChangeEffect[]): void {
  * - publish only after commit, never inside a transaction (listeners must not
  *   run while the write lock is held, and a rollback must be unreachable from
  *   the notify call);
- * - notification delivery never participates in write success — a delivery
- *   failure must not roll back or otherwise affect committed data (hence the
- *   try/catch); runtime contract assertions are a pre-delivery developer
- *   check governed separately below;
+ * - the notification never participates in write success — a failure here
+ *   must not roll back or otherwise affect committed data (hence the
+ *   try/catch);
  * - it may only describe endpoint/read-model changes — no entity rows, field
  *   diffs, SQL predicates or business commands;
  * - it must not be used to smuggle file, network, process, window-control or
@@ -65,8 +49,6 @@ function validateRouteParams(effects: DataApiDataChangeEffect[]): void {
  * - No-op writes that provably changed nothing may skip notifying; when
  *   proving that is not cheap, notify — a missed signal is a convergence bug,
  *   an extra one is a redundant refetch.
- * - Every `routeParams` key must name a placeholder declared by its endpoint.
- *   Contract violations throw outside production and warn in production.
  *
  * ## Delivery contract
  *
@@ -81,7 +63,6 @@ function validateRouteParams(effects: DataApiDataChangeEffect[]): void {
  */
 export function notifyDataApiDataChange(effects: DataApiDataChangeEffect[]): void {
   if (effects.length === 0) return
-  validateRouteParams(effects)
   // Delivery boundary: notification delivery starts once bootstrap completes.
   // Not getOptional('WindowManager') — it throws for non-conditional services
   // (ServiceContainer semantics); not a bare get() fallback either — lazy

@@ -16,6 +16,7 @@ import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
 import { invalidateCachedMessageUiStates } from '@renderer/components/chat/messages/utils/messageUiStateCache'
 import type { ChatWriteActions } from '@renderer/hooks/chat/ChatWriteContext'
+import type { ReservedMessageSeedOptions } from '@renderer/hooks/useConversationTurnController'
 import { ipcApi } from '@renderer/ipc'
 import { getStreamBlockedMessage } from '@renderer/services/aiTransport'
 import { toast } from '@renderer/services/toast'
@@ -23,7 +24,6 @@ import type { Assistant } from '@renderer/types/assistant'
 import type { Topic } from '@renderer/types/topic'
 import { sharedMessageToUIMessage } from '@renderer/utils/message/messageProjection'
 import { resolveUniqueModelId } from '@renderer/utils/message/modelIdentity'
-import type { ActiveExecution } from '@shared/ai/transport'
 import { DataApiError, ErrorCode } from '@shared/data/api/errors'
 import type {
   AssistantTurnOptions,
@@ -86,11 +86,7 @@ interface Params {
   stop: () => Promise<void>
   refresh: () => Promise<CherryUIMessage[]>
   cache: ReturnType<typeof useTopicMessagesCache>
-  seedReservedMessages: (
-    messages: CherryUIMessage[],
-    executions?: ActiveExecution[],
-    preserveActiveNode?: boolean
-  ) => Promise<void>
+  seedReservedMessages: (messages: CherryUIMessage[], options?: ReservedMessageSeedOptions) => Promise<void>
   scrollToBottom: () => void
   startNewContextBlocked: boolean
   assistant?: Assistant
@@ -346,7 +342,10 @@ export function useChatWriteActions(params: Params): Result {
           ...turnOptionsRequestFields(turnOptions)
         })
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
-        await seedReservedMessages(ack.reservedMessages ?? [], ack.activeExecutions, ack.preserveActiveNode)
+        await seedReservedMessages(ack.reservedMessages ?? [], {
+          activeExecutions: ack.activeExecutions,
+          preserveActiveNode: ack.preserveActiveNode
+        })
         return
       }
 
@@ -363,7 +362,10 @@ export function useChatWriteActions(params: Params): Result {
           ...turnOptionsRequestFields(turnOptions)
         })
         if (ack.mode === 'blocked') throw new Error(getStreamBlockedMessage(ack))
-        await seedReservedMessages(ack.reservedMessages ?? [], ack.activeExecutions, ack.preserveActiveNode)
+        await seedReservedMessages(ack.reservedMessages ?? [], {
+          activeExecutions: ack.activeExecutions,
+          preserveActiveNode: ack.preserveActiveNode
+        })
         return
       }
 
@@ -436,7 +438,10 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error(getStreamBlockedMessage(ack))
       }
 
-      await seedReservedMessages(ack.reservedMessages ?? [], ack.activeExecutions, ack.preserveActiveNode)
+      await seedReservedMessages(ack.reservedMessages ?? [], {
+        activeExecutions: ack.activeExecutions,
+        preserveActiveNode: ack.preserveActiveNode
+      })
     },
     [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id, topic.assistantId, uiMessages]
   )
@@ -469,7 +474,10 @@ export function useChatWriteActions(params: Params): Result {
         throw new Error(getStreamBlockedMessage(ack))
       }
 
-      await seedReservedMessages(ack.reservedMessages ?? [], ack.activeExecutions, ack.preserveActiveNode)
+      await seedReservedMessages(ack.reservedMessages ?? [], {
+        activeExecutions: ack.activeExecutions,
+        preserveActiveNode: ack.preserveActiveNode
+      })
     },
     [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]
   )

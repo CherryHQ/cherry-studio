@@ -208,7 +208,9 @@ describe('useChatRuntimeState', () => {
     render(<RuntimeHost topicId="topic-1" activeNodeId="selected-branch" />)
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], undefined, true)
+      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], {
+        preserveActiveNode: true
+      })
     })
 
     expect(mocks.seedMessagesCache).toHaveBeenCalledWith([reservedMessage], { preserveActiveNode: true })
@@ -240,7 +242,9 @@ describe('useChatRuntimeState', () => {
     const view = render(<RuntimeHost topicId="topic-1" />)
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], [staleAttempt])
+      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], {
+        activeExecutions: [staleAttempt]
+      })
     })
 
     mocks.activeExecutions = [
@@ -269,7 +273,9 @@ describe('useChatRuntimeState', () => {
     const view = render(<RuntimeHost topicId="topic-1" />)
 
     await act(async () => {
-      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], [staleAttempt])
+      await mocks.turnControllerConfig.historyAdapter.seedReservedMessages([reservedMessage], {
+        activeExecutions: [staleAttempt]
+      })
     })
 
     mocks.activeExecutions = [
