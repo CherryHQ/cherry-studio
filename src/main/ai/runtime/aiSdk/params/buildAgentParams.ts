@@ -1,4 +1,4 @@
-import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { FetchFunction, ProviderOptions } from '@ai-sdk/provider-utils'
 import { application } from '@application'
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { projectRuntimeReasoning, providerRegistryService } from '@data/services/ProviderRegistryService'
@@ -48,6 +48,7 @@ import { createAiRepair } from '../../../tools/adapters/aiSdk/repair'
 import type { ToolEntry } from '../../../tools/adapters/aiSdk/types'
 import { resolveConfiguredPaintingModel } from '../../../tools/painting'
 import type { AiBaseRequest, CallOverrides } from '../../../types'
+import { customFetch } from '../../../utils/customFetch'
 import {
   adjustMaxOutputTokensForReasoning,
   filterStandardParams,
@@ -130,7 +131,6 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
     request.apiKeyOverride,
     request.chatId
   )
-  applyHttpTrace(sdkConfig, request.chatId, model)
   // Prefer the request-carried retained context: the persistent chat provider
   // computes it from the RAW message path, so attachments and persisted tool
   // outputs folded away by durable compaction stay readable via read_file /
@@ -295,7 +295,8 @@ async function resolveSdkConfig(
   const { config, credentialReceipt } = await resolveProviderAiSdkConfig(provider, model, {
     apiKeyOverride,
     resolvedEndpoint,
-    sessionId
+    sessionId,
+    baseFetch: httpTraceBaseFetch(sessionId, model)
   })
   return {
     sdkConfig: {
@@ -311,13 +312,15 @@ async function resolveSdkConfig(
   }
 }
 
-export function applyHttpTrace(sdkConfig: SdkConfig, topicId: string | undefined, model: Model): void {
-  if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return
-  const settings = sdkConfig.providerSettings
-  settings.fetch = createHttpTraceFetch(settings.fetch ?? globalThis.fetch, {
-    topicId,
-    modelName: model.name ?? model.id
-  })
+/**
+ * Dev-mode HTTP trace, installed as the provider config's *base* fetch so it sits
+ * below every provider wrapper (Ark/DashScope body rewrites, Codex/Grok OAuth
+ * headers, CherryAI signing) and records the request as it actually goes on the
+ * wire. `undefined` outside developer mode — the config then uses its own default.
+ */
+export function httpTraceBaseFetch(topicId: string | undefined, model: Model): FetchFunction | undefined {
+  if (!application.get('PreferenceService').get('app.developer_mode.enabled')) return undefined
+  return createHttpTraceFetch(customFetch, { topicId, modelName: model.name ?? model.id })
 }
 
 /**
