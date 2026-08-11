@@ -93,7 +93,7 @@ request-local `sdkConfig.providerSettings.fetch` before returning it.
 ```
 buildAgentParams(input)
   ├─ resolveSdkConfig         → providerToAiSdkConfig + modelId
-  ├─ applyHttpTrace           → optional request-local fetch wrapper
+  │     └─ httpTraceBaseFetch → dev-mode trace injected as the config's base fetch
   ├─ canModelConsumeTools?    → resolveTools (registry sync + defer)
   │     └─ syncMcpToolsToRegistry  (only servers owning a selected tool)
   │     └─ registry.selectActive   (per-entry applies)
