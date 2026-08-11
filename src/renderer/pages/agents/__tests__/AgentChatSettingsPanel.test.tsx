@@ -14,12 +14,12 @@ const topicStreamStatusMock = vi.hoisted(() => ({
 }))
 
 const activeAgentMock = vi.hoisted(() => ({
-  value: { id: 'agent-1', model: 'provider:model-1' } as any,
+  value: { id: 'agent-1', model: 'provider::model-1' } as any,
   isLoading: false,
   lookupId: undefined as string | null | undefined
 }))
 const activeModelMock = vi.hoisted(() => ({
-  value: { id: 'provider:model-1', name: 'Model 1' } as any,
+  value: { id: 'provider::model-1', name: 'Model 1' } as any,
   isLoading: false,
   lookupId: undefined as string | null | undefined
 }))
@@ -187,7 +187,7 @@ vi.mock('@renderer/components/composer/variants/agent/AgentConversationControls'
         <button type="button" onClick={() => void props.onWorkspaceChange?.('workspace-next')}>
           change topbar workspace
         </button>
-        <button type="button" onClick={() => void props.onModelSelect?.({ id: 'provider:model-2', name: 'Model 2' })}>
+        <button type="button" onClick={() => void props.onModelSelect?.({ id: 'provider::model-2', name: 'Model 2' })}>
           change topbar model
         </button>
       </div>
@@ -330,10 +330,10 @@ describe('AgentChat settings panel', () => {
   beforeEach(() => {
     partsByMessageIdMock.value = {}
     topicStreamStatusMock.isPending = false
-    activeAgentMock.value = { id: 'agent-1', model: 'provider:model-1' }
+    activeAgentMock.value = { id: 'agent-1', model: 'provider::model-1' }
     activeAgentMock.isLoading = false
     activeAgentMock.lookupId = undefined
-    activeModelMock.value = { id: 'provider:model-1', name: 'Model 1' }
+    activeModelMock.value = { id: 'provider::model-1', name: 'Model 1' }
     activeModelMock.isLoading = false
     activeModelMock.lookupId = undefined
     modelSwitchConfirmationCacheMock.value = false
@@ -407,7 +407,7 @@ describe('AgentChat settings panel', () => {
     activeAgentMock.value = {
       id: 'agent-1',
       name: 'Blank avatar agent',
-      model: 'provider:model-1',
+      model: 'provider::model-1',
       configuration: { avatar: '   ' }
     }
 
@@ -435,7 +435,7 @@ describe('AgentChat settings panel', () => {
     expect(screen.getByTestId('agent-conversation-controls')).toHaveAttribute('data-can-change-model', 'true')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-external-context-controls', 'true')
     expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-agent-id', 'agent-1')
-    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-model-id', 'provider:model-1')
+    expect(screen.getByTestId('agent-composer')).toHaveAttribute('data-resolved-model-id', 'provider::model-1')
     expect(agentConversationControlsPropsMock.last?.workspaceId).toBe('workspace-1')
     expect(agentComposerPropsMock.last?.onWorkspaceChange).toBeUndefined()
     expect(agentComposerPropsMock.last?.onAgentChange).toBeUndefined()
@@ -565,7 +565,7 @@ describe('AgentChat settings panel', () => {
       expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
         {
           agentId: 'agent-1',
-          modelId: 'provider:model-2'
+          modelId: 'provider::model-2'
         },
         { showSuccessToast: false }
       )
@@ -600,7 +600,7 @@ describe('AgentChat settings panel', () => {
       expect(updateAgentMock.updateModel).toHaveBeenCalledWith(
         {
           agentId: 'agent-1',
-          modelId: 'provider:model-2'
+          modelId: 'provider::model-2'
         },
         { showSuccessToast: false }
       )

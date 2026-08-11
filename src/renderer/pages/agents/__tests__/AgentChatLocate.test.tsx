@@ -203,11 +203,11 @@ vi.mock('@renderer/data/hooks/usePreference', () => ({
 
 vi.mock('@renderer/hooks/agent/useAgent', () => ({
   useAgent: () => ({
-    agent: { id: 'agent-1', model: 'provider:model-1' },
+    agent: { id: 'agent-1', model: 'provider::model-1' },
     isLoading: false
   }),
   useAgents: () => ({
-    agents: [{ id: 'agent-1', model: 'provider:model-1' }],
+    agents: [{ id: 'agent-1', model: 'provider::model-1' }],
     isLoading: false
   }),
   useUpdateAgent: () => ({ updateModel: vi.fn() })
@@ -327,9 +327,9 @@ describe('AgentChat locate pending message', () => {
     sessionLoading,
     sessionSource,
     resources: {
-      agent: session?.agentId ? ({ id: session.agentId, model: 'provider:model-1' } as any) : undefined,
+      agent: session?.agentId ? ({ id: session.agentId, model: 'provider::model-1' } as any) : undefined,
       agentLoading: false,
-      model: session?.agentId ? ({ id: 'provider:model-1', name: 'Model 1' } as any) : undefined,
+      model: session?.agentId ? ({ id: 'provider::model-1', name: 'Model 1' } as any) : undefined,
       modelLoading: false
     }
   })

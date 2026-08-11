@@ -58,12 +58,12 @@ describe('useAgentSessionContextUsage', () => {
     expect(result.current.percentage).toBe(40)
   })
 
-  // Renderer fixtures and legacy rows carry ids outside the `provider::model` format; a throw here
-  // unmounts the whole right pane.
-  it('survives a model id it cannot parse', () => {
+  // An id `ModelSchema` should have rejected must neither unmount the pane nor silently disable
+  // filtering — the reading belongs to another model either way.
+  it('fails closed on a model id it cannot parse', () => {
     const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('provider:legacy', 500_000)))
 
-    expect(result.current.usage).not.toBeNull()
+    expect(result.current.usage).toBeNull()
   })
 
   it('falls back to the payload when the model declares no window', () => {

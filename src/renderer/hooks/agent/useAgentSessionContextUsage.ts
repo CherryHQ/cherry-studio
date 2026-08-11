@@ -52,8 +52,9 @@ function getContextUsageModelCandidates(model: Model | undefined): string[] | un
   try {
     parsed = parseUniqueModelId(model.id)
   } catch {
-    // An id outside the `provider::model` format cannot be matched, and must not take the pane down.
-    return model.apiModelId ? [model.apiModelId] : undefined
+    // `ModelSchema` rejects these, so this is unreachable by design — but a throw here unmounts the
+    // pane, and returning nothing would disable filtering entirely. Match on the id itself instead.
+    return [model.apiModelId ?? model.id]
   }
 
   const apiModelId = model.apiModelId ?? parsed.modelId
