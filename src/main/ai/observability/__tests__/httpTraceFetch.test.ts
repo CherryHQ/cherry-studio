@@ -2,6 +2,7 @@ import type { Span, Tracer } from '@opentelemetry/api'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { describe, expect, it, vi } from 'vitest'
 
+import { HTTP_TRACE_FINAL_BODY_SLOT, type HttpTraceFinalBodySlot } from '../../utils/customFetch'
 import { createHttpTraceFetch } from '../httpTraceFetch'
 
 /** A fake tracer that records the single span's attributes, status, and end. */
@@ -68,6 +69,33 @@ describe('createHttpTraceFetch', () => {
       messages: [{ role: 'user', content: 'hello' }]
     })
     expect(attributes.outputs).toBe('{"choices":[{"text":"hi"}]}')
+  })
+
+  it('overwrites inputs with the final body when the inner fetch rewrites it via the trace slot', async () => {
+    const { tracer, attributes, state } = fakeTracer()
+    // Simulates a provider transform wrapper (e.g. DashScope web_extractor) that
+    // rewrites the serialized body before delegating to customFetch, which records
+    // the final body into the trace slot for the span to correct itself.
+    const innerFetch = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const slot = (init as { [HTTP_TRACE_FINAL_BODY_SLOT]?: HttpTraceFinalBodySlot } | undefined)?.[
+        HTTP_TRACE_FINAL_BODY_SLOT
+      ]
+      if (slot) slot.body = JSON.stringify({ tools: [{ type: 'web_search' }, { type: 'web_extractor' }] })
+      return new Response('{"ok":true}', { status: 200 })
+    })
+
+    const f = createHttpTraceFetch(innerFetch as never, { topicId: 't1', tracer })
+    await f('https://api.example.com/v1/responses', {
+      method: 'POST',
+      body: JSON.stringify({ tools: [{ type: 'web_search' }] })
+    })
+    await vi.waitFor(() => expect(state.ended).toBe(true))
+
+    // The span's recorded request body is the post-transform body, not the
+    // pre-transform one the trace wrapper received.
+    expect(JSON.parse(attributes.inputs as string)).toEqual({
+      tools: [{ type: 'web_search' }, { type: 'web_extractor' }]
+    })
   })
 
   it('truncates a request body larger than maxBodyBytes', async () => {
