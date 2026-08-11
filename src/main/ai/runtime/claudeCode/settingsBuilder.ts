@@ -172,27 +172,17 @@ function resolveAutoCompactWindow(contextWindow: number | undefined, requestedOu
   return Math.min(Math.max(budget, MIN_AUTO_COMPACT_WINDOW), MAX_AUTO_COMPACT_WINDOW)
 }
 
-// An explicit entry reaches the CLI untouched, so budget against it rather than a value it will
-// never see. Otherwise leave MIN_AUTO_COMPACT_WINDOW of input room, so a 131K-window model
-// declaring a 131K cap cannot request 128K of output and leave 3K for history.
-function resolveRequestedOutputTokens(
-  contextWindow: number | undefined,
-  maxOutputTokens: number | undefined,
-  override: string | undefined
-): number {
+// `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is process-wide while sonnet and haiku can resolve to smaller
+// user-selected models, so this stays at the CLI's own default — raising it needs a cap derived
+// across every runtime slot. An explicit entry reaches the CLI untouched, so budget against it.
+function resolveRequestedOutputTokens(maxOutputTokens: number | undefined, override: string | undefined): number {
   const parsedOverride = Number(override)
   if (Number.isInteger(parsedOverride) && parsedOverride > 0) {
     return Math.min(parsedOverride, MAX_REQUESTED_OUTPUT_TOKENS)
   }
-  const requested =
-    typeof maxOutputTokens === 'number' && Number.isInteger(maxOutputTokens) && maxOutputTokens > 0
-      ? maxOutputTokens
-      : DEFAULT_REQUESTED_OUTPUT_TOKENS
-  const inputRoom =
-    typeof contextWindow === 'number' && Number.isInteger(contextWindow) && contextWindow >= MIN_AUTO_COMPACT_WINDOW
-      ? contextWindow - MIN_AUTO_COMPACT_WINDOW
-      : Number.POSITIVE_INFINITY
-  return Math.max(1, Math.min(requested, MAX_REQUESTED_OUTPUT_TOKENS, inputRoom))
+  return typeof maxOutputTokens === 'number' && Number.isInteger(maxOutputTokens) && maxOutputTokens > 0
+    ? Math.min(maxOutputTokens, DEFAULT_REQUESTED_OUTPUT_TOKENS)
+    : DEFAULT_REQUESTED_OUTPUT_TOKENS
 }
 const promptBuilder = new PromptBuilder()
 const ASK_USER_QUESTION_TOOL_NAME = 'AskUserQuestion'
@@ -569,7 +559,6 @@ export async function buildClaudeCodeSessionSettings(
   // 10. Build settings
   const declaredContextWindow = options?.contextWindow
   const requestedOutputTokens = resolveRequestedOutputTokens(
-    declaredContextWindow,
     options?.maxOutputTokens,
     env.CLAUDE_CODE_MAX_OUTPUT_TOKENS
   )

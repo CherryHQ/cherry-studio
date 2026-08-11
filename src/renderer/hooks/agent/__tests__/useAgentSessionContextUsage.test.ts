@@ -66,6 +66,25 @@ describe('useAgentSessionContextUsage', () => {
     expect(result.current.usage).toBeNull()
   })
 
+  // Both claude-code rows for Sonnet 4.6 resolve to the same 1M catalog entry, so a plain 200K
+  // session would otherwise read 5x low. Claude Code applies its own window, and reports it.
+  it('defers to the runtime window for a model Claude Code sizes itself', () => {
+    cacheService.setShared(KEY, {
+      categories: [],
+      totalTokens: 100_000,
+      maxTokens: 200_000,
+      percentage: 50,
+      model: 'claude-sonnet-4-6'
+    } as unknown as AgentSessionContextUsage)
+
+    const { result } = renderHook(() =>
+      useAgentSessionContextUsage(SESSION_ID, model('claude-code::claude-sonnet-4-6', 1_000_000))
+    )
+
+    expect(result.current.maxTokens).toBe(200_000)
+    expect(result.current.percentage).toBe(50)
+  })
+
   it('falls back to the payload when the model declares no window', () => {
     const { result } = renderHook(() => useAgentSessionContextUsage(SESSION_ID, model('openai::small-model', 0)))
 

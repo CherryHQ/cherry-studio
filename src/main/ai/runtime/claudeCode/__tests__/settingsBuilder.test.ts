@@ -534,12 +534,12 @@ describe('buildClaudeCodeSessionSettings', () => {
       { contextWindow: 128_000, maxOutputTokens: 64_000 }
     )
 
-    // The declared 64,000 would leave only 64,000 of input room, so the request is held to 28,000
-    // and the budget still floors rather than being omitted.
+    // (128000 - 32000) * 0.98 = 94080, below the floor — clamped rather than omitted, because
+    // omitting it hands the SDK its own Claude-shaped default instead.
     expect(settings.settings).toMatchObject({ autoCompactEnabled: true, autoCompactWindow: 100_000 })
     expect(settings.env).toMatchObject({
       CLAUDE_CODE_MAX_CONTEXT_TOKENS: '128000',
-      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '28000'
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000'
     })
   })
 
@@ -595,7 +595,44 @@ describe('buildClaudeCodeSessionSettings', () => {
     const budget = (settings.settings as { autoCompactWindow?: number }).autoCompactWindow
     expect(budget).toBeGreaterThanOrEqual(100_000)
     expect(budget).toBeLessThanOrEqual(1_000_000)
-    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(contextWindow) })
+    // At the inclusive floor the window leaves no room above the budget; the request must stay
+    // usable rather than collapse to a token.
+    expect(settings.env).toMatchObject({
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: String(contextWindow),
+      CLAUDE_CODE_MAX_OUTPUT_TOKENS: '32000'
+    })
+  })
+
+  // The variable is process-wide, but sonnet and haiku can resolve to smaller user-selected models,
+  // so a large primary cap must not reach a background turn on a smaller one.
+  it('never pins a request above the CLI default from primary model metadata', async () => {
+    for (const maxOutputTokens of [393_216, 1_048_600, 65_536]) {
+      const settings = await buildClaudeCodeSessionSettings(
+        {
+          id: 'session-1',
+          agentId: 'agent-1',
+          workspace: { type: 'user', path: '/workspace/project' }
+        } as never,
+        {} as never,
+        { contextWindow: 1_048_576, maxOutputTokens }
+      )
+
+      expect(Number(settings.env?.CLAUDE_CODE_MAX_OUTPUT_TOKENS)).toBeLessThanOrEqual(32_000)
+    }
+  })
+
+  it('pins a smaller declared cap rather than inflating it to the default', async () => {
+    const settings = await buildClaudeCodeSessionSettings(
+      {
+        id: 'session-1',
+        agentId: 'agent-1',
+        workspace: { type: 'user', path: '/workspace/project' }
+      } as never,
+      {} as never,
+      { contextWindow: 1_048_576, maxOutputTokens: 8_192 }
+    )
+
+    expect(settings.env).toMatchObject({ CLAUDE_CODE_MAX_OUTPUT_TOKENS: '8192' })
   })
 
   it('preserves an explicit maximum context window environment override', async () => {
