@@ -27,6 +27,7 @@ const {
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
   knowledgeBaseListAllIdsMock,
+  knowledgeBaseListForDiscoveryMock,
   knowledgeBaseListMock,
   knowledgeBaseUpdateMock,
   knowledgeItemCreateActiveMock,
@@ -68,6 +69,7 @@ const {
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeBaseListAllIdsMock: vi.fn(),
+  knowledgeBaseListForDiscoveryMock: vi.fn(),
   knowledgeBaseListMock: vi.fn(),
   knowledgeBaseUpdateMock: vi.fn(),
   knowledgeItemCreateActiveMock: vi.fn(),
@@ -161,6 +163,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
     delete: knowledgeBaseDeleteMock,
     getById: knowledgeBaseGetByIdMock,
     listAllIds: knowledgeBaseListAllIdsMock,
+    listForDiscovery: knowledgeBaseListForDiscoveryMock,
     list: knowledgeBaseListMock,
     update: knowledgeBaseUpdateMock
   }
@@ -327,6 +330,7 @@ describe('KnowledgeService', () => {
     knowledgeBaseDeleteMock.mockReturnValue(undefined)
     knowledgeBaseGetByIdMock.mockReturnValue(createBase())
     knowledgeBaseListAllIdsMock.mockReturnValue(new Set())
+    knowledgeBaseListForDiscoveryMock.mockReturnValue({ items: [], total: 0 })
     knowledgeBaseUpdateMock.mockImplementation((_id: string, patch: Partial<KnowledgeBase>) => createBase(patch))
     fsStatMock.mockResolvedValue({
       isFile: () => true,
@@ -1222,22 +1226,23 @@ describe('KnowledgeService', () => {
     const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockReturnValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemCreateActiveMock
-      .mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/brief.pdf', 'processing'))
-      .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.docx', 'processing'))
+      .mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/brief.md', 'processing'))
+      .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.pdf', 'processing'))
     knowledgeItemGetByIdMock
-      .mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/brief.pdf', 'processing'))
-      .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.docx', 'processing'))
+      .mockReturnValueOnce(createFileItem('file-1', 'kb-1', '/Users/me/a/brief.md', 'processing'))
+      .mockReturnValueOnce(createFileItem('file-2', 'kb-1', '/Users/me/b/brief.pdf', 'processing'))
 
     await service.addItems('kb-1', [
-      { type: 'file', data: { source: '/Users/me/a/brief.pdf', path: '/Users/me/a/brief.pdf' as AbsoluteFilePath } },
-      { type: 'file', data: { source: '/Users/me/b/brief.docx', path: '/Users/me/b/brief.docx' as AbsoluteFilePath } }
+      { type: 'file', data: { source: '/Users/me/a/brief.md', path: '/Users/me/a/brief.md' as AbsoluteFilePath } },
+      { type: 'file', data: { source: '/Users/me/b/brief.pdf', path: '/Users/me/b/brief.pdf' as AbsoluteFilePath } }
     ])
 
-    // brief.pdf reserves brief.pdf + its brief.md output; brief.docx would also emit
-    // brief.md, so it is bumped to brief_1.docx (whose brief_1.md sibling is free).
+    // brief.md occupies the name brief.pdf's processed artifact would take, so the pdf is
+    // bumped to brief_1.pdf (whose brief_1.md sibling is free) even though brief.pdf itself
+    // was never taken.
     expect(knowledgeItemCreateActiveMock).toHaveBeenCalledTimes(2)
-    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(1, 'kb-1', '/Users/me/a/brief.pdf', 'brief.pdf')
-    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(2, 'kb-1', '/Users/me/b/brief.docx', 'brief_1.docx')
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(1, 'kb-1', '/Users/me/a/brief.md', 'brief.md')
+    expect(copyFileIntoKnowledgeBaseAtMock).toHaveBeenNthCalledWith(2, 'kb-1', '/Users/me/b/brief.pdf', 'brief_1.pdf')
   })
 
   it('auto-renames a restored url snapshot whose name collides with an existing url snapshot', async () => {
@@ -2078,6 +2083,43 @@ describe('KnowledgeService', () => {
 
       // Cheap existence check: asks for a single row, never the full list.
       expect(knowledgeBaseListMock).toHaveBeenLastCalledWith({ page: 1, limit: 1 })
+    })
+  })
+
+  describe('listBasesForDiscovery', () => {
+    it('returns one restricted cursor page', () => {
+      const firstBase = createBase({ id: 'kb-1', name: 'First' })
+      const page = { items: [firstBase], total: 21, nextCursor: 'cursor-2' }
+      knowledgeBaseListForDiscoveryMock.mockReturnValue(page)
+
+      const service = new KnowledgeService()
+
+      expect(
+        service.listBasesForDiscovery({
+          limit: 20,
+          cursor: 'cursor-1',
+          query: 'notes',
+          groupId: 'group-1',
+          scope: { kind: 'restricted', baseIds: ['kb-1', 'kb-2'] }
+        })
+      ).toEqual(page)
+      expect(knowledgeBaseListForDiscoveryMock).toHaveBeenCalledWith({
+        limit: 20,
+        cursor: 'cursor-1',
+        query: 'notes',
+        groupId: 'group-1',
+        restrictedIds: ['kb-1', 'kb-2']
+      })
+    })
+
+    it('passes unrestricted discovery without an id filter', () => {
+      const page = { items: [createBase()], total: 1 }
+      knowledgeBaseListForDiscoveryMock.mockReturnValue(page)
+
+      const service = new KnowledgeService()
+
+      expect(service.listBasesForDiscovery({ limit: 20, scope: { kind: 'unrestricted' } })).toEqual(page)
+      expect(knowledgeBaseListForDiscoveryMock).toHaveBeenCalledWith({ limit: 20 })
     })
   })
 

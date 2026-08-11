@@ -4,7 +4,6 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KeyedMutex } from '@main/core/concurrency/KeyedMutex'
 import { DataApiErrorFactory } from '@shared/data/api/errors'
-import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
   type KnowledgeAddItemInput,
@@ -23,7 +22,7 @@ import { inspectOrphanBaseArtifacts, type OrphanBaseArtifactsInspection } from '
 
 const logger = loggerService.withContext('Knowledge:BaseAdmin')
 
-/** Knowledge base lifecycle: create (with rollback), delete, restore, and list — everything about the base row + its on-disk artifacts, not about items. */
+/** Knowledge base lifecycle: create (with rollback), delete, and restore — everything about the base row + its on-disk artifacts, not about items. */
 export class KnowledgeBaseAdminService {
   constructor(
     private readonly knowledgeLockManager: KeyedMutex,
@@ -185,11 +184,6 @@ export class KnowledgeBaseAdminService {
     }
 
     return { base: restoredBase, skippedMissingSourceCount }
-  }
-
-  listBases(): KnowledgeBase[] {
-    const { items } = knowledgeBaseService.list({ page: 1, limit: KNOWLEDGE_BASES_MAX_LIMIT })
-    return items
   }
 
   /** Whether the user has any knowledge base at all — a cheap count (not a full list) for tool-availability gating. */
