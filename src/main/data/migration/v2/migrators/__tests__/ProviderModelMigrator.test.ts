@@ -245,6 +245,30 @@ describe('ProviderModelMigrator', () => {
       expect(models.filter((model) => model.providerId !== CHERRYAI_PROVIDER_ID)).toHaveLength(1)
     })
 
+    it('skips route-unsafe model ids without blocking the remaining provider migration', async () => {
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            makeProvider('openai', [
+              { id: 'gpt-4o' },
+              { id: 'jackrong-qwopus3.5-27b-v3@?' },
+              { id: 'legacy-model#fragment' }
+            ])
+          ]
+        }
+      })
+
+      const prepareResult = await migrator.prepare(migrationContext)
+      const executeResult = await migrator.execute(migrationContext)
+
+      expect(prepareResult.success).toBe(true)
+      expect(prepareResult.warnings).toContain('Skipped 2 model(s) with invalid id')
+      expect(executeResult.success).toBe(true)
+
+      const models = await dbh.db.select().from(userModelTable)
+      expect(models.filter((model) => model.providerId === 'openai').map((model) => model.modelId)).toEqual(['gpt-4o'])
+    })
+
     it('migrates pinned models from Dexie settings into pin rows in legacy order', async () => {
       const migrationContext = createContext(
         dbh.db,
