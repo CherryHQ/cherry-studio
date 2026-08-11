@@ -1,9 +1,20 @@
+import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
+
+import type { ToolResponseLike } from '../toolResponse'
+
 export interface SessionCreateResult {
   ok: true
   sessionId: string
   delivery?: {
     status?: string
   }
+}
+
+export interface SessionToolTarget {
+  agentName?: string
+  kind: 'create' | 'send'
+  sessionId: string
+  sessionName: string
 }
 
 export interface SessionSendResult {
@@ -77,5 +88,33 @@ export function parseSessionSendResult(value: unknown): SessionSendResult | unde
             : undefined
         }
       : undefined
+  }
+}
+
+export function getSessionToolTarget(toolResponse: ToolResponseLike): SessionToolTarget | undefined {
+  const toolName = toolResponse.tool.name
+  const args = toolResponse.arguments
+  const input = isRecord(args) ? args : undefined
+
+  if (toolName === SESSION_CREATE_TOOL_NAME || toolName.endsWith(`__${SESSION_CREATE_TOOL_NAME}`)) {
+    const result = parseSessionCreateResult(toolResponse.response)
+    if (!result) return undefined
+    const title = typeof input?.title === 'string' ? input.title.trim() : ''
+    return {
+      kind: 'create',
+      sessionId: result.sessionId,
+      sessionName: title || result.sessionId
+    }
+  }
+
+  if (toolName !== SESSION_SEND_TOOL_NAME && !toolName.endsWith(`__${SESSION_SEND_TOOL_NAME}`)) return undefined
+  const result = parseSessionSendResult(toolResponse.response)
+  const sessionId = result?.delivery?.receiver?.sessionId
+  if (!sessionId) return undefined
+  return {
+    agentName: result.delivery?.receiverSnapshot?.agentName?.trim() || undefined,
+    kind: 'send',
+    sessionId,
+    sessionName: result.delivery?.receiverSnapshot?.sessionName?.trim() || sessionId
   }
 }

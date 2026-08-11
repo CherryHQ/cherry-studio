@@ -1,7 +1,7 @@
 import { Badge, Button, Tooltip } from '@cherrystudio/ui'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { SESSION_CREATE_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
-import { ArrowUpRight, Check, Copy, GitBranchPlus, MessageSquareText } from 'lucide-react'
+import { Check, Copy, GitBranchPlus, MessageSquareText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { useOptionalMessageListActions } from '../../MessageListProvider'
@@ -55,11 +55,6 @@ export function SessionCreateTool({
     Promise.resolve(actions.copyText(result.sessionId, { successMessage: t('common.copied') }))
       .then(() => setCopied(true))
       .catch(() => actions.notifyError?.(t('message.copy.failed')))
-  }
-
-  const openSession = () => {
-    if (!result?.sessionId || !actions?.navigateToRoute) return
-    void actions.navigateToRoute({ path: '/app/agents', query: { sessionId: result.sessionId } })
   }
 
   return {
@@ -152,12 +147,6 @@ export function SessionCreateTool({
                   )}
                 </Button>
               </Tooltip>
-            ) : null}
-            {actions?.navigateToRoute ? (
-              <Button type="button" variant="outline" size="sm" onClick={openSession}>
-                {t('message.tools.sessionCreate.open')}
-                <ArrowUpRight aria-hidden="true" size={13} />
-              </Button>
             ) : null}
           </div>
         ) : null}

@@ -1,15 +1,11 @@
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger, Button, Tooltip } from '@cherrystudio/ui'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@cherrystudio/ui'
 import type { ToolRenderItem } from '@renderer/components/chat/messages/tools/toolResponse'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
-import { SESSION_CREATE_TOOL_NAME, SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
 import type { MessageRuntimeTiming } from '@shared/data/types/message'
-import { ArrowUpRight } from 'lucide-react'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useMessageDisclosureState } from '../hooks/useMessageDisclosureState'
-import { useOptionalMessageListActions } from '../MessageListProvider'
-import { parseSessionCreateResult, parseSessionSendResult } from '../tools/agent'
 import { formatPlaceholderElapsed, usePlaceholderElapsedMs } from './PlaceholderBlock'
 import { ToolBlockGroupHeaderContent } from './ToolBlockGroup'
 import { useScrollAnchor } from './useScrollAnchor'
@@ -62,60 +58,6 @@ function getApprovalWaitDurationMs(runtimeTiming: MessageRuntimeTiming): number 
   if (mergedStart !== undefined && mergedEnd !== undefined) durationMs += mergedEnd - mergedStart
   return durationMs
 }
-
-function isSessionTransferTool(item: ToolRenderItem): boolean {
-  const toolName = item.toolResponse.tool.name
-  return (
-    toolName === SESSION_CREATE_TOOL_NAME ||
-    toolName === SESSION_SEND_TOOL_NAME ||
-    toolName.endsWith(`__${SESSION_CREATE_TOOL_NAME}`) ||
-    toolName.endsWith(`__${SESSION_SEND_TOOL_NAME}`)
-  )
-}
-
-function getSessionNavigationTarget(item: ToolRenderItem): { id: string; name: string } | undefined {
-  const toolName = item.toolResponse.tool.name
-  const args = item.toolResponse.arguments
-  const title =
-    typeof args === 'object' && args !== null && !Array.isArray(args) && typeof args.title === 'string'
-      ? args.title.trim()
-      : ''
-
-  if (toolName === SESSION_CREATE_TOOL_NAME || toolName.endsWith(`__${SESSION_CREATE_TOOL_NAME}`)) {
-    const result = parseSessionCreateResult(item.toolResponse.response)
-    return result ? { id: result.sessionId, name: title || result.sessionId } : undefined
-  }
-
-  const result = parseSessionSendResult(item.toolResponse.response)
-  const sessionId = result?.delivery?.receiver?.sessionId
-  if (!sessionId) return undefined
-  return {
-    id: sessionId,
-    name: result.delivery?.receiverSnapshot?.sessionName?.trim() || sessionId
-  }
-}
-
-const SessionOpenButton = React.memo(function SessionOpenButton({ target }: { target: { id: string; name: string } }) {
-  const { t } = useTranslation()
-  const actions = useOptionalMessageListActions()
-  if (!actions?.navigateToRoute) return null
-
-  const openLabel = t('message.tools.sessionCreate.open')
-  return (
-    <Tooltip content={target.name}>
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="h-7 shrink-0 px-2 text-link text-xs hover:text-link"
-        aria-label={`${openLabel}: ${target.name}`}
-        onClick={() => void actions.navigateToRoute?.({ path: '/app/agents', query: { sessionId: target.id } })}>
-        {openLabel}
-        <ArrowUpRight aria-hidden="true" size={13} />
-      </Button>
-    </Tooltip>
-  )
-})
 
 const LazyCompletedProcessContent = React.memo(function LazyCompletedProcessContent({
   render
@@ -181,18 +123,8 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
 
   const elapsedText = completedElapsedMs === undefined ? undefined : formatPlaceholderElapsed(completedElapsedMs, t)
   const summary = props.outcome === 'error' ? t('message.tools.error') : t('message.tools.processed')
-  const sessionTransferItem = toolItems.findLast(isSessionTransferTool)
-  const sessionTarget = sessionTransferItem ? getSessionNavigationTarget(sessionTransferItem) : undefined
   const header = (
-    <ToolBlockGroupHeaderContent
-      items={sessionTransferItem ? [sessionTransferItem] : toolItems}
-      elapsedText={elapsedText}
-      summary={summary}
-      preferSummary={!sessionTransferItem}
-      semanticToolTitle={!!sessionTransferItem}
-      showContentIcon={!!sessionTransferItem}
-      showLatestWhenComplete={!!sessionTransferItem}
-    />
+    <ToolBlockGroupHeaderContent items={toolItems} elapsedText={elapsedText} summary={summary} preferSummary />
   )
 
   return (
@@ -208,14 +140,11 @@ const MessageProcessGroup = React.memo(function MessageProcessGroup(props: Props
           })
         }>
         <AccordionItem value="history" className="border-0 first:border-t-0">
-          <div className="flex w-fit max-w-full items-center gap-1">
-            <AccordionTrigger
-              data-testid="completed-process-trigger"
-              className="group/tool-group-trigger [&>svg]:-rotate-90 h-auto min-h-7 min-w-0 max-w-full flex-[0_1_auto] select-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:shrink-0 [&>svg]:opacity-60 [&>svg]:transition-transform [&[data-state=open]>svg]:rotate-0">
-              <div className="min-w-0 overflow-hidden">{header}</div>
-            </AccordionTrigger>
-            {sessionTarget ? <SessionOpenButton target={sessionTarget} /> : null}
-          </div>
+          <AccordionTrigger
+            data-testid="completed-process-trigger"
+            className="group/tool-group-trigger [&>svg]:-rotate-90 h-auto min-h-7 w-fit max-w-full flex-none select-none justify-start gap-1.5 rounded bg-transparent px-0 py-0.5 text-left font-normal shadow-none hover:no-underline focus-visible:bg-accent/50 focus-visible:outline-none [&>svg]:size-3.5 [&>svg]:opacity-60 [&>svg]:transition-transform [&[data-state=open]>svg]:rotate-0">
+            <div className="min-w-0 overflow-hidden">{header}</div>
+          </AccordionTrigger>
           <AccordionContent
             data-testid="tool-history-content"
             className={`${PROCESS_CONTENT_CLASS_NAME} px-0 pt-2 pb-0 text-inherit`}

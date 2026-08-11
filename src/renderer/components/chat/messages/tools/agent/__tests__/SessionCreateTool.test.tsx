@@ -4,7 +4,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   copyText: vi.fn().mockResolvedValue(undefined),
-  navigateToRoute: vi.fn(),
   setCopied: vi.fn()
 }))
 
@@ -26,7 +25,6 @@ vi.mock('react-i18next', () => ({
 vi.mock('../../../MessageListProvider', () => ({
   useOptionalMessageListActions: () => ({
     copyText: mocks.copyText,
-    navigateToRoute: mocks.navigateToRoute,
     notifyError: vi.fn()
   })
 }))
@@ -104,31 +102,5 @@ describe('SessionCreateTool', () => {
 
     expect(mocks.copyText).toHaveBeenCalledWith('session-copy', { successMessage: 'Copied' })
     expect(mocks.setCopied).toHaveBeenCalledWith(true)
-  })
-
-  it('opens the created session from the result card', async () => {
-    const user = userEvent.setup()
-    render(
-      <Harness
-        input={{ title: 'Research pricing', message: 'Do the work.' }}
-        output={
-          {
-            content: [
-              {
-                type: 'text',
-                text: JSON.stringify({ ok: true, sessionId: 'session-open', delivery: { status: 'queued' } })
-              }
-            ]
-          } as never
-        }
-      />
-    )
-
-    await user.click(screen.getByRole('button', { name: 'Open session' }))
-
-    expect(mocks.navigateToRoute).toHaveBeenCalledWith({
-      path: '/app/agents',
-      query: { sessionId: 'session-open' }
-    })
   })
 })

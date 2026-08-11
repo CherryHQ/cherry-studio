@@ -1,4 +1,4 @@
-import { Badge, Checkbox, Tooltip } from '@cherrystudio/ui'
+import { Checkbox, Tooltip } from '@cherrystudio/ui'
 import { useIcon } from '@cherrystudio/ui/icons'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/hooks/useTheme'
@@ -6,7 +6,7 @@ import type { Model } from '@renderer/types/model'
 import { getModelLogoRef } from '@renderer/utils/model'
 import { firstLetter, removeLeadingEmoji } from '@renderer/utils/naming'
 import dayjs from 'dayjs'
-import { ArrowUpRight, Sparkle } from 'lucide-react'
+import { ArrowUpRight, MessagesSquare, Sparkle } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -46,8 +46,9 @@ export const AgentSessionDeliveryBadge: FC<{
   })
   const content = (
     <>
+      <MessagesSquare aria-hidden="true" className="size-3.5 shrink-0" />
       <span className="min-w-0 truncate">{senderLabel}</span>
-      <ArrowUpRight aria-hidden="true" className="shrink-0" />
+      {actions?.navigateToRoute ? <ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" /> : null}
     </>
   )
 
@@ -59,20 +60,17 @@ export const AgentSessionDeliveryBadge: FC<{
   return (
     <Tooltip content={senderLabel}>
       {actions?.navigateToRoute ? (
-        <Badge
-          asChild
-          variant="outline"
-          className="h-5 max-w-[min(18rem,45vw)] cursor-pointer gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs hover:bg-accent hover:text-accent-foreground">
-          <button type="button" aria-label={senderLabel} onClick={openSenderSession}>
-            {content}
-          </button>
-        </Badge>
-      ) : (
-        <Badge
-          variant="outline"
-          className="h-5 max-w-[min(18rem,45vw)] gap-1 border-info-border bg-info-subtle px-1.5 py-0 font-normal text-info-subtle-foreground text-xs">
+        <button
+          type="button"
+          aria-label={senderLabel}
+          className="flex h-5 max-w-[min(18rem,45vw)] cursor-pointer items-center gap-1 text-foreground-tertiary text-xs hover:text-link hover:underline focus-visible:text-link focus-visible:underline focus-visible:outline-none"
+          onClick={openSenderSession}>
           {content}
-        </Badge>
+        </button>
+      ) : (
+        <span className="flex h-5 max-w-[min(18rem,45vw)] items-center gap-1 text-foreground-tertiary text-xs">
+          {content}
+        </span>
       )}
     </Tooltip>
   )

@@ -1,9 +1,8 @@
-import { Badge, Button } from '@cherrystudio/ui'
+import { Badge } from '@cherrystudio/ui'
 import { SESSION_SEND_TOOL_NAME } from '@shared/ai/agentSessionDelivery'
-import { ArrowUpRight, Send } from 'lucide-react'
+import { Send } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { useOptionalMessageListActions } from '../../MessageListProvider'
 import type { ToolInput, ToolOutput } from '../shared/agentToolTypes'
 import { useIsStreaming } from '../shared/GenericTools'
 import type { ToolDisclosureItem } from '../shared/ToolDisclosure'
@@ -39,7 +38,6 @@ export function SessionSendTool({
   hasError?: boolean
 }): ToolDisclosureItem {
   const { t } = useTranslation()
-  const actions = useOptionalMessageListActions()
   const isStreaming = useIsStreaming()
   const sessionInput = getInput(input)
   const result = parseSessionSendResult(output)
@@ -50,11 +48,6 @@ export function SessionSendTool({
   const message = sessionInput.message?.trim()
   const errorText = hasError ? extractToolErrorText(output) : undefined
   const deliveryStatus = result?.status ? getSessionDeliveryStatus(result.status, t) : undefined
-
-  const openTargetSession = () => {
-    if (!targetSessionId || !result || !actions?.navigateToRoute) return
-    void actions.navigateToRoute({ path: '/app/agents', query: { sessionId: targetSessionId } })
-  }
 
   return {
     key: SESSION_SEND_TOOL_NAME,
@@ -102,15 +95,6 @@ export function SessionSendTool({
         {errorText ? (
           <div className="mt-3 rounded-md border border-error-border bg-error-subtle px-2.5 py-2 text-error-subtle-foreground text-xs">
             {errorText}
-          </div>
-        ) : null}
-
-        {targetSessionId && result && actions?.navigateToRoute ? (
-          <div className="mt-3 flex justify-end border-border-subtle border-t pt-2.5">
-            <Button type="button" variant="outline" size="sm" onClick={openTargetSession}>
-              {t('message.tools.sessionSend.open')}
-              <ArrowUpRight aria-hidden="true" size={13} />
-            </Button>
           </div>
         ) : null}
       </div>

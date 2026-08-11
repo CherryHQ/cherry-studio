@@ -1,10 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const mocks = vi.hoisted(() => ({
-  navigateToRoute: vi.fn()
-}))
+import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -16,9 +11,6 @@ vi.mock('react-i18next', () => ({
         'message.tools.sessionSend.to': 'To'
       })[key] ?? key
   })
-}))
-vi.mock('../../../MessageListProvider', () => ({
-  useOptionalMessageListActions: () => ({ navigateToRoute: mocks.navigateToRoute })
 }))
 vi.mock('../../shared/GenericTools', () => ({
   useIsStreaming: () => false
@@ -37,12 +29,7 @@ function Harness(props: Parameters<typeof SessionSendTool>[0]) {
 }
 
 describe('SessionSendTool', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
-
-  it('identifies and opens the target session', async () => {
-    const user = userEvent.setup()
+  it('identifies the target session', () => {
     render(
       <Harness
         input={{ target_session_id: 'session-build', message: 'Implement the reviewed plan.' }}
@@ -69,12 +56,5 @@ describe('SessionSendTool', () => {
     expect(screen.getAllByText('Builder / Build session')).toHaveLength(2)
     expect(screen.getByText('Implement the reviewed plan.')).toBeInTheDocument()
     expect(screen.getByText('Queued')).toBeInTheDocument()
-
-    await user.click(screen.getByRole('button', { name: 'Open session' }))
-
-    expect(mocks.navigateToRoute).toHaveBeenCalledWith({
-      path: '/app/agents',
-      query: { sessionId: 'session-build' }
-    })
   })
 })
