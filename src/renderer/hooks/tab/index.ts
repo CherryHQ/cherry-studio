@@ -9,5 +9,5 @@ export {
   useOptionalTabsContext,
   useTabsContext
 } from './useTabsContext'
-export { type TabSelfMetadata, useTabSelfMetadata } from './useTabSelfMetadata'
+export { type TabSelfVisuals, useTabSelfVisuals } from './useTabSelfVisuals'
 export type { Tab, TabsState, TabType } from '@shared/data/cache/cacheValueTypes'

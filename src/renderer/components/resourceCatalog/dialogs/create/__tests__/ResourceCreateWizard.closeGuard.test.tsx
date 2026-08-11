@@ -33,6 +33,9 @@ vi.mock('@renderer/ipc', () => ({
 }))
 
 vi.mock('@renderer/components/resourceCatalog/dialogs/components/EditDialogShared', () => ({
+  resourceDialogCloseButtonClassName: '',
+  resourceDialogHeaderClassName: '',
+  resourceDialogTitleClassName: '',
   KnowledgeBaseField: ({ disabled, onOpenKnowledgePage }: { disabled?: boolean; onOpenKnowledgePage?: () => void }) => (
     <button type="button" disabled={disabled} onClick={onOpenKnowledgePage}>
       open knowledge
@@ -64,10 +67,10 @@ vi.mock('../steps/BasicInfoStep', () => ({
     </>
   )
 }))
-vi.mock('../steps/PersonaStep', () => ({
-  PersonaStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
+vi.mock('../steps/SystemPromptStep', () => ({
+  SystemPromptStep: ({ form }: { form: { setValue: (name: string, value: unknown) => void } }) => (
     <button type="button" onClick={() => form.setValue('prompt', 'be helpful')}>
-      fill persona
+      fill system prompt
     </button>
   )
 }))
@@ -300,7 +303,7 @@ describe('ResourceCreateWizard close protection', () => {
     await user.click(screen.getByRole('button', { name: NEXT }))
     const renderCountAfterNavigation = dialog.renderCount
 
-    await user.click(screen.getByRole('button', { name: 'fill persona' }))
+    await user.click(screen.getByRole('button', { name: 'fill system prompt' }))
 
     expect(dialog.renderCount).toBe(renderCountAfterNavigation)
   })

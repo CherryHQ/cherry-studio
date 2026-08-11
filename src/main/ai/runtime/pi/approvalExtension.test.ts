@@ -75,7 +75,7 @@ describe('createPiApprovalExtension — policy + approval gate', () => {
     expect(emitted[0].toolCallId).toBe('tc-bash')
     expect(emitted[0].providerMetadata.cherry.transport).toBe('pi-agent')
 
-    expect(toolApprovalRegistry.dispatch(emitted[0].approvalId, { approved: true })).toBe(true)
+    expect(toolApprovalRegistry.dispatch(emitted[0].approvalId, { approved: true })).toMatchObject({ sessionId: 's1' })
     await expect(pending).resolves.toBeUndefined()
   })
 

@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url'
 
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessionMessages'
 
 /**
  * Build the user-turn content sent to an agent runtime. Agent runtimes are

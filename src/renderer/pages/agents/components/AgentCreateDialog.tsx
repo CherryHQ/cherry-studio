@@ -3,8 +3,8 @@ import {
   ResourceCreateWizard,
   type ResourceCreateWizardValues
 } from '@renderer/components/resourceCatalog/dialogs/create'
-import { useMutation } from '@renderer/data/hooks/useDataApi'
-import { buildCreateAgentDto } from '@renderer/utils/resourceCatalog'
+import { useAgentMutations } from '@renderer/hooks/resourceCatalog'
+import { buildCreateAgentCommand } from '@renderer/utils/resourceCatalog'
 import { useCallback } from 'react'
 
 const logger = loggerService.withContext('AgentCreateDialog')
@@ -16,14 +16,12 @@ type AgentCreateDialogProps = {
 }
 
 export function AgentCreateDialog({ open, onOpenChange, onCreated }: AgentCreateDialogProps) {
-  const { trigger: createAgent, isLoading: isCreatingAgent } = useMutation('POST', '/agents', {
-    refresh: ['/agents']
-  })
+  const { createAgent, isCreatingAgent } = useAgentMutations()
 
   const handleSubmitCreate = useCallback(
     async (values: ResourceCreateWizardValues) => {
       try {
-        const created = await createAgent({ body: buildCreateAgentDto(values, values.agentType) })
+        const created = await createAgent(buildCreateAgentCommand(values))
         onOpenChange(false)
         await onCreated(created.id)
       } catch (error) {

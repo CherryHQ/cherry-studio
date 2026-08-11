@@ -2,7 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils/style'
 import React, { memo } from 'react'
 
-interface ActionIconButtonProps extends Omit<React.ComponentProps<'button'>, 'ref'> {
+interface ActionIconButtonProps extends Omit<React.ComponentProps<typeof Button>, 'ref' | 'size' | 'variant'> {
   icon: React.ReactNode
   active?: boolean
   loading?: boolean
@@ -17,7 +17,7 @@ const ActionIconButton: React.FC<ActionIconButtonProps> = ({ icon, active = fals
       size="icon-sm"
       variant="ghost"
       className={cn(
-        'flex cursor-pointer flex-row items-center justify-center rounded-full border-none p-0 text-base transition-all duration-300 ease-in-out [&_.icon-a-addchat]:mb-[-2px] [&_.icon-a-addchat]:text-lg [&_.icon]:text-icon [&_.iconfont]:text-icon [&_.lucide]:text-icon',
+        'flex cursor-pointer flex-row items-center justify-center rounded-full border-none p-0 text-base transition-all duration-300 ease-in-out [&_.icon-a-addchat]:mb-[-2px] [&_.icon-a-addchat]:text-lg [&_.icon]:text-muted-foreground [&_.iconfont]:text-muted-foreground [&_.lucide]:text-muted-foreground',
         active && '[&_.icon]:text-primary! [&_.iconfont]:text-primary! [&_.lucide]:text-primary!',
         className
       )}

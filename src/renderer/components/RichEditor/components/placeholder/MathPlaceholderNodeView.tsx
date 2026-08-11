@@ -63,7 +63,7 @@ const MathPlaceholderNodeView: React.FC<NodeViewProps> = ({ node, deleteNode, ed
   return (
     <NodeViewWrapper className="math-placeholder-wrapper" ref={wrapperRef}>
       <PlaceholderBlock
-        icon={<Calculator size={20} style={{ color: '#656d76' }} />}
+        icon={<Calculator size={20} className="lucide-custom" />}
         message={t('richEditor.math.placeholder')}
         onClick={handleClick}
       />

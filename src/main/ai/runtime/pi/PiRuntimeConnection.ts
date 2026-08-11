@@ -7,6 +7,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import type { AgentSession, AgentSessionEvent, CompactionResult, ContextUsage } from '@earendil-works/pi-coding-agent'
 import { loggerService } from '@logger'
+import { ensureAgentDataDirectory } from '@main/ai/agents/agentDataDirectory'
 import { PromptBuilder } from '@main/ai/agents/prompt'
 import type { MemoryToolContext } from '@main/ai/agents/tools/memoryTools'
 import { buildAgentUserContent } from '@main/ai/runtime/agentUserContent'
@@ -137,8 +138,14 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
     // via `additionalSkillPaths` below; disk auto-discovery stays off (see comment).
     const additionalSkillPaths = await resolveEnabledSkillPaths(session.agentId)
 
+    const agentDataPath = await ensureAgentDataDirectory(application.getPath('feature.agents.data'), agent.id)
     const instructions = agent.instructions?.trim()
-    const systemPromptOverride = await buildAgentSystemPrompt(workspacePath, agent.configuration, instructions)
+    const promptOverrides = await buildAgentPromptOverrides(
+      workspacePath,
+      agentDataPath,
+      agent.configuration,
+      instructions
+    )
     const resourceLoader = new pi.DefaultResourceLoader({
       cwd: workspacePath,
       agentDir,
@@ -173,9 +180,8 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       ],
       // Suppress pi's disk-discovered SYSTEM.md / APPEND_SYSTEM.md before the
       // override runs; Cherry owns the agent persona.
-      systemPrompt: '',
-      appendSystemPrompt: [],
-      ...(systemPromptOverride ? { systemPromptOverride: () => systemPromptOverride } : {})
+      systemPromptOverride: () => promptOverrides.systemPrompt,
+      appendSystemPromptOverride: () => (promptOverrides.appendSystemPrompt ? [promptOverrides.appendSystemPrompt] : [])
     })
     await resourceLoader.reload()
 
@@ -183,7 +189,7 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
 
     // Cherry-owned autonomy tools are auto-approved for headless turns; third-party MCP tools
     // remain approval-gated even though both are presented to pi as custom tools.
-    const autonomyTools = buildAutonomyToolDefinitions(...buildAutonomyToolContexts(agent.id, session))
+    const autonomyTools = buildAutonomyToolDefinitions(...buildAutonomyToolContexts(agent.id, session, agentDataPath))
     const mcpTools = await buildMcpToolDefinitions(agent.mcps ?? [])
     const customTools = [...autonomyTools, ...mcpTools]
 
@@ -496,23 +502,30 @@ async function resolveEnabledSkillPaths(agentId: string): Promise<string[]> {
  * Assemble the same always-on agent persona used by the Claude runtime, with plain agent
  * instructions trailing it.
  */
-async function buildAgentSystemPrompt(
+async function buildAgentPromptOverrides(
   workspacePath: string,
+  agentDataPath: string,
   config: AgentConfiguration | undefined,
   instructions: string | undefined
-): Promise<string> {
-  const agentPrompt = await promptBuilder.buildSystemPrompt(workspacePath, config, Boolean(instructions))
-  return instructions ? `${agentPrompt}\n\n${instructions}` : agentPrompt
+): Promise<{ systemPrompt?: string; appendSystemPrompt?: string }> {
+  const parts = await promptBuilder.buildPromptParts(workspacePath, config, Boolean(instructions), agentDataPath)
+  const appendSystemPrompt = [parts.context, instructions].filter(Boolean).join('\n\n')
+  return {
+    ...(parts.base.kind === 'custom' ? { systemPrompt: parts.base.content } : {}),
+    ...(appendSystemPrompt ? { appendSystemPrompt } : {})
+  }
 }
 
 function buildAutonomyToolContexts(
   agentId: string,
-  session: AgentSessionEntity
+  session: AgentSessionEntity,
+  agentDataPath: string
 ): [
   {
     agentId: string
     workspaceSource: AgentSessionWorkspaceSource
     workspacePath: string
+    getKnowledgeBaseIds: () => string[]
     sourceChannelId?: string
   },
   MemoryToolContext
@@ -523,9 +536,10 @@ function buildAutonomyToolContexts(
       agentId,
       workspaceSource: toWorkspaceSource(session),
       workspacePath,
+      getKnowledgeBaseIds: () => [],
       sourceChannelId: resolveSourceChannel(agentId, session.id)
     },
-    { agentId, workspacePath }
+    { agentId, agentDataPath }
   ]
 }
 
@@ -627,6 +641,8 @@ function buildCompactionAnchor(
   result: CompactionResult | undefined
 ): AgentSessionCompactionAnchorData {
   const anchor: AgentSessionCompactionAnchorData = {
+    status: 'done',
+    phase: 'agent-session',
     trigger: mapCompactionTrigger(reason),
     completedAt: new Date().toISOString()
   }

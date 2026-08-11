@@ -18,29 +18,45 @@ import {
 import { buildPpioTransport, PPIO_PROVIDER_NAME, type PpioProviderSettings } from './ppio/ppioProvider'
 
 /**
- * Resolve a poll-capable image transport for a custom provider, keyed by the
- * resolved AI SDK provider id (`sdkConfig.providerId`). Returns `null` for
- * providers/models that have no submit/poll transport (they keep the in-SDK
- * `aiCoreGenerateImage` path).
+ * Resolve a poll-capable image transport for a custom provider. The side-effect
+ * free `hasImageTransport` predicate lets `AiService` choose the job path
+ * before provider configuration selects and rotates a serving key; the job
+ * handler remains the sole credential-selection owner for that path.
  *
- * This exists so the image-generation job handler can rebuild the exact same
- * transport the SDK path would use — after a restart it has only the persisted
- * `uniqueModelId`, so it re-resolves provider settings (re-reading the apiKey
- * from config, never persisting it) and feeds them back through here. The
- * `build*Transport` helpers are the single source of truth shared with each
- * provider factory.
+ * The image-generation job handler rebuilds the exact same transport after a
+ * restart from the persisted `uniqueModelId` and freshly resolved provider
+ * settings. The `build*Transport` helpers remain the single source of truth
+ * shared with each provider factory.
  */
-type TransportResolver = (modelId: string, providerSettings: unknown) => ImageGenerationTransport | null
+interface TransportRegistration {
+  supports: (modelId: string) => boolean
+  build: (providerSettings: unknown) => ImageGenerationTransport
+}
 
-const RESOLVERS: Record<string, TransportResolver> = {
-  [PPIO_PROVIDER_NAME]: (_modelId, settings) => buildPpioTransport(settings as PpioProviderSettings),
-  [DASHSCOPE_PROVIDER_NAME]: (_modelId, settings) => buildDashScopeTransport(settings as DashScopeProviderSettings),
-  [MODELSCOPE_PROVIDER_NAME]: (_modelId, settings) => buildModelscopeTransport(settings as ModelscopeProviderSettings),
+const TRANSPORTS: Record<string, TransportRegistration> = {
+  [PPIO_PROVIDER_NAME]: {
+    supports: () => true,
+    build: (settings) => buildPpioTransport(settings as PpioProviderSettings)
+  },
+  [DASHSCOPE_PROVIDER_NAME]: {
+    supports: () => true,
+    build: (settings) => buildDashScopeTransport(settings as DashScopeProviderSettings)
+  },
+  [MODELSCOPE_PROVIDER_NAME]: {
+    supports: () => true,
+    build: (settings) => buildModelscopeTransport(settings as ModelscopeProviderSettings)
+  },
   // DMXAPI is a multi-backend gateway — only its bespoke families use the
   // custom transport (the rest go through native / openai-compat SDK image
   // models, which we leave on the in-SDK path).
-  [DMXAPI_PROVIDER_NAME]: (modelId, settings) =>
-    dmxapiUsesCustomTransport(modelId) ? buildDmxapiTransport(settings as DmxapiProviderSettings) : null
+  [DMXAPI_PROVIDER_NAME]: {
+    supports: dmxapiUsesCustomTransport,
+    build: (settings) => buildDmxapiTransport(settings as DmxapiProviderSettings)
+  }
+}
+
+export function hasImageTransport(providerId: string, modelId: string): boolean {
+  return TRANSPORTS[providerId]?.supports(modelId) ?? false
 }
 
 export function resolveImageTransport(
@@ -48,6 +64,6 @@ export function resolveImageTransport(
   modelId: string,
   providerSettings: unknown
 ): ImageGenerationTransport | null {
-  const resolver = RESOLVERS[aiSdkProviderId]
-  return resolver ? resolver(modelId, providerSettings) : null
+  const registration = TRANSPORTS[aiSdkProviderId]
+  return registration?.supports(modelId) ? registration.build(providerSettings) : null
 }

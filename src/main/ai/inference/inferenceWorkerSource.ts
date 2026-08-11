@@ -1,3 +1,6 @@
+import { createProxyBypassMatcher } from '@main/services/proxy/bypassRules'
+import { configureWorkerProxy } from '@main/services/proxy/workerProxy'
+
 import { l2normalize } from './pooling'
 
 /**
@@ -8,7 +11,9 @@ import { l2normalize } from './pooling'
  * with multiple inputs — so we cannot emit a separate worker chunk. The existing
  * tool-exec worker uses the same string approach. When this host moves to an
  * Electron `utilityProcess` (for crash isolation), extract this source into its
- * own file unchanged — the message protocol and `InferenceServiceBase` API do not move.
+ * own file unchanged — the message protocol and `InferenceServiceBase` API do not
+ * move, and the proxy installer already lives in `@main/services/proxy/workerProxy`
+ * so the utilityProcess entry imports it directly instead of baking it in.
  *
  * The worker only `require`s external packages (resolved from node_modules at
  * runtime, since they are externalized from the bundle) and Node built-ins; it
@@ -28,12 +33,54 @@ let cacheDir = null
 let appPath = null
 let transformers = null
 let ppu = null
-const pipelines = new Map() // key: repo|dtype|host -> Promise<extractor>
+let proxyStatus = 'not-initialized'
+const pipelines = new Map() // key: modelDir|dtype -> Promise<extractor>
 const paddleServices = new Map() // key: det|rec|dict -> Promise<PaddleOcrService>
 
-// Injected from pooling.ts (single, unit-tested source). Bound to a const so the
-// call site works even if the bundler renames the function's own symbol.
+// Injected from pooling.ts and services/proxy (single, unit-tested sources). Bound to
+// consts so the call sites work even if the bundler renames the functions' own symbols.
 const l2normalize = ${l2normalize.toString()}
+const createProxyBypassMatcher = ${createProxyBypassMatcher.toString()}
+const configureWorkerProxy = ${configureWorkerProxy.toString()}
+
+function postLog(level, message) {
+  parentPort.postMessage({ type: 'log', level, message })
+}
+
+function describeError(error) {
+  const details = []
+  const seen = new Set()
+  let current = error
+  while (current && details.length < 4) {
+    if (typeof current === 'object') {
+      if (seen.has(current)) break
+      seen.add(current)
+    }
+    const name = current && current.name ? current.name : 'Error'
+    const message = current && current.message ? current.message : String(current)
+    const code = current && current.code ? ' code=' + current.code : ''
+    details.push(name + code + ': ' + message)
+    current = current && typeof current === 'object' ? current.cause : null
+  }
+  return details.join(' <- caused by ')
+}
+
+function requestLogContext(msg) {
+  const context = ['request=' + msg.type, 'proxy=' + proxyStatus]
+  if (typeof msg.modelRepo === 'string') context.push('model=' + JSON.stringify(msg.modelRepo))
+  if (typeof msg.modelDir === 'string') context.push('modelDir=' + JSON.stringify(msg.modelDir))
+  if (msg.source) {
+    let origin
+    try {
+      origin = new URL(msg.source.remoteHost).origin
+    } catch {
+      // Keep the invalid marker without echoing an untrusted URL into logs.
+      origin = '<invalid>'
+    }
+    context.push('source=' + JSON.stringify(origin))
+  }
+  return context.join(' ')
+}
 
 function getTransformers() {
   if (!transformers) {
@@ -60,35 +107,24 @@ async function getPpu() {
   return ppu
 }
 
-function pipelineKey(repo, dtype, source) {
-  return repo + '|' + dtype + '|' + source.remoteHost
-}
-
-function getPipeline(id, repo, dtype, source, withProgress) {
-  const key = pipelineKey(repo, dtype, source)
+/**
+ * Load the cached model straight off disk. The model id is an absolute directory, which
+ * transformers.js rejects as a repo id (isValidHfModelId) — and every remote branch in its
+ * resolver is gated on that check, so file discovery cannot reach the network no matter
+ * what \`revision\`/\`local_files_only\` its internal stages default to. That matters because
+ * 4.2.0 drops both options before discovery (get_pipeline_files -> get_files -> get_config /
+ * get_tokenizer_files), which is what made a ModelScope-only cache unusable offline.
+ */
+function getLocalPipeline(modelDir, dtype) {
+  const key = modelDir + '|' + dtype
   let promise = pipelines.get(key)
   if (!promise) {
     promise = (async () => {
       const { pipeline, env } = getTransformers()
-      env.allowRemoteModels = true
+      // Leave env.remoteHost/remotePathTemplate untouched: an absolute model id never
+      // consults them, and clearing them would race the download path sharing this env.
       if (cacheDir) env.cacheDir = cacheDir
-      env.remoteHost = source.remoteHost
-      env.remotePathTemplate = source.remotePathTemplate
-      const options = { dtype, device: 'cpu', revision: source.revision }
-      if (withProgress) {
-        options.progress_callback = (p) => {
-          parentPort.postMessage({
-            type: 'progress',
-            id,
-            status: p.status,
-            file: p.file,
-            loaded: p.loaded,
-            total: p.total,
-            progress: p.progress
-          })
-        }
-      }
-      return pipeline('feature-extraction', repo, options)
+      return pipeline('feature-extraction', modelDir, { dtype, device: 'cpu' })
     })()
     pipelines.set(key, promise)
     // Drop the cached promise on failure so a later request can retry.
@@ -97,8 +133,37 @@ function getPipeline(id, repo, dtype, source, withProgress) {
   return promise
 }
 
+/**
+ * Download the model into the transformers.js cache. Unlike inference this needs a repo id
+ * and the mirror env, and the resulting pipeline is discarded: inference reloads by
+ * absolute path, so keeping this instance would pin ~600MB for nothing.
+ */
+async function downloadPipeline(id, repo, dtype, source) {
+  const { pipeline, env } = getTransformers()
+  env.allowRemoteModels = true
+  if (cacheDir) env.cacheDir = cacheDir
+  env.remoteHost = source.remoteHost
+  env.remotePathTemplate = source.remotePathTemplate
+  await pipeline('feature-extraction', repo, {
+    dtype,
+    device: 'cpu',
+    revision: source.revision,
+    progress_callback: (p) => {
+      parentPort.postMessage({
+        type: 'progress',
+        id,
+        status: p.status,
+        file: p.file,
+        loaded: p.loaded,
+        total: p.total,
+        progress: p.progress
+      })
+    }
+  })
+}
+
 async function handleEmbed(msg) {
-  const extractor = await getPipeline(msg.id, msg.modelRepo, msg.dtype, msg.source, false)
+  const extractor = await getLocalPipeline(msg.modelDir, msg.dtype)
   const vectors = []
   for (const text of msg.texts) {
     // pooling:'none' -> tensor of shape [batch=1, sequence, hidden].
@@ -111,12 +176,12 @@ async function handleEmbed(msg) {
 }
 
 async function handleLoad(msg) {
-  await getPipeline(msg.id, msg.modelRepo, msg.dtype, msg.source, true)
+  await downloadPipeline(msg.id, msg.modelRepo, msg.dtype, msg.source)
   parentPort.postMessage({ type: 'result', id: msg.id, embeddings: null })
 }
 
 async function handleCountTokens(msg) {
-  const extractor = await getPipeline(msg.id, msg.modelRepo, msg.dtype, msg.source, false)
+  const extractor = await getLocalPipeline(msg.modelDir, msg.dtype)
   const tokenCounts = msg.texts.map((text) => extractor.tokenizer.encode(text, { add_special_tokens: true }).length)
   parentPort.postMessage({ type: 'result', id: msg.id, tokenCounts })
 }
@@ -163,6 +228,18 @@ parentPort.on('message', (msg) => {
   if (msg.type === 'init') {
     cacheDir = msg.cacheDir
     appPath = msg.appPath
+    const proxy = configureWorkerProxy(appPath, msg.proxyRouting, createProxyBypassMatcher)
+    proxyStatus = proxy.status
+    if (proxy.status === 'configured') {
+      postLog(
+        'info',
+        'network proxy configured origin=' + proxy.proxyOrigin + ' bypassRules=' + proxy.bypassRuleCount
+      )
+    } else if (proxy.status === 'direct') {
+      postLog('info', 'network proxy not configured; remote model requests use a direct connection')
+    } else {
+      postLog('error', 'network proxy configuration failed: ' + proxy.error)
+    }
     // Must be set before the first lazy require of @huggingface/transformers /
     // ppu-paddle-ocr below (getTransformers/getPpu), both of which transitively
     // require onnxruntime-node — see patches/onnxruntime-node@1.24.3.patch.
@@ -184,6 +261,7 @@ parentPort.on('message', (msg) => {
     return
   }
   run(msg).catch((err) => {
+    postLog('error', 'request failed ' + requestLogContext(msg) + ' error=' + describeError(err))
     parentPort.postMessage({ type: 'error', id: msg.id, message: err && err.message ? err.message : String(err) })
   })
 })

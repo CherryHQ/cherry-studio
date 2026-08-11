@@ -1,4 +1,11 @@
-import { LOCAL_MODEL_KINDS, LOCAL_MODEL_STATUSES, type LocalModelKind } from '@shared/data/presets/localModel'
+import {
+  LOCAL_MODEL_DOWNLOAD_RESULTS,
+  LOCAL_MODEL_ERROR_CODES,
+  LOCAL_MODEL_KINDS,
+  LOCAL_MODEL_STATUSES,
+  type LocalModelErrorCode,
+  type LocalModelKind
+} from '@shared/data/presets/localModel'
 import * as z from 'zod'
 
 import { defineRoute } from '../define'
@@ -20,12 +27,17 @@ const modelInput = z.object({ model: z.enum(LOCAL_MODEL_KINDS) })
 
 // ── Request: renderer→main calls (zod values, always parsed) ──
 export const localModelRequestSchemas = {
+  // `errorCode` is present exactly when `status` is 'error' and says why (failed
+  // download vs. incomplete files on disk), so the cards can word the notice.
   'local_model.get_status': defineRoute({
     input: modelInput,
-    output: z.object({ status: z.enum(LOCAL_MODEL_STATUSES) })
+    output: z.object({ status: z.enum(LOCAL_MODEL_STATUSES), errorCode: z.enum(LOCAL_MODEL_ERROR_CODES).optional() })
   }),
-  // Resolves only when the download completes (or rejects on failure/cancel).
-  'local_model.download': defineRoute({ input: modelInput, output: z.void() }),
+  // All coalesced callers receive the same terminal result; only genuine failures reject.
+  'local_model.download': defineRoute({
+    input: modelInput,
+    output: z.object({ result: z.enum(LOCAL_MODEL_DOWNLOAD_RESULTS) })
+  }),
   'local_model.cancel': defineRoute({ input: modelInput, output: z.void() }),
   // `removed: false` means the model was kept because something still depends on it
   // (an embedding model still wired to a knowledge base); the weights are not deleted.
@@ -40,6 +52,7 @@ export type LocalModelEventSchemas = {
     model: LocalModelKind
     status: string
     percent: number
+    errorCode?: LocalModelErrorCode
     loaded?: number
     total?: number
     file?: string

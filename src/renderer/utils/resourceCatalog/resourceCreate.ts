@@ -1,8 +1,7 @@
 import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
-import type { CreateAgentDto } from '@shared/data/api/schemas/agents'
 import type { CreateAssistantDto } from '@shared/data/api/schemas/assistants'
-import type { AgentType } from '@shared/data/types/agent'
+import type { CreateAgentCommand } from '@shared/ipc/schemas/ai'
 
 /** Map the shared create-wizard values to the Assistant DataApi contract. */
 export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAssistantDto {
@@ -17,23 +16,20 @@ export function buildCreateAssistantDto(values: ResourceCreateValues): CreateAss
 }
 
 /** Map the shared create-wizard values to the Agent DataApi contract. */
-export function buildCreateAgentDto(values: ResourceCreateValues, agentType: AgentType): CreateAgentDto {
-  const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
-  const base: CreateAgentDto = {
-    type: agentType,
+export function buildCreateAgentCommand(values: ResourceCreateValues): CreateAgentCommand {
+  const caps = AGENT_RUNTIME_CAPABILITIES[values.agentType]
+  return {
+    type: values.agentType,
     name: values.name,
     model: values.modelId,
+    ...(caps.modelTiers ? { planModel: values.modelId, smallModel: values.modelId } : {}),
     description: values.description,
     instructions: values.prompt,
+    ...(caps.knowledgeBases ? { knowledgeBaseIds: values.knowledgeBaseIds } : {}),
+    ...(caps.skills ? { skillIds: values.skillIds } : {}),
     configuration: {
       avatar: values.avatar,
       permission_mode: caps.createDefaults.permissionMode
     }
-  }
-
-  return {
-    ...base,
-    ...(caps.skills ? { skillIds: values.skillIds } : {}),
-    ...(caps.modelTiers ? { planModel: values.modelId, smallModel: values.modelId } : {})
   }
 }

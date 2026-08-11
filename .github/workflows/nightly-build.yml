@@ -124,6 +124,7 @@ jobs:
         run: |
           pnpm build:win
         env:
+          ELECTRON_BUILDER_7Z_FILTER: BCJ
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_OPTIONS: --max-old-space-size=8192
           MAIN_VITE_CHERRYAI_CLIENT_SECRET: ${{ secrets.MAIN_VITE_CHERRYAI_CLIENT_SECRET }}

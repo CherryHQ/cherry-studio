@@ -24,9 +24,9 @@ describe('resolveMediaCapabilities', () => {
 describe('stripUnsupportedMedia', () => {
   const noVision = { image: false, video: true, audio: true }
 
-  it('replaces an image file part with a note when the model has no vision', () => {
-    const [out] = stripUnsupportedMedia([fileMsg('image/png')], noVision)
-    expect(out.parts).toEqual([{ type: 'text', text: expect.stringContaining('image attachment omitted') }])
+  it('leaves image routing to prepareChatMessages', () => {
+    const msg = fileMsg('image/png')
+    expect(stripUnsupportedMedia([msg], noVision)[0]).toBe(msg)
   })
 
   it('replaces a video file part when the model has no video', () => {
@@ -55,13 +55,13 @@ describe('stripUnsupportedMedia', () => {
       role: 'user',
       parts: [
         { type: 'text', text: 'hi' },
-        { type: 'file', mediaType: 'image/png', url: 'data:application/octet-stream;base64,AA' }
+        { type: 'file', mediaType: 'video/mp4', url: 'data:application/octet-stream;base64,AA' }
       ]
     } as UIMessage
-    const [out] = stripUnsupportedMedia([msg], noVision)
+    const [out] = stripUnsupportedMedia([msg], { image: false, video: false, audio: true })
     expect(out.parts).toEqual([
       { type: 'text', text: 'hi' },
-      { type: 'text', text: expect.stringContaining('image attachment omitted') }
+      { type: 'text', text: expect.stringContaining('video attachment omitted') }
     ])
   })
 })

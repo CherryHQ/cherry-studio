@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { createLatestReconciler, type LatestReconciler } from '@main/core/concurrency/latestReconciler'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'
-import { APP_NAME } from '@shared/utils/constants'
+import { APP_NAME, LATEST_PRIVACY_POLICY_VERSION } from '@shared/utils/constants'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('AnalyticsService')
@@ -14,7 +14,7 @@ const logger = loggerService.withContext('AnalyticsService')
 @ServicePhase(Phase.WhenReady)
 export class AnalyticsService extends BaseService implements Activatable {
   private client: AnalyticsClient | null = null
-  /** Latest desired running state — mirrors the `app.privacy.data_collection.enabled` preference. */
+  /** Latest desired running state — requires both data collection and current policy consent. */
   private desiredEnabled = false
   /**
    * Converges the client's running state to `desiredEnabled`. It is the SOLE caller of
@@ -36,6 +36,14 @@ export class AnalyticsService extends BaseService implements Activatable {
     }
   })
 
+  private refreshDesiredEnabled(): void {
+    const preferenceService = application.get('PreferenceService')
+    this.desiredEnabled =
+      preferenceService.get('app.privacy.data_collection.enabled') &&
+      preferenceService.get('app.privacy.policy_version') === LATEST_PRIVACY_POLICY_VERSION
+    this.reconciler.request()
+  }
+
   protected async onInit() {
     // The reconciler is the sole driver of activate/deactivate (latest-wins): a re-enable that lands
     // while the async onDeactivate (`await client.destroy()`) is in flight must not be dropped by the
@@ -43,17 +51,15 @@ export class AnalyticsService extends BaseService implements Activatable {
     // that is NOT recreated on restart (`start()` re-runs `onInit`), so it is deliberately not
     // disposed — disposing it would permanently no-op `request()` after a stop→restart.
     const preferenceService = application.get('PreferenceService')
+    const refreshDesiredEnabled = () => this.refreshDesiredEnabled()
     this.registerDisposable(
-      preferenceService.subscribeChange('app.privacy.data_collection.enabled', (enabled: boolean) => {
-        this.desiredEnabled = enabled
-        this.reconciler.request()
-      })
+      preferenceService.subscribeChange('app.privacy.data_collection.enabled', refreshDesiredEnabled)
     )
+    this.registerDisposable(preferenceService.subscribeChange('app.privacy.policy_version', refreshDesiredEnabled))
   }
 
   protected async onReady() {
-    this.desiredEnabled = application.get('PreferenceService').get('app.privacy.data_collection.enabled')
-    this.reconciler.request()
+    this.refreshDesiredEnabled()
     await this.reconciler.flush()
   }
 
@@ -94,12 +100,12 @@ export class AnalyticsService extends BaseService implements Activatable {
   }
 
   public trackTokenUsage(data: TokenUsageData): void {
-    if (!this.isActivated) return
+    if (!this.isActivated || !this.desiredEnabled) return
     this.client!.trackTokenUsage(data)
   }
 
   public async trackAppUpdate(): Promise<void> {
-    if (!this.client || !application.get('PreferenceService').get('app.privacy.data_collection.enabled')) {
+    if (!this.client || !this.desiredEnabled) {
       return
     }
 

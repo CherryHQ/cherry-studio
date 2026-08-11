@@ -1,10 +1,8 @@
-import type { ComposerToolLauncher } from '@renderer/components/composer/toolLauncher'
+import type { ComposerToolLauncher, ComposerToolLauncherKind } from '@renderer/components/composer/toolLauncher'
 import type { Assistant } from '@renderer/types/assistant'
-import type { ThinkingOption } from '@renderer/types/reasoning'
 import { TopicType } from '@renderer/types/topic'
 import type { SlashCommand } from '@shared/ai/slashCommands'
 import type { Model } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
 import type { TFunction } from 'i18next'
 import React from 'react'
 
@@ -54,11 +52,6 @@ export interface ToolContext {
   /** Absent in Agent Session scope — Sessions have an `agentId` (see `session`), not an assistant row. */
   assistant?: Assistant
   model: Model
-  // Resolved v2 provider for `model.providerId`. Injected by the React
-  // dispatch site (ComposerToolRuntimeHost) so sync `condition()` predicates can run
-  // v2 provider checks without a v1 Redux lookup. Undefined while loading
-  // or when the provider is unknown.
-  provider?: Provider
   // Session data for Agent Session scope (only available when scope is TopicType.Session).
   // Note: config fields (model/instructions/...) live on the parent agent — fetch via
   // useAgent(session.agentId). agentType drives the builtin slash command fallback; slashCommands
@@ -70,8 +63,8 @@ export interface ToolContext {
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: string[]
     slashCommands?: SlashCommand[]
-    reasoningEffort?: ThinkingOption
-    onReasoningEffortChange?: (option: ThinkingOption) => void
+    /** Knowledge bases statically bound to the Agent. */
+    knowledgeBaseIds?: readonly string[]
   }
 }
 
@@ -94,6 +87,17 @@ export interface ToolComposerMenuContribution<
   A extends readonly ToolActionKey[] = readonly ToolActionKey[]
 > {
   createItems: (context: ToolRenderContext<S, A>) => ComposerToolLauncher[]
+}
+
+/**
+ * Stable toolbar identity for a pinnable tool. Runtime launchers overlay model-
+ * and state-dependent behavior after they register.
+ */
+export interface ToolComposerToolbarContribution {
+  id: string
+  kind: ComposerToolLauncherKind
+  order: number
+  icon: React.ReactNode
 }
 
 export interface ToolTokenContribution<

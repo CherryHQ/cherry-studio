@@ -1,4 +1,5 @@
-import { CodeCli } from '@shared/types/codeCli'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
+import { CLI_API_GATEWAY_PROVIDER_ID, CodeCli } from '@shared/types/codeCli'
 import { describe, expect, it } from 'vitest'
 
 import { parseConfiguredModelId, resolveCliConfigApplyContext } from '../applyContext'
@@ -56,6 +57,32 @@ describe('resolveCliConfigApplyContext', () => {
       modelId: 'anthropic::claude-detailed',
       providerId: 'anthropic',
       rawModelId: 'claude-detailed',
+      writePrimaryModel: false
+    })
+  })
+
+  it('resolves a detailed gateway address to its real model', () => {
+    const model = {
+      id: 'deepseek::deepseek-chat',
+      providerId: 'deepseek',
+      apiModelId: 'deepseek-chat'
+    } as unknown as Model
+    const gatewayModels = new Map<UniqueModelId, Model>([[model.id, model]])
+
+    expect(
+      resolveCliConfigApplyContext(
+        CodeCli.CLAUDE_CODE,
+        CLI_API_GATEWAY_PROVIDER_ID,
+        {
+          modelId: null,
+          config: { env: { ANTHROPIC_DEFAULT_FABLE_MODEL: 'deepseek:deepseek-chat' } }
+        },
+        gatewayModels
+      )
+    ).toEqual({
+      modelId: 'deepseek::deepseek-chat',
+      providerId: 'deepseek',
+      rawModelId: 'deepseek-chat',
       writePrimaryModel: false
     })
   })

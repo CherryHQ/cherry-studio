@@ -28,6 +28,7 @@ const {
   toastErrorMock,
   navigateMock,
   openSettingsTabMock,
+  versionStatusesMock,
   mockProviders,
   mockProviderConfigs
 } = vi.hoisted(() => ({
@@ -50,6 +51,7 @@ const {
   toastErrorMock: vi.fn(),
   navigateMock: vi.fn(),
   openSettingsTabMock: vi.fn(),
+  versionStatusesMock: vi.fn(),
   mockProviders: [] as Provider[],
   mockProviderConfigs: {} as Record<string, CliProviderConfig>
 }))
@@ -107,6 +109,14 @@ vi.mock('@cherrystudio/ui', () => ({
         confirm remove
       </button>
     ) : null,
+  // Dialog family used by BinaryInstallErrorDialog (rendered by CodeCliContentPanel).
+  Dialog: ({ open, children }: { open?: boolean; children?: ReactNode }) =>
+    open ? <div role="dialog">{children}</div> : null,
+  DialogContent: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogDescription: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogFooter: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogHeader: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  DialogTitle: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Select: ({
     children,
     value,
@@ -140,10 +150,6 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
-vi.mock('@renderer/data/hooks/useCache', () => ({
-  usePersistCache: () => [false, vi.fn()]
-}))
-
 vi.mock('@renderer/hooks/useCodeCli', () => ({
   useCodeCli: () => useCodeCliMock()
 }))
@@ -162,8 +168,9 @@ vi.mock('@renderer/hooks/useProvider', () => ({
 
 vi.mock('@renderer/ipc', () => ({
   ipcApi: {
-    request: vi.fn()
-  }
+    request: vi.fn(async () => ({}))
+  },
+  useIpcOn: vi.fn()
 }))
 
 vi.mock('@renderer/services/LoggerService', () => ({
@@ -185,15 +192,6 @@ vi.mock('@renderer/services/mainWindowNavigation', () => ({
 
 vi.mock('@renderer/services/toast', () => ({
   toast: { error: toastErrorMock }
-}))
-
-vi.mock('@renderer/pages/code/constants/codeCliTools', () => ({
-  CLI_TOOL_PRESET_MAP: {
-    [CodeCli.CLAUDE_CODE]: {},
-    [CodeCli.OPENAI_CODEX]: {},
-    [CodeCli.OPEN_CODE]: {},
-    [CodeCli.QODER_CLI]: {}
-  }
 }))
 
 vi.mock('../cliConfig/claudeModels', () => ({
@@ -332,11 +330,31 @@ vi.mock('../components/LaunchDialog', () => ({
 }))
 
 vi.mock('../components/VersionStatusCard', () => ({
-  VersionStatusCard: ({ canLaunch, onRemove }: { canLaunch?: boolean; onRemove?: () => void }) => (
-    <div data-can-launch={String(canLaunch)} data-testid="version-status-card">
+  VersionStatusCard: ({
+    canLaunch,
+    onRemove,
+    installError,
+    onShowError,
+    launchDisabledHint
+  }: {
+    canLaunch?: boolean
+    onRemove?: () => void
+    installError?: string
+    onShowError?: () => void
+    launchDisabledHint?: string
+  }) => (
+    <div
+      data-can-launch={String(canLaunch)}
+      data-launch-disabled-hint={launchDisabledHint}
+      data-testid="version-status-card">
       {onRemove && (
         <button type="button" onClick={onRemove}>
           remove tool
+        </button>
+      )}
+      {installError && (
+        <button type="button" onClick={onShowError}>
+          show error
         </button>
       )}
     </div>
@@ -368,12 +386,7 @@ vi.mock('../hooks/useBinaryActions', () => ({
 }))
 
 vi.mock('../hooks/useCliVersionStatuses', () => ({
-  useCliVersionStatuses: () => ({
-    [CodeCli.CLAUDE_CODE]: { installed: true, canUpgrade: false },
-    [CodeCli.OPENAI_CODEX]: { installed: true, canUpgrade: false },
-    [CodeCli.OPEN_CODE]: { installed: true, canUpgrade: false },
-    [CodeCli.QODER_CLI]: { installed: true, canUpgrade: false }
-  })
+  useCliVersionStatuses: () => versionStatusesMock()
 }))
 
 vi.mock('../hooks/useConfigMetadata', () => ({
@@ -428,11 +441,22 @@ function mockCodeCliState({
   })
 }
 
+function baseVersionStatuses(overrides: Partial<Record<CodeCli, Record<string, unknown>>> = {}) {
+  const base = { installed: true, source: 'mise', applicationStatus: 'applied', canUpgrade: false }
+  return {
+    [CodeCli.CLAUDE_CODE]: { ...base, ...overrides[CodeCli.CLAUDE_CODE] },
+    [CodeCli.OPENAI_CODEX]: { ...base, ...overrides[CodeCli.OPENAI_CODEX] },
+    [CodeCli.OPEN_CODE]: { ...base, ...overrides[CodeCli.OPEN_CODE] },
+    [CodeCli.QODER_CLI]: { ...base, ...overrides[CodeCli.QODER_CLI] }
+  }
+}
+
 describe('CodeCliPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockProviders.splice(0, mockProviders.length, provider)
     mockCodeCliState()
+    versionStatusesMock.mockReturnValue(baseVersionStatuses())
     clearCliConfigMock.mockResolvedValue(undefined)
     readCliConfigFilesMock.mockResolvedValue([])
     extractConnectionFromCliConfigDraftMock.mockReturnValue(null)
@@ -542,11 +566,13 @@ describe('CodeCliPage', () => {
     expect(reorderProvidersMock).not.toHaveBeenCalled()
   })
 
-  it('shows a provider selection hint when launch needs a current provider', () => {
+  it('puts the provider selection hint on the disabled launch action', () => {
     render(<CodeCliPage />)
 
-    expect(screen.getByText('code.select_provider_before_launch')).toBeInTheDocument()
-    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'false')
+    const versionCard = screen.getByTestId('version-status-card')
+    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
+    expect(versionCard).toHaveAttribute('data-can-launch', 'false')
+    expect(versionCard).toHaveAttribute('data-launch-disabled-hint', 'code.select_provider_before_launch')
   })
 
   it('shows the Anthropic Messages endpoint hint for Claude Code provider setup', () => {
@@ -582,7 +608,7 @@ describe('CodeCliPage', () => {
     expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
   })
 
-  it('hides the provider selection hint once a current provider is selected', () => {
+  it('removes the launch hint once a current provider is selected', () => {
     mockCodeCliState({
       providerConfigs: {
         anthropic: { modelId: 'anthropic::claude-new', config: {} }
@@ -592,20 +618,22 @@ describe('CodeCliPage', () => {
 
     render(<CodeCliPage />)
 
-    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
-    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
+    const versionCard = screen.getByTestId('version-status-card')
+    expect(versionCard).toHaveAttribute('data-can-launch', 'true')
+    expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
   })
 
-  it('does not show the provider selection hint for provider-less tools', () => {
+  it('does not add a provider selection hint for provider-less tools', () => {
     mockCodeCliState({ selectedCliTool: CodeCli.QODER_CLI })
 
     render(<CodeCliPage />)
 
-    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
     expect(screen.queryByText('code.add_provider_hint')).not.toBeInTheDocument()
     expect(screen.queryByText('code.add_provider_hint_anthropic_messages')).not.toBeInTheDocument()
     expect(screen.queryByText('code.add_provider_hint_openai_responses')).not.toBeInTheDocument()
-    expect(screen.getByTestId('version-status-card')).toHaveAttribute('data-can-launch', 'true')
+    const versionCard = screen.getByTestId('version-status-card')
+    expect(versionCard).toHaveAttribute('data-can-launch', 'true')
+    expect(versionCard).not.toHaveAttribute('data-launch-disabled-hint')
   })
 
   it('offers the own-login entry (and no selection hint) when no real providers exist', () => {
@@ -616,9 +644,9 @@ describe('CodeCliPage', () => {
 
     // Login-capable tools always surface the virtual own-login row, so there is no empty state and
     // the "select a provider" hint is suppressed (own-login is the only option, nothing to nag about).
-    expect(screen.queryByText('code.select_provider_before_launch')).not.toBeInTheDocument()
     expect(screen.queryByTestId('empty-config-list')).not.toBeInTheDocument()
     expect(screen.getByText(`toggle ${CLI_OWN_LOGIN_PROVIDER_ID}`)).toBeInTheDocument()
+    expect(screen.getByTestId('version-status-card')).not.toHaveAttribute('data-launch-disabled-hint')
   })
 
   it('warns that credentials may remain when clearing the CLI config fails during tool removal', async () => {
@@ -637,5 +665,54 @@ describe('CodeCliPage', () => {
     await waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith('code.clear_config_failed'))
     // The in-app cleanup still proceeds so the tool state does not point at a removed provider.
     expect(setCurrentProviderMock).toHaveBeenCalledWith(null)
+  })
+
+  it('surfaces a failed install as an install-error dialog but not a failed uninstall', () => {
+    // A failed install exposes the error affordance, and opening it shows the install-error dialog.
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.CLAUDE_CODE]: { operation: { status: 'failed', action: 'install', error: 'install boom' } }
+      })
+    )
+    const { unmount } = render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('show error'))
+    expect(screen.getByRole('dialog')).toHaveTextContent('settings.dependencies.installError')
+
+    unmount()
+
+    // A failed uninstall must not masquerade as an install error — the remove path has its own toast.
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.CLAUDE_CODE]: { operation: { status: 'failed', action: 'remove', error: 'remove boom' } }
+      })
+    )
+    render(<CodeCliPage />)
+
+    expect(screen.queryByText('show error')).not.toBeInTheDocument()
+  })
+
+  it('does not auto-reopen the install-error dialog after switching tools and back', () => {
+    versionStatusesMock.mockReturnValue(
+      baseVersionStatuses({
+        [CodeCli.CLAUDE_CODE]: { operation: { status: 'failed', action: 'install', error: 'boom' } }
+      })
+    )
+    const { rerender } = render(<CodeCliPage />)
+
+    fireEvent.click(screen.getByText('show error'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+    // Switch to a tool with no failed install: the dialog's controlled `open` goes false, but Radix
+    // does not fire onOpenChange on a controlled close (the mocked Dialog reproduces this).
+    mockCodeCliState({ selectedCliTool: CodeCli.OPENAI_CODEX })
+    rerender(<CodeCliPage />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+    // Switch back to the failed tool. Without resetting on tool change, the stale open flag would
+    // re-surface the dialog unprompted.
+    mockCodeCliState({ selectedCliTool: CodeCli.CLAUDE_CODE })
+    rerender(<CodeCliPage />)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })

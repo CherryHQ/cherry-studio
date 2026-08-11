@@ -18,6 +18,7 @@ function makeEntry(overrides: Record<string, unknown> = {}) {
     toolCallId: 'tc1',
     toolName: 'bash',
     originalInput: { cmd: 'ls' },
+    presentation: 'stream' as const,
     resolve,
     ...overrides
   }
@@ -34,7 +35,11 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     expect(toolApprovalRegistry.register(entry)).toBe(true)
     expect(toolApprovalRegistry.size()).toBe(1)
 
-    expect(toolApprovalRegistry.dispatch(approvalId, { approved: true })).toBe(true)
+    expect(toolApprovalRegistry.dispatch(approvalId, { approved: true })).toEqual({
+      sessionId: 's1',
+      toolCallId: 'tc1',
+      presentation: 'stream'
+    })
     await expect(result).resolves.toEqual({ approved: true })
     expect(toolApprovalRegistry.size()).toBe(0)
   })
@@ -55,8 +60,8 @@ describe('ToolApprovalRegistry (driver-neutral)', () => {
     await expect(result).resolves.toEqual({ approved: false, reason: 'nope' })
   })
 
-  it('returns false dispatching an unknown id (already settled / expired)', () => {
-    expect(toolApprovalRegistry.dispatch('missing', { approved: true })).toBe(false)
+  it('returns undefined dispatching an unknown id (already settled / expired)', () => {
+    expect(toolApprovalRegistry.dispatch('missing', { approved: true })).toBeUndefined()
   })
 
   it('rejects a duplicate registration without disturbing the first', async () => {

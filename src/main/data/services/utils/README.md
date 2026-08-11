@@ -96,7 +96,7 @@ Backs every Service's reorder write path and POST-create. Encapsulates the `frac
 
 - **Only operates on `order_key`**: business validation (does `:id` exist in the resource sense) lives in the service/handler layer, not here.
 - **Must run inside an outer transaction**: helpers take `tx` and never open their own transaction.
-- **`scope?` (SQL)**: constrains neighbor queries to a subset for partial ordering (e.g. `topic.groupId`, `userModel.providerId`). Scope applies to BOTH the target lookup and the anchor lookup — anchoring across scopes throws.
+- **`scope?` (SQL)**: constrains neighbor queries to a subset for partial ordering (e.g. `userModel.providerId`, `group.entityType`). Scope applies to BOTH the target lookup and the anchor lookup — anchoring across scopes throws.
 - **`pkColumn` is required**: tables have heterogeneous primary-key column names (`miniapp.appId`, `mcpServer.id`, `topic.id`, `group.id`). Helpers make zero assumptions.
 - **External imports of `fractional-indexing` are forbidden**: always go through the three generator wrappers above.
 - **Character set is locked to base62** (library default); no `digits` parameter is exposed. Changing the alphabet requires a whole-database migration, and the source-of-truth constant lives at the top of `orderKey.ts`.
@@ -170,14 +170,36 @@ regex revalidation, bounded offset scanning, and next-cursor assembly.
   in `@shared/data/types/message`; this generic utility does not know message
   roles.
 
+### `singleFileRef.ts` — single-file (logo) slot mechanics
+
+Backs the provider / mini-app logo slots. A *single-file slot* is an association table where one owner row holds at most one file: the ref row is the single source of truth for that owner's uploaded file, and the owner row keeps only a preset key.
+
+**Exports:**
+
+- `getSingleFileRefId(table, sourceId)` — the uploaded file's `file_entry` id for a slot, or `null`. One indexed lookup on the unique `(sourceId)` index.
+- `clearSingleFileRefTx(tx, table, sourceId)` — drop the slot's ref row.
+- `insertSingleFileRefTx(tx, table, sourceId, fileId)` — insert a ref row **without** clearing first (the migrator's empty-slot path).
+- `reconcileLogoSlotTx(tx, table, sourceId, input)` — replace the slot's ref per a `LogoBindInput` and return the `logoKey` to persist on the owner row; `null` when `input` is `undefined` (update no-op).
+- `LogoBindInput` / `LogoColumns` / `SingleFileRefTable` — the bind-input union, the resolved owner column, and the structural table constraint.
+
+**Design boundaries:**
+
+- **The table is a parameter, never a `switch`**: each owner service passes its own table, so a service has no way to reach another owner's slot (services/README "Own your table"), and adding a slot type needs no change here. Same rationale as `orderKey.ts`.
+- **DB-only**: never touches the filesystem. The caller stores the bytes first and passes an opaque `fileId`; superseded files are preserved per the file layer's policy.
+- **Structural table constraint**: `SingleFileRefTable` requires only `fileEntryId` + `sourceId` columns plus a unique index on `(sourceId)` — no assumption about the owning domain.
+- **"Single-file" is a precondition, not a label**: it names the category (opposed to the roled collection ref tables `chat_message_file_ref` / `painting_file_ref`, where one owner holds many rows), and the write path relies on it — it clears before inserting, so passing a table that permits several rows per `sourceId` would delete rows the caller never meant to touch.
+- **Two naming layers, deliberately**: the `SingleFileRef*` helpers are the table-agnostic mechanism; `reconcileLogoSlotTx` / `LogoBindInput` / `LogoColumns` sit above it and are logo-specific, because every single-file slot that exists today is a logo slot. Do not genericize the reconcile layer until a second kind of slot exists — `logoKey` maps to a real column name.
+- **`sourceType → table` resolution belongs to the caller**: callers holding a source type instead of a table (the v1 migrator) resolve it via `singleFileRefTablesBySourceType` in `db/schemas/fileRelations.ts`; this module never sees a source type.
+
 ## Criteria for Adding a New Utility
 
 Before adding a new utility to this directory, confirm:
 
-1. **Has at least two real consumers** (history: `stripNulls` qualified because `MiniAppService` had made a copy-paste duplicate)
-2. **Do not extract simple single-field operations**: operations like `value ?? undefined` are already well-covered by TypeScript itself — do not wrap them
-3. **Does not duplicate an existing third-party library** (e.g. lodash) — unless we have specific boundary constraints
-4. **Add a new entry to the "File Index" above** documenting responsibility, signature, boundaries, and an example
+1. **Is domain-neutral** — the file must not name a specific business table, entity, or source type. The test: *when a new consumer adopts it, does this file have to change?* A generic mechanism is closed to that change (`orderKey.ts` and `singleFileRef.ts` take the table as a parameter); logic that grows a branch per consumer is shared **domain** logic and belongs with its owners, not here. Consumer count alone does not qualify a utility — two consumers of the same domain logic is still domain logic.
+2. **Has at least two real consumers** (history: `stripNulls` qualified because `MiniAppService` had made a copy-paste duplicate)
+3. **Do not extract simple single-field operations**: operations like `value ?? undefined` are already well-covered by TypeScript itself — do not wrap them
+4. **Does not duplicate an existing third-party library** (e.g. lodash) — unless we have specific boundary constraints
+5. **Add a new entry to the "File Index" above** documenting responsibility, signature, boundaries, and an example
 
 ## Rejected Alternatives
 

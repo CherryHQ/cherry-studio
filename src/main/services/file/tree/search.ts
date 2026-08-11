@@ -20,7 +20,7 @@ import * as path from 'node:path'
 import { loggerService } from '@logger'
 import { getBinaryExecutionEnv } from '@main/utils/binaryEnv'
 import { getBinaryPath } from '@main/utils/binaryResolver'
-import type { DirectoryEntry, DirectoryListOptions, FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath, DirectoryEntry, DirectoryListOptions } from '@shared/types/file'
 
 import { defaultRipgrepGlobArgs } from './gitignore'
 
@@ -88,7 +88,13 @@ async function resolveRipgrepBinary(): Promise<string | null> {
   return fs.existsSync(binaryPath) ? binaryPath : null
 }
 
-async function executeRipgrep(args: string[]): Promise<{ exitCode: number; output: string }> {
+interface RipgrepResult {
+  exitCode: number
+  stdout: string
+  stderr: string
+}
+
+async function executeRipgrep(args: string[]): Promise<RipgrepResult> {
   const ripgrepBinaryPath = await resolveRipgrepBinary()
   if (!ripgrepBinaryPath) {
     throw new Error('Ripgrep binary not available')
@@ -100,15 +106,15 @@ async function executeRipgrep(args: string[]): Promise<{ exitCode: number; outpu
       stdio: ['pipe', 'pipe', 'pipe']
     })
 
-    let output = ''
-    let errorOutput = ''
+    let stdout = ''
+    let stderr = ''
 
     child.stdout.on('data', (data: Buffer) => {
-      output += data.toString()
+      stdout += data.toString()
     })
 
     child.stderr.on('data', (data: Buffer) => {
-      errorOutput += data.toString()
+      stderr += data.toString()
     })
 
     child.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
@@ -118,12 +124,13 @@ async function executeRipgrep(args: string[]): Promise<{ exitCode: number; outpu
       // an empty directory listing, which is indistinguishable from a real
       // empty result. Reject explicitly so callers can decide.
       if (code === null && signal !== null) {
-        reject(new Error(`Ripgrep terminated by signal ${signal}: ${errorOutput || output}`))
+        reject(new Error(`Ripgrep terminated by signal ${signal}: ${stderr || stdout}`))
         return
       }
       resolve({
         exitCode: code ?? 0,
-        output: output || errorOutput
+        stdout,
+        stderr
       })
     })
 
@@ -131,6 +138,22 @@ async function executeRipgrep(args: string[]): Promise<{ exitCode: number; outpu
       reject(error)
     })
   })
+}
+
+function getUsableRipgrepOutput(result: RipgrepResult): string {
+  if (result.exitCode < 2) return result.stdout
+
+  const stderr = result.stderr.trim()
+  if (!result.stdout.trim()) {
+    throw new Error(`Ripgrep failed with exit code ${result.exitCode}: ${stderr || 'No output available'}`)
+  }
+
+  logger.warn('Ripgrep reported traversal errors; keeping available results', {
+    exitCode: result.exitCode,
+    stderr
+  })
+
+  return result.stdout
 }
 
 function buildRipgrepBaseArgs(options: ResolvedOptions, resolvedPath: string): string[] {
@@ -224,12 +247,7 @@ async function searchByFilename(resolvedPath: string, options: ResolvedOptions):
 
     args.push(resolvedPath)
 
-    const { exitCode, output } = await executeRipgrep(args)
-
-    // Exit 0 = matches; 1 = no matches (still success); >=2 = error
-    if (exitCode >= 2) {
-      throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
-    }
+    const output = getUsableRipgrepOutput(await executeRipgrep(args))
 
     files.push(
       ...output
@@ -435,11 +453,7 @@ async function listDirectoryWithRipgrep(resolvedPath: string, options: ResolvedO
     const globPattern = queryToGlobPattern(options.searchPattern)
     args.splice(args.length - 1, 0, '--iglob', globPattern)
 
-    const { exitCode, output } = await executeRipgrep(args)
-
-    if (exitCode >= 2) {
-      throw new Error(`Ripgrep failed with exit code ${exitCode}: ${output}`)
-    }
+    const output = getUsableRipgrepOutput(await executeRipgrep(args))
 
     const filteredFiles = output
       .split('\n')
@@ -458,13 +472,9 @@ async function listDirectoryWithRipgrep(resolvedPath: string, options: ResolvedO
     // Fallback: no glob hits → greedy substring match across all files.
     logger.debug('Fuzzy glob returned no results, falling back to greedy substring match')
     const fallbackArgs = buildRipgrepBaseArgs(options, resolvedPath)
-    const fallbackResult = await executeRipgrep(fallbackArgs)
+    const fallbackOutput = getUsableRipgrepOutput(await executeRipgrep(fallbackArgs))
 
-    if (fallbackResult.exitCode >= 2) {
-      return []
-    }
-
-    const allFiles = fallbackResult.output
+    const allFiles = fallbackOutput
       .split('\n')
       .filter((line) => line.trim())
       .map((line) => line.replace(/\\/g, '/'))
@@ -491,7 +501,10 @@ async function listDirectoryWithRipgrep(resolvedPath: string, options: ResolvedO
  * default maxEntries is `Number.MAX_SAFE_INTEGER` — no truncation. In search
  * mode the caller decides the cap via `options.maxEntries`.
  */
-export async function listDirectory(dirPath: FilePath | string, options?: DirectoryListOptions): Promise<string[]> {
+export async function listDirectory(
+  dirPath: AbsoluteFilePath | string,
+  options?: DirectoryListOptions
+): Promise<string[]> {
   const mergedOptions: ResolvedOptions = {
     ...DEFAULT_DIRECTORY_LIST_OPTIONS,
     ...options
@@ -522,7 +535,7 @@ export async function listDirectory(dirPath: FilePath | string, options?: Direct
  * happen here, batched on the main side, instead of N renderer→main calls.
  */
 export async function listDirectoryEntries(
-  dirPath: FilePath | string,
+  dirPath: AbsoluteFilePath | string,
   options?: DirectoryListOptions
 ): Promise<DirectoryEntry[]> {
   const paths = await listDirectory(dirPath, options)
@@ -530,7 +543,7 @@ export async function listDirectoryEntries(
     paths.map(async (entryPath) => {
       try {
         const stat = await fs.promises.stat(entryPath)
-        return { path: entryPath as FilePath, isDirectory: stat.isDirectory() }
+        return { path: entryPath as AbsoluteFilePath, isDirectory: stat.isDirectory() }
       } catch {
         // Entry vanished between listing and stat — drop it (matches the
         // renderer's old per-entry isDirectory failure handling).

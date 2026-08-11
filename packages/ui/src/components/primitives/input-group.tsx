@@ -19,7 +19,7 @@ const inputGroupVariants = cva(
     'has-[>[data-align=block-end]]:h-auto has-[>[data-align=block-end]]:flex-col has-[>[data-align=block-end]]:[&>input]:pt-3',
 
     // Focus state.
-    'has-[[data-slot=input-group-control]:focus-visible]:border-ring has-[[data-slot=input-group-control]:focus-visible]:ring-ring/50 has-[[data-slot=input-group-control]:focus-visible]:ring-[3px]',
+    'has-[[data-slot=input-group-control]:focus-visible]:border-primary',
 
     // Error state.
     'has-[[data-slot][aria-invalid=true]]:ring-destructive/20 has-[[data-slot][aria-invalid=true]]:border-destructive dark:has-[[data-slot][aria-invalid=true]]:ring-destructive/40'
@@ -90,8 +90,8 @@ const inputGroupButtonVariants = cva('text-sm shadow-none flex gap-2 items-cente
     size: {
       xs: "h-6 gap-1 px-2 [&>svg:not([class*='size-'])]:size-3.5 has-[>svg]:px-2",
       sm: 'h-8 px-2.5 gap-1.5 rounded-md has-[>svg]:px-2.5',
-      'icon-xs': 'size-6 p-0 has-[>svg]:p-0',
-      'icon-sm': 'size-8 p-0 has-[>svg]:p-0'
+      'icon-xs': 'size-6 min-h-0 p-0 has-[>svg]:p-0',
+      'icon-sm': 'size-8 min-h-0 p-0 has-[>svg]:p-0'
     }
   },
   defaultVariants: {

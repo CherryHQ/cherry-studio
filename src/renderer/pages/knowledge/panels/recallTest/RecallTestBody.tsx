@@ -13,7 +13,7 @@ const RecallResultSummary = () => {
   } = useRecallResult()
 
   return (
-    <div className="flex items-center justify-between gap-4 border-border-muted border-b px-4 py-3 text-foreground-muted text-xs leading-4">
+    <div className="flex items-center justify-between gap-4 border-border-subtle border-b px-4 py-3 text-foreground-tertiary text-xs leading-4">
       <div className="flex items-center gap-2.5">
         <span className="flex items-center gap-0.5">
           <Sparkles className="size-3" />
@@ -71,7 +71,7 @@ const RecallSearchingState = () => {
   const { t } = useTranslation()
 
   return (
-    <div className="flex h-full min-h-full flex-col items-center justify-center py-12 text-center text-foreground-muted">
+    <div className="flex h-full min-h-full flex-col items-center justify-center py-12 text-center text-foreground-tertiary">
       <LoaderCircle className="size-5.5 animate-spin text-primary" />
       <p className="mt-2 text-sm leading-5">{t('knowledge.recall.searching')}</p>
     </div>

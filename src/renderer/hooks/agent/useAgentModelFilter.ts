@@ -10,7 +10,6 @@
  * those make sense as chat targets).
  */
 
-import { useProviders } from '@renderer/hooks/useProvider'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
@@ -27,7 +26,7 @@ const baseAgentFilter = (model: Model): boolean => !isNonChatModel(model)
  */
 const AGENT_ONLY_FILTER = Symbol('agentModelFilter')
 
-type AgentModelFilter = ((model: Model) => boolean) & { [AGENT_ONLY_FILTER]?: true }
+type AgentModelFilter = ((model: Model, provider?: Provider) => boolean) & { [AGENT_ONLY_FILTER]?: true }
 
 /** True when `filter` came from {@link useAgentModelFilter} (may include agent-only providers). */
 export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) => boolean): boolean {
@@ -38,21 +37,14 @@ export function modelFilterIncludesAgentOnlyProviders(filter?: (model: Model) =>
  * Returns a memoized `(model) => boolean` predicate that matches the agent's
  * runtime constraints. Pair with `<ModelSelector filter={...}>`.
  */
-export function useAgentModelFilter(agentType: AgentType | undefined): (model: Model) => boolean {
-  const { providers } = useProviders()
-  const providerById = useMemo(() => {
-    const map = new Map<string, Provider>()
-    for (const provider of providers) map.set(provider.id, provider)
-    return map
-  }, [providers])
-
+export function useAgentModelFilter(agentType: AgentType | undefined): AgentModelFilter {
   return useMemo<AgentModelFilter>(() => {
     const caps = agentType ? AGENT_RUNTIME_CAPABILITIES[agentType] : undefined
-    const predicate: AgentModelFilter = (model) => {
+    const predicate: AgentModelFilter = (model, provider) => {
       if (!baseAgentFilter(model)) return false
-      return !caps?.isModelCompatible || caps.isModelCompatible(providerById.get(model.providerId), model)
+      return !caps?.isModelCompatible || caps.isModelCompatible(provider, model)
     }
     predicate[AGENT_ONLY_FILTER] = true
     return predicate
-  }, [agentType, providerById])
+  }, [agentType])
 }

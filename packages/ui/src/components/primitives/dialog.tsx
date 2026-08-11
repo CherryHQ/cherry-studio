@@ -29,7 +29,10 @@ function DialogOverlay({ className, onPointerDown, ...props }: React.ComponentPr
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-[80] bg-black/50',
+        'fixed inset-0 z-[80] bg-black/50',
+        'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:animation-duration-[220ms] data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
+        'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:animation-duration-[200ms] data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
+        'fill-mode-both motion-reduce:animate-none',
         className
       )}
       onPointerDown={composeEventHandlers(onPointerDown, (event) => event.stopPropagation(), {
@@ -41,6 +44,7 @@ function DialogOverlay({ className, onPointerDown, ...props }: React.ComponentPr
 }
 
 type DialogContentSize = 'sm' | 'default' | 'lg' | 'xl'
+type DialogContentMotion = 'directional' | 'fade-scale'
 
 const dialogContentSizeClass: Record<DialogContentSize, string> = {
   sm: 'sm:max-w-sm',
@@ -51,16 +55,18 @@ const dialogContentSizeClass: Record<DialogContentSize, string> = {
 
 type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> & {
   closeOnOverlayClick?: boolean
+  motion?: DialogContentMotion
   overlayClassName?: string
   showCloseButton?: boolean
   size?: DialogContentSize
 }
 
 /**
- * Close-animation duration (ms) of DialogContent. The `duration-200` Tailwind class below
- * cannot be interpolated (Tailwind needs a literal class name), so this constant mirrors it
- * and a co-located test asserts they stay equal. Imperative popup hosts import this to delay
- * unmount until the close animation finishes (renderer services/popup POPUP_EXIT_MS).
+ * Close-animation duration (ms) of DialogContent. The literal
+ * `data-[state=closed]:animation-duration-[200ms]` class below cannot be interpolated
+ * (Tailwind needs to discover the whole class name), so this constant mirrors it and a
+ * co-located test asserts they stay equal. Imperative host removal timing is defined
+ * separately by DIALOG_UNMOUNT_DELAY_MS.
  */
 export { DIALOG_CLOSE_DURATION_MS }
 
@@ -69,6 +75,7 @@ function DialogContent({
   children,
   closeOnOverlayClick = true,
   showCloseButton = true,
+  motion = 'directional',
   overlayClassName,
   onPointerDown,
   size = 'default',
@@ -99,35 +106,44 @@ function DialogContent({
           }}
         />
       </DialogPrimitive.Close>
-      <PortalContainerProvider container={contentElement}>
-        {/*
-          The `duration-200` close animation below must equal DIALOG_CLOSE_DURATION_MS
-          (above); a test enforces it. Imperative hosts delay unmount by that long so the
-          animation finishes (see renderer services/popup POPUP_EXIT_MS).
-        */}
-        <DialogPrimitive.Content
-          ref={handleRef}
-          data-slot="dialog-content"
-          className={cn(
-            'bg-card text-card-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 p-6 shadow-xl duration-200',
-            dialogContentSizeClass[size],
-            className
-          )}
-          onPointerDown={composeEventHandlers(onPointerDown, (event) => event.stopPropagation(), {
-            checkForDefaultPrevented: false
-          })}
-          {...props}>
+      {/*
+        Keep Content as a direct Portal child so Radix Presence receives its DOM ref and
+        can retain it for the closed-state animation. Nested overlays still inherit the
+        content element as their portal target from the provider inside Content.
+
+        The closed-state animation duration below must equal DIALOG_CLOSE_DURATION_MS
+        (above); a test enforces it. Imperative host removal timing is defined separately
+        by DIALOG_UNMOUNT_DELAY_MS.
+      */}
+      <DialogPrimitive.Content
+        ref={handleRef}
+        data-slot="dialog-content"
+        className={cn(
+          'bg-card text-card-foreground fixed top-[50%] left-[50%] z-[80] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-3xl border-0 p-6 shadow-xl',
+          'data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-99 data-[state=open]:animation-duration-[260ms] data-[state=open]:ease-[cubic-bezier(0.16,1,0.3,1)]',
+          'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-99 data-[state=closed]:animation-duration-[200ms] data-[state=closed]:ease-[cubic-bezier(0.4,0,1,1)]',
+          motion === 'directional' &&
+            'data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4',
+          'fill-mode-both motion-reduce:animate-none',
+          dialogContentSizeClass[size],
+          className
+        )}
+        onPointerDown={composeEventHandlers(onPointerDown, (event) => event.stopPropagation(), {
+          checkForDefaultPrevented: false
+        })}
+        {...props}>
+        <PortalContainerProvider container={contentElement}>
           {children}
           {showCloseButton && (
             <DialogPrimitive.Close
               data-slot="dialog-close"
-              className="ring-offset-background focus-visible:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
+              className="data-[state=open]:bg-accent data-[state=open]:text-muted-foreground absolute top-4 right-4 rounded-md opacity-70 transition-opacity hover:opacity-100 focus:outline-hidden focus-visible:bg-accent focus-visible:opacity-100 disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4">
               <XIcon />
               <span className="sr-only">Close</span>
             </DialogPrimitive.Close>
           )}
-        </DialogPrimitive.Content>
-      </PortalContainerProvider>
+        </PortalContainerProvider>
+      </DialogPrimitive.Content>
     </DialogPortal>
   )
 }

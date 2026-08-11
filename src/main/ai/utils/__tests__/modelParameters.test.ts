@@ -2,8 +2,13 @@ import type { AssistantSettings } from '@shared/data/types/assistant'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { describe, expect, it } from 'vitest'
 
-import { makeAssistant as makeAssistantBase, makeModel, makeProvider } from '../../__tests__/fixtures'
-import { filterStandardParams, getMaxTokens, getTemperature, getTopP } from '../modelParameters'
+import { makeAssistant as makeAssistantBase, makeModel } from '../../__tests__/fixtures'
+import { adjustMaxOutputTokensForReasoning, filterStandardParams, getTemperature, getTopP } from '../modelParameters'
+
+const OMIT_REASONING = { kind: 'omit' } as const
+const OFF_REASONING = { kind: 'off' } as const
+const EFFORT_REASONING = { kind: 'effort' } as const
+const NO_BUDGET = { budgetTokens: undefined }
 
 // modelParameters tests treat `enableTemperature: true` as the baseline,
 // unlike DEFAULT_ASSISTANT_SETTINGS which has it false. Local wrapper keeps
@@ -15,16 +20,16 @@ function makeAssistant(settings: Partial<AssistantSettings> = {}) {
 describe('getTemperature', () => {
   it('returns undefined when enableTemperature is false', () => {
     const a = makeAssistant({ enableTemperature: false, temperature: 0.7 })
-    expect(getTemperature(a, makeModel())).toBeUndefined()
+    expect(getTemperature(a, makeModel(), OMIT_REASONING)).toBeUndefined()
   })
 
   it('returns the temperature when the model supports it', () => {
     const a = makeAssistant({ temperature: 0.5 })
-    expect(getTemperature(a, makeModel())).toBe(0.5)
+    expect(getTemperature(a, makeModel(), OMIT_REASONING)).toBe(0.5)
   })
 
-  it('disables temperature on Claude reasoning models with non-default reasoning effort', () => {
-    const a = makeAssistant({ temperature: 0.8, reasoning_effort: 'high' })
+  it('disables temperature from the request snapshot even when the persisted effort is default', () => {
+    const a = makeAssistant({ temperature: 0.8, reasoning_effort: 'default' })
     // `isClaudeReasoningModel` = Anthropic vendor + REASONING capability
     // (the registry sets the capability via `inferClaudeReasoningFromId`;
     // tests have to populate it explicitly because they bypass the registry).
@@ -33,17 +38,17 @@ describe('getTemperature', () => {
       providerId: 'anthropic',
       capabilities: [MODEL_CAPABILITY.REASONING]
     })
-    expect(getTemperature(a, model)).toBeUndefined()
+    expect(getTemperature(a, model, EFFORT_REASONING)).toBeUndefined()
   })
 
-  it('keeps temperature on Claude reasoning models when reasoning_effort is default', () => {
-    const a = makeAssistant({ temperature: 0.8, reasoning_effort: 'default' })
+  it('keeps temperature from the request snapshot even when the persisted effort is high', () => {
+    const a = makeAssistant({ temperature: 0.8, reasoning_effort: 'high' })
     const model = makeModel({
       id: 'anthropic::claude-sonnet-4-5-20250101',
       providerId: 'anthropic',
       capabilities: [MODEL_CAPABILITY.REASONING]
     })
-    expect(getTemperature(a, model)).toBe(0.8)
+    expect(getTemperature(a, model, OFF_REASONING)).toBe(0.8)
   })
 
   it('clamps temperature to 1 for isMaxTemperatureOneModel', () => {
@@ -61,34 +66,34 @@ describe('getTemperature', () => {
         systemMessage: true
       }
     })
-    expect(getTemperature(a, model)).toBe(1)
+    expect(getTemperature(a, model, OMIT_REASONING)).toBe(1)
   })
 
   it('disables temperature for Gemini 3.x models', () => {
     const a = makeAssistant({ temperature: 0.8 })
     const model = makeModel({ id: 'gemini::gemini-3-pro' })
-    expect(getTemperature(a, model)).toBeUndefined()
+    expect(getTemperature(a, model, OMIT_REASONING)).toBeUndefined()
   })
 
   it('disables temperature for Claude Opus 4.7 models', () => {
     const a = makeAssistant({ temperature: 0.8 })
     const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
-    expect(getTemperature(a, model)).toBeUndefined()
+    expect(getTemperature(a, model, OMIT_REASONING)).toBeUndefined()
   })
 })
 
 describe('getTopP', () => {
   it('returns undefined when enableTopP is false', () => {
     const a = makeAssistant({ enableTopP: false, topP: 0.9 })
-    expect(getTopP(a, makeModel())).toBeUndefined()
+    expect(getTopP(a, makeModel(), OMIT_REASONING)).toBeUndefined()
   })
 
   it('returns topP when enabled', () => {
     const a = makeAssistant({ enableTopP: true, topP: 0.9 })
-    expect(getTopP(a, makeModel())).toBe(0.9)
+    expect(getTopP(a, makeModel(), OMIT_REASONING)).toBe(0.9)
   })
 
-  it('clamps topP to [0.95, 1] on Claude reasoning models with reasoning effort', () => {
+  it('clamps topP to [0.95, 1] from the resolved request reasoning', () => {
     // `enableTemperature: false` — Claude 4.5 has mutually-exclusive
     // temperature/topP (`isTemperatureTopPMutuallyExclusiveModel`); leaving
     // both enabled would short-circuit topP via the exclusivity branch and
@@ -99,19 +104,19 @@ describe('getTopP', () => {
       providerId: 'anthropic',
       capabilities: [MODEL_CAPABILITY.REASONING]
     })
-    expect(getTopP(a, model)).toBe(0.95)
+    expect(getTopP(a, model, EFFORT_REASONING)).toBe(0.95)
   })
 
   it('disables topP for Gemini 3.x models', () => {
     const a = makeAssistant({ enableTopP: true, topP: 0.8 })
     const model = makeModel({ id: 'gemini::gemini-3-pro' })
-    expect(getTopP(a, model)).toBeUndefined()
+    expect(getTopP(a, model, OMIT_REASONING)).toBeUndefined()
   })
 
   it('disables topP for Claude Opus 4.7 models', () => {
     const a = makeAssistant({ enableTopP: true, topP: 0.8 })
     const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
-    expect(getTopP(a, model)).toBeUndefined()
+    expect(getTopP(a, model, OMIT_REASONING)).toBeUndefined()
   })
 })
 
@@ -132,28 +137,24 @@ describe('filterStandardParams', () => {
   })
 })
 
-describe('getMaxTokens', () => {
-  it('returns undefined when enableMaxTokens is off', () => {
-    const a = makeAssistant({ enableMaxTokens: false, maxTokens: 2048 })
-    expect(getMaxTokens(a, makeModel(), makeProvider())).toBeUndefined()
+describe('adjustMaxOutputTokensForReasoning', () => {
+  it('preserves an undefined max output limit', () => {
+    expect(adjustMaxOutputTokensForReasoning(undefined, 'anthropic-messages', NO_BUDGET)).toBeUndefined()
   })
 
-  it('returns maxTokens when enabled on non-Claude models', () => {
-    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 2048 })
-    expect(getMaxTokens(a, makeModel(), makeProvider())).toBe(2048)
+  it('does not subtract a budget for non-Anthropic endpoints', () => {
+    expect(adjustMaxOutputTokensForReasoning(8000, 'openai-chat-completions', { budgetTokens: 4000 })).toBe(8000)
   })
 
-  it('skips budget subtraction on Claude 4.6 series (adaptive thinking)', () => {
-    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 8000, reasoning_effort: 'high' })
-    const model = makeModel({ id: 'anthropic::claude-sonnet-4-6-20260101', providerId: 'anthropic' })
-    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
-    expect(getMaxTokens(a, model, provider)).toBe(8000)
+  it('subtracts an explicit thinking budget for Anthropic Messages regardless of model family', () => {
+    expect(adjustMaxOutputTokensForReasoning(8000, 'anthropic-messages', { budgetTokens: 4000 })).toBe(4000)
   })
 
-  it('skips budget subtraction on Claude Opus 4.7 series (adaptive thinking)', () => {
-    const a = makeAssistant({ enableMaxTokens: true, maxTokens: 8000, reasoning_effort: 'high' })
-    const model = makeModel({ id: 'anthropic::claude-opus-4-7-20260101', providerId: 'anthropic' })
-    const provider = makeProvider({ id: 'anthropic', presetProviderId: 'anthropic' })
-    expect(getMaxTokens(a, model, provider)).toBe(8000)
+  it('does not subtract when adaptive thinking has no explicit budget', () => {
+    expect(adjustMaxOutputTokensForReasoning(8000, 'anthropic-messages', NO_BUDGET)).toBe(8000)
+  })
+
+  it('keeps at least one non-thinking output token', () => {
+    expect(adjustMaxOutputTokensForReasoning(8000, 'anthropic-messages', { budgetTokens: 8000 })).toBe(1)
   })
 })

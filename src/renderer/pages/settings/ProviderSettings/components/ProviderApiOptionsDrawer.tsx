@@ -53,7 +53,7 @@ function OptionTitle({ id, label, help }: { id: string; label: string; help: str
       </label>
       <Tooltip content={help}>
         <span
-          className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-muted-foreground/55"
+          className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-tertiary"
           aria-label={help}>
           <Info className="size-3" aria-hidden />
         </span>
@@ -142,11 +142,11 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       if (!provider) {
         return
       }
+      // Send only the toggled key: main shallow-merges the stored delta and
+      // reduces against the registry baseline — echoing the full merged
+      // snapshot would mark every baseline value as a user override.
       updateProvider({
-        apiFeatures: {
-          ...provider.apiFeatures,
-          [key]: checked
-        }
+        apiFeatures: { [key]: checked }
       }).catch(handleSaveError)
     },
     [handleSaveError, provider, updateProvider]

@@ -4,8 +4,9 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import { AgentSelector } from '@renderer/components/resourceCatalog/selectors'
 import { useAgents } from '@renderer/hooks/agent/useAgent'
 import { useAgentSessionStreamStatuses } from '@renderer/hooks/agent/useAgentSessionStreamStatuses'
-import { useSessions, useUpdateSession } from '@renderer/hooks/agent/useSession'
+import { useUpdateSession } from '@renderer/hooks/agent/useSession'
 import { createSessionActionContext, useSessionMenuPreset } from '@renderer/hooks/chat/useSessionMenuActions'
+import { useAgentSessionsSource } from '@renderer/hooks/resourceViewSources'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { toast } from '@renderer/services/toast'
 import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
@@ -43,11 +44,11 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
   const {
     sessions,
     pinIdBySessionId,
-    isLoading: isSessionsLoading,
+    isLoadingAll: isSessionsLoading,
     deleteSession,
     deleteSessions,
     togglePin
-  } = useSessions(undefined, { loadAll: true, pageSize: 50 })
+  } = useAgentSessionsSource()
   const { agents } = useAgents()
   const { updateSession } = useUpdateSession()
 
@@ -190,7 +191,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
       getName: (session: SessionListItem) => session.name || t('common.unnamed'),
       getUpdatedAt: (session: SessionListItem) => session.updatedAt,
       getSourceLabel: (session: SessionListItem) =>
-        (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? t('common.unknown'),
+        (session.agentId ? agentById.get(session.agentId)?.name : undefined) ?? unknownAgentLabel,
       renderAvatar: (session: SessionListItem) => {
         const agent = session.agentId ? agentById.get(session.agentId) : undefined
         return (
@@ -223,7 +224,7 @@ const AgentHistoryRecords = ({ activeRecordId, onClose, onRecordSelect, toolbarL
           row
         )
     }),
-    [agentById, handleSessionSelect, handleToggleSessionPin, sessionMenuPreset, t]
+    [agentById, handleSessionSelect, handleToggleSessionPin, sessionMenuPreset, t, unknownAgentLabel]
   )
 
   const descriptor: HistoryRecordDescriptor<SessionListItem> = {

@@ -1,9 +1,12 @@
+import type * as NodeChildProcess from 'node:child_process'
+import { EventEmitter } from 'node:events'
 import type * as NodeFs from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { PassThrough } from 'node:stream'
 
-import type { FilePath } from '@shared/types/file'
+import type { AbsoluteFilePath } from '@shared/types/file'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { tryTestRipgrepPath } from './ripgrepTestUtils'
@@ -18,6 +21,15 @@ const ripgrepAvailable = tryTestRipgrepPath() !== null
 // real fs / real ripgrep without per-test setup.
 const mockExistsSync = vi.hoisted(() => vi.fn())
 const mockPromisesStat = vi.hoisted(() => vi.fn())
+const mockSpawn = vi.hoisted(() => vi.fn())
+
+vi.mock('node:child_process', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeChildProcess>()
+  return {
+    ...actual,
+    spawn: mockSpawn
+  }
+})
 
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof NodeFs>()
@@ -59,9 +71,36 @@ beforeEach(async () => {
   const actual = await vi.importActual<typeof NodeFs>('node:fs')
   mockExistsSync.mockReset()
   mockPromisesStat.mockReset()
+  mockSpawn.mockReset()
   mockExistsSync.mockImplementation((p: NodeFs.PathLike) => actual.existsSync(p))
   mockPromisesStat.mockImplementation((p: string) => actual.promises.stat(p))
+  const actualChildProcess = await vi.importActual<typeof NodeChildProcess>('node:child_process')
+  mockSpawn.mockImplementation(actualChildProcess.spawn)
 })
+
+const mockRipgrepResultOnce = ({
+  exitCode,
+  stdout = '',
+  stderr = ''
+}: {
+  exitCode: number
+  stdout?: string
+  stderr?: string
+}) => {
+  const child = new EventEmitter() as ReturnType<typeof NodeChildProcess.spawn>
+  const stdoutStream = new PassThrough()
+  const stderrStream = new PassThrough()
+  child.stdout = stdoutStream
+  child.stderr = stderrStream
+  mockSpawn.mockImplementationOnce(() => {
+    queueMicrotask(() => {
+      stdoutStream.end(stdout)
+      stderrStream.end(stderr)
+      child.emit('close', exitCode, null)
+    })
+    return child
+  })
+}
 
 const writeMany = async (root: string, count: number, prefix = 'file', ext = '.txt'): Promise<string[]> => {
   const created: string[] = []
@@ -87,14 +126,14 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     // 75 files exercises the > 50 threshold called out in the PR plan and
     // would have been chopped to 20 under the old `maxEntries` default.
     await writeMany(tmp, 75)
-    const results = await listDirectory(tmp as FilePath)
+    const results = await listDirectory(tmp as AbsoluteFilePath)
     expect(results.length).toBe(75)
   })
 
   it('uses the BinaryManager-resolved ripgrep path', async () => {
     await writeFile(path.join(tmp, 'root.md'), 'root')
 
-    await listDirectory(tmp as FilePath)
+    await listDirectory(tmp as AbsoluteFilePath)
 
     const checkedPaths = mockExistsSync.mock.calls.map(([p]) => String(p).replace(/\\/g, '/'))
     expect(checkedPaths.some((p) => path.basename(p) === (process.platform === 'win32' ? 'rg.exe' : 'rg'))).toBe(true)
@@ -105,7 +144,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     await mkdir(path.join(tmp, 'sub'))
     await writeFile(path.join(tmp, 'sub', 'inner.md'), 'inner')
 
-    const results = await listDirectory(tmp as FilePath)
+    const results = await listDirectory(tmp as AbsoluteFilePath)
     const basenames = results.map((p) => path.basename(p))
     expect(basenames).toContain('root.md')
     expect(basenames).toContain('inner.md')
@@ -116,10 +155,10 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     await writeFile(path.join(tmp, 'visible.txt'), '1')
     await writeFile(path.join(tmp, '.hidden'), '2')
 
-    const defaultRun = await listDirectory(tmp as FilePath)
+    const defaultRun = await listDirectory(tmp as AbsoluteFilePath)
     expect(defaultRun.some((p) => p.endsWith('/.hidden'))).toBe(false)
 
-    const withHidden = await listDirectory(tmp as FilePath, { includeHidden: true })
+    const withHidden = await listDirectory(tmp as AbsoluteFilePath, { includeHidden: true })
     expect(withHidden.some((p) => p.endsWith('/.hidden'))).toBe(true)
   })
 
@@ -128,7 +167,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (list mode, no searchPattern)'
     await mkdir(path.join(tmp, 'sub'))
     await writeFile(path.join(tmp, 'sub', 'nested.md'), 'nested')
 
-    const results = await listDirectory(tmp as FilePath, { maxDepth: 1 })
+    const results = await listDirectory(tmp as AbsoluteFilePath, { maxDepth: 1 })
     const basenames = results.map((p) => path.basename(p))
     expect(basenames).toContain('top.md')
     expect(basenames).not.toContain('nested.md')
@@ -149,7 +188,7 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     for (let i = 0; i < 12; i++) {
       await writeFile(path.join(tmp, `updater-${i}.ts`), 'x')
     }
-    const results = await listDirectory(tmp as FilePath, {
+    const results = await listDirectory(tmp as AbsoluteFilePath, {
       searchPattern: 'updater',
       maxEntries: 5
     })
@@ -165,13 +204,45 @@ describe.skipIf(!ripgrepAvailable)('listDirectory (search mode, fuzzy + maxEntri
     await mkdir(path.join(tmp, 'misc'))
     await writeFile(path.join(tmp, 'misc', 'inner-updater.ts'), 'c')
 
-    const results = await listDirectory(tmp as FilePath, {
+    const results = await listDirectory(tmp as AbsoluteFilePath, {
       searchPattern: 'updater',
       maxEntries: 10
     })
 
     expect(results[0]).toMatch(/updater\.ts$/)
     expect(results.some((p) => p.endsWith('unrelated.ts'))).toBe(false)
+  })
+
+  it('keeps valid files when ripgrep reports a non-fatal traversal error', async () => {
+    const validFile = path.join(tmp, 'readable.md').replace(/\\/g, '/')
+    await writeFile(validFile, 'readable')
+
+    mockRipgrepResultOnce({
+      exitCode: 2,
+      stdout: `${validFile}\n`,
+      stderr: 'rg: locked-directory: Access is denied. (os error 5)\n'
+    })
+
+    await expect(
+      listDirectory(tmp as AbsoluteFilePath, {
+        includeDirectories: false,
+        searchPattern: 'readable'
+      })
+    ).resolves.toEqual([validFile])
+  })
+
+  it('rejects a ripgrep traversal error without usable files', async () => {
+    mockRipgrepResultOnce({
+      exitCode: 2,
+      stderr: 'rg: locked-directory: Access is denied. (os error 5)\n'
+    })
+
+    await expect(
+      listDirectory(tmp as AbsoluteFilePath, {
+        includeDirectories: false,
+        searchPattern: 'readable'
+      })
+    ).rejects.toThrow(/Ripgrep failed with exit code 2:.*Access is denied/)
   })
 })
 
@@ -192,7 +263,7 @@ describe('listDirectory (error paths)', () => {
     // a missing binary.
     mockExistsSync.mockReturnValue(false)
 
-    await expect(listDirectory(tmp as FilePath)).rejects.toThrow(/Ripgrep binary not available/)
+    await expect(listDirectory(tmp as AbsoluteFilePath)).rejects.toThrow(/Ripgrep binary not available/)
   })
 
   it('throws when the root path is not readable (EACCES from fs.promises.stat)', async () => {
@@ -204,6 +275,6 @@ describe('listDirectory (error paths)', () => {
     }) as NodeJS.ErrnoException
     mockPromisesStat.mockRejectedValueOnce(eaccesErr)
 
-    await expect(listDirectory('/some/locked/path' as FilePath)).rejects.toBe(eaccesErr)
+    await expect(listDirectory('/some/locked/path' as AbsoluteFilePath)).rejects.toBe(eaccesErr)
   })
 })

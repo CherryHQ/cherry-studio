@@ -91,6 +91,8 @@ await preferenceService.set("api.key", "secret", { optimistic: false });
 └─────────────────────────────────────────────────────┘
 ```
 
+All `Preference_*` IPC channels are sender-gated by `validateSender` (untrusted senders are rejected) — see [IpcApi Overview §Security](../ipc/ipc-overview.md#security--two-gates).
+
 ## Main vs Renderer Responsibilities
 
 ### Main Process PreferenceService

@@ -27,11 +27,11 @@ export const isBuiltinMcpServerName = (name: string): name is BuiltinMcpServerNa
 }
 
 export type BuiltinMcpServer = McpServer & {
-  type: 'inMemory'
+  type: 'inMemory' | 'stdio'
   name: BuiltinMcpServerName
 }
 
-export const isBuiltinMcpServer = (server: McpServer): server is BuiltinMcpServer => {
+export const isInMemoryBuiltinMcpServer = (server: McpServer): server is BuiltinMcpServer & { type: 'inMemory' } => {
   return server.type === 'inMemory' && isBuiltinMcpServerName(server.name)
 }
 

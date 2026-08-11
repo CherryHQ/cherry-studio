@@ -78,9 +78,9 @@ vi.mock('lucide-react', () => ({
   Pencil: () => <span data-testid="pencil-icon" />,
   Plus: () => <span data-testid="plus-icon" />,
   Search: () => <span data-testid="search-icon" />,
+  ToolCase: () => <span data-testid="tool-case-icon" />,
   Trash2: () => <span data-testid="trash-icon" />,
-  X: () => <span data-testid="x-icon" />,
-  Zap: () => <span data-testid="zap-icon" />
+  X: () => <span data-testid="x-icon" />
 }))
 
 vi.mock('react-i18next', () => ({

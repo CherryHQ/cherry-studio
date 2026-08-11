@@ -1,5 +1,5 @@
 import { cacheService } from '@data/CacheService'
-import { useSharedCache } from '@data/hooks/useCache'
+import { useSharedCacheValue } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { ipcApi } from '@renderer/ipc'
 import { toast } from '@renderer/services/toast'
@@ -18,8 +18,9 @@ const API_GATEWAY_PREFERENCE_KEYS = {
  *
  * - Config flows through the DataApi preference layer (`feature.api_gateway.*`).
  * - Running state is published by Main to the shared cache (Main is
- *   authoritative); the renderer reads it reactively via `useSharedCache`.
- *   No IPC ready-broadcast or EventEmitter listener is involved.
+ *   authoritative); the renderer observes it read-only via `useSharedCacheValue`
+ *   (no default write-back into the Main-owned key). No IPC ready-broadcast or
+ *   EventEmitter listener is involved.
  * - Start/stop/restart remain imperative IPC commands; Main updates the shared
  *   cache as part of activation, so `apiGatewayRunning` updates on its own.
  */
@@ -28,7 +29,7 @@ export const useApiGateway = () => {
 
   const [apiGatewayConfig, setApiGatewayConfig] = useMultiplePreferences(API_GATEWAY_PREFERENCE_KEYS)
 
-  const [apiGatewayRunning] = useSharedCache('feature.api_gateway.running', false)
+  const apiGatewayRunning = useSharedCacheValue('feature.api_gateway.running') ?? false
 
   // Tracks an in-flight start/stop/restart command (for button spinners) AND the
   // initial shared-cache hydration window. Starts `true` until the shared cache is

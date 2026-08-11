@@ -76,6 +76,23 @@ describe('useToolApprovalComposerOverrides', () => {
     expect(result.current).toEqual([])
   })
 
+  it('masks a stale historical approval with the current live message', () => {
+    const historicalPart = makeAskUserQuestionPart()
+    const currentPart = makeAskUserQuestionPart({ state: 'approval-responded' })
+    const { result } = renderHook(() =>
+      useToolApprovalComposerOverrides({
+        partsByMessageId: { 'message-1': [currentPart] },
+        streamingLayers: {
+          historyPartsByMessageId: { 'message-1': [historicalPart] },
+          liveMessageIds: ['message-1']
+        },
+        onRespond: vi.fn()
+      })
+    )
+
+    expect(result.current).toEqual([])
+  })
+
   it('optimistically removes permission overrides while a response is pending', async () => {
     const onRespond = vi.fn(() => new Promise<void>(() => undefined))
     const { result } = renderHook(() =>

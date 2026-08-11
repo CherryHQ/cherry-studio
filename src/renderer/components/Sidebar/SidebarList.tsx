@@ -70,7 +70,7 @@ function IconList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 onClick={guardClick(entry.key, entry.onOpen)}
                 className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-150 ${
                   isActive
-                    ? 'bg-sidebar-active-bg text-foreground'
+                    ? 'bg-[var(--sidebar-active-bg)] text-foreground'
                     : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground'
                 }`}>
                 {isActive && <ActiveIndicator className="rounded-full" />}
@@ -103,7 +103,7 @@ function FullList({ entries, active, onReorder, onContextMenuOpenChange }: ListP
                 label={entry.label}
                 active={isActive}
                 onClick={guardClick(entry.key, entry.onOpen)}
-                className="rounded-xl data-[active=true]:bg-sidebar-active-bg"
+                className="rounded-xl data-[active=true]:bg-[var(--sidebar-active-bg)]"
               />
             </EntryContextMenu>
             {isActive && <ActiveIndicator className="rounded-xl" />}

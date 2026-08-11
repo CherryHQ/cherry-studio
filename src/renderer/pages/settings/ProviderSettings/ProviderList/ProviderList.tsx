@@ -1,9 +1,11 @@
+import { usePersistCache } from '@data/hooks/useCache'
 import { useReorder } from '@data/hooks/useReorder'
 import ConfirmActionPopup from '@renderer/components/popups/ConfirmActionPopup'
 import { useModels } from '@renderer/hooks/useModel'
 import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
+  isProviderPresetInstanceSource,
   isProviderSettingsListVisibleProvider,
   matchKeywordsInProvider
 } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
@@ -37,7 +39,9 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
-  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
+  const [persistedFilterMode, setPersistedFilterMode] = usePersistCache('settings.provider.filter_mode')
+  const [filterModeOverride, setFilterModeOverride] = useState<ProviderFilterMode | undefined>(filterModeHint)
+  const filterMode = filterModeOverride ?? persistedFilterMode
   const [searchText, setSearchText] = useState('')
   const { models: allModels } = useModels(undefined, { fetchEnabled: Boolean(searchText.trim()) })
   const [dragging, setDragging] = useState(false)
@@ -71,8 +75,16 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
       return
     }
 
-    setFilterMode(filterModeHint)
+    setFilterModeOverride(filterModeHint)
   }, [filterModeHint])
+
+  const handleFilterChange = useCallback(
+    (mode: ProviderFilterMode) => {
+      setFilterModeOverride(undefined)
+      setPersistedFilterMode(mode)
+    },
+    [setPersistedFilterMode]
+  )
 
   useEffect(() => {
     if (!selectedProviderId) return
@@ -128,6 +140,13 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   )
 
   const groupedPresetIds = useMemo(() => getGroupedPresetIds(filteredProviders), [filteredProviders])
+  const presetSources = useMemo(
+    () =>
+      providers.filter(
+        (provider) => isProviderPresetInstanceSource(provider) && isProviderSettingsListVisibleProvider(provider)
+      ),
+    [providers]
+  )
 
   const setProviderItemRef = useCallback((providerId: string, element: HTMLDivElement | null) => {
     if (element) {
@@ -253,22 +272,15 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
 
   const handleAddAnother = useCallback((template: Provider) => startAddFrom(template), [startAddFrom])
   const addProviderButton = (
-    <div className={providerListClasses.addWrap}>
-      <button
-        type="button"
-        aria-label={t('settings.provider.add.button_title')}
-        disabled={dragging}
-        onClick={startAdd}
-        className={providerListClasses.addButton}>
-        <span aria-hidden className={providerListClasses.addButtonLeadingSpacer} />
-        <span className={providerListClasses.addButtonContent}>
-          <span className={providerListClasses.addButtonIconSlot}>
-            <Plus size={14} strokeWidth={2.5} />
-          </span>
-          <span>{t('settings.provider.add.button_title')}</span>
-        </span>
-      </button>
-    </div>
+    <button
+      type="button"
+      aria-label={t('settings.provider.add.button_title')}
+      disabled={dragging}
+      onClick={startAdd}
+      className={providerListClasses.addButton}>
+      <Plus size={14} strokeWidth={2.5} />
+      <span>{t('settings.provider.add.button_title')}</span>
+    </button>
   )
 
   return (
@@ -282,8 +294,8 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
             filterMode={filterMode}
             disabled={dragging}
             triggerClassName={providerListClasses.searchInlineAddButton}
-            triggerIconSize={13}
-            onFilterChange={setFilterMode}
+            triggerIconSize={12}
+            onFilterChange={handleFilterChange}
           />
         }
       />
@@ -299,14 +311,16 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
         onDragStateChange={handleDragStateChange}
         onReorder={applyReorderedList}
         onReorderError={handleReorderError}
-        addButton={addProviderButton}
         renderItem={renderProviderItem}
       />
+      <div className={providerListClasses.addFooter}>{addProviderButton}</div>
       <ProviderEditorDrawer
         open={editorOpen}
         mode={editorMode}
         initialLogo={initialLogo}
+        presetSources={presetSources}
         onClose={cancelEditor}
+        onSelectPreset={startAddFrom}
         onSubmit={handleSubmitEditor}
       />
     </aside>

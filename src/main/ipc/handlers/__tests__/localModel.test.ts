@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@main/services/localModel/LocalEmbeddingDownloadService', () => ({
   localEmbeddingDownloadService: {
     getStatus: vi.fn(),
+    getStatusInfo: vi.fn(),
     download: vi.fn(),
     cancel: vi.fn(),
     remove: vi.fn()
@@ -12,6 +13,7 @@ vi.mock('@main/services/localModel/LocalEmbeddingDownloadService', () => ({
 vi.mock('@main/services/localModel/LocalOcrDownloadService', () => ({
   localOcrDownloadService: {
     getStatus: vi.fn(),
+    getStatusInfo: vi.fn(),
     download: vi.fn(),
     cancel: vi.fn(),
     remove: vi.fn()
@@ -35,43 +37,61 @@ describe('localModelHandlers', () => {
   })
 
   it('get_status/download/cancel dispatch to the owning service', async () => {
-    vi.mocked(localEmbeddingDownloadService.getStatus).mockReturnValue('ready')
+    vi.mocked(localEmbeddingDownloadService.getStatusInfo).mockReturnValue({ status: 'ready' })
+    vi.mocked(localOcrDownloadService.download).mockResolvedValue('ready')
 
-    await localModelHandlers['local_model.get_status']({ model: 'embedding' }, ctx)
-    await localModelHandlers['local_model.download']({ model: 'ocr' }, ctx)
+    const status = await localModelHandlers['local_model.get_status']({ model: 'embedding' }, ctx)
+    const result = await localModelHandlers['local_model.download']({ model: 'ocr' }, ctx)
     await localModelHandlers['local_model.cancel']({ model: 'embedding' }, ctx)
 
-    expect(localEmbeddingDownloadService.getStatus).toHaveBeenCalled()
+    expect(localEmbeddingDownloadService.getStatusInfo).toHaveBeenCalled()
+    expect(status).toEqual({ status: 'ready' })
     expect(localOcrDownloadService.download).toHaveBeenCalled()
+    expect(result).toEqual({ result: 'ready' })
     expect(localEmbeddingDownloadService.cancel).toHaveBeenCalled()
   })
 
   describe('download', () => {
     it('does not touch the onnxruntime binary when the download succeeds', async () => {
-      vi.mocked(localEmbeddingDownloadService.download).mockResolvedValue(undefined)
+      vi.mocked(localEmbeddingDownloadService.download).mockResolvedValue('ready')
 
-      await localModelHandlers['local_model.download']({ model: 'embedding' }, ctx)
+      await expect(localModelHandlers['local_model.download']({ model: 'embedding' }, ctx)).resolves.toEqual({
+        result: 'ready'
+      })
 
       expect(onnxRuntimeBinaryService.removeIfUnused).not.toHaveBeenCalled()
     })
 
     it('drops the shared onnxruntime binary when a download is cancelled and the sibling has no model', async () => {
-      const abortError = new Error('download cancelled')
-      vi.mocked(localEmbeddingDownloadService.download).mockRejectedValue(abortError)
+      vi.mocked(localEmbeddingDownloadService.download).mockResolvedValue('cancelled')
       vi.mocked(localOcrDownloadService.getStatus).mockReturnValue('not_downloaded')
 
-      await expect(localModelHandlers['local_model.download']({ model: 'embedding' }, ctx)).rejects.toBe(abortError)
+      await expect(localModelHandlers['local_model.download']({ model: 'embedding' }, ctx)).resolves.toEqual({
+        result: 'cancelled'
+      })
 
       expect(onnxRuntimeBinaryService.removeIfUnused).toHaveBeenCalledWith(false)
     })
 
     it('keeps the shared onnxruntime binary when the sibling is mid-download (it may await the same coalesced ensure)', async () => {
-      vi.mocked(localEmbeddingDownloadService.download).mockRejectedValue(new Error('download cancelled'))
+      vi.mocked(localEmbeddingDownloadService.download).mockResolvedValue('cancelled')
       vi.mocked(localOcrDownloadService.getStatus).mockReturnValue('downloading')
 
-      await expect(localModelHandlers['local_model.download']({ model: 'embedding' }, ctx)).rejects.toThrow()
+      await expect(localModelHandlers['local_model.download']({ model: 'embedding' }, ctx)).resolves.toEqual({
+        result: 'cancelled'
+      })
 
       expect(onnxRuntimeBinaryService.removeIfUnused).toHaveBeenCalledWith(true)
+    })
+
+    it('does not turn a cancellation into a failure when shared binary cleanup fails', async () => {
+      vi.mocked(localEmbeddingDownloadService.download).mockResolvedValue('cancelled')
+      vi.mocked(localOcrDownloadService.getStatus).mockReturnValue('not_downloaded')
+      vi.mocked(onnxRuntimeBinaryService.removeIfUnused).mockRejectedValueOnce(new Error('EBUSY'))
+
+      await expect(localModelHandlers['local_model.download']({ model: 'embedding' }, ctx)).resolves.toEqual({
+        result: 'cancelled'
+      })
     })
 
     it('propagates the original download error even when the binary cleanup itself fails', async () => {

@@ -7,7 +7,6 @@ import React, { useRef } from 'react'
 interface InputBarProps {
   text: string
   model?: Model
-  referenceText: string
   placeholder: string
   loading: boolean
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
@@ -38,7 +37,7 @@ const InputBar = ({
         autoFocus
         onKeyDown={handleKeyDown}
         onChange={handleChange}
-        className="h-auto border-0 bg-transparent px-0 py-0 text-lg shadow-none [-webkit-app-region:no-drag] placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0"
+        className="h-auto rounded-none border-0 bg-transparent px-0 py-0 text-lg shadow-none [-webkit-app-region:no-drag] placeholder:text-muted-foreground focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent"
       />
     </div>
   )

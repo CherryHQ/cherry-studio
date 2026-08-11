@@ -1,0 +1,15 @@
+import type { SVGProps } from 'react'
+
+import type { IconComponent } from '../../types'
+const AnthropicLight: IconComponent = (props: SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="0 0 24 24" {...props}>
+    <path
+      fill="#000"
+      fillRule="evenodd"
+      d="M13.218 6H15.62L20 17H17.598L13.218 6ZM8.37933 6H10.8907L15.2707 17H12.8213L11.926 14.6899H7.34467L6.44867 16.9993H4L8.38 6.00134L8.37933 6ZM11.134 12.6474L9.63533 8.78137L8.13667 12.6481H11.1333L11.134 12.6474Z"
+      clipRule="evenodd"
+    />
+  </svg>
+)
+export { AnthropicLight }
+export default AnthropicLight

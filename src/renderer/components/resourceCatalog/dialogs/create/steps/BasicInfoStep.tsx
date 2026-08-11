@@ -17,7 +17,6 @@ import {
   type ModelLabels,
   TextInputField
 } from '@renderer/components/resourceCatalog/dialogs/components/EditDialogShared'
-import { useAgentModelFilter } from '@renderer/hooks/agent/useAgentModelFilter'
 import { AGENT_RUNTIME_CAPABILITIES } from '@shared/ai/agentRuntimeCapabilities'
 import type { AgentType } from '@shared/data/types/agent'
 import type { Model } from '@shared/data/types/model'
@@ -27,7 +26,12 @@ import { useTranslation } from 'react-i18next'
 
 import type { ResourceCreateWizardFormValues } from '../types'
 
-const EMPTY_MODEL_LABELS: ModelLabels = { modelId: null, planModelId: null, smallModelId: null }
+const EMPTY_MODEL_LABELS: ModelLabels = {
+  modelId: null,
+  planModelId: null,
+  smallModelId: null,
+  contextCompressModelId: null
+}
 
 const AGENT_RUNTIME_OPTIONS: { value: AgentType; labelKey: string; labelFallback: string }[] = Object.entries(
   AGENT_RUNTIME_CAPABILITIES
@@ -38,6 +42,7 @@ type ModelFieldProps = {
   portalContainer: HTMLElement | null
   modelLabels: ModelLabels
   setModelLabels: (labels: ModelLabels) => void
+  modelFilter?: (model: Model) => boolean
   onSettingsNavigate?: (navigate: () => void) => void
 }
 
@@ -62,11 +67,11 @@ function AgentRuntimeModelFields({
   portalContainer,
   modelLabels,
   setModelLabels,
+  modelFilter,
   onSettingsNavigate
 }: ModelFieldProps) {
   const { t } = useTranslation()
   const agentType = form.watch('agentType')
-  const runtimeFilter = useAgentModelFilter(agentType)
   const caps = AGENT_RUNTIME_CAPABILITIES[agentType]
 
   const handleRuntimeChange = (next: AgentType) => {
@@ -108,11 +113,12 @@ function AgentRuntimeModelFields({
         form={form}
         name="modelId"
         label={t('common.model')}
-        filter={runtimeFilter}
+        filter={modelFilter}
         portalContainer={portalContainer}
         modelLabels={modelLabels}
         setModelLabels={setModelLabels}
         onSettingsNavigate={onSettingsNavigate}
+        triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50 aria-expanded:bg-accent/50"
       />
     </>
   )
@@ -166,6 +172,7 @@ export function BasicInfoStep({
           portalContainer={portalContainer}
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
+          modelFilter={modelFilter}
           onSettingsNavigate={onSettingsNavigate}
         />
       ) : (
@@ -178,6 +185,7 @@ export function BasicInfoStep({
           modelLabels={modelLabels}
           setModelLabels={setModelLabels}
           onSettingsNavigate={onSettingsNavigate}
+          triggerClassName="h-9 rounded-md border border-input bg-transparent px-3 hover:bg-accent/50 aria-expanded:bg-accent/50"
         />
       )}
 

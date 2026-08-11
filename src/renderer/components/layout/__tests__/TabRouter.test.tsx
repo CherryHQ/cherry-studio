@@ -4,10 +4,11 @@ import '@testing-library/jest-dom/vitest'
 // Import the real component from its source path: the `@cherrystudio/ui` barrel
 // is globally mocked for renderer tests, but this deeper specifier is not.
 import { PageSidePanel } from '@cherrystudio/ui/components/composites/page-side-panel'
+import { Combobox } from '@cherrystudio/ui/components/primitives/combobox'
 import { Dialog, DialogContent } from '@cherrystudio/ui/components/primitives/dialog'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter } from '@tanstack/react-router'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import * as React from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
@@ -71,7 +72,13 @@ vi.mock('@tanstack/react-router', async () => {
 import { RouteErrorFallback } from '../RouteErrorFallback'
 import { TabRouter } from '../TabRouter'
 
-const tab = (id: string, url: string): Tab => ({ id, url, title: url, type: 'route' }) as Tab
+const tab = (id: string, url: string, overrides: Partial<Tab> = {}): Tab => ({
+  id,
+  url,
+  title: url,
+  type: 'route',
+  ...overrides
+})
 
 beforeAll(() => {
   globalThis.ResizeObserver = class {
@@ -79,6 +86,7 @@ beforeAll(() => {
     unobserve() {}
     disconnect() {}
   } as unknown as typeof ResizeObserver
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
 afterEach(() => {
@@ -175,24 +183,71 @@ describe('TabRouter PageSidePanel portal isolation', () => {
     expect(bRoot.style.display).toBe('none')
     expect(aRoot.querySelector('[data-testid="test-dialog-content"]')).not.toBeInTheDocument()
   })
+
+  it('keeps a trigger-search Combobox anchored after switching away and back', async () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (this.matches('[data-slot="popover-anchor"]'))
+        return DOMRect.fromRect({ x: 120, y: 40, width: 260, height: 36 })
+      if (this.matches('[role="combobox"]')) return DOMRect.fromRect({ x: 120, y: 40, width: 100, height: 36 })
+      return DOMRect.fromRect({ x: 0, y: 0, width: 100, height: 40 })
+    })
+
+    function PageWithCombobox({ url }: { url: string }) {
+      if (url !== '/b') return null
+
+      return (
+        <Combobox
+          options={[
+            { value: 'alpha', label: 'Alpha' },
+            { value: 'beta', label: 'Beta' }
+          ]}
+          searchPlacement="trigger"
+          placeholder="Choose font"
+          emptyText="No fonts"
+        />
+      )
+    }
+
+    const anchorWidth = (root: HTMLElement) =>
+      root
+        .querySelector<HTMLElement>('[data-slot="popover-content"]')
+        ?.parentElement?.style.getPropertyValue('--radix-popper-anchor-width')
+
+    try {
+      knobs.renderPage = (url) => <PageWithCombobox url={url} />
+
+      const { rerender } = render(<Shell activeId="b" />)
+      const bRoot = tabRoot('/b')
+      const trigger = screen.getByRole('combobox')
+
+      fireEvent.click(trigger)
+      await waitFor(() => expect(anchorWidth(bRoot)).toBe('260px'))
+
+      fireEvent.keyDown(trigger, { key: 'Escape' })
+      await waitFor(() => expect(bRoot.querySelector('[data-slot="popover-content"]')).not.toBeInTheDocument())
+
+      rerender(<Shell activeId="a" />)
+      rerender(<Shell activeId="b" />)
+
+      fireEvent.click(screen.getByRole('combobox'))
+      await waitFor(() => expect(anchorWidth(bRoot)).toBe('260px'))
+    } finally {
+      rectSpy.mockRestore()
+    }
+  })
 })
 
 describe('TabRouter', () => {
-  it('uses the tab entry URL even when instance metadata points to another key', () => {
+  it('uses the tab entry URL as the initial history entry', () => {
     render(
       <TabRouter
-        tab={{
-          id: 'chat-tab',
-          type: 'route',
-          url: '/app/chat?topicId=entry-topic',
+        tab={tab('chat-tab', '/app/chat?topicId=entry-topic', {
           title: 'Chat',
-          metadata: {
-            instanceAppId: 'assistants',
-            instanceKey: 'current-topic'
-          },
           lastAccessTime: 1,
           isDormant: false
-        }}
+        })}
         isActive
         onUrlChange={vi.fn()}
       />
@@ -202,40 +257,14 @@ describe('TabRouter', () => {
     expect(routerMocks.navigate).not.toHaveBeenCalled()
   })
 
-  it('uses the tab entry URL when metadata belongs to a different app route', () => {
-    render(
-      <TabRouter
-        tab={{
-          id: 'settings-tab',
-          type: 'route',
-          url: '/settings/provider',
-          title: 'Settings',
-          metadata: {
-            instanceAppId: 'assistants',
-            instanceKey: 'old-topic'
-          },
-          lastAccessTime: 1,
-          isDormant: false
-        }}
-        isActive
-        onUrlChange={vi.fn()}
-      />
-    )
-
-    expect(createMemoryHistory).toHaveBeenCalledWith({ initialEntries: ['/settings/provider'] })
-  })
-
   it('navigates when the tab entry URL changes externally', () => {
     const { rerender } = render(
       <TabRouter
-        tab={{
-          id: 'chat-tab',
-          type: 'route',
-          url: '/app/chat?topicId=entry-topic',
+        tab={tab('chat-tab', '/app/chat?topicId=entry-topic', {
           title: 'Chat',
           lastAccessTime: 1,
           isDormant: false
-        }}
+        })}
         isActive
         onUrlChange={vi.fn()}
       />
@@ -244,18 +273,11 @@ describe('TabRouter', () => {
 
     rerender(
       <TabRouter
-        tab={{
-          id: 'chat-tab',
-          type: 'route',
-          url: '/app/chat?topicId=current-topic',
+        tab={tab('chat-tab', '/app/chat?topicId=current-topic', {
           title: 'Chat',
-          metadata: {
-            instanceAppId: 'assistants',
-            instanceKey: 'current-topic'
-          },
           lastAccessTime: 1,
           isDormant: false
-        }}
+        })}
         isActive
         onUrlChange={vi.fn()}
       />

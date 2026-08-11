@@ -183,9 +183,14 @@ export class PiStreamAdapter {
       type: 'message-metadata',
       messageMetadata: {
         totalTokens: this.turnUsage.totalTokens,
-        promptTokens: this.turnUsage.promptTokens,
-        completionTokens: this.turnUsage.completionTokens,
-        ...(this.turnUsage.hasReasoning ? { thoughtsTokens: this.turnUsage.thoughtsTokens } : {})
+        stats: {
+          inputTokens: this.turnUsage.promptTokens,
+          outputTokens: this.turnUsage.completionTokens,
+          totalTokens: this.turnUsage.totalTokens,
+          ...(this.turnUsage.hasReasoning
+            ? { outputTokenDetails: { reasoningTokens: this.turnUsage.thoughtsTokens } }
+            : {})
+        }
       }
     })
   }

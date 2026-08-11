@@ -5,7 +5,7 @@ const OpenCode: IconComponent = (props: SVGProps<SVGSVGElement>) => {
   const iconId = useId()
 
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="24.6 16 70.8 88" {...props}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" fill="none" viewBox="-8 -8 136 136" {...props}>
       <g clipPath={`url(#${iconId}-opencode__a)`}>
         <path
           fill="currentColor"

@@ -13,6 +13,8 @@ import {
 import type { WebSearchExecutionConfig, WebSearchResolvedConfig } from '@shared/data/types/webSearch'
 import { normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 
+import { WebSearchConfigError } from '../WebSearchConfigError'
+
 export interface WebSearchPreferenceReader {
   get<K extends PreferenceKeyType>(key: K): PreferenceDefaultScopeType[K] | Promise<PreferenceDefaultScopeType[K]>
 }
@@ -39,7 +41,7 @@ export async function getProviderOverrides(
 
 function getWebSearchProviderPresetById(providerId: WebSearchProvider['id']): WebSearchProviderPreset {
   if (!Object.hasOwn(WEB_SEARCH_PROVIDER_PRESET_MAP, providerId)) {
-    throw new Error(`Unknown web search provider: ${providerId}`)
+    throw new WebSearchConfigError('provider_unknown', `Unknown web search provider: ${providerId}`)
   }
 
   return {
@@ -75,10 +77,33 @@ function mergeWebSearchProviderPreset(
   }
 }
 
+/**
+ * `exa-mcp` and `exa` are both backed by the Exa API but expose separate provider
+ * presets. The user configures the key once under "Exa"; when `exa-mcp` has no
+ * keys of its own, share the `exa` provider's keys so MCP searches authenticate too.
+ */
+function inheritExaMcpApiKeys(
+  provider: WebSearchProvider,
+  providerOverrides: WebSearchProviderOverrides
+): WebSearchProvider {
+  if (provider.id !== 'exa-mcp' || provider.apiKeys.length > 0) {
+    return provider
+  }
+
+  const exaKeys = providerOverrides.exa?.apiKeys ? trimStringList(providerOverrides.exa.apiKeys) : []
+
+  if (exaKeys.length === 0) {
+    return provider
+  }
+
+  return { ...provider, apiKeys: exaKeys }
+}
+
 export function resolveProviders(providerOverrides: WebSearchProviderOverrides): WebSearchProvider[] {
-  return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) =>
-    mergeWebSearchProviderPreset(preset, providerOverrides[preset.id])
-  )
+  return PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => {
+    const provider = mergeWebSearchProviderPreset(preset, providerOverrides[preset.id])
+    return inheritExaMcpApiKeys(provider, providerOverrides)
+  })
 }
 
 export async function getRuntimeConfig(preferences: WebSearchPreferenceReader): Promise<WebSearchExecutionConfig> {
@@ -120,7 +145,9 @@ export async function getProviderById<TProviderId extends WebSearchProvider['id'
   const override = providerOverrides[providerId]
   const preset = getWebSearchProviderPresetById(providerId)
 
-  return mergeWebSearchProviderPreset(preset, override) as WebSearchProvider & { id: TProviderId }
+  const provider = mergeWebSearchProviderPreset(preset, override)
+
+  return inheritExaMcpApiKeys(provider, providerOverrides) as WebSearchProvider & { id: TProviderId }
 }
 
 export async function getProviderForCapability(
@@ -131,28 +158,28 @@ export async function getProviderForCapability(
   const providerId = requestedProviderId ?? (await preferences.get(DEFAULT_PROVIDER_KEY_BY_CAPABILITY[capability]))
 
   if (!providerId) {
-    throw new Error(`Default web search provider is not configured for capability ${capability}`)
+    throw new WebSearchConfigError(
+      'provider_not_configured',
+      `Default web search provider is not configured for capability ${capability}`
+    )
   }
 
   const provider = await getProviderById(providerId, preferences)
 
   if (!provider.capabilities.some((providerCapability) => providerCapability.feature === capability)) {
-    throw new Error(`Web search provider ${providerId} does not support capability ${capability}`)
+    throw new WebSearchConfigError(
+      'capability_unsupported',
+      `Web search provider ${providerId} does not support capability ${capability}`
+    )
   }
 
   return provider
 }
 
 /**
- * The permanent (non-retryable) failures the web-search config/dispatch layer throws: no default
- * provider configured for the capability (`getProviderForCapability`), an unknown configured
- * provider id (`getWebSearchProviderPresetById` → `getProviderById`), or a provider that doesn't
- * support/implement the capability (here and `WebSearchService`). Exported so model-facing callers
- * (the web-lookup tools) branch their note off these instead of re-matching the strings out-of-band
- * — reword the throws and this predicate together.
+ * Permanent configuration failures are typed at their owning boundary so callers never infer
+ * retryability from error-message text.
  */
-export function isPermanentWebSearchConfigError(message: string): boolean {
-  return /is not configured for capability|does not (support|implement) capability|Unknown web search provider/i.test(
-    message
-  )
+export function isPermanentWebSearchConfigError(error: unknown): error is WebSearchConfigError {
+  return error instanceof WebSearchConfigError
 }

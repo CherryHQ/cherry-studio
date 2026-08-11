@@ -19,9 +19,15 @@ type PendingApproval = {
   toolCallId: string
   toolName: string
   originalInput: Record<string, unknown>
+  presentation: 'stream' | 'message'
   resolve: (decision: DispatchDecision) => void
   signal?: AbortSignal
   abortListener?: () => void
+}
+
+type ApprovalRegistration = Pick<PendingApproval, 'sessionId' | 'toolCallId' | 'presentation'>
+type PendingApprovalRegistration = Omit<PendingApproval, 'abortListener' | 'presentation'> & {
+  presentation?: PendingApproval['presentation']
 }
 
 /**
@@ -40,7 +46,7 @@ class ToolApprovalRegistry {
    * `tool-approval-request`) when this returns `true` — otherwise the request has no
    * pending entry to answer, so the card can never be dispatched.
    */
-  register(entry: Omit<PendingApproval, 'abortListener'>): boolean {
+  register(entry: PendingApprovalRegistration): boolean {
     const { approvalId, signal } = entry
     if (this.pending.has(approvalId)) {
       logger.warn('Duplicate approval registration — rejecting', { approvalId })
@@ -53,7 +59,7 @@ class ToolApprovalRegistry {
       return false
     }
 
-    const stored: PendingApproval = { ...entry }
+    const stored: PendingApproval = { ...entry, presentation: entry.presentation ?? 'stream' }
     if (signal) {
       const abortListener = () => this.dispatch(approvalId, { approved: false, reason: 'aborted' })
       stored.abortListener = abortListener
@@ -64,14 +70,29 @@ class ToolApprovalRegistry {
     return true
   }
 
-  /** Returns `false` for unknown ids (already dispatched / session expired). */
-  dispatch(approvalId: string, decision: DispatchDecision): boolean {
+  /** Returns `undefined` for unknown ids (already dispatched / session expired). */
+  peek(approvalId: string): ApprovalRegistration | undefined {
     const entry = this.pending.get(approvalId)
-    if (!entry) return false
+    if (!entry) return undefined
+    return {
+      sessionId: entry.sessionId,
+      toolCallId: entry.toolCallId,
+      presentation: entry.presentation
+    }
+  }
+
+  /** Returns `undefined` for unknown ids (already dispatched / session expired). */
+  dispatch(approvalId: string, decision: DispatchDecision): ApprovalRegistration | undefined {
+    const entry = this.pending.get(approvalId)
+    if (!entry) return undefined
     this.pending.delete(approvalId)
     this.detachAbort(entry)
     entry.resolve(decision)
-    return true
+    return {
+      sessionId: entry.sessionId,
+      toolCallId: entry.toolCallId,
+      presentation: entry.presentation
+    }
   }
 
   abort(sessionId: string, reason = 'session-aborted'): number {

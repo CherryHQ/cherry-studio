@@ -1,6 +1,6 @@
 import { ImagePreviewDialog, type ImagePreviewItem, ImagePreviewTrigger } from '@cherrystudio/ui'
 import type { Meta, StoryObj } from '@storybook/react'
-import { Copy, Download } from 'lucide-react'
+import { Copy } from 'lucide-react'
 import * as React from 'react'
 
 const ITEMS: ImagePreviewItem[] = [
@@ -54,11 +54,6 @@ const ControlledDialogDemo = () => {
       onActiveIndexChange={setActiveIndex}
       onOpenChange={setOpen}
       open={open}
-      renderMetadata={(item, context) => (
-        <div className="text-center text-muted-foreground text-sm">
-          {context.index + 1} / {context.items.length} · {item.alt}
-        </div>
-      )}
     />
   )
 }
@@ -72,10 +67,7 @@ export const Trigger: Story = {
           actions: [
             { id: 'copy-src', label: 'Copy source', icon: <Copy className="size-4" />, onSelect: () => undefined }
           ],
-          labels,
-          toolbarActions: [
-            { id: 'download', label: 'Download', icon: <Download className="size-4" />, onSelect: () => undefined }
-          ]
+          labels
         }}
         item={ITEMS[0]}
         items={ITEMS}

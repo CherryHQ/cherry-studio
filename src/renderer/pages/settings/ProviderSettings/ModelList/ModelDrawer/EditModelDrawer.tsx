@@ -16,9 +16,8 @@ import { toast } from '@renderer/services/toast'
 import { getDefaultGroupName } from '@renderer/utils/naming'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { isNewApiProvider } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp, CircleHelp } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import ProviderActions from '../../primitives/ProviderActions'
@@ -27,16 +26,33 @@ import ProviderSection from '../../primitives/ProviderSection'
 import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
 import { drawerClasses, fieldClasses } from '../../primitives/ProviderSettingsPrimitives'
 import {
-  getInitialSelectedCapabilities,
+  areModelClassificationsEqual,
+  buildModelCapabilities,
+  buildModelInputModalities,
+  getInitialModelClassification,
   getModelApiId,
   MODEL_DRAWER_CURRENCY_SYMBOLS,
-  readCurrency,
-  toggleSetToCaps
+  readCurrency
 } from './helpers'
 import { ModelBasicFields } from './ModelBasicFields'
-import { ModelCapabilityToggles } from './ModelCapabilityToggles'
+import { ModelClassificationControls } from './ModelClassificationControls'
 import { ModelContextWindowFields } from './ModelContextWindowFields'
-import type { ModelCapabilityToggle, ModelDrawerMode } from './types'
+import {
+  applyModelPurpose,
+  getInitialChatEndpointType,
+  getModelDrawerMode,
+  getProviderChatEndpointTypes,
+  inferModelPurpose,
+  type ModelPurposeFields
+} from './modelPurpose'
+import { ModelPurposeFields as ModelPurposeFieldsControl } from './ModelPurposeFields'
+import type {
+  ModelCapabilityToggle,
+  ModelClassificationState,
+  ModelDrawerMode,
+  ModelInputModality,
+  ModelPrimaryType
+} from './types'
 
 interface EditModelDrawerProps {
   providerId: string
@@ -49,11 +65,13 @@ interface BuildPatchOverrides {
   name?: string
   group?: string
   endpointTypes?: EndpointType[]
-  caps?: Set<ModelCapabilityToggle>
+  purposeFields?: ModelPurposeFields
+  classification?: ModelClassificationState
   supportsStreaming?: boolean
   currencySymbol?: ModelDrawerCurrencySymbol
   inputPrice?: string
   outputPrice?: string
+  cacheReadPrice?: string
   contextWindow?: string
   maxInputTokens?: string
   maxOutputTokens?: string
@@ -98,27 +116,31 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
   const [name, setName] = useState('')
   const [group, setGroup] = useState('')
   const [endpointTypes, setEndpointTypes] = useState<EndpointType[]>([])
+  const [purposeFields, setPurposeFields] = useState<ModelPurposeFields>({})
   const [showMoreSettings, setShowMoreSettings] = useState(true)
-  const [selectedCaps, setSelectedCaps] = useState<Set<ModelCapabilityToggle>>(new Set())
-  const [hasUserModified, setHasUserModified] = useState(false)
+  const [classification, setClassification] = useState<ModelClassificationState>(() => getInitialModelClassification())
   const [supportsStreaming, setSupportsStreaming] = useState<Model['supportsStreaming']>(true)
   const [currencySymbol, setCurrencySymbol] = useState<ModelDrawerCurrencySymbol>('$')
   const [inputPrice, setInputPrice] = useState('0')
   const [outputPrice, setOutputPrice] = useState('0')
+  const [cacheReadPrice, setCacheReadPrice] = useState('')
   const [contextWindow, setContextWindow] = useState('')
   const [maxInputTokens, setMaxInputTokens] = useState('')
   const [maxOutputTokens, setMaxOutputTokens] = useState('')
+  const [initializedModel, setInitializedModel] = useState<Model | null>(null)
   const autoSavePendingItemsRef = useRef(new Map<string, AutoSaveQueueItem>())
   const autoSaveRunningRef = useRef(false)
 
-  const mode: ModelDrawerMode = provider && isNewApiProvider(provider) ? 'new-api' : 'legacy'
+  const mode: ModelDrawerMode = provider ? getModelDrawerMode(provider) : 'legacy'
+  const providerChatEndpointTypes = provider ? getProviderChatEndpointTypes(provider) : []
+  const defaultChatEndpoint = providerChatEndpointTypes[0]
+  const modelPurpose = inferModelPurpose(purposeFields)
+  const chatEndpointType = getInitialChatEndpointType(purposeFields, defaultChatEndpoint)
   const apiModelId = useMemo(() => (model ? getModelApiId(model) : ''), [model])
-  const savedCaps = useMemo(
-    () => (model ? getInitialSelectedCapabilities(model) : new Set<ModelCapabilityToggle>()),
-    [model]
-  )
+  const savedClassification = useMemo(() => getInitialModelClassification(model), [model])
+  const hasClassificationChanges = !areModelClassificationsEqual(classification, savedClassification)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !model) {
       return
     }
@@ -129,16 +151,24 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     setName(model.name)
     setGroup(model.group ?? '')
     setEndpointTypes(model.endpointTypes?.length ? [...model.endpointTypes] : [])
+    setPurposeFields({
+      endpointTypes: model.endpointTypes,
+      capabilities: model.capabilities,
+      inputModalities: model.inputModalities,
+      outputModalities: model.outputModalities
+    })
     setShowMoreSettings(true)
-    setSelectedCaps(getInitialSelectedCapabilities(model))
-    setHasUserModified(false)
+    setClassification(getInitialModelClassification(model))
     setSupportsStreaming(model.supportsStreaming)
     setCurrencySymbol(nextCurrencySymbol ?? '$')
     setInputPrice(String(model.pricing?.input?.perMillionTokens ?? 0))
     setOutputPrice(String(model.pricing?.output?.perMillionTokens ?? 0))
+    const cacheReadRate = model.pricing?.cacheRead?.perMillionTokens
+    setCacheReadPrice(cacheReadRate == null ? '' : String(cacheReadRate))
     setContextWindow(model.contextWindow != null ? String(model.contextWindow) : '')
     setMaxInputTokens(model.maxInputTokens != null ? String(model.maxInputTokens) : '')
     setMaxOutputTokens(model.maxOutputTokens != null ? String(model.maxOutputTokens) : '')
+    setInitializedModel(model)
   }, [model, open])
 
   const handleUpdateModel = useCallback(
@@ -147,6 +177,8 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         name: patch.name,
         group: patch.group,
         capabilities: patch.capabilities,
+        inputModalities: patch.inputModalities,
+        outputModalities: patch.outputModalities,
         supportsStreaming: patch.supportsStreaming,
         endpointTypes: patch.endpointTypes,
         contextWindow: patch.contextWindow,
@@ -169,16 +201,65 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
         symbolToCurrency(nextCurrencySymbol) ?? symbolToCurrency(readCurrency(model)) ?? CURRENCY.USD
       const nextName = overrides?.name ?? name
       const nextGroup = overrides?.group ?? group
-      const nextEndpointTypes = overrides?.endpointTypes ?? endpointTypes
+      const nextCacheReadPriceValue = overrides?.cacheReadPrice ?? cacheReadPrice
+      // Empty means no dedicated rate (fall back to input); literal zero means cache reads are free.
+      const nextCacheReadPrice = nextCacheReadPriceValue.trim() === '' ? undefined : Number(nextCacheReadPriceValue)
+      const hasCacheReadPrice =
+        nextCacheReadPrice !== undefined && Number.isFinite(nextCacheReadPrice) && nextCacheReadPrice >= 0
+      const hasEndpointTypesOverride = overrides != null && Object.hasOwn(overrides, 'endpointTypes')
+      const hasPurposeFieldsOverride = overrides != null && Object.hasOwn(overrides, 'purposeFields')
+      const nextPurposeFields = overrides?.purposeFields ?? purposeFields
+      const nextClassification = overrides?.classification
+      const shouldApplyPurpose = mode === 'purpose' && (hasPurposeFieldsOverride || nextClassification != null)
+      const effectiveClassification = nextClassification ?? classification
+      const classifiedCapabilities =
+        shouldApplyPurpose || nextClassification
+          ? buildModelCapabilities(model.capabilities ?? [], effectiveClassification)
+          : undefined
+      const classifiedInputModalities =
+        shouldApplyPurpose || nextClassification
+          ? buildModelInputModalities(model.inputModalities ?? [], effectiveClassification)
+          : undefined
+      const resolvedPurposeFields =
+        shouldApplyPurpose && classifiedCapabilities && classifiedInputModalities
+          ? applyModelPurpose(
+              {
+                ...nextPurposeFields,
+                capabilities: classifiedCapabilities,
+                inputModalities: classifiedInputModalities
+              },
+              inferModelPurpose(nextPurposeFields),
+              {
+                previousPurpose: inferModelPurpose(nextPurposeFields),
+                chatEndpointType: getInitialChatEndpointType(nextPurposeFields, defaultChatEndpoint)
+              }
+            )
+          : null
 
       return {
         name: nextName || model.name,
         group: nextGroup || model.group,
-        endpointTypes: mode === 'new-api' && nextEndpointTypes.length ? [...nextEndpointTypes] : undefined,
-        capabilities: toggleSetToCaps(
-          model.capabilities ?? [],
-          overrides?.caps ?? selectedCaps
-        ) as Model['capabilities'],
+        ...(hasPurposeFieldsOverride && resolvedPurposeFields
+          ? { endpointTypes: [...resolvedPurposeFields.endpointTypes] }
+          : hasEndpointTypesOverride
+            ? {
+                endpointTypes: mode === 'endpoint-types' ? [...(overrides.endpointTypes ?? [])] : undefined
+              }
+            : {}),
+        ...(resolvedPurposeFields
+          ? {
+              capabilities: resolvedPurposeFields.capabilities,
+              inputModalities: resolvedPurposeFields.inputModalities
+            }
+          : nextClassification && classifiedCapabilities && classifiedInputModalities
+            ? {
+                capabilities: classifiedCapabilities,
+                inputModalities: classifiedInputModalities
+              }
+            : {}),
+        ...(hasPurposeFieldsOverride && resolvedPurposeFields
+          ? { outputModalities: resolvedPurposeFields.outputModalities }
+          : {}),
         supportsStreaming: overrides?.supportsStreaming ?? supportsStreaming,
         contextWindow: Number(overrides?.contextWindow ?? contextWindow) || undefined,
         maxInputTokens: Number(overrides?.maxInputTokens ?? maxInputTokens) || undefined,
@@ -191,14 +272,21 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           output: {
             perMillionTokens: Number(overrides?.outputPrice ?? outputPrice) || 0,
             currency: finalCurrency
-          }
+          },
+          ...(hasCacheReadPrice
+            ? { cacheRead: { perMillionTokens: nextCacheReadPrice, currency: finalCurrency } }
+            : {}),
+          // Cache-write has no field in this drawer, but it must follow the selected currency:
+          // `computeLanguageCost` sums every tier and labels the total with the input currency,
+          // so a tier left behind in the old currency would be added across currencies.
+          ...(model.pricing?.cacheWrite ? { cacheWrite: { ...model.pricing.cacheWrite, currency: finalCurrency } } : {})
         }
       }
     },
     [
       currencySymbol,
-      endpointTypes,
       group,
+      cacheReadPrice,
       contextWindow,
       inputPrice,
       maxInputTokens,
@@ -207,7 +295,9 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       model,
       name,
       outputPrice,
-      selectedCaps,
+      purposeFields,
+      classification,
+      defaultChatEndpoint,
       supportsStreaming
     ]
   )
@@ -241,7 +331,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
       }
 
       const { modelId } = parseUniqueModelId(model.id)
-      const item = {
+      const item: AutoSaveQueueItem = {
         providerId: model.providerId ?? providerId,
         modelId,
         patch: buildPatch(overrides)
@@ -252,30 +342,62 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
     [buildPatch, model, processAutoSaveQueue, providerId]
   )
 
-  const handleToggleCapability = useCallback(
-    (type: ModelCapabilityToggle) => {
-      setHasUserModified(true)
-      const next = new Set(selectedCaps)
-
-      if (next.has(type)) {
-        next.delete(type)
-      } else {
-        next.add(type)
-      }
-
-      setSelectedCaps(next)
-      autoSave({ caps: next })
+  const commitClassification = useCallback(
+    (next: ModelClassificationState) => {
+      setClassification(next)
+      autoSave({ classification: next })
     },
-    [autoSave, selectedCaps]
+    [autoSave]
   )
 
-  const handleResetCapabilities = useCallback(() => {
-    setSelectedCaps(new Set(savedCaps))
-    setHasUserModified(false)
-    autoSave({ caps: new Set(savedCaps) })
-  }, [autoSave, savedCaps])
+  const handlePrimaryTypeChange = useCallback(
+    (primaryType: ModelPrimaryType) => {
+      commitClassification({ ...classification, primaryType })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleToggleCapability = useCallback(
+    (capability: ModelCapabilityToggle) => {
+      const capabilities = new Set(classification.capabilities)
+      if (capabilities.has(capability)) {
+        capabilities.delete(capability)
+      } else {
+        capabilities.add(capability)
+      }
+      commitClassification({ ...classification, capabilities })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleToggleInputModality = useCallback(
+    (modality: ModelInputModality) => {
+      const inputModalities = new Set(classification.inputModalities)
+      if (inputModalities.has(modality)) {
+        inputModalities.delete(modality)
+      } else {
+        inputModalities.add(modality)
+      }
+      commitClassification({ ...classification, inputModalities })
+    },
+    [classification, commitClassification]
+  )
+
+  const handleResetClassification = useCallback(() => {
+    const nextClassification = {
+      ...savedClassification,
+      capabilities: new Set(savedClassification.capabilities),
+      inputModalities: new Set(savedClassification.inputModalities)
+    }
+    setClassification(nextClassification)
+    autoSave({ classification: nextClassification })
+  }, [autoSave, savedClassification])
 
   if (!provider || !model) {
+    return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
+  }
+
+  if (initializedModel !== model) {
     return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('models.edit')} />
   }
 
@@ -300,7 +422,7 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 maxOutputTokens,
                 endpointTypes
               }}
-              showEndpointType={mode === 'new-api'}
+              showEndpointType={mode === 'endpoint-types'}
               endpointTypeControl="chips"
               modelIdDisabled
               modelIdAction={
@@ -329,6 +451,41 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                 autoSave({ endpointTypes: nextEndpointTypes })
               }}
             />
+            {mode === 'purpose' && (
+              <ModelPurposeFieldsControl
+                purpose={modelPurpose}
+                chatEndpointType={chatEndpointType}
+                chatEndpointTypes={providerChatEndpointTypes}
+                onPurposeChange={(nextPurpose) => {
+                  const nextPurposeFields = applyModelPurpose(purposeFields, nextPurpose, {
+                    previousPurpose: modelPurpose,
+                    chatEndpointType
+                  })
+                  const nextClassification = {
+                    ...classification,
+                    primaryType:
+                      nextPurpose === 'chat'
+                        ? classification.primaryType === 'image'
+                          ? ('text' as const)
+                          : classification.primaryType
+                        : ('image' as const)
+                  }
+                  setPurposeFields(nextPurposeFields)
+                  setEndpointTypes(nextPurposeFields.endpointTypes)
+                  setClassification(nextClassification)
+                  autoSave({ purposeFields: nextPurposeFields, classification: nextClassification })
+                }}
+                onChatEndpointTypeChange={(nextEndpointType) => {
+                  const nextPurposeFields = applyModelPurpose(purposeFields, 'chat', {
+                    previousPurpose: modelPurpose,
+                    chatEndpointType: nextEndpointType
+                  })
+                  setPurposeFields(nextPurposeFields)
+                  setEndpointTypes(nextPurposeFields.endpointTypes)
+                  autoSave({ purposeFields: nextPurposeFields })
+                }}
+              />
+            )}
           </div>
         </ProviderSection>
 
@@ -347,11 +504,13 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
           <ProviderSection className={drawerClasses.section}>
             <div data-testid="provider-settings-model-more-settings" className="space-y-4">
               <div className={drawerClasses.sectionCard}>
-                <ModelCapabilityToggles
-                  selectedCaps={selectedCaps}
-                  hasUserModified={hasUserModified}
-                  onToggle={handleToggleCapability}
-                  onReset={handleResetCapabilities}
+                <ModelClassificationControls
+                  value={classification}
+                  hasChanges={hasClassificationChanges}
+                  onPrimaryTypeChange={handlePrimaryTypeChange}
+                  onCapabilityToggle={handleToggleCapability}
+                  onInputModalityToggle={handleToggleInputModality}
+                  onReset={handleResetClassification}
                 />
               </div>
 
@@ -372,11 +531,11 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
               <div className={drawerClasses.switchCard}>
                 <div className="flex min-w-0 items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-1.5">
-                    <span className="truncate font-normal text-[13px] text-foreground-secondary leading-5">
+                    <span className="truncate font-normal text-[13px] text-muted-foreground leading-5">
                       {t('settings.models.add.supported_text_delta.label')}
                     </span>
                     <Tooltip content={t('settings.models.add.supported_text_delta.tooltip')}>
-                      <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-icon">
+                      <span className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-muted-foreground">
                         <CircleHelp aria-hidden className="size-3" />
                       </span>
                     </Tooltip>
@@ -455,6 +614,27 @@ export default function EditModelDrawer({ providerId, open, model: modelProp, on
                         setOutputPrice(event.target.value)
                       }}
                       onBlur={() => autoSave({ outputPrice })}
+                    />
+                    <span className={drawerClasses.valueSuffix}>
+                      {currentCurrency} / {t('models.price.million_tokens')}
+                    </span>
+                  </div>
+                </ProviderField>
+
+                <ProviderField title={t('models.price.cache_read')} titleClassName={drawerClasses.fieldTitle}>
+                  <div className={drawerClasses.responsiveValueRow}>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      aria-label={t('models.price.cache_read')}
+                      value={cacheReadPrice}
+                      placeholder="0.00"
+                      className={drawerClasses.input}
+                      onChange={(event) => {
+                        setCacheReadPrice(event.target.value)
+                      }}
+                      onBlur={() => autoSave({ cacheReadPrice })}
                     />
                     <span className={drawerClasses.valueSuffix}>
                       {currentCurrency} / {t('models.price.million_tokens')}

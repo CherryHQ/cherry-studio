@@ -9,16 +9,16 @@ export const settingsSubmenuItemClassName =
 export const settingsSubmenuItemLabelClassName = 'group-data-[active=true]:font-medium'
 
 export const settingsSubmenuSectionTitleClassName =
-  'px-2.5 pt-2 pb-0.5 font-normal text-foreground-muted text-xs first:pt-0'
+  'px-2.5 pt-2 pb-0.5 font-normal text-foreground-tertiary text-xs first:pt-0'
 
 export const settingsSubmenuDividerClassName = 'my-0 bg-transparent'
 
 export const settingsContentScrollClassName = 'flex-1 min-h-0 min-w-0 overflow-x-hidden'
 
-export const settingsContentBodyClassName = 'flex min-h-full w-full flex-col px-6 py-4'
+export const settingsContentBodyClassName = 'flex min-h-full w-full flex-col p-6'
 
 export const settingsContentHeaderClassName = 'mb-5'
 
 export const settingsContentHeaderTitleClassName = 'font-semibold text-foreground text-[15px]'
 
-export const settingsContentHeaderDescriptionClassName = 'mt-1 text-foreground-muted text-sm'
+export const settingsContentHeaderDescriptionClassName = 'mt-1 text-muted-foreground text-sm'

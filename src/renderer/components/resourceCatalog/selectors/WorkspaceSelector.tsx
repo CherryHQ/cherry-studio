@@ -1,6 +1,6 @@
 import { EmptyState } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { ModelSelectorRow } from '@renderer/components/ModelSelector'
+import { ModelSelectorRow, ModelSelectorRowActionButton } from '@renderer/components/ModelSelector'
 import Scrollbar from '@renderer/components/Scrollbar'
 import {
   DEFAULT_SELECTOR_CONTENT_HEIGHT,
@@ -11,12 +11,18 @@ import {
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
 import { toast } from '@renderer/services/toast'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import { CircleSlash, Folder, FolderPlus } from 'lucide-react'
-import { type ReactElement, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { CircleSlash, Folder, FolderPlus, Trash2 } from 'lucide-react'
+import { lazy, type ReactElement, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('WorkspaceSelector')
 const DEFAULT_MIN_LIST_HEIGHT = 144
+const loadWorkspaceDeleteConfirmDialog = () =>
+  import('@renderer/components/resourceCatalog/dialogs/workspace').then((module) => ({
+    default: module.WorkspaceDeleteConfirmDialog
+  }))
+const WorkspaceDeleteConfirmDialog = lazy(() => loadWorkspaceDeleteConfirmDialog())
+const preloadWorkspaceDeleteConfirmDialog = () => void loadWorkspaceDeleteConfirmDialog()
 
 type SharedProps = {
   trigger: ReactElement
@@ -32,6 +38,8 @@ type SharedProps = {
 export type WorkspaceSelectorProps = SharedProps & {
   value: string | null | undefined
   onChange: (value: string | null) => void | Promise<void>
+  /** Clear a selected value after deletion. Session-backed consumers opt out because the session itself is deleted. */
+  shouldClearSelectionOnDelete?: boolean
 }
 
 function workspaceMatchesSearch(workspace: AgentWorkspaceEntity, searchValue: string) {
@@ -51,11 +59,13 @@ export function WorkspaceSelector({
   mountStrategy,
   disabled,
   value,
-  onChange
+  onChange,
+  shouldClearSelectionOnDelete = true
 }: WorkspaceSelectorProps) {
   const { t } = useTranslation()
   const [internalOpen, setInternalOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
+  const [deletingWorkspace, setDeletingWorkspace] = useState<AgentWorkspaceEntity | null>(null)
   const open = openProp ?? internalOpen
   const listboxId = useId()
   const listRef = useRef<HTMLDivElement>(null)
@@ -137,6 +147,23 @@ export function WorkspaceSelector({
     }
   }, [createWorkspace, handleOpenChange, onChange, refetch, t])
 
+  const handleRequestDeleteWorkspace = useCallback(
+    (workspace: AgentWorkspaceEntity) => {
+      handleOpenChange(false)
+      setDeletingWorkspace(workspace)
+    },
+    [handleOpenChange]
+  )
+
+  const handleWorkspaceDeleted = useCallback(
+    async (workspaceId: string) => {
+      if (shouldClearSelectionOnDelete && workspaceId === selectedId) {
+        await onChange(null)
+      }
+    },
+    [onChange, selectedId, shouldClearSelectionOnDelete]
+  )
+
   const renderWorkspaceRow = (workspace: AgentWorkspaceEntity) => {
     const selected = workspace.id === selectedId
 
@@ -145,9 +172,20 @@ export function WorkspaceSelector({
         <ModelSelectorRow
           selected={selected}
           showSelectedIndicator={selected}
-          leading={<Folder className="size-4 text-muted-foreground/70" />}
+          leading={<Folder className="size-4 text-muted-foreground" />}
+          actions={
+            <ModelSelectorRowActionButton
+              disabled={disabled}
+              aria-label={t('agent.session.workdir.delete.trigger')}
+              className="focus-visible:opacity-100"
+              onMouseEnter={preloadWorkspaceDeleteConfirmDialog}
+              onFocus={preloadWorkspaceDeleteConfirmDialog}
+              onClick={() => handleRequestDeleteWorkspace(workspace)}>
+              <Trash2 className="size-3.5" />
+            </ModelSelectorRowActionButton>
+          }
           onSelect={() => void handleSelectWorkspace(workspace.id)}
-          rootProps={{ 'data-option-row': workspace.id }}
+          rootProps={{ 'data-option-row': workspace.id, className: 'pr-1' }}
           optionProps={{
             'aria-selected': selected,
             'data-option-id': workspace.id
@@ -170,53 +208,65 @@ export function WorkspaceSelector({
   )
 
   return (
-    <SelectorShell
-      trigger={trigger}
-      open={open}
-      onOpenChange={handleOpenChange}
-      width={320}
-      side={side}
-      align={align}
-      sideOffset={sideOffset ?? 6}
-      contentClassName="min-w-[280px]"
-      mountStrategy={mountStrategy}
-      contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
-      search={{
-        value: searchValue,
-        onChange: setSearchValue,
-        placeholder: t('agent.session.workspace_selector.search_placeholder'),
-        ariaControls: listboxId
-      }}
-      bottomAction={[
-        {
-          icon: <FolderPlus size={14} className="shrink-0" />,
-          label: t('agent.session.workspace_selector.create_new'),
-          disabled: disabled || isCreatingWorkspace,
-          onClick: () => void handleCreateWorkspace()
-        },
-        {
-          type: 'selectable',
-          icon: <CircleSlash size={14} className="shrink-0" />,
-          label: t('agent.session.workspace_selector.no_project'),
-          selected: selectedId === null,
-          onClick: () => void handleSelectWorkspace(null)
-        }
-      ]}>
-      {({ availableListHeight }) => {
-        const listHeight = availableListHeight ?? DEFAULT_MIN_LIST_HEIGHT
+    <>
+      <SelectorShell
+        trigger={trigger}
+        open={open}
+        onOpenChange={handleOpenChange}
+        width={320}
+        side={side}
+        align={align}
+        sideOffset={sideOffset ?? 6}
+        contentClassName="min-w-[280px]"
+        mountStrategy={mountStrategy}
+        contentHeight={DEFAULT_SELECTOR_CONTENT_HEIGHT}
+        search={{
+          value: searchValue,
+          onChange: setSearchValue,
+          placeholder: t('agent.session.workspace_selector.search_placeholder'),
+          ariaControls: listboxId
+        }}
+        bottomAction={[
+          {
+            icon: <FolderPlus size={14} className="shrink-0" />,
+            label: t('agent.session.workspace_selector.create_new'),
+            disabled: disabled || isCreatingWorkspace,
+            onClick: () => void handleCreateWorkspace()
+          },
+          {
+            type: 'selectable',
+            icon: <CircleSlash size={14} className="shrink-0" />,
+            label: t('agent.session.workspace_selector.no_project'),
+            selected: selectedId === null,
+            onClick: () => void handleSelectWorkspace(null)
+          }
+        ]}>
+        {({ availableListHeight }) => {
+          const listHeight = availableListHeight ?? DEFAULT_MIN_LIST_HEIGHT
 
-        return (
-          <Scrollbar
-            ref={listRef}
-            id={listboxId}
-            role="listbox"
-            tabIndex={-1}
-            className="min-h-0 flex-1 px-1 py-1 outline-none"
-            style={{ height: listHeight }}>
-            {workspaceListContent}
-          </Scrollbar>
-        )
-      }}
-    </SelectorShell>
+          return (
+            <Scrollbar
+              ref={listRef}
+              id={listboxId}
+              role="listbox"
+              tabIndex={-1}
+              className="min-h-0 flex-1 px-1 py-1 outline-none"
+              style={{ height: listHeight }}>
+              {workspaceListContent}
+            </Scrollbar>
+          )
+        }}
+      </SelectorShell>
+
+      {deletingWorkspace ? (
+        <Suspense fallback={null}>
+          <WorkspaceDeleteConfirmDialog
+            workspace={deletingWorkspace}
+            onDeleted={handleWorkspaceDeleted}
+            onClose={() => setDeletingWorkspace(null)}
+          />
+        </Suspense>
+      ) : null}
+    </>
   )
 }

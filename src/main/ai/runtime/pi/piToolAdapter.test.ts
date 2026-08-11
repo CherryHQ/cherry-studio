@@ -69,8 +69,8 @@ describe('toPiToolDefinition', () => {
 describe('buildAutonomyToolDefinitions', () => {
   it('uses the same MCP names as the Claude runtime and keeps approval names in sync', () => {
     const defs = buildAutonomyToolDefinitions(
-      { agentId: 'a', workspaceSource: { type: 'system' }, workspacePath: '/w' },
-      { agentId: 'a', workspacePath: '/w' }
+      { agentId: 'a', workspaceSource: { type: 'system' }, workspacePath: '/w', getKnowledgeBaseIds: () => [] },
+      { agentId: 'a', agentDataPath: '/data/a' }
     )
     expect(defs.map((definition) => definition.name)).toEqual([
       'mcp__cherry-tools__cron',
@@ -85,13 +85,13 @@ describe('buildAutonomyToolDefinitions', () => {
     mocks.autonomyCall.mockResolvedValue({ content: [{ type: 'text', text: 'cron result' }] })
     mocks.memoryHandler.mockResolvedValue({ content: [{ type: 'text', text: 'memory result' }] })
     const defs = buildAutonomyToolDefinitions(
-      { agentId: 'a', workspaceSource: { type: 'system' }, workspacePath: '/w' },
-      { agentId: 'a', workspacePath: '/w' }
+      { agentId: 'a', workspaceSource: { type: 'system' }, workspacePath: '/w', getKnowledgeBaseIds: () => [] },
+      { agentId: 'a', agentDataPath: '/data/a' }
     )
 
     await defs[0].execute('c1', { action: 'list' }, undefined, undefined, {} as never)
     expect(mocks.autonomyCall).toHaveBeenCalledWith('cron', { action: 'list' })
     await defs[3].execute('c2', { action: 'search' }, undefined, undefined, {} as never)
-    expect(mocks.memoryHandler).toHaveBeenCalledWith({ action: 'search' }, { agentId: 'a', workspacePath: '/w' })
+    expect(mocks.memoryHandler).toHaveBeenCalledWith({ action: 'search' }, { agentId: 'a', agentDataPath: '/data/a' })
   })
 })

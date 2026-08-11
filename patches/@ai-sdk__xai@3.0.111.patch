@@ -1,0 +1,78 @@
+diff --git a/dist/index.d.mts b/dist/index.d.mts
+index 1df8401e994536563508427f6e962917e7209824..c717f28823d9e92b35f347d48722948f03d02e5f 100644
+--- a/dist/index.d.mts
++++ b/dist/index.d.mts
+@@ -82,6 +82,7 @@ declare const xaiLanguageModelResponsesOptions: z.ZodObject<{
+         low: "low";
+         medium: "medium";
+         high: "high";
++        xhigh: "xhigh";
+     }>>;
+     logprobs: z.ZodOptional<z.ZodBoolean>;
+     topLogprobs: z.ZodOptional<z.ZodNumber>;
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 1df8401e994536563508427f6e962917e7209824..c717f28823d9e92b35f347d48722948f03d02e5f 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -82,6 +82,7 @@ declare const xaiLanguageModelResponsesOptions: z.ZodObject<{
+         low: "low";
+         medium: "medium";
+         high: "high";
++        xhigh: "xhigh";
+     }>>;
+     logprobs: z.ZodOptional<z.ZodBoolean>;
+     topLogprobs: z.ZodOptional<z.ZodNumber>;
+diff --git a/dist/index.js b/dist/index.js
+index 18a6c6c004a4ffafba49315336a5e9525effa747..0b252d7cbbb96b3845fc55f14ec7c870a993ef5e 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1813,10 +1813,10 @@ var xaiLanguageModelResponsesOptions = import_v48.z.object({
+   /**
+    * Constrains how hard a reasoning model thinks before responding.
+    * Possible values are `none` (disables reasoning), `low` (uses fewer reasoning
+-   * tokens), `medium` and `high` (uses more reasoning tokens). Not all models
+-   * support reasoning effort; see xAI's docs for the values each model accepts.
++   * tokens), `medium`, `high`, and `xhigh` (uses more reasoning tokens). Not all
++   * models support reasoning effort; see xAI's docs for the values each model accepts.
+    */
+-  reasoningEffort: import_v48.z.enum(["none", "low", "medium", "high"]).optional(),
++  reasoningEffort: import_v48.z.enum(["none", "low", "medium", "high", "xhigh"]).optional(),
+   logprobs: import_v48.z.boolean().optional(),
+   topLogprobs: import_v48.z.number().int().min(0).max(8).optional(),
+   /**
+diff --git a/dist/index.mjs b/dist/index.mjs
+index 6e44b34a325390306a3a48eca341be8ab12f8120..7cec1252cfdfc529178034b00dfca8e788aaebd2 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1816,10 +1816,10 @@ var xaiLanguageModelResponsesOptions = z8.object({
+   /**
+    * Constrains how hard a reasoning model thinks before responding.
+    * Possible values are `none` (disables reasoning), `low` (uses fewer reasoning
+-   * tokens), `medium` and `high` (uses more reasoning tokens). Not all models
+-   * support reasoning effort; see xAI's docs for the values each model accepts.
++   * tokens), `medium`, `high`, and `xhigh` (uses more reasoning tokens). Not all
++   * models support reasoning effort; see xAI's docs for the values each model accepts.
+    */
+-  reasoningEffort: z8.enum(["none", "low", "medium", "high"]).optional(),
++  reasoningEffort: z8.enum(["none", "low", "medium", "high", "xhigh"]).optional(),
+   logprobs: z8.boolean().optional(),
+   topLogprobs: z8.number().int().min(0).max(8).optional(),
+   /**
+diff --git a/src/responses/xai-responses-options.ts b/src/responses/xai-responses-options.ts
+index 126d5b5e7edf152f33f4b0cdf239d4b9332bdd2d..80c0963c52be89f696801df12e6a2f38ac7815ce 100644
+--- a/src/responses/xai-responses-options.ts
++++ b/src/responses/xai-responses-options.ts
+@@ -16,10 +16,10 @@ export const xaiLanguageModelResponsesOptions = z.object({
+   /**
+    * Constrains how hard a reasoning model thinks before responding.
+    * Possible values are `none` (disables reasoning), `low` (uses fewer reasoning
+-   * tokens), `medium` and `high` (uses more reasoning tokens). Not all models
+-   * support reasoning effort; see xAI's docs for the values each model accepts.
++   * tokens), `medium`, `high`, and `xhigh` (uses more reasoning tokens). Not all
++   * models support reasoning effort; see xAI's docs for the values each model accepts.
+    */
+-  reasoningEffort: z.enum(['none', 'low', 'medium', 'high']).optional(),
++  reasoningEffort: z.enum(['none', 'low', 'medium', 'high', 'xhigh']).optional(),
+   logprobs: z.boolean().optional(),
+   topLogprobs: z.number().int().min(0).max(8).optional(),
+   /**

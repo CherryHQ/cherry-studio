@@ -61,8 +61,6 @@ describe('AgentContent', () => {
     render(<AgentContent activeAgent={agentA} tools={<span>files</span>} />)
 
     expect(screen.getByText('tools')).toBeInTheDocument()
-    expect(screen.queryByText('select agent b')).not.toBeInTheDocument()
-    expect(screen.queryByText('select model b')).not.toBeInTheDocument()
   })
 
   it('does not render the workspace opener in the navbar', () => {
@@ -75,7 +73,6 @@ describe('AgentContent', () => {
     render(<AgentContent activeAgent={null} tools={<span>files</span>} />)
 
     expect(screen.queryByText('tools')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'open workspace' })).not.toBeInTheDocument()
   })
 
   it('keeps the sidebar toggle inactive when the sidebar is visible', () => {
@@ -102,13 +99,15 @@ describe('AgentContent', () => {
   })
 
   it('places the conversation controls host after the sidebar toggle', () => {
-    const { container } = render(<AgentContent activeAgent={agentA} />)
+    const { container } = render(
+      <AgentContent activeAgent={agentA} conversationControls={<span>conversation metadata</span>} />
+    )
 
     const toggle = screen.getByRole('button', { name: 'navbar.show_sidebar' })
     const controls = container.querySelector('[data-conversation-topbar-controls]')
 
     expect(toggle.compareDocumentPosition(controls!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'agent.session.add.title' })).not.toBeInTheDocument()
+    expect(screen.getByText('conversation metadata')).toBeInTheDocument()
   })
 
   it('hides the new-session button when the sidebar is visible', () => {

@@ -81,7 +81,15 @@ describe('PiStreamAdapter', () => {
 
     const meta = chunks.find((chunk) => chunk.type === 'message-metadata')
     expect(meta).toMatchObject({
-      messageMetadata: { totalTokens: 20, promptTokens: 15, completionTokens: 5, thoughtsTokens: 1 }
+      messageMetadata: {
+        totalTokens: 20,
+        stats: {
+          inputTokens: 15,
+          outputTokens: 5,
+          totalTokens: 20,
+          outputTokenDetails: { reasoningTokens: 1 }
+        }
+      }
     })
   })
 
@@ -128,10 +136,13 @@ describe('PiStreamAdapter', () => {
     // Each turn_end emits a running total; the last-wins chunk carries the whole turn.
     const metas = chunks.filter((chunk) => chunk.type === 'message-metadata')
     expect(metas.at(-1)).toMatchObject({
-      messageMetadata: { totalTokens: 350, promptTokens: 220, completionTokens: 130 }
+      messageMetadata: { totalTokens: 350, stats: { inputTokens: 220, outputTokens: 130, totalTokens: 350 } }
     })
     const message = await accumulate(chunks)
-    expect(message.metadata).toMatchObject({ totalTokens: 350, promptTokens: 220, completionTokens: 130 })
+    expect(message.metadata).toMatchObject({
+      totalTokens: 350,
+      stats: { inputTokens: 220, outputTokens: 130, totalTokens: 350 }
+    })
   })
 
   it('resets the token accumulator when a new turn starts (agent_start)', () => {
@@ -145,7 +156,7 @@ describe('PiStreamAdapter', () => {
     ])
     const metas = chunks.filter((chunk) => chunk.type === 'message-metadata')
     expect(metas.at(-1)).toMatchObject({
-      messageMetadata: { totalTokens: 15, promptTokens: 10, completionTokens: 5 }
+      messageMetadata: { totalTokens: 15, stats: { inputTokens: 10, outputTokens: 5, totalTokens: 15 } }
     })
   })
 

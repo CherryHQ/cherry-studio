@@ -57,9 +57,9 @@ function getStatusLabel(status: TaskStatus | undefined, t: ReturnType<typeof use
 function getStatusClassName(status: TaskStatus | undefined): string {
   switch (status) {
     case 'completed':
-      return 'border-success-border bg-success-bg text-success-text'
+      return 'border-success-border bg-success-subtle text-success-subtle-foreground'
     case 'in_progress':
-      return 'border-info-border bg-info-bg text-info-text'
+      return 'border-info-border bg-info-subtle text-info-subtle-foreground'
     default:
       return 'border-border bg-muted text-muted-foreground'
   }

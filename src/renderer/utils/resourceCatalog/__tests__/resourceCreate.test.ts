@@ -1,9 +1,10 @@
 import type { ResourceCreateValues } from '@renderer/types/resourceCatalog'
 import { describe, expect, it } from 'vitest'
 
-import { buildCreateAgentDto, buildCreateAssistantDto } from '../resourceCreate'
+import { buildCreateAgentCommand, buildCreateAssistantDto } from '../resourceCreate'
 
 const values: ResourceCreateValues = {
+  agentType: 'claude-code',
   avatar: '🤖',
   name: 'Researcher',
   modelId: 'provider::model',
@@ -26,7 +27,7 @@ describe('resource create DTO mapping', () => {
   })
 
   it('maps every agent-specific field', () => {
-    expect(buildCreateAgentDto(values, 'claude-code')).toEqual({
+    expect(buildCreateAgentCommand(values)).toEqual({
       type: 'claude-code',
       name: 'Researcher',
       model: 'provider::model',
@@ -34,26 +35,24 @@ describe('resource create DTO mapping', () => {
       smallModel: 'provider::model',
       description: 'Investigates a topic',
       instructions: 'Use cited sources',
+      knowledgeBaseIds: ['kb-1'],
       skillIds: ['skill-1'],
       configuration: {
         avatar: '🤖',
-        permission_mode: 'bypassPermissions'
+        permission_mode: 'default'
       }
     })
   })
 
-  it('uses Pi runtime defaults instead of Claude-only model tiers', () => {
-    expect(buildCreateAgentDto(values, 'pi')).toEqual({
+  it('omits unsupported model tiers and knowledge bases for pi agents', () => {
+    expect(buildCreateAgentCommand({ ...values, agentType: 'pi' })).toEqual({
       type: 'pi',
       name: 'Researcher',
       model: 'provider::model',
       description: 'Investigates a topic',
       instructions: 'Use cited sources',
       skillIds: ['skill-1'],
-      configuration: {
-        avatar: '🤖',
-        permission_mode: 'default'
-      }
+      configuration: { avatar: '🤖', permission_mode: 'default' }
     })
   })
 })

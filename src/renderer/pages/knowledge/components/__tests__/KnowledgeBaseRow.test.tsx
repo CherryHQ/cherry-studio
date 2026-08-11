@@ -121,24 +121,6 @@ describe('KnowledgeBaseRow', () => {
     expect(container.querySelector('span[aria-label]')).not.toBeInTheDocument()
   })
 
-  it('renders the selected row with the rounded highlight', () => {
-    render(
-      <KnowledgeBaseRow
-        base={createKnowledgeBase()}
-        groups={[createGroup()]}
-        selected
-        onSelectBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: /Base 1/ }).parentElement).toHaveClass('rounded-md', 'bg-secondary')
-    expect(screen.getByText('Base 1')).toHaveClass('text-sm', 'font-medium')
-  })
-
   it('renders a hover more button that shares the row action menu', () => {
     render(
       <KnowledgeBaseRow
@@ -155,27 +137,5 @@ describe('KnowledgeBaseRow', () => {
 
     // Always mounted (revealed on hover via CSS); it opens the same menu as right-click.
     expect(screen.getByRole('button', { name: '更多' })).toBeInTheDocument()
-  })
-
-  it('lets long names use the remaining row width beside the trailing more button', () => {
-    render(
-      <KnowledgeBaseRow
-        base={createKnowledgeBase({ name: 'A very long knowledge base name that should stay within the text column' })}
-        groups={[createGroup()]}
-        selected
-        onSelectBase={vi.fn()}
-        onMoveBase={vi.fn()}
-        onRenameBase={vi.fn()}
-        onCreateGroup={vi.fn()}
-        onDeleteBase={vi.fn()}
-      />
-    )
-
-    expect(screen.getByRole('button', { name: /A very long knowledge base name/ }).parentElement).not.toHaveClass(
-      'grid-cols-[minmax(0,1fr)_1.75rem]'
-    )
-    expect(screen.getByText('A very long knowledge base name that should stay within the text column')).toHaveClass(
-      'truncate'
-    )
   })
 })

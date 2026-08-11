@@ -5,8 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { AgentRuntimeConnectInput, AgentRuntimeEvent, AgentRuntimeUserInput } from '../types'
 
-const PI_ROOT = '/cherry/agents/pi'
-const PI_SESSIONS = '/cherry/agents/pi/sessions'
+const PI_ROOT = '/cherry/Data/Agents/.pi'
+const PI_SESSIONS = '/cherry/Data/Agents/.pi/sessions'
+const AGENT_DATA_PATH = '/cherry/Data/Agents/agent-1'
 const WORKSPACE = '/work/space'
 const SESSION_ID = 'sess-1'
 const SESSION_FILE = `${PI_SESSIONS}/2026-07-06T00-00-00-000Z_${SESSION_ID}.jsonl`
@@ -22,7 +23,8 @@ const mocks = vi.hoisted(() => ({
   readdirSync: vi.fn(),
   // autonomy collaborators
   listChannels: vi.fn(),
-  buildSystemPrompt: vi.fn(),
+  buildPromptParts: vi.fn(),
+  ensureAgentDataDirectory: vi.fn(),
   buildAutonomyToolDefinitions: vi.fn(),
   buildMcpToolDefinitions: vi.fn(),
   // pi fakes / captures
@@ -64,10 +66,13 @@ vi.mock('@data/services/AgentChannelService', () => ({ agentChannelService: { li
 vi.mock('@main/ai/skills/SkillService', () => ({
   skillService: { list: mocks.skillList, getSkillDirectory: mocks.getSkillDirectory }
 }))
+vi.mock('@main/ai/agents/agentDataDirectory', () => ({
+  ensureAgentDataDirectory: mocks.ensureAgentDataDirectory
+}))
 // PromptBuilder and tool adapters are exercised in their own suites; this is a wiring test.
 vi.mock('@main/ai/agents/prompt', () => ({
   PromptBuilder: class {
-    buildSystemPrompt = mocks.buildSystemPrompt
+    buildPromptParts = mocks.buildPromptParts
   }
 }))
 vi.mock('./piToolAdapter', () => ({
@@ -194,7 +199,8 @@ beforeEach(() => {
   })
   mocks.getAgent.mockReturnValue({ id: 'agent-1', model: 'p::m', instructions: 'Be helpful.' })
   mocks.listChannels.mockReturnValue([])
-  mocks.buildSystemPrompt.mockResolvedValue('AGENT PROMPT')
+  mocks.buildPromptParts.mockResolvedValue({ base: { kind: 'claude_code' }, context: 'AGENT PROMPT' })
+  mocks.ensureAgentDataDirectory.mockResolvedValue(AGENT_DATA_PATH)
   mocks.buildAutonomyToolDefinitions.mockReturnValue([
     { name: 'mcp__cherry-tools__cron' },
     { name: 'mcp__cherry-tools__notify' },
@@ -238,12 +244,14 @@ describe('PiRuntimeConnection', () => {
     expect(mocks.registerProvider).toHaveBeenCalledWith('p', expect.objectContaining({ apiKey: 'placeholder' }))
     expect(mocks.sessionCreate).toHaveBeenCalledWith(WORKSPACE, PI_SESSIONS, { id: SESSION_ID })
     expect(mocks.sessionOpen).not.toHaveBeenCalled()
-    // agent.instructions become the pi system prompt override; disk SYSTEM.md discovery is suppressed.
-    expect(mocks.loaderOpts).toMatchObject({ systemPrompt: '', appendSystemPrompt: [] })
-    expect(typeof (mocks.loaderOpts as { systemPromptOverride?: () => string }).systemPromptOverride).toBe('function')
-    expect((mocks.loaderOpts as { systemPromptOverride: () => string }).systemPromptOverride()).toBe(
+    // Disk SYSTEM/APPEND_SYSTEM discovery is suppressed while Cherry context and instructions append
+    // to pi's native coding-agent base prompt.
+    expect(
+      (mocks.loaderOpts as { systemPromptOverride: () => string | undefined }).systemPromptOverride()
+    ).toBeUndefined()
+    expect((mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()).toEqual([
       'AGENT PROMPT\n\nBe helpful.'
-    )
+    ])
   })
 
   it('reopens the session file by scanning for the resume session id', async () => {
@@ -872,16 +880,22 @@ describe('PiRuntimeConnection', () => {
       mocks.getById.mockReturnValue(agentSession)
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.buildSystemPrompt).toHaveBeenCalledWith(WORKSPACE, {}, false)
-      expect((mocks.loaderOpts as { systemPromptOverride: () => string }).systemPromptOverride()).toBe('AGENT PROMPT')
+      expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, {}, false, AGENT_DATA_PATH)
+      expect(
+        (mocks.loaderOpts as { systemPromptOverride: () => string | undefined }).systemPromptOverride()
+      ).toBeUndefined()
+      expect((mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()).toEqual(
+        ['AGENT PROMPT']
+      )
       expect(mocks.buildAutonomyToolDefinitions).toHaveBeenCalledWith(
         {
           agentId: 'agent-1',
           workspaceSource: { type: 'user', workspaceId: 'ws-1' },
           workspacePath: WORKSPACE,
+          getKnowledgeBaseIds: expect.any(Function),
           sourceChannelId: undefined
         },
-        { agentId: 'agent-1', workspacePath: WORKSPACE }
+        { agentId: 'agent-1', agentDataPath: AGENT_DATA_PATH }
       )
       expect(mocks.createOpts?.customTools).toEqual([
         { name: 'mcp__cherry-tools__cron' },
@@ -896,9 +910,9 @@ describe('PiRuntimeConnection', () => {
       mocks.getById.mockReturnValue(agentSession)
       await new PiRuntimeConnection(input).start()
 
-      expect(mocks.buildSystemPrompt).toHaveBeenCalledWith(WORKSPACE, {}, true)
-      expect((mocks.loaderOpts as { systemPromptOverride: () => string }).systemPromptOverride()).toBe(
-        'AGENT PROMPT\n\nBe terse.'
+      expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, {}, true, AGENT_DATA_PATH)
+      expect((mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()).toEqual(
+        ['AGENT PROMPT\n\nBe terse.']
       )
     })
 
@@ -950,9 +964,9 @@ describe('PiRuntimeConnection', () => {
 
       expect(mocks.createOpts?.customTools).toHaveLength(4)
       expect(mocks.buildAutonomyToolDefinitions).toHaveBeenCalledOnce()
-      expect(mocks.buildSystemPrompt).toHaveBeenCalledWith(WORKSPACE, undefined, true)
-      expect((mocks.loaderOpts as { systemPromptOverride: () => string }).systemPromptOverride()).toBe(
-        'AGENT PROMPT\n\nBe helpful.'
+      expect(mocks.buildPromptParts).toHaveBeenCalledWith(WORKSPACE, undefined, true, AGENT_DATA_PATH)
+      expect((mocks.loaderOpts as { appendSystemPromptOverride: () => string[] }).appendSystemPromptOverride()).toEqual(
+        ['AGENT PROMPT\n\nBe helpful.']
       )
     })
   })

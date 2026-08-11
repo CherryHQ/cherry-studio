@@ -1,4 +1,4 @@
-import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
+import type { MessageStreamingLayers, MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { useCallback, useMemo, useState } from 'react'
 
@@ -10,19 +10,51 @@ import { findLatestPendingPermissionRequest } from './variants/permissionRequest
 
 type ToolApprovalComposerOverridesOptions = {
   partsByMessageId: Record<string, CherryMessagePart[]>
+  streamingLayers?: MessageStreamingLayers
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
 }
 
 export function useToolApprovalComposerOverrides({
   partsByMessageId,
+  streamingLayers,
   onRespond
 }: ToolApprovalComposerOverridesOptions): readonly ComposerOverride[] {
   const [dismissedApprovalIds, setDismissedApprovalIds] = useState<ReadonlySet<string>>(() => new Set())
-  const askUserQuestionRequest = useMemo(
-    () => findLatestPendingAskUserQuestionRequest(partsByMessageId),
-    [partsByMessageId]
+  const settledHistoryParts = useMemo<Record<string, CherryMessagePart[]> | null>(() => {
+    if (!streamingLayers) return null
+
+    const liveMessageIdSet = new Set(streamingLayers.liveMessageIds)
+    const historyParts: Record<string, CherryMessagePart[]> = {}
+    for (const [messageId, parts] of Object.entries(streamingLayers.historyPartsByMessageId)) {
+      if (!liveMessageIdSet.has(messageId)) historyParts[messageId] = parts
+    }
+    return historyParts
+  }, [streamingLayers])
+  const currentParts = useMemo<Record<string, CherryMessagePart[]>>(() => {
+    if (!streamingLayers) return partsByMessageId
+
+    const liveParts: Record<string, CherryMessagePart[]> = {}
+    for (const messageId of streamingLayers.liveMessageIds) {
+      const parts = partsByMessageId[messageId]
+      if (parts) liveParts[messageId] = parts
+    }
+    return liveParts
+  }, [streamingLayers, partsByMessageId])
+  const historyAskUserQuestionRequest = useMemo(
+    () => (settledHistoryParts ? findLatestPendingAskUserQuestionRequest(settledHistoryParts) : null),
+    [settledHistoryParts]
   )
-  const permissionRequest = useMemo(() => findLatestPendingPermissionRequest(partsByMessageId), [partsByMessageId])
+  const currentAskUserQuestionRequest = useMemo(
+    () => findLatestPendingAskUserQuestionRequest(currentParts),
+    [currentParts]
+  )
+  const askUserQuestionRequest = currentAskUserQuestionRequest ?? historyAskUserQuestionRequest
+  const historyPermissionRequest = useMemo(
+    () => (settledHistoryParts ? findLatestPendingPermissionRequest(settledHistoryParts) : null),
+    [settledHistoryParts]
+  )
+  const currentPermissionRequest = useMemo(() => findLatestPendingPermissionRequest(currentParts), [currentParts])
+  const permissionRequest = currentPermissionRequest ?? historyPermissionRequest
   const visiblePermissionRequest =
     permissionRequest && !dismissedApprovalIds.has(permissionRequest.approvalId) ? permissionRequest : null
 

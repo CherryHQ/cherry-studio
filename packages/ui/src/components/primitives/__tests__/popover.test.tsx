@@ -2,10 +2,10 @@
 import '@testing-library/jest-dom/vitest'
 
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { useState } from 'react'
+import { Activity, useState } from 'react'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 
-import { Popover, PopoverContent, PopoverTrigger } from '../popover'
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '../popover'
 import { PortalContainerProvider } from '../portal-container'
 
 beforeAll(() => {
@@ -40,7 +40,61 @@ function ControlledForceMountPopover({ onOutsideClick }: { onOutsideClick: () =>
   )
 }
 
+function ActivityAnchoredPopover({ visible }: { visible: boolean }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Activity mode={visible ? 'visible' : 'hidden'}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverAnchor asChild>
+          <div data-testid="custom-anchor">
+            <PopoverTrigger asChild>
+              <button type="button" data-testid="anchor-trigger">
+                Open anchored selector
+              </button>
+            </PopoverTrigger>
+          </div>
+        </PopoverAnchor>
+        <PopoverContent data-testid="anchored-content">Content</PopoverContent>
+      </Popover>
+    </Activity>
+  )
+}
+
+const rect = (x: number, y: number, width: number, height: number) => DOMRect.fromRect({ x, y, width, height })
+
+const popperAnchorWidth = () =>
+  screen.getByTestId('anchored-content').parentElement?.style.getPropertyValue('--radix-popper-anchor-width')
+
 describe('PopoverContent', () => {
+  it('keeps a custom anchor after its Activity is hidden and shown', async () => {
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement
+    ) {
+      if (this.dataset.testid === 'custom-anchor') return rect(120, 40, 260, 36)
+      if (this.dataset.testid === 'anchor-trigger') return rect(120, 40, 100, 36)
+      return rect(0, 0, 100, 40)
+    })
+
+    try {
+      const { rerender } = render(<ActivityAnchoredPopover visible />)
+
+      fireEvent.click(screen.getByTestId('anchor-trigger'))
+      await waitFor(() => expect(popperAnchorWidth()).toBe('260px'))
+
+      fireEvent.click(screen.getByTestId('anchor-trigger'))
+      await waitFor(() => expect(screen.queryByTestId('anchored-content')).not.toBeInTheDocument())
+
+      rerender(<ActivityAnchoredPopover visible={false} />)
+      rerender(<ActivityAnchoredPopover visible />)
+
+      fireEvent.click(screen.getByTestId('anchor-trigger'))
+      await waitFor(() => expect(popperAnchorWidth()).toBe('260px'))
+    } finally {
+      rectSpy.mockRestore()
+    }
+  })
+
   it('does not render closed content by default', () => {
     render(
       <Popover open={false}>

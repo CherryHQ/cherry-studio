@@ -45,7 +45,7 @@ const SiblingNavigator: FC<Props> = ({ messageId }) => {
   const { group, activeIndex } = siblings
 
   return (
-    <div className="inline-flex select-none items-center gap-0.5 text-[11px] text-foreground-secondary leading-none">
+    <div className="inline-flex select-none items-center gap-0.5 text-[11px] text-muted-foreground leading-none">
       <button
         type="button"
         className="flex size-4.5 items-center justify-center rounded transition-colors hover:bg-muted hover:text-foreground"

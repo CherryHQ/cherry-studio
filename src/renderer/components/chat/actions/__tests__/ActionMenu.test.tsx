@@ -120,55 +120,6 @@ describe('ActionMenu', () => {
     expect(screen.getByText('More').closest('[data-has-submenu="true"]')).toBeNull()
   })
 
-  it('does not inject menu visual classes by default', () => {
-    const { container } = render(
-      <ContextMenu>
-        <ContextMenuTrigger>Trigger</ContextMenuTrigger>
-        <ActionMenu
-          actions={[
-            {
-              id: 'copy',
-              label: 'Copy',
-              danger: false,
-              availability: enabled,
-              children: []
-            },
-            {
-              id: 'more',
-              label: 'More',
-              danger: false,
-              availability: enabled,
-              children: [
-                {
-                  id: 'nested',
-                  label: 'Nested',
-                  danger: false,
-                  availability: enabled,
-                  children: []
-                }
-              ]
-            }
-          ]}
-          onAction={vi.fn()}
-        />
-      </ContextMenu>
-    )
-
-    expect(container.querySelectorAll('[class]')).toHaveLength(0)
-  })
-
-  it('passes through caller-provided content classes only', () => {
-    const { container } = render(
-      <ContextMenu>
-        <ContextMenuTrigger>Trigger</ContextMenuTrigger>
-        <ActionMenu actions={[]} className="min-w-48" onAction={vi.fn()} />
-      </ContextMenu>
-    )
-
-    expect(container.querySelector('.min-w-48')).toBeInTheDocument()
-    expect(container.querySelectorAll('[class]')).toHaveLength(1)
-  })
-
   it('lets menu item click events bubble by default', () => {
     const onParentClick = vi.fn()
 

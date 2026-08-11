@@ -22,6 +22,7 @@ export interface AgentRuntimeCapabilities {
   modelTiers: boolean
   /** Heartbeat orchestration. */
   heartbeat: boolean
+  knowledgeBases: boolean
   mcp: boolean
   skills: boolean
   /** Runtime's built-in tools are surfaced in the agent-tools access list (`useAgentTools`) through
@@ -35,10 +36,11 @@ export interface AgentRuntimeCapabilities {
   isModelCompatible: ((provider: Provider | undefined, model: Model) => boolean) | null
   /** providerMetadata.cherry.transport tag stamped by the runtime's stream adapter. */
   transport: string
-  /** Edit-dialog catalog rows; i18nKeyBase = 'agent.tools.builtin.<key>'. */
+  /** Edit-dialog catalog rows. */
   builtinTools: () => readonly {
     id: string
-    i18nKeyBase: string
+    labelKey: string
+    descriptionKey: string
     labelFallback?: string
     descriptionFallback?: string
     category: string
@@ -74,11 +76,12 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     permissionModes: ALL_PERMISSION_MODES,
     modelTiers: true,
     heartbeat: true,
+    knowledgeBases: true,
     mcp: true,
     skills: true,
     claudeRegistryTools: true,
     slashCommands: CLAUDE_CODE_BUILTIN_COMMANDS,
-    createDefaults: { permissionMode: 'bypassPermissions' },
+    createDefaults: { permissionMode: 'default' },
     // Claude Code reaches non-native providers through the local API Gateway, so its picker must use
     // the same routability rule as the gateway model catalog.
     isModelCompatible: (_provider, model) => isGatewayRoutableModel(model),
@@ -86,7 +89,8 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     builtinTools: () =>
       claudeUserFacingTools().map((tool) => ({
         id: tool.name,
-        i18nKeyBase: `agent.tools.builtin.${tool.key}`,
+        labelKey: `agent.tools.builtin.${tool.key}.label`,
+        descriptionKey: `agent.tools.builtin.${tool.key}.description`,
         labelFallback: tool.label,
         descriptionFallback: tool.description,
         category: tool.category
@@ -99,6 +103,7 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     permissionModes: ALL_PERMISSION_MODES.filter((mode) => mode !== 'plan'),
     modelTiers: false,
     heartbeat: true,
+    knowledgeBases: false,
     // Selected MCP servers are bridged as approval-gated pi custom tools.
     mcp: true,
     skills: true,
@@ -116,7 +121,8 @@ export const AGENT_RUNTIME_CAPABILITIES = {
     builtinTools: () =>
       PI_BUILTIN_TOOLS.map((tool) => ({
         id: tool.name,
-        i18nKeyBase: `agent.tools.builtin.${tool.name}`,
+        labelKey: `agent.tools.builtin.${tool.name}.label`,
+        descriptionKey: `agent.tools.builtin.${tool.name}.description`,
         category: tool.category
       }))
   }

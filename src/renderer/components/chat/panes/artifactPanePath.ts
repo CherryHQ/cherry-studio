@@ -1,11 +1,11 @@
 import { joinPath } from '@renderer/utils/path'
+import { type AbsoluteFilePath, AbsoluteFilePathSchema } from '@shared/types/file'
+import { canonicalizeFilePath } from '@shared/utils/file'
 
 /**
  * Pure path / selection helpers shared by `ArtifactPane` and the
- * `useArtifactFileTreeModel` hook. Extracted into their own module so the
- * hook (which the agent page imports to lift the tree model above the
- * Host↔Overlay remount boundary) and the presentational component can both
- * depend on them without forming an import cycle.
+ * `useArtifactFileTreeModel` hook. Keeping them separate lets the model and
+ * presentational component share path semantics without an import cycle.
  */
 
 /** Synthetic id/path for the workspace root node in the projected file tree. */
@@ -15,6 +15,10 @@ export interface ArtifactPaneFileSelection {
   workspacePath: string
   filePath: string
 }
+
+/** The canonical absolute path a selection edits — the `useFileEditSession` key. */
+export const getArtifactPaneSelectionPath = (selection: ArtifactPaneFileSelection): AbsoluteFilePath =>
+  canonicalizeFilePath(`${selection.workspacePath}/${selection.filePath}`)
 
 export const getPathBasename = (path: string): string => {
   const trimmed = path.trim().replace(/[\\/]+$/, '')
@@ -66,18 +70,20 @@ export const resolveArtifactPaneFileSelection = (
   const normalized = normalizeTreePath(rawPath)
   if (!normalized) return null
 
-  if (workspacePath) {
-    const workspaceFilePath = normalizeArtifactPaneFilePath(workspacePath, normalized)
+  const parsedWorkspacePath = workspacePath ? AbsoluteFilePathSchema.safeParse(workspacePath) : null
+  if (parsedWorkspacePath?.success) {
+    const validWorkspacePath = parsedWorkspacePath.data
+    const workspaceFilePath = normalizeArtifactPaneFilePath(validWorkspacePath, normalized)
     if (workspaceFilePath) {
       if (!hasParentTraversal(workspaceFilePath)) {
-        return { workspacePath, filePath: workspaceFilePath }
+        return { workspacePath: validWorkspacePath, filePath: workspaceFilePath }
       }
       // Deliberate: a workspace-relative artifact path that climbs out via `..` is allowed — the
       // agent legitimately creates files outside the workspace — but re-root it to the resolved
       // file's directory (like the absolute-path branch below) so the displayed tree root and the
       // previewed file stay consistent, instead of showing the workspace while reading outside it.
       // Sandboxing, if ever needed, is the consumer's responsibility at the trust boundary.
-      const resolvedAbsolute = joinPath(normalizeTreePath(workspacePath), workspaceFilePath)
+      const resolvedAbsolute = joinPath(normalizeTreePath(validWorkspacePath), workspaceFilePath)
       const escapedWorkspacePath = getPathDirname(resolvedAbsolute)
       const escapedFilePath = getPathBasename(resolvedAbsolute)
       return escapedWorkspacePath && escapedFilePath && escapedFilePath !== escapedWorkspacePath

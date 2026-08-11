@@ -1,5 +1,6 @@
-export { canonicalizeAbsolutePath } from './canonicalize'
+export { type CanonicalFilePath, CanonicalFilePathSchema, canonicalizeFilePath } from './canonicalize'
 export {
+  archiveExts,
   audioExts,
   codeLangExts,
   customTextExts,
@@ -13,6 +14,15 @@ export {
 export { sanitizeFilename, validateFileName, type ValidateFileNameResult } from './filename'
 export { fileTypeMap, getFileTypeByExt } from './fileType'
 export { createFileEntryHandle, createFilePathHandle, isFileEntryHandle, isFilePathHandle } from './handle'
+export {
+  type PosixRelativeFilePath,
+  PosixRelativeFilePathSchema,
+  type RelativeFilePath,
+  resolvePosixRelativeSegments,
+  resolveWindowsRelativeSegments,
+  type WindowsRelativeFilePath,
+  WindowsRelativeFilePathSchema
+} from './relativeFilePath'
 export {
   type CreateTreeIpcResult,
   type DirectoryTreeOptions,
